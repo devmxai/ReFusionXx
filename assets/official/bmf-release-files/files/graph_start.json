@@ -1,0 +1,61 @@
+{
+  "mode": "normal",
+  "input_streams": [],
+  "output_streams": [],
+  "option": {
+    "dump_graph": 1
+  },
+  "nodes": [
+    {
+      "id": 0,
+      "option": {
+        "input_path": "../../files/big_bunny_10s_30fps.mp4"
+      },
+      "input_streams": [],
+      "output_streams": [
+        {
+          "identifier": "ffmpeg_decoder_0_1",
+          "alias": ""
+        }
+      ],
+      "module_info": {
+        "name": "MockDecoder",
+        "type": "",
+        "path": "",
+        "entry": ""
+      },
+      "input_manager": "immediate",
+      "scheduler": 0,
+      "meta_info": {
+        "premodule_id": -1,
+        "callback_bindings": []
+      }
+    },
+    {
+      "id": 1,
+      "option": {
+        "name": "scale",
+        "para": "100:200"
+      },
+      "input_streams": [
+        {
+          "identifier": "ffmpeg_decoder_0_1",
+          "alias": ""
+        }
+      ],
+      "output_streams": [],
+      "module_info": {
+        "name": "pass_through",
+        "type": "",
+        "path": "",
+        "entry": ""
+      },
+      "input_manager": "immediate",
+      "scheduler": 0,
+      "meta_info": {
+        "premodule_id": -1,
+        "callback_bindings": []
+      }
+    }
+  ]
+}

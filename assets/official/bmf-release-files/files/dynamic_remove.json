@@ -1,0 +1,9 @@
+{
+  "nodes": [
+    {
+      "input_manager": "immediate",
+      "alias": "decoder1",
+      "action": "remove"
+    }
+  ]
+}

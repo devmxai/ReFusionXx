@@ -1,0 +1,25 @@
+name: Greetings
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  greeting:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Send Greetings
+        uses: actions/first-interaction@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          issue-message: |
+            Thank you for your feedback! We have received your question and will deal with it later.
+            If any developer is interested in this issue, please feel free to claim it. 
+            We are extremely grateful to every contributor, and we currently have an ongoing open-source rewards program — every valid merge request qualifies for a reward!
+            If you have any questions or need further assistance, please don't hesitate to reach out to us.
+            Thank you again for your support!
+            [Join our Feishu Group](https://applink.larkoffice.com/client/chat/chatter/add_by_link?link_token=57dhb755-be95-4729-89f2-8500599dccdd)
+            [Learn more about our rewards program](https://bytedance.larkoffice.com/docx/YJSVdaSaIo6pmgxf9WgcZcvwnge)
+          

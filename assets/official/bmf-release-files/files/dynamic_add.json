@@ -1,0 +1,67 @@
+{
+  "nodes": [
+    {
+      "option": {
+        "input_path": "../../files/big_bunny_10s_30fps.mp4"
+      },
+      "input_streams": [],
+      "output_streams": [
+        {
+          "identifier": "ffmpeg_decoder_1_1"
+        },
+        {
+          "identifier": "ffmpeg_decoder_1_2"
+        }
+      ],
+      "input_manager": "immediate",
+      "module_info": {
+        "name": "c_ffmpeg_decoder",
+        "type": "",
+        "path": "",
+        "entry": ""
+      },
+      "scheduler": 0,
+      "alias": "decoder1",
+      "action": "add",
+      "id": 2
+    },
+    {
+      "option": {
+        "video_params": {
+          "codec": "h264",
+          "width": 320,
+          "height": 240,
+          "crf": 23,
+          "preset": "veryfast"
+        },
+        "audio_params": {
+          "channels": 2,
+          "bit_rate": 131000,
+          "codec": "aac",
+          "sample_rate": 44100
+        },
+        "output_path": "out1.mp4"
+      },
+      "input_streams": [
+        {
+          "identifier": "ffmpeg_decoder_1_1"
+        },
+        {
+          "identifier": "ffmpeg_decoder_1_2"
+        }
+      ],
+      "output_streams": [],
+      "input_manager": "immediate",
+      "module_info": {
+        "name": "c_ffmpeg_encoder",
+        "type": "",
+        "path": "",
+        "entry": ""
+      },
+      "scheduler": 1,
+      "alias": "encoder1",
+      "action": "add",
+      "id": 3
+    }
+  ]
+}

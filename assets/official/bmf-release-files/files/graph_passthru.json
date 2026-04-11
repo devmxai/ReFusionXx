@@ -1,0 +1,56 @@
+{
+  "mode": "normal",
+  "nodes": [
+    {
+      "option": {
+        "input_path": "../../files/big_bunny_10s_30fps.mp4"
+      },
+      "input_streams": [],
+      "output_streams": [
+        {
+          "identifier": "ffmpeg_decoder_0_1"
+        },
+        {
+          "identifier": "ffmpeg_decoder_0_2"
+        }
+      ],
+      "input_manager": "immediate",
+      "module_info": {
+        "name": "c_ffmpeg_decoder",
+        "type": "",
+        "path": "",
+        "entry": ""
+      },
+      "scheduler": 0,
+      "alias": "decoder0",
+      "id": 0
+    },
+    {
+      "input_streams": [
+        {
+          "identifier": "ffmpeg_decoder_0_1"
+        },
+        {
+          "identifier": "ffmpeg_decoder_0_2"
+        }
+      ],
+      "output_streams": [
+      ],
+      "input_manager": "immediate",
+      "module_info": {
+        "name": "pass_through",
+        "type": "",
+        "path": "",
+        "entry": ""
+      },
+      "scheduler": 1,
+      "alias": "pass_through0",
+      "id": 1
+    }
+  ],
+  "output_streams": [],
+  "option": {
+    "dump_graph": 1
+  },
+  "input_streams": []
+}

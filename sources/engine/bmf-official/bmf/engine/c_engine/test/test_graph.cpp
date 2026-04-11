@@ -1,0 +1,289 @@
+/*
+ * Copyright 2023 Babit Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+#include "../include/common.h"
+#include "../include/graph.h"
+#include <bmf/sdk/log.h>
+
+#include <gtest/gtest.h>
+
+#include <fstream>
+
+#include <unistd.h>
+
+USE_BMF_ENGINE_NS
+USE_BMF_SDK_NS
+
+#ifdef BMF_ENABLE_FUZZTEST
+#include <fuzztest/fuzztest.h>
+#include <sstream>
+
+using namespace fuzztest;
+
+namespace {
+std::vector<std::string> GraphConfigSeeds() {
+    static const std::vector<std::string> seed_files{
+        "../../files/graph_start.json",
+        "../../files/graph_c.json",
+        "../../files/graph.json",
+        "../../files/graph_c.json",
+        "../../files/graph_passthru.json",
+        "../../files/filter_opt_c_graph.json",
+        "../../files/filter_opt_graph_c.json"
+    };
+    std::vector<std::string> seeds{};
+    for (const auto &seed_file : seed_files) {
+        std::ifstream file(seed_file);
+        std::stringstream ss;
+        ss << file.rdbuf();
+        seeds.emplace_back(ss.str());
+    }
+    return seeds;
+}
+} // namepsace
+#endif // BMF_ENABLE_FUZZTEST
+
+TEST(graph, start) {
+    nlohmann::json graph_json;
+    std::string config_file = "../../files/graph_start.json";
+    std::ifstream gs(config_file);
+    gs >> graph_json;
+    GraphConfig graph_config(graph_json);
+    std::map<int, std::shared_ptr<Module>> pre_modules;
+    std::map<int, std::shared_ptr<ModuleCallbackLayer>> callback_bindings;
+    std::shared_ptr<Graph> graph =
+        std::make_shared<Graph>(graph_config, pre_modules, callback_bindings);
+    graph->start();
+    graph->close();
+}
+
+void SignalHandle2(const char *data, int size) {
+    std::ofstream fs("glog_dump.log", std::ios::app);
+    std::string str = std::string(data, size);
+    fs << str;
+    fs.close();
+
+    BMFLOG(BMF_ERROR) << str;
+}
+// TEST(graph, decode){
+////    google::InitGoogleLogging("main");
+//    google::SetStderrLogging(google::INFO);
+//    google::InstallFailureSignalHandler();
+//    google::InstallFailureWriter(&SignalHandle2);
+//    setenv("PYTHONPATH",
+//           "../../../3rd_party/pyav/:.:../python_sdk",
+//           1);
+//    Py_Initialize();
+//
+////
+//    time_t time1=clock();
+//    std::string config_file = "../../files/decode_graph.json";
+//    GraphConfig graph_config(config_file);
+//    std::map<int, std::shared_ptr<Module> > pre_modules;
+//    std::shared_ptr<Graph> graph = std::make_shared<Graph>(graph_config,
+//    pre_modules);
+//    std::cout<<"init graph success"<<std::endl;
+//    PyEval_InitThreads();
+//    PyEval_ReleaseThread(PyThreadState_Get());
+//    graph->start();
+//    graph->close();
+//    time_t time2 = clock();
+//    std::cout<<"time:"<<time2-time1<<std::endl;
+//    PyGILState_Ensure();
+//}
+TEST(graph, decode_encode) {
+    BMFLOG_SET_LEVEL(BMF_INFO);
+
+    time_t time1 = clock();
+    nlohmann::json graph_json;
+    std::string config_file = "../../files/graph.json";
+    std::ifstream gs(config_file);
+    gs >> graph_json;
+    GraphConfig graph_config(graph_json);
+    std::map<int, std::shared_ptr<Module>> pre_modules;
+    std::map<int, std::shared_ptr<ModuleCallbackLayer>> callback_bindings;
+    std::shared_ptr<Graph> graph =
+        std::make_shared<Graph>(graph_config, pre_modules, callback_bindings);
+    std::cout << "init graph success" << std::endl;
+
+    graph->start();
+    graph->close();
+    time_t time2 = clock();
+    std::cout << "time:" << time2 - time1 << std::endl;
+}
+
+TEST(graph, c_decode_encode) {
+    BMFLOG_SET_LEVEL(BMF_INFO);
+
+    time_t time1 = clock();
+    nlohmann::json graph_json;
+    std::string config_file = "../../files/graph_c.json";
+    std::ifstream gs(config_file);
+    gs >> graph_json;
+    GraphConfig graph_config(graph_json);
+    std::map<int, std::shared_ptr<Module>> pre_modules;
+    std::map<int, std::shared_ptr<ModuleCallbackLayer>> callback_bindings;
+    std::shared_ptr<Graph> graph =
+        std::make_shared<Graph>(graph_config, pre_modules, callback_bindings);
+    std::cout << "init graph success" << std::endl;
+
+    //    PyEval_ReleaseThread(PyThreadState_Get());
+    graph->start();
+    graph->close();
+    time_t time2 = clock();
+    std::cout << "time:" << time2 - time1 << std::endl;
+}
+
+TEST(graph, dynamic_add) {
+    BMFLOG_SET_LEVEL(BMF_INFO);
+
+    time_t time1 = clock();
+    std::string config_file = "../../files/graph_dyn.json";
+    std::string dyn_config_file = "../../files/dynamic_add.json";
+    GraphConfig graph_config(config_file);
+    GraphConfig dyn_config(dyn_config_file);
+    std::map<int, std::shared_ptr<Module>> pre_modules;
+    std::map<int, std::shared_ptr<ModuleCallbackLayer>> callback_bindings;
+    std::shared_ptr<Graph> graph =
+        std::make_shared<Graph>(graph_config, pre_modules, callback_bindings);
+    std::cout << "init graph success" << std::endl;
+
+    graph->start();
+    usleep(400000);
+
+    std::cout << "graph dynamic add nodes" << std::endl;
+    graph->update(dyn_config);
+
+    graph->close();
+    time_t time2 = clock();
+    std::cout << "time:" << time2 - time1 << std::endl;
+}
+
+TEST(graph, dynamic_remove) {
+    BMFLOG_SET_LEVEL(BMF_INFO);
+
+    time_t time1 = clock();
+    std::string config_file = "../../files/graph_passthru.json";
+    std::string dyn_add_config_file = "../../files/dynamic_passthru.json";
+    std::string dyn_remove_config_file = "../../files/dynamic_remove.json";
+    GraphConfig graph_config(config_file);
+    GraphConfig dyn_add_config(dyn_add_config_file);
+    GraphConfig dyn_remove_config(dyn_remove_config_file);
+    std::map<int, std::shared_ptr<Module>> pre_modules;
+    std::map<int, std::shared_ptr<ModuleCallbackLayer>> callback_bindings;
+    std::shared_ptr<Graph> graph =
+        std::make_shared<Graph>(graph_config, pre_modules, callback_bindings);
+    std::cout << "init graph success" << std::endl;
+
+    graph->start();
+    usleep(10000);
+
+    std::cout << "graph dynamic add nodes" << std::endl;
+    graph->update(dyn_add_config);
+    usleep(10000);
+
+    std::cout << "graph dynamic remove nodes" << std::endl;
+    graph->update(dyn_remove_config);
+    sleep(2);
+
+    graph->force_close(); // here only the pass_through_module lefted
+    time_t time2 = clock();
+    std::cout << "time:" << time2 - time1 << std::endl;
+}
+
+TEST(graph, decode_filter_encode) {
+    BMFLOG_SET_LEVEL(BMF_INFO);
+    nlohmann::json graph_json;
+    std::string config_file = "../../files/filter_opt_graph.json";
+    std::ifstream gs(config_file);
+    gs >> graph_json;
+    GraphConfig graph_config(graph_json);
+    std::map<int, std::shared_ptr<Module>> pre_modules;
+    std::map<int, std::shared_ptr<ModuleCallbackLayer>> callback_bindings;
+    std::shared_ptr<Graph> graph =
+        std::make_shared<Graph>(graph_config, pre_modules, callback_bindings);
+    graph->start();
+    graph->close();
+}
+
+TEST(graph, c_decode_filter_encode) {
+    BMFLOG_SET_LEVEL(BMF_INFO);
+
+    nlohmann::json graph_json;
+    std::string config_file = "../../files/filter_opt_graph_c.json";
+    std::ifstream gs(config_file);
+    gs >> graph_json;
+    GraphConfig graph_config(graph_json);
+    std::map<int, std::shared_ptr<Module>> pre_modules;
+    std::map<int, std::shared_ptr<ModuleCallbackLayer>> callback_bindings;
+    std::shared_ptr<Graph> graph =
+        std::make_shared<Graph>(graph_config, pre_modules, callback_bindings);
+
+    graph->start();
+    graph->close();
+}
+// TEST(graph, multi_process) {
+//    google::InitGoogleLogging("main");
+//    google::SetStderrLogging(google::INFO);
+//    google::InstallFailureSignalHandler();
+//    google::InstallFailureWriter(&SignalHandle2);
+//
+//    for (int i = 1; i <= 100; i++) {
+//        std::cout<<"********test time:"<<i<<std::endl;
+//        LOG(ERROR)<<"start";
+//        std::string config_file = "../../files/multi.json";
+//        GraphConfig graph_config(config_file);
+//        std::map<int, std::shared_ptr<Module> > pre_modules;
+//        std::shared_ptr<Graph> graph = std::make_shared<Graph>(graph_config,
+//        pre_modules);
+//        graph->start();
+//        graph->close();
+//        std::cout<<"close graph*******"<<std::endl;
+////        sleep(10);
+//        LOG(ERROR)<<"end"<<std::endl;
+//    }
+//    google::ShutdownGoogleLogging();
+//}
+
+#ifdef BMF_ENABLE_FUZZTEST
+void fuzz_graph_config(std::string config_str) {
+    nlohmann::json graph_json;
+    try {
+        graph_json = nlohmann::json::parse(config_str);
+    } catch (nlohmann::json::parse_error&) {
+        return;
+    }
+    // graph_json["option"]["dump_graph"] = 0; 
+    std::map<int, std::shared_ptr<Module>> pre_modules;
+    std::map<int, std::shared_ptr<ModuleCallbackLayer>> callback_bindings;
+    GraphConfig graph_config;
+    try {
+        graph_config = GraphConfig(graph_json);
+    } catch (std::logic_error&) { // logic errors are expected for invalid json config file
+        return; 
+    } catch(nlohmann::json::exception&) { // TODO: Fix Graph ctor so that json error is considered a bug
+        return;
+    } catch(...) { // any other error is not expected
+        ASSERT_TRUE(false);
+    }
+    std::shared_ptr<Graph> graph;
+    graph = std::make_shared<Graph>(graph_config, pre_modules, callback_bindings);
+    graph->start(); // non-blocking
+    graph->close();
+}
+
+FUZZ_TEST(graph, fuzz_graph_config)
+    .WithDomains(Arbitrary<std::string>().WithSeeds(GraphConfigSeeds()));
+#endif // BMF_ENABLE_FUZZTEST

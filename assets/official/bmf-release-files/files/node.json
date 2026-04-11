@@ -1,0 +1,29 @@
+{
+  "id": 0,
+  "option": {
+    "input_path": "../../files/img.mp4"
+  },
+  "input_streams": [],
+  "output_streams": [
+    {
+      "identifier": "audio:ffmpeg_decoder_0_2",
+      "alias": ""
+    },
+    {
+      "identifier": "video:ffmpeg_decoder_0_1",
+      "alias": ""
+    }
+  ],
+  "module_info": {
+    "name": "pass_through",
+    "type": "",
+    "path": "",
+    "entry": ""
+  },
+  "input_manager": "immediate",
+  "scheduler": 0,
+  "meta_info": {
+    "premodule_id": -1,
+    "callback_bindings": []
+  }
+}

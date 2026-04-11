@@ -1,0 +1,15 @@
+{
+    "c_ffmpeg_decoder": {
+        "type": "c++",
+        "class": "CFFDecoder"
+    },
+    "c_ffmpeg_encoder": {
+        "type": "c++",
+        "class": "CFFEncoder"
+    },
+    "c_ffmpeg_filter": {
+        "type": "c++",
+        "class": "CFFFilter"
+    }
+}
+

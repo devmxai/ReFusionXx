@@ -1,0 +1,21 @@
+# Root workspace hygiene
+.DS_Store
+.playwright-cli/
+output/
+vendor_drop/
+
+# Large archive already represented by extracted contents
+assets/official/files.tar.gz
+
+# Imported UI generated files
+sources/ui/fusionx-clean-ui-2/.dart_tool/
+sources/ui/fusionx-clean-ui-2/build/
+sources/ui/fusionx-clean-ui-2/android/.gradle/
+sources/ui/fusionx-clean-ui-2/android/local.properties
+
+# Imported engine generated files
+sources/engine/bmf-official/bmf_lite/build_android_non_qnn_manual/
+
+# Generic editor noise
+**/.idea/
+**/*.iml

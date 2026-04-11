@@ -1,0 +1,29 @@
+{
+  "nodes": [
+    {
+      "option": {
+        "input_path": "../../files/big_bunny_10s_30fps.mp4"
+      },
+      "input_streams": [],
+      "output_streams": [
+        {
+          "identifier": "pass_through0.0_0"
+        },
+        {
+          "identifier": "pass_through0.0_1"
+        }
+      ],
+      "input_manager": "immediate",
+      "module_info": {
+        "name": "c_ffmpeg_decoder",
+        "type": "",
+        "path": "",
+        "entry": ""
+      },
+      "scheduler": 0,
+      "alias": "decoder1",
+      "action": "add",
+      "id": 2
+    }
+  ]
+}
