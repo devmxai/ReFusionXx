@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fusionx_clean_ui_2/features/editor/domain/models/professional_motion_text_preset_serialization.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_text_preset_serialization.dart';
 
 void main() {
   test('motion-only preset JSON auto-generates required preset fields', () {
@@ -27,7 +27,9 @@ void main() {
     expect(preset.animationBlocks.first.id, 'fadeIn_0');
   });
 
-  test('motion-only preset JSON supports blocks alias and start/duration aliases', () {
+  test(
+      'motion-only preset JSON supports blocks alias and start/duration aliases',
+      () {
     const source = '''
 {
   "text": "Alias Test",
@@ -54,7 +56,8 @@ void main() {
     );
   });
 
-  test('parser accepts markdown fenced JSON and stringified animationBlocks', () {
+  test('parser accepts markdown fenced JSON and stringified animationBlocks',
+      () {
     const source = '''
 ```json
 {

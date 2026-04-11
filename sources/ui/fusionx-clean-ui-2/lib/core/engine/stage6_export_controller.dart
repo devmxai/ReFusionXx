@@ -500,10 +500,9 @@ enum ExportFrameRatePreset {
 class Stage6ExportController extends ChangeNotifier {
   Stage6ExportController();
 
-  static const String methodChannelName =
-      'com.fusionx.fusionx_clean_ui_2/stage6_export';
+  static const String methodChannelName = 'com.refusion.app/stage6_export';
   static const String eventChannelName =
-      'com.fusionx.fusionx_clean_ui_2/stage6_export_events';
+      'com.refusion.app/stage6_export_events';
 
   static const MethodChannel _methodChannel = MethodChannel(methodChannelName);
   static const EventChannel _eventChannel = EventChannel(eventChannelName);

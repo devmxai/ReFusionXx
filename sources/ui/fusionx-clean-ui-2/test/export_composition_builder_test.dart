@@ -1,16 +1,16 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fusionx_clean_ui_2/features/editor/domain/models/export_authored_visual_surface_models.dart';
-import 'package:fusionx_clean_ui_2/features/editor/domain/models/export_composition_builder.dart';
-import 'package:fusionx_clean_ui_2/features/editor/domain/models/export_composition_models.dart';
-import 'package:fusionx_clean_ui_2/features/editor/domain/models/export_motion_text_program_models.dart';
-import 'package:fusionx_clean_ui_2/features/editor/domain/models/professional_motion_animation_models.dart';
-import 'package:fusionx_clean_ui_2/features/editor/domain/models/professional_motion_compilation_models.dart';
-import 'package:fusionx_clean_ui_2/features/editor/domain/models/professional_motion_fx_models.dart';
-import 'package:fusionx_clean_ui_2/features/editor/domain/models/professional_motion_models.dart';
-import 'package:fusionx_clean_ui_2/features/editor/domain/models/professional_motion_text_raster_models.dart';
-import 'package:fusionx_clean_ui_2/features/editor/domain/models/professional_motion_text_render_models.dart';
-import 'package:fusionx_clean_ui_2/features/editor/domain/models/professional_motion_text_models.dart';
-import 'package:fusionx_clean_ui_2/features/editor/presentation/models/timeline_time.dart';
+import 'package:refusion_app/features/editor/domain/models/export_authored_visual_surface_models.dart';
+import 'package:refusion_app/features/editor/domain/models/export_composition_builder.dart';
+import 'package:refusion_app/features/editor/domain/models/export_composition_models.dart';
+import 'package:refusion_app/features/editor/domain/models/export_motion_text_program_models.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_animation_models.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_compilation_models.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_fx_models.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_models.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_text_raster_models.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_text_render_models.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_text_models.dart';
+import 'package:refusion_app/features/editor/presentation/models/timeline_time.dart';
 
 void main() {
   const builder = ExportCompositionBuilder();

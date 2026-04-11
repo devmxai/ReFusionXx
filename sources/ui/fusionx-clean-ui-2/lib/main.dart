@@ -4,5 +4,5 @@ import 'app.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const FusionXCleanUiApp());
+  runApp(const ReFusionApp());
 }

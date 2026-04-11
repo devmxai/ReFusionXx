@@ -6,6 +6,10 @@
 - repository: `https://github.com/devmxai/ReFusionXx`
 - tag target branch at creation time: `main`
 - app version: `1.0.0-beta.1+1`
+- app name: `ReFusion`
+- package id: `com.refusion.app`
+- canonical version source:
+  [pubspec.yaml](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/pubspec.yaml)
 - current timeline stage: `Stage 9 - Performance Hardening`
 - timeline stage status: `active`
 - export/effects track status: `paused at documented handoff`
@@ -123,10 +127,10 @@ The validation completed for this snapshot includes:
 - `flutter build apk --debug`
 - latest `adb install -r .../app-debug.apk` completed on the connected device
   with:
-  - package: `com.fusionx.fusionx_clean_ui_2`
+  - package: `com.refusion.app`
   - device: `SM-S908N`
   - `versionName = 1.0.0-beta.1`
-  - `lastUpdateTime = 2026-04-11 04:19:30`
+  - `lastUpdateTime = 2026-04-11 04:34:01`
 
 ## Resume Point
 

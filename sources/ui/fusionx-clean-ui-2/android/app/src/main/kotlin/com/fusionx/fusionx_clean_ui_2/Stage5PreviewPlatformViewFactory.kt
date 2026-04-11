@@ -1,4 +1,4 @@
-package com.fusionx.fusionx_clean_ui_2
+package com.refusion.app
 
 import android.content.Context
 import io.flutter.plugin.common.StandardMessageCodec

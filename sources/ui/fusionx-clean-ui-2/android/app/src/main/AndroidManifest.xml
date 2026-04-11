@@ -7,7 +7,7 @@
         android:maxSdkVersion="32" />
 
     <application
-        android:label="FusionX Clean UI 2"
+        android:label="ReFusion"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <provider

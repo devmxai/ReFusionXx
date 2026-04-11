@@ -5,10 +5,10 @@
 // 'flutter create' template.
 
 // The application's name. By default this is also the title of the Flutter window.
-PRODUCT_NAME = fusionx_clean_ui_2
+PRODUCT_NAME = ReFusion
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.fusionx.fusionxCleanUi2
+PRODUCT_BUNDLE_IDENTIFIER = com.refusion.app
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.fusionx. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 com.refusion. All rights reserved.

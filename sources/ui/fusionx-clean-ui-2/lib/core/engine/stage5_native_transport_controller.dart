@@ -78,12 +78,10 @@ class Stage5TransportState {
 class Stage5NativeTransportController extends ChangeNotifier {
   Stage5NativeTransportController();
 
-  static const String methodChannelName =
-      'com.fusionx.fusionx_clean_ui_2/stage5_transport';
+  static const String methodChannelName = 'com.refusion.app/stage5_transport';
   static const String eventChannelName =
-      'com.fusionx.fusionx_clean_ui_2/stage5_transport_events';
-  static const String previewViewType =
-      'com.fusionx.fusionx_clean_ui_2/stage5_preview';
+      'com.refusion.app/stage5_transport_events';
+  static const String previewViewType = 'com.refusion.app/stage5_preview';
 
   static const MethodChannel _methodChannel = MethodChannel(methodChannelName);
   static const EventChannel _eventChannel = EventChannel(eventChannelName);

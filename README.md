@@ -6,6 +6,13 @@ This repository starts from the latest validated legacy workspace snapshot and
 preserves the full codebase, plans, and documentation as the new official
 `main` baseline.
 
+Official shipped app identity in this baseline:
+
+- app name: `ReFusion`
+- package id: `com.refusion.app`
+- canonical shipped version source:
+  [pubspec.yaml](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/pubspec.yaml)
+
 Legacy documentation still contains the original local filesystem paths from the
 source workspace where this snapshot was authored. Those references are kept
 intentionally for continuity with the existing execution notes.
@@ -180,10 +187,10 @@ Latest pushed timeline checkpoint in `BETA1`:
   - `flutter analyze`
   - `flutter build apk --debug`
 - this pushed checkpoint has also been installed on the connected device:
-  - package: `com.fusionx.fusionx_clean_ui_2`
+  - package: `com.refusion.app`
   - device: `SM-S908N`
   - `versionName = 1.0.0-beta.1`
-  - `lastUpdateTime = 2026-04-11 04:19:30`
+  - `lastUpdateTime = 2026-04-11 04:34:01`
 - this pushed checkpoint is still **not yet accepted** until the manipulation
   interaction is checked on device for:
   - animated entry feel
@@ -281,8 +288,8 @@ Current export planning checkpoint:
       - the old authored-motion high-FPS blocker above `30fps` was removed, so
         `60fps`/`90fps` now reach the real encoder capability gate
       - latest installed real-device build after that fix:
-        - package `com.fusionx.fusionx_clean_ui_2`
-        - device `lastUpdateTime = 2026-04-10 05:44:38`
+        - package `com.refusion.app`
+        - device `lastUpdateTime = 2026-04-11 04:34:01`
       - urgent newly confirmed parity blocker:
         - motion-text blur still does **not** match preview semantics
         - preview uses a real text-layer/image-space blur via
@@ -650,7 +657,7 @@ Current stage focus:
     - `./gradlew app:compileDebugKotlin`
     - `flutter build apk --debug`
     - latest debug APK reinstalled successfully on device `R3CT10LKLSX`
-    - latest app launch confirmed on `com.fusionx.fusionx_clean_ui_2/.MainActivity`
+    - latest app launch confirmed on `com.refusion.app/.MainActivity`
     - edit icons stay disabled by default and activate only when a selected imported clip exists
     - split/trim validity is now enforced on action press instead of changing toolbar activation with playhead movement
 - scrub regression fix now also includes:

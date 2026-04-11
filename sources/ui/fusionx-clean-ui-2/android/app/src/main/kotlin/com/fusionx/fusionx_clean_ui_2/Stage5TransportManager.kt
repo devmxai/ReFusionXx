@@ -1,4 +1,4 @@
-package com.fusionx.fusionx_clean_ui_2
+package com.refusion.app
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -35,9 +35,9 @@ import kotlin.math.roundToLong
 @UnstableApi
 class Stage5TransportManager(context: Context) {
     companion object {
-        const val METHOD_CHANNEL_NAME = "com.fusionx.fusionx_clean_ui_2/stage5_transport"
-        const val EVENT_CHANNEL_NAME = "com.fusionx.fusionx_clean_ui_2/stage5_transport_events"
-        const val PREVIEW_VIEW_TYPE = "com.fusionx.fusionx_clean_ui_2/stage5_preview"
+        const val METHOD_CHANNEL_NAME = "com.refusion.app/stage5_transport"
+        const val EVENT_CHANNEL_NAME = "com.refusion.app/stage5_transport_events"
+        const val PREVIEW_VIEW_TYPE = "com.refusion.app/stage5_preview"
         private const val POSITION_EMIT_INTERVAL_MS = 16L
         private const val MULTI_ITEM_SCRUB_TOLERANCE_FRACTION = 0.002
         // Cross-source playback continuity benefits from warming the next adjacent item

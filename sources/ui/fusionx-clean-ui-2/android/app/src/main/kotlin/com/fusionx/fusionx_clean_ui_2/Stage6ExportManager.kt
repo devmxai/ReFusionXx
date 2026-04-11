@@ -1,4 +1,4 @@
-package com.fusionx.fusionx_clean_ui_2
+package com.refusion.app
 
 import android.content.ContentValues
 import android.content.Context
@@ -65,8 +65,8 @@ class Stage6ExportManager(
     private val previewTransportManager: Stage5TransportManager? = null,
 ) {
     companion object {
-        const val METHOD_CHANNEL_NAME = "com.fusionx.fusionx_clean_ui_2/stage6_export"
-        const val EVENT_CHANNEL_NAME = "com.fusionx.fusionx_clean_ui_2/stage6_export_events"
+        const val METHOD_CHANNEL_NAME = "com.refusion.app/stage6_export"
+        const val EVENT_CHANNEL_NAME = "com.refusion.app/stage6_export_events"
         const val SUPPORTED_EXPORT_GRAPH_SCHEMA_VERSION = "export-graph.v1alpha1"
         private val SUPPORTED_EXPORT_INTERPOLATION_KINDS =
             setOf("linear", "hold", "easeIn", "easeOut", "easeInOut", "cubicBezier")

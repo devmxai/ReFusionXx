@@ -7,11 +7,12 @@
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:fusionx_clean_ui_2/app.dart';
+import 'package:refusion_app/app.dart';
 
 void main() {
-  testWidgets('Clean UI app renders editor chrome', (WidgetTester tester) async {
-    await tester.pumpWidget(const FusionXCleanUiApp());
+  testWidgets('Clean UI app renders editor chrome',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(const ReFusionApp());
 
     expect(find.text('Add'), findsOneWidget);
   });

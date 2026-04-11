@@ -1,9 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fusionx_clean_ui_2/features/editor/domain/models/professional_motion_models.dart';
-import 'package:fusionx_clean_ui_2/features/editor/domain/models/professional_motion_text_models.dart';
-import 'package:fusionx_clean_ui_2/features/editor/domain/models/professional_motion_text_raster_models.dart';
-import 'package:fusionx_clean_ui_2/features/editor/domain/models/professional_motion_text_render_models.dart';
-import 'package:fusionx_clean_ui_2/features/editor/presentation/models/timeline_time.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_models.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_text_models.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_text_raster_models.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_text_render_models.dart';
+import 'package:refusion_app/features/editor/presentation/models/timeline_time.dart';
 
 void main() {
   MotionTextRenderNode buildRenderNode({

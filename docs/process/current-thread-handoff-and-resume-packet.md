@@ -30,6 +30,10 @@ Latest pushed snapshot:
 - branch: `main`
 - tag: `BETA1`
 - pushed app version: `1.0.0-beta.1+1`
+- official app name: `ReFusion`
+- official package id: `com.refusion.app`
+- canonical version source:
+  [pubspec.yaml](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/pubspec.yaml)
 - pushed release note:
   [BETA1](/Users/mx/Documents/InGeneBMFPro/docs/releases/BETA1.md)
 - repository baseline meaning:
@@ -111,9 +115,9 @@ Latest recorded validation for `BETA1`:
 - latest `adb install` completed on the connected real device:
   - device serial: `R3CT10LKLSX`
   - model: `SM-S908N`
-  - package: `com.fusionx.fusionx_clean_ui_2`
+  - package: `com.refusion.app`
   - `versionName = 1.0.0-beta.1`
-  - `lastUpdateTime = 2026-04-11 04:19:30`
+  - `lastUpdateTime = 2026-04-11 04:34:01`
 
 ## Active Workstreams
 

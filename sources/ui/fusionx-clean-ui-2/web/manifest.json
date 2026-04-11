@@ -1,11 +1,11 @@
 {
-    "name": "fusionx_clean_ui_2",
-    "short_name": "fusionx_clean_ui_2",
+    "name": "ReFusion",
+    "short_name": "ReFusion",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "ReFusion editor application.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

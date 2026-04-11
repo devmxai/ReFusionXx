@@ -1,6 +1,6 @@
-# FusionX Clean UI 2
+# ReFusion
 
-FusionX Clean UI 2 is a standalone Flutter project that preserves the editor UI
+ReFusion is a standalone Flutter project that preserves the editor UI
 shell from the original FusionX editor while intentionally excluding all media
 backend logic.
 
