@@ -211,7 +211,7 @@ class _TimelineTrackLaneProfile {
 
   static const _TimelineTrackLaneProfile video = _TimelineTrackLaneProfile(
     shortLabel: 'VID',
-    accentColor: Color(0xFF7BFF43),
+    accentColor: Color(0xFF729C80),
     rowHeight: 42,
     controlHitSize: 42,
     headerTopInset: 1,
@@ -223,7 +223,7 @@ class _TimelineTrackLaneProfile {
 
   static const _TimelineTrackLaneProfile image = _TimelineTrackLaneProfile(
     shortLabel: 'IMG',
-    accentColor: Color(0xFF63D9FF),
+    accentColor: Color(0xFF7D91B6),
     rowHeight: 42,
     controlHitSize: 42,
     headerTopInset: 1,
@@ -235,7 +235,7 @@ class _TimelineTrackLaneProfile {
 
   static const _TimelineTrackLaneProfile audio = _TimelineTrackLaneProfile(
     shortLabel: 'AUD',
-    accentColor: Color(0xFFFFC457),
+    accentColor: Color(0xFFA98A5F),
     rowHeight: 42,
     controlHitSize: 42,
     headerTopInset: 1,
@@ -247,7 +247,7 @@ class _TimelineTrackLaneProfile {
 
   static const _TimelineTrackLaneProfile text = _TimelineTrackLaneProfile(
     shortLabel: 'TXT',
-    accentColor: Color(0xFFF5F5F5),
+    accentColor: Color(0xFF9A85B6),
     rowHeight: 42,
     controlHitSize: 42,
     headerTopInset: 1,
@@ -259,7 +259,7 @@ class _TimelineTrackLaneProfile {
 
   static const _TimelineTrackLaneProfile lipSync = _TimelineTrackLaneProfile(
     shortLabel: 'LIP',
-    accentColor: Color(0xFF5EE6C9),
+    accentColor: Color(0xFF6DA7A1),
     rowHeight: 42,
     controlHitSize: 42,
     headerTopInset: 1,
@@ -283,6 +283,59 @@ class _TimelineTrackLaneProfile {
         return lipSync;
     }
   }
+}
+
+Color _timelineTrackAccentColor(TimelineTrackKind kind) =>
+    _TimelineTrackLaneProfile.forKind(kind).accentColor;
+
+Color _timelineClipAccentColor({
+  required TimelineTrackKind trackKind,
+  required TimelineClipTone tone,
+}) {
+  if (tone == TimelineClipTone.placeholder) {
+    return FxPalette.clipFill;
+  }
+  final accent = _timelineTrackAccentColor(trackKind);
+  return switch (tone) {
+    TimelineClipTone.hero => accent,
+    TimelineClipTone.heroMuted => Color.lerp(
+          accent,
+          FxPalette.surfaceRaised,
+          0.18,
+        ) ??
+        accent,
+    TimelineClipTone.placeholder => FxPalette.clipFill,
+  };
+}
+
+Color _timelineClipSurfaceColor(TimelineTrackKind trackKind) {
+  final accent = _timelineTrackAccentColor(trackKind);
+  return Color.alphaBlend(
+    accent.withOpacity(0.18),
+    FxPalette.surfaceRaised,
+  );
+}
+
+Color _timelineSelectionAccentColor(TimelineTrackKind trackKind) {
+  final accent = _timelineTrackAccentColor(trackKind);
+  return Color.lerp(accent, Colors.white, 0.34) ?? Colors.white;
+}
+
+class _TimelineAnimationLaneMetrics {
+  static const double sectionTopSpacing = 8;
+  static const double sectionBottomSpacing = 6;
+  static const double rowHeight = 30;
+  static const double rowGap = 6;
+}
+
+class _TimelineAnimationClipGeometry {
+  const _TimelineAnimationClipGeometry({
+    required this.left,
+    required this.width,
+  });
+
+  final double left;
+  final double width;
 }
 
 class _TimelineStackDensityProfile {
@@ -339,6 +392,7 @@ class TimelinePanel extends StatefulWidget {
     this.onClipDoubleTap,
     this.onClipReorder,
     this.onClipTimeShift,
+    this.onTrackAnimateTap,
     this.onBackgroundTap,
     this.assetPathResolver,
     this.onScrubStateChanged,
@@ -363,6 +417,7 @@ class TimelinePanel extends StatefulWidget {
   final ValueChanged<String>? onClipDoubleTap;
   final TimelineClipReorderCallback? onClipReorder;
   final TimelineClipTimeShiftCallback? onClipTimeShift;
+  final ValueChanged<TimelineTrackData>? onTrackAnimateTap;
   final VoidCallback? onBackgroundTap;
   final TimelineAssetPathResolver? assetPathResolver;
   final ValueChanged<bool>? onScrubStateChanged;
@@ -513,8 +568,21 @@ class _TimelinePanelState extends State<TimelinePanel>
       _isReorderMode ||
       _isDropSettling;
 
+  double _animationRowsHeightForTrack(TimelineTrackData track) {
+    if (track.animationLanes.isEmpty) {
+      return 0;
+    }
+    return _TimelineAnimationLaneMetrics.sectionTopSpacing +
+        (track.animationLanes.length *
+            _TimelineAnimationLaneMetrics.rowHeight) +
+        (math.max(0, track.animationLanes.length - 1) *
+            _TimelineAnimationLaneMetrics.rowGap) +
+        _TimelineAnimationLaneMetrics.sectionBottomSpacing;
+  }
+
   double _rowHeightForTrack(TimelineTrackData track) =>
-      _TimelineTrackLaneProfile.forKind(track.kind).rowHeight;
+      _TimelineTrackLaneProfile.forKind(track.kind).rowHeight +
+      _animationRowsHeightForTrack(track);
 
   double _tracksContentHeight(List<TimelineTrackData> tracks) {
     if (tracks.isEmpty) {
@@ -3060,6 +3128,9 @@ class _TimelinePanelState extends State<TimelinePanel>
                                                                 clip,
                                                               );
                                                             },
+                                                            onTrackAnimateTap:
+                                                                widget
+                                                                    .onTrackAnimateTap,
                                                             onBackgroundTap:
                                                                 widget.onBackgroundTap ==
                                                                         null
@@ -3227,6 +3298,7 @@ class _TimelineTrackRow extends StatelessWidget {
     required this.onClipLongPressStart,
     required this.onClipLongPressMove,
     required this.onClipLongPressEnd,
+    required this.onTrackAnimateTap,
     required this.onBackgroundTap,
     required this.onManualPanDragStart,
     required this.onManualPanDragUpdate,
@@ -3264,6 +3336,7 @@ class _TimelineTrackRow extends StatelessWidget {
   final void Function(TimelineClipData clip, double deltaDx)?
       onClipLongPressMove;
   final ValueChanged<TimelineClipData>? onClipLongPressEnd;
+  final ValueChanged<TimelineTrackData>? onTrackAnimateTap;
   final VoidCallback? onBackgroundTap;
   final GestureDragStartCallback onManualPanDragStart;
   final GestureDragUpdateCallback onManualPanDragUpdate;
@@ -3323,6 +3396,13 @@ class _TimelineTrackRow extends StatelessWidget {
   bool get _isActiveRow =>
       selectedClipId != null &&
       track.clips.any((clip) => clip.id == selectedClipId);
+
+  bool get _showsAnimateButton =>
+      onTrackAnimateTap != null &&
+      track.kind == TimelineTrackKind.text &&
+      track.clips.any((clip) => clip.type == TimelineClipType.media);
+
+  double get _animateButtonWidth => _showsAnimateButton ? 32 : 0;
 
   bool _isMainTrackMediaClip(TimelineClipData clip) =>
       track.kind == TimelineTrackKind.video &&
@@ -3447,14 +3527,17 @@ class _TimelineTrackRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final clipChildren = <Widget>[];
     final splitBridges = <Widget>[];
+    final clipGeometryById = <String, _TimelineAnimationClipGeometry>{};
     final panZoneRight = leadingOffset + _controlHitSize + controlGap;
     final clipStart = panZoneRight;
+    final mainRowHeight = _laneProfile.rowHeight;
     final clipTop = _laneProfile.clipTopInset;
     final clipHeight = _laneProfile.clipHeight;
     var cursor = clipStart;
+    final controlLeft = leadingOffset - _animateButtonWidth;
     final scrubExclusions = <_TimelineScrubExclusion>[
       _TimelineScrubExclusion(
-        left: leadingOffset,
+        left: controlLeft,
         right: panZoneRight,
       ),
     ];
@@ -3488,6 +3571,12 @@ class _TimelineTrackRow extends StatelessWidget {
               : trimGeometry.left;
       final trimTouchInset =
           showsTrimChrome ? _TimelineTrimChrome.handleTouchInset : 0.0;
+      if (!isGapPlaceholder && clip.type == TimelineClipType.media) {
+        clipGeometryById[clip.id] = _TimelineAnimationClipGeometry(
+          left: previewLeft,
+          width: trimGeometry.width,
+        );
+      }
       final clipWidget = isGapPlaceholder
           ? null
           : clip.type == TimelineClipType.placeholder
@@ -3664,6 +3753,49 @@ class _TimelineTrackRow extends StatelessWidget {
       clipStart + 12,
     );
     final interactiveWidth = math.max(rowWidth, contentWidth);
+    final animationLaneChildren = <Widget>[];
+    final visibleAnimationLanes = track.animationLanes
+        .where((lane) => clipGeometryById.containsKey(lane.targetClipId))
+        .toList(growable: false);
+    for (var index = 0; index < visibleAnimationLanes.length; index++) {
+      final lane = visibleAnimationLanes[index];
+      final geometry = clipGeometryById[lane.targetClipId];
+      if (geometry == null) {
+        continue;
+      }
+      final top = mainRowHeight +
+          _TimelineAnimationLaneMetrics.sectionTopSpacing +
+          (index *
+              (_TimelineAnimationLaneMetrics.rowHeight +
+                  _TimelineAnimationLaneMetrics.rowGap));
+      scrubExclusions.add(
+        _TimelineScrubExclusion(
+          left: controlLeft,
+          right: math.min(
+            interactiveWidth,
+            geometry.left + geometry.width + 18,
+          ),
+        ),
+      );
+      animationLaneChildren.add(
+        Positioned(
+          left: controlLeft,
+          top: top,
+          child: SizedBox(
+            width: interactiveWidth - controlLeft,
+            height: _TimelineAnimationLaneMetrics.rowHeight,
+            child: _TimelineAnimationLaneRow(
+              label: lane.label,
+              clipLeft: geometry.left - controlLeft,
+              clipWidth: geometry.width,
+              keyframeStops: lane.normalizedKeyframeStops,
+              isSelected: selectedClipId == lane.targetClipId,
+              onTap: () => onClipSelected(lane.targetClipId),
+            ),
+          ),
+        ),
+      );
+    }
 
     return SizedBox(
       width: interactiveWidth,
@@ -3677,7 +3809,7 @@ class _TimelineTrackRow extends StatelessWidget {
                 accentColor: _laneProfile.accentColor,
                 leadingOffset: leadingOffset,
                 controlColumnWidth: panZoneRight - leadingOffset,
-                rowHeight: rowHeight,
+                rowHeight: mainRowHeight,
                 clipTopInset: clipTop,
                 clipHeight: clipHeight,
                 isReorder: false,
@@ -3691,7 +3823,7 @@ class _TimelineTrackRow extends StatelessWidget {
             exclusions: scrubExclusions,
           ),
           Positioned(
-            left: leadingOffset,
+            left: controlLeft,
             top: 0,
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
@@ -3701,20 +3833,36 @@ class _TimelineTrackRow extends StatelessWidget {
               onHorizontalDragEnd: onManualPanDragEnd,
               onHorizontalDragCancel: onManualPanDragCancel,
               child: SizedBox(
-                width: panZoneRight - leadingOffset,
-                height: rowHeight,
+                width: panZoneRight - controlLeft,
+                height: mainRowHeight,
                 child: Align(
                   alignment: Alignment.topLeft,
-                  child: Padding(
-                    padding: EdgeInsets.only(top: _laneProfile.headerTopInset),
-                    child: _TimelineTrackLaneBadge(
-                      size: controlTileSize,
-                      icon: _trackIcon,
-                      label: _laneProfile.shortLabel,
-                      accentColor: _laneProfile.accentColor,
-                      isReorder: false,
-                      isEmphasized: _isActiveRow,
-                    ),
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      if (_showsAnimateButton)
+                        Positioned(
+                          left: 0,
+                          top: _laneProfile.headerTopInset + 5,
+                          child: _TimelineAnimateButton(
+                            onTap: () => onTrackAnimateTap?.call(track),
+                          ),
+                        ),
+                      Padding(
+                        padding: EdgeInsets.only(
+                          left: _animateButtonWidth,
+                          top: _laneProfile.headerTopInset,
+                        ),
+                        child: _TimelineTrackLaneBadge(
+                          size: controlTileSize,
+                          icon: _trackIcon,
+                          label: _laneProfile.shortLabel,
+                          accentColor: _laneProfile.accentColor,
+                          isReorder: false,
+                          isEmphasized: _isActiveRow,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -3728,6 +3876,7 @@ class _TimelineTrackRow extends StatelessWidget {
                 children: [
                   ...clipChildren,
                   ...splitBridges,
+                  ...animationLaneChildren,
                   if (selectedTrimClipChild != null) selectedTrimClipChild,
                   if (selectedTrimChromeChild != null) selectedTrimChromeChild,
                 ],
@@ -3769,6 +3918,288 @@ class _TimelineScrubSurface extends StatelessWidget {
   }
 }
 
+class _TimelineAnimateButton extends StatelessWidget {
+  const _TimelineAnimateButton({
+    required this.onTap,
+  });
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Ink(
+          width: 26,
+          height: 26,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white.withOpacity(0.055),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.11),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.18),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Center(
+            child: Icon(
+              Icons.play_arrow_rounded,
+              size: 16,
+              color: Colors.white.withOpacity(0.76),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TimelineAnimationLaneRow extends StatelessWidget {
+  const _TimelineAnimationLaneRow({
+    required this.label,
+    required this.clipLeft,
+    required this.clipWidth,
+    required this.keyframeStops,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String label;
+  final double clipLeft;
+  final double clipWidth;
+  final List<double> keyframeStops;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    const labelLeft = -24.0;
+    final resolvedLabelWidth = math.max(
+      82.0,
+      math.min(124.0, clipLeft - 8 - labelLeft),
+    );
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            left: labelLeft,
+            top: 2,
+            child: _TimelineAnimationLabelChip(
+              label: label,
+              isSelected: isSelected,
+              width: resolvedLabelWidth,
+            ),
+          ),
+          Positioned(
+            left: clipLeft,
+            top: 3,
+            child: _TimelineAnimationSegment(
+              width: clipWidth,
+              keyframeStops: keyframeStops,
+              isSelected: isSelected,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TimelineAnimationLabelChip extends StatelessWidget {
+  const _TimelineAnimationLabelChip({
+    required this.label,
+    required this.isSelected,
+    required this.width,
+  });
+
+  final String label;
+  final bool isSelected;
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: SizedBox(
+        width: width,
+        height: 24,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                Colors.white.withOpacity(isSelected ? 0.1 : 0.05),
+                Colors.white.withOpacity(isSelected ? 0.055 : 0.026),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: Colors.white.withOpacity(isSelected ? 0.22 : 0.11),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(isSelected ? 0.22 : 0.12),
+                blurRadius: isSelected ? 16 : 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(isSelected ? 0.97 : 0.78),
+                    fontSize: 9.7,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.02,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TimelineAnimationSegment extends StatelessWidget {
+  const _TimelineAnimationSegment({
+    required this.width,
+    required this.keyframeStops,
+    required this.isSelected,
+  });
+
+  final double width;
+  final List<double> keyframeStops;
+  final bool isSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final resolvedWidth = math.max(30.0, width);
+    final resolvedStops = keyframeStops.isEmpty
+        ? const <double>[0.0, 1.0]
+        : keyframeStops
+            .map((stop) => stop.clamp(0.0, 1.0))
+            .toList(growable: false);
+    return RepaintBoundary(
+      child: Container(
+        width: resolvedWidth,
+        height: 24,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.white.withOpacity(isSelected ? 0.065 : 0.038),
+              Colors.white.withOpacity(isSelected ? 0.032 : 0.016),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: Colors.white.withOpacity(isSelected ? 0.24 : 0.14),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: FxPalette.accent.withOpacity(isSelected ? 0.1 : 0.045),
+              blurRadius: isSelected ? 12 : 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned(
+              left: 10,
+              right: 10,
+              top: 11,
+              child: Container(
+                height: 1.5,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.white.withOpacity(0.12),
+                      Colors.white.withOpacity(isSelected ? 0.34 : 0.24),
+                      Colors.white.withOpacity(0.12),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
+            for (var index = 0; index < resolvedStops.length; index++)
+              Positioned(
+                left: (resolvedWidth - 12) * resolvedStops[index],
+                top: 6,
+                child: _TimelineAnimationKeyframeMarker(
+                  isPrimary: index == 0 || index == resolvedStops.length - 1,
+                  isSelected: isSelected,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TimelineAnimationKeyframeMarker extends StatelessWidget {
+  const _TimelineAnimationKeyframeMarker({
+    required this.isPrimary,
+    required this.isSelected,
+  });
+
+  final bool isPrimary;
+  final bool isSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final fillColor = isPrimary
+        ? FxPalette.accent.withOpacity(isSelected ? 0.96 : 0.82)
+        : Colors.white.withOpacity(isSelected ? 0.82 : 0.62);
+    return Transform.rotate(
+      angle: math.pi / 4,
+      child: Container(
+        width: isPrimary ? 10 : 8,
+        height: isPrimary ? 10 : 8,
+        decoration: BoxDecoration(
+          color: fillColor,
+          borderRadius: BorderRadius.circular(2.5),
+          border: Border.all(
+            color: Colors.white.withOpacity(isSelected ? 0.46 : 0.28),
+            width: 0.9,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: fillColor.withOpacity(isPrimary ? 0.22 : 0.12),
+              blurRadius: isPrimary ? 6 : 4,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _TimelineTrackLaneBadge extends StatelessWidget {
   const _TimelineTrackLaneBadge({
     required this.size,
@@ -3800,8 +4231,8 @@ class _TimelineTrackLaneBadge extends StatelessWidget {
     final labelColor = Colors.white.withOpacity(
       isEmphasized ? 0.72 : (isReorder ? 0.64 : 0.5),
     );
-    final accentLineColor = Colors.white.withOpacity(
-      isEmphasized ? 0.36 : (isReorder ? 0.28 : 0.2),
+    final accentLineColor = accentColor.withOpacity(
+      isEmphasized ? 0.82 : (isReorder ? 0.68 : 0.54),
     );
     return Container(
       width: size,
@@ -4730,17 +5161,18 @@ class _TimelineMediaClip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = switch (tone) {
-      TimelineClipTone.hero => const Color(0xFF7BFF43),
-      TimelineClipTone.heroMuted => const Color(0xFF71E84B),
-      TimelineClipTone.placeholder => FxPalette.clipFill,
-    };
+    final accent = _timelineClipAccentColor(
+      trackKind: trackKind,
+      tone: tone,
+    );
+    final selectionAccent = _timelineSelectionAccentColor(trackKind);
     final hasVideoFrames =
         trackKind == TimelineTrackKind.video && assetPath != null;
     final hasImagePreview =
         trackKind == TimelineTrackKind.image && assetPath != null;
-    final baseColor =
-        hasVideoFrames || hasImagePreview ? const Color(0xFF252525) : accent;
+    final baseColor = hasVideoFrames || hasImagePreview
+        ? _timelineClipSurfaceColor(trackKind)
+        : accent;
     final borderRadius = BorderRadius.horizontal(
       left: Radius.circular(joinLeft ? 2 : 6),
       right: Radius.circular(joinRight ? 2 : 6),
@@ -4748,9 +5180,9 @@ class _TimelineMediaClip extends StatelessWidget {
     final clipBorderColor = usesTrimChrome
         ? Colors.transparent
         : isSelected
-            ? Colors.white.withOpacity(0.74)
-            : Colors.white.withOpacity(0.06);
-    final clipBorderWidth = usesTrimChrome ? 0.0 : (isSelected ? 1.35 : 0.9);
+            ? Colors.white.withOpacity(0.9)
+            : Colors.white.withOpacity(0.08);
+    final clipBorderWidth = usesTrimChrome ? 0.0 : (isSelected ? 1.55 : 0.95);
     final showsFallbackInterior = !hasVideoFrames && !hasImagePreview;
     final showSpeedBadge = speedMode == TimelineClipSpeedMode.curve ||
         (playbackRate - 1.0).abs() > 0.001;
@@ -4794,9 +5226,9 @@ class _TimelineMediaClip extends StatelessWidget {
                     ),
                   if (isSelected && !usesTrimChrome)
                     BoxShadow(
-                      color: Colors.white.withOpacity(0.12),
-                      blurRadius: 14,
-                      spreadRadius: 0.35,
+                      color: selectionAccent.withOpacity(0.2),
+                      blurRadius: 16,
+                      spreadRadius: 0.5,
                     ),
                 ],
               ),
@@ -4821,6 +5253,24 @@ class _TimelineMediaClip extends StatelessWidget {
                       _TimelineImageFill(path: assetPath!)
                     else
                       ColoredBox(color: accent),
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            selectionAccent.withOpacity(
+                              hasVideoFrames || hasImagePreview ? 0.16 : 0.12,
+                            ),
+                            Colors.transparent,
+                            Colors.black.withOpacity(
+                              hasVideoFrames || hasImagePreview ? 0.06 : 0.02,
+                            ),
+                          ],
+                          stops: const [0.0, 0.52, 1.0],
+                        ),
+                      ),
+                    ),
                     if (showsFallbackInterior)
                       _TimelineFallbackClipInterior(
                         width: width,
@@ -4840,9 +5290,12 @@ class _TimelineMediaClip extends StatelessWidget {
                       ),
                     ),
                     if (isSelected && !usesTrimChrome)
-                      const Positioned.fill(
+                      Positioned.fill(
                         child: IgnorePointer(
-                          child: _TimelineSelectedPulse(),
+                          child: _TimelineSelectedPulse(
+                            borderRadius: borderRadius,
+                            accentColor: selectionAccent,
+                          ),
                         ),
                       ),
                     if (showSpeedBadge)
@@ -4928,19 +5381,19 @@ class _TimelineReorderClipCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = switch (tone) {
-      TimelineClipTone.hero => const Color(0xFF7BFF43),
-      TimelineClipTone.heroMuted => const Color(0xFF71E84B),
-      TimelineClipTone.placeholder => FxPalette.clipFill,
-    };
+    final accent = _timelineClipAccentColor(
+      trackKind: trackKind,
+      tone: tone,
+    );
     final hasVideoFrames =
         trackKind == TimelineTrackKind.video && assetPath != null;
     final hasImagePreview =
         trackKind == TimelineTrackKind.image && assetPath != null;
     final progress = morphProgress.clamp(0.0, 1.0);
     final radiusValue = lerpDouble(6, 14, progress) ?? 14;
-    final baseColor =
-        hasVideoFrames || hasImagePreview ? const Color(0xFF202020) : accent;
+    final baseColor = hasVideoFrames || hasImagePreview
+        ? _timelineClipSurfaceColor(trackKind)
+        : accent;
     final borderColor = Color.lerp(
           Colors.white.withOpacity(0.04),
           isDragged
@@ -5148,8 +5601,8 @@ class _TimelineTrackLaneUnderlay extends StatelessWidget {
     final neutralFill = Colors.white.withOpacity(
       isActive ? (isReorder ? 0.028 : 0.02) : (isReorder ? 0.018 : 0.012),
     );
-    final railColor = Colors.white.withOpacity(
-      isActive ? (isReorder ? 0.22 : 0.16) : (isReorder ? 0.14 : 0.1),
+    final railColor = accentColor.withOpacity(
+      isActive ? (isReorder ? 0.34 : 0.24) : (isReorder ? 0.2 : 0.14),
     );
     return Stack(
       children: [
@@ -5560,9 +6013,9 @@ class _TimelinePlaceholderClip extends StatelessWidget {
           borderRadius: BorderRadius.circular(6),
           border: Border.all(
             color: isSelected
-                ? Colors.white.withOpacity(0.68)
+                ? Colors.white.withOpacity(0.86)
                 : Colors.white.withOpacity(0.04),
-            width: isSelected ? 1.45 : 0.95,
+            width: isSelected ? 1.6 : 0.95,
           ),
           boxShadow: [
             if (isDragged)
@@ -5610,9 +6063,12 @@ class _TimelinePlaceholderClip extends StatelessWidget {
               ),
             ),
             if (isSelected)
-              const Positioned.fill(
+              Positioned.fill(
                 child: IgnorePointer(
-                  child: _TimelineSelectedPulse(),
+                  child: _TimelineSelectedPulse(
+                    borderRadius: BorderRadius.circular(6),
+                    accentColor: Colors.white,
+                  ),
                 ),
               ),
           ],
@@ -5623,7 +6079,13 @@ class _TimelinePlaceholderClip extends StatelessWidget {
 }
 
 class _TimelineSelectedPulse extends StatefulWidget {
-  const _TimelineSelectedPulse();
+  const _TimelineSelectedPulse({
+    required this.borderRadius,
+    required this.accentColor,
+  });
+
+  final BorderRadius borderRadius;
+  final Color accentColor;
 
   @override
   State<_TimelineSelectedPulse> createState() => _TimelineSelectedPulseState();
@@ -5638,7 +6100,7 @@ class _TimelineSelectedPulseState extends State<_TimelineSelectedPulse>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1350),
+      duration: const Duration(milliseconds: 1680),
     )..repeat();
   }
 
@@ -5654,25 +6116,69 @@ class _TimelineSelectedPulseState extends State<_TimelineSelectedPulse>
       animation: _controller,
       builder: (context, child) {
         final t = _controller.value;
-        return DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(7),
-            gradient: LinearGradient(
-              begin: Alignment(-1.6 + (3.2 * t), -1),
-              end: Alignment(-0.7 + (3.2 * t), 1),
-              colors: [
-                Colors.transparent,
-                Colors.white.withOpacity(0.0),
-                Colors.white.withOpacity(0.18),
-                Colors.white.withOpacity(0.0),
-                Colors.transparent,
-              ],
-              stops: const [0.0, 0.28, 0.5, 0.72, 1.0],
-            ),
+        return CustomPaint(
+          painter: _TimelineSelectedPulsePainter(
+            progress: t,
+            borderRadius: widget.borderRadius,
+            accentColor: widget.accentColor,
           ),
         );
       },
     );
+  }
+}
+
+class _TimelineSelectedPulsePainter extends CustomPainter {
+  const _TimelineSelectedPulsePainter({
+    required this.progress,
+    required this.borderRadius,
+    required this.accentColor,
+  });
+
+  final double progress;
+  final BorderRadius borderRadius;
+  final Color accentColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) {
+      return;
+    }
+    final rect = Offset.zero & size;
+    final strokeRect = rect.deflate(0.85);
+    final rrect = borderRadius.toRRect(strokeRect);
+    final sweep = SweepGradient(
+      startAngle: 0,
+      endAngle: math.pi * 2,
+      transform: GradientRotation((math.pi * 2 * progress) - (math.pi / 2)),
+      colors: [
+        Colors.transparent,
+        accentColor.withOpacity(0.0),
+        accentColor.withOpacity(0.08),
+        accentColor.withOpacity(0.95),
+        accentColor.withOpacity(0.1),
+        Colors.transparent,
+      ],
+      stops: const [0.0, 0.56, 0.74, 0.84, 0.92, 1.0],
+    );
+    final glowPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.6
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4.5)
+      ..shader = sweep.createShader(rect);
+    final strokePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.45
+      ..shader = sweep.createShader(rect);
+    canvas.drawRRect(rrect, glowPaint);
+    canvas.drawRRect(rrect, strokePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _TimelineSelectedPulsePainter oldDelegate) {
+    return oldDelegate.progress != progress ||
+        oldDelegate.borderRadius != borderRadius ||
+        oldDelegate.accentColor != accentColor;
   }
 }
 

@@ -49,9 +49,9 @@ class MotionTextElementInsertionRequest {
         const <MotionTextAnimationBlock>[],
     List<MotionPropertyAssignment> elementProperties =
         const <MotionPropertyAssignment>[],
-  }) : parameterValues = Map.unmodifiable(parameterValues),
-       animationBlocks = List.unmodifiable(animationBlocks),
-       elementProperties = List.unmodifiable(elementProperties);
+  })  : parameterValues = Map.unmodifiable(parameterValues),
+        animationBlocks = List.unmodifiable(animationBlocks),
+        elementProperties = List.unmodifiable(elementProperties);
 
   final MotionProjectModel project;
   final String sceneId;
@@ -79,8 +79,8 @@ class MotionTextElementInsertionResult {
     this.layerId,
     this.elementId,
     this.createdLayer = false,
-  }) : generatedBindings = List.unmodifiable(generatedBindings),
-       issues = List.unmodifiable(issues);
+  })  : generatedBindings = List.unmodifiable(generatedBindings),
+        issues = List.unmodifiable(issues);
 
   final bool didApply;
   final MotionProjectModel project;
@@ -105,11 +105,11 @@ class BasicMotionTextElementAuthoringService
   BasicMotionTextElementAuthoringService({
     List<MotionTextPresetDefinition>? presetCatalog,
     MotionIdFactory? idFactory,
-  }) : _presetCatalog = {
-         for (final preset in presetCatalog ?? MotionBuiltInTextPresets.all)
-           preset.id: preset,
-       },
-       _idFactory = idFactory ?? _defaultMotionIdFactory;
+  })  : _presetCatalog = {
+          for (final preset in presetCatalog ?? MotionBuiltInTextPresets.all)
+            preset.id: preset,
+        },
+        _idFactory = idFactory ?? _defaultMotionIdFactory;
 
   final Map<String, MotionTextPresetDefinition> _presetCatalog;
   final MotionIdFactory _idFactory;
@@ -126,7 +126,8 @@ class BasicMotionTextElementAuthoringService
       issues.add(
         MotionTextInsertionIssue(
           code: MotionTextInsertionIssueCode.missingScene,
-          message: 'Text insertion target scene `${request.sceneId}` was not found.',
+          message:
+              'Text insertion target scene `${request.sceneId}` was not found.',
           sceneId: request.sceneId,
         ),
       );
@@ -160,9 +161,8 @@ class BasicMotionTextElementAuthoringService
       );
     }
 
-    final preset = request.presetId == null
-        ? null
-        : _presetCatalog[request.presetId!];
+    final preset =
+        request.presetId == null ? null : _presetCatalog[request.presetId!];
     if (request.presetId != null && preset == null) {
       issues.add(
         MotionTextInsertionIssue(
@@ -208,7 +208,8 @@ class BasicMotionTextElementAuthoringService
     final sourceId = _idFactory('generated-text');
     final localRange = TimelineTimeRange(
       start: request.projectRange.start - scene.projectRange.start,
-      endExclusive: request.projectRange.endExclusive - scene.projectRange.start,
+      endExclusive:
+          request.projectRange.endExclusive - scene.projectRange.start,
     );
     final elementTarget = MotionPropertyTarget(
       kind: MotionTargetKind.element,
@@ -236,7 +237,13 @@ class BasicMotionTextElementAuthoringService
         },
       ),
       properties: <MotionPropertyAssignment>[
-        ...request.elementProperties,
+        ...request.elementProperties.map(
+          (property) => MotionPropertyAssignment(
+            target: elementTarget,
+            definition: property.definition,
+            value: property.value,
+          ),
+        ),
       ],
     );
 
@@ -300,9 +307,9 @@ class BasicMotionTextElementAuthoringService
   }) {
     if (preferredLayerId != null) {
       final preferredLayer = scene.layers.cast<MotionLayerModel?>().firstWhere(
-        (layer) => layer?.id == preferredLayerId,
-        orElse: () => null,
-      );
+            (layer) => layer?.id == preferredLayerId,
+            orElse: () => null,
+          );
       if (preferredLayer == null) {
         issues.add(
           MotionTextInsertionIssue(
@@ -319,8 +326,7 @@ class BasicMotionTextElementAuthoringService
         issues.add(
           MotionTextInsertionIssue(
             code: MotionTextInsertionIssueCode.invalidLayer,
-            message:
-                'Preferred layer `$preferredLayerId` is not a text layer.',
+            message: 'Preferred layer `$preferredLayerId` is not a text layer.',
             sceneId: scene.id,
             layerId: preferredLayerId,
           ),
@@ -395,7 +401,8 @@ class BasicMotionTextElementAuthoringService
     TimelineTimeRange original,
     TimelineTimeRange inserted,
   ) {
-    final start = original.start <= inserted.start ? original.start : inserted.start;
+    final start =
+        original.start <= inserted.start ? original.start : inserted.start;
     final end = original.endExclusive >= inserted.endExclusive
         ? original.endExclusive
         : inserted.endExclusive;

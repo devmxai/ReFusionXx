@@ -28,9 +28,9 @@ class MotionTextPreviewOverlay extends StatelessWidget {
               ? constraints.maxHeight
               : rasterSnapshot.canvasSize.height;
           final scaleX =
-              canvasWidth == 0 ? 1.0 : constraints.maxWidth / canvasWidth;
+              canvasWidth == 0 ? 1.0 : (constraints.maxWidth / canvasWidth);
           final scaleY =
-              canvasHeight == 0 ? 1.0 : constraints.maxHeight / canvasHeight;
+              canvasHeight == 0 ? 1.0 : (constraints.maxHeight / canvasHeight);
 
           return Stack(
             fit: StackFit.expand,

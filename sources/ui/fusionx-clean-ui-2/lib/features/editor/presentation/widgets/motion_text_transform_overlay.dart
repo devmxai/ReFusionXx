@@ -1,8 +1,8 @@
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/app_theme.dart';
 import '../../domain/models/professional_motion_text_render_models.dart';
 
 typedef MotionTextNodeMoveCallback = void Function(
@@ -10,9 +10,15 @@ typedef MotionTextNodeMoveCallback = void Function(
   Offset deltaCanvas,
 );
 
-typedef MotionTextNodeResizeCallback = void Function(
+typedef MotionTextNodeScaleCallback = void Function(
   String elementId,
-  double nextFontSize,
+  double nextScaleX,
+  double nextScaleY,
+);
+
+typedef MotionTextNodeRotationCallback = void Function(
+  String elementId,
+  double nextRotationDegrees,
 );
 
 class MotionTextTransformOverlay extends StatelessWidget {
@@ -24,7 +30,8 @@ class MotionTextTransformOverlay extends StatelessWidget {
     required this.onNodeSelected,
     required this.onNodeEditRequested,
     required this.onNodeMoved,
-    required this.onNodeFontSizeChanged,
+    required this.onNodeScaleChanged,
+    required this.onNodeRotationChanged,
   });
 
   final MotionTextRenderSnapshot snapshot;
@@ -33,7 +40,8 @@ class MotionTextTransformOverlay extends StatelessWidget {
   final ValueChanged<String> onNodeSelected;
   final ValueChanged<String> onNodeEditRequested;
   final MotionTextNodeMoveCallback onNodeMoved;
-  final MotionTextNodeResizeCallback onNodeFontSizeChanged;
+  final MotionTextNodeScaleCallback onNodeScaleChanged;
+  final MotionTextNodeRotationCallback onNodeRotationChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -87,7 +95,8 @@ class MotionTextTransformOverlay extends StatelessWidget {
                 onNodeSelected: onNodeSelected,
                 onNodeEditRequested: onNodeEditRequested,
                 onNodeMoved: onNodeMoved,
-                onNodeFontSizeChanged: onNodeFontSizeChanged,
+                onNodeScaleChanged: onNodeScaleChanged,
+                onNodeRotationChanged: onNodeRotationChanged,
               ),
           ],
         );
@@ -106,9 +115,9 @@ class MotionTextTransformOverlay extends StatelessWidget {
         ? constraints.maxHeight
         : snapshot.canvasSize.height;
     final stageScaleX =
-        canvasWidth == 0 ? 1.0 : constraints.maxWidth / canvasWidth;
+        canvasWidth == 0 ? 1.0 : (constraints.maxWidth / canvasWidth);
     final stageScaleY =
-        canvasHeight == 0 ? 1.0 : constraints.maxHeight / canvasHeight;
+        canvasHeight == 0 ? 1.0 : (constraints.maxHeight / canvasHeight);
     final effectiveScale = math.min(stageScaleX, stageScaleY);
     final stageCenter = Offset(
       constraints.maxWidth / 2,
@@ -151,130 +160,436 @@ class MotionTextTransformOverlay extends StatelessWidget {
   }
 }
 
-class _SelectedNodeTransformBox extends StatelessWidget {
+class _SelectedNodeTransformBox extends StatefulWidget {
   const _SelectedNodeTransformBox({
     required this.layout,
     required this.isInteractive,
     required this.onNodeSelected,
     required this.onNodeEditRequested,
     required this.onNodeMoved,
-    required this.onNodeFontSizeChanged,
+    required this.onNodeScaleChanged,
+    required this.onNodeRotationChanged,
   });
-
-  static const double _selectionPadding = 10;
-  static const double _handleSize = 18;
 
   final _MotionTextNodeLayout layout;
   final bool isInteractive;
   final ValueChanged<String> onNodeSelected;
   final ValueChanged<String> onNodeEditRequested;
   final MotionTextNodeMoveCallback onNodeMoved;
-  final MotionTextNodeResizeCallback onNodeFontSizeChanged;
+  final MotionTextNodeScaleCallback onNodeScaleChanged;
+  final MotionTextNodeRotationCallback onNodeRotationChanged;
+
+  @override
+  State<_SelectedNodeTransformBox> createState() =>
+      _SelectedNodeTransformBoxState();
+}
+
+class _SelectedNodeTransformBoxState extends State<_SelectedNodeTransformBox> {
+  static const double _selectionPadding = 8;
+  static const double _handleSize = 10;
+  static const double _handleHitSize = 30;
+  static const double _stemLength = 16;
+
+  int _activePointerCount = 0;
+  double? _rotationGestureStartAngle;
+  double? _rotationGestureStartDegrees;
 
   @override
   Widget build(BuildContext context) {
-    final selectionRect = layout.axisAlignedBounds.inflate(_selectionPadding);
-    const handleRadius = _handleSize / 2;
-    final borderColor = isInteractive
-        ? Colors.white.withOpacity(0.88)
-        : Colors.white.withOpacity(0.32);
+    final layout = widget.layout;
+    final selectionRect = layout.localRect.inflate(_selectionPadding);
+    final chromeOpacity = widget.isInteractive ? 1.0 : 0.44;
+    final cornerPoints = <Offset>[
+      layout.transformLocalPoint(selectionRect.topLeft),
+      layout.transformLocalPoint(selectionRect.topRight),
+      layout.transformLocalPoint(selectionRect.bottomRight),
+      layout.transformLocalPoint(selectionRect.bottomLeft),
+    ];
+    final topCenter = layout.transformLocalPoint(
+      Offset(selectionRect.center.dx, selectionRect.top),
+    );
+    final bottomCenter = layout.transformLocalPoint(
+      Offset(selectionRect.center.dx, selectionRect.bottom),
+    );
+    final rotationHandlePoint = layout.transformLocalPoint(
+      Offset(selectionRect.center.dx, selectionRect.top - _stemLength),
+    );
+    final moveHandlePoint = layout.transformLocalPoint(
+      Offset(selectionRect.center.dx, selectionRect.bottom + _stemLength),
+    );
+    final pivotDotPoint = layout.transformLocalPoint(
+      Offset(
+          selectionRect.center.dx, selectionRect.bottom + (_stemLength * 0.34)),
+    );
 
-    return Stack(
-      children: [
-        Positioned.fromRect(
-          rect: selectionRect,
-          child: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onTap: isInteractive
-                ? () => onNodeSelected(layout.node.targetElementId)
-                : null,
-            onDoubleTap: isInteractive
-                ? () => onNodeEditRequested(layout.node.targetElementId)
-                : null,
-            onPanUpdate: isInteractive
-                ? (details) {
-                    onNodeMoved(
-                      layout.node.targetElementId,
-                      Offset(
-                        details.delta.dx / layout.stageScaleX,
-                        details.delta.dy / layout.stageScaleY,
-                      ),
-                    );
-                  }
-                : null,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: borderColor, width: 1.3),
-                color: Colors.white.withOpacity(isInteractive ? 0.02 : 0.01),
+    return Listener(
+      onPointerDown: (_) {
+        _activePointerCount += 1;
+      },
+      onPointerUp: (_) {
+        _activePointerCount = (_activePointerCount - 1).clamp(0, 1000);
+      },
+      onPointerCancel: (_) {
+        _activePointerCount = (_activePointerCount - 1).clamp(0, 1000);
+      },
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: CustomPaint(
+              painter: _SelectionChromePainter(
+                borderPoints: cornerPoints,
+                topCenter: topCenter,
+                bottomCenter: bottomCenter,
+                rotationHandlePoint: rotationHandlePoint,
+                moveHandlePoint: moveHandlePoint,
+                pivotDotPoint: pivotDotPoint,
+                opacity: chromeOpacity,
               ),
             ),
           ),
-        ),
-        for (final handle in _SelectionHandle.values)
-          Positioned(
-            left: handle.alignment.x < 0
-                ? selectionRect.left - handleRadius
-                : selectionRect.right - handleRadius,
-            top: handle.alignment.y < 0
-                ? selectionRect.top - handleRadius
-                : selectionRect.bottom - handleRadius,
+          Positioned.fromRect(
+            rect: layout.axisAlignedBounds.inflate(_selectionPadding + 18),
             child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onPanUpdate: isInteractive
+              behavior: HitTestBehavior.translucent,
+              dragStartBehavior: DragStartBehavior.down,
+              onTap: widget.isInteractive
+                  ? () => widget.onNodeSelected(layout.node.targetElementId)
+                  : null,
+              onDoubleTap: widget.isInteractive
+                  ? () =>
+                      widget.onNodeEditRequested(layout.node.targetElementId)
+                  : null,
+              onPanUpdate: widget.isInteractive
                   ? (details) {
-                      final projectedDelta =
-                          ((details.delta.dx * handle.dxSign) +
-                                  (details.delta.dy * handle.dySign)) /
-                              2;
-                      final nextFontSize = (layout.node.fontSize +
-                              (projectedDelta / layout.effectiveScale))
-                          .clamp(12.0, 180.0);
-                      onNodeFontSizeChanged(
+                      if (_activePointerCount > 1) {
+                        return;
+                      }
+                      widget.onNodeMoved(
                         layout.node.targetElementId,
-                        nextFontSize,
+                        Offset(
+                          details.delta.dx / layout.stageScaleX,
+                          details.delta.dy / layout.stageScaleY,
+                        ),
                       );
                     }
                   : null,
-              child: Container(
-                width: _handleSize,
-                height: _handleSize,
-                decoration: BoxDecoration(
-                  color: isInteractive
-                      ? FxPalette.accent
-                      : FxPalette.textFaint.withOpacity(0.8),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: FxPalette.background.withOpacity(0.9),
-                    width: 2,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.24),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-              ),
             ),
           ),
-      ],
+          for (final handle in _ResizeHandle.values)
+            _buildResizeHandle(
+              handle: handle,
+              point: layout.transformLocalPoint(
+                handle.localPointForRect(selectionRect),
+              ),
+            ),
+          _buildMoveHandle(point: moveHandlePoint),
+          _buildRotationHandle(point: rotationHandlePoint),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResizeHandle({
+    required _ResizeHandle handle,
+    required Offset point,
+  }) {
+    return Positioned(
+      left: point.dx - (_handleHitSize / 2),
+      top: point.dy - (_handleHitSize / 2),
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        dragStartBehavior: DragStartBehavior.down,
+        onPanUpdate: widget.isInteractive
+            ? (details) {
+                if (_activePointerCount > 1) {
+                  return;
+                }
+                final localDelta = widget.layout.projectScreenDeltaToLocal(
+                  details.delta,
+                );
+                final baseWidth = math.max(1.0, widget.layout.localRect.width);
+                final baseHeight =
+                    math.max(1.0, widget.layout.localRect.height);
+                var nextScaleX = widget.layout.node.scaleX;
+                var nextScaleY = widget.layout.node.scaleY;
+                if (handle.affectsHorizontal) {
+                  nextScaleX = (nextScaleX +
+                          ((localDelta.dx * handle.dxSign) / baseWidth))
+                      .clamp(0.2, 8.0);
+                }
+                if (handle.affectsVertical) {
+                  nextScaleY = (nextScaleY +
+                          ((localDelta.dy * handle.dySign) / baseHeight))
+                      .clamp(0.2, 8.0);
+                }
+                widget.onNodeScaleChanged(
+                  widget.layout.node.targetElementId,
+                  nextScaleX,
+                  nextScaleY,
+                );
+              }
+            : null,
+        child: SizedBox(
+          width: _handleHitSize,
+          height: _handleHitSize,
+          child: Center(
+            child: _TransformHandleDot(
+              size: _handleSize,
+              opacity: widget.isInteractive ? 1.0 : 0.52,
+              strokeWidth: 1.15,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMoveHandle({
+    required Offset point,
+  }) {
+    return Positioned(
+      left: point.dx - (_handleHitSize / 2),
+      top: point.dy - (_handleHitSize / 2),
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        dragStartBehavior: DragStartBehavior.down,
+        onPanUpdate: widget.isInteractive
+            ? (details) {
+                if (_activePointerCount > 1) {
+                  return;
+                }
+                widget.onNodeMoved(
+                  widget.layout.node.targetElementId,
+                  Offset(
+                    details.delta.dx / widget.layout.stageScaleX,
+                    details.delta.dy / widget.layout.stageScaleY,
+                  ),
+                );
+              }
+            : null,
+        child: SizedBox(
+          width: _handleHitSize,
+          height: _handleHitSize,
+          child: Center(
+            child: _TransformHandleDot(
+              size: _handleSize,
+              opacity: widget.isInteractive ? 1.0 : 0.52,
+              fillColor: const Color(0xFF4A8FFF),
+              strokeWidth: 1.15,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRotationHandle({
+    required Offset point,
+  }) {
+    return Positioned(
+      left: point.dx - (_handleHitSize / 2),
+      top: point.dy - (_handleHitSize / 2),
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        dragStartBehavior: DragStartBehavior.down,
+        onPanStart: widget.isInteractive ? _handleRotationStart : null,
+        onPanUpdate: widget.isInteractive ? _handleRotationUpdate : null,
+        onPanEnd: widget.isInteractive ? _handleRotationEnd : null,
+        onPanCancel: widget.isInteractive ? _handleRotationCancel : null,
+        child: SizedBox(
+          width: _handleHitSize,
+          height: _handleHitSize,
+          child: Center(
+            child: _TransformHandleDot(
+              size: _handleSize,
+              opacity: widget.isInteractive ? 1.0 : 0.52,
+              fillColor: const Color(0xFF4A8FFF),
+              strokeWidth: 1.15,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _handleRotationStart(DragStartDetails details) {
+    if (_activePointerCount > 1) {
+      return;
+    }
+    final renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox == null || !renderBox.hasSize) {
+      return;
+    }
+    final centerGlobal = renderBox.localToGlobal(widget.layout.nodeCenter);
+    _rotationGestureStartAngle = math.atan2(
+      details.globalPosition.dy - centerGlobal.dy,
+      details.globalPosition.dx - centerGlobal.dx,
+    );
+    _rotationGestureStartDegrees = widget.layout.node.rotationDegrees;
+  }
+
+  void _handleRotationUpdate(DragUpdateDetails details) {
+    if (_activePointerCount > 1) {
+      return;
+    }
+    final startAngle = _rotationGestureStartAngle;
+    final startDegrees = _rotationGestureStartDegrees;
+    final renderBox = context.findRenderObject() as RenderBox?;
+    if (startAngle == null || startDegrees == null || renderBox == null) {
+      return;
+    }
+    final centerGlobal = renderBox.localToGlobal(widget.layout.nodeCenter);
+    final currentAngle = math.atan2(
+      details.globalPosition.dy - centerGlobal.dy,
+      details.globalPosition.dx - centerGlobal.dx,
+    );
+    final deltaDegrees = (currentAngle - startAngle) * (180 / math.pi);
+    widget.onNodeRotationChanged(
+      widget.layout.node.targetElementId,
+      startDegrees + deltaDegrees,
+    );
+  }
+
+  void _handleRotationEnd(DragEndDetails details) {
+    _handleRotationCancel();
+  }
+
+  void _handleRotationCancel() {
+    _rotationGestureStartAngle = null;
+    _rotationGestureStartDegrees = null;
+  }
+}
+
+class _TransformHandleDot extends StatelessWidget {
+  const _TransformHandleDot({
+    required this.size,
+    required this.opacity,
+    this.fillColor = const Color(0xFF4A8FFF),
+    this.strokeWidth = 1.5,
+  });
+
+  final double size;
+  final double opacity;
+  final Color fillColor;
+  final double strokeWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: opacity,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: fillColor,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: Colors.white.withOpacity(0.94),
+            width: strokeWidth,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.18),
+              blurRadius: 6,
+              offset: const Offset(0, 1.5),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
-enum _SelectionHandle {
-  topLeft(Alignment.topLeft, -1, -1),
-  topRight(Alignment.topRight, 1, -1),
-  bottomLeft(Alignment.bottomLeft, -1, 1),
-  bottomRight(Alignment.bottomRight, 1, 1);
+class _SelectionChromePainter extends CustomPainter {
+  const _SelectionChromePainter({
+    required this.borderPoints,
+    required this.topCenter,
+    required this.bottomCenter,
+    required this.rotationHandlePoint,
+    required this.moveHandlePoint,
+    required this.pivotDotPoint,
+    required this.opacity,
+  });
 
-  const _SelectionHandle(this.alignment, this.dxSign, this.dySign);
+  final List<Offset> borderPoints;
+  final Offset topCenter;
+  final Offset bottomCenter;
+  final Offset rotationHandlePoint;
+  final Offset moveHandlePoint;
+  final Offset pivotDotPoint;
+  final double opacity;
 
-  final Alignment alignment;
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (borderPoints.length != 4) {
+      return;
+    }
+    final borderPaint = Paint()
+      ..color = Colors.white.withOpacity(0.74 * opacity)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.9;
+    final stemPaint = Paint()
+      ..color = Colors.white.withOpacity(0.54 * opacity)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.85;
+    final pivotPaint = Paint()
+      ..color = const Color(0xFF47E082).withOpacity(0.94 * opacity)
+      ..style = PaintingStyle.fill;
+
+    final borderPath = Path()
+      ..moveTo(borderPoints[0].dx, borderPoints[0].dy)
+      ..lineTo(borderPoints[1].dx, borderPoints[1].dy)
+      ..lineTo(borderPoints[2].dx, borderPoints[2].dy)
+      ..lineTo(borderPoints[3].dx, borderPoints[3].dy)
+      ..close();
+    canvas.drawPath(borderPath, borderPaint);
+    canvas.drawLine(topCenter, rotationHandlePoint, stemPaint);
+    canvas.drawLine(bottomCenter, moveHandlePoint, stemPaint);
+    canvas.drawCircle(pivotDotPoint, 4, pivotPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _SelectionChromePainter oldDelegate) {
+    return oldDelegate.borderPoints != borderPoints ||
+        oldDelegate.topCenter != topCenter ||
+        oldDelegate.bottomCenter != bottomCenter ||
+        oldDelegate.rotationHandlePoint != rotationHandlePoint ||
+        oldDelegate.moveHandlePoint != moveHandlePoint ||
+        oldDelegate.pivotDotPoint != pivotDotPoint ||
+        oldDelegate.opacity != opacity;
+  }
+}
+
+enum _ResizeHandle {
+  topLeft(true, true, -1, -1),
+  topRight(true, true, 1, -1),
+  bottomLeft(true, true, -1, 1),
+  bottomRight(true, true, 1, 1);
+
+  const _ResizeHandle(
+    this.affectsHorizontal,
+    this.affectsVertical,
+    this.dxSign,
+    this.dySign,
+  );
+
+  final bool affectsHorizontal;
+  final bool affectsVertical;
   final double dxSign;
   final double dySign;
+
+  Offset localPointForRect(Rect rect) {
+    switch (this) {
+      case _ResizeHandle.topLeft:
+        return rect.topLeft;
+      case _ResizeHandle.topRight:
+        return rect.topRight;
+      case _ResizeHandle.bottomLeft:
+        return rect.bottomLeft;
+      case _ResizeHandle.bottomRight:
+        return rect.bottomRight;
+    }
+  }
 }
 
 class _MotionTextNodeLayout {
@@ -366,7 +681,29 @@ class _MotionTextNodeLayout {
       unrotated.dx / safeScaleX,
       unrotated.dy / safeScaleY,
     );
-    return localRect.contains(localPoint);
+    return localRect.inflate(18).contains(localPoint);
+  }
+
+  Offset transformLocalPoint(Offset point) {
+    final radians = node.rotationDegrees * (math.pi / 180);
+    final cosTheta = math.cos(radians);
+    final sinTheta = math.sin(radians);
+    final scaled = Offset(point.dx * node.scaleX, point.dy * node.scaleY);
+    final rotated = Offset(
+      (scaled.dx * cosTheta) - (scaled.dy * sinTheta),
+      (scaled.dx * sinTheta) + (scaled.dy * cosTheta),
+    );
+    return nodeCenter + rotated;
+  }
+
+  Offset projectScreenDeltaToLocal(Offset screenDelta) {
+    final radians = node.rotationDegrees * (math.pi / 180);
+    final cosTheta = math.cos(-radians);
+    final sinTheta = math.sin(-radians);
+    return Offset(
+      (screenDelta.dx * cosTheta) - (screenDelta.dy * sinTheta),
+      (screenDelta.dx * sinTheta) + (screenDelta.dy * cosTheta),
+    );
   }
 
   static Rect _axisAlignedBounds({

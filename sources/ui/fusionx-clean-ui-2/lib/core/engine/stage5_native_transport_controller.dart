@@ -304,10 +304,12 @@ class Stage5NativeTransportController extends ChangeNotifier {
   }
 
   Future<void> play() async {
+    _applyOptimisticPlaybackState(true);
     await _invokeWithoutResult('play');
   }
 
   Future<void> pause() async {
+    _applyOptimisticPlaybackState(false);
     await _invokeWithoutResult('pause');
   }
 
@@ -403,6 +405,18 @@ class Stage5NativeTransportController extends ChangeNotifier {
 
   void _handleError(Object error) {
     final nextState = _state.copyWith(error: error.toString());
+    if (_statesEqual(_state, nextState)) {
+      return;
+    }
+    _state = nextState;
+    notifyListeners();
+  }
+
+  void _applyOptimisticPlaybackState(bool isPlaying) {
+    final nextState = _state.copyWith(
+      isPlaying: isPlaying,
+      error: null,
+    );
     if (_statesEqual(_state, nextState)) {
       return;
     }

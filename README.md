@@ -113,91 +113,44 @@ Current next timeline workstream reference:
 - latest thread handoff / resume packet for opening a new thread is now:
   [Current Thread Handoff And Resume Packet](/Users/mx/Documents/InGeneBMFPro/docs/process/current-thread-handoff-and-resume-packet.md)
 
-Latest pushed timeline checkpoint in `BETA1`:
+Latest pushed repository checkpoint in `BETA2`:
 
-- timeline lane visuals below the ruler were returned to a more neutral
-  monochrome style in
-  [timeline_panel.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/widgets/timeline_panel.dart)
-- the colorful lane tint extension on the left side of the timeline rows was
-  removed in
-  [timeline_panel.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/widgets/timeline_panel.dart)
-- the timeline now starts with no pre-seeded empty media/text tracks and creates
-  a track only when the first asset or text preset of that type is inserted, in
-  [fusionx_clean_ui_screen.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/screens/fusionx_clean_ui_screen.dart)
-- text preset insertion now ensures a text track exists before adding the first
-  generated text clip, in
-  [fusionx_clean_ui_screen.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/screens/fusionx_clean_ui_screen.dart)
-- scrub now has dedicated gesture surfaces in the empty spacer below the ruler
-  and in the empty timeline area below the last visible track, so background
-  scrub can start from general timeline space and not only from track surfaces,
-  in
-  [timeline_panel.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/widgets/timeline_panel.dart)
-- long-press clip reorder now enters through an animated morph from the normal
-  timeline clip geometry into compact reorder cards in
-  [timeline_panel.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/widgets/timeline_panel.dart)
-- the same-track reorder preview now feels more magnetic during insertion, with
-  a clearer temporary insertion gap and softer rightward push for the clips that
-  come after the insertion point in
-  [timeline_panel.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/widgets/timeline_panel.dart)
-- the reorder-entry crash shown after the animation work is now fixed at the
-  root by switching `_TimelinePanelState` from
-  `SingleTickerProviderStateMixin` to `TickerProviderStateMixin`, so the panel
-  can legally own both the playback ticker and the reorder animation controller
-  in
-  [timeline_panel.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/widgets/timeline_panel.dart)
-- the reorder presentation has now been corrected so the base timeline row fades
-  out during reorder entry, the long strip no longer remains visible under the
-  overlay, and compact reorder clips are rendered by a dedicated card UI rather
-  than by shrinking the normal timeline clip widget in
-  [timeline_panel.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/widgets/timeline_panel.dart)
-- the reorder interaction no longer swaps the ruler/header area into a separate
-  mode label; the timeline chrome stays in its normal shape and only the clips
-  on the active reordered row transition into square cards while the selected
-  pressed clip remains the active moving card in
-  [timeline_panel.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/widgets/timeline_panel.dart)
-- the reorder drag path is now backed by global pointer tracking while the base
-  row clips animate out, so the long-press contact does not get lost when the
-  active row morphs into compact cards in
-  [timeline_panel.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/widgets/timeline_panel.dart)
-- the moving insertion handle has been removed from the reorder UI, the active
-  row rail now hides during the card state, and the temporary insertion spacing
-  plus dragged-card scale were reduced for a smoother visual transition in
-  [timeline_panel.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/widgets/timeline_panel.dart)
-- non-video timeline clips now preserve true temporal placement when moved, so
-  overlay/text/audio-style tracks shift in time instead of falling back to
-  video-style reorder semantics in
-  [fusionx_clean_ui_screen.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/screens/fusionx_clean_ui_screen.dart)
-- temporal gaps before moved non-video clips now render as real empty space
-  instead of `+` add placeholders, and gap width now follows actual time width
-  so drop precision stays stable in
-  [timeline_mock_models.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/models/timeline_mock_models.dart)
-  and
-  [timeline_panel.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/widgets/timeline_panel.dart)
-- moved motion-text clips now respect their shifted activation range during
-  preview/runtime evaluation, so the text appears only from its real timeline
-  start in
-  [professional_motion_runtime_helpers.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/domain/models/professional_motion_runtime_helpers.dart)
-  and
-  [fusionx_clean_ui_screen.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/screens/fusionx_clean_ui_screen.dart)
-- moving non-video clips no longer auto-jumps the playhead or recenters the
-  timeline; playback position stays under explicit user control in
-  [fusionx_clean_ui_screen.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/screens/fusionx_clean_ui_screen.dart)
+- the app now ships from the official `ReFusionXx` repository as
+  `1.0.0-beta.2+2`, still under the canonical app identity `ReFusion` /
+  `com.refusion.app`
+- bottom-dock `Text` now inserts a direct text layer into the timeline instead
+  of entering preset-first authoring, while preserving the deeper text-motion
+  code paths behind the scenes for later work
+- the timeline manipulation hardening from `BETA1` remains in place:
+  insertion-driven track creation, background scrub from empty timeline space,
+  animated same-track reorder cards, magnetic insertion feedback, real temporal
+  movement for non-video clips, true visual gaps, runtime-correct moved text
+  timing, and no auto-jump of the playhead during non-video moves
+- an initial `Animate` UI scaffold now exists:
+  a subtle play button appears on supported overlay rows, opens a dedicated
+  animation browser sheet, supports fast search / autocomplete mock results,
+  and can project initial animation rows under the selected overlay in the
+  timeline for future keyframe work
+- the animation sheet now follows the app's bottom-sheet style more closely:
+  fixed-height presentation, stable search bar, less intrusive keyboard
+  interaction, slimmer effect cards, and a calmer visual rhythm
+- the preview canvas now supports editor viewport gestures:
+  pinch zoom, pan, reset, overlay selection, and transform chrome for overlay
+  elements without exposing transform handles on the base media layer
+- the overlay transform chrome has been rebuilt toward a universal model:
+  subtle bounds, corner resize handles, dedicated rotation and move handles,
+  smaller stems, and improved touch hit areas for easier manipulation
+- playback transport responsiveness has been tightened:
+  the editor now uses a faster play/pause path, more immediate native playback
+  state reflection, and less idle polling pressure between Flutter and the
+  native transport layer
+- timeline clip visuals are now calmer and more legible in dark mode:
+  muted per-track color families, clearer selected borders, and a more visible
+  animated selection glint around the active clip
 - this pushed checkpoint has passed:
-  - `dart format`
   - `flutter analyze`
+  - `flutter test test/motion_text_authoring_service_test.dart`
   - `flutter build apk --debug`
-- this pushed checkpoint has also been installed on the connected device:
-  - package: `com.refusion.app`
-  - device: `SM-S908N`
-  - `versionName = 1.0.0-beta.1`
-  - `lastUpdateTime = 2026-04-11 04:34:01`
-- this pushed checkpoint is still **not yet accepted** until the manipulation
-  interaction is checked on device for:
-  - animated entry feel
-  - same-track magnetic insertion behavior
-  - no accidental gaps after drop
-  - non-video temporal dragging precision
-  - text/runtime timing after shifted placement
 
 Current independent feature checkpoint:
 
@@ -423,6 +376,7 @@ Timeline documentation discipline:
   - [BETA13 snapshot note](/Users/mx/Documents/InGeneBMFPro/docs/releases/BETA13.md)
   - [BETA14 snapshot note](/Users/mx/Documents/InGeneBMFPro/docs/releases/BETA14.md)
   - [BETA1 snapshot note](/Users/mx/Documents/InGeneBMFPro/docs/releases/BETA1.md)
+  - [BETA2 snapshot note](/Users/mx/Documents/InGeneBMFPro/docs/releases/BETA2.md)
 - current pushed thread/bootstrap packet:
   - [Current Thread Handoff And Resume Packet](/Users/mx/Documents/InGeneBMFPro/docs/process/current-thread-handoff-and-resume-packet.md)
 

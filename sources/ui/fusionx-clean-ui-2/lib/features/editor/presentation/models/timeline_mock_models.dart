@@ -154,21 +154,54 @@ class TimelineTrackData {
     required this.kind,
     required this.clips,
     this.placeholderLabel,
+    this.animationLanes = const <TimelineAnimationLaneData>[],
   });
 
   final TimelineTrackKind kind;
   final List<TimelineClipData> clips;
   final String? placeholderLabel;
+  final List<TimelineAnimationLaneData> animationLanes;
 
   TimelineTrackData copyWith({
     TimelineTrackKind? kind,
     List<TimelineClipData>? clips,
     String? placeholderLabel,
+    List<TimelineAnimationLaneData>? animationLanes,
   }) {
     return TimelineTrackData(
       kind: kind ?? this.kind,
       clips: clips ?? this.clips,
       placeholderLabel: placeholderLabel ?? this.placeholderLabel,
+      animationLanes: animationLanes ?? this.animationLanes,
+    );
+  }
+}
+
+class TimelineAnimationLaneData {
+  const TimelineAnimationLaneData({
+    required this.id,
+    required this.label,
+    required this.targetClipId,
+    this.normalizedKeyframeStops = const <double>[0.0, 0.52, 1.0],
+  });
+
+  final String id;
+  final String label;
+  final String targetClipId;
+  final List<double> normalizedKeyframeStops;
+
+  TimelineAnimationLaneData copyWith({
+    String? id,
+    String? label,
+    String? targetClipId,
+    List<double>? normalizedKeyframeStops,
+  }) {
+    return TimelineAnimationLaneData(
+      id: id ?? this.id,
+      label: label ?? this.label,
+      targetClipId: targetClipId ?? this.targetClipId,
+      normalizedKeyframeStops:
+          normalizedKeyframeStops ?? this.normalizedKeyframeStops,
     );
   }
 }

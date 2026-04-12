@@ -38,7 +38,8 @@ class Stage5TransportManager(context: Context) {
         const val METHOD_CHANNEL_NAME = "com.refusion.app/stage5_transport"
         const val EVENT_CHANNEL_NAME = "com.refusion.app/stage5_transport_events"
         const val PREVIEW_VIEW_TYPE = "com.refusion.app/stage5_preview"
-        private const val POSITION_EMIT_INTERVAL_MS = 16L
+        private const val PLAYBACK_POSITION_EMIT_INTERVAL_MS = 33L
+        private const val SCRUB_POSITION_EMIT_INTERVAL_MS = 16L
         private const val MULTI_ITEM_SCRUB_TOLERANCE_FRACTION = 0.002
         // Cross-source playback continuity benefits from warming the next adjacent item
         // earlier than the original baseline.
@@ -188,9 +189,6 @@ class Stage5TransportManager(context: Context) {
             override fun run() {
                 updateTimelinePlaybackWindow()
                 emitState()
-                if (eventSink != null) {
-                    mainHandler.postDelayed(this, POSITION_EMIT_INTERVAL_MS)
-                }
             }
         }
     private val coalescedScrubSeekDrain =
@@ -637,14 +635,12 @@ class Stage5TransportManager(context: Context) {
 
     fun attachEventSink(events: EventChannel.EventSink) {
         eventSink = events
-        mainHandler.removeCallbacks(stateEmitter)
-        mainHandler.post(stateEmitter)
         emitState()
     }
 
     fun detachEventSink() {
         eventSink = null
-        mainHandler.removeCallbacks(stateEmitter)
+        cancelStateEmitter()
     }
 
     fun release() {
@@ -726,6 +722,29 @@ class Stage5TransportManager(context: Context) {
 
     private fun emitState() {
         eventSink?.success(buildState())
+        syncStateEmitterSchedule()
+    }
+
+    private fun syncStateEmitterSchedule() {
+        cancelStateEmitter()
+        if (eventSink == null) {
+            return
+        }
+        val intervalMs = currentStateEmitterIntervalMs() ?: return
+        mainHandler.postDelayed(stateEmitter, intervalMs)
+    }
+
+    private fun cancelStateEmitter() {
+        mainHandler.removeCallbacks(stateEmitter)
+    }
+
+    private fun currentStateEmitterIntervalMs(): Long? {
+        val activePlayer = activePlayer ?: exoPlayer ?: compositionPlayer
+        return when {
+            isScrubbing || isScrubSettling -> SCRUB_POSITION_EMIT_INTERVAL_MS
+            activePlayer?.playWhenReady == true -> PLAYBACK_POSITION_EMIT_INTERVAL_MS
+            else -> null
+        }
     }
 
     private fun recoverFromTimelineEndedStateIfNeeded() {
@@ -764,7 +783,12 @@ class Stage5TransportManager(context: Context) {
                 activePlayer?.currentPosition ?: 0L
             }
         val playbackState = activePlayer?.playbackState ?: Player.STATE_IDLE
-        val isPlaying = if (isScrubbing || isScrubSettling) false else activePlayer?.isPlaying ?: false
+        val isPlaying =
+            if (isScrubbing || isScrubSettling) {
+                false
+            } else {
+                activePlayer?.playWhenReady ?: false
+            }
         return mapOf(
             "isReady" to (playbackState == Player.STATE_READY),
             "isPlaying" to isPlaying,

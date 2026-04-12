@@ -1,6 +1,6 @@
 # Current Thread Handoff And Resume Packet
 
-Last updated: April 11, 2026
+Last updated: April 12, 2026
 
 Status: `ACTIVE THREAD-BOOTSTRAP REFERENCE`
 
@@ -28,96 +28,47 @@ Primary app workspace:
 Latest pushed snapshot:
 
 - branch: `main`
-- tag: `BETA1`
-- pushed app version: `1.0.0-beta.1+1`
+- tag: `BETA2`
+- pushed app version: `1.0.0-beta.2+2`
 - official app name: `ReFusion`
 - official package id: `com.refusion.app`
 - canonical version source:
   [pubspec.yaml](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/pubspec.yaml)
 - pushed release note:
-  [BETA1](/Users/mx/Documents/InGeneBMFPro/docs/releases/BETA1.md)
+  [BETA2](/Users/mx/Documents/InGeneBMFPro/docs/releases/BETA2.md)
 - repository baseline meaning:
   - imported from the validated legacy `FBMFX` snapshot that previously shipped
     as `BETA15`
-  - now treated as the first official `ReFusionXx` repository checkpoint
+  - now treated as the official `ReFusionXx` repository history, with `BETA2`
+    as the latest pushed checkpoint
 
-Current pushed timeline state in `BETA1`:
+Current pushed repository state in `BETA2`:
 
-- timeline lane visuals under the ruler were returned to a neutral monochrome
-  style in
-  [timeline_panel.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/widgets/timeline_panel.dart)
-- timeline rows no longer show the earlier left-side color extension in
-  [timeline_panel.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/widgets/timeline_panel.dart)
-- timeline no longer starts with pre-seeded empty tracks; tracks are created on
-  first insertion in
-  [fusionx_clean_ui_screen.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/screens/fusionx_clean_ui_screen.dart)
-- text preset insertion now ensures a text track exists before adding the first
-  generated text clip in
-  [fusionx_clean_ui_screen.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/screens/fusionx_clean_ui_screen.dart)
-- scrub now has gesture coverage in the empty spacer below the ruler and the
-  empty timeline area below the last visible track in
-  [timeline_panel.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/widgets/timeline_panel.dart)
-- long-press clip reorder now enters through an animated morph from the normal
-  clip geometry into compact reorder cards in
-  [timeline_panel.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/widgets/timeline_panel.dart)
-- same-track reorder insertion now has a clearer magnetic feel, with a temporary
-  insertion gap and softer rightward push for downstream clips in
-  [timeline_panel.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/widgets/timeline_panel.dart)
-- the post-animation `SingleTickerProviderStateMixin` crash is now fixed at the
-  root by switching `_TimelinePanelState` to `TickerProviderStateMixin`, so the
-  state can safely own both the playback ticker and the reorder animation
-  controller in
-  [timeline_panel.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/widgets/timeline_panel.dart)
-- the reorder view now hides the original long timeline row during entry and
-  uses a dedicated compact card presentation for reorder clips, so the visual
-  state is no longer “strip plus cards” in
-  [timeline_panel.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/widgets/timeline_panel.dart)
-- the reorder interaction now keeps the ruler/header/timeline chrome in its
-  normal shape and limits the transformation to the active reordered row, where
-  the pressed clip stays selected while the row clips collapse into square cards
-  for left-right reordering in
-  [timeline_panel.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/widgets/timeline_panel.dart)
-- the reorder drag stream now survives the row morph by using global pointer
-  tracking in addition to the long-press trigger, so the pressed clip can keep
-  moving after the row transforms into compact cards in
-  [timeline_panel.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/widgets/timeline_panel.dart)
-- the reorder UI no longer shows the temporary side handle, the active row rail
-  now hides during reorder, and the insertion spacing / dragged-card scale were
-  reduced for a smoother motion profile in
-  [timeline_panel.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/widgets/timeline_panel.dart)
-- non-video tracks now use true time-shift placement inside the timeline, with
-  gap-preserving movement for overlay/text/audio-style clips instead of
-  reorder-only semantics in
-  [fusionx_clean_ui_screen.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/screens/fusionx_clean_ui_screen.dart)
-- temporal gaps before moved non-video clips now remain visually empty and use
-  exact time width rather than rendering as `+` add placeholders in
-  [timeline_mock_models.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/models/timeline_mock_models.dart)
-  and
-  [timeline_panel.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/widgets/timeline_panel.dart)
-- motion-text runtime activation now prefers binding ranges for moved text
-  clips, so preview/export/runtime respect the clip's shifted real start time in
-  [professional_motion_runtime_helpers.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/domain/models/professional_motion_runtime_helpers.dart)
-  and
-  [fusionx_clean_ui_screen.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/screens/fusionx_clean_ui_screen.dart)
-- moving non-video clips no longer forces the playhead to jump to the moved
-  clip; timeline focus now stays on the user's current playhead position in
-  [fusionx_clean_ui_screen.dart](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/screens/fusionx_clean_ui_screen.dart)
+- the full `BETA1` manipulation baseline remains part of this pushed snapshot:
+  insertion-driven track creation, background scrub from empty timeline space,
+  reorder-card entry animation, stronger same-track magnetic insertion, true
+  temporal non-video movement with preserved gaps, runtime-correct moved text
+  timing, and no forced playhead jump during non-video clip moves
+- bottom-dock `Text` now inserts a direct text layer instead of opening
+  preset-first flow, while preserving the deeper motion-text infrastructure for
+  later animation work
+- an initial `Animate` browser UI now exists in the real editor:
+  a per-row animate entry button, a dedicated search-first bottom sheet, and
+  projected animation sub-rows in the timeline for future keyframe tooling
+- preview canvas authoring now includes viewport gestures and overlay transform
+  chrome:
+  pinch zoom, pan, reset, selected-overlay bounds, and direct transform handles
+- playback transport has been hardened for better perceived responsiveness:
+  faster play/pause initiation, more immediate native playing state reflection,
+  and less idle polling pressure
+- timeline clip visuals are now calmer and clearer in dark mode, with muted
+  per-track color families and stronger active selection visibility
 
-Latest recorded validation for `BETA1`:
+Latest recorded validation for `BETA2`:
 
-- `dart format` passed
-- `flutter analyze` passed for:
-  - `professional_motion_runtime_helpers.dart`
-  - `timeline_mock_models.dart`
-  - `timeline_panel.dart`
-  - `fusionx_clean_ui_screen.dart`
+- `flutter analyze` passed
+- `flutter test test/motion_text_authoring_service_test.dart` passed
 - `flutter build apk --debug` passed
-- latest `adb install` completed on the connected real device:
-  - device serial: `R3CT10LKLSX`
-  - model: `SM-S908N`
-  - package: `com.refusion.app`
-  - `versionName = 1.0.0-beta.1`
-  - `lastUpdateTime = 2026-04-11 04:34:01`
 
 ## Active Workstreams
 
@@ -126,11 +77,12 @@ Latest recorded validation for `BETA1`:
 Current active workstream:
 
 - timeline track manipulation / presentation / track-creation behavior
+- overlay animate / canvas authoring scaffolding
 
 Current practical resume point:
 
-- continue from the scoped manipulation plan, treating `BETA1` as the latest
-  pushed checkpoint with focused manipulation acceptance still pending
+- continue from the scoped manipulation plan, treating `BETA2` as the latest
+  pushed checkpoint while extending the editor into animate/canvas authoring
 
 What is already present in the pushed snapshot:
 
@@ -144,6 +96,11 @@ What is already present in the pushed snapshot:
 - true non-video time shifting with preserved gaps
 - runtime-correct moved text timing
 - no automatic playhead jump during non-video clip moves
+- direct text insertion from the dock
+- initial animate browser UI and projected animation rows
+- canvas zoom/pan/reset and overlay transform handles
+- improved play/pause responsiveness
+- muted per-track color families with clearer active selection feedback
 
 What still needs to happen next:
 
@@ -159,7 +116,8 @@ What still needs to happen next:
    - animated entry into compact cards
    - magnetic same-track insertion
    - no persistent gaps after drop
-4. continue the manipulation-focused plan from there
+4. harden animate/canvas behavior from the current scaffold into precise
+   keyframe-ready authoring
 
 Primary timeline references:
 
@@ -168,12 +126,29 @@ Primary timeline references:
 3. [Stage 6 Timeline Professionalization - Stage 9 Performance Hardening](/Users/mx/Documents/InGeneBMFPro/docs/process/stage-6-timeline-professionalization-stage-9-performance-hardening.md)
 4. [Stage 6 Timeline Professionalization - Track Manipulation And Interaction Plan](/Users/mx/Documents/InGeneBMFPro/docs/process/stage-6-timeline-professionalization-track-manipulation-and-interaction-plan.md)
 
-### 2. Export / Effects
+### 2. Animate / Canvas
+
+Current state:
+
+- the editor now has an initial animate-entry surface in the real timeline UI
+- the animation browser is still a scaffold and not yet full keyframe authoring
+- the preview canvas now supports viewport gestures and direct overlay
+  manipulation
+
+Correct resume rule:
+
+- continue from the current scaffold by hardening:
+  - keyframe authoring
+  - lane tooling
+  - transform precision
+  - non-text overlay support
+
+### 3. Export / Effects
 
 Current state:
 
 - intentionally paused at the documented handoff point
-- no newer export-runtime implementation was added in `BETA1`
+- no newer export-runtime implementation was added in `BETA2`
 
 Correct resume rule:
 
@@ -209,7 +184,7 @@ If a new thread is opened now, the minimum correct reading order is:
 
 The next thread must treat:
 
-- `BETA1` as the last pushed/published checkpoint
+- `BETA2` as the last pushed/published checkpoint
 - the current export/effects resume map as still paused at the same handoff
   point
 
@@ -217,3 +192,7 @@ It must not claim that the broader manipulation acceptance matrix is closed
 until focused on-device validation is completed for first-insert track creation,
 scrub behavior across both track and empty timeline regions, same-track reorder
 interaction, and the moved non-video timing path.
+
+It must also not claim that animate/keyframe authoring is complete merely
+because the initial animate browser, animation rows, and canvas transform UI
+are now present.

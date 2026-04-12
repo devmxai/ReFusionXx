@@ -24,6 +24,7 @@ import '../models/timeline_mock_models.dart';
 import '../models/timeline_time.dart';
 import '../widgets/editor_tools_bar.dart';
 import '../widgets/editor_top_bar.dart';
+import '../widgets/animate_browser_bottom_sheet.dart';
 import '../widgets/clip_speed_bottom_sheet.dart';
 import '../widgets/export_bottom_sheet.dart';
 import '../widgets/media_bottom_sheet.dart';
@@ -49,6 +50,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   static const String _motionProjectId = 'motion-project';
   static const String _motionSceneId = 'scene-main';
   static const String _exportContractVersion = 'v1alpha1';
+  static const bool _textPresetPickerEnabled = false;
+  static const String _defaultInsertedTextValue = 'Text';
+  static const double _defaultInsertedTextFontSize = 56;
   static final TimelineTime _defaultTextPresetDurationTime =
       TimelineTime.fromSecondsDouble(3);
 
@@ -72,10 +76,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   List<TimelineTrackData> _tracks = const <TimelineTrackData>[];
   String? _selectedClipId;
   String? _previewAssetId;
+  PreviewViewportState _previewViewportState = PreviewViewportState.identity;
   double? _lockedWorkspaceAspectRatio;
   TimelineTime _currentTime = TimelineTime.zero;
   bool _isPlaying = false;
   bool _isTimelineScrubbing = false;
+  bool _isAnimateBrowserOpen = false;
   TimelineTime? _timelineScrubFinalTime;
   DateTime? _lastScrubPreviewDispatchAt;
   int? _lastScrubPreviewPositionMs;
@@ -911,8 +917,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
             project,
             bindings: bindings,
           );
+    final baseTextTrack = _tracks[textTrackIndex];
     final nextTracks = List<TimelineTrackData>.from(_tracks);
-    nextTracks[textTrackIndex] = generatedTextTrack;
+    nextTracks[textTrackIndex] = generatedTextTrack.copyWith(
+      animationLanes: baseTextTrack.animationLanes,
+    );
     final resolvedTracks = List<TimelineTrackData>.unmodifiable(nextTracks);
     if (useCurrentProjection) {
       _cachedMotionTimelineBaseTracks = _tracks;
@@ -1338,22 +1347,22 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     return value.rawValue as double;
   }
 
-  String? _editingTextElementIdForSnapshot(
+  String? _selectedCanvasTextElementIdForSnapshot(
     MotionTextRenderSnapshot snapshot,
   ) {
-    final editingElementId = _textEditSession?.elementId;
-    if (editingElementId == null) {
+    final candidateElementId = _hasSelectedMotionTextClip
+        ? _selectedClipId
+        : _textEditSession?.elementId;
+    if (candidateElementId == null) {
       return null;
     }
     for (final node in snapshot.nodes) {
-      if (node.targetElementId == editingElementId) {
-        return editingElementId;
+      if (node.targetElementId == candidateElementId) {
+        return candidateElementId;
       }
     }
     return null;
   }
-
-  bool get _isTextEditMode => _textEditSession != null;
 
   bool get _hasSelectedImportedClip =>
       _selectedClipContext?.asset?.isImported == true;
@@ -1674,9 +1683,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   }
 
   void _handleCanvasTextSelected(String elementId) {
-    if (!_isTextEditMode) {
-      return;
-    }
     _selectTextElement(elementId);
   }
 
@@ -1686,9 +1692,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   }
 
   void _handleCanvasTextMoved(String elementId, Offset deltaCanvas) {
-    if (_textEditSession?.elementId != elementId) {
-      return;
-    }
     final context = _motionTextElementContextForId(elementId);
     if (context == null) {
       return;
@@ -1716,14 +1719,50 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     });
   }
 
-  void _handleCanvasTextFontSizeChanged(String elementId, double nextFontSize) {
-    final session = _textEditSession;
-    if (session == null || session.elementId != elementId) {
+  void _handleCanvasTextScaleChanged(
+    String elementId,
+    double scaleX,
+    double scaleY,
+  ) {
+    final context = _motionTextElementContextForId(elementId);
+    if (context == null) {
       return;
     }
-    _handleTextEditDraftChanged(
-      session.draft.copyWith(fontSize: nextFontSize),
+    final nextProject = _updatedProjectForTextElement(
+      context,
+      scalarProperties: <MotionPropertyDefinition, double>{
+        MotionPropertyCatalog.scaleX: scaleX.clamp(0.2, 8.0),
+        MotionPropertyCatalog.scaleY: scaleY.clamp(0.2, 8.0),
+      },
     );
+    setState(() {
+      _motionProject = nextProject;
+      _motionRevision += 1;
+      _selectedClipId = elementId;
+      _activeTab = EditorMediaTab.text;
+    });
+  }
+
+  void _handleCanvasTextRotationChanged(
+    String elementId,
+    double rotationDegrees,
+  ) {
+    final context = _motionTextElementContextForId(elementId);
+    if (context == null) {
+      return;
+    }
+    final nextProject = _updatedProjectForTextElement(
+      context,
+      scalarProperties: <MotionPropertyDefinition, double>{
+        MotionPropertyCatalog.rotationDegrees: rotationDegrees,
+      },
+    );
+    setState(() {
+      _motionProject = nextProject;
+      _motionRevision += 1;
+      _selectedClipId = elementId;
+      _activeTab = EditorMediaTab.text;
+    });
   }
 
   void _handleDeleteSelectedClip() {
@@ -2750,8 +2789,142 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       _activeTab = tab;
     });
     if (tab == EditorMediaTab.text) {
-      unawaited(_openTextPresetSheet());
+      _handleTextDockTap();
     }
+  }
+
+  void _handleTextDockTap() {
+    if (_textPresetPickerEnabled) {
+      unawaited(_openTextPresetSheet());
+      return;
+    }
+    _insertDefaultTextLayer();
+  }
+
+  bool _canOpenAnimateBrowserForTrack(TimelineTrackData track) {
+    if (track.kind != TimelineTrackKind.text) {
+      return false;
+    }
+    return track.clips.any((clip) => clip.type == TimelineClipType.media);
+  }
+
+  TimelineClipData? _resolveAnimateTargetClipForTrack(TimelineTrackData track) {
+    final selectedClipId = _selectedClipId;
+    if (selectedClipId != null) {
+      for (final clip in track.clips) {
+        if (clip.id == selectedClipId && clip.type == TimelineClipType.media) {
+          return clip;
+        }
+      }
+    }
+    for (final clip in track.clips) {
+      if (clip.type == TimelineClipType.media) {
+        return clip;
+      }
+    }
+    return null;
+  }
+
+  List<double> _mockAnimationKeyframeStopsForItem(AnimateBrowserItem item) {
+    switch (item.category) {
+      case 'Transform':
+        return const <double>[0.0, 0.24, 0.58, 1.0];
+      case 'Visual':
+        return const <double>[0.0, 0.4, 1.0];
+      case 'Effects':
+        return const <double>[0.0, 0.18, 0.62, 1.0];
+      case 'Text':
+        return const <double>[0.0, 0.33, 0.72, 1.0];
+      default:
+        return const <double>[0.0, 0.52, 1.0];
+    }
+  }
+
+  void _addAnimateLaneToTrack(
+    TimelineTrackData displayTrack,
+    AnimateBrowserItem item,
+  ) {
+    final targetClip = _resolveAnimateTargetClipForTrack(displayTrack);
+    if (targetClip == null) {
+      _showStageMessage('Select a layer clip before adding animation.');
+      return;
+    }
+
+    final trackIndex = _tracks.indexWhere(
+      (candidate) => candidate.kind == displayTrack.kind,
+    );
+    if (trackIndex < 0) {
+      return;
+    }
+
+    final baseTrack = _tracks[trackIndex];
+    final alreadyExists = baseTrack.animationLanes.any(
+      (lane) =>
+          lane.targetClipId == targetClip.id &&
+          lane.label.toLowerCase() == item.label.toLowerCase(),
+    );
+    if (alreadyExists) {
+      _showStageMessage('${item.label} already exists on this layer.');
+      return;
+    }
+
+    final nextLane = TimelineAnimationLaneData(
+      id: 'anim-${displayTrack.kind.name}-${targetClip.id}-${DateTime.now().microsecondsSinceEpoch}',
+      label: item.label,
+      targetClipId: targetClip.id,
+      normalizedKeyframeStops: _mockAnimationKeyframeStopsForItem(item),
+    );
+    final nextAnimationLanes = List<TimelineAnimationLaneData>.unmodifiable(
+      <TimelineAnimationLaneData>[
+        ...baseTrack.animationLanes,
+        nextLane,
+      ],
+    );
+    final nextTracks = List<TimelineTrackData>.from(_tracks);
+
+    setState(() {
+      nextTracks[trackIndex] = baseTrack.copyWith(
+        animationLanes: nextAnimationLanes,
+      );
+      _tracks = List<TimelineTrackData>.unmodifiable(nextTracks);
+      _selectedClipId = targetClip.id;
+    });
+  }
+
+  Future<void> _openAnimateBrowserForTrack(TimelineTrackData track) async {
+    if (!_canOpenAnimateBrowserForTrack(track)) {
+      return;
+    }
+
+    setState(() {
+      _isAnimateBrowserOpen = true;
+    });
+
+    final item = await showModalBottomSheet<AnimateBrowserItem>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => MediaQuery.removeViewInsets(
+        context: context,
+        removeBottom: true,
+        child: const AnimateBrowserBottomSheet(
+          items: AnimateBrowserBottomSheet.defaultItems,
+        ),
+      ),
+    ).whenComplete(() {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isAnimateBrowserOpen = false;
+      });
+    });
+
+    if (item == null || !mounted) {
+      return;
+    }
+
+    _addAnimateLaneToTrack(track, item);
   }
 
   Future<void> _openMediaSheet(EditorMediaTab tab) async {
@@ -2794,6 +2967,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       return;
     }
     _insertTextPreset(preset);
+  }
+
+  void _insertDefaultTextLayer() {
+    _insertMotionTextLayer(
+      text: _defaultInsertedTextValue,
+      elementName: _defaultInsertedTextValue,
+      initialFontSize: _defaultInsertedTextFontSize,
+      failureMessage: 'Unable to insert text right now.',
+    );
   }
 
   ClipSpeedDraft? _buildSelectedClipSpeedDraft() {
@@ -3205,6 +3387,21 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   }
 
   void _insertTextPreset(MotionTextPresetDefinition preset) {
+    _insertMotionTextLayer(
+      presetId: preset.id,
+      text: preset.defaultText,
+      elementName: preset.label,
+      failureMessage: 'Unable to insert text preset right now.',
+    );
+  }
+
+  void _insertMotionTextLayer({
+    String? presetId,
+    required String text,
+    required String elementName,
+    double? initialFontSize,
+    required String failureMessage,
+  }) {
     final insertionRange = _defaultTextPresetRange();
     final insertionStartTime = insertionRange.start;
     final insertionResult = _buildMotionTextAuthoringService().insertTextPreset(
@@ -3212,14 +3409,26 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
         project: _effectiveMotionProject,
         sceneId: _motionSceneId,
         projectRange: insertionRange,
-        presetId: preset.id,
-        text: preset.defaultText,
-        elementName: preset.label,
+        presetId: presetId,
+        text: text,
+        elementName: elementName,
+        elementProperties: initialFontSize == null
+            ? const <MotionPropertyAssignment>[]
+            : <MotionPropertyAssignment>[
+                MotionPropertyAssignment(
+                  target: const MotionPropertyTarget(
+                    kind: MotionTargetKind.element,
+                    targetId: '__pending__',
+                  ),
+                  definition: MotionPropertyCatalog.fontSize,
+                  value: MotionPropertyValue.scalar(initialFontSize),
+                ),
+              ],
       ),
     );
 
     if (!insertionResult.didApply) {
-      _showStageMessage('Unable to insert text preset right now.');
+      _showStageMessage(failureMessage);
       return;
     }
 
@@ -4220,8 +4429,20 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
 
   void _handlePlayToggle() {
     _clearTextEditPreviewRange();
+    if (_canFastTogglePlayback) {
+      _setTimelineDisplayTime(_currentTime);
+      _syncPlaybackSampleToCurrentTime();
+      unawaited(_transportController.togglePlayPause());
+      return;
+    }
     unawaited(_togglePlayAfterStructuralCommit());
   }
+
+  bool get _canFastTogglePlayback =>
+      _useNativePreview &&
+      !_isApplyingStructuralEdit &&
+      _timelineTrimPreviewSession == null &&
+      _transportController.state.sourceKind == 'timeline';
 
   bool get _canPreviewActiveTextEditRange {
     final session = _textEditSession;
@@ -4409,6 +4630,24 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     );
   }
 
+  void _handlePreviewViewportChanged(PreviewViewportState state) {
+    if (_previewViewportState == state) {
+      return;
+    }
+    setState(() {
+      _previewViewportState = state;
+    });
+  }
+
+  void _handlePreviewViewportReset() {
+    if (_previewViewportState.isIdentity) {
+      return;
+    }
+    setState(() {
+      _previewViewportState = PreviewViewportState.identity;
+    });
+  }
+
   Widget? _buildPreviewOverlay({
     required bool effectiveIsPlaying,
   }) {
@@ -4423,26 +4662,24 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
         if (motionTextRenderSnapshot == null) {
           return const SizedBox.shrink();
         }
-        final editingTextElementId =
-            _editingTextElementIdForSnapshot(motionTextRenderSnapshot);
+        final selectedCanvasElementId =
+            _selectedCanvasTextElementIdForSnapshot(motionTextRenderSnapshot);
         return Stack(
           fit: StackFit.expand,
           children: [
             MotionTextPreviewOverlay(
               snapshot: motionTextRenderSnapshot,
             ),
-            if (editingTextElementId != null)
-              MotionTextTransformOverlay(
-                snapshot: motionTextRenderSnapshot,
-                selectedElementId: editingTextElementId,
-                isInteractive: !_isTimelineScrubbing &&
-                    !effectiveIsPlaying &&
-                    _isTextEditMode,
-                onNodeSelected: _handleCanvasTextSelected,
-                onNodeEditRequested: _handleCanvasTextEditRequested,
-                onNodeMoved: _handleCanvasTextMoved,
-                onNodeFontSizeChanged: _handleCanvasTextFontSizeChanged,
-              ),
+            MotionTextTransformOverlay(
+              snapshot: motionTextRenderSnapshot,
+              selectedElementId: selectedCanvasElementId,
+              isInteractive: !_isTimelineScrubbing && !effectiveIsPlaying,
+              onNodeSelected: _handleCanvasTextSelected,
+              onNodeEditRequested: _handleCanvasTextEditRequested,
+              onNodeMoved: _handleCanvasTextMoved,
+              onNodeScaleChanged: _handleCanvasTextScaleChanged,
+              onNodeRotationChanged: _handleCanvasTextRotationChanged,
+            ),
           ],
         );
       },
@@ -4452,6 +4689,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   @override
   Widget build(BuildContext context) {
     final previewAsset = _previewAsset;
+    final hasPreviewCanvasContent =
+        previewAsset != null || _hasMotionTextContent;
     _schedulePreviewThumbnailWarmup(previewAsset);
     final displayTracks = _displayTracks;
     final effectiveIsPlaying = _useNativePreview && _isPlaying;
@@ -4469,6 +4708,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     final isTrimModeActive = _timelineTrimSelection != null;
     final activeTextEditSession = _textEditSession;
     return Scaffold(
+      resizeToAvoidBottomInset: !_isAnimateBrowserOpen,
       body: SafeArea(
         bottom: false,
         child: Container(
@@ -4486,31 +4726,34 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
                     flex: 4,
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(minHeight: 220),
-                      child: PreviewStage(
-                        workspaceAspectRatio: _previewAspectRatio,
-                        overlay: _buildPreviewOverlay(
-                          effectiveIsPlaying: effectiveIsPlaying,
-                        ),
-                        child: _useNativePreview
-                            ? NativePreviewSurface(
-                                controller: _transportController,
-                                previewIdentity:
-                                    previewAsset?.sourceUri ?? previewAsset?.id,
-                                fallback: _CleanPreviewCanvas(
-                                  asset: previewAsset,
-                                  previewThumbnailAssetId:
-                                      _previewThumbnailResolvedAssetId,
-                                  previewThumbnailListenable:
-                                      _previewThumbnailNotifier,
-                                ),
-                              )
-                            : _CleanPreviewCanvas(
-                                asset: previewAsset,
-                                previewThumbnailAssetId:
-                                    _previewThumbnailResolvedAssetId,
-                                previewThumbnailListenable:
-                                    _previewThumbnailNotifier,
-                              ),
+                      child: Builder(
+                        builder: (context) {
+                          final previewFallback = _CleanPreviewCanvas(
+                            asset: previewAsset,
+                            previewThumbnailAssetId:
+                                _previewThumbnailResolvedAssetId,
+                            previewThumbnailListenable:
+                                _previewThumbnailNotifier,
+                          );
+                          return PreviewStage(
+                            workspaceAspectRatio: _previewAspectRatio,
+                            hasVisibleContent: hasPreviewCanvasContent,
+                            viewportState: _previewViewportState,
+                            onViewportChanged: _handlePreviewViewportChanged,
+                            onViewportReset: _handlePreviewViewportReset,
+                            overlay: _buildPreviewOverlay(
+                              effectiveIsPlaying: effectiveIsPlaying,
+                            ),
+                            child: _useNativePreview && previewAsset != null
+                                ? NativePreviewSurface(
+                                    controller: _transportController,
+                                    previewIdentity: previewAsset.sourceUri ??
+                                        previewAsset.id,
+                                    fallback: previewFallback,
+                                  )
+                                : previewFallback,
+                          );
+                        },
                       ),
                     ),
                   ),
@@ -4578,6 +4821,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
                                 onClipDoubleTap: _handleTimelineClipDoubleTap,
                                 onClipReorder: _reorderClip,
                                 onClipTimeShift: _shiftClipInTimeline,
+                                onTrackAnimateTap: _openAnimateBrowserForTrack,
                                 onBackgroundTap: _clearSelection,
                                 onTrimCommit: _handleTimelineTrimCommit,
                                 onTrimPreviewChanged:
