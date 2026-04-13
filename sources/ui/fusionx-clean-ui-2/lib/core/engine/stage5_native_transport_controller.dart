@@ -237,6 +237,27 @@ class Stage5NativeTransportController extends ChangeNotifier {
     return thumbnails;
   }
 
+  Future<Uint8List?> loadMediaFramePreview({
+    required String sourceUri,
+    required int positionMs,
+    int targetWidth = 320,
+    int targetHeight = 568,
+  }) async {
+    if (!isPlatformSupported) {
+      return null;
+    }
+    final result = await _methodChannel.invokeMethod<Uint8List>(
+      'loadMediaFramePreview',
+      <String, dynamic>{
+        'sourceUri': sourceUri,
+        'positionMs': positionMs < 0 ? 0 : positionMs,
+        'targetWidth': targetWidth,
+        'targetHeight': targetHeight,
+      },
+    );
+    return result;
+  }
+
   Future<Stage5TransportState?> prepareImportedMedia({
     required String sourceUri,
     required String sourceLabel,

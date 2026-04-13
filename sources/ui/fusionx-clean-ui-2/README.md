@@ -65,6 +65,11 @@ audio, accurate seeking, and native performance on both platforms.
 - Any play/pause behavior in this project is visual demo behavior only and not
   real media playback.
 
+## Architecture Docs
+
+- `docs/live_scrub_architecture.md`: strict live scrub rebuild plan and
+  migration rules
+
 ## Run
 
 ```bash

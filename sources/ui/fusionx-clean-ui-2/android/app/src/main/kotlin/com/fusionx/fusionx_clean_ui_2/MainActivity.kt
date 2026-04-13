@@ -124,6 +124,42 @@ class MainActivity: FlutterActivity() {
                         }
                     }
                 }
+                "loadMediaFramePreview" -> {
+                    val sourceUri = call.argument<String>("sourceUri")
+                    val positionMs = call.argument<Int>("positionMs") ?: 0
+                    val targetWidth = call.argument<Int>("targetWidth") ?: 320
+                    val targetHeight = call.argument<Int>("targetHeight") ?: 568
+                    if (sourceUri.isNullOrBlank()) {
+                        result.error(
+                            "invalid_frame_preview_source",
+                            "Media frame preview source is missing.",
+                            null,
+                        )
+                    } else {
+                        mediaThumbnailExecutor.execute {
+                            runCatching {
+                                stage5TransportManager.loadMediaFramePreview(
+                                    sourceUri = sourceUri,
+                                    positionMs = positionMs.toLong(),
+                                    targetWidth = targetWidth,
+                                    targetHeight = targetHeight,
+                                )
+                            }.onSuccess { frameBytes ->
+                                mainHandler.post {
+                                    result.success(frameBytes)
+                                }
+                            }.onFailure { error ->
+                                mainHandler.post {
+                                    result.error(
+                                        "frame_preview_load_failed",
+                                        error.message ?: "Unable to load media frame preview.",
+                                        null,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
                 "loadMediaThumbnails" -> {
                     val rawRequests = call.argument<List<Any?>>("requests") ?: emptyList()
                     val targetWidth = call.argument<Int>("targetWidth") ?: 192

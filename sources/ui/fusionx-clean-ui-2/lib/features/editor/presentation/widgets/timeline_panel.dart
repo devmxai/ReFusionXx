@@ -23,6 +23,11 @@ typedef TimelineClipTimeShiftCallback = void Function(
   String clipId,
   TimelineTime startTime,
 );
+typedef TimelineBoundaryTransitionTapCallback = void Function(
+  TimelineTrackData track,
+  TimelineClipData leftClip,
+  TimelineClipData rightClip,
+);
 
 class _TimelineZoomCanonicalProfile {
   const _TimelineZoomCanonicalProfile._();
@@ -392,6 +397,7 @@ class TimelinePanel extends StatefulWidget {
     this.onClipDoubleTap,
     this.onClipReorder,
     this.onClipTimeShift,
+    this.onTransitionTap,
     this.onTrackAnimateTap,
     this.onBackgroundTap,
     this.assetPathResolver,
@@ -401,6 +407,15 @@ class TimelinePanel extends StatefulWidget {
     this.trimSelection,
     this.onTrimCommit,
     this.onTrimPreviewChanged,
+    this.selectedTransitionId,
+    this.selectedAnimationLaneId,
+    this.onAnimationLaneTap,
+    this.timeDisplayOffset = TimelineTime.zero,
+    this.timeReadoutTotalTime,
+    this.initialSecondsWidth = 32,
+    this.animateTrackKinds = const <TimelineTrackKind>{
+      TimelineTrackKind.text,
+    },
   });
 
   final bool embedded;
@@ -417,6 +432,7 @@ class TimelinePanel extends StatefulWidget {
   final ValueChanged<String>? onClipDoubleTap;
   final TimelineClipReorderCallback? onClipReorder;
   final TimelineClipTimeShiftCallback? onClipTimeShift;
+  final TimelineBoundaryTransitionTapCallback? onTransitionTap;
   final ValueChanged<TimelineTrackData>? onTrackAnimateTap;
   final VoidCallback? onBackgroundTap;
   final TimelineAssetPathResolver? assetPathResolver;
@@ -426,6 +442,13 @@ class TimelinePanel extends StatefulWidget {
   final TimelineTrimSelection? trimSelection;
   final ValueChanged<TimelineTrimCommitRequest>? onTrimCommit;
   final ValueChanged<TimelineTrimPreviewRequest?>? onTrimPreviewChanged;
+  final String? selectedTransitionId;
+  final String? selectedAnimationLaneId;
+  final ValueChanged<String>? onAnimationLaneTap;
+  final TimelineTime timeDisplayOffset;
+  final TimelineTime? timeReadoutTotalTime;
+  final double initialSecondsWidth;
+  final Set<TimelineTrackKind> animateTrackKinds;
 
   @override
   State<TimelinePanel> createState() => _TimelinePanelState();
@@ -437,6 +460,12 @@ class _TimelinePanelState extends State<TimelinePanel>
   static const double _controlTileSize = 36;
   static const double _controlGap = 6;
   static const double _splitGap = 2;
+  static const double _joinedMediaGap = 0;
+  static const double _playheadLineWidth = 3;
+  static final double _timelineControlColumnWidth = math.max(
+    _controlTileSize,
+    _TimelineTrackLaneProfile.video.controlHitSize,
+  );
   static const double _trailingPadding = 120;
   static const double _timeReadoutWidth = 96;
   static const double _rulerHeaderHeight = 20;
@@ -452,9 +481,16 @@ class _TimelinePanelState extends State<TimelinePanel>
   static const double _scaleGestureWidthEpsilon =
       _TimelineZoomCanonicalProfile.scaleGestureWidthEpsilon;
   static const double _manualPanActivationDistance = 18;
-  static const double _maxPlaybackInterpolationLeadSeconds = 0.12;
+  static const double _maxPlaybackInterpolationLeadSeconds = 0.0;
   static const double _maxPlaybackRegressionToleranceSeconds = 0.24;
   static const double _playbackStartConfirmationThresholdSeconds = 0.01;
+  static const double _scrubMomentumMinVelocityPxPerSecond = 720;
+  static const double _scrubMomentumStopVelocityPxPerSecond = 42;
+  static const double _scrubMomentumDecelerationPxPerSecondSq = 4200;
+  static const bool _enableScrubMomentum = false;
+  static const double _scrubTapDeadzonePx = 3.0;
+  static const double _scrubHorizontalLockDistancePx = 4.0;
+  static const double _scrubHorizontalLockRatio = 1.25;
   static const double _reorderCardHeight = 40;
   static const double _reorderCardWidth = 40;
   static const double _reorderBaseSlotWidth = 6;
@@ -468,12 +504,13 @@ class _TimelinePanelState extends State<TimelinePanel>
   final ScrollController _verticalController = ScrollController();
   late final ValueNotifier<TimelineTime> _displayTimeNotifier;
   late final Ticker _playbackTicker;
+  late final Ticker _scrubMomentumTicker;
   late final AnimationController _reorderTransitionController;
 
   double _playheadLeft = 0;
   double _leadingOffset = 0;
-  double _secondsWidth = 118;
-  double _scaleStartSecondsWidth = 118;
+  double _secondsWidth = 32;
+  double _scaleStartSecondsWidth = 32;
   TimelineTime _scaleAnchorTime = TimelineTime.zero;
   double _scaleStartDistance = 0;
   double _scrollViewportWidth = 0;
@@ -482,9 +519,17 @@ class _TimelinePanelState extends State<TimelinePanel>
   bool _isScaleGestureActive = false;
   bool _isBackgroundScrubbing = false;
   bool _isScrubInteractionActive = false;
+  bool _isScrubMomentumActive = false;
+  bool _deferScrubFinalizationToGestureEnd = false;
+  bool _scrubPointerHandledByDrag = false;
+  int? _scrubPointerId;
+  Offset? _scrubPointerLastPosition;
+  Offset? _scrubPointerDownPosition;
+  VelocityTracker? _scrubVelocityTracker;
+  double _scrubAccumulatedDx = 0;
+  double _scrubAccumulatedDy = 0;
   TimelineTime? _pendingTime;
   TimelineTime? _pendingImmediateTime;
-  bool _immediateTimelineDispatchScheduled = false;
   Timer? _scrollDispatchTimer;
   DateTime? _lastDispatchedAt;
   List<TimelineTrackData>? _reorderTracksSnapshot;
@@ -499,6 +544,8 @@ class _TimelinePanelState extends State<TimelinePanel>
   bool _isDropSettling = false;
   Timer? _reorderExitTimer;
   TimelineTime _backgroundScrubCurrentTime = TimelineTime.zero;
+  double _scrubMomentumVelocityPxPerSecond = 0;
+  Duration _scrubMomentumLastElapsed = Duration.zero;
   double _manualPanAccumulatedDx = 0;
   _TimelineTrimDragSession? _trimDragSession;
   _TimelineClipMoveSession? _clipMoveSession;
@@ -522,12 +569,12 @@ class _TimelinePanelState extends State<TimelinePanel>
 
   Duration get _scrubDispatchInterval {
     if (_secondsWidth <= 36) {
-      return const Duration(milliseconds: 32);
+      return const Duration(milliseconds: 16);
     }
     if (_secondsWidth <= 72) {
-      return const Duration(milliseconds: 24);
+      return const Duration(milliseconds: 12);
     }
-    return const Duration(milliseconds: 16);
+    return const Duration(milliseconds: 8);
   }
 
   double get _currentSeconds => _displayTimeNotifier.value.inSecondsDouble;
@@ -537,6 +584,7 @@ class _TimelinePanelState extends State<TimelinePanel>
 
   bool get _shouldAnimatePlayback =>
       widget.isPlaying &&
+      !_usesExternalPlaybackSamples &&
       !_isBackgroundScrubbing &&
       !_isScaleGestureActive &&
       !_isTrimDragging &&
@@ -1033,6 +1081,12 @@ class _TimelinePanelState extends State<TimelinePanel>
   @override
   void initState() {
     super.initState();
+    final seededSecondsWidth = widget.initialSecondsWidth.clamp(
+      _minSecondsWidth,
+      _maxSecondsWidth,
+    );
+    _secondsWidth = seededSecondsWidth;
+    _scaleStartSecondsWidth = seededSecondsWidth;
     final initialDisplayTime =
         widget.displayTimeListenable?.value ?? widget.currentTime;
     _displayTimeNotifier = ValueNotifier<TimelineTime>(
@@ -1042,6 +1096,7 @@ class _TimelinePanelState extends State<TimelinePanel>
       ),
     );
     _playbackTicker = createTicker(_handlePlaybackTick);
+    _scrubMomentumTicker = createTicker(_handleScrubMomentumTick);
     _reorderTransitionController = AnimationController(
       vsync: this,
       duration: _reorderEntryDuration,
@@ -1138,6 +1193,7 @@ class _TimelinePanelState extends State<TimelinePanel>
     _detachDisplayTimeListener(widget.displayTimeListenable);
     _detachPlaybackSampleListener(widget.playbackSampleTimeListenable);
     _playbackTicker.dispose();
+    _scrubMomentumTicker.dispose();
     _reorderTransitionController.dispose();
     _scrollDispatchTimer?.cancel();
     _reorderExitTimer?.cancel();
@@ -1254,9 +1310,12 @@ class _TimelinePanelState extends State<TimelinePanel>
       return;
     }
     final regressionSeconds = (displayTime - clamped).inSecondsDouble;
+    final maxPlaybackRegressionToleranceSeconds = _usesExternalPlaybackSamples
+        ? 0.0
+        : _maxPlaybackRegressionToleranceSeconds;
     if (widget.isPlaying &&
         regressionSeconds > 0 &&
-        regressionSeconds <= _maxPlaybackRegressionToleranceSeconds) {
+        regressionSeconds <= maxPlaybackRegressionToleranceSeconds) {
       _playbackAnchorTime = displayTime;
       _playbackAnchorElapsed = _playbackLastElapsed;
       return;
@@ -1615,21 +1674,6 @@ class _TimelinePanelState extends State<TimelinePanel>
     _pendingTime = null;
   }
 
-  void _scheduleImmediateTimelineDispatch() {
-    if (_immediateTimelineDispatchScheduled) {
-      return;
-    }
-    _immediateTimelineDispatchScheduled = true;
-    SchedulerBinding.instance.addPostFrameCallback((_) {
-      _immediateTimelineDispatchScheduled = false;
-      if (!mounted) {
-        _pendingImmediateTime = null;
-        return;
-      }
-      _flushImmediateTimelineDispatch();
-    });
-  }
-
   void _flushImmediateTimelineDispatch() {
     final nextTime = _pendingImmediateTime;
     _pendingImmediateTime = null;
@@ -1659,8 +1703,9 @@ class _TimelinePanelState extends State<TimelinePanel>
 
     if (immediate) {
       _clearPendingScrollDispatch();
-      _pendingImmediateTime = nextTime;
-      _scheduleImmediateTimelineDispatch();
+      _clearImmediateTimelineDispatch();
+      _lastDispatchedAt = DateTime.now();
+      widget.onTimeChanged(nextTime);
       return;
     }
 
@@ -1685,6 +1730,55 @@ class _TimelinePanelState extends State<TimelinePanel>
     widget.onScrubStateChanged?.call(isActive);
   }
 
+  void _resetScrubPointerTracking() {
+    _scrubPointerId = null;
+    _scrubPointerLastPosition = null;
+    _scrubPointerDownPosition = null;
+    _scrubVelocityTracker = null;
+    _scrubAccumulatedDx = 0;
+    _scrubAccumulatedDy = 0;
+    _scrubPointerHandledByDrag = false;
+  }
+
+  void _handleScrubSurfacePointerDown(PointerDownEvent event) {
+    if (_activePointers.length > 1) {
+      return;
+    }
+    _scrubPointerId = event.pointer;
+    _scrubPointerLastPosition = event.position;
+    _scrubPointerDownPosition = event.position;
+    _scrubVelocityTracker = VelocityTracker.withKind(event.kind)
+      ..addPosition(event.timeStamp, event.position);
+    _scrubAccumulatedDx = 0;
+    _scrubAccumulatedDy = 0;
+    _scrubPointerHandledByDrag = false;
+    _deferScrubFinalizationToGestureEnd = false;
+  }
+
+  bool _shouldLockHorizontalScrub() {
+    final absDx = _scrubAccumulatedDx.abs();
+    final absDy = _scrubAccumulatedDy.abs();
+    if (absDx < _scrubTapDeadzonePx) {
+      return false;
+    }
+    return absDx >= _scrubHorizontalLockDistancePx &&
+        absDx >=
+            math.max(
+              _scrubHorizontalLockDistancePx,
+              absDy * _scrubHorizontalLockRatio,
+            );
+  }
+
+  void _enterPointerDrivenScrub() {
+    _beginBackgroundScrub();
+    if (!_isBackgroundScrubbing) {
+      return;
+    }
+    if (_scrubAccumulatedDx != 0) {
+      _updateBackgroundScrub(_scrubAccumulatedDx);
+    }
+  }
+
   void _beginBackgroundScrub() {
     if (_isReorderMode ||
         _isTrimDragging ||
@@ -1698,6 +1792,7 @@ class _TimelinePanelState extends State<TimelinePanel>
     if (!_acquireInteractionOwner(_TimelineInteractionOwner.scrub)) {
       return;
     }
+    _stopScrubMomentum(finalize: false);
     _captureLockedVerticalOffset();
     _restoreLockedVerticalOffset();
     _clearPendingScrollDispatch();
@@ -1705,7 +1800,6 @@ class _TimelinePanelState extends State<TimelinePanel>
     _lastDispatchedAt = null;
     _backgroundScrubCurrentTime = _displayTimeNotifier.value;
     _isBackgroundScrubbing = true;
-    _setScrubInteractionActive(true);
     _ensurePlaybackTickerForCurrentMode();
   }
 
@@ -1799,6 +1893,7 @@ class _TimelinePanelState extends State<TimelinePanel>
     if (_isReorderMode || !_isBackgroundScrubbing) {
       return;
     }
+    final didEnterActiveScrub = !_isScrubInteractionActive;
     _activateInteractionOwner(_TimelineInteractionOwner.scrub);
 
     final nextTime = (_backgroundScrubCurrentTime -
@@ -1816,6 +1911,9 @@ class _TimelinePanelState extends State<TimelinePanel>
       _isSyncingFromExternal = false;
     }
 
+    if (didEnterActiveScrub) {
+      _setScrubInteractionActive(true);
+    }
     _dispatchTimelineTime(nextTime, immediate: true);
   }
 
@@ -1823,6 +1921,8 @@ class _TimelinePanelState extends State<TimelinePanel>
     if (!_isBackgroundScrubbing) {
       return;
     }
+    _stopScrubMomentum(finalize: false);
+    _deferScrubFinalizationToGestureEnd = false;
     final didActivateScrub =
         _isInteractionActive(_TimelineInteractionOwner.scrub);
     _isBackgroundScrubbing = false;
@@ -1849,6 +1949,8 @@ class _TimelinePanelState extends State<TimelinePanel>
     if (!wasScrubbing) {
       return;
     }
+    _stopScrubMomentum(finalize: false);
+    _deferScrubFinalizationToGestureEnd = false;
     if (finalize) {
       _endBackgroundScrub();
       return;
@@ -1864,6 +1966,9 @@ class _TimelinePanelState extends State<TimelinePanel>
   }
 
   void _handleGlobalPointerDown(PointerDownEvent event) {
+    if (_isScrubMomentumActive) {
+      _stopScrubMomentum(finalize: true);
+    }
     _activePointers.add(event.pointer);
     _activePointerPositions[event.pointer] = event.position;
     if (_isScaleGestureActive) {
@@ -1879,6 +1984,26 @@ class _TimelinePanelState extends State<TimelinePanel>
       return;
     }
     _activePointerPositions[event.pointer] = event.position;
+    if (_scrubPointerId == event.pointer && !_isScaleGestureActive) {
+      _scrubVelocityTracker?.addPosition(event.timeStamp, event.position);
+      final downPosition = _scrubPointerDownPosition;
+      if (downPosition != null) {
+        _scrubAccumulatedDx = event.position.dx - downPosition.dx;
+        _scrubAccumulatedDy = event.position.dy - downPosition.dy;
+      }
+      if (_isBackgroundScrubbing && !_scrubPointerHandledByDrag) {
+        final lastPosition = _scrubPointerLastPosition;
+        if (lastPosition != null) {
+          final deltaDx = event.position.dx - lastPosition.dx;
+          if (deltaDx != 0) {
+            _updateBackgroundScrub(deltaDx);
+          }
+        }
+      } else if (!_isBackgroundScrubbing && _shouldLockHorizontalScrub()) {
+        _enterPointerDrivenScrub();
+      }
+      _scrubPointerLastPosition = event.position;
+    }
     if (_reorderPointerId == event.pointer &&
         _isReorderMode &&
         !_isDropSettling) {
@@ -1900,6 +2025,17 @@ class _TimelinePanelState extends State<TimelinePanel>
         _scalePointerIds?.contains(pointer) ?? _isScaleGestureActive;
     _activePointers.remove(pointer);
     _activePointerPositions.remove(pointer);
+    if (_scrubPointerId == pointer) {
+      final handledByDrag = _scrubPointerHandledByDrag;
+      _deferScrubFinalizationToGestureEnd = false;
+      if (!handledByDrag && _isBackgroundScrubbing && !_isScrubMomentumActive) {
+        _cancelInteractionOwner(
+          _TimelineInteractionOwner.scrub,
+          finalizeScrub: true,
+        );
+      }
+      _resetScrubPointerTracking();
+    }
     if (wasReorderPointer) {
       _reorderPointerId = null;
       _reorderPointerOriginGlobalDx = null;
@@ -1919,7 +2055,10 @@ class _TimelinePanelState extends State<TimelinePanel>
             _isInteractionActive(_TimelineInteractionOwner.pan))) {
       _cancelInteractionOwner(_TimelineInteractionOwner.pan);
     }
-    if (_activePointers.isEmpty && _isBackgroundScrubbing) {
+    if (_activePointers.isEmpty &&
+        _isBackgroundScrubbing &&
+        !_deferScrubFinalizationToGestureEnd &&
+        !_isScrubMomentumActive) {
       _cancelInteractionOwner(
         _TimelineInteractionOwner.scrub,
         finalizeScrub: true,
@@ -1931,7 +2070,11 @@ class _TimelinePanelState extends State<TimelinePanel>
     if (_activePointers.length > 1) {
       return;
     }
-    _beginBackgroundScrub();
+    _scrubPointerHandledByDrag = true;
+    _deferScrubFinalizationToGestureEnd = true;
+    if (!_isBackgroundScrubbing) {
+      _beginBackgroundScrub();
+    }
   }
 
   void _handleScrubDragUpdate(DragUpdateDetails details) {
@@ -1943,6 +2086,12 @@ class _TimelinePanelState extends State<TimelinePanel>
   }
 
   void _handleScrubDragEnd([DragEndDetails? details]) {
+    _deferScrubFinalizationToGestureEnd = false;
+    final velocityPxPerSecond = details?.primaryVelocity ?? 0;
+    if (_shouldStartScrubMomentum(velocityPxPerSecond)) {
+      _startScrubMomentum(velocityPxPerSecond);
+      return;
+    }
     _cancelInteractionOwner(
       _TimelineInteractionOwner.scrub,
       finalizeScrub: true,
@@ -1950,7 +2099,76 @@ class _TimelinePanelState extends State<TimelinePanel>
   }
 
   void _handleScrubDragCancel() {
+    _deferScrubFinalizationToGestureEnd = false;
+    _stopScrubMomentum(finalize: false);
     _cancelInteractionOwner(_TimelineInteractionOwner.scrub);
+    _resetScrubPointerTracking();
+  }
+
+  bool _shouldStartScrubMomentum(double velocityPxPerSecond) =>
+      _enableScrubMomentum &&
+      velocityPxPerSecond.abs() >= _scrubMomentumMinVelocityPxPerSecond;
+
+  void _startScrubMomentum(double velocityPxPerSecond) {
+    if (!_isBackgroundScrubbing) {
+      return;
+    }
+    _isScrubMomentumActive = true;
+    _scrubMomentumVelocityPxPerSecond = velocityPxPerSecond;
+    _scrubMomentumLastElapsed = Duration.zero;
+    if (!_scrubMomentumTicker.isActive) {
+      _scrubMomentumTicker.start();
+    }
+  }
+
+  void _stopScrubMomentum({required bool finalize}) {
+    final shouldFinalize = finalize && _isBackgroundScrubbing;
+    _isScrubMomentumActive = false;
+    _scrubMomentumVelocityPxPerSecond = 0;
+    _scrubMomentumLastElapsed = Duration.zero;
+    if (_scrubMomentumTicker.isActive) {
+      _scrubMomentumTicker.stop();
+    }
+    if (shouldFinalize) {
+      _cancelInteractionOwner(
+        _TimelineInteractionOwner.scrub,
+        finalizeScrub: true,
+      );
+    }
+  }
+
+  void _handleScrubMomentumTick(Duration elapsed) {
+    if (!_isScrubMomentumActive || !_isBackgroundScrubbing) {
+      if (_scrubMomentumTicker.isActive) {
+        _scrubMomentumTicker.stop();
+      }
+      return;
+    }
+    final delta = elapsed - _scrubMomentumLastElapsed;
+    _scrubMomentumLastElapsed = elapsed;
+    final dtSeconds = delta.inMicroseconds / Duration.microsecondsPerSecond;
+    if (dtSeconds <= 0) {
+      return;
+    }
+    final velocityPxPerSecond = _scrubMomentumVelocityPxPerSecond;
+    final speed = velocityPxPerSecond.abs();
+    if (speed <= _scrubMomentumStopVelocityPxPerSecond) {
+      _stopScrubMomentum(finalize: true);
+      return;
+    }
+    final nextSpeed = math.max(
+      0,
+      speed - (_scrubMomentumDecelerationPxPerSecondSq * dtSeconds),
+    );
+    final averageVelocityPxPerSecond =
+        ((speed + nextSpeed) / 2) * velocityPxPerSecond.sign;
+    final deltaDx = averageVelocityPxPerSecond * dtSeconds;
+    final previousTime = _backgroundScrubCurrentTime;
+    _updateBackgroundScrub(deltaDx);
+    _scrubMomentumVelocityPxPerSecond = nextSpeed * velocityPxPerSecond.sign;
+    if (_backgroundScrubCurrentTime == previousTime) {
+      _stopScrubMomentum(finalize: true);
+    }
   }
 
   void _handleManualPanDragStart(DragStartDetails details) {
@@ -2015,8 +2233,11 @@ class _TimelinePanelState extends State<TimelinePanel>
   ) {
     final isSplitSibling =
         clip.splitGroupId != null && clip.splitGroupId == next.splitGroupId;
-    if (isSplitSibling || _isJoinedTimelineMediaPair(track.kind, clip, next)) {
+    if (isSplitSibling) {
       return _splitGap;
+    }
+    if (_isJoinedTimelineMediaPair(track.kind, clip, next)) {
+      return _joinedMediaGap;
     }
     return _controlGap;
   }
@@ -2455,16 +2676,19 @@ class _TimelinePanelState extends State<TimelinePanel>
   }
 
   String _formatClock(double value) {
-    final totalMillis =
-        (value.clamp(0, _timelineDurationSeconds) * 1000).round();
-    final seconds = (totalMillis ~/ 1000).toString().padLeft(2, '0');
+    final totalMillis = (value.clamp(0, 359999.999) * 1000).round();
+    final wholeSeconds = totalMillis ~/ 1000;
+    final mins = wholeSeconds ~/ 60;
+    final secs = wholeSeconds % 60;
     final millis = (totalMillis % 1000).toString().padLeft(3, '0');
-    return '00:$seconds.$millis';
+    return '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}.$millis';
   }
 
   String _formatWholeSeconds(double value) {
-    final seconds = value.round().toString().padLeft(2, '0');
-    return '00:$seconds';
+    final totalSeconds = value.round().clamp(0, 359999);
+    final mins = totalSeconds ~/ 60;
+    final secs = totalSeconds % 60;
+    return '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
   }
 
   void _beginTrimDrag(TimelineTrimEdge edge) {
@@ -2682,7 +2906,13 @@ class _TimelinePanelState extends State<TimelinePanel>
           final next = track.clips[i + 1];
           final isSplitSibling = clip.splitGroupId != null &&
               clip.splitGroupId == next.splitGroupId;
-          clipsWidth += isSplitSibling ? _splitGap : _controlGap;
+          final isJoinedTimelineMediaPair =
+              track.kind == TimelineTrackKind.video &&
+                  clip.type == TimelineClipType.media &&
+                  next.type == TimelineClipType.media;
+          clipsWidth += isSplitSibling
+              ? _splitGap
+              : (isJoinedTimelineMediaPair ? _joinedMediaGap : _controlGap);
         }
         return math.max(maxWidth, clipsWidth);
       },
@@ -2844,7 +3074,7 @@ class _TimelinePanelState extends State<TimelinePanel>
         _playheadLeft = contentViewportWidth / 2;
         _leadingOffset = math.max(
           6,
-          _playheadLeft - _controlTileSize - _controlGap,
+          _playheadLeft - _timelineControlColumnWidth - _controlGap,
         );
         final trailingPadding = math.max(
           _trailingPadding,
@@ -2890,8 +3120,15 @@ class _TimelinePanelState extends State<TimelinePanel>
                             ],
                           ),
                           builder: (context, _) {
+                            final displayOffsetSeconds =
+                                widget.timeDisplayOffset.inSecondsDouble;
+                            final readoutTotalSeconds =
+                                (widget.timeReadoutTotalTime ??
+                                        (widget.timeDisplayOffset +
+                                            widget.timelineDurationTime))
+                                    .inSecondsDouble;
                             final headerReadoutText =
-                                '${_formatClock(_currentSeconds)} / ${_formatWholeSeconds(_timelineDurationSeconds)}';
+                                '${_formatClock(_currentSeconds + displayOffsetSeconds)} / ${_formatWholeSeconds(readoutTotalSeconds)}';
                             final effectiveScrollOffset =
                                 _effectiveHorizontalScrollOffset();
                             return Stack(
@@ -2917,6 +3154,8 @@ class _TimelinePanelState extends State<TimelinePanel>
                                       ),
                                       secondsWidth: _secondsWidth,
                                       durationSeconds: _timelineDurationSeconds,
+                                      timeDisplayOffsetSeconds:
+                                          displayOffsetSeconds,
                                       fps: widget.timelineFps,
                                       mode: _rulerMode,
                                       labelTopInset: headerTextTopInset,
@@ -2955,6 +3194,10 @@ class _TimelinePanelState extends State<TimelinePanel>
                                     onHorizontalDragEnd: _handleScrubDragEnd,
                                     onHorizontalDragCancel:
                                         _handleScrubDragCancel,
+                                    onPointerDown:
+                                        _handleScrubSurfacePointerDown,
+                                    onPointerUp: (_) {},
+                                    onPointerCancel: (_) {},
                                   ),
                                 ),
                               ],
@@ -2973,6 +3216,9 @@ class _TimelinePanelState extends State<TimelinePanel>
                         onHorizontalDragUpdate: _handleScrubDragUpdate,
                         onHorizontalDragEnd: _handleScrubDragEnd,
                         onHorizontalDragCancel: _handleScrubDragCancel,
+                        onPointerDown: _handleScrubSurfacePointerDown,
+                        onPointerUp: (_) {},
+                        onPointerCancel: (_) {},
                       ),
                     ),
                     Expanded(
@@ -3070,6 +3316,12 @@ class _TimelinePanelState extends State<TimelinePanel>
                                                                 .isPlaying,
                                                             selectedClipId: widget
                                                                 .selectedClipId,
+                                                            selectedTransitionId:
+                                                                widget
+                                                                    .selectedTransitionId,
+                                                            selectedAnimationLaneId:
+                                                                widget
+                                                                    .selectedAnimationLaneId,
                                                             onClipSelected:
                                                                 _handleOwnedClipSelected,
                                                             onClipDoubleTap:
@@ -3131,6 +3383,11 @@ class _TimelinePanelState extends State<TimelinePanel>
                                                             onTrackAnimateTap:
                                                                 widget
                                                                     .onTrackAnimateTap,
+                                                            onAnimationLaneTap:
+                                                                widget
+                                                                    .onAnimationLaneTap,
+                                                            onTransitionTap: widget
+                                                                .onTransitionTap,
                                                             onBackgroundTap:
                                                                 widget.onBackgroundTap ==
                                                                         null
@@ -3172,6 +3429,9 @@ class _TimelinePanelState extends State<TimelinePanel>
                                                                 _endTrimDrag,
                                                             onTrimHandleEngagementChanged:
                                                                 _handleTrimHandleEngagementChanged,
+                                                            animateTrackKinds:
+                                                                widget
+                                                                    .animateTrackKinds,
                                                             timeShiftPreviewClipId:
                                                                 previewClipId,
                                                             timeShiftPreviewStartTime:
@@ -3253,12 +3513,12 @@ class _TimelinePanelState extends State<TimelinePanel>
                 ),
                 if (!_isReorderMode)
                   Positioned(
-                    left: _playheadLeft,
+                    left: _playheadLeft - (_playheadLineWidth / 2),
                     top: 30,
                     bottom: 10,
                     child: IgnorePointer(
                       child: Container(
-                        width: 4,
+                        width: _playheadLineWidth,
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(999),
@@ -3293,12 +3553,16 @@ class _TimelineTrackRow extends StatelessWidget {
     required this.track,
     required this.isPlaying,
     required this.selectedClipId,
+    required this.selectedTransitionId,
+    required this.selectedAnimationLaneId,
     required this.onClipSelected,
     required this.onClipDoubleTap,
     required this.onClipLongPressStart,
     required this.onClipLongPressMove,
     required this.onClipLongPressEnd,
     required this.onTrackAnimateTap,
+    required this.onAnimationLaneTap,
+    required this.onTransitionTap,
     required this.onBackgroundTap,
     required this.onManualPanDragStart,
     required this.onManualPanDragUpdate,
@@ -3315,6 +3579,7 @@ class _TimelineTrackRow extends StatelessWidget {
     required this.onTrimDragUpdate,
     required this.onTrimDragEnd,
     required this.onTrimHandleEngagementChanged,
+    required this.animateTrackKinds,
     this.timeShiftPreviewClipId,
     this.timeShiftPreviewStartTime,
     this.baseClipOpacity = 1,
@@ -3330,6 +3595,8 @@ class _TimelineTrackRow extends StatelessWidget {
   final TimelineTrackData track;
   final bool isPlaying;
   final String? selectedClipId;
+  final String? selectedTransitionId;
+  final String? selectedAnimationLaneId;
   final ValueChanged<String> onClipSelected;
   final ValueChanged<TimelineClipData>? onClipDoubleTap;
   final ValueChanged<TimelineClipData>? onClipLongPressStart;
@@ -3337,6 +3604,8 @@ class _TimelineTrackRow extends StatelessWidget {
       onClipLongPressMove;
   final ValueChanged<TimelineClipData>? onClipLongPressEnd;
   final ValueChanged<TimelineTrackData>? onTrackAnimateTap;
+  final ValueChanged<String>? onAnimationLaneTap;
+  final TimelineBoundaryTransitionTapCallback? onTransitionTap;
   final VoidCallback? onBackgroundTap;
   final GestureDragStartCallback onManualPanDragStart;
   final GestureDragUpdateCallback onManualPanDragUpdate;
@@ -3353,6 +3622,7 @@ class _TimelineTrackRow extends StatelessWidget {
   final ValueChanged<double> onTrimDragUpdate;
   final VoidCallback onTrimDragEnd;
   final ValueChanged<bool> onTrimHandleEngagementChanged;
+  final Set<TimelineTrackKind> animateTrackKinds;
   final String? timeShiftPreviewClipId;
   final TimelineTime? timeShiftPreviewStartTime;
   final double baseClipOpacity;
@@ -3399,7 +3669,7 @@ class _TimelineTrackRow extends StatelessWidget {
 
   bool get _showsAnimateButton =>
       onTrackAnimateTap != null &&
-      track.kind == TimelineTrackKind.text &&
+      animateTrackKinds.contains(track.kind) &&
       track.clips.any((clip) => clip.type == TimelineClipType.media);
 
   double get _animateButtonWidth => _showsAnimateButton ? 32 : 0;
@@ -3418,8 +3688,11 @@ class _TimelineTrackRow extends StatelessWidget {
     }
     final isSplitSibling =
         clip.splitGroupId != null && clip.splitGroupId == next.splitGroupId;
-    if (isSplitSibling || _shouldJoinWith(clip, next)) {
+    if (isSplitSibling) {
       return splitGap;
+    }
+    if (_shouldJoinWith(clip, next)) {
+      return 0;
     }
     return controlGap;
   }
@@ -3712,6 +3985,12 @@ class _TimelineTrackRow extends StatelessWidget {
         final showBridge =
             clip.splitGroupId != null && clip.splitGroupId == next.splitGroupId;
         final showCutSeam = !showBridge && _shouldJoinWith(clip, next);
+        final boundaryTransition =
+            track.transitionForBoundary(clip.id, next.id);
+        final showInteractiveTransitionBridge =
+            track.kind == TimelineTrackKind.video &&
+                showCutSeam &&
+                onTransitionTap != null;
         final gapAfterClip = _gapAfterClip(clip, next);
 
         if (showBridge) {
@@ -3726,6 +4005,23 @@ class _TimelineTrackRow extends StatelessWidget {
                 child: SizedBox(
                   width: splitBridgeWidth,
                   child: _TransitionBridge(),
+                ),
+              ),
+            ),
+          );
+        } else if (showInteractiveTransitionBridge) {
+          splitBridges.add(
+            Positioned(
+              left: cursor + clipWidth - 14,
+              top: clipTop + ((clipHeight - 22) / 2),
+              width: 28,
+              height: 22,
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: () => onTransitionTap?.call(track, clip, next),
+                child: _TransitionBridge(
+                  hasAttachedTransition: boundaryTransition != null,
+                  isActive: selectedTransitionId == boundaryTransition?.id,
                 ),
               ),
             ),
@@ -3754,12 +4050,30 @@ class _TimelineTrackRow extends StatelessWidget {
     );
     final interactiveWidth = math.max(rowWidth, contentWidth);
     final animationLaneChildren = <Widget>[];
+    final trackSpanWidth = math.max(1.0, cursor - clipStart);
     final visibleAnimationLanes = track.animationLanes
-        .where((lane) => clipGeometryById.containsKey(lane.targetClipId))
+        .where(
+          (lane) =>
+              clipGeometryById.containsKey(lane.targetClipId) ||
+              (lane.trackSpanStartProgress != null &&
+                  lane.trackSpanEndProgress != null),
+        )
         .toList(growable: false);
     for (var index = 0; index < visibleAnimationLanes.length; index++) {
       final lane = visibleAnimationLanes[index];
-      final geometry = clipGeometryById[lane.targetClipId];
+      final geometry = switch ((
+        lane.trackSpanStartProgress,
+        lane.trackSpanEndProgress,
+      )) {
+        (final start?, final end?) => _TimelineAnimationClipGeometry(
+            left: clipStart + (trackSpanWidth * start.clamp(0.0, 1.0)),
+            width: math.max(
+              1.0,
+              trackSpanWidth * (end.clamp(0.0, 1.0) - start.clamp(0.0, 1.0)),
+            ),
+          ),
+        _ => clipGeometryById[lane.targetClipId],
+      };
       if (geometry == null) {
         continue;
       }
@@ -3789,8 +4103,16 @@ class _TimelineTrackRow extends StatelessWidget {
               clipLeft: geometry.left - controlLeft,
               clipWidth: geometry.width,
               keyframeStops: lane.normalizedKeyframeStops,
-              isSelected: selectedClipId == lane.targetClipId,
-              onTap: () => onClipSelected(lane.targetClipId),
+              isSelected: selectedAnimationLaneId == lane.id ||
+                  (selectedAnimationLaneId == null &&
+                      selectedClipId == lane.targetClipId),
+              onTap: () {
+                if (onAnimationLaneTap != null) {
+                  onAnimationLaneTap!(lane.id);
+                  return;
+                }
+                onClipSelected(lane.targetClipId);
+              },
             ),
           ),
         ),
@@ -3896,6 +4218,9 @@ class _TimelineScrubSurface extends StatelessWidget {
     this.onHorizontalDragUpdate,
     this.onHorizontalDragEnd,
     this.onHorizontalDragCancel,
+    this.onPointerDown,
+    this.onPointerUp,
+    this.onPointerCancel,
   });
 
   final VoidCallback? onTap;
@@ -3903,17 +4228,26 @@ class _TimelineScrubSurface extends StatelessWidget {
   final GestureDragUpdateCallback? onHorizontalDragUpdate;
   final GestureDragEndCallback? onHorizontalDragEnd;
   final GestureDragCancelCallback? onHorizontalDragCancel;
+  final PointerDownEventListener? onPointerDown;
+  final PointerUpEventListener? onPointerUp;
+  final PointerCancelEventListener? onPointerCancel;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      onHorizontalDragStart: onHorizontalDragStart,
-      onHorizontalDragUpdate: onHorizontalDragUpdate,
-      onHorizontalDragEnd: onHorizontalDragEnd,
-      onHorizontalDragCancel: onHorizontalDragCancel,
-      child: const SizedBox.expand(),
+    return Listener(
+      onPointerDown: onPointerDown,
+      onPointerUp: onPointerUp,
+      onPointerCancel: onPointerCancel,
+      child: GestureDetector(
+        dragStartBehavior: DragStartBehavior.down,
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        onHorizontalDragStart: onHorizontalDragStart,
+        onHorizontalDragUpdate: onHorizontalDragUpdate,
+        onHorizontalDragEnd: onHorizontalDragEnd,
+        onHorizontalDragCancel: onHorizontalDragCancel,
+        child: const SizedBox.expand(),
+      ),
     );
   }
 }
@@ -6183,38 +6517,62 @@ class _TimelineSelectedPulsePainter extends CustomPainter {
 }
 
 class _TransitionBridge extends StatelessWidget {
-  const _TransitionBridge();
+  const _TransitionBridge({
+    this.hasAttachedTransition = false,
+    this.isActive = false,
+  });
+
+  final bool hasAttachedTransition;
+  final bool isActive;
 
   @override
   Widget build(BuildContext context) {
+    final baseFill = hasAttachedTransition
+        ? Colors.white.withOpacity(0.22)
+        : Colors.white.withOpacity(0.1);
+    final baseStroke = hasAttachedTransition
+        ? Colors.white.withOpacity(0.72)
+        : Colors.white.withOpacity(0.38);
     return DecoratedBox(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Colors.white.withOpacity(0.0),
-            Colors.white.withOpacity(0.14),
-            Colors.white.withOpacity(0.2),
-            Colors.white.withOpacity(0.14),
-            Colors.white.withOpacity(0.0),
-          ],
+        color: baseFill,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: isActive ? FxPalette.accent.withOpacity(0.92) : baseStroke,
+          width: isActive ? 1.2 : 1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: isActive
+                ? FxPalette.accent.withOpacity(0.44)
+                : Colors.white.withOpacity(0.14),
+            blurRadius: isActive ? 10 : 4,
+            spreadRadius: isActive ? 1 : 0,
+          ),
+        ],
       ),
       child: Center(
-        child: Container(
-          width: 1.5,
-          margin: const EdgeInsets.symmetric(vertical: 1),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.88),
-            borderRadius: BorderRadius.circular(999),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.white.withOpacity(0.16),
-                blurRadius: 2,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 1.35,
+              height: 9,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.92),
+                borderRadius: BorderRadius.circular(999),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 3),
+            Container(
+              width: 1.35,
+              height: 9,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.92),
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -6275,6 +6633,7 @@ class _TimelineRulerPainter extends CustomPainter {
     required this.viewportWidth,
     required this.secondsWidth,
     required this.durationSeconds,
+    required this.timeDisplayOffsetSeconds,
     required this.fps,
     required this.mode,
     required this.labelTopInset,
@@ -6289,6 +6648,7 @@ class _TimelineRulerPainter extends CustomPainter {
   final double viewportWidth;
   final double secondsWidth;
   final double durationSeconds;
+  final double timeDisplayOffsetSeconds;
   final double fps;
   final _TimelineRulerMode mode;
   final double labelTopInset;
@@ -6948,7 +7308,8 @@ class _TimelineRulerPainter extends CustomPainter {
   }
 
   String _formatWholeTime(double secondsValue) {
-    final totalSeconds = secondsValue.round().clamp(0, 359999);
+    final totalSeconds =
+        (secondsValue + timeDisplayOffsetSeconds).round().clamp(0, 359999);
     final mins = totalSeconds ~/ 60;
     final secs = totalSeconds % 60;
     return '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
@@ -6978,13 +7339,15 @@ class _TimelineRulerPainter extends CustomPainter {
   }
 
   String _formatPreciseBoundaryTime(double secondsValue) {
-    final roundedWholeSeconds = secondsValue.roundToDouble();
-    if ((secondsValue - roundedWholeSeconds).abs() <=
+    final absoluteSeconds = secondsValue + timeDisplayOffsetSeconds;
+    final roundedWholeSeconds = absoluteSeconds.roundToDouble();
+    if ((absoluteSeconds - roundedWholeSeconds).abs() <=
         _TimelineRulerCanonicalProfile.preciseBoundaryWholeSecondEpsilon) {
       return _formatWholeTime(secondsValue);
     }
 
-    final totalMilliseconds = (secondsValue * 1000).round().clamp(0, 359999999);
+    final totalMilliseconds =
+        (absoluteSeconds * 1000).round().clamp(0, 359999999);
     final wholeSeconds = totalMilliseconds ~/ 1000;
     final millis = totalMilliseconds % 1000;
     final mins = wholeSeconds ~/ 60;
@@ -6994,7 +7357,8 @@ class _TimelineRulerPainter extends CustomPainter {
 
   String _formatFrameTime(double secondsValue) {
     final resolvedFps = fps <= 0 ? 30.0 : fps;
-    final totalFrames = (secondsValue * resolvedFps).round();
+    final totalFrames =
+        ((secondsValue + timeDisplayOffsetSeconds) * resolvedFps).round();
     final fpsInt = math.max(1, resolvedFps.round());
     final wholeSeconds = totalFrames ~/ fpsInt;
     final frames = totalFrames % fpsInt;
@@ -7016,6 +7380,7 @@ class _TimelineRulerPainter extends CustomPainter {
         oldDelegate.viewportWidth != viewportWidth ||
         oldDelegate.secondsWidth != secondsWidth ||
         oldDelegate.durationSeconds != durationSeconds ||
+        oldDelegate.timeDisplayOffsetSeconds != timeDisplayOffsetSeconds ||
         oldDelegate.fps != fps ||
         oldDelegate.mode != mode ||
         oldDelegate.labelTopInset != labelTopInset ||

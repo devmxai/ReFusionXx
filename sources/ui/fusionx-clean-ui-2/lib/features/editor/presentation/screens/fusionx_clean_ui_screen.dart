@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../../../core/engine/live_scrub_preview_sources.dart';
+import '../../../../core/engine/live_scrub_pipeline.dart';
 import '../../../../core/engine/stage5_native_transport_controller.dart';
 import '../../../../core/engine/stage6_export_controller.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -11,6 +13,7 @@ import '../../domain/models/export_composition_models.dart';
 import '../../domain/models/export_motion_text_program_models.dart';
 import '../../domain/models/professional_motion_compilation_models.dart';
 import '../../domain/models/professional_motion_evaluation_models.dart';
+import '../../domain/models/professional_motion_fx_models.dart';
 import '../../domain/models/professional_motion_models.dart';
 import '../../domain/models/professional_motion_runtime_helpers.dart';
 import '../../domain/models/professional_motion_text_authoring_models.dart';
@@ -35,6 +38,10 @@ import '../widgets/native_preview_surface.dart';
 import '../widgets/preview_stage.dart';
 import '../widgets/text_clip_edit_bottom_sheet.dart';
 import '../widgets/timeline_panel.dart';
+import '../widgets/timeline_transition_preview_overlay.dart';
+import '../widgets/transition_browser_bottom_sheet.dart';
+import '../widgets/transition_focus_panel.dart';
+import '../widgets/transition_inspector_bottom_sheet.dart';
 import '../widgets/text_preset_bottom_sheet.dart';
 
 class FusionXCleanUiScreen extends StatefulWidget {
@@ -50,19 +57,67 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   static const String _motionProjectId = 'motion-project';
   static const String _motionSceneId = 'scene-main';
   static const String _exportContractVersion = 'v1alpha1';
+  static final TimelineTime _manualTransitionMinimumScopeSideTime =
+      TimelineTime.fromSecondsDouble(10);
   static const bool _textPresetPickerEnabled = false;
   static const String _defaultInsertedTextValue = 'Text';
   static const double _defaultInsertedTextFontSize = 56;
   static final TimelineTime _defaultTextPresetDurationTime =
       TimelineTime.fromSecondsDouble(3);
+  static const List<AnimateBrowserItem> _manualTransitionEffectItems =
+      <AnimateBrowserItem>[
+    AnimateBrowserItem(
+      id: 'outgoingBoostScale',
+      label: 'Outgoing Scale',
+      category: 'Transform',
+      summary: 'Push the outgoing clip forward before the handoff.',
+      keywords: <String>['zoom out', 'scale', 'push'],
+    ),
+    AnimateBrowserItem(
+      id: 'incomingStartScale',
+      label: 'Incoming Scale',
+      category: 'Transform',
+      summary: 'Start the incoming clip close, then relax to full frame.',
+      keywords: <String>['zoom in', 'scale', 'size'],
+    ),
+    AnimateBrowserItem(
+      id: 'blackPeak',
+      label: 'Black Mix',
+      category: 'Visual',
+      summary: 'Dip through black around the seam midpoint.',
+      keywords: <String>['fade', 'opacity', 'black'],
+    ),
+    AnimateBrowserItem(
+      id: 'bridgeDarkness',
+      label: 'Bridge Darkness',
+      category: 'Visual',
+      summary: 'Add a dark cinematic bridge between the two clips.',
+      keywords: <String>['dark', 'bridge', 'shade'],
+    ),
+    AnimateBrowserItem(
+      id: 'entryDelay',
+      label: 'Entry Delay',
+      category: 'Timing',
+      summary: 'Delay when the incoming clip starts taking over.',
+      keywords: <String>['timing', 'delay', 'handoff'],
+    ),
+  ];
 
   late final Stage5NativeTransportController _transportController;
+  late final TransportBackedPlaybackController _playbackController;
+  late final TransportBackedScrubPreviewController _scrubPreviewController;
+  late final LiveScrubPipeline _liveScrubPipeline;
+  late final InMemoryLiveScrubPreviewSourceCatalog
+      _liveScrubPreviewSourceCatalog;
   late final Stage6ExportController _exportController;
   late final ValueNotifier<List<EditorAssetItem>> _assetLibrary;
   late final ValueNotifier<bool> _assetLibraryLoading;
   late final ValueNotifier<String?> _assetLibraryError;
   late final ValueNotifier<TimelineTime> _timelineDisplayTimeNotifier;
   late final ValueNotifier<TimelineTime> _playbackSampleTimeNotifier;
+  late final ValueNotifier<TimelineTime> _transitionFocusDisplayTimeNotifier;
+  late final ValueNotifier<TimelineTime>
+      _transitionFocusPlaybackSampleTimeNotifier;
   late final ValueNotifier<Uint8List?> _previewThumbnailNotifier;
   late final BasicMotionRuntimeEvaluator _motionEvaluator;
   late final BasicMotionTextRenderAdapter _motionTextRenderAdapter;
@@ -75,6 +130,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   EditorMediaTab _activeTab = EditorMediaTab.video;
   List<TimelineTrackData> _tracks = const <TimelineTrackData>[];
   String? _selectedClipId;
+  String? _selectedTransitionId;
+  _TransitionFocusSession? _transitionFocusSession;
   String? _previewAssetId;
   PreviewViewportState _previewViewportState = PreviewViewportState.identity;
   double? _lockedWorkspaceAspectRatio;
@@ -83,8 +140,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   bool _isTimelineScrubbing = false;
   bool _isAnimateBrowserOpen = false;
   TimelineTime? _timelineScrubFinalTime;
-  DateTime? _lastScrubPreviewDispatchAt;
-  int? _lastScrubPreviewPositionMs;
   bool _isApplyingStructuralEdit = false;
   Future<void> _timelineStructuralCommit = Future<void>.value();
   MotionProjectModel? _motionProject;
@@ -99,6 +154,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   String? _activeTrimPreviewSourceUri;
   int _timelineTrimPreviewRequestId = 0;
   bool _isStoppingTextEditPreviewPlayback = false;
+  bool _isStoppingTransitionFocusPlayback = false;
   MotionNormalizedComposition? _cachedMotionComposition;
   int _motionRevision = 0;
   int? _cachedMotionRevision;
@@ -117,6 +173,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   String? _previewThumbnailAssetId;
   String? _previewThumbnailResolvedAssetId;
   int _previewThumbnailRequestId = 0;
+  late final ValueNotifier<Uint8List?> _liveScrubProxyFrameNotifier;
+  LiveScrubSessionConfig? _activeLiveScrubSessionConfig;
+  String? _liveScrubProxyFrameRequestKey;
+  int _liveScrubProxyFrameRequestId = 0;
+  int _lastLiveScrubProxyDispatchEpochMs = 0;
+  bool _retainProxyFrameUntilScrubSettleCompletes = false;
+  static const bool _enableProxyScrubPreviewRuntime = false;
 
   @override
   void initState() {
@@ -124,6 +187,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     final transportController = Stage5NativeTransportController();
     transportController.addListener(_handleTransportStateChanged);
     _transportController = transportController;
+    _playbackController =
+        TransportBackedPlaybackController(transportController);
+    _scrubPreviewController = TransportBackedScrubPreviewController(
+      transportController,
+    );
+    _liveScrubPipeline = LiveScrubPipeline(
+      playbackController: _playbackController,
+      scrubPreviewController: _scrubPreviewController,
+    );
+    _liveScrubPreviewSourceCatalog = InMemoryLiveScrubPreviewSourceCatalog();
     final exportController = Stage6ExportController();
     exportController.addListener(_handleExportStateChanged);
     _exportController = exportController;
@@ -135,7 +208,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     _assetLibraryError = ValueNotifier<String?>(null);
     _timelineDisplayTimeNotifier = ValueNotifier<TimelineTime>(_currentTime);
     _playbackSampleTimeNotifier = ValueNotifier<TimelineTime>(_currentTime);
+    _transitionFocusDisplayTimeNotifier =
+        ValueNotifier<TimelineTime>(TimelineTime.zero);
+    _transitionFocusPlaybackSampleTimeNotifier =
+        ValueNotifier<TimelineTime>(TimelineTime.zero);
     _previewThumbnailNotifier = ValueNotifier<Uint8List?>(null);
+    _liveScrubProxyFrameNotifier = ValueNotifier<Uint8List?>(null);
     _assetOffsets[EditorMediaTab.video] = 0;
     _assetOffsets[EditorMediaTab.image] = 0;
     _assetHasMore[EditorMediaTab.video] = true;
@@ -159,7 +237,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     _assetLibraryError.dispose();
     _timelineDisplayTimeNotifier.dispose();
     _playbackSampleTimeNotifier.dispose();
+    _transitionFocusDisplayTimeNotifier.dispose();
+    _transitionFocusPlaybackSampleTimeNotifier.dispose();
     _previewThumbnailNotifier.dispose();
+    _liveScrubProxyFrameNotifier.dispose();
     super.dispose();
   }
 
@@ -295,6 +376,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     final compileResult = _buildMotionCompiler().compile(
       MotionCompileRequest(
         project: _effectiveMotionProject,
+        transitionBindings:
+            _motionTransitionBindingsForTracks(_timelineTruthTracks),
         textAnimationBindings: _motionTextAnimationBindings,
       ),
     );
@@ -683,6 +766,173 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     return null;
   }
 
+  void _refreshLiveScrubPreviewSourceCatalog() {
+    final descriptors = <LiveScrubPreviewSourceDescriptor>[];
+    for (final track in _tracks) {
+      if (track.kind != TimelineTrackKind.video &&
+          track.kind != TimelineTrackKind.image) {
+        continue;
+      }
+      var clipStartTime = TimelineTime.zero;
+      for (final clip in track.clips) {
+        final clipEndTime = clipStartTime + clip.durationTime;
+        final assetId = clip.assetId;
+        final asset = assetId == null ? null : _assetForId(assetId);
+        final sourceUri = asset?.sourceUri;
+        if (clip.type == TimelineClipType.media &&
+            assetId != null &&
+            asset != null &&
+            asset.isVisual &&
+            sourceUri != null &&
+            sourceUri.isNotEmpty) {
+          descriptors.add(
+            LiveScrubPreviewSourceDescriptor(
+              clipId: clip.id,
+              assetId: assetId,
+              sourceUri: sourceUri,
+              label: asset.label,
+              timelineStartMs: clipStartTime.inMilliseconds,
+              timelineEndMs: clipEndTime.inMilliseconds,
+              durationMs: clip.durationTime.inMilliseconds,
+              sourceStartMs: clip.sourceStartTime.inMilliseconds,
+              sourceDurationMs: clip.sourceDurationTime.inMilliseconds,
+              playbackRate: clip.playbackRate,
+            ),
+          );
+        }
+        clipStartTime = clipEndTime;
+      }
+    }
+    _liveScrubPreviewSourceCatalog.replaceAll(descriptors);
+  }
+
+  Future<void> _warmLiveScrubPreviewSource(
+    LiveScrubPreviewSourceDescriptor descriptor,
+  ) async {
+    _liveScrubPreviewSourceCatalog.markStatus(
+      descriptor.clipId,
+      LiveScrubPreviewSourceStatus.warming,
+    );
+    final asset = _assetForId(descriptor.assetId);
+    if (asset == null) {
+      _liveScrubPreviewSourceCatalog.markStatus(
+        descriptor.clipId,
+        LiveScrubPreviewSourceStatus.failed,
+      );
+      return;
+    }
+    await _primePreviewThumbnailForAsset(asset);
+    final bytes = _previewThumbnailCache[descriptor.assetId];
+    _liveScrubPreviewSourceCatalog.markStatus(
+      descriptor.clipId,
+      bytes != null && bytes.isNotEmpty
+          ? LiveScrubPreviewSourceStatus.ready
+          : LiveScrubPreviewSourceStatus.failed,
+    );
+  }
+
+  LiveScrubSessionConfig _buildLiveScrubSessionConfig(TimelineTime anchorTime) {
+    _refreshLiveScrubPreviewSourceCatalog();
+    final sessionSources = _liveScrubPreviewSourceCatalog.resolveSessionSources(
+      anchorTime.inMilliseconds,
+    );
+    final orderedSources = sessionSources.orderedUnique;
+    if (_enableProxyScrubPreviewRuntime) {
+      for (final descriptor in orderedSources) {
+        unawaited(_warmLiveScrubPreviewSource(descriptor));
+      }
+    }
+    return LiveScrubSessionConfig(
+      anchorPositionMs: anchorTime.inMilliseconds,
+      path: !_enableProxyScrubPreviewRuntime || orderedSources.isEmpty
+          ? LiveScrubPreviewPath.transportSeekLegacy
+          : LiveScrubPreviewPath.proxyPreview,
+      previewSources: orderedSources,
+    );
+  }
+
+  LiveScrubPreviewSourceDescriptor? _resolveLiveScrubProxyDescriptor(
+    TimelineTime time,
+  ) {
+    final sessionConfig = _activeLiveScrubSessionConfig;
+    final previewSources = sessionConfig?.previewSources;
+    if (previewSources == null || previewSources.isEmpty) {
+      return null;
+    }
+    final positionMs = time.inMilliseconds;
+    for (final descriptor in previewSources) {
+      if (descriptor.containsPosition(positionMs)) {
+        return descriptor;
+      }
+    }
+    LiveScrubPreviewSourceDescriptor? nearest;
+    var nearestDistance = 1 << 30;
+    for (final descriptor in previewSources) {
+      final distance = positionMs < descriptor.timelineStartMs
+          ? descriptor.timelineStartMs - positionMs
+          : positionMs - descriptor.timelineEndMs;
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = descriptor;
+      }
+    }
+    return nearest;
+  }
+
+  Future<void> _dispatchProxyScrubPreview(TimelineTime time) async {
+    final descriptor = _resolveLiveScrubProxyDescriptor(time);
+    if (descriptor == null) {
+      return;
+    }
+    final nowEpochMs = DateTime.now().millisecondsSinceEpoch;
+    if (_lastLiveScrubProxyDispatchEpochMs != 0 &&
+        nowEpochMs - _lastLiveScrubProxyDispatchEpochMs < 48) {
+      return;
+    }
+    _lastLiveScrubProxyDispatchEpochMs = nowEpochMs;
+    final localTimelineOffsetMs =
+        (time.inMilliseconds - descriptor.timelineStartMs).clamp(
+              0,
+              descriptor.durationMs,
+            );
+    final sourceOffsetMs =
+        (localTimelineOffsetMs * descriptor.playbackRate).round();
+    final sourcePositionMs = (descriptor.sourceStartMs + sourceOffsetMs).clamp(
+      descriptor.sourceStartMs,
+      descriptor.sourceStartMs + descriptor.sourceDurationMs,
+    );
+    final bucketedSourcePositionMs = (sourcePositionMs ~/ 33) * 33;
+    final requestKey = '${descriptor.clipId}|$bucketedSourcePositionMs';
+    if (_liveScrubProxyFrameRequestKey == requestKey) {
+      return;
+    }
+    _liveScrubProxyFrameRequestKey = requestKey;
+    final requestId = ++_liveScrubProxyFrameRequestId;
+    Uint8List? bytes;
+    try {
+      bytes = await _transportController.loadMediaFramePreview(
+        sourceUri: descriptor.sourceUri,
+        positionMs: bucketedSourcePositionMs,
+        targetWidth: 480,
+        targetHeight: 854,
+      );
+    } catch (_) {
+      return;
+    }
+    if (!mounted ||
+        requestId != _liveScrubProxyFrameRequestId ||
+        !_isTimelineScrubbing) {
+      return;
+    }
+    if (bytes != null && bytes.isNotEmpty) {
+      _liveScrubProxyFrameNotifier.value = bytes;
+      return;
+    }
+    await _liveScrubPipeline.presentFrame(
+      LiveScrubFrameRequest(positionMs: time.inMilliseconds),
+    );
+  }
+
   void _schedulePreviewThumbnailWarmup(EditorAssetItem? asset) {
     final assetId = asset?.id;
     if (_previewThumbnailAssetId == assetId) {
@@ -886,6 +1136,81 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     );
     _cachedMotionTimelineTrack = track;
     return track;
+  }
+
+  List<MotionTransitionBindingModel> _motionTransitionBindingsForTracks(
+    List<TimelineTrackData> tracks,
+  ) {
+    final videoTrackIndex = tracks.indexWhere(
+      (track) => track.kind == TimelineTrackKind.video,
+    );
+    if (videoTrackIndex < 0) {
+      return const <MotionTransitionBindingModel>[];
+    }
+    final videoTrack = tracks[videoTrackIndex];
+    final transitions = _sanitizeTransitionsForTrack(videoTrack);
+    if (transitions.isEmpty) {
+      return const <MotionTransitionBindingModel>[];
+    }
+    final positionedClips = _positionedMediaClipsForTrack(videoTrack);
+    final clipById = <String, _PositionedTimelineTrackClip>{
+      for (final clip in positionedClips) clip.clip.id: clip,
+    };
+    final projectDuration = _timelineDurationForTracksTime(tracks);
+    final bindings = <MotionTransitionBindingModel>[];
+    for (final transition in transitions) {
+      if (transition.preset == TimelineTransitionPreset.manual &&
+          transition.manualEffectIds.isEmpty) {
+        continue;
+      }
+      final leftClip = clipById[transition.leftClipId];
+      final rightClip = clipById[transition.rightClipId];
+      if (leftClip == null || rightClip == null) {
+        continue;
+      }
+      final seamTime = leftClip.startTime + leftClip.clip.durationTime;
+      final activeStart =
+          (seamTime - transition.resolvedLeadingDurationTime).clamp(
+        TimelineTime.zero,
+        projectDuration,
+      );
+      final activeEnd =
+          (seamTime + transition.resolvedTrailingDurationTime).clamp(
+        TimelineTime.zero,
+        projectDuration,
+      );
+      if (activeEnd <= activeStart) {
+        continue;
+      }
+      bindings.add(
+        MotionTransitionBindingModel(
+          id: transition.id,
+          kind: _motionTransitionKindForPreset(transition.preset),
+          leftTargetId: transition.leftClipId,
+          rightTargetId: transition.rightClipId,
+          activeRange: TimelineTimeRange(
+            start: activeStart,
+            endExclusive: activeEnd,
+          ),
+          name: transition.preset.label,
+          parameters: <String, MotionPropertyValue>{
+            for (final entry in transition.parameterValues.entries)
+              entry.key: MotionPropertyValue.scalar(entry.value),
+          },
+        ),
+      );
+    }
+    return List<MotionTransitionBindingModel>.unmodifiable(bindings);
+  }
+
+  MotionTransitionKind _motionTransitionKindForPreset(
+    TimelineTransitionPreset preset,
+  ) {
+    return switch (preset) {
+      TimelineTransitionPreset.manual => MotionTransitionKind.cameraPush,
+      TimelineTransitionPreset.fadeBlack => MotionTransitionKind.fade,
+      TimelineTransitionPreset.zoomInCamera => MotionTransitionKind.cameraPush,
+    };
   }
 
   List<TimelineTrackData> _displayTracksForProject(
@@ -1439,6 +1764,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     if (_timelineDisplayTimeNotifier.value != clamped) {
       _timelineDisplayTimeNotifier.value = clamped;
     }
+    _syncTransitionFocusTimeNotifiers();
   }
 
   void _setCurrentTime(TimelineTime time) {
@@ -1455,36 +1781,79 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     if (_playbackSampleTimeNotifier.value != clamped) {
       _playbackSampleTimeNotifier.value = clamped;
     }
+    _syncTransitionFocusTimeNotifiers();
+  }
+
+  void _syncTransitionFocusTimeNotifiers() {
+    final session = _transitionFocusSession;
+    final context = session == null
+        ? null
+        : _transitionFocusContextById(session.transitionId);
+    if (context == null) {
+      if (_transitionFocusDisplayTimeNotifier.value != TimelineTime.zero) {
+        _transitionFocusDisplayTimeNotifier.value = TimelineTime.zero;
+      }
+      if (_transitionFocusPlaybackSampleTimeNotifier.value !=
+          TimelineTime.zero) {
+        _transitionFocusPlaybackSampleTimeNotifier.value = TimelineTime.zero;
+      }
+      return;
+    }
+    final localDisplayTime = _transitionFocusLocalTime(
+      context,
+      _timelineDisplayTimeNotifier.value,
+    );
+    final localPlaybackSampleTime = _transitionFocusLocalTime(
+      context,
+      _playbackSampleTimeNotifier.value,
+    );
+    if (_transitionFocusDisplayTimeNotifier.value != localDisplayTime) {
+      _transitionFocusDisplayTimeNotifier.value = localDisplayTime;
+    }
+    if (_transitionFocusPlaybackSampleTimeNotifier.value !=
+        localPlaybackSampleTime) {
+      _transitionFocusPlaybackSampleTimeNotifier.value =
+          localPlaybackSampleTime;
+    }
   }
 
   void _syncPlaybackSampleToCurrentTime() {
     _setPlaybackSampleTime(_currentTime);
   }
 
-  void _resetScrubPreviewDispatchState() {
-    _lastScrubPreviewDispatchAt = null;
-    _lastScrubPreviewPositionMs = null;
+  void _resetScrubPreviewDispatchState() {}
+
+  Future<void> _pausePlayback() => _playbackController.pause();
+
+  Future<void> _playPlayback() => _playbackController.play();
+
+  Future<void> _togglePlayback() => _playbackController.togglePlayPause();
+
+  Future<void> _seekPlaybackTo(TimelineTime time) =>
+      _playbackController.exactSeekTo(time.inMilliseconds);
+
+  Future<void> _endLiveScrubSessionAt(TimelineTime time) {
+    return _liveScrubPipeline.endSession(
+      finalPositionMs: time.inMilliseconds,
+    );
   }
 
-  void _dispatchNativeScrubPreview(TimelineTime time, {bool force = false}) {
+  void _dispatchNativeScrubPreview(TimelineTime time) {
     final positionMs = time.inMilliseconds;
     if (!_useNativePreview) {
       return;
     }
-    if (!force) {
-      final lastPositionMs = _lastScrubPreviewPositionMs;
-      final lastDispatchAt = _lastScrubPreviewDispatchAt;
-      if (lastPositionMs != null &&
-          lastDispatchAt != null &&
-          (positionMs - lastPositionMs).abs() <= 6 &&
-          DateTime.now().difference(lastDispatchAt) <
-              const Duration(milliseconds: 8)) {
-        return;
-      }
+    final sessionConfig = _activeLiveScrubSessionConfig;
+    if (sessionConfig != null &&
+        sessionConfig.path == LiveScrubPreviewPath.proxyPreview &&
+        sessionConfig.previewSources.isNotEmpty) {
+      unawaited(_dispatchProxyScrubPreview(time));
     }
-    _lastScrubPreviewPositionMs = positionMs;
-    _lastScrubPreviewDispatchAt = DateTime.now();
-    _transportController.previewScrubToPositionMs(positionMs);
+    unawaited(
+      _liveScrubPipeline.presentFrame(
+        LiveScrubFrameRequest(positionMs: positionMs),
+      ),
+    );
   }
 
   bool get _useNativePreview {
@@ -1500,12 +1869,39 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
 
   void _handleTransportStateChanged() {
     final transportState = _transportController.state;
+    if (_retainProxyFrameUntilScrubSettleCompletes &&
+        !_isTimelineScrubbing &&
+        !transportState.isScrubSettling) {
+      _retainProxyFrameUntilScrubSettleCompletes = false;
+      _activeLiveScrubSessionConfig = null;
+      _liveScrubProxyFrameRequestKey = null;
+      _lastLiveScrubProxyDispatchEpochMs = 0;
+      if (_liveScrubProxyFrameNotifier.value != null) {
+        _liveScrubProxyFrameNotifier.value = null;
+      }
+    }
     final previewRange = _textEditPreviewRange;
     if (previewRange != null &&
         !_isStoppingTextEditPreviewPlayback &&
         transportState.isPlaying &&
         transportState.positionMs >= previewRange.end.inMilliseconds) {
       unawaited(_stopTextEditPreviewPlayback(snapToEnd: true));
+    }
+    final transitionFocusSession = _transitionFocusSession;
+    final transitionFocusContext = transitionFocusSession == null
+        ? null
+        : _transitionFocusContextById(transitionFocusSession.transitionId);
+    if (transitionFocusContext != null &&
+        !_isStoppingTransitionFocusPlayback &&
+        transportState.isPlaying &&
+        transportState.positionMs >=
+            transitionFocusContext.endTime.inMilliseconds) {
+      unawaited(
+        _stopTransitionFocusPlayback(
+          transitionFocusContext,
+          snapToStart: false,
+        ),
+      );
     }
     if (!mounted) {
       return;
@@ -1528,7 +1924,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       TimelineTime.zero,
       _timelineDurationTime,
     );
-    final isLeavingPlayback = _isPlaying && !transportState.isPlaying;
     final isTransientPlaybackRegression = transportState.isPlaying &&
         shouldAdoptTransportTime &&
         (_currentTime - reportedTransportTime).inSecondsDouble > 0 &&
@@ -1541,11 +1936,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     }
     final shouldUpdatePlaying =
         !_isApplyingStructuralEdit && transportState.isPlaying != _isPlaying;
-    final nextCurrentTime = shouldAdoptTransportTime &&
-            !isTransientPlaybackRegression &&
-            (!transportState.isPlaying || isLeavingPlayback)
-        ? reportedTransportTime
-        : _currentTime;
+    final nextCurrentTime =
+        shouldAdoptTransportTime && !isTransientPlaybackRegression
+            ? reportedTransportTime
+            : _currentTime;
     final shouldUpdateAspect = nextAspectRatio != _lockedWorkspaceAspectRatio;
     final shouldUpdateTime = nextCurrentTime != _currentTime;
     if (!shouldUpdateAspect && !shouldUpdateTime && !shouldUpdatePlaying) {
@@ -1579,7 +1973,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       if (_isTimelineScrubbing) {
         _dispatchNativeScrubPreview(clampedTime);
       } else {
-        _transportController.seekToPositionMs(clampedTime.inMilliseconds);
+        unawaited(_seekPlaybackTo(clampedTime));
       }
     }
   }
@@ -1593,7 +1987,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       _deactivateTimelineTrimMode();
     }
     setState(() {
+      _transitionFocusSession = null;
       _selectedClipId = clipId;
+      _selectedTransitionId = null;
       if (_activeTab == EditorMediaTab.speed &&
           !_hasSelectedSpeedEditableClip) {
         _activeTab = EditorMediaTab.video;
@@ -1611,7 +2007,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
         : _currentTime;
     final nextPreviewAssetId = _previewAssetIdForTimelineTime(nextTimelineTime);
     setState(() {
+      _transitionFocusSession = null;
       _selectedClipId = elementId;
+      _selectedTransitionId = null;
       _activeTab = EditorMediaTab.text;
       _previewAssetId = nextPreviewAssetId;
       if (alignTimelineTime) {
@@ -1627,7 +2025,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   void _clearSelection() {
     _deactivateTimelineTrimMode();
     setState(() {
+      _transitionFocusSession = null;
       _selectedClipId = null;
+      _selectedTransitionId = null;
       if (_activeTab == EditorMediaTab.speed) {
         _activeTab = EditorMediaTab.video;
       }
@@ -2106,14 +2506,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
         _isApplyingStructuralEdit) {
       return;
     }
-    await _transportController.setScrubbing(
-      false,
-      finalPositionMs: _currentTime.inMilliseconds,
-    );
+    await _endLiveScrubSessionAt(_currentTime);
     if (!mounted || requestId != _timelineTrimPreviewRequestId) {
       return;
     }
-    await _transportController.pause();
+    await _pausePlayback();
     if (!mounted || requestId != _timelineTrimPreviewRequestId) {
       return;
     }
@@ -2141,7 +2538,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     final requiresPrepare = _activeTrimPreviewSourceUri != session.sourceUri ||
         _transportController.state.sourceKind != 'imported';
     if (requiresPrepare) {
-      await _transportController.pause();
+      await _pausePlayback();
       await _transportController.prepareImportedMedia(
         sourceUri: sourceUri,
         sourceLabel: sourceLabel,
@@ -2151,9 +2548,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       }
       _activeTrimPreviewSourceUri = sourceUri;
     }
-    await _transportController.seekToPositionMs(
-      sourcePreviewTime.inMilliseconds,
-    );
+    await _seekPlaybackTo(sourcePreviewTime);
   }
 
   _ResolvedTimelineTrimValues _resolveTimelineTrimValues({
@@ -2742,7 +3137,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   List<TimelineTrackData> _replaceTrack(
       int index, List<TimelineClipData> clips) {
     final nextTracks = List<TimelineTrackData>.from(_tracks);
-    nextTracks[index] = nextTracks[index].copyWith(clips: clips);
+    final baseTrack = nextTracks[index];
+    nextTracks[index] = baseTrack.copyWith(
+      clips: clips,
+      transitions: _sanitizeTransitionsForTrack(baseTrack, clips: clips),
+    );
     return List<TimelineTrackData>.unmodifiable(nextTracks);
   }
 
@@ -2752,7 +3151,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     List<TimelineClipData> clips,
   ) {
     final nextTracks = List<TimelineTrackData>.from(tracks);
-    nextTracks[index] = nextTracks[index].copyWith(clips: clips);
+    final baseTrack = nextTracks[index];
+    nextTracks[index] = baseTrack.copyWith(
+      clips: clips,
+      transitions: _sanitizeTransitionsForTrack(baseTrack, clips: clips),
+    );
     return List<TimelineTrackData>.unmodifiable(nextTracks);
   }
 
@@ -3051,11 +3454,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       _currentTime = previewStartTime;
       _playbackSampleTimeNotifier.value = previewStartTime;
     });
-    await _transportController.pause();
-    await _transportController.setScrubbing(
-      false,
-      finalPositionMs: previewStartTime.inMilliseconds,
-    );
+    await _pausePlayback();
+    await _endLiveScrubSessionAt(previewStartTime);
     await _syncVideoTimelineTransport(
       tracks: nextTracks,
       targetTime: previewStartTime,
@@ -3063,7 +3463,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     if (!mounted) {
       return;
     }
-    await _transportController.play();
+    await _playPlayback();
   }
 
   Future<void> _openClipSpeedSheet() async {
@@ -3086,7 +3486,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     }
     if (result == null) {
       if (_useNativePreview) {
-        await _transportController.pause();
+        await _pausePlayback();
         await _syncVideoTimelineTransport(
           tracks: _tracks,
           targetTime: _currentTime,
@@ -3664,7 +4064,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
         return;
       }
     } else if (asset.tab == EditorMediaTab.image) {
-      await _transportController.pause();
+      await _pausePlayback();
     }
     if (asset.isVisual) {
       await _primePreviewThumbnailForAsset(asset);
@@ -3812,11 +4212,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       _timelineTrimPreviewRequestId++;
       try {
         if (_useNativePreview) {
-          await _transportController.setScrubbing(
-            false,
-            finalPositionMs: safeTargetTime.inMilliseconds,
-          );
-          await _transportController.pause();
+          await _endLiveScrubSessionAt(safeTargetTime);
+          await _pausePlayback();
         }
         await _syncVideoTimelineTransport(
           tracks: tracks,
@@ -4429,10 +4826,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
 
   void _handlePlayToggle() {
     _clearTextEditPreviewRange();
+    final transitionFocusSession = _transitionFocusSession;
+    final transitionFocusContext = transitionFocusSession == null
+        ? null
+        : _transitionFocusContextById(transitionFocusSession.transitionId);
+    if (transitionFocusContext != null) {
+      unawaited(_toggleTransitionFocusPlayback(transitionFocusContext));
+      return;
+    }
     if (_canFastTogglePlayback) {
       _setTimelineDisplayTime(_currentTime);
       _syncPlaybackSampleToCurrentTime();
-      unawaited(_transportController.togglePlayPause());
+      unawaited(_togglePlayback());
       return;
     }
     unawaited(_togglePlayAfterStructuralCommit());
@@ -4443,6 +4848,73 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       !_isApplyingStructuralEdit &&
       _timelineTrimPreviewSession == null &&
       _transportController.state.sourceKind == 'timeline';
+
+  Future<void> _toggleTransitionFocusPlayback(
+    _TransitionFocusContext context,
+  ) async {
+    await _timelineStructuralCommit;
+    if (!mounted || _isApplyingStructuralEdit || !_useNativePreview) {
+      return;
+    }
+    if (_transportController.isPlaying) {
+      await _stopTransitionFocusPlayback(
+        context,
+        snapToStart: false,
+      );
+      return;
+    }
+    final startTime = context.startTime;
+    final endTime = context.endTime;
+    final effectiveStartTime =
+        _currentTime >= startTime && _currentTime < endTime
+            ? _currentTime
+            : startTime;
+    _setCurrentTime(effectiveStartTime);
+    if (_transportController.state.sourceKind != 'timeline' ||
+        _timelineTrimPreviewSession != null) {
+      setState(() {
+        _timelineTrimPreviewSession = null;
+        _activeTrimPreviewSourceUri = null;
+      });
+      _timelineTrimPreviewRequestId++;
+      await _endLiveScrubSessionAt(effectiveStartTime);
+      await _pausePlayback();
+      await _syncVideoTimelineTransport(
+        tracks: _tracks,
+        targetTime: effectiveStartTime,
+      );
+    } else {
+      await _pausePlayback();
+      await _seekPlaybackTo(effectiveStartTime);
+    }
+    if (!mounted) {
+      return;
+    }
+    await _playPlayback();
+  }
+
+  Future<void> _stopTransitionFocusPlayback(
+    _TransitionFocusContext context, {
+    required bool snapToStart,
+  }) async {
+    if (_isStoppingTransitionFocusPlayback || !_useNativePreview) {
+      return;
+    }
+    _isStoppingTransitionFocusPlayback = true;
+    try {
+      await _pausePlayback();
+      final targetTime = snapToStart ? context.startTime : context.endTime;
+      await _seekPlaybackTo(targetTime);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _setCurrentTime(targetTime);
+      });
+    } finally {
+      _isStoppingTransitionFocusPlayback = false;
+    }
+  }
 
   bool get _canPreviewActiveTextEditRange {
     final session = _textEditSession;
@@ -4471,7 +4943,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       _textEditPreviewRange = null;
     });
     if (shouldPause) {
-      unawaited(_transportController.pause());
+      unawaited(_pausePlayback());
     }
   }
 
@@ -4503,8 +4975,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       _showStageMessage('This text clip has no playable duration yet.');
       return;
     }
-    await _transportController.pause();
-    await _transportController.seekToPositionMs(startMs);
+    await _pausePlayback();
+    await _playbackController.exactSeekTo(startMs);
     if (!mounted) {
       return;
     }
@@ -4515,7 +4987,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
         end: entry.end,
       );
     });
-    await _transportController.play();
+    await _playPlayback();
   }
 
   Future<void> _stopTextEditPreviewPlayback({bool snapToEnd = false}) async {
@@ -4527,11 +4999,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     }
     _isStoppingTextEditPreviewPlayback = true;
     try {
-      await _transportController.pause();
+      await _pausePlayback();
       if (snapToEnd) {
-        await _transportController.seekToPositionMs(
-          previewRange.end.inMilliseconds,
-        );
+        await _seekPlaybackTo(previewRange.end);
       }
     } finally {
       _isStoppingTextEditPreviewPlayback = false;
@@ -4557,10 +5027,27 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     }
     _isTimelineScrubbing = isScrubbing;
     if (isScrubbing) {
-      _timelineScrubFinalTime = null;
+      final scrubAnchorTime = (_timelineScrubFinalTime ??
+              (_isPlaying ? _timelineDisplayTimeNotifier.value : _currentTime))
+          .clamp(TimelineTime.zero, _timelineDurationTime);
+      _timelineScrubFinalTime = scrubAnchorTime;
       _resetScrubPreviewDispatchState();
-      _transportController.setScrubbing(true);
-      _dispatchNativeScrubPreview(_currentTime, force: true);
+      _retainProxyFrameUntilScrubSettleCompletes = false;
+      _liveScrubProxyFrameRequestKey = null;
+      _lastLiveScrubProxyDispatchEpochMs = 0;
+      _liveScrubProxyFrameNotifier.value = null;
+      _activeLiveScrubSessionConfig = _buildLiveScrubSessionConfig(
+        scrubAnchorTime,
+      );
+      unawaited(
+        _liveScrubPipeline.beginSession(
+          _activeLiveScrubSessionConfig!,
+        ),
+      );
+      if (_activeLiveScrubSessionConfig?.path ==
+          LiveScrubPreviewPath.proxyPreview) {
+        unawaited(_dispatchProxyScrubPreview(scrubAnchorTime));
+      }
       return;
     }
 
@@ -4575,9 +5062,21 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     }
     _setPlaybackSampleTime(resolvedFinalTime);
     _resetScrubPreviewDispatchState();
-    _transportController.setScrubbing(
-      false,
-      finalPositionMs: resolvedFinalTime.inMilliseconds,
+    final shouldRetainProxyFrame =
+        _activeLiveScrubSessionConfig?.path == LiveScrubPreviewPath.proxyPreview;
+    _retainProxyFrameUntilScrubSettleCompletes = shouldRetainProxyFrame;
+    if (shouldRetainProxyFrame) {
+      unawaited(_dispatchProxyScrubPreview(resolvedFinalTime));
+    } else {
+      _activeLiveScrubSessionConfig = null;
+      _liveScrubProxyFrameRequestKey = null;
+      _lastLiveScrubProxyDispatchEpochMs = 0;
+      _liveScrubProxyFrameNotifier.value = null;
+    }
+    unawaited(
+      _liveScrubPipeline.endSession(
+        finalPositionMs: resolvedFinalTime.inMilliseconds,
+      ),
     );
   }
 
@@ -4592,6 +5091,25 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
         _setCurrentTime(clampedTime);
       });
     }
+  }
+
+  void _handleTransitionFocusScrubStateChanged(
+    _TransitionFocusContext _,
+    bool isScrubbing,
+  ) {
+    _handleScrubStateChanged(isScrubbing);
+  }
+
+  void _handleTransitionFocusScrubFinalized(
+    _TransitionFocusContext context,
+    TimelineTime localTime,
+  ) {
+    _handleTimelineScrubFinalized(
+      (context.startTime + localTime).clamp(
+        TimelineTime.zero,
+        _timelineDurationTime,
+      ),
+    );
   }
 
   Future<void> _togglePlayAfterStructuralCommit() async {
@@ -4610,18 +5128,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
           _activeTrimPreviewSourceUri = null;
         });
         _timelineTrimPreviewRequestId++;
-        await _transportController.setScrubbing(
-          false,
-          finalPositionMs: _currentTime.inMilliseconds,
-        );
-        await _transportController.pause();
+        await _endLiveScrubSessionAt(_currentTime);
+        await _pausePlayback();
         await _syncVideoTimelineTransport(
           tracks: _tracks,
           targetTime: _currentTime,
         );
       }
     }
-    await _transportController.togglePlayPause();
+    await _togglePlayback();
   }
 
   void _showStageMessage(String message) {
@@ -4648,6 +5163,974 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     });
   }
 
+  List<TimelineTrackTransitionData> _sanitizeTransitionsForTrack(
+    TimelineTrackData track, {
+    List<TimelineClipData>? clips,
+  }) {
+    if (track.kind != TimelineTrackKind.video) {
+      return const <TimelineTrackTransitionData>[];
+    }
+    final effectiveClips = clips ?? track.clips;
+    final mediaClipIds = <String>[];
+    for (final clip in effectiveClips) {
+      if (clip.type == TimelineClipType.media) {
+        mediaClipIds.add(clip.id);
+      }
+    }
+    if (mediaClipIds.length < 2 || track.transitions.isEmpty) {
+      return const <TimelineTrackTransitionData>[];
+    }
+    final cleaned = <TimelineTrackTransitionData>[];
+    for (final transition in track.transitions) {
+      final leftIndex = mediaClipIds.indexOf(transition.leftClipId);
+      final rightIndex = mediaClipIds.indexOf(transition.rightClipId);
+      if (leftIndex < 0 || rightIndex < 0 || rightIndex - leftIndex != 1) {
+        continue;
+      }
+      cleaned.add(transition);
+    }
+    return List<TimelineTrackTransitionData>.unmodifiable(cleaned);
+  }
+
+  TimelineTrackTransitionData? _videoTrackTransitionById(
+    String transitionId, {
+    List<TimelineTrackData>? tracks,
+  }) {
+    final sourceTracks = tracks ?? _tracks;
+    for (final track in sourceTracks) {
+      if (track.kind != TimelineTrackKind.video) {
+        continue;
+      }
+      for (final transition in track.transitions) {
+        if (transition.id == transitionId) {
+          return transition;
+        }
+      }
+    }
+    return null;
+  }
+
+  void _upsertVideoTrackTransition(TimelineTrackTransitionData transition) {
+    final videoTrackIndex = _tracks.indexWhere(
+      (track) => track.kind == TimelineTrackKind.video,
+    );
+    if (videoTrackIndex < 0) {
+      return;
+    }
+    final baseTrack = _tracks[videoTrackIndex];
+    final nextTransitions = <TimelineTrackTransitionData>[
+      for (final candidate in baseTrack.transitions)
+        if (candidate.id != transition.id &&
+            !(candidate.leftClipId == transition.leftClipId &&
+                candidate.rightClipId == transition.rightClipId))
+          candidate,
+      transition,
+    ];
+    final updatedTrack = baseTrack.copyWith(transitions: nextTransitions);
+    final sanitizedTransitions = _sanitizeTransitionsForTrack(updatedTrack);
+    final nextTracks = List<TimelineTrackData>.from(_tracks);
+    nextTracks[videoTrackIndex] = updatedTrack.copyWith(
+      transitions: sanitizedTransitions,
+    );
+    setState(() {
+      _tracks = List<TimelineTrackData>.unmodifiable(nextTracks);
+      _selectedClipId = null;
+      _selectedTransitionId = transition.id;
+      if (_activeTab == EditorMediaTab.speed) {
+        _activeTab = EditorMediaTab.video;
+      }
+    });
+  }
+
+  void _deleteVideoTrackTransition(String transitionId) {
+    final videoTrackIndex = _tracks.indexWhere(
+      (track) => track.kind == TimelineTrackKind.video,
+    );
+    if (videoTrackIndex < 0) {
+      return;
+    }
+    final baseTrack = _tracks[videoTrackIndex];
+    final nextTransitions = baseTrack.transitions
+        .where((transition) => transition.id != transitionId)
+        .toList(growable: false);
+    final nextTracks = List<TimelineTrackData>.from(_tracks);
+    nextTracks[videoTrackIndex] = baseTrack.copyWith(
+      transitions: _sanitizeTransitionsForTrack(
+        baseTrack.copyWith(transitions: nextTransitions),
+      ),
+    );
+    setState(() {
+      _tracks = List<TimelineTrackData>.unmodifiable(nextTracks);
+      if (_selectedTransitionId == transitionId) {
+        _selectedTransitionId = null;
+      }
+      if (_transitionFocusSession?.transitionId == transitionId) {
+        _transitionFocusSession = null;
+      }
+    });
+  }
+
+  _TransitionFocusContext? _transitionFocusContextById(String transitionId) {
+    final videoTrack = _tracks.where(
+      (track) => track.kind == TimelineTrackKind.video,
+    );
+    if (videoTrack.isEmpty) {
+      return null;
+    }
+    final track = videoTrack.first;
+    TimelineTrackTransitionData? transition;
+    for (final candidate in _sanitizeTransitionsForTrack(track)) {
+      if (candidate.id == transitionId) {
+        transition = candidate;
+        break;
+      }
+    }
+    if (transition == null) {
+      return null;
+    }
+    final positionedClips = _positionedMediaClipsForTrack(track);
+    final clipById = <String, _PositionedTimelineTrackClip>{
+      for (final positionedClip in positionedClips)
+        positionedClip.clip.id: positionedClip,
+    };
+    final leftClip = clipById[transition.leftClipId];
+    final rightClip = clipById[transition.rightClipId];
+    if (leftClip == null || rightClip == null) {
+      return null;
+    }
+    final seamTime = leftClip.endTime;
+    final startTime = (seamTime - transition.resolvedLeadingDurationTime).clamp(
+      TimelineTime.zero,
+      _timelineDurationTime,
+    );
+    final endTime = (seamTime + transition.resolvedTrailingDurationTime).clamp(
+      TimelineTime.zero,
+      _timelineDurationTime,
+    );
+    if (endTime <= startTime) {
+      return null;
+    }
+    return _TransitionFocusContext(
+      transition: transition,
+      leftClip: leftClip.clip,
+      rightClip: rightClip.clip,
+      seamTime: seamTime,
+      startTime: startTime,
+      endTime: endTime,
+    );
+  }
+
+  String _clipPresentationLabel(
+    TimelineClipData clip, {
+    required String fallback,
+  }) {
+    final directLabel = clip.label?.trim();
+    if (directLabel != null && directLabel.isNotEmpty) {
+      return directLabel;
+    }
+    final assetId = clip.assetId;
+    if (assetId != null) {
+      final assetLabel = _assetForId(assetId)?.label.trim();
+      if (assetLabel != null && assetLabel.isNotEmpty) {
+        return assetLabel;
+      }
+    }
+    return fallback;
+  }
+
+  String _transitionFocusScopedClipId(
+    _TransitionFocusContext context,
+    _TransitionFocusClipSide side,
+  ) {
+    return '${context.transition.id}::focus-${side.name}';
+  }
+
+  TimelineTime _transitionFocusScopedDuration(
+    _TransitionFocusContext context,
+    _TransitionFocusClipSide side,
+  ) {
+    return switch (side) {
+      _TransitionFocusClipSide.left => context.seamTime - context.startTime,
+      _TransitionFocusClipSide.right => context.endTime - context.seamTime,
+    };
+  }
+
+  TimelineTime _transitionFocusScopedClipStartTime(
+    _TransitionFocusContext context,
+    _TransitionFocusClipSide side,
+  ) {
+    return switch (side) {
+      _TransitionFocusClipSide.left => TimelineTime.zero,
+      _TransitionFocusClipSide.right => context.seamTime - context.startTime,
+    };
+  }
+
+  TimelineTime _transitionFocusScopedSourceStartTime(
+    _TransitionFocusContext context,
+    _TransitionFocusClipSide side,
+  ) {
+    if (side == _TransitionFocusClipSide.right) {
+      return context.rightClip.sourceStartTime;
+    }
+    final leftWindowDuration = _transitionFocusScopedDuration(
+      context,
+      _TransitionFocusClipSide.left,
+    );
+    final sourceWindowMs =
+        (leftWindowDuration.inMilliseconds * context.leftClip.playbackRate)
+            .round();
+    final sourceEndTime =
+        context.leftClip.sourceStartTime + context.leftClip.sourceDurationTime;
+    return sourceEndTime - TimelineTime.fromMilliseconds(sourceWindowMs);
+  }
+
+  _TransitionFocusClipSide? _transitionFocusClipSideForScopedId(
+    _TransitionFocusContext context,
+    String clipId,
+  ) {
+    if (clipId ==
+        _transitionFocusScopedClipId(
+          context,
+          _TransitionFocusClipSide.left,
+        )) {
+      return _TransitionFocusClipSide.left;
+    }
+    if (clipId ==
+        _transitionFocusScopedClipId(
+          context,
+          _TransitionFocusClipSide.right,
+        )) {
+      return _TransitionFocusClipSide.right;
+    }
+    return null;
+  }
+
+  TimelineTrimSelection? _transitionFocusTrimSelection(
+    _TransitionFocusContext context,
+  ) {
+    final selectedClipId = _selectedClipId;
+    if (selectedClipId == null) {
+      return null;
+    }
+    final clipSide =
+        _transitionFocusClipSideForScopedId(context, selectedClipId);
+    if (clipSide == null) {
+      return null;
+    }
+    final clip = clipSide == _TransitionFocusClipSide.left
+        ? context.leftClip
+        : context.rightClip;
+    final localClipStartTime = _transitionFocusScopedClipStartTime(
+      context,
+      clipSide,
+    );
+    final localDurationTime = _transitionFocusScopedDuration(context, clipSide);
+    final localCurrentTime = _transitionFocusLocalTime(context, _currentTime);
+    final localClipEndTime = localClipStartTime + localDurationTime;
+    final playheadBarrierTime = localCurrentTime >= localClipStartTime &&
+            localCurrentTime <= localClipEndTime
+        ? localCurrentTime
+        : null;
+    final assetDurationSeconds = clip.assetId == null
+        ? null
+        : _assetForId(clip.assetId!)?.durationSeconds;
+    return TimelineTrimSelection(
+      clipId: selectedClipId,
+      trackKind: TimelineTrackKind.video,
+      clipStartTime: localClipStartTime,
+      durationTime: localDurationTime,
+      sourceStartTime: _transitionFocusScopedSourceStartTime(context, clipSide),
+      sourceDurationTime: TimelineTime.fromMilliseconds(
+        (localDurationTime.inMilliseconds * clip.playbackRate).round(),
+      ),
+      playbackRate: clip.playbackRate,
+      minDurationTime: _minEditableClipDurationTime,
+      playheadBarrierTime: playheadBarrierTime,
+      assetDurationTime: assetDurationSeconds == null
+          ? null
+          : TimelineTime.fromSecondsDouble(assetDurationSeconds),
+    );
+  }
+
+  void _handleTransitionFocusClipSelected(
+    _TransitionFocusContext context,
+    String clipId,
+  ) {
+    if (_transitionFocusClipSideForScopedId(context, clipId) == null) {
+      return;
+    }
+    setState(() {
+      _selectedClipId = clipId;
+    });
+  }
+
+  void _clearTransitionFocusSelection() {
+    if (_selectedClipId == null) {
+      return;
+    }
+    setState(() {
+      _selectedClipId = null;
+    });
+  }
+
+  void _handleTransitionFocusTrimPreviewChanged(
+    _TransitionFocusContext context,
+    TimelineTrimPreviewRequest? request,
+  ) {
+    if (request == null) {
+      return;
+    }
+    final localDuration = context.endTime - context.startTime;
+    final localTime = request.timelinePreviewTime.clamp(
+      TimelineTime.zero,
+      localDuration,
+    );
+    final nextGlobalTime = (context.startTime + localTime).clamp(
+      TimelineTime.zero,
+      _timelineDurationTime,
+    );
+    _handleTimelineTimeChanged(nextGlobalTime);
+  }
+
+  void _handleTransitionFocusTrimCommit(
+    _TransitionFocusContext context,
+    TimelineTrimCommitRequest request,
+  ) {
+    final clipSide =
+        _transitionFocusClipSideForScopedId(context, request.clipId);
+    if (clipSide == null) {
+      return;
+    }
+    TimelineTime nextStartTime = context.startTime;
+    TimelineTime nextEndTime = context.endTime;
+    if (clipSide == _TransitionFocusClipSide.left) {
+      nextStartTime = (context.seamTime - request.durationTime).clamp(
+        TimelineTime.zero,
+        context.seamTime - _minEditableClipDurationTime,
+      );
+    } else {
+      nextEndTime = (context.seamTime + request.durationTime).clamp(
+        context.seamTime + _minEditableClipDurationTime,
+        _timelineDurationTime,
+      );
+    }
+    if (nextEndTime <= nextStartTime) {
+      return;
+    }
+    final nextLeading = context.seamTime - nextStartTime;
+    final nextTrailing = nextEndTime - context.seamTime;
+    final nextDuration = nextLeading + nextTrailing;
+    _updateTransitionFocusTransition(
+      context.transition.id,
+      preserveProgress: true,
+      update: (current) => current.copyWith(
+        durationTime: nextDuration,
+        leadingDurationTime: nextLeading,
+        trailingDurationTime: nextTrailing,
+      ),
+    );
+  }
+
+  TimelineTime _transitionFocusLocalTime(
+    _TransitionFocusContext context,
+    TimelineTime timelineTime,
+  ) {
+    final clampedTime = timelineTime.clamp(context.startTime, context.endTime);
+    return clampedTime - context.startTime;
+  }
+
+  List<TimelineTrackData> _buildTransitionFocusScopedTracks(
+    _TransitionFocusContext context,
+    List<_TransitionFocusLaneSpec> laneSpecs,
+  ) {
+    final leftDurationTime = _transitionFocusScopedDuration(
+      context,
+      _TransitionFocusClipSide.left,
+    );
+    final rightDurationTime = _transitionFocusScopedDuration(
+      context,
+      _TransitionFocusClipSide.right,
+    );
+    final leftScopedClipId = _transitionFocusScopedClipId(
+      context,
+      _TransitionFocusClipSide.left,
+    );
+    final rightScopedClipId = _transitionFocusScopedClipId(
+      context,
+      _TransitionFocusClipSide.right,
+    );
+
+    final leftScopedClip = context.leftClip.copyWith(
+      id: leftScopedClipId,
+      label: _clipPresentationLabel(context.leftClip, fallback: 'Clip A'),
+      durationTime: leftDurationTime,
+      sourceDurationTime: TimelineTime.fromMilliseconds(
+        (leftDurationTime.inMilliseconds * context.leftClip.playbackRate)
+            .round(),
+      ),
+      sourceStartTime: _transitionFocusScopedSourceStartTime(
+        context,
+        _TransitionFocusClipSide.left,
+      ),
+    );
+    final rightScopedClip = context.rightClip.copyWith(
+      id: rightScopedClipId,
+      label: _clipPresentationLabel(context.rightClip, fallback: 'Clip B'),
+      durationTime: rightDurationTime,
+      sourceDurationTime: TimelineTime.fromMilliseconds(
+        (rightDurationTime.inMilliseconds * context.rightClip.playbackRate)
+            .round(),
+      ),
+      sourceStartTime: _transitionFocusScopedSourceStartTime(
+        context,
+        _TransitionFocusClipSide.right,
+      ),
+    );
+
+    final animationLanes = laneSpecs
+        .map(
+          (lane) => TimelineAnimationLaneData(
+            id: lane.id,
+            label: lane.label,
+            targetClipId: leftScopedClipId,
+            normalizedKeyframeStops: lane.keyframeStops,
+            trackSpanStartProgress: 0,
+            trackSpanEndProgress: 1,
+          ),
+        )
+        .toList(growable: false);
+
+    return <TimelineTrackData>[
+      TimelineTrackData(
+        kind: TimelineTrackKind.video,
+        clips: <TimelineClipData>[
+          leftScopedClip,
+          rightScopedClip,
+        ],
+        animationLanes: animationLanes,
+      ),
+    ];
+  }
+
+  static const Map<String, _TransitionFocusLaneSpec> _transitionLaneLibrary =
+      <String, _TransitionFocusLaneSpec>{
+    'outgoingBoostScale': _TransitionFocusLaneSpec(
+      id: 'outgoingBoostScale',
+      groupLabel: 'Outgoing',
+      label: 'Outgoing Scale',
+      editorDescription:
+          'Pushes the left clip forward before the handoff into the next shot.',
+      min: 1.0,
+      max: 1.25,
+      fallback: 1.0,
+      tint: Color(0xFF82E6FF),
+      keyframeStops: <double>[0.0, 1.0],
+      valueFormatter: _formatTransitionScale,
+    ),
+    'incomingStartScale': _TransitionFocusLaneSpec(
+      id: 'incomingStartScale',
+      groupLabel: 'Incoming',
+      label: 'Incoming Scale',
+      editorDescription:
+          'Starts the next clip close, then relaxes it back to full frame.',
+      min: 1.0,
+      max: 1.45,
+      fallback: 1.0,
+      tint: Color(0xFF8DFFAE),
+      keyframeStops: <double>[0.0, 1.0],
+      valueFormatter: _formatTransitionScale,
+    ),
+    'entryDelay': _TransitionFocusLaneSpec(
+      id: 'entryDelay',
+      groupLabel: 'Timing',
+      label: 'Entry Delay',
+      editorDescription:
+          'Offsets when the incoming clip starts taking over inside the seam.',
+      min: 0.0,
+      max: 0.48,
+      fallback: 0.0,
+      tint: Color(0xFFFFD98A),
+      keyframeStops: <double>[0.0, 0.3, 1.0],
+      valueFormatter: _formatTransitionPercent,
+    ),
+    'bridgeDarkness': _TransitionFocusLaneSpec(
+      id: 'bridgeDarkness',
+      groupLabel: 'Visual',
+      label: 'Bridge Darkness',
+      editorDescription:
+          'Adds a cinematic darkening pulse so the seam feels deeper and less abrupt.',
+      min: 0.0,
+      max: 0.65,
+      fallback: 0.0,
+      tint: Color(0xFFFFA7C9),
+      keyframeStops: <double>[0.0, 0.5, 1.0],
+      valueFormatter: _formatTransitionPercent,
+    ),
+    'blackPeak': _TransitionFocusLaneSpec(
+      id: 'blackPeak',
+      groupLabel: 'Visual',
+      label: 'Black Mix',
+      editorDescription:
+          'Controls how hard the seam dips through black at the midpoint.',
+      min: 0.0,
+      max: 1.0,
+      fallback: 0.0,
+      tint: Color(0xFFB5C0D9),
+      keyframeStops: <double>[0.0, 0.5, 1.0],
+      valueFormatter: _formatTransitionPercent,
+    ),
+  };
+
+  List<_TransitionFocusLaneSpec> _transitionFocusLaneSpecs(
+    TimelineTrackTransitionData transition,
+  ) {
+    final laneIds = switch (transition.preset) {
+      TimelineTransitionPreset.manual => transition.manualEffectIds,
+      TimelineTransitionPreset.fadeBlack => const <String>['blackPeak'],
+      TimelineTransitionPreset.zoomInCamera => const <String>[
+          'outgoingBoostScale',
+          'incomingStartScale',
+          'entryDelay',
+          'bridgeDarkness',
+        ],
+    };
+    final specs = <_TransitionFocusLaneSpec>[];
+    for (final laneId in laneIds) {
+      final baseSpec = _transitionLaneLibrary[laneId];
+      if (baseSpec == null) {
+        continue;
+      }
+      if (laneId == 'entryDelay') {
+        final delay = transition
+            .parameterValue(
+              'entryDelay',
+              fallback: baseSpec.fallback,
+            )
+            .clamp(0.0, 1.0);
+        specs.add(
+          baseSpec.copyWith(
+            keyframeStops: <double>[0.0, delay, 1.0],
+          ),
+        );
+        continue;
+      }
+      if (laneId == 'incomingStartScale') {
+        final delay = transition
+            .parameterValue(
+              'entryDelay',
+              fallback: 0.0,
+            )
+            .clamp(0.0, 1.0);
+        specs.add(
+          baseSpec.copyWith(
+            keyframeStops: <double>[delay, 1.0],
+          ),
+        );
+        continue;
+      }
+      specs.add(baseSpec);
+    }
+    return specs;
+  }
+
+  String _resolvedTransitionFocusLaneId(
+    _TransitionFocusContext context, {
+    String? preferredLaneId,
+  }) {
+    final lanes = _transitionFocusLaneSpecs(context.transition);
+    if (lanes.isEmpty) {
+      return '';
+    }
+    if (preferredLaneId != null &&
+        lanes.any((lane) => lane.id == preferredLaneId)) {
+      return preferredLaneId;
+    }
+    final activeLaneId = _transitionFocusSession?.selectedLaneId;
+    if (activeLaneId != null && lanes.any((lane) => lane.id == activeLaneId)) {
+      return activeLaneId;
+    }
+    return lanes.first.id;
+  }
+
+  double _transitionFocusProgressForTime(
+    _TransitionFocusContext context,
+    TimelineTime timelineTime,
+  ) {
+    final totalSpan = (context.endTime - context.startTime).inMilliseconds;
+    if (totalSpan <= 0) {
+      return 0.0;
+    }
+    final clampedTime = timelineTime.clamp(context.startTime, context.endTime);
+    final elapsed = (clampedTime - context.startTime).inMilliseconds;
+    return (elapsed / totalSpan).clamp(0.0, 1.0).toDouble();
+  }
+
+  void _seekTransitionFocusProgress(
+    _TransitionFocusContext context,
+    double progress,
+  ) {
+    final totalSpan = (context.endTime - context.startTime).inMilliseconds;
+    final nextTime = context.startTime +
+        TimelineTime.fromMilliseconds(
+          (totalSpan * progress.clamp(0.0, 1.0)).round(),
+        );
+    _handleTimelineTimeChanged(nextTime);
+  }
+
+  void _enterTransitionFocusMode(
+    String transitionId, {
+    String? preferredLaneId,
+  }) {
+    var context = _transitionFocusContextById(transitionId);
+    if (context == null) {
+      return;
+    }
+    if (context.transition.preset == TimelineTransitionPreset.manual) {
+      final shouldSeedBalancedScope =
+          context.transition.manualEffectIds.isEmpty &&
+              (context.transition.leadingDurationTime == null ||
+                  context.transition.trailingDurationTime == null ||
+                  (context.transition.resolvedLeadingDurationTime <
+                          _manualTransitionMinimumScopeSideTime &&
+                      context.transition.resolvedTrailingDurationTime <
+                          _manualTransitionMinimumScopeSideTime));
+      final sharedManualScopeDuration =
+          _manualTransitionMinimumScopeSideTime.clamp(
+        _minEditableClipDurationTime,
+        context.leftClip.durationTime <= context.rightClip.durationTime
+            ? context.leftClip.durationTime
+            : context.rightClip.durationTime,
+      );
+      final desiredLeading = shouldSeedBalancedScope
+          ? sharedManualScopeDuration
+          : context.transition.resolvedLeadingDurationTime;
+      final desiredTrailing = shouldSeedBalancedScope
+          ? sharedManualScopeDuration
+          : context.transition.resolvedTrailingDurationTime;
+      if (desiredLeading != context.transition.resolvedLeadingDurationTime ||
+          desiredTrailing != context.transition.resolvedTrailingDurationTime) {
+        final updatedTransition = context.transition.copyWith(
+          durationTime: desiredLeading + desiredTrailing,
+          leadingDurationTime: desiredLeading,
+          trailingDurationTime: desiredTrailing,
+        );
+        _upsertVideoTrackTransition(updatedTransition);
+        context = _transitionFocusContextById(transitionId);
+        if (context == null) {
+          return;
+        }
+      }
+    }
+    final resolvedLaneId = _resolvedTransitionFocusLaneId(
+      context,
+      preferredLaneId: preferredLaneId,
+    );
+    setState(() {
+      _transitionFocusSession = _TransitionFocusSession(
+        transitionId: transitionId,
+        selectedLaneId: resolvedLaneId,
+      );
+      _selectedClipId = null;
+      _selectedTransitionId = transitionId;
+      if (_activeTab == EditorMediaTab.speed) {
+        _activeTab = EditorMediaTab.video;
+      }
+    });
+    _seekTransitionFocusProgress(context, 0.0);
+    _syncTransitionFocusTimeNotifiers();
+    if (_transportController.isPlaying) {
+      unawaited(
+        _stopTransitionFocusPlayback(
+          context,
+          snapToStart: true,
+        ),
+      );
+    }
+  }
+
+  void _exitTransitionFocusMode() {
+    final session = _transitionFocusSession;
+    if (session == null) {
+      return;
+    }
+    final context = _transitionFocusContextById(session.transitionId);
+    setState(() {
+      _transitionFocusSession = null;
+      _selectedClipId = null;
+    });
+    _syncTransitionFocusTimeNotifiers();
+    if (context != null && _transportController.isPlaying) {
+      unawaited(
+        _stopTransitionFocusPlayback(
+          context,
+          snapToStart: false,
+        ),
+      );
+    }
+  }
+
+  void _selectTransitionFocusLane(String laneId) {
+    final session = _transitionFocusSession;
+    if (session == null || session.selectedLaneId == laneId) {
+      return;
+    }
+    setState(() {
+      _transitionFocusSession = session.copyWith(selectedLaneId: laneId);
+    });
+  }
+
+  Future<void> _openManualTransitionEffectBrowser(String transitionId) async {
+    setState(() {
+      _isAnimateBrowserOpen = true;
+    });
+    final item = await showModalBottomSheet<AnimateBrowserItem>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => MediaQuery.removeViewInsets(
+        context: context,
+        removeBottom: true,
+        child: const AnimateBrowserBottomSheet(
+          items: _manualTransitionEffectItems,
+        ),
+      ),
+    ).whenComplete(() {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isAnimateBrowserOpen = false;
+      });
+    });
+    if (!mounted || item == null) {
+      return;
+    }
+    _addManualTransitionEffect(transitionId, item);
+  }
+
+  void _addManualTransitionEffect(
+    String transitionId,
+    AnimateBrowserItem item,
+  ) {
+    final transition = _videoTrackTransitionById(transitionId);
+    if (transition == null) {
+      return;
+    }
+    if (transition.manualEffectIds.contains(item.id)) {
+      _showStageMessage('${item.label} already exists on this transition.');
+      _selectTransitionFocusLane(item.id);
+      return;
+    }
+    final baseSpec = _transitionLaneLibrary[item.id];
+    if (baseSpec == null) {
+      return;
+    }
+    _updateTransitionFocusTransition(
+      transitionId,
+      update: (current) => current.copyWith(
+        manualEffectIds: <String>[
+          ...current.manualEffectIds,
+          item.id,
+        ],
+        parameterValues: <String, double>{
+          ...current.parameterValues,
+          item.id: current.parameterValue(item.id, fallback: baseSpec.fallback),
+        },
+      ),
+    );
+    _selectTransitionFocusLane(item.id);
+  }
+
+  void _updateTransitionFocusTransition(
+    String transitionId, {
+    required TimelineTrackTransitionData Function(
+      TimelineTrackTransitionData current,
+    ) update,
+    bool preserveProgress = false,
+  }) {
+    final current = _videoTrackTransitionById(transitionId);
+    if (current == null) {
+      return;
+    }
+    final existingContext =
+        preserveProgress ? _transitionFocusContextById(transitionId) : null;
+    final preservedProgress = existingContext == null
+        ? null
+        : _transitionFocusProgressForTime(existingContext, _currentTime);
+    _upsertVideoTrackTransition(update(current));
+    if (preservedProgress != null) {
+      final nextContext = _transitionFocusContextById(transitionId);
+      if (nextContext != null) {
+        _seekTransitionFocusProgress(nextContext, preservedProgress);
+      }
+    }
+  }
+
+  void _handleTransitionFrameToolsTap() {
+    _showStageMessage(
+        'Keyframe tools UI is the next step in this manual mode.');
+  }
+
+  static String _formatTransitionPercent(double value) =>
+      '${(value * 100).round()}%';
+
+  static String _formatTransitionScale(double value) =>
+      '${(value * 100).round()}%';
+
+  Future<void> _handleTimelineTransitionTap(
+    TimelineTrackData track,
+    TimelineClipData leftClip,
+    TimelineClipData rightClip,
+  ) async {
+    if (track.kind != TimelineTrackKind.video) {
+      return;
+    }
+    _deactivateTimelineTrimMode();
+    final existingTransition = track.transitionForBoundary(
+      leftClip.id,
+      rightClip.id,
+    );
+    setState(() {
+      _selectedClipId = null;
+      _selectedTransitionId = existingTransition?.id;
+      if (_activeTab == EditorMediaTab.speed) {
+        _activeTab = EditorMediaTab.video;
+      }
+    });
+    if (existingTransition != null) {
+      if (existingTransition.preset == TimelineTransitionPreset.manual) {
+        _enterTransitionFocusMode(existingTransition.id);
+        return;
+      }
+      await _openTransitionInspector(existingTransition.id);
+      return;
+    }
+    final browserResult = await showModalBottomSheet<TransitionBrowserResult>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const TransitionBrowserBottomSheet(),
+    );
+    if (!mounted || browserResult == null) {
+      return;
+    }
+    final preset = browserResult.preset;
+    final transition = TimelineTrackTransitionData(
+      id: 'transition-${DateTime.now().millisecondsSinceEpoch}',
+      leftClipId: leftClip.id,
+      rightClipId: rightClip.id,
+      preset: preset,
+      durationTime: preset.defaultDurationTime,
+      curve: TimelineTransitionCurve.easeInOut,
+      parameterValues: preset.defaultParameterValues,
+      manualEffectIds: preset == TimelineTransitionPreset.manual
+          ? const <String>[]
+          : const <String>[],
+    );
+    _upsertVideoTrackTransition(transition);
+    if (browserResult.action == TransitionBrowserAction.openManual) {
+      _enterTransitionFocusMode(transition.id);
+      return;
+    }
+    await _openTransitionInspector(transition.id);
+  }
+
+  Future<void> _openTransitionInspector(String transitionId) async {
+    final transition = _videoTrackTransitionById(transitionId);
+    if (transition == null) {
+      return;
+    }
+    final result = await showModalBottomSheet<TransitionInspectorResult>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => TransitionInspectorBottomSheet(
+        initialTransition: transition,
+      ),
+    );
+    if (!mounted || result == null) {
+      return;
+    }
+    switch (result.action) {
+      case TransitionInspectorAction.apply:
+        _upsertVideoTrackTransition(result.transition);
+      case TransitionInspectorAction.openManual:
+        _upsertVideoTrackTransition(result.transition);
+        _enterTransitionFocusMode(result.transition.id);
+      case TransitionInspectorAction.delete:
+        _deleteVideoTrackTransition(result.transition.id);
+    }
+  }
+
+  _ActiveTimelineTransitionPreview? _activeTimelineTransitionPreviewAt(
+    TimelineTime timelineTime,
+  ) {
+    final videoTrack =
+        _tracks.where((track) => track.kind == TimelineTrackKind.video);
+    if (videoTrack.isEmpty) {
+      return null;
+    }
+    final track = videoTrack.first;
+    if (track.transitions.isEmpty) {
+      return null;
+    }
+    final positionedClips = _positionedMediaClipsForTrack(track);
+    if (positionedClips.length < 2) {
+      return null;
+    }
+    final clipById = <String, _PositionedTimelineTrackClip>{
+      for (final positionedClip in positionedClips)
+        positionedClip.clip.id: positionedClip,
+    };
+    for (final transition in _sanitizeTransitionsForTrack(track)) {
+      if (transition.preset == TimelineTransitionPreset.manual &&
+          transition.manualEffectIds.isEmpty) {
+        continue;
+      }
+      final leftClip = clipById[transition.leftClipId];
+      final rightClip = clipById[transition.rightClipId];
+      if (leftClip == null || rightClip == null) {
+        continue;
+      }
+      final seamTime = leftClip.startTime + leftClip.clip.durationTime;
+      final start = (seamTime - transition.resolvedLeadingDurationTime).clamp(
+        TimelineTime.zero,
+        _timelineDurationTime,
+      );
+      final end = (seamTime + transition.resolvedTrailingDurationTime).clamp(
+        TimelineTime.zero,
+        _timelineDurationTime,
+      );
+      if (end <= start || timelineTime < start || timelineTime > end) {
+        continue;
+      }
+      final totalSpan = (end - start).inMilliseconds;
+      final elapsed = (timelineTime - start).inMilliseconds;
+      final progress = totalSpan <= 0
+          ? 0.0
+          : (elapsed / totalSpan).clamp(0.0, 1.0).toDouble();
+      return _ActiveTimelineTransitionPreview(
+        transition: transition,
+        leftClip: leftClip,
+        rightClip: rightClip,
+        progress: progress,
+      );
+    }
+    return null;
+  }
+
+  void _warmTransitionPreviewAssets(_ActiveTimelineTransitionPreview state) {
+    final assetId = state.rightClip.clip.assetId;
+    if (assetId == null || assetId.isEmpty) {
+      return;
+    }
+    final asset = _assetForId(assetId);
+    if (asset == null) {
+      return;
+    }
+    unawaited(_primePreviewThumbnailForAsset(asset));
+  }
+
   Widget? _buildPreviewOverlay({
     required bool effectiveIsPlaying,
   }) {
@@ -4657,30 +6140,74 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     return ValueListenableBuilder<TimelineTime>(
       valueListenable: previewTimeListenable,
       builder: (context, previewTime, _) {
+        final activeTransition =
+            _activeTimelineTransitionPreviewAt(previewTime);
+        if (activeTransition != null) {
+          _warmTransitionPreviewAssets(activeTransition);
+        }
         final motionTextRenderSnapshot =
             _motionTextRenderSnapshotForTime(previewTime);
-        if (motionTextRenderSnapshot == null) {
-          return const SizedBox.shrink();
-        }
-        final selectedCanvasElementId =
-            _selectedCanvasTextElementIdForSnapshot(motionTextRenderSnapshot);
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            MotionTextPreviewOverlay(
-              snapshot: motionTextRenderSnapshot,
-            ),
-            MotionTextTransformOverlay(
-              snapshot: motionTextRenderSnapshot,
-              selectedElementId: selectedCanvasElementId,
-              isInteractive: !_isTimelineScrubbing && !effectiveIsPlaying,
-              onNodeSelected: _handleCanvasTextSelected,
-              onNodeEditRequested: _handleCanvasTextEditRequested,
-              onNodeMoved: _handleCanvasTextMoved,
-              onNodeScaleChanged: _handleCanvasTextScaleChanged,
-              onNodeRotationChanged: _handleCanvasTextRotationChanged,
-            ),
-          ],
+        return ValueListenableBuilder<Uint8List?>(
+          valueListenable: _liveScrubProxyFrameNotifier,
+          builder: (context, proxyFrameBytes, __) {
+            final hasProxyScrubFrame =
+                _isTimelineScrubbing &&
+                proxyFrameBytes != null &&
+                proxyFrameBytes.isNotEmpty;
+            if (motionTextRenderSnapshot == null &&
+                activeTransition == null &&
+                !hasProxyScrubFrame) {
+              return const SizedBox.shrink();
+            }
+            final selectedCanvasElementId = motionTextRenderSnapshot == null
+                ? null
+                : _selectedCanvasTextElementIdForSnapshot(
+                    motionTextRenderSnapshot,
+                  );
+            final incomingTransitionAssetId =
+                activeTransition?.rightClip.clip.assetId;
+            final incomingTransitionBytes = incomingTransitionAssetId == null
+                ? null
+                : _previewThumbnailCache[incomingTransitionAssetId];
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                if (hasProxyScrubFrame)
+                  IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: const BoxDecoration(color: Colors.black),
+                      child: Image.memory(
+                        proxyFrameBytes,
+                        fit: BoxFit.contain,
+                        gaplessPlayback: true,
+                        filterQuality: FilterQuality.medium,
+                      ),
+                    ),
+                  ),
+                if (activeTransition != null)
+                  TimelineTransitionPreviewOverlay(
+                    transition: activeTransition.transition,
+                    progress: activeTransition.progress,
+                    incomingThumbnailBytes: incomingTransitionBytes,
+                  ),
+                if (motionTextRenderSnapshot != null)
+                  MotionTextPreviewOverlay(
+                    snapshot: motionTextRenderSnapshot,
+                  ),
+                if (motionTextRenderSnapshot != null)
+                  MotionTextTransformOverlay(
+                    snapshot: motionTextRenderSnapshot,
+                    selectedElementId: selectedCanvasElementId,
+                    isInteractive: !_isTimelineScrubbing && !effectiveIsPlaying,
+                    onNodeSelected: _handleCanvasTextSelected,
+                    onNodeEditRequested: _handleCanvasTextEditRequested,
+                    onNodeMoved: _handleCanvasTextMoved,
+                    onNodeScaleChanged: _handleCanvasTextScaleChanged,
+                    onNodeRotationChanged: _handleCanvasTextRotationChanged,
+                  ),
+              ],
+            );
+          },
         );
       },
     );
@@ -4707,6 +6234,31 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     };
     final isTrimModeActive = _timelineTrimSelection != null;
     final activeTextEditSession = _textEditSession;
+    final transitionFocusSession = _transitionFocusSession;
+    final transitionFocusContext = transitionFocusSession == null
+        ? null
+        : _transitionFocusContextById(transitionFocusSession.transitionId);
+    final transitionFocusLaneSpecs = transitionFocusContext == null
+        ? const <_TransitionFocusLaneSpec>[]
+        : _transitionFocusLaneSpecs(transitionFocusContext.transition);
+    final resolvedTransitionFocusLaneId = transitionFocusContext == null
+        ? ''
+        : _resolvedTransitionFocusLaneId(
+            transitionFocusContext,
+            preferredLaneId: transitionFocusSession?.selectedLaneId,
+          );
+    final transitionFocusScopedTracks = transitionFocusContext == null
+        ? const <TimelineTrackData>[]
+        : _buildTransitionFocusScopedTracks(
+            transitionFocusContext,
+            transitionFocusLaneSpecs,
+          );
+    final transitionFocusLocalTime = transitionFocusContext == null
+        ? TimelineTime.zero
+        : _transitionFocusLocalTime(
+            transitionFocusContext,
+            _currentTime,
+          );
     return Scaffold(
       resizeToAvoidBottomInset: !_isAnimateBrowserOpen,
       body: SafeArea(
@@ -4771,28 +6323,39 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
                         children: [
                           Padding(
                             padding: const EdgeInsets.fromLTRB(4, 4, 4, 3),
-                            child: EditorToolsBar(
-                              embedded: true,
-                              isPlaying: effectiveIsPlaying,
-                              onSplit: hasSelectedImportedClip
-                                  ? _handleSplitSelectedClip
-                                  : null,
-                              onTrimToggle: hasSelectedImportedClip ||
-                                      hasSelectedMotionTextClip
-                                  ? _handleTrimModeToggle
-                                  : null,
-                              isTrimModeActive: isTrimModeActive,
-                              onDuplicate: hasSelectedImportedClip ||
-                                      hasSelectedMotionTextClip
-                                  ? _handleDuplicateSelectedClip
-                                  : null,
-                              onDelete: hasSelectedImportedClip ||
-                                      hasSelectedMotionTextClip
-                                  ? _handleDeleteSelectedClip
-                                  : null,
-                              onPlayToggle:
-                                  _useNativePreview ? _handlePlayToggle : null,
-                            ),
+                            child: transitionFocusContext != null
+                                ? TransitionFocusToolsBar(
+                                    isPlaying: effectiveIsPlaying,
+                                    onBack: _exitTransitionFocusMode,
+                                    onFrameToolsTap:
+                                        _handleTransitionFrameToolsTap,
+                                    onPlayToggle: _useNativePreview
+                                        ? _handlePlayToggle
+                                        : null,
+                                  )
+                                : EditorToolsBar(
+                                    embedded: true,
+                                    isPlaying: effectiveIsPlaying,
+                                    onSplit: hasSelectedImportedClip
+                                        ? _handleSplitSelectedClip
+                                        : null,
+                                    onTrimToggle: hasSelectedImportedClip ||
+                                            hasSelectedMotionTextClip
+                                        ? _handleTrimModeToggle
+                                        : null,
+                                    isTrimModeActive: isTrimModeActive,
+                                    onDuplicate: hasSelectedImportedClip ||
+                                            hasSelectedMotionTextClip
+                                        ? _handleDuplicateSelectedClip
+                                        : null,
+                                    onDelete: hasSelectedImportedClip ||
+                                            hasSelectedMotionTextClip
+                                        ? _handleDeleteSelectedClip
+                                        : null,
+                                    onPlayToggle: _useNativePreview
+                                        ? _handlePlayToggle
+                                        : null,
+                                  ),
                           ),
                           Divider(
                             height: 1,
@@ -4802,34 +6365,135 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
                           Expanded(
                             child: Padding(
                               padding: const EdgeInsets.fromLTRB(0, 0, 0, 0),
-                              child: TimelinePanel(
-                                embedded: true,
-                                tracks: displayTracks,
-                                currentTime: _currentTime,
-                                displayTimeListenable:
-                                    _timelineDisplayTimeNotifier,
-                                onDisplayTimeChanged: _setTimelineDisplayTime,
-                                playbackSampleTimeListenable:
-                                    _playbackSampleTimeNotifier,
-                                timelineDurationTime: _timelineDurationTime,
-                                isPlaying: effectiveIsPlaying,
-                                timelineFps: _timelineFps,
-                                selectedClipId: _selectedClipId,
-                                trimSelection: _timelineTrimSelection,
-                                onTimeChanged: _handleTimelineTimeChanged,
-                                onClipSelected: _selectClip,
-                                onClipDoubleTap: _handleTimelineClipDoubleTap,
-                                onClipReorder: _reorderClip,
-                                onClipTimeShift: _shiftClipInTimeline,
-                                onTrackAnimateTap: _openAnimateBrowserForTrack,
-                                onBackgroundTap: _clearSelection,
-                                onTrimCommit: _handleTimelineTrimCommit,
-                                onTrimPreviewChanged:
-                                    _handleTimelineTrimPreviewChanged,
-                                assetPathResolver: _resolveAssetPath,
-                                onScrubStateChanged: _handleScrubStateChanged,
-                                onScrubFinalized: _handleTimelineScrubFinalized,
-                              ),
+                              child: transitionFocusContext != null
+                                  ? TimelinePanel(
+                                      embedded: true,
+                                      tracks: transitionFocusScopedTracks,
+                                      currentTime: transitionFocusLocalTime,
+                                      displayTimeListenable:
+                                          _transitionFocusDisplayTimeNotifier,
+                                      playbackSampleTimeListenable:
+                                          _transitionFocusPlaybackSampleTimeNotifier,
+                                      timelineDurationTime:
+                                          transitionFocusContext.endTime -
+                                              transitionFocusContext.startTime,
+                                      timeDisplayOffset:
+                                          transitionFocusContext.startTime,
+                                      timeReadoutTotalTime:
+                                          _timelineDurationTime,
+                                      isPlaying: effectiveIsPlaying,
+                                      timelineFps: _timelineFps,
+                                      selectedClipId: _selectedClipId,
+                                      selectedAnimationLaneId:
+                                          resolvedTransitionFocusLaneId,
+                                      trimSelection:
+                                          _transitionFocusTrimSelection(
+                                        transitionFocusContext,
+                                      ),
+                                      onTimeChanged: (localTime) {
+                                        final scopedDuration =
+                                            transitionFocusContext.endTime -
+                                                transitionFocusContext
+                                                    .startTime;
+                                        final progress =
+                                            scopedDuration.inMilliseconds <= 0
+                                                ? 0.0
+                                                : (localTime.inMilliseconds /
+                                                        scopedDuration
+                                                            .inMilliseconds)
+                                                    .clamp(0.0, 1.0)
+                                                    .toDouble();
+                                        _seekTransitionFocusProgress(
+                                          transitionFocusContext,
+                                          progress,
+                                        );
+                                      },
+                                      onClipSelected: (clipId) =>
+                                          _handleTransitionFocusClipSelected(
+                                        transitionFocusContext,
+                                        clipId,
+                                      ),
+                                      onTrackAnimateTap: (_) =>
+                                          _openManualTransitionEffectBrowser(
+                                        transitionFocusContext.transition.id,
+                                      ),
+                                      onAnimationLaneTap:
+                                          _selectTransitionFocusLane,
+                                      onBackgroundTap:
+                                          _clearTransitionFocusSelection,
+                                      onTrimCommit: (request) =>
+                                          _handleTransitionFocusTrimCommit(
+                                        transitionFocusContext,
+                                        request,
+                                      ),
+                                      onTrimPreviewChanged: (request) =>
+                                          _handleTransitionFocusTrimPreviewChanged(
+                                        transitionFocusContext,
+                                        request,
+                                      ),
+                                      onScrubStateChanged: (isScrubbing) =>
+                                          _handleTransitionFocusScrubStateChanged(
+                                        transitionFocusContext,
+                                        isScrubbing,
+                                      ),
+                                      onScrubFinalized: (localTime) =>
+                                          _handleTransitionFocusScrubFinalized(
+                                        transitionFocusContext,
+                                        localTime,
+                                      ),
+                                      assetPathResolver: _resolveAssetPath,
+                                      animateTrackKinds: const <TimelineTrackKind>{
+                                        TimelineTrackKind.video,
+                                      },
+                                    )
+                                  : TimelinePanel(
+                                      embedded: true,
+                                      tracks: displayTracks,
+                                      currentTime: _currentTime,
+                                      displayTimeListenable:
+                                          _timelineDisplayTimeNotifier,
+                                      onDisplayTimeChanged:
+                                          _setTimelineDisplayTime,
+                                      playbackSampleTimeListenable:
+                                          _playbackSampleTimeNotifier,
+                                      timelineDurationTime:
+                                          _timelineDurationTime,
+                                      isPlaying: effectiveIsPlaying,
+                                      timelineFps: _timelineFps,
+                                      selectedClipId: _selectedClipId,
+                                      selectedTransitionId:
+                                          _selectedClipId == null
+                                              ? _selectedTransitionId
+                                              : null,
+                                      trimSelection: _timelineTrimSelection,
+                                      onTimeChanged: _handleTimelineTimeChanged,
+                                      onClipSelected: _selectClip,
+                                      onClipDoubleTap:
+                                          _handleTimelineClipDoubleTap,
+                                      onClipReorder: _reorderClip,
+                                      onClipTimeShift: _shiftClipInTimeline,
+                                      onTransitionTap:
+                                          (track, leftClip, rightClip) {
+                                        unawaited(
+                                          _handleTimelineTransitionTap(
+                                            track,
+                                            leftClip,
+                                            rightClip,
+                                          ),
+                                        );
+                                      },
+                                      onTrackAnimateTap:
+                                          _openAnimateBrowserForTrack,
+                                      onBackgroundTap: _clearSelection,
+                                      onTrimCommit: _handleTimelineTrimCommit,
+                                      onTrimPreviewChanged:
+                                          _handleTimelineTrimPreviewChanged,
+                                      assetPathResolver: _resolveAssetPath,
+                                      onScrubStateChanged:
+                                          _handleScrubStateChanged,
+                                      onScrubFinalized:
+                                          _handleTimelineScrubFinalized,
+                                    ),
                             ),
                           ),
                           Divider(
@@ -5088,6 +6752,115 @@ class _TextEditPreviewRange {
   final String elementId;
   final TimelineTime start;
   final TimelineTime end;
+}
+
+class _ActiveTimelineTransitionPreview {
+  const _ActiveTimelineTransitionPreview({
+    required this.transition,
+    required this.leftClip,
+    required this.rightClip,
+    required this.progress,
+  });
+
+  final TimelineTrackTransitionData transition;
+  final _PositionedTimelineTrackClip leftClip;
+  final _PositionedTimelineTrackClip rightClip;
+  final double progress;
+}
+
+class _TransitionFocusSession {
+  const _TransitionFocusSession({
+    required this.transitionId,
+    required this.selectedLaneId,
+  });
+
+  final String transitionId;
+  final String selectedLaneId;
+
+  _TransitionFocusSession copyWith({
+    String? transitionId,
+    String? selectedLaneId,
+  }) {
+    return _TransitionFocusSession(
+      transitionId: transitionId ?? this.transitionId,
+      selectedLaneId: selectedLaneId ?? this.selectedLaneId,
+    );
+  }
+}
+
+class _TransitionFocusContext {
+  const _TransitionFocusContext({
+    required this.transition,
+    required this.leftClip,
+    required this.rightClip,
+    required this.seamTime,
+    required this.startTime,
+    required this.endTime,
+  });
+
+  final TimelineTrackTransitionData transition;
+  final TimelineClipData leftClip;
+  final TimelineClipData rightClip;
+  final TimelineTime seamTime;
+  final TimelineTime startTime;
+  final TimelineTime endTime;
+}
+
+enum _TransitionFocusClipSide {
+  left,
+  right,
+}
+
+class _TransitionFocusLaneSpec {
+  const _TransitionFocusLaneSpec({
+    required this.id,
+    required this.groupLabel,
+    required this.label,
+    required this.editorDescription,
+    required this.min,
+    required this.max,
+    required this.fallback,
+    required this.valueFormatter,
+    required this.keyframeStops,
+    this.tint = FxPalette.accent,
+  });
+
+  final String id;
+  final String groupLabel;
+  final String label;
+  final String editorDescription;
+  final double min;
+  final double max;
+  final double fallback;
+  final String Function(double value) valueFormatter;
+  final List<double> keyframeStops;
+  final Color tint;
+
+  _TransitionFocusLaneSpec copyWith({
+    String? id,
+    String? groupLabel,
+    String? label,
+    String? editorDescription,
+    double? min,
+    double? max,
+    double? fallback,
+    String Function(double value)? valueFormatter,
+    List<double>? keyframeStops,
+    Color? tint,
+  }) {
+    return _TransitionFocusLaneSpec(
+      id: id ?? this.id,
+      groupLabel: groupLabel ?? this.groupLabel,
+      label: label ?? this.label,
+      editorDescription: editorDescription ?? this.editorDescription,
+      min: min ?? this.min,
+      max: max ?? this.max,
+      fallback: fallback ?? this.fallback,
+      valueFormatter: valueFormatter ?? this.valueFormatter,
+      keyframeStops: keyframeStops ?? this.keyframeStops,
+      tint: tint ?? this.tint,
+    );
+  }
 }
 
 class _MotionTextTimelineEntry {

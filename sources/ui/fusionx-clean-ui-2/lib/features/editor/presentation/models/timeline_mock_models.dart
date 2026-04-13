@@ -8,6 +8,75 @@ enum TimelineTrackKind {
   lipSync,
 }
 
+enum TimelineTransitionPreset {
+  manual,
+  fadeBlack,
+  zoomInCamera,
+}
+
+enum TimelineTransitionCurve {
+  linear,
+  easeIn,
+  easeOut,
+  easeInOut,
+}
+
+extension TimelineTransitionPresetPresentation on TimelineTransitionPreset {
+  String get label {
+    return switch (this) {
+      TimelineTransitionPreset.manual => 'Manual',
+      TimelineTransitionPreset.fadeBlack => 'Fade Black',
+      TimelineTransitionPreset.zoomInCamera => 'Zoom In Camera',
+    };
+  }
+
+  String get summary {
+    return switch (this) {
+      TimelineTransitionPreset.manual =>
+        'Build the transition lane by lane on a focused seam timeline.',
+      TimelineTransitionPreset.fadeBlack =>
+        'Dip through black between two clips.',
+      TimelineTransitionPreset.zoomInCamera =>
+        'Push into the next clip with a camera-style zoom.',
+    };
+  }
+
+  TimelineTime get defaultDurationTime {
+    return switch (this) {
+      TimelineTransitionPreset.manual => TimelineTime.fromMilliseconds(620),
+      TimelineTransitionPreset.fadeBlack => TimelineTime.fromMilliseconds(540),
+      TimelineTransitionPreset.zoomInCamera =>
+        TimelineTime.fromMilliseconds(620),
+    };
+  }
+
+  Map<String, double> get defaultParameterValues {
+    return switch (this) {
+      TimelineTransitionPreset.manual => const <String, double>{},
+      TimelineTransitionPreset.fadeBlack => <String, double>{
+          'blackPeak': 0.94,
+        },
+      TimelineTransitionPreset.zoomInCamera => <String, double>{
+          'incomingStartScale': 1.18,
+          'outgoingBoostScale': 1.05,
+          'entryDelay': 0.18,
+          'bridgeDarkness': 0.22,
+        },
+    };
+  }
+}
+
+extension TimelineTransitionCurvePresentation on TimelineTransitionCurve {
+  String get label {
+    return switch (this) {
+      TimelineTransitionCurve.linear => 'Linear',
+      TimelineTransitionCurve.easeIn => 'Ease In',
+      TimelineTransitionCurve.easeOut => 'Ease Out',
+      TimelineTransitionCurve.easeInOut => 'Ease In Out',
+    };
+  }
+}
+
 enum TimelineClipTone {
   hero,
   heroMuted,
@@ -149,30 +218,124 @@ class TimelineClipData {
   }
 }
 
+class TimelineTrackTransitionData {
+  TimelineTrackTransitionData({
+    required this.id,
+    required this.leftClipId,
+    required this.rightClipId,
+    required this.preset,
+    required this.durationTime,
+    this.leadingDurationTime,
+    this.trailingDurationTime,
+    this.curve = TimelineTransitionCurve.easeInOut,
+    Map<String, double> parameterValues = const <String, double>{},
+    List<String> manualEffectIds = const <String>[],
+  })  : parameterValues = Map.unmodifiable(parameterValues),
+        manualEffectIds = List.unmodifiable(manualEffectIds);
+
+  final String id;
+  final String leftClipId;
+  final String rightClipId;
+  final TimelineTransitionPreset preset;
+  final TimelineTime durationTime;
+  final TimelineTime? leadingDurationTime;
+  final TimelineTime? trailingDurationTime;
+  final TimelineTransitionCurve curve;
+  final Map<String, double> parameterValues;
+  final List<String> manualEffectIds;
+
+  TimelineTime get resolvedLeadingDurationTime {
+    final explicitLeading = leadingDurationTime;
+    if (explicitLeading != null) {
+      return explicitLeading;
+    }
+    final explicitTrailing = trailingDurationTime;
+    if (explicitTrailing != null) {
+      return durationTime - explicitTrailing;
+    }
+    return TimelineTime.fromMilliseconds(durationTime.inMilliseconds ~/ 2);
+  }
+
+  TimelineTime get resolvedTrailingDurationTime {
+    final explicitTrailing = trailingDurationTime;
+    if (explicitTrailing != null) {
+      return explicitTrailing;
+    }
+    return durationTime - resolvedLeadingDurationTime;
+  }
+
+  double parameterValue(String key, {double fallback = 0}) {
+    return parameterValues[key] ?? fallback;
+  }
+
+  TimelineTrackTransitionData copyWith({
+    String? id,
+    String? leftClipId,
+    String? rightClipId,
+    TimelineTransitionPreset? preset,
+    TimelineTime? durationTime,
+    TimelineTime? leadingDurationTime,
+    TimelineTime? trailingDurationTime,
+    TimelineTransitionCurve? curve,
+    Map<String, double>? parameterValues,
+    List<String>? manualEffectIds,
+  }) {
+    return TimelineTrackTransitionData(
+      id: id ?? this.id,
+      leftClipId: leftClipId ?? this.leftClipId,
+      rightClipId: rightClipId ?? this.rightClipId,
+      preset: preset ?? this.preset,
+      durationTime: durationTime ?? this.durationTime,
+      leadingDurationTime: leadingDurationTime ?? this.leadingDurationTime,
+      trailingDurationTime: trailingDurationTime ?? this.trailingDurationTime,
+      curve: curve ?? this.curve,
+      parameterValues: parameterValues ?? this.parameterValues,
+      manualEffectIds: manualEffectIds ?? this.manualEffectIds,
+    );
+  }
+}
+
 class TimelineTrackData {
   const TimelineTrackData({
     required this.kind,
     required this.clips,
     this.placeholderLabel,
     this.animationLanes = const <TimelineAnimationLaneData>[],
+    this.transitions = const <TimelineTrackTransitionData>[],
   });
 
   final TimelineTrackKind kind;
   final List<TimelineClipData> clips;
   final String? placeholderLabel;
   final List<TimelineAnimationLaneData> animationLanes;
+  final List<TimelineTrackTransitionData> transitions;
+
+  TimelineTrackTransitionData? transitionForBoundary(
+    String leftClipId,
+    String rightClipId,
+  ) {
+    for (final transition in transitions) {
+      if (transition.leftClipId == leftClipId &&
+          transition.rightClipId == rightClipId) {
+        return transition;
+      }
+    }
+    return null;
+  }
 
   TimelineTrackData copyWith({
     TimelineTrackKind? kind,
     List<TimelineClipData>? clips,
     String? placeholderLabel,
     List<TimelineAnimationLaneData>? animationLanes,
+    List<TimelineTrackTransitionData>? transitions,
   }) {
     return TimelineTrackData(
       kind: kind ?? this.kind,
       clips: clips ?? this.clips,
       placeholderLabel: placeholderLabel ?? this.placeholderLabel,
       animationLanes: animationLanes ?? this.animationLanes,
+      transitions: transitions ?? this.transitions,
     );
   }
 }
@@ -183,18 +346,24 @@ class TimelineAnimationLaneData {
     required this.label,
     required this.targetClipId,
     this.normalizedKeyframeStops = const <double>[0.0, 0.52, 1.0],
+    this.trackSpanStartProgress,
+    this.trackSpanEndProgress,
   });
 
   final String id;
   final String label;
   final String targetClipId;
   final List<double> normalizedKeyframeStops;
+  final double? trackSpanStartProgress;
+  final double? trackSpanEndProgress;
 
   TimelineAnimationLaneData copyWith({
     String? id,
     String? label,
     String? targetClipId,
     List<double>? normalizedKeyframeStops,
+    double? trackSpanStartProgress,
+    double? trackSpanEndProgress,
   }) {
     return TimelineAnimationLaneData(
       id: id ?? this.id,
@@ -202,6 +371,9 @@ class TimelineAnimationLaneData {
       targetClipId: targetClipId ?? this.targetClipId,
       normalizedKeyframeStops:
           normalizedKeyframeStops ?? this.normalizedKeyframeStops,
+      trackSpanStartProgress:
+          trackSpanStartProgress ?? this.trackSpanStartProgress,
+      trackSpanEndProgress: trackSpanEndProgress ?? this.trackSpanEndProgress,
     );
   }
 }

@@ -1,0 +1,393 @@
+import 'package:flutter/material.dart';
+
+import '../../../../core/theme/app_theme.dart';
+import '../models/timeline_mock_models.dart';
+
+enum TransitionBrowserAction {
+  applyPreset,
+  openManual,
+}
+
+class TransitionBrowserResult {
+  const TransitionBrowserResult({
+    required this.action,
+    required this.preset,
+  });
+
+  final TransitionBrowserAction action;
+  final TimelineTransitionPreset preset;
+}
+
+class TransitionBrowserBottomSheet extends StatefulWidget {
+  const TransitionBrowserBottomSheet({
+    super.key,
+    this.presets = const <TimelineTransitionPreset>[
+      TimelineTransitionPreset.fadeBlack,
+      TimelineTransitionPreset.zoomInCamera,
+    ],
+  });
+
+  final List<TimelineTransitionPreset> presets;
+
+  @override
+  State<TransitionBrowserBottomSheet> createState() =>
+      _TransitionBrowserBottomSheetState();
+}
+
+class _TransitionBrowserBottomSheetState
+    extends State<TransitionBrowserBottomSheet> {
+  late final TextEditingController _searchController;
+  late final FocusNode _focusNode;
+  String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController();
+    _focusNode = FocusNode();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  List<TimelineTransitionPreset> get _filteredPresets {
+    final normalized = _query.trim().toLowerCase();
+    final presets = List<TimelineTransitionPreset>.from(widget.presets);
+    if (normalized.isEmpty) {
+      return presets;
+    }
+    return presets.where((preset) {
+      final label = preset.label.toLowerCase();
+      final summary = preset.summary.toLowerCase();
+      return label.contains(normalized) || summary.contains(normalized);
+    }).toList(growable: false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final safeBottom = MediaQuery.of(context).padding.bottom;
+    return Material(
+      color: Colors.transparent,
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: Container(
+          height: MediaQuery.of(context).size.height * 0.42,
+          padding: EdgeInsets.only(bottom: safeBottom),
+          decoration: const BoxDecoration(
+            color: FxPalette.surface,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+          ),
+          child: Column(
+            children: [
+              const SizedBox(height: 10),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: FxPalette.textFaint,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: FxPalette.surfaceRaised,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: FxPalette.dividerSoft,
+                      width: 1,
+                    ),
+                  ),
+                  child: TextField(
+                    controller: _searchController,
+                    focusNode: _focusNode,
+                    onChanged: (value) => setState(() {
+                      _query = value;
+                    }),
+                    style: const TextStyle(
+                      color: FxPalette.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Search transition',
+                      hintStyle: TextStyle(
+                        color: FxPalette.textMuted.withOpacity(0.88),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      prefixIcon: const Icon(
+                        Icons.search_rounded,
+                        color: FxPalette.textMuted,
+                      ),
+                      suffixIcon: _query.isEmpty
+                          ? null
+                          : IconButton(
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() {
+                                  _query = '';
+                                });
+                              },
+                              icon: const Icon(
+                                Icons.close_rounded,
+                                color: FxPalette.textMuted,
+                              ),
+                            ),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 14,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+                child: _ManualTransitionCard(
+                  onTap: () => Navigator.of(context).pop(
+                    const TransitionBrowserResult(
+                      action: TransitionBrowserAction.openManual,
+                      preset: TimelineTransitionPreset.manual,
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                  itemCount: _filteredPresets.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final preset = _filteredPresets[index];
+                    return _TransitionPresetCard(
+                      preset: preset,
+                      onTap: () => Navigator.of(context).pop(
+                        TransitionBrowserResult(
+                          action: TransitionBrowserAction.applyPreset,
+                          preset: preset,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ManualTransitionCard extends StatelessWidget {
+  const _ManualTransitionCard({
+    required this.onTap,
+  });
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Ink(
+        decoration: BoxDecoration(
+          color: FxPalette.surfaceRaised,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: FxPalette.accent.withOpacity(0.32),
+            width: 1,
+          ),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              FxPalette.accent.withOpacity(0.10),
+              Colors.white.withOpacity(0.03),
+            ],
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: FxPalette.accent.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: FxPalette.accent.withOpacity(0.28),
+                    width: 1,
+                  ),
+                ),
+                child: const Icon(
+                  Icons.tune_rounded,
+                  color: FxPalette.accent,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Manual',
+                      style: TextStyle(
+                        color: FxPalette.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Open the focused seam timeline and start editing the transition lanes directly.',
+                      style: TextStyle(
+                        color: FxPalette.textMuted.withOpacity(0.92),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        height: 1.28,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(11),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.08),
+                    width: 1,
+                  ),
+                ),
+                child: const Icon(
+                  Icons.chevron_right_rounded,
+                  color: FxPalette.textPrimary,
+                  size: 20,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TransitionPresetCard extends StatelessWidget {
+  const _TransitionPresetCard({
+    required this.preset,
+    required this.onTap,
+  });
+
+  final TimelineTransitionPreset preset;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Ink(
+        decoration: BoxDecoration(
+          color: FxPalette.surfaceRaised,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: FxPalette.dividerSoft,
+            width: 1,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          child: Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.08),
+                    width: 1,
+                  ),
+                ),
+                child: Icon(
+                  switch (preset) {
+                    TimelineTransitionPreset.manual =>
+                      Icons.tune_rounded,
+                    TimelineTransitionPreset.fadeBlack =>
+                      Icons.gradient_rounded,
+                    TimelineTransitionPreset.zoomInCamera =>
+                      Icons.center_focus_strong_rounded,
+                  },
+                  color: Colors.white.withOpacity(0.88),
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      preset.label,
+                      style: const TextStyle(
+                        color: FxPalette.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      preset.summary,
+                      style: TextStyle(
+                        color: FxPalette.textMuted.withOpacity(0.92),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        height: 1.28,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: FxPalette.accent.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(11),
+                  border: Border.all(
+                    color: FxPalette.accent.withOpacity(0.4),
+                    width: 1,
+                  ),
+                ),
+                child: const Icon(
+                  Icons.add_rounded,
+                  color: FxPalette.accent,
+                  size: 19,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
