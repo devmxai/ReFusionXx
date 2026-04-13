@@ -89,6 +89,8 @@ class Stage5NativeTransportController extends ChangeNotifier {
   Stage5TransportState _state = const Stage5TransportState();
   StreamSubscription<dynamic>? _eventsSubscription;
   bool _isInitializing = false;
+  bool _previewScrubDispatchInFlight = false;
+  int? _pendingPreviewScrubPositionMs;
   Stage5TransportState get state => _state;
 
   bool get isPlatformSupported => !kIsWeb && Platform.isAndroid;
@@ -345,6 +347,7 @@ class Stage5NativeTransportController extends ChangeNotifier {
 
   Future<void> seekToPositionMs(int positionMs) async {
     final clampedPositionMs = positionMs < 0 ? 0 : positionMs;
+    _resetPreviewScrubDispatchState();
     await _invokeWithoutResult(
       'seekTo',
       <String, dynamic>{'positionMs': clampedPositionMs},
@@ -352,11 +355,35 @@ class Stage5NativeTransportController extends ChangeNotifier {
   }
 
   Future<void> previewScrubToPositionMs(int positionMs) async {
+    if (!isPlatformSupported || !_state.isScrubbing) {
+      return;
+    }
     final clampedPositionMs = positionMs < 0 ? 0 : positionMs;
-    await _invokeWithoutResult(
-      'previewScrubTo',
-      <String, dynamic>{'positionMs': clampedPositionMs},
-    );
+    _pendingPreviewScrubPositionMs = clampedPositionMs;
+    if (_previewScrubDispatchInFlight) {
+      return;
+    }
+    _previewScrubDispatchInFlight = true;
+    try {
+      while (_state.isScrubbing) {
+        final nextPositionMs = _pendingPreviewScrubPositionMs;
+        if (nextPositionMs == null) {
+          break;
+        }
+        _pendingPreviewScrubPositionMs = null;
+        await _invokeWithoutResult(
+          'previewScrubTo',
+          <String, dynamic>{'positionMs': nextPositionMs},
+        );
+      }
+    } finally {
+      _previewScrubDispatchInFlight = false;
+      if (_state.isScrubbing && _pendingPreviewScrubPositionMs != null) {
+        unawaited(
+          previewScrubToPositionMs(_pendingPreviewScrubPositionMs!),
+        );
+      }
+    }
   }
 
   Future<void> setScrubbing(
@@ -379,6 +406,7 @@ class Stage5NativeTransportController extends ChangeNotifier {
       );
       resolvedFinalPositionMs = (clampedSeconds * 1000).round();
     }
+    _resetPreviewScrubDispatchState();
     _state = _state.copyWith(
       isScrubbing: isScrubbing,
       isScrubSettling: !isScrubbing && wasScrubbing,
@@ -395,9 +423,14 @@ class Stage5NativeTransportController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _resetPreviewScrubDispatchState();
     _eventsSubscription?.cancel();
     _eventsSubscription = null;
     super.dispose();
+  }
+
+  void _resetPreviewScrubDispatchState() {
+    _pendingPreviewScrubPositionMs = null;
   }
 
   Future<void> _invokeWithoutResult(

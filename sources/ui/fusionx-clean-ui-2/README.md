@@ -69,6 +69,10 @@ audio, accurate seeking, and native performance on both platforms.
 
 - `docs/live_scrub_architecture.md`: strict live scrub rebuild plan and
   migration rules
+- `docs/live_scrub_lockdown.md`: protected live scrub baseline and fast
+  recovery note for future threads
+- `docs/next_thread_handoff.md`: short handoff note for the next scoped-layer
+  build thread
 
 ## Run
 

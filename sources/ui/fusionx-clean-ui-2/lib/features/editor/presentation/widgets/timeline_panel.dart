@@ -1817,6 +1817,7 @@ class _TimelinePanelState extends State<TimelinePanel>
       return;
     }
     _manualPanAccumulatedDx = 0;
+    _backgroundScrubCurrentTime = _displayTimeNotifier.value;
     _captureLockedVerticalOffset();
     _restoreLockedVerticalOffset();
   }
@@ -1862,6 +1863,11 @@ class _TimelinePanelState extends State<TimelinePanel>
     _isSyncingFromExternal = true;
     _scrollController.jumpTo(targetOffset);
     _isSyncingFromExternal = false;
+    final nextTime = _timelineTimeForOffset(targetOffset);
+    _backgroundScrubCurrentTime = nextTime;
+    _setDisplayTime(nextTime);
+    _setScrubInteractionActive(true);
+    _dispatchTimelineTime(nextTime, immediate: true);
     _restoreLockedVerticalOffset();
   }
 
@@ -1871,10 +1877,18 @@ class _TimelinePanelState extends State<TimelinePanel>
     if (!wasOwned) {
       return;
     }
+    final finalTime = _backgroundScrubCurrentTime.clamp(
+      TimelineTime.zero,
+      widget.timelineDurationTime,
+    );
     _manualPanAccumulatedDx = 0;
     _restoreLockedVerticalOffset();
+    if (_isScrubInteractionActive) {
+      widget.onScrubFinalized?.call(finalTime);
+    }
     _releaseInteractionOwner(_TimelineInteractionOwner.pan);
     _releaseLockedVerticalOffsetIfPossible();
+    _setScrubInteractionActive(false);
   }
 
   void _cancelManualTimelinePan() {
@@ -1887,6 +1901,10 @@ class _TimelinePanelState extends State<TimelinePanel>
     _restoreLockedVerticalOffset();
     _releaseInteractionOwner(_TimelineInteractionOwner.pan);
     _releaseLockedVerticalOffsetIfPossible();
+    if (_isScrubInteractionActive) {
+      _setScrubInteractionActive(false);
+      _setDisplayTime(_externalDisplayTime);
+    }
   }
 
   void _updateBackgroundScrub(double deltaDx) {
@@ -2074,6 +2092,9 @@ class _TimelinePanelState extends State<TimelinePanel>
     _deferScrubFinalizationToGestureEnd = true;
     if (!_isBackgroundScrubbing) {
       _beginBackgroundScrub();
+      if (_isBackgroundScrubbing && _scrubAccumulatedDx != 0) {
+        _updateBackgroundScrub(_scrubAccumulatedDx);
+      }
     }
   }
 
