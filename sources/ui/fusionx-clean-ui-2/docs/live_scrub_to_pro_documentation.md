@@ -198,6 +198,116 @@ At the time of writing, the current architecture is:
 - readiness is surfaced into editor asset metadata and live scrub source descriptors
 - extraction continues in the background after import
 
+## Current Build State: 2026-04-15 Main Handoff
+
+This section documents the exact state being pushed to the official `main`
+branch for external review.
+
+The current build is not considered PRO-complete. It contains the migration
+foundation and several hardening passes, but user testing still reports the
+following failure:
+
+- during active live scrub, the first movement may advance only one frame or a
+  very small amount
+- after that first movement, the playhead and timeline can feel heavy or stuck
+- the preview can behave as if only one frame was loaded rather than tracking
+  the finger continuously
+- the issue appears unchanged after the latest hot-path hardening patch
+
+### What Was Migrated Successfully
+
+The current code has moved substantial parts of live scrub away from the old
+player-coupled path:
+
+- `LiveScrubPipeline` no longer uses the transport/player path to present
+  active scrub frames.
+- `Stage5ScrubFrameStore` provides indexed frame storage for scrub preview.
+- `Stage5ScrubPreparationManager` owns background window extraction requests.
+- `Stage5NativeScrubEngine` owns native scrub-session state and render-loop
+  scheduling.
+- `Stage5PreviewPlatformView` hosts a native scrub overlay above the player
+  surface.
+- `Stage5ScrubOverlayTextureView` draws scrub frames natively instead of
+  sending frame bytes through Flutter.
+
+This means the architecture has moved away from `Flutter image bytes` and away
+from using `ExoPlayer.seekTo()` as the per-frame live scrub display mechanism.
+
+### What Is Still Not Complete
+
+The current build still has the following architectural gaps:
+
+- active touch-move still originates in Flutter timeline gesture handling
+- each target update still crosses a `MethodChannel`
+- the frame extractor still uses `MediaMetadataRetriever` against the current
+  source URI rather than a real low-GOP proxy file
+- the hot path is not yet true native touch capture
+- the scrub render engine is native, but the input cadence is still driven by
+  Flutter timeline updates
+- readiness gating and extraction windows exist, but they are not enough to
+  guarantee continuous response for every video and every position
+
+These gaps explain why the build can still feel heavy even after ExoPlayer was
+removed from the active display path.
+
+### Latest Hot-Path Hardening Patch
+
+The latest patch attempted to remove synchronous work from the MethodChannel
+touch path:
+
+- `Stage5NativeScrubEngine.beginSession(...)` and `updateTarget(...)` now record
+  the latest target and schedule a render loop instead of synchronously decoding
+  and drawing before returning to Flutter.
+- extraction requests are de-duplicated by store key and frame index so the
+  render retry loop does not repeatedly reschedule the same target.
+- bitmap lookup/disk decode is no longer performed while holding the scrub
+  engine monitor.
+- `Stage5PreviewPlatformView.presentScrubFrame(...)` now draws the frame before
+  posting only the visibility switch to the UI thread.
+- the scrub overlay clears with transparent mode instead of filling black.
+- disk decoded frame cache was increased to reduce repeated JPEG decode churn.
+
+This patch was validated with:
+
+- `flutter analyze`
+- `./gradlew :app:compileDebugKotlin`
+- `flutter build apk --debug`
+- installation on device `R3CT10LKLSX`
+
+User verification after installation still reported no visible improvement, so
+this patch should be treated as a diagnostic hardening step, not as the final
+fix.
+
+### Current Root-Cause Hypothesis
+
+The strongest current hypothesis is that the remaining freeze is caused by the
+fact that the hot path is still not native end-to-end:
+
+1. Flutter timeline gesture handling computes scrub time.
+2. Flutter updates timeline display state.
+3. Flutter calls `renderScrubPreviewTextureFrame(...)` over `MethodChannel`.
+4. Native records the target and asynchronously tries to extract or render.
+5. If frames are not already available, the visual output cannot keep up with
+   finger movement.
+
+Even if the native renderer is asynchronous, Flutter remains the owner of
+per-frame input cadence. That still allows UI rebuild pressure, MethodChannel
+backpressure, frame-store misses, or extraction latency to make scrub feel like
+it only moved once and then stalled.
+
+### Required Next Direction
+
+The next architectural step should not be another Flutter-side coalescing or
+throttling patch. The next real migration step is:
+
+- implement native touch capture for active scrub
+- compute frame index from touch position natively
+- request/present frames from native without per-frame Flutter calls
+- notify Flutter only for scrub start and scrub end
+
+Until native touch capture is complete, the migration should be considered
+partially complete and still vulnerable to the exact symptom currently reported.
+
 ## What Has Been Deleted or Neutralized
 
 The migration has already removed or neutralized the following:

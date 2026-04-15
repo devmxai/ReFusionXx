@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../../../../core/engine/live_scrub_preview_sources.dart';
 import '../../../../core/engine/live_scrub_pipeline.dart';
@@ -179,6 +180,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   bool _isLiveScrubProxyDispatchInFlight = false;
   int _liveScrubProxyDispatchGeneration = 0;
   bool _retainProxyFrameUntilScrubSettleCompletes = false;
+  bool _isScrubPreviewPreparing = false;
   Timer? _scrubFrameStorePollTimer;
   bool _isPollingScrubFrameStoreStatuses = false;
   static const bool _enableProxyScrubPreviewRuntime = true;
@@ -250,6 +252,22 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     _previewThumbnailNotifier.dispose();
     _liveScrubProxyFrameNotifier.dispose();
     super.dispose();
+  }
+
+  void _setStateAfterBuild(VoidCallback update) {
+    if (!mounted) {
+      return;
+    }
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(update);
+        }
+      });
+      return;
+    }
+    setState(update);
   }
 
   double get _workspaceAspectRatio => _lockedWorkspaceAspectRatio ?? (9 / 16);
@@ -939,12 +957,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
           descriptor.sourceStartMs + descriptor.sourceDurationMs,
         );
         try {
-          await _transportController.renderScrubPreviewTextureFrame(
+          final rendered =
+              await _transportController.renderScrubPreviewTextureFrame(
             scrubStoreKey: descriptor.scrubStoreKey,
             positionMs: sourcePositionMs,
             targetWidth: _scrubPreviewTextureWidth,
             targetHeight: _scrubPreviewTextureHeight,
           );
+          if (rendered && mounted && _isScrubPreviewPreparing) {
+            _setStateAfterBuild(() {
+              _isScrubPreviewPreparing = false;
+            });
+          }
         } catch (_) {
           return;
         }
@@ -5284,6 +5308,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       _timelineScrubFinalTime = scrubAnchorTime;
       _resetScrubPreviewDispatchState();
       _retainProxyFrameUntilScrubSettleCompletes = false;
+      _isScrubPreviewPreparing = false;
       _liveScrubProxyFrameNotifier.value = null;
       _transportController.hideScrubPreviewTexture();
       _activeLiveScrubSessionConfig = _buildLiveScrubSessionConfig(
@@ -5310,14 +5335,38 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
             anchorDescriptor.sourceStartMs,
             anchorDescriptor.sourceStartMs + anchorDescriptor.sourceDurationMs,
           );
-          unawaited(
-            _transportController.beginScrubPreviewTextureSession(
+          _setStateAfterBuild(() {
+            _isScrubPreviewPreparing = true;
+          });
+          unawaited(() async {
+            final hasCoverage = await _transportController.hasScrubFrameCoverage(
+              assetId: anchorDescriptor.scrubStoreKey,
+              positionMs: sourcePositionMs,
+            );
+            if (!mounted || !_isTimelineScrubbing) {
+              return;
+            }
+            if (_isScrubPreviewPreparing != !hasCoverage) {
+              _setStateAfterBuild(() {
+                _isScrubPreviewPreparing = !hasCoverage;
+              });
+            }
+            final rendered =
+                await _transportController.beginScrubPreviewTextureSession(
               scrubStoreKey: anchorDescriptor.scrubStoreKey,
               positionMs: sourcePositionMs,
               targetWidth: _scrubPreviewTextureWidth,
               targetHeight: _scrubPreviewTextureHeight,
-            ),
-          );
+            );
+            if (!mounted || !_isTimelineScrubbing) {
+              return;
+            }
+            if (rendered && _isScrubPreviewPreparing) {
+              _setStateAfterBuild(() {
+                _isScrubPreviewPreparing = false;
+              });
+            }
+          }());
         }
       }
       unawaited(
@@ -5336,6 +5385,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     final resolvedFinalTime = (finalTimelineTime ?? _currentTime)
         .clamp(TimelineTime.zero, _timelineDurationTime);
     _timelineScrubFinalTime = null;
+    if (_isScrubPreviewPreparing) {
+      _setStateAfterBuild(() {
+        _isScrubPreviewPreparing = false;
+      });
+    }
     if ((resolvedFinalTime - _currentTime).inSecondsDouble.abs() > 0.002) {
       setState(() {
         _setCurrentTime(resolvedFinalTime);
@@ -6461,6 +6515,49 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
                     transition: activeTransition.transition,
                     progress: activeTransition.progress,
                     incomingThumbnailBytes: incomingTransitionBytes,
+                  ),
+                if (_isTimelineScrubbing && _isScrubPreviewPreparing)
+                  const Positioned.fill(
+                    child: IgnorePointer(
+                      child: Center(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Color(0xAA000000),
+                            borderRadius: BorderRadius.all(Radius.circular(999)),
+                          ),
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white,
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(width: 10),
+                                Text(
+                                  'Preparing scrub…',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 if (motionTextRenderSnapshot != null)
                   MotionTextPreviewOverlay(

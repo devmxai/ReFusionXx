@@ -87,8 +87,8 @@ class Stage5PreviewPlatformView(
     }
 
     override fun presentScrubFrame(bitmap: Bitmap) {
+        scrubOverlayView.presentFrame(bitmap)
         rootView.post {
-            scrubOverlayView.presentFrame(bitmap)
             scrubOverlayView.visibility = View.VISIBLE
             playerView.visibility = View.INVISIBLE
         }

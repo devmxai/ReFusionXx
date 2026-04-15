@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.PorterDuff
 import android.graphics.SurfaceTexture
 import android.view.TextureView
 
@@ -19,6 +20,7 @@ class Stage5ScrubOverlayTextureView(
         surfaceTextureListener = this
     }
 
+    @Synchronized
     fun presentFrame(bitmap: Bitmap) {
         latestBitmap = bitmap
         if (isAvailable) {
@@ -31,7 +33,9 @@ class Stage5ScrubOverlayTextureView(
         width: Int,
         height: Int,
     ) {
-        drawLatestBitmap()
+        synchronized(this) {
+            drawLatestBitmap()
+        }
     }
 
     override fun onSurfaceTextureSizeChanged(
@@ -39,7 +43,9 @@ class Stage5ScrubOverlayTextureView(
         width: Int,
         height: Int,
     ) {
-        drawLatestBitmap()
+        synchronized(this) {
+            drawLatestBitmap()
+        }
     }
 
     override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean = true
@@ -60,7 +66,7 @@ class Stage5ScrubOverlayTextureView(
         canvas: Canvas,
         bitmap: Bitmap,
     ) {
-        canvas.drawColor(Color.BLACK)
+        canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
         val left = 0f
         val top = 0f
         val width = width.toFloat().coerceAtLeast(1f)

@@ -10,9 +10,15 @@ import java.util.concurrent.Executors
 class Stage5ScrubPreparationManager(
     context: Context,
 ) {
+    companion object {
+        private const val DEFAULT_ACTIVE_WINDOW_RADIUS_FRAMES = 25
+        private const val PRIORITY_WORKER_COUNT = 4
+    }
+
     private val appContext = context.applicationContext
     private val extractor = Stage5ScrubFrameExtractor(appContext)
-    private val executor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val priorityExecutor: ExecutorService =
+        Executors.newFixedThreadPool(PRIORITY_WORKER_COUNT)
     private val stores = ConcurrentHashMap<String, ManagedStore>()
     private val rootDirectory =
         File(appContext.cacheDir, "stage5_scrub_frame_stores").apply {
@@ -45,9 +51,14 @@ class Stage5ScrubPreparationManager(
                 )
             val managed = ManagedStore(store)
             stores[request.assetId] = managed
-            executor.execute {
-                extractStore(managed)
-            }
+            managed.state = Stage5ScrubFrameStoreState.PREPARING
+            managed.error = null
+            managed.extractedFrameCount = 0
+            scheduleExtractionWindow(
+                managed = managed,
+                targetIndex = 0,
+                radiusFrames = DEFAULT_ACTIVE_WINDOW_RADIUS_FRAMES,
+            )
             return managed.toStatus()
         }
     }
@@ -56,19 +67,75 @@ class Stage5ScrubPreparationManager(
 
     fun getStore(assetId: String): Stage5ScrubFrameStore? = stores[assetId]?.store
 
-    private fun extractStore(managed: ManagedStore) {
-        managed.state = Stage5ScrubFrameStoreState.PREPARING
-        managed.error = null
-        managed.extractedFrameCount = 0
-        try {
-            extractor.extractInto(managed.store) { index ->
-                managed.extractedFrameCount = (index + 1).coerceAtLeast(managed.extractedFrameCount)
+    fun requestFramesAround(
+        assetId: String,
+        positionMs: Long,
+        radiusFrames: Int = DEFAULT_ACTIVE_WINDOW_RADIUS_FRAMES,
+    ) {
+        val managed = stores[assetId] ?: return
+        val targetIndex = managed.store.resolveFrameIndex(positionMs)
+        scheduleExtractionWindow(
+            managed = managed,
+            targetIndex = targetIndex,
+            radiusFrames = radiusFrames.coerceAtLeast(1),
+        )
+    }
+
+    fun hasCoverageAround(
+        assetId: String,
+        positionMs: Long,
+        radiusFrames: Int = DEFAULT_ACTIVE_WINDOW_RADIUS_FRAMES,
+    ): Boolean {
+        val managed = stores[assetId] ?: return false
+        return managed.hasCoverageAround(
+            positionMs = positionMs,
+            radiusFrames = radiusFrames.coerceAtLeast(1),
+        )
+    }
+
+    private fun scheduleExtractionWindow(
+        managed: ManagedStore,
+        targetIndex: Int,
+        radiusFrames: Int,
+    ) {
+        val plan = managed.beginActiveWindow(targetIndex, radiusFrames)
+        val priorityChunks = partitionIndices(plan.priorityIndices, PRIORITY_WORKER_COUNT)
+        priorityChunks.forEach { chunk ->
+            if (chunk.isEmpty()) {
+                return@forEach
             }
-            managed.extractedFrameCount = managed.store.frameCount
-            managed.state = Stage5ScrubFrameStoreState.READY
+            priorityExecutor.execute {
+                extractPriorityFrames(
+                    managed = managed,
+                    generation = plan.generation,
+                    indices = chunk,
+                )
+            }
+        }
+    }
+
+    private fun extractPriorityFrames(
+        managed: ManagedStore,
+        generation: Int,
+        indices: List<Int>,
+    ) {
+        if (!managed.isGenerationCurrent(generation)) {
+            managed.clearPriorityScheduled(indices, generation)
+            return
+        }
+        try {
+            extractor.extractIndices(
+                store = managed.store,
+                indices = indices,
+                shouldContinue = { managed.isGenerationCurrent(generation) },
+                onFrameExtracted = managed::onFrameExtracted,
+            )
         } catch (error: Throwable) {
-            managed.state = Stage5ScrubFrameStoreState.FAILED
-            managed.error = error.message ?: error.toString()
+            if (managed.error == null) {
+                managed.error = error.message ?: error.toString()
+            }
+        } finally {
+            managed.clearPriorityScheduled(indices, generation)
         }
     }
 
@@ -76,9 +143,9 @@ class Stage5ScrubPreparationManager(
         when {
             durationMs <= 30_000L -> 50
             durationMs <= 5 * 60_000L -> 100
-            durationMs <= 15 * 60_000L -> 200
-            durationMs <= 30 * 60_000L -> 500
-            else -> 1_000
+            durationMs <= 15 * 60_000L -> 150
+            durationMs <= 30 * 60_000L -> 250
+            else -> 500
         }
 
     private fun resolveStorageTier(
@@ -104,7 +171,50 @@ class Stage5ScrubPreparationManager(
         }
     }
 
-    private class ManagedStore(
+    private fun buildPriorityWindow(
+        targetIndex: Int,
+        frameCount: Int,
+        radiusFrames: Int,
+    ): List<Int> {
+        if (frameCount <= 0) {
+            return emptyList()
+        }
+        val clampedTarget = targetIndex.coerceIn(0, frameCount - 1)
+        val ordered = ArrayList<Int>(radiusFrames * 2 + 1)
+        ordered.add(clampedTarget)
+        for (distance in 1..radiusFrames.coerceAtLeast(0)) {
+            val before = clampedTarget - distance
+            if (before >= 0) {
+                ordered.add(before)
+            }
+            val after = clampedTarget + distance
+            if (after < frameCount) {
+                ordered.add(after)
+            }
+        }
+        return ordered
+    }
+
+    private fun partitionIndices(
+        indices: List<Int>,
+        partitionCount: Int,
+    ): List<List<Int>> {
+        if (indices.isEmpty()) {
+            return emptyList()
+        }
+        val partitions = MutableList(partitionCount.coerceAtLeast(1)) { mutableListOf<Int>() }
+        indices.forEachIndexed { index, frameIndex ->
+            partitions[index % partitions.size].add(frameIndex)
+        }
+        return partitions.filter { it.isNotEmpty() }
+    }
+
+    private data class ActiveWindowPlan(
+        val generation: Int,
+        val priorityIndices: List<Int>,
+    )
+
+    private inner class ManagedStore(
         val store: Stage5ScrubFrameStore,
     ) {
         @Volatile
@@ -115,6 +225,18 @@ class Stage5ScrubPreparationManager(
 
         @Volatile
         var error: String? = null
+
+        @Volatile
+        private var activeGeneration: Int = 0
+
+        @Volatile
+        private var activeWindowStartIndex: Int = -1
+
+        @Volatile
+        private var activeWindowEndIndex: Int = -1
+
+        private val priorityGenerationsByIndex = ConcurrentHashMap<Int, Int>()
+        private val extractedIndices = ConcurrentHashMap.newKeySet<Int>()
 
         fun matches(request: Stage5ScrubFrameStoreRequest): Boolean {
             val current = store.request
@@ -136,6 +258,88 @@ class Stage5ScrubPreparationManager(
                 storageTier = store.storageTier,
                 error = error,
             )
+
+        @Synchronized
+        fun onFrameExtracted(index: Int) {
+            if (extractedIndices.add(index)) {
+                extractedFrameCount = extractedIndices.size
+                if (extractedFrameCount >= store.frameCount) {
+                    state = Stage5ScrubFrameStoreState.READY
+                } else if (state != Stage5ScrubFrameStoreState.FAILED) {
+                    state = Stage5ScrubFrameStoreState.PREPARING
+                }
+            }
+        }
+
+        @Synchronized
+        fun beginActiveWindow(
+            targetIndex: Int,
+            radiusFrames: Int,
+        ): ActiveWindowPlan {
+            val clampedTarget = targetIndex.coerceIn(0, store.frameCount - 1)
+            val windowStart = (clampedTarget - radiusFrames).coerceAtLeast(0)
+            val windowEnd = (clampedTarget + radiusFrames).coerceAtMost(store.frameCount - 1)
+            val isInsideActiveWindow =
+                clampedTarget in activeWindowStartIndex..activeWindowEndIndex
+            if (!isInsideActiveWindow) {
+                activeGeneration += 1
+                activeWindowStartIndex = windowStart
+                activeWindowEndIndex = windowEnd
+                priorityGenerationsByIndex.clear()
+            }
+            val generation = activeGeneration
+            state = Stage5ScrubFrameStoreState.PREPARING
+            val priorityWindow =
+                buildPriorityWindow(
+                    targetIndex = clampedTarget,
+                    frameCount = store.frameCount,
+                    radiusFrames = radiusFrames,
+                )
+            val scheduledPriority = markPriorityScheduled(priorityWindow, generation)
+            return ActiveWindowPlan(
+                generation = generation,
+                priorityIndices = scheduledPriority,
+            )
+        }
+
+        @Synchronized
+        fun hasCoverageAround(
+            positionMs: Long,
+            radiusFrames: Int,
+        ): Boolean {
+            if (store.frameCount <= 0) {
+                return false
+            }
+            val targetIndex = store.resolveFrameIndex(positionMs)
+            val startIndex = (targetIndex - radiusFrames).coerceAtLeast(0)
+            val endIndex = (targetIndex + radiusFrames).coerceAtMost(store.frameCount - 1)
+            for (index in startIndex..endIndex) {
+                if (!store.hasFrame(index)) {
+                    return false
+                }
+            }
+            return true
+        }
+
+        fun isGenerationCurrent(generation: Int): Boolean = generation == activeGeneration
+
+        private fun markPriorityScheduled(
+            indices: List<Int>,
+            generation: Int,
+        ): List<Int> =
+            indices.filter { index ->
+                !store.hasFrame(index) &&
+                    priorityGenerationsByIndex.put(index, generation) != generation
+            }
+
+        fun clearPriorityScheduled(
+            indices: List<Int>,
+            generation: Int,
+        ) {
+            indices.forEach { index ->
+                priorityGenerationsByIndex.remove(index, generation)
+            }
+        }
 
         fun dispose() {
             store.cleanup()

@@ -371,6 +371,25 @@ class Stage5NativeTransportController extends ChangeNotifier {
     return Stage5ScrubFrameStoreStatus.fromMap(normalized);
   }
 
+  Future<bool> hasScrubFrameCoverage({
+    required String assetId,
+    required int positionMs,
+    int radiusFrames = 25,
+  }) async {
+    if (!isPlatformSupported) {
+      return false;
+    }
+    return await _methodChannel.invokeMethod<bool>(
+          'hasScrubFrameCoverage',
+          <String, dynamic>{
+            'assetId': assetId,
+            'positionMs': positionMs < 0 ? 0 : positionMs,
+            'radiusFrames': radiusFrames < 1 ? 1 : radiusFrames,
+          },
+        ) ??
+        false;
+  }
+
   Future<int?> ensureScrubPreviewTexture({
     int targetWidth = _defaultScrubPreviewTextureWidth,
     int targetHeight = _defaultScrubPreviewTextureHeight,
@@ -389,20 +408,21 @@ class Stage5NativeTransportController extends ChangeNotifier {
     return textureId;
   }
 
-  Future<void> beginScrubPreviewTextureSession({
+  Future<bool> beginScrubPreviewTextureSession({
     required String scrubStoreKey,
     required int positionMs,
     int targetWidth = _defaultScrubPreviewTextureWidth,
     int targetHeight = _defaultScrubPreviewTextureHeight,
   }) async {
     if (!isPlatformSupported) {
-      return;
+      return false;
     }
     await ensureScrubPreviewTexture(
       targetWidth: targetWidth,
       targetHeight: targetHeight,
     );
-    await _methodChannel.invokeMethod<void>(
+    final rendered =
+        await _methodChannel.invokeMethod<bool>(
       'beginScrubPreviewTextureSession',
       <String, dynamic>{
         'scrubStoreKey': scrubStoreKey,
@@ -410,23 +430,28 @@ class Stage5NativeTransportController extends ChangeNotifier {
         'targetWidth': targetWidth,
         'targetHeight': targetHeight,
       },
-    );
-    if (!_isScrubPreviewTextureVisible && _scrubPreviewTextureId != null) {
+    ) ??
+            false;
+    if (rendered &&
+        !_isScrubPreviewTextureVisible &&
+        _scrubPreviewTextureId != null) {
       _isScrubPreviewTextureVisible = true;
       notifyListeners();
     }
+    return rendered;
   }
 
-  Future<void> renderScrubPreviewTextureFrame({
+  Future<bool> renderScrubPreviewTextureFrame({
     required String scrubStoreKey,
     required int positionMs,
     int targetWidth = _defaultScrubPreviewTextureWidth,
     int targetHeight = _defaultScrubPreviewTextureHeight,
   }) async {
     if (!isPlatformSupported) {
-      return;
+      return false;
     }
-    await _methodChannel.invokeMethod<void>(
+    final rendered =
+        await _methodChannel.invokeMethod<bool>(
       'renderScrubPreviewTextureFrame',
       <String, dynamic>{
         'scrubStoreKey': scrubStoreKey,
@@ -434,12 +459,13 @@ class Stage5NativeTransportController extends ChangeNotifier {
         'targetWidth': targetWidth,
         'targetHeight': targetHeight,
       },
-    );
-    const nextVisible = true;
-    if (nextVisible != _isScrubPreviewTextureVisible) {
-      _isScrubPreviewTextureVisible = nextVisible;
+    ) ??
+            false;
+    if (rendered && !_isScrubPreviewTextureVisible) {
+      _isScrubPreviewTextureVisible = true;
       notifyListeners();
     }
+    return rendered;
   }
 
   Future<void> clearScrubPreviewTexture() async {

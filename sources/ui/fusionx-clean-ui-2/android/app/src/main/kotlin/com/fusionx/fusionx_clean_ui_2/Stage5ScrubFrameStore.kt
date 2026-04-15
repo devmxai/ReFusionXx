@@ -67,7 +67,7 @@ class Stage5ScrubFrameStore(
     private val memoryFrames: Array<Bitmap?> = arrayOfNulls(frameCount)
     private val diskFramePaths: Array<String?> = arrayOfNulls(frameCount)
     private val diskDecodedFrames =
-        object : LruCache<Int, Bitmap>(24) {
+        object : LruCache<Int, Bitmap>(150) {
             override fun entryRemoved(
                 evicted: Boolean,
                 key: Int,
@@ -92,6 +92,44 @@ class Stage5ScrubFrameStore(
 
     fun frameTimeMs(index: Int): Long =
         min(request.durationMs.coerceAtLeast(0L), index.coerceAtLeast(0) * frameIntervalMs.toLong())
+
+    @Synchronized
+    fun hasFrame(index: Int): Boolean {
+        if (index !in 0 until frameCount) {
+            return false
+        }
+        return when (storageTier) {
+            Stage5ScrubStorageTier.MEMORY -> memoryFrames[index] != null
+            Stage5ScrubStorageTier.DISK -> {
+                val path = diskFramePaths[index] ?: return false
+                File(path).exists()
+            }
+        }
+    }
+
+    @Synchronized
+    fun nearestReadyFrameIndex(
+        targetIndex: Int,
+        maxDistance: Int,
+    ): Int? {
+        if (targetIndex !in 0 until frameCount) {
+            return null
+        }
+        if (hasFrame(targetIndex)) {
+            return targetIndex
+        }
+        for (distance in 1..maxDistance.coerceAtLeast(0)) {
+            val before = targetIndex - distance
+            if (before >= 0 && hasFrame(before)) {
+                return before
+            }
+            val after = targetIndex + distance
+            if (after < frameCount && hasFrame(after)) {
+                return after
+            }
+        }
+        return null
+    }
 
     @Synchronized
     fun putFrameBitmap(index: Int, bitmap: Bitmap) {

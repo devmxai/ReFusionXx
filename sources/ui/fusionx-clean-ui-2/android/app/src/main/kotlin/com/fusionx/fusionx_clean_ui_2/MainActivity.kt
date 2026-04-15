@@ -218,6 +218,22 @@ class MainActivity: FlutterActivity() {
                         )
                     }
                 }
+                "hasScrubFrameCoverage" -> {
+                    val assetId = call.argument<String>("assetId")
+                    val positionMs = call.argument<Number>("positionMs")?.toLong() ?: 0L
+                    val radiusFrames = call.argument<Int>("radiusFrames") ?: 25
+                    if (assetId.isNullOrBlank()) {
+                        result.success(false)
+                    } else {
+                        result.success(
+                            stage5ScrubPreparationManager.hasCoverageAround(
+                                assetId = assetId,
+                                positionMs = positionMs,
+                                radiusFrames = radiusFrames,
+                            ),
+                        )
+                    }
+                }
                 "ensureScrubPreviewTexture" -> {
                     val targetWidth = call.argument<Int>("targetWidth") ?: 480
                     val targetHeight = call.argument<Int>("targetHeight") ?: 854
@@ -254,8 +270,8 @@ class MainActivity: FlutterActivity() {
                                     targetWidth = targetWidth,
                                     targetHeight = targetHeight,
                                 )
-                        }.onSuccess {
-                            result.success(null)
+                        }.onSuccess { rendered ->
+                            result.success(rendered)
                         }.onFailure { error ->
                             result.error(
                                 "scrub_session_begin_failed",
@@ -284,8 +300,8 @@ class MainActivity: FlutterActivity() {
                                 targetWidth = targetWidth,
                                 targetHeight = targetHeight,
                             )
-                        }.onSuccess {
-                            result.success(null)
+                        }.onSuccess { rendered ->
+                            result.success(rendered)
                         }
                             .onFailure { error ->
                                 result.error(

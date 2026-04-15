@@ -14,27 +14,77 @@ class Stage5ScrubFrameExtractor(
         store: Stage5ScrubFrameStore,
         onFrameExtracted: (Int) -> Unit = {},
     ) {
+        withRetriever(store.request.sourceUri) { retriever ->
+            for (index in 0 until store.frameCount) {
+                extractIndexInto(
+                    retriever = retriever,
+                    store = store,
+                    index = index,
+                    onFrameExtracted = onFrameExtracted,
+                )
+            }
+        }
+    }
+
+    fun extractIndices(
+        store: Stage5ScrubFrameStore,
+        indices: Iterable<Int>,
+        shouldContinue: () -> Boolean = { true },
+        onFrameExtracted: (Int) -> Unit = {},
+    ) {
+        withRetriever(store.request.sourceUri) { retriever ->
+            indices
+                .distinct()
+                .filter { index -> index in 0 until store.frameCount }
+                .forEach { index ->
+                    if (!shouldContinue()) {
+                        return@withRetriever
+                    }
+                    extractIndexInto(
+                        retriever = retriever,
+                        store = store,
+                        index = index,
+                        onFrameExtracted = onFrameExtracted,
+                    )
+                }
+        }
+    }
+
+    private inline fun withRetriever(
+        sourceUri: String,
+        block: (MediaMetadataRetriever) -> Unit,
+    ) {
         val retriever = MediaMetadataRetriever()
         try {
-            retriever.setDataSource(appContext, Uri.parse(store.request.sourceUri))
-            for (index in 0 until store.frameCount) {
-                val positionUs = store.frameTimeMs(index) * 1_000L
-                val bitmap =
-                    loadFrameBitmap(
-                        retriever = retriever,
-                        positionUs = positionUs,
-                        targetWidth = store.request.previewWidth,
-                        targetHeight = store.request.previewHeight,
-                    ) ?: continue
-                try {
-                    store.putFrameBitmap(index, bitmap)
-                    onFrameExtracted(index)
-                } finally {
-                    bitmap.recycle()
-                }
-            }
+            retriever.setDataSource(appContext, Uri.parse(sourceUri))
+            block(retriever)
         } finally {
             retriever.release()
+        }
+    }
+
+    private fun extractIndexInto(
+        retriever: MediaMetadataRetriever,
+        store: Stage5ScrubFrameStore,
+        index: Int,
+        onFrameExtracted: (Int) -> Unit,
+    ) {
+        if (store.hasFrame(index)) {
+            return
+        }
+        val positionUs = store.frameTimeMs(index) * 1_000L
+        val bitmap =
+            loadFrameBitmap(
+                retriever = retriever,
+                positionUs = positionUs,
+                targetWidth = store.request.previewWidth,
+                targetHeight = store.request.previewHeight,
+            ) ?: return
+        try {
+            store.putFrameBitmap(index, bitmap)
+            onFrameExtracted(index)
+        } finally {
+            bitmap.recycle()
         }
     }
 
