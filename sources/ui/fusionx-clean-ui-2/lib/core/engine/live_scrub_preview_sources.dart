@@ -8,6 +8,8 @@ class LiveScrubPreviewSourceDescriptor {
     required this.clipId,
     required this.assetId,
     required this.sourceUri,
+    required this.previewUri,
+    required this.scrubStoreKey,
     required this.label,
     required this.timelineStartMs,
     required this.timelineEndMs,
@@ -16,11 +18,16 @@ class LiveScrubPreviewSourceDescriptor {
     required this.sourceDurationMs,
     required this.playbackRate,
     this.status = LiveScrubPreviewSourceStatus.discovered,
+    this.frameIntervalMs,
+    this.frameCount,
+    this.storageTier,
   });
 
   final String clipId;
   final String assetId;
   final String sourceUri;
+  final String previewUri;
+  final String scrubStoreKey;
   final String label;
   final int timelineStartMs;
   final int timelineEndMs;
@@ -29,17 +36,25 @@ class LiveScrubPreviewSourceDescriptor {
   final int sourceDurationMs;
   final double playbackRate;
   final LiveScrubPreviewSourceStatus status;
+  final int? frameIntervalMs;
+  final int? frameCount;
+  final String? storageTier;
 
   bool containsPosition(int positionMs) =>
       positionMs >= timelineStartMs && positionMs < timelineEndMs;
 
   LiveScrubPreviewSourceDescriptor copyWith({
     LiveScrubPreviewSourceStatus? status,
+    int? frameIntervalMs,
+    int? frameCount,
+    String? storageTier,
   }) {
     return LiveScrubPreviewSourceDescriptor(
       clipId: clipId,
       assetId: assetId,
       sourceUri: sourceUri,
+      previewUri: previewUri,
+      scrubStoreKey: scrubStoreKey,
       label: label,
       timelineStartMs: timelineStartMs,
       timelineEndMs: timelineEndMs,
@@ -48,6 +63,9 @@ class LiveScrubPreviewSourceDescriptor {
       sourceDurationMs: sourceDurationMs,
       playbackRate: playbackRate,
       status: status ?? this.status,
+      frameIntervalMs: frameIntervalMs ?? this.frameIntervalMs,
+      frameCount: frameCount ?? this.frameCount,
+      storageTier: storageTier ?? this.storageTier,
     );
   }
 }

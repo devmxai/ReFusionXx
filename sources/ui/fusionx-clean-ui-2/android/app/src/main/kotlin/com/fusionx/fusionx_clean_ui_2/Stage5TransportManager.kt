@@ -355,25 +355,21 @@ class Stage5TransportManager(context: Context) {
         return bytes
     }
 
-    fun loadMediaFramePreview(
+    private fun loadMediaFramePreviewBitmap(
         sourceUri: String,
         positionMs: Long,
         targetWidth: Int,
         targetHeight: Int,
-    ): ByteArray? {
+    ): Bitmap? {
         val safeWidth = targetWidth.coerceIn(120, 480)
         val safeHeight = targetHeight.coerceIn(180, 854)
         val safePositionMs = positionMs.coerceAtLeast(0L)
-        val bucketedPositionMs = (safePositionMs / 33L) * 33L
-        val cacheKey = "$sourceUri|frame|$bucketedPositionMs|$safeWidth|$safeHeight"
-        thumbnailCache.get(cacheKey)?.let { return it }
-
         var retriever: MediaMetadataRetriever? = null
         var bitmap: Bitmap? = null
-        var scaledBitmap: Bitmap? = null
         return try {
             retriever = MediaMetadataRetriever()
             retriever.setDataSource(appContext, Uri.parse(sourceUri))
+            val bucketedPositionMs = (safePositionMs / 33L) * 33L
             val timeUs = bucketedPositionMs * 1000L
             bitmap =
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
@@ -391,29 +387,65 @@ class Stage5TransportManager(context: Context) {
                         MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
                     )
             val resolvedBitmap = bitmap ?: return null
-            val outputBitmap =
-                if (resolvedBitmap.width != safeWidth || resolvedBitmap.height != safeHeight) {
-                    Bitmap.createScaledBitmap(resolvedBitmap, safeWidth, safeHeight, true).also {
-                        scaledBitmap = it
+            if (resolvedBitmap.width == safeWidth && resolvedBitmap.height == safeHeight) {
+                resolvedBitmap
+            } else {
+                Bitmap.createScaledBitmap(resolvedBitmap, safeWidth, safeHeight, true).also {
+                    if (resolvedBitmap !== it) {
+                        resolvedBitmap.recycle()
                     }
-                } else {
-                    resolvedBitmap
                 }
+            }
+        } finally {
+            retriever?.release()
+        }
+    }
+
+    fun loadMediaFramePreview(
+        sourceUri: String,
+        positionMs: Long,
+        targetWidth: Int,
+        targetHeight: Int,
+    ): ByteArray? {
+        val safeWidth = targetWidth.coerceIn(120, 480)
+        val safeHeight = targetHeight.coerceIn(180, 854)
+        val safePositionMs = positionMs.coerceAtLeast(0L)
+        val bucketedPositionMs = (safePositionMs / 33L) * 33L
+        val cacheKey = "$sourceUri|frame|$bucketedPositionMs|$safeWidth|$safeHeight"
+        thumbnailCache.get(cacheKey)?.let { return it }
+
+        val bitmap =
+            loadMediaFramePreviewBitmap(
+                sourceUri = sourceUri,
+                positionMs = bucketedPositionMs,
+                targetWidth = safeWidth,
+                targetHeight = safeHeight,
+            ) ?: return null
+        return try {
             val bytes =
                 ByteArrayOutputStream().use { output ->
-                    outputBitmap.compress(Bitmap.CompressFormat.JPEG, 84, output)
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 84, output)
                     output.toByteArray()
                 }
             thumbnailCache.put(cacheKey, bytes)
             bytes
         } finally {
-            if (scaledBitmap != null && scaledBitmap !== bitmap) {
-                scaledBitmap?.recycle()
-            }
-            bitmap?.recycle()
-            retriever?.release()
+            bitmap.recycle()
         }
     }
+
+    fun renderMediaFramePreviewBitmap(
+        sourceUri: String,
+        positionMs: Long,
+        targetWidth: Int,
+        targetHeight: Int,
+    ): Bitmap? =
+        loadMediaFramePreviewBitmap(
+            sourceUri = sourceUri,
+            positionMs = positionMs,
+            targetWidth = targetWidth,
+            targetHeight = targetHeight,
+        )
 
     fun prepareImportedMedia(sourceUri: String, sourceLabel: String): Map<String, Any?> {
         val exo = ensurePlayer()

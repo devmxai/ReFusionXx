@@ -26,7 +26,7 @@ class LiveScrubFrameRequest {
 class LiveScrubSessionConfig {
   const LiveScrubSessionConfig({
     required this.anchorPositionMs,
-    this.path = LiveScrubPreviewPath.transportSeekLegacy,
+    this.path = LiveScrubPreviewPath.frameCache,
     this.previewSources = const <LiveScrubPreviewSourceDescriptor>[],
   });
 
@@ -68,34 +68,26 @@ class TransportBackedPlaybackController implements PlaybackController {
 }
 
 class TransportBackedScrubPreviewController implements ScrubPreviewController {
-  TransportBackedScrubPreviewController(this._transportController);
-
-  final Stage5NativeTransportController _transportController;
+  const TransportBackedScrubPreviewController();
 
   @override
   Future<void> beginSession(LiveScrubSessionConfig config) =>
-      _transportController.setScrubbing(
-        true,
-        finalPositionMs: config.anchorPositionMs,
-      );
+      SynchronousFuture<void>(null);
 
   @override
   Future<void> endSession({required int finalPositionMs}) =>
-      _transportController.setScrubbing(
-        false,
-        finalPositionMs: finalPositionMs,
-      );
+      SynchronousFuture<void>(null);
 
   @override
   Future<void> presentFrame(LiveScrubFrameRequest request) =>
-      _transportController.previewScrubToPositionMs(request.positionMs);
+      SynchronousFuture<void>(null);
 }
 
-/// Stage 1 foundation for the future live scrub rebuild.
+/// Session coordinator for the post-transport live scrub migration.
 ///
-/// This pipeline intentionally keeps the current preview path transport-backed,
-/// but centralizes session lifecycle so Stage 2 can replace the preview source
-/// without rewriting the editor gesture layer again.
+/// During active scrub the player is paused and left out of the per-frame path.
+/// The only player interaction that remains here is the final exact seek when
+/// the scrub session ends.
 class LiveScrubPipeline {
   LiveScrubPipeline({
     required PlaybackController playbackController,
@@ -113,6 +105,7 @@ class LiveScrubPipeline {
 
   Future<void> beginSession(LiveScrubSessionConfig config) async {
     _lastRequestedPositionMs = config.anchorPositionMs;
+    await _playbackController.pause();
     _isSessionActive = true;
     await _scrubPreviewController.beginSession(config);
   }
@@ -134,9 +127,8 @@ class LiveScrubPipeline {
       await _scrubPreviewController.endSession(
         finalPositionMs: resolvedFinalPositionMs,
       );
-    } else {
-      await _playbackController.exactSeekTo(resolvedFinalPositionMs);
     }
+    await _playbackController.exactSeekTo(resolvedFinalPositionMs);
     _isSessionActive = false;
   }
 }

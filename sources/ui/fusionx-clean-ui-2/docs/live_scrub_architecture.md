@@ -1,5 +1,23 @@
 # Live Scrub Architecture
 
+## Superseded Status
+
+As of `2026-04-15`, this document is no longer the active implementation
+directive for live scrub migration.
+
+The binding migration mandate is now:
+
+- `ExoPlayer` must be completely removed from the active live scrub display path
+- no `seekTo()` calls may originate from touch-move events
+- no per-frame Flutter/MethodChannel scrub dispatch may remain in the hot path
+- the live scrub path must be rebuilt around pre-extracted indexed frames,
+  native-owned rendering, and native touch capture
+
+No individual implementation work may reintroduce a hybrid scrub path or
+partially preserve the old transport-backed lifecycle during active scrub.
+Any future scrub work must follow the binding migration mandate exactly, even
+when doing incremental phases.
+
 ## Status
 
 This document is the source of truth for `ReFusion` live scrub architecture.

@@ -20,6 +20,8 @@ class MainActivity: FlutterActivity() {
     }
 
     private lateinit var stage5TransportManager: Stage5TransportManager
+    private lateinit var stage5NativeScrubEngine: Stage5NativeScrubEngine
+    private lateinit var stage5ScrubPreparationManager: Stage5ScrubPreparationManager
     private lateinit var stage6ExportManager: Stage6ExportManager
     private lateinit var deviceMediaLibraryManager: DeviceMediaLibraryManager
     private val mediaQueryExecutor: ExecutorService = Executors.newSingleThreadExecutor()
@@ -32,6 +34,11 @@ class MainActivity: FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
 
         stage5TransportManager = Stage5TransportManager(applicationContext)
+        stage5ScrubPreparationManager = Stage5ScrubPreparationManager(applicationContext)
+        stage5NativeScrubEngine =
+            Stage5NativeScrubEngine(
+                scrubPreparationManager = stage5ScrubPreparationManager,
+            )
         stage6ExportManager =
             Stage6ExportManager(
                 appContext = applicationContext,
@@ -41,7 +48,10 @@ class MainActivity: FlutterActivity() {
 
         flutterEngine.platformViewsController.registry.registerViewFactory(
             Stage5TransportManager.PREVIEW_VIEW_TYPE,
-            Stage5PreviewPlatformViewFactory(stage5TransportManager),
+            Stage5PreviewPlatformViewFactory(
+                stage5TransportManager,
+                stage5NativeScrubEngine,
+            ),
         )
 
         MethodChannel(
@@ -158,6 +168,171 @@ class MainActivity: FlutterActivity() {
                                 }
                             }
                         }
+                    }
+                }
+                "prepareScrubFrameStore" -> {
+                    val assetId = call.argument<String>("assetId")
+                    val sourceUri = call.argument<String>("sourceUri")
+                    val durationMs = call.argument<Number>("durationMs")?.toLong() ?: 0L
+                    val sourceWidth = call.argument<Int>("sourceWidth")
+                    val sourceHeight = call.argument<Int>("sourceHeight")
+                    val targetWidth = call.argument<Int>("targetWidth") ?: 240
+                    val targetHeight = call.argument<Int>("targetHeight") ?: 426
+                    if (assetId.isNullOrBlank() || sourceUri.isNullOrBlank()) {
+                        result.error(
+                            "invalid_scrub_store_request",
+                            "Scrub frame store request is missing asset or source data.",
+                            null,
+                        )
+                    } else {
+                        runCatching {
+                            stage5ScrubPreparationManager.prepareStore(
+                                Stage5ScrubFrameStoreRequest(
+                                    assetId = assetId,
+                                    sourceUri = sourceUri,
+                                    durationMs = durationMs,
+                                    sourceWidth = sourceWidth,
+                                    sourceHeight = sourceHeight,
+                                    previewWidth = targetWidth,
+                                    previewHeight = targetHeight,
+                                ),
+                            )
+                        }.onSuccess { status ->
+                            result.success(status.toMap())
+                        }.onFailure { error ->
+                            result.error(
+                                "scrub_store_prepare_failed",
+                                error.message ?: "Unable to prepare scrub frame store.",
+                                null,
+                            )
+                        }
+                    }
+                }
+                "getScrubFrameStoreStatus" -> {
+                    val assetId = call.argument<String>("assetId")
+                    if (assetId.isNullOrBlank()) {
+                        result.success(null)
+                    } else {
+                        result.success(
+                            stage5ScrubPreparationManager.getStatus(assetId)?.toMap(),
+                        )
+                    }
+                }
+                "ensureScrubPreviewTexture" -> {
+                    val targetWidth = call.argument<Int>("targetWidth") ?: 480
+                    val targetHeight = call.argument<Int>("targetHeight") ?: 854
+                    runCatching {
+                        stage5NativeScrubEngine.ensureTexture(
+                            targetWidth = targetWidth,
+                            targetHeight = targetHeight,
+                        )
+                    }.onSuccess(result::success)
+                        .onFailure { error ->
+                            result.error(
+                                "scrub_texture_init_failed",
+                                error.message ?: "Unable to initialize scrub texture.",
+                                null,
+                            )
+                        }
+                }
+                "beginScrubPreviewTextureSession" -> {
+                    val scrubStoreKey = call.argument<String>("scrubStoreKey")
+                    val positionMs = call.argument<Int>("positionMs") ?: 0
+                    val targetWidth = call.argument<Int>("targetWidth") ?: 480
+                    val targetHeight = call.argument<Int>("targetHeight") ?: 854
+                    if (scrubStoreKey.isNullOrBlank()) {
+                        result.error(
+                            "invalid_scrub_session_store",
+                            "Scrub session store key is missing.",
+                            null,
+                        )
+                    } else {
+                        runCatching {
+                            stage5NativeScrubEngine.beginSession(
+                                    scrubStoreKey = scrubStoreKey,
+                                    positionMs = positionMs.toLong(),
+                                    targetWidth = targetWidth,
+                                    targetHeight = targetHeight,
+                                )
+                        }.onSuccess {
+                            result.success(null)
+                        }.onFailure { error ->
+                            result.error(
+                                "scrub_session_begin_failed",
+                                error.message ?: "Unable to begin scrub session.",
+                                null,
+                            )
+                        }
+                    }
+                }
+                "renderScrubPreviewTextureFrame" -> {
+                    val scrubStoreKey = call.argument<String>("scrubStoreKey")
+                    val positionMs = call.argument<Int>("positionMs") ?: 0
+                    val targetWidth = call.argument<Int>("targetWidth") ?: 480
+                    val targetHeight = call.argument<Int>("targetHeight") ?: 854
+                    if (scrubStoreKey.isNullOrBlank()) {
+                        result.error(
+                            "invalid_scrub_texture_store",
+                            "Scrub texture store key is missing.",
+                            null,
+                        )
+                    } else {
+                        runCatching {
+                            stage5NativeScrubEngine.updateTarget(
+                                scrubStoreKey = scrubStoreKey,
+                                positionMs = positionMs.toLong(),
+                                targetWidth = targetWidth,
+                                targetHeight = targetHeight,
+                            )
+                        }.onSuccess {
+                            result.success(null)
+                        }
+                            .onFailure { error ->
+                                result.error(
+                                    "scrub_texture_render_failed",
+                                    error.message ?: "Unable to render scrub preview frame.",
+                                    null,
+                                )
+                            }
+                    }
+                }
+                "clearScrubPreviewTexture" -> {
+                    runCatching {
+                        stage5NativeScrubEngine.clearTexture()
+                    }.onSuccess {
+                        result.success(null)
+                    }.onFailure { error ->
+                        result.error(
+                            "scrub_texture_clear_failed",
+                            error.message ?: "Unable to clear scrub texture.",
+                            null,
+                        )
+                    }
+                }
+                "disposeScrubPreviewTexture" -> {
+                    runCatching {
+                        stage5NativeScrubEngine.disposeTexture()
+                    }.onSuccess {
+                        result.success(null)
+                    }.onFailure { error ->
+                        result.error(
+                            "scrub_texture_dispose_failed",
+                            error.message ?: "Unable to dispose scrub texture.",
+                            null,
+                        )
+                    }
+                }
+                "endScrubPreviewTextureSession" -> {
+                    runCatching {
+                        stage5NativeScrubEngine.endSession()
+                    }.onSuccess {
+                        result.success(null)
+                    }.onFailure { error ->
+                        result.error(
+                            "scrub_session_end_failed",
+                            error.message ?: "Unable to end scrub session.",
+                            null,
+                        )
                     }
                 }
                 "loadMediaThumbnails" -> {
@@ -422,6 +597,9 @@ class MainActivity: FlutterActivity() {
     override fun onDestroy() {
         if (::stage5TransportManager.isInitialized && isFinishing) {
             stage5TransportManager.release()
+        }
+        if (::stage5NativeScrubEngine.isInitialized) {
+            stage5NativeScrubEngine.release()
         }
         mediaQueryExecutor.shutdownNow()
         mediaThumbnailExecutor.shutdownNow()

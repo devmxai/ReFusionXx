@@ -1,5 +1,7 @@
 import 'editor_media_tab.dart';
 
+enum EditorAssetScrubPreviewStatus { idle, preparing, ready, failed }
+
 class EditorAssetItem {
   const EditorAssetItem({
     required this.id,
@@ -12,6 +14,11 @@ class EditorAssetItem {
     this.width,
     this.height,
     this.dateAddedSeconds,
+    this.scrubPreviewStatus = EditorAssetScrubPreviewStatus.idle,
+    this.scrubFrameIntervalMs,
+    this.scrubFrameCount,
+    this.scrubStorageTier,
+    this.scrubPreviewError,
   });
 
   factory EditorAssetItem.fromPlatformMap(Map<String, dynamic> data) {
@@ -41,6 +48,16 @@ class EditorAssetItem {
       width: _asInt(data['width']),
       height: _asInt(data['height']),
       dateAddedSeconds: _asInt(data['dateAddedSeconds']),
+      scrubPreviewStatus: switch (data['scrubPreviewStatus']?.toString()) {
+        'preparing' => EditorAssetScrubPreviewStatus.preparing,
+        'ready' => EditorAssetScrubPreviewStatus.ready,
+        'failed' => EditorAssetScrubPreviewStatus.failed,
+        _ => EditorAssetScrubPreviewStatus.idle,
+      },
+      scrubFrameIntervalMs: _asInt(data['scrubFrameIntervalMs']),
+      scrubFrameCount: _asInt(data['scrubFrameCount']),
+      scrubStorageTier: data['scrubStorageTier']?.toString(),
+      scrubPreviewError: data['scrubPreviewError']?.toString(),
     );
   }
 
@@ -54,6 +71,11 @@ class EditorAssetItem {
   final int? width;
   final int? height;
   final int? dateAddedSeconds;
+  final EditorAssetScrubPreviewStatus scrubPreviewStatus;
+  final int? scrubFrameIntervalMs;
+  final int? scrubFrameCount;
+  final String? scrubStorageTier;
+  final String? scrubPreviewError;
 
   bool get isVisual => tab == EditorMediaTab.video || tab == EditorMediaTab.image;
 
@@ -80,6 +102,11 @@ class EditorAssetItem {
     int? width,
     int? height,
     int? dateAddedSeconds,
+    EditorAssetScrubPreviewStatus? scrubPreviewStatus,
+    Object? scrubFrameIntervalMs = _noChange,
+    Object? scrubFrameCount = _noChange,
+    Object? scrubStorageTier = _noChange,
+    Object? scrubPreviewError = _noChange,
   }) {
     return EditorAssetItem(
       id: id ?? this.id,
@@ -92,9 +119,24 @@ class EditorAssetItem {
       width: width ?? this.width,
       height: height ?? this.height,
       dateAddedSeconds: dateAddedSeconds ?? this.dateAddedSeconds,
+      scrubPreviewStatus: scrubPreviewStatus ?? this.scrubPreviewStatus,
+      scrubFrameIntervalMs: identical(scrubFrameIntervalMs, _noChange)
+          ? this.scrubFrameIntervalMs
+          : scrubFrameIntervalMs as int?,
+      scrubFrameCount: identical(scrubFrameCount, _noChange)
+          ? this.scrubFrameCount
+          : scrubFrameCount as int?,
+      scrubStorageTier: identical(scrubStorageTier, _noChange)
+          ? this.scrubStorageTier
+          : scrubStorageTier as String?,
+      scrubPreviewError: identical(scrubPreviewError, _noChange)
+          ? this.scrubPreviewError
+          : scrubPreviewError as String?,
     );
   }
 }
+
+const Object _noChange = Object();
 
 int _toneForId(String id) {
   final sum = id.codeUnits.fold<int>(0, (value, codeUnit) => value + codeUnit);

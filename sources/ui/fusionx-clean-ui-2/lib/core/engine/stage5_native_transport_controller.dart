@@ -75,6 +75,52 @@ class Stage5TransportState {
   }
 }
 
+enum Stage5ScrubFrameStoreState { idle, preparing, ready, failed }
+
+@immutable
+class Stage5ScrubFrameStoreStatus {
+  const Stage5ScrubFrameStoreStatus({
+    required this.assetId,
+    required this.sourceUri,
+    required this.state,
+    required this.frameIntervalMs,
+    required this.frameCount,
+    required this.extractedFrameCount,
+    this.storageTier,
+    this.error,
+  });
+
+  factory Stage5ScrubFrameStoreStatus.fromMap(Map<String, dynamic> map) {
+    final stateValue = map['state']?.toString();
+    return Stage5ScrubFrameStoreStatus(
+      assetId: map['assetId']?.toString() ?? '',
+      sourceUri: map['sourceUri']?.toString() ?? '',
+      state: switch (stateValue) {
+        'preparing' => Stage5ScrubFrameStoreState.preparing,
+        'ready' => Stage5ScrubFrameStoreState.ready,
+        'failed' => Stage5ScrubFrameStoreState.failed,
+        _ => Stage5ScrubFrameStoreState.idle,
+      },
+      frameIntervalMs: _asInt(map['frameIntervalMs']) ?? 0,
+      frameCount: _asInt(map['frameCount']) ?? 0,
+      extractedFrameCount: _asInt(map['extractedFrameCount']) ?? 0,
+      storageTier: map['storageTier']?.toString(),
+      error: map['error']?.toString(),
+    );
+  }
+
+  final String assetId;
+  final String sourceUri;
+  final Stage5ScrubFrameStoreState state;
+  final int frameIntervalMs;
+  final int frameCount;
+  final int extractedFrameCount;
+  final String? storageTier;
+  final String? error;
+
+  bool get isReady => state == Stage5ScrubFrameStoreState.ready;
+}
+
 class Stage5NativeTransportController extends ChangeNotifier {
   Stage5NativeTransportController();
 
@@ -82,6 +128,8 @@ class Stage5NativeTransportController extends ChangeNotifier {
   static const String eventChannelName =
       'com.refusion.app/stage5_transport_events';
   static const String previewViewType = 'com.refusion.app/stage5_preview';
+  static const int _defaultScrubPreviewTextureWidth = 480;
+  static const int _defaultScrubPreviewTextureHeight = 854;
 
   static const MethodChannel _methodChannel = MethodChannel(methodChannelName);
   static const EventChannel _eventChannel = EventChannel(eventChannelName);
@@ -91,6 +139,8 @@ class Stage5NativeTransportController extends ChangeNotifier {
   bool _isInitializing = false;
   bool _previewScrubDispatchInFlight = false;
   int? _pendingPreviewScrubPositionMs;
+  int? _scrubPreviewTextureId;
+  bool _isScrubPreviewTextureVisible = false;
   Stage5TransportState get state => _state;
 
   bool get isPlatformSupported => !kIsWeb && Platform.isAndroid;
@@ -108,6 +158,17 @@ class Stage5NativeTransportController extends ChangeNotifier {
   String? get errorMessage => _state.error;
 
   bool get isInitializing => _isInitializing;
+
+  int? get scrubPreviewTextureId => _scrubPreviewTextureId;
+
+  bool get isScrubPreviewTextureVisible => _isScrubPreviewTextureVisible;
+
+  void hideScrubPreviewTexture() {
+    if (_isScrubPreviewTextureVisible) {
+      _isScrubPreviewTextureVisible = false;
+      notifyListeners();
+    }
+  }
 
   Future<void> initialize() async {
     if (!isPlatformSupported) {
@@ -258,6 +319,156 @@ class Stage5NativeTransportController extends ChangeNotifier {
       },
     );
     return result;
+  }
+
+  Future<Stage5ScrubFrameStoreStatus?> prepareScrubFrameStore({
+    required String assetId,
+    required String sourceUri,
+    required int durationMs,
+    int? sourceWidth,
+    int? sourceHeight,
+    int targetWidth = 240,
+    int targetHeight = 426,
+  }) async {
+    if (!isPlatformSupported) {
+      return null;
+    }
+    final result = await _methodChannel.invokeMethod<dynamic>(
+      'prepareScrubFrameStore',
+      <String, dynamic>{
+        'assetId': assetId,
+        'sourceUri': sourceUri,
+        'durationMs': durationMs < 0 ? 0 : durationMs,
+        'sourceWidth': sourceWidth,
+        'sourceHeight': sourceHeight,
+        'targetWidth': targetWidth,
+        'targetHeight': targetHeight,
+      },
+    );
+    final normalized = _normalizeMap(result);
+    if (normalized.isEmpty) {
+      return null;
+    }
+    return Stage5ScrubFrameStoreStatus.fromMap(normalized);
+  }
+
+  Future<Stage5ScrubFrameStoreStatus?> getScrubFrameStoreStatus({
+    required String assetId,
+  }) async {
+    if (!isPlatformSupported) {
+      return null;
+    }
+    final result = await _methodChannel.invokeMethod<dynamic>(
+      'getScrubFrameStoreStatus',
+      <String, dynamic>{
+        'assetId': assetId,
+      },
+    );
+    final normalized = _normalizeMap(result);
+    if (normalized.isEmpty) {
+      return null;
+    }
+    return Stage5ScrubFrameStoreStatus.fromMap(normalized);
+  }
+
+  Future<int?> ensureScrubPreviewTexture({
+    int targetWidth = _defaultScrubPreviewTextureWidth,
+    int targetHeight = _defaultScrubPreviewTextureHeight,
+  }) async {
+    if (!isPlatformSupported) {
+      return null;
+    }
+    final textureId = await _methodChannel.invokeMethod<int>(
+      'ensureScrubPreviewTexture',
+      <String, dynamic>{
+        'targetWidth': targetWidth,
+        'targetHeight': targetHeight,
+      },
+    );
+    _scrubPreviewTextureId = textureId;
+    return textureId;
+  }
+
+  Future<void> beginScrubPreviewTextureSession({
+    required String scrubStoreKey,
+    required int positionMs,
+    int targetWidth = _defaultScrubPreviewTextureWidth,
+    int targetHeight = _defaultScrubPreviewTextureHeight,
+  }) async {
+    if (!isPlatformSupported) {
+      return;
+    }
+    await ensureScrubPreviewTexture(
+      targetWidth: targetWidth,
+      targetHeight: targetHeight,
+    );
+    await _methodChannel.invokeMethod<void>(
+      'beginScrubPreviewTextureSession',
+      <String, dynamic>{
+        'scrubStoreKey': scrubStoreKey,
+        'positionMs': positionMs < 0 ? 0 : positionMs,
+        'targetWidth': targetWidth,
+        'targetHeight': targetHeight,
+      },
+    );
+    if (!_isScrubPreviewTextureVisible && _scrubPreviewTextureId != null) {
+      _isScrubPreviewTextureVisible = true;
+      notifyListeners();
+    }
+  }
+
+  Future<void> renderScrubPreviewTextureFrame({
+    required String scrubStoreKey,
+    required int positionMs,
+    int targetWidth = _defaultScrubPreviewTextureWidth,
+    int targetHeight = _defaultScrubPreviewTextureHeight,
+  }) async {
+    if (!isPlatformSupported) {
+      return;
+    }
+    await _methodChannel.invokeMethod<void>(
+      'renderScrubPreviewTextureFrame',
+      <String, dynamic>{
+        'scrubStoreKey': scrubStoreKey,
+        'positionMs': positionMs < 0 ? 0 : positionMs,
+        'targetWidth': targetWidth,
+        'targetHeight': targetHeight,
+      },
+    );
+    const nextVisible = true;
+    if (nextVisible != _isScrubPreviewTextureVisible) {
+      _isScrubPreviewTextureVisible = nextVisible;
+      notifyListeners();
+    }
+  }
+
+  Future<void> clearScrubPreviewTexture() async {
+    if (!isPlatformSupported) {
+      return;
+    }
+    hideScrubPreviewTexture();
+  }
+
+  Future<void> disposeScrubPreviewTexture() async {
+    if (!isPlatformSupported) {
+      return;
+    }
+    await _methodChannel.invokeMethod<void>('disposeScrubPreviewTexture');
+    final hadTexture =
+        _scrubPreviewTextureId != null || _isScrubPreviewTextureVisible;
+    _scrubPreviewTextureId = null;
+    _isScrubPreviewTextureVisible = false;
+    if (hadTexture) {
+      notifyListeners();
+    }
+  }
+
+  Future<void> endScrubPreviewTextureSession() async {
+    if (!isPlatformSupported) {
+      return;
+    }
+    await _methodChannel.invokeMethod<void>('endScrubPreviewTextureSession');
+    hideScrubPreviewTexture();
   }
 
   Future<Stage5TransportState?> prepareImportedMedia({
@@ -424,6 +635,8 @@ class Stage5NativeTransportController extends ChangeNotifier {
   @override
   void dispose() {
     _resetPreviewScrubDispatchState();
+    unawaited(endScrubPreviewTextureSession());
+    unawaited(disposeScrubPreviewTexture());
     _eventsSubscription?.cancel();
     _eventsSubscription = null;
     super.dispose();
@@ -532,15 +745,16 @@ class Stage5NativeTransportController extends ChangeNotifier {
     return const <String, dynamic>{};
   }
 
-  int? _asInt(Object? value) {
-    if (value is int) {
-      return value;
-    }
-    if (value is double) {
-      return value.round();
-    }
-    return null;
+}
+
+int? _asInt(Object? value) {
+  if (value is int) {
+    return value;
   }
+  if (value is double) {
+    return value.round();
+  }
+  return null;
 }
 
 class DeviceMediaPageResult {
