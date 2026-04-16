@@ -2,8 +2,6 @@ import 'editor_media_tab.dart';
 
 enum EditorAssetScrubPreviewStatus { idle, preparing, ready, failed }
 
-enum EditorAssetProxyStatus { idle, preparing, ready, failed }
-
 class EditorAssetItem {
   const EditorAssetItem({
     required this.id,
@@ -17,8 +15,6 @@ class EditorAssetItem {
     this.width,
     this.height,
     this.dateAddedSeconds,
-    this.scrubProxyStatus = EditorAssetProxyStatus.idle,
-    this.scrubProxyError,
     this.scrubPreviewStatus = EditorAssetScrubPreviewStatus.idle,
     this.scrubFrameIntervalMs,
     this.scrubFrameCount,
@@ -64,13 +60,6 @@ class EditorAssetItem {
       width: _asInt(data['width']),
       height: _asInt(data['height']),
       dateAddedSeconds: _asInt(data['dateAddedSeconds']),
-      scrubProxyStatus: switch (data['scrubProxyStatus']?.toString()) {
-        'preparing' => EditorAssetProxyStatus.preparing,
-        'ready' => EditorAssetProxyStatus.ready,
-        'failed' => EditorAssetProxyStatus.failed,
-        _ => EditorAssetProxyStatus.idle,
-      },
-      scrubProxyError: data['scrubProxyError']?.toString(),
       scrubPreviewStatus: switch (data['scrubPreviewStatus']?.toString()) {
         'preparing' => EditorAssetScrubPreviewStatus.preparing,
         'ready' => EditorAssetScrubPreviewStatus.ready,
@@ -108,8 +97,6 @@ class EditorAssetItem {
   final int? width;
   final int? height;
   final int? dateAddedSeconds;
-  final EditorAssetProxyStatus scrubProxyStatus;
-  final String? scrubProxyError;
   final EditorAssetScrubPreviewStatus scrubPreviewStatus;
   final int? scrubFrameIntervalMs;
   final int? scrubFrameCount;
@@ -152,8 +139,6 @@ class EditorAssetItem {
     int? width,
     int? height,
     int? dateAddedSeconds,
-    EditorAssetProxyStatus? scrubProxyStatus,
-    Object? scrubProxyError = _noChange,
     EditorAssetScrubPreviewStatus? scrubPreviewStatus,
     Object? scrubFrameIntervalMs = _noChange,
     Object? scrubFrameCount = _noChange,
@@ -184,10 +169,6 @@ class EditorAssetItem {
       width: width ?? this.width,
       height: height ?? this.height,
       dateAddedSeconds: dateAddedSeconds ?? this.dateAddedSeconds,
-      scrubProxyStatus: scrubProxyStatus ?? this.scrubProxyStatus,
-      scrubProxyError: identical(scrubProxyError, _noChange)
-          ? this.scrubProxyError
-          : scrubProxyError as String?,
       scrubPreviewStatus: scrubPreviewStatus ?? this.scrubPreviewStatus,
       scrubFrameIntervalMs: identical(scrubFrameIntervalMs, _noChange)
           ? this.scrubFrameIntervalMs

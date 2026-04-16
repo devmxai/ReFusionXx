@@ -28,7 +28,7 @@ class Stage5ScrubPreparationManager(
 ) {
     companion object {
         private const val TARGET_ACTIVE_WINDOW_SPAN_MS = 3_000L
-        private const val TARGET_BOOTSTRAP_RADIUS_MS = 500L
+        private const val TARGET_BOOTSTRAP_RADIUS_MS = 1_000L
         private const val MIN_ACTIVE_WINDOW_RADIUS_FRAMES = 8
         private const val PRIORITY_WORKER_COUNT = 4
         private const val BACKGROUND_WORKER_COUNT = 2
@@ -49,6 +49,7 @@ class Stage5ScrubPreparationManager(
     fun prepareStore(
         request: Stage5ScrubFrameStoreRequest,
         initialPositionMs: Long? = null,
+        bootstrapSynchronously: Boolean = true,
     ): Stage5ScrubFrameStoreStatus {
         synchronized(this) {
             val existing = stores[request.assetId]
@@ -60,7 +61,7 @@ class Stage5ScrubPreparationManager(
                     managed = existing,
                     targetIndex = bootstrapTargetIndex,
                     radiusFrames = 0,
-                    bootstrapSynchronously = true,
+                    bootstrapSynchronously = bootstrapSynchronously,
                 )
                 return existing.toStatus()
             }
@@ -118,7 +119,7 @@ class Stage5ScrubPreparationManager(
                 managed = managed,
                 targetIndex = bootstrapTargetIndex,
                 radiusFrames = 0,
-                bootstrapSynchronously = true,
+                bootstrapSynchronously = bootstrapSynchronously,
             )
             return managed.toStatus()
         }

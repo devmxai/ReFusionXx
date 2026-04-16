@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.os.Handler
 import android.os.Looper
+import android.view.Surface
 import android.view.View
 import android.widget.FrameLayout
 import androidx.media3.common.Player
@@ -46,6 +47,11 @@ class Stage5PreviewPlatformView(
                 }
         }
     }
+    private val scrubSettlingObserver: (Boolean) -> Unit = { isSettling ->
+        if (!isSettling) {
+            stage5NativeScrubEngine.endSession()
+        }
+    }
 
     private val playerView =
         PlayerView(context).apply {
@@ -58,7 +64,11 @@ class Stage5PreviewPlatformView(
         }
     private val scrubOverlayView =
         Stage5ScrubOverlayTextureView(context).apply {
-            visibility = View.INVISIBLE
+            alpha = 0f
+            visibility = View.VISIBLE
+            onOutputSurfaceAvailable = {
+                stage5NativeScrubEngine.notifyDirectOutputSurfaceAvailable()
+            }
         }
     private val rootView =
         FrameLayout(context).apply {
@@ -84,6 +94,7 @@ class Stage5PreviewPlatformView(
         stage5TransportManager.addPreviewOutputSuppressionObserver(
             previewOutputSuppressionObserver,
         )
+        stage5TransportManager.addScrubSettlingObserver(scrubSettlingObserver)
         stage5NativeScrubEngine.registerRenderHost(this)
     }
 
@@ -91,7 +102,7 @@ class Stage5PreviewPlatformView(
 
     override fun setScrubSurfaceVisible(visible: Boolean) {
         runOnUiThreadIfActive {
-            scrubOverlayView.visibility = if (visible) View.VISIBLE else View.INVISIBLE
+            scrubOverlayView.alpha = if (visible) 1f else 0f
             val shouldShowPlayer = !visible && !isPreviewOutputSuppressed
             playerView.visibility = if (shouldShowPlayer) View.VISIBLE else View.INVISIBLE
         }
@@ -103,9 +114,18 @@ class Stage5PreviewPlatformView(
         }
         scrubOverlayView.presentFrame(bitmap)
         runOnUiThreadIfActive {
+            scrubOverlayView.alpha = 1f
             scrubOverlayView.visibility = View.VISIBLE
             playerView.visibility = View.INVISIBLE
         }
+    }
+
+    override fun hasScrubOutputSurface(): Boolean = scrubOverlayView.isAvailable
+
+    override fun acquireScrubOutputSurface(): Surface? = scrubOverlayView.acquireOutputSurface()
+
+    override fun releaseScrubOutputSurface() {
+        scrubOverlayView.releaseOutputSurface()
     }
 
     override fun dispose() {
@@ -116,6 +136,8 @@ class Stage5PreviewPlatformView(
         stage5TransportManager.removePreviewOutputSuppressionObserver(
             previewOutputSuppressionObserver,
         )
+        stage5TransportManager.removeScrubSettlingObserver(scrubSettlingObserver)
+        scrubOverlayView.releaseOutputSurface()
         mainHandler.removeCallbacksAndMessages(null)
         runOnUiThread {
             playerView.player = null

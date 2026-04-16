@@ -102,6 +102,7 @@ private class Stage5TimelineScrubInputView(
             previewSources = nextConfig.previewSources,
             targetWidth = nextConfig.targetWidth,
             targetHeight = nextConfig.targetHeight,
+            initialTimelinePositionMs = nextConfig.currentPositionMs,
         )
     }
 
@@ -128,6 +129,7 @@ private class Stage5TimelineScrubInputView(
                 gestureStartPositionMs = config.currentPositionMs
                 gesturePositionMs = config.currentPositionMs
                 scrubbing = false
+                nativeScrubEngine.primeTimelinePosition(config.currentPositionMs)
                 parent?.requestDisallowInterceptTouchEvent(true)
                 return true
             }
@@ -152,12 +154,16 @@ private class Stage5TimelineScrubInputView(
                 }
                 val secondsWidth = config.secondsWidth.coerceAtLeast(0.0001)
                 val deltaMs = ((totalDx / secondsWidth) * 1000.0).roundToLong()
-                gesturePositionMs =
+                val nextPositionMs =
                     (gestureStartPositionMs - deltaMs)
                         .coerceIn(
                             config.timelineOffsetMs,
                             config.timelineOffsetMs + config.timelineDurationMs,
                         )
+                if (nextPositionMs == gesturePositionMs) {
+                    return true
+                }
+                gesturePositionMs = nextPositionMs
                 nativeScrubEngine.scrubTimelinePosition(gesturePositionMs)
                 channel.invokeMethod(
                     "scrubTimeChanged",
@@ -268,6 +274,8 @@ class Stage5TimelineScrubPlatformView(
                     clipId = map["clipId"]?.toString().orEmpty(),
                     assetId = map["assetId"]?.toString().orEmpty(),
                     scrubStoreKey = scrubStoreKey,
+                    sourceUri = map["sourceUri"]?.toString().orEmpty(),
+                    previewUri = map["previewUri"]?.toString(),
                     timelineStartMs = (map["timelineStartMs"] as? Number)?.toLong() ?: 0L,
                     timelineEndMs = (map["timelineEndMs"] as? Number)?.toLong() ?: 0L,
                     durationMs = (map["durationMs"] as? Number)?.toLong() ?: 0L,

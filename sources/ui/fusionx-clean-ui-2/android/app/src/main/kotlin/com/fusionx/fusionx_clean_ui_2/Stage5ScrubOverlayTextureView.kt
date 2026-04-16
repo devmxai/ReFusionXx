@@ -7,13 +7,16 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.SurfaceTexture
+import android.view.Surface
 import android.view.TextureView
 
 class Stage5ScrubOverlayTextureView(
     context: Context,
 ) : TextureView(context), TextureView.SurfaceTextureListener {
+    var onOutputSurfaceAvailable: (() -> Unit)? = null
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private var latestBitmap: Bitmap? = null
+    private var outputSurface: Surface? = null
 
     init {
         isOpaque = false
@@ -28,6 +31,24 @@ class Stage5ScrubOverlayTextureView(
         }
     }
 
+    @Synchronized
+    fun acquireOutputSurface(): Surface? {
+        val texture = surfaceTexture ?: return null
+        val currentSurface = outputSurface
+        if (currentSurface != null && currentSurface.isValid) {
+            return currentSurface
+        }
+        return Surface(texture).also { surface ->
+            outputSurface = surface
+        }
+    }
+
+    @Synchronized
+    fun releaseOutputSurface() {
+        outputSurface?.release()
+        outputSurface = null
+    }
+
     override fun onSurfaceTextureAvailable(
         surface: SurfaceTexture,
         width: Int,
@@ -36,6 +57,7 @@ class Stage5ScrubOverlayTextureView(
         synchronized(this) {
             drawLatestBitmap()
         }
+        onOutputSurfaceAvailable?.invoke()
     }
 
     override fun onSurfaceTextureSizeChanged(
@@ -48,7 +70,12 @@ class Stage5ScrubOverlayTextureView(
         }
     }
 
-    override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean = true
+    override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
+        synchronized(this) {
+            releaseOutputSurface()
+        }
+        return true
+    }
 
     override fun onSurfaceTextureUpdated(surface: SurfaceTexture) = Unit
 

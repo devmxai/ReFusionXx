@@ -8,8 +8,8 @@ class LiveScrubPreviewSourceDescriptor {
     required this.clipId,
     required this.assetId,
     required this.sourceUri,
-    required this.previewUri,
     required this.scrubStoreKey,
+    this.previewUri,
     required this.label,
     required this.timelineStartMs,
     required this.timelineEndMs,
@@ -26,8 +26,8 @@ class LiveScrubPreviewSourceDescriptor {
   final String clipId;
   final String assetId;
   final String sourceUri;
-  final String previewUri;
   final String scrubStoreKey;
+  final String? previewUri;
   final String label;
   final int timelineStartMs;
   final int timelineEndMs;
@@ -48,8 +48,8 @@ class LiveScrubPreviewSourceDescriptor {
       'clipId': clipId,
       'assetId': assetId,
       'sourceUri': sourceUri,
-      'previewUri': previewUri,
       'scrubStoreKey': scrubStoreKey,
+      'previewUri': previewUri,
       'label': label,
       'timelineStartMs': timelineStartMs,
       'timelineEndMs': timelineEndMs,
@@ -74,8 +74,8 @@ class LiveScrubPreviewSourceDescriptor {
       clipId: clipId,
       assetId: assetId,
       sourceUri: sourceUri,
-      previewUri: previewUri,
       scrubStoreKey: scrubStoreKey,
+      previewUri: previewUri,
       label: label,
       timelineStartMs: timelineStartMs,
       timelineEndMs: timelineEndMs,

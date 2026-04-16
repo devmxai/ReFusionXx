@@ -21,13 +21,11 @@ class MainActivity: FlutterActivity() {
 
     private lateinit var stage5TransportManager: Stage5TransportManager
     private lateinit var stage5NativeScrubEngine: Stage5NativeScrubEngine
-    private lateinit var stage5ScrubPreparationManager: Stage5ScrubPreparationManager
-    private lateinit var stage5ScrubProxyManager: Stage5ScrubProxyManager
+    private lateinit var stage5ScrubPreviewProxyManager: Stage5ScrubPreviewProxyManager
     private lateinit var stage6ExportManager: Stage6ExportManager
     private lateinit var deviceMediaLibraryManager: DeviceMediaLibraryManager
     private val mediaQueryExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val mediaThumbnailExecutor: ExecutorService = Executors.newFixedThreadPool(4)
-    private val scrubPreparationExecutor: ExecutorService = Executors.newFixedThreadPool(2)
     private val mainHandler = Handler(Looper.getMainLooper())
     private var pendingMediaTab: String? = null
     private var pendingMediaResult: MethodChannel.Result? = null
@@ -36,11 +34,11 @@ class MainActivity: FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
 
         stage5TransportManager = Stage5TransportManager(applicationContext)
-        stage5ScrubPreparationManager = Stage5ScrubPreparationManager(applicationContext)
-        stage5ScrubProxyManager = Stage5ScrubProxyManager(applicationContext)
+        stage5ScrubPreviewProxyManager = Stage5ScrubPreviewProxyManager(applicationContext)
         stage5NativeScrubEngine =
             Stage5NativeScrubEngine(
-                scrubPreparationManager = stage5ScrubPreparationManager,
+                context = applicationContext,
+                scrubPreviewProxyManager = stage5ScrubPreviewProxyManager,
             )
         stage6ExportManager =
             Stage6ExportManager(
@@ -180,261 +178,6 @@ class MainActivity: FlutterActivity() {
                         }
                     }
                 }
-                "prepareScrubFrameStore" -> {
-                    val assetId = call.argument<String>("assetId")
-                    val sourceUri = call.argument<String>("sourceUri")
-                    val durationMs = call.argument<Number>("durationMs")?.toLong() ?: 0L
-                    val sourceWidth = call.argument<Int>("sourceWidth")
-                    val sourceHeight = call.argument<Int>("sourceHeight")
-                    val targetWidth = call.argument<Int>("targetWidth") ?: 240
-                    val targetHeight = call.argument<Int>("targetHeight") ?: 426
-                    val initialPositionMs =
-                        call.argument<Number>("initialPositionMs")?.toLong()
-                    if (assetId.isNullOrBlank() || sourceUri.isNullOrBlank()) {
-                        result.error(
-                            "invalid_scrub_store_request",
-                            "Scrub frame store request is missing asset or source data.",
-                            null,
-                        )
-                    } else {
-                        scrubPreparationExecutor.execute {
-                            runCatching {
-                                stage5ScrubPreparationManager.prepareStore(
-                                    Stage5ScrubFrameStoreRequest(
-                                        assetId = assetId,
-                                        sourceUri = sourceUri,
-                                        durationMs = durationMs,
-                                        sourceWidth = sourceWidth,
-                                        sourceHeight = sourceHeight,
-                                        previewWidth = targetWidth,
-                                        previewHeight = targetHeight,
-                                    ),
-                                    initialPositionMs = initialPositionMs,
-                                )
-                            }.onSuccess { status ->
-                                mainHandler.post {
-                                    result.success(status.toMap())
-                                }
-                            }.onFailure { error ->
-                                mainHandler.post {
-                                    result.error(
-                                        "scrub_store_prepare_failed",
-                                        error.message ?: "Unable to prepare scrub frame store.",
-                                        null,
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-                "prepareScrubProxy" -> {
-                    val assetId = call.argument<String>("assetId")
-                    val sourceUri = call.argument<String>("sourceUri")
-                    val durationMs = call.argument<Number>("durationMs")?.toLong() ?: 0L
-                    val sourceWidth = call.argument<Int>("sourceWidth")
-                    val sourceHeight = call.argument<Int>("sourceHeight")
-                    if (assetId.isNullOrBlank() || sourceUri.isNullOrBlank()) {
-                        result.error(
-                            "invalid_scrub_proxy_request",
-                            "Scrub proxy request is missing asset or source data.",
-                            null,
-                        )
-                    } else {
-                        scrubPreparationExecutor.execute {
-                            runCatching {
-                                stage5ScrubProxyManager.prepareProxy(
-                                    Stage5ScrubProxyRequest(
-                                        assetId = assetId,
-                                        sourceUri = sourceUri,
-                                        durationMs = durationMs,
-                                        sourceWidth = sourceWidth,
-                                        sourceHeight = sourceHeight,
-                                    ),
-                                )
-                            }.onSuccess { status ->
-                                mainHandler.post {
-                                    result.success(status.toMap())
-                                }
-                            }.onFailure { error ->
-                                mainHandler.post {
-                                    result.error(
-                                        "scrub_proxy_prepare_failed",
-                                        error.message ?: "Unable to prepare scrub proxy.",
-                                        null,
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-                "getScrubProxyStatus" -> {
-                    val assetId = call.argument<String>("assetId")
-                    if (assetId.isNullOrBlank()) {
-                        result.success(null)
-                    } else {
-                        result.success(
-                            stage5ScrubProxyManager.getStatus(assetId)?.toMap(),
-                        )
-                    }
-                }
-                "getScrubFrameStoreStatus" -> {
-                    val assetId = call.argument<String>("assetId")
-                    if (assetId.isNullOrBlank()) {
-                        result.success(null)
-                    } else {
-                        result.success(
-                            stage5ScrubPreparationManager.getStatus(assetId)?.toMap(),
-                        )
-                    }
-                }
-                "requestScrubFrameWindow" -> {
-                    val assetId = call.argument<String>("assetId")
-                    val positionMs = call.argument<Number>("positionMs")?.toLong() ?: 0L
-                    val radiusFrames = call.argument<Int>("radiusFrames") ?: 0
-                    if (assetId.isNullOrBlank()) {
-                        result.success(null)
-                    } else {
-                        scrubPreparationExecutor.execute {
-                            runCatching {
-                                stage5ScrubPreparationManager.requestFramesAround(
-                                    assetId = assetId,
-                                    positionMs = positionMs,
-                                    radiusFrames = radiusFrames,
-                                )
-                                stage5ScrubPreparationManager.getStatus(assetId)?.toMap()
-                            }.onSuccess { status ->
-                                mainHandler.post {
-                                    result.success(status)
-                                }
-                            }.onFailure { error ->
-                                mainHandler.post {
-                                    result.error(
-                                        "scrub_frame_window_request_failed",
-                                        error.message ?: "Unable to reprioritize scrub frame window.",
-                                        null,
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-                "ensureScrubPreviewTexture" -> {
-                    val targetWidth = call.argument<Int>("targetWidth") ?: 480
-                    val targetHeight = call.argument<Int>("targetHeight") ?: 854
-                    runCatching {
-                        stage5NativeScrubEngine.ensureTexture(
-                            targetWidth = targetWidth,
-                            targetHeight = targetHeight,
-                        )
-                    }.onSuccess(result::success)
-                        .onFailure { error ->
-                            result.error(
-                                "scrub_texture_init_failed",
-                                error.message ?: "Unable to initialize scrub texture.",
-                                null,
-                            )
-                        }
-                }
-                "beginScrubPreviewTextureSession" -> {
-                    val scrubStoreKey = call.argument<String>("scrubStoreKey")
-                    val positionMs = call.argument<Int>("positionMs") ?: 0
-                    val targetWidth = call.argument<Int>("targetWidth") ?: 480
-                    val targetHeight = call.argument<Int>("targetHeight") ?: 854
-                    if (scrubStoreKey.isNullOrBlank()) {
-                        result.error(
-                            "invalid_scrub_session_store",
-                            "Scrub session store key is missing.",
-                            null,
-                        )
-                    } else {
-                        runCatching {
-                            stage5NativeScrubEngine.beginSession(
-                                    scrubStoreKey = scrubStoreKey,
-                                    positionMs = positionMs.toLong(),
-                                    targetWidth = targetWidth,
-                                    targetHeight = targetHeight,
-                                )
-                        }.onSuccess { rendered ->
-                            result.success(rendered)
-                        }.onFailure { error ->
-                            result.error(
-                                "scrub_session_begin_failed",
-                                error.message ?: "Unable to begin scrub session.",
-                                null,
-                            )
-                        }
-                    }
-                }
-                "updateScrubPreviewTextureTarget" -> {
-                    val scrubStoreKey = call.argument<String>("scrubStoreKey")
-                    val positionMs = call.argument<Int>("positionMs") ?: 0
-                    val targetWidth = call.argument<Int>("targetWidth") ?: 480
-                    val targetHeight = call.argument<Int>("targetHeight") ?: 854
-                    if (scrubStoreKey.isNullOrBlank()) {
-                        result.error(
-                            "invalid_scrub_texture_store",
-                            "Scrub texture store key is missing.",
-                            null,
-                        )
-                    } else {
-                        runCatching {
-                            stage5NativeScrubEngine.updateTarget(
-                                scrubStoreKey = scrubStoreKey,
-                                positionMs = positionMs.toLong(),
-                                targetWidth = targetWidth,
-                                targetHeight = targetHeight,
-                            )
-                        }.onSuccess { rendered ->
-                            result.success(rendered)
-                        }
-                            .onFailure { error ->
-                                result.error(
-                                    "scrub_texture_update_failed",
-                                    error.message ?: "Unable to update scrub preview target.",
-                                    null,
-                                )
-                            }
-                    }
-                }
-                "clearScrubPreviewTexture" -> {
-                    runCatching {
-                        stage5NativeScrubEngine.clearTexture()
-                    }.onSuccess {
-                        result.success(null)
-                    }.onFailure { error ->
-                        result.error(
-                            "scrub_texture_clear_failed",
-                            error.message ?: "Unable to clear scrub texture.",
-                            null,
-                        )
-                    }
-                }
-                "disposeScrubPreviewTexture" -> {
-                    runCatching {
-                        stage5NativeScrubEngine.disposeTexture()
-                    }.onSuccess {
-                        result.success(null)
-                    }.onFailure { error ->
-                        result.error(
-                            "scrub_texture_dispose_failed",
-                            error.message ?: "Unable to dispose scrub texture.",
-                            null,
-                        )
-                    }
-                }
-                "endScrubPreviewTextureSession" -> {
-                    runCatching {
-                        stage5NativeScrubEngine.endSession()
-                    }.onSuccess {
-                        result.success(null)
-                    }.onFailure { error ->
-                        result.error(
-                            "scrub_session_end_failed",
-                            error.message ?: "Unable to end scrub session.",
-                            null,
-                        )
-                    }
-                }
                 "loadMediaThumbnails" -> {
                     val rawRequests = call.argument<List<Any?>>("requests") ?: emptyList()
                     val targetWidth = call.argument<Int>("targetWidth") ?: 192
@@ -473,10 +216,6 @@ class MainActivity: FlutterActivity() {
                     stage5TransportManager.pause()
                     result.success(null)
                 }
-                "beginScrubSession" -> {
-                    stage5TransportManager.beginScrubSession()
-                    result.success(null)
-                }
                 "seekTo" -> {
                     val positionMs = call.argument<Number>("positionMs")?.toLong() ?: 0L
                     stage5TransportManager.seekTo(positionMs)
@@ -485,19 +224,6 @@ class MainActivity: FlutterActivity() {
                 "settleAfterScrub" -> {
                     val positionMs = call.argument<Number>("positionMs")?.toLong() ?: 0L
                     stage5TransportManager.settleAfterScrub(positionMs)
-                    result.success(null)
-                }
-                "getScrubDiagnostics" -> {
-                    result.success(
-                        mapOf(
-                            "transport" to stage5TransportManager.getScrubDiagnostics(),
-                            "nativeEngine" to stage5NativeScrubEngine.diagnosticsSnapshot(),
-                        ),
-                    )
-                }
-                "resetScrubDiagnostics" -> {
-                    stage5TransportManager.resetScrubDiagnostics()
-                    stage5NativeScrubEngine.resetDiagnostics()
                     result.success(null)
                 }
                 else -> result.notImplemented()
@@ -712,15 +438,8 @@ class MainActivity: FlutterActivity() {
         if (::stage5NativeScrubEngine.isInitialized) {
             stage5NativeScrubEngine.release()
         }
-        if (::stage5ScrubProxyManager.isInitialized) {
-            stage5ScrubProxyManager.release()
-        }
-        if (::stage5ScrubPreparationManager.isInitialized) {
-            stage5ScrubPreparationManager.release()
-        }
         mediaQueryExecutor.shutdownNow()
         mediaThumbnailExecutor.shutdownNow()
-        scrubPreparationExecutor.shutdownNow()
         super.onDestroy()
     }
 

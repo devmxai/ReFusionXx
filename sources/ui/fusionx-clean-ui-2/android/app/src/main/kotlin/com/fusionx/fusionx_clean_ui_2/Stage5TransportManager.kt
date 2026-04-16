@@ -75,7 +75,6 @@ class Stage5TransportManager(context: Context) {
     private var activeTimelineRunIndex = 0
     private var activeTimelineSegmentIndex = 0
     private var lastAppliedPlaybackRate: Float? = null
-    private var isActiveScrubSession = false
     private var isScrubSettling = false
     private var scrubSettleTargetPositionMs: Long? = null
     private var scrubSettlePositionSatisfied = false
@@ -85,12 +84,12 @@ class Stage5TransportManager(context: Context) {
     private val playerObservers = LinkedHashSet<(Player) -> Unit>()
     private val previewRetentionObservers = LinkedHashSet<(Boolean) -> Unit>()
     private val previewOutputSuppressionObservers = LinkedHashSet<(Boolean) -> Unit>()
+    private val scrubSettlingObservers = LinkedHashSet<(Boolean) -> Unit>()
     private val audioSignatureCache = HashMap<String, AudioSignature?>()
     private val thumbnailCache =
         object : LruCache<String, ByteArray>(12 * 1024 * 1024) {
             override fun sizeOf(key: String, value: ByteArray): Int = value.size
         }
-    private val scrubDiagnostics = ScrubDiagnostics()
     private data class TimelineSegment(
         val clipId: String,
         val sourceUri: Uri,
@@ -118,34 +117,6 @@ class Stage5TransportManager(context: Context) {
         val channelCount: Int?,
         val codecString: String?,
     )
-
-    private data class ScrubDiagnostics(
-        var scrubSessionCount: Long = 0L,
-        var activeScrubSeekCount: Long = 0L,
-        var settleSeekCount: Long = 0L,
-        var settleRequestCount: Long = 0L,
-        var settleRenderedFirstFrameCount: Long = 0L,
-        var forcedSettleCompletionCount: Long = 0L,
-    ) {
-        fun toMap(): Map<String, Any> =
-            mapOf(
-                "scrubSessionCount" to scrubSessionCount,
-                "activeScrubSeekCount" to activeScrubSeekCount,
-                "settleSeekCount" to settleSeekCount,
-                "settleRequestCount" to settleRequestCount,
-                "settleRenderedFirstFrameCount" to settleRenderedFirstFrameCount,
-                "forcedSettleCompletionCount" to forcedSettleCompletionCount,
-            )
-
-        fun reset() {
-            scrubSessionCount = 0L
-            activeScrubSeekCount = 0L
-            settleSeekCount = 0L
-            settleRequestCount = 0L
-            settleRenderedFirstFrameCount = 0L
-            forcedSettleCompletionCount = 0L
-        }
-    }
 
     private data class TimelineRun(
         val sourceUri: Uri,
@@ -192,7 +163,6 @@ class Stage5TransportManager(context: Context) {
                 if (!isScrubSettling) {
                     return
                 }
-                scrubDiagnostics.forcedSettleCompletionCount += 1
                 scrubSettlePositionSatisfied = true
                 scrubSettleRenderedFirstFrameSeen = true
                 finishScrubSettle(forcePositionUpdate = true)
@@ -224,7 +194,6 @@ class Stage5TransportManager(context: Context) {
             override fun onRenderedFirstFrame() {
                 if (isScrubSettling) {
                     scrubSettleRenderedFirstFrameSeen = true
-                    scrubDiagnostics.settleRenderedFirstFrameCount += 1
                     maybeFinishScrubSettle()
                 }
                 emitState()
@@ -269,7 +238,6 @@ class Stage5TransportManager(context: Context) {
         latestError = null
         lastRequestedPositionMs = 0L
         lastAppliedPlaybackRate = null
-        isActiveScrubSession = false
         finishScrubSettle(forcePositionUpdate = false)
         emitPreviewRetentionPolicy()
         emitState()
@@ -305,7 +273,6 @@ class Stage5TransportManager(context: Context) {
         exo.seekTo(0)
         lastRequestedPositionMs = 0L
         lastAppliedPlaybackRate = null
-        isActiveScrubSession = false
         finishScrubSettle(forcePositionUpdate = false)
         emitPreviewRetentionPolicy()
         exo.prepare()
@@ -458,7 +425,6 @@ class Stage5TransportManager(context: Context) {
         exo.seekTo(0)
         lastRequestedPositionMs = 0L
         lastAppliedPlaybackRate = null
-        isActiveScrubSession = false
         finishScrubSettle(forcePositionUpdate = false)
         emitPreviewRetentionPolicy()
         exo.prepare()
@@ -527,7 +493,6 @@ class Stage5TransportManager(context: Context) {
             }
 
         activePlayer?.pause()
-        isActiveScrubSession = false
         finishScrubSettle(forcePositionUpdate = false)
         resetTimelineProjectionForStructuralCommit()
 
@@ -581,7 +546,6 @@ class Stage5TransportManager(context: Context) {
 
     fun play() {
         latestError = null
-        isActiveScrubSession = false
         if (isScrubSettling) {
             finishScrubSettle(forcePositionUpdate = false)
         }
@@ -601,42 +565,18 @@ class Stage5TransportManager(context: Context) {
     fun seekTo(positionMs: Long) {
         val safePositionMs = positionMs.coerceAtLeast(0L)
         lastRequestedPositionMs = safePositionMs
-        isActiveScrubSession = false
         finishScrubSettle(forcePositionUpdate = false)
         performResolvedSeek(safePositionMs)
         emitState()
     }
 
-    fun beginScrubSession() {
-        isActiveScrubSession = true
-        scrubDiagnostics.scrubSessionCount += 1
-    }
-
     fun settleAfterScrub(positionMs: Long) {
         val safePositionMs = positionMs.coerceAtLeast(0L)
         lastRequestedPositionMs = safePositionMs
-        isActiveScrubSession = false
-        scrubDiagnostics.settleRequestCount += 1
         player.pause()
         beginExactScrubSettle(safePositionMs)
         emitPreviewRetentionPolicy()
         emitState()
-    }
-
-    fun getScrubDiagnostics(): Map<String, Any?> =
-        mapOf(
-            "transport" to scrubDiagnostics.toMap(),
-            "isActiveScrubSession" to isActiveScrubSession,
-            "isScrubSettling" to isScrubSettling,
-            "scrubSettlePositionSatisfied" to scrubSettlePositionSatisfied,
-            "scrubSettleRenderedFirstFrameSeen" to scrubSettleRenderedFirstFrameSeen,
-        )
-
-    fun resetScrubDiagnostics() {
-        scrubDiagnostics.reset()
-        isActiveScrubSession = false
-        scrubSettlePositionSatisfied = false
-        scrubSettleRenderedFirstFrameSeen = false
     }
 
     fun addPlayerObserver(observer: (Player) -> Unit) {
@@ -664,6 +604,15 @@ class Stage5TransportManager(context: Context) {
 
     fun removePreviewOutputSuppressionObserver(observer: (Boolean) -> Unit) {
         previewOutputSuppressionObservers.remove(observer)
+    }
+
+    fun addScrubSettlingObserver(observer: (Boolean) -> Unit) {
+        scrubSettlingObservers.add(observer)
+        observer(isScrubSettling)
+    }
+
+    fun removeScrubSettlingObserver(observer: (Boolean) -> Unit) {
+        scrubSettlingObservers.remove(observer)
     }
 
     fun suspendPreviewOutputForExport() {
@@ -759,6 +708,7 @@ class Stage5TransportManager(context: Context) {
             scrubSettlePositionSatisfied = true
             scrubSettleRenderedFirstFrameSeen = true
             (activePlayer as? ExoPlayer)?.setSeekParameters(SeekParameters.EXACT)
+            emitScrubSettlingState()
             emitState()
             return
         }
@@ -770,6 +720,7 @@ class Stage5TransportManager(context: Context) {
         mainHandler.postDelayed(scrubSettleWatchdog, SCRUB_SETTLE_WATCHDOG_MS)
         (activePlayer as? ExoPlayer)?.setSeekParameters(SeekParameters.EXACT)
         performResolvedSeek(safePositionMs)
+        emitScrubSettlingState()
     }
 
     private fun recoverFromPlaybackError() {
@@ -778,7 +729,6 @@ class Stage5TransportManager(context: Context) {
         }
         val recoverPositionMs =
             safeDisplayableEndPosition(lastRequestedPositionMs.coerceIn(0L, timelineDurationMs))
-        isActiveScrubSession = false
         finishScrubSettle(forcePositionUpdate = false)
         exoPlayer?.let { currentPlayer ->
             currentPlayer.removeListener(playerListener)
@@ -892,7 +842,6 @@ class Stage5TransportManager(context: Context) {
                 val seekPoint = resolveTimelineSeekPoint(globalPositionMs = clampedPositionMs)
                 activeTimelineSegmentIndex = seekPoint.segmentIndex
                 activeTimelineRunIndex = 0
-                recordSeekInvocation()
                 player.seekTo(clampedPositionMs)
                 return
             }
@@ -907,15 +856,12 @@ class Stage5TransportManager(context: Context) {
             activeTimelineRunIndex = seekPoint.itemIndex
             if (isSingleSourceTimelineMode()) {
                 applyPlaybackRateForSegmentIndex(seekPoint.segmentIndex)
-                recordSeekInvocation()
                 player.seekTo(seekPoint.sourcePositionMs)
             } else {
                 applyPlaybackRateForSegmentIndex(seekPoint.segmentIndex)
-                recordSeekInvocation()
                 player.seekTo(seekPoint.itemIndex, seekPoint.itemPositionMs)
             }
         } else {
-            recordSeekInvocation()
             player.seekTo(safePositionMs)
         }
     }
@@ -982,16 +928,9 @@ class Stage5TransportManager(context: Context) {
         scrubSettleTargetPositionMs = null
         scrubSettlePositionSatisfied = false
         scrubSettleRenderedFirstFrameSeen = false
+        emitScrubSettlingState()
         if (forcePositionUpdate && hadPendingSettle) {
             emitState()
-        }
-    }
-
-    private fun recordSeekInvocation() {
-        if (isActiveScrubSession) {
-            scrubDiagnostics.activeScrubSeekCount += 1
-        } else if (isScrubSettling) {
-            scrubDiagnostics.settleSeekCount += 1
         }
     }
 
@@ -1386,6 +1325,12 @@ class Stage5TransportManager(context: Context) {
     private fun emitPreviewOutputSuppressionState() {
         previewOutputSuppressionObservers.forEach { observer ->
             observer(isPreviewOutputSuppressed)
+        }
+    }
+
+    private fun emitScrubSettlingState() {
+        scrubSettlingObservers.forEach { observer ->
+            observer(isScrubSettling)
         }
     }
 
