@@ -77,6 +77,52 @@ class Stage5TransportState {
 
 enum Stage5ScrubFrameStoreState { idle, preparing, ready, failed }
 
+enum Stage5ScrubProxyState { idle, preparing, ready, failed }
+
+@immutable
+class Stage5ScrubProxyStatus {
+  const Stage5ScrubProxyStatus({
+    required this.assetId,
+    required this.sourceUri,
+    required this.state,
+    this.previewUri,
+    this.targetWidth,
+    this.targetHeight,
+    this.error,
+  });
+
+  factory Stage5ScrubProxyStatus.fromMap(Map<String, dynamic> map) {
+    final stateValue = map['state']?.toString();
+    return Stage5ScrubProxyStatus(
+      assetId: map['assetId']?.toString() ?? '',
+      sourceUri: map['sourceUri']?.toString() ?? '',
+      state: switch (stateValue) {
+        'preparing' => Stage5ScrubProxyState.preparing,
+        'ready' => Stage5ScrubProxyState.ready,
+        'failed' => Stage5ScrubProxyState.failed,
+        _ => Stage5ScrubProxyState.idle,
+      },
+      previewUri: map['previewUri']?.toString(),
+      targetWidth: _asInt(map['targetWidth']),
+      targetHeight: _asInt(map['targetHeight']),
+      error: map['error']?.toString(),
+    );
+  }
+
+  final String assetId;
+  final String sourceUri;
+  final Stage5ScrubProxyState state;
+  final String? previewUri;
+  final int? targetWidth;
+  final int? targetHeight;
+  final String? error;
+
+  bool get isReady =>
+      state == Stage5ScrubProxyState.ready &&
+      previewUri != null &&
+      previewUri!.isNotEmpty;
+}
+
 @immutable
 class Stage5ScrubFrameStoreStatus {
   const Stage5ScrubFrameStoreStatus({
@@ -86,6 +132,15 @@ class Stage5ScrubFrameStoreStatus {
     required this.frameIntervalMs,
     required this.frameCount,
     required this.extractedFrameCount,
+    required this.overviewFrameIntervalMs,
+    required this.overviewFrameCount,
+    required this.overviewExtractedFrameCount,
+    required this.activeWindowFrameCount,
+    required this.activeWindowReadyFrameCount,
+    required this.isActiveWindowReady,
+    required this.hasRenderablePreview,
+    this.activeWindowStartMs,
+    this.activeWindowEndMs,
     this.storageTier,
     this.error,
   });
@@ -104,6 +159,17 @@ class Stage5ScrubFrameStoreStatus {
       frameIntervalMs: _asInt(map['frameIntervalMs']) ?? 0,
       frameCount: _asInt(map['frameCount']) ?? 0,
       extractedFrameCount: _asInt(map['extractedFrameCount']) ?? 0,
+      overviewFrameIntervalMs: _asInt(map['overviewFrameIntervalMs']) ?? 0,
+      overviewFrameCount: _asInt(map['overviewFrameCount']) ?? 0,
+      overviewExtractedFrameCount:
+          _asInt(map['overviewExtractedFrameCount']) ?? 0,
+      activeWindowStartMs: _asInt(map['activeWindowStartMs']),
+      activeWindowEndMs: _asInt(map['activeWindowEndMs']),
+      activeWindowFrameCount: _asInt(map['activeWindowFrameCount']) ?? 0,
+      activeWindowReadyFrameCount:
+          _asInt(map['activeWindowReadyFrameCount']) ?? 0,
+      isActiveWindowReady: map['isActiveWindowReady'] == true,
+      hasRenderablePreview: map['hasRenderablePreview'] == true,
       storageTier: map['storageTier']?.toString(),
       error: map['error']?.toString(),
     );
@@ -115,6 +181,15 @@ class Stage5ScrubFrameStoreStatus {
   final int frameIntervalMs;
   final int frameCount;
   final int extractedFrameCount;
+  final int overviewFrameIntervalMs;
+  final int overviewFrameCount;
+  final int overviewExtractedFrameCount;
+  final int? activeWindowStartMs;
+  final int? activeWindowEndMs;
+  final int activeWindowFrameCount;
+  final int activeWindowReadyFrameCount;
+  final bool isActiveWindowReady;
+  final bool hasRenderablePreview;
   final String? storageTier;
   final String? error;
 
@@ -128,6 +203,8 @@ class Stage5NativeTransportController extends ChangeNotifier {
   static const String eventChannelName =
       'com.refusion.app/stage5_transport_events';
   static const String previewViewType = 'com.refusion.app/stage5_preview';
+  static const String timelineScrubViewType =
+      'com.refusion.app/stage5_timeline_scrub';
   static const int _defaultScrubPreviewTextureWidth = 480;
   static const int _defaultScrubPreviewTextureHeight = 854;
 
@@ -137,8 +214,6 @@ class Stage5NativeTransportController extends ChangeNotifier {
   Stage5TransportState _state = const Stage5TransportState();
   StreamSubscription<dynamic>? _eventsSubscription;
   bool _isInitializing = false;
-  bool _previewScrubDispatchInFlight = false;
-  int? _pendingPreviewScrubPositionMs;
   int? _scrubPreviewTextureId;
   bool _isScrubPreviewTextureVisible = false;
   Stage5TransportState get state => _state;
@@ -329,6 +404,7 @@ class Stage5NativeTransportController extends ChangeNotifier {
     int? sourceHeight,
     int targetWidth = 240,
     int targetHeight = 426,
+    int? initialPositionMs,
   }) async {
     if (!isPlatformSupported) {
       return null;
@@ -343,6 +419,7 @@ class Stage5NativeTransportController extends ChangeNotifier {
         'sourceHeight': sourceHeight,
         'targetWidth': targetWidth,
         'targetHeight': targetHeight,
+        'initialPositionMs': initialPositionMs,
       },
     );
     final normalized = _normalizeMap(result);
@@ -371,23 +448,27 @@ class Stage5NativeTransportController extends ChangeNotifier {
     return Stage5ScrubFrameStoreStatus.fromMap(normalized);
   }
 
-  Future<bool> hasScrubFrameCoverage({
+  Future<Stage5ScrubFrameStoreStatus?> requestScrubFrameWindow({
     required String assetId,
     required int positionMs,
     int radiusFrames = 25,
   }) async {
     if (!isPlatformSupported) {
-      return false;
+      return null;
     }
-    return await _methodChannel.invokeMethod<bool>(
-          'hasScrubFrameCoverage',
-          <String, dynamic>{
-            'assetId': assetId,
-            'positionMs': positionMs < 0 ? 0 : positionMs,
-            'radiusFrames': radiusFrames < 1 ? 1 : radiusFrames,
-          },
-        ) ??
-        false;
+    final result = await _methodChannel.invokeMethod<dynamic>(
+      'requestScrubFrameWindow',
+      <String, dynamic>{
+        'assetId': assetId,
+        'positionMs': positionMs < 0 ? 0 : positionMs,
+        'radiusFrames': radiusFrames < 1 ? 1 : radiusFrames,
+      },
+    );
+    final normalized = _normalizeMap(result);
+    if (normalized.isEmpty) {
+      return null;
+    }
+    return Stage5ScrubFrameStoreStatus.fromMap(normalized);
   }
 
   Future<int?> ensureScrubPreviewTexture({
@@ -441,7 +522,7 @@ class Stage5NativeTransportController extends ChangeNotifier {
     return rendered;
   }
 
-  Future<bool> renderScrubPreviewTextureFrame({
+  Future<bool> updateScrubPreviewTextureTarget({
     required String scrubStoreKey,
     required int positionMs,
     int targetWidth = _defaultScrubPreviewTextureWidth,
@@ -452,7 +533,7 @@ class Stage5NativeTransportController extends ChangeNotifier {
     }
     final rendered =
         await _methodChannel.invokeMethod<bool>(
-      'renderScrubPreviewTextureFrame',
+      'updateScrubPreviewTextureTarget',
       <String, dynamic>{
         'scrubStoreKey': scrubStoreKey,
         'positionMs': positionMs < 0 ? 0 : positionMs,
@@ -461,7 +542,9 @@ class Stage5NativeTransportController extends ChangeNotifier {
       },
     ) ??
             false;
-    if (rendered && !_isScrubPreviewTextureVisible) {
+    if (rendered &&
+        !_isScrubPreviewTextureVisible &&
+        _scrubPreviewTextureId != null) {
       _isScrubPreviewTextureVisible = true;
       notifyListeners();
     }
@@ -487,6 +570,50 @@ class Stage5NativeTransportController extends ChangeNotifier {
     if (hadTexture) {
       notifyListeners();
     }
+  }
+
+  Future<Stage5ScrubProxyStatus?> prepareScrubProxy({
+    required String assetId,
+    required String sourceUri,
+    required int durationMs,
+    int? sourceWidth,
+    int? sourceHeight,
+  }) async {
+    if (!isPlatformSupported) {
+      return null;
+    }
+    final result = await _methodChannel.invokeMethod<dynamic>(
+      'prepareScrubProxy',
+      <String, dynamic>{
+        'assetId': assetId,
+        'sourceUri': sourceUri,
+        'durationMs': durationMs < 0 ? 0 : durationMs,
+        'sourceWidth': sourceWidth,
+        'sourceHeight': sourceHeight,
+      },
+    );
+    final normalized = _normalizeMap(result);
+    if (normalized.isEmpty) {
+      return null;
+    }
+    return Stage5ScrubProxyStatus.fromMap(normalized);
+  }
+
+  Future<Stage5ScrubProxyStatus?> getScrubProxyStatus({
+    required String assetId,
+  }) async {
+    if (!isPlatformSupported) {
+      return null;
+    }
+    final result = await _methodChannel.invokeMethod<dynamic>(
+      'getScrubProxyStatus',
+      <String, dynamic>{'assetId': assetId},
+    );
+    final normalized = _normalizeMap(result);
+    if (normalized.isEmpty) {
+      return null;
+    }
+    return Stage5ScrubProxyStatus.fromMap(normalized);
   }
 
   Future<void> endScrubPreviewTextureSession() async {
@@ -573,6 +700,10 @@ class Stage5NativeTransportController extends ChangeNotifier {
     await _invokeWithoutResult('pause');
   }
 
+  Future<void> beginScrubSession() async {
+    await _invokeWithoutResult('beginScrubSession');
+  }
+
   Future<void> seekToSeconds(double seconds) async {
     final clampedSeconds = seconds.isNaN || seconds.isInfinite
         ? 0.0
@@ -584,92 +715,40 @@ class Stage5NativeTransportController extends ChangeNotifier {
 
   Future<void> seekToPositionMs(int positionMs) async {
     final clampedPositionMs = positionMs < 0 ? 0 : positionMs;
-    _resetPreviewScrubDispatchState();
     await _invokeWithoutResult(
       'seekTo',
       <String, dynamic>{'positionMs': clampedPositionMs},
     );
   }
 
-  Future<void> previewScrubToPositionMs(int positionMs) async {
-    if (!isPlatformSupported || !_state.isScrubbing) {
-      return;
-    }
+  Future<void> settleAfterScrubPositionMs(int positionMs) async {
     final clampedPositionMs = positionMs < 0 ? 0 : positionMs;
-    _pendingPreviewScrubPositionMs = clampedPositionMs;
-    if (_previewScrubDispatchInFlight) {
-      return;
-    }
-    _previewScrubDispatchInFlight = true;
-    try {
-      while (_state.isScrubbing) {
-        final nextPositionMs = _pendingPreviewScrubPositionMs;
-        if (nextPositionMs == null) {
-          break;
-        }
-        _pendingPreviewScrubPositionMs = null;
-        await _invokeWithoutResult(
-          'previewScrubTo',
-          <String, dynamic>{'positionMs': nextPositionMs},
-        );
-      }
-    } finally {
-      _previewScrubDispatchInFlight = false;
-      if (_state.isScrubbing && _pendingPreviewScrubPositionMs != null) {
-        unawaited(
-          previewScrubToPositionMs(_pendingPreviewScrubPositionMs!),
-        );
-      }
-    }
+    await _invokeWithoutResult(
+      'settleAfterScrub',
+      <String, dynamic>{'positionMs': clampedPositionMs},
+    );
   }
 
-  Future<void> setScrubbing(
-    bool isScrubbing, {
-    double? finalSeconds,
-    int? finalPositionMs,
-  }) async {
-    final wasScrubbing = _state.isScrubbing;
-    final int? resolvedFinalPositionMs;
-    if (finalPositionMs != null) {
-      resolvedFinalPositionMs = finalPositionMs < 0 ? 0 : finalPositionMs;
-    } else if (finalSeconds == null ||
-        finalSeconds.isNaN ||
-        finalSeconds.isInfinite) {
-      resolvedFinalPositionMs = null;
-    } else {
-      final clampedSeconds = finalSeconds.clamp(
-        0.0,
-        durationSeconds > 0 ? durationSeconds : finalSeconds,
-      );
-      resolvedFinalPositionMs = (clampedSeconds * 1000).round();
+  Future<Map<String, dynamic>> getScrubDiagnostics() async {
+    if (!isPlatformSupported) {
+      return const <String, dynamic>{};
     }
-    _resetPreviewScrubDispatchState();
-    _state = _state.copyWith(
-      isScrubbing: isScrubbing,
-      isScrubSettling: !isScrubbing && wasScrubbing,
-    );
-    await _invokeWithoutResult(
-      'setScrubbing',
-      <String, dynamic>{
-        'isScrubbing': isScrubbing,
-        if (resolvedFinalPositionMs != null)
-          'finalPositionMs': resolvedFinalPositionMs,
-      },
-    );
+    final result =
+        await _methodChannel.invokeMethod<dynamic>('getScrubDiagnostics');
+    return _normalizeMap(result);
+  }
+
+  Future<void> resetScrubDiagnostics() async {
+    await _invokeWithoutResult('resetScrubDiagnostics');
   }
 
   @override
   void dispose() {
-    _resetPreviewScrubDispatchState();
     unawaited(endScrubPreviewTextureSession());
     unawaited(disposeScrubPreviewTexture());
     _eventsSubscription?.cancel();
     _eventsSubscription = null;
     super.dispose();
-  }
-
-  void _resetPreviewScrubDispatchState() {
-    _pendingPreviewScrubPositionMs = null;
   }
 
   Future<void> _invokeWithoutResult(

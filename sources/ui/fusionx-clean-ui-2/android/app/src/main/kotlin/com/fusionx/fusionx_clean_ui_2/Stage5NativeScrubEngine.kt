@@ -3,25 +3,87 @@ package com.refusion.app
 import android.graphics.Bitmap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import kotlin.math.abs
+
+data class Stage5NativeScrubSourceDescriptor(
+    val clipId: String,
+    val assetId: String,
+    val scrubStoreKey: String,
+    val timelineStartMs: Long,
+    val timelineEndMs: Long,
+    val durationMs: Long,
+    val sourceStartMs: Long,
+    val sourceDurationMs: Long,
+    val playbackRate: Double,
+) {
+    fun containsPosition(positionMs: Long): Boolean =
+        positionMs >= timelineStartMs && positionMs < timelineEndMs
+
+    fun resolveSourcePositionMs(timelinePositionMs: Long): Long {
+        val localTimelineOffsetMs =
+            (timelinePositionMs - timelineStartMs).coerceIn(0L, durationMs)
+        val sourceOffsetMs = (localTimelineOffsetMs * playbackRate).toLong()
+        return (sourceStartMs + sourceOffsetMs)
+            .coerceIn(sourceStartMs, sourceStartMs + sourceDurationMs)
+    }
+}
 
 class Stage5NativeScrubEngine(
     private val scrubPreparationManager: Stage5ScrubPreparationManager,
 ) {
     companion object {
         private const val PRIORITY_EXTRACTION_RADIUS_FRAMES = 25
-        private const val NEAREST_READY_MAX_DISTANCE = 2
         private const val RENDER_LOOP_RETRY_DELAY_MS = 8L
+        private const val SESSION_BOOTSTRAP_RENDER_BUDGET_MS = 32L
+        private const val SESSION_BOOTSTRAP_RENDER_POLL_MS = 4L
     }
 
     private val renderHosts = LinkedHashSet<Stage5ScrubRenderHost>()
     private val renderExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private var activeStoreKey: String? = null
-    private var latestFrameIndex: Int? = null
+    private var latestPresentationToken: String? = null
     private var latestTargetPositionMs: Long? = null
+    private var latestPresentedFrameTimeMs: Long? = null
+    private var latestPresentedFrameSource: Stage5ResolvedScrubFrameSource? = null
     private var lastExtractionRequestStoreKey: String? = null
     private var lastExtractionRequestFrameIndex: Int? = null
     private var targetGeneration: Long = 0
     private var renderLoopRunning = false
+    private var configuredTargetWidth: Int = 480
+    private var configuredTargetHeight: Int = 854
+    private var textureSessionId: Long? = null
+    private var nextTextureSessionId: Long = 1L
+    private var configuredPreviewSources: List<Stage5NativeScrubSourceDescriptor> =
+        emptyList()
+    private val diagnostics = Diagnostics()
+
+    private data class Diagnostics(
+        var beginSessionCount: Long = 0L,
+        var updateTargetCount: Long = 0L,
+        var renderPassCount: Long = 0L,
+        var exactFrameHitCount: Long = 0L,
+        var nearestReadyFallbackCount: Long = 0L,
+        var frameMissCount: Long = 0L,
+    ) {
+        fun toMap(): Map<String, Any> =
+            mapOf(
+                "beginSessionCount" to beginSessionCount,
+                "updateTargetCount" to updateTargetCount,
+                "renderPassCount" to renderPassCount,
+                "exactFrameHitCount" to exactFrameHitCount,
+                "nearestReadyFallbackCount" to nearestReadyFallbackCount,
+                "frameMissCount" to frameMissCount,
+            )
+
+        fun reset() {
+            beginSessionCount = 0L
+            updateTargetCount = 0L
+            renderPassCount = 0L
+            exactFrameHitCount = 0L
+            nearestReadyFallbackCount = 0L
+            frameMissCount = 0L
+        }
+    }
 
     @Synchronized
     fun registerRenderHost(host: Stage5ScrubRenderHost) {
@@ -38,14 +100,45 @@ class Stage5NativeScrubEngine(
     }
 
     @Synchronized
+    fun configurePreviewSources(
+        previewSources: List<Stage5NativeScrubSourceDescriptor>,
+        targetWidth: Int,
+        targetHeight: Int,
+    ) {
+        configuredPreviewSources =
+            previewSources.sortedBy(Stage5NativeScrubSourceDescriptor::timelineStartMs)
+        configuredTargetWidth = targetWidth
+        configuredTargetHeight = targetHeight
+    }
+
+    @Synchronized
     @Suppress("UNUSED_PARAMETER")
     fun ensureTexture(
         targetWidth: Int,
         targetHeight: Int,
-    ): Long? = null
+    ): Long? {
+        configuredTargetWidth = targetWidth
+        configuredTargetHeight = targetHeight
+        if (textureSessionId == null) {
+            textureSessionId = nextTextureSessionId++
+        }
+        return textureSessionId
+    }
 
     @Synchronized
-    fun currentTextureId(): Long? = null
+    fun currentTextureId(): Long? = textureSessionId
+
+    @Synchronized
+    fun scrubTimelinePosition(positionMs: Long): Boolean {
+        val descriptor = resolveDescriptorForPosition(positionMs) ?: return false
+        val sourcePositionMs = descriptor.resolveSourcePositionMs(positionMs)
+        return updateTarget(
+            scrubStoreKey = descriptor.scrubStoreKey,
+            positionMs = sourcePositionMs,
+            targetWidth = configuredTargetWidth,
+            targetHeight = configuredTargetHeight,
+        )
+    }
 
     @Synchronized
     @Suppress("UNUSED_PARAMETER")
@@ -55,9 +148,12 @@ class Stage5NativeScrubEngine(
         targetWidth: Int,
         targetHeight: Int,
     ): Boolean {
+        diagnostics.beginSessionCount += 1
         activeStoreKey = scrubStoreKey
-        latestFrameIndex = null
+        latestPresentationToken = null
         latestTargetPositionMs = positionMs
+        latestPresentedFrameTimeMs = null
+        latestPresentedFrameSource = null
         lastExtractionRequestStoreKey = null
         lastExtractionRequestFrameIndex = null
         targetGeneration += 1
@@ -65,8 +161,13 @@ class Stage5NativeScrubEngine(
             scrubStoreKey = scrubStoreKey,
             positionMs = positionMs,
         )
+        val rendered =
+            attemptBootstrapRender(
+                scrubStoreKey = scrubStoreKey,
+                positionMs = positionMs,
+            )
         scheduleRenderLoopLocked()
-        return latestFrameIndex != null
+        return rendered
     }
 
     @Synchronized
@@ -77,6 +178,7 @@ class Stage5NativeScrubEngine(
         targetWidth: Int,
         targetHeight: Int,
     ): Boolean {
+        diagnostics.updateTargetCount += 1
         if (activeStoreKey != scrubStoreKey) {
             return beginSession(
                 scrubStoreKey = scrubStoreKey,
@@ -91,15 +193,22 @@ class Stage5NativeScrubEngine(
             scrubStoreKey = scrubStoreKey,
             positionMs = positionMs,
         )
+        val rendered =
+            attemptImmediateRender(
+                scrubStoreKey = scrubStoreKey,
+                positionMs = positionMs,
+            )
         scheduleRenderLoopLocked()
-        return latestFrameIndex != null
+        return rendered
     }
 
     @Synchronized
     fun endSession() {
         activeStoreKey = null
-        latestFrameIndex = null
+        latestPresentationToken = null
         latestTargetPositionMs = null
+        latestPresentedFrameTimeMs = null
+        latestPresentedFrameSource = null
         lastExtractionRequestStoreKey = null
         lastExtractionRequestFrameIndex = null
         targetGeneration += 1
@@ -118,6 +227,7 @@ class Stage5NativeScrubEngine(
     @Synchronized
     fun disposeTexture() {
         endSession()
+        textureSessionId = null
     }
 
     @Synchronized
@@ -125,6 +235,21 @@ class Stage5NativeScrubEngine(
         endSession()
         renderHosts.clear()
         renderExecutor.shutdownNow()
+    }
+
+    @Synchronized
+    fun diagnosticsSnapshot(): Map<String, Any?> =
+        mapOf(
+            "nativeEngine" to diagnostics.toMap(),
+            "activeStoreKey" to activeStoreKey,
+            "latestPresentationToken" to latestPresentationToken,
+            "latestTargetPositionMs" to latestTargetPositionMs,
+            "configuredPreviewSourceCount" to configuredPreviewSources.size,
+        )
+
+    @Synchronized
+    fun resetDiagnostics() {
+        diagnostics.reset()
     }
 
     @Synchronized
@@ -157,6 +282,7 @@ class Stage5NativeScrubEngine(
                 performRenderPass(
                     scrubStoreKey = snapshot.scrubStoreKey,
                     positionMs = snapshot.positionMs,
+                    generation = snapshot.generation,
                 )
 
             synchronized(this) {
@@ -186,52 +312,117 @@ class Stage5NativeScrubEngine(
     private fun performRenderPass(
         scrubStoreKey: String,
         positionMs: Long,
+        generation: Long,
     ): Boolean {
-        val store = scrubPreparationManager.getStore(scrubStoreKey) ?: return true
-        val targetFrameIndex = store.resolveFrameIndex(positionMs)
-        val exactFrameReady = store.hasFrame(targetFrameIndex)
-        val resolvedFrameIndex =
-            if (exactFrameReady) {
-                targetFrameIndex
-            } else {
-                store.nearestReadyFrameIndex(
-                    targetIndex = targetFrameIndex,
-                    maxDistance = NEAREST_READY_MAX_DISTANCE,
-                )
+        diagnostics.renderPassCount += 1
+        val allowApproximateFrames =
+            synchronized(this) {
+                latestPresentationToken == null
             }
-        if (resolvedFrameIndex != null) {
+        val resolvedFrame =
+            scrubPreparationManager.resolvePreviewFrame(
+                assetId = scrubStoreKey,
+                positionMs = positionMs,
+                allowApproximateFrames = allowApproximateFrames,
+            )
+        when (resolvedFrame?.source) {
+            Stage5ResolvedScrubFrameSource.DENSE_EXACT ->
+                diagnostics.exactFrameHitCount += 1
+            Stage5ResolvedScrubFrameSource.OVERVIEW_EXACT,
+            Stage5ResolvedScrubFrameSource.DENSE_NEAREST,
+            Stage5ResolvedScrubFrameSource.OVERVIEW_NEAREST ->
+                diagnostics.nearestReadyFallbackCount += 1
+            null -> diagnostics.frameMissCount += 1
+        }
+        if (resolvedFrame != null) {
             presentFrame(
                 scrubStoreKey = scrubStoreKey,
-                resolvedFrameIndex = resolvedFrameIndex,
+                targetPositionMs = positionMs,
+                generation = generation,
+                resolvedFrame = resolvedFrame,
             )
         }
-        return !exactFrameReady
+        return resolvedFrame?.source != Stage5ResolvedScrubFrameSource.DENSE_EXACT
     }
 
-    private fun presentFrame(
+    private fun attemptBootstrapRender(
         scrubStoreKey: String,
-        resolvedFrameIndex: Int,
+        positionMs: Long,
     ): Boolean {
-        val store =
+        val deadline = System.currentTimeMillis() + SESSION_BOOTSTRAP_RENDER_BUDGET_MS
+        do {
+            attemptImmediateRender(
+                scrubStoreKey = scrubStoreKey,
+                positionMs = positionMs,
+            )
             synchronized(this) {
                 if (activeStoreKey != scrubStoreKey) {
                     return false
                 }
-                if (latestFrameIndex == resolvedFrameIndex) {
+                if (latestPresentationToken != null) {
                     return true
                 }
-                scrubPreparationManager.getStore(scrubStoreKey)
-            } ?: return false
-        val bitmap = store.getFrameBitmap(resolvedFrameIndex) ?: return false
+            }
+            if (System.currentTimeMillis() >= deadline) {
+                break
+            }
+            Thread.sleep(SESSION_BOOTSTRAP_RENDER_POLL_MS)
+        } while (true)
+        synchronized(this) {
+            return activeStoreKey == scrubStoreKey && latestPresentationToken != null
+        }
+    }
+
+    private fun attemptImmediateRender(
+        scrubStoreKey: String,
+        positionMs: Long,
+    ): Boolean {
+        performRenderPass(
+            scrubStoreKey = scrubStoreKey,
+            positionMs = positionMs,
+            generation = synchronized(this) { targetGeneration },
+        )
+        synchronized(this) {
+            return activeStoreKey == scrubStoreKey && latestPresentationToken != null
+        }
+    }
+
+    private fun presentFrame(
+        scrubStoreKey: String,
+        targetPositionMs: Long,
+        generation: Long,
+        resolvedFrame: Stage5ResolvedScrubFrame,
+    ): Boolean {
+        val bitmap = resolvedFrame.bitmap
         val hostsToRender: List<Stage5ScrubRenderHost>
+        val candidateDistanceMs = abs(resolvedFrame.frameTimeMs - targetPositionMs)
         synchronized(this) {
             if (activeStoreKey != scrubStoreKey) {
                 return false
             }
-            if (latestFrameIndex == resolvedFrameIndex) {
+            if (generation != targetGeneration) {
+                return false
+            }
+            if (latestPresentationToken == resolvedFrame.presentationToken) {
                 return true
             }
-            latestFrameIndex = resolvedFrameIndex
+            val latestFrameTimeMs = latestPresentedFrameTimeMs
+            if (latestFrameTimeMs != null) {
+                val displayedDistanceMs = abs(latestFrameTimeMs - targetPositionMs)
+                if (candidateDistanceMs > displayedDistanceMs) {
+                    return false
+                }
+                if (candidateDistanceMs == displayedDistanceMs) {
+                    val latestSourceRank =
+                        latestPresentedFrameSource?.let(::resolvedFrameSourceRank) ?: Int.MAX_VALUE
+                    if (resolvedFrameSourceRank(resolvedFrame.source) >= latestSourceRank) {
+                        return false
+                    }
+                }
+            }
+            latestPresentationToken = resolvedFrame.presentationToken
+            latestPresentedFrameTimeMs = resolvedFrame.frameTimeMs
+            latestPresentedFrameSource = resolvedFrame.source
             hostsToRender = renderHosts.toList()
         }
         hostsToRender.forEach { host ->
@@ -263,10 +454,40 @@ class Stage5NativeScrubEngine(
 
     private fun resolveLatestBitmap(): Bitmap? {
         val storeKey = activeStoreKey ?: return null
-        val frameIndex = latestFrameIndex ?: return null
-        val store = scrubPreparationManager.getStore(storeKey) ?: return null
-        return store.getFrameBitmap(frameIndex)
+        val positionMs = latestTargetPositionMs ?: return null
+        return scrubPreparationManager.resolvePreviewFrame(
+            assetId = storeKey,
+            positionMs = positionMs,
+            allowApproximateFrames = latestPresentationToken == null,
+        )?.bitmap
     }
+
+    private fun resolveDescriptorForPosition(
+        positionMs: Long,
+    ): Stage5NativeScrubSourceDescriptor? {
+        val previewSources = configuredPreviewSources
+        if (previewSources.isEmpty()) {
+            return null
+        }
+        previewSources.firstOrNull { descriptor ->
+            descriptor.containsPosition(positionMs)
+        }?.let { return it }
+        return previewSources.minByOrNull { descriptor ->
+            when {
+                positionMs < descriptor.timelineStartMs ->
+                    descriptor.timelineStartMs - positionMs
+                else -> positionMs - descriptor.timelineEndMs
+            }
+        }
+    }
+
+    private fun resolvedFrameSourceRank(source: Stage5ResolvedScrubFrameSource): Int =
+        when (source) {
+            Stage5ResolvedScrubFrameSource.DENSE_EXACT -> 0
+            Stage5ResolvedScrubFrameSource.DENSE_NEAREST -> 1
+            Stage5ResolvedScrubFrameSource.OVERVIEW_EXACT -> 2
+            Stage5ResolvedScrubFrameSource.OVERVIEW_NEAREST -> 3
+        }
 
     private data class RenderSnapshot(
         val scrubStoreKey: String,

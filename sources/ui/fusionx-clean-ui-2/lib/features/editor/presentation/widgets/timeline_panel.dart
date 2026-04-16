@@ -28,6 +28,59 @@ typedef TimelineBoundaryTransitionTapCallback = void Function(
   TimelineClipData leftClip,
   TimelineClipData rightClip,
 );
+typedef TimelineScrubSurfaceBuilder = Widget Function(
+    TimelineScrubSurfaceConfig config);
+
+@immutable
+class TimelineScrubViewportRegion {
+  const TimelineScrubViewportRegion({
+    required this.left,
+    required this.top,
+    required this.width,
+    required this.height,
+  });
+
+  final double left;
+  final double top;
+  final double width;
+  final double height;
+
+  bool get isEmpty => width <= 0 || height <= 0;
+
+  Map<String, Object> toMap() {
+    return <String, Object>{
+      'left': left,
+      'top': top,
+      'width': width,
+      'height': height,
+    };
+  }
+}
+
+@immutable
+class TimelineScrubSurfaceConfig {
+  const TimelineScrubSurfaceConfig({
+    required this.currentTime,
+    required this.timelineDurationTime,
+    required this.timelineOffsetTime,
+    required this.secondsWidth,
+    required this.onScrubStart,
+    required this.onScrubTimeChanged,
+    required this.onScrubEnd,
+    this.regions = const <TimelineScrubViewportRegion>[],
+    this.onTap,
+  });
+
+  final TimelineTime currentTime;
+  final TimelineTime timelineDurationTime;
+  final TimelineTime timelineOffsetTime;
+  final double secondsWidth;
+  final VoidCallback onScrubStart;
+  final ValueChanged<TimelineTime> onScrubTimeChanged;
+  final ValueChanged<TimelineTime> onScrubEnd;
+  final List<TimelineScrubViewportRegion> regions;
+  final VoidCallback? onTap;
+}
 
 class _TimelineZoomCanonicalProfile {
   const _TimelineZoomCanonicalProfile._();
@@ -392,7 +445,7 @@ class TimelinePanel extends StatefulWidget {
     required this.timelineDurationTime,
     required this.isPlaying,
     required this.selectedClipId,
-    required this.onTimeChanged,
+    required this.onScrubTimeChanged,
     required this.onClipSelected,
     this.onClipDoubleTap,
     this.onClipReorder,
@@ -416,6 +469,7 @@ class TimelinePanel extends StatefulWidget {
     this.animateTrackKinds = const <TimelineTrackKind>{
       TimelineTrackKind.text,
     },
+    this.scrubSurfaceBuilder,
   });
 
   final bool embedded;
@@ -427,7 +481,7 @@ class TimelinePanel extends StatefulWidget {
   final TimelineTime timelineDurationTime;
   final bool isPlaying;
   final String? selectedClipId;
-  final ValueChanged<TimelineTime> onTimeChanged;
+  final ValueChanged<TimelineTime> onScrubTimeChanged;
   final ValueChanged<String> onClipSelected;
   final ValueChanged<String>? onClipDoubleTap;
   final TimelineClipReorderCallback? onClipReorder;
@@ -449,6 +503,7 @@ class TimelinePanel extends StatefulWidget {
   final TimelineTime? timeReadoutTotalTime;
   final double initialSecondsWidth;
   final Set<TimelineTrackKind> animateTrackKinds;
+  final TimelineScrubSurfaceBuilder? scrubSurfaceBuilder;
 
   @override
   State<TimelinePanel> createState() => _TimelinePanelState();
@@ -488,9 +543,6 @@ class _TimelinePanelState extends State<TimelinePanel>
   static const double _scrubMomentumStopVelocityPxPerSecond = 42;
   static const double _scrubMomentumDecelerationPxPerSecondSq = 4200;
   static const bool _enableScrubMomentum = false;
-  static const double _scrubTapDeadzonePx = 3.0;
-  static const double _scrubHorizontalLockDistancePx = 4.0;
-  static const double _scrubHorizontalLockRatio = 1.25;
   static const double _reorderCardHeight = 40;
   static const double _reorderCardWidth = 40;
   static const double _reorderBaseSlotWidth = 6;
@@ -521,17 +573,8 @@ class _TimelinePanelState extends State<TimelinePanel>
   bool _isScrubInteractionActive = false;
   bool _isScrubMomentumActive = false;
   bool _deferScrubFinalizationToGestureEnd = false;
-  bool _scrubPointerHandledByDrag = false;
   int? _scrubPointerId;
-  Offset? _scrubPointerLastPosition;
   Offset? _scrubPointerDownPosition;
-  VelocityTracker? _scrubVelocityTracker;
-  double _scrubAccumulatedDx = 0;
-  double _scrubAccumulatedDy = 0;
-  TimelineTime? _pendingTime;
-  TimelineTime? _pendingImmediateTime;
-  Timer? _scrollDispatchTimer;
-  DateTime? _lastDispatchedAt;
   List<TimelineTrackData>? _reorderTracksSnapshot;
   int? _reorderTrackIndex;
   String? _draggedClipId;
@@ -566,16 +609,6 @@ class _TimelinePanelState extends State<TimelinePanel>
 
   VoidCallback? _playbackSampleListener;
   VoidCallback? _displayTimeListener;
-
-  Duration get _scrubDispatchInterval {
-    if (_secondsWidth <= 36) {
-      return const Duration(milliseconds: 16);
-    }
-    if (_secondsWidth <= 72) {
-      return const Duration(milliseconds: 12);
-    }
-    return const Duration(milliseconds: 8);
-  }
 
   double get _currentSeconds => _displayTimeNotifier.value.inSecondsDouble;
 
@@ -1195,7 +1228,6 @@ class _TimelinePanelState extends State<TimelinePanel>
     _playbackTicker.dispose();
     _scrubMomentumTicker.dispose();
     _reorderTransitionController.dispose();
-    _scrollDispatchTimer?.cancel();
     _reorderExitTimer?.cancel();
     _displayTimeNotifier.dispose();
     _scrollController.dispose();
@@ -1282,7 +1314,10 @@ class _TimelinePanelState extends State<TimelinePanel>
       return;
     }
     _displayTimeNotifier.value = clamped;
-    widget.onDisplayTimeChanged?.call(clamped);
+    final onDisplayTimeChanged = widget.onDisplayTimeChanged;
+    if (onDisplayTimeChanged != null) {
+      _invokeParentCallback(() => onDisplayTimeChanged(clamped));
+    }
   }
 
   void _applyReportedPlaybackSample(
@@ -1656,70 +1691,15 @@ class _TimelinePanelState extends State<TimelinePanel>
     }
   }
 
-  void _flushPendingScrollSeconds() {
-    _scrollDispatchTimer?.cancel();
-    _scrollDispatchTimer = null;
-    final nextTime = _pendingTime;
-    _pendingTime = null;
-    if (nextTime == null) {
+  void _emitScrubTimeChanged(TimelineTime nextTime) {
+    final clampedTime = nextTime.clamp(
+      TimelineTime.zero,
+      widget.timelineDurationTime,
+    );
+    if ((clampedTime - widget.currentTime).inSecondsDouble.abs() <= 0.002) {
       return;
     }
-    _lastDispatchedAt = DateTime.now();
-    widget.onTimeChanged(nextTime);
-  }
-
-  void _clearPendingScrollDispatch() {
-    _scrollDispatchTimer?.cancel();
-    _scrollDispatchTimer = null;
-    _pendingTime = null;
-  }
-
-  void _flushImmediateTimelineDispatch() {
-    final nextTime = _pendingImmediateTime;
-    _pendingImmediateTime = null;
-    if (nextTime == null) {
-      return;
-    }
-    _lastDispatchedAt = DateTime.now();
-    widget.onTimeChanged(nextTime);
-  }
-
-  void _clearImmediateTimelineDispatch() {
-    _pendingImmediateTime = null;
-  }
-
-  void _dispatchTimelineTime(
-    TimelineTime nextTime, {
-    bool immediate = false,
-  }) {
-    final pendingImmediateTime = _pendingImmediateTime;
-    final referenceTime = pendingImmediateTime ?? widget.currentTime;
-    final deltaSeconds = (nextTime - referenceTime).inSecondsDouble.abs();
-    if (deltaSeconds <= 0.002 &&
-        _pendingTime == null &&
-        pendingImmediateTime == null) {
-      return;
-    }
-
-    if (immediate) {
-      _clearPendingScrollDispatch();
-      _clearImmediateTimelineDispatch();
-      _lastDispatchedAt = DateTime.now();
-      widget.onTimeChanged(nextTime);
-      return;
-    }
-
-    final now = DateTime.now();
-    if (_lastDispatchedAt == null ||
-        now.difference(_lastDispatchedAt!) >= _scrubDispatchInterval) {
-      _lastDispatchedAt = now;
-      widget.onTimeChanged(nextTime);
-      return;
-    }
-
-    _pendingTime = nextTime;
-    _scrollDispatchTimer ??=
-        Timer(_scrubDispatchInterval, _flushPendingScrollSeconds);
+    _invokeParentCallback(() => widget.onScrubTimeChanged(clampedTime));
   }
 
   void _setScrubInteractionActive(bool isActive) {
@@ -1727,17 +1707,30 @@ class _TimelinePanelState extends State<TimelinePanel>
       return;
     }
     _isScrubInteractionActive = isActive;
-    widget.onScrubStateChanged?.call(isActive);
+    final onScrubStateChanged = widget.onScrubStateChanged;
+    if (onScrubStateChanged != null) {
+      _invokeParentCallback(() => onScrubStateChanged(isActive));
+    }
+  }
+
+  void _invokeParentCallback(VoidCallback callback) {
+    final schedulerPhase = SchedulerBinding.instance.schedulerPhase;
+    if (schedulerPhase == SchedulerPhase.idle ||
+        schedulerPhase == SchedulerPhase.postFrameCallbacks) {
+      callback();
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      callback();
+    });
   }
 
   void _resetScrubPointerTracking() {
     _scrubPointerId = null;
-    _scrubPointerLastPosition = null;
     _scrubPointerDownPosition = null;
-    _scrubVelocityTracker = null;
-    _scrubAccumulatedDx = 0;
-    _scrubAccumulatedDy = 0;
-    _scrubPointerHandledByDrag = false;
   }
 
   void _handleScrubSurfacePointerDown(PointerDownEvent event) {
@@ -1745,38 +1738,8 @@ class _TimelinePanelState extends State<TimelinePanel>
       return;
     }
     _scrubPointerId = event.pointer;
-    _scrubPointerLastPosition = event.position;
     _scrubPointerDownPosition = event.position;
-    _scrubVelocityTracker = VelocityTracker.withKind(event.kind)
-      ..addPosition(event.timeStamp, event.position);
-    _scrubAccumulatedDx = 0;
-    _scrubAccumulatedDy = 0;
-    _scrubPointerHandledByDrag = false;
     _deferScrubFinalizationToGestureEnd = false;
-  }
-
-  bool _shouldLockHorizontalScrub() {
-    final absDx = _scrubAccumulatedDx.abs();
-    final absDy = _scrubAccumulatedDy.abs();
-    if (absDx < _scrubTapDeadzonePx) {
-      return false;
-    }
-    return absDx >= _scrubHorizontalLockDistancePx &&
-        absDx >=
-            math.max(
-              _scrubHorizontalLockDistancePx,
-              absDy * _scrubHorizontalLockRatio,
-            );
-  }
-
-  void _enterPointerDrivenScrub() {
-    _beginBackgroundScrub();
-    if (!_isBackgroundScrubbing) {
-      return;
-    }
-    if (_scrubAccumulatedDx != 0) {
-      _updateBackgroundScrub(_scrubAccumulatedDx);
-    }
   }
 
   void _beginBackgroundScrub() {
@@ -1795,9 +1758,6 @@ class _TimelinePanelState extends State<TimelinePanel>
     _stopScrubMomentum(finalize: false);
     _captureLockedVerticalOffset();
     _restoreLockedVerticalOffset();
-    _clearPendingScrollDispatch();
-    _clearImmediateTimelineDispatch();
-    _lastDispatchedAt = null;
     _backgroundScrubCurrentTime = _displayTimeNotifier.value;
     _isBackgroundScrubbing = true;
     _ensurePlaybackTickerForCurrentMode();
@@ -1867,7 +1827,7 @@ class _TimelinePanelState extends State<TimelinePanel>
     _backgroundScrubCurrentTime = nextTime;
     _setDisplayTime(nextTime);
     _setScrubInteractionActive(true);
-    _dispatchTimelineTime(nextTime, immediate: true);
+    _emitScrubTimeChanged(nextTime);
     _restoreLockedVerticalOffset();
   }
 
@@ -1884,7 +1844,10 @@ class _TimelinePanelState extends State<TimelinePanel>
     _manualPanAccumulatedDx = 0;
     _restoreLockedVerticalOffset();
     if (_isScrubInteractionActive) {
-      widget.onScrubFinalized?.call(finalTime);
+      final onScrubFinalized = widget.onScrubFinalized;
+      if (onScrubFinalized != null) {
+        _invokeParentCallback(() => onScrubFinalized(finalTime));
+      }
     }
     _releaseInteractionOwner(_TimelineInteractionOwner.pan);
     _releaseLockedVerticalOffsetIfPossible();
@@ -1924,15 +1887,17 @@ class _TimelinePanelState extends State<TimelinePanel>
       final targetOffset = (nextTime.inSecondsDouble * _secondsWidth)
           .clamp(0.0, _scrollController.position.maxScrollExtent)
           .toDouble();
-      _isSyncingFromExternal = true;
-      _scrollController.jumpTo(targetOffset);
-      _isSyncingFromExternal = false;
+      if ((_scrollController.offset - targetOffset).abs() > 0.5) {
+        _isSyncingFromExternal = true;
+        _scrollController.jumpTo(targetOffset);
+        _isSyncingFromExternal = false;
+      }
     }
 
     if (didEnterActiveScrub) {
       _setScrubInteractionActive(true);
     }
-    _dispatchTimelineTime(nextTime, immediate: true);
+    _emitScrubTimeChanged(nextTime);
   }
 
   void _endBackgroundScrub() {
@@ -1944,17 +1909,15 @@ class _TimelinePanelState extends State<TimelinePanel>
     final didActivateScrub =
         _isInteractionActive(_TimelineInteractionOwner.scrub);
     _isBackgroundScrubbing = false;
-    _flushImmediateTimelineDispatch();
-    _flushPendingScrollSeconds();
-    _clearPendingScrollDispatch();
-    _clearImmediateTimelineDispatch();
     if (didActivateScrub) {
-      widget.onScrubFinalized?.call(
-        _backgroundScrubCurrentTime.clamp(
+      final onScrubFinalized = widget.onScrubFinalized;
+      if (onScrubFinalized != null) {
+        final finalizedTime = _backgroundScrubCurrentTime.clamp(
           TimelineTime.zero,
           widget.timelineDurationTime,
-        ),
-      );
+        );
+        _invokeParentCallback(() => onScrubFinalized(finalizedTime));
+      }
     }
     _releaseInteractionOwner(_TimelineInteractionOwner.scrub);
     _releaseLockedVerticalOffsetIfPossible();
@@ -1974,8 +1937,6 @@ class _TimelinePanelState extends State<TimelinePanel>
       return;
     }
     _isBackgroundScrubbing = false;
-    _clearPendingScrollDispatch();
-    _clearImmediateTimelineDispatch();
     _releaseInteractionOwner(_TimelineInteractionOwner.scrub);
     _releaseLockedVerticalOffsetIfPossible();
     _setScrubInteractionActive(false);
@@ -2003,24 +1964,7 @@ class _TimelinePanelState extends State<TimelinePanel>
     }
     _activePointerPositions[event.pointer] = event.position;
     if (_scrubPointerId == event.pointer && !_isScaleGestureActive) {
-      _scrubVelocityTracker?.addPosition(event.timeStamp, event.position);
-      final downPosition = _scrubPointerDownPosition;
-      if (downPosition != null) {
-        _scrubAccumulatedDx = event.position.dx - downPosition.dx;
-        _scrubAccumulatedDy = event.position.dy - downPosition.dy;
-      }
-      if (_isBackgroundScrubbing && !_scrubPointerHandledByDrag) {
-        final lastPosition = _scrubPointerLastPosition;
-        if (lastPosition != null) {
-          final deltaDx = event.position.dx - lastPosition.dx;
-          if (deltaDx != 0) {
-            _updateBackgroundScrub(deltaDx);
-          }
-        }
-      } else if (!_isBackgroundScrubbing && _shouldLockHorizontalScrub()) {
-        _enterPointerDrivenScrub();
-      }
-      _scrubPointerLastPosition = event.position;
+      _scrubPointerDownPosition ??= event.position;
     }
     if (_reorderPointerId == event.pointer &&
         _isReorderMode &&
@@ -2044,9 +1988,8 @@ class _TimelinePanelState extends State<TimelinePanel>
     _activePointers.remove(pointer);
     _activePointerPositions.remove(pointer);
     if (_scrubPointerId == pointer) {
-      final handledByDrag = _scrubPointerHandledByDrag;
       _deferScrubFinalizationToGestureEnd = false;
-      if (!handledByDrag && _isBackgroundScrubbing && !_isScrubMomentumActive) {
+      if (_isBackgroundScrubbing && !_isScrubMomentumActive) {
         _cancelInteractionOwner(
           _TimelineInteractionOwner.scrub,
           finalizeScrub: true,
@@ -2088,13 +2031,9 @@ class _TimelinePanelState extends State<TimelinePanel>
     if (_activePointers.length > 1) {
       return;
     }
-    _scrubPointerHandledByDrag = true;
     _deferScrubFinalizationToGestureEnd = true;
     if (!_isBackgroundScrubbing) {
       _beginBackgroundScrub();
-      if (_isBackgroundScrubbing && _scrubAccumulatedDx != 0) {
-        _updateBackgroundScrub(_scrubAccumulatedDx);
-      }
     }
   }
 
@@ -2102,6 +2041,12 @@ class _TimelinePanelState extends State<TimelinePanel>
     final deltaDx = details.primaryDelta ?? details.delta.dx;
     if (deltaDx == 0) {
       return;
+    }
+    if (!_isBackgroundScrubbing) {
+      _beginBackgroundScrub();
+      if (!_isBackgroundScrubbing) {
+        return;
+      }
     }
     _updateBackgroundScrub(deltaDx);
   }
@@ -2124,6 +2069,480 @@ class _TimelinePanelState extends State<TimelinePanel>
     _stopScrubMomentum(finalize: false);
     _cancelInteractionOwner(_TimelineInteractionOwner.scrub);
     _resetScrubPointerTracking();
+  }
+
+  void _handleNativeScrubStart() {
+    _deferScrubFinalizationToGestureEnd = true;
+    if (!_isBackgroundScrubbing) {
+      _beginBackgroundScrub();
+    }
+  }
+
+  void _handleNativeScrubTimeChanged(TimelineTime time) {
+    final nextTime = time.clamp(
+      TimelineTime.zero,
+      widget.timelineDurationTime,
+    );
+    if (!_isBackgroundScrubbing) {
+      _beginBackgroundScrub();
+      if (!_isBackgroundScrubbing) {
+        return;
+      }
+    }
+    final didEnterActiveScrub = !_isScrubInteractionActive;
+    _activateInteractionOwner(_TimelineInteractionOwner.scrub);
+    _backgroundScrubCurrentTime = nextTime;
+    _setDisplayTime(nextTime);
+
+    if (_scrollController.hasClients) {
+      final targetOffset = (nextTime.inSecondsDouble * _secondsWidth)
+          .clamp(0.0, _scrollController.position.maxScrollExtent)
+          .toDouble();
+      if ((_scrollController.offset - targetOffset).abs() > 0.5) {
+        _isSyncingFromExternal = true;
+        _scrollController.jumpTo(targetOffset);
+        _isSyncingFromExternal = false;
+      }
+    }
+
+    if (didEnterActiveScrub) {
+      _setScrubInteractionActive(true);
+    }
+    _emitScrubTimeChanged(nextTime);
+  }
+
+  void _handleNativeScrubEnd(TimelineTime time) {
+    final finalTime = time.clamp(
+      TimelineTime.zero,
+      widget.timelineDurationTime,
+    );
+    if (!_isBackgroundScrubbing) {
+      final onScrubFinalized = widget.onScrubFinalized;
+      if (onScrubFinalized != null) {
+        _invokeParentCallback(() => onScrubFinalized(finalTime));
+      }
+      return;
+    }
+    _backgroundScrubCurrentTime = finalTime;
+    _deferScrubFinalizationToGestureEnd = false;
+    _cancelInteractionOwner(
+      _TimelineInteractionOwner.scrub,
+      finalizeScrub: true,
+    );
+  }
+
+  Widget _buildScrubSurface({
+    VoidCallback? onTap,
+  }) {
+    return _TimelineScrubSurface(
+      onTap: onTap,
+      onHorizontalDragStart: _handleScrubDragStart,
+      onHorizontalDragUpdate: _handleScrubDragUpdate,
+      onHorizontalDragEnd: _handleScrubDragEnd,
+      onHorizontalDragCancel: _handleScrubDragCancel,
+      onPointerDown: _handleScrubSurfacePointerDown,
+      onPointerUp: (_) {},
+      onPointerCancel: (_) {},
+    );
+  }
+
+  double _nativeScrubAnimateButtonWidthForTrack(TimelineTrackData track) {
+    final showsAnimateButton = widget.onTrackAnimateTap != null &&
+        widget.animateTrackKinds.contains(track.kind) &&
+        track.clips.any((clip) => clip.type == TimelineClipType.media);
+    return showsAnimateButton ? 32.0 : 0.0;
+  }
+
+  bool _nativeScrubIsGapPlaceholderClip(TimelineClipData clip) {
+    if (clip.type != TimelineClipType.placeholder) {
+      return false;
+    }
+    final label = clip.label;
+    return label == null || label.trim().isEmpty;
+  }
+
+  bool _nativeScrubShouldJoinWith(
+    TimelineTrackData track,
+    TimelineClipData left,
+    TimelineClipData right,
+  ) {
+    return track.kind == TimelineTrackKind.video &&
+        left.type == TimelineClipType.media &&
+        right.type == TimelineClipType.media &&
+        left.assetId != null &&
+        right.assetId != null;
+  }
+
+  double _nativeScrubGapAfterClip(
+    TimelineTrackData track,
+    TimelineClipData clip,
+    TimelineClipData next,
+  ) {
+    if (_nativeScrubIsGapPlaceholderClip(clip) ||
+        _nativeScrubIsGapPlaceholderClip(next)) {
+      return 0;
+    }
+    final isSplitSibling =
+        clip.splitGroupId != null && clip.splitGroupId == next.splitGroupId;
+    if (isSplitSibling) {
+      return _splitGap;
+    }
+    if (_nativeScrubShouldJoinWith(track, clip, next)) {
+      return 0;
+    }
+    return _controlGap;
+  }
+
+  bool _nativeScrubSupportsTrimChrome(
+    TimelineTrackData track,
+    TimelineClipData clip,
+  ) {
+    final selection = widget.trimSelection;
+    if (selection == null) {
+      return false;
+    }
+    return selection.clipId == clip.id &&
+        selection.trackKind == track.kind &&
+        track.kind == TimelineTrackKind.video &&
+        clip.type == TimelineClipType.media;
+  }
+
+  _ResolvedTrimClipGeometry _nativeScrubResolveTrimGeometry({
+    required TimelineClipData clip,
+    required double originalLeft,
+    required double originalWidth,
+    required _TimelineTrimDragSession? trimSession,
+  }) {
+    if (trimSession == null) {
+      return _ResolvedTrimClipGeometry(
+        clip: clip,
+        left: originalLeft,
+        width: originalWidth,
+        sourceStartTime: clip.sourceStartTime,
+        durationTime: clip.durationTime,
+      );
+    }
+
+    final previewWidth = math.max(
+      1.0,
+      trimSession.durationTime.inSecondsDouble * _secondsWidth,
+    );
+    final previewLeft = trimSession.edge == TimelineTrimEdge.start
+        ? originalLeft + (originalWidth - previewWidth)
+        : originalLeft;
+    return _ResolvedTrimClipGeometry(
+      clip: clip,
+      left: previewLeft,
+      width: previewWidth,
+      sourceStartTime: trimSession.sourceStartTime,
+      durationTime: trimSession.durationTime,
+      isPreviewing: true,
+    );
+  }
+
+  void _addNativeScrubViewportRegion(
+    List<TimelineScrubViewportRegion> regions, {
+    required double left,
+    required double top,
+    required double right,
+    required double bottom,
+    required double viewportWidth,
+    required double viewportHeight,
+  }) {
+    final clampedLeft = left.clamp(0.0, viewportWidth).toDouble();
+    final clampedTop = top.clamp(0.0, viewportHeight).toDouble();
+    final clampedRight = right.clamp(0.0, viewportWidth).toDouble();
+    final clampedBottom = bottom.clamp(0.0, viewportHeight).toDouble();
+    final width = clampedRight - clampedLeft;
+    final height = clampedBottom - clampedTop;
+    if (width <= 0.5 || height <= 0.5) {
+      return;
+    }
+    regions.add(
+      TimelineScrubViewportRegion(
+        left: clampedLeft,
+        top: clampedTop,
+        width: width,
+        height: height,
+      ),
+    );
+  }
+
+  List<_TimelineScrubExclusion> _mergeNativeScrubExclusions(
+    List<_TimelineScrubExclusion> exclusions,
+    double rowWidth,
+  ) {
+    final normalized = exclusions
+        .map(
+          (exclusion) => _TimelineScrubExclusion(
+            left: exclusion.left.clamp(0.0, rowWidth).toDouble(),
+            right: exclusion.right.clamp(0.0, rowWidth).toDouble(),
+          ),
+        )
+        .where((exclusion) => exclusion.right - exclusion.left > 0.5)
+        .toList()
+      ..sort((left, right) => left.left.compareTo(right.left));
+    if (normalized.isEmpty) {
+      return const <_TimelineScrubExclusion>[];
+    }
+
+    final merged = <_TimelineScrubExclusion>[];
+    var current = normalized.first;
+    for (var index = 1; index < normalized.length; index++) {
+      final next = normalized[index];
+      if (next.left <= current.right + 0.5) {
+        current = _TimelineScrubExclusion(
+          left: current.left,
+          right: math.max(current.right, next.right),
+        );
+        continue;
+      }
+      merged.add(current);
+      current = next;
+    }
+    merged.add(current);
+    return merged;
+  }
+
+  List<TimelineScrubViewportRegion> _buildNativeTrackViewportScrubRegions({
+    required double viewportWidth,
+    required double viewportHeight,
+    required double contentWidth,
+    required double tracksContentHeight,
+  }) {
+    final horizontalOffset = _scrollController.hasClients
+        ? _scrollController.offset
+            .clamp(0.0, _scrollController.position.maxScrollExtent)
+            .toDouble()
+        : 0.0;
+    final verticalOffset = _verticalController.hasClients
+        ? _verticalController.offset
+            .clamp(0.0, _verticalController.position.maxScrollExtent)
+            .toDouble()
+        : 0.0;
+    final regions = <TimelineScrubViewportRegion>[];
+    final densityProfile = _stackDensityProfileForTracks(widget.tracks);
+    var rowTop = -verticalOffset;
+
+    for (var trackIndex = 0; trackIndex < widget.tracks.length; trackIndex++) {
+      final track = widget.tracks[trackIndex];
+      final rowHeight = _rowHeightForTrack(track);
+      _appendNativeTrackViewportRegionsForTrack(
+        regions,
+        track: track,
+        trackIndex: trackIndex,
+        rowTop: rowTop,
+        rowHeight: rowHeight,
+        viewportWidth: viewportWidth,
+        viewportHeight: viewportHeight,
+        contentWidth: contentWidth,
+        horizontalOffset: horizontalOffset,
+      );
+      rowTop += rowHeight;
+      if (trackIndex != widget.tracks.length - 1) {
+        rowTop += densityProfile.rowGap;
+      }
+    }
+
+    if (tracksContentHeight < viewportHeight - 0.5) {
+      _addNativeScrubViewportRegion(
+        regions,
+        left: 0,
+        top: tracksContentHeight - verticalOffset,
+        right: viewportWidth,
+        bottom: viewportHeight,
+        viewportWidth: viewportWidth,
+        viewportHeight: viewportHeight,
+      );
+    }
+
+    return regions;
+  }
+
+  void _appendNativeTrackViewportRegionsForTrack(
+    List<TimelineScrubViewportRegion> regions, {
+    required TimelineTrackData track,
+    required int trackIndex,
+    required double rowTop,
+    required double rowHeight,
+    required double viewportWidth,
+    required double viewportHeight,
+    required double contentWidth,
+    required double horizontalOffset,
+  }) {
+    _addNativeScrubViewportRegion(
+      regions,
+      left: 0,
+      top: rowTop,
+      right: viewportWidth,
+      bottom: rowTop + rowHeight,
+      viewportWidth: viewportWidth,
+      viewportHeight: viewportHeight,
+    );
+
+    final laneProfile = _TimelineTrackLaneProfile.forKind(track.kind);
+    final controlHitSize =
+        math.max(_controlTileSize, laneProfile.controlHitSize);
+    final panZoneRight = _leadingOffset + controlHitSize + _controlGap;
+    final clipStart = panZoneRight;
+    final controlLeft =
+        _leadingOffset - _nativeScrubAnimateButtonWidthForTrack(track);
+    final scrubExclusions = <_TimelineScrubExclusion>[
+      _TimelineScrubExclusion(left: controlLeft, right: panZoneRight),
+    ];
+    final clipGeometryById = <String, _TimelineAnimationClipGeometry>{};
+    final moveSession = _clipMoveSession;
+    final previewClipId =
+        moveSession?.trackIndex == trackIndex ? moveSession?.clipId : null;
+    final previewStartTime = moveSession?.trackIndex == trackIndex
+        ? moveSession?.currentStartTime
+        : null;
+    var cursor = clipStart;
+
+    for (var index = 0; index < track.clips.length; index++) {
+      final clip = track.clips[index];
+      final clipWidth = clip.visualWidth(_secondsWidth);
+      final isGapPlaceholder = _nativeScrubIsGapPlaceholderClip(clip);
+      final showsTrimChrome = _nativeScrubSupportsTrimChrome(track, clip);
+      final activeTrimSession = _trimDragSession?.selection.clipId == clip.id
+          ? _trimDragSession
+          : null;
+      final trimGeometry = _nativeScrubResolveTrimGeometry(
+        clip: clip,
+        originalLeft: cursor,
+        originalWidth: clipWidth,
+        trimSession: activeTrimSession,
+      );
+      final previewLeft = previewClipId == clip.id && previewStartTime != null
+          ? clipStart + (previewStartTime.inSecondsDouble * _secondsWidth)
+          : trimGeometry.left;
+      if (!isGapPlaceholder && clip.type == TimelineClipType.media) {
+        clipGeometryById[clip.id] = _TimelineAnimationClipGeometry(
+          left: previewLeft,
+          width: trimGeometry.width,
+        );
+      }
+      if (showsTrimChrome) {
+        scrubExclusions.add(
+          _TimelineScrubExclusion(
+            left: trimGeometry.left - _TimelineTrimChrome.handleTouchInset,
+            right: trimGeometry.left +
+                trimGeometry.width +
+                _TimelineTrimChrome.handleTouchInset,
+          ),
+        );
+      }
+      if (index != track.clips.length - 1) {
+        final next = track.clips[index + 1];
+        cursor += clipWidth + _nativeScrubGapAfterClip(track, clip, next);
+      } else {
+        cursor += clipWidth;
+      }
+    }
+
+    final rowWidth = math.max(cursor + _controlGap, clipStart + 12);
+    final interactiveWidth = math.max(rowWidth, contentWidth);
+    final trackSpanWidth = math.max(1.0, cursor - clipStart);
+    final visibleAnimationLanes = track.animationLanes
+        .where(
+          (lane) =>
+              clipGeometryById.containsKey(lane.targetClipId) ||
+              (lane.trackSpanStartProgress != null &&
+                  lane.trackSpanEndProgress != null),
+        )
+        .toList(growable: false);
+    for (final lane in visibleAnimationLanes) {
+      final geometry = switch ((
+        lane.trackSpanStartProgress,
+        lane.trackSpanEndProgress,
+      )) {
+        (final start?, final end?) => _TimelineAnimationClipGeometry(
+            left: clipStart + (trackSpanWidth * start.clamp(0.0, 1.0)),
+            width: math.max(
+              1.0,
+              trackSpanWidth * (end.clamp(0.0, 1.0) - start.clamp(0.0, 1.0)),
+            ),
+          ),
+        _ => clipGeometryById[lane.targetClipId],
+      };
+      if (geometry == null) {
+        continue;
+      }
+      scrubExclusions.add(
+        _TimelineScrubExclusion(
+          left: controlLeft,
+          right:
+              math.min(interactiveWidth, geometry.left + geometry.width + 18),
+        ),
+      );
+    }
+
+    final mergedExclusions =
+        _mergeNativeScrubExclusions(scrubExclusions, interactiveWidth);
+    var zoneCursor = 0.0;
+    for (final exclusion in mergedExclusions) {
+      _addNativeScrubViewportRegion(
+        regions,
+        left: zoneCursor - horizontalOffset,
+        top: rowTop,
+        right: exclusion.left - horizontalOffset,
+        bottom: rowTop + rowHeight,
+        viewportWidth: viewportWidth,
+        viewportHeight: viewportHeight,
+      );
+      zoneCursor = math.max(zoneCursor, exclusion.right);
+    }
+    _addNativeScrubViewportRegion(
+      regions,
+      left: zoneCursor - horizontalOffset,
+      top: rowTop,
+      right: interactiveWidth - horizontalOffset,
+      bottom: rowTop + rowHeight,
+      viewportWidth: viewportWidth,
+      viewportHeight: viewportHeight,
+    );
+  }
+
+  Widget _buildNativeTrackViewportScrubOverlay({
+    required double viewportWidth,
+    required double viewportHeight,
+    required double contentWidth,
+    required double tracksContentHeight,
+  }) {
+    final builder = widget.scrubSurfaceBuilder;
+    if (builder == null || _isReorderMode) {
+      return const SizedBox.shrink();
+    }
+    return AnimatedBuilder(
+      animation: Listenable.merge(<Listenable>[
+        _displayTimeNotifier,
+        _scrollController,
+        _verticalController,
+      ]),
+      builder: (context, _) {
+        final regions = _buildNativeTrackViewportScrubRegions(
+          viewportWidth: viewportWidth,
+          viewportHeight: viewportHeight,
+          contentWidth: contentWidth,
+          tracksContentHeight: tracksContentHeight,
+        );
+        if (regions.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        return builder(
+          TimelineScrubSurfaceConfig(
+            currentTime: _displayTimeNotifier.value,
+            timelineDurationTime: widget.timelineDurationTime,
+            timelineOffsetTime: widget.timeDisplayOffset,
+            secondsWidth: _secondsWidth,
+            regions: regions,
+            onScrubStart: _handleNativeScrubStart,
+            onScrubTimeChanged: _handleNativeScrubTimeChanged,
+            onScrubEnd: _handleNativeScrubEnd,
+          ),
+        );
+      },
+    );
   }
 
   bool _shouldStartScrubMomentum(double velocityPxPerSecond) =>
@@ -3207,19 +3626,7 @@ class _TimelinePanelState extends State<TimelinePanel>
                                   right: 0,
                                   top: 0,
                                   bottom: 0,
-                                  child: _TimelineScrubSurface(
-                                    onHorizontalDragStart:
-                                        _handleScrubDragStart,
-                                    onHorizontalDragUpdate:
-                                        _handleScrubDragUpdate,
-                                    onHorizontalDragEnd: _handleScrubDragEnd,
-                                    onHorizontalDragCancel:
-                                        _handleScrubDragCancel,
-                                    onPointerDown:
-                                        _handleScrubSurfacePointerDown,
-                                    onPointerUp: (_) {},
-                                    onPointerCancel: (_) {},
-                                  ),
+                                  child: _buildScrubSurface(),
                                 ),
                               ],
                             );
@@ -3229,17 +3636,10 @@ class _TimelinePanelState extends State<TimelinePanel>
                     ),
                     SizedBox(
                       height: 8,
-                      child: _TimelineScrubSurface(
+                      child: _buildScrubSurface(
                         onTap: widget.onBackgroundTap == null
                             ? null
                             : _handleOwnedBackgroundTap,
-                        onHorizontalDragStart: _handleScrubDragStart,
-                        onHorizontalDragUpdate: _handleScrubDragUpdate,
-                        onHorizontalDragEnd: _handleScrubDragEnd,
-                        onHorizontalDragCancel: _handleScrubDragCancel,
-                        onPointerDown: _handleScrubSurfacePointerDown,
-                        onPointerUp: (_) {},
-                        onPointerCancel: (_) {},
                       ),
                     ),
                     Expanded(
@@ -3430,6 +3830,26 @@ class _TimelinePanelState extends State<TimelinePanel>
                                                                 _handleScrubDragEnd,
                                                             onBackgroundScrubDragCancel:
                                                                 _handleScrubDragCancel,
+                                                            onBackgroundScrubPointerDown:
+                                                                _handleScrubSurfacePointerDown,
+                                                            scrubSurfaceBuilder:
+                                                                widget
+                                                                    .scrubSurfaceBuilder,
+                                                            currentTime:
+                                                                _displayTimeNotifier
+                                                                    .value,
+                                                            timelineDurationTime:
+                                                                widget
+                                                                    .timelineDurationTime,
+                                                            timelineOffsetTime:
+                                                                widget
+                                                                    .timeDisplayOffset,
+                                                            onNativeScrubStart:
+                                                                _handleNativeScrubStart,
+                                                            onNativeScrubTimeChanged:
+                                                                _handleNativeScrubTimeChanged,
+                                                            onNativeScrubEnd:
+                                                                _handleNativeScrubEnd,
                                                             assetPathResolver:
                                                                 widget
                                                                     .assetPathResolver,
@@ -3476,26 +3896,20 @@ class _TimelinePanelState extends State<TimelinePanel>
                                                         ),
                                                     ],
                                                     if (backgroundScrubHeight >
-                                                        0.5)
+                                                            0.5 &&
+                                                        widget.scrubSurfaceBuilder ==
+                                                            null)
                                                       SizedBox(
                                                         width: contentWidth,
                                                         height:
                                                             backgroundScrubHeight,
                                                         child:
-                                                            _TimelineScrubSurface(
+                                                            _buildScrubSurface(
                                                           onTap: widget
                                                                       .onBackgroundTap ==
                                                                   null
                                                               ? null
                                                               : _handleOwnedBackgroundTap,
-                                                          onHorizontalDragStart:
-                                                              _handleScrubDragStart,
-                                                          onHorizontalDragUpdate:
-                                                              _handleScrubDragUpdate,
-                                                          onHorizontalDragEnd:
-                                                              _handleScrubDragEnd,
-                                                          onHorizontalDragCancel:
-                                                              _handleScrubDragCancel,
                                                         ),
                                                       ),
                                                   ],
@@ -3518,6 +3932,16 @@ class _TimelinePanelState extends State<TimelinePanel>
                                   ),
                                 ),
                               ),
+                              if (widget.scrubSurfaceBuilder != null &&
+                                  !_isReorderMode)
+                                Positioned.fill(
+                                  child: _buildNativeTrackViewportScrubOverlay(
+                                    viewportWidth: contentViewportWidth,
+                                    viewportHeight: scrollConstraints.maxHeight,
+                                    contentWidth: contentWidth,
+                                    tracksContentHeight: tracksContentHeight,
+                                  ),
+                                ),
                               if (_isReorderMode)
                                 Positioned.fill(
                                   child: _buildReorderOverlay(
@@ -3593,6 +4017,13 @@ class _TimelineTrackRow extends StatelessWidget {
     required this.onBackgroundScrubDragUpdate,
     required this.onBackgroundScrubDragEnd,
     required this.onBackgroundScrubDragCancel,
+    required this.onBackgroundScrubPointerDown,
+    required this.currentTime,
+    required this.timelineDurationTime,
+    required this.timelineOffsetTime,
+    required this.onNativeScrubStart,
+    required this.onNativeScrubTimeChanged,
+    required this.onNativeScrubEnd,
     required this.assetPathResolver,
     required this.trimSelection,
     required this.trimDragSession,
@@ -3601,6 +4032,7 @@ class _TimelineTrackRow extends StatelessWidget {
     required this.onTrimDragEnd,
     required this.onTrimHandleEngagementChanged,
     required this.animateTrackKinds,
+    this.scrubSurfaceBuilder,
     this.timeShiftPreviewClipId,
     this.timeShiftPreviewStartTime,
     this.baseClipOpacity = 1,
@@ -3636,6 +4068,13 @@ class _TimelineTrackRow extends StatelessWidget {
   final GestureDragUpdateCallback onBackgroundScrubDragUpdate;
   final GestureDragEndCallback onBackgroundScrubDragEnd;
   final GestureDragCancelCallback onBackgroundScrubDragCancel;
+  final PointerDownEventListener onBackgroundScrubPointerDown;
+  final TimelineTime currentTime;
+  final TimelineTime timelineDurationTime;
+  final TimelineTime timelineOffsetTime;
+  final VoidCallback onNativeScrubStart;
+  final ValueChanged<TimelineTime> onNativeScrubTimeChanged;
+  final ValueChanged<TimelineTime> onNativeScrubEnd;
   final TimelineAssetPathResolver? assetPathResolver;
   final TimelineTrimSelection? trimSelection;
   final _TimelineTrimDragSession? trimDragSession;
@@ -3644,6 +4083,7 @@ class _TimelineTrackRow extends StatelessWidget {
   final VoidCallback onTrimDragEnd;
   final ValueChanged<bool> onTrimHandleEngagementChanged;
   final Set<TimelineTrackKind> animateTrackKinds;
+  final TimelineScrubSurfaceBuilder? scrubSurfaceBuilder;
   final String? timeShiftPreviewClipId;
   final TimelineTime? timeShiftPreviewStartTime;
   final double baseClipOpacity;
@@ -3774,7 +4214,36 @@ class _TimelineTrackRow extends StatelessWidget {
     required double rowWidth,
     required List<_TimelineScrubExclusion> exclusions,
   }) {
+    if (scrubSurfaceBuilder != null) {
+      return const <Widget>[];
+    }
     final zones = <Widget>[];
+
+    Widget buildSurface({VoidCallback? onTap}) {
+      final builder = scrubSurfaceBuilder;
+      if (builder != null) {
+        return builder(
+          TimelineScrubSurfaceConfig(
+            currentTime: currentTime,
+            timelineDurationTime: timelineDurationTime,
+            timelineOffsetTime: timelineOffsetTime,
+            secondsWidth: secondsWidth,
+            onTap: onTap,
+            onScrubStart: onNativeScrubStart,
+            onScrubTimeChanged: onNativeScrubTimeChanged,
+            onScrubEnd: onNativeScrubEnd,
+          ),
+        );
+      }
+      return _TimelineScrubSurface(
+        onPointerDown: onBackgroundScrubPointerDown,
+        onTap: onTap,
+        onHorizontalDragStart: onBackgroundScrubDragStart,
+        onHorizontalDragUpdate: onBackgroundScrubDragUpdate,
+        onHorizontalDragEnd: onBackgroundScrubDragEnd,
+        onHorizontalDragCancel: onBackgroundScrubDragCancel,
+      );
+    }
 
     void addZone(double left, double width) {
       if (width <= 0.5) {
@@ -3786,13 +4255,7 @@ class _TimelineTrackRow extends StatelessWidget {
           top: 0,
           bottom: 0,
           width: width,
-          child: _TimelineScrubSurface(
-            onTap: onBackgroundTap,
-            onHorizontalDragStart: onBackgroundScrubDragStart,
-            onHorizontalDragUpdate: onBackgroundScrubDragUpdate,
-            onHorizontalDragEnd: onBackgroundScrubDragEnd,
-            onHorizontalDragCancel: onBackgroundScrubDragCancel,
-          ),
+          child: buildSurface(onTap: onBackgroundTap),
         ),
       );
     }
@@ -3822,6 +4285,7 @@ class _TimelineTrackRow extends StatelessWidget {
     final clipChildren = <Widget>[];
     final splitBridges = <Widget>[];
     final clipGeometryById = <String, _TimelineAnimationClipGeometry>{};
+    final usesNativeScrubOverlay = scrubSurfaceBuilder != null;
     final panZoneRight = leadingOffset + _controlHitSize + controlGap;
     final clipStart = panZoneRight;
     final mainRowHeight = _laneProfile.rowHeight;
@@ -3913,13 +4377,23 @@ class _TimelineTrackRow extends StatelessWidget {
                   joinLeft: joinLeft,
                   joinRight: joinRight,
                   onHorizontalDragStart:
-                      showsTrimChrome ? null : onBackgroundScrubDragStart,
+                      usesNativeScrubOverlay || showsTrimChrome
+                          ? null
+                          : onBackgroundScrubDragStart,
                   onHorizontalDragUpdate:
-                      showsTrimChrome ? null : onBackgroundScrubDragUpdate,
-                  onHorizontalDragEnd:
-                      showsTrimChrome ? null : onBackgroundScrubDragEnd,
+                      usesNativeScrubOverlay || showsTrimChrome
+                          ? null
+                          : onBackgroundScrubDragUpdate,
+                  onHorizontalDragEnd: usesNativeScrubOverlay || showsTrimChrome
+                      ? null
+                      : onBackgroundScrubDragEnd,
                   onHorizontalDragCancel:
-                      showsTrimChrome ? null : onBackgroundScrubDragCancel,
+                      usesNativeScrubOverlay || showsTrimChrome
+                          ? null
+                          : onBackgroundScrubDragCancel,
+                  onPointerDown: usesNativeScrubOverlay || showsTrimChrome
+                      ? null
+                      : onBackgroundScrubPointerDown,
                   onTap: () => onClipSelected(clip.id),
                   onDoubleTap: track.kind == TimelineTrackKind.text &&
                           onClipDoubleTap != null
@@ -5481,6 +5955,7 @@ class _TimelineMediaClip extends StatelessWidget {
     this.onHorizontalDragUpdate,
     this.onHorizontalDragEnd,
     this.onHorizontalDragCancel,
+    this.onPointerDown,
     required this.onTap,
     this.onDoubleTap,
     this.height = 38,
@@ -5507,6 +5982,7 @@ class _TimelineMediaClip extends StatelessWidget {
   final GestureDragUpdateCallback? onHorizontalDragUpdate;
   final GestureDragEndCallback? onHorizontalDragEnd;
   final GestureDragCancelCallback? onHorizontalDragCancel;
+  final PointerDownEventListener? onPointerDown;
   final VoidCallback onTap;
   final VoidCallback? onDoubleTap;
   final double height;
@@ -5545,151 +6021,156 @@ class _TimelineMediaClip extends StatelessWidget {
         ? 'Curve'
         : _formatSpeedLabel(playbackRate);
 
-    return GestureDetector(
+    return Listener(
       behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      onDoubleTap: onDoubleTap,
-      onLongPressStart:
-          onLongPressStart == null ? null : (_) => onLongPressStart!(),
-      onLongPressMoveUpdate: onLongPressMoveUpdate,
-      onLongPressEnd: onLongPressEnd == null ? null : (_) => onLongPressEnd!(),
-      onHorizontalDragStart: onHorizontalDragStart,
-      onHorizontalDragUpdate: onHorizontalDragUpdate,
-      onHorizontalDragEnd: onHorizontalDragEnd,
-      onHorizontalDragCancel: onHorizontalDragCancel,
-      child: SizedBox(
-        width: width,
-        height: height,
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 90),
-              decoration: BoxDecoration(
-                color: baseColor,
-                borderRadius: borderRadius,
-                border: Border.all(
-                  color: clipBorderColor,
-                  width: clipBorderWidth,
-                ),
-                boxShadow: [
-                  if (isSelected)
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.22),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  if (isSelected && !usesTrimChrome)
-                    BoxShadow(
-                      color: selectionAccent.withOpacity(0.2),
-                      blurRadius: 16,
-                      spreadRadius: 0.5,
-                    ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.horizontal(
-                  left: Radius.circular(joinLeft ? 2 : 5),
-                  right: Radius.circular(joinRight ? 2 : 5),
-                ),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    if (hasVideoFrames)
-                      _TimelineVideoFilmstrip(
-                        path: assetPath!,
-                        isPlaying: isPlaying,
-                        width: width,
-                        height: height,
-                        sourceOffsetSeconds: sourceOffsetSeconds,
-                        durationSeconds: durationSeconds,
-                      )
-                    else if (hasImagePreview)
-                      _TimelineImageFill(path: assetPath!)
-                    else
-                      ColoredBox(color: accent),
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            selectionAccent.withOpacity(
-                              hasVideoFrames || hasImagePreview ? 0.16 : 0.12,
-                            ),
-                            Colors.transparent,
-                            Colors.black.withOpacity(
-                              hasVideoFrames || hasImagePreview ? 0.06 : 0.02,
-                            ),
-                          ],
-                          stops: const [0.0, 0.52, 1.0],
-                        ),
+      onPointerDown: onPointerDown,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        onDoubleTap: onDoubleTap,
+        onLongPressStart:
+            onLongPressStart == null ? null : (_) => onLongPressStart!(),
+        onLongPressMoveUpdate: onLongPressMoveUpdate,
+        onLongPressEnd:
+            onLongPressEnd == null ? null : (_) => onLongPressEnd!(),
+        onHorizontalDragStart: onHorizontalDragStart,
+        onHorizontalDragUpdate: onHorizontalDragUpdate,
+        onHorizontalDragEnd: onHorizontalDragEnd,
+        onHorizontalDragCancel: onHorizontalDragCancel,
+        child: SizedBox(
+          width: width,
+          height: height,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 90),
+                decoration: BoxDecoration(
+                  color: baseColor,
+                  borderRadius: borderRadius,
+                  border: Border.all(
+                    color: clipBorderColor,
+                    width: clipBorderWidth,
+                  ),
+                  boxShadow: [
+                    if (isSelected)
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.22),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
                       ),
-                    ),
-                    if (showsFallbackInterior)
-                      _TimelineFallbackClipInterior(
-                        width: width,
-                        icon: icon,
-                      ),
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.white.withOpacity(0.07),
-                            Colors.transparent,
-                            Colors.black.withOpacity(0.06),
-                          ],
-                        ),
-                      ),
-                    ),
                     if (isSelected && !usesTrimChrome)
-                      Positioned.fill(
-                        child: IgnorePointer(
-                          child: _TimelineSelectedPulse(
-                            borderRadius: borderRadius,
-                            accentColor: selectionAccent,
+                      BoxShadow(
+                        color: selectionAccent.withOpacity(0.2),
+                        blurRadius: 16,
+                        spreadRadius: 0.5,
+                      ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.horizontal(
+                    left: Radius.circular(joinLeft ? 2 : 5),
+                    right: Radius.circular(joinRight ? 2 : 5),
+                  ),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if (hasVideoFrames)
+                        _TimelineVideoFilmstrip(
+                          path: assetPath!,
+                          isPlaying: isPlaying,
+                          width: width,
+                          height: height,
+                          sourceOffsetSeconds: sourceOffsetSeconds,
+                          durationSeconds: durationSeconds,
+                        )
+                      else if (hasImagePreview)
+                        _TimelineImageFill(path: assetPath!)
+                      else
+                        ColoredBox(color: accent),
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              selectionAccent.withOpacity(
+                                hasVideoFrames || hasImagePreview ? 0.16 : 0.12,
+                              ),
+                              Colors.transparent,
+                              Colors.black.withOpacity(
+                                hasVideoFrames || hasImagePreview ? 0.06 : 0.02,
+                              ),
+                            ],
+                            stops: const [0.0, 0.52, 1.0],
                           ),
                         ),
                       ),
-                    if (showSpeedBadge)
-                      Positioned(
-                        left: 6,
-                        top: 6,
-                        child: IgnorePointer(
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.56),
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.08),
-                                width: 1,
-                              ),
+                      if (showsFallbackInterior)
+                        _TimelineFallbackClipInterior(
+                          width: width,
+                          icon: icon,
+                        ),
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.white.withOpacity(0.07),
+                              Colors.transparent,
+                              Colors.black.withOpacity(0.06),
+                            ],
+                          ),
+                        ),
+                      ),
+                      if (isSelected && !usesTrimChrome)
+                        Positioned.fill(
+                          child: IgnorePointer(
+                            child: _TimelineSelectedPulse(
+                              borderRadius: borderRadius,
+                              accentColor: selectionAccent,
                             ),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 7,
-                                vertical: 3,
+                          ),
+                        ),
+                      if (showSpeedBadge)
+                        Positioned(
+                          left: 6,
+                          top: 6,
+                          child: IgnorePointer(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.56),
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.08),
+                                  width: 1,
+                                ),
                               ),
-                              child: Text(
-                                speedLabel,
-                                style: const TextStyle(
-                                  color: FxPalette.textPrimary,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w800,
-                                  height: 1,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 7,
+                                  vertical: 3,
+                                ),
+                                child: Text(
+                                  speedLabel,
+                                  style: const TextStyle(
+                                    color: FxPalette.textPrimary,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    height: 1,
+                                  ),
                                 ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

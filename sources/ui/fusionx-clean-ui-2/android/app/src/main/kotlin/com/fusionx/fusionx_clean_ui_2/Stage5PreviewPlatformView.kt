@@ -3,6 +3,8 @@ package com.refusion.app
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import android.widget.FrameLayout
 import androidx.media3.common.Player
@@ -15,25 +17,34 @@ class Stage5PreviewPlatformView(
     private val stage5TransportManager: Stage5TransportManager,
     private val stage5NativeScrubEngine: Stage5NativeScrubEngine,
 ) : PlatformView, Stage5ScrubRenderHost {
+    private val mainHandler = Handler(Looper.getMainLooper())
     private var latestPlayer: Player? = null
     private var isPreviewOutputSuppressed = false
+    @Volatile
+    private var isDisposed = false
     private val playerObserver: (Player) -> Unit = { updatedPlayer ->
         latestPlayer = updatedPlayer
         if (!isPreviewOutputSuppressed) {
-            playerView.player = updatedPlayer
+            runOnUiThreadIfActive {
+                playerView.player = updatedPlayer
+            }
         }
     }
     private val previewRetentionObserver: (Boolean) -> Unit = { shouldRetain ->
-        playerView.setKeepContentOnPlayerReset(shouldRetain)
+        runOnUiThreadIfActive {
+            playerView.setKeepContentOnPlayerReset(shouldRetain)
+        }
     }
     private val previewOutputSuppressionObserver: (Boolean) -> Unit = { shouldSuppress ->
         isPreviewOutputSuppressed = shouldSuppress
-        playerView.player =
-            if (shouldSuppress) {
-                null
-            } else {
-                latestPlayer ?: stage5TransportManager.player
-            }
+        runOnUiThreadIfActive {
+            playerView.player =
+                if (shouldSuppress) {
+                    null
+                } else {
+                    latestPlayer ?: stage5TransportManager.player
+                }
+        }
     }
 
     private val playerView =
@@ -79,7 +90,7 @@ class Stage5PreviewPlatformView(
     override fun getView(): View = rootView
 
     override fun setScrubSurfaceVisible(visible: Boolean) {
-        rootView.post {
+        runOnUiThreadIfActive {
             scrubOverlayView.visibility = if (visible) View.VISIBLE else View.INVISIBLE
             val shouldShowPlayer = !visible && !isPreviewOutputSuppressed
             playerView.visibility = if (shouldShowPlayer) View.VISIBLE else View.INVISIBLE
@@ -87,20 +98,46 @@ class Stage5PreviewPlatformView(
     }
 
     override fun presentScrubFrame(bitmap: Bitmap) {
+        if (isDisposed) {
+            return
+        }
         scrubOverlayView.presentFrame(bitmap)
-        rootView.post {
+        runOnUiThreadIfActive {
             scrubOverlayView.visibility = View.VISIBLE
             playerView.visibility = View.INVISIBLE
         }
     }
 
     override fun dispose() {
+        isDisposed = true
         stage5NativeScrubEngine.unregisterRenderHost(this)
         stage5TransportManager.removePlayerObserver(playerObserver)
         stage5TransportManager.removePreviewRetentionObserver(previewRetentionObserver)
         stage5TransportManager.removePreviewOutputSuppressionObserver(
             previewOutputSuppressionObserver,
         )
-        playerView.player = null
+        mainHandler.removeCallbacksAndMessages(null)
+        runOnUiThread {
+            playerView.player = null
+        }
+    }
+
+    private fun runOnUiThreadIfActive(action: () -> Unit) {
+        if (isDisposed) {
+            return
+        }
+        runOnUiThread {
+            if (!isDisposed) {
+                action()
+            }
+        }
+    }
+
+    private fun runOnUiThread(action: () -> Unit) {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            action()
+        } else {
+            mainHandler.post(action)
+        }
     }
 }

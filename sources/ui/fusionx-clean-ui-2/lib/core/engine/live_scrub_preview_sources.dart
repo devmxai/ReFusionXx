@@ -43,6 +43,27 @@ class LiveScrubPreviewSourceDescriptor {
   bool containsPosition(int positionMs) =>
       positionMs >= timelineStartMs && positionMs < timelineEndMs;
 
+  Map<String, Object?> toMap() {
+    return <String, Object?>{
+      'clipId': clipId,
+      'assetId': assetId,
+      'sourceUri': sourceUri,
+      'previewUri': previewUri,
+      'scrubStoreKey': scrubStoreKey,
+      'label': label,
+      'timelineStartMs': timelineStartMs,
+      'timelineEndMs': timelineEndMs,
+      'durationMs': durationMs,
+      'sourceStartMs': sourceStartMs,
+      'sourceDurationMs': sourceDurationMs,
+      'playbackRate': playbackRate,
+      'status': status.name,
+      'frameIntervalMs': frameIntervalMs,
+      'frameCount': frameCount,
+      'storageTier': storageTier,
+    };
+  }
+
   LiveScrubPreviewSourceDescriptor copyWith({
     LiveScrubPreviewSourceStatus? status,
     int? frameIntervalMs,

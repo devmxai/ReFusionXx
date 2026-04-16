@@ -5,21 +5,34 @@ import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.roundToInt
 
 class Stage5ScrubFrameExtractor(
     private val appContext: Context,
 ) {
+    private data class ReusableRetrieverHandle(
+        var sourceUri: String? = null,
+        var retriever: MediaMetadataRetriever? = null,
+    )
+
+    private val retrieverHandles = ConcurrentHashMap<Long, ReusableRetrieverHandle>()
+
     fun extractInto(
         store: Stage5ScrubFrameStore,
+        shouldContinue: () -> Boolean = { true },
         onFrameExtracted: (Int) -> Unit = {},
     ) {
         withRetriever(store.request.sourceUri) { retriever ->
             for (index in 0 until store.frameCount) {
+                if (!shouldContinue()) {
+                    return@withRetriever
+                }
                 extractIndexInto(
                     retriever = retriever,
                     store = store,
                     index = index,
+                    shouldContinue = shouldContinue,
                     onFrameExtracted = onFrameExtracted,
                 )
             }
@@ -44,22 +57,45 @@ class Stage5ScrubFrameExtractor(
                         retriever = retriever,
                         store = store,
                         index = index,
+                        shouldContinue = shouldContinue,
                         onFrameExtracted = onFrameExtracted,
                     )
                 }
         }
     }
 
+    fun release() {
+        retrieverHandles.values.forEach { handle ->
+            synchronized(handle) {
+                handle.retriever?.release()
+                handle.retriever = null
+                handle.sourceUri = null
+            }
+        }
+        retrieverHandles.clear()
+    }
+
     private inline fun withRetriever(
         sourceUri: String,
         block: (MediaMetadataRetriever) -> Unit,
     ) {
-        val retriever = MediaMetadataRetriever()
-        try {
-            retriever.setDataSource(appContext, Uri.parse(sourceUri))
+        val threadId = Thread.currentThread().id
+        val handle =
+            retrieverHandles.getOrPut(threadId) {
+                ReusableRetrieverHandle()
+            }
+        synchronized(handle) {
+            var retriever = handle.retriever
+            if (retriever == null || handle.sourceUri != sourceUri) {
+                retriever?.release()
+                retriever =
+                    MediaMetadataRetriever().apply {
+                        setDataSource(appContext, Uri.parse(sourceUri))
+                    }
+                handle.retriever = retriever
+                handle.sourceUri = sourceUri
+            }
             block(retriever)
-        } finally {
-            retriever.release()
         }
     }
 
@@ -67,6 +103,7 @@ class Stage5ScrubFrameExtractor(
         retriever: MediaMetadataRetriever,
         store: Stage5ScrubFrameStore,
         index: Int,
+        shouldContinue: () -> Boolean,
         onFrameExtracted: (Int) -> Unit,
     ) {
         if (store.hasFrame(index)) {
@@ -81,6 +118,9 @@ class Stage5ScrubFrameExtractor(
                 targetHeight = store.request.previewHeight,
             ) ?: return
         try {
+            if (!shouldContinue()) {
+                return
+            }
             store.putFrameBitmap(index, bitmap)
             onFrameExtracted(index)
         } finally {

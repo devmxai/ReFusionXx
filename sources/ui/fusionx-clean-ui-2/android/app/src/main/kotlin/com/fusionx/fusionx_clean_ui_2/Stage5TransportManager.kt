@@ -7,9 +7,8 @@ import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Handler
-import android.os.Looper
 import android.os.Build
-import android.os.SystemClock
+import android.os.Looper
 import android.util.LruCache
 import android.util.Size
 import androidx.media3.common.C
@@ -23,7 +22,6 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.RawResourceDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.ScrubbingModeParameters
 import androidx.media3.exoplayer.SeekParameters
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.CompositionPlayer
@@ -39,20 +37,16 @@ class Stage5TransportManager(context: Context) {
         const val METHOD_CHANNEL_NAME = "com.refusion.app/stage5_transport"
         const val EVENT_CHANNEL_NAME = "com.refusion.app/stage5_transport_events"
         const val PREVIEW_VIEW_TYPE = "com.refusion.app/stage5_preview"
+        const val TIMELINE_SCRUB_VIEW_TYPE = "com.refusion.app/stage5_timeline_scrub"
         private const val PLAYBACK_POSITION_EMIT_INTERVAL_MS = 33L
         private const val SCRUB_POSITION_EMIT_INTERVAL_MS = 16L
-        private const val MULTI_ITEM_SCRUB_TOLERANCE_FRACTION = 0.002
         // Cross-source playback continuity benefits from warming the next adjacent item
         // earlier than the original baseline.
         private const val MULTI_ITEM_PRELOAD_DURATION_US = 12_000_000L
         private const val SOURCE_CONTIGUITY_TOLERANCE_MS = 1L
         private const val LOW_LATENCY_VIDEO_JOINING_TIME_MS = 350L
-        private const val RUNS_EXO_SCRUB_SEEK_DEDUPE_MS = 12L
-        private const val RUNS_EXO_SCRUB_DISPATCH_INTERVAL_MS = 16L
-        private const val DEFERRED_SCRUB_SETTLE_DELAY_MS = 24L
         private const val SCRUB_SETTLE_WATCHDOG_MS = 240L
         private const val SCRUB_SETTLE_TOLERANCE_MS = 34L
-        private const val EXACT_SCRUB_DELTA_THRESHOLD_MS = 96L
         private const val DISPLAYABLE_END_EPSILON_MS = 1L
         // Composition-based multi-clip preview remains future-gated until it can preserve
         // live scrub parity with the accepted Exo baseline.
@@ -69,9 +63,7 @@ class Stage5TransportManager(context: Context) {
     private var videoWidth = 0
     private var videoHeight = 0
     private var latestError: String? = null
-    private var isScrubbing = false
     private var lastRequestedPositionMs = 0L
-    private var lastResolvedScrubSeekPositionMs: Long? = null
     private var currentSourceKind = "idle"
     private var currentSourceLabel: String? = null
     private var timelineSegments: List<TimelineSegment> = emptyList()
@@ -83,12 +75,11 @@ class Stage5TransportManager(context: Context) {
     private var activeTimelineRunIndex = 0
     private var activeTimelineSegmentIndex = 0
     private var lastAppliedPlaybackRate: Float? = null
-    private var pendingScrubSeekPositionMs: Long? = null
-    private var scrubSeekDispatchScheduled = false
-    private var lastScrubSeekDispatchAtMs = 0L
+    private var isActiveScrubSession = false
     private var isScrubSettling = false
     private var scrubSettleTargetPositionMs: Long? = null
-    private var deferredScrubSettlePositionMs: Long? = null
+    private var scrubSettlePositionSatisfied = false
+    private var scrubSettleRenderedFirstFrameSeen = false
     private var timelinePlaybackBackend = TimelinePlaybackBackend.NONE
     private var isPreviewOutputSuppressed = false
     private val playerObservers = LinkedHashSet<(Player) -> Unit>()
@@ -99,31 +90,7 @@ class Stage5TransportManager(context: Context) {
         object : LruCache<String, ByteArray>(12 * 1024 * 1024) {
             override fun sizeOf(key: String, value: ByteArray): Int = value.size
         }
-    private val multiItemScrubbingModeParameters =
-        ScrubbingModeParameters.DEFAULT
-            .buildUpon()
-            // Multi-item seam scrub needs correctness over the default "keep old frame and move fast"
-            // optimizations. We keep a very small tolerance for responsiveness, but turn off the
-            // skip/flush shortcuts that can leave item1's last frame on screen when entering item2.
-            .setFractionalSeekTolerance(
-                MULTI_ITEM_SCRUB_TOLERANCE_FRACTION,
-                MULTI_ITEM_SCRUB_TOLERANCE_FRACTION,
-            )
-            .setAllowSkippingKeyFrameReset(true)
-            .setAllowSkippingMediaCodecFlush(true)
-            .setUseDecodeOnlyFlag(false)
-            .build()
-    private val runTimelineScrubbingModeParameters =
-        ScrubbingModeParameters.DEFAULT
-            .buildUpon()
-            .setFractionalSeekTolerance(
-                MULTI_ITEM_SCRUB_TOLERANCE_FRACTION,
-                MULTI_ITEM_SCRUB_TOLERANCE_FRACTION,
-            )
-            .setAllowSkippingKeyFrameReset(true)
-            .setAllowSkippingMediaCodecFlush(true)
-            .setUseDecodeOnlyFlag(false)
-            .build()
+    private val scrubDiagnostics = ScrubDiagnostics()
     private data class TimelineSegment(
         val clipId: String,
         val sourceUri: Uri,
@@ -152,6 +119,34 @@ class Stage5TransportManager(context: Context) {
         val codecString: String?,
     )
 
+    private data class ScrubDiagnostics(
+        var scrubSessionCount: Long = 0L,
+        var activeScrubSeekCount: Long = 0L,
+        var settleSeekCount: Long = 0L,
+        var settleRequestCount: Long = 0L,
+        var settleRenderedFirstFrameCount: Long = 0L,
+        var forcedSettleCompletionCount: Long = 0L,
+    ) {
+        fun toMap(): Map<String, Any> =
+            mapOf(
+                "scrubSessionCount" to scrubSessionCount,
+                "activeScrubSeekCount" to activeScrubSeekCount,
+                "settleSeekCount" to settleSeekCount,
+                "settleRequestCount" to settleRequestCount,
+                "settleRenderedFirstFrameCount" to settleRenderedFirstFrameCount,
+                "forcedSettleCompletionCount" to forcedSettleCompletionCount,
+            )
+
+        fun reset() {
+            scrubSessionCount = 0L
+            activeScrubSeekCount = 0L
+            settleSeekCount = 0L
+            settleRequestCount = 0L
+            settleRenderedFirstFrameCount = 0L
+            forcedSettleCompletionCount = 0L
+        }
+    }
+
     private data class TimelineRun(
         val sourceUri: Uri,
         val sourceLabel: String,
@@ -174,11 +169,6 @@ class Stage5TransportManager(context: Context) {
         CROSS_SOURCE,
     }
 
-    private enum class TimelineSeekBoundaryPolicy {
-        SCRUB_SAFE,
-        PLAYBACK_EXACT,
-    }
-
     private enum class TimelinePlaybackBackend {
         NONE,
         SINGLE_SOURCE_EXO,
@@ -196,25 +186,16 @@ class Stage5TransportManager(context: Context) {
                 emitState()
             }
         }
-    private val coalescedScrubSeekDrain =
-        object : Runnable {
-            override fun run() {
-                scrubSeekDispatchScheduled = false
-                drainCoalescedScrubSeekQueue()
-            }
-        }
     private val scrubSettleWatchdog =
         object : Runnable {
             override fun run() {
+                if (!isScrubSettling) {
+                    return
+                }
+                scrubDiagnostics.forcedSettleCompletionCount += 1
+                scrubSettlePositionSatisfied = true
+                scrubSettleRenderedFirstFrameSeen = true
                 finishScrubSettle(forcePositionUpdate = true)
-            }
-        }
-    private val deferredScrubSettle =
-        object : Runnable {
-            override fun run() {
-                val targetPositionMs = deferredScrubSettlePositionMs ?: return
-                deferredScrubSettlePositionMs = null
-                beginExactScrubSettle(targetPositionMs)
             }
         }
 
@@ -240,6 +221,15 @@ class Stage5TransportManager(context: Context) {
                 emitState()
             }
 
+            override fun onRenderedFirstFrame() {
+                if (isScrubSettling) {
+                    scrubSettleRenderedFirstFrameSeen = true
+                    scrubDiagnostics.settleRenderedFirstFrameCount += 1
+                    maybeFinishScrubSettle()
+                }
+                emitState()
+            }
+
             override fun onVideoSizeChanged(videoSize: VideoSize) {
                 videoWidth = videoSize.width
                 videoHeight = videoSize.height
@@ -247,8 +237,6 @@ class Stage5TransportManager(context: Context) {
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                resetScrubSeekCoalescing()
-                cancelDeferredScrubSettle()
                 finishScrubSettle(forcePositionUpdate = false)
                 latestError = error.message ?: error.errorCodeName
                 emitState()
@@ -279,12 +267,9 @@ class Stage5TransportManager(context: Context) {
         currentSourceKind = "idle"
         currentSourceLabel = null
         latestError = null
-        isScrubbing = false
         lastRequestedPositionMs = 0L
-        lastResolvedScrubSeekPositionMs = null
         lastAppliedPlaybackRate = null
-        resetScrubSeekCoalescing()
-        cancelDeferredScrubSettle()
+        isActiveScrubSession = false
         finishScrubSettle(forcePositionUpdate = false)
         emitPreviewRetentionPolicy()
         emitState()
@@ -318,12 +303,9 @@ class Stage5TransportManager(context: Context) {
         currentSourceLabel = "BMFLite official sample"
         exo.pause()
         exo.seekTo(0)
-        isScrubbing = false
         lastRequestedPositionMs = 0L
-        lastResolvedScrubSeekPositionMs = null
         lastAppliedPlaybackRate = null
-        resetScrubSeekCoalescing()
-        cancelDeferredScrubSettle()
+        isActiveScrubSession = false
         finishScrubSettle(forcePositionUpdate = false)
         emitPreviewRetentionPolicy()
         exo.prepare()
@@ -474,12 +456,9 @@ class Stage5TransportManager(context: Context) {
         currentSourceLabel = sourceLabel
         exo.pause()
         exo.seekTo(0)
-        isScrubbing = false
         lastRequestedPositionMs = 0L
-        lastResolvedScrubSeekPositionMs = null
         lastAppliedPlaybackRate = null
-        resetScrubSeekCoalescing()
-        cancelDeferredScrubSettle()
+        isActiveScrubSession = false
         finishScrubSettle(forcePositionUpdate = false)
         emitPreviewRetentionPolicy()
         exo.prepare()
@@ -548,9 +527,7 @@ class Stage5TransportManager(context: Context) {
             }
 
         activePlayer?.pause()
-        isScrubbing = false
-        resetScrubSeekCoalescing()
-        cancelDeferredScrubSettle()
+        isActiveScrubSession = false
         finishScrubSettle(forcePositionUpdate = false)
         resetTimelineProjectionForStructuralCommit()
 
@@ -583,7 +560,6 @@ class Stage5TransportManager(context: Context) {
         currentSourceKind = "timeline"
         currentSourceLabel = if (segments.size == 1) segments.first().sourceLabel else "Timeline sequence"
         lastRequestedPositionMs = startPositionMs.coerceIn(0L, timelineDurationMs)
-        lastResolvedScrubSeekPositionMs = lastRequestedPositionMs
         val sharedUri = sharedTimelineSourceUri(segments)
         if (sharedUri != null) {
             return prepareSingleSourceTimeline(
@@ -605,14 +581,9 @@ class Stage5TransportManager(context: Context) {
 
     fun play() {
         latestError = null
-        cancelDeferredScrubSettle()
+        isActiveScrubSession = false
         if (isScrubSettling) {
             finishScrubSettle(forcePositionUpdate = false)
-        }
-        if (isScrubbing) {
-            isScrubbing = false
-            disableScrubbingMode()
-            emitPreviewRetentionPolicy()
         }
         recoverFromTimelineEndedStateIfNeeded()
         if (timelineSegments.isNotEmpty()) {
@@ -630,55 +601,42 @@ class Stage5TransportManager(context: Context) {
     fun seekTo(positionMs: Long) {
         val safePositionMs = positionMs.coerceAtLeast(0L)
         lastRequestedPositionMs = safePositionMs
-        if (shouldCoalesceTimelineScrubSeek()) {
-            enqueueCoalescedScrubSeek(safePositionMs)
-        } else {
-            performResolvedSeek(safePositionMs)
-        }
-        if (!isScrubbing) {
-            emitState()
-        }
+        isActiveScrubSession = false
+        finishScrubSettle(forcePositionUpdate = false)
+        performResolvedSeek(safePositionMs)
+        emitState()
     }
 
-    fun previewScrubTo(positionMs: Long) {
+    fun beginScrubSession() {
+        isActiveScrubSession = true
+        scrubDiagnostics.scrubSessionCount += 1
+    }
+
+    fun settleAfterScrub(positionMs: Long) {
         val safePositionMs = positionMs.coerceAtLeast(0L)
         lastRequestedPositionMs = safePositionMs
-        cancelDeferredScrubSettle()
-        if (!isScrubbing) {
-            seekTo(safePositionMs)
-            return
-        }
-        if (isScrubSettling) {
-            finishScrubSettle(forcePositionUpdate = false)
-        }
-        enqueueCoalescedScrubSeek(safePositionMs)
-    }
-
-    fun setScrubbing(scrubbing: Boolean, finalPositionMs: Long? = null) {
-        if (isScrubbing == scrubbing) {
-            if (!scrubbing && finalPositionMs != null) {
-                beginExactScrubSettle(finalPositionMs)
-                emitPreviewRetentionPolicy()
-                emitState()
-            }
-            return
-        }
-        isScrubbing = scrubbing
-        if (scrubbing) {
-            lastResolvedScrubSeekPositionMs = currentTimelinePositionMs()
-            cancelDeferredScrubSettle()
-            finishScrubSettle(forcePositionUpdate = false)
-            resetScrubSeekCoalescing()
-            player.pause()
-            enableScrubbingMode()
-            recoverFromTimelineEndedStateIfNeeded()
-        } else {
-            val resolvedFinalPositionMs = finalPositionMs ?: lastRequestedPositionMs
-            resetScrubSeekCoalescing()
-            beginExactScrubSettle(resolvedFinalPositionMs)
-        }
+        isActiveScrubSession = false
+        scrubDiagnostics.settleRequestCount += 1
+        player.pause()
+        beginExactScrubSettle(safePositionMs)
         emitPreviewRetentionPolicy()
         emitState()
+    }
+
+    fun getScrubDiagnostics(): Map<String, Any?> =
+        mapOf(
+            "transport" to scrubDiagnostics.toMap(),
+            "isActiveScrubSession" to isActiveScrubSession,
+            "isScrubSettling" to isScrubSettling,
+            "scrubSettlePositionSatisfied" to scrubSettlePositionSatisfied,
+            "scrubSettleRenderedFirstFrameSeen" to scrubSettleRenderedFirstFrameSeen,
+        )
+
+    fun resetScrubDiagnostics() {
+        scrubDiagnostics.reset()
+        isActiveScrubSession = false
+        scrubSettlePositionSatisfied = false
+        scrubSettleRenderedFirstFrameSeen = false
     }
 
     fun addPlayerObserver(observer: (Player) -> Unit) {
@@ -739,8 +697,6 @@ class Stage5TransportManager(context: Context) {
 
     fun release() {
         detachEventSink()
-        resetScrubSeekCoalescing()
-        cancelDeferredScrubSettle()
         finishScrubSettle(forcePositionUpdate = false)
         exoPlayer?.let { currentPlayer ->
             currentPlayer.removeListener(playerListener)
@@ -771,7 +727,6 @@ class Stage5TransportManager(context: Context) {
                     playWhenReady = false
                     setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT)
                     setSeekParameters(SeekParameters.EXACT)
-                    setScrubbingModeParameters(ScrubbingModeParameters.DEFAULT)
                     addListener(playerListener)
                 }
         exoPlayer = createdPlayer
@@ -794,8 +749,6 @@ class Stage5TransportManager(context: Context) {
     }
 
     private fun beginExactScrubSettle(positionMs: Long) {
-        cancelDeferredScrubSettle()
-        resetScrubSeekCoalescing()
         val safePositionMs = positionMs.coerceAtLeast(0L)
         lastRequestedPositionMs = safePositionMs
         val settledPositionMs = currentTimelinePositionMs()
@@ -803,13 +756,16 @@ class Stage5TransportManager(context: Context) {
             mainHandler.removeCallbacks(scrubSettleWatchdog)
             isScrubSettling = false
             scrubSettleTargetPositionMs = null
-            disableScrubbingMode()
+            scrubSettlePositionSatisfied = true
+            scrubSettleRenderedFirstFrameSeen = true
             (activePlayer as? ExoPlayer)?.setSeekParameters(SeekParameters.EXACT)
             emitState()
             return
         }
         isScrubSettling = true
         scrubSettleTargetPositionMs = safePositionMs
+        scrubSettlePositionSatisfied = false
+        scrubSettleRenderedFirstFrameSeen = false
         mainHandler.removeCallbacks(scrubSettleWatchdog)
         mainHandler.postDelayed(scrubSettleWatchdog, SCRUB_SETTLE_WATCHDOG_MS)
         (activePlayer as? ExoPlayer)?.setSeekParameters(SeekParameters.EXACT)
@@ -822,8 +778,7 @@ class Stage5TransportManager(context: Context) {
         }
         val recoverPositionMs =
             safeDisplayableEndPosition(lastRequestedPositionMs.coerceIn(0L, timelineDurationMs))
-        resetScrubSeekCoalescing()
-        cancelDeferredScrubSettle()
+        isActiveScrubSession = false
         finishScrubSettle(forcePositionUpdate = false)
         exoPlayer?.let { currentPlayer ->
             currentPlayer.removeListener(playerListener)
@@ -836,7 +791,6 @@ class Stage5TransportManager(context: Context) {
         exoPlayer = null
         compositionPlayer = null
         activePlayer = null
-        isScrubbing = false
         latestError = null
         val sharedUri = sharedTimelineSourceUri(timelineSegments)
         if (sharedUri != null) {
@@ -871,7 +825,7 @@ class Stage5TransportManager(context: Context) {
     private fun currentStateEmitterIntervalMs(): Long? {
         val activePlayer = activePlayer ?: exoPlayer ?: compositionPlayer
         return when {
-            isScrubbing || isScrubSettling -> SCRUB_POSITION_EMIT_INTERVAL_MS
+            isScrubSettling -> SCRUB_POSITION_EMIT_INTERVAL_MS
             activePlayer?.playWhenReady == true -> PLAYBACK_POSITION_EMIT_INTERVAL_MS
             else -> null
         }
@@ -913,12 +867,7 @@ class Stage5TransportManager(context: Context) {
                 activePlayer?.currentPosition ?: 0L
             }
         val playbackState = activePlayer?.playbackState ?: Player.STATE_IDLE
-        val isPlaying =
-            if (isScrubbing || isScrubSettling) {
-                false
-            } else {
-                activePlayer?.playWhenReady ?: false
-            }
+        val isPlaying = if (isScrubSettling) false else activePlayer?.playWhenReady ?: false
         return mapOf(
             "isReady" to (playbackState == Player.STATE_READY),
             "isPlaying" to isPlaying,
@@ -927,7 +876,7 @@ class Stage5TransportManager(context: Context) {
             "playbackState" to playbackState,
             "videoWidth" to videoWidth,
             "videoHeight" to videoHeight,
-            "isScrubbing" to isScrubbing,
+            "isScrubbing" to false,
             "isScrubSettling" to isScrubSettling,
             "sourceKind" to currentSourceKind,
             "sourceLabel" to currentSourceLabel,
@@ -937,54 +886,36 @@ class Stage5TransportManager(context: Context) {
 
     private fun performResolvedSeek(positionMs: Long) {
         val safePositionMs = positionMs.coerceAtLeast(0L)
-        val boundaryPolicy = currentSeekBoundaryPolicy(safePositionMs)
-        applyScrubSeekParametersForTarget(safePositionMs)
-        lastResolvedScrubSeekPositionMs = safePositionMs
         if (timelineSegments.isNotEmpty()) {
             if (isCompositionTimelineMode()) {
                 val clampedPositionMs = safePositionMs.coerceIn(0L, timelineDurationMs)
-                val seekPoint =
-                    resolveTimelineSeekPoint(
-                        globalPositionMs = clampedPositionMs,
-                        boundaryPolicy = boundaryPolicy,
-                    )
+                val seekPoint = resolveTimelineSeekPoint(globalPositionMs = clampedPositionMs)
                 activeTimelineSegmentIndex = seekPoint.segmentIndex
                 activeTimelineRunIndex = 0
+                recordSeekInvocation()
                 player.seekTo(clampedPositionMs)
                 return
             }
             val rawSeekPoint =
                 if (isRunTimelineMode()) {
-                    resolveTimelineRunSeekPoint(
-                        globalPositionMs = safePositionMs,
-                        boundaryPolicy = boundaryPolicy,
-                    )
+                    resolveTimelineRunSeekPoint(globalPositionMs = safePositionMs)
                 } else {
-                    resolveTimelineSeekPoint(
-                        globalPositionMs = safePositionMs,
-                        boundaryPolicy = boundaryPolicy,
-                    )
+                    resolveTimelineSeekPoint(globalPositionMs = safePositionMs)
                 }
             val seekPoint = rawSeekPoint
             activeTimelineSegmentIndex = seekPoint.segmentIndex
             activeTimelineRunIndex = seekPoint.itemIndex
             if (isSingleSourceTimelineMode()) {
                 applyPlaybackRateForSegmentIndex(seekPoint.segmentIndex)
-                if (shouldSkipDirectScrubSeek(seekPoint.sourcePositionMs)) {
-                    return
-                }
+                recordSeekInvocation()
                 player.seekTo(seekPoint.sourcePositionMs)
             } else {
                 applyPlaybackRateForSegmentIndex(seekPoint.segmentIndex)
-                if (shouldSkipRunTimelineScrubSeek(seekPoint)) {
-                    return
-                }
+                recordSeekInvocation()
                 player.seekTo(seekPoint.itemIndex, seekPoint.itemPositionMs)
             }
         } else {
-            if (shouldSkipDirectScrubSeek(safePositionMs)) {
-                return
-            }
+            recordSeekInvocation()
             player.seekTo(safePositionMs)
         }
     }
@@ -1001,8 +932,6 @@ class Stage5TransportManager(context: Context) {
             exo.pause()
             exo.playWhenReady = false
             exo.setPlaybackSpeed(1.0f)
-            exo.setScrubbingModeEnabled(false)
-            exo.setScrubbingModeParameters(ScrubbingModeParameters.DEFAULT)
             exo.setSeekParameters(SeekParameters.EXACT)
             exo.stop()
             exo.clearMediaItems()
@@ -1018,103 +947,6 @@ class Stage5TransportManager(context: Context) {
         videoWidth = 0
         videoHeight = 0
         lastAppliedPlaybackRate = null
-    }
-
-    private fun shouldSkipRunTimelineScrubSeek(seekPoint: TimelineSeekPoint): Boolean {
-        if (!isRunTimelineMode() || !isScrubbing) {
-            return false
-        }
-        val exo = exoPlayer ?: return false
-        return exo.currentMediaItemIndex == seekPoint.itemIndex &&
-            kotlin.math.abs(exo.currentPosition - seekPoint.itemPositionMs) <=
-            RUNS_EXO_SCRUB_SEEK_DEDUPE_MS
-    }
-
-    private fun shouldSkipDirectScrubSeek(targetPositionMs: Long): Boolean {
-        if (!isScrubbing) {
-            return false
-        }
-        val exo = exoPlayer ?: return false
-        return kotlin.math.abs(exo.currentPosition - targetPositionMs) <=
-            RUNS_EXO_SCRUB_SEEK_DEDUPE_MS
-    }
-
-    private fun shouldCoalesceTimelineScrubSeek(): Boolean = isScrubbing
-
-    private fun currentSeekBoundaryPolicy(targetPositionMs: Long): TimelineSeekBoundaryPolicy =
-        if (!isScrubbing) {
-            TimelineSeekBoundaryPolicy.PLAYBACK_EXACT
-        } else {
-            val referencePositionMs = scrubPolicyReferencePositionMs()
-            val deltaMs =
-                kotlin.math.abs(referencePositionMs - targetPositionMs.coerceAtLeast(0L))
-            if (deltaMs <= EXACT_SCRUB_DELTA_THRESHOLD_MS) {
-                TimelineSeekBoundaryPolicy.PLAYBACK_EXACT
-            } else {
-                TimelineSeekBoundaryPolicy.SCRUB_SAFE
-            }
-        }
-
-    private fun applyScrubSeekParametersForTarget(targetPositionMs: Long) {
-        if (!isScrubbing) {
-            return
-        }
-        val exo = (activePlayer as? ExoPlayer) ?: exoPlayer ?: return
-        val currentPositionMs = scrubPolicyReferencePositionMs()
-        val deltaMs =
-            kotlin.math.abs(currentPositionMs - targetPositionMs.coerceAtLeast(0L))
-        val seekParameters =
-            if (deltaMs <= EXACT_SCRUB_DELTA_THRESHOLD_MS) {
-                SeekParameters.EXACT
-            } else if (targetPositionMs < currentPositionMs) {
-                SeekParameters.PREVIOUS_SYNC
-            } else if (targetPositionMs > currentPositionMs) {
-                SeekParameters.NEXT_SYNC
-            } else {
-                SeekParameters.CLOSEST_SYNC
-            }
-        exo.setSeekParameters(seekParameters)
-    }
-
-    private fun scrubPolicyReferencePositionMs(): Long =
-        lastResolvedScrubSeekPositionMs ?: currentTimelinePositionMs()
-
-    private fun enqueueCoalescedScrubSeek(positionMs: Long) {
-        pendingScrubSeekPositionMs = positionMs
-        scheduleCoalescedScrubSeekDrain()
-    }
-
-    private fun drainCoalescedScrubSeekQueue() {
-        if (!shouldCoalesceTimelineScrubSeek()) {
-            resetScrubSeekCoalescing()
-            return
-        }
-        val nextPositionMs = pendingScrubSeekPositionMs ?: return
-        pendingScrubSeekPositionMs = null
-        lastScrubSeekDispatchAtMs = SystemClock.uptimeMillis()
-        performResolvedSeek(nextPositionMs)
-    }
-
-    private fun scheduleCoalescedScrubSeekDrain(delayMs: Long = 0L) {
-        if (scrubSeekDispatchScheduled) {
-            return
-        }
-        scrubSeekDispatchScheduled = true
-        val elapsedSinceLastDispatchMs =
-            (SystemClock.uptimeMillis() - lastScrubSeekDispatchAtMs).coerceAtLeast(0L)
-        val cadenceDelayMs =
-            if (lastScrubSeekDispatchAtMs == 0L) {
-                0L
-            } else {
-                (RUNS_EXO_SCRUB_DISPATCH_INTERVAL_MS - elapsedSinceLastDispatchMs)
-                    .coerceAtLeast(0L)
-            }
-        val resolvedDelayMs = maxOf(delayMs, cadenceDelayMs)
-        if (resolvedDelayMs <= 0L) {
-            mainHandler.post(coalescedScrubSeekDrain)
-        } else {
-            mainHandler.postDelayed(coalescedScrubSeekDrain, resolvedDelayMs)
-        }
     }
 
     private fun maybeFinishScrubSettle() {
@@ -1133,25 +965,14 @@ class Stage5TransportManager(context: Context) {
         ) {
             return
         }
+        scrubSettlePositionSatisfied = true
+        if (playbackState == Player.STATE_ENDED) {
+            scrubSettleRenderedFirstFrameSeen = true
+        }
+        if (!scrubSettleRenderedFirstFrameSeen) {
+            return
+        }
         finishScrubSettle(forcePositionUpdate = false)
-    }
-
-    private fun resetScrubSeekCoalescing() {
-        mainHandler.removeCallbacks(coalescedScrubSeekDrain)
-        scrubSeekDispatchScheduled = false
-        lastScrubSeekDispatchAtMs = 0L
-        pendingScrubSeekPositionMs = null
-    }
-
-    private fun cancelDeferredScrubSettle() {
-        mainHandler.removeCallbacks(deferredScrubSettle)
-        deferredScrubSettlePositionMs = null
-    }
-
-    private fun scheduleDeferredScrubSettle(positionMs: Long) {
-        cancelDeferredScrubSettle()
-        deferredScrubSettlePositionMs = positionMs.coerceAtLeast(0L)
-        mainHandler.postDelayed(deferredScrubSettle, DEFERRED_SCRUB_SETTLE_DELAY_MS)
     }
 
     private fun finishScrubSettle(forcePositionUpdate: Boolean) {
@@ -1159,11 +980,18 @@ class Stage5TransportManager(context: Context) {
         mainHandler.removeCallbacks(scrubSettleWatchdog)
         isScrubSettling = false
         scrubSettleTargetPositionMs = null
-        if (!isScrubbing) {
-            disableScrubbingMode()
-        }
+        scrubSettlePositionSatisfied = false
+        scrubSettleRenderedFirstFrameSeen = false
         if (forcePositionUpdate && hadPendingSettle) {
             emitState()
+        }
+    }
+
+    private fun recordSeekInvocation() {
+        if (isActiveScrubSession) {
+            scrubDiagnostics.activeScrubSeekCount += 1
+        } else if (isScrubSettling) {
+            scrubDiagnostics.settleSeekCount += 1
         }
     }
 
@@ -1224,10 +1052,7 @@ class Stage5TransportManager(context: Context) {
         if (isCompositionTimelineMode()) {
             val positionMs = activePlayer.currentPosition.coerceIn(0L, timelineDurationMs)
             activeTimelineSegmentIndex =
-                resolveTimelineSeekPoint(
-                    globalPositionMs = positionMs,
-                    boundaryPolicy = TimelineSeekBoundaryPolicy.PLAYBACK_EXACT,
-                ).segmentIndex
+                resolveTimelineSeekPoint(globalPositionMs = positionMs).segmentIndex
             return positionMs
         }
         if (isSingleSourceTimelineMode()) {
@@ -1274,10 +1099,7 @@ class Stage5TransportManager(context: Context) {
             .coerceIn(0L, timelineDurationMs)
     }
 
-    private fun resolveTimelineSeekPoint(
-        globalPositionMs: Long,
-        boundaryPolicy: TimelineSeekBoundaryPolicy = TimelineSeekBoundaryPolicy.PLAYBACK_EXACT,
-    ): TimelineSeekPoint {
+    private fun resolveTimelineSeekPoint(globalPositionMs: Long): TimelineSeekPoint {
         if (timelineSegments.isEmpty()) {
             val safePositionMs = globalPositionMs.coerceAtLeast(0L)
             return TimelineSeekPoint(
@@ -1294,8 +1116,6 @@ class Stage5TransportManager(context: Context) {
         val maxItemPositionMs =
             if (index == timelineSegments.lastIndex) {
                 safeDisplayableEndPosition(segment.sourceDurationMs)
-            } else if (boundaryPolicy == TimelineSeekBoundaryPolicy.SCRUB_SAFE) {
-                (segment.sourceDurationMs - 1L).coerceAtLeast(0L)
             } else {
                 segment.sourceDurationMs
             }
@@ -1326,11 +1146,7 @@ class Stage5TransportManager(context: Context) {
         singleSourceTimelineUri = sourceUri
         timelineRuns = emptyList()
         timelinePlaybackBackend = TimelinePlaybackBackend.SINGLE_SOURCE_EXO
-        val seekPoint =
-            resolveTimelineSeekPoint(
-                globalPositionMs = startPositionMs,
-                boundaryPolicy = TimelineSeekBoundaryPolicy.PLAYBACK_EXACT,
-            )
+        val seekPoint = resolveTimelineSeekPoint(globalPositionMs = startPositionMs)
         activeTimelineRunIndex = 0
         activeTimelineSegmentIndex = seekPoint.segmentIndex
         exo.setMediaItem(MediaItem.fromUri(sourceUri), seekPoint.sourcePositionMs)
@@ -1353,11 +1169,7 @@ class Stage5TransportManager(context: Context) {
         exo.pause()
         exo.clearMediaItems()
         timelinePlaybackBackend = TimelinePlaybackBackend.COMPOSITION
-        val seekPoint =
-            resolveTimelineSeekPoint(
-                globalPositionMs = startPositionMs,
-                boundaryPolicy = TimelineSeekBoundaryPolicy.PLAYBACK_EXACT,
-            )
+        val seekPoint = resolveTimelineSeekPoint(globalPositionMs = startPositionMs)
         activeTimelineRunIndex = 0
         activeTimelineSegmentIndex = seekPoint.segmentIndex
         val sequence =
@@ -1554,47 +1366,6 @@ class Stage5TransportManager(context: Context) {
             timelinePlaybackBackend == TimelinePlaybackBackend.COMPOSITION &&
             timelineSegments.isNotEmpty()
 
-    private fun resolveScrubbingModeParameters(): ScrubbingModeParameters =
-        if (isRunTimelineMode() ||
-            isSingleSourceTimelineMode() ||
-            currentSourceKind != "timeline" ||
-            timelineSegments.size <= 1
-        ) {
-            runTimelineScrubbingModeParameters
-        } else if (timelineSegments.size > 1) {
-            multiItemScrubbingModeParameters
-        } else {
-            runTimelineScrubbingModeParameters
-        }
-
-    private fun enableScrubbingMode() {
-        when (val activePlayer = player) {
-            is ExoPlayer -> {
-                activePlayer.setSeekParameters(SeekParameters.CLOSEST_SYNC)
-                activePlayer.setScrubbingModeParameters(resolveScrubbingModeParameters())
-                activePlayer.setScrubbingModeEnabled(true)
-            }
-
-            is CompositionPlayer -> {
-                activePlayer.setScrubbingModeEnabled(true)
-            }
-        }
-    }
-
-    private fun disableScrubbingMode() {
-        when (val activePlayer = player) {
-            is ExoPlayer -> {
-                activePlayer.setScrubbingModeEnabled(false)
-                activePlayer.setScrubbingModeParameters(ScrubbingModeParameters.DEFAULT)
-                activePlayer.setSeekParameters(SeekParameters.EXACT)
-            }
-
-            is CompositionPlayer -> {
-                activePlayer.setScrubbingModeEnabled(false)
-            }
-        }
-    }
-
     private fun activatePlayer(nextPlayer: Player) {
         val previousPlayer = activePlayer
         if (previousPlayer === nextPlayer) {
@@ -1685,7 +1456,6 @@ class Stage5TransportManager(context: Context) {
                 activeTimelineSegmentIndex =
                     resolveTimelineSeekPoint(
                         globalPositionMs = positionMs.coerceIn(0L, timelineDurationMs),
-                        boundaryPolicy = TimelineSeekBoundaryPolicy.PLAYBACK_EXACT,
                     ).segmentIndex
             }
             return
@@ -1795,15 +1565,9 @@ class Stage5TransportManager(context: Context) {
         }
     }
 
-    private fun resolveTimelineRunSeekPoint(
-        globalPositionMs: Long,
-        boundaryPolicy: TimelineSeekBoundaryPolicy = TimelineSeekBoundaryPolicy.PLAYBACK_EXACT,
-    ): TimelineSeekPoint {
+    private fun resolveTimelineRunSeekPoint(globalPositionMs: Long): TimelineSeekPoint {
         if (timelineRuns.isEmpty()) {
-            return resolveTimelineSeekPoint(
-                globalPositionMs = globalPositionMs,
-                boundaryPolicy = boundaryPolicy,
-            )
+            return resolveTimelineSeekPoint(globalPositionMs = globalPositionMs)
         }
         val clampedPosition = globalPositionMs.coerceIn(0L, timelineDurationMs)
         val segmentIndex = findSegmentIndexForTimelinePosition(clampedPosition)
@@ -1816,9 +1580,6 @@ class Stage5TransportManager(context: Context) {
         val maxItemPositionMs =
             if (segmentIndex == run.endSegmentIndexInclusive) {
                 safeDisplayableEndPosition(run.windowEndMs - run.windowStartMs)
-            } else if (boundaryPolicy == TimelineSeekBoundaryPolicy.SCRUB_SAFE) {
-                (segment.startMs - run.windowStartMs + segment.sourceDurationMs - 1L)
-                    .coerceAtLeast(0L)
             } else {
                 (segment.startMs - run.windowStartMs + segment.sourceDurationMs)
                     .coerceAtLeast(0L)
