@@ -64,7 +64,8 @@ class _NativePreviewSurfaceState extends State<NativePreviewSurface> {
 
   void _handleControllerChanged() {
     final hasNativeFrameNow =
-        widget.controller.isReady && widget.controller.aspectRatio != null;
+        widget.controller.hasRenderedFirstFrame &&
+        widget.controller.aspectRatio != null;
     var shouldNotify = false;
     if (_previewIdentity != widget.previewIdentity) {
       _previewIdentity = widget.previewIdentity;
@@ -97,7 +98,8 @@ class _NativePreviewSurfaceState extends State<NativePreviewSurface> {
     }
 
     final showNative = _hasPresentedNativeFrameForPreview ||
-        (widget.controller.isReady && widget.controller.aspectRatio != null);
+        (widget.controller.hasRenderedFirstFrame &&
+            widget.controller.aspectRatio != null);
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
       child: Stack(

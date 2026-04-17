@@ -63,6 +63,7 @@ class Stage5TransportManager(context: Context) {
     private var eventSink: EventChannel.EventSink? = null
     private var videoWidth = 0
     private var videoHeight = 0
+    private var hasRenderedFirstFrame = false
     private var latestError: String? = null
     private var lastRequestedPositionMs = 0L
     private var currentSourceKind = "idle"
@@ -194,6 +195,7 @@ class Stage5TransportManager(context: Context) {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 maybeFinishScrubSettle()
                 updateTimelinePlaybackWindow()
+                emitPreviewRetentionPolicy()
                 emitState()
             }
 
@@ -204,10 +206,12 @@ class Stage5TransportManager(context: Context) {
                 maybeFinishScrubSettle()
                 syncRunTimelinePlaybackFromActiveItem()
                 updateTimelinePlaybackWindow()
+                emitPreviewRetentionPolicy()
                 emitState()
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
+                emitPreviewRetentionPolicy()
                 emitState()
             }
 
@@ -218,14 +222,17 @@ class Stage5TransportManager(context: Context) {
             ) {
                 maybeFinishScrubSettle()
                 updateTimelinePlaybackWindow()
+                emitPreviewRetentionPolicy()
                 emitState()
             }
 
             override fun onRenderedFirstFrame() {
+                hasRenderedFirstFrame = true
                 if (isScrubSettling) {
                     scrubSettleRenderedFirstFrameSeen = true
                     maybeFinishScrubSettle()
                 }
+                emitPreviewRetentionPolicy()
                 emitState()
             }
 
@@ -252,8 +259,7 @@ class Stage5TransportManager(context: Context) {
         exo.clearMediaItems()
         compositionPlayer?.pause()
         compositionPlayer?.stop()
-        videoWidth = 0
-        videoHeight = 0
+        clearVideoPresentationState()
         timelineSegments = emptyList()
         timelineRuns = emptyList()
         timelineDurationMs = 0L
@@ -283,9 +289,8 @@ class Stage5TransportManager(context: Context) {
         val currentUri = exo.currentMediaItem?.localConfiguration?.uri
         if (currentUri != sampleUri) {
             exo.setMediaItem(MediaItem.fromUri(sampleUri))
-            videoWidth = 0
-            videoHeight = 0
         }
+        clearVideoPresentationState()
         compositionPlayer?.pause()
         compositionPlayer?.stop()
         timelineSegments = emptyList()
@@ -435,9 +440,8 @@ class Stage5TransportManager(context: Context) {
         val currentUri = exo.currentMediaItem?.localConfiguration?.uri
         if (currentUri != importedUri) {
             exo.setMediaItem(MediaItem.fromUri(importedUri))
-            videoWidth = 0
-            videoHeight = 0
         }
+        clearVideoPresentationState()
         compositionPlayer?.pause()
         compositionPlayer?.stop()
         timelineSegments = emptyList()
@@ -540,8 +544,7 @@ class Stage5TransportManager(context: Context) {
             exo.clearMediaItems()
             compositionPlayer?.pause()
             compositionPlayer?.stop()
-            videoWidth = 0
-            videoHeight = 0
+            clearVideoPresentationState()
             emitPreviewRetentionPolicy()
             emitState()
             return buildState()
@@ -566,8 +569,7 @@ class Stage5TransportManager(context: Context) {
         singleSourceTimelineUri = null
         activeTimelineRunIndex = 0
         activeTimelineSegmentIndex = 0
-        videoWidth = 0
-        videoHeight = 0
+        clearVideoPresentationState()
         if (!ENABLE_COMPOSITION_TIMELINE_PREVIEW || !canUseCompositionTimelinePreview(segments)) {
             return prepareRunTimeline(startPositionMs = lastRequestedPositionMs)
         }
@@ -584,11 +586,13 @@ class Stage5TransportManager(context: Context) {
             applyPlaybackRateForSegmentIndex(activeTimelineSegmentIndex)
         }
         player.play()
+        emitPreviewRetentionPolicy()
         emitState()
     }
 
     fun pause() {
         player.pause()
+        emitPreviewRetentionPolicy()
         emitState()
     }
 
@@ -845,12 +849,19 @@ class Stage5TransportManager(context: Context) {
             "playbackState" to playbackState,
             "videoWidth" to videoWidth,
             "videoHeight" to videoHeight,
+            "hasRenderedFirstFrame" to hasRenderedFirstFrame,
             "isScrubbing" to false,
             "isScrubSettling" to isScrubSettling,
             "sourceKind" to currentSourceKind,
             "sourceLabel" to currentSourceLabel,
             "error" to latestError,
         )
+    }
+
+    private fun clearVideoPresentationState() {
+        videoWidth = 0
+        videoHeight = 0
+        hasRenderedFirstFrame = false
     }
 
     private fun performResolvedSeek(positionMs: Long) {
@@ -909,8 +920,7 @@ class Stage5TransportManager(context: Context) {
         activeTimelineRunIndex = 0
         activeTimelineSegmentIndex = 0
         timelinePlaybackBackend = TimelinePlaybackBackend.NONE
-        videoWidth = 0
-        videoHeight = 0
+        clearVideoPresentationState()
         lastAppliedPlaybackRate = null
     }
 
@@ -1110,8 +1120,7 @@ class Stage5TransportManager(context: Context) {
         activeTimelineSegmentIndex = seekPoint.segmentIndex
         exo.setMediaItem(MediaItem.fromUri(sourceUri), seekPoint.sourcePositionMs)
         applyPlaybackRateForSegmentIndex(seekPoint.segmentIndex)
-        videoWidth = 0
-        videoHeight = 0
+        clearVideoPresentationState()
         compositionPlayer?.pause()
         compositionPlayer?.stop()
         exo.prepare()
@@ -1159,8 +1168,7 @@ class Stage5TransportManager(context: Context) {
                     }
                 }.build()
         val composition = Composition.Builder(sequence).build()
-        videoWidth = 0
-        videoHeight = 0
+        clearVideoPresentationState()
         compositionPlayer.setComposition(composition, startPositionMs)
         compositionPlayer.prepare()
         emitPreviewRetentionPolicy()
@@ -1335,7 +1343,17 @@ class Stage5TransportManager(context: Context) {
         playerObservers.forEach { observer -> observer(nextPlayer) }
     }
 
-    private fun shouldRetainPreviewContentOnReset(): Boolean = isScrubSettling
+    private fun shouldRetainPreviewContentOnReset(): Boolean {
+        if (isScrubSettling) {
+            return true
+        }
+        val player = activePlayer ?: exoPlayer ?: compositionPlayer
+        val isRunTimelinePlayback =
+            isRunTimelineMode() &&
+                timelineRuns.size > 1 &&
+                player?.playWhenReady == true
+        return isRunTimelinePlayback
+    }
 
     private fun emitPreviewRetentionPolicy() {
         val shouldRetain = shouldRetainPreviewContentOnReset()

@@ -13,6 +13,7 @@ class Stage5TransportState {
     this.playbackState = 0,
     this.videoWidth = 0,
     this.videoHeight = 0,
+    this.hasRenderedFirstFrame = false,
     this.isScrubbing = false,
     this.isScrubSettling = false,
     this.sourceKind = 'idle',
@@ -27,6 +28,7 @@ class Stage5TransportState {
   final int playbackState;
   final int videoWidth;
   final int videoHeight;
+  final bool hasRenderedFirstFrame;
   final bool isScrubbing;
   final bool isScrubSettling;
   final String sourceKind;
@@ -52,6 +54,7 @@ class Stage5TransportState {
     int? playbackState,
     int? videoWidth,
     int? videoHeight,
+    bool? hasRenderedFirstFrame,
     bool? isScrubbing,
     bool? isScrubSettling,
     String? sourceKind,
@@ -66,6 +69,8 @@ class Stage5TransportState {
       playbackState: playbackState ?? this.playbackState,
       videoWidth: videoWidth ?? this.videoWidth,
       videoHeight: videoHeight ?? this.videoHeight,
+      hasRenderedFirstFrame:
+          hasRenderedFirstFrame ?? this.hasRenderedFirstFrame,
       isScrubbing: isScrubbing ?? this.isScrubbing,
       isScrubSettling: isScrubSettling ?? this.isScrubSettling,
       sourceKind: sourceKind ?? this.sourceKind,
@@ -98,6 +103,8 @@ class Stage5NativeTransportController extends ChangeNotifier {
   bool get isReady => _state.isReady;
 
   bool get isPlaying => _state.isPlaying;
+
+  bool get hasRenderedFirstFrame => _state.hasRenderedFirstFrame;
 
   double get currentSeconds => _state.positionSeconds;
 
@@ -437,6 +444,9 @@ class Stage5NativeTransportController extends ChangeNotifier {
       playbackState: _asInt(data['playbackState']) ?? _state.playbackState,
       videoWidth: _asInt(data['videoWidth']) ?? _state.videoWidth,
       videoHeight: _asInt(data['videoHeight']) ?? _state.videoHeight,
+      hasRenderedFirstFrame:
+          (data['hasRenderedFirstFrame'] as bool?) ??
+          _state.hasRenderedFirstFrame,
       isScrubbing: (data['isScrubbing'] as bool?) ?? _state.isScrubbing,
       isScrubSettling:
           (data['isScrubSettling'] as bool?) ?? _state.isScrubSettling,
@@ -460,6 +470,7 @@ class Stage5NativeTransportController extends ChangeNotifier {
         left.playbackState == right.playbackState &&
         left.videoWidth == right.videoWidth &&
         left.videoHeight == right.videoHeight &&
+        left.hasRenderedFirstFrame == right.hasRenderedFirstFrame &&
         left.isScrubbing == right.isScrubbing &&
         left.isScrubSettling == right.isScrubSettling &&
         left.sourceKind == right.sourceKind &&

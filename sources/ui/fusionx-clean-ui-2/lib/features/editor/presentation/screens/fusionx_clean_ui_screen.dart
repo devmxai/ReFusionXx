@@ -894,12 +894,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     if (sourceUri == null || sourceUri.isEmpty) {
       return null;
     }
+    final previewTarget = _resolvePreviewFallbackTargetSize(asset);
     if (asset.tab == EditorMediaTab.video) {
       final framePreview = await _transportController.loadMediaFramePreview(
         sourceUri: sourceUri,
         positionMs: 0,
-        targetWidth: 480,
-        targetHeight: 854,
+        targetWidth: previewTarget.width,
+        targetHeight: previewTarget.height,
       );
       if (framePreview != null && framePreview.isNotEmpty) {
         return framePreview;
@@ -907,9 +908,26 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     }
     return _transportController.loadMediaThumbnail(
       sourceUri: sourceUri,
-      targetWidth: 480,
-      targetHeight: 854,
+      targetWidth: previewTarget.width,
+      targetHeight: previewTarget.height,
     );
+  }
+
+  ({int width, int height}) _resolvePreviewFallbackTargetSize(
+    EditorAssetItem asset,
+  ) {
+    const fallbackWidth = 480.0;
+    const fallbackHeight = 854.0;
+    final aspectRatio = asset.aspectRatio;
+    if (aspectRatio == null || aspectRatio <= 0) {
+      return (width: fallbackWidth.round(), height: fallbackHeight.round());
+    }
+    if (aspectRatio >= 1.0) {
+      final height = (fallbackWidth / aspectRatio).clamp(180.0, fallbackHeight);
+      return (width: fallbackWidth.round(), height: height.round());
+    }
+    final width = (fallbackHeight * aspectRatio).clamp(120.0, fallbackWidth);
+    return (width: width.round(), height: fallbackHeight.round());
   }
 
   bool _matchesCurrentMotionTimelineProjection(
@@ -3971,7 +3989,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     } else if (asset.tab == EditorMediaTab.image) {
       await _pausePlayback();
     }
-    if (asset.isVisual) {
+    final hasPreviewPosterCached =
+        (_previewThumbnailCache[asset.id]?.isNotEmpty ?? false);
+    final shouldPrimePreviewBeforeInsert =
+        asset.isVisual && _previewAsset == null && !hasPreviewPosterCached;
+    if (shouldPrimePreviewBeforeInsert) {
+      await _primePreviewThumbnailForAsset(asset);
+    } else if (asset.isVisual) {
       unawaited(_primePreviewThumbnailForAsset(asset));
     }
     final clipId = 'clip-${asset.id}-${DateTime.now().millisecondsSinceEpoch}';
