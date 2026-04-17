@@ -26,6 +26,7 @@ class MainActivity: FlutterActivity() {
     private lateinit var deviceMediaLibraryManager: DeviceMediaLibraryManager
     private val mediaQueryExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val mediaThumbnailExecutor: ExecutorService = Executors.newFixedThreadPool(4)
+    private val scrubReadinessExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
     private var pendingMediaTab: String? = null
     private var pendingMediaResult: MethodChannel.Result? = null
@@ -178,6 +179,34 @@ class MainActivity: FlutterActivity() {
                         }
                     }
                 }
+                "loadMediaDisplayGeometry" -> {
+                    val sourceUri = call.argument<String>("sourceUri")
+                    if (sourceUri.isNullOrBlank()) {
+                        result.error(
+                            "invalid_media_geometry_source",
+                            "Media geometry source is missing.",
+                            null,
+                        )
+                    } else {
+                        mediaThumbnailExecutor.execute {
+                            runCatching {
+                                stage5TransportManager.loadMediaDisplayGeometry(sourceUri)
+                            }.onSuccess { geometry ->
+                                mainHandler.post {
+                                    result.success(geometry)
+                                }
+                            }.onFailure { error ->
+                                mainHandler.post {
+                                    result.error(
+                                        "media_geometry_load_failed",
+                                        error.message ?: "Unable to resolve media geometry.",
+                                        null,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
                 "loadMediaThumbnails" -> {
                     val rawRequests = call.argument<List<Any?>>("requests") ?: emptyList()
                     val targetWidth = call.argument<Int>("targetWidth") ?: 192
@@ -241,6 +270,30 @@ class MainActivity: FlutterActivity() {
                     }
                     result.success(null)
                 }
+                "awaitTimelineScrubReady" -> {
+                    val positionMs = call.argument<Number>("positionMs")?.toLong() ?: 0L
+                    val timeoutMs = call.argument<Number>("timeoutMs")?.toLong() ?: 1_200L
+                    scrubReadinessExecutor.execute {
+                        runCatching {
+                            stage5NativeScrubEngine.awaitTimelineScrubReady(
+                                timelinePositionMs = positionMs,
+                                timeoutMs = timeoutMs,
+                            )
+                        }.onSuccess { isReady ->
+                            mainHandler.post {
+                                result.success(isReady)
+                            }
+                        }.onFailure { error ->
+                            mainHandler.post {
+                                result.error(
+                                    "timeline_scrub_readiness_failed",
+                                    error.message ?: "Unable to prepare timeline scrub readiness.",
+                                    null,
+                                )
+                            }
+                        }
+                    }
+                }
                 else -> result.notImplemented()
             }
         }
@@ -270,15 +323,27 @@ class MainActivity: FlutterActivity() {
                         call.argument<Map<String, Any?>>("composition")
                             ?.mapKeys { (key, _) -> key.toString() }
                             ?: emptyMap()
-                    val preset = call.argument<String>("preset") ?: "fullHd1080p"
-                    val requestedFrameRate =
-                        call.argument<Number>("requestedFrameRate")?.toInt()
+                    val exportProfile =
+                        call.argument<Map<String, Any?>>("exportProfile")
+                            ?.mapKeys { (key, _) -> key.toString() }
+                            ?: mapOf(
+                                "resolutionPreset" to
+                                    (call.argument<String>("preset") ?: "fullHd1080p"),
+                                "frameRate" to call.argument<Number>("requestedFrameRate")?.toInt(),
+                                "videoCodec" to
+                                    (call.argument<String>("videoCodec") ?: "automatic"),
+                                "bitrateMode" to
+                                    (call.argument<String>("bitrateMode") ?: "auto"),
+                                "audioBitrate" to
+                                    call.argument<Number>("requestedAudioBitrate")?.toInt(),
+                                "manualVideoBitrate" to
+                                    call.argument<Number>("manualVideoBitrate")?.toInt(),
+                            )
                     val requestedFileName = call.argument<String>("requestedFileName")
                     result.success(
                         stage6ExportManager.exportTimeline(
                             compositionMap = composition,
-                            preset = preset,
-                            requestedFrameRate = requestedFrameRate,
+                            exportProfileMap = exportProfile,
                             requestedFileName = requestedFileName,
                         ),
                     )
@@ -455,6 +520,7 @@ class MainActivity: FlutterActivity() {
         }
         mediaQueryExecutor.shutdownNow()
         mediaThumbnailExecutor.shutdownNow()
+        scrubReadinessExecutor.shutdownNow()
         super.onDestroy()
     }
 

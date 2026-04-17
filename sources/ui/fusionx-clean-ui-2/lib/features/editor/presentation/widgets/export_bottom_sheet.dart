@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../../../core/engine/stage6_export_controller.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../domain/models/export_composition_models.dart';
+import '../../domain/models/export_output_profile.dart';
 
 class ExportBottomSheet extends StatefulWidget {
   const ExportBottomSheet({
@@ -20,10 +21,7 @@ class ExportBottomSheet extends StatefulWidget {
 
   final Stage6ExportController controller;
   final ExportComposition Function() buildComposition;
-  final Future<void> Function(
-    ExportQualityPreset preset,
-    ExportFrameRatePreset frameRate,
-  ) onStartExport;
+  final Future<void> Function(ExportOutputProfile profile) onStartExport;
   final Future<void> Function() onCancelExport;
   final Future<bool> Function(String outputPath, String? mimeType) onOpenOutput;
   final Future<bool> Function(String outputPath, String? mimeType)
@@ -37,15 +35,35 @@ class ExportBottomSheet extends StatefulWidget {
 }
 
 class _ExportBottomSheetState extends State<ExportBottomSheet> {
-  ExportQualityPreset _selectedPreset = ExportQualityPreset.fullHd1080p;
+  static const List<ExportFrameRatePreset> _visibleFrameRatePresets = [
+    ExportFrameRatePreset.fps30,
+    ExportFrameRatePreset.fps60,
+    ExportFrameRatePreset.fps90,
+    ExportFrameRatePreset.fps120,
+  ];
+
+  ExportResolutionPreset _selectedPreset = ExportResolutionPreset.fullHd1080p;
   late ExportFrameRatePreset _selectedFrameRate;
+  final ExportVideoCodecPreset _selectedVideoCodec =
+      ExportVideoCodecPreset.automatic;
+  final ExportBitrateMode _selectedBitrateMode = ExportBitrateMode.auto;
+  final ExportAudioBitratePreset _selectedAudioBitrate =
+      ExportAudioBitratePreset.kbps256;
+  late final TextEditingController _manualVideoBitrateController;
 
   @override
   void initState() {
     super.initState();
     final composition = widget.buildComposition();
     _selectedFrameRate =
-        ExportFrameRatePreset.closestTo(composition.format.framesPerSecond);
+        _closestVisibleFrameRate(composition.format.framesPerSecond);
+    _manualVideoBitrateController = TextEditingController(text: '12');
+  }
+
+  @override
+  void dispose() {
+    _manualVideoBitrateController.dispose();
+    super.dispose();
   }
 
   Future<void> _copyOutputPath(String outputPath) async {
@@ -76,6 +94,16 @@ class _ExportBottomSheetState extends State<ExportBottomSheet> {
     widget.onStageMessage('Export saved to gallery.');
   }
 
+  ExportFrameRatePreset _closestVisibleFrameRate(double framesPerSecond) {
+    return _visibleFrameRatePresets.reduce((currentBest, candidate) {
+      final currentDelta =
+          (currentBest.framesPerSecond - framesPerSecond).abs();
+      final candidateDelta =
+          (candidate.framesPerSecond - framesPerSecond).abs();
+      return candidateDelta < currentDelta ? candidate : currentBest;
+    });
+  }
+
   String _titleForState(ExportJobState state) {
     if (state.isActive) {
       return 'Exporting';
@@ -103,43 +131,125 @@ class _ExportBottomSheetState extends State<ExportBottomSheet> {
         '${targetSize.$1}x${targetSize.$2}';
   }
 
+  int? _parseManualVideoBitrate() {
+    final rawValue = _manualVideoBitrateController.text.trim();
+    if (rawValue.isEmpty) {
+      return null;
+    }
+    final parsedMbps = double.tryParse(rawValue);
+    if (parsedMbps == null || parsedMbps <= 0) {
+      return null;
+    }
+    return (parsedMbps * 1000 * 1000).round();
+  }
+
+  ExportOutputProfile? _buildSelectedProfile() {
+    final manualVideoBitrate = _selectedBitrateMode == ExportBitrateMode.manual
+        ? _parseManualVideoBitrate()
+        : null;
+    if (_selectedBitrateMode == ExportBitrateMode.manual &&
+        manualVideoBitrate == null) {
+      widget.onStageMessage('Enter a valid manual bitrate in Mbps.');
+      return null;
+    }
+    return ExportOutputProfile(
+      resolutionPreset: _selectedPreset,
+      frameRate: _selectedFrameRate,
+      videoCodec: _selectedVideoCodec,
+      bitrateMode: _selectedBitrateMode,
+      audioBitrate: _selectedAudioBitrate,
+      manualVideoBitrate: manualVideoBitrate,
+    );
+  }
+
   (int, int) _resolvedOutputSizeForPreset(
     ExportComposition composition,
-    ExportQualityPreset preset,
+    ExportResolutionPreset preset,
   ) {
     int roundEven(int value) {
       final clamped = value < 2 ? 2 : value;
       return clamped.isEven ? clamped : clamped - 1;
     }
 
+    (int, int) scaledCanvasToFit(int maxWidth, int maxHeight) {
+      final canvasWidth = composition.format.canvasWidth;
+      final canvasHeight = composition.format.canvasHeight;
+      final scale = [
+        maxWidth / canvasWidth,
+        maxHeight / canvasHeight,
+      ].reduce((value, element) => value < element ? value : element);
+      return (
+        roundEven((canvasWidth * scale).round()),
+        roundEven((canvasHeight * scale).round()),
+      );
+    }
+
+    (int, int) resolveSourceMatchSize() {
+      final visualAssets = composition.assets.where((asset) {
+        final hasDimensions = (asset.width ?? 0) > 0 && (asset.height ?? 0) > 0;
+        return hasDimensions &&
+            (asset.kind == ExportAssetKind.video ||
+                asset.kind == ExportAssetKind.image);
+      }).toList(growable: false);
+      if (visualAssets.isEmpty) {
+        return (
+          roundEven(composition.format.canvasWidth),
+          roundEven(composition.format.canvasHeight),
+        );
+      }
+      final largestAsset = visualAssets.reduce((currentBest, candidate) {
+        final currentArea =
+            (currentBest.width ?? 0) * (currentBest.height ?? 0);
+        final candidateArea = (candidate.width ?? 0) * (candidate.height ?? 0);
+        return candidateArea > currentArea ? candidate : currentBest;
+      });
+      return scaledCanvasToFit(
+        largestAsset.width ?? composition.format.canvasWidth,
+        largestAsset.height ?? composition.format.canvasHeight,
+      );
+    }
+
     final canvasWidth = composition.format.canvasWidth;
     final canvasHeight = composition.format.canvasHeight;
-    if (preset == ExportQualityPreset.originalSize) {
+    if (preset == ExportResolutionPreset.originalCanvas) {
       return (roundEven(canvasWidth), roundEven(canvasHeight));
+    }
+    if (preset == ExportResolutionPreset.sourceMatch) {
+      return resolveSourceMatchSize();
     }
     final isLandscape = canvasWidth >= canvasHeight;
     final (maxWidth, maxHeight) = switch (preset) {
-      ExportQualityPreset.draft720p => isLandscape ? (1280, 720) : (720, 1280),
-      ExportQualityPreset.fullHd1080p =>
+      ExportResolutionPreset.draft720p =>
+        isLandscape ? (1280, 720) : (720, 1280),
+      ExportResolutionPreset.fullHd1080p =>
         isLandscape ? (1920, 1080) : (1080, 1920),
-      ExportQualityPreset.originalSize => (canvasWidth, canvasHeight),
+      ExportResolutionPreset.quadHd1440p =>
+        isLandscape ? (2560, 1440) : (1440, 2560),
+      ExportResolutionPreset.ultraHd2160p =>
+        isLandscape ? (3840, 2160) : (2160, 3840),
+      ExportResolutionPreset.originalCanvas => (canvasWidth, canvasHeight),
+      ExportResolutionPreset.sourceMatch => (canvasWidth, canvasHeight),
     };
-    final scale = [
-      1.0,
-      maxWidth / canvasWidth,
-      maxHeight / canvasHeight,
-    ].reduce((value, element) => value < element ? value : element);
-    return (
-      roundEven((canvasWidth * scale).round()),
-      roundEven((canvasHeight * scale).round()),
-    );
+    return scaledCanvasToFit(maxWidth, maxHeight);
   }
 
-  String _labelForPreset(ExportQualityPreset preset) {
+  String _labelForPreset(ExportResolutionPreset preset) {
     return switch (preset) {
-      ExportQualityPreset.draft720p => '720p',
-      ExportQualityPreset.fullHd1080p => '1080p',
-      ExportQualityPreset.originalSize => 'Original',
+      ExportResolutionPreset.draft720p => '720p',
+      ExportResolutionPreset.fullHd1080p => '1080p',
+      ExportResolutionPreset.quadHd1440p => '2K',
+      ExportResolutionPreset.ultraHd2160p => '4K',
+      ExportResolutionPreset.originalCanvas => 'Original',
+      ExportResolutionPreset.sourceMatch => 'Source',
+    };
+  }
+
+  String _formatSelectedVideoCodec(String? value) {
+    return switch (value) {
+      'automatic' => 'Auto',
+      'h264Avc' => 'H.264 / AVC',
+      'h265Hevc' => 'H.265 / HEVC',
+      _ => '-',
     };
   }
 
@@ -250,7 +360,20 @@ class _ExportBottomSheetState extends State<ExportBottomSheet> {
     return switch (preset) {
       'draft720p' => '720p',
       'fullHd1080p' => '1080p',
-      'originalSize' => 'Original',
+      'quadHd1440p' => '1440p',
+      'ultraHd2160p' => '2160p',
+      'originalCanvas' => 'Original Canvas',
+      'sourceMatch' => 'Source Match',
+      _ => '-',
+    };
+  }
+
+  String _formatBitrateModeName(String? value) {
+    return switch (value) {
+      'auto' => 'Auto',
+      'qualityPriority' => 'Quality',
+      'sizePriority' => 'Size',
+      'manual' => 'Manual',
       _ => '-',
     };
   }
@@ -347,7 +470,7 @@ class _ExportBottomSheetState extends State<ExportBottomSheet> {
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     final safeBottom = MediaQuery.of(context).padding.bottom;
-    final sheetHeight = MediaQuery.of(context).size.height * 0.44;
+    final sheetHeight = MediaQuery.of(context).size.height * 0.62;
 
     return AnimatedBuilder(
       animation: widget.controller,
@@ -447,44 +570,53 @@ class _ExportBottomSheetState extends State<ExportBottomSheet> {
                   const SizedBox(height: 14),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Row(
-                      children: ExportQualityPreset.values.map((preset) {
-                        final isSelected = preset == _selectedPreset;
-                        return Expanded(
-                          child: Padding(
-                            padding: EdgeInsets.only(
-                              right: preset == ExportQualityPreset.originalSize
-                                  ? 0
-                                  : 8,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Resolution',
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                              color: FxPalette.textMuted,
+                              fontWeight: FontWeight.w700,
                             ),
-                            child: InkWell(
-                              onTap: state.isActive
-                                  ? null
-                                  : () => setState(() {
-                                        _selectedPreset = preset;
-                                      }),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: ExportResolutionPreset.values.map((preset) {
+                        final isSelected = preset == _selectedPreset;
+                        return InkWell(
+                          onTap: state.isActive
+                              ? null
+                              : () => setState(() {
+                                    _selectedPreset = preset;
+                                  }),
+                          borderRadius: BorderRadius.circular(14),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 160),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? FxPalette.accent
+                                  : FxPalette.surfaceRaised,
                               borderRadius: BorderRadius.circular(14),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 160),
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 10),
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? FxPalette.accent
-                                      : FxPalette.surfaceRaised,
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                child: Text(
-                                  _labelForPreset(preset),
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: isSelected
-                                        ? FxPalette.background
-                                        : FxPalette.textPrimary,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
+                            ),
+                            child: Text(
+                              _labelForPreset(preset),
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: isSelected
+                                    ? FxPalette.background
+                                    : FxPalette.textPrimary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
                           ),
@@ -495,44 +627,53 @@ class _ExportBottomSheetState extends State<ExportBottomSheet> {
                   const SizedBox(height: 10),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Row(
-                      children: ExportFrameRatePreset.values.map((preset) {
-                        final isSelected = preset == _selectedFrameRate;
-                        return Expanded(
-                          child: Padding(
-                            padding: EdgeInsets.only(
-                              right: preset == ExportFrameRatePreset.values.last
-                                  ? 0
-                                  : 8,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'FPS',
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                              color: FxPalette.textMuted,
+                              fontWeight: FontWeight.w700,
                             ),
-                            child: InkWell(
-                              onTap: state.isActive
-                                  ? null
-                                  : () => setState(() {
-                                        _selectedFrameRate = preset;
-                                      }),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _visibleFrameRatePresets.map((preset) {
+                        final isSelected = preset == _selectedFrameRate;
+                        return InkWell(
+                          onTap: state.isActive
+                              ? null
+                              : () => setState(() {
+                                    _selectedFrameRate = preset;
+                                  }),
+                          borderRadius: BorderRadius.circular(14),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 160),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? FxPalette.accent
+                                  : FxPalette.surfaceRaised,
                               borderRadius: BorderRadius.circular(14),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 160),
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 10),
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? FxPalette.accent
-                                      : FxPalette.surfaceRaised,
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                child: Text(
-                                  preset.framesPerSecond.toString(),
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: isSelected
-                                        ? FxPalette.background
-                                        : FxPalette.textPrimary,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
+                            ),
+                            child: Text(
+                              preset.framesPerSecond.toString(),
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: isSelected
+                                    ? FxPalette.background
+                                    : FxPalette.textPrimary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
                           ),
@@ -579,6 +720,8 @@ class _ExportBottomSheetState extends State<ExportBottomSheet> {
                               body:
                                   'Preset: ${_formatPresetName(state.preset)}\n'
                                   'Target FPS: ${state.requestedFrameRate?.toString() ?? _selectedFrameRate.framesPerSecond} fps\n'
+                                  'Video Codec: ${_formatSelectedVideoCodec(state.selectedVideoCodec)}\n'
+                                  'Bitrate Mode: ${_formatBitrateModeName(state.bitrateMode)}\n'
                                   'Video Bitrate: ${state.requestedVideoBitrate == null ? '-' : _formatBitrate(state.requestedVideoBitrate!)}\n'
                                   'Audio Bitrate: ${state.requestedAudioBitrate == null ? '-' : _formatBitrate(state.requestedAudioBitrate!)}\n'
                                   'Encoder: ${state.selectedEncoderName ?? '-'}\n'
@@ -595,18 +738,10 @@ class _ExportBottomSheetState extends State<ExportBottomSheet> {
                                 : FxPalette.danger,
                             title: 'Preflight',
                             body:
-                                'Baseline Profile: ${composition.baselineProfileLabel}\n'
-                                'Visual Tracks: ${composition.nonEmptyVisualTrackCount}\n'
-                                'Audio Tracks: ${composition.nonEmptyAudioTrackCount}\n'
-                                'Visual Windows: ${composition.visualWindowCount}\n'
-                                'Media-only Windows: ${composition.visualMediaOnlyWindowCount}\n'
-                                'Overlay Windows: ${composition.visualMediaWithOverlayWindowCount}\n'
-                                'Gap Windows: ${composition.visualGapWindowCount}\n'
-                                'Blocked Windows: ${composition.visualCompositorRequiredWindowCount}\n'
-                                'Compositor Plans: ${composition.visualCompositorGraph.compositorWindowExecutionPlanCount}\n'
-                                'Expected Audio: ${composition.expectedHasAudio ? 'Yes' : 'No'}\n'
-                                'Baseline: ${composition.isFirstBaselineEligible ? 'Ready' : 'Blocked'}\n'
-                                'Parity Limits: ${parityLimitations.isEmpty ? 'None detected for current composition' : parityLimitations.length.toString()}'
+                                'Profile: ${composition.baselineProfileLabel}\n'
+                                'Tracks: ${composition.nonEmptyVisualTrackCount} video'
+                                '${composition.nonEmptyAudioTrackCount > 0 ? ' + audio' : ''}\n'
+                                'Status: ${composition.isFirstBaselineEligible ? 'Ready' : 'Blocked'}'
                                 '${composition.firstBlockedVisualAssemblyWindow == null ? '' : '\nFirst Blocked Window: ${composition.firstBlockedVisualAssemblyWindow!.id} (${composition.firstBlockedVisualAssemblyWindow!.timelineRange.start.inMilliseconds}-${composition.firstBlockedVisualAssemblyWindow!.timelineRange.endExclusive.inMilliseconds}ms)\nBlocked Detail: ${composition.firstBlockedVisualAssemblyWindow!.detail}'}',
                           ),
                           const SizedBox(height: 10),
@@ -874,9 +1009,7 @@ class _ExportBottomSheetState extends State<ExportBottomSheet> {
                             const _ExportInfoCard(
                               toneColor: FxPalette.accent,
                               title: 'Baseline Ready',
-                              body:
-                                  'Single visual-track timelines with optional single audio-track, trim/order, and normal speed are ready for first export.\n'
-                                  'Higher export FPS improves authored text/motion smoothness, but cannot create new source-video detail beyond the original media frame rate.',
+                              body: 'Ready for export.',
                             ),
                             const SizedBox(height: 10),
                           ],
@@ -964,10 +1097,14 @@ class _ExportBottomSheetState extends State<ExportBottomSheet> {
                                 child: ElevatedButton(
                                   onPressed: state.isActive
                                       ? null
-                                      : () => widget.onStartExport(
-                                            _selectedPreset,
-                                            _selectedFrameRate,
-                                          ),
+                                      : () {
+                                          final profile =
+                                              _buildSelectedProfile();
+                                          if (profile == null) {
+                                            return;
+                                          }
+                                          widget.onStartExport(profile);
+                                        },
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: FxPalette.accent,
                                     foregroundColor: FxPalette.background,
@@ -987,7 +1124,7 @@ class _ExportBottomSheetState extends State<ExportBottomSheet> {
                                         ? 'Review Blockers'
                                         : state.status == ExportJobStatus.failed
                                             ? 'Retry Export'
-                                            : 'Start Export',
+                                            : 'Export',
                                   ),
                                 ),
                               ),

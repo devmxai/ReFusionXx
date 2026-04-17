@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 // ignore: implementation_imports
 import 'package:flutter/src/rendering/platform_view.dart'
     show PlatformViewHitTestBehavior;
@@ -26,10 +25,13 @@ class NativeTimelineScrubSurface extends StatefulWidget {
     required this.onScrubStart,
     required this.onScrubTimeChanged,
     required this.onScrubEnd,
+    this.configRevision = 0,
+    this.onConfigApplied,
     this.regions = const <TimelineScrubViewportRegion>[],
     this.onTap,
     this.targetWidth = 0,
     this.targetHeight = 0,
+    this.interactionEnabled = true,
   });
 
   final TimelineTime currentTime;
@@ -41,10 +43,13 @@ class NativeTimelineScrubSurface extends StatefulWidget {
   final VoidCallback onScrubStart;
   final ValueChanged<TimelineTime> onScrubTimeChanged;
   final ValueChanged<TimelineTime> onScrubEnd;
+  final int configRevision;
+  final ValueChanged<int>? onConfigApplied;
   final List<TimelineScrubViewportRegion> regions;
   final VoidCallback? onTap;
   final int targetWidth;
   final int targetHeight;
+  final bool interactionEnabled;
 
   bool get supportsNativeScrub => !kIsWeb && Platform.isAndroid;
 
@@ -62,6 +67,8 @@ class _NativeTimelineScrubSurfaceState extends State<NativeTimelineScrubSurface>
   bool _configPushScheduled = false;
   int? _lastPushedTargetWidth;
   int? _lastPushedTargetHeight;
+  int? _lastPushedConfigRevision;
+  int? _lastAppliedConfigRevision;
   TimelineTime? _lastPushedCurrentTime;
   TimelineTime? _lastPushedTimelineDurationTime;
   TimelineTime? _lastPushedTimelineOffsetTime;
@@ -96,6 +103,12 @@ class _NativeTimelineScrubSurfaceState extends State<NativeTimelineScrubSurface>
     }
     if (!_isScrubSessionActive && oldWidget.currentTime != widget.currentTime) {
       _lastNativeTimelineTime = widget.currentTime;
+    }
+    if (_viewId != null &&
+        !_isScrubSessionActive &&
+        oldWidget.configRevision != widget.configRevision) {
+      unawaited(_pushConfig());
+      return;
     }
     if (_viewId != null &&
         !_isScrubSessionActive &&
@@ -144,7 +157,7 @@ class _NativeTimelineScrubSurfaceState extends State<NativeTimelineScrubSurface>
       return;
     }
     _configPushScheduled = true;
-    SchedulerBinding.instance.scheduleFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       _configPushScheduled = false;
       if (!mounted || _viewId == null || _isScrubSessionActive) {
         return;
@@ -184,7 +197,7 @@ class _NativeTimelineScrubSurfaceState extends State<NativeTimelineScrubSurface>
       _lastNativeTimelineTime = timelineTime;
       widget.onScrubEnd(timelineTime);
       _isScrubSessionActive = false;
-      unawaited(_pushConfig());
+      await _pushConfig();
       return;
     }
     if (call.method == 'tap') {
@@ -204,6 +217,7 @@ class _NativeTimelineScrubSurfaceState extends State<NativeTimelineScrubSurface>
     final tapEnabled = widget.onTap != null;
     if (_lastPushedTargetWidth == resolvedTargetWidth &&
         _lastPushedTargetHeight == resolvedTargetHeight &&
+        _lastPushedConfigRevision == widget.configRevision &&
         _lastPushedCurrentTime == effectiveCurrentTime &&
         _lastPushedTimelineDurationTime == widget.timelineDurationTime &&
         _lastPushedTimelineOffsetTime == widget.timelineOffsetTime &&
@@ -222,6 +236,7 @@ class _NativeTimelineScrubSurfaceState extends State<NativeTimelineScrubSurface>
         'timelineDurationMs': widget.timelineDurationTime.inMilliseconds,
         'timelineOffsetMs': widget.timelineOffsetTime.inMilliseconds,
         'secondsWidth': widget.secondsWidth,
+        'configRevision': widget.configRevision,
         'targetWidth': resolvedTargetWidth,
         'targetHeight': resolvedTargetHeight,
         'tapEnabled': tapEnabled,
@@ -235,6 +250,7 @@ class _NativeTimelineScrubSurfaceState extends State<NativeTimelineScrubSurface>
     );
     _lastPushedTargetWidth = resolvedTargetWidth;
     _lastPushedTargetHeight = resolvedTargetHeight;
+    _lastPushedConfigRevision = widget.configRevision;
     _lastPushedCurrentTime = effectiveCurrentTime;
     _lastPushedTimelineDurationTime = widget.timelineDurationTime;
     _lastPushedTimelineOffsetTime = widget.timelineOffsetTime;
@@ -247,6 +263,10 @@ class _NativeTimelineScrubSurfaceState extends State<NativeTimelineScrubSurface>
         List<LiveScrubPreviewSourceDescriptor>.unmodifiable(
       widget.previewSources,
     );
+    if (_lastAppliedConfigRevision != widget.configRevision) {
+      _lastAppliedConfigRevision = widget.configRevision;
+      widget.onConfigApplied?.call(widget.configRevision);
+    }
   }
 
   void _handlePlatformViewCreated(int viewId) {
@@ -269,7 +289,7 @@ class _NativeTimelineScrubSurfaceState extends State<NativeTimelineScrubSurface>
     final resolvedTargetHeight = _resolvedTargetHeight(context, resolvedTargetWidth);
     final hasInteractiveRegions = widget.regions.isNotEmpty;
     return IgnorePointer(
-      ignoring: !hasInteractiveRegions,
+      ignoring: !hasInteractiveRegions || !widget.interactionEnabled,
       child: AndroidView(
         viewType: Stage5NativeTransportController.timelineScrubViewType,
         creationParams: <String, Object?>{
@@ -299,7 +319,14 @@ class _NativeTimelineScrubSurfaceState extends State<NativeTimelineScrubSurface>
   }
 
   TimelineTime _effectiveCurrentTime() {
-    return (_lastNativeTimelineTime ?? widget.currentTime).clamp(
+    final canonicalCurrentTime = widget.currentTime.clamp(
+      TimelineTime.zero,
+      widget.timelineDurationTime,
+    );
+    if (!_isScrubSessionActive) {
+      return canonicalCurrentTime;
+    }
+    return (_lastNativeTimelineTime ?? canonicalCurrentTime).clamp(
       TimelineTime.zero,
       widget.timelineDurationTime,
     );

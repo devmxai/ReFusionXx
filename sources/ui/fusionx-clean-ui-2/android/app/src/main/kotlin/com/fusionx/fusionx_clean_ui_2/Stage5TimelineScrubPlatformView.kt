@@ -96,7 +96,30 @@ private class Stage5TimelineScrubInputView(
 
     private fun toLogicalPixels(value: Float): Float = value / displayDensity
 
+    private fun resolveGesturePositionMs(
+        event: MotionEvent,
+        pointerIndex: Int,
+    ): Long {
+        val currentX = resolvePointerRawX(event, pointerIndex)
+        val logicalCurrentX = toLogicalPixels(currentX)
+        val totalDx = logicalCurrentX - downX
+        val secondsWidth = config.secondsWidth.coerceAtLeast(0.0001)
+        val deltaMs = ((totalDx / secondsWidth) * 1000.0).roundToLong()
+        return (gestureStartPositionMs - deltaMs)
+            .coerceIn(
+                config.timelineOffsetMs,
+                config.timelineOffsetMs + config.timelineDurationMs,
+            )
+    }
+
     fun updateConfig(nextConfig: Stage5TimelineScrubSurfaceConfig) {
+        val previousConfig = config
+        val previousSources =
+            if (configuredPreviewSources.isNotEmpty()) {
+                configuredPreviewSources
+            } else {
+                previousConfig.previewSources
+            }
         config = nextConfig
         if (!scrubbing) {
             gesturePositionMs = nextConfig.currentPositionMs
@@ -106,6 +129,15 @@ private class Stage5TimelineScrubInputView(
                 configuredTargetWidth != nextConfig.targetWidth ||
                 configuredTargetHeight != nextConfig.targetHeight
         if (!shouldReconfigure) {
+            if (!scrubbing && previousConfig.currentPositionMs != nextConfig.currentPositionMs) {
+                val previousDescriptor =
+                    resolveDescriptorForPosition(previousSources, previousConfig.currentPositionMs)
+                val nextDescriptor =
+                    resolveDescriptorForPosition(previousSources, nextConfig.currentPositionMs)
+                if (previousDescriptor?.scrubStoreKey != nextDescriptor?.scrubStoreKey) {
+                    nativeScrubEngine.primeTimelinePosition(nextConfig.currentPositionMs)
+                }
+            }
             return
         }
         configuredPreviewSources = nextConfig.previewSources
@@ -117,6 +149,20 @@ private class Stage5TimelineScrubInputView(
             targetHeight = nextConfig.targetHeight,
             initialTimelinePositionMs = nextConfig.currentPositionMs,
         )
+    }
+
+    private fun resolveDescriptorForPosition(
+        descriptors: List<Stage5NativeScrubSourceDescriptor>,
+        positionMs: Long,
+    ): Stage5NativeScrubSourceDescriptor? {
+        if (descriptors.isEmpty()) {
+            return null
+        }
+        return descriptors.firstOrNull { descriptor ->
+            descriptor.containsPosition(positionMs)
+        } ?: descriptors.lastOrNull { descriptor ->
+            descriptor.timelineStartMs <= positionMs
+        } ?: descriptors.firstOrNull()
     }
 
     private fun acceptsPoint(
@@ -142,6 +188,7 @@ private class Stage5TimelineScrubInputView(
                 gestureStartPositionMs = config.currentPositionMs
                 gesturePositionMs = config.currentPositionMs
                 scrubbing = false
+                nativeScrubEngine.primeTimelinePosition(gesturePositionMs)
                 parent?.requestDisallowInterceptTouchEvent(true)
                 return true
             }
@@ -158,20 +205,14 @@ private class Stage5TimelineScrubInputView(
                     return true
                 }
                 if (!scrubbing) {
+                    nativeScrubEngine.activatePrimedSession()
                     scrubbing = true
                     channel.invokeMethod(
                         "scrubStart",
                         mapOf("positionMs" to gesturePositionMs),
                     )
                 }
-                val secondsWidth = config.secondsWidth.coerceAtLeast(0.0001)
-                val deltaMs = ((totalDx / secondsWidth) * 1000.0).roundToLong()
-                val nextPositionMs =
-                    (gestureStartPositionMs - deltaMs)
-                        .coerceIn(
-                            config.timelineOffsetMs,
-                            config.timelineOffsetMs + config.timelineDurationMs,
-                        )
+                val nextPositionMs = resolveGesturePositionMs(event, activeIndex)
                 if (nextPositionMs == gesturePositionMs) {
                     return true
                 }
@@ -184,8 +225,11 @@ private class Stage5TimelineScrubInputView(
                 val wasScrubbing = scrubbing
                 val tapped = !wasScrubbing && config.tapEnabled
                 if (wasScrubbing) {
-                    nativeScrubEngine.scrubTimelinePosition(gesturePositionMs)
-                    nativeScrubEngine.freezeSession()
+                    val activeIndex = event.findPointerIndex(pointerId)
+                    if (activeIndex >= 0) {
+                        gesturePositionMs = resolveGesturePositionMs(event, activeIndex)
+                    }
+                    nativeScrubEngine.commitFinalTimelinePosition(gesturePositionMs)
                     channel.invokeMethod(
                         "scrubEnd",
                         mapOf("positionMs" to gesturePositionMs),
@@ -202,8 +246,11 @@ private class Stage5TimelineScrubInputView(
 
             MotionEvent.ACTION_CANCEL -> {
                 if (scrubbing) {
-                    nativeScrubEngine.scrubTimelinePosition(gesturePositionMs)
-                    nativeScrubEngine.freezeSession()
+                    val activeIndex = event.findPointerIndex(pointerId)
+                    if (activeIndex >= 0) {
+                        gesturePositionMs = resolveGesturePositionMs(event, activeIndex)
+                    }
+                    nativeScrubEngine.commitFinalTimelinePosition(gesturePositionMs)
                     channel.invokeMethod(
                         "scrubEnd",
                         mapOf("positionMs" to gesturePositionMs),

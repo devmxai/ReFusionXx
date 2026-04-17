@@ -79,6 +79,8 @@ class Stage6ExportManager(
     private var eventSink: EventChannel.EventSink? = null
     private var activeJobId: String? = null
     private var activePreset: String? = null
+    private var activeSelectedVideoCodec: String? = null
+    private var activeBitrateMode: String? = null
     private var activeTransformer: Transformer? = null
     private var activeOutputPath: String? = null
     private var activeMotionTextParityDiagnostics: NativeMotionTextParityDiagnostics? = null
@@ -143,8 +145,7 @@ class Stage6ExportManager(
 
     fun exportTimeline(
         compositionMap: Map<String, Any?>,
-        preset: String,
-        requestedFrameRate: Int?,
+        exportProfileMap: Map<String, Any?>,
         requestedFileName: String?,
     ): Map<String, Any?> {
         if (activeJobId != null) {
@@ -175,7 +176,9 @@ class Stage6ExportManager(
                 "visualAssemblyDiagnostics" to preflightVisualAssemblyDiagnostics?.toMap(),
             )
         }
-        val expectedOutputFrameRate = resolveOutputFrameRate(compositionMap, requestedFrameRate)
+        val requestedProfile = resolveRequestedExportProfile(exportProfileMap)
+        val preset = requestedProfile.resolutionPreset
+        val expectedOutputFrameRate = resolveOutputFrameRate(compositionMap, requestedProfile.frameRate)
         val exportComposition =
             buildExportComposition(
                 compositionMap = compositionMap,
@@ -188,6 +191,7 @@ class Stage6ExportManager(
                     outputSize = exportComposition.outputSize,
                     outputFrameRate = expectedOutputFrameRate,
                     expectsAudio = exportComposition.expectsAudio,
+                    requestedProfile = requestedProfile,
                 )
             } catch (error: IllegalArgumentException) {
                 return mapOf(
@@ -196,6 +200,8 @@ class Stage6ExportManager(
                     "progress" to 0.0,
                     "preset" to preset,
                     "requestedFrameRate" to expectedOutputFrameRate,
+                    "selectedVideoCodec" to requestedProfile.videoCodec,
+                    "bitrateMode" to requestedProfile.bitrateMode,
                     "error" to (error.message ?: "Requested export profile is not supported."),
                     "canonicalEffectsDiagnostics" to
                         preflightCanonicalEffectsDiagnostics?.toMap(),
@@ -207,6 +213,8 @@ class Stage6ExportManager(
         val jobId = "export-${UUID.randomUUID()}"
         activeJobId = jobId
         activePreset = preset
+        activeSelectedVideoCodec = encoderPlan?.selectedVideoCodec
+        activeBitrateMode = requestedProfile.bitrateMode
         val clipCount = exportComposition.clips.size
         val executionDurationMs = exportComposition.executionDurationMs
         val timelineDurationMs = exportComposition.timelineDurationMs
@@ -234,8 +242,8 @@ class Stage6ExportManager(
                     encoderFactoryBuilder.setRequestedAudioEncoderSettings(audioEncoderSettings)
                 }
                 Transformer.Builder(appContext)
-                    .setAudioMimeType(MimeTypes.AUDIO_AAC)
-                    .setVideoMimeType(MimeTypes.VIDEO_H264)
+                    .setAudioMimeType(encoderPlan?.audioMimeType ?: MimeTypes.AUDIO_AAC)
+                    .setVideoMimeType(encoderPlan?.videoMimeType ?: MimeTypes.VIDEO_H264)
                     .setEncoderFactory(encoderFactoryBuilder.build())
                     .setEnsureFileStartsOnVideoFrameEnabled(true)
                     .addListener(
@@ -255,6 +263,8 @@ class Stage6ExportManager(
                                     expectedHasAudio = exportComposition.expectsAudio,
                                     expectedOutputSize = exportComposition.outputSize,
                                     expectedOutputFrameRate = expectedOutputFrameRate,
+                                    expectedVideoTrackMime = encoderPlan?.videoMimeType,
+                                    expectedAudioTrackMime = encoderPlan?.audioMimeType,
                                 )
                             if (!validation.isValid) {
                                 clearActiveExport(jobId)
@@ -368,7 +378,7 @@ class Stage6ExportManager(
         activeTransformer = transformer
         Log.i(
             TAG,
-            "Starting export job=$jobId preset=$preset fps=$expectedOutputFrameRate size=${exportComposition.outputSize?.width}x${exportComposition.outputSize?.height} encoder=${encoderPlan?.encoderName} videoBitrate=${encoderPlan?.videoBitrate}",
+            "Starting export job=$jobId preset=$preset fps=$expectedOutputFrameRate codec=${encoderPlan?.selectedVideoCodec} size=${exportComposition.outputSize?.width}x${exportComposition.outputSize?.height} encoder=${encoderPlan?.encoderName} videoBitrate=${encoderPlan?.videoBitrate}",
         )
         val response =
             mapOf(
@@ -381,6 +391,8 @@ class Stage6ExportManager(
                 "requestedVideoBitrate" to encoderPlan?.videoBitrate,
                 "requestedAudioBitrate" to encoderPlan?.audioBitrate,
                 "selectedEncoderName" to encoderPlan?.encoderName,
+                "selectedVideoCodec" to encoderPlan?.selectedVideoCodec,
+                "bitrateMode" to requestedProfile.bitrateMode,
                 "requestedFileName" to requestedFileName,
                 "clipCount" to clipCount,
                 "durationMs" to executionDurationMs,
@@ -608,6 +620,8 @@ class Stage6ExportManager(
         resumePreviewAfterActiveExport()
         activeJobId = null
         activePreset = null
+        activeSelectedVideoCodec = null
+        activeBitrateMode = null
         activeOutputPath = null
         activeMotionTextParityDiagnostics = null
         activeCanonicalEffectsDiagnostics = null
@@ -3973,19 +3987,40 @@ class Stage6ExportManager(
         return frameRate.takeIf { it > 0 }
     }
 
+    private fun resolveRequestedExportProfile(
+        exportProfileMap: Map<String, Any?>,
+    ): NativeRequestedExportProfile {
+        return NativeRequestedExportProfile(
+            resolutionPreset =
+                exportProfileMap["resolutionPreset"]?.toString()?.takeIf { it.isNotBlank() }
+                    ?: "fullHd1080p",
+            frameRate = readInt(exportProfileMap["frameRate"]).takeIf { it > 0 },
+            videoCodec =
+                exportProfileMap["videoCodec"]?.toString()?.takeIf { it.isNotBlank() }
+                    ?: "automatic",
+            bitrateMode =
+                exportProfileMap["bitrateMode"]?.toString()?.takeIf { it.isNotBlank() }
+                    ?: "auto",
+            audioBitrate = readInt(exportProfileMap["audioBitrate"]).takeIf { it > 0 },
+            manualVideoBitrate =
+                readInt(exportProfileMap["manualVideoBitrate"]).takeIf { it > 0 },
+        )
+    }
+
     private fun resolveEncoderPlan(
         outputSize: OutputSize?,
         outputFrameRate: Int?,
         expectsAudio: Boolean,
+        requestedProfile: NativeRequestedExportProfile,
     ): NativeExportEncoderPlan? {
         if (outputSize == null || outputFrameRate == null || outputFrameRate <= 0) {
             return null
         }
-        val mimeType = MimeTypes.VIDEO_H264
+        val mimeType = resolveRequestedVideoMimeType(requestedProfile)
         val supportedEncoders = EncoderUtil.getSupportedEncoders(mimeType)
         if (supportedEncoders.isEmpty()) {
             throw IllegalArgumentException(
-                "No H.264 export encoder is available on this device.",
+                "No ${formatVideoCodecLabel(mimeType)} export encoder is available on this device.",
             )
         }
         val selectedEncoder =
@@ -4016,27 +4051,43 @@ class Stage6ExportManager(
                 }.getOrDefault(false)
             }
                 ?: throw IllegalArgumentException(
-                    "Requested export profile ${outputSize.width}x${outputSize.height} @ ${outputFrameRate}fps is not supported by the current H.264 encoder path on this device.",
+                    "Requested export profile ${outputSize.width}x${outputSize.height} @ ${outputFrameRate}fps is not supported by the current ${formatVideoCodecLabel(mimeType)} encoder path on this device.",
                 )
         val requestedVideoBitrate =
             calculateRequestedVideoBitrate(
                 width = outputSize.width,
                 height = outputSize.height,
                 frameRate = outputFrameRate,
+                mimeType = mimeType,
+                bitrateMode = requestedProfile.bitrateMode,
+                manualVideoBitrate = requestedProfile.manualVideoBitrate,
             )
         val clampedVideoBitrate =
             runCatching {
                 val bitrateRange = EncoderUtil.getSupportedBitrateRange(selectedEncoder, mimeType)
                 requestedVideoBitrate.coerceIn(bitrateRange.lower, bitrateRange.upper)
             }.getOrElse { requestedVideoBitrate }
-        val bitrateMode = resolvePreferredBitrateMode(selectedEncoder, mimeType)
+        val bitrateMode =
+            resolvePreferredBitrateMode(
+                codecInfo = selectedEncoder,
+                mimeType = mimeType,
+                requestedMode = requestedProfile.bitrateMode,
+            )
         val videoEncoderSettings =
             VideoEncoderSettings.Builder()
                 .setBitrate(clampedVideoBitrate)
                 .setBitrateMode(bitrateMode)
                 .setiFrameIntervalSeconds(1.0f)
                 .build()
-        val audioBitrate = if (expectsAudio) 256_000 else null
+        val audioBitrate =
+            if (expectsAudio) {
+                resolveRequestedAudioBitrate(
+                    requestedAudioBitrate = requestedProfile.audioBitrate,
+                    bitrateMode = requestedProfile.bitrateMode,
+                )
+            } else {
+                null
+            }
         val audioEncoderSettings =
             if (audioBitrate == null) {
                 null
@@ -4050,6 +4101,9 @@ class Stage6ExportManager(
             videoBitrate = clampedVideoBitrate,
             audioBitrate = audioBitrate,
             encoderName = selectedEncoder.name,
+            videoMimeType = mimeType,
+            audioMimeType = if (audioBitrate == null) null else MimeTypes.AUDIO_AAC,
+            selectedVideoCodec = formatVideoCodecPresetName(mimeType),
             videoEncoderSettings = videoEncoderSettings,
             audioEncoderSettings = audioEncoderSettings,
         )
@@ -4075,31 +4129,91 @@ class Stage6ExportManager(
         width: Int,
         height: Int,
         frameRate: Int,
+        mimeType: String,
+        bitrateMode: String,
+        manualVideoBitrate: Int?,
     ): Int {
+        if (bitrateMode == "manual" && manualVideoBitrate != null && manualVideoBitrate > 0) {
+            return manualVideoBitrate
+        }
         val pixelsPerSecond = width.toLong() * height.toLong() * frameRate.toLong()
-        val targetBitrate = (pixelsPerSecond * 0.16).roundToLong()
+        val compressionFactor =
+            when (bitrateMode) {
+                "qualityPriority" -> if (mimeType == MimeTypes.VIDEO_H265) 0.14 else 0.22
+                "sizePriority" -> if (mimeType == MimeTypes.VIDEO_H265) 0.07 else 0.11
+                else -> if (mimeType == MimeTypes.VIDEO_H265) 0.10 else 0.16
+            }
+        val targetBitrate = (pixelsPerSecond * compressionFactor).roundToLong()
         return targetBitrate
             .coerceAtLeast(8_000_000L)
             .coerceAtMost(80_000_000L)
             .toInt()
     }
 
+    private fun resolveRequestedAudioBitrate(
+        requestedAudioBitrate: Int?,
+        bitrateMode: String,
+    ): Int {
+        val requested =
+            requestedAudioBitrate ?: when (bitrateMode) {
+                "qualityPriority" -> 320_000
+                "sizePriority" -> 128_000
+                else -> 256_000
+            }
+        return requested.coerceIn(128_000, 320_000)
+    }
+
+    private fun resolveRequestedVideoMimeType(
+        requestedProfile: NativeRequestedExportProfile,
+    ): String {
+        return when (requestedProfile.videoCodec) {
+            "h265Hevc" -> MimeTypes.VIDEO_H265
+            else -> MimeTypes.VIDEO_H264
+        }
+    }
+
     private fun resolvePreferredBitrateMode(
         codecInfo: MediaCodecInfo,
         mimeType: String,
+        requestedMode: String,
     ): Int {
-        return when {
-            EncoderUtil.isBitrateModeSupported(
-                codecInfo,
-                mimeType,
-                MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR,
-            ) -> MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR
-            EncoderUtil.isBitrateModeSupported(
-                codecInfo,
-                mimeType,
-                MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CQ,
-            ) -> MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CQ
-            else -> MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR
+        val preferredModes =
+            when (requestedMode) {
+                "qualityPriority" ->
+                    listOf(
+                        MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CQ,
+                        MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR,
+                        MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR,
+                    )
+                "sizePriority", "manual" ->
+                    listOf(
+                        MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR,
+                        MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR,
+                        MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CQ,
+                    )
+                else ->
+                    listOf(
+                        MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR,
+                        MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CQ,
+                        MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR,
+                    )
+            }
+        return preferredModes.firstOrNull { mode ->
+            EncoderUtil.isBitrateModeSupported(codecInfo, mimeType, mode)
+        } ?: MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR
+    }
+
+    private fun formatVideoCodecLabel(mimeType: String): String {
+        return when (mimeType) {
+            MimeTypes.VIDEO_H265 -> "H.265 / HEVC"
+            else -> "H.264 / AVC"
+        }
+    }
+
+    private fun formatVideoCodecPresetName(mimeType: String): String {
+        return when (mimeType) {
+            MimeTypes.VIDEO_H265 -> "h265Hevc"
+            else -> "h264Avc"
         }
     }
 
@@ -4113,10 +4227,15 @@ class Stage6ExportManager(
         if (canvasWidth <= 0 || canvasHeight <= 0) {
             return null
         }
-        if (preset == "originalSize") {
+        if (preset == "originalCanvas") {
             return OutputSize(
                 width = roundDimensionToEven(canvasWidth),
                 height = roundDimensionToEven(canvasHeight),
+            )
+        }
+        if (preset == "sourceMatch") {
+            return resolveSourceMatchOutputSize(
+                compositionMap = compositionMap,
             )
         }
         val isLandscape = canvasWidth >= canvasHeight
@@ -4124,15 +4243,14 @@ class Stage6ExportManager(
             when (preset) {
                 "draft720p" -> if (isLandscape) 1280 to 720 else 720 to 1280
                 "fullHd1080p" -> if (isLandscape) 1920 to 1080 else 1080 to 1920
+                "quadHd1440p" -> if (isLandscape) 2560 to 1440 else 1440 to 2560
+                "ultraHd2160p" -> if (isLandscape) 3840 to 2160 else 2160 to 3840
                 else -> canvasWidth to canvasHeight
             }
         val scale =
             kotlin.math.min(
-                1.0,
-                kotlin.math.min(
-                    maxWidth.toDouble() / canvasWidth.toDouble(),
-                    maxHeight.toDouble() / canvasHeight.toDouble(),
-                ),
+                maxWidth.toDouble() / canvasWidth.toDouble(),
+                maxHeight.toDouble() / canvasHeight.toDouble(),
             )
         return OutputSize(
             width = roundDimensionToEven((canvasWidth * scale).roundToInt()),
@@ -4140,9 +4258,45 @@ class Stage6ExportManager(
         )
     }
 
-    private fun roundDimensionToEven(value: Int): Int {
-        val clampedValue = value.coerceAtLeast(2)
-        return if (clampedValue % 2 == 0) clampedValue else clampedValue - 1
+    private fun resolveSourceMatchOutputSize(
+        compositionMap: Map<String, Any?>,
+    ): OutputSize? {
+        val format = compositionMap["format"] as? Map<*, *> ?: return null
+        val canvasWidth = readLong(format["canvasWidth"]).toInt()
+        val canvasHeight = readLong(format["canvasHeight"]).toInt()
+        if (canvasWidth <= 0 || canvasHeight <= 0) {
+            return null
+        }
+        val assetMaps =
+            (compositionMap["assets"] as? List<*> ?: emptyList<Any?>())
+                .mapNotNull { it as? Map<*, *> }
+        val largestVisualAsset =
+            assetMaps
+                .filter { asset ->
+                    val kind = asset["kind"]?.toString()
+                    val width = readLong(asset["width"]).toInt()
+                    val height = readLong(asset["height"]).toInt()
+                    (kind == "video" || kind == "image") && width > 0 && height > 0
+                }.maxByOrNull { asset ->
+                    val width = readLong(asset["width"]).toLong()
+                    val height = readLong(asset["height"]).toLong()
+                    width * height
+                }
+        val maxWidth =
+            largestVisualAsset?.let { readLong(it["width"]).toInt() }
+                ?: canvasWidth
+        val maxHeight =
+            largestVisualAsset?.let { readLong(it["height"]).toInt() }
+                ?: canvasHeight
+        val scale =
+            kotlin.math.min(
+                maxWidth.toDouble() / canvasWidth.toDouble(),
+                maxHeight.toDouble() / canvasHeight.toDouble(),
+            )
+        return OutputSize(
+            width = roundDimensionToEven((canvasWidth * scale).roundToInt()),
+            height = roundDimensionToEven((canvasHeight * scale).roundToInt()),
+        )
     }
 
     private fun validateOutputFile(
@@ -4152,6 +4306,8 @@ class Stage6ExportManager(
         expectedHasAudio: Boolean,
         expectedOutputSize: OutputSize?,
         expectedOutputFrameRate: Int?,
+        expectedVideoTrackMime: String?,
+        expectedAudioTrackMime: String?,
     ): OutputValidationResult {
         val outputFile = File(outputPath)
         if (!outputFile.exists()) {
@@ -4238,9 +4394,10 @@ class Stage6ExportManager(
                     }
                 }
             }
-            val expectedVideoTrackMime = MimeTypes.VIDEO_H264
-            val expectedAudioTrackMime =
-                if (expectedHasAudio || audioTrackCount > 0) MimeTypes.AUDIO_AAC else null
+            val effectiveExpectedVideoTrackMime = expectedVideoTrackMime ?: MimeTypes.VIDEO_H264
+            val effectiveExpectedAudioTrackMime =
+                expectedAudioTrackMime
+                    ?: if (expectedHasAudio || audioTrackCount > 0) MimeTypes.AUDIO_AAC else null
             val effectiveVideoTrackCount =
                 when {
                     videoTrackCount > 0 -> videoTrackCount
@@ -4298,8 +4455,8 @@ class Stage6ExportManager(
                     expectedWidth = expectedOutputSize?.width,
                     expectedHeight = expectedOutputSize?.height,
                     expectedFrameRate = expectedOutputFrameRate,
-                    expectedVideoTrackMime = expectedVideoTrackMime,
-                    expectedAudioTrackMime = expectedAudioTrackMime,
+                    expectedVideoTrackMime = effectiveExpectedVideoTrackMime,
+                    expectedAudioTrackMime = effectiveExpectedAudioTrackMime,
                     hasAudio = hasAudio,
                     videoTrackCount = effectiveVideoTrackCount,
                     audioTrackCount = effectiveAudioTrackCount,
@@ -4328,7 +4485,7 @@ class Stage6ExportManager(
                     "Export output must contain exactly one video track (found $effectiveVideoTrackCount).",
                 )
             } else if (actualVideoTrackMime != null &&
-                actualVideoTrackMime != expectedVideoTrackMime) {
+                actualVideoTrackMime != effectiveExpectedVideoTrackMime) {
                 invalidValidation(
                     "Export output video codec does not match the baseline expectation.",
                 )
@@ -4342,9 +4499,9 @@ class Stage6ExportManager(
                 invalidValidation(
                     "Export output contains more than one audio track outside the current baseline.",
                 )
-            } else if (expectedAudioTrackMime != null &&
+            } else if (effectiveExpectedAudioTrackMime != null &&
                 actualAudioTrackMime != null &&
-                actualAudioTrackMime != expectedAudioTrackMime) {
+                actualAudioTrackMime != effectiveExpectedAudioTrackMime) {
                 invalidValidation(
                     "Export output audio codec does not match the baseline expectation.",
                 )
@@ -4405,6 +4562,11 @@ class Stage6ExportManager(
             retriever?.release()
             extractor?.release()
         }
+    }
+
+    private fun roundDimensionToEven(value: Int): Int {
+        val clampedValue = value.coerceAtLeast(2)
+        return if (clampedValue % 2 == 0) clampedValue else clampedValue - 1
     }
 
     private fun buildDurationMismatchFailureReason(
@@ -4529,11 +4691,23 @@ private data class OutputSize(
     val height: Int,
 )
 
+private data class NativeRequestedExportProfile(
+    val resolutionPreset: String,
+    val frameRate: Int?,
+    val videoCodec: String,
+    val bitrateMode: String,
+    val audioBitrate: Int?,
+    val manualVideoBitrate: Int?,
+)
+
 private data class NativeExportEncoderPlan(
     val frameRate: Int,
     val videoBitrate: Int,
     val audioBitrate: Int?,
     val encoderName: String,
+    val videoMimeType: String,
+    val audioMimeType: String?,
+    val selectedVideoCodec: String,
     val videoEncoderSettings: VideoEncoderSettings,
     val audioEncoderSettings: AudioEncoderSettings?,
 )

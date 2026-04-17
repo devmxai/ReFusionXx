@@ -14,6 +14,7 @@ class Stage5TransportState {
     this.videoWidth = 0,
     this.videoHeight = 0,
     this.hasRenderedFirstFrame = false,
+    this.isPreviewContentSized = false,
     this.isScrubbing = false,
     this.isScrubSettling = false,
     this.sourceKind = 'idle',
@@ -29,6 +30,7 @@ class Stage5TransportState {
   final int videoWidth;
   final int videoHeight;
   final bool hasRenderedFirstFrame;
+  final bool isPreviewContentSized;
   final bool isScrubbing;
   final bool isScrubSettling;
   final String sourceKind;
@@ -55,6 +57,7 @@ class Stage5TransportState {
     int? videoWidth,
     int? videoHeight,
     bool? hasRenderedFirstFrame,
+    bool? isPreviewContentSized,
     bool? isScrubbing,
     bool? isScrubSettling,
     String? sourceKind,
@@ -71,6 +74,8 @@ class Stage5TransportState {
       videoHeight: videoHeight ?? this.videoHeight,
       hasRenderedFirstFrame:
           hasRenderedFirstFrame ?? this.hasRenderedFirstFrame,
+      isPreviewContentSized:
+          isPreviewContentSized ?? this.isPreviewContentSized,
       isScrubbing: isScrubbing ?? this.isScrubbing,
       isScrubSettling: isScrubSettling ?? this.isScrubSettling,
       sourceKind: sourceKind ?? this.sourceKind,
@@ -105,6 +110,8 @@ class Stage5NativeTransportController extends ChangeNotifier {
   bool get isPlaying => _state.isPlaying;
 
   bool get hasRenderedFirstFrame => _state.hasRenderedFirstFrame;
+
+  bool get isPreviewContentSized => _state.isPreviewContentSized;
 
   double get currentSeconds => _state.positionSeconds;
 
@@ -267,6 +274,35 @@ class Stage5NativeTransportController extends ChangeNotifier {
     return result;
   }
 
+  Future<({int width, int height})?> loadMediaDisplayGeometry({
+    required String sourceUri,
+  }) async {
+    if (!isPlatformSupported) {
+      return null;
+    }
+    final result = await _methodChannel.invokeMethod<dynamic>(
+      'loadMediaDisplayGeometry',
+      <String, dynamic>{
+        'sourceUri': sourceUri,
+      },
+    );
+    final normalized = _normalizeMap(result);
+    final width = switch (normalized['width']) {
+      int value => value,
+      double value => value.round(),
+      _ => 0,
+    };
+    final height = switch (normalized['height']) {
+      int value => value,
+      double value => value.round(),
+      _ => 0,
+    };
+    if (width <= 0 || height <= 0) {
+      return null;
+    }
+    return (width: width, height: height);
+  }
+
   Future<Stage5TransportState?> prepareImportedMedia({
     required String sourceUri,
     required String sourceLabel,
@@ -380,6 +416,32 @@ class Stage5NativeTransportController extends ChangeNotifier {
     );
   }
 
+  Future<bool> awaitTimelineScrubReady({
+    required int positionMs,
+    int timeoutMs = 1200,
+  }) async {
+    if (!isPlatformSupported) {
+      return false;
+    }
+    try {
+      final result = await _methodChannel.invokeMethod<dynamic>(
+        'awaitTimelineScrubReady',
+        <String, dynamic>{
+          'positionMs': positionMs < 0 ? 0 : positionMs,
+          'timeoutMs': timeoutMs < 1 ? 1 : timeoutMs,
+        },
+      );
+      return result == true;
+    } catch (error) {
+      final nextState = _state.copyWith(error: error.toString());
+      if (!_statesEqual(_state, nextState)) {
+        _state = nextState;
+        notifyListeners();
+      }
+      return false;
+    }
+  }
+
   @override
   void dispose() {
     _eventsSubscription?.cancel();
@@ -444,9 +506,10 @@ class Stage5NativeTransportController extends ChangeNotifier {
       playbackState: _asInt(data['playbackState']) ?? _state.playbackState,
       videoWidth: _asInt(data['videoWidth']) ?? _state.videoWidth,
       videoHeight: _asInt(data['videoHeight']) ?? _state.videoHeight,
-      hasRenderedFirstFrame:
-          (data['hasRenderedFirstFrame'] as bool?) ??
+      hasRenderedFirstFrame: (data['hasRenderedFirstFrame'] as bool?) ??
           _state.hasRenderedFirstFrame,
+      isPreviewContentSized: (data['isPreviewContentSized'] as bool?) ??
+          _state.isPreviewContentSized,
       isScrubbing: (data['isScrubbing'] as bool?) ?? _state.isScrubbing,
       isScrubSettling:
           (data['isScrubSettling'] as bool?) ?? _state.isScrubSettling,
@@ -471,6 +534,7 @@ class Stage5NativeTransportController extends ChangeNotifier {
         left.videoWidth == right.videoWidth &&
         left.videoHeight == right.videoHeight &&
         left.hasRenderedFirstFrame == right.hasRenderedFirstFrame &&
+        left.isPreviewContentSized == right.isPreviewContentSized &&
         left.isScrubbing == right.isScrubbing &&
         left.isScrubSettling == right.isScrubSettling &&
         left.sourceKind == right.sourceKind &&
@@ -489,7 +553,6 @@ class Stage5NativeTransportController extends ChangeNotifier {
     }
     return const <String, dynamic>{};
   }
-
 }
 
 int? _asInt(Object? value) {

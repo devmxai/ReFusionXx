@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../../features/editor/domain/models/export_composition_models.dart';
+import '../../features/editor/domain/models/export_output_profile.dart';
 
 enum ExportJobStatus {
   idle,
@@ -349,6 +350,8 @@ class ExportJobState {
     this.requestedVideoBitrate,
     this.requestedAudioBitrate,
     this.selectedEncoderName,
+    this.selectedVideoCodec,
+    this.bitrateMode,
     this.clipCount,
     this.requestedDurationMs,
     this.timelineDurationMs,
@@ -374,6 +377,8 @@ class ExportJobState {
   final int? requestedVideoBitrate;
   final int? requestedAudioBitrate;
   final String? selectedEncoderName;
+  final String? selectedVideoCodec;
+  final String? bitrateMode;
   final int? clipCount;
   final int? requestedDurationMs;
   final int? timelineDurationMs;
@@ -403,6 +408,8 @@ class ExportJobState {
     Object? requestedVideoBitrate = _noChange,
     Object? requestedAudioBitrate = _noChange,
     Object? selectedEncoderName = _noChange,
+    Object? selectedVideoCodec = _noChange,
+    Object? bitrateMode = _noChange,
     Object? clipCount = _noChange,
     Object? requestedDurationMs = _noChange,
     Object? timelineDurationMs = _noChange,
@@ -450,6 +457,12 @@ class ExportJobState {
       selectedEncoderName: identical(selectedEncoderName, _noChange)
           ? this.selectedEncoderName
           : selectedEncoderName as String?,
+      selectedVideoCodec: identical(selectedVideoCodec, _noChange)
+          ? this.selectedVideoCodec
+          : selectedVideoCodec as String?,
+      bitrateMode: identical(bitrateMode, _noChange)
+          ? this.bitrateMode
+          : bitrateMode as String?,
       clipCount:
           identical(clipCount, _noChange) ? this.clipCount : clipCount as int?,
       requestedDurationMs: identical(requestedDurationMs, _noChange)
@@ -464,35 +477,6 @@ class ExportJobState {
       estimatedRemainingMs: identical(estimatedRemainingMs, _noChange)
           ? this.estimatedRemainingMs
           : estimatedRemainingMs as int?,
-    );
-  }
-}
-
-enum ExportQualityPreset {
-  draft720p,
-  fullHd1080p,
-  originalSize,
-}
-
-enum ExportFrameRatePreset {
-  fps30(30),
-  fps60(60),
-  fps90(90),
-  fps120(120);
-
-  const ExportFrameRatePreset(this.framesPerSecond);
-
-  final int framesPerSecond;
-
-  static ExportFrameRatePreset closestTo(double framesPerSecond) {
-    return ExportFrameRatePreset.values.reduce(
-      (currentBest, candidate) {
-        final currentDelta =
-            (currentBest.framesPerSecond - framesPerSecond).abs();
-        final candidateDelta =
-            (candidate.framesPerSecond - framesPerSecond).abs();
-        return candidateDelta < currentDelta ? candidate : currentBest;
-      },
     );
   }
 }
@@ -527,8 +511,7 @@ class Stage6ExportController extends ChangeNotifier {
 
   Future<String?> startExport({
     required ExportComposition composition,
-    ExportQualityPreset preset = ExportQualityPreset.fullHd1080p,
-    ExportFrameRatePreset frameRate = ExportFrameRatePreset.fps30,
+    required ExportOutputProfile profile,
     String? requestedFileName,
   }) async {
     if (!isPlatformSupported) {
@@ -541,8 +524,13 @@ class Stage6ExportController extends ChangeNotifier {
         'exportTimeline',
         <String, dynamic>{
           'composition': composition.toBridgeMap(),
-          'preset': preset.name,
-          'requestedFrameRate': frameRate.framesPerSecond,
+          'preset': profile.resolutionPreset.name,
+          'requestedFrameRate': profile.frameRate.framesPerSecond,
+          'videoCodec': profile.videoCodec.name,
+          'bitrateMode': profile.bitrateMode.name,
+          'requestedAudioBitrate': profile.audioBitrate.bitsPerSecond,
+          'manualVideoBitrate': profile.manualVideoBitrate,
+          'exportProfile': profile.toBridgeMap(),
           if (requestedFileName != null && requestedFileName.isNotEmpty)
             'requestedFileName': requestedFileName,
         },
@@ -657,6 +645,18 @@ class Stage6ExportController extends ChangeNotifier {
         jobId: jobId,
         incomingValue: normalized['selectedEncoderName']?.toString(),
         currentValue: _state.selectedEncoderName,
+        incomingStatus: incomingStatus,
+      ),
+      selectedVideoCodec: _preferCurrentValue(
+        jobId: jobId,
+        incomingValue: normalized['selectedVideoCodec']?.toString(),
+        currentValue: _state.selectedVideoCodec,
+        incomingStatus: incomingStatus,
+      ),
+      bitrateMode: _preferCurrentValue(
+        jobId: jobId,
+        incomingValue: normalized['bitrateMode']?.toString(),
+        currentValue: _state.bitrateMode,
         incomingStatus: incomingStatus,
       ),
       clipCount: _preferCurrentValue(
@@ -821,6 +821,12 @@ class Stage6ExportController extends ChangeNotifier {
           : _noChange,
       selectedEncoderName: data.containsKey('selectedEncoderName')
           ? data['selectedEncoderName']?.toString()
+          : _noChange,
+      selectedVideoCodec: data.containsKey('selectedVideoCodec')
+          ? data['selectedVideoCodec']?.toString()
+          : _noChange,
+      bitrateMode: data.containsKey('bitrateMode')
+          ? data['bitrateMode']?.toString()
           : _noChange,
       clipCount: data.containsKey('clipCount')
           ? _readNullableInt(data['clipCount'])

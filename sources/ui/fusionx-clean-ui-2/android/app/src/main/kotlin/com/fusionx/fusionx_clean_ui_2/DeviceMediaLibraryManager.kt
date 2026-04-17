@@ -39,6 +39,7 @@ class DeviceMediaLibraryManager(
                 MediaStore.Video.Media.DURATION,
                 MediaStore.Video.Media.WIDTH,
                 MediaStore.Video.Media.HEIGHT,
+                MediaStore.Video.Media.ORIENTATION,
                 MediaStore.Video.Media.DATE_ADDED,
             )
         val items = mutableListOf<Map<String, Any?>>()
@@ -60,6 +61,8 @@ class DeviceMediaLibraryManager(
             val durationIndex = resultCursor.getColumnIndexOrThrow(MediaStore.Video.Media.DURATION)
             val widthIndex = resultCursor.getColumnIndexOrThrow(MediaStore.Video.Media.WIDTH)
             val heightIndex = resultCursor.getColumnIndexOrThrow(MediaStore.Video.Media.HEIGHT)
+            val orientationIndex =
+                resultCursor.getColumnIndexOrThrow(MediaStore.Video.Media.ORIENTATION)
             val dateAddedIndex =
                 resultCursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATE_ADDED)
             if (safeOffset > 0 && !resultCursor.moveToPosition(safeOffset - 1)) {
@@ -73,6 +76,15 @@ class DeviceMediaLibraryManager(
                 val id = resultCursor.getLong(idIndex)
                 val contentUri =
                     ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id)
+                val rawWidth = resultCursor.getInt(widthIndex)
+                val rawHeight = resultCursor.getInt(heightIndex)
+                val orientationDegrees = resultCursor.getInt(orientationIndex)
+                val (displayWidth, displayHeight) =
+                    normalizeVideoDisplayDimensions(
+                        rawWidth = rawWidth,
+                        rawHeight = rawHeight,
+                        orientationDegrees = orientationDegrees,
+                    )
                 items.add(
                     mapOf(
                         "id" to "video-$id",
@@ -80,8 +92,8 @@ class DeviceMediaLibraryManager(
                         "label" to resultCursor.getString(nameIndex).orEmpty().ifBlank { "Video $id" },
                         "sourceUri" to contentUri.toString(),
                         "durationMs" to resultCursor.getLong(durationIndex),
-                        "width" to resultCursor.getInt(widthIndex),
-                        "height" to resultCursor.getInt(heightIndex),
+                        "width" to displayWidth,
+                        "height" to displayHeight,
                         "dateAddedSeconds" to resultCursor.getLong(dateAddedIndex),
                     ),
                 )
@@ -98,6 +110,20 @@ class DeviceMediaLibraryManager(
             "nextOffset" to safeOffset + items.size,
             "hasMore" to false,
         )
+    }
+
+    private fun normalizeVideoDisplayDimensions(
+        rawWidth: Int,
+        rawHeight: Int,
+        orientationDegrees: Int,
+    ): Pair<Int, Int> {
+        val safeWidth = rawWidth.coerceAtLeast(0)
+        val safeHeight = rawHeight.coerceAtLeast(0)
+        val normalizedOrientation = ((orientationDegrees % 360) + 360) % 360
+        if (normalizedOrientation == 90 || normalizedOrientation == 270) {
+            return safeHeight to safeWidth
+        }
+        return safeWidth to safeHeight
     }
 
     private fun queryImages(offset: Int, limit: Int): Map<String, Any?> {

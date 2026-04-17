@@ -2,6 +2,7 @@ package com.refusion.app
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Matrix
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
@@ -29,6 +30,7 @@ import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.EditedMediaItemSequence
 import io.flutter.plugin.common.EventChannel
 import java.io.ByteArrayOutputStream
+import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
 @UnstableApi
@@ -64,6 +66,7 @@ class Stage5TransportManager(context: Context) {
     private var videoWidth = 0
     private var videoHeight = 0
     private var hasRenderedFirstFrame = false
+    private var isPreviewContentSized = false
     private var latestError: String? = null
     private var lastRequestedPositionMs = 0L
     private var currentSourceKind = "idle"
@@ -89,6 +92,7 @@ class Stage5TransportManager(context: Context) {
     private val previewOutputSuppressionObservers = LinkedHashSet<(Boolean) -> Unit>()
     private val scrubSettlingObservers = LinkedHashSet<(Boolean) -> Unit>()
     private val audioSignatureCache = HashMap<String, AudioSignature?>()
+    private val mediaDisplayGeometryResolver = MediaDisplayGeometryResolver(appContext)
     private val thumbnailCache =
         object : LruCache<String, ByteArray>(12 * 1024 * 1024) {
             override fun sizeOf(key: String, value: ByteArray): Int = value.size
@@ -237,8 +241,7 @@ class Stage5TransportManager(context: Context) {
             }
 
             override fun onVideoSizeChanged(videoSize: VideoSize) {
-                videoWidth = videoSize.width
-                videoHeight = videoSize.height
+                applyResolvedVideoSize(videoSize)
                 emitState()
             }
 
@@ -339,6 +342,15 @@ class Stage5TransportManager(context: Context) {
         return bytes
     }
 
+    fun loadMediaDisplayGeometry(sourceUri: String): Map<String, Any?>? {
+        val geometry = resolveMediaDisplayGeometry(sourceUri) ?: return null
+        return mapOf(
+            "width" to geometry.width,
+            "height" to geometry.height,
+            "rotationDegrees" to geometry.rotationDegrees,
+        )
+    }
+
     private fun loadMediaFramePreviewBitmap(
         sourceUri: String,
         positionMs: Long,
@@ -353,6 +365,39 @@ class Stage5TransportManager(context: Context) {
         return try {
             retriever = MediaMetadataRetriever()
             retriever.setDataSource(appContext, Uri.parse(sourceUri))
+            val rawWidth =
+                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
+                    ?.toIntOrNull()
+                    ?.coerceAtLeast(0) ?: 0
+            val rawHeight =
+                retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
+                    ?.toIntOrNull()
+                    ?.coerceAtLeast(0) ?: 0
+            val normalizedRotation =
+                (
+                    retriever
+                        .extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)
+                        ?.toIntOrNull() ?: 0
+                ).let { rotationDegrees ->
+                    ((rotationDegrees % 360) + 360) % 360
+                }
+            val displayWidth =
+                if (normalizedRotation == 90 || normalizedRotation == 270) {
+                    rawHeight
+                } else {
+                    rawWidth
+                }.coerceAtLeast(1)
+            val displayHeight =
+                if (normalizedRotation == 90 || normalizedRotation == 270) {
+                    rawWidth
+                } else {
+                    rawHeight
+                }.coerceAtLeast(1)
+            val widthScale = safeWidth.toFloat() / displayWidth.toFloat()
+            val heightScale = safeHeight.toFloat() / displayHeight.toFloat()
+            val fitScale = minOf(widthScale, heightScale).coerceAtMost(1f)
+            val scaledWidth = (displayWidth * fitScale).roundToInt().coerceAtLeast(1)
+            val scaledHeight = (displayHeight * fitScale).roundToInt().coerceAtLeast(1)
             val bucketedPositionMs = (safePositionMs / 33L) * 33L
             val timeUs = bucketedPositionMs * 1000L
             bitmap =
@@ -360,8 +405,8 @@ class Stage5TransportManager(context: Context) {
                     retriever.getScaledFrameAtTime(
                         timeUs,
                         MediaMetadataRetriever.OPTION_CLOSEST,
-                        safeWidth,
-                        safeHeight,
+                        scaledWidth,
+                        scaledHeight,
                     )
                 } else {
                     retriever.getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST)
@@ -371,17 +416,56 @@ class Stage5TransportManager(context: Context) {
                         MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
                     )
             val resolvedBitmap = bitmap ?: return null
-            if (resolvedBitmap.width == safeWidth && resolvedBitmap.height == safeHeight) {
-                resolvedBitmap
+            val orientedBitmap =
+                normalizeFrameBitmapForDisplay(
+                    bitmap = resolvedBitmap,
+                    rotationDegrees = normalizedRotation,
+                )
+            if (
+                orientedBitmap.width == scaledWidth &&
+                    orientedBitmap.height == scaledHeight
+            ) {
+                orientedBitmap
             } else {
-                Bitmap.createScaledBitmap(resolvedBitmap, safeWidth, safeHeight, true).also {
-                    if (resolvedBitmap !== it) {
-                        resolvedBitmap.recycle()
+                Bitmap.createScaledBitmap(
+                    orientedBitmap,
+                    scaledWidth,
+                    scaledHeight,
+                    true,
+                ).also {
+                    if (orientedBitmap !== it) {
+                        orientedBitmap.recycle()
                     }
                 }
             }
         } finally {
             retriever?.release()
+        }
+    }
+
+    private fun normalizeFrameBitmapForDisplay(
+        bitmap: Bitmap,
+        rotationDegrees: Int,
+    ): Bitmap {
+        if (rotationDegrees == 0) {
+            return bitmap
+        }
+        val matrix =
+            Matrix().apply {
+                postRotate(rotationDegrees.toFloat())
+            }
+        return Bitmap.createBitmap(
+            bitmap,
+            0,
+            0,
+            bitmap.width,
+            bitmap.height,
+            matrix,
+            true,
+        ).also { rotated ->
+            if (bitmap !== rotated) {
+                bitmap.recycle()
+            }
         }
     }
 
@@ -431,6 +515,9 @@ class Stage5TransportManager(context: Context) {
             targetHeight = targetHeight,
         )
 
+    private fun resolveMediaDisplayGeometry(sourceUri: String): ResolvedMediaDisplayGeometry? =
+        mediaDisplayGeometryResolver.resolve(sourceUri)
+
     fun prepareImportedMedia(sourceUri: String, sourceLabel: String): Map<String, Any?> {
         val exo = ensurePlayer()
         activatePlayer(exo)
@@ -442,6 +529,7 @@ class Stage5TransportManager(context: Context) {
             exo.setMediaItem(MediaItem.fromUri(importedUri))
         }
         clearVideoPresentationState()
+        primeVideoPresentationGeometry(importedUri)
         compositionPlayer?.pause()
         compositionPlayer?.stop()
         timelineSegments = emptyList()
@@ -638,6 +726,14 @@ class Stage5TransportManager(context: Context) {
 
     fun removePreviewOutputSuppressionObserver(observer: (Boolean) -> Unit) {
         previewOutputSuppressionObservers.remove(observer)
+    }
+
+    fun setPreviewContentSized(isSized: Boolean) {
+        if (isPreviewContentSized == isSized) {
+            return
+        }
+        isPreviewContentSized = isSized
+        emitState()
     }
 
     fun addScrubSettlingObserver(observer: (Boolean) -> Unit) {
@@ -850,6 +946,7 @@ class Stage5TransportManager(context: Context) {
             "videoWidth" to videoWidth,
             "videoHeight" to videoHeight,
             "hasRenderedFirstFrame" to hasRenderedFirstFrame,
+            "isPreviewContentSized" to isPreviewContentSized,
             "isScrubbing" to false,
             "isScrubSettling" to isScrubSettling,
             "sourceKind" to currentSourceKind,
@@ -862,6 +959,44 @@ class Stage5TransportManager(context: Context) {
         videoWidth = 0
         videoHeight = 0
         hasRenderedFirstFrame = false
+        isPreviewContentSized = false
+    }
+
+    private fun applyResolvedVideoSize(videoSize: VideoSize) {
+        var resolvedWidth = videoSize.width.coerceAtLeast(0)
+        var resolvedHeight = videoSize.height.coerceAtLeast(0)
+        if (resolvedWidth <= 0 || resolvedHeight <= 0) {
+            videoWidth = 0
+            videoHeight = 0
+            return
+        }
+
+        val pixelWidthHeightRatio = videoSize.pixelWidthHeightRatio.takeIf { it > 0f } ?: 1f
+        if (kotlin.math.abs(pixelWidthHeightRatio - 1f) > 0.0001f) {
+            resolvedWidth =
+                (resolvedWidth * pixelWidthHeightRatio)
+                    .roundToInt()
+                    .coerceAtLeast(1)
+        }
+
+        val normalizedRotation = ((videoSize.unappliedRotationDegrees % 360) + 360) % 360
+        if (normalizedRotation == 90 || normalizedRotation == 270) {
+            val rotatedWidth = resolvedHeight
+            resolvedHeight = resolvedWidth
+            resolvedWidth = rotatedWidth
+        }
+
+        videoWidth = resolvedWidth
+        videoHeight = resolvedHeight
+    }
+
+    private fun primeVideoPresentationGeometry(sourceUri: Uri?) {
+        if (sourceUri == null) {
+            return
+        }
+        val geometry = resolveMediaDisplayGeometry(sourceUri.toString()) ?: return
+        videoWidth = geometry.width
+        videoHeight = geometry.height
     }
 
     private fun performResolvedSeek(positionMs: Long) {
@@ -1121,6 +1256,7 @@ class Stage5TransportManager(context: Context) {
         exo.setMediaItem(MediaItem.fromUri(sourceUri), seekPoint.sourcePositionMs)
         applyPlaybackRateForSegmentIndex(seekPoint.segmentIndex)
         clearVideoPresentationState()
+        primeVideoPresentationGeometry(sourceUri)
         compositionPlayer?.pause()
         compositionPlayer?.stop()
         exo.prepare()
@@ -1169,6 +1305,7 @@ class Stage5TransportManager(context: Context) {
                 }.build()
         val composition = Composition.Builder(sequence).build()
         clearVideoPresentationState()
+        primeVideoPresentationGeometry(timelineSegments.getOrNull(seekPoint.segmentIndex)?.sourceUri)
         compositionPlayer.setComposition(composition, startPositionMs)
         compositionPlayer.prepare()
         emitPreviewRetentionPolicy()
@@ -1192,6 +1329,8 @@ class Stage5TransportManager(context: Context) {
         activeTimelineSegmentIndex = seekPoint.segmentIndex
         compositionPlayer?.pause()
         compositionPlayer?.stop()
+        clearVideoPresentationState()
+        primeVideoPresentationGeometry(timelineRuns.getOrNull(seekPoint.itemIndex)?.sourceUri)
         exo.setMediaItems(mediaItems, seekPoint.itemIndex, seekPoint.itemPositionMs)
         applyPlaybackRateForSegmentIndex(seekPoint.segmentIndex)
         exo.prepare()

@@ -535,6 +535,7 @@ class _TimelinePanelState extends State<TimelinePanel>
   static const double _scaleGestureWidthEpsilon =
       _TimelineZoomCanonicalProfile.scaleGestureWidthEpsilon;
   static const double _manualPanActivationDistance = 18;
+  static const double _manualPanMinFlingVelocity = 420;
   static const double _maxPlaybackInterpolationLeadSeconds = 0.0;
   static const double _maxPlaybackRegressionToleranceSeconds = 0.24;
   static const double _playbackStartConfirmationThresholdSeconds = 0.01;
@@ -552,6 +553,7 @@ class _TimelinePanelState extends State<TimelinePanel>
   late final ValueNotifier<TimelineTime> _displayTimeNotifier;
   late final Ticker _playbackTicker;
   late final AnimationController _reorderTransitionController;
+  late final AnimationController _manualPanFlingController;
 
   double _playheadLeft = 0;
   double _leadingOffset = 0;
@@ -794,6 +796,7 @@ class _TimelinePanelState extends State<TimelinePanel>
   void _cancelCurrentInteractionForExternalChange({
     bool syncAfterCancel = false,
   }) {
+    _stopManualTimelineFling();
     final owner = _interactionOwner;
     if (owner == _TimelineInteractionOwner.idle) {
       return;
@@ -1115,6 +1118,8 @@ class _TimelinePanelState extends State<TimelinePanel>
       vsync: this,
       duration: _reorderEntryDuration,
     );
+    _manualPanFlingController = AnimationController.unbounded(vsync: this)
+      ..addListener(_handleManualPanFlingTick);
     _rulerMode = _resolveRulerMode(_secondsWidth, viewportWidth: 320);
     _attachDisplayTimeListener(widget.displayTimeListenable);
     _attachPlaybackSampleListener(widget.playbackSampleTimeListenable);
@@ -1208,6 +1213,9 @@ class _TimelinePanelState extends State<TimelinePanel>
     _detachPlaybackSampleListener(widget.playbackSampleTimeListenable);
     _playbackTicker.dispose();
     _reorderTransitionController.dispose();
+    _manualPanFlingController
+      ..removeListener(_handleManualPanFlingTick)
+      ..dispose();
     _reorderExitTimer?.cancel();
     _displayTimeNotifier.dispose();
     _scrollController.dispose();
@@ -1726,6 +1734,58 @@ class _TimelinePanelState extends State<TimelinePanel>
     }
   }
 
+  void _handleManualPanFlingTick() {
+    if (!_scrollController.hasClients) {
+      return;
+    }
+    final position = _scrollController.position;
+    final targetOffset = _manualPanFlingController.value
+        .clamp(position.minScrollExtent, position.maxScrollExtent)
+        .toDouble();
+    if ((_scrollController.offset - targetOffset).abs() >= 0.01) {
+      _isSyncingFromExternal = true;
+      _scrollController.jumpTo(targetOffset);
+      _isSyncingFromExternal = false;
+    }
+    _setDisplayTime(
+      _timelineTimeForOffset(targetOffset),
+      notifyParent: false,
+    );
+    if (targetOffset <= position.minScrollExtent + 0.01 ||
+        targetOffset >= position.maxScrollExtent - 0.01) {
+      _manualPanFlingController.stop();
+    }
+  }
+
+  void _stopManualTimelineFling() {
+    if (_manualPanFlingController.isAnimating) {
+      _manualPanFlingController.stop();
+    }
+  }
+
+  void _startManualTimelineFling(double velocityDx) {
+    if (!_hasHorizontalPanExtent ||
+        widget.isPlaying ||
+        _isNativeScrubbing ||
+        _isScaleGestureActive ||
+        _isTrimDragging ||
+        _isClipMoveMode) {
+      return;
+    }
+    if (velocityDx.abs() < _manualPanMinFlingVelocity) {
+      return;
+    }
+    final currentOffset = _scrollController.offset;
+    _manualPanFlingController.value = currentOffset;
+    _manualPanFlingController.animateWith(
+      ClampingScrollSimulation(
+        position: currentOffset,
+        velocity: -velocityDx,
+        tolerance: Tolerance.defaultTolerance,
+      ),
+    );
+  }
+
   void _invokeParentCallback(VoidCallback callback) {
     final schedulerPhase = SchedulerBinding.instance.schedulerPhase;
     if (schedulerPhase == SchedulerPhase.idle ||
@@ -1754,6 +1814,7 @@ class _TimelinePanelState extends State<TimelinePanel>
     if (!_acquireInteractionOwner(_TimelineInteractionOwner.pan)) {
       return;
     }
+    _stopManualTimelineFling();
     _manualPanAccumulatedDx = 0;
     _captureLockedVerticalOffset();
     _restoreLockedVerticalOffset();
@@ -1800,10 +1861,14 @@ class _TimelinePanelState extends State<TimelinePanel>
     _isSyncingFromExternal = true;
     _scrollController.jumpTo(targetOffset);
     _isSyncingFromExternal = false;
+    _setDisplayTime(
+      _timelineTimeForOffset(targetOffset),
+      notifyParent: false,
+    );
     _restoreLockedVerticalOffset();
   }
 
-  void _endManualTimelinePan() {
+  void _endManualTimelinePan([DragEndDetails? details]) {
     final wasOwned = _isInteractionPending(_TimelineInteractionOwner.pan) ||
         _isInteractionActive(_TimelineInteractionOwner.pan);
     if (!wasOwned) {
@@ -1824,6 +1889,7 @@ class _TimelinePanelState extends State<TimelinePanel>
     _releaseInteractionOwner(_TimelineInteractionOwner.pan);
     _releaseLockedVerticalOffsetIfPossible();
     _setScrubInteractionActive(false);
+    _startManualTimelineFling(details?.velocity.pixelsPerSecond.dx ?? 0);
   }
 
   void _cancelManualTimelinePan() {
@@ -1833,6 +1899,7 @@ class _TimelinePanelState extends State<TimelinePanel>
       return;
     }
     _manualPanAccumulatedDx = 0;
+    _stopManualTimelineFling();
     _restoreLockedVerticalOffset();
     _releaseInteractionOwner(_TimelineInteractionOwner.pan);
     _releaseLockedVerticalOffsetIfPossible();
@@ -2518,7 +2585,7 @@ class _TimelinePanelState extends State<TimelinePanel>
   }
 
   void _handleManualPanDragEnd([DragEndDetails? details]) {
-    _endManualTimelinePan();
+    _endManualTimelinePan(details);
   }
 
   void _handleManualPanDragCancel() {

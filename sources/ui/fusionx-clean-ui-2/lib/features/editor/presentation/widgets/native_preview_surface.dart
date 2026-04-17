@@ -27,10 +27,13 @@ class NativePreviewSurface extends StatefulWidget {
 class _NativePreviewSurfaceState extends State<NativePreviewSurface> {
   String? _previewIdentity;
   bool _hasPresentedNativeFrameForPreview = false;
+  bool _awaitingNativeFrameResetForPreview = false;
+  bool _sawNativeFrameResetForPreview = false;
 
   @override
   void initState() {
     super.initState();
+    _markPreviewIdentityChanged();
     widget.controller.addListener(_handleControllerChanged);
     _handleControllerChanged();
   }
@@ -42,13 +45,11 @@ class _NativePreviewSurfaceState extends State<NativePreviewSurface> {
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.removeListener(_handleControllerChanged);
       widget.controller.addListener(_handleControllerChanged);
-      _previewIdentity = null;
-      _hasPresentedNativeFrameForPreview = false;
+      _markPreviewIdentityChanged();
       shouldRefresh = true;
     }
     if (oldWidget.previewIdentity != widget.previewIdentity) {
-      _previewIdentity = widget.previewIdentity;
-      _hasPresentedNativeFrameForPreview = false;
+      _markPreviewIdentityChanged();
       shouldRefresh = true;
     }
     if (shouldRefresh) {
@@ -62,27 +63,38 @@ class _NativePreviewSurfaceState extends State<NativePreviewSurface> {
     super.dispose();
   }
 
+  void _markPreviewIdentityChanged() {
+    _previewIdentity = widget.previewIdentity;
+    _hasPresentedNativeFrameForPreview = false;
+    _awaitingNativeFrameResetForPreview = widget.previewIdentity != null;
+    _sawNativeFrameResetForPreview = !widget.controller.hasRenderedFirstFrame;
+  }
+
   void _handleControllerChanged() {
-    final hasNativeFrameNow =
-        widget.controller.hasRenderedFirstFrame &&
-        widget.controller.aspectRatio != null;
+    final hasNativeFrameNow = widget.controller.hasRenderedFirstFrame &&
+        widget.controller.aspectRatio != null &&
+        widget.controller.isPreviewContentSized;
     var shouldNotify = false;
     if (_previewIdentity != widget.previewIdentity) {
-      _previewIdentity = widget.previewIdentity;
-      _hasPresentedNativeFrameForPreview = false;
+      _markPreviewIdentityChanged();
       shouldNotify = true;
-      if (!hasNativeFrameNow) {
-        if (mounted) {
-          setState(() {});
-        }
-        return;
-      }
     }
-    if (widget.previewIdentity == null && _hasPresentedNativeFrameForPreview) {
+    if (widget.previewIdentity == null) {
+      _awaitingNativeFrameResetForPreview = false;
+      _sawNativeFrameResetForPreview = false;
       _hasPresentedNativeFrameForPreview = false;
       shouldNotify = true;
     }
-    if (hasNativeFrameNow && !_hasPresentedNativeFrameForPreview) {
+    if (_awaitingNativeFrameResetForPreview &&
+        !widget.controller.hasRenderedFirstFrame) {
+      _sawNativeFrameResetForPreview = true;
+    }
+
+    final canPresentNativeFrame = hasNativeFrameNow &&
+        (!_awaitingNativeFrameResetForPreview ||
+            _sawNativeFrameResetForPreview);
+    if (canPresentNativeFrame && !_hasPresentedNativeFrameForPreview) {
+      _awaitingNativeFrameResetForPreview = false;
       _hasPresentedNativeFrameForPreview = true;
       shouldNotify = true;
     }
@@ -97,9 +109,7 @@ class _NativePreviewSurfaceState extends State<NativePreviewSurface> {
       return widget.fallback;
     }
 
-    final showNative = _hasPresentedNativeFrameForPreview ||
-        (widget.controller.hasRenderedFirstFrame &&
-            widget.controller.aspectRatio != null);
+    final showNative = _hasPresentedNativeFrameForPreview;
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
       child: Stack(

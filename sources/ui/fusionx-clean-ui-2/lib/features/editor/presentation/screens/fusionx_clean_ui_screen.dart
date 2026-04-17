@@ -9,6 +9,7 @@ import '../../../../core/engine/stage6_export_controller.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../domain/models/export_composition_builder.dart';
 import '../../domain/models/export_composition_models.dart';
+import '../../domain/models/export_output_profile.dart';
 import '../../domain/models/export_motion_text_program_models.dart';
 import '../../domain/models/professional_motion_compilation_models.dart';
 import '../../domain/models/professional_motion_evaluation_models.dart';
@@ -171,6 +172,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   String? _previewThumbnailAssetId;
   String? _previewThumbnailResolvedAssetId;
   int _previewThumbnailRequestId = 0;
+  int _timelineScrubConfigRevision = 0;
+  int _lastAppliedTimelineScrubConfigRevision = 0;
+  int? _pendingTimelineScrubConfigTargetRevision;
+  Completer<void>? _pendingTimelineScrubConfigCompleter;
 
   @override
   void initState() {
@@ -224,7 +229,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     super.dispose();
   }
 
-  double get _workspaceAspectRatio => _lockedWorkspaceAspectRatio ?? (9 / 16);
+  double get _workspaceAspectRatio =>
+      _lockedWorkspaceAspectRatio ?? _previewAsset?.aspectRatio ?? (9 / 16);
 
   double get _timelineFps => _motionProject?.frameRate.framesPerSecond ?? 30;
 
@@ -746,9 +752,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     return null;
   }
 
-  void _refreshLiveScrubPreviewSourceCatalog() {
+  List<LiveScrubPreviewSourceDescriptor>
+      _buildLiveScrubPreviewSourceDescriptors(
+    List<TimelineTrackData> tracks,
+  ) {
     final descriptors = <LiveScrubPreviewSourceDescriptor>[];
-    for (final track in _tracks) {
+    for (final track in tracks) {
       if (track.kind != TimelineTrackKind.video &&
           track.kind != TimelineTrackKind.image) {
         continue;
@@ -770,7 +779,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
               clipId: clip.id,
               assetId: assetId,
               sourceUri: sourceUri,
-              scrubStoreKey: assetId,
+              scrubStoreKey: clip.id,
               previewUri: asset.previewUri,
               label: asset.label,
               timelineStartMs: clipStartTime.inMilliseconds,
@@ -788,6 +797,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
         clipStartTime = clipEndTime;
       }
     }
+    return descriptors;
+  }
+
+  void _refreshLiveScrubPreviewSourceCatalog({
+    List<TimelineTrackData>? tracks,
+  }) {
+    final descriptors =
+        _buildLiveScrubPreviewSourceDescriptors(tracks ?? _tracks);
     _liveScrubPreviewSourceCatalog.replaceAll(descriptors);
   }
 
@@ -894,18 +911,45 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     if (sourceUri == null || sourceUri.isEmpty) {
       return null;
     }
-    final previewTarget = _resolvePreviewFallbackTargetSize(asset);
     if (asset.tab == EditorMediaTab.video) {
-      final framePreview = await _transportController.loadMediaFramePreview(
+      final displayGeometry =
+          await _transportController.loadMediaDisplayGeometry(
         sourceUri: sourceUri,
-        positionMs: 0,
-        targetWidth: previewTarget.width,
-        targetHeight: previewTarget.height,
       );
-      if (framePreview != null && framePreview.isNotEmpty) {
-        return framePreview;
+      if (displayGeometry != null &&
+          (asset.width != displayGeometry.width ||
+              asset.height != displayGeometry.height)) {
+        _replaceKnownAssetMetadata(
+          asset.copyWith(
+            width: displayGeometry.width,
+            height: displayGeometry.height,
+          ),
+        );
       }
+      final normalizedAspectRatio = displayGeometry != null &&
+              displayGeometry.width > 0 &&
+              displayGeometry.height > 0
+          ? displayGeometry.width / displayGeometry.height
+          : asset.aspectRatio;
+      final previewTarget = _resolvePreviewFallbackTargetSizeForAspectRatio(
+        normalizedAspectRatio,
+      );
+      for (final positionMs in const <int>[0, 33, 100, 250]) {
+        final framePreview = await _transportController.loadMediaFramePreview(
+          sourceUri: sourceUri,
+          positionMs: positionMs,
+          targetWidth: previewTarget.width,
+          targetHeight: previewTarget.height,
+        );
+        if (framePreview != null && framePreview.isNotEmpty) {
+          return framePreview;
+        }
+      }
+      return null;
     }
+    final previewTarget = _resolvePreviewFallbackTargetSizeForAspectRatio(
+      asset.aspectRatio,
+    );
     return _transportController.loadMediaThumbnail(
       sourceUri: sourceUri,
       targetWidth: previewTarget.width,
@@ -913,12 +957,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     );
   }
 
-  ({int width, int height}) _resolvePreviewFallbackTargetSize(
-    EditorAssetItem asset,
+  ({int width, int height}) _resolvePreviewFallbackTargetSizeForAspectRatio(
+    double? aspectRatio,
   ) {
     const fallbackWidth = 480.0;
     const fallbackHeight = 854.0;
-    final aspectRatio = asset.aspectRatio;
     if (aspectRatio == null || aspectRatio <= 0) {
       return (width: fallbackWidth.round(), height: fallbackHeight.round());
     }
@@ -1219,11 +1262,72 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     return _importedAssetsById[assetId];
   }
 
+  Future<EditorAssetItem> _normalizeVisualAssetGeometryForInsert(
+    EditorAssetItem asset,
+  ) async {
+    if (asset.tab != EditorMediaTab.video) {
+      return asset;
+    }
+    final sourceUri = asset.sourceUri;
+    if (sourceUri == null || sourceUri.isEmpty) {
+      return asset;
+    }
+    final geometry = await _transportController.loadMediaDisplayGeometry(
+      sourceUri: sourceUri,
+    );
+    if (geometry == null) {
+      return asset;
+    }
+    if (asset.width == geometry.width && asset.height == geometry.height) {
+      return asset;
+    }
+    final normalizedAsset = asset.copyWith(
+      width: geometry.width,
+      height: geometry.height,
+    );
+    _replaceKnownAssetMetadata(
+      normalizedAsset,
+      invalidatePreviewThumbnail: true,
+    );
+    return normalizedAsset;
+  }
+
+  void _replaceKnownAssetMetadata(
+    EditorAssetItem updatedAsset, {
+    bool invalidatePreviewThumbnail = false,
+  }) {
+    var assetLibraryChanged = false;
+    final nextAssets = _assetLibrary.value.map((asset) {
+      if (asset.id != updatedAsset.id) {
+        return asset;
+      }
+      assetLibraryChanged = true;
+      return updatedAsset;
+    }).toList(growable: false);
+    if (assetLibraryChanged) {
+      _assetLibrary.value = List<EditorAssetItem>.unmodifiable(nextAssets);
+    }
+    if (_importedAssetsById.containsKey(updatedAsset.id) ||
+        updatedAsset.isImported) {
+      _importedAssetsById[updatedAsset.id] = updatedAsset;
+    }
+    if (invalidatePreviewThumbnail) {
+      _previewThumbnailCache.remove(updatedAsset.id);
+      if (_previewThumbnailAssetId == updatedAsset.id) {
+        _previewThumbnailResolvedAssetId = null;
+        if (_previewThumbnailNotifier.value != null) {
+          _previewThumbnailNotifier.value = null;
+        }
+      }
+    }
+    _refreshLiveScrubPreviewSourceCatalog();
+  }
+
   Future<void> _scheduleScrubFramePreparationForTimelineTracks(
     List<TimelineTrackData> tracks,
   ) async {
-    _refreshLiveScrubPreviewSourceCatalog();
-    final sources = _allLiveScrubPreviewSources();
+    _refreshLiveScrubPreviewSourceCatalog(tracks: tracks);
+    final sources = _buildLiveScrubPreviewSourceDescriptors(tracks);
     if (sources.isEmpty) {
       return;
     }
@@ -1237,6 +1341,78 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
           )
           .toList(growable: false),
     );
+  }
+
+  Future<void> _flushNativeTimelineScrubConfig() async {
+    if (!_useNativeTimelineScrubInput || !mounted) {
+      return;
+    }
+    final targetRevision = _timelineScrubConfigRevision + 1;
+    final pendingCompleter = Completer<void>();
+    _pendingTimelineScrubConfigTargetRevision = targetRevision;
+    _pendingTimelineScrubConfigCompleter = pendingCompleter;
+    setState(() {
+      _timelineScrubConfigRevision = targetRevision;
+    });
+    if (_lastAppliedTimelineScrubConfigRevision >= targetRevision) {
+      if (!pendingCompleter.isCompleted) {
+        pendingCompleter.complete();
+      }
+    }
+    try {
+      await pendingCompleter.future.timeout(const Duration(milliseconds: 350));
+    } catch (_) {
+      if (!pendingCompleter.isCompleted) {
+        pendingCompleter.complete();
+      }
+    } finally {
+      if (identical(_pendingTimelineScrubConfigCompleter, pendingCompleter)) {
+        _pendingTimelineScrubConfigCompleter = null;
+        _pendingTimelineScrubConfigTargetRevision = null;
+      }
+    }
+  }
+
+  Future<bool> _awaitNativeTimelineScrubReadiness(
+    TimelineTime targetTime,
+  ) async {
+    if (!_useNativePreview || !_useNativeTimelineScrubInput || !mounted) {
+      return true;
+    }
+    const readinessTimeoutsMs = <int>[450, 700, 950];
+    final positionMs = targetTime.inMilliseconds < 0
+        ? 0
+        : targetTime.inMilliseconds;
+    for (var index = 0; index < readinessTimeoutsMs.length; index++) {
+      final isReady = await _transportController.awaitTimelineScrubReady(
+        positionMs: positionMs,
+        timeoutMs: readinessTimeoutsMs[index],
+      );
+      if (isReady) {
+        return true;
+      }
+      if (index < readinessTimeoutsMs.length - 1) {
+        await Future<void>.delayed(const Duration(milliseconds: 80));
+      }
+    }
+    return false;
+  }
+
+  void _handleTimelineScrubConfigApplied(int revision) {
+    if (revision <= _lastAppliedTimelineScrubConfigRevision) {
+      return;
+    }
+    _lastAppliedTimelineScrubConfigRevision = revision;
+    final pendingTargetRevision = _pendingTimelineScrubConfigTargetRevision;
+    final pendingCompleter = _pendingTimelineScrubConfigCompleter;
+    if (pendingTargetRevision == null ||
+        pendingCompleter == null ||
+        pendingCompleter.isCompleted) {
+      return;
+    }
+    if (revision >= pendingTargetRevision) {
+      pendingCompleter.complete();
+    }
   }
 
   void _primeVideoAssetForLiveScrub(
@@ -1814,6 +1990,22 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     }
     if (!mounted) {
       return;
+    }
+    final previewAsset = _previewAsset;
+    if (previewAsset != null &&
+        previewAsset.tab == EditorMediaTab.video &&
+        transportState.videoWidth > 0 &&
+        transportState.videoHeight > 0 &&
+        (previewAsset.width != transportState.videoWidth ||
+            previewAsset.height != transportState.videoHeight)) {
+      _replaceKnownAssetMetadata(
+        previewAsset.copyWith(
+          width: transportState.videoWidth,
+          height: transportState.videoHeight,
+        ),
+        invalidatePreviewThumbnail: _previewAssetId == previewAsset.id &&
+            !transportState.hasRenderedFirstFrame,
+      );
     }
     final isTrimPreviewActive = _timelineTrimPreviewSession != null;
     final nextAspectRatio = (_lockedWorkspaceAspectRatio == null &&
@@ -3980,75 +4172,82 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     if (trackIndex < 0) {
       return;
     }
-    if (asset.tab == EditorMediaTab.video) {
-      final sourceUri = asset.sourceUri;
+    var resolvedAsset = asset;
+    if (resolvedAsset.tab == EditorMediaTab.video) {
+      resolvedAsset =
+          await _normalizeVisualAssetGeometryForInsert(resolvedAsset);
+      final sourceUri = resolvedAsset.sourceUri;
       if (sourceUri == null || sourceUri.isEmpty) {
         _showStageMessage('The selected video is missing a playable source.');
         return;
       }
-    } else if (asset.tab == EditorMediaTab.image) {
+    } else if (resolvedAsset.tab == EditorMediaTab.image) {
       await _pausePlayback();
     }
     final hasPreviewPosterCached =
-        (_previewThumbnailCache[asset.id]?.isNotEmpty ?? false);
-    final shouldPrimePreviewBeforeInsert =
-        asset.isVisual && _previewAsset == null && !hasPreviewPosterCached;
+        (_previewThumbnailCache[resolvedAsset.id]?.isNotEmpty ?? false);
+    final shouldPrimePreviewBeforeInsert = resolvedAsset.isVisual &&
+        _previewAsset == null &&
+        !hasPreviewPosterCached;
     if (shouldPrimePreviewBeforeInsert) {
-      await _primePreviewThumbnailForAsset(asset);
-    } else if (asset.isVisual) {
-      unawaited(_primePreviewThumbnailForAsset(asset));
+      await _primePreviewThumbnailForAsset(resolvedAsset);
+    } else if (resolvedAsset.isVisual) {
+      unawaited(_primePreviewThumbnailForAsset(resolvedAsset));
     }
-    final clipId = 'clip-${asset.id}-${DateTime.now().millisecondsSinceEpoch}';
+    resolvedAsset = _assetForId(resolvedAsset.id) ?? resolvedAsset;
+    final clipId =
+        'clip-${resolvedAsset.id}-${DateTime.now().millisecondsSinceEpoch}';
     final clip = TimelineClipData(
       id: clipId,
-      assetId: asset.id,
+      assetId: resolvedAsset.id,
       durationTime:
-          TimelineTime.fromSecondsDouble(asset.durationSeconds ?? 3.5),
+          TimelineTime.fromSecondsDouble(resolvedAsset.durationSeconds ?? 3.5),
       tone: TimelineClipTone.hero,
       type: TimelineClipType.media,
       sourceStartTime: TimelineTime.zero,
-      label: asset.label,
+      label: resolvedAsset.label,
     );
     final clips = List<TimelineClipData>.from(baseTracks[trackIndex].clips);
-    final insertionIndex = clips.length;
-    var insertionStartTime = TimelineTime.zero;
-    for (var index = 0; index < insertionIndex; index++) {
-      insertionStartTime += clips[index].durationTime;
-    }
-    clips.insert(insertionIndex, clip);
+    clips.add(clip);
     final nextTracks = _replaceTrackIn(baseTracks, trackIndex, clips);
+    final preservedTimelineTime = _currentTime.clamp(
+      TimelineTime.zero,
+      _timelineDurationForTracksTime(nextTracks),
+    );
     final nextPreviewAssetId = _resolvedPreviewAssetIdForTracks(
       nextTracks,
-      preferredAssetId: asset.id,
+      preferredTimelineTime: preservedTimelineTime,
     );
     setState(() {
       _tracks = nextTracks;
+      if (resolvedAsset.tab == EditorMediaTab.video) {
+        _isApplyingStructuralEdit = true;
+      }
       _selectedClipId = clip.id;
       _previewAssetId = nextPreviewAssetId;
+      _refreshLiveScrubPreviewSourceCatalog(tracks: nextTracks);
+      _setCurrentTime(preservedTimelineTime);
       if (_lockedWorkspaceAspectRatio == null &&
-          asset.tab == EditorMediaTab.video &&
-          asset.aspectRatio != null &&
-          asset.aspectRatio! > 0) {
-        _lockedWorkspaceAspectRatio = asset.aspectRatio;
+          resolvedAsset.tab == EditorMediaTab.video &&
+          resolvedAsset.aspectRatio != null &&
+          resolvedAsset.aspectRatio! > 0) {
+        _lockedWorkspaceAspectRatio = resolvedAsset.aspectRatio;
       }
-      _activeTab = asset.tab == EditorMediaTab.image
+      _activeTab = resolvedAsset.tab == EditorMediaTab.image
           ? EditorMediaTab.image
-          : asset.tab == EditorMediaTab.video
+          : resolvedAsset.tab == EditorMediaTab.video
               ? EditorMediaTab.video
               : _activeTab;
     });
     _markAssetImported(
-      asset.id,
+      resolvedAsset.id,
       preferredPreviewPositionMs: clip.sourceStartTime.inMilliseconds,
     );
-    if (asset.tab == EditorMediaTab.video) {
+    if (resolvedAsset.tab == EditorMediaTab.video) {
       await _commitStructuralTimelineEdit(
         tracks: nextTracks,
-        targetTime: insertionStartTime,
+        targetTime: preservedTimelineTime,
       );
-      setState(() {
-        _setCurrentTime(insertionStartTime);
-      });
     }
   }
 
@@ -4150,7 +4349,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
           tracks: tracks,
           targetTime: safeTargetTime,
         );
-        unawaited(_scheduleScrubFramePreparationForTimelineTracks(tracks));
+        await _scheduleScrubFramePreparationForTimelineTracks(tracks);
+        await _flushNativeTimelineScrubConfig();
+        await _awaitNativeTimelineScrubReadiness(safeTargetTime);
         if (!completer.isCompleted) {
           completer.complete();
         }
@@ -4690,8 +4891,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   }
 
   Future<void> _startExportFromCurrentTimeline(
-    ExportQualityPreset preset,
-    ExportFrameRatePreset frameRate,
+    ExportOutputProfile profile,
   ) async {
     if (_exportController.state.isActive) {
       _showStageMessage('An export is already running.');
@@ -4711,8 +4911,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     final requestedFileName = _buildRequestedExportFileName();
     final jobId = await _exportController.startExport(
       composition: exportComposition,
-      preset: preset,
-      frameRate: frameRate,
+      profile: profile,
       requestedFileName: requestedFileName,
     );
     final state = _exportController.state;
@@ -4993,13 +5192,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       _transportController
           .settleAfterScrubPositionMs(resolvedFinalTime.inMilliseconds)
           .whenComplete(() {
-            if (!mounted) {
-              return;
-            }
-            if (!_transportController.state.isScrubSettling) {
-              _isTimelineScrubHandoffInFlight = false;
-            }
-          }),
+        if (!mounted) {
+          return;
+        }
+        if (!_transportController.state.isScrubSettling) {
+          _isTimelineScrubHandoffInFlight = false;
+        }
+      }),
     );
   }
 
@@ -6075,8 +6274,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
         return AnimatedBuilder(
           animation: _transportController,
           builder: (context, __) {
-            if (motionTextRenderSnapshot == null &&
-                activeTransition == null) {
+            if (motionTextRenderSnapshot == null && activeTransition == null) {
               return const SizedBox.shrink();
             }
             final selectedCanvasElementId = motionTextRenderSnapshot == null
@@ -6207,8 +6405,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
                             child: _useNativePreview
                                 ? NativePreviewSurface(
                                     controller: _transportController,
-                                    previewIdentity:
-                                        previewAsset?.sourceUri ??
+                                    previewIdentity: previewAsset?.sourceUri ??
                                         previewAsset?.id,
                                     fallback: previewFallback,
                                   )
@@ -6337,8 +6534,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
                                               ? null
                                               : (surfaceConfig) =>
                                                   NativeTimelineScrubSurface(
-                                                    currentTime:
-                                                        surfaceConfig.currentTime,
+                                                    currentTime: surfaceConfig
+                                                        .currentTime,
                                                     currentTimeListenable:
                                                         surfaceConfig
                                                             .currentTimeListenable,
@@ -6348,19 +6545,26 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
                                                     timelineOffsetTime:
                                                         surfaceConfig
                                                             .timelineOffsetTime,
-                                                    secondsWidth:
-                                                        surfaceConfig.secondsWidth,
-                                                    regions: surfaceConfig.regions,
+                                                    secondsWidth: surfaceConfig
+                                                        .secondsWidth,
+                                                    configRevision:
+                                                        _timelineScrubConfigRevision,
+                                                    onConfigApplied:
+                                                        _handleTimelineScrubConfigApplied,
+                                                    regions:
+                                                        surfaceConfig.regions,
                                                     previewSources:
                                                         _allLiveScrubPreviewSources(),
                                                     onTap: surfaceConfig.onTap,
-                                                    onScrubStart:
-                                                        surfaceConfig.onScrubStart,
+                                                    onScrubStart: surfaceConfig
+                                                        .onScrubStart,
                                                     onScrubTimeChanged:
                                                         surfaceConfig
                                                             .onScrubTimeChanged,
-                                                    onScrubEnd:
-                                                        surfaceConfig.onScrubEnd,
+                                                    onScrubEnd: surfaceConfig
+                                                        .onScrubEnd,
+                                                    interactionEnabled:
+                                                        !_isApplyingStructuralEdit,
                                                   ),
                                       assetPathResolver: _resolveAssetPath,
                                       animateTrackKinds: const <TimelineTrackKind>{
@@ -6418,8 +6622,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
                                               ? null
                                               : (surfaceConfig) =>
                                                   NativeTimelineScrubSurface(
-                                                    currentTime:
-                                                        surfaceConfig.currentTime,
+                                                    currentTime: surfaceConfig
+                                                        .currentTime,
                                                     currentTimeListenable:
                                                         surfaceConfig
                                                             .currentTimeListenable,
@@ -6429,19 +6633,26 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
                                                     timelineOffsetTime:
                                                         surfaceConfig
                                                             .timelineOffsetTime,
-                                                    secondsWidth:
-                                                        surfaceConfig.secondsWidth,
-                                                    regions: surfaceConfig.regions,
+                                                    secondsWidth: surfaceConfig
+                                                        .secondsWidth,
+                                                    configRevision:
+                                                        _timelineScrubConfigRevision,
+                                                    onConfigApplied:
+                                                        _handleTimelineScrubConfigApplied,
+                                                    regions:
+                                                        surfaceConfig.regions,
                                                     previewSources:
                                                         _allLiveScrubPreviewSources(),
                                                     onTap: surfaceConfig.onTap,
-                                                    onScrubStart:
-                                                        surfaceConfig.onScrubStart,
+                                                    onScrubStart: surfaceConfig
+                                                        .onScrubStart,
                                                     onScrubTimeChanged:
                                                         surfaceConfig
                                                             .onScrubTimeChanged,
-                                                    onScrubEnd:
-                                                        surfaceConfig.onScrubEnd,
+                                                    onScrubEnd: surfaceConfig
+                                                        .onScrubEnd,
+                                                    interactionEnabled:
+                                                        !_isApplyingStructuralEdit,
                                                   ),
                                     ),
                             ),

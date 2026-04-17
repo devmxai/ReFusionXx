@@ -22,16 +22,21 @@ class Stage5PreviewPlatformView(
     private val mainHandler = Handler(Looper.getMainLooper())
     private var latestPlayer: Player? = null
     private var isPreviewOutputSuppressed = false
+    private var isScrubSurfaceVisible = false
+    private var isPlayerContentSized = false
     @Volatile
     private var appliedScrubAspectRatio: Float? = null
     @Volatile
     private var isDisposed = false
     private val playerObserver: (Player) -> Unit = { updatedPlayer ->
         latestPlayer = updatedPlayer
-        if (!isPreviewOutputSuppressed) {
-            runOnUiThreadIfActive {
+        isPlayerContentSized = false
+        stage5TransportManager.setPreviewContentSized(false)
+        runOnUiThreadIfActive {
+            if (!isPreviewOutputSuppressed) {
                 playerView.player = updatedPlayer
             }
+            syncPlayerVisibility()
         }
     }
     private val previewRetentionObserver: (Boolean) -> Unit = { shouldRetain ->
@@ -48,6 +53,7 @@ class Stage5PreviewPlatformView(
                 } else {
                     latestPlayer ?: stage5TransportManager.player
                 }
+            syncPlayerVisibility()
         }
     }
     private val scrubSettlingObserver: (Boolean) -> Unit = { isSettling ->
@@ -62,6 +68,16 @@ class Stage5PreviewPlatformView(
             resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             setShutterBackgroundColor(Color.TRANSPARENT)
             setKeepContentOnPlayerReset(true)
+            alpha = 0f
+            setAspectRatioListener { contentAspectRatio, _, aspectRatioMismatch ->
+                val sized = contentAspectRatio > 0f && !aspectRatioMismatch
+                if (sized == isPlayerContentSized) {
+                    return@setAspectRatioListener
+                }
+                isPlayerContentSized = sized
+                stage5TransportManager.setPreviewContentSized(sized)
+                syncPlayerVisibility()
+            }
             latestPlayer = stage5TransportManager.player
             player = latestPlayer
         }
@@ -104,10 +120,10 @@ class Stage5PreviewPlatformView(
     override fun getView(): View = rootView
 
     override fun setScrubSurfaceVisible(visible: Boolean) {
+        isScrubSurfaceVisible = visible
         runOnUiThreadIfActive {
             scrubOverlayView.alpha = if (visible) 1f else 0f
-            val shouldShowPlayer = !visible && !isPreviewOutputSuppressed
-            playerView.visibility = if (shouldShowPlayer) View.VISIBLE else View.INVISIBLE
+            syncPlayerVisibility()
         }
     }
 
@@ -132,6 +148,7 @@ class Stage5PreviewPlatformView(
 
     override fun dispose() {
         isDisposed = true
+        stage5TransportManager.setPreviewContentSized(false)
         stage5NativeScrubEngine.unregisterRenderHost(this)
         stage5TransportManager.removePlayerObserver(playerObserver)
         stage5TransportManager.removePreviewRetentionObserver(previewRetentionObserver)
@@ -178,6 +195,12 @@ class Stage5PreviewPlatformView(
             }
         }
         latch.await(32L, TimeUnit.MILLISECONDS)
+    }
+
+    private fun syncPlayerVisibility() {
+        val shouldShowPlayer = !isPreviewOutputSuppressed && !isScrubSurfaceVisible
+        playerView.visibility = if (shouldShowPlayer) View.VISIBLE else View.INVISIBLE
+        playerView.alpha = if (shouldShowPlayer && isPlayerContentSized) 1f else 0f
     }
 
     private fun runOnUiThread(action: () -> Unit) {
