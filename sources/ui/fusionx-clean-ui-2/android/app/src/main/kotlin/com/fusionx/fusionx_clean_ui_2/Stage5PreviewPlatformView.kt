@@ -11,6 +11,8 @@ import androidx.media3.common.Player
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import io.flutter.plugin.platform.PlatformView
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 class Stage5PreviewPlatformView(
     context: Context,
@@ -20,6 +22,8 @@ class Stage5PreviewPlatformView(
     private val mainHandler = Handler(Looper.getMainLooper())
     private var latestPlayer: Player? = null
     private var isPreviewOutputSuppressed = false
+    @Volatile
+    private var appliedScrubAspectRatio: Float? = null
     @Volatile
     private var isDisposed = false
     private val playerObserver: (Player) -> Unit = { updatedPlayer ->
@@ -107,6 +111,17 @@ class Stage5PreviewPlatformView(
         }
     }
 
+    override fun setScrubContentAspectRatio(aspectRatio: Float?) {
+        val normalizedAspectRatio = aspectRatio?.takeIf { it > 0f }
+        if (sameAspectRatio(appliedScrubAspectRatio, normalizedAspectRatio)) {
+            return
+        }
+        appliedScrubAspectRatio = normalizedAspectRatio
+        runOnUiThreadIfActive(waitForCompletion = true) {
+            scrubOverlayView.setContentAspectRatio(normalizedAspectRatio)
+        }
+    }
+
     override fun hasScrubOutputSurface(): Boolean = scrubOverlayView.isAvailable
 
     override fun acquireScrubOutputSurface(): Surface? = scrubOverlayView.acquireOutputSurface()
@@ -131,15 +146,38 @@ class Stage5PreviewPlatformView(
         }
     }
 
-    private fun runOnUiThreadIfActive(action: () -> Unit) {
+    private fun runOnUiThreadIfActive(
+        waitForCompletion: Boolean = false,
+        action: () -> Unit,
+    ) {
         if (isDisposed) {
             return
         }
-        runOnUiThread {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
             if (!isDisposed) {
                 action()
             }
+            return
         }
+        if (!waitForCompletion) {
+            mainHandler.post {
+                if (!isDisposed) {
+                    action()
+                }
+            }
+            return
+        }
+        val latch = CountDownLatch(1)
+        mainHandler.post {
+            try {
+                if (!isDisposed) {
+                    action()
+                }
+            } finally {
+                latch.countDown()
+            }
+        }
+        latch.await(32L, TimeUnit.MILLISECONDS)
     }
 
     private fun runOnUiThread(action: () -> Unit) {
@@ -148,5 +186,15 @@ class Stage5PreviewPlatformView(
         } else {
             mainHandler.post(action)
         }
+    }
+
+    private fun sameAspectRatio(
+        left: Float?,
+        right: Float?,
+    ): Boolean {
+        if (left == null || right == null) {
+            return left == right
+        }
+        return kotlin.math.abs(left - right) < 0.0001f
     }
 }

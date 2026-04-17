@@ -18,6 +18,8 @@ data class Stage5NativeScrubSourceDescriptor(
     val sourceStartMs: Long,
     val sourceDurationMs: Long,
     val playbackRate: Double,
+    val sourceWidth: Int? = null,
+    val sourceHeight: Int? = null,
 ) {
     fun containsPosition(positionMs: Long): Boolean =
         positionMs >= timelineStartMs && positionMs < timelineEndMs
@@ -33,6 +35,12 @@ data class Stage5NativeScrubSourceDescriptor(
         return (localTimelineOffsetMs * playbackRate).toLong()
             .coerceIn(0L, sourceDurationMs)
     }
+
+    fun sourceAspectRatio(): Float? {
+        val width = sourceWidth?.takeIf { it > 0 } ?: return null
+        val height = sourceHeight?.takeIf { it > 0 } ?: return null
+        return width.toFloat() / height.toFloat().coerceAtLeast(1f)
+    }
 }
 
 @UnstableApi
@@ -43,6 +51,7 @@ class Stage5NativeScrubEngine(
     companion object {
         private const val RENDER_LOOP_RETRY_DELAY_MS = 8L
         private const val PROXY_WAIT_RETRY_DELAY_MS = 64L
+        private const val BOUNDARY_WARMUP_MARGIN_MS = 2_000L
     }
 
     private data class Diagnostics(
@@ -89,6 +98,7 @@ class Stage5NativeScrubEngine(
         val descriptor: Stage5NativeScrubSourceDescriptor,
         val sourcePositionMs: Long,
         val generation: Long,
+        val forceSeekBeforeRender: Boolean,
     )
 
     private data class OutputTarget(
@@ -113,6 +123,8 @@ class Stage5NativeScrubEngine(
         emptyList()
     private var configurationGeneration: Long = 0L
     private var lastProxyWarmupSourceUri: String? = null
+    private var lastBoundaryWarmupKey: String? = null
+    private var pendingDecoderForceSeekGeneration: Long? = null
     @Volatile
     private var lastRenderAwaitingProxy = false
 
@@ -229,6 +241,10 @@ class Stage5NativeScrubEngine(
     fun scrubTimelinePosition(positionMs: Long): Boolean {
         val descriptor = resolveDescriptorForPosition(positionMs) ?: return false
         val sourcePositionMs = descriptor.resolveSourcePositionMs(positionMs)
+        primeBoundaryNeighborsLocked(
+            timelinePositionMs = positionMs,
+            descriptor = descriptor,
+        )
         return updateTarget(
             descriptor = descriptor,
             positionMs = sourcePositionMs,
@@ -281,9 +297,14 @@ class Stage5NativeScrubEngine(
         configuredTargetWidth = targetWidth
         configuredTargetHeight = targetHeight
         sessionFrozen = false
+        val descriptorChanged =
+            activeDescriptor?.scrubStoreKey != descriptor.scrubStoreKey
         activeDescriptor = descriptor
         latestTargetSourcePositionMs = normalizeDescriptorPositionMs(descriptor, positionMs)
         targetGeneration += 1
+        if (descriptorChanged) {
+            pendingDecoderForceSeekGeneration = targetGeneration
+        }
         if (lastProxyWarmupSourceUri != descriptor.sourceUri) {
             lastProxyWarmupSourceUri = descriptor.sourceUri
             warmupExecutor.execute {
@@ -311,6 +332,7 @@ class Stage5NativeScrubEngine(
         sessionFrozen = false
         activeDescriptor = null
         latestTargetSourcePositionMs = null
+        pendingDecoderForceSeekGeneration = null
         targetGeneration += 1
         renderHosts.forEach { host ->
             host.setScrubSurfaceVisible(false)
@@ -379,6 +401,7 @@ class Stage5NativeScrubEngine(
                         descriptor = descriptor,
                         sourcePositionMs = sourcePositionMs,
                         generation = targetGeneration,
+                        forceSeekBeforeRender = pendingDecoderForceSeekGeneration == targetGeneration,
                     )
                 }
             val rendered = renderSnapshot(snapshot)
@@ -443,6 +466,10 @@ class Stage5NativeScrubEngine(
             diagnostics.decoderConfigureFailureCount += 1
             return false
         }
+        outputTarget.host.setScrubContentAspectRatio(snapshot.descriptor.sourceAspectRatio())
+        if (snapshot.forceSeekBeforeRender) {
+            surfaceScrubDecoder.forceSeekOnNextRender()
+        }
         val rendered =
             surfaceScrubDecoder.renderToPosition(
                 positionMs = snapshot.sourcePositionMs,
@@ -469,6 +496,9 @@ class Stage5NativeScrubEngine(
             }
             renderHosts.forEach { host ->
                 host.setScrubSurfaceVisible(host === outputTarget.host)
+            }
+            if (pendingDecoderForceSeekGeneration == snapshot.generation) {
+                pendingDecoderForceSeekGeneration = null
             }
         }
         return true
@@ -558,5 +588,47 @@ class Stage5NativeScrubEngine(
         ordered.getOrNull(primaryIndex - 1)?.let(prioritized::add)
         ordered.getOrNull(primaryIndex + 1)?.let(prioritized::add)
         return prioritized.toList()
+    }
+
+    private fun primeBoundaryNeighborsLocked(
+        timelinePositionMs: Long,
+        descriptor: Stage5NativeScrubSourceDescriptor,
+    ) {
+        val sorted = configuredPreviewSources
+        if (sorted.size < 2) {
+            return
+        }
+        val descriptorIndex =
+            sorted.indexOfFirst { candidate ->
+                candidate.scrubStoreKey == descriptor.scrubStoreKey
+            }
+        if (descriptorIndex < 0) {
+            return
+        }
+        val descriptorsToPrime = LinkedHashSet<Stage5NativeScrubSourceDescriptor>()
+        descriptorsToPrime.add(descriptor)
+        if (timelinePositionMs >= descriptor.timelineEndMs - BOUNDARY_WARMUP_MARGIN_MS) {
+            sorted.getOrNull(descriptorIndex + 1)?.let(descriptorsToPrime::add)
+        }
+        if (timelinePositionMs <= descriptor.timelineStartMs + BOUNDARY_WARMUP_MARGIN_MS) {
+            sorted.getOrNull(descriptorIndex - 1)?.let(descriptorsToPrime::add)
+        }
+        val warmupKey =
+            descriptorsToPrime.joinToString(separator = "|") { candidate ->
+                candidate.scrubStoreKey
+            }
+        if (warmupKey == lastBoundaryWarmupKey) {
+            return
+        }
+        lastBoundaryWarmupKey = warmupKey
+        val descriptors = descriptorsToPrime.toList()
+        warmupExecutor.execute {
+            descriptors.forEach { candidate ->
+                scrubPreviewProxyManager.ensurePreviewMedia(
+                    sourceUri = candidate.sourceUri,
+                    previewUriHint = candidate.previewUri,
+                )
+            }
+        }
     }
 }

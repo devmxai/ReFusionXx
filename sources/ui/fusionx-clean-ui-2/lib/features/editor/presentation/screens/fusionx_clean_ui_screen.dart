@@ -779,6 +779,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
               sourceStartMs: clip.sourceStartTime.inMilliseconds,
               sourceDurationMs: clip.sourceDurationTime.inMilliseconds,
               playbackRate: clip.playbackRate,
+              sourceWidth: asset.width,
+              sourceHeight: asset.height,
               status: LiveScrubPreviewSourceStatus.ready,
             ),
           );

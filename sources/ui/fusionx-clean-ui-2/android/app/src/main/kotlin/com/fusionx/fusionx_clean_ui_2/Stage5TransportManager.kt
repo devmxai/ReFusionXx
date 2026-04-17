@@ -1491,6 +1491,19 @@ class Stage5TransportManager(context: Context) {
 
         val nextSegmentIndex = segmentIndex + 1
         if (nextSegmentIndex > run.endSegmentIndexInclusive) {
+            val nextRunIndex = runIndex + 1
+            if (nextRunIndex <= timelineRuns.lastIndex) {
+                val nextRun = timelineRuns[nextRunIndex]
+                activeTimelineRunIndex = nextRunIndex
+                activeTimelineSegmentIndex = nextRun.startSegmentIndex
+                applyPlaybackRateForSegmentIndex(nextRun.startSegmentIndex)
+                if (activePlayer.currentMediaItemIndex == runIndex) {
+                    // Crossing into a different source creates a new run/media item.
+                    // Advance explicitly instead of pausing at the previous run boundary.
+                    activePlayer.seekTo(nextRunIndex, 0L)
+                }
+                return
+            }
             val safeFinalItemPositionMs =
                 safeDisplayableEndPosition(
                     (run.windowEndMs - run.windowStartMs).coerceAtLeast(0L),

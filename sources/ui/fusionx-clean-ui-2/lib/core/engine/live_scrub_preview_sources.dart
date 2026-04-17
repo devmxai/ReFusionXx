@@ -17,6 +17,8 @@ class LiveScrubPreviewSourceDescriptor {
     required this.sourceStartMs,
     required this.sourceDurationMs,
     required this.playbackRate,
+    this.sourceWidth,
+    this.sourceHeight,
     this.status = LiveScrubPreviewSourceStatus.discovered,
     this.frameIntervalMs,
     this.frameCount,
@@ -35,6 +37,8 @@ class LiveScrubPreviewSourceDescriptor {
   final int sourceStartMs;
   final int sourceDurationMs;
   final double playbackRate;
+  final int? sourceWidth;
+  final int? sourceHeight;
   final LiveScrubPreviewSourceStatus status;
   final int? frameIntervalMs;
   final int? frameCount;
@@ -57,6 +61,8 @@ class LiveScrubPreviewSourceDescriptor {
       'sourceStartMs': sourceStartMs,
       'sourceDurationMs': sourceDurationMs,
       'playbackRate': playbackRate,
+      'sourceWidth': sourceWidth,
+      'sourceHeight': sourceHeight,
       'status': status.name,
       'frameIntervalMs': frameIntervalMs,
       'frameCount': frameCount,
@@ -69,6 +75,8 @@ class LiveScrubPreviewSourceDescriptor {
     int? frameIntervalMs,
     int? frameCount,
     String? storageTier,
+    int? sourceWidth,
+    int? sourceHeight,
   }) {
     return LiveScrubPreviewSourceDescriptor(
       clipId: clipId,
@@ -83,6 +91,8 @@ class LiveScrubPreviewSourceDescriptor {
       sourceStartMs: sourceStartMs,
       sourceDurationMs: sourceDurationMs,
       playbackRate: playbackRate,
+      sourceWidth: sourceWidth ?? this.sourceWidth,
+      sourceHeight: sourceHeight ?? this.sourceHeight,
       status: status ?? this.status,
       frameIntervalMs: frameIntervalMs ?? this.frameIntervalMs,
       frameCount: frameCount ?? this.frameCount,

@@ -294,6 +294,8 @@ class Stage5TimelineScrubPlatformView(
                     sourceStartMs = (map["sourceStartMs"] as? Number)?.toLong() ?: 0L,
                     sourceDurationMs = (map["sourceDurationMs"] as? Number)?.toLong() ?: 0L,
                     playbackRate = (map["playbackRate"] as? Number)?.toDouble() ?: 1.0,
+                    sourceWidth = (map["sourceWidth"] as? Number)?.toInt(),
+                    sourceHeight = (map["sourceHeight"] as? Number)?.toInt(),
                 )
             } ?: emptyList()
         val regions =

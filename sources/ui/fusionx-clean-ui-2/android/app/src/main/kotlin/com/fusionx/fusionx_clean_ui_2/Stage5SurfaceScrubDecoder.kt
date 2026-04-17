@@ -29,6 +29,7 @@ class Stage5SurfaceScrubDecoder(
     private var lastRenderedPresentationUs = Long.MIN_VALUE
     private var lastQueuedSampleTimeUs = Long.MIN_VALUE
     private var lastSeekTargetUs = Long.MIN_VALUE
+    private var forceSeekOnNextRender = false
 
     @Synchronized
     fun ensureConfigured(
@@ -217,7 +218,15 @@ class Stage5SurfaceScrubDecoder(
         releaseDecoder()
     }
 
+    @Synchronized
+    fun forceSeekOnNextRender() {
+        forceSeekOnNextRender = true
+    }
+
     private fun shouldSeekToTarget(targetUs: Long): Boolean {
+        if (forceSeekOnNextRender) {
+            return true
+        }
         if (!decoderPrimed) {
             return true
         }
@@ -250,6 +259,7 @@ class Stage5SurfaceScrubDecoder(
             currentExtractor.seekTo(targetUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
             resetDecoderState()
             decoderPrimed = true
+            forceSeekOnNextRender = false
             lastSeekTargetUs = targetUs
             true
         } catch (_: Throwable) {
@@ -307,6 +317,7 @@ class Stage5SurfaceScrubDecoder(
         lastRenderedPresentationUs = Long.MIN_VALUE
         lastQueuedSampleTimeUs = Long.MIN_VALUE
         lastSeekTargetUs = Long.MIN_VALUE
+        forceSeekOnNextRender = false
     }
 
     private fun releaseDecoder() {

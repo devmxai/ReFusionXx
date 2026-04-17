@@ -60,3 +60,122 @@ The migration is not complete until all binary success criteria pass:
 - `ExoPlayer` decoder threads remain idle during active scrub
 - scrub display remains functional even if `ExoPlayer` is hypothetically
   removed from the active scrub path
+
+## Implementation Snapshot
+
+### Beta7 Now Okay
+
+Status snapshot date: `2026-04-17`
+
+This repository state is the current official checkpoint for the live scrub
+migration on `main`.
+
+The active live scrub path is now:
+
+`Timeline touch -> Stage5TimelineScrubPlatformView -> Stage5NativeScrubEngine -> Stage5SurfaceScrubDecoder -> Stage5ScrubOverlayTextureView`
+
+The playback and settle path remains:
+
+`Stage5TransportManager -> ExoPlayer`
+
+This means:
+
+- `ExoPlayer` is no longer used as the per-frame renderer during active scrub
+- the scrub preview is rendered by the native scrub engine through its own
+  overlay surface
+- `ExoPlayer` is reserved for playback and the final scrub settle handoff
+
+### Current Native Scrub Engine
+
+The current live scrub engine is decoder-backed and proxy-backed.
+
+Implemented pieces:
+
+- `Stage5NativeScrubEngine` owns descriptor resolution, scrub target updates,
+  boundary warmup, and render-loop ownership
+- `Stage5SurfaceScrubDecoder` keeps a dedicated native decoder path for scrub
+  output
+- `Stage5ScrubPreviewProxyManager` builds and serves low-latency preview proxy
+  media for scrub playback
+- `Stage5PreviewPlatformView` hosts the playback surface and the scrub overlay
+  surface
+- `Stage5ScrubOverlayTextureView` applies native aspect transforms for scrub
+  content independently of the player surface
+- `LiveScrubPreviewSourceDescriptor` now carries source dimensions so the
+  native scrub overlay can fit content by source aspect ratio
+
+### Timeline Playback Backend State
+
+The current timeline playback backend is still owned by
+`Stage5TransportManager`.
+
+Backend modes currently in use:
+
+- `SINGLE_SOURCE_EXO` for contiguous clips that can be represented as one
+  source timeline
+- `RUNS_EXO` for timelines that cross source boundaries
+- `COMPOSITION` remains future-gated and is still disabled for timeline
+  preview parity
+
+### What Was Removed From The Hot Path
+
+The following legacy behaviors are no longer part of the active live scrub
+display path:
+
+- transport-driven per-move scrub seeking through `ExoPlayer`
+- player-backed preview rendering during active scrub
+- frame-extraction and frame-store ownership of the hot scrub render path
+
+Utility code such as thumbnail loading can still exist outside the hot path,
+but it is not the active scrub renderer.
+
+### Latest Fixes Included In This Snapshot
+
+This snapshot includes the following boundary and stability fixes:
+
+- cross-clip scrub deadlock fix:
+  `Stage5NativeScrubEngine` no longer calls decoder force-seek while holding
+  the engine lock; the force-seek request is deferred into the render snapshot
+  and executed outside the engine lock
+- scrub aspect handoff fix:
+  scrub aspect ratio is now applied on the native overlay host before render,
+  and the overlay texture view preserves a dedicated transform state per scrub
+  aspect ratio
+- boundary warmup:
+  the scrub engine primes adjacent preview sources near clip boundaries
+- run-boundary playback fix:
+  `Stage5TransportManager` now advances from the current `RUNS_EXO` item to the
+  next run instead of pausing at the end of the first run when the next clip is
+  in a different source
+
+### Known Remaining Gaps
+
+The migration is significantly advanced, but the following items are still
+open:
+
+- cross-source live scrub can still feel slower than intra-source scrub because
+  the decoder must rebind between different media sources
+- the native scrub descriptor currently carries source dimensions only; full
+  clip placement metadata such as canvas placement, crop, translation, and
+  authored transform data is not yet transported into the scrub overlay path
+- the most recent run-boundary playback fix was compiled and analyzed
+  successfully, but the final on-device validation for that exact revision was
+  interrupted by an `adb` device disconnect and still needs direct verification
+
+### Validation State At This Checkpoint
+
+Verified in this codebase state:
+
+- active scrub rendering is native-owned, not `ExoPlayer`-owned
+- multi-clip scrub no longer follows the earlier lock inversion path that
+  caused `MotionEvent` ANR at source boundaries
+- build validation passes:
+  - `./gradlew app:compileDebugKotlin`
+  - `flutter analyze`
+  - `flutter build apk --debug`
+
+Not yet declared complete:
+
+- final 100% parity and stability across all cross-source boundary cases
+- full clip-placement parity between playback surface and scrub overlay for all
+  canvas arrangements
