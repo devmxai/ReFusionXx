@@ -15,8 +15,11 @@ class Stage5SurfaceScrubDecoder(
     companion object {
         private const val IO_TIMEOUT_US = 2_000L
         private const val SAME_FRAME_EPSILON_US = 16_000L
-        private const val SEEK_BACKWARD_TOLERANCE_US = 33_000L
-        private const val MAX_CONTINUOUS_DECODE_AHEAD_US = 1_500_000L
+        private const val SEEK_REPOSITION_TOLERANCE_US = 33_000L
+        // Proxy media is generated with a 0.25s GOP target, so allowing a short
+        // forward decode window up to the next likely sync region avoids
+        // per-move flush/seek churn while still preventing long decode-through.
+        private const val MAX_CONTINUOUS_FORWARD_DECODE_US = 250_000L
     }
 
     private var extractor: MediaExtractor? = null
@@ -230,21 +233,26 @@ class Stage5SurfaceScrubDecoder(
         if (!decoderPrimed) {
             return true
         }
+        if (lastRenderedPresentationUs == Long.MIN_VALUE) {
+            return true
+        }
         if (lastRenderedPresentationUs != Long.MIN_VALUE &&
-            targetUs + SEEK_BACKWARD_TOLERANCE_US < lastRenderedPresentationUs
+            targetUs + SEEK_REPOSITION_TOLERANCE_US < lastRenderedPresentationUs
         ) {
             return true
         }
-        if (inputEnded && targetUs > lastRenderedPresentationUs + SEEK_BACKWARD_TOLERANCE_US) {
+        if (inputEnded &&
+            targetUs > lastRenderedPresentationUs + SEEK_REPOSITION_TOLERANCE_US
+        ) {
             return true
         }
         if (lastRenderedPresentationUs != Long.MIN_VALUE &&
-            targetUs - lastRenderedPresentationUs > MAX_CONTINUOUS_DECODE_AHEAD_US
+            targetUs - lastRenderedPresentationUs > MAX_CONTINUOUS_FORWARD_DECODE_US
         ) {
             return true
         }
         if (lastQueuedSampleTimeUs != Long.MIN_VALUE &&
-            targetUs > lastQueuedSampleTimeUs + MAX_CONTINUOUS_DECODE_AHEAD_US
+            targetUs > lastQueuedSampleTimeUs + MAX_CONTINUOUS_FORWARD_DECODE_US
         ) {
             return true
         }

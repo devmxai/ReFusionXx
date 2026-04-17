@@ -124,7 +124,7 @@ class Stage5NativeScrubEngine(
     private var configurationGeneration: Long = 0L
     private var lastProxyWarmupSourceUri: String? = null
     private var lastBoundaryWarmupKey: String? = null
-    private var pendingDecoderForceSeekGeneration: Long? = null
+    private var pendingDecoderForceSeekStoreKey: String? = null
     @Volatile
     private var lastRenderAwaitingProxy = false
 
@@ -303,7 +303,7 @@ class Stage5NativeScrubEngine(
         latestTargetSourcePositionMs = normalizeDescriptorPositionMs(descriptor, positionMs)
         targetGeneration += 1
         if (descriptorChanged) {
-            pendingDecoderForceSeekGeneration = targetGeneration
+            pendingDecoderForceSeekStoreKey = descriptor.scrubStoreKey
         }
         if (lastProxyWarmupSourceUri != descriptor.sourceUri) {
             lastProxyWarmupSourceUri = descriptor.sourceUri
@@ -332,7 +332,7 @@ class Stage5NativeScrubEngine(
         sessionFrozen = false
         activeDescriptor = null
         latestTargetSourcePositionMs = null
-        pendingDecoderForceSeekGeneration = null
+        pendingDecoderForceSeekStoreKey = null
         targetGeneration += 1
         renderHosts.forEach { host ->
             host.setScrubSurfaceVisible(false)
@@ -401,7 +401,8 @@ class Stage5NativeScrubEngine(
                         descriptor = descriptor,
                         sourcePositionMs = sourcePositionMs,
                         generation = targetGeneration,
-                        forceSeekBeforeRender = pendingDecoderForceSeekGeneration == targetGeneration,
+                        forceSeekBeforeRender =
+                            pendingDecoderForceSeekStoreKey == descriptor.scrubStoreKey,
                     )
                 }
             val rendered = renderSnapshot(snapshot)
@@ -411,6 +412,7 @@ class Stage5NativeScrubEngine(
                 } else {
                     RENDER_LOOP_RETRY_DELAY_MS
                 }
+            var retryImmediately = false
             synchronized(this) {
                 val sessionActive =
                     !sessionFrozen && activeDescriptor != null && latestTargetSourcePositionMs != null
@@ -423,8 +425,13 @@ class Stage5NativeScrubEngine(
                     renderLoopRunning = false
                     return
                 }
+                if (targetChanged && !lastRenderAwaitingProxy) {
+                    retryImmediately = true
+                }
             }
-            Thread.sleep(retryDelayMs)
+            if (!retryImmediately && retryDelayMs > 0L) {
+                Thread.sleep(retryDelayMs)
+            }
         }
     }
 
@@ -434,8 +441,7 @@ class Stage5NativeScrubEngine(
             synchronized(this) {
                 if (
                     sessionFrozen ||
-                    activeDescriptor?.scrubStoreKey != snapshot.descriptor.scrubStoreKey ||
-                    targetGeneration != snapshot.generation
+                    activeDescriptor?.scrubStoreKey != snapshot.descriptor.scrubStoreKey
                 ) {
                     null
                 } else {
@@ -476,8 +482,7 @@ class Stage5NativeScrubEngine(
                 shouldContinue = {
                     synchronized(this) {
                         !sessionFrozen &&
-                            activeDescriptor?.scrubStoreKey == snapshot.descriptor.scrubStoreKey &&
-                            targetGeneration == snapshot.generation
+                            activeDescriptor?.scrubStoreKey == snapshot.descriptor.scrubStoreKey
                     }
                 },
             )
@@ -489,16 +494,15 @@ class Stage5NativeScrubEngine(
         synchronized(this) {
             if (
                 sessionFrozen ||
-                activeDescriptor?.scrubStoreKey != snapshot.descriptor.scrubStoreKey ||
-                targetGeneration != snapshot.generation
+                activeDescriptor?.scrubStoreKey != snapshot.descriptor.scrubStoreKey
             ) {
                 return false
             }
             renderHosts.forEach { host ->
                 host.setScrubSurfaceVisible(host === outputTarget.host)
             }
-            if (pendingDecoderForceSeekGeneration == snapshot.generation) {
-                pendingDecoderForceSeekGeneration = null
+            if (pendingDecoderForceSeekStoreKey == snapshot.descriptor.scrubStoreKey) {
+                pendingDecoderForceSeekStoreKey = null
             }
         }
         return true
