@@ -226,6 +226,21 @@ class MainActivity: FlutterActivity() {
                     stage5TransportManager.settleAfterScrub(positionMs)
                     result.success(null)
                 }
+                "primeScrubPreviewSources" -> {
+                    val rawSources = call.argument<List<Any?>>("sources") ?: emptyList()
+                    rawSources.forEach { entry ->
+                        val source =
+                            (entry as? Map<*, *>)?.mapKeys { (key, _) -> key.toString() }
+                                ?: return@forEach
+                        val sourceUri = source["sourceUri"]?.toString()?.takeIf { it.isNotBlank() }
+                            ?: return@forEach
+                        stage5NativeScrubEngine.primePreviewSource(
+                            sourceUri = sourceUri,
+                            previewUriHint = source["previewUri"]?.toString(),
+                        )
+                    }
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }

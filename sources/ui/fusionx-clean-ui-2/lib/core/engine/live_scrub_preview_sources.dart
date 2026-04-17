@@ -122,21 +122,38 @@ class LiveScrubPreviewSessionSources {
 class InMemoryLiveScrubPreviewSourceCatalog {
   final Map<String, LiveScrubPreviewSourceDescriptor> _descriptorsByClipId =
       <String, LiveScrubPreviewSourceDescriptor>{};
+  List<LiveScrubPreviewSourceDescriptor> _orderedDescriptors =
+      const <LiveScrubPreviewSourceDescriptor>[];
 
   List<LiveScrubPreviewSourceDescriptor> get descriptors =>
-      _descriptorsByClipId.values.toList(growable: false)
-        ..sort(
-          (left, right) =>
-              left.timelineStartMs.compareTo(right.timelineStartMs),
-        );
+      _orderedDescriptors;
+
+  void _rebuildOrderedDescriptors() {
+    _orderedDescriptors = _descriptorsByClipId.values.toList(growable: false)
+      ..sort(
+        (left, right) =>
+            left.timelineStartMs.compareTo(right.timelineStartMs),
+      );
+  }
 
   void replaceAll(Iterable<LiveScrubPreviewSourceDescriptor> descriptors) {
+    final nextDescriptors = descriptors.toList(growable: false)
+      ..sort(
+        (left, right) =>
+            left.timelineStartMs.compareTo(right.timelineStartMs),
+      );
+    if (listEquals(_orderedDescriptors, nextDescriptors)) {
+      return;
+    }
     _descriptorsByClipId
       ..clear()
       ..addEntries(
-        descriptors
+        nextDescriptors
             .map((descriptor) => MapEntry(descriptor.clipId, descriptor)),
       );
+    _orderedDescriptors = List<LiveScrubPreviewSourceDescriptor>.unmodifiable(
+      nextDescriptors,
+    );
   }
 
   void markStatus(
@@ -148,6 +165,7 @@ class InMemoryLiveScrubPreviewSourceCatalog {
       return;
     }
     _descriptorsByClipId[clipId] = current.copyWith(status: status);
+    _rebuildOrderedDescriptors();
   }
 
   LiveScrubPreviewSessionSources resolveSessionSources(int positionMs) {

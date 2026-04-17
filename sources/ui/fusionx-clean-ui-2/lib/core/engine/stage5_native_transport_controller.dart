@@ -361,6 +361,18 @@ class Stage5NativeTransportController extends ChangeNotifier {
     );
   }
 
+  Future<void> primeScrubPreviewSources(
+    List<Map<String, Object?>> sources,
+  ) async {
+    if (!isPlatformSupported || sources.isEmpty) {
+      return;
+    }
+    await _invokeWithoutResult(
+      'primeScrubPreviewSources',
+      <String, dynamic>{'sources': sources},
+    );
+  }
+
   @override
   void dispose() {
     _eventsSubscription?.cancel();

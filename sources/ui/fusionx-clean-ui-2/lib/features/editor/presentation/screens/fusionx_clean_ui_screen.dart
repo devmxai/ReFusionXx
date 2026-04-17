@@ -790,7 +790,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   }
 
   List<LiveScrubPreviewSourceDescriptor> _allLiveScrubPreviewSources() {
-    _refreshLiveScrubPreviewSourceCatalog();
     return _liveScrubPreviewSourceCatalog.descriptors;
   }
 
@@ -1189,6 +1188,20 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     List<TimelineTrackData> tracks,
   ) async {
     _refreshLiveScrubPreviewSourceCatalog();
+    final sources = _allLiveScrubPreviewSources();
+    if (sources.isEmpty) {
+      return;
+    }
+    await _transportController.primeScrubPreviewSources(
+      sources
+          .map(
+            (descriptor) => <String, Object?>{
+              'sourceUri': descriptor.sourceUri,
+              'previewUri': descriptor.previewUri,
+            },
+          )
+          .toList(growable: false),
+    );
   }
 
   void _primeVideoAssetForLiveScrub(
@@ -1197,6 +1210,19 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   }) {
     if (asset.tab == EditorMediaTab.video) {
       _refreshLiveScrubPreviewSourceCatalog();
+      final sourceUri = asset.sourceUri;
+      if (sourceUri != null && sourceUri.isNotEmpty) {
+        unawaited(
+          _transportController.primeScrubPreviewSources(
+            <Map<String, Object?>>[
+              <String, Object?>{
+                'sourceUri': sourceUri,
+                'previewUri': asset.previewUri,
+              },
+            ],
+          ),
+        );
+      }
     }
   }
 
@@ -1644,9 +1670,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
 
   void _setTimelineDisplayTime(TimelineTime time) {
     final clamped = time.clamp(TimelineTime.zero, _timelineDurationTime);
-    if (_isTimelineScrubbing && _useNativeTimelineScrubInput) {
-      return;
-    }
     _applyTimelineDisplayTime(clamped);
   }
 
@@ -1836,6 +1859,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     }
     if (_isTimelineScrubbing && _useNativeTimelineScrubInput) {
       _setCurrentTime(clampedTime);
+      _setPlaybackSampleTime(clampedTime);
       return;
     }
     _setCurrentTime(clampedTime);
@@ -3931,7 +3955,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       await _pausePlayback();
     }
     if (asset.isVisual) {
-      await _primePreviewThumbnailForAsset(asset);
+      unawaited(_primePreviewThumbnailForAsset(asset));
     }
     final clipId = 'clip-${asset.id}-${DateTime.now().millisecondsSinceEpoch}';
     final clip = TimelineClipData(
@@ -6234,24 +6258,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
                                           _transitionFocusTrimSelection(
                                         transitionFocusContext,
                                       ),
-                                      onScrubTimeChanged: (localTime) {
-                                        final scopedDuration =
-                                            transitionFocusContext.endTime -
-                                                transitionFocusContext
-                                                    .startTime;
-                                        final progress =
-                                            scopedDuration.inMilliseconds <= 0
-                                                ? 0.0
-                                                : (localTime.inMilliseconds /
-                                                        scopedDuration
-                                                            .inMilliseconds)
-                                                    .clamp(0.0, 1.0)
-                                                    .toDouble();
-                                        _seekTransitionFocusProgress(
-                                          transitionFocusContext,
-                                          progress,
-                                        );
-                                      },
                                       onClipSelected: (clipId) =>
                                           _handleTransitionFocusClipSelected(
                                         transitionFocusContext,
@@ -6292,6 +6298,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
                                                   NativeTimelineScrubSurface(
                                                     currentTime:
                                                         surfaceConfig.currentTime,
+                                                    currentTimeListenable:
+                                                        surfaceConfig
+                                                            .currentTimeListenable,
                                                     timelineDurationTime:
                                                         surfaceConfig
                                                             .timelineDurationTime,
@@ -6337,8 +6346,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
                                               ? _selectedTransitionId
                                               : null,
                                       trimSelection: _timelineTrimSelection,
-                                      onScrubTimeChanged:
-                                          _handleTimelineTimeChanged,
                                       onClipSelected: _selectClip,
                                       onClipDoubleTap:
                                           _handleTimelineClipDoubleTap,
@@ -6372,6 +6379,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
                                                   NativeTimelineScrubSurface(
                                                     currentTime:
                                                         surfaceConfig.currentTime,
+                                                    currentTimeListenable:
+                                                        surfaceConfig
+                                                            .currentTimeListenable,
                                                     timelineDurationTime:
                                                         surfaceConfig
                                                             .timelineDurationTime,

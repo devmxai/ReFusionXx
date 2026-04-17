@@ -82,6 +82,9 @@ private class Stage5TimelineScrubInputView(
     private var gestureStartPositionMs = 0L
     private var gesturePositionMs = 0L
     private var scrubbing = false
+    private var configuredPreviewSources: List<Stage5NativeScrubSourceDescriptor> = emptyList()
+    private var configuredTargetWidth: Int = 0
+    private var configuredTargetHeight: Int = 0
 
     private fun resolvePointerRawX(
         event: MotionEvent,
@@ -98,6 +101,16 @@ private class Stage5TimelineScrubInputView(
         if (!scrubbing) {
             gesturePositionMs = nextConfig.currentPositionMs
         }
+        val shouldReconfigure =
+            configuredPreviewSources != nextConfig.previewSources ||
+                configuredTargetWidth != nextConfig.targetWidth ||
+                configuredTargetHeight != nextConfig.targetHeight
+        if (!shouldReconfigure) {
+            return
+        }
+        configuredPreviewSources = nextConfig.previewSources
+        configuredTargetWidth = nextConfig.targetWidth
+        configuredTargetHeight = nextConfig.targetHeight
         nativeScrubEngine.configurePreviewSources(
             previewSources = nextConfig.previewSources,
             targetWidth = nextConfig.targetWidth,
@@ -129,7 +142,6 @@ private class Stage5TimelineScrubInputView(
                 gestureStartPositionMs = config.currentPositionMs
                 gesturePositionMs = config.currentPositionMs
                 scrubbing = false
-                nativeScrubEngine.primeTimelinePosition(config.currentPositionMs)
                 parent?.requestDisallowInterceptTouchEvent(true)
                 return true
             }
@@ -165,10 +177,6 @@ private class Stage5TimelineScrubInputView(
                 }
                 gesturePositionMs = nextPositionMs
                 nativeScrubEngine.scrubTimelinePosition(gesturePositionMs)
-                channel.invokeMethod(
-                    "scrubTimeChanged",
-                    mapOf("positionMs" to gesturePositionMs),
-                )
                 return true
             }
 
@@ -176,6 +184,8 @@ private class Stage5TimelineScrubInputView(
                 val wasScrubbing = scrubbing
                 val tapped = !wasScrubbing && config.tapEnabled
                 if (wasScrubbing) {
+                    nativeScrubEngine.scrubTimelinePosition(gesturePositionMs)
+                    nativeScrubEngine.freezeSession()
                     channel.invokeMethod(
                         "scrubEnd",
                         mapOf("positionMs" to gesturePositionMs),
@@ -192,6 +202,8 @@ private class Stage5TimelineScrubInputView(
 
             MotionEvent.ACTION_CANCEL -> {
                 if (scrubbing) {
+                    nativeScrubEngine.scrubTimelinePosition(gesturePositionMs)
+                    nativeScrubEngine.freezeSession()
                     channel.invokeMethod(
                         "scrubEnd",
                         mapOf("positionMs" to gesturePositionMs),

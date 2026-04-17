@@ -3,6 +3,9 @@ package com.refusion.app
 import android.content.Context
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.os.Handler
+import android.os.HandlerThread
+import android.os.Looper
 import androidx.media3.common.C
 import androidx.media3.common.Effect
 import androidx.media3.common.MediaItem
@@ -29,11 +32,11 @@ class Stage5ScrubPreviewProxyManager(
 ) {
     companion object {
         private const val LONG_FORM_THRESHOLD_MS = 10 * 60 * 1000L
-        private const val SHORT_FORM_TARGET_HEIGHT = 480
-        private const val LONG_FORM_TARGET_HEIGHT = 360
-        private const val SHORT_FORM_TARGET_BITRATE = 1_500_000
-        private const val LONG_FORM_TARGET_BITRATE = 900_000
-        private const val TARGET_I_FRAME_INTERVAL_SECONDS = 0.5f
+        private const val SHORT_FORM_TARGET_HEIGHT = 720
+        private const val LONG_FORM_TARGET_HEIGHT = 540
+        private const val SHORT_FORM_TARGET_BITRATE = 4_000_000
+        private const val LONG_FORM_TARGET_BITRATE = 2_500_000
+        private const val TARGET_I_FRAME_INTERVAL_SECONDS = 0.25f
     }
 
     data class ProxyResolution(
@@ -69,6 +72,11 @@ class Stage5ScrubPreviewProxyManager(
         File(appContext.cacheDir, "stage5_scrub_preview_proxies").apply {
             mkdirs()
         }
+    private val proxyThread =
+        HandlerThread("Stage5ScrubPreviewProxyThread").apply {
+            start()
+        }
+    private val proxyHandler = Handler(proxyThread.looper)
     private val entries = ConcurrentHashMap<String, ProxyEntry>()
 
     fun ensurePreviewMedia(
@@ -98,100 +106,105 @@ class Stage5ScrubPreviewProxyManager(
         if (entry.state == ProxyState.READY && entry.outputFile.length() > 0L) {
             return
         }
-        synchronized(entry) {
-            if (entry.state == ProxyState.READY && entry.outputFile.length() > 0L) {
-                return
-            }
-            if (entry.transformer != null) {
-                return
-            }
-            entry.outputFile.parentFile?.mkdirs()
-            if (entry.outputFile.exists() && !entry.outputFile.delete()) {
-                entry.failure = "Unable to replace existing scrub preview proxy."
-                entry.state = ProxyState.FAILED
-                return
-            }
-            val proxySpec =
-                runCatching { resolveProxySpec(sourceUri) }
-                    .getOrElse { error ->
-                        entry.failure = error.message ?: error.toString()
-                        entry.state = ProxyState.FAILED
-                        return
-                    }
-            val encoderFactory =
-                DefaultEncoderFactory.Builder(appContext)
-                    .setEnableFallback(true)
-                    .setRequestedVideoEncoderSettings(
-                        VideoEncoderSettings.Builder()
-                            .setBitrate(proxySpec.bitrate)
-                            .setiFrameIntervalSeconds(TARGET_I_FRAME_INTERVAL_SECONDS)
-                            .build(),
+        runOnProxyThread {
+            synchronized(entry) {
+                if (entries[sourceUri] !== entry) {
+                    return@runOnProxyThread
+                }
+                if (entry.state == ProxyState.READY && entry.outputFile.length() > 0L) {
+                    return@runOnProxyThread
+                }
+                if (entry.transformer != null) {
+                    return@runOnProxyThread
+                }
+                entry.outputFile.parentFile?.mkdirs()
+                if (entry.outputFile.exists() && !entry.outputFile.delete()) {
+                    entry.failure = "Unable to replace existing scrub preview proxy."
+                    entry.state = ProxyState.FAILED
+                    return@runOnProxyThread
+                }
+                val proxySpec =
+                    runCatching { resolveProxySpec(sourceUri) }
+                        .getOrElse { error ->
+                            entry.failure = error.message ?: error.toString()
+                            entry.state = ProxyState.FAILED
+                            return@runOnProxyThread
+                        }
+                val encoderFactory =
+                    DefaultEncoderFactory.Builder(appContext)
+                        .setEnableFallback(true)
+                        .setRequestedVideoEncoderSettings(
+                            VideoEncoderSettings.Builder()
+                                .setBitrate(proxySpec.bitrate)
+                                .setiFrameIntervalSeconds(TARGET_I_FRAME_INTERVAL_SECONDS)
+                                .build(),
+                        )
+                        .build()
+                val videoEffects =
+                    listOf<Effect>(
+                        Presentation.createForWidthAndHeight(
+                            proxySpec.width,
+                            proxySpec.height,
+                            Presentation.LAYOUT_SCALE_TO_FIT,
+                        ),
                     )
-                    .build()
-            val videoEffects =
-                listOf<Effect>(
-                    Presentation.createForWidthAndHeight(
-                        proxySpec.width,
-                        proxySpec.height,
-                        Presentation.LAYOUT_SCALE_TO_FIT,
-                    ),
-                )
-            val mediaItem = MediaItem.fromUri(Uri.parse(sourceUri))
-            val editedMediaItem =
-                EditedMediaItem.Builder(mediaItem)
-                    .setRemoveAudio(true)
-                    .setEffects(Effects(emptyList(), videoEffects))
-                    .build()
-            val sequence =
-                EditedMediaItemSequence.Builder(setOf(C.TRACK_TYPE_VIDEO))
-                    .addItem(editedMediaItem)
-                    .build()
-            val composition = Composition.Builder(listOf(sequence)).build()
-            val transformer =
-                Transformer.Builder(appContext)
-                    .setVideoMimeType(MimeTypes.VIDEO_H264)
-                    .setEncoderFactory(encoderFactory)
-                    .setEnsureFileStartsOnVideoFrameEnabled(true)
-                    .addListener(
-                        object : Transformer.Listener {
-                            override fun onCompleted(
-                                composition: Composition,
-                                exportResult: ExportResult,
-                            ) {
-                                synchronized(entry) {
-                                    entry.transformer = null
-                                    entry.failure = null
-                                    entry.state =
-                                        if (entry.outputFile.isFile &&
-                                            entry.outputFile.length() > 0L
-                                        ) {
-                                            ProxyState.READY
-                                        } else {
-                                            ProxyState.FAILED
-                                        }
+                val mediaItem = MediaItem.fromUri(Uri.parse(sourceUri))
+                val editedMediaItem =
+                    EditedMediaItem.Builder(mediaItem)
+                        .setRemoveAudio(true)
+                        .setEffects(Effects(emptyList(), videoEffects))
+                        .build()
+                val sequence =
+                    EditedMediaItemSequence.Builder(setOf(C.TRACK_TYPE_VIDEO))
+                        .addItem(editedMediaItem)
+                        .build()
+                val composition = Composition.Builder(listOf(sequence)).build()
+                val transformer =
+                    Transformer.Builder(appContext)
+                        .setVideoMimeType(MimeTypes.VIDEO_H264)
+                        .setEncoderFactory(encoderFactory)
+                        .setEnsureFileStartsOnVideoFrameEnabled(true)
+                        .addListener(
+                            object : Transformer.Listener {
+                                override fun onCompleted(
+                                    composition: Composition,
+                                    exportResult: ExportResult,
+                                ) {
+                                    synchronized(entry) {
+                                        entry.transformer = null
+                                        entry.failure = null
+                                        entry.state =
+                                            if (entry.outputFile.isFile &&
+                                                entry.outputFile.length() > 0L
+                                            ) {
+                                                ProxyState.READY
+                                            } else {
+                                                ProxyState.FAILED
+                                            }
+                                    }
                                 }
-                            }
 
-                            override fun onError(
-                                composition: Composition,
-                                exportResult: ExportResult,
-                                exportException: ExportException,
-                            ) {
-                                synchronized(entry) {
-                                    entry.transformer = null
-                                    entry.failure =
-                                        exportException.message
-                                            ?: exportException.errorCodeName
-                                    entry.state = ProxyState.FAILED
+                                override fun onError(
+                                    composition: Composition,
+                                    exportResult: ExportResult,
+                                    exportException: ExportException,
+                                ) {
+                                    synchronized(entry) {
+                                        entry.transformer = null
+                                        entry.failure =
+                                            exportException.message
+                                                ?: exportException.errorCodeName
+                                        entry.state = ProxyState.FAILED
+                                    }
                                 }
-                            }
-                        },
-                    )
-                    .build()
-            entry.transformer = transformer
-            entry.state = ProxyState.PREPARING
-            entry.failure = null
-            transformer.start(composition, entry.outputFile.absolutePath)
+                            },
+                        )
+                        .build()
+                entry.transformer = transformer
+                entry.state = ProxyState.PREPARING
+                entry.failure = null
+                transformer.start(composition, entry.outputFile.absolutePath)
+            }
         }
     }
 
@@ -219,18 +232,48 @@ class Stage5ScrubPreviewProxyManager(
                 isProxyReady = true,
             )
         }
-        ensurePreviewMedia(sourceUri = sourceUri, previewUriHint = previewUriHint)
         return ProxyResolution(playbackUri = sourceUri)
     }
 
-    fun release() {
-        entries.values.forEach { entry ->
-            synchronized(entry) {
-                entry.transformer?.cancel()
-                entry.transformer = null
+    fun pruneEntries(activeSourceUris: Set<String>) {
+        val retainedSourceUris = activeSourceUris.toSet()
+        runOnProxyThread {
+            val iterator = entries.entries.iterator()
+            while (iterator.hasNext()) {
+                val entry = iterator.next()
+                if (entry.key in retainedSourceUris) {
+                    continue
+                }
+                synchronized(entry.value) {
+                    entry.value.transformer?.cancel()
+                    entry.value.transformer = null
+                }
+                entry.value.outputFile.delete()
+                iterator.remove()
             }
         }
-        entries.clear()
+    }
+
+    fun release() {
+        val releaseEntries = entries.values.toList()
+        runOnProxyThread {
+            releaseEntries.forEach { entry ->
+                synchronized(entry) {
+                    entry.transformer?.cancel()
+                    entry.transformer = null
+                }
+            }
+            entries.clear()
+            proxyThread.quitSafely()
+        }
+    }
+
+    private fun runOnProxyThread(block: () -> Unit) {
+        if (Looper.myLooper() == proxyThread.looper) {
+            block()
+        } else {
+            proxyHandler.post(block)
+        }
     }
 
     private fun resolveProxySpec(sourceUri: String): ProxySpec {

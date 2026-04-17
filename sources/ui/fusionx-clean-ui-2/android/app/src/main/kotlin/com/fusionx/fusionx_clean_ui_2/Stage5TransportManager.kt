@@ -45,8 +45,9 @@ class Stage5TransportManager(context: Context) {
         private const val MULTI_ITEM_PRELOAD_DURATION_US = 12_000_000L
         private const val SOURCE_CONTIGUITY_TOLERANCE_MS = 1L
         private const val LOW_LATENCY_VIDEO_JOINING_TIME_MS = 350L
-        private const val SCRUB_SETTLE_WATCHDOG_MS = 240L
-        private const val SCRUB_SETTLE_TOLERANCE_MS = 34L
+        private const val SCRUB_SETTLE_WATCHDOG_MS = 320L
+        private const val SCRUB_SETTLE_MAX_WATCHDOG_ATTEMPTS = 3
+        private const val SCRUB_SETTLE_TOLERANCE_MS = 12L
         private const val DISPLAYABLE_END_EPSILON_MS = 1L
         // Composition-based multi-clip preview remains future-gated until it can preserve
         // live scrub parity with the accepted Exo baseline.
@@ -79,6 +80,7 @@ class Stage5TransportManager(context: Context) {
     private var scrubSettleTargetPositionMs: Long? = null
     private var scrubSettlePositionSatisfied = false
     private var scrubSettleRenderedFirstFrameSeen = false
+    private var scrubSettleWatchdogAttempts = 0
     private var timelinePlaybackBackend = TimelinePlaybackBackend.NONE
     private var isPreviewOutputSuppressed = false
     private val playerObservers = LinkedHashSet<(Player) -> Unit>()
@@ -163,9 +165,27 @@ class Stage5TransportManager(context: Context) {
                 if (!isScrubSettling) {
                     return
                 }
-                scrubSettlePositionSatisfied = true
-                scrubSettleRenderedFirstFrameSeen = true
-                finishScrubSettle(forcePositionUpdate = true)
+                val targetPositionMs = scrubSettleTargetPositionMs
+                val player = activePlayer ?: exoPlayer ?: compositionPlayer
+                val playbackState = player?.playbackState ?: Player.STATE_IDLE
+                if (targetPositionMs != null) {
+                    scrubSettlePositionSatisfied =
+                        kotlin.math.abs(currentTimelinePositionMs() - targetPositionMs) <=
+                            SCRUB_SETTLE_TOLERANCE_MS ||
+                            playbackState == Player.STATE_ENDED
+                }
+                scrubSettleWatchdogAttempts += 1
+                if (scrubSettlePositionSatisfied && scrubSettleRenderedFirstFrameSeen) {
+                    finishScrubSettle(forcePositionUpdate = true)
+                    return
+                }
+                if (scrubSettleWatchdogAttempts >= SCRUB_SETTLE_MAX_WATCHDOG_ATTEMPTS) {
+                    scrubSettleRenderedFirstFrameSeen = true
+                    scrubSettlePositionSatisfied = true
+                    finishScrubSettle(forcePositionUpdate = true)
+                    return
+                }
+                mainHandler.postDelayed(this, SCRUB_SETTLE_WATCHDOG_MS)
             }
         }
 
@@ -700,22 +720,11 @@ class Stage5TransportManager(context: Context) {
     private fun beginExactScrubSettle(positionMs: Long) {
         val safePositionMs = positionMs.coerceAtLeast(0L)
         lastRequestedPositionMs = safePositionMs
-        val settledPositionMs = currentTimelinePositionMs()
-        if (kotlin.math.abs(settledPositionMs - safePositionMs) <= SCRUB_SETTLE_TOLERANCE_MS) {
-            mainHandler.removeCallbacks(scrubSettleWatchdog)
-            isScrubSettling = false
-            scrubSettleTargetPositionMs = null
-            scrubSettlePositionSatisfied = true
-            scrubSettleRenderedFirstFrameSeen = true
-            (activePlayer as? ExoPlayer)?.setSeekParameters(SeekParameters.EXACT)
-            emitScrubSettlingState()
-            emitState()
-            return
-        }
         isScrubSettling = true
         scrubSettleTargetPositionMs = safePositionMs
         scrubSettlePositionSatisfied = false
         scrubSettleRenderedFirstFrameSeen = false
+        scrubSettleWatchdogAttempts = 0
         mainHandler.removeCallbacks(scrubSettleWatchdog)
         mainHandler.postDelayed(scrubSettleWatchdog, SCRUB_SETTLE_WATCHDOG_MS)
         (activePlayer as? ExoPlayer)?.setSeekParameters(SeekParameters.EXACT)
@@ -928,6 +937,7 @@ class Stage5TransportManager(context: Context) {
         scrubSettleTargetPositionMs = null
         scrubSettlePositionSatisfied = false
         scrubSettleRenderedFirstFrameSeen = false
+        scrubSettleWatchdogAttempts = 0
         emitScrubSettlingState()
         if (forcePositionUpdate && hadPendingSettle) {
             emitState()

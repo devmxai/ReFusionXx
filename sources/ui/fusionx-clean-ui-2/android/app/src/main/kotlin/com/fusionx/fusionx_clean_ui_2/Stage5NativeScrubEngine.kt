@@ -23,11 +23,15 @@ data class Stage5NativeScrubSourceDescriptor(
         positionMs >= timelineStartMs && positionMs < timelineEndMs
 
     fun resolveSourcePositionMs(timelinePositionMs: Long): Long {
+        return (sourceStartMs + resolveSourceOffsetMs(timelinePositionMs))
+            .coerceIn(sourceStartMs, sourceStartMs + sourceDurationMs)
+    }
+
+    fun resolveSourceOffsetMs(timelinePositionMs: Long): Long {
         val localTimelineOffsetMs =
             (timelinePositionMs - timelineStartMs).coerceIn(0L, durationMs)
-        val sourceOffsetMs = (localTimelineOffsetMs * playbackRate).toLong()
-        return (sourceStartMs + sourceOffsetMs)
-            .coerceIn(sourceStartMs, sourceStartMs + sourceDurationMs)
+        return (localTimelineOffsetMs * playbackRate).toLong()
+            .coerceIn(0L, sourceDurationMs)
     }
 }
 
@@ -38,6 +42,7 @@ class Stage5NativeScrubEngine(
 ) {
     companion object {
         private const val RENDER_LOOP_RETRY_DELAY_MS = 8L
+        private const val PROXY_WAIT_RETRY_DELAY_MS = 64L
     }
 
     private data class Diagnostics(
@@ -49,6 +54,7 @@ class Stage5NativeScrubEngine(
         var proxyReadyRenderCount: Long = 0L,
         var sourceFallbackRenderCount: Long = 0L,
         var noSurfaceCount: Long = 0L,
+        var decoderConfigureFailureCount: Long = 0L,
         var renderFailureCount: Long = 0L,
     ) {
         fun toMap(): Map<String, Any> =
@@ -61,6 +67,7 @@ class Stage5NativeScrubEngine(
                 "proxyReadyRenderCount" to proxyReadyRenderCount,
                 "sourceFallbackRenderCount" to sourceFallbackRenderCount,
                 "noSurfaceCount" to noSurfaceCount,
+                "decoderConfigureFailureCount" to decoderConfigureFailureCount,
                 "renderFailureCount" to renderFailureCount,
             )
 
@@ -73,6 +80,7 @@ class Stage5NativeScrubEngine(
             proxyReadyRenderCount = 0L
             sourceFallbackRenderCount = 0L
             noSurfaceCount = 0L
+            decoderConfigureFailureCount = 0L
             renderFailureCount = 0L
         }
     }
@@ -83,27 +91,51 @@ class Stage5NativeScrubEngine(
         val generation: Long,
     )
 
-    private val appContext = context.applicationContext
+    private data class OutputTarget(
+        val host: Stage5ScrubRenderHost,
+        val surface: Surface,
+    )
+
+    private val surfaceScrubDecoder = Stage5SurfaceScrubDecoder(context.applicationContext)
     private val renderHosts = LinkedHashSet<Stage5ScrubRenderHost>()
     private val renderExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val warmupExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val diagnostics = Diagnostics()
 
     private var activeDescriptor: Stage5NativeScrubSourceDescriptor? = null
     private var latestTargetSourcePositionMs: Long? = null
     private var targetGeneration: Long = 0L
     private var renderLoopRunning = false
+    private var sessionFrozen = false
     private var configuredTargetWidth: Int = 480
     private var configuredTargetHeight: Int = 854
     private var configuredPreviewSources: List<Stage5NativeScrubSourceDescriptor> =
         emptyList()
-    private var decoder: Stage5SurfaceScrubDecoder? = null
-    private var decoderPlaybackUri: String? = null
+    private var configurationGeneration: Long = 0L
+    private var lastProxyWarmupSourceUri: String? = null
+    @Volatile
+    private var lastRenderAwaitingProxy = false
+
+    fun primePreviewSource(
+        sourceUri: String,
+        previewUriHint: String? = null,
+    ) {
+        if (sourceUri.isBlank()) {
+            return
+        }
+        warmupExecutor.execute {
+            scrubPreviewProxyManager.ensurePreviewMedia(
+                sourceUri = sourceUri,
+                previewUriHint = previewUriHint,
+            )
+        }
+    }
 
     @Synchronized
     fun registerRenderHost(host: Stage5ScrubRenderHost) {
         renderHosts.add(host)
-        host.setScrubSurfaceVisible(activeDescriptor != null)
-        if (activeDescriptor != null && latestTargetSourcePositionMs != null) {
+        host.setScrubSurfaceVisible(false)
+        if (activeDescriptor != null && latestTargetSourcePositionMs != null && !sessionFrozen) {
             targetGeneration += 1
             scheduleRenderLoopLocked()
         }
@@ -113,6 +145,9 @@ class Stage5NativeScrubEngine(
     fun unregisterRenderHost(host: Stage5ScrubRenderHost) {
         host.releaseScrubOutputSurface()
         renderHosts.remove(host)
+        if (renderHosts.isEmpty()) {
+            surfaceScrubDecoder.release()
+        }
     }
 
     @Synchronized
@@ -122,44 +157,70 @@ class Stage5NativeScrubEngine(
         targetHeight: Int,
         initialTimelinePositionMs: Long? = null,
     ) {
-        configuredPreviewSources =
+        val sortedPreviewSources =
             previewSources.sortedBy(Stage5NativeScrubSourceDescriptor::timelineStartMs)
+        val previewSourcesChanged =
+            configuredPreviewSources != sortedPreviewSources ||
+                configuredTargetWidth != targetWidth ||
+                configuredTargetHeight != targetHeight
+        configuredPreviewSources = sortedPreviewSources
         configuredTargetWidth = targetWidth
         configuredTargetHeight = targetHeight
+        if (!previewSourcesChanged) {
+            return
+        }
+        configurationGeneration += 1
+        val generation = configurationGeneration
         val prioritizedDescriptors =
             prioritizeDescriptorsForWarmup(
                 descriptors = configuredPreviewSources,
                 initialTimelinePositionMs = initialTimelinePositionMs,
             )
-        prioritizedDescriptors.forEach { descriptor ->
-            scrubPreviewProxyManager.ensurePreviewMedia(
-                sourceUri = descriptor.sourceUri,
-                previewUriHint = descriptor.previewUri,
-            )
+        val activeSourceUris = prioritizedDescriptors.mapTo(LinkedHashSet()) { descriptor ->
+            descriptor.sourceUri
         }
-        initialTimelinePositionMs?.let(::primeTimelinePosition)
+        warmupExecutor.execute {
+            synchronized(this) {
+                if (generation != configurationGeneration) {
+                    return@execute
+                }
+            }
+            prioritizedDescriptors.forEach { descriptor ->
+                scrubPreviewProxyManager.ensurePreviewMedia(
+                    sourceUri = descriptor.sourceUri,
+                    previewUriHint = descriptor.previewUri,
+                )
+            }
+            scrubPreviewProxyManager.pruneEntries(activeSourceUris)
+        }
     }
 
     @Synchronized
     fun primeTimelinePosition(positionMs: Long) {
         val descriptor = resolveDescriptorForPosition(positionMs) ?: return
-        val sourcePositionMs = descriptor.resolveSourcePositionMs(positionMs)
         diagnostics.warmupRequestCount += 1
-        renderExecutor.execute {
+        warmupExecutor.execute {
             synchronized(this) {
                 if (activeDescriptor != null) {
                     return@execute
                 }
             }
-            renderSnapshot(
-                snapshot =
-                    RenderSnapshot(
-                        descriptor = descriptor,
-                        sourcePositionMs = sourcePositionMs,
-                        generation = -1L,
-                    ),
-                makeVisible = false,
-                onlyWhileInactive = true,
+            scrubPreviewProxyManager.ensurePreviewMedia(
+                sourceUri = descriptor.sourceUri,
+                previewUriHint = descriptor.previewUri,
+            )
+            val playbackUri = resolveReadyPlaybackUri(descriptor) ?: return@execute
+            val outputTarget =
+                synchronized(this) {
+                    if (activeDescriptor != null) {
+                        null
+                    } else {
+                        acquireOutputTargetLocked()
+                    }
+                } ?: return@execute
+            surfaceScrubDecoder.ensureConfigured(
+                playbackUri = playbackUri.playbackUri,
+                outputSurface = outputTarget.surface,
             )
         }
     }
@@ -219,15 +280,35 @@ class Stage5NativeScrubEngine(
         diagnostics.updateTargetCount += 1
         configuredTargetWidth = targetWidth
         configuredTargetHeight = targetHeight
+        sessionFrozen = false
         activeDescriptor = descriptor
-        latestTargetSourcePositionMs = positionMs.coerceAtLeast(0L)
+        latestTargetSourcePositionMs = normalizeDescriptorPositionMs(descriptor, positionMs)
         targetGeneration += 1
+        if (lastProxyWarmupSourceUri != descriptor.sourceUri) {
+            lastProxyWarmupSourceUri = descriptor.sourceUri
+            warmupExecutor.execute {
+                scrubPreviewProxyManager.ensurePreviewMedia(
+                    sourceUri = descriptor.sourceUri,
+                    previewUriHint = descriptor.previewUri,
+                )
+            }
+        }
         scheduleRenderLoopLocked()
-        return renderHosts.any(Stage5ScrubRenderHost::hasScrubOutputSurface)
+        return renderHosts.isNotEmpty()
+    }
+
+    @Synchronized
+    fun freezeSession() {
+        if (activeDescriptor == null) {
+            return
+        }
+        sessionFrozen = true
+        targetGeneration += 1
     }
 
     @Synchronized
     fun endSession() {
+        sessionFrozen = false
         activeDescriptor = null
         latestTargetSourcePositionMs = null
         targetGeneration += 1
@@ -239,13 +320,11 @@ class Stage5NativeScrubEngine(
     @Synchronized
     fun release() {
         endSession()
-        releaseDirectOutputSurface()
-        decoder?.release()
-        decoder = null
-        decoderPlaybackUri = null
         renderHosts.clear()
-        scrubPreviewProxyManager.release()
+        surfaceScrubDecoder.release()
         renderExecutor.shutdownNow()
+        warmupExecutor.shutdownNow()
+        scrubPreviewProxyManager.release()
     }
 
     @Synchronized
@@ -255,8 +334,7 @@ class Stage5NativeScrubEngine(
             "activeStoreKey" to activeDescriptor?.scrubStoreKey,
             "latestTargetPositionMs" to latestTargetSourcePositionMs,
             "configuredPreviewSourceCount" to configuredPreviewSources.size,
-            "decoderPlaybackUri" to decoderPlaybackUri,
-            "hasDirectOutputSurface" to renderHosts.any(Stage5ScrubRenderHost::hasScrubOutputSurface),
+            "hasRenderHost" to renderHosts.isNotEmpty(),
         )
 
     @Synchronized
@@ -266,24 +344,21 @@ class Stage5NativeScrubEngine(
 
     @Synchronized
     fun notifyDirectOutputSurfaceAvailable() {
-        if (activeDescriptor != null && latestTargetSourcePositionMs != null) {
+        if (activeDescriptor != null && latestTargetSourcePositionMs != null && !sessionFrozen) {
             targetGeneration += 1
             scheduleRenderLoopLocked()
         }
     }
 
     @Synchronized
-    fun acquireDirectOutputSurface(): Surface? =
-        renderHosts.firstNotNullOfOrNull(Stage5ScrubRenderHost::acquireScrubOutputSurface)
-
-    @Synchronized
-    fun releaseDirectOutputSurface() {
-        renderHosts.forEach(Stage5ScrubRenderHost::releaseScrubOutputSurface)
-    }
-
-    @Synchronized
     private fun scheduleRenderLoopLocked() {
-        if (renderLoopRunning || activeDescriptor == null || latestTargetSourcePositionMs == null) {
+        if (
+            renderLoopRunning ||
+            sessionFrozen ||
+            activeDescriptor == null ||
+            latestTargetSourcePositionMs == null ||
+            renderHosts.isEmpty()
+        ) {
             return
         }
         renderLoopRunning = true
@@ -296,7 +371,7 @@ class Stage5NativeScrubEngine(
                 synchronized(this) {
                     val descriptor = activeDescriptor
                     val sourcePositionMs = latestTargetSourcePositionMs
-                    if (descriptor == null || sourcePositionMs == null) {
+                    if (sessionFrozen || descriptor == null || sourcePositionMs == null) {
                         renderLoopRunning = false
                         return
                     }
@@ -306,15 +381,16 @@ class Stage5NativeScrubEngine(
                         generation = targetGeneration,
                     )
                 }
-            val rendered =
-                renderSnapshot(
-                snapshot = snapshot,
-                makeVisible = true,
-                onlyWhileInactive = false,
-            )
+            val rendered = renderSnapshot(snapshot)
+            val retryDelayMs =
+                if (lastRenderAwaitingProxy) {
+                    PROXY_WAIT_RETRY_DELAY_MS
+                } else {
+                    RENDER_LOOP_RETRY_DELAY_MS
+                }
             synchronized(this) {
                 val sessionActive =
-                    activeDescriptor != null && latestTargetSourcePositionMs != null
+                    !sessionFrozen && activeDescriptor != null && latestTargetSourcePositionMs != null
                 val targetChanged = targetGeneration != snapshot.generation
                 if (!sessionActive) {
                     renderLoopRunning = false
@@ -325,90 +401,118 @@ class Stage5NativeScrubEngine(
                     return
                 }
             }
-            Thread.sleep(RENDER_LOOP_RETRY_DELAY_MS)
+            Thread.sleep(retryDelayMs)
         }
     }
 
-    private fun renderSnapshot(
-        snapshot: RenderSnapshot,
-        makeVisible: Boolean,
-        onlyWhileInactive: Boolean,
-    ): Boolean {
+    private fun renderSnapshot(snapshot: RenderSnapshot): Boolean {
         diagnostics.renderRequestCount += 1
-        val outputSurface =
+        val outputTarget =
             synchronized(this) {
-                if (onlyWhileInactive && activeDescriptor != null) {
-                    return false
+                if (
+                    sessionFrozen ||
+                    activeDescriptor?.scrubStoreKey != snapshot.descriptor.scrubStoreKey ||
+                    targetGeneration != snapshot.generation
+                ) {
+                    null
+                } else {
+                    acquireOutputTargetLocked()
                 }
-                acquireDirectOutputSurface()
             } ?: run {
+                lastRenderAwaitingProxy = false
                 diagnostics.noSurfaceCount += 1
                 return false
             }
-        val resolution =
-            scrubPreviewProxyManager.resolvePlaybackUri(
-                sourceUri = snapshot.descriptor.sourceUri,
-                previewUriHint = snapshot.descriptor.previewUri,
-            )
-        if (resolution.isProxyReady) {
+        val playbackUri =
+            resolveReadyPlaybackUri(snapshot.descriptor) ?: run {
+                lastRenderAwaitingProxy = true
+                return false
+            }
+        lastRenderAwaitingProxy = false
+        if (playbackUri.isProxyReady) {
             diagnostics.proxyReadyRenderCount += 1
         } else {
             diagnostics.sourceFallbackRenderCount += 1
         }
-        val decoder =
-            ensureDecoderConfigured(
-                playbackUri = resolution.playbackUri,
-                outputSurface = outputSurface,
-            ) ?: run {
-                diagnostics.renderFailureCount += 1
-                return false
-            }
+        if (
+            !surfaceScrubDecoder.ensureConfigured(
+                playbackUri = playbackUri.playbackUri,
+                outputSurface = outputTarget.surface,
+            )
+        ) {
+            diagnostics.decoderConfigureFailureCount += 1
+            return false
+        }
         val rendered =
-            decoder.renderToPosition(snapshot.sourcePositionMs) {
-                synchronized(this) {
-                    if (onlyWhileInactive) {
-                        activeDescriptor == null
-                    } else {
-                        activeDescriptor?.scrubStoreKey == snapshot.descriptor.scrubStoreKey
+            surfaceScrubDecoder.renderToPosition(
+                positionMs = snapshot.sourcePositionMs,
+                shouldContinue = {
+                    synchronized(this) {
+                        !sessionFrozen &&
+                            activeDescriptor?.scrubStoreKey == snapshot.descriptor.scrubStoreKey &&
+                            targetGeneration == snapshot.generation
                     }
-                }
-            }
+                },
+            )
         if (!rendered) {
             diagnostics.renderFailureCount += 1
             return false
         }
         diagnostics.renderedFrameCount += 1
-        if (!makeVisible) {
-            return true
-        }
-        val hostsToShow =
-            synchronized(this) {
-                if (activeDescriptor?.scrubStoreKey != snapshot.descriptor.scrubStoreKey) {
-                    return false
-                }
-                renderHosts.toList()
+        synchronized(this) {
+            if (
+                sessionFrozen ||
+                activeDescriptor?.scrubStoreKey != snapshot.descriptor.scrubStoreKey ||
+                targetGeneration != snapshot.generation
+            ) {
+                return false
             }
-        hostsToShow.forEach { host ->
-            host.setScrubSurfaceVisible(true)
+            renderHosts.forEach { host ->
+                host.setScrubSurfaceVisible(host === outputTarget.host)
+            }
         }
         return true
     }
 
-    private fun ensureDecoderConfigured(
-        playbackUri: String,
-        outputSurface: Surface,
-    ): Stage5SurfaceScrubDecoder? {
-        val currentDecoder =
-            synchronized(this) {
-                decoder ?: Stage5SurfaceScrubDecoder(appContext).also { decoder = it }
+    private fun acquireOutputTargetLocked(): OutputTarget? {
+        renderHosts.forEach { host ->
+            val surface = host.acquireScrubOutputSurface()
+            if (surface != null && surface.isValid) {
+                return OutputTarget(host = host, surface = surface)
             }
-        if (!currentDecoder.ensureConfigured(playbackUri, outputSurface)) {
-            return null
         }
-        synchronized(this) {
-            decoderPlaybackUri = playbackUri
+        return null
+    }
+
+    private fun resolvePlaybackUri(
+        descriptor: Stage5NativeScrubSourceDescriptor,
+    ): Stage5ScrubPreviewProxyManager.ProxyResolution =
+        scrubPreviewProxyManager.resolvePlaybackUri(
+            sourceUri = descriptor.sourceUri,
+            previewUriHint = descriptor.previewUri,
+        )
+
+    private fun resolveReadyPlaybackUri(
+        descriptor: Stage5NativeScrubSourceDescriptor,
+    ): Stage5ScrubPreviewProxyManager.ProxyResolution? {
+        val resolution = resolvePlaybackUri(descriptor)
+        if (resolution.isProxyReady) {
+            return resolution
         }
-        return currentDecoder
+        scrubPreviewProxyManager.ensurePreviewMedia(
+            sourceUri = descriptor.sourceUri,
+            previewUriHint = descriptor.previewUri,
+        )
+        return null
+    }
+
+    private fun normalizeDescriptorPositionMs(
+        descriptor: Stage5NativeScrubSourceDescriptor,
+        positionMs: Long,
+    ): Long {
+        val sourceStartMs = descriptor.sourceStartMs.coerceAtLeast(0L)
+        val sourceEndMs = (descriptor.sourceStartMs + descriptor.sourceDurationMs).coerceAtLeast(sourceStartMs)
+        return positionMs.coerceIn(sourceStartMs, sourceEndMs)
     }
 
     private fun resolveDescriptorForPosition(
@@ -453,7 +557,6 @@ class Stage5NativeScrubEngine(
         prioritized.add(ordered[primaryIndex])
         ordered.getOrNull(primaryIndex - 1)?.let(prioritized::add)
         ordered.getOrNull(primaryIndex + 1)?.let(prioritized::add)
-        ordered.forEach(prioritized::add)
         return prioritized.toList()
     }
 }

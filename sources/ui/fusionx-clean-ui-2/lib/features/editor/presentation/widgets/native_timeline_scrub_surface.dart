@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 // ignore: implementation_imports
 import 'package:flutter/src/rendering/platform_view.dart'
     show PlatformViewHitTestBehavior;
@@ -17,6 +18,7 @@ class NativeTimelineScrubSurface extends StatefulWidget {
   const NativeTimelineScrubSurface({
     super.key,
     required this.currentTime,
+    required this.currentTimeListenable,
     required this.timelineDurationTime,
     this.timelineOffsetTime = TimelineTime.zero,
     required this.secondsWidth,
@@ -26,11 +28,12 @@ class NativeTimelineScrubSurface extends StatefulWidget {
     required this.onScrubEnd,
     this.regions = const <TimelineScrubViewportRegion>[],
     this.onTap,
-    this.targetWidth = 480,
-    this.targetHeight = 854,
+    this.targetWidth = 0,
+    this.targetHeight = 0,
   });
 
   final TimelineTime currentTime;
+  final ValueListenable<TimelineTime> currentTimeListenable;
   final TimelineTime timelineDurationTime;
   final TimelineTime timelineOffsetTime;
   final double secondsWidth;
@@ -54,6 +57,25 @@ class _NativeTimelineScrubSurfaceState extends State<NativeTimelineScrubSurface>
   MethodChannel? _channel;
   int? _viewId;
   bool _isScrubSessionActive = false;
+  TimelineTime? _lastNativeTimelineTime;
+  VoidCallback? _currentTimeListener;
+  bool _configPushScheduled = false;
+  int? _lastPushedTargetWidth;
+  int? _lastPushedTargetHeight;
+  TimelineTime? _lastPushedCurrentTime;
+  TimelineTime? _lastPushedTimelineDurationTime;
+  TimelineTime? _lastPushedTimelineOffsetTime;
+  double? _lastPushedSecondsWidth;
+  bool? _lastPushedTapEnabled;
+  List<TimelineScrubViewportRegion>? _lastPushedRegions;
+  List<LiveScrubPreviewSourceDescriptor>? _lastPushedPreviewSources;
+
+  @override
+  void initState() {
+    super.initState();
+    _lastNativeTimelineTime = widget.currentTime;
+    _attachCurrentTimeListener(widget.currentTimeListenable);
+  }
 
   @override
   void dispose() {
@@ -61,15 +83,74 @@ class _NativeTimelineScrubSurfaceState extends State<NativeTimelineScrubSurface>
     if (channel != null) {
       channel.setMethodCallHandler(null);
     }
+    _detachCurrentTimeListener(widget.currentTimeListenable);
     super.dispose();
   }
 
   @override
   void didUpdateWidget(covariant NativeTimelineScrubSurface oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (_viewId != null && !_isScrubSessionActive) {
-      unawaited(_pushConfig());
+    if (oldWidget.currentTimeListenable != widget.currentTimeListenable) {
+      _detachCurrentTimeListener(oldWidget.currentTimeListenable);
+      _attachCurrentTimeListener(widget.currentTimeListenable);
     }
+    if (!_isScrubSessionActive && oldWidget.currentTime != widget.currentTime) {
+      _lastNativeTimelineTime = widget.currentTime;
+    }
+    if (_viewId != null &&
+        !_isScrubSessionActive &&
+        _shouldPushConfigForWidgetUpdate(oldWidget)) {
+      _scheduleConfigPush();
+    }
+  }
+
+  void _attachCurrentTimeListener(ValueListenable<TimelineTime> listenable) {
+    _currentTimeListener = () {
+      _lastNativeTimelineTime = listenable.value.clamp(
+        TimelineTime.zero,
+        widget.timelineDurationTime,
+      );
+      if (_viewId != null && !_isScrubSessionActive) {
+        _scheduleConfigPush();
+      }
+    };
+    listenable.addListener(_currentTimeListener!);
+  }
+
+  void _detachCurrentTimeListener(ValueListenable<TimelineTime> listenable) {
+    final listener = _currentTimeListener;
+    if (listener == null) {
+      return;
+    }
+    listenable.removeListener(listener);
+    _currentTimeListener = null;
+  }
+
+  bool _shouldPushConfigForWidgetUpdate(
+    NativeTimelineScrubSurface oldWidget,
+  ) {
+    return oldWidget.timelineDurationTime != widget.timelineDurationTime ||
+        oldWidget.timelineOffsetTime != widget.timelineOffsetTime ||
+        oldWidget.secondsWidth != widget.secondsWidth ||
+        oldWidget.targetWidth != widget.targetWidth ||
+        oldWidget.targetHeight != widget.targetHeight ||
+        oldWidget.onTap != widget.onTap ||
+        !listEquals(oldWidget.regions, widget.regions) ||
+        !listEquals(oldWidget.previewSources, widget.previewSources);
+  }
+
+  void _scheduleConfigPush() {
+    if (_configPushScheduled) {
+      return;
+    }
+    _configPushScheduled = true;
+    SchedulerBinding.instance.scheduleFrameCallback((_) {
+      _configPushScheduled = false;
+      if (!mounted || _viewId == null || _isScrubSessionActive) {
+        return;
+      }
+      unawaited(_pushConfig());
+    });
   }
 
   Future<void> _handleNativeCallback(MethodCall call) async {
@@ -89,15 +170,18 @@ class _NativeTimelineScrubSurfaceState extends State<NativeTimelineScrubSurface>
       widget.timelineDurationTime,
     );
     if (call.method == 'scrubStart') {
+      _lastNativeTimelineTime = timelineTime;
       _isScrubSessionActive = true;
       widget.onScrubStart();
       return;
     }
     if (call.method == 'scrubTimeChanged') {
+      _lastNativeTimelineTime = timelineTime;
       widget.onScrubTimeChanged(timelineTime);
       return;
     }
     if (call.method == 'scrubEnd') {
+      _lastNativeTimelineTime = timelineTime;
       widget.onScrubEnd(timelineTime);
       _isScrubSessionActive = false;
       unawaited(_pushConfig());
@@ -113,18 +197,34 @@ class _NativeTimelineScrubSurfaceState extends State<NativeTimelineScrubSurface>
     if (channel == null) {
       return;
     }
+    final effectiveCurrentTime = _effectiveCurrentTime();
+    final resolvedTargetWidth = _resolvedTargetWidth(context);
+    final resolvedTargetHeight =
+        _resolvedTargetHeight(context, resolvedTargetWidth);
+    final tapEnabled = widget.onTap != null;
+    if (_lastPushedTargetWidth == resolvedTargetWidth &&
+        _lastPushedTargetHeight == resolvedTargetHeight &&
+        _lastPushedCurrentTime == effectiveCurrentTime &&
+        _lastPushedTimelineDurationTime == widget.timelineDurationTime &&
+        _lastPushedTimelineOffsetTime == widget.timelineOffsetTime &&
+        _lastPushedSecondsWidth == widget.secondsWidth &&
+        _lastPushedTapEnabled == tapEnabled &&
+        listEquals(_lastPushedRegions, widget.regions) &&
+        listEquals(_lastPushedPreviewSources, widget.previewSources)) {
+      return;
+    }
     await channel.invokeMethod<void>(
       'updateConfig',
       <String, Object?>{
         'currentPositionMs':
-            widget.currentTime.inMilliseconds +
+            effectiveCurrentTime.inMilliseconds +
             widget.timelineOffsetTime.inMilliseconds,
         'timelineDurationMs': widget.timelineDurationTime.inMilliseconds,
         'timelineOffsetMs': widget.timelineOffsetTime.inMilliseconds,
         'secondsWidth': widget.secondsWidth,
-        'targetWidth': widget.targetWidth,
-        'targetHeight': widget.targetHeight,
-        'tapEnabled': widget.onTap != null,
+        'targetWidth': resolvedTargetWidth,
+        'targetHeight': resolvedTargetHeight,
+        'tapEnabled': tapEnabled,
         'regions': widget.regions
             .map((region) => region.toMap())
             .toList(growable: false),
@@ -132,6 +232,20 @@ class _NativeTimelineScrubSurfaceState extends State<NativeTimelineScrubSurface>
             .map((descriptor) => descriptor.toMap())
             .toList(growable: false),
       },
+    );
+    _lastPushedTargetWidth = resolvedTargetWidth;
+    _lastPushedTargetHeight = resolvedTargetHeight;
+    _lastPushedCurrentTime = effectiveCurrentTime;
+    _lastPushedTimelineDurationTime = widget.timelineDurationTime;
+    _lastPushedTimelineOffsetTime = widget.timelineOffsetTime;
+    _lastPushedSecondsWidth = widget.secondsWidth;
+    _lastPushedTapEnabled = tapEnabled;
+    _lastPushedRegions = List<TimelineScrubViewportRegion>.unmodifiable(
+      widget.regions,
+    );
+    _lastPushedPreviewSources =
+        List<LiveScrubPreviewSourceDescriptor>.unmodifiable(
+      widget.previewSources,
     );
   }
 
@@ -150,17 +264,20 @@ class _NativeTimelineScrubSurfaceState extends State<NativeTimelineScrubSurface>
     if (!widget.supportsNativeScrub) {
       return const SizedBox.expand();
     }
+    final effectiveCurrentTime = _effectiveCurrentTime();
+    final resolvedTargetWidth = _resolvedTargetWidth(context);
+    final resolvedTargetHeight = _resolvedTargetHeight(context, resolvedTargetWidth);
     return AndroidView(
       viewType: Stage5NativeTransportController.timelineScrubViewType,
       creationParams: <String, Object?>{
         'currentPositionMs':
-            widget.currentTime.inMilliseconds +
+            effectiveCurrentTime.inMilliseconds +
             widget.timelineOffsetTime.inMilliseconds,
         'timelineDurationMs': widget.timelineDurationTime.inMilliseconds,
         'timelineOffsetMs': widget.timelineOffsetTime.inMilliseconds,
         'secondsWidth': widget.secondsWidth,
-        'targetWidth': widget.targetWidth,
-        'targetHeight': widget.targetHeight,
+        'targetWidth': resolvedTargetWidth,
+        'targetHeight': resolvedTargetHeight,
         'tapEnabled': widget.onTap != null,
         'regions': widget.regions
             .map((region) => region.toMap())
@@ -171,7 +288,43 @@ class _NativeTimelineScrubSurfaceState extends State<NativeTimelineScrubSurface>
       },
       creationParamsCodec: const StandardMessageCodec(),
       onPlatformViewCreated: _handlePlatformViewCreated,
-      hitTestBehavior: PlatformViewHitTestBehavior.translucent,
+      hitTestBehavior: PlatformViewHitTestBehavior.opaque,
     );
+  }
+
+  TimelineTime _effectiveCurrentTime() {
+    return (_lastNativeTimelineTime ?? widget.currentTime).clamp(
+      TimelineTime.zero,
+      widget.timelineDurationTime,
+    );
+  }
+
+  int _resolvedTargetWidth(BuildContext context) {
+    if (widget.targetWidth > 0) {
+      return widget.targetWidth;
+    }
+    final mediaQuery = MediaQuery.maybeOf(context);
+    final logicalWidth = mediaQuery?.size.width ?? 360;
+    final devicePixelRatio = mediaQuery?.devicePixelRatio ?? 2.0;
+    return (logicalWidth * devicePixelRatio)
+        .round()
+        .clamp(540, 720);
+  }
+
+  int _resolvedTargetHeight(
+    BuildContext context,
+    int targetWidth,
+  ) {
+    if (widget.targetHeight > 0) {
+      return widget.targetHeight;
+    }
+    final mediaQuery = MediaQuery.maybeOf(context);
+    final aspectRatio =
+        mediaQuery == null || mediaQuery.size.width <= 0
+            ? (16 / 9)
+            : (mediaQuery.size.height / mediaQuery.size.width);
+    return (targetWidth * aspectRatio)
+        .round()
+        .clamp(960, 1280);
   }
 }

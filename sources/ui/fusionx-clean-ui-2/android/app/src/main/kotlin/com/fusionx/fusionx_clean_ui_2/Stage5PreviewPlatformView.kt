@@ -1,7 +1,6 @@
 package com.refusion.app
 
 import android.content.Context
-import android.graphics.Bitmap
 import android.graphics.Color
 import android.os.Handler
 import android.os.Looper
@@ -105,18 +104,6 @@ class Stage5PreviewPlatformView(
             scrubOverlayView.alpha = if (visible) 1f else 0f
             val shouldShowPlayer = !visible && !isPreviewOutputSuppressed
             playerView.visibility = if (shouldShowPlayer) View.VISIBLE else View.INVISIBLE
-        }
-    }
-
-    override fun presentScrubFrame(bitmap: Bitmap) {
-        if (isDisposed) {
-            return
-        }
-        scrubOverlayView.presentFrame(bitmap)
-        runOnUiThreadIfActive {
-            scrubOverlayView.alpha = 1f
-            scrubOverlayView.visibility = View.VISIBLE
-            playerView.visibility = View.INVISIBLE
         }
     }
 
