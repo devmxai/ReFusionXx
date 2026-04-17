@@ -837,11 +837,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     }
     Uint8List? bytes;
     try {
-      bytes = await _transportController.loadMediaThumbnail(
-        sourceUri: sourceUri,
-        targetWidth: 480,
-        targetHeight: 854,
-      );
+      bytes = await _loadPreviewFallbackBytes(asset);
     } catch (_) {
       return;
     }
@@ -877,11 +873,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     final requestId = ++_previewThumbnailRequestId;
     Uint8List? bytes;
     try {
-      bytes = await _transportController.loadMediaThumbnail(
-        sourceUri: sourceUri,
-        targetWidth: 480,
-        targetHeight: 854,
-      );
+      bytes = await _loadPreviewFallbackBytes(asset);
     } catch (_) {
       return;
     }
@@ -895,6 +887,29 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     _previewThumbnailCache[asset.id] = bytes;
     _previewThumbnailResolvedAssetId = asset.id;
     _previewThumbnailNotifier.value = bytes;
+  }
+
+  Future<Uint8List?> _loadPreviewFallbackBytes(EditorAssetItem asset) async {
+    final sourceUri = asset.sourceUri;
+    if (sourceUri == null || sourceUri.isEmpty) {
+      return null;
+    }
+    if (asset.tab == EditorMediaTab.video) {
+      final framePreview = await _transportController.loadMediaFramePreview(
+        sourceUri: sourceUri,
+        positionMs: 0,
+        targetWidth: 480,
+        targetHeight: 854,
+      );
+      if (framePreview != null && framePreview.isNotEmpty) {
+        return framePreview;
+      }
+    }
+    return _transportController.loadMediaThumbnail(
+      sourceUri: sourceUri,
+      targetWidth: 480,
+      targetHeight: 854,
+    );
   }
 
   bool _matchesCurrentMotionTimelineProjection(
@@ -6165,12 +6180,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
                             overlay: _buildPreviewOverlay(
                               effectiveIsPlaying: effectiveIsPlaying,
                             ),
-                            child: _useNativePreview && previewAsset != null
+                            child: _useNativePreview
                                 ? NativePreviewSurface(
                                     controller: _transportController,
                                     previewIdentity:
-                                        previewAsset.sourceUri ??
-                                        previewAsset.id,
+                                        previewAsset?.sourceUri ??
+                                        previewAsset?.id,
                                     fallback: previewFallback,
                                   )
                                 : previewFallback,

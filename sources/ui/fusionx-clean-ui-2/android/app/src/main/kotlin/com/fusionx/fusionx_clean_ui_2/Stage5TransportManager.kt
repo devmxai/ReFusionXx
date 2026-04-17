@@ -197,6 +197,16 @@ class Stage5TransportManager(context: Context) {
                 emitState()
             }
 
+            override fun onMediaItemTransition(
+                mediaItem: MediaItem?,
+                reason: Int,
+            ) {
+                maybeFinishScrubSettle()
+                syncRunTimelinePlaybackFromActiveItem()
+                updateTimelinePlaybackWindow()
+                emitState()
+            }
+
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 emitState()
             }
@@ -1493,15 +1503,8 @@ class Stage5TransportManager(context: Context) {
         if (nextSegmentIndex > run.endSegmentIndexInclusive) {
             val nextRunIndex = runIndex + 1
             if (nextRunIndex <= timelineRuns.lastIndex) {
-                val nextRun = timelineRuns[nextRunIndex]
-                activeTimelineRunIndex = nextRunIndex
-                activeTimelineSegmentIndex = nextRun.startSegmentIndex
-                applyPlaybackRateForSegmentIndex(nextRun.startSegmentIndex)
-                if (activePlayer.currentMediaItemIndex == runIndex) {
-                    // Crossing into a different source creates a new run/media item.
-                    // Advance explicitly instead of pausing at the previous run boundary.
-                    activePlayer.seekTo(nextRunIndex, 0L)
-                }
+                // Let ExoPlayer advance naturally to the preloaded next media item.
+                // Forcing an exact boundary seek here introduces a visible pause.
                 return
             }
             val safeFinalItemPositionMs =
@@ -1531,6 +1534,30 @@ class Stage5TransportManager(context: Context) {
         if (activePlayer.currentPosition != nextItemPositionMs) {
             activePlayer.seekTo(runIndex, nextItemPositionMs)
         }
+    }
+
+    private fun syncRunTimelinePlaybackFromActiveItem() {
+        val activePlayer = exoPlayer ?: return
+        if (timelineRuns.isEmpty() || timelineSegments.isEmpty()) {
+            return
+        }
+        if (!isRunTimelineMode()) {
+            return
+        }
+        val runIndex = activePlayer.currentMediaItemIndex.coerceIn(0, timelineRuns.lastIndex)
+        val run = timelineRuns[runIndex]
+        val sourcePositionMs =
+            (run.windowStartMs + activePlayer.currentPosition)
+                .coerceIn(run.windowStartMs, run.windowEndMs)
+        val segmentIndex =
+            resolveSegmentIndexForRunSourcePosition(
+                sourcePositionMs = sourcePositionMs,
+                runIndex = runIndex,
+                preferredSegmentIndex = run.startSegmentIndex,
+            )
+        activeTimelineRunIndex = runIndex
+        activeTimelineSegmentIndex = segmentIndex
+        applyPlaybackRateForSegmentIndex(segmentIndex)
     }
 
     private fun resolveTimelineRunSeekPoint(globalPositionMs: Long): TimelineSeekPoint {

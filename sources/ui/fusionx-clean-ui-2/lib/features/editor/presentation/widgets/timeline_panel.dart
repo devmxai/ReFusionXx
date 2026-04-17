@@ -2482,9 +2482,6 @@ class _TimelinePanelState extends State<TimelinePanel>
           contentWidth: contentWidth,
           tracksContentHeight: tracksContentHeight,
         );
-        if (regions.isEmpty) {
-          return const SizedBox.shrink();
-        }
         return builder(
           TimelineScrubSurfaceConfig(
             currentTime: _displayTimeNotifier.value,

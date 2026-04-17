@@ -24,7 +24,12 @@ import androidx.media3.transformer.VideoEncoderSettings
 import java.io.File
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArraySet
 import kotlin.math.roundToInt
+
+interface Stage5ScrubPreviewProxyListener {
+    fun onProxyReady(sourceUri: String) = Unit
+}
 
 @UnstableApi
 class Stage5ScrubPreviewProxyManager(
@@ -78,6 +83,15 @@ class Stage5ScrubPreviewProxyManager(
         }
     private val proxyHandler = Handler(proxyThread.looper)
     private val entries = ConcurrentHashMap<String, ProxyEntry>()
+    private val listeners = CopyOnWriteArraySet<Stage5ScrubPreviewProxyListener>()
+
+    fun addListener(listener: Stage5ScrubPreviewProxyListener) {
+        listeners.add(listener)
+    }
+
+    fun removeListener(listener: Stage5ScrubPreviewProxyListener) {
+        listeners.remove(listener)
+    }
 
     fun ensurePreviewMedia(
         sourceUri: String,
@@ -170,6 +184,7 @@ class Stage5ScrubPreviewProxyManager(
                                     composition: Composition,
                                     exportResult: ExportResult,
                                 ) {
+                                    var shouldNotifyReady = false
                                     synchronized(entry) {
                                         entry.transformer = null
                                         entry.failure = null
@@ -177,10 +192,14 @@ class Stage5ScrubPreviewProxyManager(
                                             if (entry.outputFile.isFile &&
                                                 entry.outputFile.length() > 0L
                                             ) {
+                                                shouldNotifyReady = true
                                                 ProxyState.READY
                                             } else {
                                                 ProxyState.FAILED
                                             }
+                                    }
+                                    if (shouldNotifyReady) {
+                                        notifyProxyReady(sourceUri)
                                     }
                                 }
 
@@ -265,6 +284,12 @@ class Stage5ScrubPreviewProxyManager(
             }
             entries.clear()
             proxyThread.quitSafely()
+        }
+    }
+
+    private fun notifyProxyReady(sourceUri: String) {
+        listeners.forEach { listener ->
+            listener.onProxyReady(sourceUri)
         }
     }
 

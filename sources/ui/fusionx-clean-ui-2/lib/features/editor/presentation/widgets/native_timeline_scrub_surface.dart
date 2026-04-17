@@ -267,28 +267,34 @@ class _NativeTimelineScrubSurfaceState extends State<NativeTimelineScrubSurface>
     final effectiveCurrentTime = _effectiveCurrentTime();
     final resolvedTargetWidth = _resolvedTargetWidth(context);
     final resolvedTargetHeight = _resolvedTargetHeight(context, resolvedTargetWidth);
-    return AndroidView(
-      viewType: Stage5NativeTransportController.timelineScrubViewType,
-      creationParams: <String, Object?>{
-        'currentPositionMs':
-            effectiveCurrentTime.inMilliseconds +
-            widget.timelineOffsetTime.inMilliseconds,
-        'timelineDurationMs': widget.timelineDurationTime.inMilliseconds,
-        'timelineOffsetMs': widget.timelineOffsetTime.inMilliseconds,
-        'secondsWidth': widget.secondsWidth,
-        'targetWidth': resolvedTargetWidth,
-        'targetHeight': resolvedTargetHeight,
-        'tapEnabled': widget.onTap != null,
-        'regions': widget.regions
-            .map((region) => region.toMap())
-            .toList(growable: false),
-        'previewSources': widget.previewSources
-            .map((descriptor) => descriptor.toMap())
-            .toList(growable: false),
-      },
-      creationParamsCodec: const StandardMessageCodec(),
-      onPlatformViewCreated: _handlePlatformViewCreated,
-      hitTestBehavior: PlatformViewHitTestBehavior.opaque,
+    final hasInteractiveRegions = widget.regions.isNotEmpty;
+    return IgnorePointer(
+      ignoring: !hasInteractiveRegions,
+      child: AndroidView(
+        viewType: Stage5NativeTransportController.timelineScrubViewType,
+        creationParams: <String, Object?>{
+          'currentPositionMs':
+              effectiveCurrentTime.inMilliseconds +
+              widget.timelineOffsetTime.inMilliseconds,
+          'timelineDurationMs': widget.timelineDurationTime.inMilliseconds,
+          'timelineOffsetMs': widget.timelineOffsetTime.inMilliseconds,
+          'secondsWidth': widget.secondsWidth,
+          'targetWidth': resolvedTargetWidth,
+          'targetHeight': resolvedTargetHeight,
+          'tapEnabled': widget.onTap != null,
+          'regions': widget.regions
+              .map((region) => region.toMap())
+              .toList(growable: false),
+          'previewSources': widget.previewSources
+              .map((descriptor) => descriptor.toMap())
+              .toList(growable: false),
+        },
+        creationParamsCodec: const StandardMessageCodec(),
+        onPlatformViewCreated: _handlePlatformViewCreated,
+        hitTestBehavior: hasInteractiveRegions
+            ? PlatformViewHitTestBehavior.opaque
+            : PlatformViewHitTestBehavior.transparent,
+      ),
     );
   }
 

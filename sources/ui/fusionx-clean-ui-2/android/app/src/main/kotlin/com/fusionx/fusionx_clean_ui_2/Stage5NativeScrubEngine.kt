@@ -111,9 +111,16 @@ class Stage5NativeScrubEngine(
     private val renderExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val warmupExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val diagnostics = Diagnostics()
+    private val proxyReadyListener =
+        object : Stage5ScrubPreviewProxyListener {
+            override fun onProxyReady(sourceUri: String) {
+                handleProxyReady(sourceUri)
+            }
+        }
 
     private var activeDescriptor: Stage5NativeScrubSourceDescriptor? = null
     private var latestTargetSourcePositionMs: Long? = null
+    private var latestKnownTimelinePositionMs: Long? = null
     private var targetGeneration: Long = 0L
     private var renderLoopRunning = false
     private var sessionFrozen = false
@@ -127,6 +134,10 @@ class Stage5NativeScrubEngine(
     private var pendingDecoderForceSeekStoreKey: String? = null
     @Volatile
     private var lastRenderAwaitingProxy = false
+
+    init {
+        scrubPreviewProxyManager.addListener(proxyReadyListener)
+    }
 
     fun primePreviewSource(
         sourceUri: String,
@@ -178,6 +189,9 @@ class Stage5NativeScrubEngine(
         configuredPreviewSources = sortedPreviewSources
         configuredTargetWidth = targetWidth
         configuredTargetHeight = targetHeight
+        if (initialTimelinePositionMs != null) {
+            latestKnownTimelinePositionMs = initialTimelinePositionMs.coerceAtLeast(0L)
+        }
         if (!previewSourcesChanged) {
             return
         }
@@ -205,10 +219,17 @@ class Stage5NativeScrubEngine(
             }
             scrubPreviewProxyManager.pruneEntries(activeSourceUris)
         }
+        val primePositionMs = latestKnownTimelinePositionMs
+        if (primePositionMs != null) {
+            warmupExecutor.execute {
+                primeTimelinePosition(primePositionMs)
+            }
+        }
     }
 
     @Synchronized
     fun primeTimelinePosition(positionMs: Long) {
+        latestKnownTimelinePositionMs = positionMs.coerceAtLeast(0L)
         val descriptor = resolveDescriptorForPosition(positionMs) ?: return
         diagnostics.warmupRequestCount += 1
         warmupExecutor.execute {
@@ -239,6 +260,7 @@ class Stage5NativeScrubEngine(
 
     @Synchronized
     fun scrubTimelinePosition(positionMs: Long): Boolean {
+        latestKnownTimelinePositionMs = positionMs.coerceAtLeast(0L)
         val descriptor = resolveDescriptorForPosition(positionMs) ?: return false
         val sourcePositionMs = descriptor.resolveSourcePositionMs(positionMs)
         primeBoundaryNeighborsLocked(
@@ -343,6 +365,7 @@ class Stage5NativeScrubEngine(
     fun release() {
         endSession()
         renderHosts.clear()
+        scrubPreviewProxyManager.removeListener(proxyReadyListener)
         surfaceScrubDecoder.release()
         renderExecutor.shutdownNow()
         warmupExecutor.shutdownNow()
@@ -369,6 +392,13 @@ class Stage5NativeScrubEngine(
         if (activeDescriptor != null && latestTargetSourcePositionMs != null && !sessionFrozen) {
             targetGeneration += 1
             scheduleRenderLoopLocked()
+            return
+        }
+        val primePositionMs = latestKnownTimelinePositionMs
+        if (primePositionMs != null && configuredPreviewSources.isNotEmpty()) {
+            warmupExecutor.execute {
+                primeTimelinePosition(primePositionMs)
+            }
         }
     }
 
@@ -537,7 +567,7 @@ class Stage5NativeScrubEngine(
             sourceUri = descriptor.sourceUri,
             previewUriHint = descriptor.previewUri,
         )
-        return null
+        return resolution
     }
 
     private fun normalizeDescriptorPositionMs(
@@ -574,6 +604,23 @@ class Stage5NativeScrubEngine(
         configuredPreviewSources.firstOrNull { descriptor ->
             descriptor.scrubStoreKey == scrubStoreKey
         }
+
+    private fun handleProxyReady(sourceUri: String) {
+        val primePositionMs =
+            synchronized(this) {
+                if (activeDescriptor != null || sessionFrozen) {
+                    return
+                }
+                val knownTimelinePositionMs = latestKnownTimelinePositionMs ?: return
+                if (configuredPreviewSources.none { descriptor -> descriptor.sourceUri == sourceUri }) {
+                    return
+                }
+                knownTimelinePositionMs
+            }
+        warmupExecutor.execute {
+            primeTimelinePosition(primePositionMs)
+        }
+    }
 
     private fun prioritizeDescriptorsForWarmup(
         descriptors: List<Stage5NativeScrubSourceDescriptor>,
