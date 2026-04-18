@@ -27,11 +27,11 @@ Official shipped app identity in this baseline:
 - app name: `ReFusion`
 - package id: `com.refusion.app`
 - canonical shipped version source:
-  [pubspec.yaml](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/pubspec.yaml)
+  [pubspec.yaml](/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/pubspec.yaml)
 
 Legacy documentation still contains some older absolute filesystem paths from
 previous workspaces. When that happens, always map them back to the canonical
-local repository above. Older paths such as `/Users/mx/Documents/InGeneBMFPro`
+local repository above. Older paths such as `/Users/mx/Documents/ReFusionXx`
 or similarly named `fusionx-clean-ui-2` folders are not the source of truth for
 the real app install path.
 
@@ -72,30 +72,30 @@ Stage status: `IMPLEMENTATION ACTIVE`
 
 Active timeline development reference:
 
-- [Stage 6 Timeline Professionalization Master Plan](/Users/mx/Documents/InGeneBMFPro/docs/process/stage-6-timeline-professionalization-master-plan.md)
-- [Stage 6 Timeline Professionalization - Stage 0 Baseline Freeze](/Users/mx/Documents/InGeneBMFPro/docs/process/stage-6-timeline-professionalization-stage-0-baseline-freeze.md)
-- [Stage 6 Timeline Professionalization - Stage 1 Single Playback Clock Ownership](/Users/mx/Documents/InGeneBMFPro/docs/process/stage-6-timeline-professionalization-stage-1-single-playback-clock-ownership.md)
-- [Stage 6 Timeline Professionalization - Stage 2 Professional Live Scrub Engine](/Users/mx/Documents/InGeneBMFPro/docs/process/stage-6-timeline-professionalization-stage-2-professional-live-scrub-engine.md)
-- [Stage 6 Timeline Professionalization - Stage 3 Zoom And Ruler Canonicalization](/Users/mx/Documents/InGeneBMFPro/docs/process/stage-6-timeline-professionalization-stage-3-zoom-and-ruler-canonicalization.md)
-- [Stage 6 Timeline Professionalization - Stage 4 Trim Interaction Hardening](/Users/mx/Documents/InGeneBMFPro/docs/process/stage-6-timeline-professionalization-stage-4-trim-interaction-hardening.md)
-- [Stage 6 Timeline Professionalization - Stage 5 Gesture State Machine Lock](/Users/mx/Documents/InGeneBMFPro/docs/process/stage-6-timeline-professionalization-stage-5-gesture-state-machine-lock.md)
-- [Stage 6 Timeline Professionalization - Stage 6 Editing Semantics Hardening](/Users/mx/Documents/InGeneBMFPro/docs/process/stage-6-timeline-professionalization-stage-6-editing-semantics-hardening.md)
-- [Stage 6 Timeline Professionalization - Stage 7 Multi-Track And Mobile Navigation Quality](/Users/mx/Documents/InGeneBMFPro/docs/process/stage-6-timeline-professionalization-stage-7-multi-track-and-mobile-navigation-quality.md)
-- [Stage 6 Timeline Professionalization - Stage 8 Motion And Text Timeline Integration](/Users/mx/Documents/InGeneBMFPro/docs/process/stage-6-timeline-professionalization-stage-8-motion-and-text-timeline-integration.md)
-- [Stage 6 Timeline Professionalization - Stage 9 Performance Hardening](/Users/mx/Documents/InGeneBMFPro/docs/process/stage-6-timeline-professionalization-stage-9-performance-hardening.md)
-- [Stage 6 Timeline Professionalization - Track Manipulation And Interaction Plan](/Users/mx/Documents/InGeneBMFPro/docs/process/stage-6-timeline-professionalization-track-manipulation-and-interaction-plan.md)
-- [Current Thread Handoff And Resume Packet](/Users/mx/Documents/InGeneBMFPro/docs/process/current-thread-handoff-and-resume-packet.md)
+- [Stage 6 Timeline Professionalization Master Plan](/Users/mx/Documents/ReFusionXx/docs/process/stage-6-timeline-professionalization-master-plan.md)
+- [Stage 6 Timeline Professionalization - Stage 0 Baseline Freeze](/Users/mx/Documents/ReFusionXx/docs/process/stage-6-timeline-professionalization-stage-0-baseline-freeze.md)
+- [Stage 6 Timeline Professionalization - Stage 1 Single Playback Clock Ownership](/Users/mx/Documents/ReFusionXx/docs/process/stage-6-timeline-professionalization-stage-1-single-playback-clock-ownership.md)
+- [Stage 6 Timeline Professionalization - Stage 2 Professional Live Scrub Engine](/Users/mx/Documents/ReFusionXx/docs/process/stage-6-timeline-professionalization-stage-2-professional-live-scrub-engine.md)
+- [Stage 6 Timeline Professionalization - Stage 3 Zoom And Ruler Canonicalization](/Users/mx/Documents/ReFusionXx/docs/process/stage-6-timeline-professionalization-stage-3-zoom-and-ruler-canonicalization.md)
+- [Stage 6 Timeline Professionalization - Stage 4 Trim Interaction Hardening](/Users/mx/Documents/ReFusionXx/docs/process/stage-6-timeline-professionalization-stage-4-trim-interaction-hardening.md)
+- [Stage 6 Timeline Professionalization - Stage 5 Gesture State Machine Lock](/Users/mx/Documents/ReFusionXx/docs/process/stage-6-timeline-professionalization-stage-5-gesture-state-machine-lock.md)
+- [Stage 6 Timeline Professionalization - Stage 6 Editing Semantics Hardening](/Users/mx/Documents/ReFusionXx/docs/process/stage-6-timeline-professionalization-stage-6-editing-semantics-hardening.md)
+- [Stage 6 Timeline Professionalization - Stage 7 Multi-Track And Mobile Navigation Quality](/Users/mx/Documents/ReFusionXx/docs/process/stage-6-timeline-professionalization-stage-7-multi-track-and-mobile-navigation-quality.md)
+- [Stage 6 Timeline Professionalization - Stage 8 Motion And Text Timeline Integration](/Users/mx/Documents/ReFusionXx/docs/process/stage-6-timeline-professionalization-stage-8-motion-and-text-timeline-integration.md)
+- [Stage 6 Timeline Professionalization - Stage 9 Performance Hardening](/Users/mx/Documents/ReFusionXx/docs/process/stage-6-timeline-professionalization-stage-9-performance-hardening.md)
+- [Stage 6 Timeline Professionalization - Track Manipulation And Interaction Plan](/Users/mx/Documents/ReFusionXx/docs/process/stage-6-timeline-professionalization-track-manipulation-and-interaction-plan.md)
+- [Current Thread Handoff And Resume Packet](/Users/mx/Documents/ReFusionXx/docs/process/current-thread-handoff-and-resume-packet.md)
 
 Active independent feature plans:
 
-- [Feature Plan - Speed (Normal And Curve)](/Users/mx/Documents/InGeneBMFPro/docs/process/feature-speed-normal-and-curve-plan.md)
-- [To First Export](/Users/mx/Documents/InGeneBMFPro/docs/process/to-first-export.md)
-- [Remaining Path To Full Export Parity](/Users/mx/Documents/InGeneBMFPro/docs/process/remaining-path-to-full-export-parity.md)
-- [Professional Export System Plan](/Users/mx/Documents/InGeneBMFPro/docs/process/professional-export-system-plan.md)
-- [Professional Effects Render And Export Plan](/Users/mx/Documents/InGeneBMFPro/docs/process/professional-effects-render-and-export-plan.md)
-- [Professional Export Audit Gap And Cleanup Plan](/Users/mx/Documents/InGeneBMFPro/docs/process/professional-export-audit-gap-and-cleanup-plan.md)
-- [Professional Export Subsystem Handoff And Resume Map](/Users/mx/Documents/InGeneBMFPro/docs/process/professional-export-subsystem-handoff-and-resume-map.md)
-- [Export Current-Stage Closure Plan](/Users/mx/Documents/InGeneBMFPro/docs/process/export-current-stage-closure-plan.md)
+- [Feature Plan - Speed (Normal And Curve)](/Users/mx/Documents/ReFusionXx/docs/process/feature-speed-normal-and-curve-plan.md)
+- [To First Export](/Users/mx/Documents/ReFusionXx/docs/process/to-first-export.md)
+- [Remaining Path To Full Export Parity](/Users/mx/Documents/ReFusionXx/docs/process/remaining-path-to-full-export-parity.md)
+- [Professional Export System Plan](/Users/mx/Documents/ReFusionXx/docs/process/professional-export-system-plan.md)
+- [Professional Effects Render And Export Plan](/Users/mx/Documents/ReFusionXx/docs/process/professional-effects-render-and-export-plan.md)
+- [Professional Export Audit Gap And Cleanup Plan](/Users/mx/Documents/ReFusionXx/docs/process/professional-export-audit-gap-and-cleanup-plan.md)
+- [Professional Export Subsystem Handoff And Resume Map](/Users/mx/Documents/ReFusionXx/docs/process/professional-export-subsystem-handoff-and-resume-map.md)
+- [Export Current-Stage Closure Plan](/Users/mx/Documents/ReFusionXx/docs/process/export-current-stage-closure-plan.md)
 
 Current timeline professionalization state:
 
@@ -124,12 +124,12 @@ Current Stage 9 checkpoint:
 Current next timeline workstream reference:
 
 - focused next timeline plan is now:
-  [Stage 6 Timeline Professionalization - Track Manipulation And Interaction Plan](/Users/mx/Documents/InGeneBMFPro/docs/process/stage-6-timeline-professionalization-track-manipulation-and-interaction-plan.md)
+  [Stage 6 Timeline Professionalization - Track Manipulation And Interaction Plan](/Users/mx/Documents/ReFusionXx/docs/process/stage-6-timeline-professionalization-track-manipulation-and-interaction-plan.md)
 - this scoped plan does not replace the master plan
 - it exists so the next timeline work can start from explicit manipulation
   ownership, lane targeting, and mobile drag quality rules
 - latest thread handoff / resume packet for opening a new thread is now:
-  [Current Thread Handoff And Resume Packet](/Users/mx/Documents/InGeneBMFPro/docs/process/current-thread-handoff-and-resume-packet.md)
+  [Current Thread Handoff And Resume Packet](/Users/mx/Documents/ReFusionXx/docs/process/current-thread-handoff-and-resume-packet.md)
 
 Latest pushed repository checkpoint in `BETA2`:
 
@@ -186,13 +186,13 @@ Current export planning checkpoint:
 - chosen first export backend: `Media3 Transformer`
 - chosen long-term advanced backend: `BMF`
 - canonical export architecture reference is now:
-  [Professional Export System Plan](/Users/mx/Documents/InGeneBMFPro/docs/process/professional-export-system-plan.md)
+  [Professional Export System Plan](/Users/mx/Documents/ReFusionXx/docs/process/professional-export-system-plan.md)
 - current export close-out reference is now:
-  [Export Current-Stage Closure Plan](/Users/mx/Documents/InGeneBMFPro/docs/process/export-current-stage-closure-plan.md)
+  [Export Current-Stage Closure Plan](/Users/mx/Documents/ReFusionXx/docs/process/export-current-stage-closure-plan.md)
 - current export audit and cleanup reference is now:
-  [Professional Export Audit Gap And Cleanup Plan](/Users/mx/Documents/InGeneBMFPro/docs/process/professional-export-audit-gap-and-cleanup-plan.md)
+  [Professional Export Audit Gap And Cleanup Plan](/Users/mx/Documents/ReFusionXx/docs/process/professional-export-audit-gap-and-cleanup-plan.md)
 - current subsystem resume reference is now:
-  [Professional Export Subsystem Handoff And Resume Map](/Users/mx/Documents/InGeneBMFPro/docs/process/professional-export-subsystem-handoff-and-resume-map.md)
+  [Professional Export Subsystem Handoff And Resume Map](/Users/mx/Documents/ReFusionXx/docs/process/professional-export-subsystem-handoff-and-resume-map.md)
 - current export graph checkpoint now includes:
   - explicit graph schema metadata
   - machine-readable capability and blocker contracts
@@ -366,7 +366,7 @@ Active execution note:
 - the timeline professionalization documents linked above are the current
   execution truth
 - the most recent resume/onboarding packet for a fresh thread is:
-  [Current Thread Handoff And Resume Packet](/Users/mx/Documents/InGeneBMFPro/docs/process/current-thread-handoff-and-resume-packet.md)
+  [Current Thread Handoff And Resume Packet](/Users/mx/Documents/ReFusionXx/docs/process/current-thread-handoff-and-resume-packet.md)
 - older `Stage 5` / older `Stage 6` sections later in this README are archival
   progress history only and must not override the active stage documents
 
@@ -388,19 +388,19 @@ Timeline documentation discipline:
   - commit: `4bc0e18`
   - scope: `Stage 5B` accepted scrub snapshot
 - latest beta snapshot note:
-  - [BETA10 snapshot note](/Users/mx/Documents/InGeneBMFPro/docs/releases/BETA10.md)
-  - [BETA11 snapshot note](/Users/mx/Documents/InGeneBMFPro/docs/releases/BETA11.md)
-  - [BETA12 snapshot note](/Users/mx/Documents/InGeneBMFPro/docs/releases/BETA12.md)
-  - [BETA13 snapshot note](/Users/mx/Documents/InGeneBMFPro/docs/releases/BETA13.md)
-  - [BETA14 snapshot note](/Users/mx/Documents/InGeneBMFPro/docs/releases/BETA14.md)
-  - [BETA1 snapshot note](/Users/mx/Documents/InGeneBMFPro/docs/releases/BETA1.md)
-  - [BETA2 snapshot note](/Users/mx/Documents/InGeneBMFPro/docs/releases/BETA2.md)
+  - [BETA10 snapshot note](/Users/mx/Documents/ReFusionXx/docs/releases/BETA10.md)
+  - [BETA11 snapshot note](/Users/mx/Documents/ReFusionXx/docs/releases/BETA11.md)
+  - [BETA12 snapshot note](/Users/mx/Documents/ReFusionXx/docs/releases/BETA12.md)
+  - [BETA13 snapshot note](/Users/mx/Documents/ReFusionXx/docs/releases/BETA13.md)
+  - [BETA14 snapshot note](/Users/mx/Documents/ReFusionXx/docs/releases/BETA14.md)
+  - [BETA1 snapshot note](/Users/mx/Documents/ReFusionXx/docs/releases/BETA1.md)
+  - [BETA2 snapshot note](/Users/mx/Documents/ReFusionXx/docs/releases/BETA2.md)
 - current pushed thread/bootstrap packet:
-  - [Current Thread Handoff And Resume Packet](/Users/mx/Documents/InGeneBMFPro/docs/process/current-thread-handoff-and-resume-packet.md)
+  - [Current Thread Handoff And Resume Packet](/Users/mx/Documents/ReFusionXx/docs/process/current-thread-handoff-and-resume-packet.md)
 
 Completed so far:
 
-- created the isolated workspace at `/Users/mx/Documents/InGeneBMFPro`
+- created the isolated workspace at `/Users/mx/Documents/ReFusionXx`
 - created documentation folders
 - created source folders for UI and engine
 - created official asset folder
@@ -412,18 +412,18 @@ Completed so far:
   - compliance/reviewer policy
 - closed `Stage 0 - Governance, research, and official source acquisition`
 - downloaded the full UI reference repository into:
-  `/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2`
+  `/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2`
 - recorded UI provenance:
   - origin: `https://github.com/devmxai/fusionx-clean-ui-2`
   - commit: `7990d4acf2d60cb37ecdb872d7733da2cf0ad975`
 - downloaded the full official BMF repository into:
-  `/Users/mx/Documents/InGeneBMFPro/sources/engine/bmf-official`
+  `/Users/mx/Documents/ReFusionXx/sources/engine/bmf-official`
 - recorded BMF provenance:
   - origin: `https://github.com/BabitMF/bmf`
   - commit: `7d5c79bde80cbaffb7c9aa99f0593c4c490ceebe`
   - `.gitmodules` absent at this commit
 - downloaded official public release assets into:
-  `/Users/mx/Documents/InGeneBMFPro/assets/official`
+  `/Users/mx/Documents/ReFusionXx/assets/official`
   - `files.tar.gz`
   - `bmf_lite_files.tar.gz`
 - extracted the official public release assets inside the project
@@ -431,7 +431,7 @@ Completed so far:
 - classified `QNN / ControlNet` as `out of current baseline scope`
 - approved the non-QNN official baseline as the current project target
 - applied UI-shell truthfulness cleanup inside the isolated reference UI source:
-  `/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2`
+  `/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2`
   - removed seeded default timeline clips from the initial state
   - removed branded/fake preview copy from the canvas shell
   - changed the `Add` flow to open a bottom sheet with `Video` and `Image` tabs
@@ -448,8 +448,8 @@ Completed so far:
     [Issue #159 comment](https://github.com/BabitMF/bmf/issues/159#issuecomment-2553439114)
 - successfully configured and built the native non-QNN Android baseline without patching the source tree
 - produced Stage 1 native artifacts:
-  - `/Users/mx/Documents/InGeneBMFPro/sources/engine/bmf-official/bmf_lite/build_android_non_qnn_manual/lib/libbmf_lite.a`
-  - `/Users/mx/Documents/InGeneBMFPro/sources/engine/bmf-official/bmf_lite/build_android_non_qnn_manual/bin/test_bmf_lite_android_interface`
+  - `/Users/mx/Documents/ReFusionXx/sources/engine/bmf-official/bmf_lite/build_android_non_qnn_manual/lib/libbmf_lite.a`
+  - `/Users/mx/Documents/ReFusionXx/sources/engine/bmf-official/bmf_lite/build_android_non_qnn_manual/bin/test_bmf_lite_android_interface`
 - closed `Stage 2 - Official native real-device validation` on physical Android hardware:
   - device serial: `R3CT10LKLSX`
   - model: `SM-S908N`
@@ -478,7 +478,7 @@ Current stage focus:
 - use hot reload only for Dart-side shell work
 - rebuild when native Android or BMFLite integration code changes
 - Stage 5 first slice implementation is now in progress inside:
-  `/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2`
+  `/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2`
 - the current Stage 5 slice uses:
   - Android `Media3` native transport
   - one fixed local Android sample source
@@ -487,12 +487,12 @@ Current stage focus:
   - Flutter as host/presenter only
 - Stage 5 first-slice implementation details now completed:
   - copied the official BMFLite sample video to:
-    `/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/android/app/src/main/res/raw/stage5_sample.mp4`
+    `/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/android/app/src/main/res/raw/stage5_sample.mp4`
   - added Android native transport bridge classes under:
-    `/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/android/app/src/main/kotlin/com/fusionx/fusionx_clean_ui_2`
+    `/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/android/app/src/main/kotlin/com/fusionx/fusionx_clean_ui_2`
   - added Flutter-side transport controller and native preview host under:
-    `/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/core/engine`
-    `/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/widgets`
+    `/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/lib/core/engine`
+    `/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/widgets`
   - wired the editor screen so play/seek/scrub now target native transport ownership in the Stage 5 slice
   - disabled mock add/edit controls while the fixed sample transport slice is active, so the UI does not imply real import or real timeline truth yet
   - kept real import explicitly deferred
@@ -513,7 +513,7 @@ Current stage focus:
   - Stage 5B uplift build succeeded locally via:
     `./gradlew :app:assembleDebug`
   - latest debug APK was rebuilt at:
-    `/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/build/app/outputs/apk/debug/app-debug.apk`
+    `/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/build/app/outputs/apk/debug/app-debug.apk`
   - latest debug APK was reinstalled onto device `R3CT10LKLSX` using `adb install -r`
   - the app process was relaunched successfully on-device
   - user-device feedback confirmed:
@@ -549,13 +549,13 @@ Current stage focus:
 - closed `Stage 5 - Native Transport And Preview Integration`
 - opened `Stage 6 - Real Import And Timeline Truth`
 - implemented the first Stage 6 slice inside:
-  - `/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/android/app/src/main/kotlin/com/fusionx/fusionx_clean_ui_2/MainActivity.kt`
-  - `/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/android/app/src/main/kotlin/com/fusionx/fusionx_clean_ui_2/DeviceMediaLibraryManager.kt`
-  - `/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/android/app/src/main/kotlin/com/fusionx/fusionx_clean_ui_2/Stage5TransportManager.kt`
-  - `/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/core/engine/stage5_native_transport_controller.dart`
-  - `/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/screens/fusionx_clean_ui_screen.dart`
-  - `/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/widgets/media_bottom_sheet.dart`
-  - `/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/models/editor_asset_item.dart`
+  - `/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/android/app/src/main/kotlin/com/fusionx/fusionx_clean_ui_2/MainActivity.kt`
+  - `/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/android/app/src/main/kotlin/com/fusionx/fusionx_clean_ui_2/DeviceMediaLibraryManager.kt`
+  - `/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/android/app/src/main/kotlin/com/fusionx/fusionx_clean_ui_2/Stage5TransportManager.kt`
+  - `/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/lib/core/engine/stage5_native_transport_controller.dart`
+  - `/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/screens/fusionx_clean_ui_screen.dart`
+  - `/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/widgets/media_bottom_sheet.dart`
+  - `/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/models/editor_asset_item.dart`
 - first Stage 6 slice now does all of the following:
   - requests standard Android media-library access at runtime
   - loads real device videos and images into the approved bottom-sheet grid
@@ -640,7 +640,7 @@ Current stage focus:
   - preview rounded corners are now subtle instead of large card-like radii
   - the empty preview state no longer draws placeholder art or a fake portrait canvas before the first import
 - rebuilt and installed the new debug app on the physical Android device:
-  - APK: `/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/build/app/outputs/flutter-apk/app-debug.apk`
+  - APK: `/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/build/app/outputs/flutter-apk/app-debug.apk`
   - latest seam continuity validation build installed at `2026-04-06 17:05:32`
   - install target: `R3CT10LKLSX`
 - user validation accepted the first Stage 6 import slice:
@@ -650,7 +650,7 @@ Current stage focus:
   - the remaining weakness is timeline interaction polish, not the import path itself
 - opened the next Stage 6 slice:
   - `Timeline Interaction Contract`
-  - reference: `/Users/mx/Documents/InGeneBMFPro/docs/process/stage-6-timeline-interaction-contract.md`
+  - reference: `/Users/mx/Documents/ReFusionXx/docs/process/stage-6-timeline-interaction-contract.md`
   - first implementation target:
     - selection becomes UI state only
     - selection no longer rebinds preview or transport
@@ -678,9 +678,9 @@ Stage 2 closure summary:
 - emulator-only evidence does not close `Stage 2`
 - completed a preliminary adb-based native run using the Stage 1 binary and official test assets
 - staged and ran:
-  - `/Users/mx/Documents/InGeneBMFPro/sources/engine/bmf-official/bmf_lite/build_android_non_qnn_manual/bin/test_bmf_lite_android_interface`
-  - `/Users/mx/Documents/InGeneBMFPro/assets/official/bmf_lite_release_files/bmf_lite_files/test.jpg`
-  - `/Users/mx/Documents/InGeneBMFPro/assets/official/bmf_lite_release_files/bmf_lite_files/test-canny.png`
+  - `/Users/mx/Documents/ReFusionXx/sources/engine/bmf-official/bmf_lite/build_android_non_qnn_manual/bin/test_bmf_lite_android_interface`
+  - `/Users/mx/Documents/ReFusionXx/assets/official/bmf_lite_release_files/bmf_lite_files/test.jpg`
+  - `/Users/mx/Documents/ReFusionXx/assets/official/bmf_lite_release_files/bmf_lite_files/test-canny.png`
 - preliminary emulator result:
   - `init result:-600`
   - `Segmentation fault`
@@ -735,14 +735,14 @@ Stage 1 closure summary:
   - Android NDK `23.1.7779620`
   - Java `17`
 - confirmed the official convenience Android paths were the source of the QNN blocker:
-  - [build_android.sh](/Users/mx/Documents/InGeneBMFPro/sources/engine/bmf-official/bmf_lite/build_android.sh)
-  - [android/lite/src/CMakeLists.txt](/Users/mx/Documents/InGeneBMFPro/sources/engine/bmf-official/bmf_lite/android/lite/src/CMakeLists.txt)
+  - [build_android.sh](/Users/mx/Documents/ReFusionXx/sources/engine/bmf-official/bmf_lite/build_android.sh)
+  - [android/lite/src/CMakeLists.txt](/Users/mx/Documents/ReFusionXx/sources/engine/bmf-official/bmf_lite/android/lite/src/CMakeLists.txt)
 - adopted the source-default non-QNN path from the official BMFLite root CMake:
-  - [CMakeLists.txt](/Users/mx/Documents/InGeneBMFPro/sources/engine/bmf-official/bmf_lite/CMakeLists.txt)
+  - [CMakeLists.txt](/Users/mx/Documents/ReFusionXx/sources/engine/bmf-official/bmf_lite/CMakeLists.txt)
 - successful Stage 1 configure command:
-  - `cmake -S /Users/mx/Documents/InGeneBMFPro/sources/engine/bmf-official/bmf_lite -B /Users/mx/Documents/InGeneBMFPro/sources/engine/bmf-official/bmf_lite/build_android_non_qnn_manual -DCMAKE_BUILD_TYPE=Release -DANDROID_STL=c++_shared -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-21 -DCMAKE_TOOLCHAIN_FILE=$HOME/Library/Android/sdk/ndk/23.1.7779620/build/cmake/android.toolchain.cmake -DBMF_LITE_ENABLE_OPENGLTEXTUREBUFFER=ON -DBMF_LITE_ENABLE_CPUMEMORYBUFFER=ON -DBMF_LITE_ENABLE_SUPER_RESOLUTION=ON -DBMF_LITE_ENABLE_DENOISE=ON`
+  - `cmake -S /Users/mx/Documents/ReFusionXx/sources/engine/bmf-official/bmf_lite -B /Users/mx/Documents/ReFusionXx/sources/engine/bmf-official/bmf_lite/build_android_non_qnn_manual -DCMAKE_BUILD_TYPE=Release -DANDROID_STL=c++_shared -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-21 -DCMAKE_TOOLCHAIN_FILE=$HOME/Library/Android/sdk/ndk/23.1.7779620/build/cmake/android.toolchain.cmake -DBMF_LITE_ENABLE_OPENGLTEXTUREBUFFER=ON -DBMF_LITE_ENABLE_CPUMEMORYBUFFER=ON -DBMF_LITE_ENABLE_SUPER_RESOLUTION=ON -DBMF_LITE_ENABLE_DENOISE=ON`
 - successful Stage 1 build command:
-  - `cmake --build /Users/mx/Documents/InGeneBMFPro/sources/engine/bmf-official/bmf_lite/build_android_non_qnn_manual --parallel 16`
+  - `cmake --build /Users/mx/Documents/ReFusionXx/sources/engine/bmf-official/bmf_lite/build_android_non_qnn_manual --parallel 16`
 - confirmed cache values:
   - `BMF_LITE_ENABLE_TEX_GEN_PIC=OFF`
   - `BMF_LITE_ENABLE_OPENGLTEXTUREBUFFER=ON`
@@ -752,47 +752,47 @@ Stage 1 closure summary:
 
 ## Required Documents
 
-- execution policy: [docs/process/execution-plan.md](/Users/mx/Documents/InGeneBMFPro/docs/process/execution-plan.md)
-- Stage 1 native baseline build: [docs/process/stage-1-native-baseline-build.md](/Users/mx/Documents/InGeneBMFPro/docs/process/stage-1-native-baseline-build.md)
-- Stage 2 native real-device validation: [docs/process/stage-2-native-real-device-validation.md](/Users/mx/Documents/InGeneBMFPro/docs/process/stage-2-native-real-device-validation.md)
-- Stage 3 UI import and boundary lock: [docs/process/stage-3-ui-import-and-boundary-lock.md](/Users/mx/Documents/InGeneBMFPro/docs/process/stage-3-ui-import-and-boundary-lock.md)
-- Stage 4 architecture lock: [docs/process/stage-4-architecture-lock.md](/Users/mx/Documents/InGeneBMFPro/docs/process/stage-4-architecture-lock.md)
-- Stage 6 real import and timeline truth: [docs/process/stage-6-real-import-and-timeline-truth.md](/Users/mx/Documents/InGeneBMFPro/docs/process/stage-6-real-import-and-timeline-truth.md)
-- Stage 6 timeline interaction contract: [docs/process/stage-6-timeline-interaction-contract.md](/Users/mx/Documents/InGeneBMFPro/docs/process/stage-6-timeline-interaction-contract.md)
-- Stage 6 seam boundary stabilization: [docs/process/stage-6-seam-boundary-stabilization.md](/Users/mx/Documents/InGeneBMFPro/docs/process/stage-6-seam-boundary-stabilization.md)
-- Stage 6 closure checklist: [docs/process/stage-6-closure-checklist.md](/Users/mx/Documents/InGeneBMFPro/docs/process/stage-6-closure-checklist.md)
-- Future preview architecture - composition-based multi-clip evaluation (`future-gated reference only`): [docs/process/future-preview-architecture-composition-based-multi-clip-evaluation.md](/Users/mx/Documents/InGeneBMFPro/docs/process/future-preview-architecture-composition-based-multi-clip-evaluation.md)
-- UI V1 requirements: [docs/process/ui-v1-requirements.md](/Users/mx/Documents/InGeneBMFPro/docs/process/ui-v1-requirements.md)
-- official BMF baseline: [docs/research/bmf-official-baseline.md](/Users/mx/Documents/InGeneBMFPro/docs/research/bmf-official-baseline.md)
-- UI baseline audit: [docs/research/ui-baseline-audit.md](/Users/mx/Documents/InGeneBMFPro/docs/research/ui-baseline-audit.md)
-- community findings: [docs/research/community-findings.md](/Users/mx/Documents/InGeneBMFPro/docs/research/community-findings.md)
-- source acquisition report: [docs/research/source-acquisition-report.md](/Users/mx/Documents/InGeneBMFPro/docs/research/source-acquisition-report.md)
-- Stage 5 scrub investigation: [docs/research/stage-5-scrub-investigation.md](/Users/mx/Documents/InGeneBMFPro/docs/research/stage-5-scrub-investigation.md)
-- BMF motion architecture feasibility: [docs/research/bmf-motion-architecture-feasibility.md](/Users/mx/Documents/InGeneBMFPro/docs/research/bmf-motion-architecture-feasibility.md)
-- Professional Motion architecture reference: [docs/process/professional-motion-architecture.md](/Users/mx/Documents/InGeneBMFPro/docs/process/professional-motion-architecture.md)
-- Professional Motion Part 1 - Canonical Scene / Layer / Element / Property Domain Models: [docs/process/professional-motion/professional-motion-part-1-canonical-scene-layer-element-property-domain-models.md](/Users/mx/Documents/InGeneBMFPro/docs/process/professional-motion/professional-motion-part-1-canonical-scene-layer-element-property-domain-models.md)
-- Professional Motion Part 2 - Property Channels And First Keyframe Primitives: [docs/process/professional-motion/professional-motion-part-2-property-channels-and-first-keyframe-primitives.md](/Users/mx/Documents/InGeneBMFPro/docs/process/professional-motion/professional-motion-part-2-property-channels-and-first-keyframe-primitives.md)
-- Professional Motion Part 3 - Normalized Motion Composition And Compile Boundary Foundations: [docs/process/professional-motion/professional-motion-part-3-normalized-motion-composition-and-compile-boundary-foundations.md](/Users/mx/Documents/InGeneBMFPro/docs/process/professional-motion/professional-motion-part-3-normalized-motion-composition-and-compile-boundary-foundations.md)
-- Professional Motion Part 4 - Deterministic Runtime Evaluation Foundations: [docs/process/professional-motion/professional-motion-part-4-deterministic-runtime-evaluation-foundations.md](/Users/mx/Documents/InGeneBMFPro/docs/process/professional-motion/professional-motion-part-4-deterministic-runtime-evaluation-foundations.md)
-- Professional Motion Part 5 - First Compile / Evaluation Helpers Without UI Binding: [docs/process/professional-motion/professional-motion-part-5-first-compile-evaluation-helpers-without-ui-binding.md](/Users/mx/Documents/InGeneBMFPro/docs/process/professional-motion/professional-motion-part-5-first-compile-evaluation-helpers-without-ui-binding.md)
-- Professional Motion Part 6 - Transition / Effect / Camera Domain Foundations Without UI Binding: [docs/process/professional-motion/professional-motion-part-6-transition-effect-camera-domain-foundations-without-ui-binding.md](/Users/mx/Documents/InGeneBMFPro/docs/process/professional-motion/professional-motion-part-6-transition-effect-camera-domain-foundations-without-ui-binding.md)
-- Professional Motion Part 7 - Text Animation And Text Preset Domain Foundations Without UI Binding: [docs/process/professional-motion/professional-motion-part-7-text-animation-and-text-preset-domain-foundations-without-ui-binding.md](/Users/mx/Documents/InGeneBMFPro/docs/process/professional-motion/professional-motion-part-7-text-animation-and-text-preset-domain-foundations-without-ui-binding.md)
-- Professional Motion Part 8 - Text Preset Compile / Runtime Binding Without UI: [docs/process/professional-motion/professional-motion-part-8-text-preset-compile-runtime-binding-without-ui.md](/Users/mx/Documents/InGeneBMFPro/docs/process/professional-motion/professional-motion-part-8-text-preset-compile-runtime-binding-without-ui.md)
-- Professional Motion Part 9 - Text Element Runtime Binding And Preview Hook Foundations Without UI: [docs/process/professional-motion/professional-motion-part-9-text-element-runtime-binding-and-preview-hook-foundations-without-ui.md](/Users/mx/Documents/InGeneBMFPro/docs/process/professional-motion/professional-motion-part-9-text-element-runtime-binding-and-preview-hook-foundations-without-ui.md)
-- Professional Motion Part 10 - Text Element Insertion And Binding Foundations Without Bottom-Sheet UI Yet: [docs/process/professional-motion/professional-motion-part-10-text-element-insertion-and-binding-foundations-without-bottom-sheet-ui-yet.md](/Users/mx/Documents/InGeneBMFPro/docs/process/professional-motion/professional-motion-part-10-text-element-insertion-and-binding-foundations-without-bottom-sheet-ui-yet.md)
-- Professional Motion Part 11 - Text Preview Renderer Hook Foundations Without Bottom-Sheet UI Yet: [docs/process/professional-motion/professional-motion-part-11-text-preview-renderer-hook-foundations-without-bottom-sheet-ui-yet.md](/Users/mx/Documents/InGeneBMFPro/docs/process/professional-motion/professional-motion-part-11-text-preview-renderer-hook-foundations-without-bottom-sheet-ui-yet.md)
-- Professional Motion Part 12 - First User-Facing Text Preset Hookup: [docs/process/professional-motion/professional-motion-part-12-first-user-facing-text-preset-hookup.md](/Users/mx/Documents/InGeneBMFPro/docs/process/professional-motion/professional-motion-part-12-first-user-facing-text-preset-hookup.md)
-- Professional Motion Part 13 - Custom Text Preset Import Foundations: [docs/process/professional-motion/professional-motion-part-13-custom-text-preset-import-foundations.md](/Users/mx/Documents/InGeneBMFPro/docs/process/professional-motion/professional-motion-part-13-custom-text-preset-import-foundations.md)
-- Professional Motion Text Preset JSON Format: [docs/process/professional-motion/professional-motion-text-preset-json-format.md](/Users/mx/Documents/InGeneBMFPro/docs/process/professional-motion/professional-motion-text-preset-json-format.md)
-- Professional Motion Text Preset Agent Guide: [docs/process/professional-motion/professional-motion-text-preset-agent-guide.md](/Users/mx/Documents/InGeneBMFPro/docs/process/professional-motion/professional-motion-text-preset-agent-guide.md)
-- Professional Motion Text Preset Agent Contract: [docs/process/professional-motion/professional-motion-text-preset-agent-contract.md](/Users/mx/Documents/InGeneBMFPro/docs/process/professional-motion/professional-motion-text-preset-agent-contract.md)
-- Professional Motion Text Modify V1: [docs/process/professional-motion/professional-motion-text-modify-v1.md](/Users/mx/Documents/InGeneBMFPro/docs/process/professional-motion/professional-motion-text-modify-v1.md)
-- Stage 5B professional scrub upgrade: [docs/process/stage-5b-professional-scrub-upgrade.md](/Users/mx/Documents/InGeneBMFPro/docs/process/stage-5b-professional-scrub-upgrade.md)
-- Stage 6 timeline precision and canonical time model: [docs/process/stage-6-timeline-precision-and-canonical-time-model.md](/Users/mx/Documents/InGeneBMFPro/docs/process/stage-6-timeline-precision-and-canonical-time-model.md)
-- Stage 6 timeline precision gated execution plan: [docs/process/stage-6-timeline-precision-gated-execution-plan.md](/Users/mx/Documents/InGeneBMFPro/docs/process/stage-6-timeline-precision-gated-execution-plan.md)
-- Stage 6 timeline precision baseline freeze: [docs/process/stage-6-timeline-precision-baseline-freeze.md](/Users/mx/Documents/InGeneBMFPro/docs/process/stage-6-timeline-precision-baseline-freeze.md)
-- Stage 6 Step 7 precision validation matrix: [docs/process/stage-6-step-7-precision-validation-matrix.md](/Users/mx/Documents/InGeneBMFPro/docs/process/stage-6-step-7-precision-validation-matrix.md)
-- Stage 6 foundation reference for future motion/script/export: [docs/process/stage-6-foundation-reference-canonical-timeline-truth-for-future-motion-script-export.md](/Users/mx/Documents/InGeneBMFPro/docs/process/stage-6-foundation-reference-canonical-timeline-truth-for-future-motion-script-export.md)
+- execution policy: [docs/process/execution-plan.md](/Users/mx/Documents/ReFusionXx/docs/process/execution-plan.md)
+- Stage 1 native baseline build: [docs/process/stage-1-native-baseline-build.md](/Users/mx/Documents/ReFusionXx/docs/process/stage-1-native-baseline-build.md)
+- Stage 2 native real-device validation: [docs/process/stage-2-native-real-device-validation.md](/Users/mx/Documents/ReFusionXx/docs/process/stage-2-native-real-device-validation.md)
+- Stage 3 UI import and boundary lock: [docs/process/stage-3-ui-import-and-boundary-lock.md](/Users/mx/Documents/ReFusionXx/docs/process/stage-3-ui-import-and-boundary-lock.md)
+- Stage 4 architecture lock: [docs/process/stage-4-architecture-lock.md](/Users/mx/Documents/ReFusionXx/docs/process/stage-4-architecture-lock.md)
+- Stage 6 real import and timeline truth: [docs/process/stage-6-real-import-and-timeline-truth.md](/Users/mx/Documents/ReFusionXx/docs/process/stage-6-real-import-and-timeline-truth.md)
+- Stage 6 timeline interaction contract: [docs/process/stage-6-timeline-interaction-contract.md](/Users/mx/Documents/ReFusionXx/docs/process/stage-6-timeline-interaction-contract.md)
+- Stage 6 seam boundary stabilization: [docs/process/stage-6-seam-boundary-stabilization.md](/Users/mx/Documents/ReFusionXx/docs/process/stage-6-seam-boundary-stabilization.md)
+- Stage 6 closure checklist: [docs/process/stage-6-closure-checklist.md](/Users/mx/Documents/ReFusionXx/docs/process/stage-6-closure-checklist.md)
+- Future preview architecture - composition-based multi-clip evaluation (`future-gated reference only`): [docs/process/future-preview-architecture-composition-based-multi-clip-evaluation.md](/Users/mx/Documents/ReFusionXx/docs/process/future-preview-architecture-composition-based-multi-clip-evaluation.md)
+- UI V1 requirements: [docs/process/ui-v1-requirements.md](/Users/mx/Documents/ReFusionXx/docs/process/ui-v1-requirements.md)
+- official BMF baseline: [docs/research/bmf-official-baseline.md](/Users/mx/Documents/ReFusionXx/docs/research/bmf-official-baseline.md)
+- UI baseline audit: [docs/research/ui-baseline-audit.md](/Users/mx/Documents/ReFusionXx/docs/research/ui-baseline-audit.md)
+- community findings: [docs/research/community-findings.md](/Users/mx/Documents/ReFusionXx/docs/research/community-findings.md)
+- source acquisition report: [docs/research/source-acquisition-report.md](/Users/mx/Documents/ReFusionXx/docs/research/source-acquisition-report.md)
+- Stage 5 scrub investigation: [docs/research/stage-5-scrub-investigation.md](/Users/mx/Documents/ReFusionXx/docs/research/stage-5-scrub-investigation.md)
+- BMF motion architecture feasibility: [docs/research/bmf-motion-architecture-feasibility.md](/Users/mx/Documents/ReFusionXx/docs/research/bmf-motion-architecture-feasibility.md)
+- Professional Motion architecture reference: [docs/process/professional-motion-architecture.md](/Users/mx/Documents/ReFusionXx/docs/process/professional-motion-architecture.md)
+- Professional Motion Part 1 - Canonical Scene / Layer / Element / Property Domain Models: [docs/process/professional-motion/professional-motion-part-1-canonical-scene-layer-element-property-domain-models.md](/Users/mx/Documents/ReFusionXx/docs/process/professional-motion/professional-motion-part-1-canonical-scene-layer-element-property-domain-models.md)
+- Professional Motion Part 2 - Property Channels And First Keyframe Primitives: [docs/process/professional-motion/professional-motion-part-2-property-channels-and-first-keyframe-primitives.md](/Users/mx/Documents/ReFusionXx/docs/process/professional-motion/professional-motion-part-2-property-channels-and-first-keyframe-primitives.md)
+- Professional Motion Part 3 - Normalized Motion Composition And Compile Boundary Foundations: [docs/process/professional-motion/professional-motion-part-3-normalized-motion-composition-and-compile-boundary-foundations.md](/Users/mx/Documents/ReFusionXx/docs/process/professional-motion/professional-motion-part-3-normalized-motion-composition-and-compile-boundary-foundations.md)
+- Professional Motion Part 4 - Deterministic Runtime Evaluation Foundations: [docs/process/professional-motion/professional-motion-part-4-deterministic-runtime-evaluation-foundations.md](/Users/mx/Documents/ReFusionXx/docs/process/professional-motion/professional-motion-part-4-deterministic-runtime-evaluation-foundations.md)
+- Professional Motion Part 5 - First Compile / Evaluation Helpers Without UI Binding: [docs/process/professional-motion/professional-motion-part-5-first-compile-evaluation-helpers-without-ui-binding.md](/Users/mx/Documents/ReFusionXx/docs/process/professional-motion/professional-motion-part-5-first-compile-evaluation-helpers-without-ui-binding.md)
+- Professional Motion Part 6 - Transition / Effect / Camera Domain Foundations Without UI Binding: [docs/process/professional-motion/professional-motion-part-6-transition-effect-camera-domain-foundations-without-ui-binding.md](/Users/mx/Documents/ReFusionXx/docs/process/professional-motion/professional-motion-part-6-transition-effect-camera-domain-foundations-without-ui-binding.md)
+- Professional Motion Part 7 - Text Animation And Text Preset Domain Foundations Without UI Binding: [docs/process/professional-motion/professional-motion-part-7-text-animation-and-text-preset-domain-foundations-without-ui-binding.md](/Users/mx/Documents/ReFusionXx/docs/process/professional-motion/professional-motion-part-7-text-animation-and-text-preset-domain-foundations-without-ui-binding.md)
+- Professional Motion Part 8 - Text Preset Compile / Runtime Binding Without UI: [docs/process/professional-motion/professional-motion-part-8-text-preset-compile-runtime-binding-without-ui.md](/Users/mx/Documents/ReFusionXx/docs/process/professional-motion/professional-motion-part-8-text-preset-compile-runtime-binding-without-ui.md)
+- Professional Motion Part 9 - Text Element Runtime Binding And Preview Hook Foundations Without UI: [docs/process/professional-motion/professional-motion-part-9-text-element-runtime-binding-and-preview-hook-foundations-without-ui.md](/Users/mx/Documents/ReFusionXx/docs/process/professional-motion/professional-motion-part-9-text-element-runtime-binding-and-preview-hook-foundations-without-ui.md)
+- Professional Motion Part 10 - Text Element Insertion And Binding Foundations Without Bottom-Sheet UI Yet: [docs/process/professional-motion/professional-motion-part-10-text-element-insertion-and-binding-foundations-without-bottom-sheet-ui-yet.md](/Users/mx/Documents/ReFusionXx/docs/process/professional-motion/professional-motion-part-10-text-element-insertion-and-binding-foundations-without-bottom-sheet-ui-yet.md)
+- Professional Motion Part 11 - Text Preview Renderer Hook Foundations Without Bottom-Sheet UI Yet: [docs/process/professional-motion/professional-motion-part-11-text-preview-renderer-hook-foundations-without-bottom-sheet-ui-yet.md](/Users/mx/Documents/ReFusionXx/docs/process/professional-motion/professional-motion-part-11-text-preview-renderer-hook-foundations-without-bottom-sheet-ui-yet.md)
+- Professional Motion Part 12 - First User-Facing Text Preset Hookup: [docs/process/professional-motion/professional-motion-part-12-first-user-facing-text-preset-hookup.md](/Users/mx/Documents/ReFusionXx/docs/process/professional-motion/professional-motion-part-12-first-user-facing-text-preset-hookup.md)
+- Professional Motion Part 13 - Custom Text Preset Import Foundations: [docs/process/professional-motion/professional-motion-part-13-custom-text-preset-import-foundations.md](/Users/mx/Documents/ReFusionXx/docs/process/professional-motion/professional-motion-part-13-custom-text-preset-import-foundations.md)
+- Professional Motion Text Preset JSON Format: [docs/process/professional-motion/professional-motion-text-preset-json-format.md](/Users/mx/Documents/ReFusionXx/docs/process/professional-motion/professional-motion-text-preset-json-format.md)
+- Professional Motion Text Preset Agent Guide: [docs/process/professional-motion/professional-motion-text-preset-agent-guide.md](/Users/mx/Documents/ReFusionXx/docs/process/professional-motion/professional-motion-text-preset-agent-guide.md)
+- Professional Motion Text Preset Agent Contract: [docs/process/professional-motion/professional-motion-text-preset-agent-contract.md](/Users/mx/Documents/ReFusionXx/docs/process/professional-motion/professional-motion-text-preset-agent-contract.md)
+- Professional Motion Text Modify V1: [docs/process/professional-motion/professional-motion-text-modify-v1.md](/Users/mx/Documents/ReFusionXx/docs/process/professional-motion/professional-motion-text-modify-v1.md)
+- Stage 5B professional scrub upgrade: [docs/process/stage-5b-professional-scrub-upgrade.md](/Users/mx/Documents/ReFusionXx/docs/process/stage-5b-professional-scrub-upgrade.md)
+- Stage 6 timeline precision and canonical time model: [docs/process/stage-6-timeline-precision-and-canonical-time-model.md](/Users/mx/Documents/ReFusionXx/docs/process/stage-6-timeline-precision-and-canonical-time-model.md)
+- Stage 6 timeline precision gated execution plan: [docs/process/stage-6-timeline-precision-gated-execution-plan.md](/Users/mx/Documents/ReFusionXx/docs/process/stage-6-timeline-precision-gated-execution-plan.md)
+- Stage 6 timeline precision baseline freeze: [docs/process/stage-6-timeline-precision-baseline-freeze.md](/Users/mx/Documents/ReFusionXx/docs/process/stage-6-timeline-precision-baseline-freeze.md)
+- Stage 6 Step 7 precision validation matrix: [docs/process/stage-6-step-7-precision-validation-matrix.md](/Users/mx/Documents/ReFusionXx/docs/process/stage-6-step-7-precision-validation-matrix.md)
+- Stage 6 foundation reference for future motion/script/export: [docs/process/stage-6-foundation-reference-canonical-timeline-truth-for-future-motion-script-export.md](/Users/mx/Documents/ReFusionXx/docs/process/stage-6-foundation-reference-canonical-timeline-truth-for-future-motion-script-export.md)
 
 ## Next Allowed Step
 
@@ -810,7 +810,7 @@ Single next allowed step:
   - scrub baseline remains intact
   - accepted playback baseline remains intact
 - return to:
-  [docs/process/stage-6-closure-checklist.md](/Users/mx/Documents/InGeneBMFPro/docs/process/stage-6-closure-checklist.md)
+  [docs/process/stage-6-closure-checklist.md](/Users/mx/Documents/ReFusionXx/docs/process/stage-6-closure-checklist.md)
 - do not open export
 - do not open motion/keyframe implementation
 - do not reopen seam polish by breaking exact truth
@@ -831,15 +831,15 @@ Latest accepted precision milestone:
    close `Stage 6` formally with updated documentation
 4. only after `Stage 6` becomes stable:
    if a current-path seam ceiling was formally recorded, evaluate the future preview-architecture draft:
-   [docs/process/future-preview-architecture-composition-based-multi-clip-evaluation.md](/Users/mx/Documents/InGeneBMFPro/docs/process/future-preview-architecture-composition-based-multi-clip-evaluation.md)
+   [docs/process/future-preview-architecture-composition-based-multi-clip-evaluation.md](/Users/mx/Documents/ReFusionXx/docs/process/future-preview-architecture-composition-based-multi-clip-evaluation.md)
 5. only after `Stage 6` becomes stable:
    open the future-gated export preparation stage draft:
-   [docs/process/future-stage-7-export-contract-and-native-orchestration-baseline.md](/Users/mx/Documents/InGeneBMFPro/docs/process/future-stage-7-export-contract-and-native-orchestration-baseline.md)
+   [docs/process/future-stage-7-export-contract-and-native-orchestration-baseline.md](/Users/mx/Documents/ReFusionXx/docs/process/future-stage-7-export-contract-and-native-orchestration-baseline.md)
 6. only after the export baseline later becomes stable:
    resume the deferred research track:
    `Advanced Motion Authoring + Runtime Architecture`
    reference:
-   [docs/research/bmf-motion-architecture-feasibility.md](/Users/mx/Documents/InGeneBMFPro/docs/research/bmf-motion-architecture-feasibility.md)
+   [docs/research/bmf-motion-architecture-feasibility.md](/Users/mx/Documents/ReFusionXx/docs/research/bmf-motion-architecture-feasibility.md)
 
 Guardrail:
 
