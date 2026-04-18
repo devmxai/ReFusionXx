@@ -2,6 +2,22 @@
 
 `ReFusionXx` is the official baseline repository for the current project state.
 
+Canonical local workspace:
+
+- repository root: `/Users/mx/Documents/ReFusionXx`
+- app workspace: `/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2`
+- Android package: `com.refusion.app`
+
+This is the only local repository that should be used for:
+
+- code changes
+- git status / commit / tag / push
+- Android builds
+- device installs
+- live scrub work
+- timeline work
+- export work
+
 This repository starts from the latest validated legacy workspace snapshot and
 preserves the full codebase, plans, and documentation as the new official
 `main` baseline.
@@ -13,9 +29,11 @@ Official shipped app identity in this baseline:
 - canonical shipped version source:
   [pubspec.yaml](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/pubspec.yaml)
 
-Legacy documentation still contains the original local filesystem paths from the
-source workspace where this snapshot was authored. Those references are kept
-intentionally for continuity with the existing execution notes.
+Legacy documentation still contains some older absolute filesystem paths from
+previous workspaces. When that happens, always map them back to the canonical
+local repository above. Older paths such as `/Users/mx/Documents/InGeneBMFPro`
+or similarly named `fusionx-clean-ui-2` folders are not the source of truth for
+the real app install path.
 
 ## Source Of Truth
 
