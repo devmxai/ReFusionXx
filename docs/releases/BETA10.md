@@ -2,47 +2,51 @@
 
 ## Status
 
-- snapshot type: `beta tag`
-- repository: `https://github.com/devmxai/FBMFX`
-- tag target branch at creation time: `codex/timeline-motion-progress`
-- current project stage: `Stage 6 - Real Import And Timeline Truth`
-- stage status: `OPEN`
+- snapshot type: `beta tag + release`
+- repository: `https://github.com/devmxai/ReFusionXx`
+- tag target branch at creation time: `main`
+- tag: `beta-10`
+- release title: `Beta 10`
+- app version: `1.0.0-beta.10+10`
+- app name: `ReFusion`
+- package id: `com.refusion.app`
+- canonical version source:
+  [pubspec.yaml](/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/pubspec.yaml)
+- canonical app workspace:
+  [fusionx-clean-ui-2](/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2)
 
-## Scope
+## Purpose
 
-`BETA10` preserves the latest local editor-facing baseline reached so far in the
-isolated `InGeneBMFPro` workspace.
+`BETA10` is the explicit freeze checkpoint for the current official
+`ReFusionXx` mainline.
 
-This beta includes the current accepted combined snapshot of:
+This snapshot exists so the team can safely:
 
-- real import and native preview ownership already established in `Stage 6`
-- Professional Motion text preset import through the dedicated `Text` flow
-- custom text preset JSON validation and import normalization
-- canvas text preview rendering through the local motion runtime adapter
-- text edit entry from the timeline through double-tap
-- text edit bottom sheet and direct transform overlay during active text edit
-- timeline trim mode gated behind one `Trim` tool instead of always-on trim
-  chrome
-- internal left/right trim handles with trim-only interaction mode
-- unified timeline header rendering so the left time readout and ruler labels
-  share one header path
-- latest scrub refinement closer to native ownership
+- return to a known-good GitHub checkpoint
+- rebuild the official app from the canonical workspace
+- install the same frozen app package on device
+- resume the next feature from a documented baseline
 
-## Validation Snapshot
+## What This Snapshot Freezes
 
-The latest local validation completed for this beta snapshot is:
+`BETA10` freezes the current official state where:
+
+- the repository source of truth is `ReFusionXx`
+- the canonical app identity is `ReFusion` / `com.refusion.app`
+- the app version is `1.0.0-beta.10+10`
+- `main` and `beta-10` resolve to the same frozen commit at release time
+- the next major feature plan is documented in:
+  [Scope Layer](/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/docs/scope_layer.md)
+
+## Validation
+
+This snapshot was validated with:
 
 - `flutter analyze`
-- `./gradlew app:compileDebugKotlin`
-- `flutter build apk --debug`
-- latest debug APK reinstall on physical device `R3CT10LKLSX`
-- latest app launch confirmation on
-  `com.fusionx.fusionx_clean_ui_2/.MainActivity`
+- `./gradlew app:assembleDebug`
+- on-device installation from the official workspace build output
 
-## Known Open Area
+## Rollback Meaning
 
-`BETA10` does **not** close `Stage 6`.
-
-The strongest remaining open area after this beta snapshot is final timeline
-interaction polish, especially continued scrub/trim/zoom refinement under the
-still-open `Stage 6` contract.
+If later work regresses behavior, `BETA10` is intended to be the rollback-safe
+checkpoint for this exact repository and app identity state.

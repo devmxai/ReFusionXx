@@ -131,11 +131,17 @@ Current next timeline workstream reference:
 - latest thread handoff / resume packet for opening a new thread is now:
   [Current Thread Handoff And Resume Packet](/Users/mx/Documents/ReFusionXx/docs/process/current-thread-handoff-and-resume-packet.md)
 
-Latest pushed repository checkpoint in `BETA2`:
+Latest pushed repository checkpoint in `beta-10`:
 
 - the app now ships from the official `ReFusionXx` repository as
-  `1.0.0-beta.2+2`, still under the canonical app identity `ReFusion` /
+  `1.0.0-beta.10+10`, still under the canonical app identity `ReFusion` /
   `com.refusion.app`
+- the latest frozen GitHub snapshot is now:
+  - branch: `main`
+  - tag: `beta-10`
+  - release: `Beta 10`
+- the repository now also includes the dedicated next-feature planning document:
+  [Scope Layer](/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/docs/scope_layer.md)
 - bottom-dock `Text` now inserts a direct text layer into the timeline instead
   of entering preset-first authoring, while preserving the deeper text-motion
   code paths behind the scenes for later work

@@ -1,6 +1,6 @@
 # Current Thread Handoff And Resume Packet
 
-Last updated: April 12, 2026
+Last updated: April 19, 2026
 
 Status: `ACTIVE THREAD-BOOTSTRAP REFERENCE`
 
@@ -17,32 +17,38 @@ Purpose:
 
 Project root:
 
-- `/Users/mx/Documents/InGeneBMFPro`
+- `/Users/mx/Documents/ReFusionXx`
 
 Primary app workspace:
 
-- `/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2`
+- `/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2`
 
 ## Git / Snapshot Truth
 
 Latest pushed snapshot:
 
 - branch: `main`
-- tag: `BETA2`
-- pushed app version: `1.0.0-beta.2+2`
+- tag: `beta-10`
+- pushed app version: `1.0.0-beta.10+10`
 - official app name: `ReFusion`
 - official package id: `com.refusion.app`
 - canonical version source:
-  [pubspec.yaml](/Users/mx/Documents/InGeneBMFPro/sources/ui/fusionx-clean-ui-2/pubspec.yaml)
+  [pubspec.yaml](/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/pubspec.yaml)
 - pushed release note:
-  [BETA2](/Users/mx/Documents/InGeneBMFPro/docs/releases/BETA2.md)
+  [BETA10](/Users/mx/Documents/ReFusionXx/docs/releases/BETA10.md)
 - repository baseline meaning:
   - imported from the validated legacy `FBMFX` snapshot that previously shipped
     as `BETA15`
-  - now treated as the official `ReFusionXx` repository history, with `BETA2`
+  - now treated as the official `ReFusionXx` repository history, with `beta-10`
     as the latest pushed checkpoint
 
-Current pushed repository state in `BETA2`:
+Current pushed repository state in `beta-10`:
+
+- the repository now has an explicit frozen GitHub checkpoint for rollback:
+  - `main` and `beta-10` point to the same commit at freeze time
+  - a public GitHub release named `Beta 10` exists for that same tag
+- the canonical next-feature planning document is now included:
+  [Scope Layer](/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/docs/scope_layer.md)
 
 - the full `BETA1` manipulation baseline remains part of this pushed snapshot:
   insertion-driven track creation, background scrub from empty timeline space,
@@ -64,7 +70,7 @@ Current pushed repository state in `BETA2`:
 - timeline clip visuals are now calmer and clearer in dark mode, with muted
   per-track color families and stronger active selection visibility
 
-Latest recorded validation for `BETA2`:
+Latest recorded validation for `beta-10`:
 
 - `flutter analyze` passed
 - `flutter test test/motion_text_authoring_service_test.dart` passed
@@ -81,7 +87,7 @@ Current active workstream:
 
 Current practical resume point:
 
-- continue from the scoped manipulation plan, treating `BETA2` as the latest
+- continue from the scoped manipulation plan, treating `beta-10` as the latest
   pushed checkpoint while extending the editor into animate/canvas authoring
 
 What is already present in the pushed snapshot:
