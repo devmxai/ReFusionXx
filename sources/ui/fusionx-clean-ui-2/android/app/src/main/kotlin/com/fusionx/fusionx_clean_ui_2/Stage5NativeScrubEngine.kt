@@ -172,6 +172,7 @@ class Stage5NativeScrubEngine(
     ): Boolean {
         val normalizedTimelinePositionMs = timelinePositionMs.coerceAtLeast(0L)
         val readinessTimeoutMs = timeoutMs.coerceAtLeast(1L)
+        var readinessGeneration: Long
         val readinessTargets =
             synchronized(this) {
                 latestKnownTimelinePositionMs = normalizedTimelinePositionMs
@@ -181,6 +182,7 @@ class Stage5NativeScrubEngine(
                 pendingDecoderForceSeekStoreKey = null
                 lastBoundaryWarmupKey = null
                 targetGeneration += 1
+                readinessGeneration = targetGeneration
                 renderHosts.forEach { host ->
                     host.setScrubSurfaceVisible(false)
                 }
@@ -204,6 +206,7 @@ class Stage5NativeScrubEngine(
                     renderHiddenReadinessTargets(
                         targets = readinessTargets,
                         timeoutMs = readinessTimeoutMs,
+                        readinessGeneration = readinessGeneration,
                     )
             } finally {
                 latch.countDown()
@@ -216,6 +219,9 @@ class Stage5NativeScrubEngine(
             )
         val isReady = completed && result[0]
         synchronized(this) {
+            if (targetGeneration != readinessGeneration) {
+                return false
+            }
             renderHosts.forEach { host ->
                 host.setScrubSurfaceVisible(false)
             }
@@ -675,6 +681,7 @@ class Stage5NativeScrubEngine(
     private fun renderHiddenReadinessTargets(
         targets: List<ReadinessTarget>,
         timeoutMs: Long,
+        readinessGeneration: Long,
     ): Boolean {
         val deadlineMs = SystemClock.elapsedRealtime() + timeoutMs.coerceAtLeast(1L)
         val outputTarget = awaitOutputTarget(deadlineMs) ?: run {
@@ -685,6 +692,9 @@ class Stage5NativeScrubEngine(
         targets.forEachIndexed { index, target ->
             if (SystemClock.elapsedRealtime() >= deadlineMs) {
                 return@forEachIndexed
+            }
+            if (synchronized(this) { targetGeneration != readinessGeneration }) {
+                return false
             }
             val playbackUri = resolveReadyPlaybackUri(target.descriptor) ?: return@forEachIndexed
             if (playbackUri.isProxyReady) {
@@ -709,7 +719,8 @@ class Stage5NativeScrubEngine(
                 surfaceScrubDecoder.renderToPosition(
                     positionMs = target.sourcePositionMs,
                     shouldContinue = {
-                        SystemClock.elapsedRealtime() < deadlineMs
+                        SystemClock.elapsedRealtime() < deadlineMs &&
+                            synchronized(this) { targetGeneration == readinessGeneration }
                     },
                 )
             if (!rendered) {
@@ -877,9 +888,11 @@ class Stage5NativeScrubEngine(
                 candidate.scrubStoreKey == descriptor.scrubStoreKey
             }
         val readinessTargets = ArrayList<ReadinessTarget>(3)
-        if (descriptorIndex >= 0 &&
-            timelinePositionMs <= descriptor.timelineStartMs + BOUNDARY_WARMUP_MARGIN_MS
-        ) {
+        // A timeline edit can be followed by an immediate drag across clip
+        // boundaries, so readiness must warm the adjacent decoders as well as
+        // the current frame. The current descriptor is appended last so it
+        // remains the frozen primed session after hidden readiness completes.
+        if (descriptorIndex >= 0) {
             sorted.getOrNull(descriptorIndex - 1)?.let { previousDescriptor ->
                 val previousTimelinePositionMs =
                     (previousDescriptor.timelineEndMs - 1L)
@@ -891,10 +904,6 @@ class Stage5NativeScrubEngine(
                             previousDescriptor.resolveSourcePositionMs(previousTimelinePositionMs),
                     )
             }
-        }
-        if (descriptorIndex >= 0 &&
-            timelinePositionMs >= descriptor.timelineEndMs - BOUNDARY_WARMUP_MARGIN_MS
-        ) {
             sorted.getOrNull(descriptorIndex + 1)?.let { nextDescriptor ->
                 readinessTargets +=
                     ReadinessTarget(

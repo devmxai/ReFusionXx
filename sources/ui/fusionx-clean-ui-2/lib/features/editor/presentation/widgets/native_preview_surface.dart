@@ -6,6 +6,17 @@ import 'package:flutter/material.dart';
 import '../../../../core/engine/stage5_native_transport_controller.dart';
 import '../../../../core/theme/app_theme.dart';
 
+@visibleForTesting
+bool shouldResetNativePreviewForFrameLoss({
+  required String? previewIdentity,
+  required bool hasRenderedFirstFrame,
+  required bool hasPresentedNativeFrameForPreview,
+}) {
+  return previewIdentity != null &&
+      !hasRenderedFirstFrame &&
+      hasPresentedNativeFrameForPreview;
+}
+
 class NativePreviewSurface extends StatefulWidget {
   const NativePreviewSurface({
     super.key,
@@ -88,6 +99,16 @@ class _NativePreviewSurfaceState extends State<NativePreviewSurface> {
     if (_awaitingNativeFrameResetForPreview &&
         !widget.controller.hasRenderedFirstFrame) {
       _sawNativeFrameResetForPreview = true;
+    }
+    if (shouldResetNativePreviewForFrameLoss(
+      previewIdentity: widget.previewIdentity,
+      hasRenderedFirstFrame: widget.controller.hasRenderedFirstFrame,
+      hasPresentedNativeFrameForPreview: _hasPresentedNativeFrameForPreview,
+    )) {
+      _awaitingNativeFrameResetForPreview = true;
+      _sawNativeFrameResetForPreview = true;
+      _hasPresentedNativeFrameForPreview = false;
+      shouldNotify = true;
     }
 
     final canPresentNativeFrame = hasNativeFrameNow &&

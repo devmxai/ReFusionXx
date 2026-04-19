@@ -3,15 +3,39 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-// ignore: implementation_imports
-import 'package:flutter/src/rendering/platform_view.dart'
-    show PlatformViewHitTestBehavior;
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../core/engine/live_scrub_preview_sources.dart';
 import '../../../../core/engine/stage5_native_transport_controller.dart';
 import '../models/timeline_time.dart';
 import 'timeline_panel.dart' show TimelineScrubViewportRegion;
+
+@visibleForTesting
+PlatformViewHitTestBehavior resolveNativeTimelineScrubHitTestBehavior(
+  bool hasInteractiveRegions,
+) {
+  if (!hasInteractiveRegions) {
+    return PlatformViewHitTestBehavior.transparent;
+  }
+  // A Flutter hit-test gate filters the view to configured scrub regions before
+  // AndroidView participates, so opaque is safe and keeps scrub ownership firm.
+  return PlatformViewHitTestBehavior.opaque;
+}
+
+@visibleForTesting
+bool timelineScrubRegionsContainPoint(
+  List<TimelineScrubViewportRegion> regions,
+  Offset position,
+) {
+  return regions.any(
+    (region) =>
+        position.dx >= region.left &&
+        position.dx <= region.left + region.width &&
+        position.dy >= region.top &&
+        position.dy <= region.top + region.height,
+  );
+}
 
 class NativeTimelineScrubSurface extends StatefulWidget {
   const NativeTimelineScrubSurface({
@@ -58,7 +82,8 @@ class NativeTimelineScrubSurface extends StatefulWidget {
       _NativeTimelineScrubSurfaceState();
 }
 
-class _NativeTimelineScrubSurfaceState extends State<NativeTimelineScrubSurface> {
+class _NativeTimelineScrubSurfaceState
+    extends State<NativeTimelineScrubSurface> {
   MethodChannel? _channel;
   int? _viewId;
   bool _isScrubSessionActive = false;
@@ -174,7 +199,8 @@ class _NativeTimelineScrubSurfaceState extends State<NativeTimelineScrubSurface>
     final positionMs = switch (arguments?['positionMs']) {
       int value => value,
       double value => value.round(),
-      _ => widget.currentTime.inMilliseconds + widget.timelineOffsetTime.inMilliseconds,
+      _ => widget.currentTime.inMilliseconds +
+          widget.timelineOffsetTime.inMilliseconds,
     };
     final localPositionMs =
         positionMs - widget.timelineOffsetTime.inMilliseconds;
@@ -230,8 +256,7 @@ class _NativeTimelineScrubSurfaceState extends State<NativeTimelineScrubSurface>
     await channel.invokeMethod<void>(
       'updateConfig',
       <String, Object?>{
-        'currentPositionMs':
-            effectiveCurrentTime.inMilliseconds +
+        'currentPositionMs': effectiveCurrentTime.inMilliseconds +
             widget.timelineOffsetTime.inMilliseconds,
         'timelineDurationMs': widget.timelineDurationTime.inMilliseconds,
         'timelineOffsetMs': widget.timelineOffsetTime.inMilliseconds,
@@ -286,15 +311,16 @@ class _NativeTimelineScrubSurfaceState extends State<NativeTimelineScrubSurface>
     }
     final effectiveCurrentTime = _effectiveCurrentTime();
     final resolvedTargetWidth = _resolvedTargetWidth(context);
-    final resolvedTargetHeight = _resolvedTargetHeight(context, resolvedTargetWidth);
+    final resolvedTargetHeight =
+        _resolvedTargetHeight(context, resolvedTargetWidth);
     final hasInteractiveRegions = widget.regions.isNotEmpty;
-    return IgnorePointer(
-      ignoring: !hasInteractiveRegions || !widget.interactionEnabled,
+    return _TimelineScrubRegionHitTestGate(
+      enabled: hasInteractiveRegions && widget.interactionEnabled,
+      regions: widget.regions,
       child: AndroidView(
         viewType: Stage5NativeTransportController.timelineScrubViewType,
         creationParams: <String, Object?>{
-          'currentPositionMs':
-              effectiveCurrentTime.inMilliseconds +
+          'currentPositionMs': effectiveCurrentTime.inMilliseconds +
               widget.timelineOffsetTime.inMilliseconds,
           'timelineDurationMs': widget.timelineDurationTime.inMilliseconds,
           'timelineOffsetMs': widget.timelineOffsetTime.inMilliseconds,
@@ -311,9 +337,8 @@ class _NativeTimelineScrubSurfaceState extends State<NativeTimelineScrubSurface>
         },
         creationParamsCodec: const StandardMessageCodec(),
         onPlatformViewCreated: _handlePlatformViewCreated,
-        hitTestBehavior: hasInteractiveRegions
-            ? PlatformViewHitTestBehavior.opaque
-            : PlatformViewHitTestBehavior.transparent,
+        hitTestBehavior:
+            resolveNativeTimelineScrubHitTestBehavior(hasInteractiveRegions),
       ),
     );
   }
@@ -339,9 +364,7 @@ class _NativeTimelineScrubSurfaceState extends State<NativeTimelineScrubSurface>
     final mediaQuery = MediaQuery.maybeOf(context);
     final logicalWidth = mediaQuery?.size.width ?? 360;
     final devicePixelRatio = mediaQuery?.devicePixelRatio ?? 2.0;
-    return (logicalWidth * devicePixelRatio)
-        .round()
-        .clamp(540, 720);
+    return (logicalWidth * devicePixelRatio).round().clamp(540, 720);
   }
 
   int _resolvedTargetHeight(
@@ -352,12 +375,75 @@ class _NativeTimelineScrubSurfaceState extends State<NativeTimelineScrubSurface>
       return widget.targetHeight;
     }
     final mediaQuery = MediaQuery.maybeOf(context);
-    final aspectRatio =
-        mediaQuery == null || mediaQuery.size.width <= 0
-            ? (16 / 9)
-            : (mediaQuery.size.height / mediaQuery.size.width);
-    return (targetWidth * aspectRatio)
-        .round()
-        .clamp(960, 1280);
+    final aspectRatio = mediaQuery == null || mediaQuery.size.width <= 0
+        ? (16 / 9)
+        : (mediaQuery.size.height / mediaQuery.size.width);
+    return (targetWidth * aspectRatio).round().clamp(960, 1280);
+  }
+}
+
+class _TimelineScrubRegionHitTestGate extends SingleChildRenderObjectWidget {
+  const _TimelineScrubRegionHitTestGate({
+    required this.enabled,
+    required this.regions,
+    required super.child,
+  });
+
+  final bool enabled;
+  final List<TimelineScrubViewportRegion> regions;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) {
+    return _RenderTimelineScrubRegionHitTestGate(
+      enabled: enabled,
+      regions: regions,
+    );
+  }
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    covariant _RenderTimelineScrubRegionHitTestGate renderObject,
+  ) {
+    renderObject
+      ..enabled = enabled
+      ..regions = regions;
+  }
+}
+
+class _RenderTimelineScrubRegionHitTestGate extends RenderProxyBox {
+  _RenderTimelineScrubRegionHitTestGate({
+    required bool enabled,
+    required List<TimelineScrubViewportRegion> regions,
+  })  : _enabled = enabled,
+        _regions = regions;
+
+  bool _enabled;
+  List<TimelineScrubViewportRegion> _regions;
+
+  bool get enabled => _enabled;
+  set enabled(bool value) {
+    if (_enabled == value) {
+      return;
+    }
+    _enabled = value;
+    markNeedsPaint();
+  }
+
+  List<TimelineScrubViewportRegion> get regions => _regions;
+  set regions(List<TimelineScrubViewportRegion> value) {
+    if (listEquals(_regions, value)) {
+      return;
+    }
+    _regions = value;
+    markNeedsPaint();
+  }
+
+  @override
+  bool hitTest(BoxHitTestResult result, {required Offset position}) {
+    if (!_enabled || !timelineScrubRegionsContainPoint(_regions, position)) {
+      return false;
+    }
+    return super.hitTest(result, position: position);
   }
 }

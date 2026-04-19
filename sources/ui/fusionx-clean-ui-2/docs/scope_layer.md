@@ -1,5 +1,91 @@
 # Scope Layer
 
+## 0. Binding Directives
+
+هذه الوثيقة هي المرجع التنفيذي الملزم لمسار `Scope Layer` ومسار
+`animation authoring foundation` المرتبط به.
+
+### 0.1 Protected Live Scrub Rule
+
+مسار `live scrub` الحالي في `root timeline` مسار حساس ومحمي بدرجة عالية.
+
+هذا لا يعني أنه "ممنوع مطلقًا" في جميع الظروف.
+
+المعنى الصحيح هو:
+
+- لا يجوز المساس به بشكل عابر أو غير مقصود
+- لا يجوز إدخال تغييرات عليه دون إعلانها صراحة
+- لا يجوز تمرير تعديل عليه كأثر جانبي مخفي
+- وإذا ظهر أن الوصول إلى نتيجة احترافية يتطلب تعديلًا حقيقيًا في هذا المسار،
+  فيجب رفع ذلك للمستخدم أولًا بوضوح قبل التنفيذ
+
+القواعد غير القابلة للتفاوض:
+
+- لا يجوز لأي مرحلة في هذه الخطة تعديل `active live scrub path` بشكل مخفي
+  أو غير معلن
+- لا يجوز تعديل `native scrub ownership` كأثر جانبي غير مقصود
+- لا يجوز تعديل `scrub render surface routing` بلا قرار صريح ومعلن
+- لا يجوز تعديل `root background scrub gesture hot path` دون رفع الأمر
+  للمستخدم أولًا
+- لا يجوز تعديل `transport settle handoff` كجزء جانبي من هذا المسار
+- لا يجوز بناء `scope-specific scrub path`
+- لا يجوز عمل `fallback` جديد يمر عبر scrub path مختلف دون موافقة صريحة
+
+الأجزاء المحمية تشمل على الأقل:
+
+- `Stage5TimelineScrubPlatformView`
+- `Stage5NativeScrubEngine`
+- `Stage5SurfaceScrubDecoder`
+- `Stage5ScrubOverlayTextureView`
+- `Stage5PreviewPlatformView`
+- أي wiring مباشر يخص `native_timeline_scrub_surface.dart`
+
+هذه القائمة ليست حصرًا كاملاً. القاعدة الأهم هي حماية السلوك، لا الاسم فقط.
+
+### 0.2 Approval Gate For Any Live Scrub Change
+
+إذا ظهر أثناء التنفيذ أن هناك نقطة لا يمكن حلها دون تعديل متعلق بـ
+`live scrub`:
+
+1. يتوقف التنفيذ في هذه النقطة
+2. يتم توثيق السبب بدقة
+3. يتم تحديد الملفات أو المسارات المتأثرة بدقة
+4. يتم اقتراح أصغر تعديل ممكن
+5. لا يتم تنفيذ أي تعديل قبل موافقة المستخدم الصريحة
+
+ممنوع تمامًا:
+
+- تمرير تعديل على `live scrub` بشكل جانبي
+- إجبار تغيير على المسار المحمي بحجة أنه "ضروري"
+- إلغاء سلوك scrub الحالي أو إضعافه قسرًا
+
+ومسموح فقط بالصيغة التالية:
+
+- تحديد التعديل المطلوب بدقة
+- شرح لماذا هو مسار إجباري للوصول إلى الجودة المطلوبة
+- شرح المخاطر المحتملة
+- تنفيذ التعديل بعد موافقة المستخدم
+- مراقبة هذا المسار مباشرة أثناء التنفيذ والاختبار
+
+### 0.3 Execution Priority Rule
+
+الأولوية الصحيحة ليست بناء `Scope Layer` كامل شكليًا أولاً، وليست إعادة
+كتابة محرك الأنيميشن كله أولاً.
+
+الأولوية الصحيحة هي:
+
+1. بناء `animation authoring foundation` صغيرة ومباشرة
+2. ثم بناء `Scope Layer shell` فوق نفس التايملاين الحالي
+3. ثم تنفيذ `Text Scope` كأول `vertical slice`
+
+السبب:
+
+- التايملاين الحالي قوي وحساس جدًا في `live scrub`
+- نظام الأنيميشن الحالي يملك foundation حقيقية لكنه لا يملك بعد
+  `manual keyframe authoring bridge`
+- بناء `Scope` قبل هذا الجسر سيعطي timeline داخليًا شكليًا بدون authoring
+  حقيقي
+
 ## 1. الهدف
 
 هذه الوثيقة تضع خطة احترافية لبناء ميزة `Scope Layer` داخل مشروع `fusionx-clean-ui-2`.
@@ -35,6 +121,18 @@
   - `local tools`
   - `local animation/effect lanes`
 - التعديلات داخل هذا النطاق يجب أن تعود بشكل منظم إلى العنصر الأصلي في الـ `root timeline`
+
+قاعدة أساسية يجب تثبيتها منذ البداية:
+
+- `Scope Layer` ليس timeline ثانيًا مستقلًا
+- `Scope Layer` هو `projection / mode` فوق نفس نظام التايملاين الأساسي
+- لا يجوز بناء `scope timeline` من الصفر أو عمل fork جديد للـ timeline engine
+- الهدف هو الاحتفاظ بنفس جودة:
+  - `live scrub`
+  - `gesture routing`
+  - `zoom`
+  - `playhead`
+  - `visual style`
 
 ## 3. الحالة الحالية المؤكدة من الكود
 
@@ -163,6 +261,28 @@
 
 `PreviewStage` يدعم `overlay` widget، وهذا ليس كافيًا وحده، لكنه إشارة جيدة إلى أن واجهة المعاينة قابلة مستقبلًا لاستيعاب `scope-specific overlays`.
 
+### 4.6 Main Timeline Reuse Mandate
+
+أهم ملاحظة عملية من التجارب السابقة هي:
+
+- عندما تم فتح scope عبر timeline مبني من جديد، ظهرت مشاكل مباشرة في:
+  - `live scrub`
+  - بعض gestures
+  - ثبات السلوك
+  - تطابق الشكل والأسلوب
+- لذلك فإن `Scope Layer` يجب أن يعيد استخدام:
+  - نفس `timeline core`
+  - نفس `timeline widgets`
+  - نفس `live scrub path`
+  - نفس `interaction system`
+- الذي يتغير فقط هو:
+  - `active scope`
+  - `data projection`
+  - `visible rows / lanes`
+  - `toolbar toolset`
+
+هذه ليست توصية اختيارية، بل قاعدة معمارية مانعة لإعادة بناء التايملاين من الصفر داخل scope.
+
 ## 5. الفجوات المعمارية التي تمنع Scope Layer اليوم
 
 هذه هي الفجوات الجوهرية التي تمنع بناء الميزة مباشرة على الوضع الحالي.
@@ -240,19 +360,31 @@
 - `audio layer payload`
 - `transition payload`
 
-### 5.5 لا يوجد animation/effects system
+### 5.5 يوجد motion foundation جزئي لكنه غير مكتمل authoring
 
-لا يوجد اليوم مكان في الموديل لوضع:
+المشروع الحالي لا يساوي "zero animation system".
 
-- `keyframes`
-- `animated properties`
-- `easing`
-- `effect stack`
-- `effect parameters`
-- `opacity/transform/blend`
-- `audio gain/fades`
+الموجود فعليًا:
 
-وبالتالي لا يمكن أن يكون الـ `Scope` اليوم أكثر من شاشة شكلية فقط.
+- `MotionPropertyChannelModel`
+- `MotionKeyframeModel`
+- `MotionPropertyCatalog`
+- `MotionNormalizedComposition`
+- `BasicMotionRuntimeEvaluator`
+- `MotionTextAnimationBindingModel`
+- `MotionEffectBindingModel`
+
+لكن الناقص حاليًا هو ما يهم هذا المسار:
+
+- لا يوجد `manual keyframe authoring bridge` من الكانفا إلى القنوات
+- لا توجد `general scope lanes` حقيقية لكل الأنواع
+- لا يوجد `typed modifier lane model` يفصل بوضوح بين `Animate` و`FX`
+- لا يوجد `nested scope graph`
+- لا يوجد `general purpose layer authoring flow` يربط الكانفا والتايملاين
+  والـ keyframes في حلقة واحدة
+
+وبالتالي لا يجوز بناء `Scope Layer` الآن على افتراض أن محرك الأنيميشن
+مكتمل، ولا يجوز أيضًا تجاهل الـ foundation الموجودة بالفعل.
 
 ### 5.6 لا يوجد nested editor state
 
@@ -380,7 +512,145 @@
 - `Project / Video Layer / FX`
 - `Project / Transition`
 
+## 7.4 Visual Continuity Rule
+
+عند الدخول إلى `Scope Mode` لا يجب أن يشعر المستخدم أنه دخل إلى timeline مختلف.
+
+القواعد غير القابلة للتغيير:
+
+- شكل التايملاين لا يتغير نهائيًا
+- نفس:
+  - `ruler`
+  - `playhead`
+  - `live scrub`
+  - `zoom behavior`
+  - `spacing`
+  - `timeline style`
+  - `gesture feel`
+- لا يتم فتح timeline جديد مختلف بصريًا
+- لا يتم إعادة بناء واجهة timeline ثانية من الصفر
+
+الذي يتغير فقط:
+
+- المحتوى المعروض داخل النطاق
+- الطبقة المالكة المعروضة داخل scope
+- الـ rows أو lanes التابعة لهذا النوع
+- شريط الأدوات العلوي الخاص بالـ scope
+
+## 7.5 Scope Toolbar Contract
+
+عند الدخول إلى `Scope Mode`، التغيير الأساسي المرئي للمستخدم يجب أن يكون في `top toolbar` لا في شكل التايملاين نفسه.
+
+الترتيب الأساسي المطلوب لأدوات الـ scope:
+
+1. `Back`
+2. `Split`
+3. `Trim`
+4. `Duplicate`
+5. أدوات تحرير دقيقة حسب النوع
+
+قواعد هذا الشريط:
+
+- `Back` يحل محل أول أداة في root mode
+- `Delete` لا يظهر داخل `Scope Mode` كأداة رئيسية
+- بعد الأدوات الأساسية تأتي الأدوات الدقيقة المرتبطة بالنوع أو بالمحتوى الداخلي
+- الأدوات المتقدمة يجب أن تكون `typed` بحسب نوع الطبقة
+
+أمثلة على الأدوات الدقيقة:
+
+- `Keyframe`
+- `FX`
+- `Transform`
+- `Opacity`
+- `Text Style`
+- `Gain`
+- `Fade`
+- `Transition Params`
+
+أمثلة typed:
+
+- `Text Scope`
+  - `Back`
+  - `Split`
+  - `Trim`
+  - `Duplicate`
+  - `Keyframe`
+  - `Text Style`
+  - `Transform`
+  - `FX`
+- `Image Scope`
+  - `Back`
+  - `Split`
+  - `Trim`
+  - `Duplicate`
+  - `Keyframe`
+  - `Transform`
+  - `Opacity`
+  - `FX`
+- `Audio Scope`
+  - `Back`
+  - `Split`
+  - `Trim`
+  - `Duplicate`
+  - `Keyframe`
+  - `Gain`
+  - `Fade`
+  - `Audio FX`
+- `Transition Scope`
+  - `Back`
+  - `Duration`
+  - `Curve`
+  - `Direction`
+  - `Transition Params`
+
+## 7.6 Scope Content Rule
+
+عند فتح scope:
+
+- لا نعرض المشروع كله
+- لا نعرض timeline آخر مستقل
+- نعرض فقط:
+  - `owner layer`
+  - وما يتبعه من lanes أو rows مرتبطة به
+
+هذا يحافظ على تركيز المستخدم ويمنع تحول scope إلى نسخة ثانية من root timeline.
+
 ## 8. المعمارية المقترحة
+
+## 8.0 Non-Negotiable Architecture Rule
+
+`Scope Layer` يجب أن يعيد استخدام `primary timeline engine`.
+
+هذا يعني:
+
+- نفس محرك التايملاين الأساسي
+- نفس مسار `live scrub`
+- نفس gesture routing
+- نفس rendering core
+- نفس visual timeline system
+
+وما لا يجب فعله:
+
+- عدم بناء `ScopeTimelineScreen` بنسخة timeline منفصلة
+- عدم عمل fork مستقل لـ `TimelinePanel`
+- عدم بناء scrub manager جديد خاص بالـ scope
+- عدم بناء playback path ثانٍ
+- عدم نسخ timeline interactions إلى implementation أخرى
+- عدم إدخال أي تعديل على `live scrub` path المحمي ضمن هذا المسار بدون
+  موافقة صريحة ومعلنة
+
+التركيب الصحيح هو:
+
+- `Timeline Core`
+- `Timeline Projection`
+- `Scope Controller`
+
+بمعنى:
+
+- `Scope` = نفس timeline
+- لكن مع `different projection`
+- و`different toolbar profile`
+- و`different visible rows`
 
 ## 8.1 طبقة هوية جديدة
 
@@ -519,148 +789,222 @@ class EffectParameter {}
 
 ## 9. خطة التنفيذ بالترتيب الصارم
 
-هذه هي الخطة المهنية المقترحة، بالترتيب الذي يقلل الهدر ويمنع بناء UI فوق أساس غير جاهز.
+هذه هي الخطة المهنية المقترحة بعد تثبيت حقيقة الكود الحالي:
 
-### Phase 1: Identity + Timeline Primitives
+- يوجد `motion foundation` حقيقية
+- لا يوجد بعد `manual keyframe authoring bridge`
+- `Scope Layer` يجب أن يبنى فوق نفس التايملاين الحالي
+- `live scrub` مسار محمي لا يُمس
 
-الهدف:
-
-- تحويل الموديل من `flat mock clips` إلى model يملك هوية وزمنًا واضحين
-
-التسليمات:
-
-- `trackId`
-- `layerId`
-- `timelineId`
-- `scopeId`
-- `TimelineSpan`
-- `LayerPayload` base
-
-لا نبني `Scope UI` كامل هنا.
-هذه مرحلة foundation فقط.
-
-### Phase 2: Scope Graph + Editor Store
+### Phase 0: Freeze + Guardrails
 
 الهدف:
 
-- إنشاء `root scope` و`child scope` كنظام state حقيقي
+- تثبيت حدود التنفيذ قبل أي تغيير
 
 التسليمات:
 
-- `ScopeNode`
+- توثيق `protected live scrub rule`
+- توثيق `approval gate` لأي تغيير محتمل في scrub path
+- تعريف `protected behaviors` التي لا يجوز كسرها
+- قائمة تحقق regression إلزامية لـ:
+  - `root live scrub`
+  - `background scrub`
+  - `zoom`
+  - `selection`
+  - `playhead continuity`
+
+هذه المرحلة لا تغيّر سلوك التطبيق.
+هي مرحلة منع انحراف المسار.
+
+### Phase 1: Text Animation Authoring Foundation
+
+الهدف:
+
+- إنشاء الجسر الحقيقي بين:
+  - `timeline time`
+  - `canvas transform edits`
+  - `MotionPropertyChannelModel`
+  - `keyframes`
+
+التسليمات:
+
+- `text element motion authoring service`
+- `positionX/positionY` authoring عند الزمن الحالي
+- `scaleX/scaleY` authoring عند الزمن الحالي
+- `rotationDegrees` authoring عند الزمن الحالي
+- `opacity` authoring عند الزمن الحالي
+- سياسة واضحة:
+  - متى نعدّل `static property`
+  - ومتى ننشئ أو نحدّث `channel keyframe`
+- `minimal identity/span primitives` اللازمة لهذا الجسر فقط
+
+هذه المرحلة لا تبني `Scope UI` بعد.
+الهدف هو أن يصبح للأنيميشن مسار تحرير حقيقي، لا مجرد preview أو preset path.
+
+ملاحظة تنفيذ صارمة وملزمة:
+
+- لا يجوز اعتبار هذه المرحلة مكتملة إذا بقيت canvas transform edits تكتب فقط
+  إلى `static properties`
+- لا يجوز ترك `move / scale / rotate / opacity` في حالة نصف مرتبطة بين
+  static وchannels
+- لا يجوز بناء UI جديد فوق هذه المرحلة قبل أن تعمل القنوات اليدوية في:
+  - preview
+  - timeline time evaluation
+  - export composition path
+  - delete/duplicate/trim lifecycle
+- يجب أن يكون أي نقص متبقٍ مكتوبًا كـ blocker صريح، لا كملاحظة مؤجلة
+  عائمة
+
+### Phase 2: Modifier Taxonomy + Lane Contract
+
+الهدف:
+
+- تثبيت الفصل الرسمي بين `Animate` و`FX`
+- وتعريف model واضح لـ `modifier lanes`
+
+التسليمات:
+
+- taxonomy رسمي:
+  - ما الذي يعد `Animate`
+  - ما الذي يعد `FX`
+- `modifier domain = animate | fx`
+- lane contract موحد للعرض والتحرير
+- slot contract للأزرار الجانبية على التراك
+- capability gating واضح حسب النوع
+
+هذه المرحلة تمنع تكرار الخطأ السابق حيث تختلط `Animate` و`FX`
+أو يتم تمثيلها كـ lane واحدة شكلية.
+
+### Phase 3: Scope Session + Projection Shell
+
+الهدف:
+
+- بناء `Scope Layer` كـ `projection / mode` فوق نفس `TimelinePanel`
+
+التسليمات:
+
+- `ScopeSession`
 - `ScopeStack`
-- `EditorStore`
-- `enterScope()`
-- `exitScope()`
+- `enterScope() / exitScope()`
 - `scope-local selection`
-- `scope-local playhead`
+- `scope-local toolbar profile`
+- `timeline projection`
+- `breadcrumb/back path`
+- `Open Scope`
+- `double tap entry`
 
-### Phase 3: Scope Entry Shell
+شروط هذه المرحلة:
 
-الهدف:
+- لا يوجد fork جديد للتايملاين
+- لا يوجد timeline جديد مستقل
+- لا يوجد scrub path جديد
+- لا يوجد تغيير في شكل التايملاين
+- لا يوجد تغيير في root live scrub behavior
 
-- بناء shell مرئي يسمح بالدخول والخروج من النطاقات بدون animation/effects متقدمة بعد
-
-التسليمات:
-
-- `double tap` entry
-- `Open Scope` action
-- `breadcrumb header`
-- `scoped timeline viewport`
-- `return to root`
-
-في هذه المرحلة يكفي أن نثبت:
-
-- التنقل
-- state ownership
-- selection correctness
-- playhead correctness
-
-### Phase 4: Text Scope First
+### Phase 4: Text Scope First Vertical Slice
 
 الهدف:
 
-- جعل أول `Scope` حقيقي هو `Text Scope`
-
-السبب:
-
-- هو أوضح حالة استخدام عند المستخدم
-- أقل تعقيدًا من `video scope`
-- يثبت architecture بدون تعقيد media engine
+- تقديم أول `Scope` احترافي حقيقي على `Text`
 
 التسليمات:
 
-- `TextLayerPayload`
-- `Text Scope timeline`
-- `Text Animation lane`
-- `Text FX placeholder stack`
-- `Text transform/opacity animation`
+- `Text Scope` على نفس التايملاين
+- lanes حقيقية لـ:
+  - `Position`
+  - `Scale`
+  - `Rotation`
+  - `Opacity`
+- `Animate` entry مستقل
+- `FX` entry مستقل
+- أدوات `scope toolbar` الخاصة بالنص
+- ربط الكانفا والتايملاين على نفس source of truth
 
-### Phase 5: Image Overlay Scope
+هذه المرحلة هي أول نقطة يجب أن نستطيع فيها القول:
+
+- التعديل من الكانفا يكتب keyframes
+- التعديل من lane ينعكس على الكانفا
+- scrub يعكس النتيجة بشكل موحد
+
+### Phase 5: FX Parameter Foundation
 
 الهدف:
 
-- إضافة `overlay-style scoped editing`
+- جعل `FX` أكثر من binding ثابت
 
 التسليمات:
 
-- `ImageLayerPayload`
+- `fx parameter channel model`
+- `FX lane rows`
+- parameter timelines
+- keyframe-capable FX parameters عند الحاجة
+- bottom sheet منفصل لـ `FX`
+
+### Phase 6: Image Scope
+
+الهدف:
+
+- تعميم النموذج على `Image Overlay`
+
+التسليمات:
+
 - transform
 - opacity
-- entry/exit animations
+- animate lanes
+- fx lanes
 - overlay-specific controls
 
-### Phase 6: Video Scope
+### Phase 7: Video Scope
 
 الهدف:
 
-- توسيع النظام ليخدم `video layer` بنطاق خاص به
+- تعميم النموذج على `Video`
 
 التسليمات:
 
-- `VideoLayerPayload`
-- `video-local effect stack`
-- transform/opacity animation
-- foundation لطبقات مستقبلية مثل masking
+- video transform/opacity authoring
+- animate lanes
+- fx lanes
+- hooks لخصائص أكثر تعقيدًا لاحقًا
 
-### Phase 7: Audio Scope
+### Phase 8: Audio Scope
 
 الهدف:
 
-- بناء طبقة `audio-local editing`
+- إدخال `Audio Scope` على model واضح
 
 التسليمات:
 
-- `AudioLayerPayload`
-- gain/fade primitives
-- audio effect hooks
+- gain lane
+- fade lane
+- audio modifier foundation
 
-### Phase 8: Transition Scope
+### Phase 9: Transition Scope
 
 الهدف:
 
-- تحويل `split bridge` أو seam visual إلى `transition entity` قابل للتحرير
+- ترقية الانتقال إلى كيان قابل للتحرير داخل scope
 
 التسليمات:
 
-- `TransitionLayerPayload`
-- transition node identity
-- transition scope entry
-- transition parameters
+- `transition entity`
+- `transition scope`
+- duration/curve/parameter editing
 
-### Phase 9: History + Persistence
+### Phase 10: History + Persistence
 
 الهدف:
 
-- جعل النظام قابلاً للاستمرار والرجوع
+- تثبيت النظام للاستخدام الطويل
 
 التسليمات:
 
 - command history حقيقي
-- `undo/redo`
+- `undo/redo` متكامل عبر scope
 - serialization
 - reopen scope safely
-- round-trip parent/child integrity
+- round-trip integrity
 
 ## 10. لماذا Text Scope أولاً
 
@@ -671,6 +1015,8 @@ class EffectParameter {}
 - لا يعتمد على video engine معقد
 - يثبت `scope entry/exit` و`child timeline` بسرعة
 - إذا نجح النص، يصبح تعميم الفكرة على `image/video/audio` أوضح بكثير
+- النص هو أيضًا أقصر طريق لاختبار `manual keyframe authoring bridge`
+  قبل التوسع إلى باقي الأنواع
 
 ## 11. ما الذي لا يجب فعله في البداية
 
@@ -679,8 +1025,10 @@ class EffectParameter {}
 - عدم بناء `full FX library` قبل تأسيس الموديل
 - عدم بناء `complex transition catalog` قبل وجود `transition entity`
 - عدم ربط كل أنواع الطبقات دفعة واحدة
-- عدم بناء `real export/runtime engine` قبل استقرار editor model
+- عدم بناء `Scope UI` كامل قبل وجود `authoring bridge` حقيقي للـ keyframes
 - عدم إدخال `undo/redo` الشامل قبل وجود operation layer واضحة
+- عدم المساس بمسار `live scrub` المحمي بشكل غير معلن أو جانبي ضمن هذا
+  المسار
 
 ## 12. الملفات المرشحة للتأثر لاحقًا
 
@@ -694,6 +1042,7 @@ class EffectParameter {}
 - `lib/features/editor/presentation/widgets/editor_top_bar.dart`
 - `lib/features/editor/presentation/widgets/preview_stage.dart`
 - `lib/features/editor/presentation/models/timeline_mock_models.dart`
+- `lib/features/editor/domain/models/professional_motion_*.dart`
 
 ### ملفات جديدة متوقعة
 
@@ -701,27 +1050,41 @@ class EffectParameter {}
 - `lib/features/editor/domain/scope/...`
 - `lib/features/editor/application/...`
 - `lib/features/editor/presentation/widgets/scope/...`
-- `lib/features/editor/presentation/screens/scope_layer_screen.dart`
+
+### ملفات ومسارات محمية لا تدخل ضمن التنفيذ بدون موافقة صريحة
+
+- أي جزء من `Stage5` live scrub path
+- أي ربط native خاص بـ `scrub surface`
+- أي wiring يغير ملكية `active scrub rendering`
+- أي مسار يغير `root live scrub` behavior
 
 ## 13. Definition of Done للنسخة الأولى من Scope Layer
 
 نعتبر أول نسخة احترافية ناجحة عندما يتحقق الآتي:
 
 1. يمكن تحديد `Text Layer` ثم الدخول إليه عبر `double tap` أو `Open Scope`.
-2. يظهر `child timeline` حقيقي وليس مجرد sheet أو dialog.
+2. يظهر `scoped timeline projection` حقيقي وليس sheet أو dialog ولا timeline منفصلًا.
 3. يوجد `breadcrumb/back path` واضح.
 4. يوجد `scope-local selection` و`scope-local playhead`.
-5. يمكن إضافة `text animation/effect primitives` داخل النطاق.
-6. عند الرجوع إلى الـ `root timeline` يبقى العنصر نفسه في مكانه مع التعديلات المرتبطة به.
-7. لا ينكسر `root timeline` interaction أثناء الدخول والخروج من النطاق.
+5. يمكن تعديل `Position / Scale / Rotation / Opacity` كـ keyframes حقيقية داخل `Text Scope`.
+6. يوجد فصل واضح بين `Animate` و`FX`.
+7. عند الرجوع إلى الـ `root timeline` يبقى العنصر نفسه في مكانه مع التعديلات المرتبطة به.
+8. لا ينكسر `root timeline` interaction أثناء الدخول والخروج من النطاق.
+9. لا يحدث أي تراجع في `root live scrub`.
 
 ## 14. القرار التنفيذي المقترح الآن
 
 القرار الصحيح التالي ليس البدء مباشرة في UI التفصيلي، بل تنفيذ هذا التسلسل:
 
-1. تأسيس `Identity + Span + Scope Graph`
-2. بناء `EditorStore / ScopeController`
-3. بناء `Scope Entry Shell`
-4. تنفيذ `Text Scope` كأول vertical slice
+1. تثبيت `Freeze + Guardrails`
+2. بناء `Text Animation Authoring Foundation`
+3. بناء `Modifier Taxonomy + Lane Contract`
+4. بناء `Scope Session + Projection Shell`
+5. تنفيذ `Text Scope` كأول `vertical slice`
 
-هذا هو المسار الأكثر احترافية وأقل مخاطرة لبناء `Scope Layer` داخل هذا المشروع الحالي.
+هذا هو المسار الأكثر احترافية وأقل مخاطرة داخل هذا المشروع الحالي لأنه:
+
+- يحترم حساسية `live scrub`
+- لا يبني `Scope` شكليًا قبل وجود authoring حقيقي
+- يستثمر الـ motion foundation الموجودة بدل تجاهلها
+- يقدّم أسرع vertical slice احترافي يمكن الوثوق به

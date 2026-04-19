@@ -71,12 +71,16 @@ class Stage5PreviewPlatformView(
             alpha = 0f
             setAspectRatioListener { contentAspectRatio, _, aspectRatioMismatch ->
                 val sized = contentAspectRatio > 0f && !aspectRatioMismatch
-                if (sized == isPlayerContentSized) {
-                    return@setAspectRatioListener
-                }
+                val changed = sized != isPlayerContentSized
                 isPlayerContentSized = sized
+                // The transport resets its presentation state during same-player
+                // timeline rebuilds. Re-emit even when the PlayerView-local value
+                // did not change, otherwise Flutter can keep covering valid video
+                // with the fallback while audio is already playing.
                 stage5TransportManager.setPreviewContentSized(sized)
-                syncPlayerVisibility()
+                if (changed) {
+                    syncPlayerVisibility()
+                }
             }
             latestPlayer = stage5TransportManager.player
             player = latestPlayer

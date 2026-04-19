@@ -232,6 +232,9 @@ class Stage5TransportManager(context: Context) {
 
             override fun onRenderedFirstFrame() {
                 hasRenderedFirstFrame = true
+                if (videoWidth > 0 && videoHeight > 0) {
+                    isPreviewContentSized = true
+                }
                 if (isScrubSettling) {
                     scrubSettleRenderedFirstFrameSeen = true
                     maybeFinishScrubSettle()

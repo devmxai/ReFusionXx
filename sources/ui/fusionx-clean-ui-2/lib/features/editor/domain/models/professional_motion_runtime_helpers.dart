@@ -105,8 +105,8 @@ class BasicMotionCompositionCompiler implements MotionCompositionCompiler {
           binding.elementTarget.targetId: binding.activeRange,
     };
     final allPropertyChannels = <MotionPropertyChannelModel>[
-      ...request.propertyChannels,
       ...textPresetResult.generatedChannels,
+      ...request.propertyChannels,
     ];
 
     final projectTargetChannels = <MotionResolvedPropertyChannel>[];

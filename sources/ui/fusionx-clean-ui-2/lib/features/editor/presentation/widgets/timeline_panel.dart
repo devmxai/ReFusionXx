@@ -1931,16 +1931,16 @@ class _TimelinePanelState extends State<TimelinePanel>
       final pointerDownDx = _nativeScrubPointerDownDx;
       final pointerStartTime = _nativeScrubPointerStartTime;
       if (pointerDownDx != null && pointerStartTime != null) {
-        final secondsWidth = _secondsWidth.abs() < 0.0001 ? 0.0001 : _secondsWidth;
+        final secondsWidth =
+            _secondsWidth.abs() < 0.0001 ? 0.0001 : _secondsWidth;
         final deltaMs =
             (((event.position.dx - pointerDownDx) / secondsWidth) * 1000.0)
                 .round();
-        final nextTime = (pointerStartTime -
-                TimelineTime.fromMilliseconds(deltaMs))
-            .clamp(
-              TimelineTime.zero,
-              widget.timelineDurationTime,
-            );
+        final nextTime =
+            (pointerStartTime - TimelineTime.fromMilliseconds(deltaMs)).clamp(
+          TimelineTime.zero,
+          widget.timelineDurationTime,
+        );
         _isDrivingNativeScrubUiLocally = true;
         _scheduleNativeScrubUiUpdate(nextTime);
       }
@@ -2010,8 +2010,8 @@ class _TimelinePanelState extends State<TimelinePanel>
     if (_activePointers.length == 1) {
       final pointerId = _activePointers.first;
       _nativeScrubPointerId = pointerId;
-      _nativeScrubPointerDownDx =
-          _pointerDownPositions[pointerId]?.dx ?? _activePointerPositions[pointerId]?.dx;
+      _nativeScrubPointerDownDx = _pointerDownPositions[pointerId]?.dx ??
+          _activePointerPositions[pointerId]?.dx;
       _nativeScrubPointerStartTime = _displayTimeNotifier.value;
       _isDrivingNativeScrubUiLocally = _nativeScrubPointerDownDx != null;
     } else {
@@ -2347,16 +2347,6 @@ class _TimelinePanelState extends State<TimelinePanel>
     required double contentWidth,
     required double horizontalOffset,
   }) {
-    _addNativeScrubViewportRegion(
-      regions,
-      left: 0,
-      top: rowTop,
-      right: viewportWidth,
-      bottom: rowTop + rowHeight,
-      viewportWidth: viewportWidth,
-      viewportHeight: viewportHeight,
-    );
-
     final laneProfile = _TimelineTrackLaneProfile.forKind(track.kind);
     final controlHitSize =
         math.max(_controlTileSize, laneProfile.controlHitSize);
@@ -2393,6 +2383,16 @@ class _TimelinePanelState extends State<TimelinePanel>
       final previewLeft = previewClipId == clip.id && previewStartTime != null
           ? clipStart + (previewStartTime.inSecondsDouble * _secondsWidth)
           : trimGeometry.left;
+      final trimTouchInset =
+          showsTrimChrome ? _TimelineTrimChrome.handleTouchInset : 0.0;
+      if (!isGapPlaceholder) {
+        scrubExclusions.add(
+          _TimelineScrubExclusion(
+            left: trimGeometry.left - trimTouchInset,
+            right: trimGeometry.left + trimGeometry.width + trimTouchInset,
+          ),
+        );
+      }
       if (!isGapPlaceholder && clip.type == TimelineClipType.media) {
         clipGeometryById[clip.id] = _TimelineAnimationClipGeometry(
           left: previewLeft,
@@ -5728,8 +5728,7 @@ class _TimelineMediaClip extends StatelessWidget {
       onLongPressStart:
           onLongPressStart == null ? null : (_) => onLongPressStart!(),
       onLongPressMoveUpdate: onLongPressMoveUpdate,
-      onLongPressEnd:
-          onLongPressEnd == null ? null : (_) => onLongPressEnd!(),
+      onLongPressEnd: onLongPressEnd == null ? null : (_) => onLongPressEnd!(),
       child: SizedBox(
         width: width,
         height: height,
@@ -5737,130 +5736,130 @@ class _TimelineMediaClip extends StatelessWidget {
           clipBehavior: Clip.none,
           children: [
             AnimatedContainer(
-                duration: const Duration(milliseconds: 90),
-                decoration: BoxDecoration(
-                  color: baseColor,
-                  borderRadius: borderRadius,
-                  border: Border.all(
-                    color: clipBorderColor,
-                    width: clipBorderWidth,
-                  ),
-                  boxShadow: [
-                    if (isSelected)
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.22),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
+              duration: const Duration(milliseconds: 90),
+              decoration: BoxDecoration(
+                color: baseColor,
+                borderRadius: borderRadius,
+                border: Border.all(
+                  color: clipBorderColor,
+                  width: clipBorderWidth,
+                ),
+                boxShadow: [
+                  if (isSelected)
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.22),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  if (isSelected && !usesTrimChrome)
+                    BoxShadow(
+                      color: selectionAccent.withOpacity(0.2),
+                      blurRadius: 16,
+                      spreadRadius: 0.5,
+                    ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.horizontal(
+                  left: Radius.circular(joinLeft ? 2 : 5),
+                  right: Radius.circular(joinRight ? 2 : 5),
+                ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (hasVideoFrames)
+                      _TimelineVideoFilmstrip(
+                        path: assetPath!,
+                        isPlaying: isPlaying,
+                        width: width,
+                        height: height,
+                        sourceOffsetSeconds: sourceOffsetSeconds,
+                        durationSeconds: durationSeconds,
+                      )
+                    else if (hasImagePreview)
+                      _TimelineImageFill(path: assetPath!)
+                    else
+                      ColoredBox(color: accent),
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            selectionAccent.withOpacity(
+                              hasVideoFrames || hasImagePreview ? 0.16 : 0.12,
+                            ),
+                            Colors.transparent,
+                            Colors.black.withOpacity(
+                              hasVideoFrames || hasImagePreview ? 0.06 : 0.02,
+                            ),
+                          ],
+                          stops: const [0.0, 0.52, 1.0],
+                        ),
                       ),
+                    ),
+                    if (showsFallbackInterior)
+                      _TimelineFallbackClipInterior(
+                        width: width,
+                        icon: icon,
+                      ),
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.white.withOpacity(0.07),
+                            Colors.transparent,
+                            Colors.black.withOpacity(0.06),
+                          ],
+                        ),
+                      ),
+                    ),
                     if (isSelected && !usesTrimChrome)
-                      BoxShadow(
-                        color: selectionAccent.withOpacity(0.2),
-                        blurRadius: 16,
-                        spreadRadius: 0.5,
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: _TimelineSelectedPulse(
+                            borderRadius: borderRadius,
+                            accentColor: selectionAccent,
+                          ),
+                        ),
+                      ),
+                    if (showSpeedBadge)
+                      Positioned(
+                        left: 6,
+                        top: 6,
+                        child: IgnorePointer(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.56),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.08),
+                                width: 1,
+                              ),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 3,
+                              ),
+                              child: Text(
+                                speedLabel,
+                                style: const TextStyle(
+                                  color: FxPalette.textPrimary,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                   ],
                 ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.horizontal(
-                    left: Radius.circular(joinLeft ? 2 : 5),
-                    right: Radius.circular(joinRight ? 2 : 5),
-                  ),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      if (hasVideoFrames)
-                        _TimelineVideoFilmstrip(
-                          path: assetPath!,
-                          isPlaying: isPlaying,
-                          width: width,
-                          height: height,
-                          sourceOffsetSeconds: sourceOffsetSeconds,
-                          durationSeconds: durationSeconds,
-                        )
-                      else if (hasImagePreview)
-                        _TimelineImageFill(path: assetPath!)
-                      else
-                        ColoredBox(color: accent),
-                      DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              selectionAccent.withOpacity(
-                                hasVideoFrames || hasImagePreview ? 0.16 : 0.12,
-                              ),
-                              Colors.transparent,
-                              Colors.black.withOpacity(
-                                hasVideoFrames || hasImagePreview ? 0.06 : 0.02,
-                              ),
-                            ],
-                            stops: const [0.0, 0.52, 1.0],
-                          ),
-                        ),
-                      ),
-                      if (showsFallbackInterior)
-                        _TimelineFallbackClipInterior(
-                          width: width,
-                          icon: icon,
-                        ),
-                      DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              Colors.white.withOpacity(0.07),
-                              Colors.transparent,
-                              Colors.black.withOpacity(0.06),
-                            ],
-                          ),
-                        ),
-                      ),
-                      if (isSelected && !usesTrimChrome)
-                        Positioned.fill(
-                          child: IgnorePointer(
-                            child: _TimelineSelectedPulse(
-                              borderRadius: borderRadius,
-                              accentColor: selectionAccent,
-                            ),
-                          ),
-                        ),
-                      if (showSpeedBadge)
-                        Positioned(
-                          left: 6,
-                          top: 6,
-                          child: IgnorePointer(
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: Colors.black.withOpacity(0.56),
-                                borderRadius: BorderRadius.circular(999),
-                                border: Border.all(
-                                  color: Colors.white.withOpacity(0.08),
-                                  width: 1,
-                                ),
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 7,
-                                  vertical: 3,
-                                ),
-                                child: Text(
-                                  speedLabel,
-                                  style: const TextStyle(
-                                    color: FxPalette.textPrimary,
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w800,
-                                    height: 1,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
+              ),
             ),
           ],
         ),

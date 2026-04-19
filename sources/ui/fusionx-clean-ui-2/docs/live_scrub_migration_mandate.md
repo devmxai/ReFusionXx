@@ -29,6 +29,37 @@ This rule is mandatory:
 - no future work may leave dual scrub paths in place "temporarily" unless the
   phase explicitly ends with deletion of the obsolete path
 
+## Protected Integration Rule
+
+The current active live scrub path is a protected system boundary.
+
+This means:
+
+- `Scope Layer` work must not modify the active live scrub path as an
+  unannounced or incidental side effect
+- animation foundation work must not modify the active live scrub path as an
+  unannounced or incidental side effect
+- timeline UX work must not modify the active live scrub path as an incidental
+  side effect
+- no work may create a scope-specific scrub path, alternate scrub owner, or
+  temporary scrub fork without explicit approval
+
+If a future task discovers that a real change to the protected live scrub path
+is required:
+
+1. implementation must stop at that dependency boundary
+2. the exact reason and affected files must be documented
+3. the smallest possible change must be proposed
+4. no change may be executed without explicit user approval
+
+It is forbidden to force such a change through indirectly, or to weaken the
+current scrub behavior under the claim that the larger feature "needs it."
+
+This rule is intentionally strict about disclosure, not absolute prohibition.
+If a professional-grade implementation truly requires a scoped and explicit
+live scrub change, that change may be considered only after the dependency is
+surfaced clearly and approved explicitly.
+
 ## Required Layers
 
 The live scrub system must be rebuilt as three separated layers:
