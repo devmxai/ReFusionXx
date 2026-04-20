@@ -817,6 +817,38 @@ class EffectParameter {}
 هذه المرحلة لا تغيّر سلوك التطبيق.
 هي مرحلة منع انحراف المسار.
 
+### Phase 0.5: Timeline Runtime Boundary
+
+الهدف:
+
+- تحويل الحماية من مجرد قاعدة منع إلى `runtime architecture` تسمح بالتطوير
+  الآمن فوق التايملاين الحالي
+
+المرجع التنفيذي:
+
+- [Timeline Runtime Boundary](timeline_runtime_boundary.md)
+
+التسليمات:
+
+- `TimelineRuntimeController`
+- `TimelineCommandQueue`
+- `TimelineRuntimeState`
+- `TimelineRuntimeDiagnostics`
+- `TimelineTransportRuntimeAdapter`
+- `TimelineScrubRuntimeAdapter`
+- `TimelinePreviewRuntimeAdapter`
+- `TimelineProjectionAdapter`
+- `guardrail script` يمنع لمس الملفات الحساسة بشكل غير معلن
+
+القواعد:
+
+- لا تبني هذه المرحلة أي `Scope UI`
+- لا تضيف `Transitions`
+- لا تضيف `FX`
+- لا تغير سلوك `beta-10-timeline-fixed`
+- الهدف أن تمر الميزات القادمة عبر `TimelineRuntime` بدل اللمس المباشر
+  لمسارات `live scrub / cut / delete / seek / play`
+
 ### Phase 1: Text Animation Authoring Foundation
 
 الهدف:

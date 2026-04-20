@@ -60,6 +60,17 @@ If a professional-grade implementation truly requires a scoped and explicit
 live scrub change, that change may be considered only after the dependency is
 surfaced clearly and approved explicitly.
 
+## Timeline Runtime Boundary
+
+Future timeline, scope, transition, animation, and FX work must not call the
+protected scrub or transport internals directly. Those features must pass
+through the `TimelineRuntime` contracts defined in:
+
+`docs/timeline_runtime_boundary.md`
+
+This boundary is not a ban on live scrub evolution. It is the required safe
+route for any feature that needs to interact with timeline runtime behavior.
+
 ## Required Layers
 
 The live scrub system must be rebuilt as three separated layers:

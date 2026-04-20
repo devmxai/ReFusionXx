@@ -1429,6 +1429,21 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     return false;
   }
 
+  Future<bool> _awaitNativeTimelineScrubReadinessOnce(
+    TimelineTime targetTime, {
+    int timeoutMs = 450,
+  }) async {
+    if (!_useNativePreview || !_useNativeTimelineScrubInput || !mounted) {
+      return true;
+    }
+    final positionMs =
+        targetTime.inMilliseconds < 0 ? 0 : targetTime.inMilliseconds;
+    return _transportController.awaitTimelineScrubReady(
+      positionMs: positionMs,
+      timeoutMs: timeoutMs,
+    );
+  }
+
   void _scheduleNativeTimelineScrubReadiness(TimelineTime targetTime) {
     final requestId = ++_timelineScrubReadinessRequestId;
     unawaited(() async {
@@ -4433,6 +4448,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
         tracks: nextTracks,
         targetTime: preservedTimelineTime,
         previewAssetId: nextPreviewAssetId,
+        awaitImmediateScrubReadiness: true,
       );
     }
   }
@@ -4538,6 +4554,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     String? previewAssetId,
     bool awaitPreviewStabilization = true,
     bool awaitScrubReadiness = true,
+    bool awaitImmediateScrubReadiness = false,
   }) {
     final completer = Completer<void>();
     final maxTimelineTime = _timelineDurationForTracksTime(tracks);
@@ -4574,7 +4591,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
         await _scheduleScrubFramePreparationForTimelineTracks(tracks);
         await _flushNativeTimelineScrubConfig();
         if (awaitScrubReadiness) {
-          _scheduleNativeTimelineScrubReadiness(safeTargetTime);
+          final isReadyForImmediateScrub =
+              awaitImmediateScrubReadiness
+                  ? await _awaitNativeTimelineScrubReadinessOnce(safeTargetTime)
+                  : false;
+          if (!isReadyForImmediateScrub) {
+            _scheduleNativeTimelineScrubReadiness(safeTargetTime);
+          }
         }
         if (!completer.isCompleted) {
           completer.complete();

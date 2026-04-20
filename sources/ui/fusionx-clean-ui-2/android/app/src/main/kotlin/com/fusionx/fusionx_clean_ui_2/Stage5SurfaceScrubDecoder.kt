@@ -91,6 +91,7 @@ class Stage5SurfaceScrubDecoder(
     @Synchronized
     fun renderToPosition(
         positionMs: Long,
+        requireFreshFrame: Boolean = false,
         shouldContinue: () -> Boolean,
     ): Boolean {
         val currentExtractor = extractor ?: return false
@@ -123,13 +124,16 @@ class Stage5SurfaceScrubDecoder(
                     MediaCodec.INFO_TRY_AGAIN_LATER -> {
                         if (inputEnded) {
                             if (pendingOutputBufferIndex >= 0) {
+                                if (!shouldContinue()) {
+                                    return false
+                                }
                                 currentCodec.releaseOutputBuffer(pendingOutputBufferIndex, true)
                                 lastRenderedPresentationUs = pendingPresentationTimeUs
                                 pendingOutputBufferIndex = -1
-                                pendingPresentationTimeUs = Long.MIN_VALUE
                                 return true
                             }
-                            return renderedFrame || lastRenderedPresentationUs != Long.MIN_VALUE
+                            return !requireFreshFrame &&
+                                (renderedFrame || lastRenderedPresentationUs != Long.MIN_VALUE)
                         }
                     }
 
@@ -148,13 +152,16 @@ class Stage5SurfaceScrubDecoder(
                             if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
                                 inputEnded = true
                                 if (pendingOutputBufferIndex >= 0) {
+                                    if (!shouldContinue()) {
+                                        return false
+                                    }
                                     currentCodec.releaseOutputBuffer(pendingOutputBufferIndex, true)
                                     lastRenderedPresentationUs = pendingPresentationTimeUs
                                     pendingOutputBufferIndex = -1
-                                    pendingPresentationTimeUs = Long.MIN_VALUE
                                     return true
                                 }
-                                return renderedFrame || lastRenderedPresentationUs != Long.MIN_VALUE
+                                return !requireFreshFrame &&
+                                    (renderedFrame || lastRenderedPresentationUs != Long.MIN_VALUE)
                             }
                             continue
                         }
@@ -162,6 +169,10 @@ class Stage5SurfaceScrubDecoder(
                         val presentationTimeUs = bufferInfo.presentationTimeUs
                         if (pendingOutputBufferIndex < 0) {
                             if (presentationTimeUs >= targetUs) {
+                                if (!shouldContinue()) {
+                                    currentCodec.releaseOutputBuffer(outputBufferIndex, false)
+                                    return false
+                                }
                                 currentCodec.releaseOutputBuffer(outputBufferIndex, true)
                                 lastRenderedPresentationUs = presentationTimeUs
                                 return true
@@ -179,29 +190,43 @@ class Stage5SurfaceScrubDecoder(
                                 abs(pendingPresentationTimeUs - targetUs) <=
                                     abs(presentationTimeUs - targetUs)
                             if (renderPending) {
+                                if (!shouldContinue()) {
+                                    currentCodec.releaseOutputBuffer(pendingOutputBufferIndex, false)
+                                    currentCodec.releaseOutputBuffer(outputBufferIndex, false)
+                                    pendingOutputBufferIndex = -1
+                                    return false
+                                }
                                 currentCodec.releaseOutputBuffer(pendingOutputBufferIndex, true)
                                 currentCodec.releaseOutputBuffer(outputBufferIndex, false)
                                 lastRenderedPresentationUs = pendingPresentationTimeUs
                             } else {
+                                if (!shouldContinue()) {
+                                    currentCodec.releaseOutputBuffer(pendingOutputBufferIndex, false)
+                                    currentCodec.releaseOutputBuffer(outputBufferIndex, false)
+                                    pendingOutputBufferIndex = -1
+                                    return false
+                                }
                                 currentCodec.releaseOutputBuffer(pendingOutputBufferIndex, false)
                                 currentCodec.releaseOutputBuffer(outputBufferIndex, true)
                                 lastRenderedPresentationUs = presentationTimeUs
                             }
                             pendingOutputBufferIndex = -1
-                            pendingPresentationTimeUs = Long.MIN_VALUE
                             return true
                         }
 
                         if (bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
                             inputEnded = true
                             if (pendingOutputBufferIndex >= 0) {
+                                if (!shouldContinue()) {
+                                    return false
+                                }
                                 currentCodec.releaseOutputBuffer(pendingOutputBufferIndex, true)
                                 lastRenderedPresentationUs = pendingPresentationTimeUs
                                 pendingOutputBufferIndex = -1
-                                pendingPresentationTimeUs = Long.MIN_VALUE
                                 return true
                             }
-                            return renderedFrame || lastRenderedPresentationUs != Long.MIN_VALUE
+                            return !requireFreshFrame &&
+                                (renderedFrame || lastRenderedPresentationUs != Long.MIN_VALUE)
                         }
                     }
                 }
@@ -213,7 +238,7 @@ class Stage5SurfaceScrubDecoder(
                 }
             }
         }
-        return renderedFrame
+        return !requireFreshFrame && renderedFrame
     }
 
     @Synchronized

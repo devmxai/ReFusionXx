@@ -102,6 +102,7 @@ class Stage5NativeScrubEngine(
         val sourcePositionMs: Long,
         val generation: Long,
         val forceSeekBeforeRender: Boolean,
+        val requireFreshFrame: Boolean,
     )
 
     private data class OutputTarget(
@@ -564,6 +565,7 @@ class Stage5NativeScrubEngine(
                         generation = targetGeneration,
                         forceSeekBeforeRender =
                             pendingDecoderForceSeekStoreKey == descriptor.scrubStoreKey,
+                        requireFreshFrame = freezeAfterNextRenderedTarget,
                     )
                 }
             val rendered = renderSnapshot(snapshot)
@@ -649,10 +651,16 @@ class Stage5NativeScrubEngine(
         val rendered =
             surfaceScrubDecoder.renderToPosition(
                 positionMs = snapshot.sourcePositionMs,
+                requireFreshFrame = snapshot.requireFreshFrame,
                 shouldContinue = {
                     synchronized(this) {
+                        val finalCommitStillTargetsSnapshot =
+                            !freezeAfterNextRenderedTarget ||
+                                (targetGeneration == snapshot.generation &&
+                                    latestTargetSourcePositionMs == snapshot.sourcePositionMs)
                         !sessionFrozen &&
-                            activeDescriptor?.scrubStoreKey == snapshot.descriptor.scrubStoreKey
+                            activeDescriptor?.scrubStoreKey == snapshot.descriptor.scrubStoreKey &&
+                            finalCommitStillTargetsSnapshot
                     }
                 },
             )
