@@ -112,7 +112,7 @@ class Stage5SurfaceScrubDecoder(
         val bufferInfo = MediaCodec.BufferInfo()
         var pendingOutputBufferIndex = -1
         var pendingPresentationTimeUs = Long.MIN_VALUE
-        var renderedFrame = false
+        var advancedCandidateFrame = false
 
         try {
             while (shouldContinue()) {
@@ -132,8 +132,10 @@ class Stage5SurfaceScrubDecoder(
                                 pendingOutputBufferIndex = -1
                                 return true
                             }
-                            return !requireFreshFrame &&
-                                (renderedFrame || lastRenderedPresentationUs != Long.MIN_VALUE)
+                            return renderCompletedTargetMatch(
+                                targetUs = targetUs,
+                                requireFreshFrame = requireFreshFrame,
+                            )
                         }
                     }
 
@@ -160,8 +162,10 @@ class Stage5SurfaceScrubDecoder(
                                     pendingOutputBufferIndex = -1
                                     return true
                                 }
-                                return !requireFreshFrame &&
-                                    (renderedFrame || lastRenderedPresentationUs != Long.MIN_VALUE)
+                                return renderCompletedTargetMatch(
+                                    targetUs = targetUs,
+                                    requireFreshFrame = requireFreshFrame,
+                                )
                             }
                             continue
                         }
@@ -179,12 +183,12 @@ class Stage5SurfaceScrubDecoder(
                             }
                             pendingOutputBufferIndex = outputBufferIndex
                             pendingPresentationTimeUs = presentationTimeUs
-                            renderedFrame = true
+                            advancedCandidateFrame = true
                         } else if (presentationTimeUs < targetUs) {
                             currentCodec.releaseOutputBuffer(pendingOutputBufferIndex, false)
                             pendingOutputBufferIndex = outputBufferIndex
                             pendingPresentationTimeUs = presentationTimeUs
-                            renderedFrame = true
+                            advancedCandidateFrame = true
                         } else {
                             val renderPending =
                                 abs(pendingPresentationTimeUs - targetUs) <=
@@ -225,8 +229,10 @@ class Stage5SurfaceScrubDecoder(
                                 pendingOutputBufferIndex = -1
                                 return true
                             }
-                            return !requireFreshFrame &&
-                                (renderedFrame || lastRenderedPresentationUs != Long.MIN_VALUE)
+                            return renderCompletedTargetMatch(
+                                targetUs = targetUs,
+                                requireFreshFrame = requireFreshFrame,
+                            )
                         }
                     }
                 }
@@ -238,7 +244,13 @@ class Stage5SurfaceScrubDecoder(
                 }
             }
         }
-        return !requireFreshFrame && renderedFrame
+        if (advancedCandidateFrame) {
+            return renderCompletedTargetMatch(
+                targetUs = targetUs,
+                requireFreshFrame = requireFreshFrame,
+            )
+        }
+        return false
     }
 
     @Synchronized
@@ -282,6 +294,19 @@ class Stage5SurfaceScrubDecoder(
             return true
         }
         return false
+    }
+
+    private fun renderCompletedTargetMatch(
+        targetUs: Long,
+        requireFreshFrame: Boolean,
+    ): Boolean {
+        if (requireFreshFrame) {
+            return false
+        }
+        if (lastRenderedPresentationUs == Long.MIN_VALUE) {
+            return false
+        }
+        return abs(lastRenderedPresentationUs - targetUs) <= SAME_FRAME_EPSILON_US
     }
 
     private fun seekToTarget(targetUs: Long): Boolean {

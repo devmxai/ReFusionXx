@@ -22,6 +22,8 @@ import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.Transformer
 import androidx.media3.transformer.VideoEncoderSettings
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArraySet
@@ -42,6 +44,8 @@ class Stage5ScrubPreviewProxyManager(
         private const val SHORT_FORM_TARGET_BITRATE = 4_000_000
         private const val LONG_FORM_TARGET_BITRATE = 2_500_000
         private const val TARGET_I_FRAME_INTERVAL_SECONDS = 0.25f
+        private const val PROXY_DURATION_TOLERANCE_MS = 1_000L
+        private const val TEMP_PROXY_SUFFIX = ".partial"
     }
 
     data class ProxyResolution(
@@ -64,6 +68,7 @@ class Stage5ScrubPreviewProxyManager(
 
     private data class ProxyEntry(
         val outputFile: File,
+        val tempOutputFile: File,
         var state: ProxyState,
         var transformer: Transformer? = null,
         var failure: String? = null,
@@ -83,6 +88,7 @@ class Stage5ScrubPreviewProxyManager(
         }
     private val proxyHandler = Handler(proxyThread.looper)
     private val entries = ConcurrentHashMap<String, ProxyEntry>()
+    private val sourceDurationMsCache = ConcurrentHashMap<String, Long>()
     private val listeners = CopyOnWriteArraySet<Stage5ScrubPreviewProxyListener>()
 
     fun addListener(listener: Stage5ScrubPreviewProxyListener) {
@@ -100,24 +106,23 @@ class Stage5ScrubPreviewProxyManager(
         if (sourceUri.isBlank()) {
             return
         }
-        val normalizedHint = normalizePlayableUri(previewUriHint)
-        if (normalizedHint != null) {
+        if (resolveValidatedPreviewHint(sourceUri, previewUriHint) != null) {
             return
         }
         val entry =
             entries.computeIfAbsent(sourceUri) {
-                val outputFile = File(proxyDirectory, "${hashString(sourceUri)}.mp4")
+                val fileHash = hashString(sourceUri)
+                val outputFile = File(proxyDirectory, "$fileHash.mp4")
                 ProxyEntry(
                     outputFile = outputFile,
-                    state =
-                        if (outputFile.isFile && outputFile.length() > 0L) {
-                            ProxyState.READY
-                        } else {
-                            ProxyState.PREPARING
-                        },
+                    tempOutputFile = File(proxyDirectory, "$fileHash$TEMP_PROXY_SUFFIX.mp4"),
+                    state = ProxyState.PREPARING,
                 )
             }
-        if (entry.state == ProxyState.READY && entry.outputFile.length() > 0L) {
+        if (entry.state == ProxyState.READY &&
+            entry.outputFile.isFile &&
+            entry.outputFile.length() > 0L
+        ) {
             return
         }
         runOnProxyThread {
@@ -125,13 +130,24 @@ class Stage5ScrubPreviewProxyManager(
                 if (entries[sourceUri] !== entry) {
                     return@runOnProxyThread
                 }
-                if (entry.state == ProxyState.READY && entry.outputFile.length() > 0L) {
+                if (entry.state == ProxyState.READY &&
+                    entry.outputFile.isFile &&
+                    entry.outputFile.length() > 0L
+                ) {
+                    return@runOnProxyThread
+                }
+                if (promoteExistingProxyIfValid(sourceUri, entry)) {
                     return@runOnProxyThread
                 }
                 if (entry.transformer != null) {
                     return@runOnProxyThread
                 }
                 entry.outputFile.parentFile?.mkdirs()
+                if (!deleteIfExists(entry.tempOutputFile)) {
+                    entry.failure = "Unable to replace temporary scrub preview proxy."
+                    entry.state = ProxyState.FAILED
+                    return@runOnProxyThread
+                }
                 if (entry.outputFile.exists() && !entry.outputFile.delete()) {
                     entry.failure = "Unable to replace existing scrub preview proxy."
                     entry.state = ProxyState.FAILED
@@ -184,19 +200,13 @@ class Stage5ScrubPreviewProxyManager(
                                     composition: Composition,
                                     exportResult: ExportResult,
                                 ) {
-                                    var shouldNotifyReady = false
-                                    synchronized(entry) {
+                                    val shouldNotifyReady =
+                                        synchronized(entry) {
                                         entry.transformer = null
-                                        entry.failure = null
-                                        entry.state =
-                                            if (entry.outputFile.isFile &&
-                                                entry.outputFile.length() > 0L
-                                            ) {
-                                                shouldNotifyReady = true
-                                                ProxyState.READY
-                                            } else {
-                                                ProxyState.FAILED
-                                            }
+                                        promoteGeneratedProxyIfValid(
+                                            sourceUri = sourceUri,
+                                            entry = entry,
+                                        )
                                     }
                                     if (shouldNotifyReady) {
                                         notifyProxyReady(sourceUri)
@@ -214,6 +224,7 @@ class Stage5ScrubPreviewProxyManager(
                                             exportException.message
                                                 ?: exportException.errorCodeName
                                         entry.state = ProxyState.FAILED
+                                        deleteIfExists(entry.tempOutputFile)
                                     }
                                 }
                             },
@@ -222,7 +233,7 @@ class Stage5ScrubPreviewProxyManager(
                 entry.transformer = transformer
                 entry.state = ProxyState.PREPARING
                 entry.failure = null
-                transformer.start(composition, entry.outputFile.absolutePath)
+                transformer.start(composition, entry.tempOutputFile.absolutePath)
             }
         }
     }
@@ -231,11 +242,11 @@ class Stage5ScrubPreviewProxyManager(
         sourceUri: String,
         previewUriHint: String? = null,
     ): ProxyResolution {
-        val normalizedHint = normalizePlayableUri(previewUriHint)
-        if (normalizedHint != null) {
+        val validatedHint = resolveValidatedPreviewHint(sourceUri, previewUriHint)
+        if (validatedHint != null) {
             return ProxyResolution(
-                playbackUri = normalizedHint,
-                proxyUri = normalizedHint,
+                playbackUri = validatedHint,
+                proxyUri = validatedHint,
                 isProxyReady = true,
             )
         }
@@ -268,7 +279,9 @@ class Stage5ScrubPreviewProxyManager(
                     entry.value.transformer = null
                 }
                 entry.value.outputFile.delete()
+                entry.value.tempOutputFile.delete()
                 iterator.remove()
+                sourceDurationMsCache.remove(entry.key)
             }
         }
     }
@@ -283,6 +296,7 @@ class Stage5ScrubPreviewProxyManager(
                 }
             }
             entries.clear()
+            sourceDurationMsCache.clear()
             proxyThread.quitSafely()
         }
     }
@@ -300,6 +314,143 @@ class Stage5ScrubPreviewProxyManager(
             proxyHandler.post(block)
         }
     }
+
+    private fun resolveValidatedPreviewHint(
+        sourceUri: String,
+        previewUriHint: String?,
+    ): String? {
+        val candidate = normalizePlayableUri(previewUriHint) ?: return null
+        return candidate.takeIf {
+            previewCoversSourceDuration(
+                sourceUri = sourceUri,
+                previewUri = candidate,
+            )
+        }
+    }
+
+    private fun promoteExistingProxyIfValid(
+        sourceUri: String,
+        entry: ProxyEntry,
+    ): Boolean {
+        if (!entry.outputFile.isFile || entry.outputFile.length() <= 0L) {
+            deleteIfExists(entry.tempOutputFile)
+            entry.state = ProxyState.PREPARING
+            return false
+        }
+        if (previewCoversSourceDuration(sourceUri, entry.outputFile.absolutePath)) {
+            entry.failure = null
+            entry.state = ProxyState.READY
+            deleteIfExists(entry.tempOutputFile)
+            return true
+        }
+        val cachedPreviewDurationMs = resolveVideoDurationMs(entry.outputFile.absolutePath)
+        deleteIfExists(entry.outputFile)
+        deleteIfExists(entry.tempOutputFile)
+        entry.failure =
+            buildDurationMismatchFailure(
+                sourceDurationMs = resolveSourceDurationMs(sourceUri),
+                previewDurationMs = cachedPreviewDurationMs,
+            )
+        entry.state = ProxyState.PREPARING
+        return false
+    }
+
+    private fun promoteGeneratedProxyIfValid(
+        sourceUri: String,
+        entry: ProxyEntry,
+    ): Boolean {
+        if (!entry.tempOutputFile.isFile || entry.tempOutputFile.length() <= 0L) {
+            entry.failure = "Generated scrub preview proxy file is missing."
+            entry.state = ProxyState.FAILED
+            deleteIfExists(entry.tempOutputFile)
+            return false
+        }
+        val previewDurationMs = resolveVideoDurationMs(entry.tempOutputFile.absolutePath)
+        val sourceDurationMs = resolveSourceDurationMs(sourceUri)
+        if (!previewCoversSourceDuration(sourceUri, entry.tempOutputFile.absolutePath)) {
+            entry.failure =
+                buildDurationMismatchFailure(
+                    sourceDurationMs = sourceDurationMs,
+                    previewDurationMs = previewDurationMs,
+                )
+            entry.state = ProxyState.FAILED
+            deleteIfExists(entry.tempOutputFile)
+            deleteIfExists(entry.outputFile)
+            return false
+        }
+        if (!replaceFileAtomically(entry.tempOutputFile, entry.outputFile)) {
+            entry.failure = "Unable to finalize scrub preview proxy file."
+            entry.state = ProxyState.FAILED
+            deleteIfExists(entry.tempOutputFile)
+            deleteIfExists(entry.outputFile)
+            return false
+        }
+        entry.failure = null
+        entry.state = ProxyState.READY
+        return true
+    }
+
+    private fun previewCoversSourceDuration(
+        sourceUri: String,
+        previewUri: String,
+    ): Boolean {
+        val previewDurationMs = resolveVideoDurationMs(previewUri)
+        if (previewDurationMs <= 0L) {
+            return false
+        }
+        val sourceDurationMs = resolveSourceDurationMs(sourceUri)
+        if (sourceDurationMs <= 0L) {
+            return true
+        }
+        return previewDurationMs + PROXY_DURATION_TOLERANCE_MS >= sourceDurationMs
+    }
+
+    private fun resolveSourceDurationMs(sourceUri: String): Long =
+        sourceDurationMsCache.computeIfAbsent(sourceUri, ::resolveVideoDurationMs)
+
+    private fun resolveVideoDurationMs(uriString: String): Long {
+        var retriever: MediaMetadataRetriever? = null
+        return try {
+            retriever = MediaMetadataRetriever()
+            applyRetrieverDataSource(retriever, uriString)
+            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                ?.toLongOrNull()
+                ?: 0L
+        } catch (_: Throwable) {
+            0L
+        } finally {
+            retriever?.release()
+        }
+    }
+
+    private fun replaceFileAtomically(
+        sourceFile: File,
+        targetFile: File,
+    ): Boolean =
+        runCatching {
+            targetFile.parentFile?.mkdirs()
+            Files.move(
+                sourceFile.toPath(),
+                targetFile.toPath(),
+                StandardCopyOption.REPLACE_EXISTING,
+                StandardCopyOption.ATOMIC_MOVE,
+            )
+        }.recoverCatching {
+            if (targetFile.exists() && !targetFile.delete()) {
+                error("Unable to replace existing scrub preview proxy output.")
+            }
+            if (!sourceFile.renameTo(targetFile)) {
+                error("Unable to move scrub preview proxy into place.")
+            }
+        }.isSuccess
+
+    private fun buildDurationMismatchFailure(
+        sourceDurationMs: Long,
+        previewDurationMs: Long,
+    ): String =
+        "Rejected scrub preview proxy with duration $previewDurationMs ms for source $sourceDurationMs ms."
+
+    private fun deleteIfExists(file: File): Boolean = !file.exists() || file.delete()
 
     private fun resolveProxySpec(sourceUri: String): ProxySpec {
         var retriever: MediaMetadataRetriever? = null
