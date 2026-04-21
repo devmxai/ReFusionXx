@@ -29,6 +29,28 @@ Official shipped app identity in this baseline:
 - canonical shipped version source:
   [pubspec.yaml](/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/pubspec.yaml)
 
+## Protected Live Scrub Recovery Kit
+
+The current stable live scrub baseline is documented as a recoverable subsystem
+in:
+
+- [Live Scrub Recovery Kit](/Users/mx/Documents/ReFusionXx/docs/archive/live_scrub_recovery_kit/README.md)
+
+If future timeline, export, transition, 4K, AI, or preview work regresses live
+scrub, do not guess. Compare against the protected backup repository:
+
+- `https://github.com/devmxai/refusion-stable-live-scrub-beta10`
+- tag: `stable-live-scrub-beta10`
+- source baseline: `beta-10-timeline-fixed`
+- source commit: `27c910dd57f5ce6bc4fab74789e194a0f1ab3c25`
+
+The backup repository is frozen. Do not develop in it, do not force-push to it,
+and do not replace its contents with newer experiments. It is a recovery vault,
+not a development workspace.
+
+The live scrub recovery kit is the canonical document for reinstalling the
+current engine from scratch.
+
 Legacy documentation still contains some older absolute filesystem paths from
 previous workspaces. When that happens, always map them back to the canonical
 local repository above. Older paths such as `/Users/mx/Documents/ReFusionXx`
