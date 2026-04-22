@@ -125,6 +125,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       keywords: <String>['timing', 'delay', 'handoff'],
     ),
   ];
+  static const List<AnimateBrowserItem> _scopedLayerFxItems =
+      <AnimateBrowserItem>[
+    AnimateBrowserItem(
+      id: 'gaussian_blur',
+      label: 'Gaussian Blur',
+      category: 'FX',
+      summary: 'Soften the selected text layer with keyframeable blur.',
+      keywords: <String>['blur', 'gaussian', 'soften', 'focus', 'defocus'],
+    ),
+  ];
 
   late final Stage5NativeTransportController _transportController;
   late final InMemoryLiveScrubPreviewSourceCatalog
@@ -832,6 +842,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       rotationDegrees: node.rotationDegrees,
       opacity: opacity,
       blurAmount: node.blurAmount,
+      blurHorizontal: node.blurHorizontal,
+      blurVertical: node.blurVertical,
+      blurMix: node.blurMix,
+      blurEdgeMode: node.blurEdgeMode,
+      blurCrop: node.blurCrop,
       fontSize: node.fontSize,
       letterSpacing: node.letterSpacing,
       colorArgb: node.colorArgb,
@@ -2807,6 +2822,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         .toList(growable: true);
     for (final projectedLane in <TimelineAnimationLaneData?>[
       _projectedTextOpacityLaneForScope(context),
+      _projectedTextBlurLaneForScope(context),
       _projectedTextPositionLaneForScope(context),
       _projectedTextScaleLaneForScope(context),
       _projectedTextRotationLaneForScope(context),
@@ -2899,10 +2915,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   ) {
     return lane != null &&
         (lane.matchesPropertyLabel('opacity') ||
+            _layerScopeLaneMatchesBlur(lane) ||
             lane.matchesPropertyLabel('position') ||
             lane.matchesPropertyLabel('scale') ||
             lane.matchesPropertyLabel('rotation'));
   }
+
+  bool _layerScopeLaneMatchesBlur(TimelineAnimationLaneData lane) =>
+      lane.matchesPropertyLabel('blur') ||
+      lane.matchesPropertyLabel('gaussian blur');
 
   bool _canOpenLayerScopeValueEditor(
     _LayerScopeContext? context,
@@ -3053,6 +3074,74 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         ),
       ];
     }
+    if (_layerScopeLaneMatchesBlur(lane)) {
+      final blurAmount = _evaluatedTextScalarPropertyOrDefault(
+        textContext,
+        MotionPropertyCatalog.blurAmount,
+        time: keyframeTime,
+      );
+      final blurMix = _evaluatedTextScalarPropertyOrDefault(
+        textContext,
+        MotionPropertyCatalog.blurMix,
+        time: keyframeTime,
+      );
+      final blurEdgeMode = _evaluatedTextScalarPropertyOrDefault(
+        textContext,
+        MotionPropertyCatalog.blurEdgeMode,
+        time: keyframeTime,
+      );
+      final blurCrop = _evaluatedTextScalarPropertyOrDefault(
+        textContext,
+        MotionPropertyCatalog.blurCrop,
+        time: keyframeTime,
+      );
+      return <LayerScopeValueControlSpec>[
+        LayerScopeValueControlSpec(
+          id: 'blurAmount',
+          label: 'Amount',
+          value: blurAmount.clamp(0.0, 100.0).toDouble(),
+          min: 0,
+          max: 100,
+          divisions: 100,
+          formatValue: (value) => value.round().toString(),
+        ),
+        LayerScopeValueControlSpec(
+          id: 'blurMix',
+          label: 'Mix',
+          value: blurMix.clamp(0.0, 100.0).toDouble(),
+          min: 0,
+          max: 100,
+          divisions: 100,
+          formatValue: (value) => '${value.round()}%',
+        ),
+        LayerScopeValueControlSpec(
+          id: 'blurEdgeMode',
+          label: 'Edges',
+          value: blurEdgeMode.clamp(0.0, 1.0).roundToDouble(),
+          min: 0,
+          max: 1,
+          divisions: 1,
+          formatValue: _formatLayerScopeBlurEdgeMode,
+          options: const <LayerScopeValueOption>[
+            LayerScopeValueOption(label: 'Transparent', value: 0),
+            LayerScopeValueOption(label: 'Repeat', value: 1),
+          ],
+        ),
+        LayerScopeValueControlSpec(
+          id: 'blurCrop',
+          label: 'Bounds',
+          value: blurCrop.clamp(0.0, 1.0).roundToDouble(),
+          min: 0,
+          max: 1,
+          divisions: 1,
+          formatValue: _formatLayerScopeBlurBoundsMode,
+          options: const <LayerScopeValueOption>[
+            LayerScopeValueOption(label: 'Extend', value: 0),
+            LayerScopeValueOption(label: 'Crop', value: 1),
+          ],
+        ),
+      ];
+    }
     if (lane.matchesPropertyLabel('position')) {
       final canvasSize = textContext.project.format.canvasSize;
       final positionX = _evaluatedTextScalarPropertyOrDefault(
@@ -3139,6 +3228,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       ];
     }
     return null;
+  }
+
+  String _formatLayerScopeBlurEdgeMode(double value) {
+    final mode = value.round();
+    if (mode <= 0) {
+      return 'Transparent';
+    }
+    return 'Repeat';
+  }
+
+  String _formatLayerScopeBlurBoundsMode(double value) {
+    return value.round() == 1 ? 'Crop' : 'Extend';
   }
 
   TimelineAnimationLaneData? _opacityAnimationLaneForClipContext(
@@ -3354,6 +3455,20 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
   }
 
+  TimelineAnimationLaneData? _projectedTextBlurLaneForScope(
+    _LayerScopeContext context,
+  ) {
+    return _projectedTextScalarLaneForScope(
+      context: context,
+      label: 'Gaussian Blur',
+      slug: 'gaussian-blur',
+      channels: <MotionPropertyChannelModel?>[
+        for (final definition in _layerScopeBlurDefinitions)
+          _manualPropertyChannelForElement(context.clip.id, definition),
+      ],
+    );
+  }
+
   TimelineAnimationLaneData? _projectedTextPositionLaneForScope(
     _LayerScopeContext context,
   ) {
@@ -3412,6 +3527,21 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       channels: <MotionPropertyChannelModel?>[rotation],
     );
   }
+
+  List<MotionPropertyDefinition> get _layerScopeBlurDefinitions =>
+      <MotionPropertyDefinition>[
+        MotionPropertyCatalog.blurAmount,
+        MotionPropertyCatalog.blurMix,
+        MotionPropertyCatalog.blurEdgeMode,
+        MotionPropertyCatalog.blurCrop,
+      ];
+
+  Set<String> get _layerScopeBlurControlIds => const <String>{
+        'blurAmount',
+        'blurMix',
+        'blurEdgeMode',
+        'blurCrop',
+      };
 
   List<MotionPropertyChannelModel>? _syncLayerScopeOpacityKeyframeToGraph({
     required _LayerScopeContext context,
@@ -3656,6 +3786,46 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
   }
 
+  List<MotionPropertyChannelModel>? _syncLayerScopeBlurKeyframeToGraph({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required double progress,
+  }) {
+    return _syncLayerScopeTransformKeyframesToGraph(
+      context: context,
+      lane: lane,
+      progress: progress,
+      propertyLabel: lane.label,
+      definitions: _layerScopeBlurDefinitions,
+    );
+  }
+
+  List<MotionPropertyChannelModel>? _syncLayerScopeBlurValueToGraph({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required double progress,
+    required Map<String, double> values,
+  }) {
+    final amount = (values['blurAmount'] ?? 0).clamp(0.0, 100.0).toDouble();
+    final mix = (values['blurMix'] ?? 100).clamp(0.0, 100.0).toDouble();
+    final edgeMode =
+        (values['blurEdgeMode'] ?? 0).clamp(0.0, 1.0).roundToDouble();
+    final crop = (values['blurCrop'] ?? 0).clamp(0.0, 1.0).roundToDouble();
+    return _syncLayerScopeTransformKeyframesToGraph(
+      context: context,
+      lane: lane,
+      progress: progress,
+      propertyLabel: lane.label,
+      definitions: _layerScopeBlurDefinitions,
+      scalarOverrides: <MotionPropertyDefinition, double>{
+        MotionPropertyCatalog.blurAmount: amount,
+        MotionPropertyCatalog.blurMix: mix,
+        MotionPropertyCatalog.blurEdgeMode: edgeMode,
+        MotionPropertyCatalog.blurCrop: crop,
+      },
+    );
+  }
+
   List<MotionPropertyDefinition>? _layerScopeDefinitionsForLane(
     TimelineAnimationLaneData lane,
   ) {
@@ -3663,6 +3833,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return <MotionPropertyDefinition>[
         MotionPropertyCatalog.opacity,
       ];
+    }
+    if (_layerScopeLaneMatchesBlur(lane)) {
+      return _layerScopeBlurDefinitions;
     }
     if (lane.matchesPropertyLabel('position')) {
       return <MotionPropertyDefinition>[
@@ -4084,6 +4257,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           progress: progress,
           percent: insertedValue,
         ) ??
+        _syncLayerScopeBlurKeyframeToGraph(
+          context: context,
+          lane: lane,
+          progress: progress,
+        ) ??
         _syncLayerScopePositionKeyframeToGraph(
           context: context,
           lane: lane,
@@ -4266,6 +4444,20 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         lane: lane,
         progress: progress,
         percent: value.clamp(0.0, 100.0).toDouble(),
+      );
+    } else if (_layerScopeBlurControlIds.contains(controlId)) {
+      final blurValues = <String, double>{
+        'blurAmount': controlValues['blurAmount'] ?? 0,
+        'blurMix': controlValues['blurMix'] ?? 100,
+        'blurEdgeMode': controlValues['blurEdgeMode'] ?? 0,
+        'blurCrop': controlValues['blurCrop'] ?? 0,
+        controlId: value,
+      };
+      syncedChannels = _syncLayerScopeBlurValueToGraph(
+        context: context,
+        lane: lane,
+        progress: progress,
+        values: blurValues,
       );
     } else if (controlId == 'positionX' || controlId == 'positionY') {
       syncedChannels = _syncLayerScopePositionValueToGraph(
@@ -5724,8 +5916,40 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
   }
 
-  void _handleLayerScopeFxTap(TimelineTrackData _) {
-    _showStageMessage('Layer FX tools are next.');
+  Future<void> _handleLayerScopeFxTap(TimelineTrackData track) async {
+    final scopeContext = _activeLayerScopeContext;
+    if (scopeContext == null ||
+        track.kind != TimelineTrackKind.text ||
+        scopeContext.track.kind != TimelineTrackKind.text) {
+      _showStageMessage('Gaussian Blur FX is available for text layers first.');
+      return;
+    }
+    setState(() {
+      _isAnimateBrowserOpen = true;
+    });
+    final item = await showModalBottomSheet<AnimateBrowserItem>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const ScopedLayerAnimateBottomSheet(
+        items: _scopedLayerFxItems,
+      ),
+    ).whenComplete(() {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isAnimateBrowserOpen = false;
+      });
+    });
+    if (item == null || !mounted) {
+      return;
+    }
+    _addAnimateLaneToTrack(
+      track,
+      item,
+      selectForLayerScope: true,
+    );
   }
 
   Future<void> _openMediaSheet(EditorMediaTab tab) async {
@@ -9653,7 +9877,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                           },
                                           fxTrackKinds: const <TimelineTrackKind>{
                                             TimelineTrackKind.text,
-                                            TimelineTrackKind.image,
                                           },
                                         )
                                       : TimelinePanel(

@@ -24,28 +24,27 @@ class MotionTextPresetJsonCodec {
         'Preset JSON must be a single object.',
       );
     }
-    return fromJson(_normalizeNestedJsonStrings(Map<String, dynamic>.from(decoded)));
+    return fromJson(
+        _normalizeNestedJsonStrings(Map<String, dynamic>.from(decoded)));
   }
 
   static MotionTextPresetDefinition fromJson(Map<String, dynamic> json) {
-    final animationBlocks = _readAnimationBlocks(_readAnimationBlockSource(json));
+    final animationBlocks =
+        _readAnimationBlocks(_readAnimationBlockSource(json));
     if (animationBlocks.isEmpty) {
       throw MotionTextPresetJsonException(
         'Preset `animationBlocks` must contain at least one block.',
       );
     }
 
-    final rawText =
-        _readOptionalString(json, 'defaultText') ??
+    final rawText = _readOptionalString(json, 'defaultText') ??
         _readOptionalString(json, 'text') ??
         _readOptionalString(json, 'content');
-    final defaultText =
-        rawText != null && rawText.trim().isNotEmpty
-            ? rawText.trim()
-            : 'Your Text';
+    final defaultText = rawText != null && rawText.trim().isNotEmpty
+        ? rawText.trim()
+        : 'Your Text';
 
-    final rawLabel =
-        _readOptionalString(json, 'label') ??
+    final rawLabel = _readOptionalString(json, 'label') ??
         _readOptionalString(json, 'name') ??
         _readOptionalString(json, 'title');
     final label = _resolveGeneratedLabel(
@@ -54,8 +53,7 @@ class MotionTextPresetJsonCodec {
       animationBlocks: animationBlocks,
     );
 
-    final rawId =
-        _readOptionalString(json, 'id') ??
+    final rawId = _readOptionalString(json, 'id') ??
         _readOptionalString(json, 'presetId');
     final id = _resolveGeneratedId(rawId, label);
     final description = _readOptionalString(json, 'description');
@@ -174,8 +172,7 @@ class MotionTextPresetJsonCodec {
     var previousWasSeparator = false;
     for (final rune in lower.runes) {
       final char = String.fromCharCode(rune);
-      final isAsciiLetter =
-          rune >= 97 && rune <= 122;
+      final isAsciiLetter = rune >= 97 && rune <= 122;
       final isDigit = rune >= 48 && rune <= 57;
       if (isAsciiLetter || isDigit) {
         buffer.write(char);
@@ -188,9 +185,9 @@ class MotionTextPresetJsonCodec {
       }
     }
     final slug = buffer.toString().replaceAll(RegExp('_+'), '_').replaceAll(
-      RegExp(r'^_|_$'),
-      '',
-    );
+          RegExp(r'^_|_$'),
+          '',
+        );
     if (slug.isNotEmpty) {
       return slug;
     }
@@ -201,7 +198,8 @@ class MotionTextPresetJsonCodec {
     final buffer = StringBuffer();
     for (var index = 0; index < source.length; index++) {
       final char = source[index];
-      final isUppercase = char.toUpperCase() == char && char.toLowerCase() != char;
+      final isUppercase =
+          char.toUpperCase() == char && char.toLowerCase() != char;
       if (index == 0) {
         buffer.write(char.toUpperCase());
         continue;
@@ -231,9 +229,7 @@ class MotionTextPresetJsonCodec {
       }
       final json = Map<String, dynamic>.from(item);
       final defaultValueRaw =
-          json.containsKey('default')
-              ? json['default']
-              : json['defaultValue'];
+          json.containsKey('default') ? json['default'] : json['defaultValue'];
       if (defaultValueRaw == null) {
         throw MotionTextPresetJsonException(
           'Parameter `${json['id'] ?? 'unknown'}` is missing `default`.',
@@ -267,8 +263,7 @@ class MotionTextPresetJsonCodec {
         );
       }
       final json = Map<String, dynamic>.from(item);
-      final propertyId =
-          _readOptionalString(json, 'propertyId') ??
+      final propertyId = _readOptionalString(json, 'propertyId') ??
           _readOptionalString(json, 'property');
       if (propertyId == null || propertyId.isEmpty) {
         throw MotionTextPresetJsonException(
@@ -284,7 +279,8 @@ class MotionTextPresetJsonCodec {
       return MotionPropertyAssignment(
         target: targetFactory(),
         definition: definition,
-        value: _readPropertyValue(json['value'], expectedKind: definition.valueKind),
+        value: _readPropertyValue(json['value'],
+            expectedKind: definition.valueKind),
       );
     }).toList(growable: false);
   }
@@ -326,8 +322,7 @@ class MotionTextPresetJsonCodec {
       }
       return MotionTextAnimationBlock(
         id: _resolveGeneratedBlockId(
-          rawId:
-              _readOptionalString(json, 'id') ??
+          rawId: _readOptionalString(json, 'id') ??
               _readOptionalString(json, 'blockId'),
           kind: _readAnimationKind(json['kind']),
           startMs: startMs,
@@ -525,7 +520,8 @@ class MotionTextPresetJsonCodec {
       case 'custom':
         return MotionTextPresetKind.custom;
       default:
-        throw MotionTextPresetJsonException('Unsupported preset kind `$value`.');
+        throw MotionTextPresetJsonException(
+            'Unsupported preset kind `$value`.');
     }
   }
 
@@ -722,22 +718,26 @@ class MotionTextPresetJsonCodec {
 
   static final Map<String, MotionPropertyDefinition> _propertyDefinitionById =
       <String, MotionPropertyDefinition>{
-        MotionPropertyCatalog.positionX.id: MotionPropertyCatalog.positionX,
-        MotionPropertyCatalog.positionY.id: MotionPropertyCatalog.positionY,
-        MotionPropertyCatalog.scaleX.id: MotionPropertyCatalog.scaleX,
-        MotionPropertyCatalog.scaleY.id: MotionPropertyCatalog.scaleY,
-        MotionPropertyCatalog.rotationDegrees.id:
-            MotionPropertyCatalog.rotationDegrees,
-        MotionPropertyCatalog.opacity.id: MotionPropertyCatalog.opacity,
-        MotionPropertyCatalog.blurAmount.id: MotionPropertyCatalog.blurAmount,
-        MotionPropertyCatalog.fontSize.id: MotionPropertyCatalog.fontSize,
-        MotionPropertyCatalog.letterSpacing.id:
-            MotionPropertyCatalog.letterSpacing,
-        MotionPropertyCatalog.revealProgress.id:
-            MotionPropertyCatalog.revealProgress,
-        MotionPropertyCatalog.width.id: MotionPropertyCatalog.width,
-        MotionPropertyCatalog.height.id: MotionPropertyCatalog.height,
-        MotionPropertyCatalog.cornerRadius.id:
-            MotionPropertyCatalog.cornerRadius,
-      };
+    MotionPropertyCatalog.positionX.id: MotionPropertyCatalog.positionX,
+    MotionPropertyCatalog.positionY.id: MotionPropertyCatalog.positionY,
+    MotionPropertyCatalog.scaleX.id: MotionPropertyCatalog.scaleX,
+    MotionPropertyCatalog.scaleY.id: MotionPropertyCatalog.scaleY,
+    MotionPropertyCatalog.rotationDegrees.id:
+        MotionPropertyCatalog.rotationDegrees,
+    MotionPropertyCatalog.opacity.id: MotionPropertyCatalog.opacity,
+    MotionPropertyCatalog.blurAmount.id: MotionPropertyCatalog.blurAmount,
+    MotionPropertyCatalog.blurHorizontal.id:
+        MotionPropertyCatalog.blurHorizontal,
+    MotionPropertyCatalog.blurVertical.id: MotionPropertyCatalog.blurVertical,
+    MotionPropertyCatalog.blurMix.id: MotionPropertyCatalog.blurMix,
+    MotionPropertyCatalog.blurEdgeMode.id: MotionPropertyCatalog.blurEdgeMode,
+    MotionPropertyCatalog.blurCrop.id: MotionPropertyCatalog.blurCrop,
+    MotionPropertyCatalog.fontSize.id: MotionPropertyCatalog.fontSize,
+    MotionPropertyCatalog.letterSpacing.id: MotionPropertyCatalog.letterSpacing,
+    MotionPropertyCatalog.revealProgress.id:
+        MotionPropertyCatalog.revealProgress,
+    MotionPropertyCatalog.width.id: MotionPropertyCatalog.width,
+    MotionPropertyCatalog.height.id: MotionPropertyCatalog.height,
+    MotionPropertyCatalog.cornerRadius.id: MotionPropertyCatalog.cornerRadius,
+  };
 }

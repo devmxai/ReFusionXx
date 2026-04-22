@@ -38,6 +38,11 @@ class MotionTextRenderNode {
     required this.rotationDegrees,
     required this.opacity,
     required this.blurAmount,
+    this.blurHorizontal = 100,
+    this.blurVertical = 100,
+    this.blurMix = 100,
+    this.blurEdgeMode = 0,
+    this.blurCrop = 0,
     required this.fontSize,
     required this.letterSpacing,
     required this.colorArgb,
@@ -73,6 +78,11 @@ class MotionTextRenderNode {
   final double rotationDegrees;
   final double opacity;
   final double blurAmount;
+  final double blurHorizontal;
+  final double blurVertical;
+  final double blurMix;
+  final double blurEdgeMode;
+  final double blurCrop;
   final double fontSize;
   final double letterSpacing;
   final int colorArgb;
@@ -167,6 +177,11 @@ class BasicMotionTextRenderAdapter implements MotionTextRenderAdapter {
             rotationDegrees: node.transform.rotationDegrees,
             opacity: node.style.opacity.clamp(0.0, 1.0),
             blurAmount: node.style.blurAmount < 0 ? 0 : node.style.blurAmount,
+            blurHorizontal: node.style.blurHorizontal.clamp(0.0, 100.0),
+            blurVertical: node.style.blurVertical.clamp(0.0, 100.0),
+            blurMix: node.style.blurMix.clamp(0.0, 100.0),
+            blurEdgeMode: node.style.blurEdgeMode.clamp(0.0, 2.0),
+            blurCrop: node.style.blurCrop.clamp(0.0, 1.0),
             fontSize: node.style.fontSize <= 0 ? 16 : node.style.fontSize,
             letterSpacing: node.style.letterSpacing,
             colorArgb: defaultTextColorArgb,

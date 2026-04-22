@@ -12,6 +12,7 @@ class LayerScopeValueControlSpec {
     required this.max,
     required this.formatValue,
     this.divisions,
+    this.options = const <LayerScopeValueOption>[],
   });
 
   final String id;
@@ -21,6 +22,18 @@ class LayerScopeValueControlSpec {
   final double max;
   final int? divisions;
   final String Function(double value) formatValue;
+  final List<LayerScopeValueOption> options;
+}
+
+@immutable
+class LayerScopeValueOption {
+  const LayerScopeValueOption({
+    required this.label,
+    required this.value,
+  });
+
+  final String label;
+  final double value;
 }
 
 @immutable
@@ -77,7 +90,7 @@ class _LayerScopeValueBottomSheetState
   Widget build(BuildContext context) {
     final safeBottom = MediaQuery.of(context).padding.bottom;
     final sheetHeight =
-        (MediaQuery.sizeOf(context).height * 0.38).clamp(248.0, 340.0);
+        (MediaQuery.sizeOf(context).height * 0.52).clamp(330.0, 500.0);
     return MediaQuery.removeViewInsets(
       context: context,
       removeBottom: true,
@@ -140,6 +153,25 @@ class _LayerScopeValueBottomSheetState
                         final value = (_values[control.id] ?? control.value)
                             .clamp(control.min, control.max)
                             .toDouble();
+                        if (control.options.isNotEmpty) {
+                          return _LayerScopeValueSegmentedCard(
+                            label: control.label,
+                            valueText: control.formatValue(value),
+                            value: value,
+                            options: control.options,
+                            onChanged: (nextValue) {
+                              setState(() {
+                                _values[control.id] = nextValue;
+                              });
+                              widget.onChanged(
+                                LayerScopeValueChange(
+                                  controlId: control.id,
+                                  value: nextValue,
+                                ),
+                              );
+                            },
+                          );
+                        }
                         return _LayerScopeValueSliderCard(
                           label: control.label,
                           valueText: control.formatValue(value),
@@ -251,6 +283,135 @@ class _LayerScopeValueSliderCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _LayerScopeValueSegmentedCard extends StatelessWidget {
+  const _LayerScopeValueSegmentedCard({
+    required this.label,
+    required this.valueText,
+    required this.value,
+    required this.options,
+    required this.onChanged,
+  });
+
+  final String label;
+  final String valueText;
+  final double value;
+  final List<LayerScopeValueOption> options;
+  final ValueChanged<double> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: FxPalette.surfaceRaised.withOpacity(0.94),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.08),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    color: FxPalette.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Text(
+                valueText,
+                style: const TextStyle(
+                  color: FxPalette.textMuted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.18),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.06),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                for (final option in options)
+                  Expanded(
+                    child: _LayerScopeValueSegment(
+                      label: option.label,
+                      selected: (option.value - value).abs() < 0.5,
+                      onTap: () => onChanged(option.value),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LayerScopeValueSegment extends StatelessWidget {
+  const _LayerScopeValueSegment({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(11),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.center,
+          constraints: const BoxConstraints(minHeight: 34),
+          decoration: BoxDecoration(
+            color: selected ? FxPalette.accent.withOpacity(0.18) : null,
+            borderRadius: BorderRadius.circular(11),
+            border: selected
+                ? Border.all(color: FxPalette.accent.withOpacity(0.45))
+                : null,
+          ),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: selected ? FxPalette.textPrimary : FxPalette.textMuted,
+              fontSize: 12,
+              fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
+            ),
+          ),
+        ),
       ),
     );
   }

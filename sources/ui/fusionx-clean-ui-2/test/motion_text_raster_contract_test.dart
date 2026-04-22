@@ -9,6 +9,11 @@ void main() {
   MotionTextRenderNode buildRenderNode({
     double opacity = 0.9,
     double blurAmount = 10,
+    double blurHorizontal = 100,
+    double blurVertical = 100,
+    double blurMix = 100,
+    double blurEdgeMode = 0,
+    double blurCrop = 0,
     double fontSize = 20,
     double letterSpacing = 4,
   }) {
@@ -35,6 +40,11 @@ void main() {
       rotationDegrees: 12,
       opacity: opacity,
       blurAmount: blurAmount,
+      blurHorizontal: blurHorizontal,
+      blurVertical: blurVertical,
+      blurMix: blurMix,
+      blurEdgeMode: blurEdgeMode,
+      blurCrop: blurCrop,
       fontSize: fontSize,
       letterSpacing: letterSpacing,
       colorArgb: 0xFFF3F3F3,
@@ -77,6 +87,10 @@ void main() {
     expect(rasterSnapshot.nodes, hasLength(1));
     expect(rasterSnapshot.nodes.single.typography.fontSize, 20);
     expect(rasterSnapshot.nodes.single.effects.blurAmount, 10);
+    expect(rasterSnapshot.nodes.single.effects.blurHorizontal, 100);
+    expect(rasterSnapshot.nodes.single.effects.blurVertical, 100);
+    expect(rasterSnapshot.nodes.single.effects.blurMix, 100);
+    expect(rasterSnapshot.nodes.single.effects.blurEdgeMode, 0);
     expect(rasterSnapshot.nodes.single.layout.anchor, 'center');
   });
 
@@ -108,5 +122,42 @@ void main() {
     expect(metrics.blurSigma, closeTo(2.7, 0.0001));
     expect(metrics.blurKernelSpreadPx, closeTo(8.1, 0.0001));
     expect(metrics.layoutPaddingPx, 9.0);
+  });
+
+  test('keeps standard gaussian blur isotropic and stable', () {
+    final rasterNode = const BasicMotionTextRasterContractAdapter()
+        .adapt(
+          snapshot: MotionTextRenderSnapshot(
+            projectId: 'project-1',
+            time: TimelineTime.fromMilliseconds(400),
+            canvasSize: const MotionSize2D(width: 1080, height: 1920),
+            nodes: <MotionTextRenderNode>[
+              buildRenderNode(
+                blurAmount: 20,
+                blurHorizontal: 50,
+                blurVertical: 100,
+                blurMix: 35,
+                blurEdgeMode: 1,
+                blurCrop: 1,
+              ),
+            ],
+          ),
+        )
+        .nodes
+        .single;
+
+    final metrics = rasterNode.resolveMetrics(
+      scaleX: 2.0,
+      scaleY: 1.5,
+    );
+
+    expect(metrics.blurSigmaX, closeTo(5.4, 0.0001));
+    expect(metrics.blurSigmaY, closeTo(5.4, 0.0001));
+    expect(metrics.blurSigma, closeTo(5.4, 0.0001));
+    expect(metrics.blurMix, closeTo(0.35, 0.0001));
+    expect(metrics.blurEdgeMode, 1);
+    expect(metrics.blurCrop, 1);
+    expect(metrics.blurKernelSpreadPx, closeTo(16.2, 0.0001));
+    expect(metrics.layoutPaddingPx, 6.0);
   });
 }

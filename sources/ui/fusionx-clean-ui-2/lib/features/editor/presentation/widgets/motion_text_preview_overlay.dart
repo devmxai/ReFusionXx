@@ -126,20 +126,38 @@ class _MotionTextPreviewNodeWidgetState
       ..scale(node.layout.scaleX, node.layout.scaleY)
       ..translate(anchorOffset.dx, anchorOffset.dy);
 
-    Widget paintedText = CustomPaint(
-      painter: _ShapedTextPainter(
-        layout: layout,
-      ),
-    );
+    Widget buildPaintedText() => CustomPaint(
+          painter: _ShapedTextPainter(
+            layout: layout,
+          ),
+        );
+    Widget paintedText = buildPaintedText();
     if (_usesGaussianLayerBlur(widget.rasterContract) &&
-        metrics.blurSigma > 0.05) {
-      paintedText = ImageFiltered(
+        metrics.blurSigma > 0.05 &&
+        metrics.blurMix > 0.001) {
+      final blurredText = ImageFiltered(
         imageFilter: ui.ImageFilter.blur(
-          sigmaX: metrics.blurSigma,
-          sigmaY: metrics.blurSigma,
+          sigmaX: metrics.blurSigmaX,
+          sigmaY: metrics.blurSigmaY,
+          tileMode: _blurTileModeForValue(metrics.blurEdgeMode),
         ),
-        child: paintedText,
+        child: buildPaintedText(),
       );
+      paintedText = metrics.blurMix >= 0.999
+          ? blurredText
+          : Stack(
+              fit: StackFit.expand,
+              children: [
+                Opacity(
+                  opacity: 1.0 - metrics.blurMix,
+                  child: paintedText,
+                ),
+                Opacity(
+                  opacity: metrics.blurMix,
+                  child: blurredText,
+                ),
+              ],
+            );
     }
 
     Widget child = RepaintBoundary(
@@ -182,6 +200,14 @@ class _MotionTextPreviewNodeWidgetState
 
 bool _usesGaussianLayerBlur(MotionTextRasterContract contract) =>
     contract.blurEngineId == 'gaussian_layer_blur';
+
+ui.TileMode _blurTileModeForValue(double value) {
+  final mode = value.round();
+  if (mode <= 0) {
+    return ui.TileMode.decal;
+  }
+  return ui.TileMode.clamp;
+}
 
 class _ShapedTextPainter extends CustomPainter {
   const _ShapedTextPainter({

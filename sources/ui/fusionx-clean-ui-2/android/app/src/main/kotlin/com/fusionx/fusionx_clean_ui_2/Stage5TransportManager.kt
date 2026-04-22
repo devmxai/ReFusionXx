@@ -13,6 +13,7 @@ import android.os.Looper
 import android.util.LruCache
 import android.util.Size
 import androidx.media3.common.C
+import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackParameters
@@ -24,6 +25,7 @@ import androidx.media3.datasource.RawResourceDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.SeekParameters
+import androidx.media3.exoplayer.video.VideoFrameMetadataListener
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.CompositionPlayer
 import androidx.media3.transformer.EditedMediaItem
@@ -50,6 +52,7 @@ class Stage5TransportManager(context: Context) {
         private const val SCRUB_SETTLE_WATCHDOG_MS = 320L
         private const val SCRUB_SETTLE_MAX_WATCHDOG_ATTEMPTS = 3
         private const val SCRUB_SETTLE_TOLERANCE_MS = 12L
+        private const val SCRUB_SETTLE_RENDERED_FRAME_TOLERANCE_MS = 90L
         private const val DISPLAYABLE_END_EPSILON_MS = 1L
         // Composition-based multi-clip preview remains future-gated until it can preserve
         // live scrub parity with the accepted Exo baseline.
@@ -82,6 +85,7 @@ class Stage5TransportManager(context: Context) {
     private var lastAppliedPlaybackRate: Float? = null
     private var isScrubSettling = false
     private var scrubSettleTargetPositionMs: Long? = null
+    private var scrubSettleRenderedFrameCandidatesMs = LongArray(0)
     private var scrubSettlePositionSatisfied = false
     private var scrubSettleRenderedFirstFrameSeen = false
     private var scrubSettleWatchdogAttempts = 0
@@ -185,10 +189,11 @@ class Stage5TransportManager(context: Context) {
                     return
                 }
                 if (scrubSettleWatchdogAttempts >= SCRUB_SETTLE_MAX_WATCHDOG_ATTEMPTS) {
-                    scrubSettleRenderedFirstFrameSeen = true
-                    scrubSettlePositionSatisfied = true
-                    finishScrubSettle(forcePositionUpdate = true)
-                    return
+                    scrubSettleWatchdogAttempts = 0
+                    targetPositionMs?.let { positionMs ->
+                        (player as? ExoPlayer)?.setSeekParameters(SeekParameters.EXACT)
+                        performResolvedSeek(positionMs)
+                    }
                 }
                 mainHandler.postDelayed(this, SCRUB_SETTLE_WATCHDOG_MS)
             }
@@ -236,7 +241,6 @@ class Stage5TransportManager(context: Context) {
                     isPreviewContentSized = true
                 }
                 if (isScrubSettling) {
-                    scrubSettleRenderedFirstFrameSeen = true
                     maybeFinishScrubSettle()
                 }
                 emitPreviewRetentionPolicy()
@@ -253,6 +257,18 @@ class Stage5TransportManager(context: Context) {
                 latestError = error.message ?: error.errorCodeName
                 emitState()
                 mainHandler.post { recoverFromPlaybackError() }
+            }
+        }
+
+    private val videoFrameMetadataListener =
+        object : VideoFrameMetadataListener {
+            override fun onVideoFrameAboutToBeRendered(
+                presentationTimeUs: Long,
+                releaseTimeNs: Long,
+                format: Format,
+                mediaFormat: MediaFormat?,
+            ) {
+                handleVideoFrameAboutToBeRendered(presentationTimeUs)
             }
         }
 
@@ -808,6 +824,7 @@ class Stage5TransportManager(context: Context) {
                     repeatMode = Player.REPEAT_MODE_OFF
                     playWhenReady = false
                     setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT)
+                    setVideoFrameMetadataListener(videoFrameMetadataListener)
                     setSeekParameters(SeekParameters.EXACT)
                     addListener(playerListener)
                 }
@@ -835,6 +852,8 @@ class Stage5TransportManager(context: Context) {
         lastRequestedPositionMs = safePositionMs
         isScrubSettling = true
         scrubSettleTargetPositionMs = safePositionMs
+        scrubSettleRenderedFrameCandidatesMs =
+            resolveScrubSettleRenderedFrameCandidates(safePositionMs)
         scrubSettlePositionSatisfied = false
         scrubSettleRenderedFirstFrameSeen = false
         scrubSettleWatchdogAttempts = 0
@@ -1066,16 +1085,12 @@ class Stage5TransportManager(context: Context) {
         if (!isScrubSettling) {
             return
         }
-        val targetPositionMs = scrubSettleTargetPositionMs ?: return
         val activePlayer = activePlayer ?: exoPlayer ?: compositionPlayer ?: return
         val playbackState = activePlayer.playbackState
         if (playbackState == Player.STATE_IDLE) {
             return
         }
-        val settledPositionMs = currentTimelinePositionMs()
-        if (kotlin.math.abs(settledPositionMs - targetPositionMs) > SCRUB_SETTLE_TOLERANCE_MS &&
-            playbackState != Player.STATE_ENDED
-        ) {
+        if (!isScrubSettleTargetPositionSatisfied()) {
             return
         }
         scrubSettlePositionSatisfied = true
@@ -1088,11 +1103,68 @@ class Stage5TransportManager(context: Context) {
         finishScrubSettle(forcePositionUpdate = false)
     }
 
+    private fun handleVideoFrameAboutToBeRendered(presentationTimeUs: Long) {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            mainHandler.post {
+                handleVideoFrameAboutToBeRendered(presentationTimeUs)
+            }
+            return
+        }
+        if (!isScrubSettling || presentationTimeUs < 0L) {
+            return
+        }
+        val renderedPositionMs = (presentationTimeUs / 1_000L).coerceAtLeast(0L)
+        if (!doesRenderedFrameMatchScrubSettleTarget(renderedPositionMs)) {
+            return
+        }
+        scrubSettleRenderedFirstFrameSeen = true
+        maybeFinishScrubSettle()
+        emitPreviewRetentionPolicy()
+        emitState()
+    }
+
+    private fun isScrubSettleTargetPositionSatisfied(): Boolean {
+        val targetPositionMs = scrubSettleTargetPositionMs ?: return false
+        val activePlayer = activePlayer ?: exoPlayer ?: compositionPlayer ?: return false
+        val playbackState = activePlayer.playbackState
+        return playbackState == Player.STATE_ENDED ||
+            kotlin.math.abs(currentTimelinePositionMs() - targetPositionMs) <=
+            SCRUB_SETTLE_TOLERANCE_MS
+    }
+
+    private fun doesRenderedFrameMatchScrubSettleTarget(renderedPositionMs: Long): Boolean {
+        val candidates = scrubSettleRenderedFrameCandidatesMs
+        if (candidates.isEmpty()) {
+            return isScrubSettleTargetPositionSatisfied()
+        }
+        return candidates.any { candidateMs ->
+            kotlin.math.abs(renderedPositionMs - candidateMs) <=
+                SCRUB_SETTLE_RENDERED_FRAME_TOLERANCE_MS
+        }
+    }
+
+    private fun resolveScrubSettleRenderedFrameCandidates(positionMs: Long): LongArray {
+        val safePositionMs = positionMs.coerceAtLeast(0L)
+        val candidates = linkedSetOf(safePositionMs)
+        if (timelineSegments.isNotEmpty()) {
+            val seekPoint =
+                if (isRunTimelineMode()) {
+                    resolveTimelineRunSeekPoint(globalPositionMs = safePositionMs)
+                } else {
+                    resolveTimelineSeekPoint(globalPositionMs = safePositionMs)
+                }
+            candidates.add(seekPoint.itemPositionMs)
+            candidates.add(seekPoint.sourcePositionMs)
+        }
+        return candidates.filter { it >= 0L }.toLongArray()
+    }
+
     private fun finishScrubSettle(forcePositionUpdate: Boolean) {
         val hadPendingSettle = isScrubSettling || scrubSettleTargetPositionMs != null
         mainHandler.removeCallbacks(scrubSettleWatchdog)
         isScrubSettling = false
         scrubSettleTargetPositionMs = null
+        scrubSettleRenderedFrameCandidatesMs = LongArray(0)
         scrubSettlePositionSatisfied = false
         scrubSettleRenderedFirstFrameSeen = false
         scrubSettleWatchdogAttempts = 0

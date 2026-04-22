@@ -2897,8 +2897,8 @@ ExportCanonicalEffectOperationKind _canonicalOperationKindForProperty({
   if (propertyId == 'visual.opacity' || propertyKey == 'visual.opacity') {
     return ExportCanonicalEffectOperationKind.opacity;
   }
-  if (propertyId == 'visual.blur.amount' ||
-      propertyKey == 'visual.blur.amount') {
+  if (propertyId.startsWith('visual.blur.') ||
+      propertyKey.startsWith('visual.blur.')) {
     return ExportCanonicalEffectOperationKind.blur;
   }
   if (propertyKey.startsWith('crop.')) {
