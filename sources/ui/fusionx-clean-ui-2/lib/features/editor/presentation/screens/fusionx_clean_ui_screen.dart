@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../../../../core/engine/live_scrub_preview_sources.dart';
 import '../../../../core/engine/stage5_native_transport_controller.dart';
@@ -37,6 +38,9 @@ import '../widgets/ai_transition_bottom_sheet.dart';
 import '../widgets/clip_speed_bottom_sheet.dart';
 import '../widgets/export_bottom_sheet.dart';
 import '../widgets/fx_icon_button.dart';
+import '../widgets/layer_scope_graph_bottom_sheet.dart';
+import '../widgets/layer_scope_keyframe_dock.dart';
+import '../widgets/layer_scope_value_bottom_sheet.dart';
 import '../widgets/media_bottom_sheet.dart';
 import '../widgets/media_dock.dart';
 import '../widgets/motion_text_preview_overlay.dart';
@@ -59,7 +63,8 @@ class FusionXCleanUiScreen extends StatefulWidget {
   State<FusionXCleanUiScreen> createState() => _FusionXCleanUiScreenState();
 }
 
-class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
+class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
+    with SingleTickerProviderStateMixin {
   static const double _minEditableClipDuration = 0.25;
   static const int _deviceMediaPageSize = 24;
   static const String _motionProjectId = 'motion-project';
@@ -70,6 +75,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   static const bool _textPresetPickerEnabled = false;
   static const String _defaultInsertedTextValue = 'Text';
   static const double _defaultInsertedTextFontSize = 56;
+  static const double _motionPreviewClockResyncThresholdSeconds = 0.08;
+  static const MotionInterpolationSpec _afterEffectsEasyEaseInterpolation =
+      MotionInterpolationSpec.cubicBezier(
+    bezier: MotionBezierControlPoints(
+      x1: 0.3333,
+      y1: 0.0,
+      x2: 0.6667,
+      y2: 1.0,
+    ),
+  );
   static final TimelineTime _defaultTextPresetDurationTime =
       TimelineTime.fromSecondsDouble(3);
   static const List<AnimateBrowserItem> _manualTransitionEffectItems =
@@ -127,6 +142,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   late final ValueNotifier<TimelineTime> _layerScopeDisplayTimeNotifier;
   late final ValueNotifier<TimelineTime> _layerScopePlaybackSampleTimeNotifier;
   late final ValueNotifier<Uint8List?> _previewThumbnailNotifier;
+  late final Ticker _motionPreviewFrameTicker;
   late final BasicMotionRuntimeEvaluator _motionEvaluator;
   late final BasicMotionTextRenderAdapter _motionTextRenderAdapter;
   final Map<String, EditorAssetItem> _importedAssetsById =
@@ -144,6 +160,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   String? _selectedLayerScopeAnimationLaneId;
   int? _selectedLayerScopeKeyframeIndex;
   bool _isLayerScopeValueEditorOpen = false;
+  bool _isLayerScopeGraphEditorOpen = false;
   String? _previewAssetId;
   PreviewViewportState _previewViewportState = PreviewViewportState.identity;
   double? _lockedWorkspaceAspectRatio;
@@ -195,6 +212,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   Completer<void>? _pendingTimelineScrubConfigCompleter;
   OverlayEntry? _topStageBannerEntry;
   Timer? _topStageBannerTimer;
+  TimelineTime _motionPreviewClockAnchorTime = TimelineTime.zero;
+  Duration _motionPreviewClockAnchorElapsed = Duration.zero;
+  Duration _motionPreviewClockLatestElapsed = Duration.zero;
 
   @override
   void initState() {
@@ -225,6 +245,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     _layerScopePlaybackSampleTimeNotifier =
         ValueNotifier<TimelineTime>(TimelineTime.zero);
     _previewThumbnailNotifier = ValueNotifier<Uint8List?>(null);
+    _motionPreviewFrameTicker = createTicker(_handleMotionPreviewFrameTick);
     _assetOffsets[EditorMediaTab.video] = 0;
     _assetOffsets[EditorMediaTab.image] = 0;
     _assetHasMore[EditorMediaTab.video] = true;
@@ -247,6 +268,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     _assetLibrary.dispose();
     _assetLibraryLoading.dispose();
     _assetLibraryError.dispose();
+    _motionPreviewFrameTicker.dispose();
     _timelineDisplayTimeNotifier.dispose();
     _playbackSampleTimeNotifier.dispose();
     _transitionFocusDisplayTimeNotifier.dispose();
@@ -2116,6 +2138,77 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     _syncLayerScopeTimeNotifiers();
   }
 
+  bool _shouldUseMotionPreviewFrameClock(Stage5TransportState state) {
+    return _useNativePreview &&
+        state.isPlaying &&
+        !_isTimelineScrubbing &&
+        !_isTimelineScrubHandoffInFlight &&
+        !_isApplyingStructuralEdit &&
+        _timelineTrimPreviewSession == null &&
+        !state.isScrubSettling;
+  }
+
+  void _syncMotionPreviewFrameClock(TimelineTime transportTime) {
+    final elapsed = _motionPreviewClockLatestElapsed;
+    if (!_motionPreviewFrameTicker.isActive) {
+      final visibleSampleTime = _playbackSampleTimeNotifier.value.clamp(
+        TimelineTime.zero,
+        _timelineDurationTime,
+      );
+      final initialDriftSeconds =
+          (transportTime - visibleSampleTime).inSecondsDouble.abs();
+      final anchorTime =
+          initialDriftSeconds <= _motionPreviewClockResyncThresholdSeconds
+              ? visibleSampleTime
+              : transportTime;
+      _motionPreviewClockAnchorTime = anchorTime;
+      _motionPreviewClockAnchorElapsed = elapsed;
+      _setPlaybackSampleTime(anchorTime);
+      _motionPreviewFrameTicker.start();
+      return;
+    }
+
+    final predictedTime = _motionPreviewClockTimeForElapsed(elapsed);
+    final driftSeconds = (transportTime - predictedTime).inSecondsDouble.abs();
+    if (driftSeconds > _motionPreviewClockResyncThresholdSeconds) {
+      _motionPreviewClockAnchorTime = transportTime;
+      _motionPreviewClockAnchorElapsed = elapsed;
+      _setPlaybackSampleTime(transportTime);
+    }
+  }
+
+  void _stopMotionPreviewFrameClock({TimelineTime? resetTo}) {
+    if (_motionPreviewFrameTicker.isActive) {
+      _motionPreviewFrameTicker.stop(canceled: false);
+    }
+    _motionPreviewClockAnchorElapsed = _motionPreviewClockLatestElapsed;
+    if (resetTo != null) {
+      _motionPreviewClockAnchorTime = resetTo;
+      _setPlaybackSampleTime(resetTo);
+    }
+  }
+
+  TimelineTime _motionPreviewClockTimeForElapsed(Duration elapsed) {
+    final delta = elapsed - _motionPreviewClockAnchorElapsed;
+    final deltaSeconds = delta.inMicroseconds / Duration.microsecondsPerSecond;
+    return (_motionPreviewClockAnchorTime +
+            TimelineTime.fromSecondsDouble(deltaSeconds))
+        .clamp(TimelineTime.zero, _timelineDurationTime);
+  }
+
+  void _handleMotionPreviewFrameTick(Duration elapsed) {
+    _motionPreviewClockLatestElapsed = elapsed;
+    if (!mounted) {
+      return;
+    }
+    final transportState = _transportController.state;
+    if (!_shouldUseMotionPreviewFrameClock(transportState)) {
+      _stopMotionPreviewFrameClock();
+      return;
+    }
+    _setPlaybackSampleTime(_motionPreviewClockTimeForElapsed(elapsed));
+  }
+
   void _syncTransitionFocusTimeNotifiers() {
     final session = _transitionFocusSession;
     final context = session == null
@@ -2276,11 +2369,20 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
         shouldAdoptTransportTime &&
         (_currentTime - reportedTransportTime).inSecondsDouble > 0 &&
         (_currentTime - reportedTransportTime).inSecondsDouble <= 0.24;
+    final shouldUseMotionPreviewFrameClock = shouldAdoptTransportTime &&
+        !isTransientPlaybackRegression &&
+        _shouldUseMotionPreviewFrameClock(transportState);
     if (shouldAdoptTransportTime && !isTransientPlaybackRegression) {
-      _setPlaybackSampleTime(reportedTransportTime);
+      if (shouldUseMotionPreviewFrameClock) {
+        _syncMotionPreviewFrameClock(reportedTransportTime);
+      } else {
+        _stopMotionPreviewFrameClock(resetTo: reportedTransportTime);
+      }
       if (!transportState.isPlaying) {
         _setTimelineDisplayTime(reportedTransportTime);
       }
+    } else if (!_shouldUseMotionPreviewFrameClock(transportState)) {
+      _stopMotionPreviewFrameClock();
     }
     final shouldUpdatePlaying = (!_isApplyingStructuralEdit ||
             shouldAdoptPlayingTransportDuringStructuralEdit) &&
@@ -2792,17 +2894,133 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     return nearestIndex;
   }
 
-  _LayerScopeToolbarValueSpec? _selectedLayerScopeToolbarValueSpec(
+  bool _layerScopeLaneSupportsValueControls(
+    TimelineAnimationLaneData? lane,
+  ) {
+    return lane != null &&
+        (lane.matchesPropertyLabel('opacity') ||
+            lane.matchesPropertyLabel('position') ||
+            lane.matchesPropertyLabel('scale') ||
+            lane.matchesPropertyLabel('rotation'));
+  }
+
+  bool _canOpenLayerScopeValueEditor(
     _LayerScopeContext? context,
   ) {
     if (context == null) {
-      return null;
+      return false;
     }
     final lane = _layerScopeSelectedAnimationLane(context);
-    final keyframeIndex = _selectedLayerScopeKeyframeIndex;
-    if (lane == null ||
-        keyframeIndex == null ||
-        !_layerScopeLaneSupportsToolbarValue(lane)) {
+    if (lane == null || !_layerScopeLaneSupportsValueControls(lane)) {
+      return false;
+    }
+    return (_selectedLayerScopeKeyframeIndex != null &&
+            _selectedLayerScopeKeyframeIndex! >= 0 &&
+            _selectedLayerScopeKeyframeIndex! <
+                lane.normalizedKeyframeStops.length) ||
+        _nearestLayerScopeKeyframeIndex(context, lane) != null;
+  }
+
+  bool _canOpenLayerScopeGraphEditor(
+    _LayerScopeContext? context,
+  ) {
+    if (context == null) {
+      return false;
+    }
+    final lane = _layerScopeSelectedAnimationLane(context);
+    if (lane == null || !_layerScopeLaneSupportsValueControls(lane)) {
+      return false;
+    }
+    final keyframeIndex = _selectedLayerScopeKeyframeIndex ??
+        _nearestLayerScopeKeyframeIndex(context, lane);
+    if (keyframeIndex == null) {
+      return false;
+    }
+    return keyframeIndex > 0 ||
+        keyframeIndex < lane.normalizedKeyframeStops.length - 1;
+  }
+
+  double _layerScopeRotationAngleForDegrees(double degrees) {
+    var angle = degrees;
+    while (angle > 180.0) {
+      angle -= 360.0;
+    }
+    while (angle < -180.0) {
+      angle += 360.0;
+    }
+    return angle;
+  }
+
+  int _layerScopeRotationTurnsForDegrees(double degrees) {
+    final angle = _layerScopeRotationAngleForDegrees(degrees);
+    return ((degrees - angle) / 360.0).round();
+  }
+
+  bool _motionInterpolationMatchesEasyEase(MotionInterpolationSpec spec) {
+    if (spec.kind != MotionInterpolationKind.cubicBezier ||
+        spec.bezier == null) {
+      return false;
+    }
+    final bezier = spec.bezier!;
+    return (bezier.x1 - 0.3333).abs() <= 0.001 &&
+        bezier.y1.abs() <= 0.001 &&
+        (bezier.x2 - 0.6667).abs() <= 0.001 &&
+        (bezier.y2 - 1.0).abs() <= 0.001;
+  }
+
+  bool _isLayerScopeEasyEaseActive({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required int keyframeIndex,
+  }) {
+    final definitions = _layerScopeDefinitionsForLane(lane);
+    if (definitions == null) {
+      return false;
+    }
+    final stops = lane.normalizedKeyframeStops;
+    if (keyframeIndex < 0 || keyframeIndex >= stops.length) {
+      return false;
+    }
+    final keyframeTime =
+        _layerScopeTimeForProgress(context, stops[keyframeIndex]);
+    for (final definition in definitions) {
+      final channel = _propertyChannelForElementInChannels(
+        _manualMotionPropertyChannels,
+        context.clip.id,
+        definition,
+      );
+      if (channel == null) {
+        continue;
+      }
+      final channelKeyframeIndex = channel.keyframes.indexWhere(
+        (keyframe) =>
+            keyframe.time.inProjectTicks == keyframeTime.inProjectTicks,
+      );
+      if (channelKeyframeIndex < 0) {
+        continue;
+      }
+      if (channelKeyframeIndex > 0 &&
+          _motionInterpolationMatchesEasyEase(
+            channel.keyframes[channelKeyframeIndex - 1].interpolationToNext,
+          )) {
+        return true;
+      }
+      if (channelKeyframeIndex < channel.keyframes.length - 1 &&
+          _motionInterpolationMatchesEasyEase(
+            channel.keyframes[channelKeyframeIndex].interpolationToNext,
+          )) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  List<LayerScopeValueControlSpec>? _layerScopeValueControlsForSelection({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required int keyframeIndex,
+  }) {
+    if (!_layerScopeLaneSupportsValueControls(lane)) {
       return null;
     }
     final stops = lane.normalizedKeyframeStops;
@@ -2823,13 +3041,48 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
         MotionPropertyCatalog.opacity,
         time: keyframeTime,
       );
-      return _LayerScopeToolbarValueSpec(
-        value: (opacity * 100.0).clamp(0.0, 100.0).toDouble(),
-        min: 0,
-        max: 100,
-        divisions: 100,
-        suffix: '%',
+      return <LayerScopeValueControlSpec>[
+        LayerScopeValueControlSpec(
+          id: 'opacity',
+          label: 'Opacity',
+          value: (opacity * 100.0).clamp(0.0, 100.0).toDouble(),
+          min: 0,
+          max: 100,
+          divisions: 100,
+          formatValue: (value) => '${value.round()}%',
+        ),
+      ];
+    }
+    if (lane.matchesPropertyLabel('position')) {
+      final canvasSize = textContext.project.format.canvasSize;
+      final positionX = _evaluatedTextScalarPropertyOrDefault(
+        textContext,
+        MotionPropertyCatalog.positionX,
+        time: keyframeTime,
       );
+      final positionY = _evaluatedTextScalarPropertyOrDefault(
+        textContext,
+        MotionPropertyCatalog.positionY,
+        time: keyframeTime,
+      );
+      return <LayerScopeValueControlSpec>[
+        LayerScopeValueControlSpec(
+          id: 'positionX',
+          label: 'X',
+          value: positionX,
+          min: -canvasSize.width,
+          max: canvasSize.width,
+          formatValue: (value) => value.round().toString(),
+        ),
+        LayerScopeValueControlSpec(
+          id: 'positionY',
+          label: 'Y',
+          value: positionY,
+          min: -canvasSize.height,
+          max: canvasSize.height,
+          formatValue: (value) => value.round().toString(),
+        ),
+      ];
     }
     if (lane.matchesPropertyLabel('scale')) {
       final scaleX = _evaluatedTextScalarPropertyOrDefault(
@@ -2842,14 +3095,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
         MotionPropertyCatalog.scaleY,
         time: keyframeTime,
       );
-      return _LayerScopeToolbarValueSpec(
-        value:
-            (((scaleX + scaleY) / 2.0) * 100.0).clamp(20.0, 800.0).toDouble(),
-        min: 20,
-        max: 800,
-        divisions: 780,
-        suffix: '%',
-      );
+      return <LayerScopeValueControlSpec>[
+        LayerScopeValueControlSpec(
+          id: 'scale',
+          label: 'Scale',
+          value:
+              (((scaleX + scaleY) / 2.0) * 100.0).clamp(20.0, 800.0).toDouble(),
+          min: 20,
+          max: 800,
+          divisions: 780,
+          formatValue: (value) => '${value.round()}%',
+        ),
+      ];
     }
     if (lane.matchesPropertyLabel('rotation')) {
       final rotation = _evaluatedTextScalarPropertyOrDefault(
@@ -2857,13 +3114,29 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
         MotionPropertyCatalog.rotationDegrees,
         time: keyframeTime,
       );
-      return _LayerScopeToolbarValueSpec(
-        value: rotation.clamp(-360.0, 360.0).toDouble(),
-        min: -360,
-        max: 360,
-        divisions: 720,
-        suffix: ' deg',
-      );
+      final angle = _layerScopeRotationAngleForDegrees(rotation);
+      final turns =
+          _layerScopeRotationTurnsForDegrees(rotation).clamp(-4, 4).toDouble();
+      return <LayerScopeValueControlSpec>[
+        LayerScopeValueControlSpec(
+          id: 'rotationAngle',
+          label: 'Angle',
+          value: angle,
+          min: -180,
+          max: 180,
+          divisions: 360,
+          formatValue: (value) => '${value.round()} deg',
+        ),
+        LayerScopeValueControlSpec(
+          id: 'rotationTurns',
+          label: 'Turns',
+          value: turns,
+          min: -4,
+          max: 4,
+          divisions: 8,
+          formatValue: (value) => '${value.round()}x',
+        ),
+      ];
     }
     return null;
   }
@@ -3140,15 +3413,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     );
   }
 
-  bool _layerScopeLaneSupportsToolbarValue(
-    TimelineAnimationLaneData? lane,
-  ) {
-    return lane != null &&
-        (lane.matchesPropertyLabel('opacity') ||
-            lane.matchesPropertyLabel('scale') ||
-            lane.matchesPropertyLabel('rotation'));
-  }
-
   List<MotionPropertyChannelModel>? _syncLayerScopeOpacityKeyframeToGraph({
     required _LayerScopeContext context,
     required TimelineAnimationLaneData lane,
@@ -3241,6 +3505,29 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       return null;
     }
     return yResult.channels;
+  }
+
+  List<MotionPropertyChannelModel>? _syncLayerScopePositionValueToGraph({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required double progress,
+    required double x,
+    required double y,
+  }) {
+    return _syncLayerScopeTransformKeyframesToGraph(
+      context: context,
+      lane: lane,
+      progress: progress,
+      propertyLabel: 'position',
+      definitions: <MotionPropertyDefinition>[
+        MotionPropertyCatalog.positionX,
+        MotionPropertyCatalog.positionY,
+      ],
+      scalarOverrides: <MotionPropertyDefinition, double>{
+        MotionPropertyCatalog.positionX: x,
+        MotionPropertyCatalog.positionY: y,
+      },
+    );
   }
 
   List<MotionPropertyChannelModel>? _syncLayerScopeTransformKeyframesToGraph({
@@ -3364,8 +3651,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
         MotionPropertyCatalog.rotationDegrees,
       ],
       scalarOverrides: <MotionPropertyDefinition, double>{
-        MotionPropertyCatalog.rotationDegrees:
-            degrees.clamp(-360.0, 360.0).toDouble(),
+        MotionPropertyCatalog.rotationDegrees: degrees.toDouble(),
       },
     );
   }
@@ -3466,6 +3752,87 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       movedAny = true;
     }
     return movedAny ? nextChannels : null;
+  }
+
+  List<MotionPropertyChannelModel>? _setLayerScopeKeyframeInterpolationToGraph({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required int keyframeIndex,
+    required MotionInterpolationSpec interpolation,
+  }) {
+    if (context.track.kind != TimelineTrackKind.text) {
+      return null;
+    }
+    final definitions = _layerScopeDefinitionsForLane(lane);
+    final stops = lane.normalizedKeyframeStops;
+    if (definitions == null ||
+        keyframeIndex < 0 ||
+        keyframeIndex >= stops.length) {
+      return null;
+    }
+    final keyframeTime =
+        _layerScopeTimeForProgress(context, stops[keyframeIndex]);
+    final service = _buildCanvasTimelineAuthoringService();
+    var nextChannels = _manualMotionPropertyChannels;
+    var changedAny = false;
+    for (final definition in definitions) {
+      var channel = _propertyChannelForElementInChannels(
+        nextChannels,
+        context.clip.id,
+        definition,
+      );
+      if (channel == null) {
+        continue;
+      }
+      final channelKeyframeIndex = channel.keyframes.indexWhere(
+        (keyframe) =>
+            keyframe.time.inProjectTicks == keyframeTime.inProjectTicks,
+      );
+      if (channelKeyframeIndex < 0) {
+        continue;
+      }
+      if (channelKeyframeIndex > 0) {
+        final previousKeyframe = channel.keyframes[channelKeyframeIndex - 1];
+        final result = service.setKeyframeInterpolation(
+          CanvasTimelineKeyframeInterpolationRequest(
+            channels: nextChannels,
+            channelId: channel.id,
+            keyframeId: previousKeyframe.id,
+            interpolation: interpolation,
+          ),
+        );
+        if (result.hasIssues) {
+          return null;
+        }
+        nextChannels = result.channels;
+        changedAny = true;
+        channel = _propertyChannelForElementInChannels(
+          nextChannels,
+          context.clip.id,
+          definition,
+        );
+        if (channel == null) {
+          continue;
+        }
+      }
+      if (channelKeyframeIndex < channel.keyframes.length - 1) {
+        final currentKeyframe = channel.keyframes[channelKeyframeIndex];
+        final result = service.setKeyframeInterpolation(
+          CanvasTimelineKeyframeInterpolationRequest(
+            channels: nextChannels,
+            channelId: channel.id,
+            keyframeId: currentKeyframe.id,
+            interpolation: interpolation,
+          ),
+        );
+        if (result.hasIssues) {
+          return null;
+        }
+        nextChannels = result.channels;
+        changedAny = true;
+      }
+    }
+    return changedAny ? nextChannels : null;
   }
 
   _SelectedTimelineClipContext? _activePreviewVisualClipContextForTime(
@@ -3750,134 +4117,243 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     });
   }
 
-  void _handleLayerScopeValueToolTap() {
-    final context = _activeLayerScopeContext;
-    if (context == null) {
+  Future<void> _handleLayerScopeValueToolTap() async {
+    if (_isLayerScopeValueEditorOpen) {
       return;
     }
-    final lane = _layerScopeSelectedAnimationLane(context);
+    final scopeContext = _activeLayerScopeContext;
+    if (scopeContext == null) {
+      return;
+    }
+    final lane = _layerScopeSelectedAnimationLane(scopeContext);
     if (lane == null) {
       return;
     }
-    if (!_layerScopeLaneSupportsToolbarValue(lane)) {
+    if (!_layerScopeLaneSupportsValueControls(lane)) {
       return;
     }
     final resolvedKeyframeIndex = _selectedLayerScopeKeyframeIndex ??
-        _nearestLayerScopeKeyframeIndex(context, lane);
+        _nearestLayerScopeKeyframeIndex(scopeContext, lane);
     if (resolvedKeyframeIndex == null) {
+      return;
+    }
+    final controls = _layerScopeValueControlsForSelection(
+      context: scopeContext,
+      lane: lane,
+      keyframeIndex: resolvedKeyframeIndex,
+    );
+    if (controls == null || controls.isEmpty) {
       return;
     }
     setState(() {
       _selectedLayerScopeKeyframeIndex = resolvedKeyframeIndex;
       _isLayerScopeValueEditorOpen = true;
     });
-  }
-
-  void _handleLayerScopeValueEditorBack() {
-    setState(() {
-      _isLayerScopeValueEditorOpen = false;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => MediaQuery.removeViewInsets(
+        context: sheetContext,
+        removeBottom: true,
+        child: LayerScopeValueBottomSheet(
+          controls: controls,
+          onDone: () => Navigator.of(sheetContext).maybePop(),
+          onChanged: (change) => _handleLayerScopeValueControlChanged(
+            change.controlId,
+            change.value,
+          ),
+        ),
+      ),
+    ).whenComplete(() {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isLayerScopeValueEditorOpen = false;
+      });
     });
   }
 
-  double _clampedLayerScopeToolbarValue(
-    TimelineAnimationLaneData lane,
+  Future<void> _handleLayerScopeGraphToolTap() async {
+    if (_isLayerScopeGraphEditorOpen) {
+      return;
+    }
+    final scopeContext = _activeLayerScopeContext;
+    if (scopeContext == null) {
+      return;
+    }
+    final lane = _layerScopeSelectedAnimationLane(scopeContext);
+    if (lane == null || !_layerScopeLaneSupportsValueControls(lane)) {
+      return;
+    }
+    final resolvedKeyframeIndex = _selectedLayerScopeKeyframeIndex ??
+        _nearestLayerScopeKeyframeIndex(scopeContext, lane);
+    if (resolvedKeyframeIndex == null ||
+        (resolvedKeyframeIndex <= 0 &&
+            resolvedKeyframeIndex >= lane.normalizedKeyframeStops.length - 1)) {
+      return;
+    }
+    final easyEaseEnabled = _isLayerScopeEasyEaseActive(
+      context: scopeContext,
+      lane: lane,
+      keyframeIndex: resolvedKeyframeIndex,
+    );
+    setState(() {
+      _selectedLayerScopeKeyframeIndex = resolvedKeyframeIndex;
+      _isLayerScopeGraphEditorOpen = true;
+    });
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => MediaQuery.removeViewInsets(
+        context: sheetContext,
+        removeBottom: true,
+        child: LayerScopeGraphBottomSheet(
+          easyEaseEnabled: easyEaseEnabled,
+          onDone: () => Navigator.of(sheetContext).maybePop(),
+          onEasyEaseChanged: _handleLayerScopeEasyEaseChanged,
+        ),
+      ),
+    ).whenComplete(() {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isLayerScopeGraphEditorOpen = false;
+      });
+    });
+  }
+
+  void _handleLayerScopeValueControlChanged(
+    String controlId,
     double value,
   ) {
-    if (lane.matchesPropertyLabel('opacity')) {
-      return value.clamp(0.0, 100.0).toDouble();
-    }
-    if (lane.matchesPropertyLabel('scale')) {
-      return value.clamp(20.0, 800.0).toDouble();
-    }
-    if (lane.matchesPropertyLabel('rotation')) {
-      return value.clamp(-360.0, 360.0).toDouble();
-    }
-    return value;
-  }
-
-  List<MotionPropertyChannelModel>? _syncLayerScopeToolbarValueToGraph({
-    required _LayerScopeContext context,
-    required TimelineAnimationLaneData lane,
-    required double progress,
-    required double value,
-  }) {
-    if (lane.matchesPropertyLabel('opacity')) {
-      return _syncLayerScopeOpacityKeyframeToGraph(
-        context: context,
-        lane: lane,
-        progress: progress,
-        percent: value,
-      );
-    }
-    if (lane.matchesPropertyLabel('scale')) {
-      return _syncLayerScopeScaleValueToGraph(
-        context: context,
-        lane: lane,
-        progress: progress,
-        percent: value,
-      );
-    }
-    if (lane.matchesPropertyLabel('rotation')) {
-      return _syncLayerScopeRotationValueToGraph(
-        context: context,
-        lane: lane,
-        progress: progress,
-        degrees: value,
-      );
-    }
-    return null;
-  }
-
-  void _setLayerScopeSelectedKeyframeValue(double value) {
-    final laneId = _selectedLayerScopeAnimationLaneId;
-    final keyframeIndex = _selectedLayerScopeKeyframeIndex;
-    if (laneId == null || keyframeIndex == null) {
-      return;
-    }
     final context = _activeLayerScopeContext;
-    final lane =
-        context == null ? null : _layerScopeSelectedAnimationLane(context);
-    if (lane != null && !_layerScopeLaneSupportsToolbarValue(lane)) {
+    final keyframeIndex = _selectedLayerScopeKeyframeIndex;
+    if (context == null || keyframeIndex == null) {
       return;
     }
-    final stops = lane?.normalizedKeyframeStops;
-    final clampedValue = lane == null
-        ? value
-        : _clampedLayerScopeToolbarValue(
-            lane,
-            value,
-          );
-    final syncedChannels = context != null &&
-            lane != null &&
-            _layerScopeLaneSupportsToolbarValue(lane) &&
-            stops != null &&
-            keyframeIndex >= 0 &&
-            keyframeIndex < stops.length
-        ? _syncLayerScopeToolbarValueToGraph(
-            context: context,
-            lane: lane,
-            progress: stops[keyframeIndex],
-            value: clampedValue,
-          )
-        : null;
-    _updateTimelineAnimationLane(
-      laneId,
-      (lane) {
-        final values = _alignedAnimationKeyframeValues(lane).toList();
-        if (keyframeIndex < 0 || keyframeIndex >= values.length) {
-          return lane;
-        }
-        values[keyframeIndex] = clampedValue;
-        return lane.copyWith(
-          keyframeValues: List<double>.unmodifiable(values),
-        );
-      },
+    final lane = _layerScopeSelectedAnimationLane(context);
+    if (lane == null || !_layerScopeLaneSupportsValueControls(lane)) {
+      return;
+    }
+    final stops = lane.normalizedKeyframeStops;
+    if (keyframeIndex < 0 || keyframeIndex >= stops.length) {
+      return;
+    }
+    final controls = _layerScopeValueControlsForSelection(
+      context: context,
+      lane: lane,
+      keyframeIndex: keyframeIndex,
     );
-    if (syncedChannels != null) {
-      setState(() {
-        _manualMotionPropertyChannels = syncedChannels;
-        _motionRevision += 1;
-      });
+    if (controls == null) {
+      return;
+    }
+    final controlValues = <String, double>{
+      for (final control in controls) control.id: control.value,
+    };
+    final progress = stops[keyframeIndex];
+    List<MotionPropertyChannelModel>? syncedChannels;
+    if (controlId == 'opacity') {
+      syncedChannels = _syncLayerScopeOpacityKeyframeToGraph(
+        context: context,
+        lane: lane,
+        progress: progress,
+        percent: value.clamp(0.0, 100.0).toDouble(),
+      );
+    } else if (controlId == 'positionX' || controlId == 'positionY') {
+      syncedChannels = _syncLayerScopePositionValueToGraph(
+        context: context,
+        lane: lane,
+        progress: progress,
+        x: (controlId == 'positionX'
+                ? value
+                : controlValues['positionX'] ?? 0.0)
+            .roundToDouble(),
+        y: (controlId == 'positionY'
+                ? value
+                : controlValues['positionY'] ?? 0.0)
+            .roundToDouble(),
+      );
+    } else if (controlId == 'scale') {
+      syncedChannels = _syncLayerScopeScaleValueToGraph(
+        context: context,
+        lane: lane,
+        progress: progress,
+        percent: value.clamp(20.0, 800.0).toDouble(),
+      );
+    } else if (controlId == 'rotationAngle' || controlId == 'rotationTurns') {
+      final angle = controlId == 'rotationAngle'
+          ? value.clamp(-180.0, 180.0).toDouble()
+          : controlValues['rotationAngle'] ?? 0.0;
+      final turns = (controlId == 'rotationTurns'
+              ? value.clamp(-4.0, 4.0).toDouble()
+              : controlValues['rotationTurns'] ?? 0.0)
+          .round();
+      syncedChannels = _syncLayerScopeRotationValueToGraph(
+        context: context,
+        lane: lane,
+        progress: progress,
+        degrees: (turns * 360.0) + angle,
+      );
+    }
+    if (syncedChannels == null) {
+      return;
+    }
+    setState(() {
+      _manualMotionPropertyChannels = syncedChannels!;
+      _motionRevision += 1;
+    });
+  }
+
+  void _handleLayerScopeEasyEaseChanged(bool enabled) {
+    final scopeContext = _activeLayerScopeContext;
+    final keyframeIndex = _selectedLayerScopeKeyframeIndex;
+    if (scopeContext == null || keyframeIndex == null) {
+      return;
+    }
+    final lane = _layerScopeSelectedAnimationLane(scopeContext);
+    if (lane == null) {
+      return;
+    }
+    final syncedChannels = _setLayerScopeKeyframeInterpolationToGraph(
+      context: scopeContext,
+      lane: lane,
+      keyframeIndex: keyframeIndex,
+      interpolation: enabled
+          ? _afterEffectsEasyEaseInterpolation
+          : const MotionInterpolationSpec.linear(),
+    );
+    if (syncedChannels == null) {
+      return;
+    }
+    setState(() {
+      _manualMotionPropertyChannels = syncedChannels;
+      _motionRevision += 1;
+    });
+  }
+
+  void _handleLayerScopeDockAddTap() {
+    final context = _activeLayerScopeContext;
+    if (context == null) {
+      return;
+    }
+    if (context.track.kind == TimelineTrackKind.text) {
+      _insertDefaultTextLayer();
+      return;
+    }
+    if (context.track.kind == TimelineTrackKind.image) {
+      unawaited(_openMediaSheet(EditorMediaTab.image));
+      return;
+    }
+    if (context.track.kind == TimelineTrackKind.video) {
+      unawaited(_openMediaSheet(EditorMediaTab.video));
     }
   }
 
@@ -8755,7 +9231,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
                   MotionTextPreviewOverlay(
                     snapshot: motionTextRenderSnapshot,
                   ),
-                if (motionTextRenderSnapshot != null)
+                if (motionTextRenderSnapshot != null && !effectiveIsPlaying)
                   MotionTextTransformOverlay(
                     snapshot: motionTextRenderSnapshot,
                     selectedElementId: selectedCanvasElementId,
@@ -8840,8 +9316,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     final layerScopeLocalTime = layerScopeContext == null
         ? TimelineTime.zero
         : _layerScopeLocalTime(layerScopeContext, _currentTime);
-    final layerScopeValueSpec =
-        _selectedLayerScopeToolbarValueSpec(layerScopeContext);
+    final canOpenLayerScopeValueEditor =
+        _canOpenLayerScopeValueEditor(layerScopeContext);
+    final canOpenLayerScopeGraphEditor =
+        _canOpenLayerScopeGraphEditor(layerScopeContext);
     final isLayerScopeActive = layerScopeContext != null;
     return Scaffold(
       resizeToAvoidBottomInset: !_isAnimateBrowserOpen,
@@ -8920,12 +9398,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
                                 : layerScopeContext != null
                                     ? _LayerScopeToolsBar(
                                         isPlaying: effectiveIsPlaying,
-                                        isValueMode:
-                                            _isLayerScopeValueEditorOpen &&
-                                                layerScopeValueSpec != null,
-                                        valueSpec: layerScopeValueSpec,
-                                        hasKeyframeSelection:
-                                            layerScopeValueSpec != null,
                                         onBack: _exitLayerScope,
                                         onSplit: hasSelectedImportedClip
                                             ? _handleSplitSelectedClip
@@ -8939,14 +9411,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
                                                 hasSelectedMotionTextClip
                                             ? _handleDuplicateSelectedClip
                                             : null,
-                                        onAddKeyframe:
-                                            _handleLayerScopeAddKeyframe,
-                                        onValueToolTap:
-                                            _handleLayerScopeValueToolTap,
-                                        onValueChanged:
-                                            _setLayerScopeSelectedKeyframeValue,
-                                        onValueDone:
-                                            _handleLayerScopeValueEditorBack,
                                         onPlayToggle: _useNativePreview
                                             ? _handlePlayToggle
                                             : null,
@@ -9293,7 +9757,28 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
                           Padding(
                             padding: const EdgeInsets.fromLTRB(4, 3, 4, 3),
                             child: isLayerScopeActive
-                                ? const SizedBox.shrink()
+                                ? LayerScopeKeyframeDock(
+                                    addEnabled: true,
+                                    keyframeEnabled: true,
+                                    valueEnabled: canOpenLayerScopeValueEditor,
+                                    graphEnabled: canOpenLayerScopeGraphEditor,
+                                    isValueActive:
+                                        _isLayerScopeValueEditorOpen &&
+                                            canOpenLayerScopeValueEditor,
+                                    isGraphActive:
+                                        _isLayerScopeGraphEditorOpen &&
+                                            canOpenLayerScopeGraphEditor,
+                                    onAddTap: _handleLayerScopeDockAddTap,
+                                    onAddKeyframeTap:
+                                        _handleLayerScopeAddKeyframe,
+                                    onValueTap: canOpenLayerScopeValueEditor
+                                        ? _handleLayerScopeValueToolTap
+                                        : null,
+                                    onGraphTap: canOpenLayerScopeGraphEditor
+                                        ? _handleLayerScopeGraphToolTap
+                                        : null,
+                                    embedded: true,
+                                  )
                                 : MediaDock(
                                     activeTab: effectiveDockActiveTab,
                                     onAddTap: () {
@@ -9399,55 +9884,23 @@ class _LayerScopeContext {
   TimelineTime get endTime => startTime + durationTime;
 }
 
-class _LayerScopeToolbarValueSpec {
-  const _LayerScopeToolbarValueSpec({
-    required this.value,
-    required this.min,
-    required this.max,
-    required this.divisions,
-    required this.suffix,
-  });
-
-  final double value;
-  final double min;
-  final double max;
-  final int divisions;
-  final String suffix;
-
-  String get displayText => '${value.round()}$suffix';
-}
-
 class _LayerScopeToolsBar extends StatelessWidget {
   const _LayerScopeToolsBar({
     required this.isPlaying,
-    required this.isValueMode,
-    required this.valueSpec,
-    required this.hasKeyframeSelection,
     required this.onBack,
     required this.onSplit,
     required this.onTrimToggle,
     required this.isTrimModeActive,
     required this.onDuplicate,
-    required this.onAddKeyframe,
-    required this.onValueToolTap,
-    required this.onValueChanged,
-    required this.onValueDone,
     required this.onPlayToggle,
   });
 
   final bool isPlaying;
-  final bool isValueMode;
-  final _LayerScopeToolbarValueSpec? valueSpec;
-  final bool hasKeyframeSelection;
   final VoidCallback onBack;
   final VoidCallback? onSplit;
   final VoidCallback? onTrimToggle;
   final bool isTrimModeActive;
   final VoidCallback? onDuplicate;
-  final VoidCallback onAddKeyframe;
-  final VoidCallback onValueToolTap;
-  final ValueChanged<double> onValueChanged;
-  final VoidCallback onValueDone;
   final VoidCallback? onPlayToggle;
 
   @override
@@ -9489,35 +9942,7 @@ class _LayerScopeToolsBar extends StatelessWidget {
             iconScale: 0.4,
             onPressed: onDuplicate,
           ),
-          if (isValueMode) ...[
-            const SizedBox(width: 8),
-            Expanded(
-              child: _LayerScopeToolbarValueSlider(
-                spec: valueSpec!,
-                onChanged: onValueChanged,
-              ),
-            ),
-          ] else ...[
-            const SizedBox(width: 5),
-            FxIconButton(
-              icon: Icons.add_rounded,
-              size: 30,
-              iconScale: 0.4,
-              foregroundColor: FxPalette.textPrimary,
-              onPressed: onAddKeyframe,
-            ),
-            const SizedBox(width: 5),
-            FxIconButton(
-              icon: Icons.tune_rounded,
-              size: 30,
-              iconScale: 0.4,
-              foregroundColor: hasKeyframeSelection
-                  ? FxPalette.textPrimary
-                  : FxPalette.textMuted,
-              onPressed: hasKeyframeSelection ? onValueToolTap : null,
-            ),
-            const Spacer(),
-          ],
+          const Spacer(),
           Container(
             height: 26,
             margin: const EdgeInsets.symmetric(horizontal: 10),
@@ -9527,82 +9952,11 @@ class _LayerScopeToolsBar extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(right: 2),
             child: FxIconButton(
-              icon: isValueMode
-                  ? Icons.check_rounded
-                  : isPlaying
-                      ? Icons.pause_rounded
-                      : Icons.play_arrow_rounded,
+              icon: isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
               size: 32,
               iconScale: 0.48,
               foregroundColor: FxPalette.textPrimary,
-              onPressed: isValueMode ? onValueDone : onPlayToggle,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _LayerScopeToolbarValueSlider extends StatelessWidget {
-  const _LayerScopeToolbarValueSlider({
-    required this.spec,
-    required this.onChanged,
-  });
-
-  final _LayerScopeToolbarValueSpec spec;
-  final ValueChanged<double> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 30,
-      decoration: BoxDecoration(
-        color: FxPalette.surfaceRaised.withOpacity(0.92),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.08),
-          width: 1,
-        ),
-      ),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              trackHeight: 3,
-              activeTrackColor: FxPalette.accent,
-              inactiveTrackColor: Colors.white.withOpacity(0.14),
-              thumbColor: FxPalette.accent,
-              overlayColor: FxPalette.accent.withOpacity(0.12),
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
-              overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-            ),
-            child: Slider(
-              min: spec.min,
-              max: spec.max,
-              divisions: spec.divisions,
-              value: spec.value.clamp(spec.min, spec.max).toDouble(),
-              onChanged: (value) => onChanged(value.roundToDouble()),
-            ),
-          ),
-          IgnorePointer(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: FxPalette.surfaceRaised.withOpacity(0.82),
-                borderRadius: BorderRadius.circular(7),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                child: Text(
-                  spec.displayText,
-                  style: const TextStyle(
-                    color: FxPalette.textPrimary,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
+              onPressed: onPlayToggle,
             ),
           ),
         ],

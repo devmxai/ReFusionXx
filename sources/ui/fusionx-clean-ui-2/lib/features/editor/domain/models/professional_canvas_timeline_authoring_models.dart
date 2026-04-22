@@ -105,6 +105,21 @@ class CanvasTimelineKeyframeValueRequest {
 }
 
 @immutable
+class CanvasTimelineKeyframeInterpolationRequest {
+  CanvasTimelineKeyframeInterpolationRequest({
+    required List<MotionPropertyChannelModel> channels,
+    required this.channelId,
+    required this.keyframeId,
+    required this.interpolation,
+  }) : channels = List.unmodifiable(channels);
+
+  final List<MotionPropertyChannelModel> channels;
+  final String channelId;
+  final String keyframeId;
+  final MotionInterpolationSpec interpolation;
+}
+
+@immutable
 class CanvasTimelineMoveKeyframeRequest {
   CanvasTimelineMoveKeyframeRequest({
     required List<MotionPropertyChannelModel> channels,
@@ -368,6 +383,55 @@ class ProfessionalCanvasTimelineAuthoringService {
           activeRange: request.activeRange,
           keyframes: _normalizedKeyframes(remaining),
         ),
+      ),
+    );
+  }
+
+  CanvasTimelineAuthoringResult setKeyframeInterpolation(
+    CanvasTimelineKeyframeInterpolationRequest request,
+  ) {
+    final channelIndex = request.channels.indexWhere(
+      (channel) => channel.id == request.channelId,
+    );
+    if (channelIndex < 0) {
+      return CanvasTimelineAuthoringResult(
+        channels: request.channels,
+        issues: <CanvasTimelineAuthoringIssue>[
+          CanvasTimelineAuthoringIssue(
+            code: CanvasTimelineAuthoringIssueCode.missingChannel,
+            message: 'Channel `${request.channelId}` was not found.',
+            channelId: request.channelId,
+          ),
+        ],
+      );
+    }
+    final channel = request.channels[channelIndex];
+    final keyframeIndex = channel.keyframes.indexWhere(
+      (keyframe) => keyframe.id == request.keyframeId,
+    );
+    if (keyframeIndex < 0) {
+      return CanvasTimelineAuthoringResult(
+        channels: request.channels,
+        issues: <CanvasTimelineAuthoringIssue>[
+          CanvasTimelineAuthoringIssue(
+            code: CanvasTimelineAuthoringIssueCode.missingKeyframe,
+            message: 'Keyframe `${request.keyframeId}` was not found.',
+            channelId: request.channelId,
+            keyframeId: request.keyframeId,
+            propertyId: channel.definition.id,
+          ),
+        ],
+      );
+    }
+    final nextKeyframes = List<MotionKeyframeModel>.from(channel.keyframes)
+      ..[keyframeIndex] = channel.keyframes[keyframeIndex].copyWith(
+        interpolationToNext: request.interpolation,
+      );
+    return CanvasTimelineAuthoringResult(
+      channels: _replaceOrAppend(
+        request.channels,
+        channelIndex: channelIndex,
+        channel: channel.copyWith(keyframes: nextKeyframes),
       ),
     );
   }

@@ -135,6 +135,52 @@ void main() {
     );
   });
 
+  test('setKeyframeInterpolation updates the selected keyframe easing', () {
+    final first = service.addKeyframe(
+      CanvasTimelineKeyframeRequest(
+        channels: const <MotionPropertyChannelModel>[],
+        target: target,
+        activeRange: range(0, 5),
+        definition: MotionPropertyCatalog.opacity,
+        time: TimelineTime.fromSecondsDouble(1),
+        value: const MotionPropertyValue.scalar(0.2),
+      ),
+    );
+    final second = service.addKeyframe(
+      CanvasTimelineKeyframeRequest(
+        channels: first.channels,
+        target: target,
+        activeRange: range(0, 5),
+        definition: MotionPropertyCatalog.opacity,
+        time: TimelineTime.fromSecondsDouble(4),
+        value: const MotionPropertyValue.scalar(1),
+      ),
+    );
+    final channel = second.channels.single;
+    final keyframe = channel.keyframes.first;
+    final updated = service.setKeyframeInterpolation(
+      CanvasTimelineKeyframeInterpolationRequest(
+        channels: second.channels,
+        channelId: channel.id,
+        keyframeId: keyframe.id,
+        interpolation: const MotionInterpolationSpec.cubicBezier(
+          bezier: MotionBezierControlPoints(
+            x1: 0.3333,
+            y1: 0.0,
+            x2: 0.6667,
+            y2: 1.0,
+          ),
+        ),
+      ),
+    );
+
+    expect(updated.hasIssues, isFalse);
+    expect(
+      updated.channels.single.keyframes.first.interpolationToNext.kind,
+      MotionInterpolationKind.cubicBezier,
+    );
+  });
+
   test('rejects unsupported property targets without changing channels', () {
     const layerTarget = MotionPropertyTarget(
       kind: MotionTargetKind.layer,
@@ -193,5 +239,49 @@ void main() {
 
     expect(sample.status, MotionEvaluationStatus.resolved);
     expect(sample.value.rawValue, closeTo(0.5, 0.000001));
+  });
+
+  test('cubic bezier interpolation eases slower than linear near the start',
+      () {
+    final first = service.addKeyframe(
+      CanvasTimelineKeyframeRequest(
+        channels: const <MotionPropertyChannelModel>[],
+        target: target,
+        activeRange: range(0, 4),
+        definition: MotionPropertyCatalog.opacity,
+        time: TimelineTime.fromSecondsDouble(0),
+        value: const MotionPropertyValue.scalar(0),
+        interpolation: const MotionInterpolationSpec.cubicBezier(
+          bezier: MotionBezierControlPoints(
+            x1: 0.3333,
+            y1: 0.0,
+            x2: 0.6667,
+            y2: 1.0,
+          ),
+        ),
+      ),
+    );
+    final second = service.addKeyframe(
+      CanvasTimelineKeyframeRequest(
+        channels: first.channels,
+        target: target,
+        activeRange: range(0, 4),
+        definition: MotionPropertyCatalog.opacity,
+        time: TimelineTime.fromSecondsDouble(4),
+        value: const MotionPropertyValue.scalar(1),
+      ),
+    );
+    final channel = second.channels.single;
+    final sample = const BasicMotionPropertyChannelSampler().sample(
+      channel: MotionResolvedPropertyChannel(
+        channel: channel,
+        projectRange: range(0, 4),
+        targetAddress: target.canonicalAddress,
+      ),
+      time: TimelineTime.fromSecondsDouble(1),
+    );
+
+    expect(sample.status, MotionEvaluationStatus.resolved);
+    expect(sample.value.rawValue as double, lessThan(0.25));
   });
 }
