@@ -218,6 +218,10 @@ private class Stage5TimelineScrubInputView(
                 }
                 gesturePositionMs = nextPositionMs
                 nativeScrubEngine.scrubTimelinePosition(gesturePositionMs)
+                channel.invokeMethod(
+                    "scrubTimeChanged",
+                    mapOf("positionMs" to gesturePositionMs),
+                )
                 return true
             }
 

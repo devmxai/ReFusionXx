@@ -175,6 +175,171 @@ class AnimateBrowserBottomSheet extends StatefulWidget {
       _AnimateBrowserBottomSheetState();
 }
 
+class ScopedLayerAnimateBottomSheet extends StatefulWidget {
+  const ScopedLayerAnimateBottomSheet({
+    super.key,
+    required this.items,
+  });
+
+  final List<AnimateBrowserItem> items;
+
+  static const List<AnimateBrowserItem> defaultItems = <AnimateBrowserItem>[
+    AnimateBrowserItem(
+      id: 'opacity',
+      label: 'Opacity',
+      category: 'Animate',
+      summary: 'Animate layer transparency with keyframes.',
+      keywords: <String>['fade', 'alpha', 'transparency'],
+    ),
+    AnimateBrowserItem(
+      id: 'position',
+      label: 'Position',
+      category: 'Animate',
+      summary: 'Animate layer movement on X and Y.',
+      keywords: <String>['move', 'x', 'y', 'translate'],
+    ),
+  ];
+
+  @override
+  State<ScopedLayerAnimateBottomSheet> createState() =>
+      _ScopedLayerAnimateBottomSheetState();
+}
+
+class _ScopedLayerAnimateBottomSheetState
+    extends State<ScopedLayerAnimateBottomSheet> {
+  late final TextEditingController _searchController;
+  late final FocusNode _focusNode;
+  String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController();
+    _focusNode = FocusNode();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  List<AnimateBrowserItem> get _filteredItems {
+    final normalizedQuery = _query.trim().toLowerCase();
+    final items = List<AnimateBrowserItem>.from(widget.items);
+    if (normalizedQuery.isEmpty) {
+      return items;
+    }
+    final scoredItems = <({AnimateBrowserItem item, int score})>[];
+    for (final item in items) {
+      final label = item.label.toLowerCase();
+      final category = item.category.toLowerCase();
+      final summary = item.summary.toLowerCase();
+      final keywords = item.keywords.map((keyword) => keyword.toLowerCase());
+      int? score;
+      if (label.startsWith(normalizedQuery)) {
+        score = 0;
+      } else if (label.contains(normalizedQuery)) {
+        score = 1;
+      } else if (category.startsWith(normalizedQuery)) {
+        score = 2;
+      } else if (keywords
+          .any((keyword) => keyword.startsWith(normalizedQuery))) {
+        score = 3;
+      } else if (keywords.any((keyword) => keyword.contains(normalizedQuery))) {
+        score = 4;
+      } else if (summary.contains(normalizedQuery)) {
+        score = 5;
+      }
+      if (score != null) {
+        scoredItems.add((item: item, score: score));
+      }
+    }
+    scoredItems.sort((left, right) {
+      final scoreCompare = left.score.compareTo(right.score);
+      if (scoreCompare != 0) {
+        return scoreCompare;
+      }
+      return left.item.label.compareTo(right.item.label);
+    });
+    return scoredItems.map((entry) => entry.item).toList(growable: false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final safeBottom = MediaQuery.of(context).padding.bottom;
+    final sheetHeight = MediaQuery.of(context).size.height * 0.68;
+    final items = _filteredItems;
+    return MediaQuery.removeViewInsets(
+      context: context,
+      removeBottom: true,
+      child: SizedBox(
+        height: sheetHeight,
+        child: Container(
+          decoration: const BoxDecoration(
+            color: FxPalette.panel,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            border: Border(
+              top: BorderSide(color: FxPalette.divider, width: 1),
+            ),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+                  child: _AnimateSearchField(
+                    controller: _searchController,
+                    focusNode: _focusNode,
+                    onChanged: (value) {
+                      setState(() {
+                        _query = value;
+                      });
+                    },
+                  ),
+                ),
+                Expanded(
+                  child: items.isEmpty
+                      ? Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            14,
+                            16,
+                            14,
+                            (safeBottom > 0 ? safeBottom : 12) + 6,
+                          ),
+                          child: const _AnimateEmptyState(),
+                        )
+                      : ListView.separated(
+                          padding: EdgeInsets.fromLTRB(
+                            16,
+                            0,
+                            16,
+                            (safeBottom > 0 ? safeBottom : 12) + 8,
+                          ),
+                          itemBuilder: (context, index) {
+                            final item = items[index];
+                            return _AnimateBrowserItemTile(
+                              item: item,
+                              query: _query,
+                              onAdd: () => Navigator.of(context).pop(item),
+                            );
+                          },
+                          separatorBuilder: (context, index) =>
+                              const SizedBox(height: 8),
+                          itemCount: items.length,
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _AnimateBrowserBottomSheetState extends State<AnimateBrowserBottomSheet> {
   late final TextEditingController _searchController;
   late final FocusNode _focusNode;

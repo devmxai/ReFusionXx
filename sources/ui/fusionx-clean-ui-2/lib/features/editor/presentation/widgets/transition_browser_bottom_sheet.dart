@@ -6,6 +6,7 @@ import '../models/timeline_mock_models.dart';
 enum TransitionBrowserAction {
   applyPreset,
   openManual,
+  openAi,
 }
 
 class TransitionBrowserResult {
@@ -156,6 +157,17 @@ class _TransitionBrowserBottomSheetState
                     const TransitionBrowserResult(
                       action: TransitionBrowserAction.openManual,
                       preset: TimelineTransitionPreset.manual,
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+                child: _AiTransitionCard(
+                  onTap: () => Navigator.of(context).pop(
+                    const TransitionBrowserResult(
+                      action: TransitionBrowserAction.openAi,
+                      preset: TimelineTransitionPreset.aiGenerated,
                     ),
                   ),
                 ),
@@ -329,12 +341,13 @@ class _TransitionPresetCard extends StatelessWidget {
                 ),
                 child: Icon(
                   switch (preset) {
-                    TimelineTransitionPreset.manual =>
-                      Icons.tune_rounded,
+                    TimelineTransitionPreset.manual => Icons.tune_rounded,
                     TimelineTransitionPreset.fadeBlack =>
                       Icons.gradient_rounded,
                     TimelineTransitionPreset.zoomInCamera =>
                       Icons.center_focus_strong_rounded,
+                    TimelineTransitionPreset.aiGenerated =>
+                      Icons.auto_awesome_rounded,
                   },
                   color: Colors.white.withOpacity(0.88),
                   size: 18,
@@ -382,6 +395,108 @@ class _TransitionPresetCard extends StatelessWidget {
                   Icons.add_rounded,
                   color: FxPalette.accent,
                   size: 19,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AiTransitionCard extends StatelessWidget {
+  const _AiTransitionCard({
+    required this.onTap,
+  });
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Ink(
+        decoration: BoxDecoration(
+          color: FxPalette.surfaceRaised,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: FxPalette.accent.withOpacity(0.28),
+            width: 1,
+          ),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              FxPalette.accent.withOpacity(0.09),
+              Colors.white.withOpacity(0.02),
+            ],
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: FxPalette.accent.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: FxPalette.accent.withOpacity(0.28),
+                    width: 1,
+                  ),
+                ),
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: FxPalette.accent,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'AI Transition',
+                      style: TextStyle(
+                        color: FxPalette.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Generate a seam draft from clip A last frame to clip B first frame.',
+                      style: TextStyle(
+                        color: FxPalette.textMuted.withOpacity(0.92),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        height: 1.28,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(11),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.08),
+                    width: 1,
+                  ),
+                ),
+                child: const Icon(
+                  Icons.chevron_right_rounded,
+                  color: FxPalette.textPrimary,
+                  size: 20,
                 ),
               ),
             ],
