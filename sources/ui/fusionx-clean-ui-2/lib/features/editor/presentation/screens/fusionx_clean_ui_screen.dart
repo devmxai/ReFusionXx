@@ -2961,6 +2961,23 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         keyframeIndex < lane.normalizedKeyframeStops.length - 1;
   }
 
+  bool _canMoveLayerScopeSelectedKeyframe(
+    _LayerScopeContext? context,
+  ) {
+    if (context == null) {
+      return false;
+    }
+    final lane = _layerScopeSelectedAnimationLane(context);
+    final keyframeIndex = _selectedLayerScopeKeyframeIndex;
+    final definitions =
+        lane == null ? null : _layerScopeDefinitionsForLane(lane);
+    if (lane == null || definitions == null || keyframeIndex == null) {
+      return false;
+    }
+    return keyframeIndex >= 0 &&
+        keyframeIndex < lane.normalizedKeyframeStops.length;
+  }
+
   double _layerScopeRotationAngleForDegrees(double degrees) {
     var angle = degrees;
     while (angle > 180.0) {
@@ -4115,6 +4132,44 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (lane == null) {
       return;
     }
+    _moveLayerScopeKeyframeToProgress(
+      context: context,
+      lane: lane,
+      keyframeIndex: keyframeIndex,
+      progress: progress,
+    );
+  }
+
+  void _handleLayerScopeMoveSelectedKeyframeToPlayhead() {
+    final context = _activeLayerScopeContext;
+    if (context == null) {
+      return;
+    }
+    final lane = _layerScopeSelectedAnimationLane(context);
+    final keyframeIndex = _selectedLayerScopeKeyframeIndex;
+    if (lane == null || keyframeIndex == null) {
+      return;
+    }
+    final durationSeconds = context.durationTime.inSecondsDouble;
+    final progress = durationSeconds <= 0
+        ? 0.0
+        : (_layerScopeLocalTime(context, _currentTime).inSecondsDouble /
+                durationSeconds)
+            .clamp(0.0, 1.0);
+    _moveLayerScopeKeyframeToProgress(
+      context: context,
+      lane: lane,
+      keyframeIndex: keyframeIndex,
+      progress: progress,
+    );
+  }
+
+  void _moveLayerScopeKeyframeToProgress({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required int keyframeIndex,
+    required double progress,
+  }) {
     final definitions = _layerScopeDefinitionsForLane(lane);
     final stops = lane.normalizedKeyframeStops;
     if (definitions == null ||
@@ -4148,7 +4203,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     ]..sort((left, right) => left.stop.compareTo(right.stop));
     final nextSelectedIndex = movedEntries.indexWhere((entry) => entry.isMoved);
     _updateTimelineAnimationLane(
-      laneId,
+      lane.id,
       (currentLane) => currentLane.copyWith(
         normalizedKeyframeStops: List<double>.unmodifiable(
           <double>[
@@ -4165,7 +4220,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     setState(() {
       _manualMotionPropertyChannels = syncedChannels;
       _motionRevision += 1;
-      _selectedLayerScopeAnimationLaneId = laneId;
+      _selectedLayerScopeAnimationLaneId = lane.id;
       _selectedLayerScopeKeyframeIndex = nextSelectedIndex;
       _isLayerScopeValueEditorOpen = false;
     });
@@ -9544,6 +9599,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         _canOpenLayerScopeValueEditor(layerScopeContext);
     final canOpenLayerScopeGraphEditor =
         _canOpenLayerScopeGraphEditor(layerScopeContext);
+    final canMoveLayerScopeSelectedKeyframe =
+        _canMoveLayerScopeSelectedKeyframe(layerScopeContext);
     final isLayerScopeActive = layerScopeContext != null;
     return Scaffold(
       resizeToAvoidBottomInset: !_isAnimateBrowserOpen,
@@ -9635,6 +9692,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                 hasSelectedMotionTextClip
                                             ? _handleDuplicateSelectedClip
                                             : null,
+                                        onMoveToKeyframe:
+                                            canMoveLayerScopeSelectedKeyframe
+                                                ? _handleLayerScopeMoveSelectedKeyframeToPlayhead
+                                                : null,
                                         onPlayToggle: _useNativePreview
                                             ? _handlePlayToggle
                                             : null,
@@ -10115,6 +10176,7 @@ class _LayerScopeToolsBar extends StatelessWidget {
     required this.onTrimToggle,
     required this.isTrimModeActive,
     required this.onDuplicate,
+    required this.onMoveToKeyframe,
     required this.onPlayToggle,
   });
 
@@ -10124,6 +10186,7 @@ class _LayerScopeToolsBar extends StatelessWidget {
   final VoidCallback? onTrimToggle;
   final bool isTrimModeActive;
   final VoidCallback? onDuplicate;
+  final VoidCallback? onMoveToKeyframe;
   final VoidCallback? onPlayToggle;
 
   @override
@@ -10164,6 +10227,13 @@ class _LayerScopeToolsBar extends StatelessWidget {
             size: 30,
             iconScale: 0.4,
             onPressed: onDuplicate,
+          ),
+          const SizedBox(width: 5),
+          FxIconButton(
+            icon: Icons.open_with_rounded,
+            size: 30,
+            iconScale: 0.4,
+            onPressed: onMoveToKeyframe,
           ),
           const Spacer(),
           Container(

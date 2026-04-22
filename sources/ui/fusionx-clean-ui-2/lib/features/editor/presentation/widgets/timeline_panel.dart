@@ -4652,7 +4652,7 @@ class _TimelineAnimationLaneRow extends StatelessWidget {
           ),
           Positioned(
             left: clipLeft,
-            top: 3,
+            top: 2,
             child: _TimelineAnimationSegment(
               width: clipWidth,
               keyframeStops: keyframeStops,
@@ -4730,7 +4730,7 @@ class _TimelineAnimationLabelChip extends StatelessWidget {
   }
 }
 
-class _TimelineAnimationSegment extends StatelessWidget {
+class _TimelineAnimationSegment extends StatefulWidget {
   const _TimelineAnimationSegment({
     required this.width,
     required this.keyframeStops,
@@ -4748,54 +4748,81 @@ class _TimelineAnimationSegment extends StatelessWidget {
   final void Function(int keyframeIndex, double normalizedStop)? onKeyframeDrag;
 
   @override
+  State<_TimelineAnimationSegment> createState() =>
+      _TimelineAnimationSegmentState();
+}
+
+class _TimelineAnimationSegmentState extends State<_TimelineAnimationSegment> {
+  final Map<int, double> _dragFingerOffsetFromCenterByIndex = <int, double>{};
+
+  void _handleKeyframeDragStart(
+    int index,
+    DragStartDetails details, {
+    required double markerTouchWidth,
+  }) {
+    _dragFingerOffsetFromCenterByIndex[index] =
+        details.localPosition.dx - (markerTouchWidth / 2);
+    widget.onKeyframeTap?.call(index);
+  }
+
+  void _handleKeyframeDragUpdate(
+    int index,
+    DragUpdateDetails details, {
+    required double draggableInset,
+    required double draggableWidth,
+  }) {
+    final onKeyframeDrag = widget.onKeyframeDrag;
+    if (onKeyframeDrag == null) {
+      return;
+    }
+    final renderObject = context.findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.hasSize) {
+      return;
+    }
+    final localDx = renderObject.globalToLocal(details.globalPosition).dx;
+    final fingerOffsetFromCenter =
+        _dragFingerOffsetFromCenterByIndex[index] ?? 0.0;
+    final centerX = (localDx - fingerOffsetFromCenter)
+        .clamp(draggableInset, draggableInset + draggableWidth)
+        .toDouble();
+    final normalizedStop = ((centerX - draggableInset) / draggableWidth)
+        .clamp(0.0, 1.0)
+        .toDouble();
+    onKeyframeDrag(index, normalizedStop);
+  }
+
+  void _clearKeyframeDragState(int index) {
+    _dragFingerOffsetFromCenterByIndex.remove(index);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final resolvedWidth = math.max(30.0, width);
-    final resolvedStops = keyframeStops
+    final resolvedWidth = math.max(30.0, widget.width);
+    const segmentHeight = 24.0;
+    const lineThickness = 1.2;
+    const markerTouchWidth = 20.0;
+    const markerTouchHeight = segmentHeight;
+    const draggableInset = 0.0;
+    final resolvedStops = widget.keyframeStops
         .map((stop) => stop.clamp(0.0, 1.0))
         .toList(growable: false);
-    final draggableWidth = math.max(1.0, resolvedWidth - 12);
+    final draggableWidth = math.max(1.0, resolvedWidth - (draggableInset * 2));
     return RepaintBoundary(
-      child: Container(
+      child: SizedBox(
         width: resolvedWidth,
-        height: 24,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.white.withOpacity(isSelected ? 0.065 : 0.038),
-              Colors.white.withOpacity(isSelected ? 0.032 : 0.016),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(
-            color: Colors.white.withOpacity(isSelected ? 0.24 : 0.14),
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: FxPalette.accent.withOpacity(isSelected ? 0.1 : 0.045),
-              blurRadius: isSelected ? 12 : 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
+        height: segmentHeight,
         child: Stack(
           clipBehavior: Clip.none,
           children: [
             Positioned(
-              left: 10,
-              right: 10,
-              top: 11,
+              left: 0,
+              right: 0,
+              top: (segmentHeight - lineThickness) / 2,
               child: Container(
-                height: 1.5,
+                height: lineThickness,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.white.withOpacity(0.12),
-                      Colors.white.withOpacity(isSelected ? 0.34 : 0.24),
-                      Colors.white.withOpacity(0.12),
-                    ],
+                  color: FxPalette.textMuted.withOpacity(
+                    widget.isSelected ? 0.42 : 0.28,
                   ),
                   borderRadius: BorderRadius.circular(999),
                 ),
@@ -4803,33 +4830,45 @@ class _TimelineAnimationSegment extends StatelessWidget {
             ),
             for (var index = 0; index < resolvedStops.length; index++)
               Positioned(
-                left: (resolvedWidth - 12) * resolvedStops[index],
-                top: 6,
+                left:
+                    (draggableInset + (draggableWidth * resolvedStops[index])) -
+                        (markerTouchWidth / 2),
+                top: 0,
                 child: GestureDetector(
                   behavior: HitTestBehavior.translucent,
-                  onTap: onKeyframeTap == null
+                  onTap: widget.onKeyframeTap == null
                       ? null
-                      : () => onKeyframeTap!(index),
-                  onHorizontalDragStart:
-                      onKeyframeDrag == null || onKeyframeTap == null
-                          ? null
-                          : (_) => onKeyframeTap!(index),
-                  onHorizontalDragUpdate: onKeyframeDrag == null
+                      : () => widget.onKeyframeTap!(index),
+                  onHorizontalDragStart: widget.onKeyframeDrag == null ||
+                          widget.onKeyframeTap == null
                       ? null
-                      : (details) {
-                          final normalizedStop = ((details.localPosition.dx +
-                                      (resolvedWidth - 12) *
-                                          resolvedStops[index]) /
-                                  draggableWidth)
-                              .clamp(0.0, 1.0)
-                              .toDouble();
-                          onKeyframeDrag!(index, normalizedStop);
-                        },
-                  child: _TimelineAnimationKeyframeMarker(
-                    isPrimary: index == 0 || index == resolvedStops.length - 1,
-                    isSelected: isSelected,
-                    isKeyframeSelected:
-                        isSelected && selectedKeyframeIndex == index,
+                      : (details) => _handleKeyframeDragStart(
+                            index,
+                            details,
+                            markerTouchWidth: markerTouchWidth,
+                          ),
+                  onHorizontalDragUpdate: widget.onKeyframeDrag == null
+                      ? null
+                      : (details) => _handleKeyframeDragUpdate(
+                            index,
+                            details,
+                            draggableInset: draggableInset,
+                            draggableWidth: draggableWidth,
+                          ),
+                  onHorizontalDragEnd: (_) => _clearKeyframeDragState(index),
+                  onHorizontalDragCancel: () => _clearKeyframeDragState(index),
+                  child: SizedBox(
+                    width: markerTouchWidth,
+                    height: markerTouchHeight,
+                    child: Center(
+                      child: _TimelineAnimationKeyframeMarker(
+                        isPrimary:
+                            index == 0 || index == resolvedStops.length - 1,
+                        isSelected: widget.isSelected,
+                        isKeyframeSelected: widget.isSelected &&
+                            widget.selectedKeyframeIndex == index,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -4853,36 +4892,129 @@ class _TimelineAnimationKeyframeMarker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fillColor = isPrimary
-        ? FxPalette.accent.withOpacity(isSelected ? 0.96 : 0.82)
-        : Colors.white.withOpacity(isSelected ? 0.82 : 0.62);
-    return Transform.rotate(
-      angle: math.pi / 4,
-      child: Container(
-        width: isKeyframeSelected ? 12 : (isPrimary ? 10 : 8),
-        height: isKeyframeSelected ? 12 : (isPrimary ? 10 : 8),
-        decoration: BoxDecoration(
-          color: fillColor,
-          borderRadius: BorderRadius.circular(2.5),
-          border: Border.all(
-            color: isKeyframeSelected
-                ? Colors.white.withOpacity(0.92)
-                : Colors.white.withOpacity(isSelected ? 0.46 : 0.28),
-            width: isKeyframeSelected ? 1.4 : 0.9,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: fillColor.withOpacity(
-                isKeyframeSelected ? 0.36 : (isPrimary ? 0.22 : 0.12),
-              ),
-              blurRadius: isKeyframeSelected ? 9 : (isPrimary ? 6 : 4),
-              offset: const Offset(0, 1),
-            ),
-          ],
+    final markerWidth = isKeyframeSelected ? 9.8 : (isPrimary ? 9.1 : 8.5);
+    final markerHeight = isKeyframeSelected ? 15.2 : (isPrimary ? 14.1 : 13.1);
+    final inactiveBorderColor =
+        (isSelected ? FxPalette.textMuted : FxPalette.textFaint)
+            .withOpacity(isPrimary ? 0.86 : 0.78);
+    final borderColor = isKeyframeSelected
+        ? Colors.white.withOpacity(0.88)
+        : inactiveBorderColor;
+    final borderWidth = isKeyframeSelected ? 1.22 : (isPrimary ? 0.98 : 0.9);
+    final fillColor =
+        isKeyframeSelected ? Colors.white.withOpacity(0.9) : Colors.transparent;
+    final glowColor = isKeyframeSelected
+        ? Colors.white.withOpacity(0.06)
+        : Colors.transparent;
+    return SizedBox(
+      width: markerWidth,
+      height: markerHeight,
+      child: CustomPaint(
+        painter: _TimelineAnimationKeyframeMarkerPainter(
+          borderColor: borderColor,
+          borderWidth: borderWidth,
+          fillColor: fillColor,
+          glowColor: glowColor,
         ),
       ),
     );
   }
+}
+
+class _TimelineAnimationKeyframeMarkerPainter extends CustomPainter {
+  const _TimelineAnimationKeyframeMarkerPainter({
+    required this.borderColor,
+    required this.borderWidth,
+    required this.fillColor,
+    required this.glowColor,
+  });
+
+  final Color borderColor;
+  final double borderWidth;
+  final Color fillColor;
+  final Color glowColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = _timelineKeyframeDiamondPath(size);
+    if (glowColor.opacity > 0.001) {
+      canvas.drawShadow(path, glowColor, 1.8, true);
+    }
+    if (fillColor.opacity > 0.001) {
+      final fillPaint = Paint()
+        ..isAntiAlias = true
+        ..style = PaintingStyle.fill
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withOpacity(0.96),
+            fillColor,
+            fillColor.withOpacity(0.86),
+          ],
+          stops: const [0.0, 0.42, 1.0],
+        ).createShader(Offset.zero & size);
+      canvas.drawPath(path, fillPaint);
+    }
+    final strokePaint = Paint()
+      ..isAntiAlias = true
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = borderWidth
+      ..color = borderColor
+      ..strokeJoin = StrokeJoin.round;
+    canvas.drawPath(path, strokePaint);
+  }
+
+  @override
+  bool shouldRepaint(
+    covariant _TimelineAnimationKeyframeMarkerPainter oldDelegate,
+  ) {
+    return oldDelegate.borderColor != borderColor ||
+        oldDelegate.borderWidth != borderWidth ||
+        oldDelegate.fillColor != fillColor ||
+        oldDelegate.glowColor != glowColor;
+  }
+}
+
+Path _timelineKeyframeDiamondPath(Size size) {
+  final width = size.width;
+  final height = size.height;
+  final centerX = width / 2;
+  final centerY = height / 2;
+  const padding = 0.8;
+  const top = padding;
+  final right = width - padding;
+  final bottom = height - padding;
+  const left = padding;
+  final controlX = width * 0.12;
+  final controlY = height * 0.14;
+  return Path()
+    ..moveTo(centerX, top)
+    ..quadraticBezierTo(
+      centerX + controlX,
+      centerY - controlY,
+      right,
+      centerY,
+    )
+    ..quadraticBezierTo(
+      centerX + controlX,
+      centerY + controlY,
+      centerX,
+      bottom,
+    )
+    ..quadraticBezierTo(
+      centerX - controlX,
+      centerY + controlY,
+      left,
+      centerY,
+    )
+    ..quadraticBezierTo(
+      centerX - controlX,
+      centerY - controlY,
+      centerX,
+      top,
+    )
+    ..close();
 }
 
 class _TimelineTrackLaneBadge extends StatelessWidget {
@@ -6217,38 +6349,22 @@ class _TimelineFallbackClipInterior extends StatelessWidget {
   final double width;
   final IconData icon;
 
-  List<double> get _iconAnchors {
-    if (width < 92) {
-      return const <double>[];
-    }
-    if (width < 164) {
-      return const <double>[0.5];
-    }
-    if (width < 278) {
-      return const <double>[0.34, 0.66];
-    }
-    return const <double>[0.24, 0.5, 0.76];
-  }
-
   @override
   Widget build(BuildContext context) {
-    final anchors = _iconAnchors;
-    if (anchors.isEmpty) {
+    if (width < 28) {
       return const SizedBox.shrink();
     }
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        for (final anchor in anchors)
-          Align(
-            alignment: Alignment((anchor * 2) - 1, 0),
-            child: Icon(
-              icon,
-              size: 18,
-              color: Colors.black.withOpacity(0.85),
-            ),
+    final iconSize = (width * 0.18).clamp(12.0, 18.0).toDouble();
+    return RepaintBoundary(
+      child: Center(
+        child: IgnorePointer(
+          child: Icon(
+            icon,
+            size: iconSize,
+            color: Colors.black.withOpacity(0.85),
           ),
-      ],
+        ),
+      ),
     );
   }
 }
