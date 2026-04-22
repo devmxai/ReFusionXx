@@ -2706,6 +2706,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     for (final projectedLane in <TimelineAnimationLaneData?>[
       _projectedTextOpacityLaneForScope(context),
       _projectedTextPositionLaneForScope(context),
+      _projectedTextScaleLaneForScope(context),
+      _projectedTextRotationLaneForScope(context),
     ]) {
       if (projectedLane == null) {
         continue;
@@ -2865,6 +2867,81 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     return null;
   }
 
+  TimelineAnimationLaneData? _existingLayerScopeAnimationLane(
+    _LayerScopeContext context,
+    String propertyLabel,
+  ) {
+    for (final lane in context.track.animationLanes) {
+      if (lane.targetClipId == context.clip.id &&
+          lane.matchesPropertyLabel(propertyLabel)) {
+        return lane;
+      }
+    }
+    return null;
+  }
+
+  List<double> _layerScopeKeyframeStopsForChannels(
+    _LayerScopeContext context,
+    Iterable<MotionPropertyChannelModel?> channels,
+  ) {
+    final durationSeconds = context.durationTime.inSecondsDouble;
+    final progressByTick = <int, double>{};
+    if (durationSeconds <= 0) {
+      return const <double>[];
+    }
+    for (final channel in channels) {
+      if (channel == null) {
+        continue;
+      }
+      for (final keyframe in channel.keyframes) {
+        if (keyframe.value.kind != MotionPropertyValueKind.scalar) {
+          continue;
+        }
+        final progress = ((keyframe.time - context.startTime).inSecondsDouble /
+                durationSeconds)
+            .clamp(0.0, 1.0)
+            .toDouble();
+        progressByTick[keyframe.time.inProjectTicks] = progress;
+      }
+    }
+    final sortedTicks = progressByTick.keys.toList()..sort();
+    return <double>[
+      for (final tick in sortedTicks) progressByTick[tick]!,
+    ];
+  }
+
+  TimelineAnimationLaneData? _projectedTextScalarLaneForScope({
+    required _LayerScopeContext context,
+    required String label,
+    required String slug,
+    required Iterable<MotionPropertyChannelModel?> channels,
+  }) {
+    if (context.track.kind != TimelineTrackKind.text) {
+      return null;
+    }
+    final stops = _layerScopeKeyframeStopsForChannels(context, channels);
+    final existingLane = _existingLayerScopeAnimationLane(context, label);
+    if (existingLane == null && stops.isEmpty) {
+      return null;
+    }
+    final baseLane = existingLane ??
+        TimelineAnimationLaneData(
+          id: 'anim-${context.track.kind.name}-${context.clip.id}-$slug',
+          label: label,
+          targetClipId: context.clip.id,
+          normalizedKeyframeStops: const <double>[],
+          keyframeValues: const <double>[],
+        );
+    return baseLane.copyWith(
+      label: label,
+      targetClipId: context.clip.id,
+      normalizedKeyframeStops: List<double>.unmodifiable(stops),
+      keyframeValues: List<double>.unmodifiable(
+        List<double>.filled(stops.length, 0.0, growable: false),
+      ),
+    );
+  }
+
   TimelineAnimationLaneData? _projectedTextOpacityLaneForScope(
     _LayerScopeContext context,
   ) {
@@ -2875,14 +2952,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     if (channel == null) {
       return null;
     }
-    TimelineAnimationLaneData? existingLane;
-    for (final lane in context.track.animationLanes) {
-      if (lane.targetClipId == context.clip.id &&
-          lane.matchesPropertyLabel('opacity')) {
-        existingLane = lane;
-        break;
-      }
-    }
+    final existingLane = _existingLayerScopeAnimationLane(context, 'opacity');
     final durationSeconds = context.durationTime.inSecondsDouble;
     final stops = <double>[];
     final values = <double>[];
@@ -2925,9 +2995,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   TimelineAnimationLaneData? _projectedTextPositionLaneForScope(
     _LayerScopeContext context,
   ) {
-    if (context.track.kind != TimelineTrackKind.text) {
-      return null;
-    }
     final positionX = _manualPropertyChannelForElement(
       context.clip.id,
       MotionPropertyCatalog.positionX,
@@ -2936,59 +3003,51 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       context.clip.id,
       MotionPropertyCatalog.positionY,
     );
-    if (positionX == null && positionY == null) {
-      return null;
-    }
-    TimelineAnimationLaneData? existingLane;
-    for (final lane in context.track.animationLanes) {
-      if (lane.targetClipId == context.clip.id &&
-          lane.matchesPropertyLabel('position')) {
-        existingLane = lane;
-        break;
-      }
-    }
-    final durationSeconds = context.durationTime.inSecondsDouble;
-    final progressByTick = <int, double>{};
-    if (durationSeconds > 0) {
-      for (final channel in <MotionPropertyChannelModel?>[
+    return _projectedTextScalarLaneForScope(
+      context: context,
+      label: 'Position',
+      slug: 'position',
+      channels: <MotionPropertyChannelModel?>[
         positionX,
         positionY,
-      ]) {
-        if (channel == null) {
-          continue;
-        }
-        for (final keyframe in channel.keyframes) {
-          final progress =
-              ((keyframe.time - context.startTime).inSecondsDouble /
-                      durationSeconds)
-                  .clamp(0.0, 1.0)
-                  .toDouble();
-          progressByTick[keyframe.time.inProjectTicks] = progress;
-        }
-      }
-    }
-    final sortedTicks = progressByTick.keys.toList()..sort();
-    final stops = <double>[
-      for (final tick in sortedTicks) progressByTick[tick]!,
-    ];
-    if (existingLane == null && stops.isEmpty) {
-      return null;
-    }
-    final baseLane = existingLane ??
-        TimelineAnimationLaneData(
-          id: 'anim-${context.track.kind.name}-${context.clip.id}-position',
-          label: 'Position',
-          targetClipId: context.clip.id,
-          normalizedKeyframeStops: const <double>[],
-          keyframeValues: const <double>[],
-        );
-    return baseLane.copyWith(
-      label: 'Position',
-      targetClipId: context.clip.id,
-      normalizedKeyframeStops: List<double>.unmodifiable(stops),
-      keyframeValues: List<double>.unmodifiable(
-        List<double>.filled(stops.length, 0.0, growable: false),
-      ),
+      ],
+    );
+  }
+
+  TimelineAnimationLaneData? _projectedTextScaleLaneForScope(
+    _LayerScopeContext context,
+  ) {
+    final scaleX = _manualPropertyChannelForElement(
+      context.clip.id,
+      MotionPropertyCatalog.scaleX,
+    );
+    final scaleY = _manualPropertyChannelForElement(
+      context.clip.id,
+      MotionPropertyCatalog.scaleY,
+    );
+    return _projectedTextScalarLaneForScope(
+      context: context,
+      label: 'Scale',
+      slug: 'scale',
+      channels: <MotionPropertyChannelModel?>[
+        scaleX,
+        scaleY,
+      ],
+    );
+  }
+
+  TimelineAnimationLaneData? _projectedTextRotationLaneForScope(
+    _LayerScopeContext context,
+  ) {
+    final rotation = _manualPropertyChannelForElement(
+      context.clip.id,
+      MotionPropertyCatalog.rotationDegrees,
+    );
+    return _projectedTextScalarLaneForScope(
+      context: context,
+      label: 'Rotation',
+      slug: 'rotation',
+      channels: <MotionPropertyChannelModel?>[rotation],
     );
   }
 
@@ -3100,6 +3159,91 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       return null;
     }
     return yResult.channels;
+  }
+
+  List<MotionPropertyChannelModel>? _syncLayerScopeTransformKeyframesToGraph({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required double progress,
+    required String propertyLabel,
+    required Iterable<MotionPropertyDefinition> definitions,
+  }) {
+    if (!lane.matchesPropertyLabel(propertyLabel) ||
+        context.track.kind != TimelineTrackKind.text) {
+      return null;
+    }
+    final textContext = _motionTextElementContextForId(context.clip.id);
+    if (textContext == null) {
+      return null;
+    }
+    final localSeconds =
+        context.durationTime.inSecondsDouble * progress.clamp(0.0, 1.0);
+    final keyframeTime = _layerScopeGlobalTime(
+      context,
+      TimelineTime.fromSecondsDouble(localSeconds),
+    );
+    final activeRange = _motionTextTimingRangeForElement(
+      scene: textContext.scene,
+      element: textContext.element,
+    );
+    final service = _buildCanvasTimelineAuthoringService();
+    var nextChannels = _manualMotionPropertyChannels;
+    for (final definition in definitions) {
+      final result = service.addKeyframe(
+        CanvasTimelineKeyframeRequest(
+          channels: nextChannels,
+          target: textContext.elementTarget,
+          activeRange: activeRange,
+          definition: definition,
+          time: keyframeTime,
+          value: MotionPropertyValue.scalar(
+            _evaluatedTextScalarPropertyOrDefault(
+              textContext,
+              definition,
+              time: keyframeTime,
+            ),
+          ),
+        ),
+      );
+      if (result.hasIssues) {
+        return null;
+      }
+      nextChannels = result.channels;
+    }
+    return nextChannels;
+  }
+
+  List<MotionPropertyChannelModel>? _syncLayerScopeScaleKeyframeToGraph({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required double progress,
+  }) {
+    return _syncLayerScopeTransformKeyframesToGraph(
+      context: context,
+      lane: lane,
+      progress: progress,
+      propertyLabel: 'scale',
+      definitions: <MotionPropertyDefinition>[
+        MotionPropertyCatalog.scaleX,
+        MotionPropertyCatalog.scaleY,
+      ],
+    );
+  }
+
+  List<MotionPropertyChannelModel>? _syncLayerScopeRotationKeyframeToGraph({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required double progress,
+  }) {
+    return _syncLayerScopeTransformKeyframesToGraph(
+      context: context,
+      lane: lane,
+      progress: progress,
+      propertyLabel: 'rotation',
+      definitions: <MotionPropertyDefinition>[
+        MotionPropertyCatalog.rotationDegrees,
+      ],
+    );
   }
 
   _SelectedTimelineClipContext? _activePreviewVisualClipContextForTime(
@@ -3277,6 +3421,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
           percent: insertedValue,
         ) ??
         _syncLayerScopePositionKeyframeToGraph(
+          context: context,
+          lane: lane,
+          progress: progress,
+        ) ??
+        _syncLayerScopeScaleKeyframeToGraph(
+          context: context,
+          lane: lane,
+          progress: progress,
+        ) ??
+        _syncLayerScopeRotationKeyframeToGraph(
           context: context,
           lane: lane,
           progress: progress,

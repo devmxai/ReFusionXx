@@ -198,6 +198,20 @@ class ScopedLayerAnimateBottomSheet extends StatefulWidget {
       summary: 'Animate layer movement on X and Y.',
       keywords: <String>['move', 'x', 'y', 'translate'],
     ),
+    AnimateBrowserItem(
+      id: 'scale',
+      label: 'Scale',
+      category: 'Animate',
+      summary: 'Animate layer size on X and Y.',
+      keywords: <String>['scale', 'size', 'zoom', 'resize'],
+    ),
+    AnimateBrowserItem(
+      id: 'rotation',
+      label: 'Rotation',
+      category: 'Animate',
+      summary: 'Animate layer angle over time.',
+      keywords: <String>['rotate', 'angle', 'spin', 'turn'],
+    ),
   ];
 
   @override
