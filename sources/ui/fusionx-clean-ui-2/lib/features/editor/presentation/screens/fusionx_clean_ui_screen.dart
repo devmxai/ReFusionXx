@@ -2934,7 +2934,19 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     String elementId,
     MotionPropertyDefinition definition,
   ) {
-    for (final channel in _manualMotionPropertyChannels) {
+    return _propertyChannelForElementInChannels(
+      _manualMotionPropertyChannels,
+      elementId,
+      definition,
+    );
+  }
+
+  MotionPropertyChannelModel? _propertyChannelForElementInChannels(
+    List<MotionPropertyChannelModel> channels,
+    String elementId,
+    MotionPropertyDefinition definition,
+  ) {
+    for (final channel in channels) {
       if (channel.target.targetId == elementId &&
           channel.definition.id == definition.id &&
           (channel.baseValue != null || channel.keyframes.isNotEmpty)) {
@@ -3358,6 +3370,104 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     );
   }
 
+  List<MotionPropertyDefinition>? _layerScopeDefinitionsForLane(
+    TimelineAnimationLaneData lane,
+  ) {
+    if (lane.matchesPropertyLabel('opacity')) {
+      return <MotionPropertyDefinition>[
+        MotionPropertyCatalog.opacity,
+      ];
+    }
+    if (lane.matchesPropertyLabel('position')) {
+      return <MotionPropertyDefinition>[
+        MotionPropertyCatalog.positionX,
+        MotionPropertyCatalog.positionY,
+      ];
+    }
+    if (lane.matchesPropertyLabel('scale')) {
+      return <MotionPropertyDefinition>[
+        MotionPropertyCatalog.scaleX,
+        MotionPropertyCatalog.scaleY,
+      ];
+    }
+    if (lane.matchesPropertyLabel('rotation')) {
+      return <MotionPropertyDefinition>[
+        MotionPropertyCatalog.rotationDegrees,
+      ];
+    }
+    return null;
+  }
+
+  List<MotionPropertyChannelModel>? _moveLayerScopeKeyframesToGraph({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required int keyframeIndex,
+    required double progress,
+    required Iterable<MotionPropertyDefinition> definitions,
+  }) {
+    if (context.track.kind != TimelineTrackKind.text) {
+      return null;
+    }
+    final stops = lane.normalizedKeyframeStops;
+    if (keyframeIndex < 0 || keyframeIndex >= stops.length) {
+      return null;
+    }
+    final textContext = _motionTextElementContextForId(context.clip.id);
+    if (textContext == null) {
+      return null;
+    }
+    final sourceTime = _layerScopeTimeForProgress(
+      context,
+      stops[keyframeIndex],
+    );
+    final targetTime = _layerScopeTimeForProgress(context, progress);
+    if (sourceTime.inProjectTicks == targetTime.inProjectTicks) {
+      return null;
+    }
+    final activeRange = _motionTextTimingRangeForElement(
+      scene: textContext.scene,
+      element: textContext.element,
+    );
+    final service = _buildCanvasTimelineAuthoringService();
+    var nextChannels = _manualMotionPropertyChannels;
+    var movedAny = false;
+    for (final definition in definitions) {
+      final channel = _propertyChannelForElementInChannels(
+        nextChannels,
+        context.clip.id,
+        definition,
+      );
+      if (channel == null) {
+        continue;
+      }
+      MotionKeyframeModel? keyframe;
+      for (final candidate in channel.keyframes) {
+        if (candidate.time.inProjectTicks == sourceTime.inProjectTicks) {
+          keyframe = candidate;
+          break;
+        }
+      }
+      if (keyframe == null) {
+        continue;
+      }
+      final result = service.moveKeyframe(
+        CanvasTimelineMoveKeyframeRequest(
+          channels: nextChannels,
+          channelId: channel.id,
+          keyframeId: keyframe.id,
+          activeRange: activeRange,
+          time: targetTime,
+        ),
+      );
+      if (result.hasIssues) {
+        return null;
+      }
+      nextChannels = result.channels;
+      movedAny = true;
+    }
+    return movedAny ? nextChannels : null;
+  }
+
   _SelectedTimelineClipContext? _activePreviewVisualClipContextForTime(
     TimelineTime timelineTime,
   ) {
@@ -3442,6 +3552,81 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     setState(() {
       _selectedLayerScopeAnimationLaneId = laneId;
       _selectedLayerScopeKeyframeIndex = keyframeIndex;
+      _isLayerScopeValueEditorOpen = false;
+    });
+  }
+
+  void _handleLayerScopeAnimationKeyframeDrag(
+    String laneId,
+    int keyframeIndex,
+    double progress,
+  ) {
+    final context = _activeLayerScopeContext;
+    if (context == null) {
+      return;
+    }
+    TimelineAnimationLaneData? lane;
+    for (final candidate in _layerScopeAnimationLanes(context)) {
+      if (candidate.id == laneId) {
+        lane = candidate;
+        break;
+      }
+    }
+    if (lane == null) {
+      return;
+    }
+    final definitions = _layerScopeDefinitionsForLane(lane);
+    final stops = lane.normalizedKeyframeStops;
+    if (definitions == null ||
+        keyframeIndex < 0 ||
+        keyframeIndex >= stops.length) {
+      return;
+    }
+    final clampedProgress = progress.clamp(0.0, 1.0).toDouble();
+    if ((stops[keyframeIndex].clamp(0.0, 1.0) - clampedProgress).abs() <=
+        0.0005) {
+      return;
+    }
+    final syncedChannels = _moveLayerScopeKeyframesToGraph(
+      context: context,
+      lane: lane,
+      keyframeIndex: keyframeIndex,
+      progress: clampedProgress,
+      definitions: definitions,
+    );
+    if (syncedChannels == null) {
+      return;
+    }
+    final values = _alignedAnimationKeyframeValues(lane);
+    final movedEntries = <({double stop, double value, bool isMoved})>[
+      for (var index = 0; index < stops.length; index++)
+        (
+          stop: index == keyframeIndex ? clampedProgress : stops[index],
+          value: values[index],
+          isMoved: index == keyframeIndex,
+        ),
+    ]..sort((left, right) => left.stop.compareTo(right.stop));
+    final nextSelectedIndex = movedEntries.indexWhere((entry) => entry.isMoved);
+    _updateTimelineAnimationLane(
+      laneId,
+      (currentLane) => currentLane.copyWith(
+        normalizedKeyframeStops: List<double>.unmodifiable(
+          <double>[
+            for (final entry in movedEntries) entry.stop,
+          ],
+        ),
+        keyframeValues: List<double>.unmodifiable(
+          <double>[
+            for (final entry in movedEntries) entry.value,
+          ],
+        ),
+      ),
+    );
+    setState(() {
+      _manualMotionPropertyChannels = syncedChannels;
+      _motionRevision += 1;
+      _selectedLayerScopeAnimationLaneId = laneId;
+      _selectedLayerScopeKeyframeIndex = nextSelectedIndex;
       _isLayerScopeValueEditorOpen = false;
     });
   }
@@ -8936,6 +9121,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
                                               _handleLayerScopeAnimationLaneTap,
                                           onAnimationKeyframeTap:
                                               _handleLayerScopeAnimationKeyframeTap,
+                                          onAnimationKeyframeDrag:
+                                              _handleLayerScopeAnimationKeyframeDrag,
                                           onTrimCommit:
                                               _handleTimelineTrimCommit,
                                           onTrimPreviewChanged: (request) =>

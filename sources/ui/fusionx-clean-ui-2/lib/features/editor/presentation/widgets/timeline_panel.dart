@@ -33,6 +33,11 @@ typedef TimelineAnimationKeyframeTapCallback = void Function(
   String laneId,
   int keyframeIndex,
 );
+typedef TimelineAnimationKeyframeDragCallback = void Function(
+  String laneId,
+  int keyframeIndex,
+  double normalizedStop,
+);
 typedef TimelineScrubSurfaceBuilder = Widget Function(
     TimelineScrubSurfaceConfig config);
 
@@ -476,6 +481,7 @@ class TimelinePanel extends StatefulWidget {
     this.selectedAnimationKeyframeIndex,
     this.onAnimationLaneTap,
     this.onAnimationKeyframeTap,
+    this.onAnimationKeyframeDrag,
     this.onTrackFxTap,
     this.timeDisplayOffset = TimelineTime.zero,
     this.timeReadoutTotalTime,
@@ -515,6 +521,7 @@ class TimelinePanel extends StatefulWidget {
   final int? selectedAnimationKeyframeIndex;
   final ValueChanged<String>? onAnimationLaneTap;
   final TimelineAnimationKeyframeTapCallback? onAnimationKeyframeTap;
+  final TimelineAnimationKeyframeDragCallback? onAnimationKeyframeDrag;
   final ValueChanged<TimelineTrackData>? onTrackFxTap;
   final TimelineTime timeDisplayOffset;
   final TimelineTime? timeReadoutTotalTime;
@@ -3775,6 +3782,9 @@ class _TimelinePanelState extends State<TimelinePanel>
                                                             onAnimationKeyframeTap:
                                                                 widget
                                                                     .onAnimationKeyframeTap,
+                                                            onAnimationKeyframeDrag:
+                                                                widget
+                                                                    .onAnimationKeyframeDrag,
                                                             onTransitionTap: widget
                                                                 .onTransitionTap,
                                                             onBackgroundTap:
@@ -3934,6 +3944,7 @@ class _TimelineTrackRow extends StatelessWidget {
     required this.onTrackFxTap,
     required this.onAnimationLaneTap,
     required this.onAnimationKeyframeTap,
+    required this.onAnimationKeyframeDrag,
     required this.onTransitionTap,
     required this.onBackgroundTap,
     required this.onManualPanDragStart,
@@ -3977,6 +3988,7 @@ class _TimelineTrackRow extends StatelessWidget {
   final ValueChanged<TimelineTrackData>? onTrackFxTap;
   final ValueChanged<String>? onAnimationLaneTap;
   final TimelineAnimationKeyframeTapCallback? onAnimationKeyframeTap;
+  final TimelineAnimationKeyframeDragCallback? onAnimationKeyframeDrag;
   final TimelineBoundaryTransitionTapCallback? onTransitionTap;
   final VoidCallback? onBackgroundTap;
   final GestureDragStartCallback onManualPanDragStart;
@@ -4414,6 +4426,13 @@ class _TimelineTrackRow extends StatelessWidget {
                   ? null
                   : (keyframeIndex) =>
                       onAnimationKeyframeTap!(lane.id, keyframeIndex),
+              onKeyframeDrag: onAnimationKeyframeDrag == null
+                  ? null
+                  : (keyframeIndex, normalizedStop) => onAnimationKeyframeDrag!(
+                        lane.id,
+                        keyframeIndex,
+                        normalizedStop,
+                      ),
               onTap: () {
                 if (onAnimationLaneTap != null) {
                   onAnimationLaneTap!(lane.id);
@@ -4595,6 +4614,7 @@ class _TimelineAnimationLaneRow extends StatelessWidget {
     required this.selectedKeyframeIndex,
     required this.isSelected,
     required this.onKeyframeTap,
+    required this.onKeyframeDrag,
     required this.onTap,
   });
 
@@ -4605,6 +4625,7 @@ class _TimelineAnimationLaneRow extends StatelessWidget {
   final int? selectedKeyframeIndex;
   final bool isSelected;
   final ValueChanged<int>? onKeyframeTap;
+  final void Function(int keyframeIndex, double normalizedStop)? onKeyframeDrag;
   final VoidCallback onTap;
 
   @override
@@ -4638,6 +4659,7 @@ class _TimelineAnimationLaneRow extends StatelessWidget {
               selectedKeyframeIndex: selectedKeyframeIndex,
               isSelected: isSelected,
               onKeyframeTap: onKeyframeTap,
+              onKeyframeDrag: onKeyframeDrag,
             ),
           ),
         ],
@@ -4715,6 +4737,7 @@ class _TimelineAnimationSegment extends StatelessWidget {
     required this.selectedKeyframeIndex,
     required this.isSelected,
     required this.onKeyframeTap,
+    required this.onKeyframeDrag,
   });
 
   final double width;
@@ -4722,6 +4745,7 @@ class _TimelineAnimationSegment extends StatelessWidget {
   final int? selectedKeyframeIndex;
   final bool isSelected;
   final ValueChanged<int>? onKeyframeTap;
+  final void Function(int keyframeIndex, double normalizedStop)? onKeyframeDrag;
 
   @override
   Widget build(BuildContext context) {
@@ -4729,6 +4753,7 @@ class _TimelineAnimationSegment extends StatelessWidget {
     final resolvedStops = keyframeStops
         .map((stop) => stop.clamp(0.0, 1.0))
         .toList(growable: false);
+    final draggableWidth = math.max(1.0, resolvedWidth - 12);
     return RepaintBoundary(
       child: Container(
         width: resolvedWidth,
@@ -4785,6 +4810,21 @@ class _TimelineAnimationSegment extends StatelessWidget {
                   onTap: onKeyframeTap == null
                       ? null
                       : () => onKeyframeTap!(index),
+                  onHorizontalDragStart:
+                      onKeyframeDrag == null || onKeyframeTap == null
+                          ? null
+                          : (_) => onKeyframeTap!(index),
+                  onHorizontalDragUpdate: onKeyframeDrag == null
+                      ? null
+                      : (details) {
+                          final normalizedStop = ((details.localPosition.dx +
+                                      (resolvedWidth - 12) *
+                                          resolvedStops[index]) /
+                                  draggableWidth)
+                              .clamp(0.0, 1.0)
+                              .toDouble();
+                          onKeyframeDrag!(index, normalizedStop);
+                        },
                   child: _TimelineAnimationKeyframeMarker(
                     isPrimary: index == 0 || index == resolvedStops.length - 1,
                     isSelected: isSelected,
