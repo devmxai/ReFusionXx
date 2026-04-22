@@ -2732,6 +2732,25 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     );
   }
 
+  double _layerScopeProgressToSeconds(
+    _LayerScopeContext context,
+    double progress,
+  ) {
+    return context.durationTime.inSecondsDouble * progress.clamp(0.0, 1.0);
+  }
+
+  TimelineTime _layerScopeTimeForProgress(
+    _LayerScopeContext context,
+    double progress,
+  ) {
+    return _layerScopeGlobalTime(
+      context,
+      TimelineTime.fromSecondsDouble(
+        _layerScopeProgressToSeconds(context, progress),
+      ),
+    );
+  }
+
   TimelineAnimationLaneData? _layerScopeSelectedAnimationLane(
     _LayerScopeContext context,
   ) {
@@ -2773,7 +2792,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     return nearestIndex;
   }
 
-  double? _selectedLayerScopeKeyframeValue(
+  _LayerScopeToolbarValueSpec? _selectedLayerScopeToolbarValueSpec(
     _LayerScopeContext? context,
   ) {
     if (context == null) {
@@ -2781,14 +2800,72 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     }
     final lane = _layerScopeSelectedAnimationLane(context);
     final keyframeIndex = _selectedLayerScopeKeyframeIndex;
-    if (lane == null || keyframeIndex == null) {
+    if (lane == null ||
+        keyframeIndex == null ||
+        !_layerScopeLaneSupportsToolbarValue(lane)) {
       return null;
     }
-    final values = _alignedAnimationKeyframeValues(lane);
-    if (keyframeIndex < 0 || keyframeIndex >= values.length) {
+    final stops = lane.normalizedKeyframeStops;
+    if (keyframeIndex < 0 || keyframeIndex >= stops.length) {
       return null;
     }
-    return values[keyframeIndex];
+    final textContext = _motionTextElementContextForId(context.clip.id);
+    if (textContext == null) {
+      return null;
+    }
+    final keyframeTime = _layerScopeTimeForProgress(
+      context,
+      stops[keyframeIndex],
+    );
+    if (lane.matchesPropertyLabel('opacity')) {
+      final opacity = _evaluatedTextScalarPropertyOrDefault(
+        textContext,
+        MotionPropertyCatalog.opacity,
+        time: keyframeTime,
+      );
+      return _LayerScopeToolbarValueSpec(
+        value: (opacity * 100.0).clamp(0.0, 100.0).toDouble(),
+        min: 0,
+        max: 100,
+        divisions: 100,
+        suffix: '%',
+      );
+    }
+    if (lane.matchesPropertyLabel('scale')) {
+      final scaleX = _evaluatedTextScalarPropertyOrDefault(
+        textContext,
+        MotionPropertyCatalog.scaleX,
+        time: keyframeTime,
+      );
+      final scaleY = _evaluatedTextScalarPropertyOrDefault(
+        textContext,
+        MotionPropertyCatalog.scaleY,
+        time: keyframeTime,
+      );
+      return _LayerScopeToolbarValueSpec(
+        value:
+            (((scaleX + scaleY) / 2.0) * 100.0).clamp(20.0, 800.0).toDouble(),
+        min: 20,
+        max: 800,
+        divisions: 780,
+        suffix: '%',
+      );
+    }
+    if (lane.matchesPropertyLabel('rotation')) {
+      final rotation = _evaluatedTextScalarPropertyOrDefault(
+        textContext,
+        MotionPropertyCatalog.rotationDegrees,
+        time: keyframeTime,
+      );
+      return _LayerScopeToolbarValueSpec(
+        value: rotation.clamp(-360.0, 360.0).toDouble(),
+        min: -360,
+        max: 360,
+        divisions: 720,
+        suffix: ' deg',
+      );
+    }
+    return null;
   }
 
   TimelineAnimationLaneData? _opacityAnimationLaneForClipContext(
@@ -3054,7 +3131,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   bool _layerScopeLaneSupportsToolbarValue(
     TimelineAnimationLaneData? lane,
   ) {
-    return lane != null && lane.matchesPropertyLabel('opacity');
+    return lane != null &&
+        (lane.matchesPropertyLabel('opacity') ||
+            lane.matchesPropertyLabel('scale') ||
+            lane.matchesPropertyLabel('rotation'));
   }
 
   List<MotionPropertyChannelModel>? _syncLayerScopeOpacityKeyframeToGraph({
@@ -3071,12 +3151,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     if (textContext == null) {
       return null;
     }
-    final localSeconds =
-        context.durationTime.inSecondsDouble * progress.clamp(0.0, 1.0);
-    final keyframeTime = _layerScopeGlobalTime(
-      context,
-      TimelineTime.fromSecondsDouble(localSeconds),
-    );
+    final keyframeTime = _layerScopeTimeForProgress(context, progress);
     final result = _buildCanvasTimelineAuthoringService().addKeyframe(
       CanvasTimelineKeyframeRequest(
         channels: _manualMotionPropertyChannels,
@@ -3111,12 +3186,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     if (textContext == null) {
       return null;
     }
-    final localSeconds =
-        context.durationTime.inSecondsDouble * progress.clamp(0.0, 1.0);
-    final keyframeTime = _layerScopeGlobalTime(
-      context,
-      TimelineTime.fromSecondsDouble(localSeconds),
-    );
+    final keyframeTime = _layerScopeTimeForProgress(context, progress);
     final activeRange = _motionTextTimingRangeForElement(
       scene: textContext.scene,
       element: textContext.element,
@@ -3167,6 +3237,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     required double progress,
     required String propertyLabel,
     required Iterable<MotionPropertyDefinition> definitions,
+    Map<MotionPropertyDefinition, double> scalarOverrides =
+        const <MotionPropertyDefinition, double>{},
   }) {
     if (!lane.matchesPropertyLabel(propertyLabel) ||
         context.track.kind != TimelineTrackKind.text) {
@@ -3176,12 +3248,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     if (textContext == null) {
       return null;
     }
-    final localSeconds =
-        context.durationTime.inSecondsDouble * progress.clamp(0.0, 1.0);
-    final keyframeTime = _layerScopeGlobalTime(
-      context,
-      TimelineTime.fromSecondsDouble(localSeconds),
-    );
+    final keyframeTime = _layerScopeTimeForProgress(context, progress);
     final activeRange = _motionTextTimingRangeForElement(
       scene: textContext.scene,
       element: textContext.element,
@@ -3197,11 +3264,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
           definition: definition,
           time: keyframeTime,
           value: MotionPropertyValue.scalar(
-            _evaluatedTextScalarPropertyOrDefault(
-              textContext,
-              definition,
-              time: keyframeTime,
-            ),
+            scalarOverrides[definition] ??
+                _evaluatedTextScalarPropertyOrDefault(
+                  textContext,
+                  definition,
+                  time: keyframeTime,
+                ),
           ),
         ),
       );
@@ -3230,6 +3298,29 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     );
   }
 
+  List<MotionPropertyChannelModel>? _syncLayerScopeScaleValueToGraph({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required double progress,
+    required double percent,
+  }) {
+    final scale = (percent / 100.0).clamp(0.2, 8.0).toDouble();
+    return _syncLayerScopeTransformKeyframesToGraph(
+      context: context,
+      lane: lane,
+      progress: progress,
+      propertyLabel: 'scale',
+      definitions: <MotionPropertyDefinition>[
+        MotionPropertyCatalog.scaleX,
+        MotionPropertyCatalog.scaleY,
+      ],
+      scalarOverrides: <MotionPropertyDefinition, double>{
+        MotionPropertyCatalog.scaleX: scale,
+        MotionPropertyCatalog.scaleY: scale,
+      },
+    );
+  }
+
   List<MotionPropertyChannelModel>? _syncLayerScopeRotationKeyframeToGraph({
     required _LayerScopeContext context,
     required TimelineAnimationLaneData lane,
@@ -3243,6 +3334,27 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       definitions: <MotionPropertyDefinition>[
         MotionPropertyCatalog.rotationDegrees,
       ],
+    );
+  }
+
+  List<MotionPropertyChannelModel>? _syncLayerScopeRotationValueToGraph({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required double progress,
+    required double degrees,
+  }) {
+    return _syncLayerScopeTransformKeyframesToGraph(
+      context: context,
+      lane: lane,
+      progress: progress,
+      propertyLabel: 'rotation',
+      definitions: <MotionPropertyDefinition>[
+        MotionPropertyCatalog.rotationDegrees,
+      ],
+      scalarOverrides: <MotionPropertyDefinition, double>{
+        MotionPropertyCatalog.rotationDegrees:
+            degrees.clamp(-360.0, 360.0).toDouble(),
+      },
     );
   }
 
@@ -3482,6 +3594,55 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     });
   }
 
+  double _clampedLayerScopeToolbarValue(
+    TimelineAnimationLaneData lane,
+    double value,
+  ) {
+    if (lane.matchesPropertyLabel('opacity')) {
+      return value.clamp(0.0, 100.0).toDouble();
+    }
+    if (lane.matchesPropertyLabel('scale')) {
+      return value.clamp(20.0, 800.0).toDouble();
+    }
+    if (lane.matchesPropertyLabel('rotation')) {
+      return value.clamp(-360.0, 360.0).toDouble();
+    }
+    return value;
+  }
+
+  List<MotionPropertyChannelModel>? _syncLayerScopeToolbarValueToGraph({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required double progress,
+    required double value,
+  }) {
+    if (lane.matchesPropertyLabel('opacity')) {
+      return _syncLayerScopeOpacityKeyframeToGraph(
+        context: context,
+        lane: lane,
+        progress: progress,
+        percent: value,
+      );
+    }
+    if (lane.matchesPropertyLabel('scale')) {
+      return _syncLayerScopeScaleValueToGraph(
+        context: context,
+        lane: lane,
+        progress: progress,
+        percent: value,
+      );
+    }
+    if (lane.matchesPropertyLabel('rotation')) {
+      return _syncLayerScopeRotationValueToGraph(
+        context: context,
+        lane: lane,
+        progress: progress,
+        degrees: value,
+      );
+    }
+    return null;
+  }
+
   void _setLayerScopeSelectedKeyframeValue(double value) {
     final laneId = _selectedLayerScopeAnimationLaneId;
     final keyframeIndex = _selectedLayerScopeKeyframeIndex;
@@ -3495,17 +3656,23 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       return;
     }
     final stops = lane?.normalizedKeyframeStops;
+    final clampedValue = lane == null
+        ? value
+        : _clampedLayerScopeToolbarValue(
+            lane,
+            value,
+          );
     final syncedChannels = context != null &&
             lane != null &&
             _layerScopeLaneSupportsToolbarValue(lane) &&
             stops != null &&
             keyframeIndex >= 0 &&
             keyframeIndex < stops.length
-        ? _syncLayerScopeOpacityKeyframeToGraph(
+        ? _syncLayerScopeToolbarValueToGraph(
             context: context,
             lane: lane,
             progress: stops[keyframeIndex],
-            percent: value,
+            value: clampedValue,
           )
         : null;
     _updateTimelineAnimationLane(
@@ -3515,7 +3682,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
         if (keyframeIndex < 0 || keyframeIndex >= values.length) {
           return lane;
         }
-        values[keyframeIndex] = value.clamp(0.0, 100.0);
+        values[keyframeIndex] = clampedValue;
         return lane.copyWith(
           keyframeValues: List<double>.unmodifiable(values),
         );
@@ -8488,11 +8655,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     final layerScopeLocalTime = layerScopeContext == null
         ? TimelineTime.zero
         : _layerScopeLocalTime(layerScopeContext, _currentTime);
-    final layerScopeSelectedLane = layerScopeContext == null
-        ? null
-        : _layerScopeSelectedAnimationLane(layerScopeContext);
-    final layerScopeSelectedValue =
-        _selectedLayerScopeKeyframeValue(layerScopeContext);
+    final layerScopeValueSpec =
+        _selectedLayerScopeToolbarValueSpec(layerScopeContext);
     final isLayerScopeActive = layerScopeContext != null;
     return Scaffold(
       resizeToAvoidBottomInset: !_isAnimateBrowserOpen,
@@ -8572,21 +8736,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
                                     ? _LayerScopeToolsBar(
                                         isPlaying: effectiveIsPlaying,
                                         isValueMode:
-                                            _isLayerScopeValueEditorOpen,
-                                        valuePercent:
-                                            _layerScopeLaneSupportsToolbarValue(
-                                          layerScopeSelectedLane,
-                                        )
-                                                ? layerScopeSelectedValue ??
-                                                    100.0
-                                                : 100.0,
+                                            _isLayerScopeValueEditorOpen &&
+                                                layerScopeValueSpec != null,
+                                        valueSpec: layerScopeValueSpec,
                                         hasKeyframeSelection:
-                                            layerScopeSelectedLane != null &&
-                                                layerScopeSelectedValue !=
-                                                    null &&
-                                                _layerScopeLaneSupportsToolbarValue(
-                                                  layerScopeSelectedLane,
-                                                ),
+                                            layerScopeValueSpec != null,
                                         onBack: _exitLayerScope,
                                         onSplit: hasSelectedImportedClip
                                             ? _handleSplitSelectedClip
@@ -9058,11 +9212,29 @@ class _LayerScopeContext {
   TimelineTime get endTime => startTime + durationTime;
 }
 
+class _LayerScopeToolbarValueSpec {
+  const _LayerScopeToolbarValueSpec({
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.divisions,
+    required this.suffix,
+  });
+
+  final double value;
+  final double min;
+  final double max;
+  final int divisions;
+  final String suffix;
+
+  String get displayText => '${value.round()}$suffix';
+}
+
 class _LayerScopeToolsBar extends StatelessWidget {
   const _LayerScopeToolsBar({
     required this.isPlaying,
     required this.isValueMode,
-    required this.valuePercent,
+    required this.valueSpec,
     required this.hasKeyframeSelection,
     required this.onBack,
     required this.onSplit,
@@ -9078,7 +9250,7 @@ class _LayerScopeToolsBar extends StatelessWidget {
 
   final bool isPlaying;
   final bool isValueMode;
-  final double valuePercent;
+  final _LayerScopeToolbarValueSpec? valueSpec;
   final bool hasKeyframeSelection;
   final VoidCallback onBack;
   final VoidCallback? onSplit;
@@ -9134,7 +9306,7 @@ class _LayerScopeToolsBar extends StatelessWidget {
             const SizedBox(width: 8),
             Expanded(
               child: _LayerScopeToolbarValueSlider(
-                valuePercent: valuePercent,
+                spec: valueSpec!,
                 onChanged: onValueChanged,
               ),
             ),
@@ -9187,11 +9359,11 @@ class _LayerScopeToolsBar extends StatelessWidget {
 
 class _LayerScopeToolbarValueSlider extends StatelessWidget {
   const _LayerScopeToolbarValueSlider({
-    required this.valuePercent,
+    required this.spec,
     required this.onChanged,
   });
 
-  final double valuePercent;
+  final _LayerScopeToolbarValueSpec spec;
   final ValueChanged<double> onChanged;
 
   @override
@@ -9206,23 +9378,47 @@ class _LayerScopeToolbarValueSlider extends StatelessWidget {
           width: 1,
         ),
       ),
-      child: SliderTheme(
-        data: SliderTheme.of(context).copyWith(
-          trackHeight: 3,
-          activeTrackColor: FxPalette.accent,
-          inactiveTrackColor: Colors.white.withOpacity(0.14),
-          thumbColor: FxPalette.accent,
-          overlayColor: FxPalette.accent.withOpacity(0.12),
-          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
-          overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-        ),
-        child: Slider(
-          min: 0,
-          max: 100,
-          divisions: 100,
-          value: valuePercent.clamp(0.0, 100.0),
-          onChanged: (value) => onChanged(value.roundToDouble()),
-        ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 3,
+              activeTrackColor: FxPalette.accent,
+              inactiveTrackColor: Colors.white.withOpacity(0.14),
+              thumbColor: FxPalette.accent,
+              overlayColor: FxPalette.accent.withOpacity(0.12),
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+            ),
+            child: Slider(
+              min: spec.min,
+              max: spec.max,
+              divisions: spec.divisions,
+              value: spec.value.clamp(spec.min, spec.max).toDouble(),
+              onChanged: (value) => onChanged(value.roundToDouble()),
+            ),
+          ),
+          IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: FxPalette.surfaceRaised.withOpacity(0.82),
+                borderRadius: BorderRadius.circular(7),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                child: Text(
+                  spec.displayText,
+                  style: const TextStyle(
+                    color: FxPalette.textPrimary,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
