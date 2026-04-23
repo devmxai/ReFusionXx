@@ -17,6 +17,15 @@ preview, playback, live scrub parity, and export must all respect.
 The goal is to make canvas editing and timeline editing operate on the same
 authored layer properties.
 
+Related architecture:
+
+- `docs/professional_scope_timeline.md` owns scoped-layer timeline UX
+- `docs/professional_direct_text_effects_and_scriptable_motion.md` owns the
+  direct text effects and scriptable motion architecture that compiles into the
+  same shared property graph
+- `docs/live_scrub_migration_mandate.md` remains the binding protected-system
+  directive for live scrub and must be read before implementation
+
 Professional behavior means:
 
 - moving a layer on the canvas writes the same property that the timeline shows

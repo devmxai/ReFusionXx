@@ -69,6 +69,35 @@ audio, accurate seeking, and native performance on both platforms.
 
 - `docs/live_scrub_migration_mandate.md`: the single binding live scrub
   migration directive for the native scrub engine rebuild
+- `docs/professional_direct_text_effects_and_scriptable_motion.md`: the
+  unified architecture for direct text effects and scriptable/programmatic
+  motion over the shared motion substrate
+
+## Critical Agent Safety Notes
+
+Before touching timeline, canvas, scope, motion, or animation code:
+
+1. read `docs/live_scrub_migration_mandate.md`
+2. treat the current `Live Scrub` path as a protected system boundary
+3. do not modify protected scrub files as an incidental side effect
+
+Protected scrub path examples:
+
+- `NativeTimelineScrubSurface`
+- `Stage5TimelineScrubPlatformView`
+- `Stage5NativeScrubEngine`
+- `Stage5SurfaceScrubDecoder`
+- `Stage5ScrubOverlayTextureView`
+
+If any task appears to require a real `Live Scrub` change:
+
+- stop at that boundary
+- document the exact dependency and affected files
+- propose the smallest possible change
+- do not proceed without explicit approval
+
+This rule is strict and applies even when the feature itself is unrelated to
+scrub work.
 
 ## Checkpoint Workflow
 

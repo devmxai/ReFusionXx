@@ -14,6 +14,11 @@ Related architecture:
 
 - `docs/professional_canvas_timeline.md` owns the broader canvas/timeline
   property architecture.
+- `docs/professional_direct_text_effects_and_scriptable_motion.md` owns the
+  direct text effects and scriptable motion system that must lower into the
+  same property graph.
+- `docs/live_scrub_migration_mandate.md` is the binding protected-system
+  directive and must be read before implementation.
 - This document owns only the scoped-layer timeline product plan.
 
 ## 0. Non-Negotiable Directives
