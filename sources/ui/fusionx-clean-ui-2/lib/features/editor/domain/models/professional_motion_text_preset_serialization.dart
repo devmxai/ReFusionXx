@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../../presentation/models/timeline_time.dart';
 import 'professional_motion_animation_models.dart';
+import 'professional_motion_interpolation_parsing.dart';
 import 'professional_motion_models.dart';
 import 'professional_motion_text_models.dart';
 
@@ -367,70 +368,23 @@ class MotionTextPresetJsonCodec {
       return const MotionInterpolationSpec.easeInOut();
     }
     if (raw is String) {
-      return _interpolationFromKind(_parseInterpolationKind(raw));
+      final interpolation = tryParseNamedMotionInterpolationSpec(raw);
+      if (interpolation != null) {
+        return interpolation;
+      }
+      throw MotionTextPresetJsonException(
+        'Unsupported interpolation kind `$raw`.',
+      );
     }
     if (raw is! Map) {
       throw MotionTextPresetJsonException(
         '`interpolation` must be a string or object.',
       );
     }
-    final json = Map<String, dynamic>.from(raw);
-    final kind = _parseInterpolationKind(_readRequiredString(json, 'kind'));
-    switch (kind) {
-      case MotionInterpolationKind.cubicBezier:
-        return MotionInterpolationSpec.cubicBezier(
-          bezier: MotionBezierControlPoints(
-            x1: _readDouble(json, 'x1'),
-            y1: _readDouble(json, 'y1'),
-            x2: _readDouble(json, 'x2'),
-            y2: _readDouble(json, 'y2'),
-          ),
-        );
-      case MotionInterpolationKind.spring:
-        return MotionInterpolationSpec.spring(
-          spring: MotionSpringSpec(
-            stiffness: _readDouble(json, 'stiffness'),
-            damping: _readDouble(json, 'damping'),
-            mass: _readOptionalDouble(json, 'mass') ?? 1.0,
-            initialVelocity:
-                _readOptionalDouble(json, 'initialVelocity') ?? 0.0,
-          ),
-        );
-      case MotionInterpolationKind.bounce:
-        return MotionInterpolationSpec.bounce(
-          bounce: MotionBounceSpec(
-            amplitude:
-                _readOptionalDouble(json, 'amplitude') ??
-                kDefaultMotionBounceSpec.amplitude,
-            bounces:
-                _readOptionalInt(json, 'bounces') ??
-                _readOptionalInt(json, 'bounceCount') ??
-                kDefaultMotionBounceSpec.bounces,
-            decay:
-                _readOptionalDouble(json, 'decay') ??
-                kDefaultMotionBounceSpec.decay,
-          ),
-        );
-      case MotionInterpolationKind.elastic:
-        return MotionInterpolationSpec.elastic(
-          elastic: MotionElasticSpec(
-            amplitude:
-                _readOptionalDouble(json, 'amplitude') ??
-                kDefaultMotionElasticSpec.amplitude,
-            period:
-                _readOptionalDouble(json, 'period') ??
-                kDefaultMotionElasticSpec.period,
-            decay:
-                _readOptionalDouble(json, 'decay') ??
-                kDefaultMotionElasticSpec.decay,
-          ),
-        );
-      case MotionInterpolationKind.hold:
-      case MotionInterpolationKind.linear:
-      case MotionInterpolationKind.easeIn:
-      case MotionInterpolationKind.easeOut:
-      case MotionInterpolationKind.easeInOut:
-        return _interpolationFromKind(kind);
+    try {
+      return parseCanonicalMotionInterpolationObject(Map<String, dynamic>.from(raw));
+    } on MotionInterpolationParseException catch (error) {
+      throw MotionTextPresetJsonException(error.message);
     }
   }
 
@@ -588,65 +542,6 @@ class MotionTextPresetJsonCodec {
     }
   }
 
-  static MotionInterpolationKind _parseInterpolationKind(String raw) {
-    switch (raw.trim()) {
-      case 'hold':
-        return MotionInterpolationKind.hold;
-      case 'linear':
-        return MotionInterpolationKind.linear;
-      case 'easeIn':
-        return MotionInterpolationKind.easeIn;
-      case 'easeOut':
-        return MotionInterpolationKind.easeOut;
-      case 'easeInOut':
-        return MotionInterpolationKind.easeInOut;
-      case 'cubicBezier':
-        return MotionInterpolationKind.cubicBezier;
-      case 'spring':
-        return MotionInterpolationKind.spring;
-      case 'bounce':
-        return MotionInterpolationKind.bounce;
-      case 'elastic':
-        return MotionInterpolationKind.elastic;
-      default:
-        throw MotionTextPresetJsonException(
-          'Unsupported interpolation kind `$raw`.',
-        );
-    }
-  }
-
-  static MotionInterpolationSpec _interpolationFromKind(
-    MotionInterpolationKind kind,
-  ) {
-    switch (kind) {
-      case MotionInterpolationKind.hold:
-        return const MotionInterpolationSpec.hold();
-      case MotionInterpolationKind.linear:
-        return const MotionInterpolationSpec.linear();
-      case MotionInterpolationKind.bounce:
-        return const MotionInterpolationSpec.bounce();
-      case MotionInterpolationKind.elastic:
-        return const MotionInterpolationSpec.elastic();
-      case MotionInterpolationKind.easeIn:
-        return const MotionInterpolationSpec.easeIn();
-      case MotionInterpolationKind.easeOut:
-        return const MotionInterpolationSpec.easeOut();
-      case MotionInterpolationKind.easeInOut:
-        return const MotionInterpolationSpec.easeInOut();
-      case MotionInterpolationKind.cubicBezier:
-        return const MotionInterpolationSpec.cubicBezier(
-          bezier: MotionBezierControlPoints(
-            x1: 0.25,
-            y1: 0.1,
-            x2: 0.25,
-            y2: 1.0,
-          ),
-        );
-      case MotionInterpolationKind.spring:
-        return const MotionInterpolationSpec.spring();
-    }
-  }
-
   static MotionTextRevealUnit _readRevealUnit(Object? raw) {
     final value = raw?.toString().trim();
     switch (value) {
@@ -715,14 +610,6 @@ class MotionTextPresetJsonCodec {
       return value.toInt();
     }
     throw MotionTextPresetJsonException('`$key` must be a number.');
-  }
-
-  static double _readDouble(Map<String, dynamic> json, String key) {
-    final value = json[key];
-    if (value == null) {
-      throw MotionTextPresetJsonException('Missing required `$key`.');
-    }
-    return _toDouble(value);
   }
 
   static double? _readOptionalDouble(Map<String, dynamic> json, String key) {

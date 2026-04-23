@@ -5,6 +5,7 @@ import 'package:yaml/yaml.dart';
 
 import '../../presentation/models/timeline_time.dart';
 import '../models/professional_motion_animation_models.dart';
+import '../models/professional_motion_interpolation_parsing.dart';
 import '../models/professional_motion_models.dart';
 import '../models/professional_motion_text_models.dart';
 import '../models/professional_motion_text_preset_serialization.dart';
@@ -597,116 +598,25 @@ class ScopedTextMotionScriptImportService {
       return const MotionInterpolationSpec.easeInOut();
     }
     if (raw is String) {
-      switch (raw.trim().toLowerCase()) {
-        case 'hold':
-          return const MotionInterpolationSpec.hold();
-        case 'linear':
-          return const MotionInterpolationSpec.linear();
-        case 'easein':
-        case 'ease_in':
-        case 'ease-in':
-          return const MotionInterpolationSpec.easeIn();
-        case 'easeout':
-        case 'ease_out':
-        case 'ease-out':
-          return const MotionInterpolationSpec.easeOut();
-        case 'easeinout':
-        case 'ease_in_out':
-        case 'ease-in-out':
-          return const MotionInterpolationSpec.easeInOut();
-        case 'easyease':
-        case 'easy_ease':
-        case 'easy-ease':
-          return const MotionInterpolationSpec.cubicBezier(
-            bezier: MotionBezierControlPoints(
-              x1: 0.3333,
-              y1: 0.0,
-              x2: 0.6667,
-              y2: 1.0,
-            ),
-          );
-        case 'spring':
-          return const MotionInterpolationSpec.spring();
-        case 'bounce':
-          return const MotionInterpolationSpec.bounce();
-        case 'elastic':
-          return const MotionInterpolationSpec.elastic();
+      final interpolation = tryParseNamedMotionInterpolationSpec(raw);
+      if (interpolation != null) {
+        return interpolation;
       }
     }
     if (raw is Map) {
-      final json = _deepConvertToDynamicMap(raw);
-      final kind = _readOptionalString(json, <String>['kind'])?.trim();
-      final normalizedKind = kind?.toLowerCase();
-      if (normalizedKind == 'spring') {
-        final stiffness =
-            _readOptionalDouble(json, <String>['stiffness']) ?? 220.0;
-        final damping = _readOptionalDouble(json, <String>['damping']) ?? 18.0;
-        final mass = _readOptionalDouble(json, <String>['mass']) ?? 1.0;
-        final initialVelocity =
-            _readOptionalDouble(json, <String>['initialVelocity']) ?? 0.0;
-        return MotionInterpolationSpec.spring(
-          spring: MotionSpringSpec(
-            stiffness: stiffness,
-            damping: damping,
-            mass: mass,
-            initialVelocity: initialVelocity,
+      try {
+        return parseCanonicalMotionInterpolationObject(
+          _deepConvertToDynamicMap(raw),
+        );
+      } on MotionInterpolationParseException catch (error) {
+        issues.add(
+          ScopedTextMotionScriptIssue(
+            severity: ScopedTextMotionScriptIssueSeverity.warning,
+            message: error.message,
+            path: path,
           ),
         );
-      }
-      if (normalizedKind == 'bounce') {
-        final amplitude =
-            _readOptionalDouble(json, <String>['amplitude']) ??
-            kDefaultMotionBounceSpec.amplitude;
-        final bounces =
-            _readOptionalInt(json, <String>['bounces']) ??
-            _readOptionalInt(json, <String>['bounceCount']) ??
-            kDefaultMotionBounceSpec.bounces;
-        final decay =
-            _readOptionalDouble(json, <String>['decay']) ??
-            kDefaultMotionBounceSpec.decay;
-        return MotionInterpolationSpec.bounce(
-          bounce: MotionBounceSpec(
-            amplitude: amplitude,
-            bounces: bounces,
-            decay: decay,
-          ),
-        );
-      }
-      if (normalizedKind == 'elastic') {
-        final amplitude =
-            _readOptionalDouble(json, <String>['amplitude']) ??
-            kDefaultMotionElasticSpec.amplitude;
-        final period =
-            _readOptionalDouble(json, <String>['period']) ??
-            kDefaultMotionElasticSpec.period;
-        final decay =
-            _readOptionalDouble(json, <String>['decay']) ??
-            kDefaultMotionElasticSpec.decay;
-        return MotionInterpolationSpec.elastic(
-          elastic: MotionElasticSpec(
-            amplitude: amplitude,
-            period: period,
-            decay: decay,
-          ),
-        );
-      }
-      if (normalizedKind == 'cubicbezier' ||
-          normalizedKind == 'cubic_bezier' ||
-          normalizedKind == 'cubic-bezier') {
-        final x1 = _readOptionalDouble(json, <String>['x1']);
-        final y1 = _readOptionalDouble(json, <String>['y1']);
-        final x2 = _readOptionalDouble(json, <String>['x2']);
-        final y2 = _readOptionalDouble(json, <String>['y2']);
-        if (x1 != null && y1 != null && x2 != null && y2 != null) {
-          return MotionInterpolationSpec.cubicBezier(
-            bezier: MotionBezierControlPoints(
-              x1: x1,
-              y1: y1,
-              x2: x2,
-              y2: y2,
-            ),
-          );
-        }
+        return const MotionInterpolationSpec.easeInOut();
       }
     }
     issues.add(
@@ -915,28 +825,6 @@ class ScopedTextMotionScriptImportService {
       final parsed = _asDouble(value);
       if (parsed != null) {
         return parsed;
-      }
-    }
-    return null;
-  }
-
-  int? _readOptionalInt(
-    Map<String, dynamic> json,
-    List<String> keys,
-  ) {
-    for (final key in keys) {
-      final value = json[key];
-      if (value is int) {
-        return value;
-      }
-      if (value is num) {
-        return value.toInt();
-      }
-      if (value is String) {
-        final parsed = int.tryParse(value.trim());
-        if (parsed != null) {
-          return parsed;
-        }
       }
     }
     return null;
