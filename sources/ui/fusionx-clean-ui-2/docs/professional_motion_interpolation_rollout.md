@@ -1,6 +1,7 @@
 # Professional Motion Interpolation Rollout
 
-Status: active rollout plan. Phases 1-4 completed. Phase 5 pending.
+Status: active rollout plan. Phases 1-5 completed for the first professional
+text effect family pass. Broader family expansion and visual QA remain ongoing.
 
 This document is the strict implementation plan for upgrading ReFusion motion
 interpolation from partial labels to a professional, canonical contract that
@@ -154,9 +155,22 @@ Success criteria:
 - AI scripts and manual authoring can both target the same professional motion
   families
 
+Implementation state:
+
+- `Bounce In` is a named professional family, not a separate engine:
+  - opacity fades in with `easeOut`
+  - scale animates from small to final size with canonical `bounce`
+  - vertical position rises into place with the same canonical `bounce`
+- `Elastic Pop` now defaults to canonical `elastic` instead of a plain
+  `easeOut` scale label
+- script/preset `animationBlocks` can use `bounceIn` or `elasticPop` without
+  manually supplying interpolation details
+- imported high-level blocks are still lowered into editable real keyframe
+  channels, so users can retime or reshape them after import
+
 ## 5. Current Implementation State
 
-As of Phase 4:
+As of Phase 5:
 
 - the canonical contract now exists at the model layer
 - script and preset import preserve `spring`, `bounce`, and `elastic` payloads
@@ -167,7 +181,11 @@ As of Phase 4:
   - `elastic`
 - script import and preset import now share canonical interpolation parsing
 - native export registers and evaluates `spring`, `bounce`, and `elastic`
-- remaining work shifts to professional effect families and broader visual QA
+- first named professional effect families now lower into editable canonical
+  channels:
+  - `bounceIn`
+  - `elasticPop`
+- remaining work shifts to adding more families and broader visual QA
 
 ## 6. Notes For Agents
 
@@ -182,4 +200,6 @@ If an AI agent is asked to generate a motion script:
 - prefer a small number of readable key poses and attach motion character
   through interpolation objects
 - preview/runtime and export now share support for the advanced interpolation
-  kinds; the next professional-quality jump comes from named effect families
+  kinds
+- prefer `animationBlocks` with named families like `bounceIn` or `elasticPop`
+  when the user asks for a direct professional effect

@@ -105,6 +105,39 @@ export default function Scene() {
         MotionTextRevealDirection.reverse);
   });
 
+  test('parses named professional effect families with canonical defaults', () {
+    const source = '''
+{
+  "schemaVersion": "refusion.scope-text-script/v1",
+  "name": "Family Pass",
+  "animationBlocks": [
+    {
+      "kind": "bounceIn",
+      "startMs": 0,
+      "durationMs": 760
+    },
+    {
+      "kind": "elasticPop",
+      "startMs": 760,
+      "durationMs": 620
+    }
+  ]
+}
+''';
+
+    final validation = service.validate(source: source);
+
+    expect(validation.canApply, isTrue);
+    final blocks = validation.document!.animationBlocks;
+    expect(blocks, hasLength(2));
+    expect(blocks.first.kind, MotionTextAnimationKind.bounceIn);
+    expect(blocks.first.interpolation.kind, MotionInterpolationKind.bounce);
+    expect(blocks.first.interpolation.bounce, isNotNull);
+    expect(blocks.last.kind, MotionTextAnimationKind.elasticPop);
+    expect(blocks.last.interpolation.kind, MotionInterpolationKind.elastic);
+    expect(blocks.last.interpolation.elastic, isNotNull);
+  });
+
   test('parses canonical spring, bounce, and elastic interpolation specs', () {
     const source = '''
 {

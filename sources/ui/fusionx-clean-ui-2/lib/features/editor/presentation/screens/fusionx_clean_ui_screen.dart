@@ -183,6 +183,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       keywords: <String>['letter', 'letters', 'character', 'text'],
     ),
     AnimateBrowserItem(
+      id: 'text_effect.bounce_in',
+      label: 'Bounce In',
+      category: 'Text',
+      summary: 'Bring text in with a readable bounce, scale, and rise.',
+      keywords: <String>['bounce', 'boing', 'pop', 'scale', 'text'],
+    ),
+    AnimateBrowserItem(
       id: 'text_effect.blur_in',
       label: 'Blur In',
       category: 'Text FX',
@@ -191,10 +198,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     ),
     AnimateBrowserItem(
       id: 'text_effect.scale_pop',
-      label: 'Scale Pop',
+      label: 'Elastic Pop',
       category: 'Text',
-      summary: 'Pop the text scale from small to natural size.',
-      keywords: <String>['scale', 'pop', 'bounce', 'text'],
+      summary: 'Pop text scale with an elastic overshoot and settle.',
+      keywords: <String>['scale', 'elastic', 'pop', 'spring', 'text'],
     ),
     AnimateBrowserItem(
       id: 'text_effect.tracking_settle',
@@ -7833,6 +7840,31 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             },
           ),
         ],
+      'text_effect.bounce_in' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}bounce_in',
+            kind: MotionTextAnimationKind.bounceIn,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(760),
+            ),
+            interpolation: const MotionInterpolationSpec.bounce(
+              bounce: MotionBounceSpec(
+                amplitude: 0.24,
+                bounces: 3,
+                decay: 6.5,
+              ),
+            ),
+            parameters: const <String, MotionPropertyValue>{
+              'fromScale': MotionPropertyValue.scalar(0.68),
+              'toScale': MotionPropertyValue.scalar(1.0),
+              'fromOffsetY': MotionPropertyValue.scalar(56),
+              'toOffsetY': MotionPropertyValue.scalar(0),
+              'fromOpacity': MotionPropertyValue.scalar(0),
+              'toOpacity': MotionPropertyValue.scalar(1),
+            },
+          ),
+        ],
       'text_effect.blur_in' => <MotionTextAnimationBlock>[
           MotionTextAnimationBlock(
             id: '${prefix}blur_in',
@@ -7865,10 +7897,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
               start: TimelineTime.zero,
               endExclusive: TimelineTime.fromMilliseconds(720),
             ),
-            interpolation: const MotionInterpolationSpec.easeOut(),
+            interpolation: const MotionInterpolationSpec.elastic(
+              elastic: MotionElasticSpec(
+                amplitude: 0.16,
+                period: 0.30,
+                decay: 7.2,
+              ),
+            ),
             parameters: const <String, MotionPropertyValue>{
-              'fromScale': MotionPropertyValue.scalar(0.74),
+              'fromScale': MotionPropertyValue.scalar(0.72),
               'toScale': MotionPropertyValue.scalar(1.0),
+              'fromOpacity': MotionPropertyValue.scalar(0),
+              'toOpacity': MotionPropertyValue.scalar(1),
             },
           ),
         ],

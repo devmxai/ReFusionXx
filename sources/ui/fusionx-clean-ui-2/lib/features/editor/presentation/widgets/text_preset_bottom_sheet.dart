@@ -513,6 +513,11 @@ String _effectFamilyLabel(MotionTextPresetDefinition preset) {
   )) {
     return 'Cinematic';
   }
+  if (preset.animationBlocks.any(
+    (block) => block.kind == MotionTextAnimationKind.bounceIn,
+  )) {
+    return 'Bounce In';
+  }
   return 'Text Motion';
 }
 
@@ -526,6 +531,7 @@ List<String> _effectBlockLabels(MotionTextPresetDefinition preset) {
       MotionTextAnimationKind.wordReveal => 'Words',
       MotionTextAnimationKind.letterReveal => 'Letters',
       MotionTextAnimationKind.typewriter => 'Type',
+      MotionTextAnimationKind.bounceIn => 'Bounce',
       MotionTextAnimationKind.elasticPop => 'Pop',
       MotionTextAnimationKind.scaleIn ||
       MotionTextAnimationKind.scaleOut =>

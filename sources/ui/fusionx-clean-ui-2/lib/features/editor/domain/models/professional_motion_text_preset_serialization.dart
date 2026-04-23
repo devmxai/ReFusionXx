@@ -321,19 +321,23 @@ class MotionTextPresetJsonCodec {
           'Animation block `${json['id'] ?? 'unknown'}` must have endMs > startMs.',
         );
       }
+      final kind = _readAnimationKind(json['kind']);
       return MotionTextAnimationBlock(
         id: _resolveGeneratedBlockId(
           rawId: _readOptionalString(json, 'id') ??
               _readOptionalString(json, 'blockId'),
-          kind: _readAnimationKind(json['kind']),
+          kind: kind,
           startMs: startMs,
         ),
-        kind: _readAnimationKind(json['kind']),
+        kind: kind,
         relativeRange: TimelineTimeRange(
           start: TimelineTime.fromMilliseconds(startMs),
           endExclusive: TimelineTime.fromMilliseconds(endMs),
         ),
-        interpolation: _readInterpolation(json['interpolation']),
+        interpolation: _readInterpolation(
+          json['interpolation'],
+          defaultForKind: kind,
+        ),
         revealSpec: _readRevealSpec(json['revealSpec']),
         parameters: _readParameterValues(json['parameters']),
       );
@@ -363,9 +367,12 @@ class MotionTextPresetJsonCodec {
     return '${kind.name}_$startMs';
   }
 
-  static MotionInterpolationSpec _readInterpolation(Object? raw) {
+  static MotionInterpolationSpec _readInterpolation(
+    Object? raw, {
+    MotionTextAnimationKind? defaultForKind,
+  }) {
     if (raw == null) {
-      return const MotionInterpolationSpec.easeInOut();
+      return _defaultInterpolationForAnimationKind(defaultForKind);
     }
     if (raw is String) {
       final interpolation = tryParseNamedMotionInterpolationSpec(raw);
@@ -382,9 +389,48 @@ class MotionTextPresetJsonCodec {
       );
     }
     try {
-      return parseCanonicalMotionInterpolationObject(Map<String, dynamic>.from(raw));
+      return parseCanonicalMotionInterpolationObject(
+          Map<String, dynamic>.from(raw));
     } on MotionInterpolationParseException catch (error) {
       throw MotionTextPresetJsonException(error.message);
+    }
+  }
+
+  static MotionInterpolationSpec _defaultInterpolationForAnimationKind(
+    MotionTextAnimationKind? kind,
+  ) {
+    switch (kind) {
+      case MotionTextAnimationKind.bounceIn:
+        return const MotionInterpolationSpec.bounce(
+          bounce: MotionBounceSpec(
+            amplitude: 0.24,
+            bounces: 3,
+            decay: 6.5,
+          ),
+        );
+      case MotionTextAnimationKind.elasticPop:
+        return const MotionInterpolationSpec.elastic(
+          elastic: MotionElasticSpec(
+            amplitude: 0.16,
+            period: 0.30,
+            decay: 7.2,
+          ),
+        );
+      case MotionTextAnimationKind.scaleIn:
+        return const MotionInterpolationSpec.easeOut();
+      case null:
+      case MotionTextAnimationKind.fadeIn:
+      case MotionTextAnimationKind.fadeOut:
+      case MotionTextAnimationKind.wordReveal:
+      case MotionTextAnimationKind.letterReveal:
+      case MotionTextAnimationKind.typewriter:
+      case MotionTextAnimationKind.scaleOut:
+      case MotionTextAnimationKind.blurIn:
+      case MotionTextAnimationKind.blurOut:
+      case MotionTextAnimationKind.rotationSettle:
+      case MotionTextAnimationKind.cinematicEntrance:
+      case MotionTextAnimationKind.cinematicExit:
+        return const MotionInterpolationSpec.easeInOut();
     }
   }
 
@@ -519,6 +565,8 @@ class MotionTextPresetJsonCodec {
         return MotionTextAnimationKind.letterReveal;
       case 'typewriter':
         return MotionTextAnimationKind.typewriter;
+      case 'bounceIn':
+        return MotionTextAnimationKind.bounceIn;
       case 'elasticPop':
         return MotionTextAnimationKind.elasticPop;
       case 'scaleIn':

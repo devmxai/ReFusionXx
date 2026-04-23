@@ -1,6 +1,6 @@
 # Scoped Text Motion Script V1
 
-Status: active authoring contract after interpolation rollout Phases 1-4.
+Status: active authoring contract after interpolation rollout Phases 1-5.
 
 This document defines the practical script format that AI agents should now
 generate for ReFusion without needing target IDs.
@@ -394,6 +394,7 @@ Supported block kinds:
 - `wordReveal`
 - `letterReveal`
 - `typewriter`
+- `bounceIn`
 - `elasticPop`
 - `scaleIn`
 - `scaleOut`
@@ -413,6 +414,16 @@ Prefer explicit `channels` when:
 - the user wants professional control
 - bounce/elastic feel matters
 - the user may retime or reshape keys by hand after import
+
+Named professional families are allowed when the user asks for a direct effect.
+The first supported families are:
+
+- `bounceIn`: lowers into opacity, scale, and vertical position channels with
+  canonical `bounce`
+- `elasticPop`: lowers into opacity and scale channels with canonical `elastic`
+
+These families still create editable channels and keyframes. They are not
+preview-only presets.
 
 ## Best Practice
 
@@ -448,11 +459,14 @@ As of this document update:
 - Dart preview/runtime evaluation is implemented
 - import normalization is implemented
 - native export evaluation is implemented for spring/bounce/elastic
+- first named professional families are implemented:
+  - `bounceIn`
+  - `elasticPop`
 
 That means a generated script should now look better in scoped playback and
 editing, and advanced interpolation can now travel through the native export
-path. The next quality jump is named effect families such as `Bounce In` and
-`Elastic Pop`, not more hand-baked micro keyframes.
+path. Use named effect families when the request is about a familiar direct
+effect, and use explicit channels when the request needs custom choreography.
 
 Prefer `animationBlocks` only when:
 
@@ -491,6 +505,28 @@ Prefer `animationBlocks` only when:
   ]
 }
 ```
+
+## Example: Named Bounce In Family
+
+Use this when the user asks for a simple professional bounce entrance and does
+not need custom choreography yet:
+
+```json
+{
+  "schemaVersion": "refusion.scope-text-script/v1",
+  "name": "Professional Bounce In",
+  "animationBlocks": [
+    {
+      "kind": "bounceIn",
+      "startMs": 0,
+      "durationMs": 760
+    }
+  ]
+}
+```
+
+This imports as real editable channels for opacity, scale, and vertical
+position.
 
 ## Example: Type On
 

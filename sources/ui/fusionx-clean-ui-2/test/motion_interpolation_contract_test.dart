@@ -2,9 +2,14 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:refusion_app/features/editor/domain/models/export_motion_text_program_models.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_animation_models.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_compilation_models.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_interpolation_evaluator.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_models.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_text_preset_serialization.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_text_models.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_text_runtime_helpers.dart';
 import 'package:refusion_app/features/editor/domain/services/scoped_text_motion_script_import_service.dart';
+import 'package:refusion_app/features/editor/presentation/models/timeline_time.dart';
 
 void main() {
   test('core interpolation spec exposes canonical bounce and elastic payloads',
@@ -112,6 +117,119 @@ void main() {
     expect(nearEnd, closeTo(1.0, 0.0001));
   });
 
+  test('bounceIn effect family lowers into editable canonical channels', () {
+    final range = TimelineTimeRange(
+      start: TimelineTime.zero,
+      endExclusive: TimelineTime.fromSecondsDouble(3),
+    );
+    const target = MotionPropertyTarget(
+      kind: MotionTargetKind.element,
+      targetId: 'text-1',
+      projectId: 'project',
+      sceneId: 'scene',
+      layerId: 'layer',
+      elementId: 'text-1',
+    );
+    final project = MotionProjectModel(
+      id: 'project',
+      format: const MotionProjectFormat(
+        canvasSize: MotionSize2D(width: 1080, height: 1920),
+      ),
+      frameRate: const MotionFrameRate(numerator: 60, denominator: 1),
+      scenes: <MotionSceneModel>[
+        MotionSceneModel(
+          id: 'scene',
+          projectRange: range,
+          layers: <MotionLayerModel>[
+            MotionLayerModel(
+              id: 'layer',
+              sceneId: 'scene',
+              kind: MotionLayerKind.text,
+              visibleRange: range,
+              elements: <MotionElementModel>[
+                MotionElementModel(
+                  id: 'text-1',
+                  layerId: 'layer',
+                  kind: MotionElementKind.text,
+                  localRange: range,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+
+    final result = BasicMotionTextPresetCompiler().compileBindings(
+      request: MotionCompileRequest(
+        project: project,
+        textAnimationBindings: <MotionTextAnimationBindingModel>[
+          MotionTextAnimationBindingModel(
+            id: 'binding',
+            elementTarget: target,
+            activeRange: range,
+            animationBlocks: <MotionTextAnimationBlock>[
+              MotionTextAnimationBlock(
+                id: 'family.bounce_in',
+                kind: MotionTextAnimationKind.bounceIn,
+                relativeRange: TimelineTimeRange(
+                  start: TimelineTime.zero,
+                  endExclusive: TimelineTime.fromMilliseconds(760),
+                ),
+                interpolation: const MotionInterpolationSpec.bounce(
+                  bounce: MotionBounceSpec(
+                    amplitude: 0.24,
+                    bounces: 3,
+                    decay: 6.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      elementsById: <String, MotionElementModel>{
+        'text-1': project.scenes.single.layers.single.elements.single,
+      },
+    );
+
+    expect(result.issues, isEmpty);
+    final channelsByProperty = <String, MotionPropertyChannelModel>{
+      for (final channel in result.generatedChannels)
+        channel.definition.id: channel,
+    };
+    expect(
+      channelsByProperty.keys,
+      containsAll(<String>[
+        MotionPropertyCatalog.opacity.id,
+        MotionPropertyCatalog.scaleX.id,
+        MotionPropertyCatalog.scaleY.id,
+        MotionPropertyCatalog.positionY.id,
+      ]),
+    );
+    final scaleX = channelsByProperty[MotionPropertyCatalog.scaleX.id]!;
+    final positionY = channelsByProperty[MotionPropertyCatalog.positionY.id]!;
+    final opacity = channelsByProperty[MotionPropertyCatalog.opacity.id]!;
+
+    expect(scaleX.keyframes, hasLength(2));
+    expect(scaleX.keyframes.first.value.rawValue, 0.68);
+    expect(scaleX.keyframes.last.value.rawValue, 1.0);
+    expect(
+      scaleX.keyframes.first.interpolationToNext.kind,
+      MotionInterpolationKind.bounce,
+    );
+    expect(positionY.keyframes.first.value.rawValue, 56);
+    expect(positionY.keyframes.last.value.rawValue, 0);
+    expect(
+      positionY.keyframes.first.interpolationToNext.kind,
+      MotionInterpolationKind.bounce,
+    );
+    expect(
+      opacity.keyframes.first.interpolationToNext.kind,
+      MotionInterpolationKind.easeOut,
+    );
+  });
+
   test('preset and scoped script import share the same interpolation parsing',
       () {
     const presetSource = '''
@@ -168,12 +286,13 @@ void main() {
     final script = service.validate(source: scriptSource).document!;
 
     final presetEasyEase = preset.animationBlocks.first.interpolation;
-    final scriptEasyEase =
-        script.channels.first.keyframes.first.interpolation;
+    final scriptEasyEase = script.channels.first.keyframes.first.interpolation;
     expect(presetEasyEase.kind, MotionInterpolationKind.cubicBezier);
     expect(scriptEasyEase.kind, MotionInterpolationKind.cubicBezier);
-    expect(presetEasyEase.bezier!.x1, closeTo(scriptEasyEase.bezier!.x1, 0.0001));
-    expect(presetEasyEase.bezier!.x2, closeTo(scriptEasyEase.bezier!.x2, 0.0001));
+    expect(
+        presetEasyEase.bezier!.x1, closeTo(scriptEasyEase.bezier!.x1, 0.0001));
+    expect(
+        presetEasyEase.bezier!.x2, closeTo(scriptEasyEase.bezier!.x2, 0.0001));
 
     final presetSpring = preset.animationBlocks.last.interpolation;
     final scriptSpring = script.channels.last.keyframes.first.interpolation;
