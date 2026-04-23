@@ -232,7 +232,7 @@ ReFusion should expose two authoring surfaces over one engine:
 
 For humans on mobile:
 
-`Text Effects Browser -> Effect Sheet -> Scoped Timeline Refinement`
+`Add Text Layer -> Double Tap Layer -> Scoped Text Animate/FX -> Effect Sheet`
 
 This path is optimized for:
 
@@ -1079,9 +1079,10 @@ It should support:
 
 - stop treating the current preset system as hidden
 - rename the product concept to `Text Effects`
-- enable an effect-first browser for text insertion
-- explicitly replace the current state where preset picking is disabled in the
-  shipped text-add flow
+- keep the bottom-dock `Text` action as layer insertion only
+- expose the effect-first browser inside scoped text layer `Animate` / `FX`
+- route text-only effects by layer type so image and shape scopes do not show
+  text-only controls
 
 ### Phase 2 - Formalize `DirectTextEffectDefinition`
 

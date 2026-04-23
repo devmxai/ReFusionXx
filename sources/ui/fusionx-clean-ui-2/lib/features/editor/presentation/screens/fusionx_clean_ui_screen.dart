@@ -125,7 +125,86 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       keywords: <String>['timing', 'delay', 'handoff'],
     ),
   ];
-  static const List<AnimateBrowserItem> _scopedLayerFxItems =
+  static const List<AnimateBrowserItem> _scopedLayerCoreAnimateItems =
+      <AnimateBrowserItem>[
+    AnimateBrowserItem(
+      id: 'opacity',
+      label: 'Opacity',
+      category: 'Animate',
+      summary: 'Animate layer transparency with keyframes.',
+      keywords: <String>['fade', 'alpha', 'transparency'],
+    ),
+    AnimateBrowserItem(
+      id: 'position',
+      label: 'Position',
+      category: 'Animate',
+      summary: 'Animate layer movement on X and Y.',
+      keywords: <String>['move', 'x', 'y', 'translate'],
+    ),
+    AnimateBrowserItem(
+      id: 'scale',
+      label: 'Scale',
+      category: 'Animate',
+      summary: 'Animate layer size on X and Y.',
+      keywords: <String>['scale', 'size', 'zoom', 'resize'],
+    ),
+    AnimateBrowserItem(
+      id: 'rotation',
+      label: 'Rotation',
+      category: 'Animate',
+      summary: 'Animate layer angle over time.',
+      keywords: <String>['rotate', 'angle', 'spin', 'turn'],
+    ),
+  ];
+  static const List<AnimateBrowserItem> _scopedTextAnimateItems =
+      <AnimateBrowserItem>[
+    ..._scopedLayerCoreAnimateItems,
+    AnimateBrowserItem(
+      id: 'text_effect.type_on',
+      label: 'Type On',
+      category: 'Text',
+      summary: 'Reveal text letter by letter over the layer timeline.',
+      keywords: <String>['typewriter', 'letter', 'reveal', 'text'],
+    ),
+    AnimateBrowserItem(
+      id: 'text_effect.word_reveal',
+      label: 'Word Reveal',
+      category: 'Text',
+      summary: 'Reveal words progressively across the selected text layer.',
+      keywords: <String>['word', 'words', 'reveal', 'text'],
+    ),
+    AnimateBrowserItem(
+      id: 'text_effect.letter_reveal',
+      label: 'Letter Reveal',
+      category: 'Text',
+      summary: 'Reveal letters with a clean per-character progression.',
+      keywords: <String>['letter', 'letters', 'character', 'text'],
+    ),
+    AnimateBrowserItem(
+      id: 'text_effect.blur_in',
+      label: 'Blur In',
+      category: 'Text FX',
+      summary: 'Bring text in from soft blur to sharp focus.',
+      keywords: <String>['blur', 'soft', 'focus', 'text'],
+    ),
+    AnimateBrowserItem(
+      id: 'text_effect.scale_pop',
+      label: 'Scale Pop',
+      category: 'Text',
+      summary: 'Pop the text scale from small to natural size.',
+      keywords: <String>['scale', 'pop', 'bounce', 'text'],
+    ),
+    AnimateBrowserItem(
+      id: 'text_effect.tracking_settle',
+      label: 'Tracking Settle',
+      category: 'Text',
+      summary: 'Settle wide letter spacing into a clean final text lockup.',
+      keywords: <String>['tracking', 'letter spacing', 'spacing', 'text'],
+    ),
+  ];
+  static const List<AnimateBrowserItem> _scopedImageAnimateItems =
+      _scopedLayerCoreAnimateItems;
+  static const List<AnimateBrowserItem> _scopedTextFxItems =
       <AnimateBrowserItem>[
     AnimateBrowserItem(
       id: 'gaussian_blur',
@@ -135,6 +214,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       keywords: <String>['blur', 'gaussian', 'soften', 'focus', 'defocus'],
     ),
   ];
+  static const List<AnimateBrowserItem> _scopedImageFxItems =
+      <AnimateBrowserItem>[];
 
   late final Stage5NativeTransportController _transportController;
   late final InMemoryLiveScrubPreviewSourceCatalog
@@ -6169,6 +6250,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   Future<void> _handleLayerScopeAnimateTap(TimelineTrackData track) async {
+    final scopeContext = _activeLayerScopeContext;
+    if (scopeContext == null) {
+      _showStageMessage('Open a scoped layer first.');
+      return;
+    }
+    final items = _scopedLayerAnimateItemsForContext(scopeContext);
+    if (items.isEmpty) {
+      _showStageMessage('Animate controls are not available for this layer.');
+      return;
+    }
     setState(() {
       _isAnimateBrowserOpen = true;
     });
@@ -6176,8 +6267,51 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => const ScopedLayerAnimateBottomSheet(
-        items: ScopedLayerAnimateBottomSheet.defaultItems,
+      builder: (context) => ScopedLayerAnimateBottomSheet(
+        items: items,
+      ),
+    ).whenComplete(() {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isAnimateBrowserOpen = false;
+      });
+    });
+    if (item == null || !mounted) {
+      return;
+    }
+    if (_isScopedTextEffectItem(item)) {
+      _applyScopedTextEffectToLayer(scopeContext, item);
+      return;
+    }
+    _addAnimateLaneToTrack(
+      track,
+      item,
+      selectForLayerScope: true,
+    );
+  }
+
+  Future<void> _handleLayerScopeFxTap(TimelineTrackData track) async {
+    final scopeContext = _activeLayerScopeContext;
+    if (scopeContext == null) {
+      _showStageMessage('Open a scoped layer first.');
+      return;
+    }
+    final items = _scopedLayerFxItemsForContext(scopeContext);
+    if (items.isEmpty) {
+      _showStageMessage('FX controls are not available for this layer yet.');
+      return;
+    }
+    setState(() {
+      _isAnimateBrowserOpen = true;
+    });
+    final item = await showModalBottomSheet<AnimateBrowserItem>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => ScopedLayerAnimateBottomSheet(
+        items: items,
       ),
     ).whenComplete(() {
       if (!mounted) {
@@ -6197,40 +6331,255 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
   }
 
-  Future<void> _handleLayerScopeFxTap(TimelineTrackData track) async {
-    final scopeContext = _activeLayerScopeContext;
-    if (scopeContext == null ||
-        track.kind != TimelineTrackKind.text ||
-        scopeContext.track.kind != TimelineTrackKind.text) {
-      _showStageMessage('Gaussian Blur FX is available for text layers first.');
+  List<AnimateBrowserItem> _scopedLayerAnimateItemsForContext(
+    _LayerScopeContext context,
+  ) {
+    return switch (context.track.kind) {
+      TimelineTrackKind.text => _scopedTextAnimateItems,
+      TimelineTrackKind.image => _scopedImageAnimateItems,
+      TimelineTrackKind.video ||
+      TimelineTrackKind.audio ||
+      TimelineTrackKind.lipSync =>
+        const <AnimateBrowserItem>[],
+    };
+  }
+
+  List<AnimateBrowserItem> _scopedLayerFxItemsForContext(
+    _LayerScopeContext context,
+  ) {
+    return switch (context.track.kind) {
+      TimelineTrackKind.text => _scopedTextFxItems,
+      TimelineTrackKind.image => _scopedImageFxItems,
+      TimelineTrackKind.video ||
+      TimelineTrackKind.audio ||
+      TimelineTrackKind.lipSync =>
+        const <AnimateBrowserItem>[],
+    };
+  }
+
+  bool _isScopedTextEffectItem(AnimateBrowserItem item) =>
+      item.id.startsWith('text_effect.');
+
+  void _applyScopedTextEffectToLayer(
+    _LayerScopeContext scopeContext,
+    AnimateBrowserItem item,
+  ) {
+    if (scopeContext.track.kind != TimelineTrackKind.text) {
+      _showStageMessage('Text effects are available for text layers only.');
       return;
     }
-    setState(() {
-      _isAnimateBrowserOpen = true;
-    });
-    final item = await showModalBottomSheet<AnimateBrowserItem>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => const ScopedLayerAnimateBottomSheet(
-        items: _scopedLayerFxItems,
-      ),
-    ).whenComplete(() {
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _isAnimateBrowserOpen = false;
-      });
-    });
-    if (item == null || !mounted) {
+    final textContext = _motionTextElementContextForId(scopeContext.clip.id);
+    if (textContext == null) {
+      _showStageMessage('Unable to resolve this text layer.');
       return;
     }
-    _addAnimateLaneToTrack(
-      track,
-      item,
-      selectForLayerScope: true,
+    final blocks = _scopedTextEffectBlocksForItem(item);
+    if (blocks.isEmpty) {
+      _showStageMessage('${item.label} is not ready yet.');
+      return;
+    }
+
+    final blockPrefix = _scopedTextEffectBlockPrefix(item);
+    final currentBinding =
+        _motionTextBindingForElementId(textContext.element.id);
+    final activeRange = _motionTextTimingRangeForElement(
+      scene: textContext.scene,
+      element: textContext.element,
     );
+    final currentBlocks =
+        currentBinding?.animationBlocks ?? const <MotionTextAnimationBlock>[];
+    final alreadyApplied = currentBlocks.any(
+      (block) => block.id.startsWith(blockPrefix),
+    );
+
+    final nextBindings = <MotionTextAnimationBindingModel>[
+      for (final binding in _motionTextAnimationBindings)
+        if (binding.elementTarget.targetId == textContext.element.id)
+          MotionTextAnimationBindingModel(
+            id: binding.id,
+            elementTarget: binding.elementTarget,
+            activeRange: binding.activeRange,
+            presetId: binding.presetId,
+            animationBlocks: alreadyApplied
+                ? binding.animationBlocks
+                : <MotionTextAnimationBlock>[
+                    ...binding.animationBlocks,
+                    ...blocks,
+                  ],
+            parameterValues: binding.parameterValues,
+          )
+        else
+          binding,
+      if (currentBinding == null)
+        MotionTextAnimationBindingModel(
+          id: 'text-binding-${textContext.element.id}-${DateTime.now().microsecondsSinceEpoch}',
+          elementTarget: textContext.elementTarget,
+          activeRange: activeRange,
+          animationBlocks: blocks,
+        ),
+    ];
+
+    final trackIndex = _tracks.indexWhere(
+      (candidate) => candidate.kind == scopeContext.track.kind,
+    );
+    var selectedLaneId = _selectedLayerScopeAnimationLaneId;
+    List<TimelineTrackData>? nextTracks;
+    if (trackIndex >= 0) {
+      final baseTrack = _tracks[trackIndex];
+      final existingLaneIndex = baseTrack.animationLanes.indexWhere(
+        (lane) =>
+            lane.targetClipId == scopeContext.clip.id &&
+            lane.label.toLowerCase() == item.label.toLowerCase(),
+      );
+      if (existingLaneIndex >= 0) {
+        selectedLaneId = baseTrack.animationLanes[existingLaneIndex].id;
+      } else {
+        final lane = TimelineAnimationLaneData(
+          id: 'anim-${scopeContext.track.kind.name}-${scopeContext.clip.id}-${item.id}-${DateTime.now().microsecondsSinceEpoch}',
+          label: item.label,
+          targetClipId: scopeContext.clip.id,
+          normalizedKeyframeStops: const <double>[],
+          keyframeValues: const <double>[],
+        );
+        selectedLaneId = lane.id;
+        nextTracks = List<TimelineTrackData>.from(_tracks);
+        nextTracks[trackIndex] = baseTrack.copyWith(
+          animationLanes: <TimelineAnimationLaneData>[
+            ...baseTrack.animationLanes,
+            lane,
+          ],
+        );
+      }
+    }
+
+    setState(() {
+      if (nextTracks != null) {
+        _tracks = List<TimelineTrackData>.unmodifiable(nextTracks);
+      }
+      _motionTextAnimationBindings = nextBindings;
+      if (!alreadyApplied) {
+        _motionRevision += 1;
+      }
+      _selectedClipId = scopeContext.clip.id;
+      _selectedLayerScopeAnimationLaneId = selectedLaneId;
+      _selectedLayerScopeKeyframeIndex = null;
+      _selectedLayerScopeKeyframeId = null;
+      _isLayerScopeValueEditorOpen = false;
+      _activeTab = EditorMediaTab.text;
+    });
+  }
+
+  String _scopedTextEffectBlockPrefix(AnimateBrowserItem item) =>
+      'scoped.${item.id}.';
+
+  List<MotionTextAnimationBlock> _scopedTextEffectBlocksForItem(
+    AnimateBrowserItem item,
+  ) {
+    final prefix = _scopedTextEffectBlockPrefix(item);
+    return switch (item.id) {
+      'text_effect.type_on' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}typewriter',
+            kind: MotionTextAnimationKind.typewriter,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(1100),
+            ),
+            revealSpec: MotionTextRevealSpec(
+              unit: MotionTextRevealUnit.letter,
+              stagger: TimelineTime.fromMilliseconds(42),
+            ),
+            interpolation: const MotionInterpolationSpec.linear(),
+          ),
+        ],
+      'text_effect.word_reveal' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}word_reveal',
+            kind: MotionTextAnimationKind.wordReveal,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(950),
+            ),
+            revealSpec: MotionTextRevealSpec(
+              unit: MotionTextRevealUnit.word,
+              stagger: TimelineTime.fromMilliseconds(90),
+            ),
+            interpolation: const MotionInterpolationSpec.easeOut(),
+          ),
+        ],
+      'text_effect.letter_reveal' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}letter_reveal',
+            kind: MotionTextAnimationKind.letterReveal,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(950),
+            ),
+            revealSpec: MotionTextRevealSpec(
+              unit: MotionTextRevealUnit.letter,
+              stagger: TimelineTime.fromMilliseconds(36),
+            ),
+            interpolation: const MotionInterpolationSpec.easeOut(),
+          ),
+        ],
+      'text_effect.blur_in' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}blur_in',
+            kind: MotionTextAnimationKind.blurIn,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(760),
+            ),
+            interpolation: const MotionInterpolationSpec.easeOut(),
+            parameters: const <String, MotionPropertyValue>{
+              'fromBlur': MotionPropertyValue.scalar(24),
+              'toBlur': MotionPropertyValue.scalar(0),
+            },
+          ),
+          MotionTextAnimationBlock(
+            id: '${prefix}fade_in',
+            kind: MotionTextAnimationKind.fadeIn,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(340),
+            ),
+            interpolation: const MotionInterpolationSpec.easeOut(),
+          ),
+        ],
+      'text_effect.scale_pop' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}scale_pop',
+            kind: MotionTextAnimationKind.elasticPop,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(720),
+            ),
+            interpolation: const MotionInterpolationSpec.easeOut(),
+            parameters: const <String, MotionPropertyValue>{
+              'fromScale': MotionPropertyValue.scalar(0.74),
+              'toScale': MotionPropertyValue.scalar(1.0),
+            },
+          ),
+        ],
+      'text_effect.tracking_settle' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}tracking_settle',
+            kind: MotionTextAnimationKind.rotationSettle,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(920),
+            ),
+            interpolation: const MotionInterpolationSpec.easeInOut(),
+            parameters: const <String, MotionPropertyValue>{
+              'fromLetterSpacing': MotionPropertyValue.scalar(26),
+              'toLetterSpacing': MotionPropertyValue.scalar(0),
+              'fromRotation': MotionPropertyValue.scalar(0),
+              'toRotation': MotionPropertyValue.scalar(0),
+            },
+          ),
+        ],
+      _ => const <MotionTextAnimationBlock>[],
+    };
   }
 
   Future<void> _openMediaSheet(EditorMediaTab tab) async {
