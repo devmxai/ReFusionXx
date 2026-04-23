@@ -207,6 +207,22 @@ compile into:
 - animation blocks
 - effect metadata
 
+### 1.6.1 Effect Editing Must Enter Shared History
+
+Effect authoring is not complete unless it is reversible.
+
+That includes:
+
+- applying an effect
+- removing an effect
+- switching reveal mode such as `Word` / `Letter`
+- changing effect sliders in `Value`
+- adding or moving effect-owned keyframes
+- editing graph/easing for those keyframes
+
+These edits must ultimately feed the same editor `Undo/Redo` history as root
+timeline edits.
+
 ### 1.7 Live Scrub Remains Protected
 
 Nothing in this document authorizes unscoped changes to protected native scrub

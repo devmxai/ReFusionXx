@@ -86,6 +86,34 @@ effects.blur.amount
 effects.glow.intensity
 ```
 
+### 1.1.1 Undo/Redo Is A Shipping Blocker
+
+As of `2026-04-23`, the editor still does **not** have a fully wired command
+history.
+
+Current status:
+
+- top-bar `Undo` / `Redo` affordances exist in product UI
+- structural edits still mutate authoring state directly
+- scoped-layer edits still mutate authoring state directly
+- this means operations such as `Split`, `Duplicate`, `Delete`, keyframe add,
+  keyframe move, keyframe value change, effect apply, and reveal-mode change are
+  not yet guaranteed to be reversible through one shared history stack
+
+This is a strict reminder, not a soft wishlist item:
+
+- do not treat `Undo/Redo` as optional polish
+- do not expand authoring breadth while leaving history disconnected
+- do not ship broad timeline/scope authoring without command-backed reversal
+
+Required direction:
+
+- every authoring mutation must become a command or operation record
+- each command must produce authoritative `before` and `after` snapshots
+- root timeline and scoped layer must feed the same history substrate
+- top-bar `Undo` / `Redo` buttons must execute that shared history, not local UI
+  guesses
+
 ### 1.2 What This Does Not Mean
 
 This plan does not mean:

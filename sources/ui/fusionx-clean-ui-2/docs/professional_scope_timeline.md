@@ -470,6 +470,37 @@ Exit criteria:
 - keyframes can be added/moved/deleted
 - local/global time mapping remains correct
 - undo/redo strategy is documented before broad rollout
+- scope commands are not allowed to bypass shared editor history
+
+### Phase 6.5 - Shared Undo/Redo Integration
+
+Goal:
+
+Make scope authoring reversible through the same editor history used by the
+main timeline.
+
+Strict rule:
+
+- scoped layer must not invent a separate local undo stack
+- top-bar `Undo` / `Redo` must reverse scoped commands and root timeline
+  commands through one shared command history
+
+Minimum command coverage:
+
+- `Split`
+- `Trim`
+- `Duplicate`
+- `Delete`
+- effect apply/remove
+- keyframe add
+- keyframe move
+- keyframe value change
+- graph/easing change
+
+Broad rollout blocker:
+
+- if a new scope feature mutates authoring state but cannot yet enter shared
+  history, it is incomplete and must be flagged as such in planning
 
 ### Phase 7 - Easing And Mobile Curve Editor
 
