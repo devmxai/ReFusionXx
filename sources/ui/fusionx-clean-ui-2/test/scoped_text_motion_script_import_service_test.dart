@@ -127,18 +127,28 @@ export default function Scene() {
       "durationMs": 720
     },
     {
+      "kind": "wordRiseIn",
+      "startMs": 1880,
+      "durationMs": 760
+    },
+    {
+      "kind": "letterPopIn",
+      "startMs": 2640,
+      "durationMs": 720
+    },
+    {
       "kind": "elasticPop",
-      "startMs": 2160,
+      "startMs": 3360,
       "durationMs": 620
     },
     {
       "kind": "blurRiseIn",
-      "startMs": 2780,
+      "startMs": 3980,
       "durationMs": 760
     },
     {
       "kind": "rotateIn",
-      "startMs": 3540,
+      "startMs": 4740,
       "durationMs": 720
     }
   ]
@@ -149,7 +159,7 @@ export default function Scene() {
 
     expect(validation.canApply, isTrue);
     final blocks = validation.document!.animationBlocks;
-    expect(blocks, hasLength(6));
+    expect(blocks, hasLength(8));
     expect(blocks.first.kind, MotionTextAnimationKind.bounceIn);
     expect(blocks.first.interpolation.kind, MotionInterpolationKind.bounce);
     expect(blocks.first.interpolation.bounce, isNotNull);
@@ -159,12 +169,20 @@ export default function Scene() {
     expect(blocks[2].kind, MotionTextAnimationKind.slideIn);
     expect(blocks[2].interpolation.kind, MotionInterpolationKind.spring);
     expect(blocks[2].interpolation.spring, isNotNull);
-    expect(blocks[3].kind, MotionTextAnimationKind.elasticPop);
-    expect(blocks[3].interpolation.kind, MotionInterpolationKind.elastic);
-    expect(blocks[3].interpolation.elastic, isNotNull);
-    expect(blocks[4].kind, MotionTextAnimationKind.blurRiseIn);
-    expect(blocks[4].interpolation.kind, MotionInterpolationKind.spring);
-    expect(blocks[4].interpolation.spring, isNotNull);
+    expect(blocks[3].kind, MotionTextAnimationKind.wordRiseIn);
+    expect(blocks[3].interpolation.kind, MotionInterpolationKind.easeOut);
+    expect(blocks[3].revealSpec, isNotNull);
+    expect(blocks[3].revealSpec!.unit, MotionTextRevealUnit.word);
+    expect(blocks[4].kind, MotionTextAnimationKind.letterPopIn);
+    expect(blocks[4].interpolation.kind, MotionInterpolationKind.easeOut);
+    expect(blocks[4].revealSpec, isNotNull);
+    expect(blocks[4].revealSpec!.unit, MotionTextRevealUnit.letter);
+    expect(blocks[5].kind, MotionTextAnimationKind.elasticPop);
+    expect(blocks[5].interpolation.kind, MotionInterpolationKind.elastic);
+    expect(blocks[5].interpolation.elastic, isNotNull);
+    expect(blocks[6].kind, MotionTextAnimationKind.blurRiseIn);
+    expect(blocks[6].interpolation.kind, MotionInterpolationKind.spring);
+    expect(blocks[6].interpolation.spring, isNotNull);
     expect(blocks.last.kind, MotionTextAnimationKind.rotateIn);
     expect(blocks.last.interpolation.kind, MotionInterpolationKind.spring);
     expect(blocks.last.interpolation.spring, isNotNull);

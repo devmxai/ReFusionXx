@@ -159,11 +159,13 @@ class BasicMotionTextRenderAdapter implements MotionTextRenderAdapter {
             revealDirection: node.revealDirection,
             revealProgress: node.revealProgress,
             hasRevealAnimation: node.animationKinds.any(
-              (kind) =>
-                  kind == MotionTextAnimationKind.wordReveal ||
-                  kind == MotionTextAnimationKind.letterReveal ||
-                  kind == MotionTextAnimationKind.typewriter,
-            ),
+                  (kind) =>
+                      kind == MotionTextAnimationKind.wordReveal ||
+                      kind == MotionTextAnimationKind.letterReveal ||
+                      kind == MotionTextAnimationKind.typewriter,
+                ) ||
+                (node.revealUnit != MotionTextRevealUnit.wholeText &&
+                    node.revealProgress != null),
             animationKinds: node.animationKinds,
             animationProgressByKind: _resolveAnimationProgressByKind(
               textAnimation: node.textAnimationId == null

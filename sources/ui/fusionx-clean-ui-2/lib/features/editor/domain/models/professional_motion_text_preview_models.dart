@@ -351,7 +351,9 @@ class BasicMotionTextPreviewBinder implements MotionTextPreviewBinder {
     final hasRevealAnimation =
         animationKinds.contains(MotionTextAnimationKind.wordReveal) ||
             animationKinds.contains(MotionTextAnimationKind.letterReveal) ||
-            animationKinds.contains(MotionTextAnimationKind.typewriter);
+            animationKinds.contains(MotionTextAnimationKind.typewriter) ||
+            (revealUnit != MotionTextRevealUnit.wholeText &&
+                revealProgress != null);
     if (!hasRevealAnimation) {
       return fullText;
     }

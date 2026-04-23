@@ -204,6 +204,20 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       keywords: <String>['slide', 'left', 'right', 'spring', 'text'],
     ),
     AnimateBrowserItem(
+      id: 'text_effect.word_rise_in',
+      label: 'Word Rise In',
+      category: 'Text',
+      summary: 'Reveal words while the line rises gently into place.',
+      keywords: <String>['word', 'reveal', 'rise', 'headline', 'text'],
+    ),
+    AnimateBrowserItem(
+      id: 'text_effect.letter_pop_in',
+      label: 'Letter Pop In',
+      category: 'Text',
+      summary: 'Pop letters in with per-character reveal and scale settle.',
+      keywords: <String>['letter', 'character', 'pop', 'reveal', 'text'],
+    ),
+    AnimateBrowserItem(
       id: 'text_effect.blur_rise_in',
       label: 'Blur Rise In',
       category: 'Text FX',
@@ -4362,7 +4376,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     AnimateBrowserItem item,
   ) {
     return switch (item.id) {
-      'text_effect.word_reveal' => MotionTextRevealUnit.word,
+      'text_effect.word_reveal' ||
+      'text_effect.word_rise_in' =>
+        MotionTextRevealUnit.word,
       _ => MotionTextRevealUnit.letter,
     };
   }
@@ -4382,14 +4398,19 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   bool _isMotionTextRevealBlock(MotionTextAnimationBlock block) =>
+      block.revealSpec != null ||
       block.kind == MotionTextAnimationKind.typewriter ||
       block.kind == MotionTextAnimationKind.wordReveal ||
-      block.kind == MotionTextAnimationKind.letterReveal;
+      block.kind == MotionTextAnimationKind.letterReveal ||
+      block.kind == MotionTextAnimationKind.wordRiseIn ||
+      block.kind == MotionTextAnimationKind.letterPopIn;
 
   bool _isScopedTextRevealEffectItem(AnimateBrowserItem item) =>
       item.id == 'text_effect.type_on' ||
       item.id == 'text_effect.word_reveal' ||
-      item.id == 'text_effect.letter_reveal';
+      item.id == 'text_effect.letter_reveal' ||
+      item.id == 'text_effect.word_rise_in' ||
+      item.id == 'text_effect.letter_pop_in';
 
   List<MotionTextAnimationBindingModel>? _updateLayerScopeRevealBinding({
     required _LayerScopeContext context,
@@ -7938,6 +7959,48 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             parameters: const <String, MotionPropertyValue>{
               'fromOffsetX': MotionPropertyValue.scalar(-180),
               'toOffsetX': MotionPropertyValue.scalar(0),
+              'fromOpacity': MotionPropertyValue.scalar(0),
+              'toOpacity': MotionPropertyValue.scalar(1),
+            },
+          ),
+        ],
+      'text_effect.word_rise_in' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}word_rise_in',
+            kind: MotionTextAnimationKind.wordRiseIn,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(760),
+            ),
+            revealSpec: MotionTextRevealSpec(
+              unit: MotionTextRevealUnit.word,
+              stagger: TimelineTime.fromMilliseconds(90),
+            ),
+            interpolation: const MotionInterpolationSpec.easeOut(),
+            parameters: const <String, MotionPropertyValue>{
+              'fromOffsetY': MotionPropertyValue.scalar(30),
+              'toOffsetY': MotionPropertyValue.scalar(0),
+              'fromOpacity': MotionPropertyValue.scalar(0),
+              'toOpacity': MotionPropertyValue.scalar(1),
+            },
+          ),
+        ],
+      'text_effect.letter_pop_in' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}letter_pop_in',
+            kind: MotionTextAnimationKind.letterPopIn,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(720),
+            ),
+            revealSpec: MotionTextRevealSpec(
+              unit: MotionTextRevealUnit.letter,
+              stagger: TimelineTime.fromMilliseconds(34),
+            ),
+            interpolation: const MotionInterpolationSpec.easeOut(),
+            parameters: const <String, MotionPropertyValue>{
+              'fromScale': MotionPropertyValue.scalar(0.92),
+              'toScale': MotionPropertyValue.scalar(1.0),
               'fromOpacity': MotionPropertyValue.scalar(0),
               'toOpacity': MotionPropertyValue.scalar(1),
             },

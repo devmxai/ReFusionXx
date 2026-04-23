@@ -338,7 +338,8 @@ class MotionTextPresetJsonCodec {
           json['interpolation'],
           defaultForKind: kind,
         ),
-        revealSpec: _readRevealSpec(json['revealSpec']),
+        revealSpec: _readRevealSpec(json['revealSpec']) ??
+            _defaultRevealSpecForAnimationKind(kind),
         parameters: _readParameterValues(json['parameters']),
       );
     }).toList(growable: false);
@@ -426,6 +427,9 @@ class MotionTextPresetJsonCodec {
             initialVelocity: 0,
           ),
         );
+      case MotionTextAnimationKind.wordRiseIn:
+      case MotionTextAnimationKind.letterPopIn:
+        return const MotionInterpolationSpec.easeOut();
       case MotionTextAnimationKind.blurRiseIn:
         return const MotionInterpolationSpec.spring(
           spring: MotionSpringSpec(
@@ -467,6 +471,42 @@ class MotionTextPresetJsonCodec {
       case MotionTextAnimationKind.cinematicEntrance:
       case MotionTextAnimationKind.cinematicExit:
         return const MotionInterpolationSpec.easeInOut();
+    }
+  }
+
+  static MotionTextRevealSpec? _defaultRevealSpecForAnimationKind(
+    MotionTextAnimationKind kind,
+  ) {
+    switch (kind) {
+      case MotionTextAnimationKind.wordRiseIn:
+        return MotionTextRevealSpec(
+          unit: MotionTextRevealUnit.word,
+          stagger: TimelineTime.fromMilliseconds(90),
+        );
+      case MotionTextAnimationKind.letterPopIn:
+        return MotionTextRevealSpec(
+          unit: MotionTextRevealUnit.letter,
+          stagger: TimelineTime.fromMilliseconds(34),
+        );
+      case MotionTextAnimationKind.fadeIn:
+      case MotionTextAnimationKind.fadeOut:
+      case MotionTextAnimationKind.wordReveal:
+      case MotionTextAnimationKind.letterReveal:
+      case MotionTextAnimationKind.typewriter:
+      case MotionTextAnimationKind.bounceIn:
+      case MotionTextAnimationKind.riseIn:
+      case MotionTextAnimationKind.slideIn:
+      case MotionTextAnimationKind.blurRiseIn:
+      case MotionTextAnimationKind.rotateIn:
+      case MotionTextAnimationKind.elasticPop:
+      case MotionTextAnimationKind.scaleIn:
+      case MotionTextAnimationKind.scaleOut:
+      case MotionTextAnimationKind.blurIn:
+      case MotionTextAnimationKind.blurOut:
+      case MotionTextAnimationKind.rotationSettle:
+      case MotionTextAnimationKind.cinematicEntrance:
+      case MotionTextAnimationKind.cinematicExit:
+        return null;
     }
   }
 
@@ -607,6 +647,10 @@ class MotionTextPresetJsonCodec {
         return MotionTextAnimationKind.riseIn;
       case 'slideIn':
         return MotionTextAnimationKind.slideIn;
+      case 'wordRiseIn':
+        return MotionTextAnimationKind.wordRiseIn;
+      case 'letterPopIn':
+        return MotionTextAnimationKind.letterPopIn;
       case 'blurRiseIn':
         return MotionTextAnimationKind.blurRiseIn;
       case 'rotateIn':

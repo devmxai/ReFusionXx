@@ -493,6 +493,16 @@ String _effectFamilyLabel(MotionTextPresetDefinition preset) {
     return 'Type On';
   }
   if (preset.animationBlocks.any(
+    (block) => block.kind == MotionTextAnimationKind.wordRiseIn,
+  )) {
+    return 'Word Rise In';
+  }
+  if (preset.animationBlocks.any(
+    (block) => block.kind == MotionTextAnimationKind.letterPopIn,
+  )) {
+    return 'Letter Pop In';
+  }
+  if (preset.animationBlocks.any(
     (block) =>
         block.kind == MotionTextAnimationKind.wordReveal ||
         block.revealSpec?.unit == MotionTextRevealUnit.word,
@@ -538,6 +548,11 @@ String _effectFamilyLabel(MotionTextPresetDefinition preset) {
   )) {
     return 'Rotate In';
   }
+  if (preset.animationBlocks.any(
+    (block) => block.kind == MotionTextAnimationKind.elasticPop,
+  )) {
+    return 'Elastic Pop';
+  }
   return 'Text Motion';
 }
 
@@ -551,6 +566,8 @@ List<String> _effectBlockLabels(MotionTextPresetDefinition preset) {
       MotionTextAnimationKind.wordReveal => 'Words',
       MotionTextAnimationKind.letterReveal => 'Letters',
       MotionTextAnimationKind.typewriter => 'Type',
+      MotionTextAnimationKind.wordRiseIn => 'Word Rise',
+      MotionTextAnimationKind.letterPopIn => 'Letter Pop',
       MotionTextAnimationKind.bounceIn => 'Bounce',
       MotionTextAnimationKind.riseIn => 'Rise',
       MotionTextAnimationKind.slideIn => 'Slide',
@@ -689,7 +706,7 @@ class _AddTextPresetSheetState extends State<_AddTextPresetSheet> {
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 18),
               child: Text(
-                'Minimal supported shape: {"text":"Your Text","animationBlocks":[{"kind":"fadeIn","startMs":0,"durationMs":700}]}\nSupported kinds: fadeIn, fadeOut, wordReveal, letterReveal, typewriter, bounceIn, riseIn, slideIn, blurRiseIn, rotateIn, elasticPop, scaleIn, scaleOut, blurIn, blurOut, rotationSettle, cinematicEntrance, cinematicExit',
+                'Minimal supported shape: {"text":"Your Text","animationBlocks":[{"kind":"fadeIn","startMs":0,"durationMs":700}]}\nSupported kinds: fadeIn, fadeOut, wordReveal, letterReveal, typewriter, bounceIn, riseIn, slideIn, wordRiseIn, letterPopIn, blurRiseIn, rotateIn, elasticPop, scaleIn, scaleOut, blurIn, blurOut, rotationSettle, cinematicEntrance, cinematicExit',
                 style: TextStyle(
                   color: FxPalette.textFaint,
                   fontSize: 11,

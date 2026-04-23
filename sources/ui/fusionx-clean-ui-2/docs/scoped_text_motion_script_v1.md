@@ -397,6 +397,8 @@ Supported block kinds:
 - `bounceIn`
 - `riseIn`
 - `slideIn`
+- `wordRiseIn`
+- `letterPopIn`
 - `blurRiseIn`
 - `rotateIn`
 - `elasticPop`
@@ -428,6 +430,10 @@ The first supported families are:
   with canonical `spring`
 - `slideIn`: lowers into opacity and horizontal position channels with
   canonical `spring`
+- `wordRiseIn`: lowers into revealProgress, opacity, and vertical position
+  channels; reveals by word with stagger metadata
+- `letterPopIn`: lowers into revealProgress, opacity, and scale channels;
+  reveals by letter with stagger metadata
 - `blurRiseIn`: lowers into opacity, blur, vertical position, and subtle scale
   channels with canonical `spring`
 - `rotateIn`: lowers into opacity, rotation, and scale channels with canonical
@@ -475,6 +481,8 @@ As of this document update:
   - `bounceIn`
   - `riseIn`
   - `slideIn`
+  - `wordRiseIn`
+  - `letterPopIn`
   - `blurRiseIn`
   - `rotateIn`
   - `elasticPop`
@@ -579,6 +587,52 @@ position.
   ]
 }
 ```
+
+## Example: Named Word Rise In Family
+
+```json
+{
+  "schemaVersion": "refusion.scope-text-script/v1",
+  "name": "Word Rise In",
+  "animationBlocks": [
+    {
+      "kind": "wordRiseIn",
+      "startMs": 0,
+      "durationMs": 760,
+      "parameters": {
+        "fromOffsetY": 30,
+        "toOffsetY": 0
+      }
+    }
+  ]
+}
+```
+
+This imports as editable revealProgress, opacity, and positionY channels while
+preserving word-based reveal metadata.
+
+## Example: Named Letter Pop In Family
+
+```json
+{
+  "schemaVersion": "refusion.scope-text-script/v1",
+  "name": "Letter Pop In",
+  "animationBlocks": [
+    {
+      "kind": "letterPopIn",
+      "startMs": 0,
+      "durationMs": 720,
+      "parameters": {
+        "fromScale": 92,
+        "toScale": 100
+      }
+    }
+  ]
+}
+```
+
+This imports as editable revealProgress, opacity, scaleX, and scaleY channels
+while preserving letter-based reveal metadata.
 
 ## Example: Named Blur Rise In Family
 

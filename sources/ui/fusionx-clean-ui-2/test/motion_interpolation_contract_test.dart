@@ -382,6 +382,176 @@ void main() {
     );
   });
 
+  test('wordRiseIn and letterPopIn families lower into reveal channels', () {
+    final range = TimelineTimeRange(
+      start: TimelineTime.zero,
+      endExclusive: TimelineTime.fromSecondsDouble(3),
+    );
+    MotionProjectModel projectFor(String targetId) {
+      return MotionProjectModel(
+        id: 'project',
+        format: const MotionProjectFormat(
+          canvasSize: MotionSize2D(width: 1080, height: 1920),
+        ),
+        frameRate: const MotionFrameRate(numerator: 60, denominator: 1),
+        scenes: <MotionSceneModel>[
+          MotionSceneModel(
+            id: 'scene',
+            projectRange: range,
+            layers: <MotionLayerModel>[
+              MotionLayerModel(
+                id: 'layer',
+                sceneId: 'scene',
+                kind: MotionLayerKind.text,
+                visibleRange: range,
+                elements: <MotionElementModel>[
+                  MotionElementModel(
+                    id: targetId,
+                    layerId: 'layer',
+                    kind: MotionElementKind.text,
+                    localRange: range,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
+    MotionTextPresetCompileResult compileFamily({
+      required String targetId,
+      required MotionTextAnimationKind kind,
+      required MotionInterpolationSpec interpolation,
+      MotionTextRevealSpec? revealSpec,
+    }) {
+      final project = projectFor(targetId);
+      return BasicMotionTextPresetCompiler().compileBindings(
+        request: MotionCompileRequest(
+          project: project,
+          textAnimationBindings: <MotionTextAnimationBindingModel>[
+            MotionTextAnimationBindingModel(
+              id: 'binding-$targetId',
+              elementTarget: MotionPropertyTarget(
+                kind: MotionTargetKind.element,
+                targetId: targetId,
+                projectId: 'project',
+                sceneId: 'scene',
+                layerId: 'layer',
+                elementId: targetId,
+              ),
+              activeRange: range,
+              animationBlocks: <MotionTextAnimationBlock>[
+                MotionTextAnimationBlock(
+                  id: 'family.${kind.name}',
+                  kind: kind,
+                  relativeRange: TimelineTimeRange(
+                    start: TimelineTime.zero,
+                    endExclusive: TimelineTime.fromMilliseconds(760),
+                  ),
+                  interpolation: interpolation,
+                  revealSpec: revealSpec,
+                ),
+              ],
+            ),
+          ],
+        ),
+        elementsById: <String, MotionElementModel>{
+          targetId: project.scenes.single.layers.single.elements.single,
+        },
+      );
+    }
+
+    final wordRise = compileFamily(
+      targetId: 'text-word-rise',
+      kind: MotionTextAnimationKind.wordRiseIn,
+      interpolation: const MotionInterpolationSpec.easeOut(),
+      revealSpec: MotionTextRevealSpec(
+        unit: MotionTextRevealUnit.word,
+        stagger: TimelineTime.fromMilliseconds(90),
+      ),
+    );
+    final letterPop = compileFamily(
+      targetId: 'text-letter-pop',
+      kind: MotionTextAnimationKind.letterPopIn,
+      interpolation: const MotionInterpolationSpec.easeOut(),
+      revealSpec: MotionTextRevealSpec(
+        unit: MotionTextRevealUnit.letter,
+        stagger: TimelineTime.fromMilliseconds(34),
+      ),
+    );
+
+    final wordRiseChannels = <String, MotionPropertyChannelModel>{
+      for (final channel in wordRise.generatedChannels)
+        channel.definition.id: channel,
+    };
+    final letterPopChannels = <String, MotionPropertyChannelModel>{
+      for (final channel in letterPop.generatedChannels)
+        channel.definition.id: channel,
+    };
+
+    expect(wordRise.issues, isEmpty);
+    expect(
+      wordRiseChannels.keys,
+      containsAll(<String>[
+        MotionPropertyCatalog.revealProgress.id,
+        MotionPropertyCatalog.opacity.id,
+        MotionPropertyCatalog.positionY.id,
+      ]),
+    );
+    expect(
+      wordRiseChannels[MotionPropertyCatalog.revealProgress.id]!
+          .keyframes
+          .first
+          .interpolationToNext
+          .kind,
+      MotionInterpolationKind.easeOut,
+    );
+    expect(
+      wordRiseChannels[MotionPropertyCatalog.positionY.id]!
+          .keyframes
+          .first
+          .interpolationToNext
+          .kind,
+      MotionInterpolationKind.spring,
+    );
+
+    expect(letterPop.issues, isEmpty);
+    expect(
+      letterPopChannels.keys,
+      containsAll(<String>[
+        MotionPropertyCatalog.revealProgress.id,
+        MotionPropertyCatalog.opacity.id,
+        MotionPropertyCatalog.scaleX.id,
+        MotionPropertyCatalog.scaleY.id,
+      ]),
+    );
+    expect(
+      letterPopChannels[MotionPropertyCatalog.revealProgress.id]!
+          .keyframes
+          .first
+          .interpolationToNext
+          .kind,
+      MotionInterpolationKind.easeOut,
+    );
+    expect(
+      letterPopChannels[MotionPropertyCatalog.scaleX.id]!
+          .keyframes
+          .first
+          .interpolationToNext
+          .kind,
+      MotionInterpolationKind.spring,
+    );
+    expect(
+      letterPopChannels[MotionPropertyCatalog.scaleX.id]!
+          .keyframes
+          .first
+          .value
+          .rawValue,
+      0.92,
+    );
+  });
+
   test(
       'blurRiseIn and rotateIn families lower into cinematic editable channels',
       () {
