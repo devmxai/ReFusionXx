@@ -56,9 +56,15 @@ import java.io.File
 import java.io.IOException
 import java.util.Locale
 import java.util.UUID
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 class Stage6ExportManager(
     private val appContext: Context,
@@ -69,7 +75,17 @@ class Stage6ExportManager(
         const val EVENT_CHANNEL_NAME = "com.refusion.app/stage6_export_events"
         const val SUPPORTED_EXPORT_GRAPH_SCHEMA_VERSION = "export-graph.v1alpha1"
         private val SUPPORTED_EXPORT_INTERPOLATION_KINDS =
-            setOf("linear", "hold", "easeIn", "easeOut", "easeInOut", "cubicBezier")
+            setOf(
+                "linear",
+                "hold",
+                "easeIn",
+                "easeOut",
+                "easeInOut",
+                "cubicBezier",
+                "spring",
+                "bounce",
+                "elastic",
+            )
         private val SUPPORTED_EXPORT_CHANNEL_EDGE_MODES = setOf("clamp")
         private const val CURRENT_CANONICAL_EFFECTS_BACKEND_ID = "media3CanvasOverlayRenderer"
         private const val TAG = "Stage6ExportManager"
@@ -2722,6 +2738,8 @@ class Stage6ExportManager(
                 ?: "__missing__"
         val bezierMap = interpolationMap?.get("bezier") as? Map<*, *>
         val springMap = interpolationMap?.get("spring") as? Map<*, *>
+        val bounceMap = interpolationMap?.get("bounce") as? Map<*, *>
+        val elasticMap = interpolationMap?.get("elastic") as? Map<*, *>
         return NativeMotionInterpolationSpec(
             kind = kind,
             bezier =
@@ -2740,6 +2758,22 @@ class Stage6ExportManager(
                         damping = readDouble(it["damping"]).toFloat(),
                         mass = readDouble(it["mass"]).toFloat(),
                         initialVelocity = readDouble(it["initialVelocity"]).toFloat(),
+                    )
+                },
+            bounce =
+                bounceMap?.let {
+                    NativeMotionBounceSpec(
+                        amplitude = readFloatOrDefault(it["amplitude"], 0.18f),
+                        bounces = readIntOrDefault(it["bounces"], 3),
+                        decay = readFloatOrDefault(it["decay"], 8.0f),
+                    )
+                },
+            elastic =
+                elasticMap?.let {
+                    NativeMotionElasticSpec(
+                        amplitude = readFloatOrDefault(it["amplitude"], 0.14f),
+                        period = readFloatOrDefault(it["period"], 0.28f),
+                        decay = readFloatOrDefault(it["decay"], 8.0f),
                     )
                 },
         )
@@ -3786,11 +3820,14 @@ class Stage6ExportManager(
                     1f - ((inverse * inverse) / 2f)
                 }
             "cubicBezier" -> sampleBezierProgress(interpolation, progress)
+            "spring" -> sampleSpringProgress(interpolation.spring, progress)
+            "bounce" -> sampleBounceProgress(interpolation.bounce, progress)
+            "elastic" -> sampleElasticProgress(interpolation.elastic, progress)
             else ->
                 throw IllegalStateException(
                     "Unsupported export interpolation kind in authored-surface effect planner: ${interpolation.kind}",
                 )
-        }.coerceIn(0f, 1f)
+        }
     }
 
     private fun sampleBezierProgress(
@@ -3863,6 +3900,144 @@ class Stage6ExportManager(
                 (6f * oneMinusT * t * (control2 - control1)) +
                 (3f * t * t * (1f - control2))
             )
+    }
+
+    private fun sampleSpringProgress(
+        spring: NativeMotionSpringSpec?,
+        progress: Float,
+    ): Float {
+        val t = progress.coerceIn(0f, 1f).toDouble()
+        if (t <= 0.0) {
+            return 0f
+        }
+        if (t >= 1.0) {
+            return 1f
+        }
+        val spec =
+            spring
+                ?: NativeMotionSpringSpec(
+                    stiffness = 220f,
+                    damping = 18f,
+                    mass = 1f,
+                    initialVelocity = 0f,
+                )
+        val stiffness = spec.stiffness.toDouble().coerceAtLeast(0.0001)
+        val mass = spec.mass.toDouble().coerceAtLeast(0.0001)
+        val damping = spec.damping.toDouble().coerceAtLeast(0.0)
+        val naturalFrequency = sqrt(stiffness / mass)
+        if (!naturalFrequency.isFinite() || naturalFrequency <= 0.0) {
+            return progress
+        }
+        val dampingRatio = damping / (2.0 * sqrt(stiffness * mass))
+        val initialVelocity = spec.initialVelocity.toDouble()
+        val result =
+            if (dampingRatio < 1.0 - 0.0001) {
+                val dampedFrequency =
+                    naturalFrequency * sqrt(1.0 - (dampingRatio * dampingRatio))
+                val coefficient =
+                    ((dampingRatio * naturalFrequency) - initialVelocity) / dampedFrequency
+                val envelope = exp(-dampingRatio * naturalFrequency * t)
+                1.0 -
+                    (
+                        envelope *
+                            (
+                                cos(dampedFrequency * t) +
+                                    (coefficient * sin(dampedFrequency * t))
+                                )
+                        )
+            } else if (abs(dampingRatio - 1.0) <= 0.0001) {
+                val envelope = exp(-naturalFrequency * t)
+                1.0 - ((1.0 + ((naturalFrequency - initialVelocity) * t)) * envelope)
+            } else {
+                val sqrtTerm = sqrt((dampingRatio * dampingRatio) - 1.0)
+                val rootOne = -naturalFrequency * (dampingRatio - sqrtTerm)
+                val rootTwo = -naturalFrequency * (dampingRatio + sqrtTerm)
+                val coefficientOne = (-initialVelocity - rootTwo) / (rootOne - rootTwo)
+                val coefficientTwo = 1.0 - coefficientOne
+                1.0 -
+                    (
+                        (coefficientOne * exp(rootOne * t)) +
+                            (coefficientTwo * exp(rootTwo * t))
+                        )
+            }
+        return result.toFloat()
+    }
+
+    private fun sampleBounceProgress(
+        bounce: NativeMotionBounceSpec?,
+        progress: Float,
+    ): Float {
+        val t = progress.coerceIn(0f, 1f).toDouble()
+        if (t <= 0.0) {
+            return 0f
+        }
+        if (t >= 1.0) {
+            return 1f
+        }
+        val spec =
+            bounce
+                ?: NativeMotionBounceSpec(
+                    amplitude = 0.18f,
+                    bounces = 3,
+                    decay = 8.0f,
+                )
+        val base = sampleEaseOutQuadratic(t)
+        if (spec.amplitude <= 0f || spec.bounces <= 0) {
+            return base.toFloat()
+        }
+        val oscillation =
+            spec.amplitude.toDouble() *
+                (1.0 - t).pow(0.65) *
+                exp(-spec.decay.toDouble() * t) *
+                abs(sin(PI * spec.bounces.toDouble() * t))
+        return (base + oscillation).toFloat()
+    }
+
+    private fun sampleElasticProgress(
+        elastic: NativeMotionElasticSpec?,
+        progress: Float,
+    ): Float {
+        val t = progress.coerceIn(0f, 1f).toDouble()
+        if (t <= 0.0) {
+            return 0f
+        }
+        if (t >= 1.0) {
+            return 1f
+        }
+        val spec =
+            elastic
+                ?: NativeMotionElasticSpec(
+                    amplitude = 0.14f,
+                    period = 0.28f,
+                    decay = 8.0f,
+                )
+        val base = sampleEaseOutQuadratic(t)
+        if (spec.amplitude <= 0f) {
+            return base.toFloat()
+        }
+        val period = spec.period.toDouble().coerceAtLeast(0.0001)
+        val amplitude = spec.amplitude.toDouble()
+        val decay = spec.decay.toDouble()
+        val raw =
+            base +
+                (
+                    amplitude *
+                        sin((2.0 * PI / period) * t) *
+                        exp(-decay * t)
+                    )
+        val endRaw =
+            1.0 +
+                (
+                    amplitude *
+                        sin(2.0 * PI / period) *
+                        exp(-decay)
+                    )
+        return (raw - (t * (endRaw - 1.0))).toFloat()
+    }
+
+    private fun sampleEaseOutQuadratic(progress: Double): Double {
+        val inverse = 1.0 - progress
+        return 1.0 - (inverse * inverse)
     }
 
     private fun formatMotionTextDecisionValue(value: Float): String =
@@ -3947,6 +4122,17 @@ class Stage6ExportManager(
 
     private fun readInt(value: Any?): Int = readLong(value).toInt()
 
+    private fun readIntOrDefault(value: Any?, fallback: Int): Int {
+        return when (value) {
+            is Int -> value
+            is Long -> value.toInt()
+            is Double -> value.toInt()
+            is Float -> value.toInt()
+            is String -> value.toIntOrNull() ?: fallback
+            else -> fallback
+        }
+    }
+
     private fun readDouble(value: Any?): Double {
         return when (value) {
             is Int -> value.toDouble()
@@ -3955,6 +4141,17 @@ class Stage6ExportManager(
             is Double -> value
             is String -> value.toDoubleOrNull() ?: 1.0
             else -> 1.0
+        }
+    }
+
+    private fun readFloatOrDefault(value: Any?, fallback: Float): Float {
+        return when (value) {
+            is Int -> value.toFloat()
+            is Long -> value.toFloat()
+            is Double -> value.toFloat()
+            is Float -> value
+            is String -> value.toFloatOrNull() ?: fallback
+            else -> fallback
         }
     }
 
@@ -5446,6 +5643,8 @@ internal data class NativeMotionInterpolationSpec(
     val kind: String,
     val bezier: NativeMotionBezierControlPoints? = null,
     val spring: NativeMotionSpringSpec? = null,
+    val bounce: NativeMotionBounceSpec? = null,
+    val elastic: NativeMotionElasticSpec? = null,
 )
 
 internal data class NativeMotionBezierControlPoints(
@@ -5460,6 +5659,18 @@ internal data class NativeMotionSpringSpec(
     val damping: Float,
     val mass: Float,
     val initialVelocity: Float,
+)
+
+internal data class NativeMotionBounceSpec(
+    val amplitude: Float,
+    val bounces: Int,
+    val decay: Float,
+)
+
+internal data class NativeMotionElasticSpec(
+    val amplitude: Float,
+    val period: Float,
+    val decay: Float,
 )
 
 internal data class NativeMotionTextRenderTrack(
@@ -6210,11 +6421,14 @@ private class MotionTextCanvasOverlay(
                     1f - ((inverse * inverse) / 2f)
                 }
             "cubicBezier" -> evaluateBezierProgress(interpolation, progress)
+            "spring" -> evaluateSpringProgress(interpolation.spring, progress)
+            "bounce" -> evaluateBounceProgress(interpolation.bounce, progress)
+            "elastic" -> evaluateElasticProgress(interpolation.elastic, progress)
             else ->
                 throw IllegalStateException(
                     "Unsupported export interpolation kind at runtime: ${interpolation.kind}",
                 )
-        }.coerceIn(0f, 1f)
+        }
     }
 
     private fun evaluateBezierProgress(
@@ -6258,6 +6472,138 @@ private class MotionTextCanvasOverlay(
             }
         }
         return cubicBezierCoordinate(parameter, bezier.y1, bezier.y2).coerceIn(0f, 1f)
+    }
+
+    private fun evaluateSpringProgress(
+        spring: NativeMotionSpringSpec?,
+        progress: Float,
+    ): Float {
+        val t = progress.coerceIn(0f, 1f).toDouble()
+        if (t <= 0.0) {
+            return 0f
+        }
+        if (t >= 1.0) {
+            return 1f
+        }
+        val spec = spring ?: NativeMotionSpringSpec(
+            stiffness = 220f,
+            damping = 18f,
+            mass = 1f,
+            initialVelocity = 0f,
+        )
+        val stiffness = spec.stiffness.toDouble().coerceAtLeast(0.0001)
+        val mass = spec.mass.toDouble().coerceAtLeast(0.0001)
+        val damping = spec.damping.toDouble().coerceAtLeast(0.0)
+        val naturalFrequency = sqrt(stiffness / mass)
+        if (!naturalFrequency.isFinite() || naturalFrequency <= 0.0) {
+            return progress
+        }
+        val dampingRatio = damping / (2.0 * sqrt(stiffness * mass))
+        val initialVelocity = spec.initialVelocity.toDouble()
+        val result =
+            if (dampingRatio < 1.0 - 0.0001) {
+                val dampedFrequency =
+                    naturalFrequency * sqrt(1.0 - (dampingRatio * dampingRatio))
+                val coefficient =
+                    ((dampingRatio * naturalFrequency) - initialVelocity) / dampedFrequency
+                val envelope = exp(-dampingRatio * naturalFrequency * t)
+                1.0 -
+                    (
+                        envelope *
+                            (
+                                cos(dampedFrequency * t) +
+                                    (coefficient * sin(dampedFrequency * t))
+                                )
+                        )
+            } else if (abs(dampingRatio - 1.0) <= 0.0001) {
+                val envelope = exp(-naturalFrequency * t)
+                1.0 - ((1.0 + ((naturalFrequency - initialVelocity) * t)) * envelope)
+            } else {
+                val sqrtTerm = sqrt((dampingRatio * dampingRatio) - 1.0)
+                val rootOne = -naturalFrequency * (dampingRatio - sqrtTerm)
+                val rootTwo = -naturalFrequency * (dampingRatio + sqrtTerm)
+                val coefficientOne = (-initialVelocity - rootTwo) / (rootOne - rootTwo)
+                val coefficientTwo = 1.0 - coefficientOne
+                1.0 -
+                    (
+                        (coefficientOne * exp(rootOne * t)) +
+                            (coefficientTwo * exp(rootTwo * t))
+                        )
+            }
+        return result.toFloat()
+    }
+
+    private fun evaluateBounceProgress(
+        bounce: NativeMotionBounceSpec?,
+        progress: Float,
+    ): Float {
+        val t = progress.coerceIn(0f, 1f).toDouble()
+        if (t <= 0.0) {
+            return 0f
+        }
+        if (t >= 1.0) {
+            return 1f
+        }
+        val spec = bounce ?: NativeMotionBounceSpec(
+            amplitude = 0.18f,
+            bounces = 3,
+            decay = 8.0f,
+        )
+        val base = easeOutQuadratic(t)
+        if (spec.amplitude <= 0f || spec.bounces <= 0) {
+            return base.toFloat()
+        }
+        val oscillation =
+            spec.amplitude.toDouble() *
+                (1.0 - t).pow(0.65) *
+                exp(-spec.decay.toDouble() * t) *
+                abs(sin(PI * spec.bounces.toDouble() * t))
+        return (base + oscillation).toFloat()
+    }
+
+    private fun evaluateElasticProgress(
+        elastic: NativeMotionElasticSpec?,
+        progress: Float,
+    ): Float {
+        val t = progress.coerceIn(0f, 1f).toDouble()
+        if (t <= 0.0) {
+            return 0f
+        }
+        if (t >= 1.0) {
+            return 1f
+        }
+        val spec = elastic ?: NativeMotionElasticSpec(
+            amplitude = 0.14f,
+            period = 0.28f,
+            decay = 8.0f,
+        )
+        val base = easeOutQuadratic(t)
+        if (spec.amplitude <= 0f) {
+            return base.toFloat()
+        }
+        val period = spec.period.toDouble().coerceAtLeast(0.0001)
+        val amplitude = spec.amplitude.toDouble()
+        val decay = spec.decay.toDouble()
+        val raw =
+            base +
+                (
+                    amplitude *
+                        sin((2.0 * PI / period) * t) *
+                        exp(-decay * t)
+                    )
+        val endRaw =
+            1.0 +
+                (
+                    amplitude *
+                        sin(2.0 * PI / period) *
+                        exp(-decay)
+                    )
+        return (raw - (t * (endRaw - 1.0))).toFloat()
+    }
+
+    private fun easeOutQuadratic(progress: Double): Double {
+        val inverse = 1.0 - progress
+        return 1.0 - (inverse * inverse)
     }
 
     private fun cubicBezierCoordinate(

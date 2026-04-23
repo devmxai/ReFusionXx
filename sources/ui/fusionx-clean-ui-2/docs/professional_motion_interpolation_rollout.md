@@ -1,6 +1,6 @@
 # Professional Motion Interpolation Rollout
 
-Status: active rollout plan. Phases 1-3 completed. Phase 4 pending.
+Status: active rollout plan. Phases 1-4 completed. Phase 5 pending.
 
 This document is the strict implementation plan for upgrading ReFusion motion
 interpolation from partial labels to a professional, canonical contract that
@@ -135,6 +135,13 @@ Success criteria:
 
 - preview and export match within approved tolerance
 
+Implementation state:
+
+- native export now registers `spring`, `bounce`, and `elastic`
+- native motion text export reads their parameter payloads
+- native scalar-channel and text-animation evaluators use matching curve
+  semantics for the advanced interpolation kinds
+
 ### Phase 5: Professional Effect Families
 
 Goal:
@@ -149,7 +156,7 @@ Success criteria:
 
 ## 5. Current Implementation State
 
-As of Phase 3:
+As of Phase 4:
 
 - the canonical contract now exists at the model layer
 - script and preset import preserve `spring`, `bounce`, and `elastic` payloads
@@ -159,7 +166,8 @@ As of Phase 3:
   - `bounce`
   - `elastic`
 - script import and preset import now share canonical interpolation parsing
-- export runtime parity remains intentionally blocked until later phases
+- native export registers and evaluates `spring`, `bounce`, and `elastic`
+- remaining work shifts to professional effect families and broader visual QA
 
 ## 6. Notes For Agents
 
@@ -173,5 +181,5 @@ If an AI agent is asked to generate a motion script:
   explicitly asks for handcrafted timing
 - prefer a small number of readable key poses and attach motion character
   through interpolation objects
-- remember that preview/runtime fidelity is now improved on the Dart side, but
-  export parity is still a separate rollout phase
+- preview/runtime and export now share support for the advanced interpolation
+  kinds; the next professional-quality jump comes from named effect families

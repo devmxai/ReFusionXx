@@ -1320,6 +1320,9 @@ class ExportComposition {
     'easeOut',
     'easeInOut',
     'cubicBezier',
+    'spring',
+    'bounce',
+    'elastic',
   };
 
   List<String> get unsupportedInterpolationKinds =>

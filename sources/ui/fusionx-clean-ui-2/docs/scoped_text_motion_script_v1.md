@@ -1,6 +1,6 @@
 # Scoped Text Motion Script V1
 
-Status: active authoring contract after interpolation rollout Phases 1-3.
+Status: active authoring contract after interpolation rollout Phases 1-4.
 
 This document defines the practical script format that AI agents should now
 generate for ReFusion without needing target IDs.
@@ -447,10 +447,12 @@ As of this document update:
 - canonical interpolation authoring is implemented
 - Dart preview/runtime evaluation is implemented
 - import normalization is implemented
-- export parity is still a later rollout phase
+- native export evaluation is implemented for spring/bounce/elastic
 
 That means a generated script should now look better in scoped playback and
-editing, but export parity for advanced interpolation is still being completed.
+editing, and advanced interpolation can now travel through the native export
+path. The next quality jump is named effect families such as `Bounce In` and
+`Elastic Pop`, not more hand-baked micro keyframes.
 
 Prefer `animationBlocks` only when:
 
