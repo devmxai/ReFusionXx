@@ -4,6 +4,7 @@ import '../../presentation/models/timeline_time.dart';
 import 'professional_motion_animation_models.dart';
 import 'professional_motion_compilation_models.dart';
 import 'professional_motion_evaluation_models.dart';
+import 'professional_motion_interpolation_evaluator.dart';
 import 'professional_motion_models.dart';
 import 'professional_motion_text_models.dart';
 import 'professional_motion_text_preview_models.dart';
@@ -285,96 +286,6 @@ class BasicMotionTextRenderAdapter implements MotionTextRenderAdapter {
     MotionInterpolationSpec interpolation,
     double progress,
   ) {
-    final clampedProgress = progress.clamp(0.0, 1.0).toDouble();
-    switch (interpolation.kind) {
-      case MotionInterpolationKind.hold:
-        return 0;
-      case MotionInterpolationKind.linear:
-      case MotionInterpolationKind.spring:
-      case MotionInterpolationKind.bounce:
-      case MotionInterpolationKind.elastic:
-        return clampedProgress;
-      case MotionInterpolationKind.cubicBezier:
-        final bezier = interpolation.bezier;
-        if (bezier == null) {
-          return clampedProgress;
-        }
-        return _solveCubicBezierProgress(bezier, clampedProgress);
-      case MotionInterpolationKind.easeIn:
-        return clampedProgress * clampedProgress;
-      case MotionInterpolationKind.easeOut:
-        final inverse = 1 - clampedProgress;
-        return 1 - (inverse * inverse);
-      case MotionInterpolationKind.easeInOut:
-        if (clampedProgress < 0.5) {
-          return 2 * clampedProgress * clampedProgress;
-        }
-        final inverse = -2 * clampedProgress + 2;
-        return 1 - ((inverse * inverse) / 2);
-    }
-  }
-
-  double _solveCubicBezierProgress(
-    MotionBezierControlPoints bezier,
-    double x,
-  ) {
-    final clampedX = x.clamp(0.0, 1.0).toDouble();
-    if (clampedX <= 0.0 || clampedX >= 1.0) {
-      return clampedX;
-    }
-    var t = clampedX;
-    for (var iteration = 0; iteration < 8; iteration += 1) {
-      final estimate = _cubicCoordinate(t, 0.0, bezier.x1, bezier.x2, 1.0);
-      final derivative = _cubicDerivative(t, 0.0, bezier.x1, bezier.x2, 1.0);
-      final delta = estimate - clampedX;
-      if (delta.abs() <= 0.000001 || derivative.abs() <= 0.000001) {
-        break;
-      }
-      t = (t - (delta / derivative)).clamp(0.0, 1.0).toDouble();
-    }
-    var lower = 0.0;
-    var upper = 1.0;
-    for (var iteration = 0; iteration < 12; iteration += 1) {
-      final estimate = _cubicCoordinate(t, 0.0, bezier.x1, bezier.x2, 1.0);
-      if ((estimate - clampedX).abs() <= 0.000001) {
-        break;
-      }
-      if (estimate < clampedX) {
-        lower = t;
-      } else {
-        upper = t;
-      }
-      t = ((lower + upper) * 0.5).clamp(0.0, 1.0).toDouble();
-    }
-    return _cubicCoordinate(t, 0.0, bezier.y1, bezier.y2, 1.0)
-        .clamp(0.0, 1.0)
-        .toDouble();
-  }
-
-  double _cubicCoordinate(
-    double t,
-    double p0,
-    double p1,
-    double p2,
-    double p3,
-  ) {
-    final inverse = 1.0 - t;
-    return (inverse * inverse * inverse * p0) +
-        (3.0 * inverse * inverse * t * p1) +
-        (3.0 * inverse * t * t * p2) +
-        (t * t * t * p3);
-  }
-
-  double _cubicDerivative(
-    double t,
-    double p0,
-    double p1,
-    double p2,
-    double p3,
-  ) {
-    final inverse = 1.0 - t;
-    return (3.0 * inverse * inverse * (p1 - p0)) +
-        (6.0 * inverse * t * (p2 - p1)) +
-        (3.0 * t * t * (p3 - p2));
+    return evaluateMotionCurveProgress(interpolation, progress);
   }
 }
