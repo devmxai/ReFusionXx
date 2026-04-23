@@ -367,6 +367,7 @@ class TimelineAnimationLaneData {
     required this.label,
     required this.targetClipId,
     this.normalizedKeyframeStops = const <double>[0.0, 0.52, 1.0],
+    this.keyframeIds = const <String>[],
     this.keyframeValues = const <double>[],
     this.trackSpanStartProgress,
     this.trackSpanEndProgress,
@@ -376,6 +377,7 @@ class TimelineAnimationLaneData {
   final String label;
   final String targetClipId;
   final List<double> normalizedKeyframeStops;
+  final List<String> keyframeIds;
   final List<double> keyframeValues;
   final double? trackSpanStartProgress;
   final double? trackSpanEndProgress;
@@ -385,6 +387,7 @@ class TimelineAnimationLaneData {
     String? label,
     String? targetClipId,
     List<double>? normalizedKeyframeStops,
+    List<String>? keyframeIds,
     List<double>? keyframeValues,
     double? trackSpanStartProgress,
     double? trackSpanEndProgress,
@@ -395,6 +398,7 @@ class TimelineAnimationLaneData {
       targetClipId: targetClipId ?? this.targetClipId,
       normalizedKeyframeStops:
           normalizedKeyframeStops ?? this.normalizedKeyframeStops,
+      keyframeIds: keyframeIds ?? this.keyframeIds,
       keyframeValues: keyframeValues ?? this.keyframeValues,
       trackSpanStartProgress:
           trackSpanStartProgress ?? this.trackSpanStartProgress,

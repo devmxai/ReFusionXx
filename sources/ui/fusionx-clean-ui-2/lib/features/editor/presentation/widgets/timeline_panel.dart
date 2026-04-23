@@ -32,10 +32,12 @@ typedef TimelineBoundaryTransitionTapCallback = void Function(
 typedef TimelineAnimationKeyframeTapCallback = void Function(
   String laneId,
   int keyframeIndex,
+  String keyframeId,
 );
 typedef TimelineAnimationKeyframeDragCallback = void Function(
   String laneId,
   int keyframeIndex,
+  String keyframeId,
   double normalizedStop,
 );
 typedef TimelineScrubSurfaceBuilder = Widget Function(
@@ -402,6 +404,7 @@ class _TimelineAnimationLaneMetrics {
   static const double sectionBottomSpacing = 6;
   static const double rowHeight = 30;
   static const double rowGap = 6;
+  static const double labelOutset = 24;
 }
 
 class _TimelineAnimationClipGeometry {
@@ -2471,7 +2474,7 @@ class _TimelinePanelState extends State<TimelinePanel>
       }
       scrubExclusions.add(
         _TimelineScrubExclusion(
-          left: controlLeft,
+          left: controlLeft - _TimelineAnimationLaneMetrics.labelOutset,
           right:
               math.min(interactiveWidth, geometry.left + geometry.width + 18),
         ),
@@ -4406,31 +4409,42 @@ class _TimelineTrackRow extends StatelessWidget {
                   _TimelineAnimationLaneMetrics.rowGap));
       animationLaneChildren.add(
         Positioned(
-          left: controlLeft,
+          left: controlLeft - _TimelineAnimationLaneMetrics.labelOutset,
           top: top,
           child: SizedBox(
-            width: interactiveWidth - controlLeft,
+            width: interactiveWidth -
+                controlLeft +
+                _TimelineAnimationLaneMetrics.labelOutset,
             height: _TimelineAnimationLaneMetrics.rowHeight,
             child: _TimelineAnimationLaneRow(
               label: lane.label,
-              clipLeft: geometry.left - controlLeft,
+              clipLeft: geometry.left -
+                  controlLeft +
+                  _TimelineAnimationLaneMetrics.labelOutset,
               clipWidth: geometry.width,
               keyframeStops: lane.normalizedKeyframeStops,
+              keyframeIds: lane.keyframeIds,
               selectedKeyframeIndex: selectedAnimationLaneId == lane.id
                   ? selectedAnimationKeyframeIndex
                   : null,
-              isSelected: selectedAnimationLaneId == lane.id ||
-                  (selectedAnimationLaneId == null &&
-                      selectedClipId == lane.targetClipId),
+              isSelected: selectedAnimationLaneId == lane.id,
               onKeyframeTap: onAnimationKeyframeTap == null
                   ? null
-                  : (keyframeIndex) =>
-                      onAnimationKeyframeTap!(lane.id, keyframeIndex),
-              onKeyframeDrag: onAnimationKeyframeDrag == null
-                  ? null
-                  : (keyframeIndex, normalizedStop) => onAnimationKeyframeDrag!(
+                  : (keyframeIndex) => onAnimationKeyframeTap!(
                         lane.id,
                         keyframeIndex,
+                        _timelineAnimationKeyframeIdForLaneIndex(
+                          lane,
+                          keyframeIndex,
+                        ),
+                      ),
+              onKeyframeDrag: onAnimationKeyframeDrag == null
+                  ? null
+                  : (keyframeIndex, keyframeId, normalizedStop) =>
+                      onAnimationKeyframeDrag!(
+                        lane.id,
+                        keyframeIndex,
+                        keyframeId,
                         normalizedStop,
                       ),
               onTap: () {
@@ -4611,6 +4625,7 @@ class _TimelineAnimationLaneRow extends StatelessWidget {
     required this.clipLeft,
     required this.clipWidth,
     required this.keyframeStops,
+    required this.keyframeIds,
     required this.selectedKeyframeIndex,
     required this.isSelected,
     required this.onKeyframeTap,
@@ -4622,15 +4637,20 @@ class _TimelineAnimationLaneRow extends StatelessWidget {
   final double clipLeft;
   final double clipWidth;
   final List<double> keyframeStops;
+  final List<String> keyframeIds;
   final int? selectedKeyframeIndex;
   final bool isSelected;
   final ValueChanged<int>? onKeyframeTap;
-  final void Function(int keyframeIndex, double normalizedStop)? onKeyframeDrag;
+  final void Function(
+    int keyframeIndex,
+    String keyframeId,
+    double normalizedStop,
+  )? onKeyframeDrag;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    const labelLeft = -24.0;
+    const labelLeft = 0.0;
     final resolvedLabelWidth = math.max(
       82.0,
       math.min(124.0, clipLeft - 8 - labelLeft),
@@ -4656,6 +4676,7 @@ class _TimelineAnimationLaneRow extends StatelessWidget {
             child: _TimelineAnimationSegment(
               width: clipWidth,
               keyframeStops: keyframeStops,
+              keyframeIds: keyframeIds,
               selectedKeyframeIndex: selectedKeyframeIndex,
               isSelected: isSelected,
               onKeyframeTap: onKeyframeTap,
@@ -4666,6 +4687,16 @@ class _TimelineAnimationLaneRow extends StatelessWidget {
       ),
     );
   }
+}
+
+String _timelineAnimationKeyframeIdForLaneIndex(
+  TimelineAnimationLaneData lane,
+  int index,
+) {
+  if (index >= 0 && index < lane.keyframeIds.length) {
+    return lane.keyframeIds[index];
+  }
+  return '${lane.id}#$index';
 }
 
 class _TimelineAnimationLabelChip extends StatelessWidget {
@@ -4734,6 +4765,7 @@ class _TimelineAnimationSegment extends StatefulWidget {
   const _TimelineAnimationSegment({
     required this.width,
     required this.keyframeStops,
+    required this.keyframeIds,
     required this.selectedKeyframeIndex,
     required this.isSelected,
     required this.onKeyframeTap,
@@ -4742,10 +4774,15 @@ class _TimelineAnimationSegment extends StatefulWidget {
 
   final double width;
   final List<double> keyframeStops;
+  final List<String> keyframeIds;
   final int? selectedKeyframeIndex;
   final bool isSelected;
   final ValueChanged<int>? onKeyframeTap;
-  final void Function(int keyframeIndex, double normalizedStop)? onKeyframeDrag;
+  final void Function(
+    int keyframeIndex,
+    String keyframeId,
+    double normalizedStop,
+  )? onKeyframeDrag;
 
   @override
   State<_TimelineAnimationSegment> createState() =>
@@ -4753,14 +4790,22 @@ class _TimelineAnimationSegment extends StatefulWidget {
 }
 
 class _TimelineAnimationSegmentState extends State<_TimelineAnimationSegment> {
-  final Map<int, double> _dragFingerOffsetFromCenterByIndex = <int, double>{};
+  final Map<String, double> _dragFingerOffsetFromCenterById =
+      <String, double>{};
+
+  String _keyframeIdAt(int index) {
+    if (index >= 0 && index < widget.keyframeIds.length) {
+      return widget.keyframeIds[index];
+    }
+    return 'index#$index';
+  }
 
   void _handleKeyframeDragStart(
     int index,
     DragStartDetails details, {
     required double markerTouchWidth,
   }) {
-    _dragFingerOffsetFromCenterByIndex[index] =
+    _dragFingerOffsetFromCenterById[_keyframeIdAt(index)] =
         details.localPosition.dx - (markerTouchWidth / 2);
     widget.onKeyframeTap?.call(index);
   }
@@ -4779,20 +4824,21 @@ class _TimelineAnimationSegmentState extends State<_TimelineAnimationSegment> {
     if (renderObject is! RenderBox || !renderObject.hasSize) {
       return;
     }
+    final keyframeId = _keyframeIdAt(index);
     final localDx = renderObject.globalToLocal(details.globalPosition).dx;
     final fingerOffsetFromCenter =
-        _dragFingerOffsetFromCenterByIndex[index] ?? 0.0;
+        _dragFingerOffsetFromCenterById[keyframeId] ?? 0.0;
     final centerX = (localDx - fingerOffsetFromCenter)
         .clamp(draggableInset, draggableInset + draggableWidth)
         .toDouble();
     final normalizedStop = ((centerX - draggableInset) / draggableWidth)
         .clamp(0.0, 1.0)
         .toDouble();
-    onKeyframeDrag(index, normalizedStop);
+    onKeyframeDrag(index, keyframeId, normalizedStop);
   }
 
   void _clearKeyframeDragState(int index) {
-    _dragFingerOffsetFromCenterByIndex.remove(index);
+    _dragFingerOffsetFromCenterById.remove(_keyframeIdAt(index));
   }
 
   @override

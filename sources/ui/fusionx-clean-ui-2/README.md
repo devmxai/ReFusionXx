@@ -70,6 +70,46 @@ audio, accurate seeking, and native performance on both platforms.
 - `docs/live_scrub_migration_mandate.md`: the single binding live scrub
   migration directive for the native scrub engine rebuild
 
+## Checkpoint Workflow
+
+To keep development reversible and stable, ReFusion uses a checkpoint-based
+Git workflow instead of pushing unfinished work to `main`.
+
+Rules:
+
+- `main` stays protected as the stable reference line.
+- active implementation happens on a dedicated development branch such as
+  `codex/professional-canvas-timeline-snapshot`
+- every meaningful change is saved as a focused checkpoint commit
+- every verified checkpoint commit is pushed to GitHub immediately
+- rollback should happen by returning to a known checkpoint, not by rebuilding
+  the feature from memory
+
+Recommended cycle for each change:
+
+1. make the scoped code change
+2. run the smallest relevant verification (`flutter analyze`, targeted tests,
+   build/install when needed)
+3. create a checkpoint commit with a clear message
+4. push the branch to GitHub right away
+
+Recommended commit style:
+
+- `checkpoint: stabilize scoped timeline interactions`
+- `checkpoint: fix playback preview start sync`
+- `checkpoint: refine gaussian blur controls`
+
+Rollback options:
+
+- inspect previous checkpoints on the branch and return to a known good commit
+- use a new corrective commit or `git revert` instead of rewriting shared
+  branch history
+- merge to `main` only after the branch behavior is verified on device
+
+This gives the project the same practical safety model used in professional
+teams: small verified checkpoints, remote backup after each step, and clean
+recovery when a regression appears.
+
 ## Run
 
 ```bash

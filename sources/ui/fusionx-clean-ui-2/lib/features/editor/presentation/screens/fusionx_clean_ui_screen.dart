@@ -169,6 +169,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   _LayerScopeSession? _layerScopeSession;
   String? _selectedLayerScopeAnimationLaneId;
   int? _selectedLayerScopeKeyframeIndex;
+  String? _selectedLayerScopeKeyframeId;
   bool _isLayerScopeValueEditorOpen = false;
   bool _isLayerScopeGraphEditorOpen = false;
   String? _previewAssetId;
@@ -2144,10 +2145,24 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
   }
 
+  bool get _shouldDriveDisplayTimeFromPlaybackSample =>
+      _useNativePreview &&
+      _isPlaying &&
+      !_isTimelineScrubbing &&
+      !_isTimelineScrubHandoffInFlight &&
+      !_isApplyingStructuralEdit &&
+      _timelineTrimPreviewSession == null &&
+      !_transportController.state.isScrubSettling;
+
   void _setPlaybackSampleTime(TimelineTime time) {
     final clamped = time.clamp(TimelineTime.zero, _timelineDurationTime);
+    final shouldDriveDisplayTime = _shouldDriveDisplayTimeFromPlaybackSample;
     if (_playbackSampleTimeNotifier.value != clamped) {
       _playbackSampleTimeNotifier.value = clamped;
+    }
+    if (shouldDriveDisplayTime) {
+      _applyTimelineDisplayTime(clamped);
+      return;
     }
     _syncTransitionFocusTimeNotifiers();
     _syncLayerScopeTimeNotifiers();
@@ -2189,6 +2204,26 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _motionPreviewClockAnchorTime = transportTime;
       _motionPreviewClockAnchorElapsed = elapsed;
       _setPlaybackSampleTime(transportTime);
+    }
+  }
+
+  void _primeMotionPreviewFrameClockForPlaybackStart(
+    TimelineTime transportTime,
+  ) {
+    if (!_useNativePreview ||
+        _isTimelineScrubbing ||
+        _isApplyingStructuralEdit ||
+        _timelineTrimPreviewSession != null) {
+      return;
+    }
+    _motionPreviewClockAnchorTime = transportTime.clamp(
+      TimelineTime.zero,
+      _timelineDurationTime,
+    );
+    _motionPreviewClockAnchorElapsed = _motionPreviewClockLatestElapsed;
+    _setPlaybackSampleTime(_motionPreviewClockAnchorTime);
+    if (!_motionPreviewFrameTicker.isActive) {
+      _motionPreviewFrameTicker.start();
     }
   }
 
@@ -2316,6 +2351,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
   void _handleTransportStateChanged() {
     final transportState = _transportController.state;
+    final enteringPlayback = transportState.isPlaying && !_isPlaying;
+    if (enteringPlayback && _isTimelineScrubHandoffInFlight) {
+      _isTimelineScrubHandoffInFlight = false;
+      _timelineScrubFinalTime = null;
+    }
     final previewRange = _textEditPreviewRange;
     if (previewRange != null &&
         !_isStoppingTextEditPreviewPlayback &&
@@ -2387,6 +2427,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final shouldUseMotionPreviewFrameClock = shouldAdoptTransportTime &&
         !isTransientPlaybackRegression &&
         _shouldUseMotionPreviewFrameClock(transportState);
+    if (enteringPlayback &&
+        _shouldUseMotionPreviewFrameClock(transportState) &&
+        !_transportController.state.isScrubSettling) {
+      _primeMotionPreviewFrameClockForPlaybackStart(reportedTransportTime);
+    }
     if (shouldAdoptTransportTime && !isTransientPlaybackRegression) {
       if (shouldUseMotionPreviewFrameClock) {
         _syncMotionPreviewFrameClock(reportedTransportTime);
@@ -2718,6 +2763,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       );
       _selectedLayerScopeAnimationLaneId = null;
       _selectedLayerScopeKeyframeIndex = null;
+      _selectedLayerScopeKeyframeId = null;
       _isLayerScopeValueEditorOpen = false;
       _selectedClipId = clipId;
       if (_activeTab == EditorMediaTab.speed) {
@@ -2740,6 +2786,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _layerScopeSession = null;
       _selectedLayerScopeAnimationLaneId = null;
       _selectedLayerScopeKeyframeIndex = null;
+      _selectedLayerScopeKeyframeId = null;
       _isLayerScopeValueEditorOpen = false;
       _selectedClipId = session.returnSelectedClipId ?? session.clipId;
     });
@@ -3360,14 +3407,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return null;
   }
 
-  List<double> _layerScopeKeyframeStopsForChannels(
+  ({List<double> stops, List<String> keyframeIds})
+      _layerScopeKeyframesForChannels(
     _LayerScopeContext context,
     Iterable<MotionPropertyChannelModel?> channels,
   ) {
     final durationSeconds = context.durationTime.inSecondsDouble;
     final progressByTick = <int, double>{};
+    final keyframeIdsByTick = <int, List<String>>{};
     if (durationSeconds <= 0) {
-      return const <double>[];
+      return (stops: const <double>[], keyframeIds: const <String>[]);
     }
     for (final channel in channels) {
       if (channel == null) {
@@ -3382,12 +3431,55 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             .clamp(0.0, 1.0)
             .toDouble();
         progressByTick[keyframe.time.inProjectTicks] = progress;
+        keyframeIdsByTick
+            .putIfAbsent(keyframe.time.inProjectTicks, () => <String>[])
+            .add(keyframe.id);
       }
     }
     final sortedTicks = progressByTick.keys.toList()..sort();
-    return <double>[
-      for (final tick in sortedTicks) progressByTick[tick]!,
-    ];
+    return (
+      stops: <double>[
+        for (final tick in sortedTicks) progressByTick[tick]!,
+      ],
+      keyframeIds: <String>[
+        for (final tick in sortedTicks)
+          _layerScopeKeyframeGroupId(
+              keyframeIdsByTick[tick] ?? const <String>[]),
+      ],
+    );
+  }
+
+  String _layerScopeKeyframeGroupId(List<String> keyframeIds) {
+    final sorted = List<String>.from(keyframeIds)..sort();
+    return sorted.join('\n');
+  }
+
+  Set<String> _layerScopeKeyframeGroupMembers(String keyframeGroupId) {
+    if (keyframeGroupId.isEmpty) {
+      return const <String>{};
+    }
+    return keyframeGroupId.split('\n').toSet();
+  }
+
+  String? _layerScopeKeyframeIdAt(
+    TimelineAnimationLaneData lane,
+    int keyframeIndex,
+  ) {
+    if (keyframeIndex < 0 || keyframeIndex >= lane.keyframeIds.length) {
+      return null;
+    }
+    return lane.keyframeIds[keyframeIndex];
+  }
+
+  int? _layerScopeKeyframeIndexForId(
+    TimelineAnimationLaneData lane,
+    String? keyframeId,
+  ) {
+    if (keyframeId == null) {
+      return null;
+    }
+    final index = lane.keyframeIds.indexOf(keyframeId);
+    return index < 0 ? null : index;
   }
 
   TimelineAnimationLaneData? _projectedTextScalarLaneForScope({
@@ -3399,7 +3491,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (context.track.kind != TimelineTrackKind.text) {
       return null;
     }
-    final stops = _layerScopeKeyframeStopsForChannels(context, channels);
+    final keyframes = _layerScopeKeyframesForChannels(context, channels);
+    final stops = keyframes.stops;
     final existingLane = _existingLayerScopeAnimationLane(context, label);
     if (existingLane == null && stops.isEmpty) {
       return null;
@@ -3416,6 +3509,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       label: label,
       targetClipId: context.clip.id,
       normalizedKeyframeStops: List<double>.unmodifiable(stops),
+      keyframeIds: List<String>.unmodifiable(keyframes.keyframeIds),
       keyframeValues: List<double>.unmodifiable(
         List<double>.filled(stops.length, 0.0, growable: false),
       ),
@@ -3435,6 +3529,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final existingLane = _existingLayerScopeAnimationLane(context, 'opacity');
     final durationSeconds = context.durationTime.inSecondsDouble;
     final stops = <double>[];
+    final keyframeIds = <String>[];
     final values = <double>[];
     if (durationSeconds > 0) {
       for (final keyframe in channel.keyframes) {
@@ -3446,6 +3541,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             .clamp(0.0, 1.0)
             .toDouble();
         stops.add(progress);
+        keyframeIds.add(keyframe.id);
         values.add(
           ((keyframe.value.rawValue as double) * 100.0)
               .clamp(0.0, 100.0)
@@ -3468,6 +3564,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       label: 'Opacity',
       targetClipId: context.clip.id,
       normalizedKeyframeStops: List<double>.unmodifiable(stops),
+      keyframeIds: List<String>.unmodifiable(keyframeIds),
       keyframeValues: List<double>.unmodifiable(values),
     );
   }
@@ -3475,15 +3572,61 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   TimelineAnimationLaneData? _projectedTextBlurLaneForScope(
     _LayerScopeContext context,
   ) {
+    final channels = <MotionPropertyChannelModel?>[
+      for (final definition in _layerScopeBlurDefinitions)
+        _manualPropertyChannelForElement(context.clip.id, definition),
+    ];
+    final hasExplicitBlurLane = context.track.animationLanes.any(
+      (lane) =>
+          lane.targetClipId == context.clip.id &&
+          _layerScopeLaneMatchesBlur(lane),
+    );
+    if (!hasExplicitBlurLane && _isNoOpLayerScopeBlurProjection(channels)) {
+      return null;
+    }
     return _projectedTextScalarLaneForScope(
       context: context,
       label: 'Gaussian Blur',
       slug: 'gaussian-blur',
-      channels: <MotionPropertyChannelModel?>[
-        for (final definition in _layerScopeBlurDefinitions)
-          _manualPropertyChannelForElement(context.clip.id, definition),
-      ],
+      channels: channels,
     );
+  }
+
+  bool _isNoOpLayerScopeBlurProjection(
+    Iterable<MotionPropertyChannelModel?> channels,
+  ) {
+    var hasAuthoredBlurChannel = false;
+    for (final channel in channels) {
+      if (channel == null) {
+        continue;
+      }
+      hasAuthoredBlurChannel = true;
+      final defaultValue = channel.definition.defaultValue;
+      final baseValue = channel.baseValue;
+      if (baseValue != null &&
+          !_motionScalarValuesMatch(baseValue, defaultValue)) {
+        return false;
+      }
+      for (final keyframe in channel.keyframes) {
+        if (!_motionScalarValuesMatch(keyframe.value, defaultValue)) {
+          return false;
+        }
+      }
+    }
+    return hasAuthoredBlurChannel;
+  }
+
+  bool _motionScalarValuesMatch(
+    MotionPropertyValue left,
+    MotionPropertyValue right,
+  ) {
+    if (left.kind != MotionPropertyValueKind.scalar ||
+        right.kind != MotionPropertyValueKind.scalar) {
+      return left == right;
+    }
+    final leftValue = left.rawValue as double;
+    final rightValue = right.rawValue as double;
+    return (leftValue - rightValue).abs() <= 0.0001;
   }
 
   TimelineAnimationLaneData? _projectedTextPositionLaneForScope(
@@ -3808,6 +3951,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required TimelineAnimationLaneData lane,
     required double progress,
   }) {
+    if (!_layerScopeLaneMatchesBlur(lane)) {
+      return null;
+    }
     return _syncLayerScopeTransformKeyframesToGraph(
       context: context,
       lane: lane,
@@ -3823,6 +3969,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required double progress,
     required Map<String, double> values,
   }) {
+    if (!_layerScopeLaneMatchesBlur(lane)) {
+      return null;
+    }
     final amount = (values['blurAmount'] ?? 0).clamp(0.0, 100.0).toDouble();
     final mix = (values['blurMix'] ?? 100).clamp(0.0, 100.0).toDouble();
     final edgeMode =
@@ -3878,6 +4027,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required _LayerScopeContext context,
     required TimelineAnimationLaneData lane,
     required int keyframeIndex,
+    required String? keyframeId,
     required double progress,
     required Iterable<MotionPropertyDefinition> definitions,
   }) {
@@ -3892,14 +4042,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (textContext == null) {
       return null;
     }
-    final sourceTime = _layerScopeTimeForProgress(
-      context,
-      stops[keyframeIndex],
-    );
+    final sourceTime =
+        _layerScopeTimeForProgress(context, stops[keyframeIndex]);
     final targetTime = _layerScopeTimeForProgress(context, progress);
-    if (sourceTime.inProjectTicks == targetTime.inProjectTicks) {
-      return null;
-    }
+    final keyframeGroupMembers = _layerScopeKeyframeGroupMembers(
+      keyframeId ?? _layerScopeKeyframeIdAt(lane, keyframeIndex) ?? '',
+    );
     final activeRange = _motionTextTimingRangeForElement(
       scene: textContext.scene,
       element: textContext.element,
@@ -3917,8 +4065,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         continue;
       }
       MotionKeyframeModel? keyframe;
+      final hasKeyframeIdMatch = keyframeGroupMembers.isNotEmpty &&
+          channel.keyframes.any(
+            (candidate) => keyframeGroupMembers.contains(candidate.id),
+          );
       for (final candidate in channel.keyframes) {
-        if (candidate.time.inProjectTicks == sourceTime.inProjectTicks) {
+        if (keyframeGroupMembers.contains(candidate.id) ||
+            (!hasKeyframeIdMatch &&
+                candidate.time.inProjectTicks == sourceTime.inProjectTicks)) {
           keyframe = candidate;
           break;
         }
@@ -4094,10 +4248,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return;
     }
     final resolvedLane = lane;
+    final keyframeIndex =
+        _nearestLayerScopeKeyframeIndex(context, resolvedLane);
     setState(() {
       _selectedLayerScopeAnimationLaneId = laneId;
-      _selectedLayerScopeKeyframeIndex =
-          _nearestLayerScopeKeyframeIndex(context, resolvedLane);
+      _selectedLayerScopeKeyframeIndex = keyframeIndex;
+      _selectedLayerScopeKeyframeId = keyframeIndex == null
+          ? null
+          : _layerScopeKeyframeIdAt(resolvedLane, keyframeIndex);
       _isLayerScopeValueEditorOpen = false;
     });
   }
@@ -4105,10 +4263,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   void _handleLayerScopeAnimationKeyframeTap(
     String laneId,
     int keyframeIndex,
+    String keyframeId,
   ) {
     setState(() {
       _selectedLayerScopeAnimationLaneId = laneId;
       _selectedLayerScopeKeyframeIndex = keyframeIndex;
+      _selectedLayerScopeKeyframeId = keyframeId;
       _isLayerScopeValueEditorOpen = false;
     });
   }
@@ -4116,6 +4276,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   void _handleLayerScopeAnimationKeyframeDrag(
     String laneId,
     int keyframeIndex,
+    String keyframeId,
     double progress,
   ) {
     final context = _activeLayerScopeContext;
@@ -4136,6 +4297,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       context: context,
       lane: lane,
       keyframeIndex: keyframeIndex,
+      keyframeId: keyframeId,
       progress: progress,
     );
   }
@@ -4156,10 +4318,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         : (_layerScopeLocalTime(context, _currentTime).inSecondsDouble /
                 durationSeconds)
             .clamp(0.0, 1.0);
+    final selectedKeyframeId = _selectedLayerScopeKeyframeId;
+    final effectiveKeyframeId =
+        _layerScopeKeyframeIndexForId(lane, selectedKeyframeId) == null
+            ? _layerScopeKeyframeIdAt(lane, keyframeIndex)
+            : selectedKeyframeId;
     _moveLayerScopeKeyframeToProgress(
       context: context,
       lane: lane,
       keyframeIndex: keyframeIndex,
+      keyframeId: effectiveKeyframeId,
       progress: progress,
     );
   }
@@ -4168,6 +4336,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required _LayerScopeContext context,
     required TimelineAnimationLaneData lane,
     required int keyframeIndex,
+    required String? keyframeId,
     required double progress,
   }) {
     final definitions = _layerScopeDefinitionsForLane(lane);
@@ -4178,14 +4347,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return;
     }
     final clampedProgress = progress.clamp(0.0, 1.0).toDouble();
-    if ((stops[keyframeIndex].clamp(0.0, 1.0) - clampedProgress).abs() <=
-        0.0005) {
-      return;
-    }
     final syncedChannels = _moveLayerScopeKeyframesToGraph(
       context: context,
       lane: lane,
       keyframeIndex: keyframeIndex,
+      keyframeId: keyframeId,
       progress: clampedProgress,
       definitions: definitions,
     );
@@ -4193,21 +4359,38 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return;
     }
     final values = _alignedAnimationKeyframeValues(lane);
-    final movedEntries = <({double stop, double value, bool isMoved})>[
+    final selectedKeyframeId =
+        keyframeId ?? _layerScopeKeyframeIdAt(lane, keyframeIndex);
+    final movedEntries = <({
+      double stop,
+      String keyframeId,
+      double value,
+      bool isMoved,
+    })>[
       for (var index = 0; index < stops.length; index++)
-        (
-          stop: index == keyframeIndex ? clampedProgress : stops[index],
-          value: values[index],
-          isMoved: index == keyframeIndex,
+        _layerScopeMovedKeyframeEntry(
+          lane: lane,
+          stops: stops,
+          values: values,
+          index: index,
+          fallbackMovedIndex: keyframeIndex,
+          selectedKeyframeId: selectedKeyframeId,
+          clampedProgress: clampedProgress,
         ),
     ]..sort((left, right) => left.stop.compareTo(right.stop));
-    final nextSelectedIndex = movedEntries.indexWhere((entry) => entry.isMoved);
+    final movedIndex = movedEntries.indexWhere((entry) => entry.isMoved);
+    final nextSelectedIndex = movedIndex < 0 ? keyframeIndex : movedIndex;
     _updateTimelineAnimationLane(
       lane.id,
       (currentLane) => currentLane.copyWith(
         normalizedKeyframeStops: List<double>.unmodifiable(
           <double>[
             for (final entry in movedEntries) entry.stop,
+          ],
+        ),
+        keyframeIds: List<String>.unmodifiable(
+          <String>[
+            for (final entry in movedEntries) entry.keyframeId,
           ],
         ),
         keyframeValues: List<double>.unmodifiable(
@@ -4222,8 +4405,36 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _motionRevision += 1;
       _selectedLayerScopeAnimationLaneId = lane.id;
       _selectedLayerScopeKeyframeIndex = nextSelectedIndex;
+      _selectedLayerScopeKeyframeId = selectedKeyframeId;
       _isLayerScopeValueEditorOpen = false;
     });
+  }
+
+  ({
+    double stop,
+    String keyframeId,
+    double value,
+    bool isMoved,
+  }) _layerScopeMovedKeyframeEntry({
+    required TimelineAnimationLaneData lane,
+    required List<double> stops,
+    required List<double> values,
+    required int index,
+    required int fallbackMovedIndex,
+    required String? selectedKeyframeId,
+    required double clampedProgress,
+  }) {
+    final entryKeyframeId =
+        _layerScopeKeyframeIdAt(lane, index) ?? '${lane.id}#$index';
+    final isMoved = selectedKeyframeId != null
+        ? entryKeyframeId == selectedKeyframeId
+        : index == fallbackMovedIndex;
+    return (
+      stop: isMoved ? clampedProgress : stops[index],
+      keyframeId: entryKeyframeId,
+      value: values[index],
+      isMoved: isMoved,
+    );
   }
 
   void _updateTimelineAnimationLane(
@@ -4262,11 +4473,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
     final lane = _layerScopeSelectedAnimationLane(context);
     if (lane == null) {
-      _addAnimateLaneToTrack(
-        _buildLayerScopeTracks(context).first,
-        ScopedLayerAnimateBottomSheet.defaultItems.first,
-        selectForLayerScope: true,
-      );
+      _showStageMessage('Select an animation or FX row before adding a key.');
       return;
     }
     final durationSeconds = context.durationTime.inSecondsDouble;
@@ -4278,6 +4485,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final stops = lane.normalizedKeyframeStops
         .map((stop) => stop.clamp(0.0, 1.0))
         .toList();
+    final keyframeIds = List<String>.from(lane.keyframeIds);
+    while (keyframeIds.length < stops.length) {
+      keyframeIds.add('${lane.id}#${keyframeIds.length}');
+    }
     final values = _alignedAnimationKeyframeValues(lane).toList();
     const snapEpsilon = 0.006;
     for (var index = 0; index < stops.length; index++) {
@@ -4285,6 +4496,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         setState(() {
           _selectedLayerScopeAnimationLaneId = lane.id;
           _selectedLayerScopeKeyframeIndex = index;
+          _selectedLayerScopeKeyframeId = _layerScopeKeyframeIdAt(lane, index);
           _isLayerScopeValueEditorOpen = false;
         });
         return;
@@ -4304,6 +4516,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       insertIndex += 1;
     }
     stops.insert(insertIndex, progress);
+    final insertedKeyframeId =
+        '${lane.id}@${TimelineTime.fromSecondsDouble(_layerScopeProgressToSeconds(context, progress)).inProjectTicks}';
+    keyframeIds.insert(insertIndex, insertedKeyframeId);
     values.insert(insertIndex, insertedValue);
     final laneId = lane.id;
     final syncedChannels = _syncLayerScopeOpacityKeyframeToGraph(
@@ -4336,6 +4551,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       laneId,
       (currentLane) => currentLane.copyWith(
         normalizedKeyframeStops: List<double>.unmodifiable(stops),
+        keyframeIds: List<String>.unmodifiable(keyframeIds),
         keyframeValues: List<double>.unmodifiable(values),
       ),
     );
@@ -4346,6 +4562,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
       _selectedLayerScopeAnimationLaneId = laneId;
       _selectedLayerScopeKeyframeIndex = insertIndex;
+      _selectedLayerScopeKeyframeId = insertedKeyframeId;
       _isLayerScopeValueEditorOpen = false;
     });
   }
@@ -4380,6 +4597,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
     setState(() {
       _selectedLayerScopeKeyframeIndex = resolvedKeyframeIndex;
+      _selectedLayerScopeKeyframeId =
+          _layerScopeKeyframeIdAt(lane, resolvedKeyframeIndex);
       _isLayerScopeValueEditorOpen = true;
     });
     await showModalBottomSheet<void>(
@@ -4436,6 +4655,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
     setState(() {
       _selectedLayerScopeKeyframeIndex = resolvedKeyframeIndex;
+      _selectedLayerScopeKeyframeId =
+          _layerScopeKeyframeIdAt(lane, resolvedKeyframeIndex);
       _isLayerScopeGraphEditorOpen = true;
     });
     await showModalBottomSheet<void>(
@@ -5859,6 +6080,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           _selectedLayerScopeAnimationLaneId = existingLane!.id;
           _selectedLayerScopeKeyframeIndex =
               existingLane.normalizedKeyframeStops.isEmpty ? null : 0;
+          _selectedLayerScopeKeyframeId =
+              existingLane.normalizedKeyframeStops.isEmpty
+                  ? null
+                  : _layerScopeKeyframeIdAt(existingLane, 0);
           _isLayerScopeValueEditorOpen = false;
           _selectedClipId = targetClip.id;
         });
@@ -5900,6 +6125,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       if (selectForLayerScope) {
         _selectedLayerScopeAnimationLaneId = nextLane.id;
         _selectedLayerScopeKeyframeIndex = null;
+        _selectedLayerScopeKeyframeId = null;
         _isLayerScopeValueEditorOpen = false;
       }
     });
@@ -9601,6 +9827,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         _canOpenLayerScopeGraphEditor(layerScopeContext);
     final canMoveLayerScopeSelectedKeyframe =
         _canMoveLayerScopeSelectedKeyframe(layerScopeContext);
+    final selectedLayerScopeAnimationLane = layerScopeContext == null
+        ? null
+        : _layerScopeSelectedAnimationLane(layerScopeContext);
+    final canAddLayerScopeKeyframe = selectedLayerScopeAnimationLane != null &&
+        _layerScopeDefinitionsForLane(selectedLayerScopeAnimationLane) != null;
     final isLayerScopeActive = layerScopeContext != null;
     return Scaffold(
       resizeToAvoidBottomInset: !_isAnimateBrowserOpen,
@@ -10043,7 +10274,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                             child: isLayerScopeActive
                                 ? LayerScopeKeyframeDock(
                                     addEnabled: true,
-                                    keyframeEnabled: true,
+                                    keyframeEnabled: canAddLayerScopeKeyframe,
                                     valueEnabled: canOpenLayerScopeValueEditor,
                                     graphEnabled: canOpenLayerScopeGraphEditor,
                                     isValueActive:

@@ -11,6 +11,7 @@ enum CanvasTimelineAuthoringIssueCode {
   valueKindMismatch,
   missingChannel,
   missingKeyframe,
+  keyframeTimeCollision,
 }
 
 @immutable
@@ -235,6 +236,27 @@ class ProfessionalCanvasTimelineAuthoringService {
             definition: request.definition,
           );
     final time = _clampKeyframeTime(request.time, request.activeRange);
+    final existingKeyframeIndex = channel.keyframes.indexWhere(
+      (keyframe) => keyframe.time.inProjectTicks == time.inProjectTicks,
+    );
+    if (existingKeyframeIndex >= 0) {
+      final nextKeyframes = List<MotionKeyframeModel>.from(channel.keyframes)
+        ..[existingKeyframeIndex] =
+            channel.keyframes[existingKeyframeIndex].copyWith(
+          value: request.value,
+          interpolationToNext: request.interpolation,
+        );
+      return CanvasTimelineAuthoringResult(
+        channels: _replaceOrAppend(
+          request.channels,
+          channelIndex: channelIndex,
+          channel: channel.copyWith(
+            activeRange: request.activeRange,
+            keyframes: _normalizedKeyframes(nextKeyframes),
+          ),
+        ),
+      );
+    }
     final nextKeyframe = MotionKeyframeModel(
       id: _keyframeIdFor(channelId: channel.id, time: time),
       channelId: channel.id,
@@ -367,8 +389,29 @@ class ProfessionalCanvasTimelineAuthoringService {
         ],
       );
     }
+    final targetTime = _clampKeyframeTime(request.time, request.activeRange);
+    final collision = channel.keyframes.where(
+      (keyframe) =>
+          keyframe.id != request.keyframeId &&
+          keyframe.time.inProjectTicks == targetTime.inProjectTicks,
+    );
+    if (collision.isNotEmpty) {
+      return CanvasTimelineAuthoringResult(
+        channels: request.channels,
+        issues: <CanvasTimelineAuthoringIssue>[
+          CanvasTimelineAuthoringIssue(
+            code: CanvasTimelineAuthoringIssueCode.keyframeTimeCollision,
+            message:
+                'Cannot move `${request.keyframeId}` onto another keyframe.',
+            channelId: request.channelId,
+            keyframeId: request.keyframeId,
+            propertyId: channel.definition.id,
+          ),
+        ],
+      );
+    }
     final moved = channel.keyframes[keyframeIndex].copyWith(
-      time: _clampKeyframeTime(request.time, request.activeRange),
+      time: targetTime,
     );
     final remaining = <MotionKeyframeModel>[
       for (final keyframe in channel.keyframes)
@@ -562,14 +605,16 @@ class ProfessionalCanvasTimelineAuthoringService {
   List<MotionKeyframeModel> _normalizedKeyframes(
     Iterable<MotionKeyframeModel> keyframes,
   ) {
-    final byTick = <int, MotionKeyframeModel>{};
-    for (final keyframe in keyframes) {
-      byTick[keyframe.time.inProjectTicks] = keyframe;
-    }
-    final sortedTicks = byTick.keys.toList()..sort();
-    return List<MotionKeyframeModel>.unmodifiable(
-      sortedTicks.map((tick) => byTick[tick]!),
-    );
+    final sorted = keyframes.toList(growable: false)
+      ..sort((left, right) {
+        final timeCompare =
+            left.time.inProjectTicks.compareTo(right.time.inProjectTicks);
+        if (timeCompare != 0) {
+          return timeCompare;
+        }
+        return left.id.compareTo(right.id);
+      });
+    return List<MotionKeyframeModel>.unmodifiable(sorted);
   }
 
   TimelineTime _clampKeyframeTime(

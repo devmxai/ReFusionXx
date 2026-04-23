@@ -135,6 +135,81 @@ void main() {
     );
   });
 
+  test('moveKeyframe rejects time collisions without dropping keyframes', () {
+    final first = service.addKeyframe(
+      CanvasTimelineKeyframeRequest(
+        channels: const <MotionPropertyChannelModel>[],
+        target: target,
+        activeRange: range(0, 5),
+        definition: MotionPropertyCatalog.positionX,
+        time: TimelineTime.fromSecondsDouble(1),
+        value: const MotionPropertyValue.scalar(10),
+      ),
+    );
+    final second = service.addKeyframe(
+      CanvasTimelineKeyframeRequest(
+        channels: first.channels,
+        target: target,
+        activeRange: range(0, 5),
+        definition: MotionPropertyCatalog.positionX,
+        time: TimelineTime.fromSecondsDouble(3),
+        value: const MotionPropertyValue.scalar(30),
+      ),
+    );
+    final channel = second.channels.single;
+    final movedKeyframe = channel.keyframes.last;
+
+    final moved = service.moveKeyframe(
+      CanvasTimelineMoveKeyframeRequest(
+        channels: second.channels,
+        channelId: channel.id,
+        keyframeId: movedKeyframe.id,
+        activeRange: range(0, 5),
+        time: TimelineTime.fromSecondsDouble(1),
+      ),
+    );
+
+    expect(moved.hasIssues, isTrue);
+    expect(
+      moved.issues.single.code,
+      CanvasTimelineAuthoringIssueCode.keyframeTimeCollision,
+    );
+    expect(moved.channels.single.keyframes, hasLength(2));
+    expect(moved.channels.single.keyframes[0].value.rawValue, 10);
+    expect(moved.channels.single.keyframes[1].value.rawValue, 30);
+    expect(moved.channels.single.keyframes[1].id, movedKeyframe.id);
+  });
+
+  test('addKeyframe at an occupied time updates the existing keyframe id', () {
+    final initial = service.addKeyframe(
+      CanvasTimelineKeyframeRequest(
+        channels: const <MotionPropertyChannelModel>[],
+        target: target,
+        activeRange: range(0, 5),
+        definition: MotionPropertyCatalog.opacity,
+        time: TimelineTime.fromSecondsDouble(2),
+        value: const MotionPropertyValue.scalar(0.25),
+      ),
+    );
+    final originalKeyframe = initial.channels.single.keyframes.single;
+
+    final updated = service.addKeyframe(
+      CanvasTimelineKeyframeRequest(
+        channels: initial.channels,
+        target: target,
+        activeRange: range(0, 5),
+        definition: MotionPropertyCatalog.opacity,
+        time: TimelineTime.fromSecondsDouble(2),
+        value: const MotionPropertyValue.scalar(0.75),
+      ),
+    );
+
+    expect(updated.hasIssues, isFalse);
+    expect(updated.channels.single.keyframes, hasLength(1));
+    expect(updated.channels.single.keyframes.single.id, originalKeyframe.id);
+    expect(updated.channels.single.keyframes.single.value.rawValue, 0.75);
+  });
+
   test('setKeyframeInterpolation updates the selected keyframe easing', () {
     final first = service.addKeyframe(
       CanvasTimelineKeyframeRequest(
