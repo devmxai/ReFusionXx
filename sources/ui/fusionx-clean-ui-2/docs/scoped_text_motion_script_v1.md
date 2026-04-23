@@ -395,6 +395,8 @@ Supported block kinds:
 - `letterReveal`
 - `typewriter`
 - `bounceIn`
+- `riseIn`
+- `slideIn`
 - `elasticPop`
 - `scaleIn`
 - `scaleOut`
@@ -420,6 +422,10 @@ The first supported families are:
 
 - `bounceIn`: lowers into opacity, scale, and vertical position channels with
   canonical `bounce`
+- `riseIn`: lowers into opacity, vertical position, and subtle scale channels
+  with canonical `spring`
+- `slideIn`: lowers into opacity and horizontal position channels with
+  canonical `spring`
 - `elasticPop`: lowers into opacity and scale channels with canonical `elastic`
 
 These families still create editable channels and keyframes. They are not
@@ -461,6 +467,8 @@ As of this document update:
 - native export evaluation is implemented for spring/bounce/elastic
 - first named professional families are implemented:
   - `bounceIn`
+  - `riseIn`
+  - `slideIn`
   - `elasticPop`
 
 That means a generated script should now look better in scoped playback and
@@ -527,6 +535,42 @@ not need custom choreography yet:
 
 This imports as real editable channels for opacity, scale, and vertical
 position.
+
+## Example: Named Rise In Family
+
+```json
+{
+  "schemaVersion": "refusion.scope-text-script/v1",
+  "name": "Soft Rise In",
+  "animationBlocks": [
+    {
+      "kind": "riseIn",
+      "startMs": 0,
+      "durationMs": 680
+    }
+  ]
+}
+```
+
+## Example: Named Slide In Family
+
+```json
+{
+  "schemaVersion": "refusion.scope-text-script/v1",
+  "name": "Slide In",
+  "animationBlocks": [
+    {
+      "kind": "slideIn",
+      "startMs": 0,
+      "durationMs": 720,
+      "parameters": {
+        "fromOffsetX": -180,
+        "toOffsetX": 0
+      }
+    }
+  ]
+}
+```
 
 ## Example: Type On
 

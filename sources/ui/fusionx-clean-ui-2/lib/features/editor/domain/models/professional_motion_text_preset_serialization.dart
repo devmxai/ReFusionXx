@@ -408,6 +408,24 @@ class MotionTextPresetJsonCodec {
             decay: 6.5,
           ),
         );
+      case MotionTextAnimationKind.riseIn:
+        return const MotionInterpolationSpec.spring(
+          spring: MotionSpringSpec(
+            stiffness: 210,
+            damping: 22,
+            mass: 1.0,
+            initialVelocity: 0,
+          ),
+        );
+      case MotionTextAnimationKind.slideIn:
+        return const MotionInterpolationSpec.spring(
+          spring: MotionSpringSpec(
+            stiffness: 230,
+            damping: 24,
+            mass: 1.0,
+            initialVelocity: 0,
+          ),
+        );
       case MotionTextAnimationKind.elasticPop:
         return const MotionInterpolationSpec.elastic(
           elastic: MotionElasticSpec(
@@ -567,6 +585,10 @@ class MotionTextPresetJsonCodec {
         return MotionTextAnimationKind.typewriter;
       case 'bounceIn':
         return MotionTextAnimationKind.bounceIn;
+      case 'riseIn':
+        return MotionTextAnimationKind.riseIn;
+      case 'slideIn':
+        return MotionTextAnimationKind.slideIn;
       case 'elasticPop':
         return MotionTextAnimationKind.elasticPop;
       case 'scaleIn':

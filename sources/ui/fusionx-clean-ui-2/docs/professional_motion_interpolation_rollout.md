@@ -163,8 +163,15 @@ Implementation state:
   - vertical position rises into place with the same canonical `bounce`
 - `Elastic Pop` now defaults to canonical `elastic` instead of a plain
   `easeOut` scale label
-- script/preset `animationBlocks` can use `bounceIn` or `elasticPop` without
-  manually supplying interpolation details
+- `Rise In` is a spring-based text entrance:
+  - opacity fades in with `easeOut`
+  - vertical position lifts into place with canonical `spring`
+  - subtle scale settles from 96% to 100%
+- `Slide In` is a spring-based horizontal entrance:
+  - opacity fades in with `easeOut`
+  - horizontal position settles into place with canonical `spring`
+- script/preset `animationBlocks` can use `bounceIn`, `riseIn`, `slideIn`, or
+  `elasticPop` without manually supplying interpolation details
 - imported high-level blocks are still lowered into editable real keyframe
   channels, so users can retime or reshape them after import
 
@@ -184,6 +191,8 @@ As of Phase 5:
 - first named professional effect families now lower into editable canonical
   channels:
   - `bounceIn`
+  - `riseIn`
+  - `slideIn`
   - `elasticPop`
 - remaining work shifts to adding more families and broader visual QA
 
@@ -201,5 +210,6 @@ If an AI agent is asked to generate a motion script:
   through interpolation objects
 - preview/runtime and export now share support for the advanced interpolation
   kinds
-- prefer `animationBlocks` with named families like `bounceIn` or `elasticPop`
-  when the user asks for a direct professional effect
+- prefer `animationBlocks` with named families like `bounceIn`, `riseIn`,
+  `slideIn`, or `elasticPop` when the user asks for a direct professional
+  effect

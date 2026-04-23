@@ -11,6 +11,8 @@ enum MotionTextAnimationKind {
   letterReveal,
   typewriter,
   bounceIn,
+  riseIn,
+  slideIn,
   elasticPop,
   scaleIn,
   scaleOut,

@@ -518,6 +518,16 @@ String _effectFamilyLabel(MotionTextPresetDefinition preset) {
   )) {
     return 'Bounce In';
   }
+  if (preset.animationBlocks.any(
+    (block) => block.kind == MotionTextAnimationKind.riseIn,
+  )) {
+    return 'Rise In';
+  }
+  if (preset.animationBlocks.any(
+    (block) => block.kind == MotionTextAnimationKind.slideIn,
+  )) {
+    return 'Slide In';
+  }
   return 'Text Motion';
 }
 
@@ -532,6 +542,8 @@ List<String> _effectBlockLabels(MotionTextPresetDefinition preset) {
       MotionTextAnimationKind.letterReveal => 'Letters',
       MotionTextAnimationKind.typewriter => 'Type',
       MotionTextAnimationKind.bounceIn => 'Bounce',
+      MotionTextAnimationKind.riseIn => 'Rise',
+      MotionTextAnimationKind.slideIn => 'Slide',
       MotionTextAnimationKind.elasticPop => 'Pop',
       MotionTextAnimationKind.scaleIn ||
       MotionTextAnimationKind.scaleOut =>
@@ -665,7 +677,7 @@ class _AddTextPresetSheetState extends State<_AddTextPresetSheet> {
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 18),
               child: Text(
-                'Minimal supported shape: {"text":"Your Text","animationBlocks":[{"kind":"fadeIn","startMs":0,"durationMs":700}]}\nSupported kinds: fadeIn, fadeOut, wordReveal, letterReveal, typewriter, elasticPop, scaleIn, scaleOut, blurIn, blurOut, rotationSettle, cinematicEntrance, cinematicExit',
+                'Minimal supported shape: {"text":"Your Text","animationBlocks":[{"kind":"fadeIn","startMs":0,"durationMs":700}]}\nSupported kinds: fadeIn, fadeOut, wordReveal, letterReveal, typewriter, bounceIn, riseIn, slideIn, elasticPop, scaleIn, scaleOut, blurIn, blurOut, rotationSettle, cinematicEntrance, cinematicExit',
                 style: TextStyle(
                   color: FxPalette.textFaint,
                   fontSize: 11,

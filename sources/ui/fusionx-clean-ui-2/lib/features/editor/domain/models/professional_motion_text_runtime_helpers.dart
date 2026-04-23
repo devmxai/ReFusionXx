@@ -275,6 +275,54 @@ class BasicMotionTextPresetCompiler {
           interpolation: block.interpolation,
         );
         break;
+      case MotionTextAnimationKind.riseIn:
+        _addScalarAnimation(
+          accumulator: accumulator,
+          binding: binding,
+          definition: MotionPropertyCatalog.opacity,
+          from: _readScalar(block, parameterValues, 'fromOpacity', 0),
+          to: _readScalar(block, parameterValues, 'toOpacity', 1),
+          range: absoluteRange,
+          interpolation: const MotionInterpolationSpec.easeOut(),
+        );
+        _addScalarAnimation(
+          accumulator: accumulator,
+          binding: binding,
+          definition: MotionPropertyCatalog.positionY,
+          from: _readScalar(block, parameterValues, 'fromOffsetY', 52),
+          to: _readScalar(block, parameterValues, 'toOffsetY', 0),
+          range: absoluteRange,
+          interpolation: block.interpolation,
+        );
+        _addUniformScaleAnimation(
+          accumulator: accumulator,
+          binding: binding,
+          from: _readScalar(block, parameterValues, 'fromScale', 0.96),
+          to: _readScalar(block, parameterValues, 'toScale', 1.0),
+          range: absoluteRange,
+          interpolation: const MotionInterpolationSpec.easeOut(),
+        );
+        break;
+      case MotionTextAnimationKind.slideIn:
+        _addScalarAnimation(
+          accumulator: accumulator,
+          binding: binding,
+          definition: MotionPropertyCatalog.opacity,
+          from: _readScalar(block, parameterValues, 'fromOpacity', 0),
+          to: _readScalar(block, parameterValues, 'toOpacity', 1),
+          range: absoluteRange,
+          interpolation: const MotionInterpolationSpec.easeOut(),
+        );
+        _addScalarAnimation(
+          accumulator: accumulator,
+          binding: binding,
+          definition: MotionPropertyCatalog.positionX,
+          from: _readScalar(block, parameterValues, 'fromOffsetX', -180),
+          to: _readScalar(block, parameterValues, 'toOffsetX', 0),
+          range: absoluteRange,
+          interpolation: block.interpolation,
+        );
+        break;
       case MotionTextAnimationKind.scaleIn:
         _addUniformScaleAnimation(
           accumulator: accumulator,

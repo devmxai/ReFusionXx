@@ -230,6 +230,158 @@ void main() {
     );
   });
 
+  test('riseIn and slideIn families lower into editable directional channels',
+      () {
+    final range = TimelineTimeRange(
+      start: TimelineTime.zero,
+      endExclusive: TimelineTime.fromSecondsDouble(3),
+    );
+    MotionProjectModel projectFor(String targetId) {
+      return MotionProjectModel(
+        id: 'project',
+        format: const MotionProjectFormat(
+          canvasSize: MotionSize2D(width: 1080, height: 1920),
+        ),
+        frameRate: const MotionFrameRate(numerator: 60, denominator: 1),
+        scenes: <MotionSceneModel>[
+          MotionSceneModel(
+            id: 'scene',
+            projectRange: range,
+            layers: <MotionLayerModel>[
+              MotionLayerModel(
+                id: 'layer',
+                sceneId: 'scene',
+                kind: MotionLayerKind.text,
+                visibleRange: range,
+                elements: <MotionElementModel>[
+                  MotionElementModel(
+                    id: targetId,
+                    layerId: 'layer',
+                    kind: MotionElementKind.text,
+                    localRange: range,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
+    MotionTextPresetCompileResult compileFamily({
+      required String targetId,
+      required MotionTextAnimationKind kind,
+      required MotionInterpolationSpec interpolation,
+    }) {
+      final project = projectFor(targetId);
+      return BasicMotionTextPresetCompiler().compileBindings(
+        request: MotionCompileRequest(
+          project: project,
+          textAnimationBindings: <MotionTextAnimationBindingModel>[
+            MotionTextAnimationBindingModel(
+              id: 'binding-$targetId',
+              elementTarget: MotionPropertyTarget(
+                kind: MotionTargetKind.element,
+                targetId: targetId,
+                projectId: 'project',
+                sceneId: 'scene',
+                layerId: 'layer',
+                elementId: targetId,
+              ),
+              activeRange: range,
+              animationBlocks: <MotionTextAnimationBlock>[
+                MotionTextAnimationBlock(
+                  id: 'family.${kind.name}',
+                  kind: kind,
+                  relativeRange: TimelineTimeRange(
+                    start: TimelineTime.zero,
+                    endExclusive: TimelineTime.fromMilliseconds(720),
+                  ),
+                  interpolation: interpolation,
+                ),
+              ],
+            ),
+          ],
+        ),
+        elementsById: <String, MotionElementModel>{
+          targetId: project.scenes.single.layers.single.elements.single,
+        },
+      );
+    }
+
+    final rise = compileFamily(
+      targetId: 'text-rise',
+      kind: MotionTextAnimationKind.riseIn,
+      interpolation: const MotionInterpolationSpec.spring(),
+    );
+    final slide = compileFamily(
+      targetId: 'text-slide',
+      kind: MotionTextAnimationKind.slideIn,
+      interpolation: const MotionInterpolationSpec.spring(),
+    );
+
+    final riseChannelsByProperty = <String, MotionPropertyChannelModel>{
+      for (final channel in rise.generatedChannels)
+        channel.definition.id: channel,
+    };
+    final slideChannelsByProperty = <String, MotionPropertyChannelModel>{
+      for (final channel in slide.generatedChannels)
+        channel.definition.id: channel,
+    };
+
+    expect(rise.issues, isEmpty);
+    expect(
+      riseChannelsByProperty.keys,
+      containsAll(<String>[
+        MotionPropertyCatalog.opacity.id,
+        MotionPropertyCatalog.positionY.id,
+        MotionPropertyCatalog.scaleX.id,
+        MotionPropertyCatalog.scaleY.id,
+      ]),
+    );
+    expect(
+      riseChannelsByProperty[MotionPropertyCatalog.positionY.id]!
+          .keyframes
+          .first
+          .interpolationToNext
+          .kind,
+      MotionInterpolationKind.spring,
+    );
+    expect(
+      riseChannelsByProperty[MotionPropertyCatalog.positionY.id]!
+          .keyframes
+          .first
+          .value
+          .rawValue,
+      52,
+    );
+
+    expect(slide.issues, isEmpty);
+    expect(
+      slideChannelsByProperty.keys,
+      containsAll(<String>[
+        MotionPropertyCatalog.opacity.id,
+        MotionPropertyCatalog.positionX.id,
+      ]),
+    );
+    expect(
+      slideChannelsByProperty[MotionPropertyCatalog.positionX.id]!
+          .keyframes
+          .first
+          .interpolationToNext
+          .kind,
+      MotionInterpolationKind.spring,
+    );
+    expect(
+      slideChannelsByProperty[MotionPropertyCatalog.positionX.id]!
+          .keyframes
+          .first
+          .value
+          .rawValue,
+      -180,
+    );
+  });
+
   test('preset and scoped script import share the same interpolation parsing',
       () {
     const presetSource = '''

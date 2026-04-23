@@ -117,8 +117,18 @@ export default function Scene() {
       "durationMs": 760
     },
     {
-      "kind": "elasticPop",
+      "kind": "riseIn",
       "startMs": 760,
+      "durationMs": 680
+    },
+    {
+      "kind": "slideIn",
+      "startMs": 1440,
+      "durationMs": 720
+    },
+    {
+      "kind": "elasticPop",
+      "startMs": 2160,
       "durationMs": 620
     }
   ]
@@ -129,10 +139,16 @@ export default function Scene() {
 
     expect(validation.canApply, isTrue);
     final blocks = validation.document!.animationBlocks;
-    expect(blocks, hasLength(2));
+    expect(blocks, hasLength(4));
     expect(blocks.first.kind, MotionTextAnimationKind.bounceIn);
     expect(blocks.first.interpolation.kind, MotionInterpolationKind.bounce);
     expect(blocks.first.interpolation.bounce, isNotNull);
+    expect(blocks[1].kind, MotionTextAnimationKind.riseIn);
+    expect(blocks[1].interpolation.kind, MotionInterpolationKind.spring);
+    expect(blocks[1].interpolation.spring, isNotNull);
+    expect(blocks[2].kind, MotionTextAnimationKind.slideIn);
+    expect(blocks[2].interpolation.kind, MotionInterpolationKind.spring);
+    expect(blocks[2].interpolation.spring, isNotNull);
     expect(blocks.last.kind, MotionTextAnimationKind.elasticPop);
     expect(blocks.last.interpolation.kind, MotionInterpolationKind.elastic);
     expect(blocks.last.interpolation.elastic, isNotNull);
