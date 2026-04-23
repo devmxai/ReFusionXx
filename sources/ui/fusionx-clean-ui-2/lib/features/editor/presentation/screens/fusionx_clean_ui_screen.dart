@@ -6093,6 +6093,24 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (context == null) {
       return;
     }
+    if (!_isAnimatingTextElementInScopedMode(elementId)) {
+      _applyStaticTextElementScalarEdit(
+        context,
+        scalarProperties: <MotionPropertyDefinition, double>{
+          MotionPropertyCatalog.positionX: _elementScalarPropertyOrDefault(
+                context.element,
+                MotionPropertyCatalog.positionX,
+              ) +
+              deltaCanvas.dx,
+          MotionPropertyCatalog.positionY: _elementScalarPropertyOrDefault(
+                context.element,
+                MotionPropertyCatalog.positionY,
+              ) +
+              deltaCanvas.dy,
+        },
+      );
+      return;
+    }
     final nextChannels = _setTextMotionScalarKeyframes(
       context: context,
       scalarValues: <MotionPropertyDefinition, double>{
@@ -6125,6 +6143,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (context == null) {
       return;
     }
+    if (!_isAnimatingTextElementInScopedMode(elementId)) {
+      _applyStaticTextElementScalarEdit(
+        context,
+        scalarProperties: <MotionPropertyDefinition, double>{
+          MotionPropertyCatalog.scaleX: scaleX.clamp(0.2, 8.0),
+          MotionPropertyCatalog.scaleY: scaleY.clamp(0.2, 8.0),
+        },
+      );
+      return;
+    }
     final nextChannels = _setTextMotionScalarKeyframes(
       context: context,
       scalarValues: <MotionPropertyDefinition, double>{
@@ -6148,6 +6176,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (context == null) {
       return;
     }
+    if (!_isAnimatingTextElementInScopedMode(elementId)) {
+      _applyStaticTextElementScalarEdit(
+        context,
+        scalarProperties: <MotionPropertyDefinition, double>{
+          MotionPropertyCatalog.rotationDegrees: rotationDegrees,
+        },
+      );
+      return;
+    }
     final nextChannels = _setTextMotionScalarKeyframes(
       context: context,
       scalarValues: <MotionPropertyDefinition, double>{
@@ -6158,6 +6195,25 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _manualMotionPropertyChannels = nextChannels;
       _motionRevision += 1;
       _selectedClipId = elementId;
+      _activeTab = EditorMediaTab.text;
+    });
+  }
+
+  bool _isAnimatingTextElementInScopedMode(String elementId) =>
+      _activeLayerScopeContext?.clip.id == elementId;
+
+  void _applyStaticTextElementScalarEdit(
+    _MotionTextElementContext context, {
+    required Map<MotionPropertyDefinition, double> scalarProperties,
+  }) {
+    final nextProject = _updatedProjectForTextElement(
+      context,
+      scalarProperties: scalarProperties,
+    );
+    setState(() {
+      _motionProject = nextProject;
+      _motionRevision += 1;
+      _selectedClipId = context.element.id;
       _activeTab = EditorMediaTab.text;
     });
   }
@@ -7239,11 +7295,27 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   void _handleTextDockTap() {
+    final selectedTextElementId = _selectedMainTimelineTextElementId;
+    if (selectedTextElementId != null) {
+      unawaited(_openTextClipEditSheet(selectedTextElementId));
+      return;
+    }
     if (_textPresetPickerEnabled) {
       unawaited(_openTextPresetSheet());
       return;
     }
-    _insertDefaultTextLayer();
+    _insertDefaultTextLayer(openEditorOnInsert: true);
+  }
+
+  String? get _selectedMainTimelineTextElementId {
+    final selectedClipId = _selectedClipId;
+    if (selectedClipId == null || !_isMotionTextElementId(selectedClipId)) {
+      return null;
+    }
+    if (_layerScopeSession != null || _transitionFocusSession != null) {
+      return null;
+    }
+    return selectedClipId;
   }
 
   bool _canOpenAnimateBrowserForTrack(TimelineTrackData track) {
@@ -7863,12 +7935,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _insertTextPreset(preset);
   }
 
-  void _insertDefaultTextLayer() {
+  void _insertDefaultTextLayer({bool openEditorOnInsert = false}) {
     _insertMotionTextLayer(
       text: _defaultInsertedTextValue,
       elementName: _defaultInsertedTextValue,
       initialFontSize: _defaultInsertedTextFontSize,
       failureMessage: 'Unable to insert text right now.',
+      openEditorOnInsert: openEditorOnInsert,
     );
   }
 
@@ -8284,6 +8357,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       text: preset.defaultText,
       elementName: preset.label,
       failureMessage: 'Unable to insert text preset right now.',
+      openEditorOnInsert: true,
     );
   }
 
@@ -8293,6 +8367,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required String elementName,
     double? initialFontSize,
     required String failureMessage,
+    bool openEditorOnInsert = false,
   }) {
     final insertionRange = _defaultTextPresetRange();
     final insertionStartTime = insertionRange.start;
@@ -8346,6 +8421,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _previewAssetId = resolvedState.previewAssetId;
       _setCurrentTime(resolvedState.timelineTime);
     });
+    final insertedElementId = insertionResult.elementId;
+    if (openEditorOnInsert && insertedElementId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        unawaited(_openTextClipEditSheet(insertedElementId));
+      });
+    }
   }
 
   Future<void> _registerCustomTextPreset(
