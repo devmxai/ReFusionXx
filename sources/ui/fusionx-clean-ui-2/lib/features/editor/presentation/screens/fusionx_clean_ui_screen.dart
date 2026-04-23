@@ -26,6 +26,7 @@ import '../../domain/models/professional_motion_text_models.dart';
 import '../../domain/models/professional_motion_text_preview_models.dart';
 import '../../domain/models/professional_motion_text_render_models.dart';
 import '../../domain/models/professional_motion_text_runtime_helpers.dart';
+import '../../domain/services/scoped_text_motion_script_import_service.dart';
 import '../models/ai_transition_models.dart';
 import '../models/editor_asset_item.dart';
 import '../models/editor_media_tab.dart';
@@ -48,6 +49,7 @@ import '../widgets/motion_text_transform_overlay.dart';
 import '../widgets/native_timeline_scrub_surface.dart';
 import '../widgets/native_preview_surface.dart';
 import '../widgets/preview_stage.dart';
+import '../widgets/scoped_text_motion_script_bottom_sheet.dart';
 import '../widgets/text_clip_edit_bottom_sheet.dart';
 import '../widgets/timeline_panel.dart';
 import '../widgets/timeline_transition_preview_overlay.dart';
@@ -3960,7 +3962,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (existingLane == null && stops.isEmpty) {
       return null;
     }
-    final label = existingLane?.label ?? 'Type On';
+    final binding = _motionTextBindingForElementId(context.clip.id);
+    final revealUnit = _layerScopeRevealUnitForBinding(binding);
+    final label = existingLane?.label ??
+        (revealUnit == MotionTextRevealUnit.word ? 'Word Reveal' : 'Type On');
     final baseLane = existingLane ??
         TimelineAnimationLaneData(
           id: 'anim-${context.track.kind.name}-${context.clip.id}-reveal-progress',
@@ -5280,7 +5285,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return;
     }
     if (context.track.kind == TimelineTrackKind.text) {
-      _insertDefaultTextLayer();
+      unawaited(_handleLayerScopeTextScriptTap());
       return;
     }
     if (context.track.kind == TimelineTrackKind.image) {
@@ -5290,6 +5295,782 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (context.track.kind == TimelineTrackKind.video) {
       unawaited(_openMediaSheet(EditorMediaTab.video));
     }
+  }
+
+  Future<void> _handleLayerScopeTextScriptTap() async {
+    final scopeContext = _activeLayerScopeContext;
+    if (scopeContext == null ||
+        scopeContext.track.kind != TimelineTrackKind.text) {
+      return;
+    }
+    final document = await showModalBottomSheet<ScopedTextMotionScriptDocument>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => const ScopedTextMotionScriptBottomSheet(),
+    );
+    if (!mounted || document == null) {
+      return;
+    }
+    _applyScopedTextMotionScriptDocument(scopeContext, document);
+  }
+
+  void _applyScopedTextMotionScriptDocument(
+    _LayerScopeContext scopeContext,
+    ScopedTextMotionScriptDocument document,
+  ) {
+    if (scopeContext.track.kind != TimelineTrackKind.text) {
+      _showStageMessage('Scripts are available for text layers only.');
+      return;
+    }
+    final textContext = _motionTextElementContextForId(scopeContext.clip.id);
+    if (textContext == null) {
+      _showStageMessage('Unable to resolve this text layer.');
+      return;
+    }
+    final activeRange = _motionTextTimingRangeForElement(
+      scene: textContext.scene,
+      element: textContext.element,
+    );
+    final imported = _buildManualChannelsFromScopedTextMotionScript(
+      textContext: textContext,
+      activeRange: activeRange,
+      document: document,
+    );
+    if (imported.channels.isEmpty) {
+      _showStageMessage('This script did not produce any editable keyframes.');
+      return;
+    }
+    final nextChannels = <MotionPropertyChannelModel>[
+      for (final channel in _manualMotionPropertyChannels)
+        if (channel.target.targetId != textContext.element.id ||
+            !imported.definitionIds.contains(channel.definition.id))
+          channel,
+      ...imported.channels,
+    ];
+    final nextBindings = _bindingsAfterScopedTextScriptImport(
+      textContext: textContext,
+      activeRange: activeRange,
+      revealUnit: imported.revealUnit,
+      revealDirection: imported.revealDirection,
+    );
+    final nextTracks = _tracksAfterScopedTextScriptImport(scopeContext);
+    setState(() {
+      _tracks = nextTracks;
+      _manualMotionPropertyChannels =
+          List<MotionPropertyChannelModel>.unmodifiable(nextChannels);
+      _motionTextAnimationBindings =
+          List<MotionTextAnimationBindingModel>.unmodifiable(nextBindings);
+      _motionRevision += 1;
+      _selectedClipId = scopeContext.clip.id;
+      _selectedLayerScopeAnimationLaneId = imported.selectedLaneId;
+      _selectedLayerScopeKeyframeIndex = null;
+      _selectedLayerScopeKeyframeId = null;
+      _isLayerScopeValueEditorOpen = false;
+      _isLayerScopeGraphEditorOpen = false;
+      _activeTab = EditorMediaTab.text;
+    });
+    _showStageMessage(
+      'Applied script: ${imported.laneCount} lane(s), ${imported.keyframeCount} keyframes.',
+    );
+  }
+
+  ({
+    List<MotionPropertyChannelModel> channels,
+    Set<String> definitionIds,
+    MotionTextRevealUnit? revealUnit,
+    MotionTextRevealDirection? revealDirection,
+    String? selectedLaneId,
+    int laneCount,
+    int keyframeCount,
+  }) _buildManualChannelsFromScopedTextMotionScript({
+    required _MotionTextElementContext textContext,
+    required TimelineTimeRange activeRange,
+    required ScopedTextMotionScriptDocument document,
+  }) {
+    final channelsByDefinitionId = <String, MotionPropertyChannelModel>{};
+    if (document.animationBlocks.isNotEmpty) {
+      for (final channel in _lowerImportedAnimationBlocksToManualChannels(
+        textContext: textContext,
+        activeRange: activeRange,
+        document: document,
+      )) {
+        channelsByDefinitionId[channel.definition.id] = channel;
+      }
+    }
+    for (final channel in _explicitManualChannelsFromScopedTextMotionScript(
+      textContext: textContext,
+      activeRange: activeRange,
+      document: document,
+    )) {
+      channelsByDefinitionId[channel.definition.id] = channel;
+    }
+    final definitionIds = channelsByDefinitionId.keys.toSet();
+    final revealUnit =
+        definitionIds.contains(MotionPropertyCatalog.revealProgress.id) ||
+                document.revealUnit != null
+            ? (document.revealUnit ?? MotionTextRevealUnit.letter)
+            : null;
+    final revealDirection =
+        revealUnit == null ? null : document.revealDirection;
+    final preferredDefinition = document.channels.isNotEmpty
+        ? _scriptImportedPrimaryDefinitionForProperty(
+            document.channels.first.property,
+          )
+        : (channelsByDefinitionId.isEmpty
+            ? null
+            : channelsByDefinitionId.values.first.definition);
+    final selectedLaneId = preferredDefinition == null
+        ? null
+        : _scriptImportedLaneIdForDefinition(
+            textContext.element.id,
+            preferredDefinition,
+          );
+    final laneIds = <String>{
+      for (final channel in channelsByDefinitionId.values)
+        if (_scriptImportedLaneIdForDefinition(
+              textContext.element.id,
+              channel.definition,
+            ) !=
+            null)
+          _scriptImportedLaneIdForDefinition(
+            textContext.element.id,
+            channel.definition,
+          )!,
+    };
+    final keyframeCount = channelsByDefinitionId.values.fold<int>(
+      0,
+      (sum, channel) => sum + channel.keyframes.length,
+    );
+    return (
+      channels: List<MotionPropertyChannelModel>.unmodifiable(
+        channelsByDefinitionId.values,
+      ),
+      definitionIds: definitionIds,
+      revealUnit: revealUnit,
+      revealDirection: revealDirection,
+      selectedLaneId: selectedLaneId,
+      laneCount: laneIds.length,
+      keyframeCount: keyframeCount,
+    );
+  }
+
+  List<MotionPropertyChannelModel>
+      _explicitManualChannelsFromScopedTextMotionScript({
+    required _MotionTextElementContext textContext,
+    required TimelineTimeRange activeRange,
+    required ScopedTextMotionScriptDocument document,
+  }) {
+    final importedChannels = <MotionPropertyChannelModel>[];
+    for (final channelSpec in document.channels) {
+      switch (channelSpec.property) {
+        case 'opacity':
+          importedChannels.add(
+            _scriptImportedManualChannel(
+              textContext: textContext,
+              activeRange: activeRange,
+              definition: MotionPropertyCatalog.opacity,
+              keyframes: channelSpec.keyframes.map(
+                (keyframe) => _scriptImportedScalarKeyframe(
+                  channelId: _scriptImportedChannelId(
+                    textContext.element.id,
+                    MotionPropertyCatalog.opacity,
+                  ),
+                  time: _scriptImportedGlobalTime(
+                    activeRange,
+                    keyframe.time,
+                  ),
+                  scalar: _scriptImportedUnitIntervalValue(
+                    keyframe.value.rawValue as double,
+                  ),
+                  interpolation: keyframe.interpolation,
+                ),
+              ),
+            ),
+          );
+          break;
+        case 'position':
+          for (final axisChannel in _scriptImportedPointChannels(
+            textContext: textContext,
+            activeRange: activeRange,
+            pointKeyframes: channelSpec.keyframes,
+            xDefinition: MotionPropertyCatalog.positionX,
+            yDefinition: MotionPropertyCatalog.positionY,
+            normalizeAxisValue: (value) => value,
+          )) {
+            importedChannels.add(axisChannel);
+          }
+          break;
+        case 'positionX':
+          importedChannels.add(
+            _scriptImportedManualChannel(
+              textContext: textContext,
+              activeRange: activeRange,
+              definition: MotionPropertyCatalog.positionX,
+              keyframes: channelSpec.keyframes.map(
+                (keyframe) => _scriptImportedScalarKeyframe(
+                  channelId: _scriptImportedChannelId(
+                    textContext.element.id,
+                    MotionPropertyCatalog.positionX,
+                  ),
+                  time: _scriptImportedGlobalTime(activeRange, keyframe.time),
+                  scalar: keyframe.value.rawValue as double,
+                  interpolation: keyframe.interpolation,
+                ),
+              ),
+            ),
+          );
+          break;
+        case 'positionY':
+          importedChannels.add(
+            _scriptImportedManualChannel(
+              textContext: textContext,
+              activeRange: activeRange,
+              definition: MotionPropertyCatalog.positionY,
+              keyframes: channelSpec.keyframes.map(
+                (keyframe) => _scriptImportedScalarKeyframe(
+                  channelId: _scriptImportedChannelId(
+                    textContext.element.id,
+                    MotionPropertyCatalog.positionY,
+                  ),
+                  time: _scriptImportedGlobalTime(activeRange, keyframe.time),
+                  scalar: keyframe.value.rawValue as double,
+                  interpolation: keyframe.interpolation,
+                ),
+              ),
+            ),
+          );
+          break;
+        case 'scale':
+          for (final axisChannel in _scriptImportedPointChannels(
+            textContext: textContext,
+            activeRange: activeRange,
+            pointKeyframes: channelSpec.keyframes,
+            xDefinition: MotionPropertyCatalog.scaleX,
+            yDefinition: MotionPropertyCatalog.scaleY,
+            normalizeAxisValue: _scriptImportedScaleValue,
+          )) {
+            importedChannels.add(axisChannel);
+          }
+          break;
+        case 'scaleX':
+          importedChannels.add(
+            _scriptImportedManualChannel(
+              textContext: textContext,
+              activeRange: activeRange,
+              definition: MotionPropertyCatalog.scaleX,
+              keyframes: channelSpec.keyframes.map(
+                (keyframe) => _scriptImportedScalarKeyframe(
+                  channelId: _scriptImportedChannelId(
+                    textContext.element.id,
+                    MotionPropertyCatalog.scaleX,
+                  ),
+                  time: _scriptImportedGlobalTime(activeRange, keyframe.time),
+                  scalar: _scriptImportedScaleValue(
+                    keyframe.value.rawValue as double,
+                  ),
+                  interpolation: keyframe.interpolation,
+                ),
+              ),
+            ),
+          );
+          break;
+        case 'scaleY':
+          importedChannels.add(
+            _scriptImportedManualChannel(
+              textContext: textContext,
+              activeRange: activeRange,
+              definition: MotionPropertyCatalog.scaleY,
+              keyframes: channelSpec.keyframes.map(
+                (keyframe) => _scriptImportedScalarKeyframe(
+                  channelId: _scriptImportedChannelId(
+                    textContext.element.id,
+                    MotionPropertyCatalog.scaleY,
+                  ),
+                  time: _scriptImportedGlobalTime(activeRange, keyframe.time),
+                  scalar: _scriptImportedScaleValue(
+                    keyframe.value.rawValue as double,
+                  ),
+                  interpolation: keyframe.interpolation,
+                ),
+              ),
+            ),
+          );
+          break;
+        case 'rotation':
+          importedChannels.add(
+            _scriptImportedManualChannel(
+              textContext: textContext,
+              activeRange: activeRange,
+              definition: MotionPropertyCatalog.rotationDegrees,
+              keyframes: channelSpec.keyframes.map(
+                (keyframe) => _scriptImportedScalarKeyframe(
+                  channelId: _scriptImportedChannelId(
+                    textContext.element.id,
+                    MotionPropertyCatalog.rotationDegrees,
+                  ),
+                  time: _scriptImportedGlobalTime(activeRange, keyframe.time),
+                  scalar: keyframe.value.rawValue as double,
+                  interpolation: keyframe.interpolation,
+                ),
+              ),
+            ),
+          );
+          break;
+        case 'blur':
+          importedChannels.add(
+            _scriptImportedManualChannel(
+              textContext: textContext,
+              activeRange: activeRange,
+              definition: MotionPropertyCatalog.blurAmount,
+              keyframes: channelSpec.keyframes.map(
+                (keyframe) => _scriptImportedScalarKeyframe(
+                  channelId: _scriptImportedChannelId(
+                    textContext.element.id,
+                    MotionPropertyCatalog.blurAmount,
+                  ),
+                  time: _scriptImportedGlobalTime(activeRange, keyframe.time),
+                  scalar: (keyframe.value.rawValue as double)
+                      .clamp(0.0, 100.0)
+                      .toDouble(),
+                  interpolation: keyframe.interpolation,
+                ),
+              ),
+            ),
+          );
+          break;
+        case 'revealProgress':
+          importedChannels.add(
+            _scriptImportedManualChannel(
+              textContext: textContext,
+              activeRange: activeRange,
+              definition: MotionPropertyCatalog.revealProgress,
+              keyframes: channelSpec.keyframes.map(
+                (keyframe) => _scriptImportedScalarKeyframe(
+                  channelId: _scriptImportedChannelId(
+                    textContext.element.id,
+                    MotionPropertyCatalog.revealProgress,
+                  ),
+                  time: _scriptImportedGlobalTime(activeRange, keyframe.time),
+                  scalar: _scriptImportedUnitIntervalValue(
+                    keyframe.value.rawValue as double,
+                  ),
+                  interpolation: keyframe.interpolation,
+                ),
+              ),
+            ),
+          );
+          break;
+      }
+    }
+    return List<MotionPropertyChannelModel>.unmodifiable(importedChannels);
+  }
+
+  List<MotionPropertyChannelModel> _scriptImportedPointChannels({
+    required _MotionTextElementContext textContext,
+    required TimelineTimeRange activeRange,
+    required List<ScopedTextMotionScriptKeyframeSpec> pointKeyframes,
+    required MotionPropertyDefinition xDefinition,
+    required MotionPropertyDefinition yDefinition,
+    required double Function(double value) normalizeAxisValue,
+  }) {
+    final targetId = textContext.element.id;
+    final xKeyframes = <MotionKeyframeModel>[];
+    final yKeyframes = <MotionKeyframeModel>[];
+    final xChannelId = _scriptImportedChannelId(targetId, xDefinition);
+    final yChannelId = _scriptImportedChannelId(targetId, yDefinition);
+    for (final keyframe in pointKeyframes) {
+      if (keyframe.value.kind != MotionPropertyValueKind.point2D) {
+        continue;
+      }
+      final point = keyframe.value.rawValue as MotionPoint2D;
+      final time = _scriptImportedGlobalTime(activeRange, keyframe.time);
+      xKeyframes.add(
+        _scriptImportedScalarKeyframe(
+          channelId: xChannelId,
+          time: time,
+          scalar: normalizeAxisValue(point.x),
+          interpolation: keyframe.interpolation,
+        ),
+      );
+      yKeyframes.add(
+        _scriptImportedScalarKeyframe(
+          channelId: yChannelId,
+          time: time,
+          scalar: normalizeAxisValue(point.y),
+          interpolation: keyframe.interpolation,
+        ),
+      );
+    }
+    return <MotionPropertyChannelModel>[
+      _scriptImportedManualChannel(
+        textContext: textContext,
+        activeRange: activeRange,
+        definition: xDefinition,
+        keyframes: xKeyframes,
+      ),
+      _scriptImportedManualChannel(
+        textContext: textContext,
+        activeRange: activeRange,
+        definition: yDefinition,
+        keyframes: yKeyframes,
+      ),
+    ];
+  }
+
+  List<MotionPropertyChannelModel>
+      _lowerImportedAnimationBlocksToManualChannels({
+    required _MotionTextElementContext textContext,
+    required TimelineTimeRange activeRange,
+    required ScopedTextMotionScriptDocument document,
+  }) {
+    final normalizedBlocks = <MotionTextAnimationBlock>[
+      for (final block in document.animationBlocks)
+        MotionTextAnimationBlock(
+          id: block.id,
+          kind: block.kind,
+          relativeRange: block.relativeRange,
+          interpolation: block.interpolation,
+          revealSpec: block.revealSpec,
+          parameters:
+              _normalizedScriptAnimationBlockParameters(block.parameters),
+        ),
+    ];
+    if (normalizedBlocks.isEmpty) {
+      return const <MotionPropertyChannelModel>[];
+    }
+    final binding = MotionTextAnimationBindingModel(
+      id: _nextMotionEntityId('script-binding'),
+      elementTarget: textContext.elementTarget,
+      activeRange: activeRange,
+      animationBlocks: normalizedBlocks,
+      parameterValues: const <String, MotionPropertyValue>{},
+    );
+    final compileResult = BasicMotionTextPresetCompiler(
+      presetCatalog: _availableTextPresets,
+    ).compileBindings(
+      request: MotionCompileRequest(
+        project: _effectiveMotionProject,
+        propertyChannels: const <MotionPropertyChannelModel>[],
+        textAnimationBindings: <MotionTextAnimationBindingModel>[binding],
+      ),
+      elementsById: <String, MotionElementModel>{
+        textContext.element.id: textContext.element,
+      },
+    );
+    return List<MotionPropertyChannelModel>.unmodifiable(
+      compileResult.generatedChannels
+          .map(
+            (channel) => _scriptRemappedImportedChannel(
+              source: channel,
+              textContext: textContext,
+              activeRange: activeRange,
+            ),
+          )
+          .where((channel) => channel.keyframes.isNotEmpty),
+    );
+  }
+
+  Map<String, MotionPropertyValue> _normalizedScriptAnimationBlockParameters(
+    Map<String, MotionPropertyValue> parameters,
+  ) {
+    if (parameters.isEmpty) {
+      return parameters;
+    }
+    return <String, MotionPropertyValue>{
+      for (final entry in parameters.entries)
+        entry.key: switch (entry.key) {
+          'fromScale' ||
+          'toScale' =>
+            entry.value.kind == MotionPropertyValueKind.scalar
+                ? MotionPropertyValue.scalar(
+                    _scriptImportedScaleValue(entry.value.rawValue as double),
+                  )
+                : entry.value,
+          'fromOpacity' ||
+          'toOpacity' =>
+            entry.value.kind == MotionPropertyValueKind.scalar
+                ? MotionPropertyValue.scalar(
+                    _scriptImportedUnitIntervalValue(
+                        entry.value.rawValue as double),
+                  )
+                : entry.value,
+          _ => entry.value,
+        },
+    };
+  }
+
+  MotionPropertyChannelModel _scriptRemappedImportedChannel({
+    required MotionPropertyChannelModel source,
+    required _MotionTextElementContext textContext,
+    required TimelineTimeRange activeRange,
+  }) {
+    final channelId = _scriptImportedChannelId(
+      textContext.element.id,
+      source.definition,
+    );
+    return MotionPropertyChannelModel(
+      id: channelId,
+      target: textContext.elementTarget,
+      definition: source.definition,
+      activeRange: activeRange,
+      baseValue: source.baseValue ??
+          MotionPropertyValue.scalar(
+            _elementScalarPropertyOrDefault(
+              textContext.element,
+              source.definition,
+            ),
+          ),
+      beforeStart: source.beforeStart,
+      afterEnd: source.afterEnd,
+      keyframes: _normalizedScriptImportedKeyframes(
+        source.keyframes.map(
+          (keyframe) => MotionKeyframeModel(
+            id: _scriptImportedKeyframeId(channelId, keyframe.time),
+            channelId: channelId,
+            time: _scriptImportedGlobalTime(
+              activeRange,
+              keyframe.time - activeRange.start,
+            ),
+            value: keyframe.value,
+            interpolationToNext: keyframe.interpolationToNext,
+          ),
+        ),
+      ),
+    );
+  }
+
+  MotionPropertyChannelModel _scriptImportedManualChannel({
+    required _MotionTextElementContext textContext,
+    required TimelineTimeRange activeRange,
+    required MotionPropertyDefinition definition,
+    required Iterable<MotionKeyframeModel> keyframes,
+  }) {
+    final channelId =
+        _scriptImportedChannelId(textContext.element.id, definition);
+    return MotionPropertyChannelModel(
+      id: channelId,
+      target: textContext.elementTarget,
+      definition: definition,
+      activeRange: activeRange,
+      baseValue: MotionPropertyValue.scalar(
+        _elementScalarPropertyOrDefault(textContext.element, definition),
+      ),
+      keyframes: _normalizedScriptImportedKeyframes(keyframes),
+    );
+  }
+
+  MotionKeyframeModel _scriptImportedScalarKeyframe({
+    required String channelId,
+    required TimelineTime time,
+    required double scalar,
+    required MotionInterpolationSpec interpolation,
+  }) {
+    return MotionKeyframeModel(
+      id: _scriptImportedKeyframeId(channelId, time),
+      channelId: channelId,
+      time: time,
+      value: MotionPropertyValue.scalar(scalar),
+      interpolationToNext: interpolation,
+    );
+  }
+
+  List<MotionKeyframeModel> _normalizedScriptImportedKeyframes(
+    Iterable<MotionKeyframeModel> keyframes,
+  ) {
+    final byTick = <int, MotionKeyframeModel>{};
+    for (final keyframe in keyframes) {
+      byTick[keyframe.time.inProjectTicks] = keyframe;
+    }
+    final sortedTicks = byTick.keys.toList()..sort();
+    return List<MotionKeyframeModel>.unmodifiable(
+      <MotionKeyframeModel>[
+        for (final tick in sortedTicks) byTick[tick]!,
+      ],
+    );
+  }
+
+  TimelineTime _scriptImportedGlobalTime(
+    TimelineTimeRange activeRange,
+    TimelineTime relativeTime,
+  ) {
+    final clampedRelative = relativeTime.clamp(
+      TimelineTime.zero,
+      activeRange.duration,
+    );
+    return activeRange.start + clampedRelative;
+  }
+
+  String _scriptImportedChannelId(
+    String targetId,
+    MotionPropertyDefinition definition,
+  ) {
+    return 'manual.$targetId.${definition.id}';
+  }
+
+  String _scriptImportedKeyframeId(
+    String channelId,
+    TimelineTime time,
+  ) {
+    return '$channelId@${time.inProjectTicks}';
+  }
+
+  double _scriptImportedScaleValue(double raw) {
+    if (!raw.isFinite) {
+      return 1.0;
+    }
+    if (raw.abs() > 8.0) {
+      return raw / 100.0;
+    }
+    return raw;
+  }
+
+  double _scriptImportedUnitIntervalValue(double raw) {
+    if (!raw.isFinite) {
+      return 0.0;
+    }
+    if (raw.abs() > 1.0) {
+      return (raw / 100.0).clamp(0.0, 1.0).toDouble();
+    }
+    return raw.clamp(0.0, 1.0).toDouble();
+  }
+
+  List<MotionTextAnimationBindingModel> _bindingsAfterScopedTextScriptImport({
+    required _MotionTextElementContext textContext,
+    required TimelineTimeRange activeRange,
+    required MotionTextRevealUnit? revealUnit,
+    required MotionTextRevealDirection? revealDirection,
+  }) {
+    final nextBindings = <MotionTextAnimationBindingModel>[
+      for (final binding in _motionTextAnimationBindings)
+        if (binding.elementTarget.targetId != textContext.element.id) binding,
+    ];
+    if (revealUnit == null) {
+      return nextBindings;
+    }
+    nextBindings.add(
+      MotionTextAnimationBindingModel(
+        id: _nextMotionEntityId('text-script-binding'),
+        elementTarget: textContext.elementTarget,
+        activeRange: activeRange,
+        animationBlocks: <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: 'script.reveal.${textContext.element.id}',
+            kind: revealUnit == MotionTextRevealUnit.word
+                ? MotionTextAnimationKind.wordReveal
+                : MotionTextAnimationKind.typewriter,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: activeRange.duration,
+            ),
+            interpolation: const MotionInterpolationSpec.linear(),
+            revealSpec: MotionTextRevealSpec(
+              unit: revealUnit,
+              stagger: TimelineTime.zero,
+            ),
+            parameters: <String, MotionPropertyValue>{
+              'manualRevealProgress': const MotionPropertyValue.boolean(true),
+              'revealDirection': MotionPropertyValue.enumValue(
+                (revealDirection ?? MotionTextRevealDirection.forward).name,
+              ),
+            },
+          ),
+        ],
+        parameterValues: <String, MotionPropertyValue>{
+          'revealBy': MotionPropertyValue.enumValue(revealUnit.name),
+          'revealDirection': MotionPropertyValue.enumValue(
+            (revealDirection ?? MotionTextRevealDirection.forward).name,
+          ),
+        },
+      ),
+    );
+    return nextBindings;
+  }
+
+  List<TimelineTrackData> _tracksAfterScopedTextScriptImport(
+    _LayerScopeContext scopeContext,
+  ) {
+    final trackIndex = _tracks.indexWhere(
+      (candidate) => candidate.kind == scopeContext.track.kind,
+    );
+    if (trackIndex < 0) {
+      return _tracks;
+    }
+    final nextTracks = List<TimelineTrackData>.from(_tracks);
+    final track = nextTracks[trackIndex];
+    nextTracks[trackIndex] = track.copyWith(
+      animationLanes: <TimelineAnimationLaneData>[
+        for (final lane in track.animationLanes)
+          if (!(lane.targetClipId == scopeContext.clip.id &&
+              _isScopedTextScriptManagedLane(lane)))
+            lane,
+      ],
+    );
+    return List<TimelineTrackData>.unmodifiable(nextTracks);
+  }
+
+  bool _isScopedTextScriptManagedLane(TimelineAnimationLaneData lane) =>
+      lane.matchesPropertyLabel('opacity') ||
+      lane.matchesPropertyLabel('position') ||
+      lane.matchesPropertyLabel('scale') ||
+      lane.matchesPropertyLabel('rotation') ||
+      _layerScopeLaneMatchesBlur(lane) ||
+      _layerScopeLaneMatchesReveal(lane);
+
+  String? _scriptImportedLaneIdForDefinition(
+    String elementId,
+    MotionPropertyDefinition definition,
+  ) {
+    if (definition.id == MotionPropertyCatalog.opacity.id) {
+      return 'anim-text-$elementId-opacity';
+    }
+    if (definition.id == MotionPropertyCatalog.positionX.id ||
+        definition.id == MotionPropertyCatalog.positionY.id) {
+      return 'anim-text-$elementId-position';
+    }
+    if (definition.id == MotionPropertyCatalog.scaleX.id ||
+        definition.id == MotionPropertyCatalog.scaleY.id) {
+      return 'anim-text-$elementId-scale';
+    }
+    if (definition.id == MotionPropertyCatalog.rotationDegrees.id) {
+      return 'anim-text-$elementId-rotation';
+    }
+    if (definition.id == MotionPropertyCatalog.blurAmount.id ||
+        definition.id == MotionPropertyCatalog.blurMix.id ||
+        definition.id == MotionPropertyCatalog.blurEdgeMode.id ||
+        definition.id == MotionPropertyCatalog.blurCrop.id) {
+      return 'anim-text-$elementId-gaussian-blur';
+    }
+    if (definition.id == MotionPropertyCatalog.revealProgress.id) {
+      return 'anim-text-$elementId-reveal-progress';
+    }
+    return null;
+  }
+
+  MotionPropertyDefinition? _scriptImportedPrimaryDefinitionForProperty(
+    String property,
+  ) {
+    switch (property) {
+      case 'opacity':
+        return MotionPropertyCatalog.opacity;
+      case 'position':
+      case 'positionX':
+        return MotionPropertyCatalog.positionX;
+      case 'positionY':
+        return MotionPropertyCatalog.positionY;
+      case 'scale':
+      case 'scaleX':
+        return MotionPropertyCatalog.scaleX;
+      case 'scaleY':
+        return MotionPropertyCatalog.scaleY;
+      case 'rotation':
+        return MotionPropertyCatalog.rotationDegrees;
+      case 'blur':
+        return MotionPropertyCatalog.blurAmount;
+      case 'revealProgress':
+        return MotionPropertyCatalog.revealProgress;
+    }
+    return null;
   }
 
   void _handleLayerScopeScrubFinalized(
@@ -10640,6 +11421,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final canAddLayerScopeKeyframe = selectedLayerScopeAnimationLane != null &&
         _layerScopeDefinitionsForLane(selectedLayerScopeAnimationLane) != null;
     final isLayerScopeActive = layerScopeContext != null;
+    final isTextLayerScopeActive =
+        layerScopeContext?.track.kind == TimelineTrackKind.text;
     return Scaffold(
       resizeToAvoidBottomInset: !_isAnimateBrowserOpen,
       body: SafeArea(
@@ -11100,6 +11883,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                         ? _handleLayerScopeGraphToolTap
                                         : null,
                                     embedded: true,
+                                    addLabel: isTextLayerScopeActive
+                                        ? 'Script'
+                                        : 'Add',
+                                    addIcon: isTextLayerScopeActive
+                                        ? Icons.code_rounded
+                                        : Icons.add_rounded,
                                   )
                                 : MediaDock(
                                     activeTab: effectiveDockActiveTab,

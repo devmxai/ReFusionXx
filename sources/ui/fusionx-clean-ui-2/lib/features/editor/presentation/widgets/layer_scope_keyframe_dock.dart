@@ -16,6 +16,8 @@ class LayerScopeKeyframeDock extends StatelessWidget {
     required this.onValueTap,
     required this.onGraphTap,
     this.embedded = false,
+    this.addLabel = 'Add',
+    this.addIcon = Icons.add_rounded,
   });
 
   final bool addEnabled;
@@ -29,6 +31,8 @@ class LayerScopeKeyframeDock extends StatelessWidget {
   final VoidCallback? onValueTap;
   final VoidCallback? onGraphTap;
   final bool embedded;
+  final String addLabel;
+  final IconData addIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -45,8 +49,8 @@ class LayerScopeKeyframeDock extends StatelessWidget {
         children: [
           Expanded(
             child: _LayerScopeDockButton(
-              icon: Icons.add_rounded,
-              label: 'Add',
+              icon: addIcon,
+              label: addLabel,
               isActive: false,
               onTap: addEnabled ? onAddTap : null,
             ),

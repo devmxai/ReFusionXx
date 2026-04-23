@@ -1,6 +1,6 @@
 # Professional Direct Text Effects And Scriptable Motion
 
-Status: architecture plan only. No runtime code is implemented by this file.
+Status: architecture plan plus first shipped scoped text script import contract.
 
 This document defines the single professional path for:
 
@@ -19,6 +19,8 @@ Related architecture:
 - `docs/professional_canvas_timeline.md` owns the canonical property graph and
   canvas/timeline convergence
 - `docs/professional_scope_timeline.md` owns scoped timeline UX and projection
+- `docs/scoped_text_motion_script_v1.md` owns the current AI-facing import
+  contract for `Add Script` inside scoped text layers
 - `docs/live_scrub_migration_mandate.md` is the binding protected-system
   directive for live scrub and must be read before implementation
 - current deterministic export-lowered text program lives in
