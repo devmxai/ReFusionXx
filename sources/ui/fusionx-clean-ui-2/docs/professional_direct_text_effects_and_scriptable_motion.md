@@ -21,6 +21,8 @@ Related architecture:
 - `docs/professional_scope_timeline.md` owns scoped timeline UX and projection
 - `docs/scoped_text_motion_script_v1.md` owns the current AI-facing import
   contract for `Add Script` inside scoped text layers
+- `docs/professional_motion_interpolation_rollout.md` owns the canonical
+  interpolation rollout and phase-by-phase implementation contract
 - `docs/live_scrub_migration_mandate.md` is the binding protected-system
   directive for live scrub and must be read before implementation
 - current deterministic export-lowered text program lives in

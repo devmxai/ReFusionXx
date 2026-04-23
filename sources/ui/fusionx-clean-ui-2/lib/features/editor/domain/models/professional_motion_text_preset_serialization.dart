@@ -396,13 +396,40 @@ class MotionTextPresetJsonCodec {
                 _readOptionalDouble(json, 'initialVelocity') ?? 0.0,
           ),
         );
+      case MotionInterpolationKind.bounce:
+        return MotionInterpolationSpec.bounce(
+          bounce: MotionBounceSpec(
+            amplitude:
+                _readOptionalDouble(json, 'amplitude') ??
+                kDefaultMotionBounceSpec.amplitude,
+            bounces:
+                _readOptionalInt(json, 'bounces') ??
+                _readOptionalInt(json, 'bounceCount') ??
+                kDefaultMotionBounceSpec.bounces,
+            decay:
+                _readOptionalDouble(json, 'decay') ??
+                kDefaultMotionBounceSpec.decay,
+          ),
+        );
+      case MotionInterpolationKind.elastic:
+        return MotionInterpolationSpec.elastic(
+          elastic: MotionElasticSpec(
+            amplitude:
+                _readOptionalDouble(json, 'amplitude') ??
+                kDefaultMotionElasticSpec.amplitude,
+            period:
+                _readOptionalDouble(json, 'period') ??
+                kDefaultMotionElasticSpec.period,
+            decay:
+                _readOptionalDouble(json, 'decay') ??
+                kDefaultMotionElasticSpec.decay,
+          ),
+        );
       case MotionInterpolationKind.hold:
       case MotionInterpolationKind.linear:
       case MotionInterpolationKind.easeIn:
       case MotionInterpolationKind.easeOut:
       case MotionInterpolationKind.easeInOut:
-      case MotionInterpolationKind.bounce:
-      case MotionInterpolationKind.elastic:
         return _interpolationFromKind(kind);
     }
   }
@@ -595,9 +622,11 @@ class MotionTextPresetJsonCodec {
       case MotionInterpolationKind.hold:
         return const MotionInterpolationSpec.hold();
       case MotionInterpolationKind.linear:
-      case MotionInterpolationKind.bounce:
-      case MotionInterpolationKind.elastic:
         return const MotionInterpolationSpec.linear();
+      case MotionInterpolationKind.bounce:
+        return const MotionInterpolationSpec.bounce();
+      case MotionInterpolationKind.elastic:
+        return const MotionInterpolationSpec.elastic();
       case MotionInterpolationKind.easeIn:
         return const MotionInterpolationSpec.easeIn();
       case MotionInterpolationKind.easeOut:
@@ -614,12 +643,7 @@ class MotionTextPresetJsonCodec {
           ),
         );
       case MotionInterpolationKind.spring:
-        return const MotionInterpolationSpec.spring(
-          spring: MotionSpringSpec(
-            stiffness: 220,
-            damping: 20,
-          ),
-        );
+        return const MotionInterpolationSpec.spring();
     }
   }
 

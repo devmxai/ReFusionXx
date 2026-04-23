@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_animation_models.dart';
 import 'package:refusion_app/features/editor/domain/services/scoped_text_motion_script_import_service.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_text_models.dart';
 
@@ -102,5 +103,62 @@ export default function Scene() {
     expect(validation.document!.revealUnit, MotionTextRevealUnit.word);
     expect(validation.document!.revealDirection,
         MotionTextRevealDirection.reverse);
+  });
+
+  test('parses canonical spring, bounce, and elastic interpolation specs', () {
+    const source = '''
+{
+  "schemaVersion": "refusion.scope-text-script/v1",
+  "name": "Boing Entrance",
+  "channels": [
+    {
+      "property": "scale",
+      "keyframes": [
+        { "timeMs": 0, "value": 40, "easing": "spring" },
+        {
+          "timeMs": 260,
+          "value": 112,
+          "easing": {
+            "kind": "bounce",
+            "amplitude": 0.22,
+            "bounces": 4,
+            "decay": 6.0
+          }
+        },
+        {
+          "timeMs": 420,
+          "value": 100,
+          "easing": {
+            "kind": "elastic",
+            "amplitude": 0.14,
+            "period": 0.3,
+            "decay": 7.5
+          }
+        }
+      ]
+    }
+  ]
+}
+''';
+
+    final validation = service.validate(source: source);
+
+    expect(validation.canApply, isTrue);
+    final keyframes = validation.document!.channels.single.keyframes;
+    expect(keyframes.first.interpolation.kind, MotionInterpolationKind.spring);
+    expect(keyframes.first.interpolation.spring, isNotNull);
+    expect(keyframes.first.interpolation.spring!.stiffness, 220);
+
+    expect(keyframes[1].interpolation.kind, MotionInterpolationKind.bounce);
+    expect(keyframes[1].interpolation.bounce, isNotNull);
+    expect(keyframes[1].interpolation.bounce!.amplitude, 0.22);
+    expect(keyframes[1].interpolation.bounce!.bounces, 4);
+    expect(keyframes[1].interpolation.bounce!.decay, 6.0);
+
+    expect(keyframes[2].interpolation.kind, MotionInterpolationKind.elastic);
+    expect(keyframes[2].interpolation.elastic, isNotNull);
+    expect(keyframes[2].interpolation.elastic!.amplitude, 0.14);
+    expect(keyframes[2].interpolation.elastic!.period, 0.3);
+    expect(keyframes[2].interpolation.elastic!.decay, 7.5);
   });
 }

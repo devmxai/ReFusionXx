@@ -55,21 +55,65 @@ class ExportMotionSpringSpec {
 }
 
 @immutable
+class ExportMotionBounceSpec {
+  const ExportMotionBounceSpec({
+    required this.amplitude,
+    required this.bounces,
+    required this.decay,
+  });
+
+  final double amplitude;
+  final int bounces;
+  final double decay;
+
+  Map<String, Object?> toBridgeMap() => <String, Object?>{
+        'amplitude': amplitude,
+        'bounces': bounces,
+        'decay': decay,
+      };
+}
+
+@immutable
+class ExportMotionElasticSpec {
+  const ExportMotionElasticSpec({
+    required this.amplitude,
+    required this.period,
+    required this.decay,
+  });
+
+  final double amplitude;
+  final double period;
+  final double decay;
+
+  Map<String, Object?> toBridgeMap() => <String, Object?>{
+        'amplitude': amplitude,
+        'period': period,
+        'decay': decay,
+      };
+}
+
+@immutable
 class ExportMotionInterpolationSpec {
   const ExportMotionInterpolationSpec({
     required this.kind,
     this.bezier,
     this.spring,
+    this.bounce,
+    this.elastic,
   });
 
   final String kind;
   final ExportMotionBezierControlPoints? bezier;
   final ExportMotionSpringSpec? spring;
+  final ExportMotionBounceSpec? bounce;
+  final ExportMotionElasticSpec? elastic;
 
   Map<String, Object?> toBridgeMap() => <String, Object?>{
         'kind': kind,
         'bezier': bezier?.toBridgeMap(),
         'spring': spring?.toBridgeMap(),
+        'bounce': bounce?.toBridgeMap(),
+        'elastic': elastic?.toBridgeMap(),
       };
 }
 
@@ -559,6 +603,20 @@ ExportMotionInterpolationSpec _exportInterpolationFromMotion(
             damping: interpolation.spring!.damping,
             mass: interpolation.spring!.mass,
             initialVelocity: interpolation.spring!.initialVelocity,
+          ),
+    bounce: interpolation.bounce == null
+        ? null
+        : ExportMotionBounceSpec(
+            amplitude: interpolation.bounce!.amplitude,
+            bounces: interpolation.bounce!.bounces,
+            decay: interpolation.bounce!.decay,
+          ),
+    elastic: interpolation.elastic == null
+        ? null
+        : ExportMotionElasticSpec(
+            amplitude: interpolation.elastic!.amplitude,
+            period: interpolation.elastic!.period,
+            decay: interpolation.elastic!.decay,
           ),
   );
 }

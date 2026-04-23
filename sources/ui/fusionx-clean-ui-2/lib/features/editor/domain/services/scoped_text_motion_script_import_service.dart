@@ -625,21 +625,19 @@ class ScopedTextMotionScriptImportService {
               y2: 1.0,
             ),
           );
+        case 'spring':
+          return const MotionInterpolationSpec.spring();
         case 'bounce':
-          return const MotionInterpolationSpec(
-            kind: MotionInterpolationKind.bounce,
-          );
+          return const MotionInterpolationSpec.bounce();
         case 'elastic':
-          return const MotionInterpolationSpec(
-            kind: MotionInterpolationKind.elastic,
-          );
+          return const MotionInterpolationSpec.elastic();
       }
     }
     if (raw is Map) {
       final json = _deepConvertToDynamicMap(raw);
-      final kind = _readOptionalString(json, <String>['kind']);
-      if (kind != null &&
-          (kind == 'spring' || kind == 'Spring' || kind == 'SPRING')) {
+      final kind = _readOptionalString(json, <String>['kind'])?.trim();
+      final normalizedKind = kind?.toLowerCase();
+      if (normalizedKind == 'spring') {
         final stiffness =
             _readOptionalDouble(json, <String>['stiffness']) ?? 220.0;
         final damping = _readOptionalDouble(json, <String>['damping']) ?? 18.0;
@@ -655,10 +653,46 @@ class ScopedTextMotionScriptImportService {
           ),
         );
       }
-      if (kind != null &&
-          (kind == 'cubicBezier' ||
-              kind == 'cubic_bezier' ||
-              kind == 'cubic-bezier')) {
+      if (normalizedKind == 'bounce') {
+        final amplitude =
+            _readOptionalDouble(json, <String>['amplitude']) ??
+            kDefaultMotionBounceSpec.amplitude;
+        final bounces =
+            _readOptionalInt(json, <String>['bounces']) ??
+            _readOptionalInt(json, <String>['bounceCount']) ??
+            kDefaultMotionBounceSpec.bounces;
+        final decay =
+            _readOptionalDouble(json, <String>['decay']) ??
+            kDefaultMotionBounceSpec.decay;
+        return MotionInterpolationSpec.bounce(
+          bounce: MotionBounceSpec(
+            amplitude: amplitude,
+            bounces: bounces,
+            decay: decay,
+          ),
+        );
+      }
+      if (normalizedKind == 'elastic') {
+        final amplitude =
+            _readOptionalDouble(json, <String>['amplitude']) ??
+            kDefaultMotionElasticSpec.amplitude;
+        final period =
+            _readOptionalDouble(json, <String>['period']) ??
+            kDefaultMotionElasticSpec.period;
+        final decay =
+            _readOptionalDouble(json, <String>['decay']) ??
+            kDefaultMotionElasticSpec.decay;
+        return MotionInterpolationSpec.elastic(
+          elastic: MotionElasticSpec(
+            amplitude: amplitude,
+            period: period,
+            decay: decay,
+          ),
+        );
+      }
+      if (normalizedKind == 'cubicbezier' ||
+          normalizedKind == 'cubic_bezier' ||
+          normalizedKind == 'cubic-bezier') {
         final x1 = _readOptionalDouble(json, <String>['x1']);
         final y1 = _readOptionalDouble(json, <String>['y1']);
         final x2 = _readOptionalDouble(json, <String>['x2']);
@@ -881,6 +915,28 @@ class ScopedTextMotionScriptImportService {
       final parsed = _asDouble(value);
       if (parsed != null) {
         return parsed;
+      }
+    }
+    return null;
+  }
+
+  int? _readOptionalInt(
+    Map<String, dynamic> json,
+    List<String> keys,
+  ) {
+    for (final key in keys) {
+      final value = json[key];
+      if (value is int) {
+        return value;
+      }
+      if (value is num) {
+        return value.toInt();
+      }
+      if (value is String) {
+        final parsed = int.tryParse(value.trim());
+        if (parsed != null) {
+          return parsed;
+        }
       }
     }
     return null;

@@ -63,11 +63,50 @@ Important rules:
   scale, scaleX, scaleY, rotation, blur, revealProgress.
 - For revealProgress, also include reveal.by and reveal.direction when needed.
 - Use easing values only from: hold, linear, easeIn, easeOut, easeInOut,
-  easyEase, bounce, elastic.
+  easyEase, spring, bounce, elastic.
+- For `spring`, `bounce`, and `elastic`, prefer object form with explicit
+  parameters so the authored meaning stays stable.
 - Return only valid JSON, with no markdown fences and no explanation.
 ```
 
+Related:
+
+- `docs/professional_motion_interpolation_rollout.md` defines the canonical
+  interpolation contract and rollout phases
+
 ## Contract
+
+## Interpolation Guidance
+
+Recommended canonical object forms:
+
+```json
+{
+  "kind": "spring",
+  "stiffness": 220,
+  "damping": 18,
+  "mass": 1,
+  "initialVelocity": 0
+}
+```
+
+```json
+{
+  "kind": "bounce",
+  "amplitude": 0.18,
+  "bounces": 3,
+  "decay": 8.0
+}
+```
+
+```json
+{
+  "kind": "elastic",
+  "amplitude": 0.14,
+  "period": 0.28,
+  "decay": 8.0
+}
+```
 
 ### Minimum Shape
 

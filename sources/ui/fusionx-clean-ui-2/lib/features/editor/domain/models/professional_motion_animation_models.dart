@@ -44,7 +44,9 @@ class MotionSpringSpec {
     required this.damping,
     this.mass = 1.0,
     this.initialVelocity = 0.0,
-  });
+  }) : assert(stiffness > 0),
+       assert(damping >= 0),
+       assert(mass > 0);
 
   final double stiffness;
   final double damping;
@@ -53,11 +55,60 @@ class MotionSpringSpec {
 }
 
 @immutable
+class MotionBounceSpec {
+  const MotionBounceSpec({
+    required this.amplitude,
+    required this.bounces,
+    this.decay = 8.0,
+  }) : assert(amplitude >= 0),
+       assert(bounces >= 0),
+       assert(decay >= 0);
+
+  final double amplitude;
+  final int bounces;
+  final double decay;
+}
+
+@immutable
+class MotionElasticSpec {
+  const MotionElasticSpec({
+    required this.amplitude,
+    required this.period,
+    this.decay = 8.0,
+  }) : assert(amplitude >= 0),
+       assert(period > 0),
+       assert(decay >= 0);
+
+  final double amplitude;
+  final double period;
+  final double decay;
+}
+
+const MotionSpringSpec kDefaultMotionSpringSpec = MotionSpringSpec(
+  stiffness: 220,
+  damping: 18,
+);
+
+const MotionBounceSpec kDefaultMotionBounceSpec = MotionBounceSpec(
+  amplitude: 0.18,
+  bounces: 3,
+  decay: 8.0,
+);
+
+const MotionElasticSpec kDefaultMotionElasticSpec = MotionElasticSpec(
+  amplitude: 0.14,
+  period: 0.28,
+  decay: 8.0,
+);
+
+@immutable
 class MotionInterpolationSpec {
   const MotionInterpolationSpec({
     required this.kind,
     this.bezier,
     this.spring,
+    this.bounce,
+    this.elastic,
   });
 
   const MotionInterpolationSpec.hold()
@@ -83,15 +134,31 @@ class MotionInterpolationSpec {
        );
 
   const MotionInterpolationSpec.spring({
-    required MotionSpringSpec spring,
+    MotionSpringSpec spring = kDefaultMotionSpringSpec,
   }) : this(
          kind: MotionInterpolationKind.spring,
          spring: spring,
        );
 
+  const MotionInterpolationSpec.bounce({
+    MotionBounceSpec bounce = kDefaultMotionBounceSpec,
+  }) : this(
+         kind: MotionInterpolationKind.bounce,
+         bounce: bounce,
+       );
+
+  const MotionInterpolationSpec.elastic({
+    MotionElasticSpec elastic = kDefaultMotionElasticSpec,
+  }) : this(
+         kind: MotionInterpolationKind.elastic,
+         elastic: elastic,
+       );
+
   final MotionInterpolationKind kind;
   final MotionBezierControlPoints? bezier;
   final MotionSpringSpec? spring;
+  final MotionBounceSpec? bounce;
+  final MotionElasticSpec? elastic;
 }
 
 @immutable

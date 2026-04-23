@@ -355,6 +355,20 @@ ExportMotionScalarChannel? _scalarChannelFromResolved(
                       initialVelocity:
                           keyframe.interpolationToNext.spring!.initialVelocity,
                     ),
+              bounce: keyframe.interpolationToNext.bounce == null
+                  ? null
+                  : ExportMotionBounceSpec(
+                      amplitude: keyframe.interpolationToNext.bounce!.amplitude,
+                      bounces: keyframe.interpolationToNext.bounce!.bounces,
+                      decay: keyframe.interpolationToNext.bounce!.decay,
+                    ),
+              elastic: keyframe.interpolationToNext.elastic == null
+                  ? null
+                  : ExportMotionElasticSpec(
+                      amplitude: keyframe.interpolationToNext.elastic!.amplitude,
+                      period: keyframe.interpolationToNext.elastic!.period,
+                      decay: keyframe.interpolationToNext.elastic!.decay,
+                    ),
             ),
           ),
         )

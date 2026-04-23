@@ -1866,8 +1866,8 @@ class ExportComposition {
     'easeInOut': <String>[],
     'cubicBezier': <String>['x1', 'y1', 'x2', 'y2'],
     'spring': <String>['stiffness', 'damping', 'mass', 'initialVelocity'],
-    'bounce': <String>['amplitude', 'bounces'],
-    'elastic': <String>['amplitude', 'period'],
+    'bounce': <String>['amplitude', 'bounces', 'decay'],
+    'elastic': <String>['amplitude', 'period', 'decay'],
   };
 
   List<ExportInterpolationContractDescriptor>
@@ -3759,6 +3759,20 @@ Map<String, Object?> _motionInterpolationBridgeMap(
             'mass': interpolation.spring!.mass,
             'initialVelocity': interpolation.spring!.initialVelocity,
           },
+    'bounce': interpolation.bounce == null
+        ? null
+        : <String, Object?>{
+            'amplitude': interpolation.bounce!.amplitude,
+            'bounces': interpolation.bounce!.bounces,
+            'decay': interpolation.bounce!.decay,
+          },
+    'elastic': interpolation.elastic == null
+        ? null
+        : <String, Object?>{
+            'amplitude': interpolation.elastic!.amplitude,
+            'period': interpolation.elastic!.period,
+            'decay': interpolation.elastic!.decay,
+          },
   };
 }
 
@@ -4089,6 +4103,20 @@ Map<String, Object?> _exportMotionInterpolationBridgeMap(
             'damping': interpolation.spring!.damping,
             'mass': interpolation.spring!.mass,
             'initialVelocity': interpolation.spring!.initialVelocity,
+          },
+    'bounce': interpolation.bounce == null
+        ? null
+        : <String, Object?>{
+            'amplitude': interpolation.bounce!.amplitude,
+            'bounces': interpolation.bounce!.bounces,
+            'decay': interpolation.bounce!.decay,
+          },
+    'elastic': interpolation.elastic == null
+        ? null
+        : <String, Object?>{
+            'amplitude': interpolation.elastic!.amplitude,
+            'period': interpolation.elastic!.period,
+            'decay': interpolation.elastic!.decay,
           },
   };
 }
