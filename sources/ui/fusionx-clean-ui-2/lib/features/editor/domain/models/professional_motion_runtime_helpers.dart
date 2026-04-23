@@ -3,6 +3,7 @@ import 'professional_motion_animation_models.dart';
 import 'professional_motion_compilation_models.dart';
 import 'professional_motion_evaluation_models.dart';
 import 'professional_motion_models.dart';
+import 'professional_motion_text_models.dart';
 import 'professional_motion_text_runtime_helpers.dart';
 
 class BasicMotionCompositionCompiler implements MotionCompositionCompiler {
@@ -926,6 +927,7 @@ class BasicMotionRuntimeEvaluator implements MotionRuntimeEvaluator {
               : MotionActivationState.inactive,
           presetId: textAnimation.presetId,
           revealProgress: revealProgress,
+          revealUnit: _resolveTextAnimationRevealUnit(textAnimation),
           animationKinds: textAnimation.animationKinds,
         ),
       );
@@ -990,5 +992,42 @@ class BasicMotionRuntimeEvaluator implements MotionRuntimeEvaluator {
       return property.value.rawValue as double;
     }
     return null;
+  }
+
+  MotionTextRevealUnit _resolveTextAnimationRevealUnit(
+    MotionResolvedTextAnimationModel textAnimation,
+  ) {
+    final parameterValue = textAnimation.parameterValues['revealBy'];
+    if (parameterValue != null) {
+      final normalized = switch (parameterValue.kind) {
+        MotionPropertyValueKind.enumValue ||
+        MotionPropertyValueKind.stringValue =>
+          (parameterValue.rawValue as String).trim().toLowerCase(),
+        _ => null,
+      };
+      switch (normalized) {
+        case 'word':
+          return MotionTextRevealUnit.word;
+        case 'letter':
+        case 'type':
+        case 'typewriter':
+          return MotionTextRevealUnit.letter;
+      }
+    }
+    for (final block in textAnimation.animationBlocks) {
+      final revealSpec = block.revealSpec;
+      if (revealSpec != null) {
+        return revealSpec.unit;
+      }
+    }
+    final kinds = textAnimation.animationKinds;
+    if (kinds.contains(MotionTextAnimationKind.wordReveal)) {
+      return MotionTextRevealUnit.word;
+    }
+    if (kinds.contains(MotionTextAnimationKind.letterReveal) ||
+        kinds.contains(MotionTextAnimationKind.typewriter)) {
+      return MotionTextRevealUnit.letter;
+    }
+    return MotionTextRevealUnit.wholeText;
   }
 }

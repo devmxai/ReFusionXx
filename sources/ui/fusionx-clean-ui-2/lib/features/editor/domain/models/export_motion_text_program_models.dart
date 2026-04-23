@@ -597,6 +597,30 @@ String _resolveProgramFullText({
 MotionTextRevealUnit _resolveProgramRevealUnit(
   MotionResolvedTextAnimationModel? textAnimation,
 ) {
+  final parameterValue = textAnimation?.parameterValues['revealBy'];
+  if (parameterValue != null) {
+    final normalized = switch (parameterValue.kind) {
+      MotionPropertyValueKind.enumValue ||
+      MotionPropertyValueKind.stringValue =>
+        (parameterValue.rawValue as String).trim().toLowerCase(),
+      _ => null,
+    };
+    switch (normalized) {
+      case 'word':
+        return MotionTextRevealUnit.word;
+      case 'letter':
+      case 'type':
+      case 'typewriter':
+        return MotionTextRevealUnit.letter;
+    }
+  }
+  for (final block in textAnimation?.animationBlocks ??
+      const <MotionResolvedTextAnimationBlockModel>[]) {
+    final revealSpec = block.revealSpec;
+    if (revealSpec != null) {
+      return revealSpec.unit;
+    }
+  }
   final kinds =
       textAnimation?.animationKinds ?? const <MotionTextAnimationKind>[];
   if (kinds.contains(MotionTextAnimationKind.wordReveal)) {

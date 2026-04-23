@@ -3060,6 +3060,25 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       lane.matchesPropertyLabel('word reveal') ||
       lane.matchesPropertyLabel('letter reveal');
 
+  double _layerScopeRevealByValueForBinding(
+    MotionTextAnimationBindingModel? binding,
+  ) {
+    final value = binding?.parameterValues['revealBy'];
+    if (value != null &&
+        (value.kind == MotionPropertyValueKind.enumValue ||
+            value.kind == MotionPropertyValueKind.stringValue)) {
+      final normalized = (value.rawValue as String).trim().toLowerCase();
+      if (normalized == 'word') {
+        return 0;
+      }
+    }
+    return 1;
+  }
+
+  String _formatLayerScopeRevealBy(double value) {
+    return value.round() <= 0 ? 'Word' : 'Letter';
+  }
+
   bool _canOpenLayerScopeValueEditor(
     _LayerScopeContext? context,
   ) {
@@ -3300,6 +3319,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         MotionPropertyCatalog.revealProgress,
         time: keyframeTime,
       );
+      final binding = _motionTextBindingForElementId(textContext.element.id);
       return <LayerScopeValueControlSpec>[
         LayerScopeValueControlSpec(
           id: 'revealProgress',
@@ -3309,6 +3329,19 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           max: 100,
           divisions: 100,
           formatValue: (value) => '${value.round()}%',
+        ),
+        LayerScopeValueControlSpec(
+          id: 'revealBy',
+          label: 'By',
+          value: _layerScopeRevealByValueForBinding(binding),
+          min: 0,
+          max: 1,
+          divisions: 1,
+          formatValue: _formatLayerScopeRevealBy,
+          options: const <LayerScopeValueOption>[
+            LayerScopeValueOption(label: 'Word', value: 0),
+            LayerScopeValueOption(label: 'Letter', value: 1),
+          ],
         ),
       ];
     }
@@ -4195,6 +4228,79 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return result.channels;
   }
 
+  MotionTextRevealUnit _defaultRevealUnitForScopedTextEffectItem(
+    AnimateBrowserItem item,
+  ) {
+    return switch (item.id) {
+      'text_effect.word_reveal' => MotionTextRevealUnit.word,
+      _ => MotionTextRevealUnit.letter,
+    };
+  }
+
+  MotionPropertyValue _defaultRevealByParameterForScopedTextEffectItem(
+    AnimateBrowserItem item,
+  ) {
+    final revealUnit = _defaultRevealUnitForScopedTextEffectItem(item);
+    return MotionPropertyValue.enumValue(revealUnit.name);
+  }
+
+  bool _isMotionTextRevealBlock(MotionTextAnimationBlock block) =>
+      block.kind == MotionTextAnimationKind.typewriter ||
+      block.kind == MotionTextAnimationKind.wordReveal ||
+      block.kind == MotionTextAnimationKind.letterReveal;
+
+  bool _isScopedTextRevealEffectItem(AnimateBrowserItem item) =>
+      item.id == 'text_effect.type_on' ||
+      item.id == 'text_effect.word_reveal' ||
+      item.id == 'text_effect.letter_reveal';
+
+  List<MotionTextAnimationBindingModel>? _updateLayerScopeRevealBinding({
+    required _LayerScopeContext context,
+    required MotionTextRevealUnit revealUnit,
+  }) {
+    if (context.track.kind != TimelineTrackKind.text) {
+      return null;
+    }
+    final binding = _motionTextBindingForElementId(context.clip.id);
+    if (binding == null) {
+      return null;
+    }
+    final nextBindings = <MotionTextAnimationBindingModel>[
+      for (final current in _motionTextAnimationBindings)
+        if (current.id == binding.id)
+          MotionTextAnimationBindingModel(
+            id: current.id,
+            elementTarget: current.elementTarget,
+            activeRange: current.activeRange,
+            presetId: current.presetId,
+            animationBlocks: <MotionTextAnimationBlock>[
+              for (final block in current.animationBlocks)
+                if (_isMotionTextRevealBlock(block))
+                  MotionTextAnimationBlock(
+                    id: block.id,
+                    kind: block.kind,
+                    relativeRange: block.relativeRange,
+                    interpolation: block.interpolation,
+                    revealSpec: MotionTextRevealSpec(
+                      unit: revealUnit,
+                      stagger: block.revealSpec?.stagger ?? TimelineTime.zero,
+                    ),
+                    parameters: block.parameters,
+                  )
+                else
+                  block,
+            ],
+            parameterValues: <String, MotionPropertyValue>{
+              ...current.parameterValues,
+              'revealBy': MotionPropertyValue.enumValue(revealUnit.name),
+            },
+          )
+        else
+          current,
+    ];
+    return List<MotionTextAnimationBindingModel>.unmodifiable(nextBindings);
+  }
+
   List<MotionPropertyDefinition>? _layerScopeDefinitionsForLane(
     TimelineAnimationLaneData lane,
   ) {
@@ -4956,6 +5062,21 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         progress: progress,
         percent: value.clamp(0.0, 100.0).toDouble(),
       );
+    } else if (controlId == 'revealBy') {
+      final nextBindings = _updateLayerScopeRevealBinding(
+        context: context,
+        revealUnit: value.round() <= 0
+            ? MotionTextRevealUnit.word
+            : MotionTextRevealUnit.letter,
+      );
+      if (nextBindings == null) {
+        return;
+      }
+      setState(() {
+        _motionTextAnimationBindings = nextBindings;
+        _motionRevision += 1;
+      });
+      return;
     } else if (controlId == 'positionX' || controlId == 'positionY') {
       syncedChannels = _syncLayerScopePositionValueToGraph(
         context: context,
@@ -6523,6 +6644,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
 
     final blockPrefix = _scopedTextEffectBlockPrefix(item);
+    final isRevealEffect = _isScopedTextRevealEffectItem(item);
     final currentBinding =
         _motionTextBindingForElementId(textContext.element.id);
     final activeRange = _motionTextTimingRangeForElement(
@@ -6531,9 +6653,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
     final currentBlocks =
         currentBinding?.animationBlocks ?? const <MotionTextAnimationBlock>[];
-    final alreadyApplied = currentBlocks.any(
-      (block) => block.id.startsWith(blockPrefix),
-    );
+    final alreadyApplied = isRevealEffect
+        ? currentBlocks.any(_isMotionTextRevealBlock)
+        : currentBlocks.any(
+            (block) => block.id.startsWith(blockPrefix),
+          );
 
     final nextBindings = <MotionTextAnimationBindingModel>[
       for (final binding in _motionTextAnimationBindings)
@@ -6543,13 +6667,24 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             elementTarget: binding.elementTarget,
             activeRange: binding.activeRange,
             presetId: binding.presetId,
-            animationBlocks: alreadyApplied
+            animationBlocks: alreadyApplied && !isRevealEffect
                 ? binding.animationBlocks
                 : <MotionTextAnimationBlock>[
-                    ...binding.animationBlocks,
+                    if (isRevealEffect)
+                      for (final block in binding.animationBlocks)
+                        if (!_isMotionTextRevealBlock(block))
+                          block
+                        else
+                          ...binding.animationBlocks,
                     ...blocks,
                   ],
-            parameterValues: binding.parameterValues,
+            parameterValues: isRevealEffect
+                ? <String, MotionPropertyValue>{
+                    ...binding.parameterValues,
+                    'revealBy':
+                        _defaultRevealByParameterForScopedTextEffectItem(item),
+                  }
+                : binding.parameterValues,
           )
         else
           binding,
@@ -6559,6 +6694,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           elementTarget: textContext.elementTarget,
           activeRange: activeRange,
           animationBlocks: blocks,
+          parameterValues: isRevealEffect
+              ? <String, MotionPropertyValue>{
+                  'revealBy':
+                      _defaultRevealByParameterForScopedTextEffectItem(item),
+                }
+              : const <String, MotionPropertyValue>{},
         ),
     ];
 
@@ -6569,29 +6710,62 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     List<TimelineTrackData>? nextTracks;
     if (trackIndex >= 0) {
       final baseTrack = _tracks[trackIndex];
-      final existingLaneIndex = baseTrack.animationLanes.indexWhere(
-        (lane) =>
-            lane.targetClipId == scopeContext.clip.id &&
-            lane.label.toLowerCase() == item.label.toLowerCase(),
-      );
-      if (existingLaneIndex >= 0) {
-        selectedLaneId = baseTrack.animationLanes[existingLaneIndex].id;
-      } else {
-        final lane = TimelineAnimationLaneData(
-          id: 'anim-${scopeContext.track.kind.name}-${scopeContext.clip.id}-${item.id}-${DateTime.now().microsecondsSinceEpoch}',
+      if (isRevealEffect) {
+        final existingRevealLane = baseTrack.animationLanes.where(
+          (lane) =>
+              lane.targetClipId == scopeContext.clip.id &&
+              _layerScopeLaneMatchesReveal(lane),
+        );
+        final seedLane =
+            existingRevealLane.isEmpty ? null : existingRevealLane.first;
+        final lane = (seedLane ??
+                TimelineAnimationLaneData(
+                  id: 'anim-${scopeContext.track.kind.name}-${scopeContext.clip.id}-${item.id}-${DateTime.now().microsecondsSinceEpoch}',
+                  label: item.label,
+                  targetClipId: scopeContext.clip.id,
+                  normalizedKeyframeStops: const <double>[],
+                  keyframeValues: const <double>[],
+                ))
+            .copyWith(
           label: item.label,
           targetClipId: scopeContext.clip.id,
-          normalizedKeyframeStops: const <double>[],
-          keyframeValues: const <double>[],
         );
         selectedLaneId = lane.id;
         nextTracks = List<TimelineTrackData>.from(_tracks);
         nextTracks[trackIndex] = baseTrack.copyWith(
           animationLanes: <TimelineAnimationLaneData>[
-            ...baseTrack.animationLanes,
+            for (final existing in baseTrack.animationLanes)
+              if (!(existing.targetClipId == scopeContext.clip.id &&
+                  _layerScopeLaneMatchesReveal(existing)))
+                existing,
             lane,
           ],
         );
+      } else {
+        final existingLaneIndex = baseTrack.animationLanes.indexWhere(
+          (lane) =>
+              lane.targetClipId == scopeContext.clip.id &&
+              lane.label.toLowerCase() == item.label.toLowerCase(),
+        );
+        if (existingLaneIndex >= 0) {
+          selectedLaneId = baseTrack.animationLanes[existingLaneIndex].id;
+        } else {
+          final lane = TimelineAnimationLaneData(
+            id: 'anim-${scopeContext.track.kind.name}-${scopeContext.clip.id}-${item.id}-${DateTime.now().microsecondsSinceEpoch}',
+            label: item.label,
+            targetClipId: scopeContext.clip.id,
+            normalizedKeyframeStops: const <double>[],
+            keyframeValues: const <double>[],
+          );
+          selectedLaneId = lane.id;
+          nextTracks = List<TimelineTrackData>.from(_tracks);
+          nextTracks[trackIndex] = baseTrack.copyWith(
+            animationLanes: <TimelineAnimationLaneData>[
+              ...baseTrack.animationLanes,
+              lane,
+            ],
+          );
+        }
       }
     }
 

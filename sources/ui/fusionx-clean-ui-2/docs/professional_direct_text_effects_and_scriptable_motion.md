@@ -1228,6 +1228,8 @@ Implementation checkpoint:
 - Adding a keyframe on those rows must create an authored
   `text.revealProgress` keyframe at the current playhead.
 - `Value` must expose `Progress` as the first editable control.
+- `Value` must expose `By` as a real semantic control, not decorative UI.
+- `By` must flow through binding parameters and change preview/runtime behavior.
 - `Graph` must operate on the same authored `text.revealProgress` keyframes.
 - The text animation block may carry reveal semantics such as letter/word
   behavior, but it must not generate hidden reveal timing when marked as manual.

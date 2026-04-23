@@ -183,7 +183,8 @@ class BasicMotionTextPreviewBinder implements MotionTextPreviewBinder {
                 element.properties,
                 MotionPropertyCatalog.revealProgress,
               );
-          final revealUnit = _resolveRevealUnit(textAnimation);
+          final revealUnit =
+              textAnimation?.revealUnit ?? MotionTextRevealUnit.wholeText;
           final fullText = _resolveFullText(
             element: element,
             resolvedElement: resolvedElement,
@@ -328,21 +329,6 @@ class BasicMotionTextPreviewBinder implements MotionTextPreviewBinder {
       return element.name!;
     }
     return '';
-  }
-
-  MotionTextRevealUnit _resolveRevealUnit(
-    MotionEvaluatedTextAnimationState? textAnimation,
-  ) {
-    final kinds =
-        textAnimation?.animationKinds ?? const <MotionTextAnimationKind>[];
-    if (kinds.contains(MotionTextAnimationKind.wordReveal)) {
-      return MotionTextRevealUnit.word;
-    }
-    if (kinds.contains(MotionTextAnimationKind.letterReveal) ||
-        kinds.contains(MotionTextAnimationKind.typewriter)) {
-      return MotionTextRevealUnit.letter;
-    }
-    return MotionTextRevealUnit.wholeText;
   }
 
   String _resolveVisibleText({
