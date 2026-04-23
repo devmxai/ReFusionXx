@@ -130,6 +130,16 @@ export default function Scene() {
       "kind": "elasticPop",
       "startMs": 2160,
       "durationMs": 620
+    },
+    {
+      "kind": "blurRiseIn",
+      "startMs": 2780,
+      "durationMs": 760
+    },
+    {
+      "kind": "rotateIn",
+      "startMs": 3540,
+      "durationMs": 720
     }
   ]
 }
@@ -139,7 +149,7 @@ export default function Scene() {
 
     expect(validation.canApply, isTrue);
     final blocks = validation.document!.animationBlocks;
-    expect(blocks, hasLength(4));
+    expect(blocks, hasLength(6));
     expect(blocks.first.kind, MotionTextAnimationKind.bounceIn);
     expect(blocks.first.interpolation.kind, MotionInterpolationKind.bounce);
     expect(blocks.first.interpolation.bounce, isNotNull);
@@ -149,9 +159,15 @@ export default function Scene() {
     expect(blocks[2].kind, MotionTextAnimationKind.slideIn);
     expect(blocks[2].interpolation.kind, MotionInterpolationKind.spring);
     expect(blocks[2].interpolation.spring, isNotNull);
-    expect(blocks.last.kind, MotionTextAnimationKind.elasticPop);
-    expect(blocks.last.interpolation.kind, MotionInterpolationKind.elastic);
-    expect(blocks.last.interpolation.elastic, isNotNull);
+    expect(blocks[3].kind, MotionTextAnimationKind.elasticPop);
+    expect(blocks[3].interpolation.kind, MotionInterpolationKind.elastic);
+    expect(blocks[3].interpolation.elastic, isNotNull);
+    expect(blocks[4].kind, MotionTextAnimationKind.blurRiseIn);
+    expect(blocks[4].interpolation.kind, MotionInterpolationKind.spring);
+    expect(blocks[4].interpolation.spring, isNotNull);
+    expect(blocks.last.kind, MotionTextAnimationKind.rotateIn);
+    expect(blocks.last.interpolation.kind, MotionInterpolationKind.spring);
+    expect(blocks.last.interpolation.spring, isNotNull);
   });
 
   test('parses canonical spring, bounce, and elastic interpolation specs', () {

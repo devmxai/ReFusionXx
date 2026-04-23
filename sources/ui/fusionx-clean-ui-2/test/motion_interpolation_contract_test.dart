@@ -382,6 +382,162 @@ void main() {
     );
   });
 
+  test(
+      'blurRiseIn and rotateIn families lower into cinematic editable channels',
+      () {
+    final range = TimelineTimeRange(
+      start: TimelineTime.zero,
+      endExclusive: TimelineTime.fromSecondsDouble(3),
+    );
+    MotionProjectModel projectFor(String targetId) {
+      return MotionProjectModel(
+        id: 'project',
+        format: const MotionProjectFormat(
+          canvasSize: MotionSize2D(width: 1080, height: 1920),
+        ),
+        frameRate: const MotionFrameRate(numerator: 60, denominator: 1),
+        scenes: <MotionSceneModel>[
+          MotionSceneModel(
+            id: 'scene',
+            projectRange: range,
+            layers: <MotionLayerModel>[
+              MotionLayerModel(
+                id: 'layer',
+                sceneId: 'scene',
+                kind: MotionLayerKind.text,
+                visibleRange: range,
+                elements: <MotionElementModel>[
+                  MotionElementModel(
+                    id: targetId,
+                    layerId: 'layer',
+                    kind: MotionElementKind.text,
+                    localRange: range,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
+    MotionTextPresetCompileResult compileFamily({
+      required String targetId,
+      required MotionTextAnimationKind kind,
+      required MotionInterpolationSpec interpolation,
+    }) {
+      final project = projectFor(targetId);
+      return BasicMotionTextPresetCompiler().compileBindings(
+        request: MotionCompileRequest(
+          project: project,
+          textAnimationBindings: <MotionTextAnimationBindingModel>[
+            MotionTextAnimationBindingModel(
+              id: 'binding-$targetId',
+              elementTarget: MotionPropertyTarget(
+                kind: MotionTargetKind.element,
+                targetId: targetId,
+                projectId: 'project',
+                sceneId: 'scene',
+                layerId: 'layer',
+                elementId: targetId,
+              ),
+              activeRange: range,
+              animationBlocks: <MotionTextAnimationBlock>[
+                MotionTextAnimationBlock(
+                  id: 'family.${kind.name}',
+                  kind: kind,
+                  relativeRange: TimelineTimeRange(
+                    start: TimelineTime.zero,
+                    endExclusive: TimelineTime.fromMilliseconds(760),
+                  ),
+                  interpolation: interpolation,
+                ),
+              ],
+            ),
+          ],
+        ),
+        elementsById: <String, MotionElementModel>{
+          targetId: project.scenes.single.layers.single.elements.single,
+        },
+      );
+    }
+
+    final blurRise = compileFamily(
+      targetId: 'text-blur-rise',
+      kind: MotionTextAnimationKind.blurRiseIn,
+      interpolation: const MotionInterpolationSpec.spring(),
+    );
+    final rotate = compileFamily(
+      targetId: 'text-rotate',
+      kind: MotionTextAnimationKind.rotateIn,
+      interpolation: const MotionInterpolationSpec.spring(),
+    );
+
+    final blurRiseChannels = <String, MotionPropertyChannelModel>{
+      for (final channel in blurRise.generatedChannels)
+        channel.definition.id: channel,
+    };
+    final rotateChannels = <String, MotionPropertyChannelModel>{
+      for (final channel in rotate.generatedChannels)
+        channel.definition.id: channel,
+    };
+
+    expect(blurRise.issues, isEmpty);
+    expect(
+      blurRiseChannels.keys,
+      containsAll(<String>[
+        MotionPropertyCatalog.opacity.id,
+        MotionPropertyCatalog.blurAmount.id,
+        MotionPropertyCatalog.positionY.id,
+        MotionPropertyCatalog.scaleX.id,
+        MotionPropertyCatalog.scaleY.id,
+      ]),
+    );
+    expect(
+      blurRiseChannels[MotionPropertyCatalog.blurAmount.id]!
+          .keyframes
+          .first
+          .value
+          .rawValue,
+      18,
+    );
+    expect(
+      blurRiseChannels[MotionPropertyCatalog.positionY.id]!
+          .keyframes
+          .first
+          .interpolationToNext
+          .kind,
+      MotionInterpolationKind.spring,
+    );
+
+    expect(rotate.issues, isEmpty);
+    expect(
+      rotateChannels.keys,
+      containsAll(<String>[
+        MotionPropertyCatalog.opacity.id,
+        MotionPropertyCatalog.rotationDegrees.id,
+        MotionPropertyCatalog.scaleX.id,
+        MotionPropertyCatalog.scaleY.id,
+      ]),
+    );
+    expect(
+      rotateChannels[MotionPropertyCatalog.rotationDegrees.id]!
+          .keyframes
+          .first
+          .value
+          .rawValue,
+      -12,
+    );
+    expect(
+      rotateChannels[MotionPropertyCatalog.rotationDegrees.id]!
+          .keyframes
+          .first
+          .interpolationToNext
+          .kind,
+      MotionInterpolationKind.spring,
+    );
+  });
+
   test('preset and scoped script import share the same interpolation parsing',
       () {
     const presetSource = '''

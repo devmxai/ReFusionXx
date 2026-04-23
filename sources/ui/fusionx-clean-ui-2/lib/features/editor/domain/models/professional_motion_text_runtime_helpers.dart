@@ -323,6 +323,75 @@ class BasicMotionTextPresetCompiler {
           interpolation: block.interpolation,
         );
         break;
+      case MotionTextAnimationKind.blurRiseIn:
+        _addScalarAnimation(
+          accumulator: accumulator,
+          binding: binding,
+          definition: MotionPropertyCatalog.opacity,
+          from: _readScalar(block, parameterValues, 'fromOpacity', 0),
+          to: _readScalar(block, parameterValues, 'toOpacity', 1),
+          range: absoluteRange,
+          interpolation: const MotionInterpolationSpec.easeOut(),
+        );
+        _addScalarAnimation(
+          accumulator: accumulator,
+          binding: binding,
+          definition: MotionPropertyCatalog.blurAmount,
+          from: _parameterScalar(
+            parameterValues,
+            'blurStrength',
+            _readScalar(block, parameterValues, 'fromBlur', 18),
+          ),
+          to: _readScalar(block, parameterValues, 'toBlur', 0),
+          range: absoluteRange,
+          interpolation: const MotionInterpolationSpec.easeOut(),
+        );
+        _addScalarAnimation(
+          accumulator: accumulator,
+          binding: binding,
+          definition: MotionPropertyCatalog.positionY,
+          from: _readScalar(block, parameterValues, 'fromOffsetY', 44),
+          to: _readScalar(block, parameterValues, 'toOffsetY', 0),
+          range: absoluteRange,
+          interpolation: block.interpolation,
+        );
+        _addUniformScaleAnimation(
+          accumulator: accumulator,
+          binding: binding,
+          from: _readScalar(block, parameterValues, 'fromScale', 0.98),
+          to: _readScalar(block, parameterValues, 'toScale', 1.0),
+          range: absoluteRange,
+          interpolation: const MotionInterpolationSpec.easeOut(),
+        );
+        break;
+      case MotionTextAnimationKind.rotateIn:
+        _addScalarAnimation(
+          accumulator: accumulator,
+          binding: binding,
+          definition: MotionPropertyCatalog.opacity,
+          from: _readScalar(block, parameterValues, 'fromOpacity', 0),
+          to: _readScalar(block, parameterValues, 'toOpacity', 1),
+          range: absoluteRange,
+          interpolation: const MotionInterpolationSpec.easeOut(),
+        );
+        _addScalarAnimation(
+          accumulator: accumulator,
+          binding: binding,
+          definition: MotionPropertyCatalog.rotationDegrees,
+          from: _readScalar(block, parameterValues, 'fromRotation', -12),
+          to: _readScalar(block, parameterValues, 'toRotation', 0),
+          range: absoluteRange,
+          interpolation: block.interpolation,
+        );
+        _addUniformScaleAnimation(
+          accumulator: accumulator,
+          binding: binding,
+          from: _readScalar(block, parameterValues, 'fromScale', 0.88),
+          to: _readScalar(block, parameterValues, 'toScale', 1.0),
+          range: absoluteRange,
+          interpolation: block.interpolation,
+        );
+        break;
       case MotionTextAnimationKind.scaleIn:
         _addUniformScaleAnimation(
           accumulator: accumulator,

@@ -170,8 +170,18 @@ Implementation state:
 - `Slide In` is a spring-based horizontal entrance:
   - opacity fades in with `easeOut`
   - horizontal position settles into place with canonical `spring`
+- `Blur Rise In` is a cinematic text entrance:
+  - opacity fades in with `easeOut`
+  - blur resolves from soft focus to sharp text
+  - vertical position lifts into place with canonical `spring`
+  - subtle scale settles from 98% to 100%
+- `Rotate In` is a transform-driven entrance:
+  - opacity fades in with `easeOut`
+  - rotation settles into place with canonical `spring`
+  - scale settles into final size with the same canonical `spring`
 - script/preset `animationBlocks` can use `bounceIn`, `riseIn`, `slideIn`, or
-  `elasticPop` without manually supplying interpolation details
+  `blurRiseIn`, `rotateIn`, or `elasticPop` without manually supplying
+  interpolation details
 - imported high-level blocks are still lowered into editable real keyframe
   channels, so users can retime or reshape them after import
 
@@ -193,6 +203,8 @@ As of Phase 5:
   - `bounceIn`
   - `riseIn`
   - `slideIn`
+  - `blurRiseIn`
+  - `rotateIn`
   - `elasticPop`
 - remaining work shifts to adding more families and broader visual QA
 
@@ -211,5 +223,5 @@ If an AI agent is asked to generate a motion script:
 - preview/runtime and export now share support for the advanced interpolation
   kinds
 - prefer `animationBlocks` with named families like `bounceIn`, `riseIn`,
-  `slideIn`, or `elasticPop` when the user asks for a direct professional
-  effect
+  `slideIn`, `blurRiseIn`, `rotateIn`, or `elasticPop` when the user asks for a
+  direct professional effect

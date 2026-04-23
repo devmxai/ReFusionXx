@@ -397,6 +397,8 @@ Supported block kinds:
 - `bounceIn`
 - `riseIn`
 - `slideIn`
+- `blurRiseIn`
+- `rotateIn`
 - `elasticPop`
 - `scaleIn`
 - `scaleOut`
@@ -426,6 +428,10 @@ The first supported families are:
   with canonical `spring`
 - `slideIn`: lowers into opacity and horizontal position channels with
   canonical `spring`
+- `blurRiseIn`: lowers into opacity, blur, vertical position, and subtle scale
+  channels with canonical `spring`
+- `rotateIn`: lowers into opacity, rotation, and scale channels with canonical
+  `spring`
 - `elasticPop`: lowers into opacity and scale channels with canonical `elastic`
 
 These families still create editable channels and keyframes. They are not
@@ -469,6 +475,8 @@ As of this document update:
   - `bounceIn`
   - `riseIn`
   - `slideIn`
+  - `blurRiseIn`
+  - `rotateIn`
   - `elasticPop`
 
 That means a generated script should now look better in scoped playback and
@@ -566,6 +574,46 @@ position.
       "parameters": {
         "fromOffsetX": -180,
         "toOffsetX": 0
+      }
+    }
+  ]
+}
+```
+
+## Example: Named Blur Rise In Family
+
+```json
+{
+  "schemaVersion": "refusion.scope-text-script/v1",
+  "name": "Cinematic Blur Rise In",
+  "animationBlocks": [
+    {
+      "kind": "blurRiseIn",
+      "startMs": 0,
+      "durationMs": 760,
+      "parameters": {
+        "fromBlur": 18,
+        "fromOffsetY": 44
+      }
+    }
+  ]
+}
+```
+
+## Example: Named Rotate In Family
+
+```json
+{
+  "schemaVersion": "refusion.scope-text-script/v1",
+  "name": "Rotate In",
+  "animationBlocks": [
+    {
+      "kind": "rotateIn",
+      "startMs": 0,
+      "durationMs": 720,
+      "parameters": {
+        "fromRotation": -12,
+        "fromScale": 88
       }
     }
   ]

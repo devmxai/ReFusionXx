@@ -204,6 +204,20 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       keywords: <String>['slide', 'left', 'right', 'spring', 'text'],
     ),
     AnimateBrowserItem(
+      id: 'text_effect.blur_rise_in',
+      label: 'Blur Rise In',
+      category: 'Text FX',
+      summary: 'Lift text in from soft blur to crisp focus.',
+      keywords: <String>['blur', 'rise', 'focus', 'cinematic', 'text'],
+    ),
+    AnimateBrowserItem(
+      id: 'text_effect.rotate_in',
+      label: 'Rotate In',
+      category: 'Text',
+      summary: 'Rotate and scale text into a settled lockup.',
+      keywords: <String>['rotate', 'spin', 'scale', 'spring', 'text'],
+    ),
+    AnimateBrowserItem(
       id: 'text_effect.blur_in',
       label: 'Blur In',
       category: 'Text FX',
@@ -7924,6 +7938,60 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             parameters: const <String, MotionPropertyValue>{
               'fromOffsetX': MotionPropertyValue.scalar(-180),
               'toOffsetX': MotionPropertyValue.scalar(0),
+              'fromOpacity': MotionPropertyValue.scalar(0),
+              'toOpacity': MotionPropertyValue.scalar(1),
+            },
+          ),
+        ],
+      'text_effect.blur_rise_in' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}blur_rise_in',
+            kind: MotionTextAnimationKind.blurRiseIn,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(760),
+            ),
+            interpolation: const MotionInterpolationSpec.spring(
+              spring: MotionSpringSpec(
+                stiffness: 205,
+                damping: 22,
+                mass: 1.0,
+                initialVelocity: 0,
+              ),
+            ),
+            parameters: const <String, MotionPropertyValue>{
+              'fromBlur': MotionPropertyValue.scalar(18),
+              'toBlur': MotionPropertyValue.scalar(0),
+              'fromOffsetY': MotionPropertyValue.scalar(44),
+              'toOffsetY': MotionPropertyValue.scalar(0),
+              'fromScale': MotionPropertyValue.scalar(0.98),
+              'toScale': MotionPropertyValue.scalar(1.0),
+              'fromOpacity': MotionPropertyValue.scalar(0),
+              'toOpacity': MotionPropertyValue.scalar(1),
+            },
+          ),
+        ],
+      'text_effect.rotate_in' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}rotate_in',
+            kind: MotionTextAnimationKind.rotateIn,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(720),
+            ),
+            interpolation: const MotionInterpolationSpec.spring(
+              spring: MotionSpringSpec(
+                stiffness: 250,
+                damping: 20,
+                mass: 1.0,
+                initialVelocity: 0,
+              ),
+            ),
+            parameters: const <String, MotionPropertyValue>{
+              'fromRotation': MotionPropertyValue.scalar(-12),
+              'toRotation': MotionPropertyValue.scalar(0),
+              'fromScale': MotionPropertyValue.scalar(0.88),
+              'toScale': MotionPropertyValue.scalar(1.0),
               'fromOpacity': MotionPropertyValue.scalar(0),
               'toOpacity': MotionPropertyValue.scalar(1),
             },
