@@ -41,6 +41,7 @@ two engines:
 Professional behavior means:
 
 - a direct text effect is real authored motion, not a preview-only trick
+- every scoped effect is an editable effect instance, not a closed preset
 - a script-authored motion sequence becomes real authored motion, not a special
   side path
 - both routes end in the same property channels and the same evaluator
@@ -131,7 +132,70 @@ Every direct effect must lower into ordinary property channels and keyframes.
 It may additionally emit semantic metadata for UI, but it may not remain an
 opaque rendering trick.
 
-### 1.5 Scripts Normalize Into A Canonical Program
+### 1.5 Universal Scoped Effect Contract
+
+No scoped effect may ship as a closed, one-click animation that the user cannot
+inspect or edit.
+
+This applies to:
+
+- text effects
+- image effects
+- shape effects
+- transform effects
+- visual effects
+- script-authored effects
+
+Every scoped effect must be represented as:
+
+```text
+EffectDefinition
+  id
+  targetKinds[]
+  controls[]
+  keyframeTracks[]
+  options[]
+  phases[]
+  compiler
+
+EffectInstance
+  id
+  effectId
+  target
+  activeRange
+  phaseRanges
+  parameterValues
+  keyframeTracks
+  ownershipPolicy
+```
+
+The user must be able to:
+
+- select the effect row in scoped timeline
+- move its authored keyframes
+- add/remove keyframes for keyframeable controls
+- open `Value` and edit effect-specific sliders/options
+- open `Graph` and edit easing for keyframed values
+- convert generated/default motion into custom authored keyframes when needed
+
+Presets are allowed only as starting points. After a preset is applied, it must
+become an editable `EffectInstance`.
+
+Forbidden:
+
+- hardcoded effect branches that cannot expose controls
+- hidden timing windows that cannot be moved or inspected
+- effect behavior that exists in preview but not in property/effect state
+- effect-specific UI that bypasses the shared scoped value/graph workflow
+
+Example:
+
+- `Type On` must not remain a fixed `typewriter` block.
+- It must expose tracks/controls such as `Progress`, `By`, `Direction`,
+  `Start Offset`, `End Offset`, `Stagger`, `Cursor`, `Blink`, `In`, `Hold`,
+  and `Out` where supported by the implementation phase.
+
+### 1.6 Scripts Normalize Into A Canonical Program
 
 AI or external scripts must not write directly into random UI state.
 
@@ -143,7 +207,7 @@ compile into:
 - animation blocks
 - effect metadata
 
-### 1.6 Live Scrub Remains Protected
+### 1.7 Live Scrub Remains Protected
 
 Nothing in this document authorizes unscoped changes to protected native scrub
 files or ownership boundaries.
@@ -151,7 +215,7 @@ files or ownership boundaries.
 If any implementation phase requires native scrub changes, that work must be
 split into a separately approved task.
 
-### 1.7 Ownership Rules Must Be Explicit
+### 1.8 Ownership Rules Must Be Explicit
 
 Generated channels from direct effects or scripts must not silently overwrite
 hand-authored channels.
@@ -267,6 +331,23 @@ That means:
 - same normalized composition
 - and for V1 text authoring, the same `ExportMotionTextProgram` lowering path
 
+The first implementation surface is text because the current code already has
+text animation models. The architecture, however, is not text-only.
+
+The long-term product surface is:
+
+```text
+Scoped Layer
+  Animate / FX
+    Universal Effect Registry
+      Text effects
+      Image effects
+      Shape effects
+```
+
+Each target kind gets its own applicable effects, but all of them use the same
+effect definition, effect instance, value sheet, graph, and compiler pattern.
+
 ## 4. Canonical Motion Layers
 
 The professional architecture should be layered as follows:
@@ -282,7 +363,36 @@ Existing:
 
 This remains the authoritative evaluated truth.
 
-### Layer 2 - Direct Text Effect Definitions
+### Layer 2 - Universal Scoped Effect Definitions
+
+New authored catalog layer for all scoped effects:
+
+```text
+ScopedEffectDefinition
+  id
+  label
+  category
+  targetKinds[]
+  controls[]
+  keyframeTracks[]
+  options[]
+  phases[]
+  compilerVersion
+```
+
+This layer decides which effects appear for text, image, and shape layers.
+
+Examples:
+
+- text: `Type On`, `Word Reveal`, `Tracking Settle`, `Text Glow`
+- image: `Gaussian Blur`, `Color`, `Brightness`, `Saturation`, `Shadow`
+- shape: `Fill`, `Stroke`, `Trim Path`, `Roundness`, `Dash`
+
+Every effect in this registry must compile into the durable property graph or
+into a typed semantic binding that then lowers into the same evaluated motion
+composition.
+
+### Layer 3 - Direct Text Effect Definitions
 
 New authored catalog layer:
 
@@ -308,8 +418,10 @@ V1 implementation rule:
 - it must not begin as a parallel unrelated system
 - in early phases, `Direct Text Effects` is a product-facing name over the
   current preset / animation-block / binding stack
+- it is the first specialized implementation of `ScopedEffectDefinition`, not
+  a separate text-only architecture
 
-### Layer 3 - Applied Effect Bindings
+### Layer 4 - Applied Effect Bindings
 
 Per element / per layer authored effect instance:
 
@@ -326,7 +438,7 @@ DirectTextEffectBindingModel
 
 This is what the UI edits.
 
-### Layer 4 - Canonical Script Program
+### Layer 5 - Canonical Script Program
 
 Structured motion document for AI/external authoring:
 
@@ -355,7 +467,7 @@ Important distinction:
 - in V1 it should lower into the existing `MotionCompileRequest ->
   MotionNormalizedComposition` boundary, not create a second compile engine
 
-### Layer 5 - Existing Compile Boundary
+### Layer 6 - Existing Compile Boundary
 
 The current compile boundary remains authoritative:
 
@@ -1092,26 +1204,42 @@ It should support:
 - keep V1 storage compatible with `MotionTextPresetDefinition`,
   `MotionTextAnimationBlock`, and `MotionTextAnimationBindingModel`
 
-### Phase 3 - Build The Effect Sheet
+### Phase 3 - Formalize The Universal Scoped Effect System
+
+- introduce `ScopedEffectDefinition` as the general contract for text, image,
+  and shape effects
+- introduce editable `EffectInstance` semantics for each applied effect
+- define control types: slider, stepped slider, toggle, segmented option, color,
+  range, and vector controls
+- define keyframe track metadata for every keyframeable control
+- define phase metadata: `In`, `Hold`, `Out`, and custom phase windows
+- make presets compile into editable effect instances rather than closed motion
+  blocks
+- require every new scoped effect to register through this system
+
+This phase is architectural and applies to all target kinds. Text effects are
+only the first implementation path.
+
+### Phase 4 - Build The Effect Sheet
 
 - effect-first bottom sheet
 - default + advanced parameter groups
 - live preview updates through the same current evaluator
 
-### Phase 4 - Scoped Effect Phase Rows
+### Phase 5 - Scoped Effect Phase Rows
 
 - show `In / Main / Out` rows
 - allow expand/collapse into generated property rows
 - keep using the same `TimelinePanel`
 
-### Phase 5 - Formalize `ReFusion Motion Program`
+### Phase 6 - Formalize `ReFusion Motion Program`
 
 - canonical structured script format
 - parser/validator
 - normalization rules
 - explicit source adapter metadata
 
-### Phase 6 - Script Import Path
+### Phase 7 - Script Import Path
 
 First:
 
@@ -1122,14 +1250,14 @@ Then:
 - add safe adapters for AI-produced motion definitions
 - add optional Remotion-like semantic importer later
 
-### Phase 7 - Ownership Tooling
+### Phase 8 - Ownership Tooling
 
 - `Detach Property`
 - `Convert Effect To Custom`
 - ownership badges
 - generated/manual conflict detection
 
-### Phase 8 - Expand Effect Families
+### Phase 9 - Expand Effect Families
 
 - tracking effects
 - loop and distort families
@@ -1145,6 +1273,7 @@ Do not:
 - execute JSX/TSX inside the app
 - fork `TimelinePanel`
 - add preview-only effect logic without channels
+- add closed one-click scoped effects that cannot expose controls/keyframes
 - advertise effect families that are not actually wired
 - route generated motion through a special export path unrelated to preview
 - silently overwrite manual edits during recompilation
