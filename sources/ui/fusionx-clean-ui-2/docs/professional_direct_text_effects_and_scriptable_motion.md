@@ -1220,6 +1220,18 @@ It should support:
 This phase is architectural and applies to all target kinds. Text effects are
 only the first implementation path.
 
+Implementation checkpoint:
+
+- `Type On`, `Word Reveal`, and `Letter Reveal` are not allowed to run as
+  closed timed blocks.
+- Their scoped timeline row must bind to `text.revealProgress`.
+- Adding a keyframe on those rows must create an authored
+  `text.revealProgress` keyframe at the current playhead.
+- `Value` must expose `Progress` as the first editable control.
+- `Graph` must operate on the same authored `text.revealProgress` keyframes.
+- The text animation block may carry reveal semantics such as letter/word
+  behavior, but it must not generate hidden reveal timing when marked as manual.
+
 ### Phase 4 - Build The Effect Sheet
 
 - effect-first bottom sheet

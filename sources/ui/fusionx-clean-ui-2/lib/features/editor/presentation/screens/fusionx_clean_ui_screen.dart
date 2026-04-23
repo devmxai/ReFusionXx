@@ -2954,6 +2954,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _projectedTextPositionLaneForScope(context),
       _projectedTextScaleLaneForScope(context),
       _projectedTextRotationLaneForScope(context),
+      _projectedTextRevealLaneForScope(context),
     ]) {
       if (projectedLane == null) {
         continue;
@@ -3044,6 +3045,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return lane != null &&
         (lane.matchesPropertyLabel('opacity') ||
             _layerScopeLaneMatchesBlur(lane) ||
+            _layerScopeLaneMatchesReveal(lane) ||
             lane.matchesPropertyLabel('position') ||
             lane.matchesPropertyLabel('scale') ||
             lane.matchesPropertyLabel('rotation'));
@@ -3052,6 +3054,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   bool _layerScopeLaneMatchesBlur(TimelineAnimationLaneData lane) =>
       lane.matchesPropertyLabel('blur') ||
       lane.matchesPropertyLabel('gaussian blur');
+
+  bool _layerScopeLaneMatchesReveal(TimelineAnimationLaneData lane) =>
+      lane.matchesPropertyLabel('type on') ||
+      lane.matchesPropertyLabel('word reveal') ||
+      lane.matchesPropertyLabel('letter reveal');
 
   bool _canOpenLayerScopeValueEditor(
     _LayerScopeContext? context,
@@ -3284,6 +3291,24 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             LayerScopeValueOption(label: 'Extend', value: 0),
             LayerScopeValueOption(label: 'Crop', value: 1),
           ],
+        ),
+      ];
+    }
+    if (_layerScopeLaneMatchesReveal(lane)) {
+      final revealProgress = _evaluatedTextScalarPropertyOrDefault(
+        textContext,
+        MotionPropertyCatalog.revealProgress,
+        time: keyframeTime,
+      );
+      return <LayerScopeValueControlSpec>[
+        LayerScopeValueControlSpec(
+          id: 'revealProgress',
+          label: 'Progress',
+          value: (revealProgress * 100.0).clamp(0.0, 100.0).toDouble(),
+          min: 0,
+          max: 100,
+          divisions: 100,
+          formatValue: (value) => '${value.round()}%',
         ),
       ];
     }
@@ -3769,6 +3794,67 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
   }
 
+  TimelineAnimationLaneData? _projectedTextRevealLaneForScope(
+    _LayerScopeContext context,
+  ) {
+    if (context.track.kind != TimelineTrackKind.text) {
+      return null;
+    }
+    final channel = _manualPropertyChannelForElement(
+      context.clip.id,
+      MotionPropertyCatalog.revealProgress,
+    );
+    TimelineAnimationLaneData? existingLane;
+    for (final lane in context.track.animationLanes) {
+      if (lane.targetClipId == context.clip.id &&
+          _layerScopeLaneMatchesReveal(lane)) {
+        existingLane = lane;
+        break;
+      }
+    }
+    final durationSeconds = context.durationTime.inSecondsDouble;
+    final stops = <double>[];
+    final keyframeIds = <String>[];
+    final values = <double>[];
+    if (durationSeconds > 0 && channel != null) {
+      for (final keyframe in channel.keyframes) {
+        if (keyframe.value.kind != MotionPropertyValueKind.scalar) {
+          continue;
+        }
+        final progress = ((keyframe.time - context.startTime).inSecondsDouble /
+                durationSeconds)
+            .clamp(0.0, 1.0)
+            .toDouble();
+        stops.add(progress);
+        keyframeIds.add(keyframe.id);
+        values.add(
+          ((keyframe.value.rawValue as double) * 100.0)
+              .clamp(0.0, 100.0)
+              .toDouble(),
+        );
+      }
+    }
+    if (existingLane == null && stops.isEmpty) {
+      return null;
+    }
+    final label = existingLane?.label ?? 'Type On';
+    final baseLane = existingLane ??
+        TimelineAnimationLaneData(
+          id: 'anim-${context.track.kind.name}-${context.clip.id}-reveal-progress',
+          label: label,
+          targetClipId: context.clip.id,
+          normalizedKeyframeStops: const <double>[],
+          keyframeValues: const <double>[],
+        );
+    return baseLane.copyWith(
+      label: label,
+      targetClipId: context.clip.id,
+      normalizedKeyframeStops: List<double>.unmodifiable(stops),
+      keyframeIds: List<String>.unmodifiable(keyframeIds),
+      keyframeValues: List<double>.unmodifiable(values),
+    );
+  }
+
   List<MotionPropertyDefinition> get _layerScopeBlurDefinitions =>
       <MotionPropertyDefinition>[
         MotionPropertyCatalog.blurAmount,
@@ -4073,6 +4159,42 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
   }
 
+  List<MotionPropertyChannelModel>? _syncLayerScopeRevealKeyframeToGraph({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required double progress,
+    required double percent,
+  }) {
+    if (!_layerScopeLaneMatchesReveal(lane) ||
+        context.track.kind != TimelineTrackKind.text) {
+      return null;
+    }
+    final textContext = _motionTextElementContextForId(context.clip.id);
+    if (textContext == null) {
+      return null;
+    }
+    final keyframeTime = _layerScopeTimeForProgress(context, progress);
+    final result = _buildCanvasTimelineAuthoringService().addKeyframe(
+      CanvasTimelineKeyframeRequest(
+        channels: _manualMotionPropertyChannels,
+        target: textContext.elementTarget,
+        activeRange: _motionTextTimingRangeForElement(
+          scene: textContext.scene,
+          element: textContext.element,
+        ),
+        definition: MotionPropertyCatalog.revealProgress,
+        time: keyframeTime,
+        value: MotionPropertyValue.scalar(
+          (percent / 100.0).clamp(0.0, 1.0).toDouble(),
+        ),
+      ),
+    );
+    if (result.hasIssues) {
+      return null;
+    }
+    return result.channels;
+  }
+
   List<MotionPropertyDefinition>? _layerScopeDefinitionsForLane(
     TimelineAnimationLaneData lane,
   ) {
@@ -4083,6 +4205,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
     if (_layerScopeLaneMatchesBlur(lane)) {
       return _layerScopeBlurDefinitions;
+    }
+    if (_layerScopeLaneMatchesReveal(lane)) {
+      return <MotionPropertyDefinition>[
+        MotionPropertyCatalog.revealProgress,
+      ];
     }
     if (lane.matchesPropertyLabel('position')) {
       return <MotionPropertyDefinition>[
@@ -4613,6 +4740,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           lane: lane,
           progress: progress,
         ) ??
+        _syncLayerScopeRevealKeyframeToGraph(
+          context: context,
+          lane: lane,
+          progress: progress,
+          percent: insertedValue,
+        ) ??
         _syncLayerScopePositionKeyframeToGraph(
           context: context,
           lane: lane,
@@ -4815,6 +4948,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         lane: lane,
         progress: progress,
         values: blurValues,
+      );
+    } else if (controlId == 'revealProgress') {
+      syncedChannels = _syncLayerScopeRevealKeyframeToGraph(
+        context: context,
+        lane: lane,
+        progress: progress,
+        percent: value.clamp(0.0, 100.0).toDouble(),
       );
     } else if (controlId == 'positionX' || controlId == 'positionY') {
       syncedChannels = _syncLayerScopePositionValueToGraph(
@@ -6373,7 +6513,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _showStageMessage('Unable to resolve this text layer.');
       return;
     }
-    final blocks = _scopedTextEffectBlocksForItem(item);
+    final blocks = _scopedTextEffectBlocksForItem(
+      item,
+      layerDuration: scopeContext.durationTime,
+    );
     if (blocks.isEmpty) {
       _showStageMessage('${item.label} is not ready yet.');
       return;
@@ -6473,53 +6616,60 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       'scoped.${item.id}.';
 
   List<MotionTextAnimationBlock> _scopedTextEffectBlocksForItem(
-    AnimateBrowserItem item,
-  ) {
+    AnimateBrowserItem item, {
+    TimelineTime? layerDuration,
+  }) {
     final prefix = _scopedTextEffectBlockPrefix(item);
+    final revealRange = TimelineTimeRange(
+      start: TimelineTime.zero,
+      endExclusive: layerDuration == null || layerDuration <= TimelineTime.zero
+          ? TimelineTime.fromMilliseconds(1100)
+          : layerDuration,
+    );
     return switch (item.id) {
       'text_effect.type_on' => <MotionTextAnimationBlock>[
           MotionTextAnimationBlock(
             id: '${prefix}typewriter',
             kind: MotionTextAnimationKind.typewriter,
-            relativeRange: TimelineTimeRange(
-              start: TimelineTime.zero,
-              endExclusive: TimelineTime.fromMilliseconds(1100),
-            ),
+            relativeRange: revealRange,
             revealSpec: MotionTextRevealSpec(
               unit: MotionTextRevealUnit.letter,
               stagger: TimelineTime.fromMilliseconds(42),
             ),
             interpolation: const MotionInterpolationSpec.linear(),
+            parameters: const <String, MotionPropertyValue>{
+              'manualRevealProgress': MotionPropertyValue.boolean(true),
+            },
           ),
         ],
       'text_effect.word_reveal' => <MotionTextAnimationBlock>[
           MotionTextAnimationBlock(
             id: '${prefix}word_reveal',
             kind: MotionTextAnimationKind.wordReveal,
-            relativeRange: TimelineTimeRange(
-              start: TimelineTime.zero,
-              endExclusive: TimelineTime.fromMilliseconds(950),
-            ),
+            relativeRange: revealRange,
             revealSpec: MotionTextRevealSpec(
               unit: MotionTextRevealUnit.word,
               stagger: TimelineTime.fromMilliseconds(90),
             ),
             interpolation: const MotionInterpolationSpec.easeOut(),
+            parameters: const <String, MotionPropertyValue>{
+              'manualRevealProgress': MotionPropertyValue.boolean(true),
+            },
           ),
         ],
       'text_effect.letter_reveal' => <MotionTextAnimationBlock>[
           MotionTextAnimationBlock(
             id: '${prefix}letter_reveal',
             kind: MotionTextAnimationKind.letterReveal,
-            relativeRange: TimelineTimeRange(
-              start: TimelineTime.zero,
-              endExclusive: TimelineTime.fromMilliseconds(950),
-            ),
+            relativeRange: revealRange,
             revealSpec: MotionTextRevealSpec(
               unit: MotionTextRevealUnit.letter,
               stagger: TimelineTime.fromMilliseconds(36),
             ),
             interpolation: const MotionInterpolationSpec.easeOut(),
+            parameters: const <String, MotionPropertyValue>{
+              'manualRevealProgress': MotionPropertyValue.boolean(true),
+            },
           ),
         ],
       'text_effect.blur_in' => <MotionTextAnimationBlock>[

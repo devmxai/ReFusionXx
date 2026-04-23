@@ -179,9 +179,9 @@ class BasicMotionTextPresetCompiler {
                   id: block.id,
                   kind: block.kind,
                   projectRange: TimelineTimeRange(
-                    start: binding.activeRange.start + block.relativeRange.start,
-                    endExclusive:
-                        binding.activeRange.start +
+                    start:
+                        binding.activeRange.start + block.relativeRange.start,
+                    endExclusive: binding.activeRange.start +
                         block.relativeRange.endExclusive,
                   ),
                   interpolation: block.interpolation,
@@ -301,6 +301,9 @@ class BasicMotionTextPresetCompiler {
       case MotionTextAnimationKind.wordReveal:
       case MotionTextAnimationKind.letterReveal:
       case MotionTextAnimationKind.typewriter:
+        if (_readBoolean(block, 'manualRevealProgress', false)) {
+          break;
+        }
         _addScalarAnimation(
           accumulator: accumulator,
           binding: binding,
@@ -462,6 +465,18 @@ class BasicMotionTextPresetCompiler {
       return fallback;
     }
     return value.rawValue as double;
+  }
+
+  bool _readBoolean(
+    MotionTextAnimationBlock block,
+    String key,
+    bool fallback,
+  ) {
+    final value = block.parameters[key];
+    if (value == null || value.kind != MotionPropertyValueKind.boolean) {
+      return fallback;
+    }
+    return value.rawValue as bool;
   }
 }
 

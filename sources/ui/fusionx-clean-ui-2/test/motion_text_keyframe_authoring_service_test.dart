@@ -243,4 +243,74 @@ void main() {
     expect(opacity.channelId, manualChannels.single.id);
     expect(opacity.value.rawValue, 0.72);
   });
+
+  test('manual reveal blocks keep text semantics without hidden keyframes', () {
+    final projectRange = range(0, 5);
+    final project = MotionProjectModel(
+      id: 'project',
+      format: const MotionProjectFormat(
+        canvasSize: MotionSize2D(width: 1080, height: 1920),
+      ),
+      frameRate: const MotionFrameRate(numerator: 30, denominator: 1),
+      scenes: <MotionSceneModel>[
+        MotionSceneModel(
+          id: 'scene',
+          projectRange: projectRange,
+          layers: <MotionLayerModel>[
+            MotionLayerModel(
+              id: 'layer',
+              sceneId: 'scene',
+              kind: MotionLayerKind.text,
+              visibleRange: projectRange,
+              elements: <MotionElementModel>[
+                MotionElementModel(
+                  id: 'text-1',
+                  layerId: 'layer',
+                  kind: MotionElementKind.text,
+                  localRange: projectRange,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+
+    final compileResult = BasicMotionCompositionCompiler().compile(
+      MotionCompileRequest(
+        project: project,
+        propertyChannels: const <MotionPropertyChannelModel>[],
+        textAnimationBindings: <MotionTextAnimationBindingModel>[
+          MotionTextAnimationBindingModel(
+            id: 'binding',
+            elementTarget: target,
+            activeRange: projectRange,
+            animationBlocks: <MotionTextAnimationBlock>[
+              MotionTextAnimationBlock(
+                id: 'type-on',
+                kind: MotionTextAnimationKind.typewriter,
+                relativeRange: projectRange,
+                parameters: const <String, MotionPropertyValue>{
+                  'manualRevealProgress': MotionPropertyValue.boolean(true),
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    expect(compileResult.composition, isNotNull);
+    final composition = compileResult.composition!;
+    expect(composition.textAnimations.single.animationKinds,
+        contains(MotionTextAnimationKind.typewriter));
+    expect(
+      composition.allPropertyChannels.where(
+        (channel) =>
+            channel.channel.definition.id ==
+            MotionPropertyCatalog.revealProgress.id,
+      ),
+      isEmpty,
+    );
+  });
 }
