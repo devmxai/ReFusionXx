@@ -818,6 +818,35 @@ Recommended accepted forms:
 - typed in-app data models
 - safe adapter output from external code systems
 
+### 6.4.1 Canonical Vocabulary Rule
+
+The structured script contract must stay readable to humans and predictable for
+AI systems without requiring hidden knowledge of ReFusion's UI.
+
+That means the canonical motion vocabulary should prefer globally recognizable
+animation semantics such as:
+
+- `target`
+- `effect`
+- `property`
+- `keyframes`
+- `durationMs`
+- `staggerMs`
+- `ease`
+- `revealBy`
+- `revealDirection`
+
+It must not require app-private widget names, screen-local state names, or
+internal button flows to express motion correctly.
+
+The product may expose localized UI labels, but import/export and AI-authored
+motion must normalize to one stable canonical contract so:
+
+- a person can write a motion script from broad professional intuition
+- an AI agent can generate valid motion without reverse-engineering the app
+- the app can import that motion into the same scoped editor without a special
+  side path
+
 ### 6.5 Remotion-Like Bridge Rule
 
 ReFusion may add an importer for a safe Remotion-like subset later, but it must

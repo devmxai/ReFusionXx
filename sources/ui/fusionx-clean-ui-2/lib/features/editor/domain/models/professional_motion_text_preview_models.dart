@@ -60,6 +60,7 @@ class MotionTextPreviewNode {
     required this.fullText,
     required this.visibleText,
     required this.revealUnit,
+    required this.revealDirection,
     required this.transform,
     required this.style,
     required List<MotionTextAnimationKind> animationKinds,
@@ -80,6 +81,7 @@ class MotionTextPreviewNode {
   final String fullText;
   final String visibleText;
   final MotionTextRevealUnit revealUnit;
+  final MotionTextRevealDirection revealDirection;
   final MotionTextPreviewTransformState transform;
   final MotionTextPreviewStyleState style;
   final String? name;
@@ -194,6 +196,8 @@ class BasicMotionTextPreviewBinder implements MotionTextPreviewBinder {
             fullText: fullText,
             revealProgress: revealProgress,
             revealUnit: revealUnit,
+            revealDirection: textAnimation?.revealDirection ??
+                MotionTextRevealDirection.forward,
             animationKinds: textAnimation?.animationKinds ??
                 const <MotionTextAnimationKind>[],
           );
@@ -213,6 +217,8 @@ class BasicMotionTextPreviewBinder implements MotionTextPreviewBinder {
               visibleText: visibleText,
               revealProgress: revealProgress,
               revealUnit: revealUnit,
+              revealDirection: textAnimation?.revealDirection ??
+                  MotionTextRevealDirection.forward,
               zIndex: layer.zIndex,
               blendMode: layer.blendMode,
               animationKinds: textAnimation?.animationKinds ??
@@ -335,6 +341,7 @@ class BasicMotionTextPreviewBinder implements MotionTextPreviewBinder {
     required String fullText,
     required double? revealProgress,
     required MotionTextRevealUnit revealUnit,
+    required MotionTextRevealDirection revealDirection,
     required List<MotionTextAnimationKind> animationKinds,
   }) {
     if (fullText.isEmpty) {
@@ -369,13 +376,21 @@ class BasicMotionTextPreviewBinder implements MotionTextPreviewBinder {
           return '';
         }
         final count = (words.length * normalized).ceil().clamp(0, words.length);
-        return words.take(count).join(' ');
+        final visible = revealDirection == MotionTextRevealDirection.reverse
+            ? words.skip(words.length - count).toList(growable: false)
+            : words.take(count).toList(growable: false);
+        return visible.join(' ');
       case MotionTextRevealUnit.letter:
         final scalarRunes = fullText.runes.toList(growable: false);
         final count = (scalarRunes.length * normalized)
             .ceil()
             .clamp(0, scalarRunes.length);
-        return String.fromCharCodes(scalarRunes.take(count));
+        final visible = revealDirection == MotionTextRevealDirection.reverse
+            ? scalarRunes
+                .skip(scalarRunes.length - count)
+                .toList(growable: false)
+            : scalarRunes.take(count).toList(growable: false);
+        return String.fromCharCodes(visible);
     }
   }
 

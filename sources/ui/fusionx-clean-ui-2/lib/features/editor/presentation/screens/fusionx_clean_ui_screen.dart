@@ -3060,7 +3060,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       lane.matchesPropertyLabel('word reveal') ||
       lane.matchesPropertyLabel('letter reveal');
 
-  double _layerScopeRevealByValueForBinding(
+  MotionTextRevealUnit _layerScopeRevealUnitForBinding(
     MotionTextAnimationBindingModel? binding,
   ) {
     final value = binding?.parameterValues['revealBy'];
@@ -3069,14 +3069,91 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             value.kind == MotionPropertyValueKind.stringValue)) {
       final normalized = (value.rawValue as String).trim().toLowerCase();
       if (normalized == 'word') {
-        return 0;
+        return MotionTextRevealUnit.word;
+      }
+      if (normalized == 'wholetext' ||
+          normalized == 'whole_text' ||
+          normalized == 'whole-text') {
+        return MotionTextRevealUnit.wholeText;
+      }
+      return MotionTextRevealUnit.letter;
+    }
+    for (final block
+        in binding?.animationBlocks ?? const <MotionTextAnimationBlock>[]) {
+      if (!_isMotionTextRevealBlock(block)) {
+        continue;
+      }
+      final revealSpec = block.revealSpec;
+      if (revealSpec != null) {
+        return revealSpec.unit;
+      }
+      if (block.kind == MotionTextAnimationKind.wordReveal) {
+        return MotionTextRevealUnit.word;
+      }
+      if (block.kind == MotionTextAnimationKind.letterReveal ||
+          block.kind == MotionTextAnimationKind.typewriter) {
+        return MotionTextRevealUnit.letter;
       }
     }
-    return 1;
+    return MotionTextRevealUnit.letter;
+  }
+
+  double _layerScopeRevealByValueForBinding(
+    MotionTextAnimationBindingModel? binding,
+  ) {
+    return _layerScopeRevealUnitForBinding(binding) == MotionTextRevealUnit.word
+        ? 0
+        : 1;
+  }
+
+  MotionTextRevealDirection _layerScopeRevealDirectionForBinding(
+    MotionTextAnimationBindingModel? binding,
+  ) {
+    final value = binding?.parameterValues['revealDirection'];
+    if (value != null &&
+        (value.kind == MotionPropertyValueKind.enumValue ||
+            value.kind == MotionPropertyValueKind.stringValue)) {
+      final normalized = (value.rawValue as String).trim().toLowerCase();
+      if (normalized == 'reverse' || normalized == 'backward') {
+        return MotionTextRevealDirection.reverse;
+      }
+      return MotionTextRevealDirection.forward;
+    }
+    for (final block
+        in binding?.animationBlocks ?? const <MotionTextAnimationBlock>[]) {
+      if (!_isMotionTextRevealBlock(block)) {
+        continue;
+      }
+      final parameterValue = block.parameters['revealDirection'];
+      if (parameterValue == null ||
+          (parameterValue.kind != MotionPropertyValueKind.enumValue &&
+              parameterValue.kind != MotionPropertyValueKind.stringValue)) {
+        continue;
+      }
+      final normalized =
+          (parameterValue.rawValue as String).trim().toLowerCase();
+      if (normalized == 'reverse' || normalized == 'backward') {
+        return MotionTextRevealDirection.reverse;
+      }
+    }
+    return MotionTextRevealDirection.forward;
+  }
+
+  double _layerScopeRevealDirectionValueForBinding(
+    MotionTextAnimationBindingModel? binding,
+  ) {
+    return _layerScopeRevealDirectionForBinding(binding) ==
+            MotionTextRevealDirection.reverse
+        ? 1
+        : 0;
   }
 
   String _formatLayerScopeRevealBy(double value) {
     return value.round() <= 0 ? 'Word' : 'Letter';
+  }
+
+  String _formatLayerScopeRevealDirection(double value) {
+    return value.round() <= 0 ? 'Forward' : 'Reverse';
   }
 
   bool _canOpenLayerScopeValueEditor(
@@ -3341,6 +3418,19 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           options: const <LayerScopeValueOption>[
             LayerScopeValueOption(label: 'Word', value: 0),
             LayerScopeValueOption(label: 'Letter', value: 1),
+          ],
+        ),
+        LayerScopeValueControlSpec(
+          id: 'revealDirection',
+          label: 'Direction',
+          value: _layerScopeRevealDirectionValueForBinding(binding),
+          min: 0,
+          max: 1,
+          divisions: 1,
+          formatValue: _formatLayerScopeRevealDirection,
+          options: const <LayerScopeValueOption>[
+            LayerScopeValueOption(label: 'Forward', value: 0),
+            LayerScopeValueOption(label: 'Reverse', value: 1),
           ],
         ),
       ];
@@ -4244,6 +4334,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return MotionPropertyValue.enumValue(revealUnit.name);
   }
 
+  MotionPropertyValue _defaultRevealDirectionParameterForScopedTextEffectItem(
+    AnimateBrowserItem item,
+  ) {
+    return MotionPropertyValue.enumValue(
+        MotionTextRevealDirection.forward.name);
+  }
+
   bool _isMotionTextRevealBlock(MotionTextAnimationBlock block) =>
       block.kind == MotionTextAnimationKind.typewriter ||
       block.kind == MotionTextAnimationKind.wordReveal ||
@@ -4256,7 +4353,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
   List<MotionTextAnimationBindingModel>? _updateLayerScopeRevealBinding({
     required _LayerScopeContext context,
-    required MotionTextRevealUnit revealUnit,
+    MotionTextRevealUnit? revealUnit,
+    MotionTextRevealDirection? revealDirection,
   }) {
     if (context.track.kind != TimelineTrackKind.text) {
       return null;
@@ -4265,6 +4363,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (binding == null) {
       return null;
     }
+    final nextRevealUnit =
+        revealUnit ?? _layerScopeRevealUnitForBinding(binding);
+    final nextRevealDirection =
+        revealDirection ?? _layerScopeRevealDirectionForBinding(binding);
     final nextBindings = <MotionTextAnimationBindingModel>[
       for (final current in _motionTextAnimationBindings)
         if (current.id == binding.id)
@@ -4282,17 +4384,25 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                     relativeRange: block.relativeRange,
                     interpolation: block.interpolation,
                     revealSpec: MotionTextRevealSpec(
-                      unit: revealUnit,
+                      unit: nextRevealUnit,
                       stagger: block.revealSpec?.stagger ?? TimelineTime.zero,
                     ),
-                    parameters: block.parameters,
+                    parameters: <String, MotionPropertyValue>{
+                      ...block.parameters,
+                      'revealDirection': MotionPropertyValue.enumValue(
+                        nextRevealDirection.name,
+                      ),
+                    },
                   )
                 else
                   block,
             ],
             parameterValues: <String, MotionPropertyValue>{
               ...current.parameterValues,
-              'revealBy': MotionPropertyValue.enumValue(revealUnit.name),
+              'revealBy': MotionPropertyValue.enumValue(nextRevealUnit.name),
+              'revealDirection': MotionPropertyValue.enumValue(
+                nextRevealDirection.name,
+              ),
             },
           )
         else
@@ -5068,6 +5178,21 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         revealUnit: value.round() <= 0
             ? MotionTextRevealUnit.word
             : MotionTextRevealUnit.letter,
+      );
+      if (nextBindings == null) {
+        return;
+      }
+      setState(() {
+        _motionTextAnimationBindings = nextBindings;
+        _motionRevision += 1;
+      });
+      return;
+    } else if (controlId == 'revealDirection') {
+      final nextBindings = _updateLayerScopeRevealBinding(
+        context: context,
+        revealDirection: value.round() <= 0
+            ? MotionTextRevealDirection.forward
+            : MotionTextRevealDirection.reverse,
       );
       if (nextBindings == null) {
         return;
@@ -6683,6 +6808,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                     ...binding.parameterValues,
                     'revealBy':
                         _defaultRevealByParameterForScopedTextEffectItem(item),
+                    'revealDirection': binding
+                            .parameterValues['revealDirection'] ??
+                        _defaultRevealDirectionParameterForScopedTextEffectItem(
+                          item,
+                        ),
                   }
                 : binding.parameterValues,
           )
@@ -6698,6 +6828,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
               ? <String, MotionPropertyValue>{
                   'revealBy':
                       _defaultRevealByParameterForScopedTextEffectItem(item),
+                  'revealDirection':
+                      _defaultRevealDirectionParameterForScopedTextEffectItem(
+                    item,
+                  ),
                 }
               : const <String, MotionPropertyValue>{},
         ),

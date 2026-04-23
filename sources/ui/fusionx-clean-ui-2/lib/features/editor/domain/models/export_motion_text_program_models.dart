@@ -143,6 +143,7 @@ class ExportMotionTextProgramAnimationBlock {
     required this.interpolation,
     required Map<String, MotionPropertyValue> parameters,
     this.revealUnit,
+    this.revealDirection,
     this.revealStagger,
   }) : parameters = Map.unmodifiable(parameters);
 
@@ -152,6 +153,7 @@ class ExportMotionTextProgramAnimationBlock {
   final ExportMotionInterpolationSpec interpolation;
   final Map<String, MotionPropertyValue> parameters;
   final String? revealUnit;
+  final String? revealDirection;
   final TimelineTime? revealStagger;
 
   String get interpolationKind => interpolation.kind;
@@ -164,6 +166,7 @@ class ExportMotionTextProgramAnimationBlock {
         'interpolation': interpolation.toBridgeMap(),
         'parameters': _motionPropertyValueMapBridgeValue(parameters),
         'revealUnit': revealUnit,
+        'revealDirection': revealDirection,
         'revealStaggerMs': revealStagger?.inMilliseconds,
       };
 }
@@ -178,6 +181,7 @@ class ExportMotionTextProgramNode {
     required this.projectRange,
     required this.fullText,
     required this.revealUnit,
+    this.revealDirection = 'forward',
     required this.basePositionX,
     required this.basePositionY,
     required this.baseScaleX,
@@ -215,6 +219,7 @@ class ExportMotionTextProgramNode {
   final TimelineTimeRange projectRange;
   final String fullText;
   final String revealUnit;
+  final String revealDirection;
   final double basePositionX;
   final double basePositionY;
   final double baseScaleX;
@@ -290,6 +295,7 @@ ExportMotionTextProgram? buildExportMotionTextProgram(
           presetCatalog: presetCatalog,
         );
         final revealUnit = _resolveProgramRevealUnit(textAnimation);
+        final revealDirection = _resolveProgramRevealDirection(textAnimation);
         nodes.add(
           ExportMotionTextProgramNode(
             id: buildExportMotionTextNodeId(element.id),
@@ -299,6 +305,7 @@ ExportMotionTextProgram? buildExportMotionTextProgram(
             projectRange: element.projectRange,
             fullText: fullText,
             revealUnit: revealUnit.name,
+            revealDirection: revealDirection.name,
             basePositionX: _staticScalarPropertyOrDefault(
               element.staticProperties,
               MotionPropertyCatalog.positionX,
@@ -465,6 +472,7 @@ ExportMotionTextProgramAnimationBlock _buildProgramAnimationBlock(
     interpolation: _exportInterpolationFromMotion(block.interpolation),
     parameters: block.parameters,
     revealUnit: block.revealSpec?.unit.name,
+    revealDirection: _parameterString(block.parameters['revealDirection']),
     revealStagger: block.revealSpec?.stagger,
   );
 }
@@ -631,4 +639,32 @@ MotionTextRevealUnit _resolveProgramRevealUnit(
     return MotionTextRevealUnit.letter;
   }
   return MotionTextRevealUnit.wholeText;
+}
+
+MotionTextRevealDirection _resolveProgramRevealDirection(
+  MotionResolvedTextAnimationModel? textAnimation,
+) {
+  final parameterValue = textAnimation?.parameterValues['revealDirection'];
+  final normalized = switch (parameterValue?.kind) {
+    MotionPropertyValueKind.enumValue ||
+    MotionPropertyValueKind.stringValue =>
+      (parameterValue!.rawValue as String).trim().toLowerCase(),
+    _ => null,
+  };
+  if (normalized == 'reverse' || normalized == 'backward') {
+    return MotionTextRevealDirection.reverse;
+  }
+  return MotionTextRevealDirection.forward;
+}
+
+String? _parameterString(MotionPropertyValue? value) {
+  if (value == null) {
+    return null;
+  }
+  return switch (value.kind) {
+    MotionPropertyValueKind.enumValue ||
+    MotionPropertyValueKind.stringValue =>
+      value.rawValue as String,
+    _ => null,
+  };
 }

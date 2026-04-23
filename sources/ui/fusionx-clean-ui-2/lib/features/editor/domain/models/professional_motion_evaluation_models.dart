@@ -228,6 +228,7 @@ class MotionEvaluatedTextAnimationState {
     required this.targetAddress,
     required this.activationState,
     required this.revealUnit,
+    this.revealDirection = MotionTextRevealDirection.forward,
     required List<MotionTextAnimationKind> animationKinds,
     this.presetId,
     this.revealProgress,
@@ -240,6 +241,7 @@ class MotionEvaluatedTextAnimationState {
   final String? presetId;
   final double? revealProgress;
   final MotionTextRevealUnit revealUnit;
+  final MotionTextRevealDirection revealDirection;
   final List<MotionTextAnimationKind> animationKinds;
 }
 

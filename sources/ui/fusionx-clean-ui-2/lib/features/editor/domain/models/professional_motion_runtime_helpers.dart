@@ -928,6 +928,7 @@ class BasicMotionRuntimeEvaluator implements MotionRuntimeEvaluator {
           presetId: textAnimation.presetId,
           revealProgress: revealProgress,
           revealUnit: _resolveTextAnimationRevealUnit(textAnimation),
+          revealDirection: _resolveTextAnimationRevealDirection(textAnimation),
           animationKinds: textAnimation.animationKinds,
         ),
       );
@@ -1029,5 +1030,23 @@ class BasicMotionRuntimeEvaluator implements MotionRuntimeEvaluator {
       return MotionTextRevealUnit.letter;
     }
     return MotionTextRevealUnit.wholeText;
+  }
+
+  MotionTextRevealDirection _resolveTextAnimationRevealDirection(
+    MotionResolvedTextAnimationModel textAnimation,
+  ) {
+    final parameterValue = textAnimation.parameterValues['revealDirection'];
+    if (parameterValue != null) {
+      final normalized = switch (parameterValue.kind) {
+        MotionPropertyValueKind.enumValue ||
+        MotionPropertyValueKind.stringValue =>
+          (parameterValue.rawValue as String).trim().toLowerCase(),
+        _ => null,
+      };
+      if (normalized == 'reverse' || normalized == 'backward') {
+        return MotionTextRevealDirection.reverse;
+      }
+    }
+    return MotionTextRevealDirection.forward;
   }
 }

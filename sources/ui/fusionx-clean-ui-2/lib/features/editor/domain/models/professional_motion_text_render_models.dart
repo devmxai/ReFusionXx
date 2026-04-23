@@ -28,6 +28,7 @@ class MotionTextRenderNode {
     required this.text,
     required this.fullText,
     required this.revealUnit,
+    this.revealDirection = MotionTextRevealDirection.forward,
     required this.revealProgress,
     required this.hasRevealAnimation,
     required List<MotionTextAnimationKind> animationKinds,
@@ -68,6 +69,7 @@ class MotionTextRenderNode {
   final String text;
   final String fullText;
   final MotionTextRevealUnit revealUnit;
+  final MotionTextRevealDirection revealDirection;
   final double? revealProgress;
   final bool hasRevealAnimation;
   final List<MotionTextAnimationKind> animationKinds;
@@ -153,6 +155,7 @@ class BasicMotionTextRenderAdapter implements MotionTextRenderAdapter {
             text: node.visibleText,
             fullText: node.fullText,
             revealUnit: node.revealUnit,
+            revealDirection: node.revealDirection,
             revealProgress: node.revealProgress,
             hasRevealAnimation: node.animationKinds.any(
               (kind) =>

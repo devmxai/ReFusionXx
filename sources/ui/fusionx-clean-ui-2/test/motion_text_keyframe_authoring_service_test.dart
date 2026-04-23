@@ -404,4 +404,99 @@ void main() {
     expect(preview.nodes.single.revealUnit, MotionTextRevealUnit.word);
     expect(preview.nodes.single.visibleText, 'Hello Motion');
   });
+
+  test('preview binder respects reverse reveal direction for visible text', () {
+    final projectRange = range(0, 5);
+    final project = MotionProjectModel(
+      id: 'project',
+      format: const MotionProjectFormat(
+        canvasSize: MotionSize2D(width: 1080, height: 1920),
+      ),
+      frameRate: const MotionFrameRate(numerator: 30, denominator: 1),
+      scenes: <MotionSceneModel>[
+        MotionSceneModel(
+          id: 'scene',
+          projectRange: projectRange,
+          layers: <MotionLayerModel>[
+            MotionLayerModel(
+              id: 'layer',
+              sceneId: 'scene',
+              kind: MotionLayerKind.text,
+              visibleRange: projectRange,
+              elements: <MotionElementModel>[
+                MotionElementModel(
+                  id: 'text-1',
+                  layerId: 'layer',
+                  kind: MotionElementKind.text,
+                  localRange: projectRange,
+                  sourceBinding: MotionElementSourceBinding(
+                    kind: MotionSourceKind.generatedText,
+                    sourceId: 'text-source',
+                    metadata: const <String, String>{
+                      'text': 'Hello Motion World',
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+    final compileResult = BasicMotionCompositionCompiler().compile(
+      MotionCompileRequest(
+        project: project,
+        propertyChannels: <MotionPropertyChannelModel>[
+          MotionPropertyChannelModel(
+            id: 'manual.reveal',
+            target: target,
+            definition: MotionPropertyCatalog.revealProgress,
+            activeRange: projectRange,
+            baseValue: const MotionPropertyValue.scalar(0.5),
+          ),
+        ],
+        textAnimationBindings: <MotionTextAnimationBindingModel>[
+          MotionTextAnimationBindingModel(
+            id: 'binding',
+            elementTarget: target,
+            activeRange: projectRange,
+            animationBlocks: <MotionTextAnimationBlock>[
+              MotionTextAnimationBlock(
+                id: 'type-on',
+                kind: MotionTextAnimationKind.typewriter,
+                relativeRange: projectRange,
+                parameters: const <String, MotionPropertyValue>{
+                  'manualRevealProgress': MotionPropertyValue.boolean(true),
+                },
+              ),
+            ],
+            parameterValues: const <String, MotionPropertyValue>{
+              'revealBy': MotionPropertyValue.enumValue('word'),
+              'revealDirection': MotionPropertyValue.enumValue('reverse'),
+            },
+          ),
+        ],
+      ),
+    );
+
+    final composition = compileResult.composition!;
+    final evaluation = const BasicMotionRuntimeEvaluator().evaluate(
+      MotionEvaluationRequest(
+        composition: composition,
+        time: TimelineTime.fromSecondsDouble(1),
+      ),
+    );
+    final preview = BasicMotionTextPreviewBinder().bind(
+      composition: composition,
+      evaluation: evaluation,
+    );
+
+    expect(preview.nodes, hasLength(1));
+    expect(preview.nodes.single.revealUnit, MotionTextRevealUnit.word);
+    expect(
+      preview.nodes.single.revealDirection,
+      MotionTextRevealDirection.reverse,
+    );
+    expect(preview.nodes.single.visibleText, 'Motion World');
+  });
 }

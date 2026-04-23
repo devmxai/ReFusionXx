@@ -78,6 +78,7 @@ class MotionTextRasterExportProgramNode {
     required this.projectRange,
     required this.fullText,
     required this.revealUnit,
+    this.revealDirection = 'forward',
     required this.typography,
     required this.effects,
     required this.layout,
@@ -100,6 +101,7 @@ class MotionTextRasterExportProgramNode {
   final TimelineTimeRange projectRange;
   final String fullText;
   final String revealUnit;
+  final String revealDirection;
   final MotionTextTypographyContract typography;
   final MotionTextEffectsContract effects;
   final MotionTextLayoutContract layout;
@@ -131,6 +133,7 @@ class MotionTextRasterExportProgramNode {
         },
         'fullText': fullText,
         'revealUnit': revealUnit,
+        'revealDirection': revealDirection,
         'typography': typography.toBridgeMap(),
         'effects': effects.toBridgeMap(),
         'layout': layout.toBridgeMap(),
@@ -338,6 +341,7 @@ class MotionTextRasterNode {
     required this.text,
     required this.fullText,
     required this.revealUnit,
+    this.revealDirection = MotionTextRevealDirection.forward,
     required this.revealProgress,
     required this.hasRevealAnimation,
     required List<MotionTextAnimationKind> animationKinds,
@@ -359,6 +363,7 @@ class MotionTextRasterNode {
   final String text;
   final String fullText;
   final MotionTextRevealUnit revealUnit;
+  final MotionTextRevealDirection revealDirection;
   final double? revealProgress;
   final bool hasRevealAnimation;
   final List<MotionTextAnimationKind> animationKinds;
@@ -438,6 +443,7 @@ class MotionTextRasterNode {
         'text': text,
         'fullText': fullText,
         'revealUnit': revealUnit.name,
+        'revealDirection': revealDirection.name,
         'revealProgress': revealProgress,
         'hasRevealAnimation': hasRevealAnimation,
         'animationKinds': animationKinds.map((kind) => kind.name).toList(),
@@ -521,6 +527,7 @@ class BasicMotionTextRasterContractAdapter
               text: node.text,
               fullText: node.fullText,
               revealUnit: node.revealUnit,
+              revealDirection: node.revealDirection,
               revealProgress: node.revealProgress,
               hasRevealAnimation: node.hasRevealAnimation,
               animationKinds: node.animationKinds,
@@ -584,6 +591,7 @@ MotionTextRasterExportProgram? buildMotionTextRasterExportProgram({
             projectRange: node.projectRange,
             fullText: node.fullText,
             revealUnit: node.revealUnit,
+            revealDirection: node.revealDirection,
             typography: MotionTextTypographyContract(
               fontSize: node.baseFontSize,
               letterSpacing: node.baseLetterSpacing,
