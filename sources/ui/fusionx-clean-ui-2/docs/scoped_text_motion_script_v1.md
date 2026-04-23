@@ -1,9 +1,13 @@
 # Scoped Text Motion Script V1
 
-Status: first import contract for `Add Script` inside text scoped layer.
+Status: active authoring contract after interpolation rollout Phases 1-3.
 
-This document defines the first practical script format that AI agents can
+This document defines the practical script format that AI agents should now
 generate for ReFusion without needing target IDs.
+
+After the interpolation rollout updates, agents should prefer canonical
+interpolation objects for spring/bounce/elastic motion instead of faking those
+behaviors with dense manual scale keyframes.
 
 ## Core Rule
 
@@ -30,6 +34,31 @@ Allow an AI agent to generate motion that:
   - keyframe value edits
   - graph/easing edits
   - manual timeline retiming
+
+## What Changed After The Motion Update
+
+Older scripts may still import successfully, but they may not benefit from the
+new motion path if they were authored like this:
+
+- many tiny scale keyframes trying to imitate bounce manually
+- only `linear` or generic `easeOut` easing
+- no explicit interpolation payload for spring/bounce/elastic
+
+The updated authoring direction is:
+
+- prefer fewer, clearer keyframes
+- place the important poses at meaningful times
+- express motion character through canonical interpolation objects
+- let ReFusion evaluate spring/bounce/elastic from the interpolation spec
+
+In practice, that means an AI agent should now prefer:
+
+- `easing: { "kind": "spring", ... }`
+- `easing: { "kind": "bounce", ... }`
+- `easing: { "kind": "elastic", ... }`
+
+instead of manually simulating the same feel with many baked keys unless the
+user explicitly asks for handcrafted frame-by-frame timing.
 
 ## Supported Input Formats
 
@@ -66,6 +95,10 @@ Important rules:
   easyEase, spring, bounce, elastic.
 - For `spring`, `bounce`, and `elastic`, prefer object form with explicit
   parameters so the authored meaning stays stable.
+- Do not fake bounce or elastic with many tiny scale keys unless the user
+  explicitly asks for a hand-shaped animation.
+- Prefer 2 to 4 key poses per property for entrances and settles, then attach
+  the motion character through interpolation objects.
 - Return only valid JSON, with no markdown fences and no explanation.
 ```
 
@@ -75,6 +108,33 @@ Related:
   interpolation contract and rollout phases
 
 ## Contract
+
+## Agent Interpretation Rules
+
+If an agent is asked to create motion such as:
+
+- bounce in
+- elastic pop
+- text rises in and settles
+- pop-up headline entrance
+
+the agent should think in this order:
+
+1. choose the minimum set of properties needed:
+   - usually `opacity`
+   - `scale` and/or `position`
+   - sometimes `rotation`
+2. place the main poses at meaningful times
+3. attach canonical interpolation specs to the transitions
+4. keep the result editable after import
+
+The agent should not require:
+
+- IDs
+- internal engine names
+- hidden timeline references
+
+The opened scoped text layer is the target.
 
 ## Interpolation Guidance
 
@@ -120,6 +180,77 @@ Recommended canonical object forms:
       "keyframes": [
         { "timeMs": 0, "value": 0, "easing": "linear" },
         { "timeMs": 220, "value": 100, "easing": "easeOut" }
+      ]
+    }
+  ]
+}
+```
+
+### Recommended Shape For Professional Motion
+
+For professional entrances, prefer explicit channels with interpolation objects.
+
+Example: bounce-style headline pop
+
+```json
+{
+  "schemaVersion": "refusion.scope-text-script/v1",
+  "name": "Headline Bounce In",
+  "channels": [
+    {
+      "property": "opacity",
+      "keyframes": [
+        {
+          "timeMs": 0,
+          "value": 0,
+          "easing": "linear"
+        },
+        {
+          "timeMs": 140,
+          "value": 100,
+          "easing": "easeOut"
+        }
+      ]
+    },
+    {
+      "property": "position",
+      "keyframes": [
+        {
+          "timeMs": 0,
+          "value": { "x": 0, "y": 42 },
+          "easing": {
+            "kind": "spring",
+            "stiffness": 240,
+            "damping": 20,
+            "mass": 1.0,
+            "initialVelocity": 0
+          }
+        },
+        {
+          "timeMs": 520,
+          "value": { "x": 0, "y": 0 },
+          "easing": "easeOut"
+        }
+      ]
+    },
+    {
+      "property": "scale",
+      "keyframes": [
+        {
+          "timeMs": 0,
+          "value": 72,
+          "easing": {
+            "kind": "bounce",
+            "amplitude": 0.2,
+            "bounces": 3,
+            "decay": 8.0
+          }
+        },
+        {
+          "timeMs": 440,
+          "value": 100,
+          "easing": "easeOut"
+        }
       ]
     }
   ]
@@ -198,8 +329,30 @@ Supported easing strings:
 - `easeOut`
 - `easeInOut`
 - `easyEase`
+- `spring`
 - `bounce`
 - `elastic`
+
+Preferred advanced easing form:
+
+```json
+{
+  "kind": "spring",
+  "stiffness": 220,
+  "damping": 18,
+  "mass": 1.0,
+  "initialVelocity": 0
+}
+```
+
+Use object form when:
+
+- the motion should feel intentionally springy
+- the agent wants stable authored meaning
+- the result should survive future parser changes more predictably
+
+If an unsupported easing is supplied, the importer may warn and fall back to
+`easeInOut`. Agents should therefore avoid vague or unofficial easing labels.
 
 ## High-Level Block Import
 
@@ -250,6 +403,17 @@ Supported block kinds:
 - `cinematicEntrance`
 - `cinematicExit`
 
+Use high-level blocks when:
+
+- the agent cannot yet author explicit channels
+- the user wants a quick first pass
+
+Prefer explicit `channels` when:
+
+- the user wants professional control
+- bounce/elastic feel matters
+- the user may retime or reshape keys by hand after import
+
 ## Best Practice
 
 Prefer `channels` when:
@@ -257,6 +421,36 @@ Prefer `channels` when:
 - the AI should create precise editable motion
 - the user will retime or reshape keyframes manually after import
 - the animation uses bounce, overshoot, or layered timing
+
+## Practical Authoring Guidance For Agents
+
+When writing scripts for the updated engine:
+
+- do not assume that old hand-baked bounce scripts are the best path
+- do use canonical interpolation objects for `spring`, `bounce`, and `elastic`
+- do keep the number of keyframes modest and meaningful
+- do combine `opacity` with `scale` or `position` for stronger entrances
+- do write scripts so that imported lanes remain readable in the scoped
+  timeline
+
+Recommended first choices:
+
+- headline pop: `opacity + scale`
+- soft rise in: `opacity + position`
+- elastic pop: `opacity + scale + slight position settle`
+- letter or word reveal: `revealProgress` plus reveal metadata
+
+## Current Limitation
+
+As of this document update:
+
+- canonical interpolation authoring is implemented
+- Dart preview/runtime evaluation is implemented
+- import normalization is implemented
+- export parity is still a later rollout phase
+
+That means a generated script should now look better in scoped playback and
+editing, but export parity for advanced interpolation is still being completed.
 
 Prefer `animationBlocks` only when:
 

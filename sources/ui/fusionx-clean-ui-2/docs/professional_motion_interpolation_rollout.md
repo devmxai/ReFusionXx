@@ -1,6 +1,6 @@
 # Professional Motion Interpolation Rollout
 
-Status: active rollout plan. Phase 1 started.
+Status: active rollout plan. Phases 1-3 completed. Phase 4 pending.
 
 This document is the strict implementation plan for upgrading ReFusion motion
 interpolation from partial labels to a professional, canonical contract that
@@ -149,11 +149,16 @@ Success criteria:
 
 ## 5. Current Implementation State
 
-As of Phase 1:
+As of Phase 3:
 
 - the canonical contract now exists at the model layer
 - script and preset import preserve `spring`, `bounce`, and `elastic` payloads
 - bridge/export models preserve the authored payloads
+- Dart-side preview/runtime uses a shared evaluator for:
+  - `spring`
+  - `bounce`
+  - `elastic`
+- script import and preset import now share canonical interpolation parsing
 - export runtime parity remains intentionally blocked until later phases
 
 ## 6. Notes For Agents
@@ -164,5 +169,9 @@ If an AI agent is asked to generate a motion script:
 - use parameterized `bounce` and `elastic` objects instead of vague prose
 - do not ask for target or layer IDs when the script is intended for the active
   scoped text layer
-- remember that Phase 1 establishes authoring fidelity, not final playback
-  fidelity
+- do not hand-bake bounce or elastic with many micro keyframes unless the user
+  explicitly asks for handcrafted timing
+- prefer a small number of readable key poses and attach motion character
+  through interpolation objects
+- remember that preview/runtime fidelity is now improved on the Dart side, but
+  export parity is still a separate rollout phase
