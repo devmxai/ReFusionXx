@@ -23,6 +23,7 @@ class TransitionBrowserBottomSheet extends StatefulWidget {
   const TransitionBrowserBottomSheet({
     super.key,
     this.presets = const <TimelineTransitionPreset>[
+      TimelineTransitionPreset.crossDissolve,
       TimelineTransitionPreset.fadeBlack,
       TimelineTransitionPreset.zoomInCamera,
     ],
