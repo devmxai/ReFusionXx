@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -5,6 +6,49 @@ import 'package:flutter/material.dart';
 
 import '../../domain/models/professional_motion_text_raster_models.dart';
 import '../../domain/models/professional_motion_text_render_models.dart';
+
+const int _motionTextLayoutCacheCapacity = 192;
+final LinkedHashMap<_TextLayoutCacheKey, _MeasuredTextLayout>
+    _motionTextLayoutCache =
+    LinkedHashMap<_TextLayoutCacheKey, _MeasuredTextLayout>();
+
+void warmMotionTextPreviewOverlayCaches({
+  required MotionTextRenderSnapshot snapshot,
+  Size? viewportSize,
+}) {
+  final rasterSnapshot =
+      const BasicMotionTextRasterContractAdapter().adapt(snapshot: snapshot);
+  final canvasWidth = rasterSnapshot.canvasSize.width <= 0
+      ? (viewportSize?.width ?? 1)
+      : rasterSnapshot.canvasSize.width;
+  final canvasHeight = rasterSnapshot.canvasSize.height <= 0
+      ? (viewportSize?.height ?? 1)
+      : rasterSnapshot.canvasSize.height;
+  final viewportWidth = viewportSize?.width ?? canvasWidth;
+  final viewportHeight = viewportSize?.height ?? canvasHeight;
+  final scaleX = canvasWidth == 0 ? 1.0 : viewportWidth / canvasWidth;
+  final scaleY = canvasHeight == 0 ? 1.0 : viewportHeight / canvasHeight;
+
+  for (final node in rasterSnapshot.nodes) {
+    if (node.text.isEmpty || node.effects.opacity <= 0) {
+      continue;
+    }
+    final metrics = node.resolveMetrics(
+      scaleX: scaleX,
+      scaleY: scaleY,
+      policy: rasterSnapshot.rasterizationPolicy,
+    );
+    _motionTextLayoutForKey(
+      _TextLayoutCacheKey(
+        text: node.text,
+        style: _textStyleForMotionNode(node, metrics),
+        letterSpacingPx: metrics.letterSpacingPx,
+        lineHeightMultiplier: node.typography.lineHeight,
+        textAlignment: node.typography.textAlignment,
+      ),
+    );
+  }
+}
 
 class MotionTextPreviewOverlay extends StatelessWidget {
   const MotionTextPreviewOverlay({
@@ -93,30 +137,34 @@ class _MotionTextPreviewNodeWidgetState
       scaleY: widget.scaleY,
       policy: widget.rasterizationPolicy,
     );
-    final textColor = Color(node.typography.colorArgb);
     final compositeOpacity = node.effects.opacity.clamp(0.0, 1.0);
-    final baseStyle = TextStyle(
-      color: textColor,
-      fontSize: metrics.fontSizePx,
-      fontFamily: node.typography.fontFamily,
-      fontWeight: _resolveFontWeight(node.typography.fontWeight),
-      fontStyle: _resolveFontStyle(node.typography.fontStyle),
-    );
+    final baseStyle = _textStyleForMotionNode(node, metrics);
     final layoutKey = _TextLayoutCacheKey(
       text: node.text,
       style: baseStyle,
       letterSpacingPx: metrics.letterSpacingPx,
-      horizontalPaddingPx: metrics.layoutPaddingPx,
       lineHeightMultiplier: node.typography.lineHeight,
       textAlignment: node.typography.textAlignment,
     );
     final layout =
         _layoutKey == layoutKey ? _layout! : _buildAndCacheLayout(layoutKey);
+    final layoutWidth = _paddedLayoutExtent(
+      layout.contentWidth,
+      metrics.layoutPaddingPx,
+    );
+    final layoutHeight = _paddedLayoutExtent(
+      layout.contentHeight,
+      metrics.layoutPaddingPx,
+    );
+    final paintOffset = Offset(
+      metrics.layoutPaddingPx,
+      metrics.layoutPaddingPx,
+    );
 
     final anchorOffset = _resolveAnchorOffset(
       anchor: node.layout.anchor,
-      width: layout.width,
-      height: layout.height,
+      width: layoutWidth,
+      height: layoutHeight,
     );
     final centerX = (widget.viewportWidth / 2) + metrics.translatedX;
     final centerY = (widget.viewportHeight / 2) + metrics.translatedY;
@@ -129,6 +177,7 @@ class _MotionTextPreviewNodeWidgetState
     Widget buildPaintedText() => CustomPaint(
           painter: _ShapedTextPainter(
             layout: layout,
+            paintOffset: paintOffset,
           ),
         );
     Widget paintedText = buildPaintedText();
@@ -162,8 +211,8 @@ class _MotionTextPreviewNodeWidgetState
 
     Widget child = RepaintBoundary(
       child: SizedBox(
-        width: layout.width,
-        height: layout.height,
+        width: layoutWidth,
+        height: layoutHeight,
         child: paintedText,
       ),
     );
@@ -184,14 +233,7 @@ class _MotionTextPreviewNodeWidgetState
   }
 
   _MeasuredTextLayout _buildAndCacheLayout(_TextLayoutCacheKey key) {
-    final layout = _buildShapedTextLayout(
-      text: key.text,
-      style: key.style,
-      letterSpacingPx: key.letterSpacingPx,
-      horizontalPaddingPx: key.horizontalPaddingPx,
-      lineHeightMultiplier: key.lineHeightMultiplier,
-      textAlignment: key.textAlignment,
-    );
+    final layout = _motionTextLayoutForKey(key);
     _layoutKey = key;
     _layout = layout;
     return layout;
@@ -212,32 +254,32 @@ ui.TileMode _blurTileModeForValue(double value) {
 class _ShapedTextPainter extends CustomPainter {
   const _ShapedTextPainter({
     required this.layout,
+    required this.paintOffset,
   });
 
   final _MeasuredTextLayout layout;
+  final Offset paintOffset;
 
   @override
   void paint(Canvas canvas, Size size) {
-    layout.painter.paint(canvas, layout.paintOffset);
+    layout.painter.paint(canvas, paintOffset);
   }
 
   @override
   bool shouldRepaint(covariant _ShapedTextPainter oldDelegate) =>
-      oldDelegate.layout != layout;
+      oldDelegate.layout != layout || oldDelegate.paintOffset != paintOffset;
 }
 
 class _MeasuredTextLayout {
   const _MeasuredTextLayout({
-    required this.width,
-    required this.height,
+    required this.contentWidth,
+    required this.contentHeight,
     required this.painter,
-    required this.paintOffset,
   });
 
-  final double width;
-  final double height;
+  final double contentWidth;
+  final double contentHeight;
   final TextPainter painter;
-  final Offset paintOffset;
 }
 
 @immutable
@@ -246,7 +288,6 @@ class _TextLayoutCacheKey {
     required this.text,
     required this.style,
     required this.letterSpacingPx,
-    required this.horizontalPaddingPx,
     required this.lineHeightMultiplier,
     required this.textAlignment,
   });
@@ -254,7 +295,6 @@ class _TextLayoutCacheKey {
   final String text;
   final TextStyle style;
   final double letterSpacingPx;
-  final double horizontalPaddingPx;
   final double lineHeightMultiplier;
   final String textAlignment;
 
@@ -265,7 +305,6 @@ class _TextLayoutCacheKey {
             other.text == text &&
             other.style == style &&
             other.letterSpacingPx == letterSpacingPx &&
-            other.horizontalPaddingPx == horizontalPaddingPx &&
             other.lineHeightMultiplier == lineHeightMultiplier &&
             other.textAlignment == textAlignment;
   }
@@ -275,17 +314,35 @@ class _TextLayoutCacheKey {
         text,
         style,
         letterSpacingPx,
-        horizontalPaddingPx,
         lineHeightMultiplier,
         textAlignment,
       );
+}
+
+_MeasuredTextLayout _motionTextLayoutForKey(_TextLayoutCacheKey key) {
+  final cached = _motionTextLayoutCache.remove(key);
+  if (cached != null) {
+    _motionTextLayoutCache[key] = cached;
+    return cached;
+  }
+  final layout = _buildShapedTextLayout(
+    text: key.text,
+    style: key.style,
+    letterSpacingPx: key.letterSpacingPx,
+    lineHeightMultiplier: key.lineHeightMultiplier,
+    textAlignment: key.textAlignment,
+  );
+  _motionTextLayoutCache[key] = layout;
+  while (_motionTextLayoutCache.length > _motionTextLayoutCacheCapacity) {
+    _motionTextLayoutCache.remove(_motionTextLayoutCache.keys.first);
+  }
+  return layout;
 }
 
 _MeasuredTextLayout _buildShapedTextLayout({
   required String text,
   required TextStyle style,
   required double letterSpacingPx,
-  required double horizontalPaddingPx,
   required double lineHeightMultiplier,
   required String textAlignment,
 }) {
@@ -312,15 +369,26 @@ _MeasuredTextLayout _buildShapedTextLayout({
   )..layout();
   final contentWidth = math.max(1.0, painter.width);
   painter.layout(maxWidth: contentWidth);
-  final width =
-      math.max(1.0, painter.width.ceilToDouble() + (horizontalPaddingPx * 2));
-  final height =
-      math.max(1.0, painter.height.ceilToDouble() + (horizontalPaddingPx * 2));
   return _MeasuredTextLayout(
-    width: width,
-    height: height,
+    contentWidth: math.max(1.0, painter.width.ceilToDouble()),
+    contentHeight: math.max(1.0, painter.height.ceilToDouble()),
     painter: painter,
-    paintOffset: Offset(horizontalPaddingPx, horizontalPaddingPx),
+  );
+}
+
+double _paddedLayoutExtent(double contentExtent, double padding) =>
+    math.max(1.0, contentExtent + (padding * 2));
+
+TextStyle _textStyleForMotionNode(
+  MotionTextRasterNode node,
+  MotionTextResolvedRasterMetrics metrics,
+) {
+  return TextStyle(
+    color: Color(node.typography.colorArgb),
+    fontSize: metrics.fontSizePx,
+    fontFamily: node.typography.fontFamily,
+    fontWeight: _resolveFontWeight(node.typography.fontWeight),
+    fontStyle: _resolveFontStyle(node.typography.fontStyle),
   );
 }
 

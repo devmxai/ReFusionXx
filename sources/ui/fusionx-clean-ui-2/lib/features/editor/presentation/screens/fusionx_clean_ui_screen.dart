@@ -361,6 +361,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   bool _isStoppingTransitionFocusPlayback = false;
   MotionNormalizedComposition? _cachedMotionComposition;
   int _motionRevision = 0;
+  int _motionPreviewWarmupRequestId = 0;
+  int? _lastWarmedMotionRevision;
+  Timer? _motionPreviewWarmupDebounce;
   int? _cachedMotionRevision;
   int? _cachedMotionTimelineDurationTicks;
   int? _cachedMotionCanvasWidth;
@@ -386,6 +389,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   TimelineTime _motionPreviewClockAnchorTime = TimelineTime.zero;
   Duration _motionPreviewClockAnchorElapsed = Duration.zero;
   Duration _motionPreviewClockLatestElapsed = Duration.zero;
+  Size? _lastPreviewStageSize;
 
   @override
   void initState() {
@@ -439,6 +443,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _assetLibrary.dispose();
     _assetLibraryLoading.dispose();
     _assetLibraryError.dispose();
+    _motionPreviewWarmupDebounce?.cancel();
     _motionPreviewFrameTicker.dispose();
     _timelineDisplayTimeNotifier.dispose();
     _playbackSampleTimeNotifier.dispose();
@@ -597,6 +602,86 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _cachedMotionCanvasWidth = currentCanvasWidth;
     _cachedMotionCanvasHeight = currentCanvasHeight;
     return _cachedMotionComposition;
+  }
+
+  void _markMotionAuthoringChanged({bool scheduleWarmup = true}) {
+    _motionRevision += 1;
+    _cachedMotionComposition = null;
+    _cachedMotionRevision = null;
+    _cachedMotionTimelineProjectionRevision = null;
+    _cachedMotionTimelineEntries = null;
+    _cachedMotionTimelineTrack = null;
+    _cachedMotionDisplayTracks = null;
+    _lastWarmedMotionRevision = null;
+    if (scheduleWarmup) {
+      _scheduleMotionPreviewWarmup();
+    }
+  }
+
+  void _scheduleMotionPreviewWarmup({TimelineTime? time}) {
+    if (!mounted) {
+      return;
+    }
+    final requestId = ++_motionPreviewWarmupRequestId;
+    final warmupTime = time ?? _timelineDisplayTimeNotifier.value;
+    _motionPreviewWarmupDebounce?.cancel();
+    _motionPreviewWarmupDebounce = Timer(const Duration(milliseconds: 24), () {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || requestId != _motionPreviewWarmupRequestId) {
+          return;
+        }
+        _warmMotionPreviewForCurrentState(warmupTime);
+      });
+    });
+  }
+
+  void _prepareMotionPreviewForPlaybackStart({TimelineTime? time}) {
+    if (_lastWarmedMotionRevision == _motionRevision &&
+        _cachedMotionRevision == _motionRevision) {
+      return;
+    }
+    _motionPreviewWarmupDebounce?.cancel();
+    _motionPreviewWarmupRequestId += 1;
+    _warmMotionPreviewForCurrentState(time ?? _currentTime);
+  }
+
+  void _warmMotionPreviewForCurrentState(TimelineTime preferredTime) {
+    final composition = _motionCompositionForCurrentState();
+    if (composition == null) {
+      return;
+    }
+    final baseTime = preferredTime.clamp(
+      TimelineTime.zero,
+      composition.projectRange.endExclusive,
+    );
+    final sampleTimes = <TimelineTime>[
+      baseTime,
+      (baseTime + TimelineTime.fromSecondsDouble(1 / 60)).clamp(
+        TimelineTime.zero,
+        composition.projectRange.endExclusive,
+      ),
+      (baseTime + TimelineTime.fromSecondsDouble(2 / 60)).clamp(
+        TimelineTime.zero,
+        composition.projectRange.endExclusive,
+      ),
+      (baseTime + TimelineTime.fromSecondsDouble(4 / 60)).clamp(
+        TimelineTime.zero,
+        composition.projectRange.endExclusive,
+      ),
+    ];
+    for (final sampleTime in sampleTimes) {
+      final snapshot = _motionTextRenderSnapshotForTime(
+        sampleTime,
+        reason: MotionEvaluationReason.diagnostics,
+      );
+      if (snapshot != null) {
+        warmMotionTextPreviewOverlayCaches(
+          snapshot: snapshot,
+          viewportSize: _lastPreviewStageSize,
+        );
+      }
+    }
+    _lastWarmedMotionRevision = _motionRevision;
   }
 
   void _handleExportStateChanged() {
@@ -4920,7 +5005,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
     setState(() {
       _manualMotionPropertyChannels = syncedChannels;
-      _motionRevision += 1;
+      _markMotionAuthoringChanged();
       _selectedLayerScopeAnimationLaneId = lane.id;
       _selectedLayerScopeKeyframeIndex = nextSelectedIndex;
       _selectedLayerScopeKeyframeId = selectedKeyframeId;
@@ -5082,7 +5167,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     setState(() {
       if (syncedChannels != null) {
         _manualMotionPropertyChannels = syncedChannels;
-        _motionRevision += 1;
+        _markMotionAuthoringChanged();
       }
       _selectedLayerScopeAnimationLaneId = laneId;
       _selectedLayerScopeKeyframeIndex = insertIndex;
@@ -5278,7 +5363,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
       setState(() {
         _motionTextAnimationBindings = nextBindings;
-        _motionRevision += 1;
+        _markMotionAuthoringChanged();
       });
       return;
     } else if (controlId == 'revealDirection') {
@@ -5293,7 +5378,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
       setState(() {
         _motionTextAnimationBindings = nextBindings;
-        _motionRevision += 1;
+        _markMotionAuthoringChanged();
       });
       return;
     } else if (controlId == 'positionX' || controlId == 'positionY') {
@@ -5337,7 +5422,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
     setState(() {
       _manualMotionPropertyChannels = syncedChannels!;
-      _motionRevision += 1;
+      _markMotionAuthoringChanged();
     });
   }
 
@@ -5364,7 +5449,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
     setState(() {
       _manualMotionPropertyChannels = syncedChannels;
-      _motionRevision += 1;
+      _markMotionAuthoringChanged();
     });
   }
 
@@ -5450,7 +5535,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           List<MotionPropertyChannelModel>.unmodifiable(nextChannels);
       _motionTextAnimationBindings =
           List<MotionTextAnimationBindingModel>.unmodifiable(nextBindings);
-      _motionRevision += 1;
+      _markMotionAuthoringChanged();
       _selectedClipId = scopeContext.clip.id;
       _selectedLayerScopeAnimationLaneId = imported.selectedLaneId;
       _selectedLayerScopeKeyframeIndex = null;
@@ -6217,7 +6302,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
     setState(() {
       _manualMotionPropertyChannels = nextChannels;
-      _motionRevision += 1;
+      _markMotionAuthoringChanged();
       _selectedClipId = elementId;
       _activeTab = EditorMediaTab.text;
     });
@@ -6251,7 +6336,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
     setState(() {
       _manualMotionPropertyChannels = nextChannels;
-      _motionRevision += 1;
+      _markMotionAuthoringChanged();
       _selectedClipId = elementId;
       _activeTab = EditorMediaTab.text;
     });
@@ -6282,7 +6367,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
     setState(() {
       _manualMotionPropertyChannels = nextChannels;
-      _motionRevision += 1;
+      _markMotionAuthoringChanged();
       _selectedClipId = elementId;
       _activeTab = EditorMediaTab.text;
     });
@@ -6301,7 +6386,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
     setState(() {
       _motionProject = nextProject;
-      _motionRevision += 1;
+      _markMotionAuthoringChanged();
       _selectedClipId = context.element.id;
       _activeTab = EditorMediaTab.text;
     });
@@ -6358,7 +6443,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _motionProject = nextProject;
       _motionTextAnimationBindings = nextBindings;
       _manualMotionPropertyChannels = nextManualChannels;
-      _motionRevision += 1;
+      _markMotionAuthoringChanged();
       if (_textEditSession?.elementId == elementId) {
         _textEditSession = null;
       }
@@ -6503,7 +6588,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _motionProject = nextProject;
       _motionTextAnimationBindings = nextBindings;
       _manualMotionPropertyChannels = nextManualChannels;
-      _motionRevision += 1;
+      _markMotionAuthoringChanged();
       if (_textEditSession?.elementId == elementId) {
         _textEditSession = null;
       }
@@ -6947,7 +7032,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _motionProject = nextProject;
       _motionTextAnimationBindings = nextBindings;
       _manualMotionPropertyChannels = nextManualChannels;
-      _motionRevision += 1;
+      _markMotionAuthoringChanged();
       _selectedClipId = resolvedState.selectedClipId;
       _activeTab = EditorMediaTab.text;
       _previewAssetId = resolvedState.previewAssetId;
@@ -7154,7 +7239,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _motionProject = nextProject;
       _motionTextAnimationBindings = nextBindings;
       _manualMotionPropertyChannels = nextManualChannels;
-      _motionRevision += 1;
+      _markMotionAuthoringChanged();
       if (shouldClearPreviewRange) {
         _textEditPreviewRange = null;
       }
@@ -7737,12 +7822,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             animationBlocks: alreadyApplied && !isRevealEffect
                 ? binding.animationBlocks
                 : <MotionTextAnimationBlock>[
-                    if (isRevealEffect)
-                      for (final block in binding.animationBlocks)
-                        if (!_isMotionTextRevealBlock(block))
-                          block
-                        else
-                          ...binding.animationBlocks,
+                    for (final block in binding.animationBlocks)
+                      if (isRevealEffect
+                          ? !_isMotionTextRevealBlock(block)
+                          : !block.id.startsWith(blockPrefix))
+                        block,
                     ...blocks,
                   ],
             parameterValues: isRevealEffect
@@ -7850,8 +7934,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         _tracks = List<TimelineTrackData>.unmodifiable(nextTracks);
       }
       _motionTextAnimationBindings = nextBindings;
-      if (!alreadyApplied) {
-        _motionRevision += 1;
+      if (!alreadyApplied || isRevealEffect || currentBinding == null) {
+        _markMotionAuthoringChanged();
       }
       _selectedClipId = scopeContext.clip.id;
       _selectedLayerScopeAnimationLaneId = selectedLaneId;
@@ -8396,6 +8480,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (!mounted) {
       return;
     }
+    _prepareMotionPreviewForPlaybackStart(time: previewStartTime);
     await _playPlayback();
   }
 
@@ -8583,7 +8668,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _motionProject = nextProject;
       _motionTextAnimationBindings = nextBindings;
       _textEditSession = session.copyWith(draft: draft);
-      _motionRevision += 1;
+      _markMotionAuthoringChanged();
       _selectedClipId = draft.elementId;
       _activeTab = EditorMediaTab.text;
     });
@@ -8609,7 +8694,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _motionProject = session.originalProject;
       _motionTextAnimationBindings = session.originalBindings;
       _textEditSession = null;
-      _motionRevision += 1;
+      _markMotionAuthoringChanged();
       _selectedClipId = session.elementId;
       _activeTab = EditorMediaTab.text;
     });
@@ -8785,7 +8870,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _tracks = nextTracks;
       _motionProject = insertionResult.project;
       _motionTextAnimationBindings = nextBindings;
-      _motionRevision += 1;
+      _markMotionAuthoringChanged();
       _selectedClipId = resolvedState.selectedClipId;
       _activeTab = EditorMediaTab.text;
       _previewAssetId = resolvedState.previewAssetId;
@@ -9866,6 +9951,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (_canFastTogglePlayback) {
       _setTimelineDisplayTime(_currentTime);
       _syncPlaybackSampleToCurrentTime();
+      _prepareMotionPreviewForPlaybackStart();
       unawaited(_togglePlayback());
       return;
     }
@@ -9918,6 +10004,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (!mounted) {
       return;
     }
+    _prepareMotionPreviewForPlaybackStart(time: effectiveStartTime);
     await _playPlayback();
   }
 
@@ -10015,6 +10102,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         end: entry.end,
       );
     });
+    _prepareMotionPreviewForPlaybackStart(time: entry.start);
     await _playPlayback();
   }
 
@@ -10132,6 +10220,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
     _setTimelineDisplayTime(_currentTime);
     _syncPlaybackSampleToCurrentTime();
+    _prepareMotionPreviewForPlaybackStart();
     if (!_transportController.isPlaying && _useNativePreview) {
       final transportState = _transportController.state;
       if (transportState.sourceKind != 'timeline' ||
@@ -11896,8 +11985,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                     flex: 4,
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(minHeight: 220),
-                      child: Builder(
-                        builder: (context) {
+                      child: LayoutBuilder(
+                        builder: (context, previewConstraints) {
+                          _lastPreviewStageSize = Size(
+                            previewConstraints.maxWidth,
+                            previewConstraints.maxHeight,
+                          );
                           final previewFallback = _CleanPreviewCanvas(
                             asset: previewAsset,
                             previewThumbnailAssetId:

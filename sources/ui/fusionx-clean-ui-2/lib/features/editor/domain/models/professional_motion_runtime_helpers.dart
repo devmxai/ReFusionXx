@@ -515,10 +515,18 @@ class BasicMotionPropertyChannelSampler
       );
     }
 
-    for (var index = 0; index < keyframes.length - 1; index += 1) {
+    var low = 0;
+    var high = keyframes.length - 2;
+    while (low <= high) {
+      final index = low + ((high - low) >> 1);
       final current = keyframes[index];
       final next = keyframes[index + 1];
-      if (time < current.time || time > next.time) {
+      if (time < current.time) {
+        high = index - 1;
+        continue;
+      }
+      if (time > next.time) {
+        low = index + 1;
         continue;
       }
       if (time == current.time) {
