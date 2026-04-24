@@ -254,9 +254,12 @@ class TimelineTrackTransitionData {
     this.curve = TimelineTransitionCurve.easeInOut,
     Map<String, double> parameterValues = const <String, double>{},
     List<String> manualEffectIds = const <String>[],
+    List<TimelineAnimationLaneData> manualAnimationLanes =
+        const <TimelineAnimationLaneData>[],
     this.aiTransition,
   })  : parameterValues = Map.unmodifiable(parameterValues),
-        manualEffectIds = List.unmodifiable(manualEffectIds);
+        manualEffectIds = List.unmodifiable(manualEffectIds),
+        manualAnimationLanes = List.unmodifiable(manualAnimationLanes);
 
   final String id;
   final String leftClipId;
@@ -268,6 +271,7 @@ class TimelineTrackTransitionData {
   final TimelineTransitionCurve curve;
   final Map<String, double> parameterValues;
   final List<String> manualEffectIds;
+  final List<TimelineAnimationLaneData> manualAnimationLanes;
   final AiTransitionDraftData? aiTransition;
 
   TimelineTime get resolvedLeadingDurationTime {
@@ -294,6 +298,30 @@ class TimelineTrackTransitionData {
     return parameterValues[key] ?? fallback;
   }
 
+  TimelineAnimationLaneData? manualAnimationLaneById(String laneId) {
+    for (final lane in manualAnimationLanes) {
+      if (lane.id == laneId) {
+        return lane;
+      }
+    }
+    return null;
+  }
+
+  double manualLaneValueAtProgress(
+    String laneId,
+    double progress, {
+    required double fallbackValue,
+  }) {
+    final lane = manualAnimationLaneById(laneId);
+    if (lane == null) {
+      return fallbackValue;
+    }
+    return lane.evaluateValueAtProgress(
+      progress,
+      fallbackValue: fallbackValue,
+    );
+  }
+
   TimelineTrackTransitionData copyWith({
     String? id,
     String? leftClipId,
@@ -305,6 +333,7 @@ class TimelineTrackTransitionData {
     TimelineTransitionCurve? curve,
     Map<String, double>? parameterValues,
     List<String>? manualEffectIds,
+    List<TimelineAnimationLaneData>? manualAnimationLanes,
     AiTransitionDraftData? aiTransition,
     bool clearAiTransition = false,
   }) {
@@ -319,6 +348,7 @@ class TimelineTrackTransitionData {
       curve: curve ?? this.curve,
       parameterValues: parameterValues ?? this.parameterValues,
       manualEffectIds: manualEffectIds ?? this.manualEffectIds,
+      manualAnimationLanes: manualAnimationLanes ?? this.manualAnimationLanes,
       aiTransition:
           clearAiTransition ? null : aiTransition ?? this.aiTransition,
     );
@@ -419,15 +449,18 @@ class TimelineAnimationLaneData {
 extension TimelineAnimationLaneEvaluation on TimelineAnimationLaneData {
   List<double> alignedKeyframeValues({
     double fallbackValue = 0.0,
+    bool clampToPercent = true,
   }) {
     final stopCount = normalizedKeyframeStops.length;
     if (stopCount == 0) {
       return const <double>[];
     }
     final values = List<double>.from(keyframeValues);
-    final clampedFallback = fallbackValue.clamp(0.0, 100.0).toDouble();
+    final resolvedFallback = clampToPercent
+        ? fallbackValue.clamp(0.0, 100.0).toDouble()
+        : fallbackValue.toDouble();
     if (values.isEmpty) {
-      return List<double>.filled(stopCount, clampedFallback, growable: false);
+      return List<double>.filled(stopCount, resolvedFallback, growable: false);
     }
     while (values.length < stopCount) {
       values.add(values.last);
@@ -435,20 +468,29 @@ extension TimelineAnimationLaneEvaluation on TimelineAnimationLaneData {
     if (values.length > stopCount) {
       values.removeRange(stopCount, values.length);
     }
-    return values
-        .map((value) => value.clamp(0.0, 100.0).toDouble())
-        .toList(growable: false);
+    return values.map((value) {
+      if (!clampToPercent) {
+        return value.toDouble();
+      }
+      return value.clamp(0.0, 100.0).toDouble();
+    }).toList(growable: false);
   }
 
-  double evaluatePercentAtProgress(
+  double evaluateValueAtProgress(
     double progress, {
-    double fallbackPercent = 100.0,
+    double fallbackValue = 0.0,
+    bool clampToPercent = false,
   }) {
-    final clampedFallback = fallbackPercent.clamp(0.0, 100.0).toDouble();
+    final resolvedFallback = clampToPercent
+        ? fallbackValue.clamp(0.0, 100.0).toDouble()
+        : fallbackValue.toDouble();
     if (normalizedKeyframeStops.isEmpty) {
-      return clampedFallback;
+      return resolvedFallback;
     }
-    final values = alignedKeyframeValues(fallbackValue: clampedFallback);
+    final values = alignedKeyframeValues(
+      fallbackValue: resolvedFallback,
+      clampToPercent: clampToPercent,
+    );
     final keyframes = <({double stop, double value})>[
       for (var index = 0; index < normalizedKeyframeStops.length; index++)
         (
@@ -457,7 +499,7 @@ extension TimelineAnimationLaneEvaluation on TimelineAnimationLaneData {
         ),
     ]..sort((left, right) => left.stop.compareTo(right.stop));
     if (keyframes.isEmpty) {
-      return clampedFallback;
+      return resolvedFallback;
     }
     if (keyframes.length == 1) {
       return keyframes.first.value;
@@ -480,6 +522,17 @@ extension TimelineAnimationLaneEvaluation on TimelineAnimationLaneData {
       return previous.value + ((current.value - previous.value) * t);
     }
     return keyframes.last.value;
+  }
+
+  double evaluatePercentAtProgress(
+    double progress, {
+    double fallbackPercent = 100.0,
+  }) {
+    return evaluateValueAtProgress(
+      progress,
+      fallbackValue: fallbackPercent,
+      clampToPercent: true,
+    );
   }
 
   bool matchesPropertyLabel(String value) =>

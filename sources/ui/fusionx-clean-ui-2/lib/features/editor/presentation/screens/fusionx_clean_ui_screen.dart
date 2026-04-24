@@ -96,42 +96,45 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   );
   static final TimelineTime _defaultTextPresetDurationTime =
       TimelineTime.fromSecondsDouble(3);
-  static const List<AnimateBrowserItem> _manualTransitionEffectItems =
+  static const List<AnimateBrowserItem> _manualTransitionAnimateItems =
       <AnimateBrowserItem>[
     AnimateBrowserItem(
       id: 'outgoingBoostScale',
       label: 'Outgoing Scale',
-      category: 'Transform',
+      category: 'Animate',
       summary: 'Push the outgoing clip forward before the handoff.',
       keywords: <String>['zoom out', 'scale', 'push'],
     ),
     AnimateBrowserItem(
       id: 'incomingStartScale',
       label: 'Incoming Scale',
-      category: 'Transform',
+      category: 'Animate',
       summary: 'Start the incoming clip close, then relax to full frame.',
       keywords: <String>['zoom in', 'scale', 'size'],
     ),
     AnimateBrowserItem(
+      id: 'entryDelay',
+      label: 'Entry Delay',
+      category: 'Animate',
+      summary: 'Delay when the incoming clip starts taking over.',
+      keywords: <String>['timing', 'delay', 'handoff'],
+    ),
+  ];
+  static const List<AnimateBrowserItem> _manualTransitionFxItems =
+      <AnimateBrowserItem>[
+    AnimateBrowserItem(
       id: 'blackPeak',
       label: 'Black Mix',
-      category: 'Visual',
+      category: 'FX',
       summary: 'Dip through black around the seam midpoint.',
       keywords: <String>['fade', 'opacity', 'black'],
     ),
     AnimateBrowserItem(
       id: 'bridgeDarkness',
       label: 'Bridge Darkness',
-      category: 'Visual',
+      category: 'FX',
       summary: 'Add a dark cinematic bridge between the two clips.',
       keywords: <String>['dark', 'bridge', 'shade'],
-    ),
-    AnimateBrowserItem(
-      id: 'entryDelay',
-      label: 'Entry Delay',
-      category: 'Timing',
-      summary: 'Delay when the incoming clip starts taking over.',
-      keywords: <String>['timing', 'delay', 'handoff'],
     ),
   ];
   static const List<AnimateBrowserItem> _scopedLayerCoreAnimateItems =
@@ -338,8 +341,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   String? _selectedLayerScopeAnimationLaneId;
   int? _selectedLayerScopeKeyframeIndex;
   String? _selectedLayerScopeKeyframeId;
+  int? _selectedTransitionFocusKeyframeIndex;
+  String? _selectedTransitionFocusKeyframeId;
   bool _isLayerScopeValueEditorOpen = false;
   bool _isLayerScopeGraphEditorOpen = false;
+  bool _isTransitionFocusValueEditorOpen = false;
+  bool _isTransitionFocusGraphEditorOpen = false;
   String? _previewAssetId;
   PreviewViewportState _previewViewportState = PreviewViewportState.identity;
   double? _lockedWorkspaceAspectRatio;
@@ -2696,6 +2703,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         _stopTransitionFocusPlayback(
           transitionFocusContext,
           snapToStart: false,
+          snapToEnd: true,
         ),
       );
     }
@@ -3429,6 +3437,30 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
     return keyframeIndex > 0 ||
         keyframeIndex < lane.normalizedKeyframeStops.length - 1;
+  }
+
+  bool _canAddTransitionFocusKeyframe(
+    _TransitionFocusContext? context,
+  ) {
+    return context != null &&
+        _transitionFocusSelectedAnimationLane(context) != null;
+  }
+
+  bool _canOpenTransitionFocusValueEditor(
+    _TransitionFocusContext? context,
+  ) {
+    if (context == null) {
+      return false;
+    }
+    final lane = _transitionFocusSelectedAnimationLane(context);
+    if (lane == null) {
+      return false;
+    }
+    return (_selectedTransitionFocusKeyframeIndex != null &&
+            _selectedTransitionFocusKeyframeIndex! >= 0 &&
+            _selectedTransitionFocusKeyframeIndex! <
+                lane.normalizedKeyframeStops.length) ||
+        lane.normalizedKeyframeStops.isNotEmpty;
   }
 
   bool _canMoveLayerScopeSelectedKeyframe(
@@ -10050,6 +10082,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       await _stopTransitionFocusPlayback(
         context,
         snapToStart: false,
+        snapToEnd: false,
       );
       return;
     }
@@ -10086,6 +10119,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   Future<void> _stopTransitionFocusPlayback(
     _TransitionFocusContext context, {
     required bool snapToStart,
+    bool snapToEnd = false,
   }) async {
     if (_isStoppingTransitionFocusPlayback || !_useNativePreview) {
       return;
@@ -10093,7 +10127,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _isStoppingTransitionFocusPlayback = true;
     try {
       await _pausePlayback();
-      final targetTime = snapToStart ? context.startTime : context.endTime;
+      final targetTime = snapToStart
+          ? context.startTime
+          : snapToEnd
+              ? context.endTime
+              : _currentTime.clamp(context.startTime, context.endTime);
       await _seekPlaybackTo(targetTime);
       if (!mounted) {
         return;
@@ -10580,6 +10618,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
       if (_transitionFocusSession?.transitionId == transitionId) {
         _transitionFocusSession = null;
+        _selectedTransitionFocusKeyframeIndex = null;
+        _selectedTransitionFocusKeyframeId = null;
+        _isTransitionFocusValueEditorOpen = false;
+        _isTransitionFocusGraphEditorOpen = false;
       }
     });
   }
@@ -10779,11 +10821,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   void _clearTransitionFocusSelection() {
-    if (_selectedClipId == null) {
+    if (_selectedClipId == null &&
+        _selectedTransitionFocusKeyframeIndex == null &&
+        !_isTransitionFocusValueEditorOpen) {
       return;
     }
     setState(() {
       _selectedClipId = null;
+      _selectedTransitionFocusKeyframeIndex = null;
+      _selectedTransitionFocusKeyframeId = null;
+      _isTransitionFocusValueEditorOpen = false;
     });
   }
 
@@ -10853,6 +10900,84 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return clampedTime - context.startTime;
   }
 
+  List<double> _defaultTransitionFocusLaneValues(String laneId) {
+    return switch (laneId) {
+      'outgoingBoostScale' => const <double>[100.0, 105.0],
+      'incomingStartScale' => const <double>[118.0, 100.0],
+      'entryDelay' => const <double>[18.0],
+      'bridgeDarkness' => const <double>[0.0, 22.0, 0.0],
+      'blackPeak' => const <double>[0.0, 100.0, 0.0],
+      _ => const <double>[0.0, 100.0],
+    };
+  }
+
+  TimelineAnimationLaneData? _defaultTransitionFocusManualLane({
+    required String laneId,
+    required String targetClipId,
+  }) {
+    final spec = _transitionLaneLibrary[laneId];
+    if (spec == null) {
+      return null;
+    }
+    final stops = List<double>.from(spec.keyframeStops);
+    final keyframeIds = <String>[
+      for (var index = 0; index < stops.length; index++)
+        '$laneId@${(stops[index] * 1000).round()}#$index',
+    ];
+    return TimelineAnimationLaneData(
+      id: laneId,
+      label: spec.label,
+      targetClipId: targetClipId,
+      normalizedKeyframeStops: List<double>.unmodifiable(stops),
+      keyframeIds: List<String>.unmodifiable(keyframeIds),
+      keyframeValues: List<double>.unmodifiable(
+        _defaultTransitionFocusLaneValues(laneId),
+      ),
+      trackSpanStartProgress: 0,
+      trackSpanEndProgress: 1,
+    );
+  }
+
+  List<TimelineAnimationLaneData> _resolvedTransitionFocusManualLanes(
+    TimelineTrackTransitionData transition, {
+    required String targetClipId,
+  }) {
+    if (transition.manualAnimationLanes.isNotEmpty) {
+      return transition.manualAnimationLanes
+          .map((lane) => lane.copyWith(targetClipId: targetClipId))
+          .toList(growable: false);
+    }
+    final lanes = <TimelineAnimationLaneData>[];
+    for (final laneId in transition.manualEffectIds) {
+      final lane = _defaultTransitionFocusManualLane(
+        laneId: laneId,
+        targetClipId: targetClipId,
+      );
+      if (lane != null) {
+        lanes.add(lane);
+      }
+    }
+    return List<TimelineAnimationLaneData>.unmodifiable(lanes);
+  }
+
+  TimelineAnimationLaneData? _transitionFocusSelectedAnimationLane(
+    _TransitionFocusContext context,
+  ) {
+    final selectedLaneId = _transitionFocusSession?.selectedLaneId;
+    if (selectedLaneId == null || selectedLaneId.isEmpty) {
+      return null;
+    }
+    for (final lane in _resolvedTransitionFocusManualLanes(
+      context.transition,
+      targetClipId: context.leftClip.id,
+    )) {
+      if (lane.id == selectedLaneId) {
+        return lane;
+      }
+    }
+    return null;
+  }
+
   List<TimelineTrackData> _buildTransitionFocusScopedTracks(
     _TransitionFocusContext context,
     List<_TransitionFocusLaneSpec> laneSpecs,
@@ -10901,18 +11026,35 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       ),
     );
 
-    final animationLanes = laneSpecs
-        .map(
-          (lane) => TimelineAnimationLaneData(
-            id: lane.id,
-            label: lane.label,
-            targetClipId: leftScopedClipId,
-            normalizedKeyframeStops: lane.keyframeStops,
-            trackSpanStartProgress: 0,
-            trackSpanEndProgress: 1,
-          ),
-        )
-        .toList(growable: false);
+    final animationLanes =
+        context.transition.preset == TimelineTransitionPreset.manual
+            ? _resolvedTransitionFocusManualLanes(
+                context.transition,
+                targetClipId: leftScopedClipId,
+              )
+            : laneSpecs
+                .map(
+                  (lane) => TimelineAnimationLaneData(
+                    id: lane.id,
+                    label: lane.label,
+                    targetClipId: leftScopedClipId,
+                    normalizedKeyframeStops: lane.keyframeStops,
+                    keyframeIds: List<String>.unmodifiable(
+                      <String>[
+                        for (var index = 0;
+                            index < lane.keyframeStops.length;
+                            index++)
+                          '${lane.id}@${(lane.keyframeStops[index] * 1000).round()}#$index',
+                      ],
+                    ),
+                    keyframeValues: List<double>.unmodifiable(
+                      _defaultTransitionFocusLaneValues(lane.id),
+                    ),
+                    trackSpanStartProgress: 0,
+                    trackSpanEndProgress: 1,
+                  ),
+                )
+                .toList(growable: false);
 
     return <TimelineTrackData>[
       TimelineTrackData(
@@ -11136,6 +11278,24 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           return;
         }
       }
+      if (context.transition.manualEffectIds.isNotEmpty &&
+          context.transition.manualAnimationLanes.isEmpty) {
+        final seededLanes = _resolvedTransitionFocusManualLanes(
+          context.transition,
+          targetClipId: context.transition.leftClipId,
+        );
+        if (seededLanes.isNotEmpty) {
+          _upsertVideoTrackTransition(
+            context.transition.copyWith(
+              manualAnimationLanes: seededLanes,
+            ),
+          );
+          context = _transitionFocusContextById(transitionId);
+          if (context == null) {
+            return;
+          }
+        }
+      }
     }
     final resolvedLaneId = _resolvedTransitionFocusLaneId(
       context,
@@ -11149,6 +11309,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       );
       _selectedClipId = null;
       _selectedTransitionId = transitionId;
+      _selectedTransitionFocusKeyframeIndex = null;
+      _selectedTransitionFocusKeyframeId = null;
+      _isTransitionFocusValueEditorOpen = false;
+      _isTransitionFocusGraphEditorOpen = false;
       if (_activeTab == EditorMediaTab.speed) {
         _activeTab = EditorMediaTab.video;
       }
@@ -11174,6 +11338,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     setState(() {
       _transitionFocusSession = null;
       _selectedClipId = null;
+      _selectedTransitionFocusKeyframeIndex = null;
+      _selectedTransitionFocusKeyframeId = null;
+      _isTransitionFocusValueEditorOpen = false;
+      _isTransitionFocusGraphEditorOpen = false;
     });
     _syncTransitionFocusTimeNotifiers();
     if (context != null && _transportController.isPlaying) {
@@ -11193,10 +11361,83 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
     setState(() {
       _transitionFocusSession = session.copyWith(selectedLaneId: laneId);
+      _selectedTransitionFocusKeyframeIndex = null;
+      _selectedTransitionFocusKeyframeId = null;
+      _isTransitionFocusValueEditorOpen = false;
     });
   }
 
-  Future<void> _openManualTransitionEffectBrowser(String transitionId) async {
+  Future<void> _openTransitionFocusAddMenu(String transitionId) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => SafeArea(
+        top: false,
+        child: Container(
+          decoration: BoxDecoration(
+            color: FxPalette.surface,
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(24),
+            ),
+            border: Border.all(color: FxPalette.divider, width: 1),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(
+                  Icons.play_arrow_rounded,
+                  color: Colors.white,
+                ),
+                title: const Text('Animate'),
+                subtitle: const Text('Add motion lanes for the transition.'),
+                onTap: () => Navigator.of(sheetContext).pop('animate'),
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.auto_fix_high_rounded,
+                  color: Colors.white,
+                ),
+                title: const Text('FX'),
+                subtitle: const Text('Add visual blend lanes like Black Mix.'),
+                onTap: () => Navigator.of(sheetContext).pop('fx'),
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.code_rounded,
+                  color: Colors.white,
+                ),
+                title: const Text('Script'),
+                subtitle: const Text(
+                  'Transition script import is reserved for the next phase.',
+                ),
+                onTap: () => Navigator.of(sheetContext).pop('script'),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!mounted || action == null) {
+      return;
+    }
+    switch (action) {
+      case 'animate':
+        await _openManualTransitionAnimateBrowser(transitionId);
+        break;
+      case 'fx':
+        await _openManualTransitionFxBrowser(transitionId);
+        break;
+      case 'script':
+        _showStageMessage(
+          'Transition script import will be wired in the transition scripting phase.',
+        );
+        break;
+    }
+  }
+
+  Future<void> _openManualTransitionAnimateBrowser(String transitionId) async {
     setState(() {
       _isAnimateBrowserOpen = true;
     });
@@ -11208,7 +11449,36 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         context: context,
         removeBottom: true,
         child: const AnimateBrowserBottomSheet(
-          items: _manualTransitionEffectItems,
+          items: _manualTransitionAnimateItems,
+        ),
+      ),
+    ).whenComplete(() {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isAnimateBrowserOpen = false;
+      });
+    });
+    if (!mounted || item == null) {
+      return;
+    }
+    _addManualTransitionEffect(transitionId, item);
+  }
+
+  Future<void> _openManualTransitionFxBrowser(String transitionId) async {
+    setState(() {
+      _isAnimateBrowserOpen = true;
+    });
+    final item = await showModalBottomSheet<AnimateBrowserItem>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => MediaQuery.removeViewInsets(
+        context: context,
+        removeBottom: true,
+        child: const AnimateBrowserBottomSheet(
+          items: _manualTransitionFxItems,
         ),
       ),
     ).whenComplete(() {
@@ -11242,6 +11512,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (baseSpec == null) {
       return;
     }
+    final existingLanes = transition.manualAnimationLanes;
+    final nextLane = _defaultTransitionFocusManualLane(
+      laneId: item.id,
+      targetClipId: transition.leftClipId,
+    );
     _updateTransitionFocusTransition(
       transitionId,
       update: (current) => current.copyWith(
@@ -11253,6 +11528,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           ...current.parameterValues,
           item.id: current.parameterValue(item.id, fallback: baseSpec.fallback),
         },
+        manualAnimationLanes: nextLane == null
+            ? current.manualAnimationLanes
+            : <TimelineAnimationLaneData>[
+                ...existingLanes,
+                nextLane,
+              ],
       ),
     );
     _selectTransitionFocusLane(item.id);
@@ -11281,6 +11562,333 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         _seekTransitionFocusProgress(nextContext, preservedProgress);
       }
     }
+  }
+
+  void _updateTransitionFocusManualLane(
+    String transitionId,
+    String laneId,
+    TimelineAnimationLaneData Function(TimelineAnimationLaneData lane) update,
+  ) {
+    _updateTransitionFocusTransition(
+      transitionId,
+      preserveProgress: true,
+      update: (current) {
+        final lanes = List<TimelineAnimationLaneData>.from(
+          current.manualAnimationLanes,
+        );
+        final laneIndex = lanes.indexWhere((lane) => lane.id == laneId);
+        if (laneIndex >= 0) {
+          lanes[laneIndex] = update(lanes[laneIndex]);
+        } else {
+          final seeded = _defaultTransitionFocusManualLane(
+            laneId: laneId,
+            targetClipId: current.leftClipId,
+          );
+          if (seeded != null) {
+            lanes.add(update(seeded));
+          }
+        }
+        return current.copyWith(
+          manualAnimationLanes: List<TimelineAnimationLaneData>.unmodifiable(
+            lanes,
+          ),
+        );
+      },
+    );
+  }
+
+  void _handleTransitionFocusAnimationKeyframeTap(
+    String laneId,
+    int keyframeIndex,
+    String keyframeId,
+  ) {
+    final session = _transitionFocusSession;
+    if (session == null) {
+      return;
+    }
+    setState(() {
+      _transitionFocusSession = session.copyWith(selectedLaneId: laneId);
+      _selectedTransitionFocusKeyframeIndex = keyframeIndex;
+      _selectedTransitionFocusKeyframeId = keyframeId;
+      _isTransitionFocusValueEditorOpen = false;
+    });
+  }
+
+  void _handleTransitionFocusAnimationKeyframeDrag(
+    String laneId,
+    int keyframeIndex,
+    String keyframeId,
+    double normalizedStop,
+  ) {
+    final session = _transitionFocusSession;
+    if (session == null) {
+      return;
+    }
+    final transitionId = session.transitionId;
+    final transition = _videoTrackTransitionById(transitionId);
+    if (transition == null) {
+      return;
+    }
+    TimelineAnimationLaneData? lane =
+        transition.manualAnimationLaneById(laneId);
+    lane ??= _defaultTransitionFocusManualLane(
+      laneId: laneId,
+      targetClipId: transition.leftClipId,
+    );
+    if (lane == null) {
+      return;
+    }
+    final effectiveKeyframeId =
+        _selectedTransitionFocusKeyframeId ?? keyframeId;
+    final stops = List<double>.from(lane.normalizedKeyframeStops);
+    final values = lane.alignedKeyframeValues(
+      fallbackValue: _defaultTransitionFocusLaneValues(laneId).isEmpty
+          ? 0
+          : _defaultTransitionFocusLaneValues(laneId).first,
+      clampToPercent: false,
+    );
+    if (keyframeIndex < 0 || keyframeIndex >= stops.length) {
+      return;
+    }
+    final movedEntries =
+        <({double stop, String keyframeId, double value, bool isMoved})>[
+      for (var index = 0; index < stops.length; index++)
+        (
+          stop: index == keyframeIndex
+              ? normalizedStop.clamp(0.0, 1.0)
+              : stops[index],
+          keyframeId: index < lane.keyframeIds.length
+              ? lane.keyframeIds[index]
+              : '$laneId#$index',
+          value: values[index],
+          isMoved: index == keyframeIndex,
+        ),
+    ]..sort((left, right) => left.stop.compareTo(right.stop));
+    final nextSelectedIndex = movedEntries.indexWhere((entry) => entry.isMoved);
+    _updateTransitionFocusManualLane(
+      transitionId,
+      laneId,
+      (currentLane) => currentLane.copyWith(
+        normalizedKeyframeStops: List<double>.unmodifiable(
+          <double>[for (final entry in movedEntries) entry.stop],
+        ),
+        keyframeIds: List<String>.unmodifiable(
+          <String>[for (final entry in movedEntries) entry.keyframeId],
+        ),
+        keyframeValues: List<double>.unmodifiable(
+          <double>[for (final entry in movedEntries) entry.value],
+        ),
+      ),
+    );
+    setState(() {
+      _transitionFocusSession = session.copyWith(selectedLaneId: laneId);
+      _selectedTransitionFocusKeyframeIndex =
+          nextSelectedIndex < 0 ? keyframeIndex : nextSelectedIndex;
+      _selectedTransitionFocusKeyframeId = effectiveKeyframeId;
+      _isTransitionFocusValueEditorOpen = false;
+    });
+  }
+
+  void _handleTransitionFocusAddKeyframe() {
+    final session = _transitionFocusSession;
+    if (session == null) {
+      return;
+    }
+    final context = _transitionFocusContextById(session.transitionId);
+    if (context == null) {
+      return;
+    }
+    final lane = _transitionFocusSelectedAnimationLane(context);
+    if (lane == null) {
+      _showStageMessage('Select an animation or FX row before adding a key.');
+      return;
+    }
+    final progress = _transitionFocusProgressForTime(context, _currentTime);
+    final stops = List<double>.from(lane.normalizedKeyframeStops);
+    final values = lane.alignedKeyframeValues(
+      fallbackValue: _defaultTransitionFocusLaneValues(lane.id).isEmpty
+          ? 0
+          : _defaultTransitionFocusLaneValues(lane.id).first,
+      clampToPercent: false,
+    );
+    final keyframeIds = List<String>.from(lane.keyframeIds);
+    while (keyframeIds.length < stops.length) {
+      keyframeIds.add('${lane.id}#${keyframeIds.length}');
+    }
+    const snapEpsilon = 0.006;
+    for (var index = 0; index < stops.length; index++) {
+      if ((stops[index] - progress).abs() <= snapEpsilon) {
+        setState(() {
+          _selectedTransitionFocusKeyframeIndex = index;
+          _selectedTransitionFocusKeyframeId = keyframeIds[index];
+          _isTransitionFocusValueEditorOpen = false;
+        });
+        return;
+      }
+    }
+    final insertedValue = lane.evaluateValueAtProgress(
+      progress,
+      fallbackValue: values.isEmpty ? 0.0 : values.last,
+    );
+    var insertIndex = 0;
+    while (insertIndex < stops.length && stops[insertIndex] < progress) {
+      insertIndex += 1;
+    }
+    stops.insert(insertIndex, progress);
+    values.insert(insertIndex, insertedValue);
+    final insertedKeyframeId =
+        '${lane.id}@${(progress * 1000).round()}#${DateTime.now().millisecondsSinceEpoch}';
+    keyframeIds.insert(insertIndex, insertedKeyframeId);
+    _updateTransitionFocusManualLane(
+      session.transitionId,
+      lane.id,
+      (currentLane) => currentLane.copyWith(
+        normalizedKeyframeStops: List<double>.unmodifiable(stops),
+        keyframeIds: List<String>.unmodifiable(keyframeIds),
+        keyframeValues: List<double>.unmodifiable(values),
+      ),
+    );
+    setState(() {
+      _selectedTransitionFocusKeyframeIndex = insertIndex;
+      _selectedTransitionFocusKeyframeId = insertedKeyframeId;
+      _isTransitionFocusValueEditorOpen = false;
+    });
+  }
+
+  List<LayerScopeValueControlSpec>? _transitionFocusValueControlsForSelection(
+    _TransitionFocusContext _,
+    TimelineAnimationLaneData lane,
+    int keyframeIndex,
+  ) {
+    if (keyframeIndex < 0 ||
+        keyframeIndex >= lane.normalizedKeyframeStops.length) {
+      return null;
+    }
+    final spec = _transitionLaneLibrary[lane.id];
+    if (spec == null) {
+      return null;
+    }
+    final values = lane.alignedKeyframeValues(
+      fallbackValue: _defaultTransitionFocusLaneValues(lane.id).isEmpty
+          ? 0
+          : _defaultTransitionFocusLaneValues(lane.id).first,
+      clampToPercent: false,
+    );
+    final resolvedValue =
+        keyframeIndex < values.length ? values[keyframeIndex] : spec.fallback;
+    return <LayerScopeValueControlSpec>[
+      LayerScopeValueControlSpec(
+        id: lane.id,
+        label: lane.label,
+        value: resolvedValue,
+        min: spec.min,
+        max: spec.max,
+        formatValue: spec.valueFormatter,
+      ),
+    ];
+  }
+
+  Future<void> _handleTransitionFocusValueToolTap() async {
+    if (_isTransitionFocusValueEditorOpen) {
+      return;
+    }
+    final session = _transitionFocusSession;
+    if (session == null) {
+      return;
+    }
+    final focusContext = _transitionFocusContextById(session.transitionId);
+    if (focusContext == null) {
+      return;
+    }
+    final lane = _transitionFocusSelectedAnimationLane(focusContext);
+    if (lane == null) {
+      return;
+    }
+    final resolvedKeyframeIndex = _selectedTransitionFocusKeyframeIndex ??
+        (lane.normalizedKeyframeStops.isEmpty ? null : 0);
+    if (resolvedKeyframeIndex == null) {
+      return;
+    }
+    final controls = _transitionFocusValueControlsForSelection(
+      focusContext,
+      lane,
+      resolvedKeyframeIndex,
+    );
+    if (controls == null || controls.isEmpty) {
+      return;
+    }
+    setState(() {
+      _selectedTransitionFocusKeyframeIndex = resolvedKeyframeIndex;
+      _selectedTransitionFocusKeyframeId =
+          resolvedKeyframeIndex < lane.keyframeIds.length
+              ? lane.keyframeIds[resolvedKeyframeIndex]
+              : '${lane.id}#$resolvedKeyframeIndex';
+      _isTransitionFocusValueEditorOpen = true;
+    });
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => MediaQuery.removeViewInsets(
+        context: sheetContext,
+        removeBottom: true,
+        child: LayerScopeValueBottomSheet(
+          controls: controls,
+          onDone: () => Navigator.of(sheetContext).maybePop(),
+          onChanged: (change) => _handleTransitionFocusValueControlChanged(
+            change.controlId,
+            change.value,
+          ),
+        ),
+      ),
+    ).whenComplete(() {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isTransitionFocusValueEditorOpen = false;
+      });
+    });
+  }
+
+  void _handleTransitionFocusValueControlChanged(
+    String controlId,
+    double value,
+  ) {
+    final session = _transitionFocusSession;
+    final keyframeIndex = _selectedTransitionFocusKeyframeIndex;
+    if (session == null || keyframeIndex == null) {
+      return;
+    }
+    final transition = _videoTrackTransitionById(session.transitionId);
+    if (transition == null) {
+      return;
+    }
+    final lane = transition.manualAnimationLaneById(controlId);
+    if (lane == null) {
+      return;
+    }
+    final values = lane
+        .alignedKeyframeValues(
+          fallbackValue: _defaultTransitionFocusLaneValues(lane.id).isEmpty
+              ? 0
+              : _defaultTransitionFocusLaneValues(lane.id).first,
+          clampToPercent: false,
+        )
+        .toList();
+    if (keyframeIndex < 0 || keyframeIndex >= values.length) {
+      return;
+    }
+    values[keyframeIndex] = value;
+    _updateTransitionFocusManualLane(
+      session.transitionId,
+      lane.id,
+      (currentLane) => currentLane.copyWith(
+        keyframeValues: List<double>.unmodifiable(values),
+      ),
+    );
   }
 
   void _handleTransitionFrameToolsTap() {
@@ -12146,6 +12754,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         _canOpenLayerScopeValueEditor(layerScopeContext);
     final canOpenLayerScopeGraphEditor =
         _canOpenLayerScopeGraphEditor(layerScopeContext);
+    final canAddTransitionFocusKeyframe =
+        _canAddTransitionFocusKeyframe(transitionFocusContext);
+    final canOpenTransitionFocusValueEditor =
+        _canOpenTransitionFocusValueEditor(transitionFocusContext);
     final canMoveLayerScopeSelectedKeyframe =
         _canMoveLayerScopeSelectedKeyframe(layerScopeContext);
     final selectedLayerScopeAnimationLane = layerScopeContext == null
@@ -12313,6 +12925,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                       selectedClipId: _selectedClipId,
                                       selectedAnimationLaneId:
                                           resolvedTransitionFocusLaneId,
+                                      selectedAnimationKeyframeIndex:
+                                          resolvedTransitionFocusLaneId.isEmpty
+                                              ? null
+                                              : _selectedTransitionFocusKeyframeIndex,
                                       trimSelection:
                                           _transitionFocusTrimSelection(
                                         transitionFocusContext,
@@ -12323,11 +12939,19 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                         clipId,
                                       ),
                                       onTrackAnimateTap: (_) =>
-                                          _openManualTransitionEffectBrowser(
+                                          _openManualTransitionAnimateBrowser(
+                                        transitionFocusContext.transition.id,
+                                      ),
+                                      onTrackFxTap: (_) =>
+                                          _openManualTransitionFxBrowser(
                                         transitionFocusContext.transition.id,
                                       ),
                                       onAnimationLaneTap:
                                           _selectTransitionFocusLane,
+                                      onAnimationKeyframeTap:
+                                          _handleTransitionFocusAnimationKeyframeTap,
+                                      onAnimationKeyframeDrag:
+                                          _handleTransitionFocusAnimationKeyframeDrag,
                                       onBackgroundTap:
                                           _clearTransitionFocusSelection,
                                       onTrimCommit: (request) =>
@@ -12389,6 +13013,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                   ),
                                       assetPathResolver: _resolveAssetPath,
                                       animateTrackKinds: const <TimelineTrackKind>{
+                                        TimelineTrackKind.video,
+                                      },
+                                      fxTrackKinds: const <TimelineTrackKind>{
                                         TimelineTrackKind.video,
                                       },
                                     )
@@ -12600,58 +13227,90 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                           ),
                           Padding(
                             padding: const EdgeInsets.fromLTRB(4, 3, 4, 3),
-                            child: isLayerScopeActive
+                            child: transitionFocusContext != null
                                 ? LayerScopeKeyframeDock(
                                     addEnabled: true,
-                                    keyframeEnabled: canAddLayerScopeKeyframe,
-                                    valueEnabled: canOpenLayerScopeValueEditor,
-                                    graphEnabled: canOpenLayerScopeGraphEditor,
+                                    keyframeEnabled:
+                                        canAddTransitionFocusKeyframe,
+                                    valueEnabled:
+                                        canOpenTransitionFocusValueEditor,
+                                    graphEnabled: false,
                                     isValueActive:
-                                        _isLayerScopeValueEditorOpen &&
-                                            canOpenLayerScopeValueEditor,
+                                        _isTransitionFocusValueEditorOpen &&
+                                            canOpenTransitionFocusValueEditor,
                                     isGraphActive:
-                                        _isLayerScopeGraphEditorOpen &&
-                                            canOpenLayerScopeGraphEditor,
-                                    onAddTap: _handleLayerScopeDockAddTap,
+                                        _isTransitionFocusGraphEditorOpen,
+                                    onAddTap: () => _openTransitionFocusAddMenu(
+                                      transitionFocusContext.transition.id,
+                                    ),
                                     onAddKeyframeTap:
-                                        _handleLayerScopeAddKeyframe,
-                                    onValueTap: canOpenLayerScopeValueEditor
-                                        ? _handleLayerScopeValueToolTap
-                                        : null,
-                                    onGraphTap: canOpenLayerScopeGraphEditor
-                                        ? _handleLayerScopeGraphToolTap
-                                        : null,
+                                        canAddTransitionFocusKeyframe
+                                            ? _handleTransitionFocusAddKeyframe
+                                            : null,
+                                    onValueTap:
+                                        canOpenTransitionFocusValueEditor
+                                            ? _handleTransitionFocusValueToolTap
+                                            : null,
+                                    onGraphTap: null,
                                     embedded: true,
-                                    addLabel: isTextLayerScopeActive
-                                        ? 'Script'
-                                        : 'Add',
-                                    addIcon: isTextLayerScopeActive
-                                        ? Icons.code_rounded
-                                        : Icons.add_rounded,
+                                    addLabel: 'Add',
+                                    addIcon: Icons.auto_awesome_motion_rounded,
                                   )
-                                : MediaDock(
-                                    activeTab: effectiveDockActiveTab,
-                                    onAddTap: () {
-                                      if (effectiveDockActiveTab ==
-                                              EditorMediaTab.video ||
-                                          effectiveDockActiveTab ==
-                                              EditorMediaTab.image) {
-                                        _openMediaSheet(
-                                          effectiveDockActiveTab ==
-                                                  EditorMediaTab.image
-                                              ? EditorMediaTab.image
-                                              : EditorMediaTab.video,
-                                        );
-                                      }
-                                    },
-                                    onToolTap: _handleDockTab,
-                                    enabledTabs: enabledDockTabs,
-                                    addEnabled: effectiveDockActiveTab ==
-                                            EditorMediaTab.video ||
-                                        effectiveDockActiveTab ==
-                                            EditorMediaTab.image,
-                                    embedded: true,
-                                  ),
+                                : isLayerScopeActive
+                                    ? LayerScopeKeyframeDock(
+                                        addEnabled: true,
+                                        keyframeEnabled:
+                                            canAddLayerScopeKeyframe,
+                                        valueEnabled:
+                                            canOpenLayerScopeValueEditor,
+                                        graphEnabled:
+                                            canOpenLayerScopeGraphEditor,
+                                        isValueActive:
+                                            _isLayerScopeValueEditorOpen &&
+                                                canOpenLayerScopeValueEditor,
+                                        isGraphActive:
+                                            _isLayerScopeGraphEditorOpen &&
+                                                canOpenLayerScopeGraphEditor,
+                                        onAddTap: _handleLayerScopeDockAddTap,
+                                        onAddKeyframeTap:
+                                            _handleLayerScopeAddKeyframe,
+                                        onValueTap: canOpenLayerScopeValueEditor
+                                            ? _handleLayerScopeValueToolTap
+                                            : null,
+                                        onGraphTap: canOpenLayerScopeGraphEditor
+                                            ? _handleLayerScopeGraphToolTap
+                                            : null,
+                                        embedded: true,
+                                        addLabel: isTextLayerScopeActive
+                                            ? 'Script'
+                                            : 'Add',
+                                        addIcon: isTextLayerScopeActive
+                                            ? Icons.code_rounded
+                                            : Icons.add_rounded,
+                                      )
+                                    : MediaDock(
+                                        activeTab: effectiveDockActiveTab,
+                                        onAddTap: () {
+                                          if (effectiveDockActiveTab ==
+                                                  EditorMediaTab.video ||
+                                              effectiveDockActiveTab ==
+                                                  EditorMediaTab.image) {
+                                            _openMediaSheet(
+                                              effectiveDockActiveTab ==
+                                                      EditorMediaTab.image
+                                                  ? EditorMediaTab.image
+                                                  : EditorMediaTab.video,
+                                            );
+                                          }
+                                        },
+                                        onToolTap: _handleDockTab,
+                                        enabledTabs: enabledDockTabs,
+                                        addEnabled: effectiveDockActiveTab ==
+                                                EditorMediaTab.video ||
+                                            effectiveDockActiveTab ==
+                                                EditorMediaTab.image,
+                                        embedded: true,
+                                      ),
                           ),
                         ],
                       ),
