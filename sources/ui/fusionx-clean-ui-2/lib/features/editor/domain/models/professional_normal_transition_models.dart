@@ -227,6 +227,34 @@ class NormalTransitionNode {
   final Map<String, Object> parameterValues;
   final String? instanceId;
 
+  NormalTransitionNode copyWith({
+    String? id,
+    String? trackId,
+    String? leftClipId,
+    String? rightClipId,
+    String? definitionId,
+    TimelineTime? duration,
+    NormalTransitionAlignment? alignment,
+    bool? enabled,
+    String? schemaVersion,
+    Map<String, Object>? parameterValues,
+    String? instanceId,
+  }) {
+    return NormalTransitionNode(
+      id: id ?? this.id,
+      trackId: trackId ?? this.trackId,
+      leftClipId: leftClipId ?? this.leftClipId,
+      rightClipId: rightClipId ?? this.rightClipId,
+      definitionId: definitionId ?? this.definitionId,
+      duration: duration ?? this.duration,
+      alignment: alignment ?? this.alignment,
+      enabled: enabled ?? this.enabled,
+      schemaVersion: schemaVersion ?? this.schemaVersion,
+      parameterValues: parameterValues ?? this.parameterValues,
+      instanceId: instanceId ?? this.instanceId,
+    );
+  }
+
   NormalTransitionOverlapWindow resolveOverlap({
     required TimelineTime boundaryTime,
   }) {
@@ -314,6 +342,28 @@ class NormalTransitionInstance {
   final String schemaVersion;
   final Map<String, Object> parameterValues;
   final List<NormalTransitionChannelSpec> channels;
+
+  NormalTransitionInstance copyWith({
+    String? id,
+    String? nodeId,
+    String? definitionId,
+    NormalTransitionSourceKind? sourceKind,
+    String? sourceHash,
+    String? schemaVersion,
+    Map<String, Object>? parameterValues,
+    List<NormalTransitionChannelSpec>? channels,
+  }) {
+    return NormalTransitionInstance(
+      id: id ?? this.id,
+      nodeId: nodeId ?? this.nodeId,
+      definitionId: definitionId ?? this.definitionId,
+      sourceKind: sourceKind ?? this.sourceKind,
+      sourceHash: sourceHash ?? this.sourceHash,
+      schemaVersion: schemaVersion ?? this.schemaVersion,
+      parameterValues: parameterValues ?? this.parameterValues,
+      channels: channels ?? this.channels,
+    );
+  }
 }
 
 @immutable
