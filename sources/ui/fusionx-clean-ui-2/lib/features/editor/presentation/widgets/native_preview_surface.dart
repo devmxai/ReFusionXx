@@ -22,11 +22,13 @@ class NativePreviewSurface extends StatefulWidget {
     super.key,
     required this.controller,
     required this.previewIdentity,
+    required this.recoveryRevision,
     required this.fallback,
   });
 
   final Stage5NativeTransportController controller;
   final String? previewIdentity;
+  final int recoveryRevision;
   final Widget fallback;
 
   bool get _supportsAndroidPreview => !kIsWeb && Platform.isAndroid;
@@ -60,6 +62,10 @@ class _NativePreviewSurfaceState extends State<NativePreviewSurface> {
       shouldRefresh = true;
     }
     if (oldWidget.previewIdentity != widget.previewIdentity) {
+      _markPreviewIdentityChanged();
+      shouldRefresh = true;
+    }
+    if (oldWidget.recoveryRevision != widget.recoveryRevision) {
       _markPreviewIdentityChanged();
       shouldRefresh = true;
     }
@@ -136,8 +142,9 @@ class _NativePreviewSurfaceState extends State<NativePreviewSurface> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          const Positioned.fill(
+          Positioned.fill(
             child: AndroidView(
+              key: ValueKey<int>(widget.recoveryRevision),
               viewType: Stage5NativeTransportController.previewViewType,
             ),
           ),

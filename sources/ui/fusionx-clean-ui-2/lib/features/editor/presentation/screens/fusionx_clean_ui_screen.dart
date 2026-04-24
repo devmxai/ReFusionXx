@@ -66,7 +66,7 @@ class FusionXCleanUiScreen extends StatefulWidget {
 }
 
 class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   static const double _minEditableClipDuration = 0.25;
   static const int _deviceMediaPageSize = 24;
   static const String _motionProjectId = 'motion-project';
@@ -390,10 +390,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   Duration _motionPreviewClockAnchorElapsed = Duration.zero;
   Duration _motionPreviewClockLatestElapsed = Duration.zero;
   Size? _lastPreviewStageSize;
+  int _nativePreviewRecoveryRevision = 0;
+  bool _isNativePreviewRecoveryScheduled = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final transportController = Stage5NativeTransportController();
     transportController.addListener(_handleTransportStateChanged);
     _transportController = transportController;
@@ -433,6 +436,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _dismissTopStageBanner();
     _exportController
       ..removeListener(_handleExportStateChanged)
@@ -453,6 +457,67 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _layerScopePlaybackSampleTimeNotifier.dispose();
     _previewThumbnailNotifier.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.hidden:
+        _handleNativePreviewLifecycleSuspended();
+        break;
+      case AppLifecycleState.resumed:
+        _scheduleNativePreviewLifecycleRecovery();
+        break;
+      case AppLifecycleState.detached:
+        break;
+    }
+  }
+
+  void _handleNativePreviewLifecycleSuspended() {
+    if (!_useNativePreview) {
+      return;
+    }
+    _motionPreviewWarmupDebounce?.cancel();
+    _stopMotionPreviewFrameClock(resetTo: _currentTime);
+    if (_transportController.isPlaying) {
+      unawaited(_pausePlayback());
+    }
+  }
+
+  void _scheduleNativePreviewLifecycleRecovery() {
+    if (!_useNativePreview || _isNativePreviewRecoveryScheduled) {
+      return;
+    }
+    _isNativePreviewRecoveryScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_recoverNativePreviewAfterLifecycleResume());
+    });
+  }
+
+  Future<void> _recoverNativePreviewAfterLifecycleResume() async {
+    try {
+      if (!mounted || !_useNativePreview) {
+        return;
+      }
+      setState(() {
+        _nativePreviewRecoveryRevision += 1;
+      });
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted || !_useNativePreview) {
+        return;
+      }
+      await _transportController.recoverPreviewSurface(
+        positionMs: _currentTime.inMilliseconds,
+      );
+      if (!mounted) {
+        return;
+      }
+      _syncPlaybackSampleToCurrentTime();
+    } finally {
+      _isNativePreviewRecoveryScheduled = false;
+    }
   }
 
   double get _workspaceAspectRatio =>
@@ -12012,6 +12077,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                     controller: _transportController,
                                     previewIdentity: previewAsset?.sourceUri ??
                                         previewAsset?.id,
+                                    recoveryRevision:
+                                        _nativePreviewRecoveryRevision,
                                     fallback: previewFallback,
                                   )
                                 : previewFallback,

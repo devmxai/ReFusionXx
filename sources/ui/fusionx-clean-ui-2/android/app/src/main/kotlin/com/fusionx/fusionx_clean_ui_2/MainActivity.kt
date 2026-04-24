@@ -256,6 +256,10 @@ class MainActivity: FlutterActivity() {
                     stage5TransportManager.settleAfterScrub(positionMs)
                     result.success(null)
                 }
+                "recoverPreviewSurface" -> {
+                    val positionMs = call.argument<Number>("positionMs")?.toLong()
+                    result.success(stage5TransportManager.recoverPreviewSurface(positionMs))
+                }
                 "primeScrubPreviewSources" -> {
                     val rawSources = call.argument<List<Any?>>("sources") ?: emptyList()
                     rawSources.forEach { entry ->

@@ -720,6 +720,33 @@ class Stage5TransportManager(context: Context) {
         emitState()
     }
 
+    fun recoverPreviewSurface(positionMs: Long?): Map<String, Any?> {
+        val currentPlayer = activePlayer ?: exoPlayer ?: compositionPlayer
+        val requestedPositionMs =
+            positionMs
+                ?: if (timelineSegments.isNotEmpty()) {
+                    currentTimelinePositionMs()
+                } else {
+                    currentPlayer?.currentPosition ?: lastRequestedPositionMs
+                }
+        val safePositionMs = clampRecoverablePosition(requestedPositionMs, currentPlayer)
+
+        clearVideoPresentationState()
+        currentPlayer?.let { player ->
+            playerObservers.forEach { observer -> observer(player) }
+            if (player.mediaItemCount > 0 || timelineSegments.isNotEmpty()) {
+                if (player.playbackState == Player.STATE_IDLE) {
+                    player.prepare()
+                }
+                lastRequestedPositionMs = safePositionMs
+                performResolvedSeek(safePositionMs)
+            }
+        }
+        emitPreviewRetentionPolicy()
+        emitState()
+        return buildState()
+    }
+
     fun addPlayerObserver(observer: (Player) -> Unit) {
         playerObservers.add(observer)
         observer(player)
@@ -1051,6 +1078,19 @@ class Stage5TransportManager(context: Context) {
         } else {
             player.seekTo(safePositionMs)
         }
+    }
+
+    private fun clampRecoverablePosition(positionMs: Long, player: Player?): Long {
+        val safePositionMs = positionMs.coerceAtLeast(0L)
+        val upperBoundMs =
+            if (timelineSegments.isNotEmpty()) {
+                timelineDurationMs
+            } else {
+                player?.duration?.takeIf { it > 0L && it != C.TIME_UNSET }
+            }
+        return upperBoundMs?.let { upperBound ->
+            safePositionMs.coerceIn(0L, upperBound)
+        } ?: safePositionMs
     }
 
     private fun safeDisplayableEndPosition(durationMs: Long): Long =
