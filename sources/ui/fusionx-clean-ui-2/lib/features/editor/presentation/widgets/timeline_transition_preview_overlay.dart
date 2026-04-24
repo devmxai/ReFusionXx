@@ -48,6 +48,11 @@ class TimelineTransitionPreviewOverlay extends StatelessWidget {
                 transition.parameterValue('blackPeak', fallback: 0.94),
               ),
             ),
+          if (transition.preset == TimelineTransitionPreset.crossDissolve)
+            _CrossDissolveTransitionLayer(
+              progress: curvedProgress,
+              incomingThumbnailBytes: incomingThumbnailBytes,
+            ),
           if (transition.preset == TimelineTransitionPreset.zoomInCamera)
             _ZoomInCameraTransitionLayer(
               progress: curvedProgress,
@@ -140,6 +145,32 @@ class _FadeBlackTransitionLayer extends StatelessWidget {
     }
     return ColoredBox(
       color: Colors.black.withOpacity(opacity),
+    );
+  }
+}
+
+class _CrossDissolveTransitionLayer extends StatelessWidget {
+  const _CrossDissolveTransitionLayer({
+    required this.progress,
+    required this.incomingThumbnailBytes,
+  });
+
+  final double progress;
+  final Uint8List? incomingThumbnailBytes;
+
+  @override
+  Widget build(BuildContext context) {
+    final bytes = incomingThumbnailBytes;
+    if (bytes == null || bytes.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Opacity(
+      opacity: progress.clamp(0.0, 1.0).toDouble(),
+      child: Image.memory(
+        bytes,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+      ),
     );
   }
 }

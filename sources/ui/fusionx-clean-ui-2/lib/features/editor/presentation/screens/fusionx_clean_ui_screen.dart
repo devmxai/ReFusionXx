@@ -1616,6 +1616,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   ) {
     return switch (preset) {
       TimelineTransitionPreset.manual => MotionTransitionKind.cameraPush,
+      TimelineTransitionPreset.crossDissolve => MotionTransitionKind.fade,
       TimelineTransitionPreset.fadeBlack => MotionTransitionKind.fade,
       TimelineTransitionPreset.zoomInCamera => MotionTransitionKind.cameraPush,
       TimelineTransitionPreset.aiGenerated => MotionTransitionKind.fade,
@@ -10886,6 +10887,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   ) {
     final laneIds = switch (transition.preset) {
       TimelineTransitionPreset.manual => transition.manualEffectIds,
+      TimelineTransitionPreset.crossDissolve => const <String>[],
       TimelineTransitionPreset.fadeBlack => const <String>['blackPeak'],
       TimelineTransitionPreset.zoomInCamera => const <String>[
           'outgoingBoostScale',

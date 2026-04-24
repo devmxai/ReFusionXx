@@ -11,6 +11,7 @@ enum TimelineTrackKind {
 
 enum TimelineTransitionPreset {
   manual,
+  crossDissolve,
   fadeBlack,
   zoomInCamera,
   aiGenerated,
@@ -27,6 +28,7 @@ extension TimelineTransitionPresetPresentation on TimelineTransitionPreset {
   String get label {
     return switch (this) {
       TimelineTransitionPreset.manual => 'Manual',
+      TimelineTransitionPreset.crossDissolve => 'Cross Dissolve',
       TimelineTransitionPreset.fadeBlack => 'Fade Black',
       TimelineTransitionPreset.zoomInCamera => 'Zoom In Camera',
       TimelineTransitionPreset.aiGenerated => 'AI Transition',
@@ -37,6 +39,8 @@ extension TimelineTransitionPresetPresentation on TimelineTransitionPreset {
     return switch (this) {
       TimelineTransitionPreset.manual =>
         'Build the transition lane by lane on a focused seam timeline.',
+      TimelineTransitionPreset.crossDissolve =>
+        'Blend outgoing and incoming clips with a clean opacity handoff.',
       TimelineTransitionPreset.fadeBlack =>
         'Dip through black between two clips.',
       TimelineTransitionPreset.zoomInCamera =>
@@ -49,6 +53,8 @@ extension TimelineTransitionPresetPresentation on TimelineTransitionPreset {
   TimelineTime get defaultDurationTime {
     return switch (this) {
       TimelineTransitionPreset.manual => TimelineTime.fromMilliseconds(620),
+      TimelineTransitionPreset.crossDissolve =>
+        TimelineTime.fromMilliseconds(720),
       TimelineTransitionPreset.fadeBlack => TimelineTime.fromMilliseconds(540),
       TimelineTransitionPreset.zoomInCamera =>
         TimelineTime.fromMilliseconds(620),
@@ -60,6 +66,9 @@ extension TimelineTransitionPresetPresentation on TimelineTransitionPreset {
   Map<String, double> get defaultParameterValues {
     return switch (this) {
       TimelineTransitionPreset.manual => const <String, double>{},
+      TimelineTransitionPreset.crossDissolve => <String, double>{
+          'softness': 0.5,
+        },
       TimelineTransitionPreset.fadeBlack => <String, double>{
           'blackPeak': 0.94,
         },

@@ -342,6 +342,8 @@ class _TransitionPresetCard extends StatelessWidget {
                 child: Icon(
                   switch (preset) {
                     TimelineTransitionPreset.manual => Icons.tune_rounded,
+                    TimelineTransitionPreset.crossDissolve =>
+                      Icons.blur_linear_rounded,
                     TimelineTransitionPreset.fadeBlack =>
                       Icons.gradient_rounded,
                     TimelineTransitionPreset.zoomInCamera =>
