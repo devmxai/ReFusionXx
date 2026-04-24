@@ -13,7 +13,6 @@ import '../../domain/models/export_composition_models.dart';
 import '../../domain/models/export_motion_text_program_models.dart';
 import '../../domain/models/export_output_profile.dart';
 import '../../domain/models/professional_canvas_timeline_authoring_models.dart';
-import '../../domain/services/ai_transition/kie_ai_transition_service.dart';
 import '../../domain/models/professional_motion_animation_models.dart';
 import '../../domain/models/professional_motion_compilation_models.dart';
 import '../../domain/models/professional_motion_evaluation_models.dart';
@@ -26,12 +25,16 @@ import '../../domain/models/professional_motion_text_models.dart';
 import '../../domain/models/professional_motion_text_preview_models.dart';
 import '../../domain/models/professional_motion_text_render_models.dart';
 import '../../domain/models/professional_motion_text_runtime_helpers.dart';
+import '../../domain/models/professional_normal_transition_models.dart';
+import '../../domain/services/ai_transition/kie_ai_transition_service.dart';
+import '../../domain/services/normal_transition_command_history.dart';
 import '../../domain/services/scoped_text_motion_script_import_service.dart';
 import '../models/ai_transition_models.dart';
 import '../models/editor_asset_item.dart';
 import '../models/editor_media_tab.dart';
 import '../models/timeline_mock_models.dart';
 import '../models/timeline_time.dart';
+import '../services/normal_transition_timeline_authoring_adapter.dart';
 import '../widgets/editor_tools_bar.dart';
 import '../widgets/editor_top_bar.dart';
 import '../widgets/animate_browser_bottom_sheet.dart';
@@ -72,6 +75,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   static const String _motionProjectId = 'motion-project';
   static const String _motionSceneId = 'scene-main';
   static const String _exportContractVersion = 'v1alpha1';
+  static const String _normalTransitionVideoTrackId = 'video-main';
+  static const NormalTransitionTimelineAuthoringAdapter
+      _normalTransitionAuthoringAdapter =
+      NormalTransitionTimelineAuthoringAdapter();
   static final TimelineTime _manualTransitionMinimumScopeSideTime =
       TimelineTime.fromSecondsDouble(10);
   static const bool _textPresetPickerEnabled = false;
@@ -301,6 +308,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _liveScrubPreviewSourceCatalog;
   late final Stage6ExportController _exportController;
   late final KieAiTransitionService _aiTransitionService;
+  late final NormalTransitionCommandHistoryController _normalTransitionHistory;
   late final ValueNotifier<List<EditorAssetItem>> _assetLibrary;
   late final ValueNotifier<bool> _assetLibraryLoading;
   late final ValueNotifier<String?> _assetLibraryError;
@@ -406,6 +414,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _exportController = exportController;
     _aiTransitionService = KieAiTransitionService();
     unawaited(_aiTransitionService.ensureConfigured());
+    _normalTransitionHistory = NormalTransitionCommandHistoryController();
     _motionEvaluator = const BasicMotionRuntimeEvaluator();
     _motionTextRenderAdapter = const BasicMotionTextRenderAdapter();
     _assetLibrary =
@@ -10411,6 +10420,108 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return null;
   }
 
+  String _normalTransitionTrackIdForTrack(TimelineTrackData track) {
+    return track.kind == TimelineTrackKind.video
+        ? _normalTransitionVideoTrackId
+        : track.kind.name;
+  }
+
+  TimelineTrackTransitionData? _createNormalTransitionForBoundary({
+    required TimelineTrackData track,
+    required TimelineClipData leftClip,
+    required TimelineClipData rightClip,
+    required TimelineTransitionPreset preset,
+  }) {
+    final positionedClips = _positionedMediaClipsForTrack(track);
+    _PositionedTimelineTrackClip? positionedLeftClip;
+    _PositionedTimelineTrackClip? positionedRightClip;
+    for (final positionedClip in positionedClips) {
+      if (positionedClip.clip.id == leftClip.id) {
+        positionedLeftClip = positionedClip;
+      } else if (positionedClip.clip.id == rightClip.id) {
+        positionedRightClip = positionedClip;
+      }
+    }
+    if (positionedLeftClip == null || positionedRightClip == null) {
+      _showStageMessage('Unable to resolve transition boundary.');
+      return null;
+    }
+    final result =
+        _normalTransitionAuthoringAdapter.createBuiltInPresetTransition(
+      preset: preset,
+      trackId: _normalTransitionTrackIdForTrack(track),
+      leftClipId: leftClip.id,
+      rightClipId: rightClip.id,
+      boundaryTime: positionedLeftClip.endTime,
+      leftAvailableTail: leftClip.durationTime,
+      rightAvailableHead: rightClip.durationTime,
+    );
+    if (!result.canApply) {
+      _showNormalTransitionIssues(result.issues);
+      return null;
+    }
+    return result.transition;
+  }
+
+  void _syncNormalTransitionHistoryFromTimelineTransition(
+    TimelineTrackTransitionData transition,
+  ) {
+    if (!_normalTransitionAuthoringAdapter.isNormalPreset(transition.preset)) {
+      return;
+    }
+    final result =
+        _normalTransitionAuthoringAdapter.rehydrateTimelineTransition(
+      transition: transition,
+      trackId: _normalTransitionVideoTrackId,
+    );
+    if (!result.canApply) {
+      _showNormalTransitionIssues(result.issues);
+      return;
+    }
+    _recordNormalTransitionState(
+      node: result.node!,
+      instance: result.instance!,
+    );
+  }
+
+  void _recordNormalTransitionState({
+    required NormalTransitionNode node,
+    required NormalTransitionInstance instance,
+  }) {
+    final historyResult = _normalTransitionHistory.state.nodeById(node.id) ==
+            null
+        ? _normalTransitionHistory.addTransition(node: node, instance: instance)
+        : _normalTransitionHistory.updateTransition(
+            node: node,
+            instance: instance,
+          );
+    if (!historyResult.success) {
+      _showStageMessage(historyResult.issues.first.message);
+    }
+  }
+
+  void _removeNormalTransitionFromHistoryIfPresent(String transitionId) {
+    if (_normalTransitionHistory.state.nodeById(transitionId) == null) {
+      return;
+    }
+    final result = _normalTransitionHistory.removeTransition(transitionId);
+    if (!result.success) {
+      _showStageMessage(result.issues.first.message);
+    }
+  }
+
+  void _showNormalTransitionIssues(List<NormalTransitionIssue> issues) {
+    if (issues.isEmpty) {
+      _showStageMessage('Unable to apply transition.');
+      return;
+    }
+    final issue = issues.firstWhere(
+      (candidate) => candidate.severity == NormalTransitionIssueSeverity.error,
+      orElse: () => issues.first,
+    );
+    _showStageMessage(issue.message);
+  }
+
   void _upsertVideoTrackTransition(TimelineTrackTransitionData transition) {
     final videoTrackIndex = _tracks.indexWhere(
       (track) => track.kind == TimelineTrackKind.video,
@@ -10418,6 +10529,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (videoTrackIndex < 0) {
       return;
     }
+    _syncNormalTransitionHistoryFromTimelineTransition(transition);
     final baseTrack = _tracks[videoTrackIndex];
     final nextTransitions = <TimelineTrackTransitionData>[
       for (final candidate in baseTrack.transitions)
@@ -10450,6 +10562,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (videoTrackIndex < 0) {
       return;
     }
+    _removeNormalTransitionFromHistoryIfPresent(transitionId);
     final baseTrack = _tracks[videoTrackIndex];
     final nextTransitions = baseTrack.transitions
         .where((transition) => transition.id != transitionId)
@@ -11234,18 +11347,28 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       );
       return;
     }
-    final transition = TimelineTrackTransitionData(
-      id: 'transition-${DateTime.now().millisecondsSinceEpoch}',
-      leftClipId: leftClip.id,
-      rightClipId: rightClip.id,
-      preset: preset,
-      durationTime: preset.defaultDurationTime,
-      curve: TimelineTransitionCurve.easeInOut,
-      parameterValues: preset.defaultParameterValues,
-      manualEffectIds: preset == TimelineTransitionPreset.manual
-          ? const <String>[]
-          : const <String>[],
-    );
+    final transition = _normalTransitionAuthoringAdapter.isNormalPreset(preset)
+        ? _createNormalTransitionForBoundary(
+            track: track,
+            leftClip: leftClip,
+            rightClip: rightClip,
+            preset: preset,
+          )
+        : TimelineTrackTransitionData(
+            id: 'transition-${DateTime.now().millisecondsSinceEpoch}',
+            leftClipId: leftClip.id,
+            rightClipId: rightClip.id,
+            preset: preset,
+            durationTime: preset.defaultDurationTime,
+            curve: TimelineTransitionCurve.easeInOut,
+            parameterValues: preset.defaultParameterValues,
+            manualEffectIds: preset == TimelineTransitionPreset.manual
+                ? const <String>[]
+                : const <String>[],
+          );
+    if (transition == null) {
+      return;
+    }
     _upsertVideoTrackTransition(transition);
     if (browserResult.action == TransitionBrowserAction.openManual) {
       _enterTransitionFocusMode(transition.id);

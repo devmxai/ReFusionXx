@@ -1,6 +1,6 @@
 # Professional Normal Transitions Engine
 
-Status: implementation plan, not implemented.
+Status: active implementation, foundation in progress.
 
 Owner scope: normal timeline transitions only.
 
@@ -534,6 +534,23 @@ All transition changes must be commands:
 No direct state mutation path should become the final implementation.
 
 ## 11. Phased Implementation Plan
+
+Current checkpoint:
+
+- Phase 0 complete: audit and protection rules are documented.
+- Phase 1 complete: canonical normal transition domain models exist.
+- Phase 2 partially complete: overlap and handle validation exists at the
+  authoring-service level for the first preset.
+- Phase 3 complete for the normal-transition state container: add/update/remove
+  are undoable and redoable in the dedicated command history service.
+- Phase 4 partially complete: built-in JSON definitions and external JSON
+  validation/import exist for the first preset family.
+- Phase 5 in progress: `cross_dissolve` is now exposed through the current
+  transition picker and routed through the normal transition authoring adapter.
+- Phase 6 is not complete: current visual feedback is still the temporary
+  Flutter overlay, not the final dual-source compositor.
+- Phase 7 is not started: export parity remains blocked until the compositor
+  path is built.
 
 ### Phase 0: Baseline Freeze And Audit
 
