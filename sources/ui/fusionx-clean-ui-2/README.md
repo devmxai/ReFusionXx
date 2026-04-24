@@ -69,6 +69,75 @@ audio, accurate seeking, and native performance on both platforms.
 
 - `docs/live_scrub_migration_mandate.md`: the single binding live scrub
   migration directive for the native scrub engine rebuild
+- `docs/professional_direct_text_effects_and_scriptable_motion.md`: the
+  unified architecture for direct text effects and scriptable/programmatic
+  motion over the shared motion substrate
+
+## Critical Agent Safety Notes
+
+Before touching timeline, canvas, scope, motion, or animation code:
+
+1. read `docs/live_scrub_migration_mandate.md`
+2. treat the current `Live Scrub` path as a protected system boundary
+3. do not modify protected scrub files as an incidental side effect
+
+Protected scrub path examples:
+
+- `NativeTimelineScrubSurface`
+- `Stage5TimelineScrubPlatformView`
+- `Stage5NativeScrubEngine`
+- `Stage5SurfaceScrubDecoder`
+- `Stage5ScrubOverlayTextureView`
+
+If any task appears to require a real `Live Scrub` change:
+
+- stop at that boundary
+- document the exact dependency and affected files
+- propose the smallest possible change
+- do not proceed without explicit approval
+
+This rule is strict and applies even when the feature itself is unrelated to
+scrub work.
+
+## Checkpoint Workflow
+
+To keep development reversible and stable, ReFusion uses a checkpoint-based
+Git workflow instead of pushing unfinished work to `main`.
+
+Rules:
+
+- `main` stays protected as the stable reference line.
+- active implementation happens on a dedicated development branch such as
+  `codex/professional-canvas-timeline-snapshot`
+- every meaningful change is saved as a focused checkpoint commit
+- every verified checkpoint commit is pushed to GitHub immediately
+- rollback should happen by returning to a known checkpoint, not by rebuilding
+  the feature from memory
+
+Recommended cycle for each change:
+
+1. make the scoped code change
+2. run the smallest relevant verification (`flutter analyze`, targeted tests,
+   build/install when needed)
+3. create a checkpoint commit with a clear message
+4. push the branch to GitHub right away
+
+Recommended commit style:
+
+- `checkpoint: stabilize scoped timeline interactions`
+- `checkpoint: fix playback preview start sync`
+- `checkpoint: refine gaussian blur controls`
+
+Rollback options:
+
+- inspect previous checkpoints on the branch and return to a known good commit
+- use a new corrective commit or `git revert` instead of rewriting shared
+  branch history
+- merge to `main` only after the branch behavior is verified on device
+
+This gives the project the same practical safety model used in professional
+teams: small verified checkpoints, remote backup after each step, and clean
+recovery when a regression appears.
 
 ## Run
 

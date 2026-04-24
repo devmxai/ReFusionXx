@@ -4,6 +4,7 @@ import '../../presentation/models/timeline_time.dart';
 import 'professional_motion_animation_models.dart';
 import 'professional_motion_compilation_models.dart';
 import 'professional_motion_evaluation_models.dart';
+import 'professional_motion_interpolation_evaluator.dart';
 import 'professional_motion_models.dart';
 import 'professional_motion_text_models.dart';
 import 'professional_motion_text_preview_models.dart';
@@ -28,6 +29,7 @@ class MotionTextRenderNode {
     required this.text,
     required this.fullText,
     required this.revealUnit,
+    this.revealDirection = MotionTextRevealDirection.forward,
     required this.revealProgress,
     required this.hasRevealAnimation,
     required List<MotionTextAnimationKind> animationKinds,
@@ -38,6 +40,11 @@ class MotionTextRenderNode {
     required this.rotationDegrees,
     required this.opacity,
     required this.blurAmount,
+    this.blurHorizontal = 100,
+    this.blurVertical = 100,
+    this.blurMix = 100,
+    this.blurEdgeMode = 0,
+    this.blurCrop = 0,
     required this.fontSize,
     required this.letterSpacing,
     required this.colorArgb,
@@ -63,6 +70,7 @@ class MotionTextRenderNode {
   final String text;
   final String fullText;
   final MotionTextRevealUnit revealUnit;
+  final MotionTextRevealDirection revealDirection;
   final double? revealProgress;
   final bool hasRevealAnimation;
   final List<MotionTextAnimationKind> animationKinds;
@@ -73,6 +81,11 @@ class MotionTextRenderNode {
   final double rotationDegrees;
   final double opacity;
   final double blurAmount;
+  final double blurHorizontal;
+  final double blurVertical;
+  final double blurMix;
+  final double blurEdgeMode;
+  final double blurCrop;
   final double fontSize;
   final double letterSpacing;
   final int colorArgb;
@@ -143,13 +156,16 @@ class BasicMotionTextRenderAdapter implements MotionTextRenderAdapter {
             text: node.visibleText,
             fullText: node.fullText,
             revealUnit: node.revealUnit,
+            revealDirection: node.revealDirection,
             revealProgress: node.revealProgress,
             hasRevealAnimation: node.animationKinds.any(
-              (kind) =>
-                  kind == MotionTextAnimationKind.wordReveal ||
-                  kind == MotionTextAnimationKind.letterReveal ||
-                  kind == MotionTextAnimationKind.typewriter,
-            ),
+                  (kind) =>
+                      kind == MotionTextAnimationKind.wordReveal ||
+                      kind == MotionTextAnimationKind.letterReveal ||
+                      kind == MotionTextAnimationKind.typewriter,
+                ) ||
+                (node.revealUnit != MotionTextRevealUnit.wholeText &&
+                    node.revealProgress != null),
             animationKinds: node.animationKinds,
             animationProgressByKind: _resolveAnimationProgressByKind(
               textAnimation: node.textAnimationId == null
@@ -167,6 +183,11 @@ class BasicMotionTextRenderAdapter implements MotionTextRenderAdapter {
             rotationDegrees: node.transform.rotationDegrees,
             opacity: node.style.opacity.clamp(0.0, 1.0),
             blurAmount: node.style.blurAmount < 0 ? 0 : node.style.blurAmount,
+            blurHorizontal: node.style.blurHorizontal.clamp(0.0, 100.0),
+            blurVertical: node.style.blurVertical.clamp(0.0, 100.0),
+            blurMix: node.style.blurMix.clamp(0.0, 100.0),
+            blurEdgeMode: node.style.blurEdgeMode.clamp(0.0, 2.0),
+            blurCrop: node.style.blurCrop.clamp(0.0, 1.0),
             fontSize: node.style.fontSize <= 0 ? 16 : node.style.fontSize,
             letterSpacing: node.style.letterSpacing,
             colorArgb: defaultTextColorArgb,
@@ -267,26 +288,6 @@ class BasicMotionTextRenderAdapter implements MotionTextRenderAdapter {
     MotionInterpolationSpec interpolation,
     double progress,
   ) {
-    switch (interpolation.kind) {
-      case MotionInterpolationKind.hold:
-        return 0;
-      case MotionInterpolationKind.linear:
-      case MotionInterpolationKind.cubicBezier:
-      case MotionInterpolationKind.spring:
-      case MotionInterpolationKind.bounce:
-      case MotionInterpolationKind.elastic:
-        return progress;
-      case MotionInterpolationKind.easeIn:
-        return progress * progress;
-      case MotionInterpolationKind.easeOut:
-        final inverse = 1 - progress;
-        return 1 - (inverse * inverse);
-      case MotionInterpolationKind.easeInOut:
-        if (progress < 0.5) {
-          return 2 * progress * progress;
-        }
-        final inverse = -2 * progress + 2;
-        return 1 - ((inverse * inverse) / 2);
-    }
+    return evaluateMotionCurveProgress(interpolation, progress);
   }
 }

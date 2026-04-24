@@ -1,0 +1,614 @@
+# Professional Track Transitions
+
+Status: documentation and planning only. No runtime code is implemented by this
+file.
+
+This document records the current state of the active ReFusion professional
+timeline plans, then opens a dedicated plan for professional transitions between
+two adjacent video clips: clip A to clip B.
+
+## 0. Current Plan Ledger
+
+This ledger is intentionally practical. "Closed" means the current development
+branch has a real implementation or an accepted checkpoint. "Open" means the
+work remains architectural, partially implemented, or still requires validation.
+
+### 0.1 Closed Or Accepted Checkpoints
+
+- Protected Live Scrub boundary is established in
+  `docs/live_scrub_migration_mandate.md`.
+- Scoped Layer Timeline is the accepted direction for layer-local animation and
+  FX, documented in `docs/professional_scope_timeline.md`.
+- Double tap / double click on supported layer content opens scoped timeline.
+- Scoped text layer authoring exists as the first vertical slice.
+- Scoped keyframe lanes use real authored keyframes, not visual mockups.
+- Opacity, position, scale, rotation, and Gaussian blur have first real scoped
+  authoring paths.
+- Keyframe selection, value editing, and move-to-playhead behavior have been
+  implemented enough for active testing.
+- Keyframe identity issues are documented and the direction is identity-based
+  keyframes, not index-based keyframes.
+- Direct text effects and scriptable motion have a canonical architecture in
+  `docs/professional_direct_text_effects_and_scriptable_motion.md`.
+- Scoped text script import exists and is documented in
+  `docs/scoped_text_motion_script_v1.md`.
+- Professional interpolation rollout through Phase 5 is documented in
+  `docs/professional_motion_interpolation_rollout.md`.
+- The current script path supports canonical spring, bounce, and elastic
+  interpolation payloads.
+- First named text motion families exist in documentation and import guidance:
+  `bounceIn`, `riseIn`, `slideIn`, `wordRiseIn`, `letterPopIn`,
+  `wordCascade`, `letterBounce`, `slideBlurIn`, `blurRiseIn`, `rotateIn`, and
+  `elasticPop`.
+- Native preview resume recovery has a current checkpoint and is installed for
+  device validation.
+- Git checkpoint workflow is active: meaningful stable changes are committed
+  and pushed to the feature branch before risky follow-up work.
+
+### 0.2 Open Work Still Not Closed
+
+- Shared Undo/Redo is not yet fully wired for every scoped command. It remains a
+  shipping blocker for broad editing.
+- Full universal scoped effect system is not complete yet. Text is the first
+  path, but image, shape, and video scopes still need the same contract.
+- Full effect sheet with default and advanced controls is not complete for all
+  effects.
+- FX stack reorder, enable/disable, conflict handling, and ownership UI remain
+  open.
+- Export parity for every authored effect must be validated before claiming
+  production completeness.
+- First-play smoothness still needs instrumentation and measured cache/prewarm
+  work. Timing must not be patched by changing playback speed.
+- Lifecycle preview recovery is implemented as a checkpoint but still needs
+  user-device validation after background/resume.
+- Image Scope and Video Scope remain future phases.
+- Advanced graph editor, value graph, speed graph, Bezier handles, and advanced
+  curve editing remain open.
+- Full memory/cache hardening remains open, especially the Dart preview
+  thumbnail cache policy.
+- Professional transition authoring between timeline clips is not implemented
+  yet. This document opens that track.
+
+### 0.3 Work We Should Not Mix Together
+
+The following systems must remain separate in planning and implementation:
+
+- Scoped Layer Timeline: animation and FX inside one selected layer.
+- Canvas and Timeline property graph: canonical transforms and keyframes.
+- Direct text effects and script import: text motion authoring surface.
+- Track transitions: boundary effects between clip A and clip B.
+- Live Scrub engine: protected native hot path.
+
+Transitions must not be hidden inside scoped layer work. They are root timeline
+boundary operations.
+
+## 1. Non-Negotiable Transition Directives
+
+### 1.1 Do Not Build A Second Timeline Engine
+
+Transitions must be represented as data on the existing root timeline and
+rendered through the existing preview/export architecture.
+
+Do not create:
+
+- a transition-only timeline
+- a transition-only playback clock
+- a transition-only scrub engine
+- a transition-only preview surface
+
+The current `TimelinePanel` remains the UI foundation.
+
+### 1.2 Do Not Regress Live Scrub
+
+Live Scrub remains a protected system boundary.
+
+Transition work must not modify Stage5 live scrub files unless the change is
+explicitly approved as a Live Scrub task.
+
+If a transition requires a new preview behavior during scrub, the required data
+must be surfaced to the existing scrub/preview contract rather than bypassing
+it.
+
+### 1.3 Transitions Are Boundary Effects
+
+A transition belongs to the boundary between two clips:
+
+```text
+clip A end  ->  transition boundary  ->  clip B start
+```
+
+It is not a text layer, not an image layer, and not a scoped layer animation.
+
+### 1.4 Transitions Must Be Deterministic
+
+The same transition definition must evaluate consistently in:
+
+- root timeline preview
+- playback
+- scrub where supported
+- export
+- future project reload
+
+If a transition can preview but cannot export, it must be marked as preview-only
+and blocked from shipping as complete.
+
+### 1.5 Shared History Is Required
+
+Transition apply, remove, trim, parameter edit, and keyframe edit must enter the
+same editor history as root timeline edits.
+
+No separate transition undo stack is allowed.
+
+## 2. Product Definition
+
+A professional transition is a non-destructive effect instance attached to the
+join or overlap of two clips.
+
+Examples:
+
+- Cross Dissolve
+- Dip To Black / Dip To White
+- Blur Dissolve
+- Push
+- Slide
+- Wipe
+- Zoom Blur
+- Spin / Rotation transition
+- Luma Fade
+- Light Leak / Flash
+- Glitch
+- Match Cut helper later
+
+The first release should start small and reliable:
+
+1. Cross Dissolve
+2. Dip To Black
+3. Blur Dissolve
+4. Push Left / Push Right
+
+These cover the core engine requirements without introducing a complex shader
+system too early.
+
+## 3. Timeline Model
+
+### 3.1 Transition Instance
+
+Each transition should have stable identity.
+
+```text
+TimelineTransitionInstance
+  id
+  fromClipId
+  toClipId
+  boundaryTime
+  duration
+  alignment
+  definitionId
+  parameters
+  parameterChannels
+  enabled
+  createdBy
+```
+
+### 3.2 Alignment
+
+Professional editors generally support three transition alignments:
+
+```text
+centered_on_cut
+start_at_cut
+end_at_cut
+```
+
+Initial implementation may support only `centered_on_cut`, but the model must
+not block the other two.
+
+### 3.3 Handles And Valid Duration
+
+A transition duration is limited by available source handles:
+
+- `clip A` must have enough media after its visible end if the transition needs
+  post-cut frames.
+- `clip B` must have enough media before its visible start if the transition
+  needs pre-cut frames.
+
+If handles are missing, the app must not silently fake professional behavior.
+It must either:
+
+- clamp the transition duration,
+- show a clear warning,
+- or use a supported fallback mode.
+
+### 3.4 Parameter Channels
+
+Transition parameters must use the same property-channel philosophy as scoped
+effects.
+
+Examples:
+
+```text
+transition.progress
+transition.opacityA
+transition.opacityB
+transition.blur.amount
+transition.push.direction
+transition.push.distance
+transition.wipe.angle
+transition.wipe.softness
+```
+
+For V1, many transitions can be driven by a normalized progress value from
+`0..1`.
+
+## 4. UI Contract
+
+### 4.1 Root Timeline Entry Point
+
+Transitions are added from the root timeline, not from scoped layer.
+
+Possible entry points:
+
+- tap the cut between two clips
+- plus button between adjacent clips
+- long press the boundary
+- transition browser button when a boundary is selected
+
+V1 should choose one clear path:
+
+```text
+select boundary between clip A and clip B -> open transition browser
+```
+
+### 4.2 Timeline Representation
+
+The transition should appear as a small bridge over the cut:
+
+```text
+[ clip A ][ transition ][ clip B ]
+```
+
+It should not look like a separate media clip. It is a boundary effect.
+
+Minimum visual states:
+
+- normal
+- selected
+- disabled
+- invalid because handles are insufficient
+
+### 4.3 Transition Inspector
+
+Selecting a transition opens a bottom sheet or inspector with:
+
+- transition name
+- duration
+- alignment
+- core parameters
+- preview toggle if needed
+- remove transition
+
+The inspector must not push the timeline layout upward in a way that destabilizes
+the root editing UI.
+
+### 4.4 Transition Browser
+
+The browser should use the same professional bottom-sheet language as Animate
+and FX:
+
+- search at top
+- category list
+- rectangular selectable rows/cards
+- plus/apply action
+- no unrelated tools
+
+Initial categories:
+
+- Basic
+- Blur
+- Motion
+- Wipe
+- Light
+- Stylized
+
+## 5. Evaluation Contract
+
+### 5.1 Transition Evaluation Window
+
+A transition is active only within its boundary window:
+
+```text
+boundaryStart <= timelineTime <= boundaryEnd
+```
+
+The evaluator receives:
+
+```text
+fromClipFrame
+toClipFrame
+progress
+parameters
+```
+
+It returns a composed visual frame or a transition render instruction.
+
+### 5.2 Progress
+
+Progress is normalized:
+
+```text
+progress = (timelineTime - boundaryStart) / duration
+```
+
+Progress is clamped to `0..1`.
+
+Easing may be applied to progress, but the raw progress should remain available
+for deterministic export.
+
+### 5.3 Render Order
+
+Transition render order must be explicit:
+
+1. sample clip A at the correct source time
+2. sample clip B at the correct source time
+3. apply transition definition using progress and parameters
+4. composite result into the root preview/export frame
+5. overlay layer-level scoped animations above the video background where
+   appropriate
+
+This order must be documented before implementation because it affects text,
+image, and shape overlays during transitions.
+
+## 6. Preview, Scrub, And Export
+
+### 6.1 Preview
+
+Preview should use the same root playback clock.
+
+No transition-specific clock is allowed.
+
+### 6.2 Live Scrub
+
+Live Scrub parity is required, but must be added carefully.
+
+For early implementation:
+
+- transition UI and data may be authored first
+- playback preview may be enabled first
+- Live Scrub transition rendering may be gated until the safe bridge is proven
+
+The app must never degrade current scrub responsiveness for all clips just to
+preview a transition.
+
+### 6.3 Export
+
+Export parity is mandatory before calling a transition shippable.
+
+Each transition definition must declare:
+
+```text
+previewSupport
+scrubSupport
+exportSupport
+fallbackPolicy
+```
+
+No transition should silently export differently from preview.
+
+## 7. Implementation Phases
+
+### Phase 0 - Transition Baseline And Guardrails
+
+Goal:
+
+Document the current timeline transition-related UI and confirm no existing
+transition work is being overwritten.
+
+Deliverables:
+
+- transition plan exists
+- protected Live Scrub note copied into transition tasks
+- current `TimelinePanel` boundary rendering audited
+- current transition bottom-sheet widgets audited
+
+Exit criteria:
+
+- no runtime code changed
+- exact insertion point for root boundary selection is known
+
+### Phase 1 - Boundary Selection Model
+
+Goal:
+
+Allow the root timeline to identify the boundary between clip A and clip B.
+
+Deliverables:
+
+- stable boundary id
+- selected boundary state
+- boundary hit testing
+- selected boundary visual state
+
+Exit criteria:
+
+- user can select a cut without selecting either clip
+- selection does not interfere with clip trim, scroll, or Live Scrub gestures
+
+### Phase 2 - Transition Data Model
+
+Goal:
+
+Represent a transition as durable timeline data.
+
+Deliverables:
+
+- `TimelineTransitionInstance`
+- definition id
+- from/to clip identity
+- duration
+- alignment
+- parameters
+
+Exit criteria:
+
+- transition can be added and removed from state
+- undo/redo contract is written before broad use
+- no visual effect required yet
+
+### Phase 3 - Transition Browser UI
+
+Goal:
+
+Add the professional transition browser for selected boundaries.
+
+Deliverables:
+
+- bottom sheet browser
+- search
+- initial transition list
+- add/apply action
+
+Exit criteria:
+
+- adding Cross Dissolve creates a transition instance
+- root timeline representation appears over the boundary
+- no playback behavior changed yet
+
+### Phase 4 - First Real Transition: Cross Dissolve
+
+Goal:
+
+Implement the smallest real transition with clear preview/export semantics.
+
+Deliverables:
+
+- `progress` evaluator
+- opacity blend from A to B
+- duration editing
+- deterministic preview
+- export path decision
+
+Exit criteria:
+
+- Cross Dissolve previews correctly
+- playback timing stays unchanged
+- root timeline selection remains stable
+
+### Phase 5 - Dip And Blur Families
+
+Goal:
+
+Add visually useful professional transitions after the dissolve baseline.
+
+Deliverables:
+
+- Dip To Black
+- Dip To White
+- Blur Dissolve
+- optional easing on progress
+
+Exit criteria:
+
+- all parameters are visible in inspector
+- all transitions declare preview/export support
+- no hidden preset-only behavior
+
+### Phase 6 - Motion Transitions
+
+Goal:
+
+Add directional motion transitions.
+
+Deliverables:
+
+- Push Left
+- Push Right
+- Slide Up / Down later
+- motion blur decision documented
+
+Exit criteria:
+
+- transition geometry is deterministic
+- mobile preview remains stable
+
+### Phase 7 - Live Scrub Parity Gate
+
+Goal:
+
+Bring transitions into scrub only after playback preview and export decisions are
+stable.
+
+Deliverables:
+
+- performance check
+- scrub behavior matrix
+- fallback for unsupported transition previews
+
+Exit criteria:
+
+- current Live Scrub quality is not slower
+- scrubbing over normal clips remains unchanged
+- scrubbing over a transition has deterministic behavior or a documented safe
+  fallback
+
+### Phase 8 - Advanced Transition Stack Later
+
+Future work:
+
+- transition presets with editable internals
+- shader-based transitions
+- luma matte transitions
+- transition keyframes
+- AI-generated transition recipes
+- transition script import
+
+This phase must not begin until the basic boundary model is stable.
+
+## 8. Validation Matrix
+
+Every transition implementation must be validated against:
+
+- add transition at a simple cut
+- remove transition
+- change duration
+- trim clip A after adding transition
+- trim clip B after adding transition
+- split near a transition
+- duplicate a clip with transition nearby
+- undo add transition
+- undo duration change
+- playback over transition
+- scrub before, inside, and after transition
+- export the transition
+- enter scoped layer before and after transition
+- return from background and play over transition
+
+## 9. Stop Conditions
+
+Stop transition implementation immediately if:
+
+- Live Scrub gets slower outside transition windows
+- clip trim becomes less reliable
+- transition is represented as a fake clip without a durable boundary contract
+- preview and export diverge silently
+- keyframe/effect work starts leaking into a transition-only state model
+- undo/redo cannot represent the transition command
+
+## 10. Definition Of Done For First Transition Release
+
+The first professional transition release is done only when:
+
+- Cross Dissolve is represented as a durable boundary transition
+- it previews correctly
+- it has duration editing
+- it survives trim/undo/redo validation
+- export parity is confirmed or explicitly gated
+- Live Scrub is unchanged outside transition windows
+- transition code does not create a second timeline engine
+- documentation is updated with exact supported transitions and known gaps
+
+## 11. Final Rule
+
+Transitions are root timeline boundary effects. Scoped layer animation remains
+layer-local. Live Scrub remains protected. If a transition implementation mixes
+those three responsibilities, the architecture is drifting and must stop for
+review.

@@ -17,6 +17,7 @@ import java.util.concurrent.Executors
 class MainActivity: FlutterActivity() {
     companion object {
         private const val MEDIA_PERMISSION_REQUEST_CODE = 4106
+        private const val RUNTIME_CONFIG_CHANNEL = "com.refusion.app/runtime_config"
     }
 
     private lateinit var stage5TransportManager: Stage5TransportManager
@@ -255,6 +256,10 @@ class MainActivity: FlutterActivity() {
                     stage5TransportManager.settleAfterScrub(positionMs)
                     result.success(null)
                 }
+                "recoverPreviewSurface" -> {
+                    val positionMs = call.argument<Number>("positionMs")?.toLong()
+                    result.success(stage5TransportManager.recoverPreviewSurface(positionMs))
+                }
                 "primeScrubPreviewSources" -> {
                     val rawSources = call.argument<List<Any?>>("sources") ?: emptyList()
                     rawSources.forEach { entry ->
@@ -414,6 +419,16 @@ class MainActivity: FlutterActivity() {
                         )
                     }
                 }
+                else -> result.notImplemented()
+            }
+        }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            RUNTIME_CONFIG_CHANNEL,
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "getKieApiKey" -> result.success(BuildConfig.KIE_API_KEY)
                 else -> result.notImplemented()
             }
         }

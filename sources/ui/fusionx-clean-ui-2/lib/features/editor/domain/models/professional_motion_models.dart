@@ -171,8 +171,8 @@ class MotionFrameRate {
   const MotionFrameRate({
     required this.numerator,
     required this.denominator,
-  }) : assert(numerator > 0),
-       assert(denominator > 0);
+  })  : assert(numerator > 0),
+        assert(denominator > 0);
 
   final int numerator;
   final int denominator;
@@ -188,31 +188,31 @@ class MotionPropertyValue {
   });
 
   const MotionPropertyValue.scalar(double value)
-    : this._(kind: MotionPropertyValueKind.scalar, rawValue: value);
+      : this._(kind: MotionPropertyValueKind.scalar, rawValue: value);
 
   const MotionPropertyValue.integer(int value)
-    : this._(kind: MotionPropertyValueKind.integer, rawValue: value);
+      : this._(kind: MotionPropertyValueKind.integer, rawValue: value);
 
   const MotionPropertyValue.boolean(bool value)
-    : this._(kind: MotionPropertyValueKind.boolean, rawValue: value);
+      : this._(kind: MotionPropertyValueKind.boolean, rawValue: value);
 
   const MotionPropertyValue.stringValue(String value)
-    : this._(kind: MotionPropertyValueKind.stringValue, rawValue: value);
+      : this._(kind: MotionPropertyValueKind.stringValue, rawValue: value);
 
   const MotionPropertyValue.colorArgb(int value)
-    : this._(kind: MotionPropertyValueKind.colorArgb, rawValue: value);
+      : this._(kind: MotionPropertyValueKind.colorArgb, rawValue: value);
 
   const MotionPropertyValue.point2D(MotionPoint2D value)
-    : this._(kind: MotionPropertyValueKind.point2D, rawValue: value);
+      : this._(kind: MotionPropertyValueKind.point2D, rawValue: value);
 
   const MotionPropertyValue.size2D(MotionSize2D value)
-    : this._(kind: MotionPropertyValueKind.size2D, rawValue: value);
+      : this._(kind: MotionPropertyValueKind.size2D, rawValue: value);
 
   const MotionPropertyValue.rect(MotionRect value)
-    : this._(kind: MotionPropertyValueKind.rect, rawValue: value);
+      : this._(kind: MotionPropertyValueKind.rect, rawValue: value);
 
   const MotionPropertyValue.enumValue(String value)
-    : this._(kind: MotionPropertyValueKind.enumValue, rawValue: value);
+      : this._(kind: MotionPropertyValueKind.enumValue, rawValue: value);
 
   final MotionPropertyValueKind kind;
   final Object rawValue;
@@ -385,8 +385,8 @@ class MotionLayerModel {
     this.blendMode = MotionBlendMode.normal,
     List<MotionPropertyAssignment> properties =
         const <MotionPropertyAssignment>[],
-  }) : elements = List.unmodifiable(elements),
-       properties = List.unmodifiable(properties);
+  })  : elements = List.unmodifiable(elements),
+        properties = List.unmodifiable(properties);
 
   final String id;
   final String sceneId;
@@ -438,9 +438,9 @@ class MotionSceneModel {
     List<MotionPropertyAssignment> properties =
         const <MotionPropertyAssignment>[],
     Map<String, String> metadata = const <String, String>{},
-  }) : layers = List.unmodifiable(layers),
-       properties = List.unmodifiable(properties),
-       metadata = Map.unmodifiable(metadata);
+  })  : layers = List.unmodifiable(layers),
+        properties = List.unmodifiable(properties),
+        metadata = Map.unmodifiable(metadata);
 
   final String id;
   final TimelineTimeRange projectRange;
@@ -485,8 +485,8 @@ class MotionProjectModel {
     required List<MotionSceneModel> scenes,
     this.name,
     Map<String, String> metadata = const <String, String>{},
-  }) : scenes = List.unmodifiable(scenes),
-       metadata = Map.unmodifiable(metadata);
+  })  : scenes = List.unmodifiable(scenes),
+        metadata = Map.unmodifiable(metadata);
 
   final String id;
   final MotionProjectFormat format;
@@ -577,16 +577,16 @@ class MotionPropertyCatalog {
 
   static final MotionPropertyDefinition rotationDegrees =
       MotionPropertyDefinition(
-        id: 'transform.rotation.degrees',
-        path: const MotionPropertyPath(
-          group: MotionPropertyGroup.transform,
-          name: 'rotation',
-          component: 'degrees',
-        ),
-        valueKind: MotionPropertyValueKind.scalar,
-        supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
-        defaultValue: const MotionPropertyValue.scalar(0),
-      );
+    id: 'transform.rotation.degrees',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.transform,
+      name: 'rotation',
+      component: 'degrees',
+    ),
+    valueKind: MotionPropertyValueKind.scalar,
+    supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
+    defaultValue: const MotionPropertyValue.scalar(0),
+  );
 
   static final MotionPropertyDefinition opacity = MotionPropertyDefinition(
     id: 'visual.opacity',
@@ -608,6 +608,67 @@ class MotionPropertyCatalog {
       group: MotionPropertyGroup.visual,
       name: 'blur',
       component: 'amount',
+    ),
+    valueKind: MotionPropertyValueKind.scalar,
+    supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
+    defaultValue: const MotionPropertyValue.scalar(0),
+  );
+
+  static final MotionPropertyDefinition blurHorizontal =
+      MotionPropertyDefinition(
+    id: 'visual.blur.horizontal',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.visual,
+      name: 'blur',
+      component: 'horizontal',
+    ),
+    valueKind: MotionPropertyValueKind.scalar,
+    supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
+    defaultValue: const MotionPropertyValue.scalar(100),
+  );
+
+  static final MotionPropertyDefinition blurVertical = MotionPropertyDefinition(
+    id: 'visual.blur.vertical',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.visual,
+      name: 'blur',
+      component: 'vertical',
+    ),
+    valueKind: MotionPropertyValueKind.scalar,
+    supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
+    defaultValue: const MotionPropertyValue.scalar(100),
+  );
+
+  static final MotionPropertyDefinition blurMix = MotionPropertyDefinition(
+    id: 'visual.blur.mix',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.visual,
+      name: 'blur',
+      component: 'mix',
+    ),
+    valueKind: MotionPropertyValueKind.scalar,
+    supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
+    defaultValue: const MotionPropertyValue.scalar(100),
+  );
+
+  static final MotionPropertyDefinition blurEdgeMode = MotionPropertyDefinition(
+    id: 'visual.blur.edgeMode',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.visual,
+      name: 'blur',
+      component: 'edgeMode',
+    ),
+    valueKind: MotionPropertyValueKind.scalar,
+    supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
+    defaultValue: const MotionPropertyValue.scalar(0),
+  );
+
+  static final MotionPropertyDefinition blurCrop = MotionPropertyDefinition(
+    id: 'visual.blur.crop',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.visual,
+      name: 'blur',
+      component: 'crop',
     ),
     valueKind: MotionPropertyValueKind.scalar,
     supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
@@ -673,27 +734,27 @@ class MotionPropertyCatalog {
 
   static final MotionPropertyDefinition letterSpacing =
       MotionPropertyDefinition(
-        id: 'text.letterSpacing',
-        path: const MotionPropertyPath(
-          group: MotionPropertyGroup.text,
-          name: 'letterSpacing',
-        ),
-        valueKind: MotionPropertyValueKind.scalar,
-        supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
-        defaultValue: const MotionPropertyValue.scalar(0),
-      );
+    id: 'text.letterSpacing',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.text,
+      name: 'letterSpacing',
+    ),
+    valueKind: MotionPropertyValueKind.scalar,
+    supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
+    defaultValue: const MotionPropertyValue.scalar(0),
+  );
 
   static final MotionPropertyDefinition revealProgress =
       MotionPropertyDefinition(
-        id: 'text.revealProgress',
-        path: const MotionPropertyPath(
-          group: MotionPropertyGroup.text,
-          name: 'revealProgress',
-        ),
-        valueKind: MotionPropertyValueKind.scalar,
-        supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
-        defaultValue: const MotionPropertyValue.scalar(1),
-      );
+    id: 'text.revealProgress',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.text,
+      name: 'revealProgress',
+    ),
+    valueKind: MotionPropertyValueKind.scalar,
+    supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
+    defaultValue: const MotionPropertyValue.scalar(1),
+  );
 
   static final MotionPropertyDefinition cameraPanX = MotionPropertyDefinition(
     id: 'camera.pan.x',
@@ -744,19 +805,19 @@ class MotionPropertyCatalog {
 
   static final MotionPropertyDefinition cameraRotation =
       MotionPropertyDefinition(
-        id: 'camera.rotation',
-        path: const MotionPropertyPath(
-          group: MotionPropertyGroup.camera,
-          name: 'rotation',
-        ),
-        valueKind: MotionPropertyValueKind.scalar,
-        supportedTargets: const <MotionTargetKind>[
-          MotionTargetKind.scene,
-          MotionTargetKind.layer,
-          MotionTargetKind.element,
-        ],
-        defaultValue: const MotionPropertyValue.scalar(0),
-      );
+    id: 'camera.rotation',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.camera,
+      name: 'rotation',
+    ),
+    valueKind: MotionPropertyValueKind.scalar,
+    supportedTargets: const <MotionTargetKind>[
+      MotionTargetKind.scene,
+      MotionTargetKind.layer,
+      MotionTargetKind.element,
+    ],
+    defaultValue: const MotionPropertyValue.scalar(0),
+  );
 
   static final MotionPropertyDefinition shakeAmount = MotionPropertyDefinition(
     id: 'effect.shake.amount',
@@ -775,24 +836,29 @@ class MotionPropertyCatalog {
 
   static final UnmodifiableListView<MotionPropertyDefinition> all =
       UnmodifiableListView<MotionPropertyDefinition>(<MotionPropertyDefinition>[
-        positionX,
-        positionY,
-        scaleX,
-        scaleY,
-        rotationDegrees,
-        opacity,
-        blurAmount,
-        cropRect,
-        width,
-        height,
-        cornerRadius,
-        fontSize,
-        letterSpacing,
-        revealProgress,
-        cameraPanX,
-        cameraPanY,
-        cameraZoom,
-        cameraRotation,
-        shakeAmount,
-      ]);
+    positionX,
+    positionY,
+    scaleX,
+    scaleY,
+    rotationDegrees,
+    opacity,
+    blurAmount,
+    blurHorizontal,
+    blurVertical,
+    blurMix,
+    blurEdgeMode,
+    blurCrop,
+    cropRect,
+    width,
+    height,
+    cornerRadius,
+    fontSize,
+    letterSpacing,
+    revealProgress,
+    cameraPanX,
+    cameraPanY,
+    cameraZoom,
+    cameraRotation,
+    shakeAmount,
+  ]);
 }

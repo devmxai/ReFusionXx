@@ -28,12 +28,22 @@ class MotionTextPreviewStyleState {
   const MotionTextPreviewStyleState({
     required this.opacity,
     required this.blurAmount,
+    this.blurHorizontal = 100,
+    this.blurVertical = 100,
+    this.blurMix = 100,
+    this.blurEdgeMode = 0,
+    this.blurCrop = 0,
     required this.fontSize,
     required this.letterSpacing,
   });
 
   final double opacity;
   final double blurAmount;
+  final double blurHorizontal;
+  final double blurVertical;
+  final double blurMix;
+  final double blurEdgeMode;
+  final double blurCrop;
   final double fontSize;
   final double letterSpacing;
 }
@@ -50,6 +60,7 @@ class MotionTextPreviewNode {
     required this.fullText,
     required this.visibleText,
     required this.revealUnit,
+    required this.revealDirection,
     required this.transform,
     required this.style,
     required List<MotionTextAnimationKind> animationKinds,
@@ -70,6 +81,7 @@ class MotionTextPreviewNode {
   final String fullText;
   final String visibleText;
   final MotionTextRevealUnit revealUnit;
+  final MotionTextRevealDirection revealDirection;
   final MotionTextPreviewTransformState transform;
   final MotionTextPreviewStyleState style;
   final String? name;
@@ -89,8 +101,8 @@ class MotionTextPreviewSnapshot {
     required List<MotionTextPreviewNode> nodes,
     List<MotionEvaluationDiagnostic> diagnostics =
         const <MotionEvaluationDiagnostic>[],
-  }) : nodes = List.unmodifiable(nodes),
-       diagnostics = List.unmodifiable(diagnostics);
+  })  : nodes = List.unmodifiable(nodes),
+        diagnostics = List.unmodifiable(diagnostics);
 
   final String projectId;
   final TimelineTime time;
@@ -111,9 +123,9 @@ class BasicMotionTextPreviewBinder implements MotionTextPreviewBinder {
   BasicMotionTextPreviewBinder({
     List<MotionTextPresetDefinition>? presetCatalog,
   }) : _presetCatalog = {
-         for (final preset in presetCatalog ?? MotionBuiltInTextPresets.all)
-           preset.id: preset,
-       };
+          for (final preset in presetCatalog ?? MotionBuiltInTextPresets.all)
+            preset.id: preset,
+        };
 
   final Map<String, MotionTextPresetDefinition> _presetCatalog;
 
@@ -134,7 +146,8 @@ class BasicMotionTextPreviewBinder implements MotionTextPreviewBinder {
       }
     }
 
-    final textAnimationsByElementId = <String, MotionEvaluatedTextAnimationState>{};
+    final textAnimationsByElementId =
+        <String, MotionEvaluatedTextAnimationState>{};
     for (final textAnimation in evaluation.textAnimations) {
       textAnimationsByElementId[textAnimation.targetElementId] = textAnimation;
     }
@@ -167,13 +180,13 @@ class BasicMotionTextPreviewBinder implements MotionTextPreviewBinder {
           }
 
           final textAnimation = textAnimationsByElementId[element.id];
-          final revealProgress =
-              textAnimation?.revealProgress ??
+          final revealProgress = textAnimation?.revealProgress ??
               _scalarPropertyOrDefault(
                 element.properties,
                 MotionPropertyCatalog.revealProgress,
               );
-          final revealUnit = _resolveRevealUnit(textAnimation);
+          final revealUnit =
+              textAnimation?.revealUnit ?? MotionTextRevealUnit.wholeText;
           final fullText = _resolveFullText(
             element: element,
             resolvedElement: resolvedElement,
@@ -183,7 +196,10 @@ class BasicMotionTextPreviewBinder implements MotionTextPreviewBinder {
             fullText: fullText,
             revealProgress: revealProgress,
             revealUnit: revealUnit,
-            animationKinds: textAnimation?.animationKinds ?? const <MotionTextAnimationKind>[],
+            revealDirection: textAnimation?.revealDirection ??
+                MotionTextRevealDirection.forward,
+            animationKinds: textAnimation?.animationKinds ??
+                const <MotionTextAnimationKind>[],
           );
 
           nodes.add(
@@ -201,10 +217,12 @@ class BasicMotionTextPreviewBinder implements MotionTextPreviewBinder {
               visibleText: visibleText,
               revealProgress: revealProgress,
               revealUnit: revealUnit,
+              revealDirection: textAnimation?.revealDirection ??
+                  MotionTextRevealDirection.forward,
               zIndex: layer.zIndex,
               blendMode: layer.blendMode,
-              animationKinds:
-                  textAnimation?.animationKinds ?? const <MotionTextAnimationKind>[],
+              animationKinds: textAnimation?.animationKinds ??
+                  const <MotionTextAnimationKind>[],
               transform: MotionTextPreviewTransformState(
                 positionX: _scalarPropertyOrDefault(
                   element.properties,
@@ -228,8 +246,7 @@ class BasicMotionTextPreviewBinder implements MotionTextPreviewBinder {
                 ),
               ),
               style: MotionTextPreviewStyleState(
-                opacity:
-                    layerOpacity *
+                opacity: layerOpacity *
                     _scalarPropertyOrDefault(
                       element.properties,
                       MotionPropertyCatalog.opacity,
@@ -237,6 +254,26 @@ class BasicMotionTextPreviewBinder implements MotionTextPreviewBinder {
                 blurAmount: _scalarPropertyOrDefault(
                   element.properties,
                   MotionPropertyCatalog.blurAmount,
+                ),
+                blurHorizontal: _scalarPropertyOrDefault(
+                  element.properties,
+                  MotionPropertyCatalog.blurHorizontal,
+                ),
+                blurVertical: _scalarPropertyOrDefault(
+                  element.properties,
+                  MotionPropertyCatalog.blurVertical,
+                ),
+                blurMix: _scalarPropertyOrDefault(
+                  element.properties,
+                  MotionPropertyCatalog.blurMix,
+                ),
+                blurEdgeMode: _scalarPropertyOrDefault(
+                  element.properties,
+                  MotionPropertyCatalog.blurEdgeMode,
+                ),
+                blurCrop: _scalarPropertyOrDefault(
+                  element.properties,
+                  MotionPropertyCatalog.blurCrop,
                 ),
                 fontSize: _scalarPropertyOrDefault(
                   element.properties,
@@ -276,8 +313,7 @@ class BasicMotionTextPreviewBinder implements MotionTextPreviewBinder {
   }) {
     final sourceBinding = resolvedElement.sourceBinding;
     final metadata = sourceBinding?.metadata;
-    final metadataText =
-        metadata?['text'] ??
+    final metadataText = metadata?['text'] ??
         metadata?['content'] ??
         metadata?['value'] ??
         metadata?['displayText'];
@@ -301,24 +337,11 @@ class BasicMotionTextPreviewBinder implements MotionTextPreviewBinder {
     return '';
   }
 
-  MotionTextRevealUnit _resolveRevealUnit(
-    MotionEvaluatedTextAnimationState? textAnimation,
-  ) {
-    final kinds = textAnimation?.animationKinds ?? const <MotionTextAnimationKind>[];
-    if (kinds.contains(MotionTextAnimationKind.wordReveal)) {
-      return MotionTextRevealUnit.word;
-    }
-    if (kinds.contains(MotionTextAnimationKind.letterReveal) ||
-        kinds.contains(MotionTextAnimationKind.typewriter)) {
-      return MotionTextRevealUnit.letter;
-    }
-    return MotionTextRevealUnit.wholeText;
-  }
-
   String _resolveVisibleText({
     required String fullText,
     required double? revealProgress,
     required MotionTextRevealUnit revealUnit,
+    required MotionTextRevealDirection revealDirection,
     required List<MotionTextAnimationKind> animationKinds,
   }) {
     if (fullText.isEmpty) {
@@ -327,8 +350,10 @@ class BasicMotionTextPreviewBinder implements MotionTextPreviewBinder {
 
     final hasRevealAnimation =
         animationKinds.contains(MotionTextAnimationKind.wordReveal) ||
-        animationKinds.contains(MotionTextAnimationKind.letterReveal) ||
-        animationKinds.contains(MotionTextAnimationKind.typewriter);
+            animationKinds.contains(MotionTextAnimationKind.letterReveal) ||
+            animationKinds.contains(MotionTextAnimationKind.typewriter) ||
+            (revealUnit != MotionTextRevealUnit.wholeText &&
+                revealProgress != null);
     if (!hasRevealAnimation) {
       return fullText;
     }
@@ -353,14 +378,21 @@ class BasicMotionTextPreviewBinder implements MotionTextPreviewBinder {
           return '';
         }
         final count = (words.length * normalized).ceil().clamp(0, words.length);
-        return words.take(count).join(' ');
+        final visible = revealDirection == MotionTextRevealDirection.reverse
+            ? words.skip(words.length - count).toList(growable: false)
+            : words.take(count).toList(growable: false);
+        return visible.join(' ');
       case MotionTextRevealUnit.letter:
         final scalarRunes = fullText.runes.toList(growable: false);
-        final count =
-            (scalarRunes.length * normalized)
-                .ceil()
-                .clamp(0, scalarRunes.length);
-        return String.fromCharCodes(scalarRunes.take(count));
+        final count = (scalarRunes.length * normalized)
+            .ceil()
+            .clamp(0, scalarRunes.length);
+        final visible = revealDirection == MotionTextRevealDirection.reverse
+            ? scalarRunes
+                .skip(scalarRunes.length - count)
+                .toList(growable: false)
+            : scalarRunes.take(count).toList(growable: false);
+        return String.fromCharCodes(visible);
     }
   }
 

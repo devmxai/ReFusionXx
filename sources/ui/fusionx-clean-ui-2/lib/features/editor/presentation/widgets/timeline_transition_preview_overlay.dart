@@ -22,6 +22,44 @@ class TimelineTransitionPreviewOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final curvedProgress = _applyCurve(progress, transition.curve);
+    final manualIncomingStartScale = transition.manualLaneValueAtProgress(
+          'incomingStartScale',
+          curvedProgress,
+          fallbackValue:
+              transition.parameterValue('incomingStartScale', fallback: 1.0) *
+                  100.0,
+        ) /
+        100.0;
+    final manualOutgoingBoostScale = transition.manualLaneValueAtProgress(
+          'outgoingBoostScale',
+          curvedProgress,
+          fallbackValue:
+              transition.parameterValue('outgoingBoostScale', fallback: 1.0) *
+                  100.0,
+        ) /
+        100.0;
+    final manualEntryDelay = transition.manualLaneValueAtProgress(
+          'entryDelay',
+          curvedProgress,
+          fallbackValue:
+              transition.parameterValue('entryDelay', fallback: 0.0) * 100.0,
+        ) /
+        100.0;
+    final manualBridgeDarkness = transition.manualLaneValueAtProgress(
+          'bridgeDarkness',
+          curvedProgress,
+          fallbackValue:
+              transition.parameterValue('bridgeDarkness', fallback: 0.0) *
+                  100.0,
+        ) /
+        100.0;
+    final manualBlackPeak = transition.manualLaneValueAtProgress(
+          'blackPeak',
+          curvedProgress,
+          fallbackValue:
+              transition.parameterValue('blackPeak', fallback: 0.0) * 100.0,
+        ) /
+        100.0;
     return IgnorePointer(
       child: Stack(
         fit: StackFit.expand,
@@ -31,15 +69,11 @@ class TimelineTransitionPreviewOverlay extends StatelessWidget {
             _ManualTransitionLayer(
               progress: curvedProgress,
               incomingThumbnailBytes: incomingThumbnailBytes,
-              incomingStartScale: transition
-                  .parameterValue('incomingStartScale', fallback: 1.0),
-              outgoingBoostScale: transition
-                  .parameterValue('outgoingBoostScale', fallback: 1.0),
-              entryDelay:
-                  transition.parameterValue('entryDelay', fallback: 0.0),
-              bridgeDarkness:
-                  transition.parameterValue('bridgeDarkness', fallback: 0.0),
-              blackPeak: transition.parameterValue('blackPeak', fallback: 0.0),
+              incomingStartScale: manualIncomingStartScale,
+              outgoingBoostScale: manualOutgoingBoostScale,
+              entryDelay: manualEntryDelay,
+              bridgeDarkness: manualBridgeDarkness,
+              blackPeak: manualBlackPeak,
             ),
           if (transition.preset == TimelineTransitionPreset.fadeBlack)
             _FadeBlackTransitionLayer(
@@ -47,6 +81,11 @@ class TimelineTransitionPreviewOverlay extends StatelessWidget {
                 curvedProgress,
                 transition.parameterValue('blackPeak', fallback: 0.94),
               ),
+            ),
+          if (transition.preset == TimelineTransitionPreset.crossDissolve)
+            _CrossDissolveTransitionLayer(
+              progress: curvedProgress,
+              incomingThumbnailBytes: incomingThumbnailBytes,
             ),
           if (transition.preset == TimelineTransitionPreset.zoomInCamera)
             _ZoomInCameraTransitionLayer(
@@ -140,6 +179,32 @@ class _FadeBlackTransitionLayer extends StatelessWidget {
     }
     return ColoredBox(
       color: Colors.black.withOpacity(opacity),
+    );
+  }
+}
+
+class _CrossDissolveTransitionLayer extends StatelessWidget {
+  const _CrossDissolveTransitionLayer({
+    required this.progress,
+    required this.incomingThumbnailBytes,
+  });
+
+  final double progress;
+  final Uint8List? incomingThumbnailBytes;
+
+  @override
+  Widget build(BuildContext context) {
+    final bytes = incomingThumbnailBytes;
+    if (bytes == null || bytes.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    return Opacity(
+      opacity: progress.clamp(0.0, 1.0).toDouble(),
+      child: Image.memory(
+        bytes,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+      ),
     );
   }
 }

@@ -1,5 +1,25 @@
 # Live Scrub Migration Mandate
 
+## First-Read Warning For Agents
+
+Any agent touching timeline, canvas, scoped timeline, motion, animation,
+preview, or playback code must treat this document as required reading before
+implementation starts.
+
+The current live scrub path is a protected system boundary. It must not be
+modified incidentally while building unrelated features such as scoped editing,
+effects, keyframes, direct text effects, or scriptable motion.
+
+If a task appears to require a real live scrub change:
+
+1. stop at that boundary
+2. document the exact dependency and affected files
+3. propose the smallest possible change
+4. do not proceed without explicit approval
+
+This warning is strict and applies even when the requested feature is not
+described as scrub work.
+
 ## Binding Directive
 
 This document is the binding architectural directive for live scrub migration.

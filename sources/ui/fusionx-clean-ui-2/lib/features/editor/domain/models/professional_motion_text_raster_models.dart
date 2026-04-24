@@ -78,6 +78,7 @@ class MotionTextRasterExportProgramNode {
     required this.projectRange,
     required this.fullText,
     required this.revealUnit,
+    this.revealDirection = 'forward',
     required this.typography,
     required this.effects,
     required this.layout,
@@ -100,6 +101,7 @@ class MotionTextRasterExportProgramNode {
   final TimelineTimeRange projectRange;
   final String fullText;
   final String revealUnit;
+  final String revealDirection;
   final MotionTextTypographyContract typography;
   final MotionTextEffectsContract effects;
   final MotionTextLayoutContract layout;
@@ -131,6 +133,7 @@ class MotionTextRasterExportProgramNode {
         },
         'fullText': fullText,
         'revealUnit': revealUnit,
+        'revealDirection': revealDirection,
         'typography': typography.toBridgeMap(),
         'effects': effects.toBridgeMap(),
         'layout': layout.toBridgeMap(),
@@ -217,16 +220,31 @@ class MotionTextEffectsContract {
   const MotionTextEffectsContract({
     required this.opacity,
     required this.blurAmount,
+    this.blurHorizontal = 100,
+    this.blurVertical = 100,
+    this.blurMix = 100,
+    this.blurEdgeMode = 0,
+    this.blurCrop = 0,
     required this.blendMode,
   });
 
   final double opacity;
   final double blurAmount;
+  final double blurHorizontal;
+  final double blurVertical;
+  final double blurMix;
+  final double blurEdgeMode;
+  final double blurCrop;
   final MotionBlendMode blendMode;
 
   Map<String, Object?> toBridgeMap() => <String, Object?>{
         'opacity': opacity,
         'blurAmount': blurAmount,
+        'blurHorizontal': blurHorizontal,
+        'blurVertical': blurVertical,
+        'blurMix': blurMix,
+        'blurEdgeMode': blurEdgeMode,
+        'blurCrop': blurCrop,
         'blendMode': blendMode.name,
       };
 }
@@ -271,7 +289,12 @@ class MotionTextResolvedRasterMetrics {
     required this.fontSizePx,
     required this.letterSpacingPx,
     required this.blurSigma,
+    required this.blurSigmaX,
+    required this.blurSigmaY,
     required this.blurKernelSpreadPx,
+    required this.blurMix,
+    required this.blurEdgeMode,
+    required this.blurCrop,
     required this.layoutPaddingPx,
   });
 
@@ -281,7 +304,12 @@ class MotionTextResolvedRasterMetrics {
   final double fontSizePx;
   final double letterSpacingPx;
   final double blurSigma;
+  final double blurSigmaX;
+  final double blurSigmaY;
   final double blurKernelSpreadPx;
+  final double blurMix;
+  final double blurEdgeMode;
+  final double blurCrop;
   final double layoutPaddingPx;
 
   Map<String, Object?> toBridgeMap() => <String, Object?>{
@@ -291,7 +319,12 @@ class MotionTextResolvedRasterMetrics {
         'fontSizePx': fontSizePx,
         'letterSpacingPx': letterSpacingPx,
         'blurSigma': blurSigma,
+        'blurSigmaX': blurSigmaX,
+        'blurSigmaY': blurSigmaY,
         'blurKernelSpreadPx': blurKernelSpreadPx,
+        'blurMix': blurMix,
+        'blurEdgeMode': blurEdgeMode,
+        'blurCrop': blurCrop,
         'layoutPaddingPx': layoutPaddingPx,
       };
 }
@@ -308,6 +341,7 @@ class MotionTextRasterNode {
     required this.text,
     required this.fullText,
     required this.revealUnit,
+    this.revealDirection = MotionTextRevealDirection.forward,
     required this.revealProgress,
     required this.hasRevealAnimation,
     required List<MotionTextAnimationKind> animationKinds,
@@ -329,6 +363,7 @@ class MotionTextRasterNode {
   final String text;
   final String fullText;
   final MotionTextRevealUnit revealUnit;
+  final MotionTextRevealDirection revealDirection;
   final double? revealProgress;
   final bool hasRevealAnimation;
   final List<MotionTextAnimationKind> animationKinds;
@@ -353,20 +388,28 @@ class MotionTextRasterNode {
       double.infinity,
     );
     final letterSpacingPx = typography.letterSpacing * effectiveScale;
-    final blurSigma =
-        effects.blurAmount * policy.blurSigmaScale * effectiveScale;
+    final blurAmount = effects.blurAmount.clamp(0.0, 100.0).toDouble();
+    // Standard Gaussian Blur stays isotropic. Directional X/Y blur should be
+    // exposed later as a separate effect, not as the default Gaussian path.
+    const horizontalRatio = 1.0;
+    const verticalRatio = 1.0;
+    final blurBaseSigma = blurAmount * policy.blurSigmaScale * effectiveScale;
+    final blurSigmaX = blurBaseSigma * horizontalRatio;
+    final blurSigmaY = blurBaseSigma * verticalRatio;
+    final blurSigma = math.max(blurSigmaX, blurSigmaY);
     final blurKernelSpreadPx =
         math.max(0.0, blurSigma * policy.blurSpreadMultiplier);
+    final cropPaddingLimit = math.max(
+      letterSpacingPx.abs(),
+      fontSizePx * policy.fontPaddingRatio,
+    );
+    final contentPaddingPx = effects.blurCrop >= 0.5
+        ? cropPaddingLimit
+        : math.max(blurKernelSpreadPx, cropPaddingLimit);
     final layoutPaddingPx = math
         .max(
           policy.minimumLayoutPaddingPx,
-          math.max(
-            blurKernelSpreadPx,
-            math.max(
-              letterSpacingPx.abs(),
-              fontSizePx * policy.fontPaddingRatio,
-            ),
-          ),
+          contentPaddingPx,
         )
         .ceilToDouble();
     return MotionTextResolvedRasterMetrics(
@@ -376,7 +419,12 @@ class MotionTextRasterNode {
       fontSizePx: fontSizePx,
       letterSpacingPx: letterSpacingPx,
       blurSigma: blurSigma,
+      blurSigmaX: blurSigmaX,
+      blurSigmaY: blurSigmaY,
       blurKernelSpreadPx: blurKernelSpreadPx,
+      blurMix: effects.blurMix.clamp(0.0, 100.0).toDouble() / 100.0,
+      blurEdgeMode: effects.blurEdgeMode.clamp(0.0, 2.0).toDouble(),
+      blurCrop: effects.blurCrop.clamp(0.0, 1.0).toDouble(),
       layoutPaddingPx: layoutPaddingPx,
     );
   }
@@ -395,6 +443,7 @@ class MotionTextRasterNode {
         'text': text,
         'fullText': fullText,
         'revealUnit': revealUnit.name,
+        'revealDirection': revealDirection.name,
         'revealProgress': revealProgress,
         'hasRevealAnimation': hasRevealAnimation,
         'animationKinds': animationKinds.map((kind) => kind.name).toList(),
@@ -478,6 +527,7 @@ class BasicMotionTextRasterContractAdapter
               text: node.text,
               fullText: node.fullText,
               revealUnit: node.revealUnit,
+              revealDirection: node.revealDirection,
               revealProgress: node.revealProgress,
               hasRevealAnimation: node.hasRevealAnimation,
               animationKinds: node.animationKinds,
@@ -495,6 +545,11 @@ class BasicMotionTextRasterContractAdapter
               effects: MotionTextEffectsContract(
                 opacity: node.opacity,
                 blurAmount: node.blurAmount,
+                blurHorizontal: node.blurHorizontal,
+                blurVertical: node.blurVertical,
+                blurMix: node.blurMix,
+                blurEdgeMode: node.blurEdgeMode,
+                blurCrop: node.blurCrop,
                 blendMode: node.blendMode,
               ),
               layout: MotionTextLayoutContract(
@@ -536,6 +591,7 @@ MotionTextRasterExportProgram? buildMotionTextRasterExportProgram({
             projectRange: node.projectRange,
             fullText: node.fullText,
             revealUnit: node.revealUnit,
+            revealDirection: node.revealDirection,
             typography: MotionTextTypographyContract(
               fontSize: node.baseFontSize,
               letterSpacing: node.baseLetterSpacing,

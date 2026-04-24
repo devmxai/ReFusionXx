@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:refusion_app/features/editor/domain/models/professional_motion_animation_models.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_text_preset_serialization.dart';
 
 void main() {
@@ -72,5 +73,57 @@ void main() {
     expect(preset.defaultText, 'Fence Test');
     expect(preset.animationBlocks, hasLength(1));
     expect(preset.animationBlocks.first.kind.name, 'fadeIn');
+  });
+
+  test('parser preserves canonical bounce and elastic interpolation params', () {
+    const source = '''
+{
+  "text": "Boing",
+  "animationBlocks": [
+    {
+      "kind": "scaleIn",
+      "startMs": 0,
+      "durationMs": 420,
+      "interpolation": {
+        "kind": "bounce",
+        "amplitude": 0.24,
+        "bounces": 4,
+        "decay": 6.5
+      }
+    },
+    {
+      "kind": "blurIn",
+      "startMs": 420,
+      "durationMs": 380,
+      "interpolation": {
+        "kind": "elastic",
+        "amplitude": 0.12,
+        "period": 0.32,
+        "decay": 7.0
+      }
+    }
+  ]
+}
+''';
+
+    final preset = MotionTextPresetJsonCodec.parsePresetString(source);
+
+    expect(
+      preset.animationBlocks.first.interpolation.kind,
+      MotionInterpolationKind.bounce,
+    );
+    expect(preset.animationBlocks.first.interpolation.bounce, isNotNull);
+    expect(preset.animationBlocks.first.interpolation.bounce!.amplitude, 0.24);
+    expect(preset.animationBlocks.first.interpolation.bounce!.bounces, 4);
+    expect(preset.animationBlocks.first.interpolation.bounce!.decay, 6.5);
+
+    expect(
+      preset.animationBlocks.last.interpolation.kind,
+      MotionInterpolationKind.elastic,
+    );
+    expect(preset.animationBlocks.last.interpolation.elastic, isNotNull);
+    expect(preset.animationBlocks.last.interpolation.elastic!.amplitude, 0.12);
+    expect(preset.animationBlocks.last.interpolation.elastic!.period, 0.32);
+    expect(preset.animationBlocks.last.interpolation.elastic!.decay, 7.0);
   });
 }

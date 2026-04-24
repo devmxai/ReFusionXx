@@ -6,6 +6,7 @@ import 'package:refusion_app/features/editor/domain/models/professional_motion_m
 import 'package:refusion_app/features/editor/domain/models/professional_motion_runtime_helpers.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_text_keyframe_authoring_models.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_text_models.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_text_preview_models.dart';
 import 'package:refusion_app/features/editor/presentation/models/timeline_time.dart';
 
 void main() {
@@ -242,5 +243,348 @@ void main() {
 
     expect(opacity.channelId, manualChannels.single.id);
     expect(opacity.value.rawValue, 0.72);
+  });
+
+  test('manual reveal blocks keep text semantics without hidden keyframes', () {
+    final projectRange = range(0, 5);
+    final project = MotionProjectModel(
+      id: 'project',
+      format: const MotionProjectFormat(
+        canvasSize: MotionSize2D(width: 1080, height: 1920),
+      ),
+      frameRate: const MotionFrameRate(numerator: 30, denominator: 1),
+      scenes: <MotionSceneModel>[
+        MotionSceneModel(
+          id: 'scene',
+          projectRange: projectRange,
+          layers: <MotionLayerModel>[
+            MotionLayerModel(
+              id: 'layer',
+              sceneId: 'scene',
+              kind: MotionLayerKind.text,
+              visibleRange: projectRange,
+              elements: <MotionElementModel>[
+                MotionElementModel(
+                  id: 'text-1',
+                  layerId: 'layer',
+                  kind: MotionElementKind.text,
+                  localRange: projectRange,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+
+    final compileResult = BasicMotionCompositionCompiler().compile(
+      MotionCompileRequest(
+        project: project,
+        propertyChannels: const <MotionPropertyChannelModel>[],
+        textAnimationBindings: <MotionTextAnimationBindingModel>[
+          MotionTextAnimationBindingModel(
+            id: 'binding',
+            elementTarget: target,
+            activeRange: projectRange,
+            animationBlocks: <MotionTextAnimationBlock>[
+              MotionTextAnimationBlock(
+                id: 'type-on',
+                kind: MotionTextAnimationKind.typewriter,
+                relativeRange: projectRange,
+                parameters: const <String, MotionPropertyValue>{
+                  'manualRevealProgress': MotionPropertyValue.boolean(true),
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    expect(compileResult.composition, isNotNull);
+    final composition = compileResult.composition!;
+    expect(composition.textAnimations.single.animationKinds,
+        contains(MotionTextAnimationKind.typewriter));
+    expect(
+      composition.allPropertyChannels.where(
+        (channel) =>
+            channel.channel.definition.id ==
+            MotionPropertyCatalog.revealProgress.id,
+      ),
+      isEmpty,
+    );
+  });
+
+  test('preview binder respects revealBy parameter for visible text', () {
+    final projectRange = range(0, 5);
+    final project = MotionProjectModel(
+      id: 'project',
+      format: const MotionProjectFormat(
+        canvasSize: MotionSize2D(width: 1080, height: 1920),
+      ),
+      frameRate: const MotionFrameRate(numerator: 30, denominator: 1),
+      scenes: <MotionSceneModel>[
+        MotionSceneModel(
+          id: 'scene',
+          projectRange: projectRange,
+          layers: <MotionLayerModel>[
+            MotionLayerModel(
+              id: 'layer',
+              sceneId: 'scene',
+              kind: MotionLayerKind.text,
+              visibleRange: projectRange,
+              elements: <MotionElementModel>[
+                MotionElementModel(
+                  id: 'text-1',
+                  layerId: 'layer',
+                  kind: MotionElementKind.text,
+                  localRange: projectRange,
+                  sourceBinding: MotionElementSourceBinding(
+                    kind: MotionSourceKind.generatedText,
+                    sourceId: 'text-source',
+                    metadata: const <String, String>{
+                      'text': 'Hello Motion World',
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+    final compileResult = BasicMotionCompositionCompiler().compile(
+      MotionCompileRequest(
+        project: project,
+        propertyChannels: <MotionPropertyChannelModel>[
+          MotionPropertyChannelModel(
+            id: 'manual.reveal',
+            target: target,
+            definition: MotionPropertyCatalog.revealProgress,
+            activeRange: projectRange,
+            baseValue: const MotionPropertyValue.scalar(0.5),
+          ),
+        ],
+        textAnimationBindings: <MotionTextAnimationBindingModel>[
+          MotionTextAnimationBindingModel(
+            id: 'binding',
+            elementTarget: target,
+            activeRange: projectRange,
+            animationBlocks: <MotionTextAnimationBlock>[
+              MotionTextAnimationBlock(
+                id: 'type-on',
+                kind: MotionTextAnimationKind.typewriter,
+                relativeRange: projectRange,
+                parameters: const <String, MotionPropertyValue>{
+                  'manualRevealProgress': MotionPropertyValue.boolean(true),
+                },
+              ),
+            ],
+            parameterValues: const <String, MotionPropertyValue>{
+              'revealBy': MotionPropertyValue.enumValue('word'),
+            },
+          ),
+        ],
+      ),
+    );
+
+    final composition = compileResult.composition!;
+    final evaluation = const BasicMotionRuntimeEvaluator().evaluate(
+      MotionEvaluationRequest(
+        composition: composition,
+        time: TimelineTime.fromSecondsDouble(1),
+      ),
+    );
+    final preview = BasicMotionTextPreviewBinder().bind(
+      composition: composition,
+      evaluation: evaluation,
+    );
+
+    expect(preview.nodes, hasLength(1));
+    expect(preview.nodes.single.revealUnit, MotionTextRevealUnit.word);
+    expect(preview.nodes.single.visibleText, 'Hello Motion');
+  });
+
+  test('preview binder respects reverse reveal direction for visible text', () {
+    final projectRange = range(0, 5);
+    final project = MotionProjectModel(
+      id: 'project',
+      format: const MotionProjectFormat(
+        canvasSize: MotionSize2D(width: 1080, height: 1920),
+      ),
+      frameRate: const MotionFrameRate(numerator: 30, denominator: 1),
+      scenes: <MotionSceneModel>[
+        MotionSceneModel(
+          id: 'scene',
+          projectRange: projectRange,
+          layers: <MotionLayerModel>[
+            MotionLayerModel(
+              id: 'layer',
+              sceneId: 'scene',
+              kind: MotionLayerKind.text,
+              visibleRange: projectRange,
+              elements: <MotionElementModel>[
+                MotionElementModel(
+                  id: 'text-1',
+                  layerId: 'layer',
+                  kind: MotionElementKind.text,
+                  localRange: projectRange,
+                  sourceBinding: MotionElementSourceBinding(
+                    kind: MotionSourceKind.generatedText,
+                    sourceId: 'text-source',
+                    metadata: const <String, String>{
+                      'text': 'Hello Motion World',
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+    final compileResult = BasicMotionCompositionCompiler().compile(
+      MotionCompileRequest(
+        project: project,
+        propertyChannels: <MotionPropertyChannelModel>[
+          MotionPropertyChannelModel(
+            id: 'manual.reveal',
+            target: target,
+            definition: MotionPropertyCatalog.revealProgress,
+            activeRange: projectRange,
+            baseValue: const MotionPropertyValue.scalar(0.5),
+          ),
+        ],
+        textAnimationBindings: <MotionTextAnimationBindingModel>[
+          MotionTextAnimationBindingModel(
+            id: 'binding',
+            elementTarget: target,
+            activeRange: projectRange,
+            animationBlocks: <MotionTextAnimationBlock>[
+              MotionTextAnimationBlock(
+                id: 'type-on',
+                kind: MotionTextAnimationKind.typewriter,
+                relativeRange: projectRange,
+                parameters: const <String, MotionPropertyValue>{
+                  'manualRevealProgress': MotionPropertyValue.boolean(true),
+                },
+              ),
+            ],
+            parameterValues: const <String, MotionPropertyValue>{
+              'revealBy': MotionPropertyValue.enumValue('word'),
+              'revealDirection': MotionPropertyValue.enumValue('reverse'),
+            },
+          ),
+        ],
+      ),
+    );
+
+    final composition = compileResult.composition!;
+    final evaluation = const BasicMotionRuntimeEvaluator().evaluate(
+      MotionEvaluationRequest(
+        composition: composition,
+        time: TimelineTime.fromSecondsDouble(1),
+      ),
+    );
+    final preview = BasicMotionTextPreviewBinder().bind(
+      composition: composition,
+      evaluation: evaluation,
+    );
+
+    expect(preview.nodes, hasLength(1));
+    expect(preview.nodes.single.revealUnit, MotionTextRevealUnit.word);
+    expect(
+      preview.nodes.single.revealDirection,
+      MotionTextRevealDirection.reverse,
+    );
+    expect(preview.nodes.single.visibleText, 'Motion World');
+  });
+
+  test('preview binder reveals text for revealSpec-based families', () {
+    final projectRange = range(0, 5);
+    final project = MotionProjectModel(
+      id: 'project',
+      format: const MotionProjectFormat(
+        canvasSize: MotionSize2D(width: 1080, height: 1920),
+      ),
+      frameRate: const MotionFrameRate(numerator: 30, denominator: 1),
+      scenes: <MotionSceneModel>[
+        MotionSceneModel(
+          id: 'scene',
+          projectRange: projectRange,
+          layers: <MotionLayerModel>[
+            MotionLayerModel(
+              id: 'layer',
+              sceneId: 'scene',
+              kind: MotionLayerKind.text,
+              visibleRange: projectRange,
+              elements: <MotionElementModel>[
+                MotionElementModel(
+                  id: 'text-1',
+                  layerId: 'layer',
+                  kind: MotionElementKind.text,
+                  localRange: projectRange,
+                  sourceBinding: MotionElementSourceBinding(
+                    kind: MotionSourceKind.generatedText,
+                    sourceId: 'text-source',
+                    metadata: const <String, String>{
+                      'text': 'Hello Motion World',
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+    final compileResult = BasicMotionCompositionCompiler().compile(
+      MotionCompileRequest(
+        project: project,
+        propertyChannels: <MotionPropertyChannelModel>[
+          MotionPropertyChannelModel(
+            id: 'manual.reveal',
+            target: target,
+            definition: MotionPropertyCatalog.revealProgress,
+            activeRange: projectRange,
+            baseValue: const MotionPropertyValue.scalar(0.5),
+          ),
+        ],
+        textAnimationBindings: <MotionTextAnimationBindingModel>[
+          MotionTextAnimationBindingModel(
+            id: 'binding',
+            elementTarget: target,
+            activeRange: projectRange,
+            animationBlocks: <MotionTextAnimationBlock>[
+              MotionTextAnimationBlock(
+                id: 'word-rise',
+                kind: MotionTextAnimationKind.wordRiseIn,
+                relativeRange: projectRange,
+                revealSpec: MotionTextRevealSpec(
+                  unit: MotionTextRevealUnit.word,
+                  stagger: TimelineTime.fromMilliseconds(90),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    final composition = compileResult.composition!;
+    final evaluation = const BasicMotionRuntimeEvaluator().evaluate(
+      MotionEvaluationRequest(
+        composition: composition,
+        time: TimelineTime.fromSecondsDouble(1),
+      ),
+    );
+    final preview = BasicMotionTextPreviewBinder().bind(
+      composition: composition,
+      evaluation: evaluation,
+    );
+
+    expect(preview.nodes, hasLength(1));
+    expect(preview.nodes.single.revealUnit, MotionTextRevealUnit.word);
+    expect(preview.nodes.single.visibleText, 'Hello Motion');
   });
 }

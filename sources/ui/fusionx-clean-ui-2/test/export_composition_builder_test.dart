@@ -533,7 +533,7 @@ void main() {
   });
 
   test(
-      'exposes machine-readable export graph metadata and blocks unsupported interpolation kinds',
+      'exposes machine-readable export graph metadata and supports advanced interpolation kinds',
       () {
     final composition = ExportComposition(
       contractVersion: 'v1alpha1',
@@ -691,14 +691,14 @@ void main() {
     );
     expect(
       composition.firstBaselineBlockingCodes,
-      contains(ExportBaselineBlockerCode.unsupportedInterpolationKind),
+      isNot(contains(ExportBaselineBlockerCode.unsupportedInterpolationKind)),
     );
-    expect(composition.unsupportedInterpolationKinds, contains('spring'));
+    expect(composition.unsupportedInterpolationKinds, isEmpty);
     expect(
       composition.interpolationRegistry.any(
         (entry) =>
             entry.kind == 'spring' &&
-            entry.status == ExportCapabilityStatus.blocked &&
+            entry.status == ExportCapabilityStatus.supported &&
             entry.encountered,
       ),
       isTrue,
@@ -732,7 +732,7 @@ void main() {
       composition.interpolationContractRegistry.any(
         (entry) =>
             entry.kind == 'spring' &&
-            entry.status == ExportCapabilityStatus.blocked &&
+            entry.status == ExportCapabilityStatus.supported &&
             entry.requiredParameters.contains('stiffness'),
       ),
       isTrue,

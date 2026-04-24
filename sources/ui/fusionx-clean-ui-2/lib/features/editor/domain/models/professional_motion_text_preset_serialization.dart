@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import '../../presentation/models/timeline_time.dart';
 import 'professional_motion_animation_models.dart';
+import 'professional_motion_interpolation_parsing.dart';
 import 'professional_motion_models.dart';
 import 'professional_motion_text_models.dart';
 
@@ -24,28 +25,27 @@ class MotionTextPresetJsonCodec {
         'Preset JSON must be a single object.',
       );
     }
-    return fromJson(_normalizeNestedJsonStrings(Map<String, dynamic>.from(decoded)));
+    return fromJson(
+        _normalizeNestedJsonStrings(Map<String, dynamic>.from(decoded)));
   }
 
   static MotionTextPresetDefinition fromJson(Map<String, dynamic> json) {
-    final animationBlocks = _readAnimationBlocks(_readAnimationBlockSource(json));
+    final animationBlocks =
+        _readAnimationBlocks(_readAnimationBlockSource(json));
     if (animationBlocks.isEmpty) {
       throw MotionTextPresetJsonException(
         'Preset `animationBlocks` must contain at least one block.',
       );
     }
 
-    final rawText =
-        _readOptionalString(json, 'defaultText') ??
+    final rawText = _readOptionalString(json, 'defaultText') ??
         _readOptionalString(json, 'text') ??
         _readOptionalString(json, 'content');
-    final defaultText =
-        rawText != null && rawText.trim().isNotEmpty
-            ? rawText.trim()
-            : 'Your Text';
+    final defaultText = rawText != null && rawText.trim().isNotEmpty
+        ? rawText.trim()
+        : 'Your Text';
 
-    final rawLabel =
-        _readOptionalString(json, 'label') ??
+    final rawLabel = _readOptionalString(json, 'label') ??
         _readOptionalString(json, 'name') ??
         _readOptionalString(json, 'title');
     final label = _resolveGeneratedLabel(
@@ -54,8 +54,7 @@ class MotionTextPresetJsonCodec {
       animationBlocks: animationBlocks,
     );
 
-    final rawId =
-        _readOptionalString(json, 'id') ??
+    final rawId = _readOptionalString(json, 'id') ??
         _readOptionalString(json, 'presetId');
     final id = _resolveGeneratedId(rawId, label);
     final description = _readOptionalString(json, 'description');
@@ -174,8 +173,7 @@ class MotionTextPresetJsonCodec {
     var previousWasSeparator = false;
     for (final rune in lower.runes) {
       final char = String.fromCharCode(rune);
-      final isAsciiLetter =
-          rune >= 97 && rune <= 122;
+      final isAsciiLetter = rune >= 97 && rune <= 122;
       final isDigit = rune >= 48 && rune <= 57;
       if (isAsciiLetter || isDigit) {
         buffer.write(char);
@@ -188,9 +186,9 @@ class MotionTextPresetJsonCodec {
       }
     }
     final slug = buffer.toString().replaceAll(RegExp('_+'), '_').replaceAll(
-      RegExp(r'^_|_$'),
-      '',
-    );
+          RegExp(r'^_|_$'),
+          '',
+        );
     if (slug.isNotEmpty) {
       return slug;
     }
@@ -201,7 +199,8 @@ class MotionTextPresetJsonCodec {
     final buffer = StringBuffer();
     for (var index = 0; index < source.length; index++) {
       final char = source[index];
-      final isUppercase = char.toUpperCase() == char && char.toLowerCase() != char;
+      final isUppercase =
+          char.toUpperCase() == char && char.toLowerCase() != char;
       if (index == 0) {
         buffer.write(char.toUpperCase());
         continue;
@@ -231,9 +230,7 @@ class MotionTextPresetJsonCodec {
       }
       final json = Map<String, dynamic>.from(item);
       final defaultValueRaw =
-          json.containsKey('default')
-              ? json['default']
-              : json['defaultValue'];
+          json.containsKey('default') ? json['default'] : json['defaultValue'];
       if (defaultValueRaw == null) {
         throw MotionTextPresetJsonException(
           'Parameter `${json['id'] ?? 'unknown'}` is missing `default`.',
@@ -267,8 +264,7 @@ class MotionTextPresetJsonCodec {
         );
       }
       final json = Map<String, dynamic>.from(item);
-      final propertyId =
-          _readOptionalString(json, 'propertyId') ??
+      final propertyId = _readOptionalString(json, 'propertyId') ??
           _readOptionalString(json, 'property');
       if (propertyId == null || propertyId.isEmpty) {
         throw MotionTextPresetJsonException(
@@ -284,7 +280,8 @@ class MotionTextPresetJsonCodec {
       return MotionPropertyAssignment(
         target: targetFactory(),
         definition: definition,
-        value: _readPropertyValue(json['value'], expectedKind: definition.valueKind),
+        value: _readPropertyValue(json['value'],
+            expectedKind: definition.valueKind),
       );
     }).toList(growable: false);
   }
@@ -324,21 +321,25 @@ class MotionTextPresetJsonCodec {
           'Animation block `${json['id'] ?? 'unknown'}` must have endMs > startMs.',
         );
       }
+      final kind = _readAnimationKind(json['kind']);
       return MotionTextAnimationBlock(
         id: _resolveGeneratedBlockId(
-          rawId:
-              _readOptionalString(json, 'id') ??
+          rawId: _readOptionalString(json, 'id') ??
               _readOptionalString(json, 'blockId'),
-          kind: _readAnimationKind(json['kind']),
+          kind: kind,
           startMs: startMs,
         ),
-        kind: _readAnimationKind(json['kind']),
+        kind: kind,
         relativeRange: TimelineTimeRange(
           start: TimelineTime.fromMilliseconds(startMs),
           endExclusive: TimelineTime.fromMilliseconds(endMs),
         ),
-        interpolation: _readInterpolation(json['interpolation']),
-        revealSpec: _readRevealSpec(json['revealSpec']),
+        interpolation: _readInterpolation(
+          json['interpolation'],
+          defaultForKind: kind,
+        ),
+        revealSpec: _readRevealSpec(json['revealSpec']) ??
+            _defaultRevealSpecForAnimationKind(kind),
         parameters: _readParameterValues(json['parameters']),
       );
     }).toList(growable: false);
@@ -367,48 +368,159 @@ class MotionTextPresetJsonCodec {
     return '${kind.name}_$startMs';
   }
 
-  static MotionInterpolationSpec _readInterpolation(Object? raw) {
+  static MotionInterpolationSpec _readInterpolation(
+    Object? raw, {
+    MotionTextAnimationKind? defaultForKind,
+  }) {
     if (raw == null) {
-      return const MotionInterpolationSpec.easeInOut();
+      return _defaultInterpolationForAnimationKind(defaultForKind);
     }
     if (raw is String) {
-      return _interpolationFromKind(_parseInterpolationKind(raw));
+      final interpolation = tryParseNamedMotionInterpolationSpec(raw);
+      if (interpolation != null) {
+        return interpolation;
+      }
+      throw MotionTextPresetJsonException(
+        'Unsupported interpolation kind `$raw`.',
+      );
     }
     if (raw is! Map) {
       throw MotionTextPresetJsonException(
         '`interpolation` must be a string or object.',
       );
     }
-    final json = Map<String, dynamic>.from(raw);
-    final kind = _parseInterpolationKind(_readRequiredString(json, 'kind'));
+    try {
+      return parseCanonicalMotionInterpolationObject(
+          Map<String, dynamic>.from(raw));
+    } on MotionInterpolationParseException catch (error) {
+      throw MotionTextPresetJsonException(error.message);
+    }
+  }
+
+  static MotionInterpolationSpec _defaultInterpolationForAnimationKind(
+    MotionTextAnimationKind? kind,
+  ) {
     switch (kind) {
-      case MotionInterpolationKind.cubicBezier:
-        return MotionInterpolationSpec.cubicBezier(
-          bezier: MotionBezierControlPoints(
-            x1: _readDouble(json, 'x1'),
-            y1: _readDouble(json, 'y1'),
-            x2: _readDouble(json, 'x2'),
-            y2: _readDouble(json, 'y2'),
+      case MotionTextAnimationKind.bounceIn:
+      case MotionTextAnimationKind.letterBounce:
+        return const MotionInterpolationSpec.bounce(
+          bounce: MotionBounceSpec(
+            amplitude: 0.24,
+            bounces: 3,
+            decay: 6.5,
           ),
         );
-      case MotionInterpolationKind.spring:
-        return MotionInterpolationSpec.spring(
+      case MotionTextAnimationKind.riseIn:
+        return const MotionInterpolationSpec.spring(
           spring: MotionSpringSpec(
-            stiffness: _readDouble(json, 'stiffness'),
-            damping: _readDouble(json, 'damping'),
-            mass: _readOptionalDouble(json, 'mass') ?? 1.0,
-            initialVelocity:
-                _readOptionalDouble(json, 'initialVelocity') ?? 0.0,
+            stiffness: 210,
+            damping: 22,
+            mass: 1.0,
+            initialVelocity: 0,
           ),
         );
-      case MotionInterpolationKind.hold:
-      case MotionInterpolationKind.linear:
-      case MotionInterpolationKind.easeIn:
-      case MotionInterpolationKind.easeOut:
-      case MotionInterpolationKind.easeInOut:
-      case MotionInterpolationKind.bounce:
-      case MotionInterpolationKind.elastic:
-        return _interpolationFromKind(kind);
+      case MotionTextAnimationKind.slideIn:
+      case MotionTextAnimationKind.slideBlurIn:
+        return const MotionInterpolationSpec.spring(
+          spring: MotionSpringSpec(
+            stiffness: 230,
+            damping: 24,
+            mass: 1.0,
+            initialVelocity: 0,
+          ),
+        );
+      case MotionTextAnimationKind.wordRiseIn:
+      case MotionTextAnimationKind.letterPopIn:
+      case MotionTextAnimationKind.wordCascade:
+        return const MotionInterpolationSpec.easeOut();
+      case MotionTextAnimationKind.blurRiseIn:
+        return const MotionInterpolationSpec.spring(
+          spring: MotionSpringSpec(
+            stiffness: 205,
+            damping: 22,
+            mass: 1.0,
+            initialVelocity: 0,
+          ),
+        );
+      case MotionTextAnimationKind.rotateIn:
+        return const MotionInterpolationSpec.spring(
+          spring: MotionSpringSpec(
+            stiffness: 250,
+            damping: 20,
+            mass: 1.0,
+            initialVelocity: 0,
+          ),
+        );
+      case MotionTextAnimationKind.elasticPop:
+        return const MotionInterpolationSpec.elastic(
+          elastic: MotionElasticSpec(
+            amplitude: 0.16,
+            period: 0.30,
+            decay: 7.2,
+          ),
+        );
+      case MotionTextAnimationKind.scaleIn:
+        return const MotionInterpolationSpec.easeOut();
+      case null:
+      case MotionTextAnimationKind.fadeIn:
+      case MotionTextAnimationKind.fadeOut:
+      case MotionTextAnimationKind.wordReveal:
+      case MotionTextAnimationKind.letterReveal:
+      case MotionTextAnimationKind.typewriter:
+      case MotionTextAnimationKind.scaleOut:
+      case MotionTextAnimationKind.blurIn:
+      case MotionTextAnimationKind.blurOut:
+      case MotionTextAnimationKind.rotationSettle:
+      case MotionTextAnimationKind.cinematicEntrance:
+      case MotionTextAnimationKind.cinematicExit:
+        return const MotionInterpolationSpec.easeInOut();
+    }
+  }
+
+  static MotionTextRevealSpec? _defaultRevealSpecForAnimationKind(
+    MotionTextAnimationKind kind,
+  ) {
+    switch (kind) {
+      case MotionTextAnimationKind.wordRiseIn:
+        return MotionTextRevealSpec(
+          unit: MotionTextRevealUnit.word,
+          stagger: TimelineTime.fromMilliseconds(90),
+        );
+      case MotionTextAnimationKind.wordCascade:
+        return MotionTextRevealSpec(
+          unit: MotionTextRevealUnit.word,
+          stagger: TimelineTime.fromMilliseconds(72),
+        );
+      case MotionTextAnimationKind.letterPopIn:
+        return MotionTextRevealSpec(
+          unit: MotionTextRevealUnit.letter,
+          stagger: TimelineTime.fromMilliseconds(34),
+        );
+      case MotionTextAnimationKind.letterBounce:
+        return MotionTextRevealSpec(
+          unit: MotionTextRevealUnit.letter,
+          stagger: TimelineTime.fromMilliseconds(42),
+        );
+      case MotionTextAnimationKind.fadeIn:
+      case MotionTextAnimationKind.fadeOut:
+      case MotionTextAnimationKind.wordReveal:
+      case MotionTextAnimationKind.letterReveal:
+      case MotionTextAnimationKind.typewriter:
+      case MotionTextAnimationKind.bounceIn:
+      case MotionTextAnimationKind.riseIn:
+      case MotionTextAnimationKind.slideIn:
+      case MotionTextAnimationKind.slideBlurIn:
+      case MotionTextAnimationKind.blurRiseIn:
+      case MotionTextAnimationKind.rotateIn:
+      case MotionTextAnimationKind.elasticPop:
+      case MotionTextAnimationKind.scaleIn:
+      case MotionTextAnimationKind.scaleOut:
+      case MotionTextAnimationKind.blurIn:
+      case MotionTextAnimationKind.blurOut:
+      case MotionTextAnimationKind.rotationSettle:
+      case MotionTextAnimationKind.cinematicEntrance:
+      case MotionTextAnimationKind.cinematicExit:
+        return null;
     }
   }
 
@@ -525,7 +637,8 @@ class MotionTextPresetJsonCodec {
       case 'custom':
         return MotionTextPresetKind.custom;
       default:
-        throw MotionTextPresetJsonException('Unsupported preset kind `$value`.');
+        throw MotionTextPresetJsonException(
+            'Unsupported preset kind `$value`.');
     }
   }
 
@@ -542,6 +655,26 @@ class MotionTextPresetJsonCodec {
         return MotionTextAnimationKind.letterReveal;
       case 'typewriter':
         return MotionTextAnimationKind.typewriter;
+      case 'bounceIn':
+        return MotionTextAnimationKind.bounceIn;
+      case 'riseIn':
+        return MotionTextAnimationKind.riseIn;
+      case 'slideIn':
+        return MotionTextAnimationKind.slideIn;
+      case 'wordRiseIn':
+        return MotionTextAnimationKind.wordRiseIn;
+      case 'letterPopIn':
+        return MotionTextAnimationKind.letterPopIn;
+      case 'wordCascade':
+        return MotionTextAnimationKind.wordCascade;
+      case 'letterBounce':
+        return MotionTextAnimationKind.letterBounce;
+      case 'slideBlurIn':
+        return MotionTextAnimationKind.slideBlurIn;
+      case 'blurRiseIn':
+        return MotionTextAnimationKind.blurRiseIn;
+      case 'rotateIn':
+        return MotionTextAnimationKind.rotateIn;
       case 'elasticPop':
         return MotionTextAnimationKind.elasticPop;
       case 'scaleIn':
@@ -561,68 +694,6 @@ class MotionTextPresetJsonCodec {
       default:
         throw MotionTextPresetJsonException(
           'Unsupported animation kind `${raw ?? ''}`.',
-        );
-    }
-  }
-
-  static MotionInterpolationKind _parseInterpolationKind(String raw) {
-    switch (raw.trim()) {
-      case 'hold':
-        return MotionInterpolationKind.hold;
-      case 'linear':
-        return MotionInterpolationKind.linear;
-      case 'easeIn':
-        return MotionInterpolationKind.easeIn;
-      case 'easeOut':
-        return MotionInterpolationKind.easeOut;
-      case 'easeInOut':
-        return MotionInterpolationKind.easeInOut;
-      case 'cubicBezier':
-        return MotionInterpolationKind.cubicBezier;
-      case 'spring':
-        return MotionInterpolationKind.spring;
-      case 'bounce':
-        return MotionInterpolationKind.bounce;
-      case 'elastic':
-        return MotionInterpolationKind.elastic;
-      default:
-        throw MotionTextPresetJsonException(
-          'Unsupported interpolation kind `$raw`.',
-        );
-    }
-  }
-
-  static MotionInterpolationSpec _interpolationFromKind(
-    MotionInterpolationKind kind,
-  ) {
-    switch (kind) {
-      case MotionInterpolationKind.hold:
-        return const MotionInterpolationSpec.hold();
-      case MotionInterpolationKind.linear:
-      case MotionInterpolationKind.bounce:
-      case MotionInterpolationKind.elastic:
-        return const MotionInterpolationSpec.linear();
-      case MotionInterpolationKind.easeIn:
-        return const MotionInterpolationSpec.easeIn();
-      case MotionInterpolationKind.easeOut:
-        return const MotionInterpolationSpec.easeOut();
-      case MotionInterpolationKind.easeInOut:
-        return const MotionInterpolationSpec.easeInOut();
-      case MotionInterpolationKind.cubicBezier:
-        return const MotionInterpolationSpec.cubicBezier(
-          bezier: MotionBezierControlPoints(
-            x1: 0.25,
-            y1: 0.1,
-            x2: 0.25,
-            y2: 1.0,
-          ),
-        );
-      case MotionInterpolationKind.spring:
-        return const MotionInterpolationSpec.spring(
-          spring: MotionSpringSpec(
-            stiffness: 220,
-            damping: 20,
-          ),
         );
     }
   }
@@ -697,14 +768,6 @@ class MotionTextPresetJsonCodec {
     throw MotionTextPresetJsonException('`$key` must be a number.');
   }
 
-  static double _readDouble(Map<String, dynamic> json, String key) {
-    final value = json[key];
-    if (value == null) {
-      throw MotionTextPresetJsonException('Missing required `$key`.');
-    }
-    return _toDouble(value);
-  }
-
   static double? _readOptionalDouble(Map<String, dynamic> json, String key) {
     final value = json[key];
     if (value == null) {
@@ -722,22 +785,26 @@ class MotionTextPresetJsonCodec {
 
   static final Map<String, MotionPropertyDefinition> _propertyDefinitionById =
       <String, MotionPropertyDefinition>{
-        MotionPropertyCatalog.positionX.id: MotionPropertyCatalog.positionX,
-        MotionPropertyCatalog.positionY.id: MotionPropertyCatalog.positionY,
-        MotionPropertyCatalog.scaleX.id: MotionPropertyCatalog.scaleX,
-        MotionPropertyCatalog.scaleY.id: MotionPropertyCatalog.scaleY,
-        MotionPropertyCatalog.rotationDegrees.id:
-            MotionPropertyCatalog.rotationDegrees,
-        MotionPropertyCatalog.opacity.id: MotionPropertyCatalog.opacity,
-        MotionPropertyCatalog.blurAmount.id: MotionPropertyCatalog.blurAmount,
-        MotionPropertyCatalog.fontSize.id: MotionPropertyCatalog.fontSize,
-        MotionPropertyCatalog.letterSpacing.id:
-            MotionPropertyCatalog.letterSpacing,
-        MotionPropertyCatalog.revealProgress.id:
-            MotionPropertyCatalog.revealProgress,
-        MotionPropertyCatalog.width.id: MotionPropertyCatalog.width,
-        MotionPropertyCatalog.height.id: MotionPropertyCatalog.height,
-        MotionPropertyCatalog.cornerRadius.id:
-            MotionPropertyCatalog.cornerRadius,
-      };
+    MotionPropertyCatalog.positionX.id: MotionPropertyCatalog.positionX,
+    MotionPropertyCatalog.positionY.id: MotionPropertyCatalog.positionY,
+    MotionPropertyCatalog.scaleX.id: MotionPropertyCatalog.scaleX,
+    MotionPropertyCatalog.scaleY.id: MotionPropertyCatalog.scaleY,
+    MotionPropertyCatalog.rotationDegrees.id:
+        MotionPropertyCatalog.rotationDegrees,
+    MotionPropertyCatalog.opacity.id: MotionPropertyCatalog.opacity,
+    MotionPropertyCatalog.blurAmount.id: MotionPropertyCatalog.blurAmount,
+    MotionPropertyCatalog.blurHorizontal.id:
+        MotionPropertyCatalog.blurHorizontal,
+    MotionPropertyCatalog.blurVertical.id: MotionPropertyCatalog.blurVertical,
+    MotionPropertyCatalog.blurMix.id: MotionPropertyCatalog.blurMix,
+    MotionPropertyCatalog.blurEdgeMode.id: MotionPropertyCatalog.blurEdgeMode,
+    MotionPropertyCatalog.blurCrop.id: MotionPropertyCatalog.blurCrop,
+    MotionPropertyCatalog.fontSize.id: MotionPropertyCatalog.fontSize,
+    MotionPropertyCatalog.letterSpacing.id: MotionPropertyCatalog.letterSpacing,
+    MotionPropertyCatalog.revealProgress.id:
+        MotionPropertyCatalog.revealProgress,
+    MotionPropertyCatalog.width.id: MotionPropertyCatalog.width,
+    MotionPropertyCatalog.height.id: MotionPropertyCatalog.height,
+    MotionPropertyCatalog.cornerRadius.id: MotionPropertyCatalog.cornerRadius,
+  };
 }

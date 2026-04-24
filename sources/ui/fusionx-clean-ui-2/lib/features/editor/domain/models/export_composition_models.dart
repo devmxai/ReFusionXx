@@ -1320,6 +1320,9 @@ class ExportComposition {
     'easeOut',
     'easeInOut',
     'cubicBezier',
+    'spring',
+    'bounce',
+    'elastic',
   };
 
   List<String> get unsupportedInterpolationKinds =>
@@ -1866,8 +1869,8 @@ class ExportComposition {
     'easeInOut': <String>[],
     'cubicBezier': <String>['x1', 'y1', 'x2', 'y2'],
     'spring': <String>['stiffness', 'damping', 'mass', 'initialVelocity'],
-    'bounce': <String>['amplitude', 'bounces'],
-    'elastic': <String>['amplitude', 'period'],
+    'bounce': <String>['amplitude', 'bounces', 'decay'],
+    'elastic': <String>['amplitude', 'period', 'decay'],
   };
 
   List<ExportInterpolationContractDescriptor>
@@ -2897,8 +2900,8 @@ ExportCanonicalEffectOperationKind _canonicalOperationKindForProperty({
   if (propertyId == 'visual.opacity' || propertyKey == 'visual.opacity') {
     return ExportCanonicalEffectOperationKind.opacity;
   }
-  if (propertyId == 'visual.blur.amount' ||
-      propertyKey == 'visual.blur.amount') {
+  if (propertyId.startsWith('visual.blur.') ||
+      propertyKey.startsWith('visual.blur.')) {
     return ExportCanonicalEffectOperationKind.blur;
   }
   if (propertyKey.startsWith('crop.')) {
@@ -3759,6 +3762,20 @@ Map<String, Object?> _motionInterpolationBridgeMap(
             'mass': interpolation.spring!.mass,
             'initialVelocity': interpolation.spring!.initialVelocity,
           },
+    'bounce': interpolation.bounce == null
+        ? null
+        : <String, Object?>{
+            'amplitude': interpolation.bounce!.amplitude,
+            'bounces': interpolation.bounce!.bounces,
+            'decay': interpolation.bounce!.decay,
+          },
+    'elastic': interpolation.elastic == null
+        ? null
+        : <String, Object?>{
+            'amplitude': interpolation.elastic!.amplitude,
+            'period': interpolation.elastic!.period,
+            'decay': interpolation.elastic!.decay,
+          },
   };
 }
 
@@ -4089,6 +4106,20 @@ Map<String, Object?> _exportMotionInterpolationBridgeMap(
             'damping': interpolation.spring!.damping,
             'mass': interpolation.spring!.mass,
             'initialVelocity': interpolation.spring!.initialVelocity,
+          },
+    'bounce': interpolation.bounce == null
+        ? null
+        : <String, Object?>{
+            'amplitude': interpolation.bounce!.amplitude,
+            'bounces': interpolation.bounce!.bounces,
+            'decay': interpolation.bounce!.decay,
+          },
+    'elastic': interpolation.elastic == null
+        ? null
+        : <String, Object?>{
+            'amplitude': interpolation.elastic!.amplitude,
+            'period': interpolation.elastic!.period,
+            'decay': interpolation.elastic!.decay,
           },
   };
 }

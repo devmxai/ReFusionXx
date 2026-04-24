@@ -2,7 +2,9 @@ import '../../presentation/models/timeline_time.dart';
 import 'professional_motion_animation_models.dart';
 import 'professional_motion_compilation_models.dart';
 import 'professional_motion_evaluation_models.dart';
+import 'professional_motion_interpolation_evaluator.dart';
 import 'professional_motion_models.dart';
+import 'professional_motion_text_models.dart';
 import 'professional_motion_text_runtime_helpers.dart';
 
 class BasicMotionCompositionCompiler implements MotionCompositionCompiler {
@@ -513,10 +515,18 @@ class BasicMotionPropertyChannelSampler
       );
     }
 
-    for (var index = 0; index < keyframes.length - 1; index += 1) {
+    var low = 0;
+    var high = keyframes.length - 2;
+    while (low <= high) {
+      final index = low + ((high - low) >> 1);
       final current = keyframes[index];
       final next = keyframes[index + 1];
-      if (time < current.time || time > next.time) {
+      if (time < current.time) {
+        high = index - 1;
+        continue;
+      }
+      if (time > next.time) {
+        low = index + 1;
         continue;
       }
       if (time == current.time) {
@@ -590,27 +600,7 @@ class BasicMotionPropertyChannelSampler
     MotionInterpolationSpec interpolation,
     double progress,
   ) {
-    switch (interpolation.kind) {
-      case MotionInterpolationKind.hold:
-        return 0;
-      case MotionInterpolationKind.linear:
-      case MotionInterpolationKind.cubicBezier:
-      case MotionInterpolationKind.spring:
-      case MotionInterpolationKind.bounce:
-      case MotionInterpolationKind.elastic:
-        return progress;
-      case MotionInterpolationKind.easeIn:
-        return progress * progress;
-      case MotionInterpolationKind.easeOut:
-        final inverse = 1 - progress;
-        return 1 - (inverse * inverse);
-      case MotionInterpolationKind.easeInOut:
-        if (progress < 0.5) {
-          return 2 * progress * progress;
-        }
-        final inverse = -2 * progress + 2;
-        return 1 - ((inverse * inverse) / 2);
-    }
+    return evaluateMotionCurveProgress(interpolation, progress);
   }
 
   MotionPropertyValue _interpolateValue({
@@ -856,6 +846,8 @@ class BasicMotionRuntimeEvaluator implements MotionRuntimeEvaluator {
               : MotionActivationState.inactive,
           presetId: textAnimation.presetId,
           revealProgress: revealProgress,
+          revealUnit: _resolveTextAnimationRevealUnit(textAnimation),
+          revealDirection: _resolveTextAnimationRevealDirection(textAnimation),
           animationKinds: textAnimation.animationKinds,
         ),
       );
@@ -920,5 +912,60 @@ class BasicMotionRuntimeEvaluator implements MotionRuntimeEvaluator {
       return property.value.rawValue as double;
     }
     return null;
+  }
+
+  MotionTextRevealUnit _resolveTextAnimationRevealUnit(
+    MotionResolvedTextAnimationModel textAnimation,
+  ) {
+    final parameterValue = textAnimation.parameterValues['revealBy'];
+    if (parameterValue != null) {
+      final normalized = switch (parameterValue.kind) {
+        MotionPropertyValueKind.enumValue ||
+        MotionPropertyValueKind.stringValue =>
+          (parameterValue.rawValue as String).trim().toLowerCase(),
+        _ => null,
+      };
+      switch (normalized) {
+        case 'word':
+          return MotionTextRevealUnit.word;
+        case 'letter':
+        case 'type':
+        case 'typewriter':
+          return MotionTextRevealUnit.letter;
+      }
+    }
+    for (final block in textAnimation.animationBlocks) {
+      final revealSpec = block.revealSpec;
+      if (revealSpec != null) {
+        return revealSpec.unit;
+      }
+    }
+    final kinds = textAnimation.animationKinds;
+    if (kinds.contains(MotionTextAnimationKind.wordReveal)) {
+      return MotionTextRevealUnit.word;
+    }
+    if (kinds.contains(MotionTextAnimationKind.letterReveal) ||
+        kinds.contains(MotionTextAnimationKind.typewriter)) {
+      return MotionTextRevealUnit.letter;
+    }
+    return MotionTextRevealUnit.wholeText;
+  }
+
+  MotionTextRevealDirection _resolveTextAnimationRevealDirection(
+    MotionResolvedTextAnimationModel textAnimation,
+  ) {
+    final parameterValue = textAnimation.parameterValues['revealDirection'];
+    if (parameterValue != null) {
+      final normalized = switch (parameterValue.kind) {
+        MotionPropertyValueKind.enumValue ||
+        MotionPropertyValueKind.stringValue =>
+          (parameterValue.rawValue as String).trim().toLowerCase(),
+        _ => null,
+      };
+      if (normalized == 'reverse' || normalized == 'backward') {
+        return MotionTextRevealDirection.reverse;
+      }
+    }
+    return MotionTextRevealDirection.forward;
   }
 }

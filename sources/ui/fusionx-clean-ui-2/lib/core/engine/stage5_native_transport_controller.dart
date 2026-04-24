@@ -404,6 +404,29 @@ class Stage5NativeTransportController extends ChangeNotifier {
     );
   }
 
+  Future<void> recoverPreviewSurface({int? positionMs}) async {
+    if (!isPlatformSupported) {
+      return;
+    }
+    try {
+      final result = await _methodChannel.invokeMethod<dynamic>(
+        'recoverPreviewSurface',
+        <String, dynamic>{
+          if (positionMs != null) 'positionMs': positionMs < 0 ? 0 : positionMs,
+        },
+      );
+      if (_applyStateMap(_normalizeMap(result))) {
+        notifyListeners();
+      }
+    } catch (error) {
+      final nextState = _state.copyWith(error: error.toString());
+      if (!_statesEqual(_state, nextState)) {
+        _state = nextState;
+        notifyListeners();
+      }
+    }
+  }
+
   Future<void> primeScrubPreviewSources(
     List<Map<String, Object?>> sources,
   ) async {

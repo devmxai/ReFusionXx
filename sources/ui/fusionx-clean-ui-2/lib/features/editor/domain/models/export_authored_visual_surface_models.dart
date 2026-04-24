@@ -233,6 +233,9 @@ ExportAuthoredVisualSurfaceProgram? buildExportAuthoredVisualSurfaceProgram(
                 'transform.rotation.degrees',
                 'visual.opacity',
                 'visual.blur.amount',
+                'visual.blur.mix',
+                'visual.blur.edgeMode',
+                'visual.blur.crop',
                 'shape.width',
                 'shape.height',
                 'shape.cornerRadius',
@@ -351,6 +354,20 @@ ExportMotionScalarChannel? _scalarChannelFromResolved(
                       mass: keyframe.interpolationToNext.spring!.mass,
                       initialVelocity:
                           keyframe.interpolationToNext.spring!.initialVelocity,
+                    ),
+              bounce: keyframe.interpolationToNext.bounce == null
+                  ? null
+                  : ExportMotionBounceSpec(
+                      amplitude: keyframe.interpolationToNext.bounce!.amplitude,
+                      bounces: keyframe.interpolationToNext.bounce!.bounces,
+                      decay: keyframe.interpolationToNext.bounce!.decay,
+                    ),
+              elastic: keyframe.interpolationToNext.elastic == null
+                  ? null
+                  : ExportMotionElasticSpec(
+                      amplitude: keyframe.interpolationToNext.elastic!.amplitude,
+                      period: keyframe.interpolationToNext.elastic!.period,
+                      decay: keyframe.interpolationToNext.elastic!.decay,
                     ),
             ),
           ),

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../../../../core/engine/live_scrub_preview_sources.dart';
 import '../../../../core/engine/stage5_native_transport_controller.dart';
@@ -9,8 +10,9 @@ import '../../../../core/engine/stage6_export_controller.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../domain/models/export_composition_builder.dart';
 import '../../domain/models/export_composition_models.dart';
-import '../../domain/models/export_output_profile.dart';
 import '../../domain/models/export_motion_text_program_models.dart';
+import '../../domain/models/export_output_profile.dart';
+import '../../domain/models/professional_canvas_timeline_authoring_models.dart';
 import '../../domain/models/professional_motion_animation_models.dart';
 import '../../domain/models/professional_motion_compilation_models.dart';
 import '../../domain/models/professional_motion_evaluation_models.dart';
@@ -23,15 +25,26 @@ import '../../domain/models/professional_motion_text_models.dart';
 import '../../domain/models/professional_motion_text_preview_models.dart';
 import '../../domain/models/professional_motion_text_render_models.dart';
 import '../../domain/models/professional_motion_text_runtime_helpers.dart';
+import '../../domain/models/professional_normal_transition_models.dart';
+import '../../domain/services/ai_transition/kie_ai_transition_service.dart';
+import '../../domain/services/normal_transition_command_history.dart';
+import '../../domain/services/scoped_text_motion_script_import_service.dart';
+import '../models/ai_transition_models.dart';
 import '../models/editor_asset_item.dart';
 import '../models/editor_media_tab.dart';
 import '../models/timeline_mock_models.dart';
 import '../models/timeline_time.dart';
+import '../services/normal_transition_timeline_authoring_adapter.dart';
 import '../widgets/editor_tools_bar.dart';
 import '../widgets/editor_top_bar.dart';
 import '../widgets/animate_browser_bottom_sheet.dart';
+import '../widgets/ai_transition_bottom_sheet.dart';
 import '../widgets/clip_speed_bottom_sheet.dart';
 import '../widgets/export_bottom_sheet.dart';
+import '../widgets/fx_icon_button.dart';
+import '../widgets/layer_scope_graph_bottom_sheet.dart';
+import '../widgets/layer_scope_keyframe_dock.dart';
+import '../widgets/layer_scope_value_bottom_sheet.dart';
 import '../widgets/media_bottom_sheet.dart';
 import '../widgets/media_dock.dart';
 import '../widgets/motion_text_preview_overlay.dart';
@@ -39,6 +52,7 @@ import '../widgets/motion_text_transform_overlay.dart';
 import '../widgets/native_timeline_scrub_surface.dart';
 import '../widgets/native_preview_surface.dart';
 import '../widgets/preview_stage.dart';
+import '../widgets/scoped_text_motion_script_bottom_sheet.dart';
 import '../widgets/text_clip_edit_bottom_sheet.dart';
 import '../widgets/timeline_panel.dart';
 import '../widgets/timeline_transition_preview_overlay.dart';
@@ -54,62 +68,250 @@ class FusionXCleanUiScreen extends StatefulWidget {
   State<FusionXCleanUiScreen> createState() => _FusionXCleanUiScreenState();
 }
 
-class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
+class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   static const double _minEditableClipDuration = 0.25;
   static const int _deviceMediaPageSize = 24;
   static const String _motionProjectId = 'motion-project';
   static const String _motionSceneId = 'scene-main';
   static const String _exportContractVersion = 'v1alpha1';
+  static const String _normalTransitionVideoTrackId = 'video-main';
+  static const NormalTransitionTimelineAuthoringAdapter
+      _normalTransitionAuthoringAdapter =
+      NormalTransitionTimelineAuthoringAdapter();
   static final TimelineTime _manualTransitionMinimumScopeSideTime =
       TimelineTime.fromSecondsDouble(10);
   static const bool _textPresetPickerEnabled = false;
   static const String _defaultInsertedTextValue = 'Text';
   static const double _defaultInsertedTextFontSize = 56;
+  static const double _motionPreviewClockResyncThresholdSeconds = 0.08;
+  static const MotionInterpolationSpec _afterEffectsEasyEaseInterpolation =
+      MotionInterpolationSpec.cubicBezier(
+    bezier: MotionBezierControlPoints(
+      x1: 0.3333,
+      y1: 0.0,
+      x2: 0.6667,
+      y2: 1.0,
+    ),
+  );
   static final TimelineTime _defaultTextPresetDurationTime =
       TimelineTime.fromSecondsDouble(3);
-  static const List<AnimateBrowserItem> _manualTransitionEffectItems =
+  static const List<AnimateBrowserItem> _manualTransitionAnimateItems =
       <AnimateBrowserItem>[
     AnimateBrowserItem(
       id: 'outgoingBoostScale',
       label: 'Outgoing Scale',
-      category: 'Transform',
+      category: 'Animate',
       summary: 'Push the outgoing clip forward before the handoff.',
       keywords: <String>['zoom out', 'scale', 'push'],
     ),
     AnimateBrowserItem(
       id: 'incomingStartScale',
       label: 'Incoming Scale',
-      category: 'Transform',
+      category: 'Animate',
       summary: 'Start the incoming clip close, then relax to full frame.',
       keywords: <String>['zoom in', 'scale', 'size'],
     ),
     AnimateBrowserItem(
+      id: 'entryDelay',
+      label: 'Entry Delay',
+      category: 'Animate',
+      summary: 'Delay when the incoming clip starts taking over.',
+      keywords: <String>['timing', 'delay', 'handoff'],
+    ),
+  ];
+  static const List<AnimateBrowserItem> _manualTransitionFxItems =
+      <AnimateBrowserItem>[
+    AnimateBrowserItem(
       id: 'blackPeak',
       label: 'Black Mix',
-      category: 'Visual',
+      category: 'FX',
       summary: 'Dip through black around the seam midpoint.',
       keywords: <String>['fade', 'opacity', 'black'],
     ),
     AnimateBrowserItem(
       id: 'bridgeDarkness',
       label: 'Bridge Darkness',
-      category: 'Visual',
+      category: 'FX',
       summary: 'Add a dark cinematic bridge between the two clips.',
       keywords: <String>['dark', 'bridge', 'shade'],
     ),
+  ];
+  static const List<AnimateBrowserItem> _scopedLayerCoreAnimateItems =
+      <AnimateBrowserItem>[
     AnimateBrowserItem(
-      id: 'entryDelay',
-      label: 'Entry Delay',
-      category: 'Timing',
-      summary: 'Delay when the incoming clip starts taking over.',
-      keywords: <String>['timing', 'delay', 'handoff'],
+      id: 'opacity',
+      label: 'Opacity',
+      category: 'Animate',
+      summary: 'Animate layer transparency with keyframes.',
+      keywords: <String>['fade', 'alpha', 'transparency'],
+    ),
+    AnimateBrowserItem(
+      id: 'position',
+      label: 'Position',
+      category: 'Animate',
+      summary: 'Animate layer movement on X and Y.',
+      keywords: <String>['move', 'x', 'y', 'translate'],
+    ),
+    AnimateBrowserItem(
+      id: 'scale',
+      label: 'Scale',
+      category: 'Animate',
+      summary: 'Animate layer size on X and Y.',
+      keywords: <String>['scale', 'size', 'zoom', 'resize'],
+    ),
+    AnimateBrowserItem(
+      id: 'rotation',
+      label: 'Rotation',
+      category: 'Animate',
+      summary: 'Animate layer angle over time.',
+      keywords: <String>['rotate', 'angle', 'spin', 'turn'],
     ),
   ];
+  static const List<AnimateBrowserItem> _scopedTextAnimateItems =
+      <AnimateBrowserItem>[
+    ..._scopedLayerCoreAnimateItems,
+    AnimateBrowserItem(
+      id: 'text_effect.type_on',
+      label: 'Type On',
+      category: 'Text',
+      summary: 'Reveal text letter by letter over the layer timeline.',
+      keywords: <String>['typewriter', 'letter', 'reveal', 'text'],
+    ),
+    AnimateBrowserItem(
+      id: 'text_effect.word_reveal',
+      label: 'Word Reveal',
+      category: 'Text',
+      summary: 'Reveal words progressively across the selected text layer.',
+      keywords: <String>['word', 'words', 'reveal', 'text'],
+    ),
+    AnimateBrowserItem(
+      id: 'text_effect.letter_reveal',
+      label: 'Letter Reveal',
+      category: 'Text',
+      summary: 'Reveal letters with a clean per-character progression.',
+      keywords: <String>['letter', 'letters', 'character', 'text'],
+    ),
+    AnimateBrowserItem(
+      id: 'text_effect.bounce_in',
+      label: 'Bounce In',
+      category: 'Text',
+      summary: 'Bring text in with a readable bounce, scale, and rise.',
+      keywords: <String>['bounce', 'boing', 'pop', 'scale', 'text'],
+    ),
+    AnimateBrowserItem(
+      id: 'text_effect.rise_in',
+      label: 'Rise In',
+      category: 'Text',
+      summary: 'Lift text into place with a soft spring finish.',
+      keywords: <String>['rise', 'up', 'spring', 'position', 'text'],
+    ),
+    AnimateBrowserItem(
+      id: 'text_effect.slide_in',
+      label: 'Slide In',
+      category: 'Text',
+      summary: 'Slide text horizontally into the frame with a settled finish.',
+      keywords: <String>['slide', 'left', 'right', 'spring', 'text'],
+    ),
+    AnimateBrowserItem(
+      id: 'text_effect.word_rise_in',
+      label: 'Word Rise In',
+      category: 'Text',
+      summary: 'Reveal words while the line rises gently into place.',
+      keywords: <String>['word', 'reveal', 'rise', 'headline', 'text'],
+    ),
+    AnimateBrowserItem(
+      id: 'text_effect.letter_pop_in',
+      label: 'Letter Pop In',
+      category: 'Text',
+      summary: 'Pop letters in with per-character reveal and scale settle.',
+      keywords: <String>['letter', 'character', 'pop', 'reveal', 'text'],
+    ),
+    AnimateBrowserItem(
+      id: 'text_effect.word_cascade',
+      label: 'Word Cascade',
+      category: 'Text',
+      summary: 'Cascade words into view with reveal, lift, and soft focus.',
+      keywords: <String>['word', 'cascade', 'reveal', 'stagger', 'text'],
+    ),
+    AnimateBrowserItem(
+      id: 'text_effect.letter_bounce',
+      label: 'Letter Bounce',
+      category: 'Text',
+      summary: 'Reveal letters with bounce, scale, and lift.',
+      keywords: <String>['letter', 'bounce', 'character', 'scale', 'text'],
+    ),
+    AnimateBrowserItem(
+      id: 'text_effect.slide_blur_in',
+      label: 'Slide Blur In',
+      category: 'Text FX',
+      summary: 'Slide text in while blur resolves into crisp focus.',
+      keywords: <String>['slide', 'blur', 'focus', 'cinematic', 'text'],
+    ),
+    AnimateBrowserItem(
+      id: 'text_effect.blur_rise_in',
+      label: 'Blur Rise In',
+      category: 'Text FX',
+      summary: 'Lift text in from soft blur to crisp focus.',
+      keywords: <String>['blur', 'rise', 'focus', 'cinematic', 'text'],
+    ),
+    AnimateBrowserItem(
+      id: 'text_effect.rotate_in',
+      label: 'Rotate In',
+      category: 'Text',
+      summary: 'Rotate and scale text into a settled lockup.',
+      keywords: <String>['rotate', 'spin', 'scale', 'spring', 'text'],
+    ),
+    AnimateBrowserItem(
+      id: 'text_effect.blur_in',
+      label: 'Blur In',
+      category: 'Text FX',
+      summary: 'Bring text in from soft blur to sharp focus.',
+      keywords: <String>['blur', 'soft', 'focus', 'text'],
+    ),
+    AnimateBrowserItem(
+      id: 'text_effect.blur_out',
+      label: 'Blur Out',
+      category: 'Text FX',
+      summary: 'Send text out through soft blur and opacity fade.',
+      keywords: <String>['blur', 'fade', 'out', 'exit', 'text'],
+    ),
+    AnimateBrowserItem(
+      id: 'text_effect.scale_pop',
+      label: 'Elastic Pop',
+      category: 'Text',
+      summary: 'Pop text scale with an elastic overshoot and settle.',
+      keywords: <String>['scale', 'elastic', 'pop', 'spring', 'text'],
+    ),
+    AnimateBrowserItem(
+      id: 'text_effect.tracking_settle',
+      label: 'Tracking Settle',
+      category: 'Text',
+      summary: 'Settle wide letter spacing into a clean final text lockup.',
+      keywords: <String>['tracking', 'letter spacing', 'spacing', 'text'],
+    ),
+  ];
+  static const List<AnimateBrowserItem> _scopedImageAnimateItems =
+      _scopedLayerCoreAnimateItems;
+  static const List<AnimateBrowserItem> _scopedTextFxItems =
+      <AnimateBrowserItem>[
+    AnimateBrowserItem(
+      id: 'gaussian_blur',
+      label: 'Gaussian Blur',
+      category: 'FX',
+      summary: 'Soften the selected text layer with keyframeable blur.',
+      keywords: <String>['blur', 'gaussian', 'soften', 'focus', 'defocus'],
+    ),
+  ];
+  static const List<AnimateBrowserItem> _scopedImageFxItems =
+      <AnimateBrowserItem>[];
 
   late final Stage5NativeTransportController _transportController;
   late final InMemoryLiveScrubPreviewSourceCatalog
       _liveScrubPreviewSourceCatalog;
   late final Stage6ExportController _exportController;
+  late final KieAiTransitionService _aiTransitionService;
+  late final NormalTransitionCommandHistoryController _normalTransitionHistory;
   late final ValueNotifier<List<EditorAssetItem>> _assetLibrary;
   late final ValueNotifier<bool> _assetLibraryLoading;
   late final ValueNotifier<String?> _assetLibraryError;
@@ -118,7 +320,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   late final ValueNotifier<TimelineTime> _transitionFocusDisplayTimeNotifier;
   late final ValueNotifier<TimelineTime>
       _transitionFocusPlaybackSampleTimeNotifier;
+  late final ValueNotifier<TimelineTime> _layerScopeDisplayTimeNotifier;
+  late final ValueNotifier<TimelineTime> _layerScopePlaybackSampleTimeNotifier;
   late final ValueNotifier<Uint8List?> _previewThumbnailNotifier;
+  late final Ticker _motionPreviewFrameTicker;
   late final BasicMotionRuntimeEvaluator _motionEvaluator;
   late final BasicMotionTextRenderAdapter _motionTextRenderAdapter;
   final Map<String, EditorAssetItem> _importedAssetsById =
@@ -132,6 +337,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   String? _selectedClipId;
   String? _selectedTransitionId;
   _TransitionFocusSession? _transitionFocusSession;
+  _LayerScopeSession? _layerScopeSession;
+  String? _selectedLayerScopeAnimationLaneId;
+  int? _selectedLayerScopeKeyframeIndex;
+  String? _selectedLayerScopeKeyframeId;
+  int? _selectedTransitionFocusKeyframeIndex;
+  String? _selectedTransitionFocusKeyframeId;
+  bool _isLayerScopeValueEditorOpen = false;
+  bool _isLayerScopeGraphEditorOpen = false;
+  bool _isTransitionFocusValueEditorOpen = false;
+  bool _isTransitionFocusGraphEditorOpen = false;
   String? _previewAssetId;
   PreviewViewportState _previewViewportState = PreviewViewportState.identity;
   double? _lockedWorkspaceAspectRatio;
@@ -161,6 +376,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   bool _isStoppingTransitionFocusPlayback = false;
   MotionNormalizedComposition? _cachedMotionComposition;
   int _motionRevision = 0;
+  int _motionPreviewWarmupRequestId = 0;
+  int? _lastWarmedMotionRevision;
+  Timer? _motionPreviewWarmupDebounce;
   int? _cachedMotionRevision;
   int? _cachedMotionTimelineDurationTicks;
   int? _cachedMotionCanvasWidth;
@@ -181,10 +399,19 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   int _lastAppliedTimelineScrubConfigRevision = 0;
   int? _pendingTimelineScrubConfigTargetRevision;
   Completer<void>? _pendingTimelineScrubConfigCompleter;
+  OverlayEntry? _topStageBannerEntry;
+  Timer? _topStageBannerTimer;
+  TimelineTime _motionPreviewClockAnchorTime = TimelineTime.zero;
+  Duration _motionPreviewClockAnchorElapsed = Duration.zero;
+  Duration _motionPreviewClockLatestElapsed = Duration.zero;
+  Size? _lastPreviewStageSize;
+  int _nativePreviewRecoveryRevision = 0;
+  bool _isNativePreviewRecoveryScheduled = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final transportController = Stage5NativeTransportController();
     transportController.addListener(_handleTransportStateChanged);
     _transportController = transportController;
@@ -192,6 +419,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     final exportController = Stage6ExportController();
     exportController.addListener(_handleExportStateChanged);
     _exportController = exportController;
+    _aiTransitionService = KieAiTransitionService();
+    unawaited(_aiTransitionService.ensureConfigured());
+    _normalTransitionHistory = NormalTransitionCommandHistoryController();
     _motionEvaluator = const BasicMotionRuntimeEvaluator();
     _motionTextRenderAdapter = const BasicMotionTextRenderAdapter();
     _assetLibrary =
@@ -204,7 +434,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
         ValueNotifier<TimelineTime>(TimelineTime.zero);
     _transitionFocusPlaybackSampleTimeNotifier =
         ValueNotifier<TimelineTime>(TimelineTime.zero);
+    _layerScopeDisplayTimeNotifier =
+        ValueNotifier<TimelineTime>(TimelineTime.zero);
+    _layerScopePlaybackSampleTimeNotifier =
+        ValueNotifier<TimelineTime>(TimelineTime.zero);
     _previewThumbnailNotifier = ValueNotifier<Uint8List?>(null);
+    _motionPreviewFrameTicker = createTicker(_handleMotionPreviewFrameTick);
     _assetOffsets[EditorMediaTab.video] = 0;
     _assetOffsets[EditorMediaTab.image] = 0;
     _assetHasMore[EditorMediaTab.video] = true;
@@ -217,6 +452,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _dismissTopStageBanner();
     _exportController
       ..removeListener(_handleExportStateChanged)
       ..dispose();
@@ -226,12 +463,77 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     _assetLibrary.dispose();
     _assetLibraryLoading.dispose();
     _assetLibraryError.dispose();
+    _motionPreviewWarmupDebounce?.cancel();
+    _motionPreviewFrameTicker.dispose();
     _timelineDisplayTimeNotifier.dispose();
     _playbackSampleTimeNotifier.dispose();
     _transitionFocusDisplayTimeNotifier.dispose();
     _transitionFocusPlaybackSampleTimeNotifier.dispose();
+    _layerScopeDisplayTimeNotifier.dispose();
+    _layerScopePlaybackSampleTimeNotifier.dispose();
     _previewThumbnailNotifier.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.hidden:
+        _handleNativePreviewLifecycleSuspended();
+        break;
+      case AppLifecycleState.resumed:
+        _scheduleNativePreviewLifecycleRecovery();
+        break;
+      case AppLifecycleState.detached:
+        break;
+    }
+  }
+
+  void _handleNativePreviewLifecycleSuspended() {
+    if (!_useNativePreview) {
+      return;
+    }
+    _motionPreviewWarmupDebounce?.cancel();
+    _stopMotionPreviewFrameClock(resetTo: _currentTime);
+    if (_transportController.isPlaying) {
+      unawaited(_pausePlayback());
+    }
+  }
+
+  void _scheduleNativePreviewLifecycleRecovery() {
+    if (!_useNativePreview || _isNativePreviewRecoveryScheduled) {
+      return;
+    }
+    _isNativePreviewRecoveryScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_recoverNativePreviewAfterLifecycleResume());
+    });
+  }
+
+  Future<void> _recoverNativePreviewAfterLifecycleResume() async {
+    try {
+      if (!mounted || !_useNativePreview) {
+        return;
+      }
+      setState(() {
+        _nativePreviewRecoveryRevision += 1;
+      });
+      await WidgetsBinding.instance.endOfFrame;
+      if (!mounted || !_useNativePreview) {
+        return;
+      }
+      await _transportController.recoverPreviewSurface(
+        positionMs: _currentTime.inMilliseconds,
+      );
+      if (!mounted) {
+        return;
+      }
+      _syncPlaybackSampleToCurrentTime();
+    } finally {
+      _isNativePreviewRecoveryScheduled = false;
+    }
   }
 
   double get _workspaceAspectRatio =>
@@ -381,6 +683,86 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     _cachedMotionCanvasWidth = currentCanvasWidth;
     _cachedMotionCanvasHeight = currentCanvasHeight;
     return _cachedMotionComposition;
+  }
+
+  void _markMotionAuthoringChanged({bool scheduleWarmup = true}) {
+    _motionRevision += 1;
+    _cachedMotionComposition = null;
+    _cachedMotionRevision = null;
+    _cachedMotionTimelineProjectionRevision = null;
+    _cachedMotionTimelineEntries = null;
+    _cachedMotionTimelineTrack = null;
+    _cachedMotionDisplayTracks = null;
+    _lastWarmedMotionRevision = null;
+    if (scheduleWarmup) {
+      _scheduleMotionPreviewWarmup();
+    }
+  }
+
+  void _scheduleMotionPreviewWarmup({TimelineTime? time}) {
+    if (!mounted) {
+      return;
+    }
+    final requestId = ++_motionPreviewWarmupRequestId;
+    final warmupTime = time ?? _timelineDisplayTimeNotifier.value;
+    _motionPreviewWarmupDebounce?.cancel();
+    _motionPreviewWarmupDebounce = Timer(const Duration(milliseconds: 24), () {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || requestId != _motionPreviewWarmupRequestId) {
+          return;
+        }
+        _warmMotionPreviewForCurrentState(warmupTime);
+      });
+    });
+  }
+
+  void _prepareMotionPreviewForPlaybackStart({TimelineTime? time}) {
+    if (_lastWarmedMotionRevision == _motionRevision &&
+        _cachedMotionRevision == _motionRevision) {
+      return;
+    }
+    _motionPreviewWarmupDebounce?.cancel();
+    _motionPreviewWarmupRequestId += 1;
+    _warmMotionPreviewForCurrentState(time ?? _currentTime);
+  }
+
+  void _warmMotionPreviewForCurrentState(TimelineTime preferredTime) {
+    final composition = _motionCompositionForCurrentState();
+    if (composition == null) {
+      return;
+    }
+    final baseTime = preferredTime.clamp(
+      TimelineTime.zero,
+      composition.projectRange.endExclusive,
+    );
+    final sampleTimes = <TimelineTime>[
+      baseTime,
+      (baseTime + TimelineTime.fromSecondsDouble(1 / 60)).clamp(
+        TimelineTime.zero,
+        composition.projectRange.endExclusive,
+      ),
+      (baseTime + TimelineTime.fromSecondsDouble(2 / 60)).clamp(
+        TimelineTime.zero,
+        composition.projectRange.endExclusive,
+      ),
+      (baseTime + TimelineTime.fromSecondsDouble(4 / 60)).clamp(
+        TimelineTime.zero,
+        composition.projectRange.endExclusive,
+      ),
+    ];
+    for (final sampleTime in sampleTimes) {
+      final snapshot = _motionTextRenderSnapshotForTime(
+        sampleTime,
+        reason: MotionEvaluationReason.diagnostics,
+      );
+      if (snapshot != null) {
+        warmMotionTextPreviewOverlayCaches(
+          snapshot: snapshot,
+          viewportSize: _lastPreviewStageSize,
+        );
+      }
+    }
+    _lastWarmedMotionRevision = _motionRevision;
   }
 
   void _handleExportStateChanged() {
@@ -643,7 +1025,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
                 speedMode: _exportClipSpeedModeForTimelineClip(clip.speedMode),
                 splitGroupId: clip.splitGroupId,
                 label: clip.label,
-                isPlaceholder: clip.type != TimelineClipType.media,
+                isPlaceholder: clip.type != TimelineClipType.media ||
+                    (clip.aiTransition != null &&
+                        (clip.assetId == null || clip.assetId!.isEmpty)),
               );
             },
           ).map((seed) {
@@ -727,6 +1111,28 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
               ? bindingRange
               : node.projectRange;
       return node.isActive && effectiveRange.contains(snapshot.time);
+    }).map((node) {
+      if (_hasManualOpacityChannelForElement(node.targetElementId)) {
+        return node;
+      }
+      final clipContext = _selectedClipContextForTracks(
+        _timelineTruthTracks,
+        node.targetElementId,
+      );
+      if (clipContext == null) {
+        return node;
+      }
+      final clipOpacity = _clipOpacityForTimelineTime(
+        clipContext,
+        snapshot.time,
+      );
+      if (clipOpacity >= 0.999) {
+        return node;
+      }
+      return _copyMotionTextRenderNodeWithOpacity(
+        node,
+        (node.opacity * clipOpacity).clamp(0.0, 1.0).toDouble(),
+      );
     }).toList(growable: false);
     if (activeNodes.isEmpty) {
       return null;
@@ -736,6 +1142,51 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       time: snapshot.time,
       canvasSize: snapshot.canvasSize,
       nodes: activeNodes,
+    );
+  }
+
+  MotionTextRenderNode _copyMotionTextRenderNodeWithOpacity(
+    MotionTextRenderNode node,
+    double opacity,
+  ) {
+    return MotionTextRenderNode(
+      id: node.id,
+      targetElementId: node.targetElementId,
+      sceneId: node.sceneId,
+      layerId: node.layerId,
+      projectRange: node.projectRange,
+      isActive: node.isActive,
+      text: node.text,
+      fullText: node.fullText,
+      revealUnit: node.revealUnit,
+      revealProgress: node.revealProgress,
+      hasRevealAnimation: node.hasRevealAnimation,
+      animationKinds: node.animationKinds,
+      animationProgressByKind: node.animationProgressByKind,
+      canvasOffset: node.canvasOffset,
+      scaleX: node.scaleX,
+      scaleY: node.scaleY,
+      rotationDegrees: node.rotationDegrees,
+      opacity: opacity,
+      blurAmount: node.blurAmount,
+      blurHorizontal: node.blurHorizontal,
+      blurVertical: node.blurVertical,
+      blurMix: node.blurMix,
+      blurEdgeMode: node.blurEdgeMode,
+      blurCrop: node.blurCrop,
+      fontSize: node.fontSize,
+      letterSpacing: node.letterSpacing,
+      colorArgb: node.colorArgb,
+      fontFamily: node.fontFamily,
+      fontWeight: node.fontWeight,
+      fontStyle: node.fontStyle,
+      lineHeight: node.lineHeight,
+      textAlignment: node.textAlignment,
+      anchor: node.anchor,
+      blendMode: node.blendMode,
+      zIndex: node.zIndex,
+      name: node.name,
+      presetId: node.presetId,
     );
   }
 
@@ -1129,6 +1580,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     final projectDuration = _timelineDurationForTracksTime(tracks);
     final bindings = <MotionTransitionBindingModel>[];
     for (final transition in transitions) {
+      if (transition.preset == TimelineTransitionPreset.aiGenerated) {
+        continue;
+      }
       if (transition.preset == TimelineTransitionPreset.manual &&
           transition.manualEffectIds.isEmpty) {
         continue;
@@ -1178,8 +1632,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   ) {
     return switch (preset) {
       TimelineTransitionPreset.manual => MotionTransitionKind.cameraPush,
+      TimelineTransitionPreset.crossDissolve => MotionTransitionKind.fade,
       TimelineTransitionPreset.fadeBlack => MotionTransitionKind.fade,
       TimelineTransitionPreset.zoomInCamera => MotionTransitionKind.cameraPush,
+      TimelineTransitionPreset.aiGenerated => MotionTransitionKind.fade,
     };
   }
 
@@ -1999,6 +2455,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       _timelineDisplayTimeNotifier.value = time;
     }
     _syncTransitionFocusTimeNotifiers();
+    _syncLayerScopeTimeNotifiers();
   }
 
   void _setTimelineDisplayTime(TimelineTime time) {
@@ -2015,12 +2472,118 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     }
   }
 
+  bool get _shouldDriveDisplayTimeFromPlaybackSample =>
+      _useNativePreview &&
+      _isPlaying &&
+      !_isTimelineScrubbing &&
+      !_isTimelineScrubHandoffInFlight &&
+      !_isApplyingStructuralEdit &&
+      _timelineTrimPreviewSession == null &&
+      !_transportController.state.isScrubSettling;
+
   void _setPlaybackSampleTime(TimelineTime time) {
     final clamped = time.clamp(TimelineTime.zero, _timelineDurationTime);
+    final shouldDriveDisplayTime = _shouldDriveDisplayTimeFromPlaybackSample;
     if (_playbackSampleTimeNotifier.value != clamped) {
       _playbackSampleTimeNotifier.value = clamped;
     }
+    if (shouldDriveDisplayTime) {
+      _applyTimelineDisplayTime(clamped);
+      return;
+    }
     _syncTransitionFocusTimeNotifiers();
+    _syncLayerScopeTimeNotifiers();
+  }
+
+  bool _shouldUseMotionPreviewFrameClock(Stage5TransportState state) {
+    return _useNativePreview &&
+        state.isPlaying &&
+        !_isTimelineScrubbing &&
+        !_isTimelineScrubHandoffInFlight &&
+        !_isApplyingStructuralEdit &&
+        _timelineTrimPreviewSession == null &&
+        !state.isScrubSettling;
+  }
+
+  void _syncMotionPreviewFrameClock(TimelineTime transportTime) {
+    final elapsed = _motionPreviewClockLatestElapsed;
+    if (!_motionPreviewFrameTicker.isActive) {
+      final visibleSampleTime = _playbackSampleTimeNotifier.value.clamp(
+        TimelineTime.zero,
+        _timelineDurationTime,
+      );
+      final initialDriftSeconds =
+          (transportTime - visibleSampleTime).inSecondsDouble.abs();
+      final anchorTime =
+          initialDriftSeconds <= _motionPreviewClockResyncThresholdSeconds
+              ? visibleSampleTime
+              : transportTime;
+      _motionPreviewClockAnchorTime = anchorTime;
+      _motionPreviewClockAnchorElapsed = elapsed;
+      _setPlaybackSampleTime(anchorTime);
+      _motionPreviewFrameTicker.start();
+      return;
+    }
+
+    final predictedTime = _motionPreviewClockTimeForElapsed(elapsed);
+    final driftSeconds = (transportTime - predictedTime).inSecondsDouble.abs();
+    if (driftSeconds > _motionPreviewClockResyncThresholdSeconds) {
+      _motionPreviewClockAnchorTime = transportTime;
+      _motionPreviewClockAnchorElapsed = elapsed;
+      _setPlaybackSampleTime(transportTime);
+    }
+  }
+
+  void _primeMotionPreviewFrameClockForPlaybackStart(
+    TimelineTime transportTime,
+  ) {
+    if (!_useNativePreview ||
+        _isTimelineScrubbing ||
+        _isApplyingStructuralEdit ||
+        _timelineTrimPreviewSession != null) {
+      return;
+    }
+    _motionPreviewClockAnchorTime = transportTime.clamp(
+      TimelineTime.zero,
+      _timelineDurationTime,
+    );
+    _motionPreviewClockAnchorElapsed = _motionPreviewClockLatestElapsed;
+    _setPlaybackSampleTime(_motionPreviewClockAnchorTime);
+    if (!_motionPreviewFrameTicker.isActive) {
+      _motionPreviewFrameTicker.start();
+    }
+  }
+
+  void _stopMotionPreviewFrameClock({TimelineTime? resetTo}) {
+    if (_motionPreviewFrameTicker.isActive) {
+      _motionPreviewFrameTicker.stop(canceled: false);
+    }
+    _motionPreviewClockAnchorElapsed = _motionPreviewClockLatestElapsed;
+    if (resetTo != null) {
+      _motionPreviewClockAnchorTime = resetTo;
+      _setPlaybackSampleTime(resetTo);
+    }
+  }
+
+  TimelineTime _motionPreviewClockTimeForElapsed(Duration elapsed) {
+    final delta = elapsed - _motionPreviewClockAnchorElapsed;
+    final deltaSeconds = delta.inMicroseconds / Duration.microsecondsPerSecond;
+    return (_motionPreviewClockAnchorTime +
+            TimelineTime.fromSecondsDouble(deltaSeconds))
+        .clamp(TimelineTime.zero, _timelineDurationTime);
+  }
+
+  void _handleMotionPreviewFrameTick(Duration elapsed) {
+    _motionPreviewClockLatestElapsed = elapsed;
+    if (!mounted) {
+      return;
+    }
+    final transportState = _transportController.state;
+    if (!_shouldUseMotionPreviewFrameClock(transportState)) {
+      _stopMotionPreviewFrameClock();
+      return;
+    }
+    _setPlaybackSampleTime(_motionPreviewClockTimeForElapsed(elapsed));
   }
 
   void _syncTransitionFocusTimeNotifiers() {
@@ -2056,6 +2619,34 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     }
   }
 
+  void _syncLayerScopeTimeNotifiers() {
+    final context = _activeLayerScopeContext;
+    if (context == null) {
+      if (_layerScopeDisplayTimeNotifier.value != TimelineTime.zero) {
+        _layerScopeDisplayTimeNotifier.value = TimelineTime.zero;
+      }
+      if (_layerScopePlaybackSampleTimeNotifier.value != TimelineTime.zero) {
+        _layerScopePlaybackSampleTimeNotifier.value = TimelineTime.zero;
+      }
+      return;
+    }
+    final localDisplayTime = _layerScopeLocalTime(
+      context,
+      _timelineDisplayTimeNotifier.value,
+    );
+    final localPlaybackSampleTime = _layerScopeLocalTime(
+      context,
+      _playbackSampleTimeNotifier.value,
+    );
+    if (_layerScopeDisplayTimeNotifier.value != localDisplayTime) {
+      _layerScopeDisplayTimeNotifier.value = localDisplayTime;
+    }
+    if (_layerScopePlaybackSampleTimeNotifier.value !=
+        localPlaybackSampleTime) {
+      _layerScopePlaybackSampleTimeNotifier.value = localPlaybackSampleTime;
+    }
+  }
+
   void _syncPlaybackSampleToCurrentTime() {
     _setPlaybackSampleTime(_currentTime);
   }
@@ -2087,6 +2678,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
 
   void _handleTransportStateChanged() {
     final transportState = _transportController.state;
+    final enteringPlayback = transportState.isPlaying && !_isPlaying;
+    if (enteringPlayback && _isTimelineScrubHandoffInFlight) {
+      _isTimelineScrubHandoffInFlight = false;
+      _timelineScrubFinalTime = null;
+    }
     final previewRange = _textEditPreviewRange;
     if (previewRange != null &&
         !_isStoppingTextEditPreviewPlayback &&
@@ -2107,6 +2703,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
         _stopTransitionFocusPlayback(
           transitionFocusContext,
           snapToStart: false,
+          snapToEnd: true,
         ),
       );
     }
@@ -2155,11 +2752,25 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
         shouldAdoptTransportTime &&
         (_currentTime - reportedTransportTime).inSecondsDouble > 0 &&
         (_currentTime - reportedTransportTime).inSecondsDouble <= 0.24;
+    final shouldUseMotionPreviewFrameClock = shouldAdoptTransportTime &&
+        !isTransientPlaybackRegression &&
+        _shouldUseMotionPreviewFrameClock(transportState);
+    if (enteringPlayback &&
+        _shouldUseMotionPreviewFrameClock(transportState) &&
+        !_transportController.state.isScrubSettling) {
+      _primeMotionPreviewFrameClockForPlaybackStart(reportedTransportTime);
+    }
     if (shouldAdoptTransportTime && !isTransientPlaybackRegression) {
-      _setPlaybackSampleTime(reportedTransportTime);
+      if (shouldUseMotionPreviewFrameClock) {
+        _syncMotionPreviewFrameClock(reportedTransportTime);
+      } else {
+        _stopMotionPreviewFrameClock(resetTo: reportedTransportTime);
+      }
       if (!transportState.isPlaying) {
         _setTimelineDisplayTime(reportedTransportTime);
       }
+    } else if (!_shouldUseMotionPreviewFrameClock(transportState)) {
+      _stopMotionPreviewFrameClock();
     }
     final shouldUpdatePlaying = (!_isApplyingStructuralEdit ||
             shouldAdoptPlayingTransportDuringStructuralEdit) &&
@@ -2269,6 +2880,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     _deactivateTimelineTrimMode();
     setState(() {
       _transitionFocusSession = null;
+      _layerScopeSession = null;
       _selectedClipId = null;
       _selectedTransitionId = null;
       if (_activeTab == EditorMediaTab.speed) {
@@ -2318,11 +2930,3435 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   }
 
   void _handleTimelineClipDoubleTap(String clipId) {
-    if (!_isMotionTextElementId(clipId)) {
+    _enterLayerScope(clipId);
+  }
+
+  bool get _isLayerScopeTransitionBlocked =>
+      _isTimelineScrubbing ||
+      _isApplyingStructuralEdit ||
+      _timelineTrimSelection != null;
+
+  _LayerScopeContext? get _activeLayerScopeContext {
+    final session = _layerScopeSession;
+    if (session == null) {
+      return null;
+    }
+    return _layerScopeContextForClipId(session.clipId);
+  }
+
+  _LayerScopeContext? _layerScopeContextForClipId(String clipId) {
+    final clipContext = _selectedClipContextForTracks(
+      _timelineTruthTracks,
+      clipId,
+    );
+    if (clipContext == null || !_isSupportedLayerScopeContext(clipContext)) {
+      return null;
+    }
+    final duration = clipContext.clip.durationTime;
+    if (duration <= TimelineTime.zero) {
+      return null;
+    }
+    return _LayerScopeContext(
+      clipContext: clipContext,
+      startTime: clipContext.clipStartTime,
+      durationTime: duration,
+    );
+  }
+
+  bool _isSupportedLayerScopeContext(_SelectedTimelineClipContext context) {
+    if (context.clip.type != TimelineClipType.media) {
+      return false;
+    }
+    return switch (context.track.kind) {
+      TimelineTrackKind.text => _isMotionTextElementId(context.clip.id),
+      TimelineTrackKind.image => context.asset?.tab == EditorMediaTab.image &&
+          context.asset?.isVisual == true,
+      TimelineTrackKind.video ||
+      TimelineTrackKind.audio ||
+      TimelineTrackKind.lipSync =>
+        false,
+    };
+  }
+
+  String _layerScopeUnavailableMessage(_SelectedTimelineClipContext? context) {
+    if (context == null) {
+      return 'Scoped timeline is available for text and image layers.';
+    }
+    return switch (context.track.kind) {
+      TimelineTrackKind.video =>
+        'Video scope is not enabled yet. Phase 1 supports text and image layers only.',
+      TimelineTrackKind.audio =>
+        'Audio scope comes later. Phase 1 supports text and image layers only.',
+      TimelineTrackKind.lipSync =>
+        'Lip sync scope comes later. Phase 1 supports text and image layers only.',
+      TimelineTrackKind.text ||
+      TimelineTrackKind.image =>
+        'This layer is not currently eligible for scoped timeline.',
+    };
+  }
+
+  String _layerScopeBlockedMessage() {
+    if (_isTimelineScrubbing) {
+      return 'Finish the current scrub first.';
+    }
+    if (_isApplyingStructuralEdit) {
+      return 'Timeline structure is updating. Try again in a moment.';
+    }
+    if (_timelineTrimSelection != null) {
+      return 'Finish the current trim first.';
+    }
+    return 'Finish the current timeline gesture first.';
+  }
+
+  TimelineTrimSelection? _layerScopeTrimSelection(_LayerScopeContext context) {
+    final selection = _timelineTrimSelection;
+    if (selection == null || selection.clipId != context.clip.id) {
+      return null;
+    }
+    final localBarrierTime = selection.playheadBarrierTime == null
+        ? null
+        : _layerScopeLocalTime(context, selection.playheadBarrierTime!).clamp(
+            TimelineTime.zero,
+            context.durationTime,
+          );
+    return TimelineTrimSelection(
+      clipId: selection.clipId,
+      trackKind: selection.trackKind,
+      clipStartTime: TimelineTime.zero,
+      durationTime: selection.durationTime,
+      sourceStartTime: selection.sourceStartTime,
+      sourceDurationTime: selection.sourceDurationTime,
+      playbackRate: selection.playbackRate,
+      minDurationTime: selection.minDurationTime,
+      playheadBarrierTime: localBarrierTime,
+      assetDurationTime: selection.assetDurationTime,
+    );
+  }
+
+  void _handleLayerScopeTrimPreviewChanged(
+    _LayerScopeContext context,
+    TimelineTrimPreviewRequest? request,
+  ) {
+    if (request == null) {
+      _handleTimelineTrimPreviewChanged(null);
       return;
     }
-    _selectTextElement(clipId);
-    unawaited(_openTextClipEditSheet(clipId));
+    _handleTimelineTrimPreviewChanged(
+      TimelineTrimPreviewRequest(
+        clipId: request.clipId,
+        edge: request.edge,
+        sourceStartTime: request.sourceStartTime,
+        durationTime: request.durationTime,
+        timelinePreviewTime: _layerScopeGlobalTime(
+          context,
+          request.timelinePreviewTime,
+        ),
+        sourcePreviewTime: request.sourcePreviewTime,
+      ),
+    );
+  }
+
+  void _enterLayerScope(String clipId) {
+    final clipContext = _selectedClipContextForTracks(
+      _timelineTruthTracks,
+      clipId,
+    );
+    final supportsScope =
+        clipContext != null && _isSupportedLayerScopeContext(clipContext);
+    if (!supportsScope) {
+      _showStageMessage(_layerScopeUnavailableMessage(clipContext));
+      return;
+    }
+    if (_isLayerScopeTransitionBlocked) {
+      _showStageMessage(_layerScopeBlockedMessage());
+      return;
+    }
+    final context = _layerScopeContextForClipId(clipId);
+    if (context == null) {
+      _showStageMessage(_layerScopeUnavailableMessage(clipContext));
+      return;
+    }
+    final currentSession = _layerScopeSession;
+    if (currentSession?.clipId == clipId) {
+      return;
+    }
+    setState(() {
+      _transitionFocusSession = null;
+      _selectedTransitionId = null;
+      _layerScopeSession = _LayerScopeSession(
+        clipId: clipId,
+        returnSelectedClipId: _selectedClipId,
+      );
+      _selectedLayerScopeAnimationLaneId = null;
+      _selectedLayerScopeKeyframeIndex = null;
+      _selectedLayerScopeKeyframeId = null;
+      _isLayerScopeValueEditorOpen = false;
+      _selectedClipId = clipId;
+      if (_activeTab == EditorMediaTab.speed) {
+        _activeTab = EditorMediaTab.video;
+      }
+    });
+    _syncLayerScopeTimeNotifiers();
+  }
+
+  void _exitLayerScope() {
+    if (_isLayerScopeTransitionBlocked) {
+      _showStageMessage('Finish the current timeline gesture first.');
+      return;
+    }
+    final session = _layerScopeSession;
+    if (session == null) {
+      return;
+    }
+    setState(() {
+      _layerScopeSession = null;
+      _selectedLayerScopeAnimationLaneId = null;
+      _selectedLayerScopeKeyframeIndex = null;
+      _selectedLayerScopeKeyframeId = null;
+      _isLayerScopeValueEditorOpen = false;
+      _selectedClipId = session.returnSelectedClipId ?? session.clipId;
+    });
+    _syncLayerScopeTimeNotifiers();
+  }
+
+  TimelineTime _layerScopeLocalTime(
+    _LayerScopeContext context,
+    TimelineTime timelineTime,
+  ) {
+    final clampedTime = timelineTime.clamp(
+      context.startTime,
+      context.endTime,
+    );
+    return (clampedTime - context.startTime).clamp(
+      TimelineTime.zero,
+      context.durationTime,
+    );
+  }
+
+  TimelineTime _layerScopeGlobalTime(
+    _LayerScopeContext context,
+    TimelineTime localTime,
+  ) {
+    final clampedLocalTime = localTime.clamp(
+      TimelineTime.zero,
+      context.durationTime,
+    );
+    return (context.startTime + clampedLocalTime).clamp(
+      TimelineTime.zero,
+      _timelineDurationTime,
+    );
+  }
+
+  List<TimelineTrackData> _buildLayerScopeTracks(_LayerScopeContext context) {
+    final sourceClip = context.clip.copyWith(
+      durationTime: context.durationTime,
+      label: _clipPresentationLabel(
+        context.clip,
+        fallback: context.track.kind == TimelineTrackKind.text
+            ? 'Text Layer'
+            : 'Image Layer',
+      ),
+    );
+    final layerAnimationLanes = _layerScopeAnimationLanes(context);
+    return <TimelineTrackData>[
+      TimelineTrackData(
+        kind: context.track.kind,
+        clips: <TimelineClipData>[sourceClip],
+        animationLanes: layerAnimationLanes,
+      ),
+    ];
+  }
+
+  void _handleLayerScopeDisplayTimeChanged(
+    _LayerScopeContext context,
+    TimelineTime localTime,
+  ) {
+    _setTimelineDisplayTime(_layerScopeGlobalTime(context, localTime));
+  }
+
+  void _handleLayerScopeClipSelected(
+    _LayerScopeContext context,
+    String clipId,
+  ) {
+    if (clipId != context.clip.id) {
+      return;
+    }
+    setState(() {
+      _selectedClipId = clipId;
+      _selectedTransitionId = null;
+    });
+  }
+
+  List<TimelineAnimationLaneData> _layerScopeAnimationLanes(
+    _LayerScopeContext context,
+  ) {
+    final baseLanes = context.track.animationLanes
+        .where((lane) => lane.targetClipId == context.clip.id)
+        .toList(growable: true);
+    for (final projectedLane in <TimelineAnimationLaneData?>[
+      _projectedTextOpacityLaneForScope(context),
+      _projectedTextBlurLaneForScope(context),
+      _projectedTextPositionLaneForScope(context),
+      _projectedTextScaleLaneForScope(context),
+      _projectedTextRotationLaneForScope(context),
+      _projectedTextRevealLaneForScope(context),
+    ]) {
+      if (projectedLane == null) {
+        continue;
+      }
+      final laneIndex = baseLanes.indexWhere(
+        (lane) => lane.matchesPropertyLabel(projectedLane.label),
+      );
+      if (laneIndex >= 0) {
+        baseLanes[laneIndex] = projectedLane;
+      } else {
+        baseLanes.add(projectedLane);
+      }
+    }
+    return List<TimelineAnimationLaneData>.unmodifiable(baseLanes);
+  }
+
+  List<double> _alignedAnimationKeyframeValues(
+    TimelineAnimationLaneData lane,
+  ) {
+    return lane.alignedKeyframeValues(
+      fallbackValue: lane.matchesPropertyLabel('opacity') ? 100.0 : 0.0,
+    );
+  }
+
+  double _layerScopeProgressToSeconds(
+    _LayerScopeContext context,
+    double progress,
+  ) {
+    return context.durationTime.inSecondsDouble * progress.clamp(0.0, 1.0);
+  }
+
+  TimelineTime _layerScopeTimeForProgress(
+    _LayerScopeContext context,
+    double progress,
+  ) {
+    return _layerScopeGlobalTime(
+      context,
+      TimelineTime.fromSecondsDouble(
+        _layerScopeProgressToSeconds(context, progress),
+      ),
+    );
+  }
+
+  TimelineAnimationLaneData? _layerScopeSelectedAnimationLane(
+    _LayerScopeContext context,
+  ) {
+    final selectedLaneId = _selectedLayerScopeAnimationLaneId;
+    if (selectedLaneId == null) {
+      return null;
+    }
+    for (final lane in _layerScopeAnimationLanes(context)) {
+      if (lane.id == selectedLaneId && lane.targetClipId == context.clip.id) {
+        return lane;
+      }
+    }
+    return null;
+  }
+
+  int? _nearestLayerScopeKeyframeIndex(
+    _LayerScopeContext context,
+    TimelineAnimationLaneData lane,
+  ) {
+    final stops = lane.normalizedKeyframeStops;
+    if (stops.isEmpty) {
+      return null;
+    }
+    final durationSeconds = context.durationTime.inSecondsDouble;
+    final progress = durationSeconds <= 0
+        ? 0.0
+        : (_layerScopeLocalTime(context, _currentTime).inSecondsDouble /
+                durationSeconds)
+            .clamp(0.0, 1.0);
+    var nearestIndex = 0;
+    var nearestDistance = double.infinity;
+    for (var index = 0; index < stops.length; index++) {
+      final distance = (stops[index].clamp(0.0, 1.0) - progress).abs();
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = index;
+      }
+    }
+    return nearestIndex;
+  }
+
+  bool _layerScopeLaneSupportsValueControls(
+    TimelineAnimationLaneData? lane,
+  ) {
+    return lane != null &&
+        (lane.matchesPropertyLabel('opacity') ||
+            _layerScopeLaneMatchesBlur(lane) ||
+            _layerScopeLaneMatchesReveal(lane) ||
+            lane.matchesPropertyLabel('position') ||
+            lane.matchesPropertyLabel('scale') ||
+            lane.matchesPropertyLabel('rotation'));
+  }
+
+  bool _layerScopeLaneMatchesBlur(TimelineAnimationLaneData lane) =>
+      lane.matchesPropertyLabel('blur') ||
+      lane.matchesPropertyLabel('gaussian blur');
+
+  bool _layerScopeLaneMatchesReveal(TimelineAnimationLaneData lane) =>
+      lane.matchesPropertyLabel('type on') ||
+      lane.matchesPropertyLabel('word reveal') ||
+      lane.matchesPropertyLabel('letter reveal');
+
+  MotionTextRevealUnit _layerScopeRevealUnitForBinding(
+    MotionTextAnimationBindingModel? binding,
+  ) {
+    final value = binding?.parameterValues['revealBy'];
+    if (value != null &&
+        (value.kind == MotionPropertyValueKind.enumValue ||
+            value.kind == MotionPropertyValueKind.stringValue)) {
+      final normalized = (value.rawValue as String).trim().toLowerCase();
+      if (normalized == 'word') {
+        return MotionTextRevealUnit.word;
+      }
+      if (normalized == 'wholetext' ||
+          normalized == 'whole_text' ||
+          normalized == 'whole-text') {
+        return MotionTextRevealUnit.wholeText;
+      }
+      return MotionTextRevealUnit.letter;
+    }
+    for (final block
+        in binding?.animationBlocks ?? const <MotionTextAnimationBlock>[]) {
+      if (!_isMotionTextRevealBlock(block)) {
+        continue;
+      }
+      final revealSpec = block.revealSpec;
+      if (revealSpec != null) {
+        return revealSpec.unit;
+      }
+      if (block.kind == MotionTextAnimationKind.wordReveal) {
+        return MotionTextRevealUnit.word;
+      }
+      if (block.kind == MotionTextAnimationKind.letterReveal ||
+          block.kind == MotionTextAnimationKind.typewriter) {
+        return MotionTextRevealUnit.letter;
+      }
+    }
+    return MotionTextRevealUnit.letter;
+  }
+
+  double _layerScopeRevealByValueForBinding(
+    MotionTextAnimationBindingModel? binding,
+  ) {
+    return _layerScopeRevealUnitForBinding(binding) == MotionTextRevealUnit.word
+        ? 0
+        : 1;
+  }
+
+  MotionTextRevealDirection _layerScopeRevealDirectionForBinding(
+    MotionTextAnimationBindingModel? binding,
+  ) {
+    final value = binding?.parameterValues['revealDirection'];
+    if (value != null &&
+        (value.kind == MotionPropertyValueKind.enumValue ||
+            value.kind == MotionPropertyValueKind.stringValue)) {
+      final normalized = (value.rawValue as String).trim().toLowerCase();
+      if (normalized == 'reverse' || normalized == 'backward') {
+        return MotionTextRevealDirection.reverse;
+      }
+      return MotionTextRevealDirection.forward;
+    }
+    for (final block
+        in binding?.animationBlocks ?? const <MotionTextAnimationBlock>[]) {
+      if (!_isMotionTextRevealBlock(block)) {
+        continue;
+      }
+      final parameterValue = block.parameters['revealDirection'];
+      if (parameterValue == null ||
+          (parameterValue.kind != MotionPropertyValueKind.enumValue &&
+              parameterValue.kind != MotionPropertyValueKind.stringValue)) {
+        continue;
+      }
+      final normalized =
+          (parameterValue.rawValue as String).trim().toLowerCase();
+      if (normalized == 'reverse' || normalized == 'backward') {
+        return MotionTextRevealDirection.reverse;
+      }
+    }
+    return MotionTextRevealDirection.forward;
+  }
+
+  double _layerScopeRevealDirectionValueForBinding(
+    MotionTextAnimationBindingModel? binding,
+  ) {
+    return _layerScopeRevealDirectionForBinding(binding) ==
+            MotionTextRevealDirection.reverse
+        ? 1
+        : 0;
+  }
+
+  String _formatLayerScopeRevealBy(double value) {
+    return value.round() <= 0 ? 'Word' : 'Letter';
+  }
+
+  String _formatLayerScopeRevealDirection(double value) {
+    return value.round() <= 0 ? 'Forward' : 'Reverse';
+  }
+
+  bool _canOpenLayerScopeValueEditor(
+    _LayerScopeContext? context,
+  ) {
+    if (context == null) {
+      return false;
+    }
+    final lane = _layerScopeSelectedAnimationLane(context);
+    if (lane == null || !_layerScopeLaneSupportsValueControls(lane)) {
+      return false;
+    }
+    return (_selectedLayerScopeKeyframeIndex != null &&
+            _selectedLayerScopeKeyframeIndex! >= 0 &&
+            _selectedLayerScopeKeyframeIndex! <
+                lane.normalizedKeyframeStops.length) ||
+        _nearestLayerScopeKeyframeIndex(context, lane) != null;
+  }
+
+  bool _canOpenLayerScopeGraphEditor(
+    _LayerScopeContext? context,
+  ) {
+    if (context == null) {
+      return false;
+    }
+    final lane = _layerScopeSelectedAnimationLane(context);
+    if (lane == null || !_layerScopeLaneSupportsValueControls(lane)) {
+      return false;
+    }
+    final keyframeIndex = _selectedLayerScopeKeyframeIndex ??
+        _nearestLayerScopeKeyframeIndex(context, lane);
+    if (keyframeIndex == null) {
+      return false;
+    }
+    return keyframeIndex > 0 ||
+        keyframeIndex < lane.normalizedKeyframeStops.length - 1;
+  }
+
+  bool _canAddTransitionFocusKeyframe(
+    _TransitionFocusContext? context,
+  ) {
+    return context != null &&
+        _transitionFocusSelectedAnimationLane(context) != null;
+  }
+
+  bool _canOpenTransitionFocusValueEditor(
+    _TransitionFocusContext? context,
+  ) {
+    if (context == null) {
+      return false;
+    }
+    final lane = _transitionFocusSelectedAnimationLane(context);
+    if (lane == null) {
+      return false;
+    }
+    return (_selectedTransitionFocusKeyframeIndex != null &&
+            _selectedTransitionFocusKeyframeIndex! >= 0 &&
+            _selectedTransitionFocusKeyframeIndex! <
+                lane.normalizedKeyframeStops.length) ||
+        lane.normalizedKeyframeStops.isNotEmpty;
+  }
+
+  bool _canMoveLayerScopeSelectedKeyframe(
+    _LayerScopeContext? context,
+  ) {
+    if (context == null) {
+      return false;
+    }
+    final lane = _layerScopeSelectedAnimationLane(context);
+    final keyframeIndex = _selectedLayerScopeKeyframeIndex;
+    final definitions =
+        lane == null ? null : _layerScopeDefinitionsForLane(lane);
+    if (lane == null || definitions == null || keyframeIndex == null) {
+      return false;
+    }
+    return keyframeIndex >= 0 &&
+        keyframeIndex < lane.normalizedKeyframeStops.length;
+  }
+
+  double _layerScopeRotationAngleForDegrees(double degrees) {
+    var angle = degrees;
+    while (angle > 180.0) {
+      angle -= 360.0;
+    }
+    while (angle < -180.0) {
+      angle += 360.0;
+    }
+    return angle;
+  }
+
+  int _layerScopeRotationTurnsForDegrees(double degrees) {
+    final angle = _layerScopeRotationAngleForDegrees(degrees);
+    return ((degrees - angle) / 360.0).round();
+  }
+
+  bool _motionInterpolationMatchesEasyEase(MotionInterpolationSpec spec) {
+    if (spec.kind != MotionInterpolationKind.cubicBezier ||
+        spec.bezier == null) {
+      return false;
+    }
+    final bezier = spec.bezier!;
+    return (bezier.x1 - 0.3333).abs() <= 0.001 &&
+        bezier.y1.abs() <= 0.001 &&
+        (bezier.x2 - 0.6667).abs() <= 0.001 &&
+        (bezier.y2 - 1.0).abs() <= 0.001;
+  }
+
+  bool _isLayerScopeEasyEaseActive({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required int keyframeIndex,
+  }) {
+    final definitions = _layerScopeDefinitionsForLane(lane);
+    if (definitions == null) {
+      return false;
+    }
+    final stops = lane.normalizedKeyframeStops;
+    if (keyframeIndex < 0 || keyframeIndex >= stops.length) {
+      return false;
+    }
+    final keyframeTime =
+        _layerScopeTimeForProgress(context, stops[keyframeIndex]);
+    for (final definition in definitions) {
+      final channel = _propertyChannelForElementInChannels(
+        _manualMotionPropertyChannels,
+        context.clip.id,
+        definition,
+      );
+      if (channel == null) {
+        continue;
+      }
+      final channelKeyframeIndex = channel.keyframes.indexWhere(
+        (keyframe) =>
+            keyframe.time.inProjectTicks == keyframeTime.inProjectTicks,
+      );
+      if (channelKeyframeIndex < 0) {
+        continue;
+      }
+      if (channelKeyframeIndex > 0 &&
+          _motionInterpolationMatchesEasyEase(
+            channel.keyframes[channelKeyframeIndex - 1].interpolationToNext,
+          )) {
+        return true;
+      }
+      if (channelKeyframeIndex < channel.keyframes.length - 1 &&
+          _motionInterpolationMatchesEasyEase(
+            channel.keyframes[channelKeyframeIndex].interpolationToNext,
+          )) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  List<LayerScopeValueControlSpec>? _layerScopeValueControlsForSelection({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required int keyframeIndex,
+  }) {
+    if (!_layerScopeLaneSupportsValueControls(lane)) {
+      return null;
+    }
+    final stops = lane.normalizedKeyframeStops;
+    if (keyframeIndex < 0 || keyframeIndex >= stops.length) {
+      return null;
+    }
+    final textContext = _motionTextElementContextForId(context.clip.id);
+    if (textContext == null) {
+      return null;
+    }
+    final keyframeTime = _layerScopeTimeForProgress(
+      context,
+      stops[keyframeIndex],
+    );
+    if (lane.matchesPropertyLabel('opacity')) {
+      final opacity = _evaluatedTextScalarPropertyOrDefault(
+        textContext,
+        MotionPropertyCatalog.opacity,
+        time: keyframeTime,
+      );
+      return <LayerScopeValueControlSpec>[
+        LayerScopeValueControlSpec(
+          id: 'opacity',
+          label: 'Opacity',
+          value: (opacity * 100.0).clamp(0.0, 100.0).toDouble(),
+          min: 0,
+          max: 100,
+          divisions: 100,
+          formatValue: (value) => '${value.round()}%',
+        ),
+      ];
+    }
+    if (_layerScopeLaneMatchesBlur(lane)) {
+      final blurAmount = _evaluatedTextScalarPropertyOrDefault(
+        textContext,
+        MotionPropertyCatalog.blurAmount,
+        time: keyframeTime,
+      );
+      final blurMix = _evaluatedTextScalarPropertyOrDefault(
+        textContext,
+        MotionPropertyCatalog.blurMix,
+        time: keyframeTime,
+      );
+      final blurEdgeMode = _evaluatedTextScalarPropertyOrDefault(
+        textContext,
+        MotionPropertyCatalog.blurEdgeMode,
+        time: keyframeTime,
+      );
+      final blurCrop = _evaluatedTextScalarPropertyOrDefault(
+        textContext,
+        MotionPropertyCatalog.blurCrop,
+        time: keyframeTime,
+      );
+      return <LayerScopeValueControlSpec>[
+        LayerScopeValueControlSpec(
+          id: 'blurAmount',
+          label: 'Amount',
+          value: blurAmount.clamp(0.0, 100.0).toDouble(),
+          min: 0,
+          max: 100,
+          divisions: 100,
+          formatValue: (value) => value.round().toString(),
+        ),
+        LayerScopeValueControlSpec(
+          id: 'blurMix',
+          label: 'Mix',
+          value: blurMix.clamp(0.0, 100.0).toDouble(),
+          min: 0,
+          max: 100,
+          divisions: 100,
+          formatValue: (value) => '${value.round()}%',
+        ),
+        LayerScopeValueControlSpec(
+          id: 'blurEdgeMode',
+          label: 'Edges',
+          value: blurEdgeMode.clamp(0.0, 1.0).roundToDouble(),
+          min: 0,
+          max: 1,
+          divisions: 1,
+          formatValue: _formatLayerScopeBlurEdgeMode,
+          options: const <LayerScopeValueOption>[
+            LayerScopeValueOption(label: 'Transparent', value: 0),
+            LayerScopeValueOption(label: 'Repeat', value: 1),
+          ],
+        ),
+        LayerScopeValueControlSpec(
+          id: 'blurCrop',
+          label: 'Bounds',
+          value: blurCrop.clamp(0.0, 1.0).roundToDouble(),
+          min: 0,
+          max: 1,
+          divisions: 1,
+          formatValue: _formatLayerScopeBlurBoundsMode,
+          options: const <LayerScopeValueOption>[
+            LayerScopeValueOption(label: 'Extend', value: 0),
+            LayerScopeValueOption(label: 'Crop', value: 1),
+          ],
+        ),
+      ];
+    }
+    if (_layerScopeLaneMatchesReveal(lane)) {
+      final revealProgress = _evaluatedTextScalarPropertyOrDefault(
+        textContext,
+        MotionPropertyCatalog.revealProgress,
+        time: keyframeTime,
+      );
+      final binding = _motionTextBindingForElementId(textContext.element.id);
+      return <LayerScopeValueControlSpec>[
+        LayerScopeValueControlSpec(
+          id: 'revealProgress',
+          label: 'Progress',
+          value: (revealProgress * 100.0).clamp(0.0, 100.0).toDouble(),
+          min: 0,
+          max: 100,
+          divisions: 100,
+          formatValue: (value) => '${value.round()}%',
+        ),
+        LayerScopeValueControlSpec(
+          id: 'revealBy',
+          label: 'By',
+          value: _layerScopeRevealByValueForBinding(binding),
+          min: 0,
+          max: 1,
+          divisions: 1,
+          formatValue: _formatLayerScopeRevealBy,
+          options: const <LayerScopeValueOption>[
+            LayerScopeValueOption(label: 'Word', value: 0),
+            LayerScopeValueOption(label: 'Letter', value: 1),
+          ],
+        ),
+        LayerScopeValueControlSpec(
+          id: 'revealDirection',
+          label: 'Direction',
+          value: _layerScopeRevealDirectionValueForBinding(binding),
+          min: 0,
+          max: 1,
+          divisions: 1,
+          formatValue: _formatLayerScopeRevealDirection,
+          options: const <LayerScopeValueOption>[
+            LayerScopeValueOption(label: 'Forward', value: 0),
+            LayerScopeValueOption(label: 'Reverse', value: 1),
+          ],
+        ),
+      ];
+    }
+    if (lane.matchesPropertyLabel('position')) {
+      final canvasSize = textContext.project.format.canvasSize;
+      final positionX = _evaluatedTextScalarPropertyOrDefault(
+        textContext,
+        MotionPropertyCatalog.positionX,
+        time: keyframeTime,
+      );
+      final positionY = _evaluatedTextScalarPropertyOrDefault(
+        textContext,
+        MotionPropertyCatalog.positionY,
+        time: keyframeTime,
+      );
+      return <LayerScopeValueControlSpec>[
+        LayerScopeValueControlSpec(
+          id: 'positionX',
+          label: 'X',
+          value: positionX,
+          min: -canvasSize.width,
+          max: canvasSize.width,
+          formatValue: (value) => value.round().toString(),
+        ),
+        LayerScopeValueControlSpec(
+          id: 'positionY',
+          label: 'Y',
+          value: positionY,
+          min: -canvasSize.height,
+          max: canvasSize.height,
+          formatValue: (value) => value.round().toString(),
+        ),
+      ];
+    }
+    if (lane.matchesPropertyLabel('scale')) {
+      final scaleX = _evaluatedTextScalarPropertyOrDefault(
+        textContext,
+        MotionPropertyCatalog.scaleX,
+        time: keyframeTime,
+      );
+      final scaleY = _evaluatedTextScalarPropertyOrDefault(
+        textContext,
+        MotionPropertyCatalog.scaleY,
+        time: keyframeTime,
+      );
+      return <LayerScopeValueControlSpec>[
+        LayerScopeValueControlSpec(
+          id: 'scale',
+          label: 'Scale',
+          value:
+              (((scaleX + scaleY) / 2.0) * 100.0).clamp(20.0, 800.0).toDouble(),
+          min: 20,
+          max: 800,
+          divisions: 780,
+          formatValue: (value) => '${value.round()}%',
+        ),
+      ];
+    }
+    if (lane.matchesPropertyLabel('rotation')) {
+      final rotation = _evaluatedTextScalarPropertyOrDefault(
+        textContext,
+        MotionPropertyCatalog.rotationDegrees,
+        time: keyframeTime,
+      );
+      final angle = _layerScopeRotationAngleForDegrees(rotation);
+      final turns =
+          _layerScopeRotationTurnsForDegrees(rotation).clamp(-4, 4).toDouble();
+      return <LayerScopeValueControlSpec>[
+        LayerScopeValueControlSpec(
+          id: 'rotationAngle',
+          label: 'Angle',
+          value: angle,
+          min: -180,
+          max: 180,
+          divisions: 360,
+          formatValue: (value) => '${value.round()} deg',
+        ),
+        LayerScopeValueControlSpec(
+          id: 'rotationTurns',
+          label: 'Turns',
+          value: turns,
+          min: -4,
+          max: 4,
+          divisions: 8,
+          formatValue: (value) => '${value.round()}x',
+        ),
+      ];
+    }
+    return null;
+  }
+
+  String _formatLayerScopeBlurEdgeMode(double value) {
+    final mode = value.round();
+    if (mode <= 0) {
+      return 'Transparent';
+    }
+    return 'Repeat';
+  }
+
+  String _formatLayerScopeBlurBoundsMode(double value) {
+    return value.round() == 1 ? 'Crop' : 'Extend';
+  }
+
+  TimelineAnimationLaneData? _opacityAnimationLaneForClipContext(
+    _SelectedTimelineClipContext context,
+  ) {
+    for (final lane in context.track.animationLanes) {
+      if (lane.targetClipId == context.clip.id &&
+          lane.matchesPropertyLabel('opacity')) {
+        return lane;
+      }
+    }
+    return null;
+  }
+
+  double _clipAnimationProgressAtTime(
+    _SelectedTimelineClipContext context,
+    TimelineTime timelineTime,
+  ) {
+    final durationSeconds = context.clip.durationTime.inSecondsDouble;
+    if (durationSeconds <= 0) {
+      return 0.0;
+    }
+    final clampedTime = timelineTime.clamp(
+      context.clipStartTime,
+      context.clipEndTime,
+    );
+    return ((clampedTime - context.clipStartTime).inSecondsDouble /
+            durationSeconds)
+        .clamp(0.0, 1.0)
+        .toDouble();
+  }
+
+  double _clipOpacityForTimelineTime(
+    _SelectedTimelineClipContext context,
+    TimelineTime timelineTime,
+  ) {
+    final opacityLane = _opacityAnimationLaneForClipContext(context);
+    if (opacityLane == null) {
+      return 1.0;
+    }
+    final percent = opacityLane.evaluatePercentAtProgress(
+      _clipAnimationProgressAtTime(context, timelineTime),
+      fallbackPercent: 100.0,
+    );
+    return (percent / 100.0).clamp(0.0, 1.0).toDouble();
+  }
+
+  MotionPropertyChannelModel? _manualOpacityChannelForElement(
+    String elementId,
+  ) {
+    for (final channel in _manualMotionPropertyChannels) {
+      if (channel.target.targetId == elementId &&
+          channel.definition.id == MotionPropertyCatalog.opacity.id &&
+          (channel.baseValue != null || channel.keyframes.isNotEmpty)) {
+        return channel;
+      }
+    }
+    return null;
+  }
+
+  bool _hasManualOpacityChannelForElement(String elementId) {
+    return _manualOpacityChannelForElement(elementId) != null;
+  }
+
+  MotionPropertyChannelModel? _manualPropertyChannelForElement(
+    String elementId,
+    MotionPropertyDefinition definition,
+  ) {
+    return _propertyChannelForElementInChannels(
+      _manualMotionPropertyChannels,
+      elementId,
+      definition,
+    );
+  }
+
+  MotionPropertyChannelModel? _propertyChannelForElementInChannels(
+    List<MotionPropertyChannelModel> channels,
+    String elementId,
+    MotionPropertyDefinition definition,
+  ) {
+    for (final channel in channels) {
+      if (channel.target.targetId == elementId &&
+          channel.definition.id == definition.id &&
+          (channel.baseValue != null || channel.keyframes.isNotEmpty)) {
+        return channel;
+      }
+    }
+    return null;
+  }
+
+  TimelineAnimationLaneData? _existingLayerScopeAnimationLane(
+    _LayerScopeContext context,
+    String propertyLabel,
+  ) {
+    for (final lane in context.track.animationLanes) {
+      if (lane.targetClipId == context.clip.id &&
+          lane.matchesPropertyLabel(propertyLabel)) {
+        return lane;
+      }
+    }
+    return null;
+  }
+
+  ({List<double> stops, List<String> keyframeIds})
+      _layerScopeKeyframesForChannels(
+    _LayerScopeContext context,
+    Iterable<MotionPropertyChannelModel?> channels,
+  ) {
+    final durationSeconds = context.durationTime.inSecondsDouble;
+    final progressByTick = <int, double>{};
+    final keyframeIdsByTick = <int, List<String>>{};
+    if (durationSeconds <= 0) {
+      return (stops: const <double>[], keyframeIds: const <String>[]);
+    }
+    for (final channel in channels) {
+      if (channel == null) {
+        continue;
+      }
+      for (final keyframe in channel.keyframes) {
+        if (keyframe.value.kind != MotionPropertyValueKind.scalar) {
+          continue;
+        }
+        final progress = ((keyframe.time - context.startTime).inSecondsDouble /
+                durationSeconds)
+            .clamp(0.0, 1.0)
+            .toDouble();
+        progressByTick[keyframe.time.inProjectTicks] = progress;
+        keyframeIdsByTick
+            .putIfAbsent(keyframe.time.inProjectTicks, () => <String>[])
+            .add(keyframe.id);
+      }
+    }
+    final sortedTicks = progressByTick.keys.toList()..sort();
+    return (
+      stops: <double>[
+        for (final tick in sortedTicks) progressByTick[tick]!,
+      ],
+      keyframeIds: <String>[
+        for (final tick in sortedTicks)
+          _layerScopeKeyframeGroupId(
+              keyframeIdsByTick[tick] ?? const <String>[]),
+      ],
+    );
+  }
+
+  String _layerScopeKeyframeGroupId(List<String> keyframeIds) {
+    final sorted = List<String>.from(keyframeIds)..sort();
+    return sorted.join('\n');
+  }
+
+  Set<String> _layerScopeKeyframeGroupMembers(String keyframeGroupId) {
+    if (keyframeGroupId.isEmpty) {
+      return const <String>{};
+    }
+    return keyframeGroupId.split('\n').toSet();
+  }
+
+  String? _layerScopeKeyframeIdAt(
+    TimelineAnimationLaneData lane,
+    int keyframeIndex,
+  ) {
+    if (keyframeIndex < 0 || keyframeIndex >= lane.keyframeIds.length) {
+      return null;
+    }
+    return lane.keyframeIds[keyframeIndex];
+  }
+
+  int? _layerScopeKeyframeIndexForId(
+    TimelineAnimationLaneData lane,
+    String? keyframeId,
+  ) {
+    if (keyframeId == null) {
+      return null;
+    }
+    final index = lane.keyframeIds.indexOf(keyframeId);
+    return index < 0 ? null : index;
+  }
+
+  TimelineAnimationLaneData? _projectedTextScalarLaneForScope({
+    required _LayerScopeContext context,
+    required String label,
+    required String slug,
+    required Iterable<MotionPropertyChannelModel?> channels,
+  }) {
+    if (context.track.kind != TimelineTrackKind.text) {
+      return null;
+    }
+    final keyframes = _layerScopeKeyframesForChannels(context, channels);
+    final stops = keyframes.stops;
+    final existingLane = _existingLayerScopeAnimationLane(context, label);
+    if (existingLane == null && stops.isEmpty) {
+      return null;
+    }
+    final baseLane = existingLane ??
+        TimelineAnimationLaneData(
+          id: 'anim-${context.track.kind.name}-${context.clip.id}-$slug',
+          label: label,
+          targetClipId: context.clip.id,
+          normalizedKeyframeStops: const <double>[],
+          keyframeValues: const <double>[],
+        );
+    return baseLane.copyWith(
+      label: label,
+      targetClipId: context.clip.id,
+      normalizedKeyframeStops: List<double>.unmodifiable(stops),
+      keyframeIds: List<String>.unmodifiable(keyframes.keyframeIds),
+      keyframeValues: List<double>.unmodifiable(
+        List<double>.filled(stops.length, 0.0, growable: false),
+      ),
+    );
+  }
+
+  TimelineAnimationLaneData? _projectedTextOpacityLaneForScope(
+    _LayerScopeContext context,
+  ) {
+    if (context.track.kind != TimelineTrackKind.text) {
+      return null;
+    }
+    final channel = _manualOpacityChannelForElement(context.clip.id);
+    if (channel == null) {
+      return null;
+    }
+    final existingLane = _existingLayerScopeAnimationLane(context, 'opacity');
+    final durationSeconds = context.durationTime.inSecondsDouble;
+    final stops = <double>[];
+    final keyframeIds = <String>[];
+    final values = <double>[];
+    if (durationSeconds > 0) {
+      for (final keyframe in channel.keyframes) {
+        if (keyframe.value.kind != MotionPropertyValueKind.scalar) {
+          continue;
+        }
+        final progress = ((keyframe.time - context.startTime).inSecondsDouble /
+                durationSeconds)
+            .clamp(0.0, 1.0)
+            .toDouble();
+        stops.add(progress);
+        keyframeIds.add(keyframe.id);
+        values.add(
+          ((keyframe.value.rawValue as double) * 100.0)
+              .clamp(0.0, 100.0)
+              .toDouble(),
+        );
+      }
+    }
+    if (existingLane == null && stops.isEmpty) {
+      return null;
+    }
+    final baseLane = existingLane ??
+        TimelineAnimationLaneData(
+          id: 'anim-${context.track.kind.name}-${context.clip.id}-opacity',
+          label: 'Opacity',
+          targetClipId: context.clip.id,
+          normalizedKeyframeStops: const <double>[],
+          keyframeValues: const <double>[],
+        );
+    return baseLane.copyWith(
+      label: 'Opacity',
+      targetClipId: context.clip.id,
+      normalizedKeyframeStops: List<double>.unmodifiable(stops),
+      keyframeIds: List<String>.unmodifiable(keyframeIds),
+      keyframeValues: List<double>.unmodifiable(values),
+    );
+  }
+
+  TimelineAnimationLaneData? _projectedTextBlurLaneForScope(
+    _LayerScopeContext context,
+  ) {
+    final channels = <MotionPropertyChannelModel?>[
+      for (final definition in _layerScopeBlurDefinitions)
+        _manualPropertyChannelForElement(context.clip.id, definition),
+    ];
+    final hasExplicitBlurLane = context.track.animationLanes.any(
+      (lane) =>
+          lane.targetClipId == context.clip.id &&
+          _layerScopeLaneMatchesBlur(lane),
+    );
+    if (!hasExplicitBlurLane && _isNoOpLayerScopeBlurProjection(channels)) {
+      return null;
+    }
+    return _projectedTextScalarLaneForScope(
+      context: context,
+      label: 'Gaussian Blur',
+      slug: 'gaussian-blur',
+      channels: channels,
+    );
+  }
+
+  bool _isNoOpLayerScopeBlurProjection(
+    Iterable<MotionPropertyChannelModel?> channels,
+  ) {
+    var hasAuthoredBlurChannel = false;
+    for (final channel in channels) {
+      if (channel == null) {
+        continue;
+      }
+      hasAuthoredBlurChannel = true;
+      final defaultValue = channel.definition.defaultValue;
+      final baseValue = channel.baseValue;
+      if (baseValue != null &&
+          !_motionScalarValuesMatch(baseValue, defaultValue)) {
+        return false;
+      }
+      for (final keyframe in channel.keyframes) {
+        if (!_motionScalarValuesMatch(keyframe.value, defaultValue)) {
+          return false;
+        }
+      }
+    }
+    return hasAuthoredBlurChannel;
+  }
+
+  bool _motionScalarValuesMatch(
+    MotionPropertyValue left,
+    MotionPropertyValue right,
+  ) {
+    if (left.kind != MotionPropertyValueKind.scalar ||
+        right.kind != MotionPropertyValueKind.scalar) {
+      return left == right;
+    }
+    final leftValue = left.rawValue as double;
+    final rightValue = right.rawValue as double;
+    return (leftValue - rightValue).abs() <= 0.0001;
+  }
+
+  TimelineAnimationLaneData? _projectedTextPositionLaneForScope(
+    _LayerScopeContext context,
+  ) {
+    final positionX = _manualPropertyChannelForElement(
+      context.clip.id,
+      MotionPropertyCatalog.positionX,
+    );
+    final positionY = _manualPropertyChannelForElement(
+      context.clip.id,
+      MotionPropertyCatalog.positionY,
+    );
+    return _projectedTextScalarLaneForScope(
+      context: context,
+      label: 'Position',
+      slug: 'position',
+      channels: <MotionPropertyChannelModel?>[
+        positionX,
+        positionY,
+      ],
+    );
+  }
+
+  TimelineAnimationLaneData? _projectedTextScaleLaneForScope(
+    _LayerScopeContext context,
+  ) {
+    final scaleX = _manualPropertyChannelForElement(
+      context.clip.id,
+      MotionPropertyCatalog.scaleX,
+    );
+    final scaleY = _manualPropertyChannelForElement(
+      context.clip.id,
+      MotionPropertyCatalog.scaleY,
+    );
+    return _projectedTextScalarLaneForScope(
+      context: context,
+      label: 'Scale',
+      slug: 'scale',
+      channels: <MotionPropertyChannelModel?>[
+        scaleX,
+        scaleY,
+      ],
+    );
+  }
+
+  TimelineAnimationLaneData? _projectedTextRotationLaneForScope(
+    _LayerScopeContext context,
+  ) {
+    final rotation = _manualPropertyChannelForElement(
+      context.clip.id,
+      MotionPropertyCatalog.rotationDegrees,
+    );
+    return _projectedTextScalarLaneForScope(
+      context: context,
+      label: 'Rotation',
+      slug: 'rotation',
+      channels: <MotionPropertyChannelModel?>[rotation],
+    );
+  }
+
+  TimelineAnimationLaneData? _projectedTextRevealLaneForScope(
+    _LayerScopeContext context,
+  ) {
+    if (context.track.kind != TimelineTrackKind.text) {
+      return null;
+    }
+    final channel = _manualPropertyChannelForElement(
+      context.clip.id,
+      MotionPropertyCatalog.revealProgress,
+    );
+    TimelineAnimationLaneData? existingLane;
+    for (final lane in context.track.animationLanes) {
+      if (lane.targetClipId == context.clip.id &&
+          _layerScopeLaneMatchesReveal(lane)) {
+        existingLane = lane;
+        break;
+      }
+    }
+    final durationSeconds = context.durationTime.inSecondsDouble;
+    final stops = <double>[];
+    final keyframeIds = <String>[];
+    final values = <double>[];
+    if (durationSeconds > 0 && channel != null) {
+      for (final keyframe in channel.keyframes) {
+        if (keyframe.value.kind != MotionPropertyValueKind.scalar) {
+          continue;
+        }
+        final progress = ((keyframe.time - context.startTime).inSecondsDouble /
+                durationSeconds)
+            .clamp(0.0, 1.0)
+            .toDouble();
+        stops.add(progress);
+        keyframeIds.add(keyframe.id);
+        values.add(
+          ((keyframe.value.rawValue as double) * 100.0)
+              .clamp(0.0, 100.0)
+              .toDouble(),
+        );
+      }
+    }
+    if (existingLane == null && stops.isEmpty) {
+      return null;
+    }
+    final binding = _motionTextBindingForElementId(context.clip.id);
+    final revealUnit = _layerScopeRevealUnitForBinding(binding);
+    final label = existingLane?.label ??
+        (revealUnit == MotionTextRevealUnit.word ? 'Word Reveal' : 'Type On');
+    final baseLane = existingLane ??
+        TimelineAnimationLaneData(
+          id: 'anim-${context.track.kind.name}-${context.clip.id}-reveal-progress',
+          label: label,
+          targetClipId: context.clip.id,
+          normalizedKeyframeStops: const <double>[],
+          keyframeValues: const <double>[],
+        );
+    return baseLane.copyWith(
+      label: label,
+      targetClipId: context.clip.id,
+      normalizedKeyframeStops: List<double>.unmodifiable(stops),
+      keyframeIds: List<String>.unmodifiable(keyframeIds),
+      keyframeValues: List<double>.unmodifiable(values),
+    );
+  }
+
+  List<MotionPropertyDefinition> get _layerScopeBlurDefinitions =>
+      <MotionPropertyDefinition>[
+        MotionPropertyCatalog.blurAmount,
+        MotionPropertyCatalog.blurMix,
+        MotionPropertyCatalog.blurEdgeMode,
+        MotionPropertyCatalog.blurCrop,
+      ];
+
+  Set<String> get _layerScopeBlurControlIds => const <String>{
+        'blurAmount',
+        'blurMix',
+        'blurEdgeMode',
+        'blurCrop',
+      };
+
+  List<MotionPropertyChannelModel>? _syncLayerScopeOpacityKeyframeToGraph({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required double progress,
+    required double percent,
+  }) {
+    if (!lane.matchesPropertyLabel('opacity') ||
+        context.track.kind != TimelineTrackKind.text) {
+      return null;
+    }
+    final textContext = _motionTextElementContextForId(context.clip.id);
+    if (textContext == null) {
+      return null;
+    }
+    final keyframeTime = _layerScopeTimeForProgress(context, progress);
+    final result = _buildCanvasTimelineAuthoringService().addKeyframe(
+      CanvasTimelineKeyframeRequest(
+        channels: _manualMotionPropertyChannels,
+        target: textContext.elementTarget,
+        activeRange: _motionTextTimingRangeForElement(
+          scene: textContext.scene,
+          element: textContext.element,
+        ),
+        definition: MotionPropertyCatalog.opacity,
+        time: keyframeTime,
+        value: MotionPropertyValue.scalar(
+          (percent / 100.0).clamp(0.0, 1.0).toDouble(),
+        ),
+      ),
+    );
+    if (result.hasIssues) {
+      return null;
+    }
+    return result.channels;
+  }
+
+  List<MotionPropertyChannelModel>? _syncLayerScopePositionKeyframeToGraph({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required double progress,
+  }) {
+    if (!lane.matchesPropertyLabel('position') ||
+        context.track.kind != TimelineTrackKind.text) {
+      return null;
+    }
+    final textContext = _motionTextElementContextForId(context.clip.id);
+    if (textContext == null) {
+      return null;
+    }
+    final keyframeTime = _layerScopeTimeForProgress(context, progress);
+    final activeRange = _motionTextTimingRangeForElement(
+      scene: textContext.scene,
+      element: textContext.element,
+    );
+    final x = _evaluatedTextScalarPropertyOrDefault(
+      textContext,
+      MotionPropertyCatalog.positionX,
+      time: keyframeTime,
+    );
+    final y = _evaluatedTextScalarPropertyOrDefault(
+      textContext,
+      MotionPropertyCatalog.positionY,
+      time: keyframeTime,
+    );
+    final service = _buildCanvasTimelineAuthoringService();
+    final xResult = service.addKeyframe(
+      CanvasTimelineKeyframeRequest(
+        channels: _manualMotionPropertyChannels,
+        target: textContext.elementTarget,
+        activeRange: activeRange,
+        definition: MotionPropertyCatalog.positionX,
+        time: keyframeTime,
+        value: MotionPropertyValue.scalar(x),
+      ),
+    );
+    if (xResult.hasIssues) {
+      return null;
+    }
+    final yResult = service.addKeyframe(
+      CanvasTimelineKeyframeRequest(
+        channels: xResult.channels,
+        target: textContext.elementTarget,
+        activeRange: activeRange,
+        definition: MotionPropertyCatalog.positionY,
+        time: keyframeTime,
+        value: MotionPropertyValue.scalar(y),
+      ),
+    );
+    if (yResult.hasIssues) {
+      return null;
+    }
+    return yResult.channels;
+  }
+
+  List<MotionPropertyChannelModel>? _syncLayerScopePositionValueToGraph({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required double progress,
+    required double x,
+    required double y,
+  }) {
+    return _syncLayerScopeTransformKeyframesToGraph(
+      context: context,
+      lane: lane,
+      progress: progress,
+      propertyLabel: 'position',
+      definitions: <MotionPropertyDefinition>[
+        MotionPropertyCatalog.positionX,
+        MotionPropertyCatalog.positionY,
+      ],
+      scalarOverrides: <MotionPropertyDefinition, double>{
+        MotionPropertyCatalog.positionX: x,
+        MotionPropertyCatalog.positionY: y,
+      },
+    );
+  }
+
+  List<MotionPropertyChannelModel>? _syncLayerScopeTransformKeyframesToGraph({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required double progress,
+    required String propertyLabel,
+    required Iterable<MotionPropertyDefinition> definitions,
+    Map<MotionPropertyDefinition, double> scalarOverrides =
+        const <MotionPropertyDefinition, double>{},
+  }) {
+    if (!lane.matchesPropertyLabel(propertyLabel) ||
+        context.track.kind != TimelineTrackKind.text) {
+      return null;
+    }
+    final textContext = _motionTextElementContextForId(context.clip.id);
+    if (textContext == null) {
+      return null;
+    }
+    final keyframeTime = _layerScopeTimeForProgress(context, progress);
+    final activeRange = _motionTextTimingRangeForElement(
+      scene: textContext.scene,
+      element: textContext.element,
+    );
+    final service = _buildCanvasTimelineAuthoringService();
+    var nextChannels = _manualMotionPropertyChannels;
+    for (final definition in definitions) {
+      final result = service.addKeyframe(
+        CanvasTimelineKeyframeRequest(
+          channels: nextChannels,
+          target: textContext.elementTarget,
+          activeRange: activeRange,
+          definition: definition,
+          time: keyframeTime,
+          value: MotionPropertyValue.scalar(
+            scalarOverrides[definition] ??
+                _evaluatedTextScalarPropertyOrDefault(
+                  textContext,
+                  definition,
+                  time: keyframeTime,
+                ),
+          ),
+        ),
+      );
+      if (result.hasIssues) {
+        return null;
+      }
+      nextChannels = result.channels;
+    }
+    return nextChannels;
+  }
+
+  List<MotionPropertyChannelModel>? _syncLayerScopeScaleKeyframeToGraph({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required double progress,
+  }) {
+    return _syncLayerScopeTransformKeyframesToGraph(
+      context: context,
+      lane: lane,
+      progress: progress,
+      propertyLabel: 'scale',
+      definitions: <MotionPropertyDefinition>[
+        MotionPropertyCatalog.scaleX,
+        MotionPropertyCatalog.scaleY,
+      ],
+    );
+  }
+
+  List<MotionPropertyChannelModel>? _syncLayerScopeScaleValueToGraph({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required double progress,
+    required double percent,
+  }) {
+    final scale = (percent / 100.0).clamp(0.2, 8.0).toDouble();
+    return _syncLayerScopeTransformKeyframesToGraph(
+      context: context,
+      lane: lane,
+      progress: progress,
+      propertyLabel: 'scale',
+      definitions: <MotionPropertyDefinition>[
+        MotionPropertyCatalog.scaleX,
+        MotionPropertyCatalog.scaleY,
+      ],
+      scalarOverrides: <MotionPropertyDefinition, double>{
+        MotionPropertyCatalog.scaleX: scale,
+        MotionPropertyCatalog.scaleY: scale,
+      },
+    );
+  }
+
+  List<MotionPropertyChannelModel>? _syncLayerScopeRotationKeyframeToGraph({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required double progress,
+  }) {
+    return _syncLayerScopeTransformKeyframesToGraph(
+      context: context,
+      lane: lane,
+      progress: progress,
+      propertyLabel: 'rotation',
+      definitions: <MotionPropertyDefinition>[
+        MotionPropertyCatalog.rotationDegrees,
+      ],
+    );
+  }
+
+  List<MotionPropertyChannelModel>? _syncLayerScopeRotationValueToGraph({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required double progress,
+    required double degrees,
+  }) {
+    return _syncLayerScopeTransformKeyframesToGraph(
+      context: context,
+      lane: lane,
+      progress: progress,
+      propertyLabel: 'rotation',
+      definitions: <MotionPropertyDefinition>[
+        MotionPropertyCatalog.rotationDegrees,
+      ],
+      scalarOverrides: <MotionPropertyDefinition, double>{
+        MotionPropertyCatalog.rotationDegrees: degrees.toDouble(),
+      },
+    );
+  }
+
+  List<MotionPropertyChannelModel>? _syncLayerScopeBlurKeyframeToGraph({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required double progress,
+  }) {
+    if (!_layerScopeLaneMatchesBlur(lane)) {
+      return null;
+    }
+    return _syncLayerScopeTransformKeyframesToGraph(
+      context: context,
+      lane: lane,
+      progress: progress,
+      propertyLabel: lane.label,
+      definitions: _layerScopeBlurDefinitions,
+    );
+  }
+
+  List<MotionPropertyChannelModel>? _syncLayerScopeBlurValueToGraph({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required double progress,
+    required Map<String, double> values,
+  }) {
+    if (!_layerScopeLaneMatchesBlur(lane)) {
+      return null;
+    }
+    final amount = (values['blurAmount'] ?? 0).clamp(0.0, 100.0).toDouble();
+    final mix = (values['blurMix'] ?? 100).clamp(0.0, 100.0).toDouble();
+    final edgeMode =
+        (values['blurEdgeMode'] ?? 0).clamp(0.0, 1.0).roundToDouble();
+    final crop = (values['blurCrop'] ?? 0).clamp(0.0, 1.0).roundToDouble();
+    return _syncLayerScopeTransformKeyframesToGraph(
+      context: context,
+      lane: lane,
+      progress: progress,
+      propertyLabel: lane.label,
+      definitions: _layerScopeBlurDefinitions,
+      scalarOverrides: <MotionPropertyDefinition, double>{
+        MotionPropertyCatalog.blurAmount: amount,
+        MotionPropertyCatalog.blurMix: mix,
+        MotionPropertyCatalog.blurEdgeMode: edgeMode,
+        MotionPropertyCatalog.blurCrop: crop,
+      },
+    );
+  }
+
+  List<MotionPropertyChannelModel>? _syncLayerScopeRevealKeyframeToGraph({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required double progress,
+    required double percent,
+  }) {
+    if (!_layerScopeLaneMatchesReveal(lane) ||
+        context.track.kind != TimelineTrackKind.text) {
+      return null;
+    }
+    final textContext = _motionTextElementContextForId(context.clip.id);
+    if (textContext == null) {
+      return null;
+    }
+    final keyframeTime = _layerScopeTimeForProgress(context, progress);
+    final result = _buildCanvasTimelineAuthoringService().addKeyframe(
+      CanvasTimelineKeyframeRequest(
+        channels: _manualMotionPropertyChannels,
+        target: textContext.elementTarget,
+        activeRange: _motionTextTimingRangeForElement(
+          scene: textContext.scene,
+          element: textContext.element,
+        ),
+        definition: MotionPropertyCatalog.revealProgress,
+        time: keyframeTime,
+        value: MotionPropertyValue.scalar(
+          (percent / 100.0).clamp(0.0, 1.0).toDouble(),
+        ),
+      ),
+    );
+    if (result.hasIssues) {
+      return null;
+    }
+    return result.channels;
+  }
+
+  MotionTextRevealUnit _defaultRevealUnitForScopedTextEffectItem(
+    AnimateBrowserItem item,
+  ) {
+    return switch (item.id) {
+      'text_effect.word_reveal' ||
+      'text_effect.word_rise_in' ||
+      'text_effect.word_cascade' =>
+        MotionTextRevealUnit.word,
+      _ => MotionTextRevealUnit.letter,
+    };
+  }
+
+  MotionPropertyValue _defaultRevealByParameterForScopedTextEffectItem(
+    AnimateBrowserItem item,
+  ) {
+    final revealUnit = _defaultRevealUnitForScopedTextEffectItem(item);
+    return MotionPropertyValue.enumValue(revealUnit.name);
+  }
+
+  MotionPropertyValue _defaultRevealDirectionParameterForScopedTextEffectItem(
+    AnimateBrowserItem item,
+  ) {
+    return MotionPropertyValue.enumValue(
+        MotionTextRevealDirection.forward.name);
+  }
+
+  bool _isMotionTextRevealBlock(MotionTextAnimationBlock block) =>
+      block.revealSpec != null ||
+      block.kind == MotionTextAnimationKind.typewriter ||
+      block.kind == MotionTextAnimationKind.wordReveal ||
+      block.kind == MotionTextAnimationKind.letterReveal ||
+      block.kind == MotionTextAnimationKind.wordRiseIn ||
+      block.kind == MotionTextAnimationKind.letterPopIn ||
+      block.kind == MotionTextAnimationKind.wordCascade ||
+      block.kind == MotionTextAnimationKind.letterBounce;
+
+  bool _isScopedTextRevealEffectItem(AnimateBrowserItem item) =>
+      item.id == 'text_effect.type_on' ||
+      item.id == 'text_effect.word_reveal' ||
+      item.id == 'text_effect.letter_reveal' ||
+      item.id == 'text_effect.word_rise_in' ||
+      item.id == 'text_effect.letter_pop_in' ||
+      item.id == 'text_effect.word_cascade' ||
+      item.id == 'text_effect.letter_bounce';
+
+  List<MotionTextAnimationBindingModel>? _updateLayerScopeRevealBinding({
+    required _LayerScopeContext context,
+    MotionTextRevealUnit? revealUnit,
+    MotionTextRevealDirection? revealDirection,
+  }) {
+    if (context.track.kind != TimelineTrackKind.text) {
+      return null;
+    }
+    final binding = _motionTextBindingForElementId(context.clip.id);
+    if (binding == null) {
+      return null;
+    }
+    final nextRevealUnit =
+        revealUnit ?? _layerScopeRevealUnitForBinding(binding);
+    final nextRevealDirection =
+        revealDirection ?? _layerScopeRevealDirectionForBinding(binding);
+    final nextBindings = <MotionTextAnimationBindingModel>[
+      for (final current in _motionTextAnimationBindings)
+        if (current.id == binding.id)
+          MotionTextAnimationBindingModel(
+            id: current.id,
+            elementTarget: current.elementTarget,
+            activeRange: current.activeRange,
+            presetId: current.presetId,
+            animationBlocks: <MotionTextAnimationBlock>[
+              for (final block in current.animationBlocks)
+                if (_isMotionTextRevealBlock(block))
+                  MotionTextAnimationBlock(
+                    id: block.id,
+                    kind: block.kind,
+                    relativeRange: block.relativeRange,
+                    interpolation: block.interpolation,
+                    revealSpec: MotionTextRevealSpec(
+                      unit: nextRevealUnit,
+                      stagger: block.revealSpec?.stagger ?? TimelineTime.zero,
+                    ),
+                    parameters: <String, MotionPropertyValue>{
+                      ...block.parameters,
+                      'revealDirection': MotionPropertyValue.enumValue(
+                        nextRevealDirection.name,
+                      ),
+                    },
+                  )
+                else
+                  block,
+            ],
+            parameterValues: <String, MotionPropertyValue>{
+              ...current.parameterValues,
+              'revealBy': MotionPropertyValue.enumValue(nextRevealUnit.name),
+              'revealDirection': MotionPropertyValue.enumValue(
+                nextRevealDirection.name,
+              ),
+            },
+          )
+        else
+          current,
+    ];
+    return List<MotionTextAnimationBindingModel>.unmodifiable(nextBindings);
+  }
+
+  List<MotionPropertyDefinition>? _layerScopeDefinitionsForLane(
+    TimelineAnimationLaneData lane,
+  ) {
+    if (lane.matchesPropertyLabel('opacity')) {
+      return <MotionPropertyDefinition>[
+        MotionPropertyCatalog.opacity,
+      ];
+    }
+    if (_layerScopeLaneMatchesBlur(lane)) {
+      return _layerScopeBlurDefinitions;
+    }
+    if (_layerScopeLaneMatchesReveal(lane)) {
+      return <MotionPropertyDefinition>[
+        MotionPropertyCatalog.revealProgress,
+      ];
+    }
+    if (lane.matchesPropertyLabel('position')) {
+      return <MotionPropertyDefinition>[
+        MotionPropertyCatalog.positionX,
+        MotionPropertyCatalog.positionY,
+      ];
+    }
+    if (lane.matchesPropertyLabel('scale')) {
+      return <MotionPropertyDefinition>[
+        MotionPropertyCatalog.scaleX,
+        MotionPropertyCatalog.scaleY,
+      ];
+    }
+    if (lane.matchesPropertyLabel('rotation')) {
+      return <MotionPropertyDefinition>[
+        MotionPropertyCatalog.rotationDegrees,
+      ];
+    }
+    return null;
+  }
+
+  List<MotionPropertyChannelModel>? _moveLayerScopeKeyframesToGraph({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required int keyframeIndex,
+    required String? keyframeId,
+    required double progress,
+    required Iterable<MotionPropertyDefinition> definitions,
+  }) {
+    if (context.track.kind != TimelineTrackKind.text) {
+      return null;
+    }
+    final stops = lane.normalizedKeyframeStops;
+    if (keyframeIndex < 0 || keyframeIndex >= stops.length) {
+      return null;
+    }
+    final textContext = _motionTextElementContextForId(context.clip.id);
+    if (textContext == null) {
+      return null;
+    }
+    final sourceTime =
+        _layerScopeTimeForProgress(context, stops[keyframeIndex]);
+    final targetTime = _layerScopeTimeForProgress(context, progress);
+    final keyframeGroupMembers = _layerScopeKeyframeGroupMembers(
+      keyframeId ?? _layerScopeKeyframeIdAt(lane, keyframeIndex) ?? '',
+    );
+    final activeRange = _motionTextTimingRangeForElement(
+      scene: textContext.scene,
+      element: textContext.element,
+    );
+    final service = _buildCanvasTimelineAuthoringService();
+    var nextChannels = _manualMotionPropertyChannels;
+    var movedAny = false;
+    for (final definition in definitions) {
+      final channel = _propertyChannelForElementInChannels(
+        nextChannels,
+        context.clip.id,
+        definition,
+      );
+      if (channel == null) {
+        continue;
+      }
+      MotionKeyframeModel? keyframe;
+      final hasKeyframeIdMatch = keyframeGroupMembers.isNotEmpty &&
+          channel.keyframes.any(
+            (candidate) => keyframeGroupMembers.contains(candidate.id),
+          );
+      for (final candidate in channel.keyframes) {
+        if (keyframeGroupMembers.contains(candidate.id) ||
+            (!hasKeyframeIdMatch &&
+                candidate.time.inProjectTicks == sourceTime.inProjectTicks)) {
+          keyframe = candidate;
+          break;
+        }
+      }
+      if (keyframe == null) {
+        continue;
+      }
+      final result = service.moveKeyframe(
+        CanvasTimelineMoveKeyframeRequest(
+          channels: nextChannels,
+          channelId: channel.id,
+          keyframeId: keyframe.id,
+          activeRange: activeRange,
+          time: targetTime,
+        ),
+      );
+      if (result.hasIssues) {
+        return null;
+      }
+      nextChannels = result.channels;
+      movedAny = true;
+    }
+    return movedAny ? nextChannels : null;
+  }
+
+  List<MotionPropertyChannelModel>? _setLayerScopeKeyframeInterpolationToGraph({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required int keyframeIndex,
+    required MotionInterpolationSpec interpolation,
+  }) {
+    if (context.track.kind != TimelineTrackKind.text) {
+      return null;
+    }
+    final definitions = _layerScopeDefinitionsForLane(lane);
+    final stops = lane.normalizedKeyframeStops;
+    if (definitions == null ||
+        keyframeIndex < 0 ||
+        keyframeIndex >= stops.length) {
+      return null;
+    }
+    final keyframeTime =
+        _layerScopeTimeForProgress(context, stops[keyframeIndex]);
+    final service = _buildCanvasTimelineAuthoringService();
+    var nextChannels = _manualMotionPropertyChannels;
+    var changedAny = false;
+    for (final definition in definitions) {
+      var channel = _propertyChannelForElementInChannels(
+        nextChannels,
+        context.clip.id,
+        definition,
+      );
+      if (channel == null) {
+        continue;
+      }
+      final channelKeyframeIndex = channel.keyframes.indexWhere(
+        (keyframe) =>
+            keyframe.time.inProjectTicks == keyframeTime.inProjectTicks,
+      );
+      if (channelKeyframeIndex < 0) {
+        continue;
+      }
+      if (channelKeyframeIndex > 0) {
+        final previousKeyframe = channel.keyframes[channelKeyframeIndex - 1];
+        final result = service.setKeyframeInterpolation(
+          CanvasTimelineKeyframeInterpolationRequest(
+            channels: nextChannels,
+            channelId: channel.id,
+            keyframeId: previousKeyframe.id,
+            interpolation: interpolation,
+          ),
+        );
+        if (result.hasIssues) {
+          return null;
+        }
+        nextChannels = result.channels;
+        changedAny = true;
+        channel = _propertyChannelForElementInChannels(
+          nextChannels,
+          context.clip.id,
+          definition,
+        );
+        if (channel == null) {
+          continue;
+        }
+      }
+      if (channelKeyframeIndex < channel.keyframes.length - 1) {
+        final currentKeyframe = channel.keyframes[channelKeyframeIndex];
+        final result = service.setKeyframeInterpolation(
+          CanvasTimelineKeyframeInterpolationRequest(
+            channels: nextChannels,
+            channelId: channel.id,
+            keyframeId: currentKeyframe.id,
+            interpolation: interpolation,
+          ),
+        );
+        if (result.hasIssues) {
+          return null;
+        }
+        nextChannels = result.channels;
+        changedAny = true;
+      }
+    }
+    return changedAny ? nextChannels : null;
+  }
+
+  _SelectedTimelineClipContext? _activePreviewVisualClipContextForTime(
+    TimelineTime timelineTime,
+  ) {
+    final tracks = _timelineTruthTracks;
+    for (final kind in <TimelineTrackKind>[
+      TimelineTrackKind.video,
+      TimelineTrackKind.image,
+    ]) {
+      for (var trackIndex = 0; trackIndex < tracks.length; trackIndex++) {
+        final track = tracks[trackIndex];
+        if (track.kind != kind) {
+          continue;
+        }
+        var cursor = TimelineTime.zero;
+        _SelectedTimelineClipContext? lastVisualContext;
+        for (var clipIndex = 0; clipIndex < track.clips.length; clipIndex++) {
+          final clip = track.clips[clipIndex];
+          final clipStartTime = cursor;
+          final clipEndTime = clipStartTime + clip.durationTime;
+          final asset = _assetForId(clip.assetId);
+          if (clip.type == TimelineClipType.media && asset?.isVisual == true) {
+            final context = _SelectedTimelineClipContext(
+              trackIndex: trackIndex,
+              clipIndex: clipIndex,
+              track: track,
+              clip: clip,
+              asset: asset,
+              clipStartTime: clipStartTime,
+              clipEndTime: clipEndTime,
+            );
+            if (timelineTime < clipEndTime) {
+              return context;
+            }
+            lastVisualContext = context;
+          }
+          cursor = clipEndTime;
+        }
+        if (lastVisualContext != null) {
+          return lastVisualContext;
+        }
+      }
+    }
+    return null;
+  }
+
+  double _activePreviewVisualOpacityForTime(TimelineTime timelineTime) {
+    final context = _activePreviewVisualClipContextForTime(timelineTime);
+    if (context == null) {
+      return 1.0;
+    }
+    return _clipOpacityForTimelineTime(context, timelineTime);
+  }
+
+  void _handleLayerScopeAnimationLaneTap(String laneId) {
+    final context = _activeLayerScopeContext;
+    if (context == null) {
+      return;
+    }
+    TimelineAnimationLaneData? lane;
+    for (final candidate in _layerScopeAnimationLanes(context)) {
+      if (candidate.id == laneId) {
+        lane = candidate;
+        break;
+      }
+    }
+    if (lane == null) {
+      return;
+    }
+    final resolvedLane = lane;
+    final keyframeIndex =
+        _nearestLayerScopeKeyframeIndex(context, resolvedLane);
+    setState(() {
+      _selectedLayerScopeAnimationLaneId = laneId;
+      _selectedLayerScopeKeyframeIndex = keyframeIndex;
+      _selectedLayerScopeKeyframeId = keyframeIndex == null
+          ? null
+          : _layerScopeKeyframeIdAt(resolvedLane, keyframeIndex);
+      _isLayerScopeValueEditorOpen = false;
+    });
+  }
+
+  void _handleLayerScopeAnimationKeyframeTap(
+    String laneId,
+    int keyframeIndex,
+    String keyframeId,
+  ) {
+    setState(() {
+      _selectedLayerScopeAnimationLaneId = laneId;
+      _selectedLayerScopeKeyframeIndex = keyframeIndex;
+      _selectedLayerScopeKeyframeId = keyframeId;
+      _isLayerScopeValueEditorOpen = false;
+    });
+  }
+
+  void _handleLayerScopeAnimationKeyframeDrag(
+    String laneId,
+    int keyframeIndex,
+    String keyframeId,
+    double progress,
+  ) {
+    final context = _activeLayerScopeContext;
+    if (context == null) {
+      return;
+    }
+    TimelineAnimationLaneData? lane;
+    for (final candidate in _layerScopeAnimationLanes(context)) {
+      if (candidate.id == laneId) {
+        lane = candidate;
+        break;
+      }
+    }
+    if (lane == null) {
+      return;
+    }
+    _moveLayerScopeKeyframeToProgress(
+      context: context,
+      lane: lane,
+      keyframeIndex: keyframeIndex,
+      keyframeId: keyframeId,
+      progress: progress,
+    );
+  }
+
+  void _handleLayerScopeMoveSelectedKeyframeToPlayhead() {
+    final context = _activeLayerScopeContext;
+    if (context == null) {
+      return;
+    }
+    final lane = _layerScopeSelectedAnimationLane(context);
+    final keyframeIndex = _selectedLayerScopeKeyframeIndex;
+    if (lane == null || keyframeIndex == null) {
+      return;
+    }
+    final durationSeconds = context.durationTime.inSecondsDouble;
+    final progress = durationSeconds <= 0
+        ? 0.0
+        : (_layerScopeLocalTime(context, _currentTime).inSecondsDouble /
+                durationSeconds)
+            .clamp(0.0, 1.0);
+    final selectedKeyframeId = _selectedLayerScopeKeyframeId;
+    final effectiveKeyframeId =
+        _layerScopeKeyframeIndexForId(lane, selectedKeyframeId) == null
+            ? _layerScopeKeyframeIdAt(lane, keyframeIndex)
+            : selectedKeyframeId;
+    _moveLayerScopeKeyframeToProgress(
+      context: context,
+      lane: lane,
+      keyframeIndex: keyframeIndex,
+      keyframeId: effectiveKeyframeId,
+      progress: progress,
+    );
+  }
+
+  void _moveLayerScopeKeyframeToProgress({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required int keyframeIndex,
+    required String? keyframeId,
+    required double progress,
+  }) {
+    final definitions = _layerScopeDefinitionsForLane(lane);
+    final stops = lane.normalizedKeyframeStops;
+    if (definitions == null ||
+        keyframeIndex < 0 ||
+        keyframeIndex >= stops.length) {
+      return;
+    }
+    final clampedProgress = progress.clamp(0.0, 1.0).toDouble();
+    final syncedChannels = _moveLayerScopeKeyframesToGraph(
+      context: context,
+      lane: lane,
+      keyframeIndex: keyframeIndex,
+      keyframeId: keyframeId,
+      progress: clampedProgress,
+      definitions: definitions,
+    );
+    if (syncedChannels == null) {
+      return;
+    }
+    final values = _alignedAnimationKeyframeValues(lane);
+    final selectedKeyframeId =
+        keyframeId ?? _layerScopeKeyframeIdAt(lane, keyframeIndex);
+    final movedEntries = <({
+      double stop,
+      String keyframeId,
+      double value,
+      bool isMoved,
+    })>[
+      for (var index = 0; index < stops.length; index++)
+        _layerScopeMovedKeyframeEntry(
+          lane: lane,
+          stops: stops,
+          values: values,
+          index: index,
+          fallbackMovedIndex: keyframeIndex,
+          selectedKeyframeId: selectedKeyframeId,
+          clampedProgress: clampedProgress,
+        ),
+    ]..sort((left, right) => left.stop.compareTo(right.stop));
+    final movedIndex = movedEntries.indexWhere((entry) => entry.isMoved);
+    final nextSelectedIndex = movedIndex < 0 ? keyframeIndex : movedIndex;
+    _updateTimelineAnimationLane(
+      lane.id,
+      (currentLane) => currentLane.copyWith(
+        normalizedKeyframeStops: List<double>.unmodifiable(
+          <double>[
+            for (final entry in movedEntries) entry.stop,
+          ],
+        ),
+        keyframeIds: List<String>.unmodifiable(
+          <String>[
+            for (final entry in movedEntries) entry.keyframeId,
+          ],
+        ),
+        keyframeValues: List<double>.unmodifiable(
+          <double>[
+            for (final entry in movedEntries) entry.value,
+          ],
+        ),
+      ),
+    );
+    setState(() {
+      _manualMotionPropertyChannels = syncedChannels;
+      _markMotionAuthoringChanged();
+      _selectedLayerScopeAnimationLaneId = lane.id;
+      _selectedLayerScopeKeyframeIndex = nextSelectedIndex;
+      _selectedLayerScopeKeyframeId = selectedKeyframeId;
+      _isLayerScopeValueEditorOpen = false;
+    });
+  }
+
+  ({
+    double stop,
+    String keyframeId,
+    double value,
+    bool isMoved,
+  }) _layerScopeMovedKeyframeEntry({
+    required TimelineAnimationLaneData lane,
+    required List<double> stops,
+    required List<double> values,
+    required int index,
+    required int fallbackMovedIndex,
+    required String? selectedKeyframeId,
+    required double clampedProgress,
+  }) {
+    final entryKeyframeId =
+        _layerScopeKeyframeIdAt(lane, index) ?? '${lane.id}#$index';
+    final isMoved = selectedKeyframeId != null
+        ? entryKeyframeId == selectedKeyframeId
+        : index == fallbackMovedIndex;
+    return (
+      stop: isMoved ? clampedProgress : stops[index],
+      keyframeId: entryKeyframeId,
+      value: values[index],
+      isMoved: isMoved,
+    );
+  }
+
+  void _updateTimelineAnimationLane(
+    String laneId,
+    TimelineAnimationLaneData Function(TimelineAnimationLaneData lane) update,
+  ) {
+    final nextTracks = List<TimelineTrackData>.from(_tracks);
+    for (var trackIndex = 0; trackIndex < nextTracks.length; trackIndex++) {
+      final track = nextTracks[trackIndex];
+      final laneIndex = track.animationLanes.indexWhere(
+        (lane) => lane.id == laneId,
+      );
+      if (laneIndex < 0) {
+        continue;
+      }
+      final nextLanes = List<TimelineAnimationLaneData>.from(
+        track.animationLanes,
+      );
+      nextLanes[laneIndex] = update(nextLanes[laneIndex]);
+      setState(() {
+        nextTracks[trackIndex] = track.copyWith(
+          animationLanes: List<TimelineAnimationLaneData>.unmodifiable(
+            nextLanes,
+          ),
+        );
+        _tracks = List<TimelineTrackData>.unmodifiable(nextTracks);
+      });
+      return;
+    }
+  }
+
+  void _handleLayerScopeAddKeyframe() {
+    final context = _activeLayerScopeContext;
+    if (context == null) {
+      return;
+    }
+    final lane = _layerScopeSelectedAnimationLane(context);
+    if (lane == null) {
+      _showStageMessage('Select an animation or FX row before adding a key.');
+      return;
+    }
+    final durationSeconds = context.durationTime.inSecondsDouble;
+    final progress = durationSeconds <= 0
+        ? 0.0
+        : (_layerScopeLocalTime(context, _currentTime).inSecondsDouble /
+                durationSeconds)
+            .clamp(0.0, 1.0);
+    final stops = lane.normalizedKeyframeStops
+        .map((stop) => stop.clamp(0.0, 1.0))
+        .toList();
+    final keyframeIds = List<String>.from(lane.keyframeIds);
+    while (keyframeIds.length < stops.length) {
+      keyframeIds.add('${lane.id}#${keyframeIds.length}');
+    }
+    final values = _alignedAnimationKeyframeValues(lane).toList();
+    const snapEpsilon = 0.006;
+    for (var index = 0; index < stops.length; index++) {
+      if ((stops[index] - progress).abs() <= snapEpsilon) {
+        setState(() {
+          _selectedLayerScopeAnimationLaneId = lane.id;
+          _selectedLayerScopeKeyframeIndex = index;
+          _selectedLayerScopeKeyframeId = _layerScopeKeyframeIdAt(lane, index);
+          _isLayerScopeValueEditorOpen = false;
+        });
+        return;
+      }
+    }
+    final selectedIndex = _selectedLayerScopeKeyframeIndex;
+    final insertedValue = selectedIndex != null &&
+            selectedIndex >= 0 &&
+            selectedIndex < values.length
+        ? values[selectedIndex]
+        : lane.evaluatePercentAtProgress(
+            progress,
+            fallbackPercent: lane.matchesPropertyLabel('opacity') ? 100.0 : 0.0,
+          );
+    var insertIndex = 0;
+    while (insertIndex < stops.length && stops[insertIndex] < progress) {
+      insertIndex += 1;
+    }
+    stops.insert(insertIndex, progress);
+    final insertedKeyframeId =
+        '${lane.id}@${TimelineTime.fromSecondsDouble(_layerScopeProgressToSeconds(context, progress)).inProjectTicks}';
+    keyframeIds.insert(insertIndex, insertedKeyframeId);
+    values.insert(insertIndex, insertedValue);
+    final laneId = lane.id;
+    final syncedChannels = _syncLayerScopeOpacityKeyframeToGraph(
+          context: context,
+          lane: lane,
+          progress: progress,
+          percent: insertedValue,
+        ) ??
+        _syncLayerScopeBlurKeyframeToGraph(
+          context: context,
+          lane: lane,
+          progress: progress,
+        ) ??
+        _syncLayerScopeRevealKeyframeToGraph(
+          context: context,
+          lane: lane,
+          progress: progress,
+          percent: insertedValue,
+        ) ??
+        _syncLayerScopePositionKeyframeToGraph(
+          context: context,
+          lane: lane,
+          progress: progress,
+        ) ??
+        _syncLayerScopeScaleKeyframeToGraph(
+          context: context,
+          lane: lane,
+          progress: progress,
+        ) ??
+        _syncLayerScopeRotationKeyframeToGraph(
+          context: context,
+          lane: lane,
+          progress: progress,
+        );
+    _updateTimelineAnimationLane(
+      laneId,
+      (currentLane) => currentLane.copyWith(
+        normalizedKeyframeStops: List<double>.unmodifiable(stops),
+        keyframeIds: List<String>.unmodifiable(keyframeIds),
+        keyframeValues: List<double>.unmodifiable(values),
+      ),
+    );
+    setState(() {
+      if (syncedChannels != null) {
+        _manualMotionPropertyChannels = syncedChannels;
+        _markMotionAuthoringChanged();
+      }
+      _selectedLayerScopeAnimationLaneId = laneId;
+      _selectedLayerScopeKeyframeIndex = insertIndex;
+      _selectedLayerScopeKeyframeId = insertedKeyframeId;
+      _isLayerScopeValueEditorOpen = false;
+    });
+  }
+
+  Future<void> _handleLayerScopeValueToolTap() async {
+    if (_isLayerScopeValueEditorOpen) {
+      return;
+    }
+    final scopeContext = _activeLayerScopeContext;
+    if (scopeContext == null) {
+      return;
+    }
+    final lane = _layerScopeSelectedAnimationLane(scopeContext);
+    if (lane == null) {
+      return;
+    }
+    if (!_layerScopeLaneSupportsValueControls(lane)) {
+      return;
+    }
+    final resolvedKeyframeIndex = _selectedLayerScopeKeyframeIndex ??
+        _nearestLayerScopeKeyframeIndex(scopeContext, lane);
+    if (resolvedKeyframeIndex == null) {
+      return;
+    }
+    final controls = _layerScopeValueControlsForSelection(
+      context: scopeContext,
+      lane: lane,
+      keyframeIndex: resolvedKeyframeIndex,
+    );
+    if (controls == null || controls.isEmpty) {
+      return;
+    }
+    setState(() {
+      _selectedLayerScopeKeyframeIndex = resolvedKeyframeIndex;
+      _selectedLayerScopeKeyframeId =
+          _layerScopeKeyframeIdAt(lane, resolvedKeyframeIndex);
+      _isLayerScopeValueEditorOpen = true;
+    });
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => MediaQuery.removeViewInsets(
+        context: sheetContext,
+        removeBottom: true,
+        child: LayerScopeValueBottomSheet(
+          controls: controls,
+          onDone: () => Navigator.of(sheetContext).maybePop(),
+          onChanged: (change) => _handleLayerScopeValueControlChanged(
+            change.controlId,
+            change.value,
+          ),
+        ),
+      ),
+    ).whenComplete(() {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isLayerScopeValueEditorOpen = false;
+      });
+    });
+  }
+
+  Future<void> _handleLayerScopeGraphToolTap() async {
+    if (_isLayerScopeGraphEditorOpen) {
+      return;
+    }
+    final scopeContext = _activeLayerScopeContext;
+    if (scopeContext == null) {
+      return;
+    }
+    final lane = _layerScopeSelectedAnimationLane(scopeContext);
+    if (lane == null || !_layerScopeLaneSupportsValueControls(lane)) {
+      return;
+    }
+    final resolvedKeyframeIndex = _selectedLayerScopeKeyframeIndex ??
+        _nearestLayerScopeKeyframeIndex(scopeContext, lane);
+    if (resolvedKeyframeIndex == null ||
+        (resolvedKeyframeIndex <= 0 &&
+            resolvedKeyframeIndex >= lane.normalizedKeyframeStops.length - 1)) {
+      return;
+    }
+    final easyEaseEnabled = _isLayerScopeEasyEaseActive(
+      context: scopeContext,
+      lane: lane,
+      keyframeIndex: resolvedKeyframeIndex,
+    );
+    setState(() {
+      _selectedLayerScopeKeyframeIndex = resolvedKeyframeIndex;
+      _selectedLayerScopeKeyframeId =
+          _layerScopeKeyframeIdAt(lane, resolvedKeyframeIndex);
+      _isLayerScopeGraphEditorOpen = true;
+    });
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => MediaQuery.removeViewInsets(
+        context: sheetContext,
+        removeBottom: true,
+        child: LayerScopeGraphBottomSheet(
+          easyEaseEnabled: easyEaseEnabled,
+          onDone: () => Navigator.of(sheetContext).maybePop(),
+          onEasyEaseChanged: _handleLayerScopeEasyEaseChanged,
+        ),
+      ),
+    ).whenComplete(() {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isLayerScopeGraphEditorOpen = false;
+      });
+    });
+  }
+
+  void _handleLayerScopeValueControlChanged(
+    String controlId,
+    double value,
+  ) {
+    final context = _activeLayerScopeContext;
+    final keyframeIndex = _selectedLayerScopeKeyframeIndex;
+    if (context == null || keyframeIndex == null) {
+      return;
+    }
+    final lane = _layerScopeSelectedAnimationLane(context);
+    if (lane == null || !_layerScopeLaneSupportsValueControls(lane)) {
+      return;
+    }
+    final stops = lane.normalizedKeyframeStops;
+    if (keyframeIndex < 0 || keyframeIndex >= stops.length) {
+      return;
+    }
+    final controls = _layerScopeValueControlsForSelection(
+      context: context,
+      lane: lane,
+      keyframeIndex: keyframeIndex,
+    );
+    if (controls == null) {
+      return;
+    }
+    final controlValues = <String, double>{
+      for (final control in controls) control.id: control.value,
+    };
+    final progress = stops[keyframeIndex];
+    List<MotionPropertyChannelModel>? syncedChannels;
+    if (controlId == 'opacity') {
+      syncedChannels = _syncLayerScopeOpacityKeyframeToGraph(
+        context: context,
+        lane: lane,
+        progress: progress,
+        percent: value.clamp(0.0, 100.0).toDouble(),
+      );
+    } else if (_layerScopeBlurControlIds.contains(controlId)) {
+      final blurValues = <String, double>{
+        'blurAmount': controlValues['blurAmount'] ?? 0,
+        'blurMix': controlValues['blurMix'] ?? 100,
+        'blurEdgeMode': controlValues['blurEdgeMode'] ?? 0,
+        'blurCrop': controlValues['blurCrop'] ?? 0,
+        controlId: value,
+      };
+      syncedChannels = _syncLayerScopeBlurValueToGraph(
+        context: context,
+        lane: lane,
+        progress: progress,
+        values: blurValues,
+      );
+    } else if (controlId == 'revealProgress') {
+      syncedChannels = _syncLayerScopeRevealKeyframeToGraph(
+        context: context,
+        lane: lane,
+        progress: progress,
+        percent: value.clamp(0.0, 100.0).toDouble(),
+      );
+    } else if (controlId == 'revealBy') {
+      final nextBindings = _updateLayerScopeRevealBinding(
+        context: context,
+        revealUnit: value.round() <= 0
+            ? MotionTextRevealUnit.word
+            : MotionTextRevealUnit.letter,
+      );
+      if (nextBindings == null) {
+        return;
+      }
+      setState(() {
+        _motionTextAnimationBindings = nextBindings;
+        _markMotionAuthoringChanged();
+      });
+      return;
+    } else if (controlId == 'revealDirection') {
+      final nextBindings = _updateLayerScopeRevealBinding(
+        context: context,
+        revealDirection: value.round() <= 0
+            ? MotionTextRevealDirection.forward
+            : MotionTextRevealDirection.reverse,
+      );
+      if (nextBindings == null) {
+        return;
+      }
+      setState(() {
+        _motionTextAnimationBindings = nextBindings;
+        _markMotionAuthoringChanged();
+      });
+      return;
+    } else if (controlId == 'positionX' || controlId == 'positionY') {
+      syncedChannels = _syncLayerScopePositionValueToGraph(
+        context: context,
+        lane: lane,
+        progress: progress,
+        x: (controlId == 'positionX'
+                ? value
+                : controlValues['positionX'] ?? 0.0)
+            .roundToDouble(),
+        y: (controlId == 'positionY'
+                ? value
+                : controlValues['positionY'] ?? 0.0)
+            .roundToDouble(),
+      );
+    } else if (controlId == 'scale') {
+      syncedChannels = _syncLayerScopeScaleValueToGraph(
+        context: context,
+        lane: lane,
+        progress: progress,
+        percent: value.clamp(20.0, 800.0).toDouble(),
+      );
+    } else if (controlId == 'rotationAngle' || controlId == 'rotationTurns') {
+      final angle = controlId == 'rotationAngle'
+          ? value.clamp(-180.0, 180.0).toDouble()
+          : controlValues['rotationAngle'] ?? 0.0;
+      final turns = (controlId == 'rotationTurns'
+              ? value.clamp(-4.0, 4.0).toDouble()
+              : controlValues['rotationTurns'] ?? 0.0)
+          .round();
+      syncedChannels = _syncLayerScopeRotationValueToGraph(
+        context: context,
+        lane: lane,
+        progress: progress,
+        degrees: (turns * 360.0) + angle,
+      );
+    }
+    if (syncedChannels == null) {
+      return;
+    }
+    setState(() {
+      _manualMotionPropertyChannels = syncedChannels!;
+      _markMotionAuthoringChanged();
+    });
+  }
+
+  void _handleLayerScopeEasyEaseChanged(bool enabled) {
+    final scopeContext = _activeLayerScopeContext;
+    final keyframeIndex = _selectedLayerScopeKeyframeIndex;
+    if (scopeContext == null || keyframeIndex == null) {
+      return;
+    }
+    final lane = _layerScopeSelectedAnimationLane(scopeContext);
+    if (lane == null) {
+      return;
+    }
+    final syncedChannels = _setLayerScopeKeyframeInterpolationToGraph(
+      context: scopeContext,
+      lane: lane,
+      keyframeIndex: keyframeIndex,
+      interpolation: enabled
+          ? _afterEffectsEasyEaseInterpolation
+          : const MotionInterpolationSpec.linear(),
+    );
+    if (syncedChannels == null) {
+      return;
+    }
+    setState(() {
+      _manualMotionPropertyChannels = syncedChannels;
+      _markMotionAuthoringChanged();
+    });
+  }
+
+  void _handleLayerScopeDockAddTap() {
+    final context = _activeLayerScopeContext;
+    if (context == null) {
+      return;
+    }
+    if (context.track.kind == TimelineTrackKind.text) {
+      unawaited(_handleLayerScopeTextScriptTap());
+      return;
+    }
+    if (context.track.kind == TimelineTrackKind.image) {
+      unawaited(_openMediaSheet(EditorMediaTab.image));
+      return;
+    }
+    if (context.track.kind == TimelineTrackKind.video) {
+      unawaited(_openMediaSheet(EditorMediaTab.video));
+    }
+  }
+
+  Future<void> _handleLayerScopeTextScriptTap() async {
+    final scopeContext = _activeLayerScopeContext;
+    if (scopeContext == null ||
+        scopeContext.track.kind != TimelineTrackKind.text) {
+      return;
+    }
+    final document = await showModalBottomSheet<ScopedTextMotionScriptDocument>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => const ScopedTextMotionScriptBottomSheet(),
+    );
+    if (!mounted || document == null) {
+      return;
+    }
+    _applyScopedTextMotionScriptDocument(scopeContext, document);
+  }
+
+  void _applyScopedTextMotionScriptDocument(
+    _LayerScopeContext scopeContext,
+    ScopedTextMotionScriptDocument document,
+  ) {
+    if (scopeContext.track.kind != TimelineTrackKind.text) {
+      _showStageMessage('Scripts are available for text layers only.');
+      return;
+    }
+    final textContext = _motionTextElementContextForId(scopeContext.clip.id);
+    if (textContext == null) {
+      _showStageMessage('Unable to resolve this text layer.');
+      return;
+    }
+    final activeRange = _motionTextTimingRangeForElement(
+      scene: textContext.scene,
+      element: textContext.element,
+    );
+    final imported = _buildManualChannelsFromScopedTextMotionScript(
+      textContext: textContext,
+      activeRange: activeRange,
+      document: document,
+    );
+    if (imported.channels.isEmpty) {
+      _showStageMessage('This script did not produce any editable keyframes.');
+      return;
+    }
+    final nextChannels = <MotionPropertyChannelModel>[
+      for (final channel in _manualMotionPropertyChannels)
+        if (channel.target.targetId != textContext.element.id ||
+            !imported.definitionIds.contains(channel.definition.id))
+          channel,
+      ...imported.channels,
+    ];
+    final nextBindings = _bindingsAfterScopedTextScriptImport(
+      textContext: textContext,
+      activeRange: activeRange,
+      revealUnit: imported.revealUnit,
+      revealDirection: imported.revealDirection,
+    );
+    final nextTracks = _tracksAfterScopedTextScriptImport(scopeContext);
+    setState(() {
+      _tracks = nextTracks;
+      _manualMotionPropertyChannels =
+          List<MotionPropertyChannelModel>.unmodifiable(nextChannels);
+      _motionTextAnimationBindings =
+          List<MotionTextAnimationBindingModel>.unmodifiable(nextBindings);
+      _markMotionAuthoringChanged();
+      _selectedClipId = scopeContext.clip.id;
+      _selectedLayerScopeAnimationLaneId = imported.selectedLaneId;
+      _selectedLayerScopeKeyframeIndex = null;
+      _selectedLayerScopeKeyframeId = null;
+      _isLayerScopeValueEditorOpen = false;
+      _isLayerScopeGraphEditorOpen = false;
+      _activeTab = EditorMediaTab.text;
+    });
+    _showStageMessage(
+      'Applied script: ${imported.laneCount} lane(s), ${imported.keyframeCount} keyframes.',
+    );
+  }
+
+  ({
+    List<MotionPropertyChannelModel> channels,
+    Set<String> definitionIds,
+    MotionTextRevealUnit? revealUnit,
+    MotionTextRevealDirection? revealDirection,
+    String? selectedLaneId,
+    int laneCount,
+    int keyframeCount,
+  }) _buildManualChannelsFromScopedTextMotionScript({
+    required _MotionTextElementContext textContext,
+    required TimelineTimeRange activeRange,
+    required ScopedTextMotionScriptDocument document,
+  }) {
+    final channelsByDefinitionId = <String, MotionPropertyChannelModel>{};
+    if (document.animationBlocks.isNotEmpty) {
+      for (final channel in _lowerImportedAnimationBlocksToManualChannels(
+        textContext: textContext,
+        activeRange: activeRange,
+        document: document,
+      )) {
+        channelsByDefinitionId[channel.definition.id] = channel;
+      }
+    }
+    for (final channel in _explicitManualChannelsFromScopedTextMotionScript(
+      textContext: textContext,
+      activeRange: activeRange,
+      document: document,
+    )) {
+      channelsByDefinitionId[channel.definition.id] = channel;
+    }
+    final definitionIds = channelsByDefinitionId.keys.toSet();
+    final revealUnit =
+        definitionIds.contains(MotionPropertyCatalog.revealProgress.id) ||
+                document.revealUnit != null
+            ? (document.revealUnit ?? MotionTextRevealUnit.letter)
+            : null;
+    final revealDirection =
+        revealUnit == null ? null : document.revealDirection;
+    final preferredDefinition = document.channels.isNotEmpty
+        ? _scriptImportedPrimaryDefinitionForProperty(
+            document.channels.first.property,
+          )
+        : (channelsByDefinitionId.isEmpty
+            ? null
+            : channelsByDefinitionId.values.first.definition);
+    final selectedLaneId = preferredDefinition == null
+        ? null
+        : _scriptImportedLaneIdForDefinition(
+            textContext.element.id,
+            preferredDefinition,
+          );
+    final laneIds = <String>{
+      for (final channel in channelsByDefinitionId.values)
+        if (_scriptImportedLaneIdForDefinition(
+              textContext.element.id,
+              channel.definition,
+            ) !=
+            null)
+          _scriptImportedLaneIdForDefinition(
+            textContext.element.id,
+            channel.definition,
+          )!,
+    };
+    final keyframeCount = channelsByDefinitionId.values.fold<int>(
+      0,
+      (sum, channel) => sum + channel.keyframes.length,
+    );
+    return (
+      channels: List<MotionPropertyChannelModel>.unmodifiable(
+        channelsByDefinitionId.values,
+      ),
+      definitionIds: definitionIds,
+      revealUnit: revealUnit,
+      revealDirection: revealDirection,
+      selectedLaneId: selectedLaneId,
+      laneCount: laneIds.length,
+      keyframeCount: keyframeCount,
+    );
+  }
+
+  List<MotionPropertyChannelModel>
+      _explicitManualChannelsFromScopedTextMotionScript({
+    required _MotionTextElementContext textContext,
+    required TimelineTimeRange activeRange,
+    required ScopedTextMotionScriptDocument document,
+  }) {
+    final importedChannels = <MotionPropertyChannelModel>[];
+    for (final channelSpec in document.channels) {
+      switch (channelSpec.property) {
+        case 'opacity':
+          importedChannels.add(
+            _scriptImportedManualChannel(
+              textContext: textContext,
+              activeRange: activeRange,
+              definition: MotionPropertyCatalog.opacity,
+              keyframes: channelSpec.keyframes.map(
+                (keyframe) => _scriptImportedScalarKeyframe(
+                  channelId: _scriptImportedChannelId(
+                    textContext.element.id,
+                    MotionPropertyCatalog.opacity,
+                  ),
+                  time: _scriptImportedGlobalTime(
+                    activeRange,
+                    keyframe.time,
+                  ),
+                  scalar: _scriptImportedUnitIntervalValue(
+                    keyframe.value.rawValue as double,
+                  ),
+                  interpolation: keyframe.interpolation,
+                ),
+              ),
+            ),
+          );
+          break;
+        case 'position':
+          for (final axisChannel in _scriptImportedPointChannels(
+            textContext: textContext,
+            activeRange: activeRange,
+            pointKeyframes: channelSpec.keyframes,
+            xDefinition: MotionPropertyCatalog.positionX,
+            yDefinition: MotionPropertyCatalog.positionY,
+            normalizeAxisValue: (value) => value,
+          )) {
+            importedChannels.add(axisChannel);
+          }
+          break;
+        case 'positionX':
+          importedChannels.add(
+            _scriptImportedManualChannel(
+              textContext: textContext,
+              activeRange: activeRange,
+              definition: MotionPropertyCatalog.positionX,
+              keyframes: channelSpec.keyframes.map(
+                (keyframe) => _scriptImportedScalarKeyframe(
+                  channelId: _scriptImportedChannelId(
+                    textContext.element.id,
+                    MotionPropertyCatalog.positionX,
+                  ),
+                  time: _scriptImportedGlobalTime(activeRange, keyframe.time),
+                  scalar: keyframe.value.rawValue as double,
+                  interpolation: keyframe.interpolation,
+                ),
+              ),
+            ),
+          );
+          break;
+        case 'positionY':
+          importedChannels.add(
+            _scriptImportedManualChannel(
+              textContext: textContext,
+              activeRange: activeRange,
+              definition: MotionPropertyCatalog.positionY,
+              keyframes: channelSpec.keyframes.map(
+                (keyframe) => _scriptImportedScalarKeyframe(
+                  channelId: _scriptImportedChannelId(
+                    textContext.element.id,
+                    MotionPropertyCatalog.positionY,
+                  ),
+                  time: _scriptImportedGlobalTime(activeRange, keyframe.time),
+                  scalar: keyframe.value.rawValue as double,
+                  interpolation: keyframe.interpolation,
+                ),
+              ),
+            ),
+          );
+          break;
+        case 'scale':
+          for (final axisChannel in _scriptImportedPointChannels(
+            textContext: textContext,
+            activeRange: activeRange,
+            pointKeyframes: channelSpec.keyframes,
+            xDefinition: MotionPropertyCatalog.scaleX,
+            yDefinition: MotionPropertyCatalog.scaleY,
+            normalizeAxisValue: _scriptImportedScaleValue,
+          )) {
+            importedChannels.add(axisChannel);
+          }
+          break;
+        case 'scaleX':
+          importedChannels.add(
+            _scriptImportedManualChannel(
+              textContext: textContext,
+              activeRange: activeRange,
+              definition: MotionPropertyCatalog.scaleX,
+              keyframes: channelSpec.keyframes.map(
+                (keyframe) => _scriptImportedScalarKeyframe(
+                  channelId: _scriptImportedChannelId(
+                    textContext.element.id,
+                    MotionPropertyCatalog.scaleX,
+                  ),
+                  time: _scriptImportedGlobalTime(activeRange, keyframe.time),
+                  scalar: _scriptImportedScaleValue(
+                    keyframe.value.rawValue as double,
+                  ),
+                  interpolation: keyframe.interpolation,
+                ),
+              ),
+            ),
+          );
+          break;
+        case 'scaleY':
+          importedChannels.add(
+            _scriptImportedManualChannel(
+              textContext: textContext,
+              activeRange: activeRange,
+              definition: MotionPropertyCatalog.scaleY,
+              keyframes: channelSpec.keyframes.map(
+                (keyframe) => _scriptImportedScalarKeyframe(
+                  channelId: _scriptImportedChannelId(
+                    textContext.element.id,
+                    MotionPropertyCatalog.scaleY,
+                  ),
+                  time: _scriptImportedGlobalTime(activeRange, keyframe.time),
+                  scalar: _scriptImportedScaleValue(
+                    keyframe.value.rawValue as double,
+                  ),
+                  interpolation: keyframe.interpolation,
+                ),
+              ),
+            ),
+          );
+          break;
+        case 'rotation':
+          importedChannels.add(
+            _scriptImportedManualChannel(
+              textContext: textContext,
+              activeRange: activeRange,
+              definition: MotionPropertyCatalog.rotationDegrees,
+              keyframes: channelSpec.keyframes.map(
+                (keyframe) => _scriptImportedScalarKeyframe(
+                  channelId: _scriptImportedChannelId(
+                    textContext.element.id,
+                    MotionPropertyCatalog.rotationDegrees,
+                  ),
+                  time: _scriptImportedGlobalTime(activeRange, keyframe.time),
+                  scalar: keyframe.value.rawValue as double,
+                  interpolation: keyframe.interpolation,
+                ),
+              ),
+            ),
+          );
+          break;
+        case 'blur':
+          importedChannels.add(
+            _scriptImportedManualChannel(
+              textContext: textContext,
+              activeRange: activeRange,
+              definition: MotionPropertyCatalog.blurAmount,
+              keyframes: channelSpec.keyframes.map(
+                (keyframe) => _scriptImportedScalarKeyframe(
+                  channelId: _scriptImportedChannelId(
+                    textContext.element.id,
+                    MotionPropertyCatalog.blurAmount,
+                  ),
+                  time: _scriptImportedGlobalTime(activeRange, keyframe.time),
+                  scalar: (keyframe.value.rawValue as double)
+                      .clamp(0.0, 100.0)
+                      .toDouble(),
+                  interpolation: keyframe.interpolation,
+                ),
+              ),
+            ),
+          );
+          break;
+        case 'revealProgress':
+          importedChannels.add(
+            _scriptImportedManualChannel(
+              textContext: textContext,
+              activeRange: activeRange,
+              definition: MotionPropertyCatalog.revealProgress,
+              keyframes: channelSpec.keyframes.map(
+                (keyframe) => _scriptImportedScalarKeyframe(
+                  channelId: _scriptImportedChannelId(
+                    textContext.element.id,
+                    MotionPropertyCatalog.revealProgress,
+                  ),
+                  time: _scriptImportedGlobalTime(activeRange, keyframe.time),
+                  scalar: _scriptImportedUnitIntervalValue(
+                    keyframe.value.rawValue as double,
+                  ),
+                  interpolation: keyframe.interpolation,
+                ),
+              ),
+            ),
+          );
+          break;
+      }
+    }
+    return List<MotionPropertyChannelModel>.unmodifiable(importedChannels);
+  }
+
+  List<MotionPropertyChannelModel> _scriptImportedPointChannels({
+    required _MotionTextElementContext textContext,
+    required TimelineTimeRange activeRange,
+    required List<ScopedTextMotionScriptKeyframeSpec> pointKeyframes,
+    required MotionPropertyDefinition xDefinition,
+    required MotionPropertyDefinition yDefinition,
+    required double Function(double value) normalizeAxisValue,
+  }) {
+    final targetId = textContext.element.id;
+    final xKeyframes = <MotionKeyframeModel>[];
+    final yKeyframes = <MotionKeyframeModel>[];
+    final xChannelId = _scriptImportedChannelId(targetId, xDefinition);
+    final yChannelId = _scriptImportedChannelId(targetId, yDefinition);
+    for (final keyframe in pointKeyframes) {
+      if (keyframe.value.kind != MotionPropertyValueKind.point2D) {
+        continue;
+      }
+      final point = keyframe.value.rawValue as MotionPoint2D;
+      final time = _scriptImportedGlobalTime(activeRange, keyframe.time);
+      xKeyframes.add(
+        _scriptImportedScalarKeyframe(
+          channelId: xChannelId,
+          time: time,
+          scalar: normalizeAxisValue(point.x),
+          interpolation: keyframe.interpolation,
+        ),
+      );
+      yKeyframes.add(
+        _scriptImportedScalarKeyframe(
+          channelId: yChannelId,
+          time: time,
+          scalar: normalizeAxisValue(point.y),
+          interpolation: keyframe.interpolation,
+        ),
+      );
+    }
+    return <MotionPropertyChannelModel>[
+      _scriptImportedManualChannel(
+        textContext: textContext,
+        activeRange: activeRange,
+        definition: xDefinition,
+        keyframes: xKeyframes,
+      ),
+      _scriptImportedManualChannel(
+        textContext: textContext,
+        activeRange: activeRange,
+        definition: yDefinition,
+        keyframes: yKeyframes,
+      ),
+    ];
+  }
+
+  List<MotionPropertyChannelModel>
+      _lowerImportedAnimationBlocksToManualChannels({
+    required _MotionTextElementContext textContext,
+    required TimelineTimeRange activeRange,
+    required ScopedTextMotionScriptDocument document,
+  }) {
+    final normalizedBlocks = <MotionTextAnimationBlock>[
+      for (final block in document.animationBlocks)
+        MotionTextAnimationBlock(
+          id: block.id,
+          kind: block.kind,
+          relativeRange: block.relativeRange,
+          interpolation: block.interpolation,
+          revealSpec: block.revealSpec,
+          parameters:
+              _normalizedScriptAnimationBlockParameters(block.parameters),
+        ),
+    ];
+    if (normalizedBlocks.isEmpty) {
+      return const <MotionPropertyChannelModel>[];
+    }
+    final binding = MotionTextAnimationBindingModel(
+      id: _nextMotionEntityId('script-binding'),
+      elementTarget: textContext.elementTarget,
+      activeRange: activeRange,
+      animationBlocks: normalizedBlocks,
+      parameterValues: const <String, MotionPropertyValue>{},
+    );
+    final compileResult = BasicMotionTextPresetCompiler(
+      presetCatalog: _availableTextPresets,
+    ).compileBindings(
+      request: MotionCompileRequest(
+        project: _effectiveMotionProject,
+        propertyChannels: const <MotionPropertyChannelModel>[],
+        textAnimationBindings: <MotionTextAnimationBindingModel>[binding],
+      ),
+      elementsById: <String, MotionElementModel>{
+        textContext.element.id: textContext.element,
+      },
+    );
+    return List<MotionPropertyChannelModel>.unmodifiable(
+      compileResult.generatedChannels
+          .map(
+            (channel) => _scriptRemappedImportedChannel(
+              source: channel,
+              textContext: textContext,
+              activeRange: activeRange,
+            ),
+          )
+          .where((channel) => channel.keyframes.isNotEmpty),
+    );
+  }
+
+  Map<String, MotionPropertyValue> _normalizedScriptAnimationBlockParameters(
+    Map<String, MotionPropertyValue> parameters,
+  ) {
+    if (parameters.isEmpty) {
+      return parameters;
+    }
+    return <String, MotionPropertyValue>{
+      for (final entry in parameters.entries)
+        entry.key: switch (entry.key) {
+          'fromScale' ||
+          'toScale' =>
+            entry.value.kind == MotionPropertyValueKind.scalar
+                ? MotionPropertyValue.scalar(
+                    _scriptImportedScaleValue(entry.value.rawValue as double),
+                  )
+                : entry.value,
+          'fromOpacity' ||
+          'toOpacity' =>
+            entry.value.kind == MotionPropertyValueKind.scalar
+                ? MotionPropertyValue.scalar(
+                    _scriptImportedUnitIntervalValue(
+                        entry.value.rawValue as double),
+                  )
+                : entry.value,
+          _ => entry.value,
+        },
+    };
+  }
+
+  MotionPropertyChannelModel _scriptRemappedImportedChannel({
+    required MotionPropertyChannelModel source,
+    required _MotionTextElementContext textContext,
+    required TimelineTimeRange activeRange,
+  }) {
+    final channelId = _scriptImportedChannelId(
+      textContext.element.id,
+      source.definition,
+    );
+    return MotionPropertyChannelModel(
+      id: channelId,
+      target: textContext.elementTarget,
+      definition: source.definition,
+      activeRange: activeRange,
+      baseValue: source.baseValue ??
+          MotionPropertyValue.scalar(
+            _elementScalarPropertyOrDefault(
+              textContext.element,
+              source.definition,
+            ),
+          ),
+      beforeStart: source.beforeStart,
+      afterEnd: source.afterEnd,
+      keyframes: _normalizedScriptImportedKeyframes(
+        source.keyframes.map(
+          (keyframe) => MotionKeyframeModel(
+            id: _scriptImportedKeyframeId(channelId, keyframe.time),
+            channelId: channelId,
+            time: _scriptImportedGlobalTime(
+              activeRange,
+              keyframe.time - activeRange.start,
+            ),
+            value: keyframe.value,
+            interpolationToNext: keyframe.interpolationToNext,
+          ),
+        ),
+      ),
+    );
+  }
+
+  MotionPropertyChannelModel _scriptImportedManualChannel({
+    required _MotionTextElementContext textContext,
+    required TimelineTimeRange activeRange,
+    required MotionPropertyDefinition definition,
+    required Iterable<MotionKeyframeModel> keyframes,
+  }) {
+    final channelId =
+        _scriptImportedChannelId(textContext.element.id, definition);
+    return MotionPropertyChannelModel(
+      id: channelId,
+      target: textContext.elementTarget,
+      definition: definition,
+      activeRange: activeRange,
+      baseValue: MotionPropertyValue.scalar(
+        _elementScalarPropertyOrDefault(textContext.element, definition),
+      ),
+      keyframes: _normalizedScriptImportedKeyframes(keyframes),
+    );
+  }
+
+  MotionKeyframeModel _scriptImportedScalarKeyframe({
+    required String channelId,
+    required TimelineTime time,
+    required double scalar,
+    required MotionInterpolationSpec interpolation,
+  }) {
+    return MotionKeyframeModel(
+      id: _scriptImportedKeyframeId(channelId, time),
+      channelId: channelId,
+      time: time,
+      value: MotionPropertyValue.scalar(scalar),
+      interpolationToNext: interpolation,
+    );
+  }
+
+  List<MotionKeyframeModel> _normalizedScriptImportedKeyframes(
+    Iterable<MotionKeyframeModel> keyframes,
+  ) {
+    final byTick = <int, MotionKeyframeModel>{};
+    for (final keyframe in keyframes) {
+      byTick[keyframe.time.inProjectTicks] = keyframe;
+    }
+    final sortedTicks = byTick.keys.toList()..sort();
+    return List<MotionKeyframeModel>.unmodifiable(
+      <MotionKeyframeModel>[
+        for (final tick in sortedTicks) byTick[tick]!,
+      ],
+    );
+  }
+
+  TimelineTime _scriptImportedGlobalTime(
+    TimelineTimeRange activeRange,
+    TimelineTime relativeTime,
+  ) {
+    final clampedRelative = relativeTime.clamp(
+      TimelineTime.zero,
+      activeRange.duration,
+    );
+    return activeRange.start + clampedRelative;
+  }
+
+  String _scriptImportedChannelId(
+    String targetId,
+    MotionPropertyDefinition definition,
+  ) {
+    return 'manual.$targetId.${definition.id}';
+  }
+
+  String _scriptImportedKeyframeId(
+    String channelId,
+    TimelineTime time,
+  ) {
+    return '$channelId@${time.inProjectTicks}';
+  }
+
+  double _scriptImportedScaleValue(double raw) {
+    if (!raw.isFinite) {
+      return 1.0;
+    }
+    if (raw.abs() > 8.0) {
+      return raw / 100.0;
+    }
+    return raw;
+  }
+
+  double _scriptImportedUnitIntervalValue(double raw) {
+    if (!raw.isFinite) {
+      return 0.0;
+    }
+    if (raw.abs() > 1.0) {
+      return (raw / 100.0).clamp(0.0, 1.0).toDouble();
+    }
+    return raw.clamp(0.0, 1.0).toDouble();
+  }
+
+  List<MotionTextAnimationBindingModel> _bindingsAfterScopedTextScriptImport({
+    required _MotionTextElementContext textContext,
+    required TimelineTimeRange activeRange,
+    required MotionTextRevealUnit? revealUnit,
+    required MotionTextRevealDirection? revealDirection,
+  }) {
+    final nextBindings = <MotionTextAnimationBindingModel>[
+      for (final binding in _motionTextAnimationBindings)
+        if (binding.elementTarget.targetId != textContext.element.id) binding,
+    ];
+    if (revealUnit == null) {
+      return nextBindings;
+    }
+    nextBindings.add(
+      MotionTextAnimationBindingModel(
+        id: _nextMotionEntityId('text-script-binding'),
+        elementTarget: textContext.elementTarget,
+        activeRange: activeRange,
+        animationBlocks: <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: 'script.reveal.${textContext.element.id}',
+            kind: revealUnit == MotionTextRevealUnit.word
+                ? MotionTextAnimationKind.wordReveal
+                : MotionTextAnimationKind.typewriter,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: activeRange.duration,
+            ),
+            interpolation: const MotionInterpolationSpec.linear(),
+            revealSpec: MotionTextRevealSpec(
+              unit: revealUnit,
+              stagger: TimelineTime.zero,
+            ),
+            parameters: <String, MotionPropertyValue>{
+              'manualRevealProgress': const MotionPropertyValue.boolean(true),
+              'revealDirection': MotionPropertyValue.enumValue(
+                (revealDirection ?? MotionTextRevealDirection.forward).name,
+              ),
+            },
+          ),
+        ],
+        parameterValues: <String, MotionPropertyValue>{
+          'revealBy': MotionPropertyValue.enumValue(revealUnit.name),
+          'revealDirection': MotionPropertyValue.enumValue(
+            (revealDirection ?? MotionTextRevealDirection.forward).name,
+          ),
+        },
+      ),
+    );
+    return nextBindings;
+  }
+
+  List<TimelineTrackData> _tracksAfterScopedTextScriptImport(
+    _LayerScopeContext scopeContext,
+  ) {
+    final trackIndex = _tracks.indexWhere(
+      (candidate) => candidate.kind == scopeContext.track.kind,
+    );
+    if (trackIndex < 0) {
+      return _tracks;
+    }
+    final nextTracks = List<TimelineTrackData>.from(_tracks);
+    final track = nextTracks[trackIndex];
+    nextTracks[trackIndex] = track.copyWith(
+      animationLanes: <TimelineAnimationLaneData>[
+        for (final lane in track.animationLanes)
+          if (!(lane.targetClipId == scopeContext.clip.id &&
+              _isScopedTextScriptManagedLane(lane)))
+            lane,
+      ],
+    );
+    return List<TimelineTrackData>.unmodifiable(nextTracks);
+  }
+
+  bool _isScopedTextScriptManagedLane(TimelineAnimationLaneData lane) =>
+      lane.matchesPropertyLabel('opacity') ||
+      lane.matchesPropertyLabel('position') ||
+      lane.matchesPropertyLabel('scale') ||
+      lane.matchesPropertyLabel('rotation') ||
+      _layerScopeLaneMatchesBlur(lane) ||
+      _layerScopeLaneMatchesReveal(lane);
+
+  String? _scriptImportedLaneIdForDefinition(
+    String elementId,
+    MotionPropertyDefinition definition,
+  ) {
+    if (definition.id == MotionPropertyCatalog.opacity.id) {
+      return 'anim-text-$elementId-opacity';
+    }
+    if (definition.id == MotionPropertyCatalog.positionX.id ||
+        definition.id == MotionPropertyCatalog.positionY.id) {
+      return 'anim-text-$elementId-position';
+    }
+    if (definition.id == MotionPropertyCatalog.scaleX.id ||
+        definition.id == MotionPropertyCatalog.scaleY.id) {
+      return 'anim-text-$elementId-scale';
+    }
+    if (definition.id == MotionPropertyCatalog.rotationDegrees.id) {
+      return 'anim-text-$elementId-rotation';
+    }
+    if (definition.id == MotionPropertyCatalog.blurAmount.id ||
+        definition.id == MotionPropertyCatalog.blurMix.id ||
+        definition.id == MotionPropertyCatalog.blurEdgeMode.id ||
+        definition.id == MotionPropertyCatalog.blurCrop.id) {
+      return 'anim-text-$elementId-gaussian-blur';
+    }
+    if (definition.id == MotionPropertyCatalog.revealProgress.id) {
+      return 'anim-text-$elementId-reveal-progress';
+    }
+    return null;
+  }
+
+  MotionPropertyDefinition? _scriptImportedPrimaryDefinitionForProperty(
+    String property,
+  ) {
+    switch (property) {
+      case 'opacity':
+        return MotionPropertyCatalog.opacity;
+      case 'position':
+      case 'positionX':
+        return MotionPropertyCatalog.positionX;
+      case 'positionY':
+        return MotionPropertyCatalog.positionY;
+      case 'scale':
+      case 'scaleX':
+        return MotionPropertyCatalog.scaleX;
+      case 'scaleY':
+        return MotionPropertyCatalog.scaleY;
+      case 'rotation':
+        return MotionPropertyCatalog.rotationDegrees;
+      case 'blur':
+        return MotionPropertyCatalog.blurAmount;
+      case 'revealProgress':
+        return MotionPropertyCatalog.revealProgress;
+    }
+    return null;
+  }
+
+  void _handleLayerScopeScrubFinalized(
+    _LayerScopeContext context,
+    TimelineTime localTime,
+  ) {
+    _handleTimelineScrubFinalized(_layerScopeGlobalTime(context, localTime));
   }
 
   void _handleCanvasTextSelected(String elementId) {
@@ -2330,13 +6366,30 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   }
 
   void _handleCanvasTextEditRequested(String elementId) {
-    _selectTextElement(elementId);
-    unawaited(_openTextClipEditSheet(elementId));
+    _enterLayerScope(elementId);
   }
 
   void _handleCanvasTextMoved(String elementId, Offset deltaCanvas) {
     final context = _motionTextElementContextForId(elementId);
     if (context == null) {
+      return;
+    }
+    if (!_isAnimatingTextElementInScopedMode(elementId)) {
+      _applyStaticTextElementScalarEdit(
+        context,
+        scalarProperties: <MotionPropertyDefinition, double>{
+          MotionPropertyCatalog.positionX: _elementScalarPropertyOrDefault(
+                context.element,
+                MotionPropertyCatalog.positionX,
+              ) +
+              deltaCanvas.dx,
+          MotionPropertyCatalog.positionY: _elementScalarPropertyOrDefault(
+                context.element,
+                MotionPropertyCatalog.positionY,
+              ) +
+              deltaCanvas.dy,
+        },
+      );
       return;
     }
     final nextChannels = _setTextMotionScalarKeyframes(
@@ -2356,7 +6409,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     );
     setState(() {
       _manualMotionPropertyChannels = nextChannels;
-      _motionRevision += 1;
+      _markMotionAuthoringChanged();
       _selectedClipId = elementId;
       _activeTab = EditorMediaTab.text;
     });
@@ -2371,6 +6424,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     if (context == null) {
       return;
     }
+    if (!_isAnimatingTextElementInScopedMode(elementId)) {
+      _applyStaticTextElementScalarEdit(
+        context,
+        scalarProperties: <MotionPropertyDefinition, double>{
+          MotionPropertyCatalog.scaleX: scaleX.clamp(0.2, 8.0),
+          MotionPropertyCatalog.scaleY: scaleY.clamp(0.2, 8.0),
+        },
+      );
+      return;
+    }
     final nextChannels = _setTextMotionScalarKeyframes(
       context: context,
       scalarValues: <MotionPropertyDefinition, double>{
@@ -2380,7 +6443,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     );
     setState(() {
       _manualMotionPropertyChannels = nextChannels;
-      _motionRevision += 1;
+      _markMotionAuthoringChanged();
       _selectedClipId = elementId;
       _activeTab = EditorMediaTab.text;
     });
@@ -2394,6 +6457,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     if (context == null) {
       return;
     }
+    if (!_isAnimatingTextElementInScopedMode(elementId)) {
+      _applyStaticTextElementScalarEdit(
+        context,
+        scalarProperties: <MotionPropertyDefinition, double>{
+          MotionPropertyCatalog.rotationDegrees: rotationDegrees,
+        },
+      );
+      return;
+    }
     final nextChannels = _setTextMotionScalarKeyframes(
       context: context,
       scalarValues: <MotionPropertyDefinition, double>{
@@ -2402,8 +6474,27 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     );
     setState(() {
       _manualMotionPropertyChannels = nextChannels;
-      _motionRevision += 1;
+      _markMotionAuthoringChanged();
       _selectedClipId = elementId;
+      _activeTab = EditorMediaTab.text;
+    });
+  }
+
+  bool _isAnimatingTextElementInScopedMode(String elementId) =>
+      _activeLayerScopeContext?.clip.id == elementId;
+
+  void _applyStaticTextElementScalarEdit(
+    _MotionTextElementContext context, {
+    required Map<MotionPropertyDefinition, double> scalarProperties,
+  }) {
+    final nextProject = _updatedProjectForTextElement(
+      context,
+      scalarProperties: scalarProperties,
+    );
+    setState(() {
+      _motionProject = nextProject;
+      _markMotionAuthoringChanged();
+      _selectedClipId = context.element.id;
       _activeTab = EditorMediaTab.text;
     });
   }
@@ -2459,7 +6550,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       _motionProject = nextProject;
       _motionTextAnimationBindings = nextBindings;
       _manualMotionPropertyChannels = nextManualChannels;
-      _motionRevision += 1;
+      _markMotionAuthoringChanged();
       if (_textEditSession?.elementId == elementId) {
         _textEditSession = null;
       }
@@ -2604,7 +6695,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       _motionProject = nextProject;
       _motionTextAnimationBindings = nextBindings;
       _manualMotionPropertyChannels = nextManualChannels;
-      _motionRevision += 1;
+      _markMotionAuthoringChanged();
       if (_textEditSession?.elementId == elementId) {
         _textEditSession = null;
       }
@@ -3048,7 +7139,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       _motionProject = nextProject;
       _motionTextAnimationBindings = nextBindings;
       _manualMotionPropertyChannels = nextManualChannels;
-      _motionRevision += 1;
+      _markMotionAuthoringChanged();
       _selectedClipId = resolvedState.selectedClipId;
       _activeTab = EditorMediaTab.text;
       _previewAssetId = resolvedState.previewAssetId;
@@ -3255,7 +7346,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       _motionProject = nextProject;
       _motionTextAnimationBindings = nextBindings;
       _manualMotionPropertyChannels = nextManualChannels;
-      _motionRevision += 1;
+      _markMotionAuthoringChanged();
       if (shouldClearPreviewRange) {
         _textEditPreviewRange = null;
       }
@@ -3485,11 +7576,27 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   }
 
   void _handleTextDockTap() {
+    final selectedTextElementId = _selectedMainTimelineTextElementId;
+    if (selectedTextElementId != null) {
+      unawaited(_openTextClipEditSheet(selectedTextElementId));
+      return;
+    }
     if (_textPresetPickerEnabled) {
       unawaited(_openTextPresetSheet());
       return;
     }
-    _insertDefaultTextLayer();
+    _insertDefaultTextLayer(openEditorOnInsert: true);
+  }
+
+  String? get _selectedMainTimelineTextElementId {
+    final selectedClipId = _selectedClipId;
+    if (selectedClipId == null || !_isMotionTextElementId(selectedClipId)) {
+      return null;
+    }
+    if (_layerScopeSession != null || _transitionFocusSession != null) {
+      return null;
+    }
+    return selectedClipId;
   }
 
   bool _canOpenAnimateBrowserForTrack(TimelineTrackData track) {
@@ -3531,39 +7638,76 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     }
   }
 
-  void _addAnimateLaneToTrack(
-    TimelineTrackData displayTrack,
+  List<double> _initialKeyframeValuesForItem(
     AnimateBrowserItem item,
+    int keyframeCount,
   ) {
+    final defaultValue = item.id == 'opacity' ? 100.0 : 0.0;
+    return List<double>.filled(keyframeCount, defaultValue, growable: false);
+  }
+
+  String? _addAnimateLaneToTrack(
+    TimelineTrackData displayTrack,
+    AnimateBrowserItem item, {
+    bool selectForLayerScope = false,
+  }) {
     final targetClip = _resolveAnimateTargetClipForTrack(displayTrack);
     if (targetClip == null) {
-      _showStageMessage('Select a layer clip before adding animation.');
-      return;
+      if (!selectForLayerScope) {
+        _showStageMessage('Select a layer clip before adding animation.');
+      }
+      return null;
     }
 
     final trackIndex = _tracks.indexWhere(
       (candidate) => candidate.kind == displayTrack.kind,
     );
     if (trackIndex < 0) {
-      return;
+      return null;
     }
 
     final baseTrack = _tracks[trackIndex];
-    final alreadyExists = baseTrack.animationLanes.any(
-      (lane) =>
-          lane.targetClipId == targetClip.id &&
-          lane.label.toLowerCase() == item.label.toLowerCase(),
-    );
-    if (alreadyExists) {
-      _showStageMessage('${item.label} already exists on this layer.');
-      return;
+    TimelineAnimationLaneData? existingLane;
+    for (final lane in baseTrack.animationLanes) {
+      if (lane.targetClipId == targetClip.id &&
+          lane.label.toLowerCase() == item.label.toLowerCase()) {
+        existingLane = lane;
+        break;
+      }
+    }
+    if (existingLane != null) {
+      if (selectForLayerScope) {
+        setState(() {
+          _selectedLayerScopeAnimationLaneId = existingLane!.id;
+          _selectedLayerScopeKeyframeIndex =
+              existingLane.normalizedKeyframeStops.isEmpty ? null : 0;
+          _selectedLayerScopeKeyframeId =
+              existingLane.normalizedKeyframeStops.isEmpty
+                  ? null
+                  : _layerScopeKeyframeIdAt(existingLane, 0);
+          _isLayerScopeValueEditorOpen = false;
+          _selectedClipId = targetClip.id;
+        });
+      } else {
+        _showStageMessage('${item.label} already exists on this layer.');
+      }
+      return existingLane.id;
     }
 
+    final keyframeStops = selectForLayerScope
+        ? const <double>[]
+        : _mockAnimationKeyframeStopsForItem(item);
     final nextLane = TimelineAnimationLaneData(
       id: 'anim-${displayTrack.kind.name}-${targetClip.id}-${DateTime.now().microsecondsSinceEpoch}',
       label: item.label,
       targetClipId: targetClip.id,
-      normalizedKeyframeStops: _mockAnimationKeyframeStopsForItem(item),
+      normalizedKeyframeStops: keyframeStops,
+      keyframeValues: selectForLayerScope
+          ? const <double>[]
+          : _initialKeyframeValuesForItem(
+              item,
+              keyframeStops.length,
+            ),
     );
     final nextAnimationLanes = List<TimelineAnimationLaneData>.unmodifiable(
       <TimelineAnimationLaneData>[
@@ -3579,7 +7723,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       );
       _tracks = List<TimelineTrackData>.unmodifiable(nextTracks);
       _selectedClipId = targetClip.id;
+      if (selectForLayerScope) {
+        _selectedLayerScopeAnimationLaneId = nextLane.id;
+        _selectedLayerScopeKeyframeIndex = null;
+        _selectedLayerScopeKeyframeId = null;
+        _isLayerScopeValueEditorOpen = false;
+      }
     });
+    return nextLane.id;
   }
 
   Future<void> _openAnimateBrowserForTrack(TimelineTrackData track) async {
@@ -3616,6 +7767,691 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     }
 
     _addAnimateLaneToTrack(track, item);
+  }
+
+  Future<void> _handleLayerScopeAnimateTap(TimelineTrackData track) async {
+    final scopeContext = _activeLayerScopeContext;
+    if (scopeContext == null) {
+      _showStageMessage('Open a scoped layer first.');
+      return;
+    }
+    final items = _scopedLayerAnimateItemsForContext(scopeContext);
+    if (items.isEmpty) {
+      _showStageMessage('Animate controls are not available for this layer.');
+      return;
+    }
+    setState(() {
+      _isAnimateBrowserOpen = true;
+    });
+    final item = await showModalBottomSheet<AnimateBrowserItem>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => ScopedLayerAnimateBottomSheet(
+        items: items,
+      ),
+    ).whenComplete(() {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isAnimateBrowserOpen = false;
+      });
+    });
+    if (item == null || !mounted) {
+      return;
+    }
+    if (_isScopedTextEffectItem(item)) {
+      _applyScopedTextEffectToLayer(scopeContext, item);
+      return;
+    }
+    _addAnimateLaneToTrack(
+      track,
+      item,
+      selectForLayerScope: true,
+    );
+  }
+
+  Future<void> _handleLayerScopeFxTap(TimelineTrackData track) async {
+    final scopeContext = _activeLayerScopeContext;
+    if (scopeContext == null) {
+      _showStageMessage('Open a scoped layer first.');
+      return;
+    }
+    final items = _scopedLayerFxItemsForContext(scopeContext);
+    if (items.isEmpty) {
+      _showStageMessage('FX controls are not available for this layer yet.');
+      return;
+    }
+    setState(() {
+      _isAnimateBrowserOpen = true;
+    });
+    final item = await showModalBottomSheet<AnimateBrowserItem>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => ScopedLayerAnimateBottomSheet(
+        items: items,
+      ),
+    ).whenComplete(() {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isAnimateBrowserOpen = false;
+      });
+    });
+    if (item == null || !mounted) {
+      return;
+    }
+    _addAnimateLaneToTrack(
+      track,
+      item,
+      selectForLayerScope: true,
+    );
+  }
+
+  List<AnimateBrowserItem> _scopedLayerAnimateItemsForContext(
+    _LayerScopeContext context,
+  ) {
+    return switch (context.track.kind) {
+      TimelineTrackKind.text => _scopedTextAnimateItems,
+      TimelineTrackKind.image => _scopedImageAnimateItems,
+      TimelineTrackKind.video ||
+      TimelineTrackKind.audio ||
+      TimelineTrackKind.lipSync =>
+        const <AnimateBrowserItem>[],
+    };
+  }
+
+  List<AnimateBrowserItem> _scopedLayerFxItemsForContext(
+    _LayerScopeContext context,
+  ) {
+    return switch (context.track.kind) {
+      TimelineTrackKind.text => _scopedTextFxItems,
+      TimelineTrackKind.image => _scopedImageFxItems,
+      TimelineTrackKind.video ||
+      TimelineTrackKind.audio ||
+      TimelineTrackKind.lipSync =>
+        const <AnimateBrowserItem>[],
+    };
+  }
+
+  bool _isScopedTextEffectItem(AnimateBrowserItem item) =>
+      item.id.startsWith('text_effect.');
+
+  void _applyScopedTextEffectToLayer(
+    _LayerScopeContext scopeContext,
+    AnimateBrowserItem item,
+  ) {
+    if (scopeContext.track.kind != TimelineTrackKind.text) {
+      _showStageMessage('Text effects are available for text layers only.');
+      return;
+    }
+    final textContext = _motionTextElementContextForId(scopeContext.clip.id);
+    if (textContext == null) {
+      _showStageMessage('Unable to resolve this text layer.');
+      return;
+    }
+    final blocks = _scopedTextEffectBlocksForItem(
+      item,
+      layerDuration: scopeContext.durationTime,
+    );
+    if (blocks.isEmpty) {
+      _showStageMessage('${item.label} is not ready yet.');
+      return;
+    }
+
+    final blockPrefix = _scopedTextEffectBlockPrefix(item);
+    final isRevealEffect = _isScopedTextRevealEffectItem(item);
+    final currentBinding =
+        _motionTextBindingForElementId(textContext.element.id);
+    final activeRange = _motionTextTimingRangeForElement(
+      scene: textContext.scene,
+      element: textContext.element,
+    );
+    final currentBlocks =
+        currentBinding?.animationBlocks ?? const <MotionTextAnimationBlock>[];
+    final alreadyApplied = isRevealEffect
+        ? currentBlocks.any(_isMotionTextRevealBlock)
+        : currentBlocks.any(
+            (block) => block.id.startsWith(blockPrefix),
+          );
+
+    final nextBindings = <MotionTextAnimationBindingModel>[
+      for (final binding in _motionTextAnimationBindings)
+        if (binding.elementTarget.targetId == textContext.element.id)
+          MotionTextAnimationBindingModel(
+            id: binding.id,
+            elementTarget: binding.elementTarget,
+            activeRange: binding.activeRange,
+            presetId: binding.presetId,
+            animationBlocks: alreadyApplied && !isRevealEffect
+                ? binding.animationBlocks
+                : <MotionTextAnimationBlock>[
+                    for (final block in binding.animationBlocks)
+                      if (isRevealEffect
+                          ? !_isMotionTextRevealBlock(block)
+                          : !block.id.startsWith(blockPrefix))
+                        block,
+                    ...blocks,
+                  ],
+            parameterValues: isRevealEffect
+                ? <String, MotionPropertyValue>{
+                    ...binding.parameterValues,
+                    'revealBy':
+                        _defaultRevealByParameterForScopedTextEffectItem(item),
+                    'revealDirection': binding
+                            .parameterValues['revealDirection'] ??
+                        _defaultRevealDirectionParameterForScopedTextEffectItem(
+                          item,
+                        ),
+                  }
+                : binding.parameterValues,
+          )
+        else
+          binding,
+      if (currentBinding == null)
+        MotionTextAnimationBindingModel(
+          id: 'text-binding-${textContext.element.id}-${DateTime.now().microsecondsSinceEpoch}',
+          elementTarget: textContext.elementTarget,
+          activeRange: activeRange,
+          animationBlocks: blocks,
+          parameterValues: isRevealEffect
+              ? <String, MotionPropertyValue>{
+                  'revealBy':
+                      _defaultRevealByParameterForScopedTextEffectItem(item),
+                  'revealDirection':
+                      _defaultRevealDirectionParameterForScopedTextEffectItem(
+                    item,
+                  ),
+                }
+              : const <String, MotionPropertyValue>{},
+        ),
+    ];
+
+    final trackIndex = _tracks.indexWhere(
+      (candidate) => candidate.kind == scopeContext.track.kind,
+    );
+    var selectedLaneId = _selectedLayerScopeAnimationLaneId;
+    List<TimelineTrackData>? nextTracks;
+    if (trackIndex >= 0) {
+      final baseTrack = _tracks[trackIndex];
+      if (isRevealEffect) {
+        final existingRevealLane = baseTrack.animationLanes.where(
+          (lane) =>
+              lane.targetClipId == scopeContext.clip.id &&
+              _layerScopeLaneMatchesReveal(lane),
+        );
+        final seedLane =
+            existingRevealLane.isEmpty ? null : existingRevealLane.first;
+        final lane = (seedLane ??
+                TimelineAnimationLaneData(
+                  id: 'anim-${scopeContext.track.kind.name}-${scopeContext.clip.id}-${item.id}-${DateTime.now().microsecondsSinceEpoch}',
+                  label: item.label,
+                  targetClipId: scopeContext.clip.id,
+                  normalizedKeyframeStops: const <double>[],
+                  keyframeValues: const <double>[],
+                ))
+            .copyWith(
+          label: item.label,
+          targetClipId: scopeContext.clip.id,
+        );
+        selectedLaneId = lane.id;
+        nextTracks = List<TimelineTrackData>.from(_tracks);
+        nextTracks[trackIndex] = baseTrack.copyWith(
+          animationLanes: <TimelineAnimationLaneData>[
+            for (final existing in baseTrack.animationLanes)
+              if (!(existing.targetClipId == scopeContext.clip.id &&
+                  _layerScopeLaneMatchesReveal(existing)))
+                existing,
+            lane,
+          ],
+        );
+      } else {
+        final existingLaneIndex = baseTrack.animationLanes.indexWhere(
+          (lane) =>
+              lane.targetClipId == scopeContext.clip.id &&
+              lane.label.toLowerCase() == item.label.toLowerCase(),
+        );
+        if (existingLaneIndex >= 0) {
+          selectedLaneId = baseTrack.animationLanes[existingLaneIndex].id;
+        } else {
+          final lane = TimelineAnimationLaneData(
+            id: 'anim-${scopeContext.track.kind.name}-${scopeContext.clip.id}-${item.id}-${DateTime.now().microsecondsSinceEpoch}',
+            label: item.label,
+            targetClipId: scopeContext.clip.id,
+            normalizedKeyframeStops: const <double>[],
+            keyframeValues: const <double>[],
+          );
+          selectedLaneId = lane.id;
+          nextTracks = List<TimelineTrackData>.from(_tracks);
+          nextTracks[trackIndex] = baseTrack.copyWith(
+            animationLanes: <TimelineAnimationLaneData>[
+              ...baseTrack.animationLanes,
+              lane,
+            ],
+          );
+        }
+      }
+    }
+
+    setState(() {
+      if (nextTracks != null) {
+        _tracks = List<TimelineTrackData>.unmodifiable(nextTracks);
+      }
+      _motionTextAnimationBindings = nextBindings;
+      if (!alreadyApplied || isRevealEffect || currentBinding == null) {
+        _markMotionAuthoringChanged();
+      }
+      _selectedClipId = scopeContext.clip.id;
+      _selectedLayerScopeAnimationLaneId = selectedLaneId;
+      _selectedLayerScopeKeyframeIndex = null;
+      _selectedLayerScopeKeyframeId = null;
+      _isLayerScopeValueEditorOpen = false;
+      _activeTab = EditorMediaTab.text;
+    });
+  }
+
+  String _scopedTextEffectBlockPrefix(AnimateBrowserItem item) =>
+      'scoped.${item.id}.';
+
+  List<MotionTextAnimationBlock> _scopedTextEffectBlocksForItem(
+    AnimateBrowserItem item, {
+    TimelineTime? layerDuration,
+  }) {
+    final prefix = _scopedTextEffectBlockPrefix(item);
+    final revealRange = TimelineTimeRange(
+      start: TimelineTime.zero,
+      endExclusive: layerDuration == null || layerDuration <= TimelineTime.zero
+          ? TimelineTime.fromMilliseconds(1100)
+          : layerDuration,
+    );
+    return switch (item.id) {
+      'text_effect.type_on' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}typewriter',
+            kind: MotionTextAnimationKind.typewriter,
+            relativeRange: revealRange,
+            revealSpec: MotionTextRevealSpec(
+              unit: MotionTextRevealUnit.letter,
+              stagger: TimelineTime.fromMilliseconds(42),
+            ),
+            interpolation: const MotionInterpolationSpec.linear(),
+            parameters: const <String, MotionPropertyValue>{
+              'manualRevealProgress': MotionPropertyValue.boolean(true),
+            },
+          ),
+        ],
+      'text_effect.word_reveal' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}word_reveal',
+            kind: MotionTextAnimationKind.wordReveal,
+            relativeRange: revealRange,
+            revealSpec: MotionTextRevealSpec(
+              unit: MotionTextRevealUnit.word,
+              stagger: TimelineTime.fromMilliseconds(90),
+            ),
+            interpolation: const MotionInterpolationSpec.easeOut(),
+            parameters: const <String, MotionPropertyValue>{
+              'manualRevealProgress': MotionPropertyValue.boolean(true),
+            },
+          ),
+        ],
+      'text_effect.letter_reveal' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}letter_reveal',
+            kind: MotionTextAnimationKind.letterReveal,
+            relativeRange: revealRange,
+            revealSpec: MotionTextRevealSpec(
+              unit: MotionTextRevealUnit.letter,
+              stagger: TimelineTime.fromMilliseconds(36),
+            ),
+            interpolation: const MotionInterpolationSpec.easeOut(),
+            parameters: const <String, MotionPropertyValue>{
+              'manualRevealProgress': MotionPropertyValue.boolean(true),
+            },
+          ),
+        ],
+      'text_effect.bounce_in' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}bounce_in',
+            kind: MotionTextAnimationKind.bounceIn,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(760),
+            ),
+            interpolation: const MotionInterpolationSpec.bounce(
+              bounce: MotionBounceSpec(
+                amplitude: 0.24,
+                bounces: 3,
+                decay: 6.5,
+              ),
+            ),
+            parameters: const <String, MotionPropertyValue>{
+              'fromScale': MotionPropertyValue.scalar(0.68),
+              'toScale': MotionPropertyValue.scalar(1.0),
+              'fromOffsetY': MotionPropertyValue.scalar(56),
+              'toOffsetY': MotionPropertyValue.scalar(0),
+              'fromOpacity': MotionPropertyValue.scalar(0),
+              'toOpacity': MotionPropertyValue.scalar(1),
+            },
+          ),
+        ],
+      'text_effect.rise_in' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}rise_in',
+            kind: MotionTextAnimationKind.riseIn,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(680),
+            ),
+            interpolation: const MotionInterpolationSpec.spring(
+              spring: MotionSpringSpec(
+                stiffness: 210,
+                damping: 22,
+                mass: 1.0,
+                initialVelocity: 0,
+              ),
+            ),
+            parameters: const <String, MotionPropertyValue>{
+              'fromOffsetY': MotionPropertyValue.scalar(52),
+              'toOffsetY': MotionPropertyValue.scalar(0),
+              'fromScale': MotionPropertyValue.scalar(0.96),
+              'toScale': MotionPropertyValue.scalar(1.0),
+              'fromOpacity': MotionPropertyValue.scalar(0),
+              'toOpacity': MotionPropertyValue.scalar(1),
+            },
+          ),
+        ],
+      'text_effect.slide_in' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}slide_in',
+            kind: MotionTextAnimationKind.slideIn,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(720),
+            ),
+            interpolation: const MotionInterpolationSpec.spring(
+              spring: MotionSpringSpec(
+                stiffness: 230,
+                damping: 24,
+                mass: 1.0,
+                initialVelocity: 0,
+              ),
+            ),
+            parameters: const <String, MotionPropertyValue>{
+              'fromOffsetX': MotionPropertyValue.scalar(-180),
+              'toOffsetX': MotionPropertyValue.scalar(0),
+              'fromOpacity': MotionPropertyValue.scalar(0),
+              'toOpacity': MotionPropertyValue.scalar(1),
+            },
+          ),
+        ],
+      'text_effect.word_rise_in' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}word_rise_in',
+            kind: MotionTextAnimationKind.wordRiseIn,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(760),
+            ),
+            revealSpec: MotionTextRevealSpec(
+              unit: MotionTextRevealUnit.word,
+              stagger: TimelineTime.fromMilliseconds(90),
+            ),
+            interpolation: const MotionInterpolationSpec.easeOut(),
+            parameters: const <String, MotionPropertyValue>{
+              'fromOffsetY': MotionPropertyValue.scalar(30),
+              'toOffsetY': MotionPropertyValue.scalar(0),
+              'fromOpacity': MotionPropertyValue.scalar(0),
+              'toOpacity': MotionPropertyValue.scalar(1),
+            },
+          ),
+        ],
+      'text_effect.letter_pop_in' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}letter_pop_in',
+            kind: MotionTextAnimationKind.letterPopIn,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(720),
+            ),
+            revealSpec: MotionTextRevealSpec(
+              unit: MotionTextRevealUnit.letter,
+              stagger: TimelineTime.fromMilliseconds(34),
+            ),
+            interpolation: const MotionInterpolationSpec.easeOut(),
+            parameters: const <String, MotionPropertyValue>{
+              'fromScale': MotionPropertyValue.scalar(0.92),
+              'toScale': MotionPropertyValue.scalar(1.0),
+              'fromOpacity': MotionPropertyValue.scalar(0),
+              'toOpacity': MotionPropertyValue.scalar(1),
+            },
+          ),
+        ],
+      'text_effect.word_cascade' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}word_cascade',
+            kind: MotionTextAnimationKind.wordCascade,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(920),
+            ),
+            revealSpec: MotionTextRevealSpec(
+              unit: MotionTextRevealUnit.word,
+              stagger: TimelineTime.fromMilliseconds(72),
+            ),
+            interpolation: const MotionInterpolationSpec.easeOut(),
+            parameters: const <String, MotionPropertyValue>{
+              'fromOffsetY': MotionPropertyValue.scalar(38),
+              'toOffsetY': MotionPropertyValue.scalar(0),
+              'fromBlur': MotionPropertyValue.scalar(8),
+              'toBlur': MotionPropertyValue.scalar(0),
+              'fromOpacity': MotionPropertyValue.scalar(0),
+              'toOpacity': MotionPropertyValue.scalar(1),
+            },
+          ),
+        ],
+      'text_effect.letter_bounce' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}letter_bounce',
+            kind: MotionTextAnimationKind.letterBounce,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(820),
+            ),
+            revealSpec: MotionTextRevealSpec(
+              unit: MotionTextRevealUnit.letter,
+              stagger: TimelineTime.fromMilliseconds(42),
+            ),
+            interpolation: const MotionInterpolationSpec.bounce(
+              bounce: MotionBounceSpec(
+                amplitude: 0.22,
+                bounces: 3,
+                decay: 7.0,
+              ),
+            ),
+            parameters: const <String, MotionPropertyValue>{
+              'fromScale': MotionPropertyValue.scalar(0.62),
+              'toScale': MotionPropertyValue.scalar(1.0),
+              'fromOffsetY': MotionPropertyValue.scalar(42),
+              'toOffsetY': MotionPropertyValue.scalar(0),
+              'fromOpacity': MotionPropertyValue.scalar(0),
+              'toOpacity': MotionPropertyValue.scalar(1),
+            },
+          ),
+        ],
+      'text_effect.slide_blur_in' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}slide_blur_in',
+            kind: MotionTextAnimationKind.slideBlurIn,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(780),
+            ),
+            interpolation: const MotionInterpolationSpec.spring(
+              spring: MotionSpringSpec(
+                stiffness: 220,
+                damping: 24,
+                mass: 1.0,
+                initialVelocity: 0,
+              ),
+            ),
+            parameters: const <String, MotionPropertyValue>{
+              'fromOffsetX': MotionPropertyValue.scalar(-160),
+              'toOffsetX': MotionPropertyValue.scalar(0),
+              'fromBlur': MotionPropertyValue.scalar(14),
+              'toBlur': MotionPropertyValue.scalar(0),
+              'fromOpacity': MotionPropertyValue.scalar(0),
+              'toOpacity': MotionPropertyValue.scalar(1),
+            },
+          ),
+        ],
+      'text_effect.blur_rise_in' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}blur_rise_in',
+            kind: MotionTextAnimationKind.blurRiseIn,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(760),
+            ),
+            interpolation: const MotionInterpolationSpec.spring(
+              spring: MotionSpringSpec(
+                stiffness: 205,
+                damping: 22,
+                mass: 1.0,
+                initialVelocity: 0,
+              ),
+            ),
+            parameters: const <String, MotionPropertyValue>{
+              'fromBlur': MotionPropertyValue.scalar(18),
+              'toBlur': MotionPropertyValue.scalar(0),
+              'fromOffsetY': MotionPropertyValue.scalar(44),
+              'toOffsetY': MotionPropertyValue.scalar(0),
+              'fromScale': MotionPropertyValue.scalar(0.98),
+              'toScale': MotionPropertyValue.scalar(1.0),
+              'fromOpacity': MotionPropertyValue.scalar(0),
+              'toOpacity': MotionPropertyValue.scalar(1),
+            },
+          ),
+        ],
+      'text_effect.rotate_in' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}rotate_in',
+            kind: MotionTextAnimationKind.rotateIn,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(720),
+            ),
+            interpolation: const MotionInterpolationSpec.spring(
+              spring: MotionSpringSpec(
+                stiffness: 250,
+                damping: 20,
+                mass: 1.0,
+                initialVelocity: 0,
+              ),
+            ),
+            parameters: const <String, MotionPropertyValue>{
+              'fromRotation': MotionPropertyValue.scalar(-12),
+              'toRotation': MotionPropertyValue.scalar(0),
+              'fromScale': MotionPropertyValue.scalar(0.88),
+              'toScale': MotionPropertyValue.scalar(1.0),
+              'fromOpacity': MotionPropertyValue.scalar(0),
+              'toOpacity': MotionPropertyValue.scalar(1),
+            },
+          ),
+        ],
+      'text_effect.blur_in' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}blur_in',
+            kind: MotionTextAnimationKind.blurIn,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(760),
+            ),
+            interpolation: const MotionInterpolationSpec.easeOut(),
+            parameters: const <String, MotionPropertyValue>{
+              'fromBlur': MotionPropertyValue.scalar(24),
+              'toBlur': MotionPropertyValue.scalar(0),
+            },
+          ),
+          MotionTextAnimationBlock(
+            id: '${prefix}fade_in',
+            kind: MotionTextAnimationKind.fadeIn,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(340),
+            ),
+            interpolation: const MotionInterpolationSpec.easeOut(),
+          ),
+        ],
+      'text_effect.blur_out' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}blur_out',
+            kind: MotionTextAnimationKind.blurOut,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(620),
+            ),
+            interpolation: const MotionInterpolationSpec.easeInOut(),
+            parameters: const <String, MotionPropertyValue>{
+              'fromBlur': MotionPropertyValue.scalar(0),
+              'toBlur': MotionPropertyValue.scalar(22),
+            },
+          ),
+          MotionTextAnimationBlock(
+            id: '${prefix}fade_out',
+            kind: MotionTextAnimationKind.fadeOut,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(120),
+              endExclusive: TimelineTime.fromMilliseconds(620),
+            ),
+            interpolation: const MotionInterpolationSpec.easeOut(),
+          ),
+        ],
+      'text_effect.scale_pop' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}scale_pop',
+            kind: MotionTextAnimationKind.elasticPop,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(720),
+            ),
+            interpolation: const MotionInterpolationSpec.elastic(
+              elastic: MotionElasticSpec(
+                amplitude: 0.16,
+                period: 0.30,
+                decay: 7.2,
+              ),
+            ),
+            parameters: const <String, MotionPropertyValue>{
+              'fromScale': MotionPropertyValue.scalar(0.72),
+              'toScale': MotionPropertyValue.scalar(1.0),
+              'fromOpacity': MotionPropertyValue.scalar(0),
+              'toOpacity': MotionPropertyValue.scalar(1),
+            },
+          ),
+        ],
+      'text_effect.tracking_settle' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}tracking_settle',
+            kind: MotionTextAnimationKind.rotationSettle,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(920),
+            ),
+            interpolation: const MotionInterpolationSpec.easeInOut(),
+            parameters: const <String, MotionPropertyValue>{
+              'fromLetterSpacing': MotionPropertyValue.scalar(26),
+              'toLetterSpacing': MotionPropertyValue.scalar(0),
+              'fromRotation': MotionPropertyValue.scalar(0),
+              'toRotation': MotionPropertyValue.scalar(0),
+            },
+          ),
+        ],
+      _ => const <MotionTextAnimationBlock>[],
+    };
   }
 
   Future<void> _openMediaSheet(EditorMediaTab tab) async {
@@ -3660,12 +8496,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     _insertTextPreset(preset);
   }
 
-  void _insertDefaultTextLayer() {
+  void _insertDefaultTextLayer({bool openEditorOnInsert = false}) {
     _insertMotionTextLayer(
       text: _defaultInsertedTextValue,
       elementName: _defaultInsertedTextValue,
       initialFontSize: _defaultInsertedTextFontSize,
       failureMessage: 'Unable to insert text right now.',
+      openEditorOnInsert: openEditorOnInsert,
     );
   }
 
@@ -3750,6 +8587,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     if (!mounted) {
       return;
     }
+    _prepareMotionPreviewForPlaybackStart(time: previewStartTime);
     await _playPlayback();
   }
 
@@ -3831,6 +8669,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     );
   }
 
+  // ignore: unused_element
   Future<void> _openTextClipEditSheet(String elementId) async {
     if (_textEditSession?.elementId == elementId) {
       return;
@@ -3936,7 +8775,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       _motionProject = nextProject;
       _motionTextAnimationBindings = nextBindings;
       _textEditSession = session.copyWith(draft: draft);
-      _motionRevision += 1;
+      _markMotionAuthoringChanged();
       _selectedClipId = draft.elementId;
       _activeTab = EditorMediaTab.text;
     });
@@ -3962,7 +8801,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       _motionProject = session.originalProject;
       _motionTextAnimationBindings = session.originalBindings;
       _textEditSession = null;
-      _motionRevision += 1;
+      _markMotionAuthoringChanged();
       _selectedClipId = session.elementId;
       _activeTab = EditorMediaTab.text;
     });
@@ -4080,6 +8919,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       text: preset.defaultText,
       elementName: preset.label,
       failureMessage: 'Unable to insert text preset right now.',
+      openEditorOnInsert: true,
     );
   }
 
@@ -4089,6 +8929,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     required String elementName,
     double? initialFontSize,
     required String failureMessage,
+    bool openEditorOnInsert = false,
   }) {
     final insertionRange = _defaultTextPresetRange();
     final insertionStartTime = insertionRange.start;
@@ -4136,12 +8977,21 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       _tracks = nextTracks;
       _motionProject = insertionResult.project;
       _motionTextAnimationBindings = nextBindings;
-      _motionRevision += 1;
+      _markMotionAuthoringChanged();
       _selectedClipId = resolvedState.selectedClipId;
       _activeTab = EditorMediaTab.text;
       _previewAssetId = resolvedState.previewAssetId;
       _setCurrentTime(resolvedState.timelineTime);
     });
+    final insertedElementId = insertionResult.elementId;
+    if (openEditorOnInsert && insertedElementId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        unawaited(_openTextClipEditSheet(insertedElementId));
+      });
+    }
   }
 
   Future<void> _registerCustomTextPreset(
@@ -4187,6 +9037,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   TextMotionKeyframeAuthoringService
       _buildTextMotionKeyframeAuthoringService() {
     return const TextMotionKeyframeAuthoringService();
+  }
+
+  ProfessionalCanvasTimelineAuthoringService
+      _buildCanvasTimelineAuthoringService() {
+    return const ProfessionalCanvasTimelineAuthoringService();
   }
 
   TimelineTimeRange _defaultTextPresetRange() {
@@ -5203,6 +10058,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     if (_canFastTogglePlayback) {
       _setTimelineDisplayTime(_currentTime);
       _syncPlaybackSampleToCurrentTime();
+      _prepareMotionPreviewForPlaybackStart();
       unawaited(_togglePlayback());
       return;
     }
@@ -5226,6 +10082,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       await _stopTransitionFocusPlayback(
         context,
         snapToStart: false,
+        snapToEnd: false,
       );
       return;
     }
@@ -5255,12 +10112,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     if (!mounted) {
       return;
     }
+    _prepareMotionPreviewForPlaybackStart(time: effectiveStartTime);
     await _playPlayback();
   }
 
   Future<void> _stopTransitionFocusPlayback(
     _TransitionFocusContext context, {
     required bool snapToStart,
+    bool snapToEnd = false,
   }) async {
     if (_isStoppingTransitionFocusPlayback || !_useNativePreview) {
       return;
@@ -5268,7 +10127,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     _isStoppingTransitionFocusPlayback = true;
     try {
       await _pausePlayback();
-      final targetTime = snapToStart ? context.startTime : context.endTime;
+      final targetTime = snapToStart
+          ? context.startTime
+          : snapToEnd
+              ? context.endTime
+              : _currentTime.clamp(context.startTime, context.endTime);
       await _seekPlaybackTo(targetTime);
       if (!mounted) {
         return;
@@ -5352,6 +10215,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
         end: entry.end,
       );
     });
+    _prepareMotionPreviewForPlaybackStart(time: entry.start);
     await _playPlayback();
   }
 
@@ -5469,6 +10333,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     }
     _setTimelineDisplayTime(_currentTime);
     _syncPlaybackSampleToCurrentTime();
+    _prepareMotionPreviewForPlaybackStart();
     if (!_transportController.isPlaying && _useNativePreview) {
       final transportState = _transportController.state;
       if (transportState.sourceKind != 'timeline' ||
@@ -5491,6 +10356,40 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   void _showStageMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
+    );
+  }
+
+  void _dismissTopStageBanner() {
+    _topStageBannerTimer?.cancel();
+    _topStageBannerTimer = null;
+    _topStageBannerEntry?.remove();
+    _topStageBannerEntry = null;
+  }
+
+  void _showTopStageBanner(String message) {
+    _dismissTopStageBanner();
+    final overlay = Overlay.of(context, rootOverlay: true);
+    final entry = OverlayEntry(
+      builder: (context) {
+        final topInset = MediaQuery.of(context).padding.top + 12;
+        return Positioned(
+          top: topInset,
+          left: 16,
+          right: 16,
+          child: IgnorePointer(
+            child: Material(
+              color: Colors.transparent,
+              child: _TopStageBannerCard(message: message),
+            ),
+          ),
+        );
+      },
+    );
+    overlay.insert(entry);
+    _topStageBannerEntry = entry;
+    _topStageBannerTimer = Timer(
+      const Duration(seconds: 3),
+      _dismissTopStageBanner,
     );
   }
 
@@ -5559,6 +10458,108 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     return null;
   }
 
+  String _normalTransitionTrackIdForTrack(TimelineTrackData track) {
+    return track.kind == TimelineTrackKind.video
+        ? _normalTransitionVideoTrackId
+        : track.kind.name;
+  }
+
+  TimelineTrackTransitionData? _createNormalTransitionForBoundary({
+    required TimelineTrackData track,
+    required TimelineClipData leftClip,
+    required TimelineClipData rightClip,
+    required TimelineTransitionPreset preset,
+  }) {
+    final positionedClips = _positionedMediaClipsForTrack(track);
+    _PositionedTimelineTrackClip? positionedLeftClip;
+    _PositionedTimelineTrackClip? positionedRightClip;
+    for (final positionedClip in positionedClips) {
+      if (positionedClip.clip.id == leftClip.id) {
+        positionedLeftClip = positionedClip;
+      } else if (positionedClip.clip.id == rightClip.id) {
+        positionedRightClip = positionedClip;
+      }
+    }
+    if (positionedLeftClip == null || positionedRightClip == null) {
+      _showStageMessage('Unable to resolve transition boundary.');
+      return null;
+    }
+    final result =
+        _normalTransitionAuthoringAdapter.createBuiltInPresetTransition(
+      preset: preset,
+      trackId: _normalTransitionTrackIdForTrack(track),
+      leftClipId: leftClip.id,
+      rightClipId: rightClip.id,
+      boundaryTime: positionedLeftClip.endTime,
+      leftAvailableTail: leftClip.durationTime,
+      rightAvailableHead: rightClip.durationTime,
+    );
+    if (!result.canApply) {
+      _showNormalTransitionIssues(result.issues);
+      return null;
+    }
+    return result.transition;
+  }
+
+  void _syncNormalTransitionHistoryFromTimelineTransition(
+    TimelineTrackTransitionData transition,
+  ) {
+    if (!_normalTransitionAuthoringAdapter.isNormalPreset(transition.preset)) {
+      return;
+    }
+    final result =
+        _normalTransitionAuthoringAdapter.rehydrateTimelineTransition(
+      transition: transition,
+      trackId: _normalTransitionVideoTrackId,
+    );
+    if (!result.canApply) {
+      _showNormalTransitionIssues(result.issues);
+      return;
+    }
+    _recordNormalTransitionState(
+      node: result.node!,
+      instance: result.instance!,
+    );
+  }
+
+  void _recordNormalTransitionState({
+    required NormalTransitionNode node,
+    required NormalTransitionInstance instance,
+  }) {
+    final historyResult = _normalTransitionHistory.state.nodeById(node.id) ==
+            null
+        ? _normalTransitionHistory.addTransition(node: node, instance: instance)
+        : _normalTransitionHistory.updateTransition(
+            node: node,
+            instance: instance,
+          );
+    if (!historyResult.success) {
+      _showStageMessage(historyResult.issues.first.message);
+    }
+  }
+
+  void _removeNormalTransitionFromHistoryIfPresent(String transitionId) {
+    if (_normalTransitionHistory.state.nodeById(transitionId) == null) {
+      return;
+    }
+    final result = _normalTransitionHistory.removeTransition(transitionId);
+    if (!result.success) {
+      _showStageMessage(result.issues.first.message);
+    }
+  }
+
+  void _showNormalTransitionIssues(List<NormalTransitionIssue> issues) {
+    if (issues.isEmpty) {
+      _showStageMessage('Unable to apply transition.');
+      return;
+    }
+    final issue = issues.firstWhere(
+      (candidate) => candidate.severity == NormalTransitionIssueSeverity.error,
+      orElse: () => issues.first,
+    );
+    _showStageMessage(issue.message);
+  }
+
   void _upsertVideoTrackTransition(TimelineTrackTransitionData transition) {
     final videoTrackIndex = _tracks.indexWhere(
       (track) => track.kind == TimelineTrackKind.video,
@@ -5566,6 +10567,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     if (videoTrackIndex < 0) {
       return;
     }
+    _syncNormalTransitionHistoryFromTimelineTransition(transition);
     final baseTrack = _tracks[videoTrackIndex];
     final nextTransitions = <TimelineTrackTransitionData>[
       for (final candidate in baseTrack.transitions)
@@ -5598,6 +10600,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     if (videoTrackIndex < 0) {
       return;
     }
+    _removeNormalTransitionFromHistoryIfPresent(transitionId);
     final baseTrack = _tracks[videoTrackIndex];
     final nextTransitions = baseTrack.transitions
         .where((transition) => transition.id != transitionId)
@@ -5615,6 +10618,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       }
       if (_transitionFocusSession?.transitionId == transitionId) {
         _transitionFocusSession = null;
+        _selectedTransitionFocusKeyframeIndex = null;
+        _selectedTransitionFocusKeyframeId = null;
+        _isTransitionFocusValueEditorOpen = false;
+        _isTransitionFocusGraphEditorOpen = false;
       }
     });
   }
@@ -5814,11 +10821,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   }
 
   void _clearTransitionFocusSelection() {
-    if (_selectedClipId == null) {
+    if (_selectedClipId == null &&
+        _selectedTransitionFocusKeyframeIndex == null &&
+        !_isTransitionFocusValueEditorOpen) {
       return;
     }
     setState(() {
       _selectedClipId = null;
+      _selectedTransitionFocusKeyframeIndex = null;
+      _selectedTransitionFocusKeyframeId = null;
+      _isTransitionFocusValueEditorOpen = false;
     });
   }
 
@@ -5888,6 +10900,84 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     return clampedTime - context.startTime;
   }
 
+  List<double> _defaultTransitionFocusLaneValues(String laneId) {
+    return switch (laneId) {
+      'outgoingBoostScale' => const <double>[100.0, 105.0],
+      'incomingStartScale' => const <double>[118.0, 100.0],
+      'entryDelay' => const <double>[18.0],
+      'bridgeDarkness' => const <double>[0.0, 22.0, 0.0],
+      'blackPeak' => const <double>[0.0, 100.0, 0.0],
+      _ => const <double>[0.0, 100.0],
+    };
+  }
+
+  TimelineAnimationLaneData? _defaultTransitionFocusManualLane({
+    required String laneId,
+    required String targetClipId,
+  }) {
+    final spec = _transitionLaneLibrary[laneId];
+    if (spec == null) {
+      return null;
+    }
+    final stops = List<double>.from(spec.keyframeStops);
+    final keyframeIds = <String>[
+      for (var index = 0; index < stops.length; index++)
+        '$laneId@${(stops[index] * 1000).round()}#$index',
+    ];
+    return TimelineAnimationLaneData(
+      id: laneId,
+      label: spec.label,
+      targetClipId: targetClipId,
+      normalizedKeyframeStops: List<double>.unmodifiable(stops),
+      keyframeIds: List<String>.unmodifiable(keyframeIds),
+      keyframeValues: List<double>.unmodifiable(
+        _defaultTransitionFocusLaneValues(laneId),
+      ),
+      trackSpanStartProgress: 0,
+      trackSpanEndProgress: 1,
+    );
+  }
+
+  List<TimelineAnimationLaneData> _resolvedTransitionFocusManualLanes(
+    TimelineTrackTransitionData transition, {
+    required String targetClipId,
+  }) {
+    if (transition.manualAnimationLanes.isNotEmpty) {
+      return transition.manualAnimationLanes
+          .map((lane) => lane.copyWith(targetClipId: targetClipId))
+          .toList(growable: false);
+    }
+    final lanes = <TimelineAnimationLaneData>[];
+    for (final laneId in transition.manualEffectIds) {
+      final lane = _defaultTransitionFocusManualLane(
+        laneId: laneId,
+        targetClipId: targetClipId,
+      );
+      if (lane != null) {
+        lanes.add(lane);
+      }
+    }
+    return List<TimelineAnimationLaneData>.unmodifiable(lanes);
+  }
+
+  TimelineAnimationLaneData? _transitionFocusSelectedAnimationLane(
+    _TransitionFocusContext context,
+  ) {
+    final selectedLaneId = _transitionFocusSession?.selectedLaneId;
+    if (selectedLaneId == null || selectedLaneId.isEmpty) {
+      return null;
+    }
+    for (final lane in _resolvedTransitionFocusManualLanes(
+      context.transition,
+      targetClipId: context.leftClip.id,
+    )) {
+      if (lane.id == selectedLaneId) {
+        return lane;
+      }
+    }
+    return null;
+  }
+
   List<TimelineTrackData> _buildTransitionFocusScopedTracks(
     _TransitionFocusContext context,
     List<_TransitionFocusLaneSpec> laneSpecs,
@@ -5936,18 +11026,35 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       ),
     );
 
-    final animationLanes = laneSpecs
-        .map(
-          (lane) => TimelineAnimationLaneData(
-            id: lane.id,
-            label: lane.label,
-            targetClipId: leftScopedClipId,
-            normalizedKeyframeStops: lane.keyframeStops,
-            trackSpanStartProgress: 0,
-            trackSpanEndProgress: 1,
-          ),
-        )
-        .toList(growable: false);
+    final animationLanes =
+        context.transition.preset == TimelineTransitionPreset.manual
+            ? _resolvedTransitionFocusManualLanes(
+                context.transition,
+                targetClipId: leftScopedClipId,
+              )
+            : laneSpecs
+                .map(
+                  (lane) => TimelineAnimationLaneData(
+                    id: lane.id,
+                    label: lane.label,
+                    targetClipId: leftScopedClipId,
+                    normalizedKeyframeStops: lane.keyframeStops,
+                    keyframeIds: List<String>.unmodifiable(
+                      <String>[
+                        for (var index = 0;
+                            index < lane.keyframeStops.length;
+                            index++)
+                          '${lane.id}@${(lane.keyframeStops[index] * 1000).round()}#$index',
+                      ],
+                    ),
+                    keyframeValues: List<double>.unmodifiable(
+                      _defaultTransitionFocusLaneValues(lane.id),
+                    ),
+                    trackSpanStartProgress: 0,
+                    trackSpanEndProgress: 1,
+                  ),
+                )
+                .toList(growable: false);
 
     return <TimelineTrackData>[
       TimelineTrackData(
@@ -6035,6 +11142,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
   ) {
     final laneIds = switch (transition.preset) {
       TimelineTransitionPreset.manual => transition.manualEffectIds,
+      TimelineTransitionPreset.crossDissolve => const <String>[],
       TimelineTransitionPreset.fadeBlack => const <String>['blackPeak'],
       TimelineTransitionPreset.zoomInCamera => const <String>[
           'outgoingBoostScale',
@@ -6042,6 +11150,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
           'entryDelay',
           'bridgeDarkness',
         ],
+      TimelineTransitionPreset.aiGenerated => const <String>[],
     };
     final specs = <_TransitionFocusLaneSpec>[];
     for (final laneId in laneIds) {
@@ -6169,18 +11278,41 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
           return;
         }
       }
+      if (context.transition.manualEffectIds.isNotEmpty &&
+          context.transition.manualAnimationLanes.isEmpty) {
+        final seededLanes = _resolvedTransitionFocusManualLanes(
+          context.transition,
+          targetClipId: context.transition.leftClipId,
+        );
+        if (seededLanes.isNotEmpty) {
+          _upsertVideoTrackTransition(
+            context.transition.copyWith(
+              manualAnimationLanes: seededLanes,
+            ),
+          );
+          context = _transitionFocusContextById(transitionId);
+          if (context == null) {
+            return;
+          }
+        }
+      }
     }
     final resolvedLaneId = _resolvedTransitionFocusLaneId(
       context,
       preferredLaneId: preferredLaneId,
     );
     setState(() {
+      _layerScopeSession = null;
       _transitionFocusSession = _TransitionFocusSession(
         transitionId: transitionId,
         selectedLaneId: resolvedLaneId,
       );
       _selectedClipId = null;
       _selectedTransitionId = transitionId;
+      _selectedTransitionFocusKeyframeIndex = null;
+      _selectedTransitionFocusKeyframeId = null;
+      _isTransitionFocusValueEditorOpen = false;
+      _isTransitionFocusGraphEditorOpen = false;
       if (_activeTab == EditorMediaTab.speed) {
         _activeTab = EditorMediaTab.video;
       }
@@ -6206,6 +11338,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     setState(() {
       _transitionFocusSession = null;
       _selectedClipId = null;
+      _selectedTransitionFocusKeyframeIndex = null;
+      _selectedTransitionFocusKeyframeId = null;
+      _isTransitionFocusValueEditorOpen = false;
+      _isTransitionFocusGraphEditorOpen = false;
     });
     _syncTransitionFocusTimeNotifiers();
     if (context != null && _transportController.isPlaying) {
@@ -6225,10 +11361,83 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     }
     setState(() {
       _transitionFocusSession = session.copyWith(selectedLaneId: laneId);
+      _selectedTransitionFocusKeyframeIndex = null;
+      _selectedTransitionFocusKeyframeId = null;
+      _isTransitionFocusValueEditorOpen = false;
     });
   }
 
-  Future<void> _openManualTransitionEffectBrowser(String transitionId) async {
+  Future<void> _openTransitionFocusAddMenu(String transitionId) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => SafeArea(
+        top: false,
+        child: Container(
+          decoration: BoxDecoration(
+            color: FxPalette.surface,
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(24),
+            ),
+            border: Border.all(color: FxPalette.divider, width: 1),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(
+                  Icons.play_arrow_rounded,
+                  color: Colors.white,
+                ),
+                title: const Text('Animate'),
+                subtitle: const Text('Add motion lanes for the transition.'),
+                onTap: () => Navigator.of(sheetContext).pop('animate'),
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.auto_fix_high_rounded,
+                  color: Colors.white,
+                ),
+                title: const Text('FX'),
+                subtitle: const Text('Add visual blend lanes like Black Mix.'),
+                onTap: () => Navigator.of(sheetContext).pop('fx'),
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.code_rounded,
+                  color: Colors.white,
+                ),
+                title: const Text('Script'),
+                subtitle: const Text(
+                  'Transition script import is reserved for the next phase.',
+                ),
+                onTap: () => Navigator.of(sheetContext).pop('script'),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!mounted || action == null) {
+      return;
+    }
+    switch (action) {
+      case 'animate':
+        await _openManualTransitionAnimateBrowser(transitionId);
+        break;
+      case 'fx':
+        await _openManualTransitionFxBrowser(transitionId);
+        break;
+      case 'script':
+        _showStageMessage(
+          'Transition script import will be wired in the transition scripting phase.',
+        );
+        break;
+    }
+  }
+
+  Future<void> _openManualTransitionAnimateBrowser(String transitionId) async {
     setState(() {
       _isAnimateBrowserOpen = true;
     });
@@ -6240,7 +11449,36 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
         context: context,
         removeBottom: true,
         child: const AnimateBrowserBottomSheet(
-          items: _manualTransitionEffectItems,
+          items: _manualTransitionAnimateItems,
+        ),
+      ),
+    ).whenComplete(() {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isAnimateBrowserOpen = false;
+      });
+    });
+    if (!mounted || item == null) {
+      return;
+    }
+    _addManualTransitionEffect(transitionId, item);
+  }
+
+  Future<void> _openManualTransitionFxBrowser(String transitionId) async {
+    setState(() {
+      _isAnimateBrowserOpen = true;
+    });
+    final item = await showModalBottomSheet<AnimateBrowserItem>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => MediaQuery.removeViewInsets(
+        context: context,
+        removeBottom: true,
+        child: const AnimateBrowserBottomSheet(
+          items: _manualTransitionFxItems,
         ),
       ),
     ).whenComplete(() {
@@ -6274,6 +11512,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
     if (baseSpec == null) {
       return;
     }
+    final existingLanes = transition.manualAnimationLanes;
+    final nextLane = _defaultTransitionFocusManualLane(
+      laneId: item.id,
+      targetClipId: transition.leftClipId,
+    );
     _updateTransitionFocusTransition(
       transitionId,
       update: (current) => current.copyWith(
@@ -6285,6 +11528,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
           ...current.parameterValues,
           item.id: current.parameterValue(item.id, fallback: baseSpec.fallback),
         },
+        manualAnimationLanes: nextLane == null
+            ? current.manualAnimationLanes
+            : <TimelineAnimationLaneData>[
+                ...existingLanes,
+                nextLane,
+              ],
       ),
     );
     _selectTransitionFocusLane(item.id);
@@ -6313,6 +11562,333 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
         _seekTransitionFocusProgress(nextContext, preservedProgress);
       }
     }
+  }
+
+  void _updateTransitionFocusManualLane(
+    String transitionId,
+    String laneId,
+    TimelineAnimationLaneData Function(TimelineAnimationLaneData lane) update,
+  ) {
+    _updateTransitionFocusTransition(
+      transitionId,
+      preserveProgress: true,
+      update: (current) {
+        final lanes = List<TimelineAnimationLaneData>.from(
+          current.manualAnimationLanes,
+        );
+        final laneIndex = lanes.indexWhere((lane) => lane.id == laneId);
+        if (laneIndex >= 0) {
+          lanes[laneIndex] = update(lanes[laneIndex]);
+        } else {
+          final seeded = _defaultTransitionFocusManualLane(
+            laneId: laneId,
+            targetClipId: current.leftClipId,
+          );
+          if (seeded != null) {
+            lanes.add(update(seeded));
+          }
+        }
+        return current.copyWith(
+          manualAnimationLanes: List<TimelineAnimationLaneData>.unmodifiable(
+            lanes,
+          ),
+        );
+      },
+    );
+  }
+
+  void _handleTransitionFocusAnimationKeyframeTap(
+    String laneId,
+    int keyframeIndex,
+    String keyframeId,
+  ) {
+    final session = _transitionFocusSession;
+    if (session == null) {
+      return;
+    }
+    setState(() {
+      _transitionFocusSession = session.copyWith(selectedLaneId: laneId);
+      _selectedTransitionFocusKeyframeIndex = keyframeIndex;
+      _selectedTransitionFocusKeyframeId = keyframeId;
+      _isTransitionFocusValueEditorOpen = false;
+    });
+  }
+
+  void _handleTransitionFocusAnimationKeyframeDrag(
+    String laneId,
+    int keyframeIndex,
+    String keyframeId,
+    double normalizedStop,
+  ) {
+    final session = _transitionFocusSession;
+    if (session == null) {
+      return;
+    }
+    final transitionId = session.transitionId;
+    final transition = _videoTrackTransitionById(transitionId);
+    if (transition == null) {
+      return;
+    }
+    TimelineAnimationLaneData? lane =
+        transition.manualAnimationLaneById(laneId);
+    lane ??= _defaultTransitionFocusManualLane(
+      laneId: laneId,
+      targetClipId: transition.leftClipId,
+    );
+    if (lane == null) {
+      return;
+    }
+    final effectiveKeyframeId =
+        _selectedTransitionFocusKeyframeId ?? keyframeId;
+    final stops = List<double>.from(lane.normalizedKeyframeStops);
+    final values = lane.alignedKeyframeValues(
+      fallbackValue: _defaultTransitionFocusLaneValues(laneId).isEmpty
+          ? 0
+          : _defaultTransitionFocusLaneValues(laneId).first,
+      clampToPercent: false,
+    );
+    if (keyframeIndex < 0 || keyframeIndex >= stops.length) {
+      return;
+    }
+    final movedEntries =
+        <({double stop, String keyframeId, double value, bool isMoved})>[
+      for (var index = 0; index < stops.length; index++)
+        (
+          stop: index == keyframeIndex
+              ? normalizedStop.clamp(0.0, 1.0)
+              : stops[index],
+          keyframeId: index < lane.keyframeIds.length
+              ? lane.keyframeIds[index]
+              : '$laneId#$index',
+          value: values[index],
+          isMoved: index == keyframeIndex,
+        ),
+    ]..sort((left, right) => left.stop.compareTo(right.stop));
+    final nextSelectedIndex = movedEntries.indexWhere((entry) => entry.isMoved);
+    _updateTransitionFocusManualLane(
+      transitionId,
+      laneId,
+      (currentLane) => currentLane.copyWith(
+        normalizedKeyframeStops: List<double>.unmodifiable(
+          <double>[for (final entry in movedEntries) entry.stop],
+        ),
+        keyframeIds: List<String>.unmodifiable(
+          <String>[for (final entry in movedEntries) entry.keyframeId],
+        ),
+        keyframeValues: List<double>.unmodifiable(
+          <double>[for (final entry in movedEntries) entry.value],
+        ),
+      ),
+    );
+    setState(() {
+      _transitionFocusSession = session.copyWith(selectedLaneId: laneId);
+      _selectedTransitionFocusKeyframeIndex =
+          nextSelectedIndex < 0 ? keyframeIndex : nextSelectedIndex;
+      _selectedTransitionFocusKeyframeId = effectiveKeyframeId;
+      _isTransitionFocusValueEditorOpen = false;
+    });
+  }
+
+  void _handleTransitionFocusAddKeyframe() {
+    final session = _transitionFocusSession;
+    if (session == null) {
+      return;
+    }
+    final context = _transitionFocusContextById(session.transitionId);
+    if (context == null) {
+      return;
+    }
+    final lane = _transitionFocusSelectedAnimationLane(context);
+    if (lane == null) {
+      _showStageMessage('Select an animation or FX row before adding a key.');
+      return;
+    }
+    final progress = _transitionFocusProgressForTime(context, _currentTime);
+    final stops = List<double>.from(lane.normalizedKeyframeStops);
+    final values = lane.alignedKeyframeValues(
+      fallbackValue: _defaultTransitionFocusLaneValues(lane.id).isEmpty
+          ? 0
+          : _defaultTransitionFocusLaneValues(lane.id).first,
+      clampToPercent: false,
+    );
+    final keyframeIds = List<String>.from(lane.keyframeIds);
+    while (keyframeIds.length < stops.length) {
+      keyframeIds.add('${lane.id}#${keyframeIds.length}');
+    }
+    const snapEpsilon = 0.006;
+    for (var index = 0; index < stops.length; index++) {
+      if ((stops[index] - progress).abs() <= snapEpsilon) {
+        setState(() {
+          _selectedTransitionFocusKeyframeIndex = index;
+          _selectedTransitionFocusKeyframeId = keyframeIds[index];
+          _isTransitionFocusValueEditorOpen = false;
+        });
+        return;
+      }
+    }
+    final insertedValue = lane.evaluateValueAtProgress(
+      progress,
+      fallbackValue: values.isEmpty ? 0.0 : values.last,
+    );
+    var insertIndex = 0;
+    while (insertIndex < stops.length && stops[insertIndex] < progress) {
+      insertIndex += 1;
+    }
+    stops.insert(insertIndex, progress);
+    values.insert(insertIndex, insertedValue);
+    final insertedKeyframeId =
+        '${lane.id}@${(progress * 1000).round()}#${DateTime.now().millisecondsSinceEpoch}';
+    keyframeIds.insert(insertIndex, insertedKeyframeId);
+    _updateTransitionFocusManualLane(
+      session.transitionId,
+      lane.id,
+      (currentLane) => currentLane.copyWith(
+        normalizedKeyframeStops: List<double>.unmodifiable(stops),
+        keyframeIds: List<String>.unmodifiable(keyframeIds),
+        keyframeValues: List<double>.unmodifiable(values),
+      ),
+    );
+    setState(() {
+      _selectedTransitionFocusKeyframeIndex = insertIndex;
+      _selectedTransitionFocusKeyframeId = insertedKeyframeId;
+      _isTransitionFocusValueEditorOpen = false;
+    });
+  }
+
+  List<LayerScopeValueControlSpec>? _transitionFocusValueControlsForSelection(
+    _TransitionFocusContext _,
+    TimelineAnimationLaneData lane,
+    int keyframeIndex,
+  ) {
+    if (keyframeIndex < 0 ||
+        keyframeIndex >= lane.normalizedKeyframeStops.length) {
+      return null;
+    }
+    final spec = _transitionLaneLibrary[lane.id];
+    if (spec == null) {
+      return null;
+    }
+    final values = lane.alignedKeyframeValues(
+      fallbackValue: _defaultTransitionFocusLaneValues(lane.id).isEmpty
+          ? 0
+          : _defaultTransitionFocusLaneValues(lane.id).first,
+      clampToPercent: false,
+    );
+    final resolvedValue =
+        keyframeIndex < values.length ? values[keyframeIndex] : spec.fallback;
+    return <LayerScopeValueControlSpec>[
+      LayerScopeValueControlSpec(
+        id: lane.id,
+        label: lane.label,
+        value: resolvedValue,
+        min: spec.min,
+        max: spec.max,
+        formatValue: spec.valueFormatter,
+      ),
+    ];
+  }
+
+  Future<void> _handleTransitionFocusValueToolTap() async {
+    if (_isTransitionFocusValueEditorOpen) {
+      return;
+    }
+    final session = _transitionFocusSession;
+    if (session == null) {
+      return;
+    }
+    final focusContext = _transitionFocusContextById(session.transitionId);
+    if (focusContext == null) {
+      return;
+    }
+    final lane = _transitionFocusSelectedAnimationLane(focusContext);
+    if (lane == null) {
+      return;
+    }
+    final resolvedKeyframeIndex = _selectedTransitionFocusKeyframeIndex ??
+        (lane.normalizedKeyframeStops.isEmpty ? null : 0);
+    if (resolvedKeyframeIndex == null) {
+      return;
+    }
+    final controls = _transitionFocusValueControlsForSelection(
+      focusContext,
+      lane,
+      resolvedKeyframeIndex,
+    );
+    if (controls == null || controls.isEmpty) {
+      return;
+    }
+    setState(() {
+      _selectedTransitionFocusKeyframeIndex = resolvedKeyframeIndex;
+      _selectedTransitionFocusKeyframeId =
+          resolvedKeyframeIndex < lane.keyframeIds.length
+              ? lane.keyframeIds[resolvedKeyframeIndex]
+              : '${lane.id}#$resolvedKeyframeIndex';
+      _isTransitionFocusValueEditorOpen = true;
+    });
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => MediaQuery.removeViewInsets(
+        context: sheetContext,
+        removeBottom: true,
+        child: LayerScopeValueBottomSheet(
+          controls: controls,
+          onDone: () => Navigator.of(sheetContext).maybePop(),
+          onChanged: (change) => _handleTransitionFocusValueControlChanged(
+            change.controlId,
+            change.value,
+          ),
+        ),
+      ),
+    ).whenComplete(() {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isTransitionFocusValueEditorOpen = false;
+      });
+    });
+  }
+
+  void _handleTransitionFocusValueControlChanged(
+    String controlId,
+    double value,
+  ) {
+    final session = _transitionFocusSession;
+    final keyframeIndex = _selectedTransitionFocusKeyframeIndex;
+    if (session == null || keyframeIndex == null) {
+      return;
+    }
+    final transition = _videoTrackTransitionById(session.transitionId);
+    if (transition == null) {
+      return;
+    }
+    final lane = transition.manualAnimationLaneById(controlId);
+    if (lane == null) {
+      return;
+    }
+    final values = lane
+        .alignedKeyframeValues(
+          fallbackValue: _defaultTransitionFocusLaneValues(lane.id).isEmpty
+              ? 0
+              : _defaultTransitionFocusLaneValues(lane.id).first,
+          clampToPercent: false,
+        )
+        .toList();
+    if (keyframeIndex < 0 || keyframeIndex >= values.length) {
+      return;
+    }
+    values[keyframeIndex] = value;
+    _updateTransitionFocusManualLane(
+      session.transitionId,
+      lane.id,
+      (currentLane) => currentLane.copyWith(
+        keyframeValues: List<double>.unmodifiable(values),
+      ),
+    );
   }
 
   void _handleTransitionFrameToolsTap() {
@@ -6351,6 +11927,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
         _enterTransitionFocusMode(existingTransition.id);
         return;
       }
+      if (existingTransition.preset == TimelineTransitionPreset.aiGenerated) {
+        await _openAiTransitionBottomSheet(
+          leftClip: leftClip,
+          rightClip: rightClip,
+          existingTransition: existingTransition,
+        );
+        return;
+      }
       await _openTransitionInspector(existingTransition.id);
       return;
     }
@@ -6364,24 +11948,557 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
       return;
     }
     final preset = browserResult.preset;
-    final transition = TimelineTrackTransitionData(
-      id: 'transition-${DateTime.now().millisecondsSinceEpoch}',
-      leftClipId: leftClip.id,
-      rightClipId: rightClip.id,
-      preset: preset,
-      durationTime: preset.defaultDurationTime,
-      curve: TimelineTransitionCurve.easeInOut,
-      parameterValues: preset.defaultParameterValues,
-      manualEffectIds: preset == TimelineTransitionPreset.manual
-          ? const <String>[]
-          : const <String>[],
-    );
+    if (browserResult.action == TransitionBrowserAction.openAi) {
+      await _openAiTransitionBottomSheet(
+        leftClip: leftClip,
+        rightClip: rightClip,
+      );
+      return;
+    }
+    final transition = _normalTransitionAuthoringAdapter.isNormalPreset(preset)
+        ? _createNormalTransitionForBoundary(
+            track: track,
+            leftClip: leftClip,
+            rightClip: rightClip,
+            preset: preset,
+          )
+        : TimelineTrackTransitionData(
+            id: 'transition-${DateTime.now().millisecondsSinceEpoch}',
+            leftClipId: leftClip.id,
+            rightClipId: rightClip.id,
+            preset: preset,
+            durationTime: preset.defaultDurationTime,
+            curve: TimelineTransitionCurve.easeInOut,
+            parameterValues: preset.defaultParameterValues,
+            manualEffectIds: preset == TimelineTransitionPreset.manual
+                ? const <String>[]
+                : const <String>[],
+          );
+    if (transition == null) {
+      return;
+    }
     _upsertVideoTrackTransition(transition);
     if (browserResult.action == TransitionBrowserAction.openManual) {
       _enterTransitionFocusMode(transition.id);
       return;
     }
     await _openTransitionInspector(transition.id);
+  }
+
+  Future<void> _openAiTransitionBottomSheet({
+    required TimelineClipData leftClip,
+    required TimelineClipData rightClip,
+    TimelineTrackTransitionData? existingTransition,
+  }) async {
+    await _aiTransitionService.ensureConfigured();
+    _AiTransitionBoundarySeed seed;
+    try {
+      seed = await _buildAiTransitionBoundarySeed(
+        leftClip: leftClip,
+        rightClip: rightClip,
+        includePreviewFrames: true,
+      );
+    } catch (error) {
+      _showStageMessage('Unable to prepare AI transition: $error');
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    final result = await showModalBottomSheet<AiTransitionBottomSheetResult>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => AiTransitionBottomSheet(
+        leftClipLabel: _timelineClipDisplayLabel(leftClip),
+        rightClipLabel: _timelineClipDisplayLabel(rightClip),
+        leftFrameBytes: seed.firstFrameBytes,
+        rightFrameBytes: seed.lastFrameBytes,
+        initialDraft: existingTransition?.aiTransition,
+      ),
+    );
+    if (!mounted || result == null) {
+      return;
+    }
+    final createdAtMs =
+        result.draft.createdAtMs ?? DateTime.now().millisecondsSinceEpoch;
+    final draft = result.draft.copyWith(
+      createdAtMs: createdAtMs,
+      status: _aiTransitionService.isConfigured
+          ? AiTransitionJobStatus.waitingForBackend
+          : AiTransitionJobStatus.draft,
+      clearRequestId: true,
+      clearGeneratedVideoUri: true,
+      clearGeneratedAssetId: true,
+      clearErrorMessage: true,
+      leftSourceAssetId: seed.leftAssetId,
+      rightSourceAssetId: seed.rightAssetId,
+      leftBoundaryFramePositionMs: seed.leftFramePositionMs,
+      rightBoundaryFramePositionMs: seed.rightFramePositionMs,
+      aspectRatioHint: seed.aspectRatioHint,
+    );
+    final clipId = await _insertAiTransitionClipBetween(
+      leftClip: leftClip,
+      rightClip: rightClip,
+      draft: draft,
+    );
+    if (clipId == null || !mounted) {
+      return;
+    }
+    if (!_aiTransitionService.isConfigured) {
+      _showStageMessage(
+        'AI transition clip inserted. Rebuild with KIE_API_KEY to run generation.',
+      );
+      return;
+    }
+    unawaited(
+      _runAiTransitionGeneration(
+        clipId,
+        createdAtMs: createdAtMs,
+        initialFirstFrameBytes: seed.firstFrameBytes,
+        initialLastFrameBytes: seed.lastFrameBytes,
+      ),
+    );
+  }
+
+  String _timelineClipDisplayLabel(TimelineClipData clip) {
+    final label = clip.label?.trim();
+    if (label != null && label.isNotEmpty) {
+      return label;
+    }
+    return 'Clip ${clip.id}';
+  }
+
+  Future<String?> _insertAiTransitionClipBetween({
+    required TimelineClipData leftClip,
+    required TimelineClipData rightClip,
+    required AiTransitionDraftData draft,
+  }) async {
+    final videoTrackIndex = _tracks.indexWhere(
+      (track) => track.kind == TimelineTrackKind.video,
+    );
+    if (videoTrackIndex < 0) {
+      return null;
+    }
+    final baseTracks = List<TimelineTrackData>.from(_tracks);
+    final baseTrack = baseTracks[videoTrackIndex];
+    final leftIndex =
+        baseTrack.clips.indexWhere((clip) => clip.id == leftClip.id);
+    final rightIndex =
+        baseTrack.clips.indexWhere((clip) => clip.id == rightClip.id);
+    if (leftIndex < 0 || rightIndex != leftIndex + 1) {
+      _showStageMessage(
+        'The seam changed before generation started. Open the AI transition again from the current bridge.',
+      );
+      return null;
+    }
+
+    final clipId =
+        'ai-transition-clip-${DateTime.now().millisecondsSinceEpoch}';
+    final transitionClip = TimelineClipData(
+      id: clipId,
+      assetId: null,
+      durationTime: TimelineTime.fromSecondsDouble(
+        draft.durationSeconds.toDouble(),
+      ),
+      sourceDurationTime: TimelineTime.fromSecondsDouble(
+        draft.durationSeconds.toDouble(),
+      ),
+      sourceStartTime: TimelineTime.zero,
+      tone: TimelineClipTone.aiGenerated,
+      type: TimelineClipType.media,
+      label: 'AI Transition',
+      aiTransition: draft,
+    );
+    final nextClips = List<TimelineClipData>.from(baseTrack.clips)
+      ..insert(rightIndex, transitionClip);
+    final nextTracks = _replaceTrackIn(baseTracks, videoTrackIndex, nextClips);
+    final preservedTimelineTime = _currentTime.clamp(
+      TimelineTime.zero,
+      _timelineDurationForTracksTime(nextTracks),
+    );
+    final nextPreviewAssetId = _resolvedPreviewAssetIdForTracks(
+      nextTracks,
+      preferredTimelineTime: preservedTimelineTime,
+      preferredAssetId: _previewAssetId,
+    );
+    setState(() {
+      _tracks = nextTracks;
+      _selectedTransitionId = null;
+      if (_activeTab == EditorMediaTab.speed) {
+        _activeTab = EditorMediaTab.video;
+      }
+      _isApplyingStructuralEdit = true;
+      _previewAssetId = nextPreviewAssetId;
+      _refreshLiveScrubPreviewSourceCatalog(tracks: nextTracks);
+      _setCurrentTime(preservedTimelineTime);
+    });
+    await _commitStructuralTimelineEdit(
+      tracks: nextTracks,
+      targetTime: preservedTimelineTime,
+      previewAssetId: nextPreviewAssetId,
+    );
+    return clipId;
+  }
+
+  void _updateAiTransitionDraft(
+    String clipId,
+    AiTransitionDraftData Function(AiTransitionDraftData current) transform,
+  ) {
+    final location = _videoTrackClipLocationById(clipId);
+    final clip = location?.clip;
+    final aiDraft = clip?.aiTransition;
+    if (location == null || clip == null || aiDraft == null) {
+      return;
+    }
+    final nextClips = List<TimelineClipData>.from(location.track.clips);
+    nextClips[location.clipIndex] = clip.copyWith(
+      aiTransition: transform(aiDraft),
+    );
+    final nextTracks = _replaceTrackIn(
+      _tracks,
+      location.trackIndex,
+      nextClips,
+    );
+    setState(() {
+      _tracks = nextTracks;
+    });
+  }
+
+  Future<void> _runAiTransitionGeneration(
+    String clipId, {
+    required int createdAtMs,
+    Uint8List? initialFirstFrameBytes,
+    Uint8List? initialLastFrameBytes,
+  }) async {
+    final location = _videoTrackClipLocationById(clipId);
+    final draft = location?.clip.aiTransition;
+    if (location == null || draft == null || draft.createdAtMs != createdAtMs) {
+      return;
+    }
+
+    try {
+      final frames = await _extractAiTransitionBoundaryFrames(
+        draft,
+        cachedFirstFrameBytes: initialFirstFrameBytes,
+        cachedLastFrameBytes: initialLastFrameBytes,
+      );
+      final result = await _aiTransitionService.generateTransition(
+        draft: draft,
+        firstFrameBytes: frames.firstFrameBytes,
+        lastFrameBytes: frames.lastFrameBytes,
+        aspectRatioHint: draft.aspectRatioHint,
+        onStatus: (status, {taskId}) {
+          final latest = _videoTrackClipLocationById(clipId)?.clip.aiTransition;
+          if (latest == null || latest.createdAtMs != createdAtMs) {
+            return;
+          }
+          _updateAiTransitionDraft(
+            clipId,
+            (current) => current.copyWith(
+              status: status,
+              requestId: taskId,
+              clearErrorMessage: status != AiTransitionJobStatus.failed,
+            ),
+          );
+        },
+      );
+      final latestClip = _videoTrackClipLocationById(clipId)?.clip;
+      final latestDraft = latestClip?.aiTransition;
+      if (latestClip == null ||
+          latestDraft == null ||
+          latestDraft.createdAtMs != createdAtMs) {
+        return;
+      }
+      final assetId = await _registerGeneratedAiTransitionAsset(
+        draft: draft,
+        localVideoPath: result.localVideoPath,
+        label: latestClip.label ?? 'AI Transition',
+      );
+      await _completeAiTransitionClip(
+        clipId: clipId,
+        createdAtMs: createdAtMs,
+        taskId: result.taskId,
+        localVideoPath: result.localVideoPath,
+        assetId: assetId,
+      );
+      if (mounted) {
+        _showTopStageBanner('AI transition generated.');
+      }
+    } catch (error) {
+      final latest = _videoTrackClipLocationById(clipId)?.clip.aiTransition;
+      if (latest == null || latest.createdAtMs != createdAtMs) {
+        return;
+      }
+      _updateAiTransitionDraft(
+        clipId,
+        (current) => current.copyWith(
+          status: AiTransitionJobStatus.failed,
+          errorMessage: error.toString(),
+        ),
+      );
+      if (mounted) {
+        _showTopStageBanner('AI transition failed.');
+      }
+    }
+  }
+
+  Future<void> _completeAiTransitionClip({
+    required String clipId,
+    required int createdAtMs,
+    required String taskId,
+    required String localVideoPath,
+    required String assetId,
+  }) async {
+    final location = _videoTrackClipLocationById(clipId);
+    final clip = location?.clip;
+    final draft = clip?.aiTransition;
+    if (location == null || clip == null || draft == null) {
+      return;
+    }
+    if (draft.createdAtMs != createdAtMs) {
+      return;
+    }
+    final asset = _assetForId(assetId);
+    final resolvedDurationSeconds =
+        asset?.durationSeconds ?? draft.durationSeconds.toDouble();
+    final nextClips = List<TimelineClipData>.from(location.track.clips);
+    nextClips[location.clipIndex] = clip.copyWith(
+      assetId: assetId,
+      label: asset?.label ?? clip.label,
+      durationTime: TimelineTime.fromSecondsDouble(resolvedDurationSeconds),
+      sourceDurationTime: TimelineTime.fromSecondsDouble(
+        resolvedDurationSeconds,
+      ),
+      sourceStartTime: TimelineTime.zero,
+      aiTransition: draft.copyWith(
+        status: AiTransitionJobStatus.completed,
+        requestId: taskId,
+        generatedVideoUri: localVideoPath,
+        generatedAssetId: assetId,
+        clearErrorMessage: true,
+      ),
+    );
+    final nextTracks = _replaceTrackIn(
+      _tracks,
+      location.trackIndex,
+      nextClips,
+    );
+    final preservedTimelineTime = _currentTime.clamp(
+      TimelineTime.zero,
+      _timelineDurationForTracksTime(nextTracks),
+    );
+    final nextPreviewAssetId = _resolvedPreviewAssetIdForTracks(
+      nextTracks,
+      preferredTimelineTime: preservedTimelineTime,
+      preferredAssetId: assetId,
+    );
+    setState(() {
+      _tracks = nextTracks;
+      _isApplyingStructuralEdit = true;
+      _previewAssetId = nextPreviewAssetId;
+      _refreshLiveScrubPreviewSourceCatalog(tracks: nextTracks);
+      _setCurrentTime(preservedTimelineTime);
+    });
+    await _commitStructuralTimelineEdit(
+      tracks: nextTracks,
+      targetTime: preservedTimelineTime,
+      previewAssetId: nextPreviewAssetId,
+    );
+  }
+
+  Future<({Uint8List firstFrameBytes, Uint8List lastFrameBytes})>
+      _extractAiTransitionBoundaryFrames(
+    AiTransitionDraftData draft, {
+    Uint8List? cachedFirstFrameBytes,
+    Uint8List? cachedLastFrameBytes,
+  }) async {
+    final leftAssetId = draft.leftSourceAssetId;
+    final rightAssetId = draft.rightSourceAssetId;
+    final leftAsset = leftAssetId == null ? null : _assetForId(leftAssetId);
+    final rightAsset = rightAssetId == null ? null : _assetForId(rightAssetId);
+    final leftSourceUri = leftAsset?.sourceUri;
+    final rightSourceUri = rightAsset?.sourceUri;
+    if (leftSourceUri == null ||
+        leftSourceUri.isEmpty ||
+        rightSourceUri == null ||
+        rightSourceUri.isEmpty) {
+      throw const KieAiTransitionException(
+        'The transition boundary clips are missing playable source files.',
+      );
+    }
+    final firstFrameBytes = cachedFirstFrameBytes ??
+        await _transportController.loadMediaFramePreview(
+          sourceUri: leftSourceUri,
+          positionMs: draft.leftBoundaryFramePositionMs ?? 0,
+          targetWidth: 480,
+          targetHeight: 854,
+        );
+    final lastFrameBytes = cachedLastFrameBytes ??
+        await _transportController.loadMediaFramePreview(
+          sourceUri: rightSourceUri,
+          positionMs: draft.rightBoundaryFramePositionMs ?? 0,
+          targetWidth: 480,
+          targetHeight: 854,
+        );
+    if (firstFrameBytes == null || lastFrameBytes == null) {
+      throw const KieAiTransitionException(
+        'Unable to extract the seam boundary frames for AI generation.',
+      );
+    }
+    return (
+      firstFrameBytes: firstFrameBytes,
+      lastFrameBytes: lastFrameBytes,
+    );
+  }
+
+  Future<_AiTransitionBoundarySeed> _buildAiTransitionBoundarySeed({
+    required TimelineClipData leftClip,
+    required TimelineClipData rightClip,
+    bool includePreviewFrames = false,
+  }) async {
+    final leftAssetId = leftClip.assetId;
+    final rightAssetId = rightClip.assetId;
+    final leftAsset = leftAssetId == null ? null : _assetForId(leftAssetId);
+    final rightAsset = rightAssetId == null ? null : _assetForId(rightAssetId);
+    final leftSourceUri = leftAsset?.sourceUri;
+    final rightSourceUri = rightAsset?.sourceUri;
+    if (leftAssetId == null ||
+        leftAssetId.isEmpty ||
+        rightAssetId == null ||
+        rightAssetId.isEmpty ||
+        leftSourceUri == null ||
+        leftSourceUri.isEmpty ||
+        rightSourceUri == null ||
+        rightSourceUri.isEmpty) {
+      throw const KieAiTransitionException(
+        'The transition boundary clips are missing playable source files.',
+      );
+    }
+    final leftPositionMs = (() {
+      final endMs = leftClip.sourceEndTime.inMilliseconds;
+      if (endMs <= 0) {
+        return 0;
+      }
+      return (endMs - 33).clamp(0, endMs);
+    })();
+    final rightPositionMs = rightClip.sourceStartTime.inMilliseconds;
+    Uint8List? firstFrameBytes;
+    Uint8List? lastFrameBytes;
+    if (includePreviewFrames) {
+      firstFrameBytes = await _transportController.loadMediaFramePreview(
+        sourceUri: leftSourceUri,
+        positionMs: leftPositionMs,
+        targetWidth: 480,
+        targetHeight: 854,
+      );
+      lastFrameBytes = await _transportController.loadMediaFramePreview(
+        sourceUri: rightSourceUri,
+        positionMs: rightPositionMs,
+        targetWidth: 480,
+        targetHeight: 854,
+      );
+    }
+    return _AiTransitionBoundarySeed(
+      leftAssetId: leftAssetId,
+      rightAssetId: rightAssetId,
+      leftFramePositionMs: leftPositionMs,
+      rightFramePositionMs: rightPositionMs,
+      aspectRatioHint: _resolveAiTransitionAspectRatioHintForClips(
+        leftClip,
+        rightClip,
+      ),
+      firstFrameBytes: firstFrameBytes,
+      lastFrameBytes: lastFrameBytes,
+    );
+  }
+
+  String? _resolveAiTransitionAspectRatioHintForClips(
+    TimelineClipData leftClip,
+    TimelineClipData rightClip,
+  ) {
+    final leftAsset = _assetForId(leftClip.assetId);
+    final rightAsset = _assetForId(rightClip.assetId);
+    final ratio = leftAsset?.aspectRatio ??
+        rightAsset?.aspectRatio ??
+        _workspaceAspectRatio;
+    if (ratio <= 0) {
+      return null;
+    }
+    const ratios = <({String id, double value})>[
+      (id: '2:3', value: 2 / 3),
+      (id: '3:2', value: 3 / 2),
+      (id: '1:1', value: 1.0),
+      (id: '16:9', value: 16 / 9),
+      (id: '9:16', value: 9 / 16),
+    ];
+    ({String id, double value})? bestMatch;
+    var bestDelta = double.infinity;
+    for (final candidate in ratios) {
+      final delta = (candidate.value - ratio).abs();
+      if (delta < bestDelta) {
+        bestDelta = delta;
+        bestMatch = candidate;
+      }
+    }
+    return bestMatch?.id;
+  }
+
+  Future<String> _registerGeneratedAiTransitionAsset({
+    required AiTransitionDraftData draft,
+    required String localVideoPath,
+    required String label,
+  }) async {
+    final assetId = 'ai-transition-${DateTime.now().millisecondsSinceEpoch}';
+    var generatedAsset = EditorAssetItem(
+      id: assetId,
+      tab: EditorMediaTab.video,
+      label: '$label • ${draft.model.label}',
+      tone: 84,
+      sourceUri: localVideoPath,
+      previewUri: localVideoPath,
+      isImported: true,
+      durationSeconds: draft.durationSeconds.toDouble(),
+      dateAddedSeconds: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+    );
+    generatedAsset =
+        await _normalizeVisualAssetGeometryForInsert(generatedAsset);
+    final nextVideoAssets = <EditorAssetItem>[
+      for (final asset in _assetLibrary.value)
+        if (asset.id != generatedAsset.id) asset,
+      generatedAsset,
+    ];
+    _assetLibrary.value = List<EditorAssetItem>.unmodifiable(nextVideoAssets);
+    _importedAssetsById[generatedAsset.id] = generatedAsset;
+    unawaited(
+      _primePreviewThumbnailForAsset(
+        generatedAsset,
+        publishIfNotCurrent: false,
+      ),
+    );
+    return generatedAsset.id;
+  }
+
+  _AiTransitionClipLocation? _videoTrackClipLocationById(String clipId) {
+    for (var trackIndex = 0; trackIndex < _tracks.length; trackIndex += 1) {
+      final track = _tracks[trackIndex];
+      if (track.kind != TimelineTrackKind.video) {
+        continue;
+      }
+      for (var clipIndex = 0; clipIndex < track.clips.length; clipIndex += 1) {
+        final clip = track.clips[clipIndex];
+        if (clip.id != clipId) {
+          continue;
+        }
+        return _AiTransitionClipLocation(
+          trackIndex: trackIndex,
+          clipIndex: clipIndex,
+          track: track,
+          clip: clip,
+        );
+      }
+    }
+    return null;
   }
 
   Future<void> _openTransitionInspector(String transitionId) async {
@@ -6432,6 +12549,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
         positionedClip.clip.id: positionedClip,
     };
     for (final transition in _sanitizeTransitionsForTrack(track)) {
+      if (transition.preset == TimelineTransitionPreset.aiGenerated) {
+        continue;
+      }
       if (transition.preset == TimelineTransitionPreset.manual &&
           transition.manualEffectIds.isEmpty) {
         continue;
@@ -6504,7 +12624,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
         return AnimatedBuilder(
           animation: _transportController,
           builder: (context, __) {
-            if (motionTextRenderSnapshot == null && activeTransition == null) {
+            final activeVisualOpacity = _activePreviewVisualOpacityForTime(
+              previewTime,
+            );
+            if (motionTextRenderSnapshot == null &&
+                activeTransition == null &&
+                activeVisualOpacity >= 0.999) {
               return const SizedBox.shrink();
             }
             final selectedCanvasElementId = motionTextRenderSnapshot == null
@@ -6526,11 +12651,21 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
                     progress: activeTransition.progress,
                     incomingThumbnailBytes: incomingTransitionBytes,
                   ),
+                if (activeVisualOpacity < 0.999)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: ColoredBox(
+                        color: Colors.black.withOpacity(
+                          (1 - activeVisualOpacity).clamp(0.0, 1.0).toDouble(),
+                        ),
+                      ),
+                    ),
+                  ),
                 if (motionTextRenderSnapshot != null)
                   MotionTextPreviewOverlay(
                     snapshot: motionTextRenderSnapshot,
                   ),
-                if (motionTextRenderSnapshot != null)
+                if (motionTextRenderSnapshot != null && !effectiveIsPlaying)
                   MotionTextTransformOverlay(
                     snapshot: motionTextRenderSnapshot,
                     selectedElementId: selectedCanvasElementId,
@@ -6556,6 +12691,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
         previewAsset != null || _hasMotionTextContent;
     _schedulePreviewThumbnailWarmup(previewAsset);
     final displayTracks = _displayTracks;
+    final mainTimelineTracks = displayTracks
+        .map(
+          (track) => track.animationLanes.isEmpty
+              ? track
+              : track.copyWith(
+                  animationLanes: const <TimelineAnimationLaneData>[],
+                ),
+        )
+        .toList(growable: false);
     final effectiveIsPlaying = _useNativePreview && _isPlaying;
     final hasSelectedImportedClip = _hasSelectedImportedClip;
     final hasSelectedMotionTextClip =
@@ -6595,6 +12739,35 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
             transitionFocusContext,
             _currentTime,
           );
+    final layerScopeContext =
+        transitionFocusContext == null ? _activeLayerScopeContext : null;
+    final layerScopeTracks = layerScopeContext == null
+        ? const <TimelineTrackData>[]
+        : _buildLayerScopeTracks(layerScopeContext);
+    final layerScopeTrimSelection = layerScopeContext == null
+        ? null
+        : _layerScopeTrimSelection(layerScopeContext);
+    final layerScopeLocalTime = layerScopeContext == null
+        ? TimelineTime.zero
+        : _layerScopeLocalTime(layerScopeContext, _currentTime);
+    final canOpenLayerScopeValueEditor =
+        _canOpenLayerScopeValueEditor(layerScopeContext);
+    final canOpenLayerScopeGraphEditor =
+        _canOpenLayerScopeGraphEditor(layerScopeContext);
+    final canAddTransitionFocusKeyframe =
+        _canAddTransitionFocusKeyframe(transitionFocusContext);
+    final canOpenTransitionFocusValueEditor =
+        _canOpenTransitionFocusValueEditor(transitionFocusContext);
+    final canMoveLayerScopeSelectedKeyframe =
+        _canMoveLayerScopeSelectedKeyframe(layerScopeContext);
+    final selectedLayerScopeAnimationLane = layerScopeContext == null
+        ? null
+        : _layerScopeSelectedAnimationLane(layerScopeContext);
+    final canAddLayerScopeKeyframe = selectedLayerScopeAnimationLane != null &&
+        _layerScopeDefinitionsForLane(selectedLayerScopeAnimationLane) != null;
+    final isLayerScopeActive = layerScopeContext != null;
+    final isTextLayerScopeActive =
+        layerScopeContext?.track.kind == TimelineTrackKind.text;
     return Scaffold(
       resizeToAvoidBottomInset: !_isAnimateBrowserOpen,
       body: SafeArea(
@@ -6614,8 +12787,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
                     flex: 4,
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(minHeight: 220),
-                      child: Builder(
-                        builder: (context) {
+                      child: LayoutBuilder(
+                        builder: (context, previewConstraints) {
+                          _lastPreviewStageSize = Size(
+                            previewConstraints.maxWidth,
+                            previewConstraints.maxHeight,
+                          );
                           final previewFallback = _CleanPreviewCanvas(
                             asset: previewAsset,
                             previewThumbnailAssetId:
@@ -6637,6 +12814,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
                                     controller: _transportController,
                                     previewIdentity: previewAsset?.sourceUri ??
                                         previewAsset?.id,
+                                    recoveryRevision:
+                                        _nativePreviewRecoveryRevision,
                                     fallback: previewFallback,
                                   )
                                 : previewFallback,
@@ -6669,29 +12848,53 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
                                         ? _handlePlayToggle
                                         : null,
                                   )
-                                : EditorToolsBar(
-                                    embedded: true,
-                                    isPlaying: effectiveIsPlaying,
-                                    onSplit: hasSelectedImportedClip
-                                        ? _handleSplitSelectedClip
-                                        : null,
-                                    onTrimToggle: hasSelectedImportedClip ||
-                                            hasSelectedMotionTextClip
-                                        ? _handleTrimModeToggle
-                                        : null,
-                                    isTrimModeActive: isTrimModeActive,
-                                    onDuplicate: hasSelectedImportedClip ||
-                                            hasSelectedMotionTextClip
-                                        ? _handleDuplicateSelectedClip
-                                        : null,
-                                    onDelete: hasSelectedImportedClip ||
-                                            hasSelectedMotionTextClip
-                                        ? _handleDeleteSelectedClip
-                                        : null,
-                                    onPlayToggle: _useNativePreview
-                                        ? _handlePlayToggle
-                                        : null,
-                                  ),
+                                : layerScopeContext != null
+                                    ? _LayerScopeToolsBar(
+                                        isPlaying: effectiveIsPlaying,
+                                        onBack: _exitLayerScope,
+                                        onSplit: hasSelectedImportedClip
+                                            ? _handleSplitSelectedClip
+                                            : null,
+                                        onTrimToggle: hasSelectedImportedClip ||
+                                                hasSelectedMotionTextClip
+                                            ? _handleTrimModeToggle
+                                            : null,
+                                        isTrimModeActive: isTrimModeActive,
+                                        onDuplicate: hasSelectedImportedClip ||
+                                                hasSelectedMotionTextClip
+                                            ? _handleDuplicateSelectedClip
+                                            : null,
+                                        onMoveToKeyframe:
+                                            canMoveLayerScopeSelectedKeyframe
+                                                ? _handleLayerScopeMoveSelectedKeyframeToPlayhead
+                                                : null,
+                                        onPlayToggle: _useNativePreview
+                                            ? _handlePlayToggle
+                                            : null,
+                                      )
+                                    : EditorToolsBar(
+                                        embedded: true,
+                                        isPlaying: effectiveIsPlaying,
+                                        onSplit: hasSelectedImportedClip
+                                            ? _handleSplitSelectedClip
+                                            : null,
+                                        onTrimToggle: hasSelectedImportedClip ||
+                                                hasSelectedMotionTextClip
+                                            ? _handleTrimModeToggle
+                                            : null,
+                                        isTrimModeActive: isTrimModeActive,
+                                        onDuplicate: hasSelectedImportedClip ||
+                                                hasSelectedMotionTextClip
+                                            ? _handleDuplicateSelectedClip
+                                            : null,
+                                        onDelete: hasSelectedImportedClip ||
+                                                hasSelectedMotionTextClip
+                                            ? _handleDeleteSelectedClip
+                                            : null,
+                                        onPlayToggle: _useNativePreview
+                                            ? _handlePlayToggle
+                                            : null,
+                                      ),
                           ),
                           Divider(
                             height: 1,
@@ -6722,6 +12925,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
                                       selectedClipId: _selectedClipId,
                                       selectedAnimationLaneId:
                                           resolvedTransitionFocusLaneId,
+                                      selectedAnimationKeyframeIndex:
+                                          resolvedTransitionFocusLaneId.isEmpty
+                                              ? null
+                                              : _selectedTransitionFocusKeyframeIndex,
                                       trimSelection:
                                           _transitionFocusTrimSelection(
                                         transitionFocusContext,
@@ -6732,11 +12939,19 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
                                         clipId,
                                       ),
                                       onTrackAnimateTap: (_) =>
-                                          _openManualTransitionEffectBrowser(
+                                          _openManualTransitionAnimateBrowser(
+                                        transitionFocusContext.transition.id,
+                                      ),
+                                      onTrackFxTap: (_) =>
+                                          _openManualTransitionFxBrowser(
                                         transitionFocusContext.transition.id,
                                       ),
                                       onAnimationLaneTap:
                                           _selectTransitionFocusLane,
+                                      onAnimationKeyframeTap:
+                                          _handleTransitionFocusAnimationKeyframeTap,
+                                      onAnimationKeyframeDrag:
+                                          _handleTransitionFocusAnimationKeyframeDrag,
                                       onBackgroundTap:
                                           _clearTransitionFocusSelection,
                                       onTrimCommit: (request) =>
@@ -6800,91 +13015,209 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
                                       animateTrackKinds: const <TimelineTrackKind>{
                                         TimelineTrackKind.video,
                                       },
-                                    )
-                                  : TimelinePanel(
-                                      embedded: true,
-                                      tracks: displayTracks,
-                                      currentTime: _currentTime,
-                                      displayTimeListenable:
-                                          _timelineDisplayTimeNotifier,
-                                      onDisplayTimeChanged:
-                                          _setTimelineDisplayTime,
-                                      playbackSampleTimeListenable:
-                                          _playbackSampleTimeNotifier,
-                                      timelineDurationTime:
-                                          _timelineDurationTime,
-                                      isPlaying: effectiveIsPlaying,
-                                      timelineFps: _timelineFps,
-                                      selectedClipId: _selectedClipId,
-                                      selectedTransitionId:
-                                          _selectedClipId == null
-                                              ? _selectedTransitionId
-                                              : null,
-                                      trimSelection: _timelineTrimSelection,
-                                      onClipSelected: _selectClip,
-                                      onClipDoubleTap:
-                                          _handleTimelineClipDoubleTap,
-                                      onClipReorder: _reorderClip,
-                                      onClipTimeShift: _shiftClipInTimeline,
-                                      onTransitionTap:
-                                          (track, leftClip, rightClip) {
-                                        unawaited(
-                                          _handleTimelineTransitionTap(
-                                            track,
-                                            leftClip,
-                                            rightClip,
-                                          ),
-                                        );
+                                      fxTrackKinds: const <TimelineTrackKind>{
+                                        TimelineTrackKind.video,
                                       },
-                                      onTrackAnimateTap:
-                                          _openAnimateBrowserForTrack,
-                                      onBackgroundTap: _clearSelection,
-                                      onTrimCommit: _handleTimelineTrimCommit,
-                                      onTrimPreviewChanged:
-                                          _handleTimelineTrimPreviewChanged,
-                                      assetPathResolver: _resolveAssetPath,
-                                      onScrubStateChanged:
-                                          _handleScrubStateChanged,
-                                      onScrubFinalized:
-                                          _handleTimelineScrubFinalized,
-                                      scrubSurfaceBuilder:
-                                          !_useNativeTimelineScrubInput
-                                              ? null
-                                              : (surfaceConfig) =>
-                                                  NativeTimelineScrubSurface(
-                                                    currentTime: surfaceConfig
-                                                        .currentTime,
-                                                    currentTimeListenable:
-                                                        surfaceConfig
-                                                            .currentTimeListenable,
-                                                    timelineDurationTime:
-                                                        surfaceConfig
-                                                            .timelineDurationTime,
-                                                    timelineOffsetTime:
-                                                        surfaceConfig
-                                                            .timelineOffsetTime,
-                                                    secondsWidth: surfaceConfig
-                                                        .secondsWidth,
-                                                    configRevision:
-                                                        _timelineScrubConfigRevision,
-                                                    onConfigApplied:
-                                                        _handleTimelineScrubConfigApplied,
-                                                    regions:
-                                                        surfaceConfig.regions,
-                                                    previewSources:
-                                                        _allLiveScrubPreviewSources(),
-                                                    onTap: surfaceConfig.onTap,
-                                                    onScrubStart: surfaceConfig
-                                                        .onScrubStart,
-                                                    onScrubTimeChanged:
-                                                        surfaceConfig
-                                                            .onScrubTimeChanged,
-                                                    onScrubEnd: surfaceConfig
-                                                        .onScrubEnd,
-                                                    interactionEnabled:
-                                                        !_isApplyingStructuralEdit,
-                                                  ),
-                                    ),
+                                    )
+                                  : layerScopeContext != null
+                                      ? TimelinePanel(
+                                          embedded: true,
+                                          tracks: layerScopeTracks,
+                                          currentTime: layerScopeLocalTime,
+                                          displayTimeListenable:
+                                              _layerScopeDisplayTimeNotifier,
+                                          onDisplayTimeChanged: (localTime) =>
+                                              _handleLayerScopeDisplayTimeChanged(
+                                            layerScopeContext,
+                                            localTime,
+                                          ),
+                                          playbackSampleTimeListenable:
+                                              _layerScopePlaybackSampleTimeNotifier,
+                                          timelineDurationTime:
+                                              layerScopeContext.durationTime,
+                                          timeDisplayOffset:
+                                              layerScopeContext.startTime,
+                                          timeReadoutTotalTime:
+                                              _timelineDurationTime,
+                                          isPlaying: effectiveIsPlaying,
+                                          timelineFps: _timelineFps,
+                                          selectedClipId: _selectedClipId,
+                                          selectedAnimationLaneId:
+                                              _selectedLayerScopeAnimationLaneId,
+                                          selectedAnimationKeyframeIndex:
+                                              _selectedLayerScopeKeyframeIndex,
+                                          trimSelection:
+                                              layerScopeTrimSelection,
+                                          onClipSelected: (clipId) =>
+                                              _handleLayerScopeClipSelected(
+                                            layerScopeContext,
+                                            clipId,
+                                          ),
+                                          onAnimationLaneTap:
+                                              _handleLayerScopeAnimationLaneTap,
+                                          onAnimationKeyframeTap:
+                                              _handleLayerScopeAnimationKeyframeTap,
+                                          onAnimationKeyframeDrag:
+                                              _handleLayerScopeAnimationKeyframeDrag,
+                                          onTrimCommit:
+                                              _handleTimelineTrimCommit,
+                                          onTrimPreviewChanged: (request) =>
+                                              _handleLayerScopeTrimPreviewChanged(
+                                            layerScopeContext,
+                                            request,
+                                          ),
+                                          onScrubStateChanged:
+                                              _handleScrubStateChanged,
+                                          onScrubFinalized: (localTime) =>
+                                              _handleLayerScopeScrubFinalized(
+                                            layerScopeContext,
+                                            localTime,
+                                          ),
+                                          scrubSurfaceBuilder:
+                                              !_useNativeTimelineScrubInput
+                                                  ? null
+                                                  : (surfaceConfig) =>
+                                                      NativeTimelineScrubSurface(
+                                                        currentTime:
+                                                            surfaceConfig
+                                                                .currentTime,
+                                                        currentTimeListenable:
+                                                            surfaceConfig
+                                                                .currentTimeListenable,
+                                                        timelineDurationTime:
+                                                            surfaceConfig
+                                                                .timelineDurationTime,
+                                                        timelineOffsetTime:
+                                                            surfaceConfig
+                                                                .timelineOffsetTime,
+                                                        secondsWidth:
+                                                            surfaceConfig
+                                                                .secondsWidth,
+                                                        configRevision:
+                                                            _timelineScrubConfigRevision,
+                                                        onConfigApplied:
+                                                            _handleTimelineScrubConfigApplied,
+                                                        regions: surfaceConfig
+                                                            .regions,
+                                                        previewSources:
+                                                            _allLiveScrubPreviewSources(),
+                                                        onTap:
+                                                            surfaceConfig.onTap,
+                                                        onScrubStart:
+                                                            surfaceConfig
+                                                                .onScrubStart,
+                                                        onScrubTimeChanged:
+                                                            surfaceConfig
+                                                                .onScrubTimeChanged,
+                                                        onScrubEnd:
+                                                            surfaceConfig
+                                                                .onScrubEnd,
+                                                        interactionEnabled:
+                                                            !_isApplyingStructuralEdit,
+                                                      ),
+                                          assetPathResolver: _resolveAssetPath,
+                                          onTrackAnimateTap:
+                                              _handleLayerScopeAnimateTap,
+                                          onTrackFxTap: _handleLayerScopeFxTap,
+                                          animateTrackKinds: const <TimelineTrackKind>{
+                                            TimelineTrackKind.text,
+                                            TimelineTrackKind.image,
+                                          },
+                                          fxTrackKinds: const <TimelineTrackKind>{
+                                            TimelineTrackKind.text,
+                                          },
+                                        )
+                                      : TimelinePanel(
+                                          embedded: true,
+                                          tracks: mainTimelineTracks,
+                                          currentTime: _currentTime,
+                                          displayTimeListenable:
+                                              _timelineDisplayTimeNotifier,
+                                          onDisplayTimeChanged:
+                                              _setTimelineDisplayTime,
+                                          playbackSampleTimeListenable:
+                                              _playbackSampleTimeNotifier,
+                                          timelineDurationTime:
+                                              _timelineDurationTime,
+                                          isPlaying: effectiveIsPlaying,
+                                          timelineFps: _timelineFps,
+                                          selectedClipId: _selectedClipId,
+                                          selectedTransitionId:
+                                              _selectedClipId == null
+                                                  ? _selectedTransitionId
+                                                  : null,
+                                          trimSelection: _timelineTrimSelection,
+                                          onClipSelected: _selectClip,
+                                          onClipDoubleTap:
+                                              _handleTimelineClipDoubleTap,
+                                          onClipReorder: _reorderClip,
+                                          onClipTimeShift: _shiftClipInTimeline,
+                                          onTransitionTap:
+                                              (track, leftClip, rightClip) {
+                                            unawaited(
+                                              _handleTimelineTransitionTap(
+                                                track,
+                                                leftClip,
+                                                rightClip,
+                                              ),
+                                            );
+                                          },
+                                          onTrackAnimateTap:
+                                              _openAnimateBrowserForTrack,
+                                          animateTrackKinds: const <TimelineTrackKind>{},
+                                          onBackgroundTap: _clearSelection,
+                                          onTrimCommit:
+                                              _handleTimelineTrimCommit,
+                                          onTrimPreviewChanged:
+                                              _handleTimelineTrimPreviewChanged,
+                                          assetPathResolver: _resolveAssetPath,
+                                          onScrubStateChanged:
+                                              _handleScrubStateChanged,
+                                          onScrubFinalized:
+                                              _handleTimelineScrubFinalized,
+                                          scrubSurfaceBuilder:
+                                              !_useNativeTimelineScrubInput
+                                                  ? null
+                                                  : (surfaceConfig) =>
+                                                      NativeTimelineScrubSurface(
+                                                        currentTime:
+                                                            surfaceConfig
+                                                                .currentTime,
+                                                        currentTimeListenable:
+                                                            surfaceConfig
+                                                                .currentTimeListenable,
+                                                        timelineDurationTime:
+                                                            surfaceConfig
+                                                                .timelineDurationTime,
+                                                        timelineOffsetTime:
+                                                            surfaceConfig
+                                                                .timelineOffsetTime,
+                                                        secondsWidth:
+                                                            surfaceConfig
+                                                                .secondsWidth,
+                                                        configRevision:
+                                                            _timelineScrubConfigRevision,
+                                                        onConfigApplied:
+                                                            _handleTimelineScrubConfigApplied,
+                                                        regions: surfaceConfig
+                                                            .regions,
+                                                        previewSources:
+                                                            _allLiveScrubPreviewSources(),
+                                                        onTap:
+                                                            surfaceConfig.onTap,
+                                                        onScrubStart:
+                                                            surfaceConfig
+                                                                .onScrubStart,
+                                                        onScrubTimeChanged:
+                                                            surfaceConfig
+                                                                .onScrubTimeChanged,
+                                                        onScrubEnd:
+                                                            surfaceConfig
+                                                                .onScrubEnd,
+                                                        interactionEnabled:
+                                                            !_isApplyingStructuralEdit,
+                                                      ),
+                                        ),
                             ),
                           ),
                           Divider(
@@ -6894,29 +13227,90 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
                           ),
                           Padding(
                             padding: const EdgeInsets.fromLTRB(4, 3, 4, 3),
-                            child: MediaDock(
-                              activeTab: effectiveDockActiveTab,
-                              onAddTap: () {
-                                if (effectiveDockActiveTab ==
-                                        EditorMediaTab.video ||
-                                    effectiveDockActiveTab ==
-                                        EditorMediaTab.image) {
-                                  _openMediaSheet(
-                                    effectiveDockActiveTab ==
-                                            EditorMediaTab.image
-                                        ? EditorMediaTab.image
-                                        : EditorMediaTab.video,
-                                  );
-                                }
-                              },
-                              onToolTap: _handleDockTab,
-                              enabledTabs: enabledDockTabs,
-                              addEnabled: effectiveDockActiveTab ==
-                                      EditorMediaTab.video ||
-                                  effectiveDockActiveTab ==
-                                      EditorMediaTab.image,
-                              embedded: true,
-                            ),
+                            child: transitionFocusContext != null
+                                ? LayerScopeKeyframeDock(
+                                    addEnabled: true,
+                                    keyframeEnabled:
+                                        canAddTransitionFocusKeyframe,
+                                    valueEnabled:
+                                        canOpenTransitionFocusValueEditor,
+                                    graphEnabled: false,
+                                    isValueActive:
+                                        _isTransitionFocusValueEditorOpen &&
+                                            canOpenTransitionFocusValueEditor,
+                                    isGraphActive:
+                                        _isTransitionFocusGraphEditorOpen,
+                                    onAddTap: () => _openTransitionFocusAddMenu(
+                                      transitionFocusContext.transition.id,
+                                    ),
+                                    onAddKeyframeTap:
+                                        canAddTransitionFocusKeyframe
+                                            ? _handleTransitionFocusAddKeyframe
+                                            : null,
+                                    onValueTap:
+                                        canOpenTransitionFocusValueEditor
+                                            ? _handleTransitionFocusValueToolTap
+                                            : null,
+                                    onGraphTap: null,
+                                    embedded: true,
+                                    addLabel: 'Add',
+                                    addIcon: Icons.auto_awesome_motion_rounded,
+                                  )
+                                : isLayerScopeActive
+                                    ? LayerScopeKeyframeDock(
+                                        addEnabled: true,
+                                        keyframeEnabled:
+                                            canAddLayerScopeKeyframe,
+                                        valueEnabled:
+                                            canOpenLayerScopeValueEditor,
+                                        graphEnabled:
+                                            canOpenLayerScopeGraphEditor,
+                                        isValueActive:
+                                            _isLayerScopeValueEditorOpen &&
+                                                canOpenLayerScopeValueEditor,
+                                        isGraphActive:
+                                            _isLayerScopeGraphEditorOpen &&
+                                                canOpenLayerScopeGraphEditor,
+                                        onAddTap: _handleLayerScopeDockAddTap,
+                                        onAddKeyframeTap:
+                                            _handleLayerScopeAddKeyframe,
+                                        onValueTap: canOpenLayerScopeValueEditor
+                                            ? _handleLayerScopeValueToolTap
+                                            : null,
+                                        onGraphTap: canOpenLayerScopeGraphEditor
+                                            ? _handleLayerScopeGraphToolTap
+                                            : null,
+                                        embedded: true,
+                                        addLabel: isTextLayerScopeActive
+                                            ? 'Script'
+                                            : 'Add',
+                                        addIcon: isTextLayerScopeActive
+                                            ? Icons.code_rounded
+                                            : Icons.add_rounded,
+                                      )
+                                    : MediaDock(
+                                        activeTab: effectiveDockActiveTab,
+                                        onAddTap: () {
+                                          if (effectiveDockActiveTab ==
+                                                  EditorMediaTab.video ||
+                                              effectiveDockActiveTab ==
+                                                  EditorMediaTab.image) {
+                                            _openMediaSheet(
+                                              effectiveDockActiveTab ==
+                                                      EditorMediaTab.image
+                                                  ? EditorMediaTab.image
+                                                  : EditorMediaTab.video,
+                                            );
+                                          }
+                                        },
+                                        onToolTap: _handleDockTab,
+                                        enabledTabs: enabledDockTabs,
+                                        addEnabled: effectiveDockActiveTab ==
+                                                EditorMediaTab.video ||
+                                            effectiveDockActiveTab ==
+                                                EditorMediaTab.image,
+                                        embedded: true,
+                                      ),
                           ),
                         ],
                       ),
@@ -6968,6 +13362,122 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _LayerScopeSession {
+  const _LayerScopeSession({
+    required this.clipId,
+    required this.returnSelectedClipId,
+  });
+
+  final String clipId;
+  final String? returnSelectedClipId;
+}
+
+class _LayerScopeContext {
+  const _LayerScopeContext({
+    required this.clipContext,
+    required this.startTime,
+    required this.durationTime,
+  });
+
+  final _SelectedTimelineClipContext clipContext;
+  final TimelineTime startTime;
+  final TimelineTime durationTime;
+
+  TimelineTrackData get track => clipContext.track;
+  TimelineClipData get clip => clipContext.clip;
+  TimelineTime get endTime => startTime + durationTime;
+}
+
+class _LayerScopeToolsBar extends StatelessWidget {
+  const _LayerScopeToolsBar({
+    required this.isPlaying,
+    required this.onBack,
+    required this.onSplit,
+    required this.onTrimToggle,
+    required this.isTrimModeActive,
+    required this.onDuplicate,
+    required this.onMoveToKeyframe,
+    required this.onPlayToggle,
+  });
+
+  final bool isPlaying;
+  final VoidCallback onBack;
+  final VoidCallback? onSplit;
+  final VoidCallback? onTrimToggle;
+  final bool isTrimModeActive;
+  final VoidCallback? onDuplicate;
+  final VoidCallback? onMoveToKeyframe;
+  final VoidCallback? onPlayToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 40,
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Row(
+        children: [
+          FxIconButton(
+            icon: Icons.arrow_back_rounded,
+            size: 30,
+            iconScale: 0.46,
+            foregroundColor: FxPalette.textPrimary,
+            onPressed: onBack,
+          ),
+          const SizedBox(width: 5),
+          FxIconButton(
+            icon: Icons.cut_rounded,
+            size: 30,
+            iconScale: 0.4,
+            onPressed: onSplit,
+          ),
+          const SizedBox(width: 5),
+          FxIconButton(
+            icon: Icons.fit_screen_rounded,
+            size: 30,
+            iconScale: 0.4,
+            foregroundColor:
+                isTrimModeActive ? FxPalette.background : FxPalette.textMuted,
+            backgroundColor:
+                isTrimModeActive ? FxPalette.accent : FxPalette.surface,
+            onPressed: onTrimToggle,
+          ),
+          const SizedBox(width: 5),
+          FxIconButton(
+            icon: Icons.copy_rounded,
+            size: 30,
+            iconScale: 0.4,
+            onPressed: onDuplicate,
+          ),
+          const SizedBox(width: 5),
+          FxIconButton(
+            icon: Icons.open_with_rounded,
+            size: 30,
+            iconScale: 0.4,
+            onPressed: onMoveToKeyframe,
+          ),
+          const Spacer(),
+          Container(
+            height: 26,
+            margin: const EdgeInsets.symmetric(horizontal: 10),
+            width: 1,
+            color: FxPalette.dividerSoft.withOpacity(0.9),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 2),
+            child: FxIconButton(
+              icon: isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+              size: 32,
+              iconScale: 0.48,
+              foregroundColor: FxPalette.textPrimary,
+              onPressed: onPlayToggle,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -7300,6 +13810,98 @@ class _TimelineTrimPreviewSession {
   final TimelineTime? sourcePreviewTime;
 
   bool get usesTransportPreview => sourceUri != null && sourceUri!.isNotEmpty;
+}
+
+class _AiTransitionBoundarySeed {
+  const _AiTransitionBoundarySeed({
+    required this.leftAssetId,
+    required this.rightAssetId,
+    required this.leftFramePositionMs,
+    required this.rightFramePositionMs,
+    required this.aspectRatioHint,
+    this.firstFrameBytes,
+    this.lastFrameBytes,
+  });
+
+  final String leftAssetId;
+  final String rightAssetId;
+  final int leftFramePositionMs;
+  final int rightFramePositionMs;
+  final String? aspectRatioHint;
+  final Uint8List? firstFrameBytes;
+  final Uint8List? lastFrameBytes;
+}
+
+class _AiTransitionClipLocation {
+  const _AiTransitionClipLocation({
+    required this.trackIndex,
+    required this.clipIndex,
+    required this.track,
+    required this.clip,
+  });
+
+  final int trackIndex;
+  final int clipIndex;
+  final TimelineTrackData track;
+  final TimelineClipData clip;
+}
+
+class _TopStageBannerCard extends StatelessWidget {
+  const _TopStageBannerCard({
+    required this.message,
+  });
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: FxPalette.surfaceRaised.withOpacity(0.98),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.18),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        child: Row(
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: FxPalette.accent.withOpacity(0.16),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.auto_awesome_rounded,
+                color: FxPalette.accent,
+                size: 16,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  color: FxPalette.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  height: 1.25,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _CleanPreviewCanvas extends StatelessWidget {

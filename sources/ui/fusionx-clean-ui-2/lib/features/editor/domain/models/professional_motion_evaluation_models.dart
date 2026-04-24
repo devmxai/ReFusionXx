@@ -127,8 +127,8 @@ class MotionEvaluatedLayerState {
     this.name,
     this.zIndex = 0,
     this.blendMode = MotionBlendMode.normal,
-  }) : properties = List.unmodifiable(properties),
-       elements = List.unmodifiable(elements);
+  })  : properties = List.unmodifiable(properties),
+        elements = List.unmodifiable(elements);
 
   final String id;
   final String sourceLayerId;
@@ -154,8 +154,8 @@ class MotionEvaluatedSceneState {
     required List<MotionEvaluatedPropertyValue> properties,
     this.name,
     this.cameraLayerId,
-  }) : layers = List.unmodifiable(layers),
-       properties = List.unmodifiable(properties);
+  })  : layers = List.unmodifiable(layers),
+        properties = List.unmodifiable(properties);
 
   final String id;
   final String sourceSceneId;
@@ -227,6 +227,8 @@ class MotionEvaluatedTextAnimationState {
     required this.targetElementId,
     required this.targetAddress,
     required this.activationState,
+    required this.revealUnit,
+    this.revealDirection = MotionTextRevealDirection.forward,
     required List<MotionTextAnimationKind> animationKinds,
     this.presetId,
     this.revealProgress,
@@ -238,6 +240,8 @@ class MotionEvaluatedTextAnimationState {
   final MotionActivationState activationState;
   final String? presetId;
   final double? revealProgress;
+  final MotionTextRevealUnit revealUnit;
+  final MotionTextRevealDirection revealDirection;
   final List<MotionTextAnimationKind> animationKinds;
 }
 
@@ -257,12 +261,12 @@ class MotionEvaluationSnapshot {
         const <MotionEvaluatedTextAnimationState>[],
     List<MotionEvaluationDiagnostic> diagnostics =
         const <MotionEvaluationDiagnostic>[],
-  }) : scenes = List.unmodifiable(scenes),
-       transitions = List.unmodifiable(transitions),
-       effects = List.unmodifiable(effects),
-       cameras = List.unmodifiable(cameras),
-       textAnimations = List.unmodifiable(textAnimations),
-       diagnostics = List.unmodifiable(diagnostics);
+  })  : scenes = List.unmodifiable(scenes),
+        transitions = List.unmodifiable(transitions),
+        effects = List.unmodifiable(effects),
+        cameras = List.unmodifiable(cameras),
+        textAnimations = List.unmodifiable(textAnimations),
+        diagnostics = List.unmodifiable(diagnostics);
 
   final String projectId;
   final TimelineTime time;
