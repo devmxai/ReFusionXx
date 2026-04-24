@@ -399,6 +399,7 @@ Supported block kinds:
 - `slideIn`
 - `wordRiseIn`
 - `letterPopIn`
+- `wordCascade`
 - `blurRiseIn`
 - `rotateIn`
 - `elasticPop`
@@ -434,6 +435,8 @@ The first supported families are:
   channels; reveals by word with stagger metadata
 - `letterPopIn`: lowers into revealProgress, opacity, and scale channels;
   reveals by letter with stagger metadata
+- `wordCascade`: lowers into revealProgress, opacity, vertical position, and
+  blur channels; reveals by word with stagger metadata
 - `blurRiseIn`: lowers into opacity, blur, vertical position, and subtle scale
   channels with canonical `spring`
 - `rotateIn`: lowers into opacity, rotation, and scale channels with canonical
@@ -483,6 +486,7 @@ As of this document update:
   - `slideIn`
   - `wordRiseIn`
   - `letterPopIn`
+  - `wordCascade`
   - `blurRiseIn`
   - `rotateIn`
   - `elasticPop`
@@ -633,6 +637,29 @@ preserving word-based reveal metadata.
 
 This imports as editable revealProgress, opacity, scaleX, and scaleY channels
 while preserving letter-based reveal metadata.
+
+## Example: Named Word Cascade Family
+
+```json
+{
+  "schemaVersion": "refusion.scope-text-script/v1",
+  "name": "Word Cascade",
+  "animationBlocks": [
+    {
+      "kind": "wordCascade",
+      "startMs": 0,
+      "durationMs": 920,
+      "parameters": {
+        "fromOffsetY": 38,
+        "fromBlur": 8
+      }
+    }
+  ]
+}
+```
+
+This imports as editable revealProgress, opacity, positionY, and blur channels
+while preserving word-based reveal metadata.
 
 ## Example: Named Blur Rise In Family
 

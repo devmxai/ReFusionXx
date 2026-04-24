@@ -429,6 +429,7 @@ class MotionTextPresetJsonCodec {
         );
       case MotionTextAnimationKind.wordRiseIn:
       case MotionTextAnimationKind.letterPopIn:
+      case MotionTextAnimationKind.wordCascade:
         return const MotionInterpolationSpec.easeOut();
       case MotionTextAnimationKind.blurRiseIn:
         return const MotionInterpolationSpec.spring(
@@ -482,6 +483,11 @@ class MotionTextPresetJsonCodec {
         return MotionTextRevealSpec(
           unit: MotionTextRevealUnit.word,
           stagger: TimelineTime.fromMilliseconds(90),
+        );
+      case MotionTextAnimationKind.wordCascade:
+        return MotionTextRevealSpec(
+          unit: MotionTextRevealUnit.word,
+          stagger: TimelineTime.fromMilliseconds(72),
         );
       case MotionTextAnimationKind.letterPopIn:
         return MotionTextRevealSpec(
@@ -651,6 +657,8 @@ class MotionTextPresetJsonCodec {
         return MotionTextAnimationKind.wordRiseIn;
       case 'letterPopIn':
         return MotionTextAnimationKind.letterPopIn;
+      case 'wordCascade':
+        return MotionTextAnimationKind.wordCascade;
       case 'blurRiseIn':
         return MotionTextAnimationKind.blurRiseIn;
       case 'rotateIn':

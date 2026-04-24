@@ -394,6 +394,51 @@ class BasicMotionTextPresetCompiler {
           ),
         );
         break;
+      case MotionTextAnimationKind.wordCascade:
+        _addScalarAnimation(
+          accumulator: accumulator,
+          binding: binding,
+          definition: MotionPropertyCatalog.revealProgress,
+          from: 0,
+          to: 1,
+          range: absoluteRange,
+          interpolation: const MotionInterpolationSpec.easeOut(),
+        );
+        _addScalarAnimation(
+          accumulator: accumulator,
+          binding: binding,
+          definition: MotionPropertyCatalog.opacity,
+          from: _readScalar(block, parameterValues, 'fromOpacity', 0),
+          to: _readScalar(block, parameterValues, 'toOpacity', 1),
+          range: absoluteRange,
+          interpolation: const MotionInterpolationSpec.easeOut(),
+        );
+        _addScalarAnimation(
+          accumulator: accumulator,
+          binding: binding,
+          definition: MotionPropertyCatalog.positionY,
+          from: _readScalar(block, parameterValues, 'fromOffsetY', 38),
+          to: _readScalar(block, parameterValues, 'toOffsetY', 0),
+          range: absoluteRange,
+          interpolation: const MotionInterpolationSpec.spring(
+            spring: MotionSpringSpec(
+              stiffness: 190,
+              damping: 24,
+              mass: 1.0,
+              initialVelocity: 0,
+            ),
+          ),
+        );
+        _addScalarAnimation(
+          accumulator: accumulator,
+          binding: binding,
+          definition: MotionPropertyCatalog.blurAmount,
+          from: _readScalar(block, parameterValues, 'fromBlur', 8),
+          to: _readScalar(block, parameterValues, 'toBlur', 0),
+          range: absoluteRange,
+          interpolation: const MotionInterpolationSpec.easeOut(),
+        );
+        break;
       case MotionTextAnimationKind.blurRiseIn:
         _addScalarAnimation(
           accumulator: accumulator,

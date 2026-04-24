@@ -178,6 +178,11 @@ Implementation state:
   - `revealProgress` reveals by letter with canonical stagger metadata
   - opacity fades in with `easeOut`
   - scale settles from 92% to 100% with canonical `spring`
+- `Word Cascade` is a reveal-aware text entrance:
+  - `revealProgress` reveals by word with tighter canonical stagger metadata
+  - opacity fades in with `easeOut`
+  - vertical position settles with canonical `spring`
+  - blur resolves from soft focus to sharp text with `easeOut`
 - `Blur Rise In` is a cinematic text entrance:
   - opacity fades in with `easeOut`
   - blur resolves from soft focus to sharp text
@@ -188,8 +193,8 @@ Implementation state:
   - rotation settles into place with canonical `spring`
   - scale settles into final size with the same canonical `spring`
 - script/preset `animationBlocks` can use `bounceIn`, `riseIn`, `slideIn`,
-  `wordRiseIn`, `letterPopIn`, `blurRiseIn`, `rotateIn`, or `elasticPop`
-  without manually supplying interpolation details
+  `wordRiseIn`, `letterPopIn`, `wordCascade`, `blurRiseIn`, `rotateIn`, or
+  `elasticPop` without manually supplying interpolation details
 - imported high-level blocks are still lowered into editable real keyframe
   channels, so users can retime or reshape them after import
 - reveal-aware families now behave as real reveal animations in preview and
@@ -216,6 +221,7 @@ As of Phase 5:
   - `slideIn`
   - `wordRiseIn`
   - `letterPopIn`
+  - `wordCascade`
   - `blurRiseIn`
   - `rotateIn`
   - `elasticPop`
@@ -236,5 +242,6 @@ If an AI agent is asked to generate a motion script:
 - preview/runtime and export now share support for the advanced interpolation
   kinds
 - prefer `animationBlocks` with named families like `bounceIn`, `riseIn`,
-  `slideIn`, `wordRiseIn`, `letterPopIn`, `blurRiseIn`, `rotateIn`, or
-  `elasticPop` when the user asks for a direct professional effect
+  `slideIn`, `wordRiseIn`, `letterPopIn`, `wordCascade`, `blurRiseIn`,
+  `rotateIn`, or `elasticPop` when the user asks for a direct professional
+  effect

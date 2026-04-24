@@ -15,6 +15,7 @@ enum MotionTextAnimationKind {
   slideIn,
   wordRiseIn,
   letterPopIn,
+  wordCascade,
   blurRiseIn,
   rotateIn,
   elasticPop,

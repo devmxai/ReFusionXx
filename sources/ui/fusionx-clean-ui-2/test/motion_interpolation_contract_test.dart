@@ -382,7 +382,7 @@ void main() {
     );
   });
 
-  test('wordRiseIn and letterPopIn families lower into reveal channels', () {
+  test('reveal text families lower into editable reveal channels', () {
     final range = TimelineTimeRange(
       start: TimelineTime.zero,
       endExclusive: TimelineTime.fromSecondsDouble(3),
@@ -480,6 +480,15 @@ void main() {
         stagger: TimelineTime.fromMilliseconds(34),
       ),
     );
+    final wordCascade = compileFamily(
+      targetId: 'text-word-cascade',
+      kind: MotionTextAnimationKind.wordCascade,
+      interpolation: const MotionInterpolationSpec.easeOut(),
+      revealSpec: MotionTextRevealSpec(
+        unit: MotionTextRevealUnit.word,
+        stagger: TimelineTime.fromMilliseconds(72),
+      ),
+    );
 
     final wordRiseChannels = <String, MotionPropertyChannelModel>{
       for (final channel in wordRise.generatedChannels)
@@ -487,6 +496,10 @@ void main() {
     };
     final letterPopChannels = <String, MotionPropertyChannelModel>{
       for (final channel in letterPop.generatedChannels)
+        channel.definition.id: channel,
+    };
+    final wordCascadeChannels = <String, MotionPropertyChannelModel>{
+      for (final channel in wordCascade.generatedChannels)
         channel.definition.id: channel,
     };
 
@@ -549,6 +562,41 @@ void main() {
           .value
           .rawValue,
       0.92,
+    );
+
+    expect(wordCascade.issues, isEmpty);
+    expect(
+      wordCascadeChannels.keys,
+      containsAll(<String>[
+        MotionPropertyCatalog.revealProgress.id,
+        MotionPropertyCatalog.opacity.id,
+        MotionPropertyCatalog.positionY.id,
+        MotionPropertyCatalog.blurAmount.id,
+      ]),
+    );
+    expect(
+      wordCascadeChannels[MotionPropertyCatalog.revealProgress.id]!
+          .keyframes
+          .first
+          .interpolationToNext
+          .kind,
+      MotionInterpolationKind.easeOut,
+    );
+    expect(
+      wordCascadeChannels[MotionPropertyCatalog.positionY.id]!
+          .keyframes
+          .first
+          .interpolationToNext
+          .kind,
+      MotionInterpolationKind.spring,
+    );
+    expect(
+      wordCascadeChannels[MotionPropertyCatalog.blurAmount.id]!
+          .keyframes
+          .first
+          .value
+          .rawValue,
+      8,
     );
   });
 

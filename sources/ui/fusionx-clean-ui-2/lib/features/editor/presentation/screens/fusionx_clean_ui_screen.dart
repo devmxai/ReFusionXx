@@ -218,6 +218,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       keywords: <String>['letter', 'character', 'pop', 'reveal', 'text'],
     ),
     AnimateBrowserItem(
+      id: 'text_effect.word_cascade',
+      label: 'Word Cascade',
+      category: 'Text',
+      summary: 'Cascade words into view with reveal, lift, and soft focus.',
+      keywords: <String>['word', 'cascade', 'reveal', 'stagger', 'text'],
+    ),
+    AnimateBrowserItem(
       id: 'text_effect.blur_rise_in',
       label: 'Blur Rise In',
       category: 'Text FX',
@@ -237,6 +244,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       category: 'Text FX',
       summary: 'Bring text in from soft blur to sharp focus.',
       keywords: <String>['blur', 'soft', 'focus', 'text'],
+    ),
+    AnimateBrowserItem(
+      id: 'text_effect.blur_out',
+      label: 'Blur Out',
+      category: 'Text FX',
+      summary: 'Send text out through soft blur and opacity fade.',
+      keywords: <String>['blur', 'fade', 'out', 'exit', 'text'],
     ),
     AnimateBrowserItem(
       id: 'text_effect.scale_pop',
@@ -4377,7 +4391,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   ) {
     return switch (item.id) {
       'text_effect.word_reveal' ||
-      'text_effect.word_rise_in' =>
+      'text_effect.word_rise_in' ||
+      'text_effect.word_cascade' =>
         MotionTextRevealUnit.word,
       _ => MotionTextRevealUnit.letter,
     };
@@ -4403,14 +4418,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       block.kind == MotionTextAnimationKind.wordReveal ||
       block.kind == MotionTextAnimationKind.letterReveal ||
       block.kind == MotionTextAnimationKind.wordRiseIn ||
-      block.kind == MotionTextAnimationKind.letterPopIn;
+      block.kind == MotionTextAnimationKind.letterPopIn ||
+      block.kind == MotionTextAnimationKind.wordCascade;
 
   bool _isScopedTextRevealEffectItem(AnimateBrowserItem item) =>
       item.id == 'text_effect.type_on' ||
       item.id == 'text_effect.word_reveal' ||
       item.id == 'text_effect.letter_reveal' ||
       item.id == 'text_effect.word_rise_in' ||
-      item.id == 'text_effect.letter_pop_in';
+      item.id == 'text_effect.letter_pop_in' ||
+      item.id == 'text_effect.word_cascade';
 
   List<MotionTextAnimationBindingModel>? _updateLayerScopeRevealBinding({
     required _LayerScopeContext context,
@@ -8006,6 +8023,29 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             },
           ),
         ],
+      'text_effect.word_cascade' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}word_cascade',
+            kind: MotionTextAnimationKind.wordCascade,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(920),
+            ),
+            revealSpec: MotionTextRevealSpec(
+              unit: MotionTextRevealUnit.word,
+              stagger: TimelineTime.fromMilliseconds(72),
+            ),
+            interpolation: const MotionInterpolationSpec.easeOut(),
+            parameters: const <String, MotionPropertyValue>{
+              'fromOffsetY': MotionPropertyValue.scalar(38),
+              'toOffsetY': MotionPropertyValue.scalar(0),
+              'fromBlur': MotionPropertyValue.scalar(8),
+              'toBlur': MotionPropertyValue.scalar(0),
+              'fromOpacity': MotionPropertyValue.scalar(0),
+              'toOpacity': MotionPropertyValue.scalar(1),
+            },
+          ),
+        ],
       'text_effect.blur_rise_in' => <MotionTextAnimationBlock>[
           MotionTextAnimationBlock(
             id: '${prefix}blur_rise_in',
@@ -8080,6 +8120,30 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             relativeRange: TimelineTimeRange(
               start: TimelineTime.zero,
               endExclusive: TimelineTime.fromMilliseconds(340),
+            ),
+            interpolation: const MotionInterpolationSpec.easeOut(),
+          ),
+        ],
+      'text_effect.blur_out' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}blur_out',
+            kind: MotionTextAnimationKind.blurOut,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(620),
+            ),
+            interpolation: const MotionInterpolationSpec.easeInOut(),
+            parameters: const <String, MotionPropertyValue>{
+              'fromBlur': MotionPropertyValue.scalar(0),
+              'toBlur': MotionPropertyValue.scalar(22),
+            },
+          ),
+          MotionTextAnimationBlock(
+            id: '${prefix}fade_out',
+            kind: MotionTextAnimationKind.fadeOut,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(120),
+              endExclusive: TimelineTime.fromMilliseconds(620),
             ),
             interpolation: const MotionInterpolationSpec.easeOut(),
           ),
