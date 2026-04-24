@@ -389,7 +389,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   TimelineTime _motionPreviewClockAnchorTime = TimelineTime.zero;
   Duration _motionPreviewClockAnchorElapsed = Duration.zero;
   Duration _motionPreviewClockLatestElapsed = Duration.zero;
-  bool _motionPreviewClockAwaitingFirstTick = false;
   Size? _lastPreviewStageSize;
 
   @override
@@ -644,20 +643,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _motionPreviewWarmupDebounce?.cancel();
     _motionPreviewWarmupRequestId += 1;
     _warmMotionPreviewForCurrentState(time ?? _currentTime);
-  }
-
-  Future<void> _preflightMotionPreviewPlaybackStart({
-    TimelineTime? time,
-  }) async {
-    if (!_useNativePreview) {
-      return;
-    }
-    final targetTime =
-        (time ?? _currentTime).clamp(TimelineTime.zero, _timelineDurationTime);
-    _setPlaybackSampleTime(targetTime);
-    _prepareMotionPreviewForPlaybackStart(time: targetTime);
-    SchedulerBinding.instance.scheduleFrame();
-    await SchedulerBinding.instance.endOfFrame;
   }
 
   void _warmMotionPreviewForCurrentState(TimelineTime preferredTime) {
@@ -2438,16 +2423,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         !state.isScrubSettling;
   }
 
-  void _startMotionPreviewFrameClock() {
-    if (_motionPreviewFrameTicker.isActive) {
-      return;
-    }
-    _motionPreviewClockAwaitingFirstTick = true;
-    _motionPreviewClockLatestElapsed = Duration.zero;
-    _motionPreviewFrameTicker.start();
-  }
-
   void _syncMotionPreviewFrameClock(TimelineTime transportTime) {
+    final elapsed = _motionPreviewClockLatestElapsed;
     if (!_motionPreviewFrameTicker.isActive) {
       final visibleSampleTime = _playbackSampleTimeNotifier.value.clamp(
         TimelineTime.zero,
@@ -2460,16 +2437,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
               ? visibleSampleTime
               : transportTime;
       _motionPreviewClockAnchorTime = anchorTime;
-      _motionPreviewClockAnchorElapsed = Duration.zero;
+      _motionPreviewClockAnchorElapsed = elapsed;
       _setPlaybackSampleTime(anchorTime);
-      _startMotionPreviewFrameClock();
-      return;
-    }
-    if (_motionPreviewClockAwaitingFirstTick) {
+      _motionPreviewFrameTicker.start();
       return;
     }
 
-    final elapsed = _motionPreviewClockLatestElapsed;
     final predictedTime = _motionPreviewClockTimeForElapsed(elapsed);
     final driftSeconds = (transportTime - predictedTime).inSecondsDouble.abs();
     if (driftSeconds > _motionPreviewClockResyncThresholdSeconds) {
@@ -2492,18 +2465,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       TimelineTime.zero,
       _timelineDurationTime,
     );
-    _motionPreviewClockAnchorElapsed = Duration.zero;
+    _motionPreviewClockAnchorElapsed = _motionPreviewClockLatestElapsed;
     _setPlaybackSampleTime(_motionPreviewClockAnchorTime);
-    _startMotionPreviewFrameClock();
+    if (!_motionPreviewFrameTicker.isActive) {
+      _motionPreviewFrameTicker.start();
+    }
   }
 
   void _stopMotionPreviewFrameClock({TimelineTime? resetTo}) {
     if (_motionPreviewFrameTicker.isActive) {
       _motionPreviewFrameTicker.stop(canceled: false);
     }
-    _motionPreviewClockAwaitingFirstTick = false;
-    _motionPreviewClockLatestElapsed = Duration.zero;
-    _motionPreviewClockAnchorElapsed = Duration.zero;
+    _motionPreviewClockAnchorElapsed = _motionPreviewClockLatestElapsed;
     if (resetTo != null) {
       _motionPreviewClockAnchorTime = resetTo;
       _setPlaybackSampleTime(resetTo);
@@ -2526,12 +2499,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final transportState = _transportController.state;
     if (!_shouldUseMotionPreviewFrameClock(transportState)) {
       _stopMotionPreviewFrameClock();
-      return;
-    }
-    if (_motionPreviewClockAwaitingFirstTick) {
-      _motionPreviewClockAwaitingFirstTick = false;
-      _motionPreviewClockAnchorElapsed = elapsed;
-      _setPlaybackSampleTime(_motionPreviewClockAnchorTime);
       return;
     }
     _setPlaybackSampleTime(_motionPreviewClockTimeForElapsed(elapsed));
@@ -8513,7 +8480,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (!mounted) {
       return;
     }
-    await _preflightMotionPreviewPlaybackStart(time: previewStartTime);
+    _prepareMotionPreviewForPlaybackStart(time: previewStartTime);
     await _playPlayback();
   }
 
@@ -9972,10 +9939,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   void _handlePlayToggle() {
-    unawaited(_handlePlayToggleAsync());
-  }
-
-  Future<void> _handlePlayToggleAsync() async {
     _clearTextEditPreviewRange();
     final transitionFocusSession = _transitionFocusSession;
     final transitionFocusContext = transitionFocusSession == null
@@ -9988,16 +9951,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (_canFastTogglePlayback) {
       _setTimelineDisplayTime(_currentTime);
       _syncPlaybackSampleToCurrentTime();
-      if (!_transportController.isPlaying) {
-        await _preflightMotionPreviewPlaybackStart();
-        if (!mounted) {
-          return;
-        }
-      }
-      await _togglePlayback();
+      _prepareMotionPreviewForPlaybackStart();
+      unawaited(_togglePlayback());
       return;
     }
-    await _togglePlayAfterStructuralCommit();
+    unawaited(_togglePlayAfterStructuralCommit());
   }
 
   bool get _canFastTogglePlayback =>
@@ -10046,7 +10004,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (!mounted) {
       return;
     }
-    await _preflightMotionPreviewPlaybackStart(time: effectiveStartTime);
+    _prepareMotionPreviewForPlaybackStart(time: effectiveStartTime);
     await _playPlayback();
   }
 
@@ -10144,7 +10102,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         end: entry.end,
       );
     });
-    await _preflightMotionPreviewPlaybackStart(time: entry.start);
+    _prepareMotionPreviewForPlaybackStart(time: entry.start);
     await _playPlayback();
   }
 
@@ -10262,11 +10220,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
     _setTimelineDisplayTime(_currentTime);
     _syncPlaybackSampleToCurrentTime();
+    _prepareMotionPreviewForPlaybackStart();
     if (!_transportController.isPlaying && _useNativePreview) {
-      await _preflightMotionPreviewPlaybackStart();
-      if (!mounted) {
-        return;
-      }
       final transportState = _transportController.state;
       if (transportState.sourceKind != 'timeline' ||
           _timelineTrimPreviewSession != null) {
