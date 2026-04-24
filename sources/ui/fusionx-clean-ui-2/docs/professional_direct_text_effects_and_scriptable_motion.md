@@ -111,14 +111,14 @@ Forbidden:
 
 Scoped timeline must continue to be a projection over the existing timeline.
 
-### 1.3 Do Not Embed Remotion Or A JSX Runtime In The App
+### 1.3 Do Not Embed Remotion Or A Web Runtime In The App
 
 Remotion is a reference for `compose with code`, `parameterized scenes`, and
 `program-backed motion authoring`.
 
 ReFusion must not:
 
-- execute React/JSX/TSX directly inside the mobile runtime
+- execute foreign UI component code directly inside the mobile runtime
 - embed Chromium or a browser rendering stack to evaluate motion
 - depend on a foreign runtime for preview, scrub, or export
 
@@ -857,7 +857,7 @@ ReFusion may add an importer for a safe Remotion-like subset later, but it must
 work as:
 
 ```text
-external code or JSX-like structure
+external web/component-style motion code
 -> adapter / translator
 -> ReFusion Motion Program
 -> compiler
@@ -867,7 +867,7 @@ external code or JSX-like structure
 Not:
 
 ```text
-JSX runtime inside app
+foreign UI runtime inside app
 -> preview engine
 ```
 
@@ -1333,7 +1333,7 @@ Do not:
 
 - build a separate text effect engine
 - build a separate script playback engine
-- execute JSX/TSX inside the app
+- execute foreign UI component code inside the app
 - fork `TimelinePanel`
 - add preview-only effect logic without channels
 - add closed one-click scoped effects that cannot expose controls/keyframes

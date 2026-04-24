@@ -69,12 +69,12 @@ Current supported input:
 
 Current unsupported direct input:
 
-- `JSX`
-- `TSX`
+- executable UI component code
 - executable JavaScript
+- dynamic runtime expressions
 
-If an AI system starts from JSX or Remotion-style code, it must first convert
-that motion into this canonical JSON/YAML contract.
+If an AI system starts from web/component-style motion code, it must first
+convert that motion into this canonical JSON/YAML contract.
 
 ## Recommended Agent Prompt
 
