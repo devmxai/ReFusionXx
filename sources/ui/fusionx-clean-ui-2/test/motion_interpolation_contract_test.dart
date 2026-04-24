@@ -489,6 +489,15 @@ void main() {
         stagger: TimelineTime.fromMilliseconds(72),
       ),
     );
+    final letterBounce = compileFamily(
+      targetId: 'text-letter-bounce',
+      kind: MotionTextAnimationKind.letterBounce,
+      interpolation: const MotionInterpolationSpec.bounce(),
+      revealSpec: MotionTextRevealSpec(
+        unit: MotionTextRevealUnit.letter,
+        stagger: TimelineTime.fromMilliseconds(42),
+      ),
+    );
 
     final wordRiseChannels = <String, MotionPropertyChannelModel>{
       for (final channel in wordRise.generatedChannels)
@@ -500,6 +509,10 @@ void main() {
     };
     final wordCascadeChannels = <String, MotionPropertyChannelModel>{
       for (final channel in wordCascade.generatedChannels)
+        channel.definition.id: channel,
+    };
+    final letterBounceChannels = <String, MotionPropertyChannelModel>{
+      for (final channel in letterBounce.generatedChannels)
         channel.definition.id: channel,
     };
 
@@ -597,6 +610,134 @@ void main() {
           .value
           .rawValue,
       8,
+    );
+
+    expect(letterBounce.issues, isEmpty);
+    expect(
+      letterBounceChannels.keys,
+      containsAll(<String>[
+        MotionPropertyCatalog.revealProgress.id,
+        MotionPropertyCatalog.opacity.id,
+        MotionPropertyCatalog.scaleX.id,
+        MotionPropertyCatalog.scaleY.id,
+        MotionPropertyCatalog.positionY.id,
+      ]),
+    );
+    expect(
+      letterBounceChannels[MotionPropertyCatalog.scaleX.id]!
+          .keyframes
+          .first
+          .interpolationToNext
+          .kind,
+      MotionInterpolationKind.bounce,
+    );
+    expect(
+      letterBounceChannels[MotionPropertyCatalog.positionY.id]!
+          .keyframes
+          .first
+          .value
+          .rawValue,
+      42,
+    );
+  });
+
+  test('slideBlurIn family lowers into cinematic slide channels', () {
+    final range = TimelineTimeRange(
+      start: TimelineTime.zero,
+      endExclusive: TimelineTime.fromSecondsDouble(3),
+    );
+    final project = MotionProjectModel(
+      id: 'project',
+      format: const MotionProjectFormat(
+        canvasSize: MotionSize2D(width: 1080, height: 1920),
+      ),
+      frameRate: const MotionFrameRate(numerator: 60, denominator: 1),
+      scenes: <MotionSceneModel>[
+        MotionSceneModel(
+          id: 'scene',
+          projectRange: range,
+          layers: <MotionLayerModel>[
+            MotionLayerModel(
+              id: 'layer',
+              sceneId: 'scene',
+              kind: MotionLayerKind.text,
+              visibleRange: range,
+              elements: <MotionElementModel>[
+                MotionElementModel(
+                  id: 'text-slide-blur',
+                  layerId: 'layer',
+                  kind: MotionElementKind.text,
+                  localRange: range,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+    final result = BasicMotionTextPresetCompiler().compileBindings(
+      request: MotionCompileRequest(
+        project: project,
+        textAnimationBindings: <MotionTextAnimationBindingModel>[
+          MotionTextAnimationBindingModel(
+            id: 'binding-slide-blur',
+            elementTarget: const MotionPropertyTarget(
+              kind: MotionTargetKind.element,
+              targetId: 'text-slide-blur',
+              projectId: 'project',
+              sceneId: 'scene',
+              layerId: 'layer',
+              elementId: 'text-slide-blur',
+            ),
+            activeRange: range,
+            animationBlocks: <MotionTextAnimationBlock>[
+              MotionTextAnimationBlock(
+                id: 'family.slideBlurIn',
+                kind: MotionTextAnimationKind.slideBlurIn,
+                relativeRange: TimelineTimeRange(
+                  start: TimelineTime.zero,
+                  endExclusive: TimelineTime.fromMilliseconds(780),
+                ),
+                interpolation: const MotionInterpolationSpec.spring(),
+              ),
+            ],
+          ),
+        ],
+      ),
+      elementsById: <String, MotionElementModel>{
+        'text-slide-blur': project.scenes.single.layers.single.elements.single,
+      },
+    );
+
+    final channels = <String, MotionPropertyChannelModel>{
+      for (final channel in result.generatedChannels)
+        channel.definition.id: channel,
+    };
+
+    expect(result.issues, isEmpty);
+    expect(
+      channels.keys,
+      containsAll(<String>[
+        MotionPropertyCatalog.opacity.id,
+        MotionPropertyCatalog.positionX.id,
+        MotionPropertyCatalog.blurAmount.id,
+      ]),
+    );
+    expect(
+      channels[MotionPropertyCatalog.positionX.id]!
+          .keyframes
+          .first
+          .interpolationToNext
+          .kind,
+      MotionInterpolationKind.spring,
+    );
+    expect(
+      channels[MotionPropertyCatalog.blurAmount.id]!
+          .keyframes
+          .first
+          .value
+          .rawValue,
+      14,
     );
   });
 

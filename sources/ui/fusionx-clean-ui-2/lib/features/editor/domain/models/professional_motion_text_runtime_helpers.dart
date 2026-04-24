@@ -439,6 +439,72 @@ class BasicMotionTextPresetCompiler {
           interpolation: const MotionInterpolationSpec.easeOut(),
         );
         break;
+      case MotionTextAnimationKind.letterBounce:
+        _addScalarAnimation(
+          accumulator: accumulator,
+          binding: binding,
+          definition: MotionPropertyCatalog.revealProgress,
+          from: 0,
+          to: 1,
+          range: absoluteRange,
+          interpolation: const MotionInterpolationSpec.easeOut(),
+        );
+        _addScalarAnimation(
+          accumulator: accumulator,
+          binding: binding,
+          definition: MotionPropertyCatalog.opacity,
+          from: _readScalar(block, parameterValues, 'fromOpacity', 0),
+          to: _readScalar(block, parameterValues, 'toOpacity', 1),
+          range: absoluteRange,
+          interpolation: const MotionInterpolationSpec.easeOut(),
+        );
+        _addUniformScaleAnimation(
+          accumulator: accumulator,
+          binding: binding,
+          from: _readScalar(block, parameterValues, 'fromScale', 0.62),
+          to: _readScalar(block, parameterValues, 'toScale', 1.0),
+          range: absoluteRange,
+          interpolation: block.interpolation,
+        );
+        _addScalarAnimation(
+          accumulator: accumulator,
+          binding: binding,
+          definition: MotionPropertyCatalog.positionY,
+          from: _readScalar(block, parameterValues, 'fromOffsetY', 42),
+          to: _readScalar(block, parameterValues, 'toOffsetY', 0),
+          range: absoluteRange,
+          interpolation: block.interpolation,
+        );
+        break;
+      case MotionTextAnimationKind.slideBlurIn:
+        _addScalarAnimation(
+          accumulator: accumulator,
+          binding: binding,
+          definition: MotionPropertyCatalog.opacity,
+          from: _readScalar(block, parameterValues, 'fromOpacity', 0),
+          to: _readScalar(block, parameterValues, 'toOpacity', 1),
+          range: absoluteRange,
+          interpolation: const MotionInterpolationSpec.easeOut(),
+        );
+        _addScalarAnimation(
+          accumulator: accumulator,
+          binding: binding,
+          definition: MotionPropertyCatalog.positionX,
+          from: _readScalar(block, parameterValues, 'fromOffsetX', -160),
+          to: _readScalar(block, parameterValues, 'toOffsetX', 0),
+          range: absoluteRange,
+          interpolation: block.interpolation,
+        );
+        _addScalarAnimation(
+          accumulator: accumulator,
+          binding: binding,
+          definition: MotionPropertyCatalog.blurAmount,
+          from: _readScalar(block, parameterValues, 'fromBlur', 14),
+          to: _readScalar(block, parameterValues, 'toBlur', 0),
+          range: absoluteRange,
+          interpolation: const MotionInterpolationSpec.easeOut(),
+        );
+        break;
       case MotionTextAnimationKind.blurRiseIn:
         _addScalarAnimation(
           accumulator: accumulator,

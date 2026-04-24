@@ -400,6 +400,8 @@ Supported block kinds:
 - `wordRiseIn`
 - `letterPopIn`
 - `wordCascade`
+- `letterBounce`
+- `slideBlurIn`
 - `blurRiseIn`
 - `rotateIn`
 - `elasticPop`
@@ -437,6 +439,10 @@ The first supported families are:
   reveals by letter with stagger metadata
 - `wordCascade`: lowers into revealProgress, opacity, vertical position, and
   blur channels; reveals by word with stagger metadata
+- `letterBounce`: lowers into revealProgress, opacity, scale, and vertical
+  position channels; reveals by letter with canonical bounce motion
+- `slideBlurIn`: lowers into opacity, horizontal position, and blur channels
+  with canonical spring motion
 - `blurRiseIn`: lowers into opacity, blur, vertical position, and subtle scale
   channels with canonical `spring`
 - `rotateIn`: lowers into opacity, rotation, and scale channels with canonical
@@ -487,6 +493,8 @@ As of this document update:
   - `wordRiseIn`
   - `letterPopIn`
   - `wordCascade`
+  - `letterBounce`
+  - `slideBlurIn`
   - `blurRiseIn`
   - `rotateIn`
   - `elasticPop`
@@ -660,6 +668,51 @@ while preserving letter-based reveal metadata.
 
 This imports as editable revealProgress, opacity, positionY, and blur channels
 while preserving word-based reveal metadata.
+
+## Example: Named Letter Bounce Family
+
+```json
+{
+  "schemaVersion": "refusion.scope-text-script/v1",
+  "name": "Letter Bounce",
+  "animationBlocks": [
+    {
+      "kind": "letterBounce",
+      "startMs": 0,
+      "durationMs": 820,
+      "parameters": {
+        "fromScale": 62,
+        "fromOffsetY": 42
+      }
+    }
+  ]
+}
+```
+
+This imports as editable revealProgress, opacity, scale, and positionY channels
+while preserving letter-based reveal metadata.
+
+## Example: Named Slide Blur In Family
+
+```json
+{
+  "schemaVersion": "refusion.scope-text-script/v1",
+  "name": "Slide Blur In",
+  "animationBlocks": [
+    {
+      "kind": "slideBlurIn",
+      "startMs": 0,
+      "durationMs": 780,
+      "parameters": {
+        "fromOffsetX": -160,
+        "fromBlur": 14
+      }
+    }
+  ]
+}
+```
+
+This imports as editable opacity, positionX, and blur channels.
 
 ## Example: Named Blur Rise In Family
 

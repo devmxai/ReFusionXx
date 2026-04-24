@@ -402,6 +402,7 @@ class MotionTextPresetJsonCodec {
   ) {
     switch (kind) {
       case MotionTextAnimationKind.bounceIn:
+      case MotionTextAnimationKind.letterBounce:
         return const MotionInterpolationSpec.bounce(
           bounce: MotionBounceSpec(
             amplitude: 0.24,
@@ -419,6 +420,7 @@ class MotionTextPresetJsonCodec {
           ),
         );
       case MotionTextAnimationKind.slideIn:
+      case MotionTextAnimationKind.slideBlurIn:
         return const MotionInterpolationSpec.spring(
           spring: MotionSpringSpec(
             stiffness: 230,
@@ -494,6 +496,11 @@ class MotionTextPresetJsonCodec {
           unit: MotionTextRevealUnit.letter,
           stagger: TimelineTime.fromMilliseconds(34),
         );
+      case MotionTextAnimationKind.letterBounce:
+        return MotionTextRevealSpec(
+          unit: MotionTextRevealUnit.letter,
+          stagger: TimelineTime.fromMilliseconds(42),
+        );
       case MotionTextAnimationKind.fadeIn:
       case MotionTextAnimationKind.fadeOut:
       case MotionTextAnimationKind.wordReveal:
@@ -502,6 +509,7 @@ class MotionTextPresetJsonCodec {
       case MotionTextAnimationKind.bounceIn:
       case MotionTextAnimationKind.riseIn:
       case MotionTextAnimationKind.slideIn:
+      case MotionTextAnimationKind.slideBlurIn:
       case MotionTextAnimationKind.blurRiseIn:
       case MotionTextAnimationKind.rotateIn:
       case MotionTextAnimationKind.elasticPop:
@@ -659,6 +667,10 @@ class MotionTextPresetJsonCodec {
         return MotionTextAnimationKind.letterPopIn;
       case 'wordCascade':
         return MotionTextAnimationKind.wordCascade;
+      case 'letterBounce':
+        return MotionTextAnimationKind.letterBounce;
+      case 'slideBlurIn':
+        return MotionTextAnimationKind.slideBlurIn;
       case 'blurRiseIn':
         return MotionTextAnimationKind.blurRiseIn;
       case 'rotateIn':

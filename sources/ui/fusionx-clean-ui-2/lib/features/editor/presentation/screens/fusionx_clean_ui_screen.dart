@@ -225,6 +225,20 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       keywords: <String>['word', 'cascade', 'reveal', 'stagger', 'text'],
     ),
     AnimateBrowserItem(
+      id: 'text_effect.letter_bounce',
+      label: 'Letter Bounce',
+      category: 'Text',
+      summary: 'Reveal letters with bounce, scale, and lift.',
+      keywords: <String>['letter', 'bounce', 'character', 'scale', 'text'],
+    ),
+    AnimateBrowserItem(
+      id: 'text_effect.slide_blur_in',
+      label: 'Slide Blur In',
+      category: 'Text FX',
+      summary: 'Slide text in while blur resolves into crisp focus.',
+      keywords: <String>['slide', 'blur', 'focus', 'cinematic', 'text'],
+    ),
+    AnimateBrowserItem(
       id: 'text_effect.blur_rise_in',
       label: 'Blur Rise In',
       category: 'Text FX',
@@ -4419,7 +4433,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       block.kind == MotionTextAnimationKind.letterReveal ||
       block.kind == MotionTextAnimationKind.wordRiseIn ||
       block.kind == MotionTextAnimationKind.letterPopIn ||
-      block.kind == MotionTextAnimationKind.wordCascade;
+      block.kind == MotionTextAnimationKind.wordCascade ||
+      block.kind == MotionTextAnimationKind.letterBounce;
 
   bool _isScopedTextRevealEffectItem(AnimateBrowserItem item) =>
       item.id == 'text_effect.type_on' ||
@@ -4427,7 +4442,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       item.id == 'text_effect.letter_reveal' ||
       item.id == 'text_effect.word_rise_in' ||
       item.id == 'text_effect.letter_pop_in' ||
-      item.id == 'text_effect.word_cascade';
+      item.id == 'text_effect.word_cascade' ||
+      item.id == 'text_effect.letter_bounce';
 
   List<MotionTextAnimationBindingModel>? _updateLayerScopeRevealBinding({
     required _LayerScopeContext context,
@@ -8040,6 +8056,61 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
               'fromOffsetY': MotionPropertyValue.scalar(38),
               'toOffsetY': MotionPropertyValue.scalar(0),
               'fromBlur': MotionPropertyValue.scalar(8),
+              'toBlur': MotionPropertyValue.scalar(0),
+              'fromOpacity': MotionPropertyValue.scalar(0),
+              'toOpacity': MotionPropertyValue.scalar(1),
+            },
+          ),
+        ],
+      'text_effect.letter_bounce' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}letter_bounce',
+            kind: MotionTextAnimationKind.letterBounce,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(820),
+            ),
+            revealSpec: MotionTextRevealSpec(
+              unit: MotionTextRevealUnit.letter,
+              stagger: TimelineTime.fromMilliseconds(42),
+            ),
+            interpolation: const MotionInterpolationSpec.bounce(
+              bounce: MotionBounceSpec(
+                amplitude: 0.22,
+                bounces: 3,
+                decay: 7.0,
+              ),
+            ),
+            parameters: const <String, MotionPropertyValue>{
+              'fromScale': MotionPropertyValue.scalar(0.62),
+              'toScale': MotionPropertyValue.scalar(1.0),
+              'fromOffsetY': MotionPropertyValue.scalar(42),
+              'toOffsetY': MotionPropertyValue.scalar(0),
+              'fromOpacity': MotionPropertyValue.scalar(0),
+              'toOpacity': MotionPropertyValue.scalar(1),
+            },
+          ),
+        ],
+      'text_effect.slide_blur_in' => <MotionTextAnimationBlock>[
+          MotionTextAnimationBlock(
+            id: '${prefix}slide_blur_in',
+            kind: MotionTextAnimationKind.slideBlurIn,
+            relativeRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(780),
+            ),
+            interpolation: const MotionInterpolationSpec.spring(
+              spring: MotionSpringSpec(
+                stiffness: 220,
+                damping: 24,
+                mass: 1.0,
+                initialVelocity: 0,
+              ),
+            ),
+            parameters: const <String, MotionPropertyValue>{
+              'fromOffsetX': MotionPropertyValue.scalar(-160),
+              'toOffsetX': MotionPropertyValue.scalar(0),
+              'fromBlur': MotionPropertyValue.scalar(14),
               'toBlur': MotionPropertyValue.scalar(0),
               'fromOpacity': MotionPropertyValue.scalar(0),
               'toOpacity': MotionPropertyValue.scalar(1),
