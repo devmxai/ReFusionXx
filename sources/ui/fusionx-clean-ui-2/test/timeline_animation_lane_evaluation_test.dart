@@ -17,6 +17,21 @@ void main() {
     );
   });
 
+  test('empty animation lane aligned values are caller-owned', () {
+    const lane = TimelineAnimationLaneData(
+      id: 'opacity-lane',
+      label: 'Opacity',
+      targetClipId: 'clip-1',
+      normalizedKeyframeStops: <double>[],
+      keyframeValues: <double>[],
+    );
+
+    final values = lane.alignedKeyframeValues();
+
+    values.insert(0, 25);
+    expect(values, <double>[25]);
+  });
+
   test('single keyframe holds a constant value across the clip', () {
     const lane = TimelineAnimationLaneData(
       id: 'opacity-lane',

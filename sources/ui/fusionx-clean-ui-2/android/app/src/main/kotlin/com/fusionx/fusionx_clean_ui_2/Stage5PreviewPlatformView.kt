@@ -202,9 +202,14 @@ class Stage5PreviewPlatformView(
     }
 
     private fun syncPlayerVisibility() {
-        val shouldShowPlayer = !isPreviewOutputSuppressed && !isScrubSurfaceVisible
-        playerView.visibility = if (shouldShowPlayer) View.VISIBLE else View.INVISIBLE
-        playerView.alpha = if (shouldShowPlayer && isPlayerContentSized) 1f else 0f
+        val shouldAttachPlayerSurface = !isPreviewOutputSuppressed
+        playerView.visibility = if (shouldAttachPlayerSurface) View.VISIBLE else View.INVISIBLE
+        playerView.alpha =
+            if (shouldAttachPlayerSurface && !isScrubSurfaceVisible && isPlayerContentSized) {
+                1f
+            } else {
+                0f
+            }
     }
 
     private fun runOnUiThread(action: () -> Unit) {

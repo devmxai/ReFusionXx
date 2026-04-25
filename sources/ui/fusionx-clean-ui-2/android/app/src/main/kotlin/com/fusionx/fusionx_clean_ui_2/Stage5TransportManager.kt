@@ -89,6 +89,7 @@ class Stage5TransportManager(context: Context) {
     private var scrubSettlePositionSatisfied = false
     private var scrubSettleRenderedFirstFrameSeen = false
     private var scrubSettleWatchdogAttempts = 0
+    private var pendingPlayAfterSettledSeekTargetMs: Long? = null
     private var timelinePlaybackBackend = TimelinePlaybackBackend.NONE
     private var isPreviewOutputSuppressed = false
     private val playerObservers = LinkedHashSet<(Player) -> Unit>()
@@ -188,6 +189,12 @@ class Stage5TransportManager(context: Context) {
                     finishScrubSettle(forcePositionUpdate = true)
                     return
                 }
+                if (scrubSettlePositionSatisfied &&
+                    pendingPlayAfterSettledSeekTargetMs != null
+                ) {
+                    finishScrubSettle(forcePositionUpdate = true)
+                    return
+                }
                 if (scrubSettleWatchdogAttempts >= SCRUB_SETTLE_MAX_WATCHDOG_ATTEMPTS) {
                     scrubSettleWatchdogAttempts = 0
                     targetPositionMs?.let { positionMs ->
@@ -253,6 +260,7 @@ class Stage5TransportManager(context: Context) {
             }
 
             override fun onPlayerError(error: PlaybackException) {
+                cancelPendingPlayAfterSettledSeek()
                 finishScrubSettle(forcePositionUpdate = false)
                 latestError = error.message ?: error.errorCodeName
                 emitState()
@@ -275,6 +283,7 @@ class Stage5TransportManager(context: Context) {
     fun initializeTransport(): Map<String, Any?> {
         val exo = ensurePlayer()
         activatePlayer(exo)
+        cancelPendingPlayAfterSettledSeek()
         latestError = null
         exo.setPreloadConfiguration(ExoPlayer.PreloadConfiguration.DEFAULT)
         exo.pause()
@@ -305,6 +314,7 @@ class Stage5TransportManager(context: Context) {
     fun prepareSample(): Map<String, Any?> {
         val exo = ensurePlayer()
         activatePlayer(exo)
+        cancelPendingPlayAfterSettledSeek()
         latestError = null
         exo.setPreloadConfiguration(ExoPlayer.PreloadConfiguration.DEFAULT)
         val sampleUri = RawResourceDataSource.buildRawResourceUri(R.raw.stage5_sample)
@@ -540,6 +550,7 @@ class Stage5TransportManager(context: Context) {
     fun prepareImportedMedia(sourceUri: String, sourceLabel: String): Map<String, Any?> {
         val exo = ensurePlayer()
         activatePlayer(exo)
+        cancelPendingPlayAfterSettledSeek()
         latestError = null
         exo.setPreloadConfiguration(ExoPlayer.PreloadConfiguration.DEFAULT)
         val importedUri = Uri.parse(sourceUri)
@@ -633,6 +644,7 @@ class Stage5TransportManager(context: Context) {
                 ).takeIf { it.sourceDurationMs > 0L }
             }
 
+        cancelPendingPlayAfterSettledSeek()
         activePlayer?.pause()
         finishScrubSettle(forcePositionUpdate = false)
         resetTimelineProjectionForStructuralCommit()
@@ -686,7 +698,11 @@ class Stage5TransportManager(context: Context) {
     fun play() {
         latestError = null
         if (isScrubSettling) {
-            finishScrubSettle(forcePositionUpdate = false)
+            pendingPlayAfterSettledSeekTargetMs =
+                scrubSettleTargetPositionMs ?: currentTimelinePositionMs()
+            emitPreviewRetentionPolicy()
+            emitState()
+            return
         }
         recoverFromTimelineEndedStateIfNeeded()
         if (timelineSegments.isNotEmpty()) {
@@ -697,7 +713,38 @@ class Stage5TransportManager(context: Context) {
         emitState()
     }
 
+    fun playFromPosition(positionMs: Long) {
+        val currentPlayer = player
+        val safePositionMs =
+            clampRecoverablePosition(positionMs, currentPlayer).let { clamped ->
+                val durationBoundMs =
+                    if (timelineSegments.isNotEmpty()) {
+                        timelineDurationMs
+                    } else {
+                        currentPlayer.duration.takeIf { it > 0L && it != C.TIME_UNSET }
+                    }
+                if (durationBoundMs != null && durationBoundMs > 0L) {
+                    clamped.coerceIn(0L, safeDisplayableEndPosition(durationBoundMs))
+                } else {
+                    clamped.coerceAtLeast(0L)
+                }
+            }
+        latestError = null
+        cancelPendingPlayAfterSettledSeek()
+        clearScrubSettleForPlaybackStart()
+        lastRequestedPositionMs = safePositionMs
+        (currentPlayer as? ExoPlayer)?.setSeekParameters(SeekParameters.EXACT)
+        performResolvedSeek(safePositionMs)
+        if (timelineSegments.isNotEmpty()) {
+            applyPlaybackRateForSegmentIndex(activeTimelineSegmentIndex)
+        }
+        currentPlayer.play()
+        emitPreviewRetentionPolicy()
+        emitState()
+    }
+
     fun pause() {
+        cancelPendingPlayAfterSettledSeek()
         player.pause()
         emitPreviewRetentionPolicy()
         emitState()
@@ -705,6 +752,7 @@ class Stage5TransportManager(context: Context) {
 
     fun seekTo(positionMs: Long) {
         val safePositionMs = positionMs.coerceAtLeast(0L)
+        cancelPendingPlayAfterSettledSeek()
         lastRequestedPositionMs = safePositionMs
         finishScrubSettle(forcePositionUpdate = false)
         performResolvedSeek(safePositionMs)
@@ -713,6 +761,7 @@ class Stage5TransportManager(context: Context) {
 
     fun settleAfterScrub(positionMs: Long) {
         val safePositionMs = positionMs.coerceAtLeast(0L)
+        cancelPendingPlayAfterSettledSeek()
         lastRequestedPositionMs = safePositionMs
         player.pause()
         beginExactScrubSettle(safePositionMs)
@@ -822,6 +871,7 @@ class Stage5TransportManager(context: Context) {
 
     fun release() {
         detachEventSink()
+        cancelPendingPlayAfterSettledSeek()
         finishScrubSettle(forcePositionUpdate = false)
         exoPlayer?.let { currentPlayer ->
             currentPlayer.removeListener(playerListener)
@@ -889,6 +939,24 @@ class Stage5TransportManager(context: Context) {
         (activePlayer as? ExoPlayer)?.setSeekParameters(SeekParameters.EXACT)
         performResolvedSeek(safePositionMs)
         emitScrubSettlingState()
+    }
+
+    private fun clearScrubSettleForPlaybackStart() {
+        val hadPendingSettle = isScrubSettling || scrubSettleTargetPositionMs != null
+        mainHandler.removeCallbacks(scrubSettleWatchdog)
+        isScrubSettling = false
+        scrubSettleTargetPositionMs = null
+        scrubSettleRenderedFrameCandidatesMs = LongArray(0)
+        scrubSettlePositionSatisfied = false
+        scrubSettleRenderedFirstFrameSeen = false
+        scrubSettleWatchdogAttempts = 0
+        if (hadPendingSettle) {
+            emitScrubSettlingState()
+        }
+    }
+
+    private fun cancelPendingPlayAfterSettledSeek() {
+        pendingPlayAfterSettledSeekTargetMs = null
     }
 
     private fun recoverFromPlaybackError() {
@@ -990,7 +1058,7 @@ class Stage5TransportManager(context: Context) {
             "isReady" to (playbackState == Player.STATE_READY),
             "isPlaying" to isPlaying,
             "durationMs" to durationMs,
-            "positionMs" to positionMs.coerceAtLeast(0L),
+            "positionMs" to positionMs.coerceIn(0L, durationMs.coerceAtLeast(0L)),
             "playbackState" to playbackState,
             "videoWidth" to videoWidth,
             "videoHeight" to videoHeight,
@@ -1134,6 +1202,10 @@ class Stage5TransportManager(context: Context) {
             return
         }
         scrubSettlePositionSatisfied = true
+        if (pendingPlayAfterSettledSeekTargetMs != null) {
+            finishScrubSettle(forcePositionUpdate = true)
+            return
+        }
         if (playbackState == Player.STATE_ENDED) {
             scrubSettleRenderedFirstFrameSeen = true
         }
@@ -1201,6 +1273,7 @@ class Stage5TransportManager(context: Context) {
 
     private fun finishScrubSettle(forcePositionUpdate: Boolean) {
         val hadPendingSettle = isScrubSettling || scrubSettleTargetPositionMs != null
+        val pendingPlayTargetMs = pendingPlayAfterSettledSeekTargetMs
         mainHandler.removeCallbacks(scrubSettleWatchdog)
         isScrubSettling = false
         scrubSettleTargetPositionMs = null
@@ -1209,6 +1282,33 @@ class Stage5TransportManager(context: Context) {
         scrubSettleRenderedFirstFrameSeen = false
         scrubSettleWatchdogAttempts = 0
         emitScrubSettlingState()
+        if (pendingPlayTargetMs != null) {
+            pendingPlayAfterSettledSeekTargetMs = null
+            val safePlayTargetMs =
+                pendingPlayTargetMs.coerceIn(0L, timelineDurationMs.takeIf { it > 0L } ?: Long.MAX_VALUE)
+            val activePlayer = activePlayer ?: exoPlayer ?: compositionPlayer ?: player
+            if (timelineSegments.isNotEmpty()) {
+                val timelinePosition = currentTimelinePositionMs()
+                if (kotlin.math.abs(timelinePosition - safePlayTargetMs) > SCRUB_SETTLE_TOLERANCE_MS &&
+                    activePlayer.playbackState != Player.STATE_ENDED
+                ) {
+                    (activePlayer as? ExoPlayer)?.setSeekParameters(SeekParameters.EXACT)
+                    performResolvedSeek(safePlayTargetMs)
+                }
+                applyPlaybackRateForSegmentIndex(activeTimelineSegmentIndex)
+            } else if (kotlin.math.abs(activePlayer.currentPosition - safePlayTargetMs) >
+                SCRUB_SETTLE_TOLERANCE_MS &&
+                activePlayer.playbackState != Player.STATE_ENDED
+            ) {
+                (activePlayer as? ExoPlayer)?.setSeekParameters(SeekParameters.EXACT)
+                activePlayer.seekTo(safePlayTargetMs)
+            }
+            lastRequestedPositionMs = safePlayTargetMs
+            activePlayer.play()
+            emitPreviewRetentionPolicy()
+            emitState()
+            return
+        }
         if (forcePositionUpdate && hadPendingSettle) {
             emitState()
         }

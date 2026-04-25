@@ -12,52 +12,69 @@ class TimelineTransitionPreviewOverlay extends StatelessWidget {
     super.key,
     required this.transition,
     required this.progress,
+    this.manualLaneProgress,
+    this.manualSeamProgress,
+    this.outgoingThumbnailBytes,
     this.incomingThumbnailBytes,
   });
 
   final TimelineTrackTransitionData transition;
   final double progress;
+  final double? manualLaneProgress;
+  final double? manualSeamProgress;
+  final Uint8List? outgoingThumbnailBytes;
   final Uint8List? incomingThumbnailBytes;
 
   @override
   Widget build(BuildContext context) {
     final curvedProgress = _applyCurve(progress, transition.curve);
+    final resolvedManualLaneProgress =
+        (manualLaneProgress ?? progress).clamp(0.0, 1.0).toDouble();
+    final seamProgress =
+        manualSeamProgress ?? _seamProgressForTransition(transition);
     final manualIncomingStartScale = transition.manualLaneValueAtProgress(
           'incomingStartScale',
-          curvedProgress,
-          fallbackValue:
-              transition.parameterValue('incomingStartScale', fallback: 1.0) *
-                  100.0,
+          resolvedManualLaneProgress,
+          fallbackValue: _manualPercentFallback(
+            'incomingStartScale',
+            normalizedFallback: 1.0,
+          ),
         ) /
         100.0;
     final manualOutgoingBoostScale = transition.manualLaneValueAtProgress(
           'outgoingBoostScale',
-          curvedProgress,
-          fallbackValue:
-              transition.parameterValue('outgoingBoostScale', fallback: 1.0) *
-                  100.0,
+          resolvedManualLaneProgress,
+          fallbackValue: _manualPercentFallback(
+            'outgoingBoostScale',
+            normalizedFallback: 1.0,
+          ),
         ) /
         100.0;
     final manualEntryDelay = transition.manualLaneValueAtProgress(
           'entryDelay',
-          curvedProgress,
-          fallbackValue:
-              transition.parameterValue('entryDelay', fallback: 0.0) * 100.0,
+          resolvedManualLaneProgress,
+          fallbackValue: _manualPercentFallback(
+            'entryDelay',
+            normalizedFallback: 0.0,
+          ),
         ) /
         100.0;
     final manualBridgeDarkness = transition.manualLaneValueAtProgress(
           'bridgeDarkness',
-          curvedProgress,
-          fallbackValue:
-              transition.parameterValue('bridgeDarkness', fallback: 0.0) *
-                  100.0,
+          resolvedManualLaneProgress,
+          fallbackValue: _manualPercentFallback(
+            'bridgeDarkness',
+            normalizedFallback: 0.0,
+          ),
         ) /
         100.0;
     final manualBlackPeak = transition.manualLaneValueAtProgress(
           'blackPeak',
-          curvedProgress,
-          fallbackValue:
-              transition.parameterValue('blackPeak', fallback: 0.0) * 100.0,
+          resolvedManualLaneProgress,
+          fallbackValue: _manualPercentFallback(
+            'blackPeak',
+            normalizedFallback: 0.0,
+          ),
         ) /
         100.0;
     return IgnorePointer(
@@ -68,6 +85,9 @@ class TimelineTransitionPreviewOverlay extends StatelessWidget {
               transition.manualEffectIds.isNotEmpty)
             _ManualTransitionLayer(
               progress: curvedProgress,
+              seamProgress: seamProgress,
+              effectIds: transition.manualEffectIds,
+              outgoingThumbnailBytes: outgoingThumbnailBytes,
               incomingThumbnailBytes: incomingThumbnailBytes,
               incomingStartScale: manualIncomingStartScale,
               outgoingBoostScale: manualOutgoingBoostScale,
@@ -90,6 +110,7 @@ class TimelineTransitionPreviewOverlay extends StatelessWidget {
           if (transition.preset == TimelineTransitionPreset.zoomInCamera)
             _ZoomInCameraTransitionLayer(
               progress: curvedProgress,
+              outgoingThumbnailBytes: outgoingThumbnailBytes,
               incomingThumbnailBytes: incomingThumbnailBytes,
               incomingStartScale: transition
                   .parameterValue('incomingStartScale', fallback: 1.18),
@@ -110,6 +131,27 @@ class TimelineTransitionPreviewOverlay extends StatelessWidget {
     return (triangular.clamp(0.0, 1.0) * peak.clamp(0.0, 1.0)).toDouble();
   }
 
+  double _manualPercentFallback(
+    String key, {
+    required double normalizedFallback,
+  }) {
+    final raw = transition.parameterValue(key, fallback: normalizedFallback);
+    if (raw.abs() <= 2.0) {
+      return raw * 100.0;
+    }
+    return raw;
+  }
+
+  double _seamProgressForTransition(TimelineTrackTransitionData transition) {
+    final leading = transition.resolvedLeadingDurationTime.inMilliseconds;
+    final trailing = transition.resolvedTrailingDurationTime.inMilliseconds;
+    final total = leading + trailing;
+    if (total <= 0) {
+      return 0.5;
+    }
+    return (leading / total).clamp(0.0, 1.0).toDouble();
+  }
+
   double _applyCurve(double t, TimelineTransitionCurve curve) {
     final clamped = t.clamp(0.0, 1.0);
     return switch (curve) {
@@ -124,6 +166,9 @@ class TimelineTransitionPreviewOverlay extends StatelessWidget {
 class _ManualTransitionLayer extends StatelessWidget {
   const _ManualTransitionLayer({
     required this.progress,
+    required this.seamProgress,
+    required this.effectIds,
+    required this.outgoingThumbnailBytes,
     required this.incomingThumbnailBytes,
     required this.incomingStartScale,
     required this.outgoingBoostScale,
@@ -133,6 +178,9 @@ class _ManualTransitionLayer extends StatelessWidget {
   });
 
   final double progress;
+  final double seamProgress;
+  final List<String> effectIds;
+  final Uint8List? outgoingThumbnailBytes;
   final Uint8List? incomingThumbnailBytes;
   final double incomingStartScale;
   final double outgoingBoostScale;
@@ -142,20 +190,102 @@ class _ManualTransitionLayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final effectSet = effectIds.toSet();
+    final seam = seamProgress.clamp(0.0, 1.0);
+    final pulseWidth = math.max(
+      0.001,
+      math.min(math.max(seam, 0.001), math.max(1 - seam, 0.001)),
+    );
+    final centeredPulse =
+        (1 - ((progress - seam).abs() / pulseWidth)).clamp(0.0, 1.0).toDouble();
+    final hasOutgoingScale = effectSet.contains('outgoingBoostScale');
+    final hasIncomingScale = effectSet.contains('incomingStartScale');
+    final hasBridgeDarkness = effectSet.contains('bridgeDarkness');
+    final hasBlackMix = effectSet.contains('blackPeak');
+    final outgoingPhase = progress <= seam
+        ? (progress / math.max(seam, 0.001)).clamp(0.0, 1.0).toDouble()
+        : 1.0;
+    final incomingDelayProgress =
+        (seam + ((1 - seam) * entryDelay.clamp(0.0, 1.0)))
+            .clamp(seam, 1.0)
+            .toDouble();
+    final incomingPhase = progress <= incomingDelayProgress
+        ? 0.0
+        : ((progress - incomingDelayProgress) /
+                math.max(0.001, 1 - incomingDelayProgress))
+            .clamp(0.0, 1.0)
+            .toDouble();
+    final outgoingScale = hasOutgoingScale
+        ? (lerpDouble(1.0, outgoingBoostScale, outgoingPhase) ?? 1.0)
+        : 1.0;
+    final bridgeOpacity = hasBridgeDarkness
+        ? (centeredPulse * bridgeDarkness.clamp(0.0, 1.0)).toDouble()
+        : 0.0;
     final fadeOpacity =
-        (1 - ((progress - 0.5).abs() / 0.5)).clamp(0.0, 1.0).toDouble() *
-            blackPeak.clamp(0.0, 1.0);
+        hasBlackMix ? blackPeak.clamp(0.0, 1.0).toDouble() : 0.0;
+    final incomingOpacity =
+        hasIncomingScale ? Curves.easeOut.transform(incomingPhase) : 0.0;
+    final incomingScale =
+        lerpDouble(incomingStartScale, 1.0, incomingPhase) ?? 1.0;
     return Stack(
       fit: StackFit.expand,
       children: [
-        _ZoomInCameraTransitionLayer(
-          progress: progress,
-          incomingThumbnailBytes: incomingThumbnailBytes,
-          incomingStartScale: incomingStartScale,
-          outgoingBoostScale: outgoingBoostScale,
-          entryDelay: entryDelay,
-          bridgeDarkness: bridgeDarkness,
-        ),
+        if (hasOutgoingScale && outgoingThumbnailBytes != null)
+          Transform.scale(
+            scale: outgoingScale,
+            child: Image.memory(
+              outgoingThumbnailBytes!,
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
+            ),
+          ),
+        if (bridgeOpacity > 0.001)
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment.center,
+                  radius: 0.92,
+                  colors: [
+                    Colors.transparent,
+                    Colors.black.withOpacity(bridgeOpacity * 0.46),
+                    Colors.black.withOpacity(bridgeOpacity),
+                  ],
+                  stops: const [0.0, 0.72, 1.0],
+                ),
+              ),
+            ),
+          ),
+        if (hasIncomingScale &&
+            incomingThumbnailBytes != null &&
+            incomingOpacity > 0.001)
+          Opacity(
+            opacity: incomingOpacity.clamp(0.0, 1.0).toDouble(),
+            child: Transform.scale(
+              scale: incomingScale,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black
+                          .withOpacity(0.18 + (incomingOpacity * 0.2)),
+                      blurRadius: 24,
+                      spreadRadius: 4,
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.memory(
+                    incomingThumbnailBytes!,
+                    fit: BoxFit.cover,
+                    gaplessPlayback: true,
+                  ),
+                ),
+              ),
+            ),
+          ),
         if (fadeOpacity > 0.001)
           ColoredBox(
             color: Colors.black.withOpacity(fadeOpacity),
@@ -212,6 +342,7 @@ class _CrossDissolveTransitionLayer extends StatelessWidget {
 class _ZoomInCameraTransitionLayer extends StatelessWidget {
   const _ZoomInCameraTransitionLayer({
     required this.progress,
+    required this.outgoingThumbnailBytes,
     required this.incomingThumbnailBytes,
     required this.incomingStartScale,
     required this.outgoingBoostScale,
@@ -220,6 +351,7 @@ class _ZoomInCameraTransitionLayer extends StatelessWidget {
   });
 
   final double progress;
+  final Uint8List? outgoingThumbnailBytes;
   final Uint8List? incomingThumbnailBytes;
   final double incomingStartScale;
   final double outgoingBoostScale;
@@ -245,8 +377,16 @@ class _ZoomInCameraTransitionLayer extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        Transform.scale(
-          scale: outgoingScale,
+        if (outgoingThumbnailBytes != null)
+          Transform.scale(
+            scale: outgoingScale,
+            child: Image.memory(
+              outgoingThumbnailBytes!,
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
+            ),
+          ),
+        Positioned.fill(
           child: DecoratedBox(
             decoration: BoxDecoration(
               gradient: RadialGradient(

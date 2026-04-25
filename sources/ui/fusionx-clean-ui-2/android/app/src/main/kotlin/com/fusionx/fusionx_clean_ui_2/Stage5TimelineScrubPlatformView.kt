@@ -18,6 +18,7 @@ private data class Stage5TimelineScrubSurfaceConfig(
     val timelineDurationMs: Long,
     val timelineOffsetMs: Long,
     val secondsWidth: Double,
+    val timelineFps: Double,
     val targetWidth: Int,
     val targetHeight: Int,
     val tapEnabled: Boolean,
@@ -71,6 +72,7 @@ private class Stage5TimelineScrubInputView(
             timelineDurationMs = 0L,
             timelineOffsetMs = 0L,
             secondsWidth = 1.0,
+            timelineFps = 30.0,
             targetWidth = 480,
             targetHeight = 854,
             tapEnabled = false,
@@ -81,7 +83,10 @@ private class Stage5TimelineScrubInputView(
     private var downX = 0f
     private var gestureStartPositionMs = 0L
     private var gesturePositionMs = 0L
+    private var stableGestureFrameIndex: Long? = null
+    private var stableGesturePositionMs = 0L
     private var scrubbing = false
+    private var multiTouchSuppressed = false
     private var configuredPreviewSources: List<Stage5NativeScrubSourceDescriptor> = emptyList()
     private var configuredTargetWidth: Int = 0
     private var configuredTargetHeight: Int = 0
@@ -96,7 +101,50 @@ private class Stage5TimelineScrubInputView(
 
     private fun toLogicalPixels(value: Float): Float = value / displayDensity
 
-    private fun resolveGesturePositionMs(
+    private fun frameDurationMs(): Double {
+        val fps = config.timelineFps.takeIf { it.isFinite() && it > 0.0 } ?: 30.0
+        return 1000.0 / fps.coerceIn(1.0, 240.0)
+    }
+
+    private fun positionToFrameIndex(positionMs: Long): Long {
+        val frameDurationMs = frameDurationMs()
+        return (positionMs.toDouble() / frameDurationMs).roundToLong()
+    }
+
+    private fun frameIndexToPositionMs(frameIndex: Long): Long {
+        val frameDurationMs = frameDurationMs()
+        return (frameIndex.toDouble() * frameDurationMs)
+            .roundToLong()
+            .coerceIn(
+                config.timelineOffsetMs,
+                config.timelineOffsetMs + config.timelineDurationMs,
+            )
+    }
+
+    private fun stabilizeGesturePositionMs(rawPositionMs: Long): Long {
+        val frameDurationMs = frameDurationMs()
+        if (!frameDurationMs.isFinite() || frameDurationMs <= 0.0) {
+            stableGesturePositionMs = rawPositionMs
+            return rawPositionMs
+        }
+        val previousFrame =
+            stableGestureFrameIndex ?: positionToFrameIndex(stableGesturePositionMs)
+        val rawFrame = rawPositionMs.toDouble() / frameDurationMs
+        // A small hysteresis band prevents slow finger noise around a frame
+        // boundary from alternating previous/next rendered frames.
+        val shouldAdvanceFrame =
+            rawFrame >= previousFrame.toDouble() + 0.62 ||
+                rawFrame <= previousFrame.toDouble() - 0.62
+        if (!shouldAdvanceFrame) {
+            return stableGesturePositionMs
+        }
+        val nextFrame = rawFrame.roundToLong()
+        stableGestureFrameIndex = nextFrame
+        stableGesturePositionMs = frameIndexToPositionMs(nextFrame)
+        return stableGesturePositionMs
+    }
+
+    private fun resolveRawGesturePositionMs(
         event: MotionEvent,
         pointerIndex: Int,
     ): Long {
@@ -112,6 +160,11 @@ private class Stage5TimelineScrubInputView(
             )
     }
 
+    private fun resolveGesturePositionMs(
+        event: MotionEvent,
+        pointerIndex: Int,
+    ): Long = stabilizeGesturePositionMs(resolveRawGesturePositionMs(event, pointerIndex))
+
     fun updateConfig(nextConfig: Stage5TimelineScrubSurfaceConfig) {
         val previousConfig = config
         val previousSources =
@@ -123,6 +176,8 @@ private class Stage5TimelineScrubInputView(
         config = nextConfig
         if (!scrubbing) {
             gesturePositionMs = nextConfig.currentPositionMs
+            stableGesturePositionMs = nextConfig.currentPositionMs
+            stableGestureFrameIndex = positionToFrameIndex(nextConfig.currentPositionMs)
         }
         val shouldReconfigure =
             configuredPreviewSources != nextConfig.previewSources ||
@@ -175,6 +230,24 @@ private class Stage5TimelineScrubInputView(
         return config.regions.any { region -> region.contains(x, y) }
     }
 
+    private fun suppressGestureForMultiTouch() {
+        if (scrubbing) {
+            gesturePositionMs = config.currentPositionMs
+            nativeScrubEngine.commitFinalTimelinePosition(gesturePositionMs)
+            channel.invokeMethod(
+                "scrubEnd",
+                mapOf("positionMs" to gesturePositionMs),
+            )
+        } else {
+            gesturePositionMs = config.currentPositionMs
+        }
+        stableGesturePositionMs = config.currentPositionMs
+        stableGestureFrameIndex = positionToFrameIndex(config.currentPositionMs)
+        scrubbing = false
+        multiTouchSuppressed = true
+        parent?.requestDisallowInterceptTouchEvent(false)
+    }
+
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
@@ -187,13 +260,33 @@ private class Stage5TimelineScrubInputView(
                 downX = toLogicalPixels(event.rawX)
                 gestureStartPositionMs = config.currentPositionMs
                 gesturePositionMs = config.currentPositionMs
+                stableGesturePositionMs = config.currentPositionMs
+                stableGestureFrameIndex = positionToFrameIndex(config.currentPositionMs)
                 scrubbing = false
+                multiTouchSuppressed = false
                 nativeScrubEngine.primeTimelinePosition(gesturePositionMs)
                 parent?.requestDisallowInterceptTouchEvent(true)
                 return true
             }
 
+            MotionEvent.ACTION_POINTER_DOWN -> {
+                suppressGestureForMultiTouch()
+                return true
+            }
+
+            MotionEvent.ACTION_POINTER_UP -> {
+                if (multiTouchSuppressed || event.pointerCount > 1) {
+                    return true
+                }
+            }
+
             MotionEvent.ACTION_MOVE -> {
+                if (multiTouchSuppressed || event.pointerCount > 1) {
+                    if (!multiTouchSuppressed) {
+                        suppressGestureForMultiTouch()
+                    }
+                    return true
+                }
                 val activeIndex = event.findPointerIndex(pointerId)
                 if (activeIndex < 0) {
                     return false
@@ -226,6 +319,10 @@ private class Stage5TimelineScrubInputView(
             }
 
             MotionEvent.ACTION_UP -> {
+                if (multiTouchSuppressed) {
+                    resetGesture()
+                    return true
+                }
                 val wasScrubbing = scrubbing
                 val tapped = !wasScrubbing && config.tapEnabled
                 if (wasScrubbing) {
@@ -249,6 +346,10 @@ private class Stage5TimelineScrubInputView(
             }
 
             MotionEvent.ACTION_CANCEL -> {
+                if (multiTouchSuppressed) {
+                    resetGesture()
+                    return true
+                }
                 if (scrubbing) {
                     val activeIndex = event.findPointerIndex(pointerId)
                     if (activeIndex >= 0) {
@@ -273,6 +374,9 @@ private class Stage5TimelineScrubInputView(
         gestureStartPositionMs = config.currentPositionMs
         scrubbing = false
         gesturePositionMs = config.currentPositionMs
+        stableGesturePositionMs = config.currentPositionMs
+        stableGestureFrameIndex = null
+        multiTouchSuppressed = false
         parent?.requestDisallowInterceptTouchEvent(false)
     }
 }
@@ -370,6 +474,7 @@ class Stage5TimelineScrubPlatformView(
             timelineDurationMs = (arguments["timelineDurationMs"] as? Number)?.toLong() ?: 0L,
             timelineOffsetMs = (arguments["timelineOffsetMs"] as? Number)?.toLong() ?: 0L,
             secondsWidth = (arguments["secondsWidth"] as? Number)?.toDouble() ?: 1.0,
+            timelineFps = (arguments["timelineFps"] as? Number)?.toDouble() ?: 30.0,
             targetWidth = (arguments["targetWidth"] as? Number)?.toInt() ?: 480,
             targetHeight = (arguments["targetHeight"] as? Number)?.toInt() ?: 854,
             tapEnabled = arguments["tapEnabled"] == true,

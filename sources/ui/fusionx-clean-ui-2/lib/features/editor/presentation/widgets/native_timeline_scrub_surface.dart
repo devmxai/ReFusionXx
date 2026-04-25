@@ -45,6 +45,7 @@ class NativeTimelineScrubSurface extends StatefulWidget {
     required this.timelineDurationTime,
     this.timelineOffsetTime = TimelineTime.zero,
     required this.secondsWidth,
+    required this.timelineFps,
     required this.previewSources,
     required this.onScrubStart,
     required this.onScrubTimeChanged,
@@ -63,8 +64,9 @@ class NativeTimelineScrubSurface extends StatefulWidget {
   final TimelineTime timelineDurationTime;
   final TimelineTime timelineOffsetTime;
   final double secondsWidth;
+  final double timelineFps;
   final List<LiveScrubPreviewSourceDescriptor> previewSources;
-  final VoidCallback onScrubStart;
+  final ValueChanged<TimelineTime> onScrubStart;
   final ValueChanged<TimelineTime> onScrubTimeChanged;
   final ValueChanged<TimelineTime> onScrubEnd;
   final int configRevision;
@@ -98,6 +100,7 @@ class _NativeTimelineScrubSurfaceState
   TimelineTime? _lastPushedTimelineDurationTime;
   TimelineTime? _lastPushedTimelineOffsetTime;
   double? _lastPushedSecondsWidth;
+  double? _lastPushedTimelineFps;
   bool? _lastPushedTapEnabled;
   List<TimelineScrubViewportRegion>? _lastPushedRegions;
   List<LiveScrubPreviewSourceDescriptor>? _lastPushedPreviewSources;
@@ -148,7 +151,9 @@ class _NativeTimelineScrubSurfaceState
         TimelineTime.zero,
         widget.timelineDurationTime,
       );
-      if (_viewId != null && !_isScrubSessionActive) {
+      if (_viewId != null &&
+          !_isScrubSessionActive &&
+          widget.interactionEnabled) {
         _scheduleConfigPush();
       }
     };
@@ -170,6 +175,7 @@ class _NativeTimelineScrubSurfaceState
     return oldWidget.timelineDurationTime != widget.timelineDurationTime ||
         oldWidget.timelineOffsetTime != widget.timelineOffsetTime ||
         oldWidget.secondsWidth != widget.secondsWidth ||
+        oldWidget.timelineFps != widget.timelineFps ||
         oldWidget.targetWidth != widget.targetWidth ||
         oldWidget.targetHeight != widget.targetHeight ||
         oldWidget.onTap != widget.onTap ||
@@ -211,7 +217,7 @@ class _NativeTimelineScrubSurfaceState
     if (call.method == 'scrubStart') {
       _lastNativeTimelineTime = timelineTime;
       _isScrubSessionActive = true;
-      widget.onScrubStart();
+      widget.onScrubStart(timelineTime);
       return;
     }
     if (call.method == 'scrubTimeChanged') {
@@ -240,7 +246,7 @@ class _NativeTimelineScrubSurfaceState
     final resolvedTargetWidth = _resolvedTargetWidth(context);
     final resolvedTargetHeight =
         _resolvedTargetHeight(context, resolvedTargetWidth);
-    final tapEnabled = widget.onTap != null;
+    final tapEnabled = widget.interactionEnabled && widget.onTap != null;
     if (_lastPushedTargetWidth == resolvedTargetWidth &&
         _lastPushedTargetHeight == resolvedTargetHeight &&
         _lastPushedConfigRevision == widget.configRevision &&
@@ -248,6 +254,7 @@ class _NativeTimelineScrubSurfaceState
         _lastPushedTimelineDurationTime == widget.timelineDurationTime &&
         _lastPushedTimelineOffsetTime == widget.timelineOffsetTime &&
         _lastPushedSecondsWidth == widget.secondsWidth &&
+        _lastPushedTimelineFps == widget.timelineFps &&
         _lastPushedTapEnabled == tapEnabled &&
         listEquals(_lastPushedRegions, widget.regions) &&
         listEquals(_lastPushedPreviewSources, widget.previewSources)) {
@@ -261,6 +268,7 @@ class _NativeTimelineScrubSurfaceState
         'timelineDurationMs': widget.timelineDurationTime.inMilliseconds,
         'timelineOffsetMs': widget.timelineOffsetTime.inMilliseconds,
         'secondsWidth': widget.secondsWidth,
+        'timelineFps': widget.timelineFps,
         'configRevision': widget.configRevision,
         'targetWidth': resolvedTargetWidth,
         'targetHeight': resolvedTargetHeight,
@@ -280,6 +288,7 @@ class _NativeTimelineScrubSurfaceState
     _lastPushedTimelineDurationTime = widget.timelineDurationTime;
     _lastPushedTimelineOffsetTime = widget.timelineOffsetTime;
     _lastPushedSecondsWidth = widget.secondsWidth;
+    _lastPushedTimelineFps = widget.timelineFps;
     _lastPushedTapEnabled = tapEnabled;
     _lastPushedRegions = List<TimelineScrubViewportRegion>.unmodifiable(
       widget.regions,
@@ -325,9 +334,10 @@ class _NativeTimelineScrubSurfaceState
           'timelineDurationMs': widget.timelineDurationTime.inMilliseconds,
           'timelineOffsetMs': widget.timelineOffsetTime.inMilliseconds,
           'secondsWidth': widget.secondsWidth,
+          'timelineFps': widget.timelineFps,
           'targetWidth': resolvedTargetWidth,
           'targetHeight': resolvedTargetHeight,
-          'tapEnabled': widget.onTap != null,
+          'tapEnabled': widget.interactionEnabled && widget.onTap != null,
           'regions': widget.regions
               .map((region) => region.toMap())
               .toList(growable: false),

@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 
 import '../../../../core/media/native_media_thumbnailer.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../domain/services/timeline_geometry_mapper.dart';
 import '../models/ai_transition_models.dart';
 import '../models/timeline_mock_models.dart';
 import '../models/timeline_time.dart';
@@ -42,6 +43,20 @@ typedef TimelineAnimationKeyframeDragCallback = void Function(
 );
 typedef TimelineScrubSurfaceBuilder = Widget Function(
     TimelineScrubSurfaceConfig config);
+typedef TimelineZoomStateChanged = void Function(TimelineZoomState state);
+
+@immutable
+class TimelineZoomState {
+  const TimelineZoomState({
+    required this.isZooming,
+    required this.anchorTime,
+    required this.revision,
+  });
+
+  final bool isZooming;
+  final TimelineTime anchorTime;
+  final int revision;
+}
 
 @immutable
 class TimelineScrubViewportRegion {
@@ -67,6 +82,19 @@ class TimelineScrubViewportRegion {
       'height': height,
     };
   }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        other is TimelineScrubViewportRegion &&
+            other.left == left &&
+            other.top == top &&
+            other.width == width &&
+            other.height == height;
+  }
+
+  @override
+  int get hashCode => Object.hash(left, top, width, height);
 }
 
 @immutable
@@ -77,11 +105,14 @@ class TimelineScrubSurfaceConfig {
     required this.timelineDurationTime,
     required this.timelineOffsetTime,
     required this.secondsWidth,
+    required this.timelineFps,
     required this.onScrubStart,
     required this.onScrubTimeChanged,
     required this.onScrubEnd,
     this.regions = const <TimelineScrubViewportRegion>[],
     this.onTap,
+    this.geometryRevision = 0,
+    this.interactionEnabled = true,
   });
 
   final TimelineTime currentTime;
@@ -89,11 +120,14 @@ class TimelineScrubSurfaceConfig {
   final TimelineTime timelineDurationTime;
   final TimelineTime timelineOffsetTime;
   final double secondsWidth;
-  final VoidCallback onScrubStart;
+  final double timelineFps;
+  final ValueChanged<TimelineTime> onScrubStart;
   final ValueChanged<TimelineTime> onScrubTimeChanged;
   final ValueChanged<TimelineTime> onScrubEnd;
   final List<TimelineScrubViewportRegion> regions;
   final VoidCallback? onTap;
+  final int geometryRevision;
+  final bool interactionEnabled;
 }
 
 class _TimelineZoomCanonicalProfile {
@@ -135,11 +169,11 @@ class _TimelineRulerCanonicalProfile {
   static const double secondsAndFramesCanonicalSecondStep = 1.0;
   static const double secondsAndFramesFrameMarkerFraction = 0.5;
   static const double secondsAndFramesLabelMinGap = 12.0;
-  static const double secondModeVisibleLabelMarginPx = 48.0;
+  static const double secondModeVisibleLabelMarginPx = 32.0;
   static const int secondModeWholeLabelPriority = 2;
-  static const double secondModeLabelMinGap = 14.0;
-  static const double secondModeDotOpacity = 0.42;
-  static const double secondModeDotRadius = 2.25;
+  static const double secondModeLabelMinGap = 7.0;
+  static const double secondModeDotOpacity = 0.22;
+  static const double secondModeDotRadius = 1.45;
   static const double secondsAndFramesFrameMarkerEdgeInsetPx = 8.0;
   static const int secondsAndFramesFrameLabelPriority = 1;
   static const double wholeSecondLabelVisibleMarginPx = 48.0;
@@ -155,7 +189,7 @@ class _TimelineRulerCanonicalProfile {
   static const double fineFramesDotRadius = 2.0;
   static const double preciseBoundaryWholeSecondEpsilon = 0.0005;
   static const double preciseBoundaryFrameEpsilon = 0.001;
-  static const double interLabelDotMinGapPx = 14.0;
+  static const double interLabelDotMinGapPx = 20.0;
   static const double interLabelDotMinOpacity = 0.08;
   static const double labelPlacementSafeInsetPx = 6.0;
   static const double boundaryPlacementInsetPx = 6.0;
@@ -166,14 +200,14 @@ class _TimelineRulerCanonicalProfile {
 
   static const _TimelineSecondModeSpec coarseSecondsSpec =
       _TimelineSecondModeSpec(
-    minLabelSpacingPx: 136.0,
-    minStepSeconds: 2.0,
+    minLabelSpacingPx: 72.0,
+    minStepSeconds: 1.0,
     preserveBoundaryLabels: true,
   );
 
   static const _TimelineSecondModeSpec normalSecondsSpec =
       _TimelineSecondModeSpec(
-    minLabelSpacingPx: 86.0,
+    minLabelSpacingPx: 42.0,
     minStepSeconds: 1.0,
     preserveBoundaryLabels: true,
   );
@@ -402,7 +436,7 @@ Color _timelineSelectionAccentColor(TimelineTrackKind trackKind) {
 class _TimelineAnimationLaneMetrics {
   static const double sectionTopSpacing = 8;
   static const double sectionBottomSpacing = 6;
-  static const double rowHeight = 30;
+  static const double rowHeight = 36;
   static const double rowGap = 6;
   static const double labelOutset = 24;
 }
@@ -453,6 +487,25 @@ enum _TimelineInteractionPhase {
   active,
 }
 
+@immutable
+class _TimelineScaleLayoutSnapshot {
+  const _TimelineScaleLayoutSnapshot({
+    required this.playheadLeft,
+    required this.leadingOffset,
+    required this.timelineOriginX,
+    required this.viewportWidth,
+    required this.trailingPadding,
+    required this.secondsWidth,
+  });
+
+  final double playheadLeft;
+  final double leadingOffset;
+  final double timelineOriginX;
+  final double viewportWidth;
+  final double trailingPadding;
+  final double secondsWidth;
+}
+
 class TimelinePanel extends StatefulWidget {
   const TimelinePanel({
     super.key,
@@ -475,6 +528,7 @@ class TimelinePanel extends StatefulWidget {
     this.assetPathResolver,
     this.onScrubStateChanged,
     this.onScrubFinalized,
+    this.onZoomStateChanged,
     this.timelineFps = 30,
     this.trimSelection,
     this.onTrimCommit,
@@ -487,6 +541,7 @@ class TimelinePanel extends StatefulWidget {
     this.onAnimationKeyframeDrag,
     this.onTrackFxTap,
     this.timeDisplayOffset = TimelineTime.zero,
+    this.nativeTimelineOffsetTime,
     this.timeReadoutTotalTime,
     this.initialSecondsWidth = 32,
     this.animateTrackKinds = const <TimelineTrackKind>{
@@ -515,6 +570,7 @@ class TimelinePanel extends StatefulWidget {
   final TimelineAssetPathResolver? assetPathResolver;
   final ValueChanged<bool>? onScrubStateChanged;
   final ValueChanged<TimelineTime>? onScrubFinalized;
+  final TimelineZoomStateChanged? onZoomStateChanged;
   final double timelineFps;
   final TimelineTrimSelection? trimSelection;
   final ValueChanged<TimelineTrimCommitRequest>? onTrimCommit;
@@ -527,6 +583,7 @@ class TimelinePanel extends StatefulWidget {
   final TimelineAnimationKeyframeDragCallback? onAnimationKeyframeDrag;
   final ValueChanged<TimelineTrackData>? onTrackFxTap;
   final TimelineTime timeDisplayOffset;
+  final TimelineTime? nativeTimelineOffsetTime;
   final TimelineTime? timeReadoutTotalTime;
   final double initialSecondsWidth;
   final Set<TimelineTrackKind> animateTrackKinds;
@@ -565,9 +622,12 @@ class _TimelinePanelState extends State<TimelinePanel>
       _TimelineZoomCanonicalProfile.scaleGestureWidthEpsilon;
   static const double _manualPanActivationDistance = 18;
   static const double _manualPanMinFlingVelocity = 420;
-  static const double _maxPlaybackInterpolationLeadSeconds = 0.0;
+  static const int _nativeScrubReverseJitterToleranceMs = 6;
+  static const double _maxPlaybackInterpolationLeadSeconds = 1 / 20;
   static const double _maxPlaybackRegressionToleranceSeconds = 0.24;
+  static const double _maxExternalPlaybackRegressionToleranceSeconds = 0.08;
   static const double _playbackStartConfirmationThresholdSeconds = 0.01;
+  static const double _playbackStartConfirmationLeadAllowanceSeconds = 0.05;
   static const double _reorderCardHeight = 40;
   static const double _reorderCardWidth = 40;
   static const double _reorderBaseSlotWidth = 6;
@@ -589,12 +649,21 @@ class _TimelinePanelState extends State<TimelinePanel>
   double _secondsWidth = 32;
   double _scaleStartSecondsWidth = 32;
   TimelineTime _scaleAnchorTime = TimelineTime.zero;
+  TimelineTime _scaleDisplayLockTime = TimelineTime.zero;
   double _scaleStartDistance = 0;
   double _scrollViewportWidth = 0;
   double _activeTrailingPadding = _trailingPadding;
+  int _scaleScrollCorrectionRevision = 0;
+  double? _scaleVisualScrollOffset;
+  _TimelineScaleLayoutSnapshot? _scaleLayoutSnapshot;
+  double? _pendingScaleGestureDistance;
+  bool _isScaleGestureUpdateScheduled = false;
   bool _isSyncingFromExternal = false;
   bool _isScaleGestureActive = false;
   bool _isNativeScrubbing = false;
+  bool _suppressSinglePointerTimelineGesture = false;
+  bool _isScrubGeometrySettling = false;
+  int _scrubGeometryRevision = 0;
   bool _isScrubInteractionActive = false;
   TimelineTime? _pendingNativeScrubUiTime;
   bool _nativeScrubUiUpdateScheduled = false;
@@ -618,6 +687,15 @@ class _TimelinePanelState extends State<TimelinePanel>
   final Map<int, Offset> _activePointerPositions = <int, Offset>{};
   final Map<int, Offset> _pointerDownPositions = <int, Offset>{};
   List<int>? _scalePointerIds;
+  TimelineTime? _singlePointerDisplayAnchorTime;
+  TimelineTime? _nativeScrubReportedAnchorTime;
+  TimelineTime? _nativeScrubFilteredTime;
+  int _nativeScrubDirectionSign = 0;
+  int? _nativeScrubPointerId;
+  double? _nativeScrubPointerDownDx;
+  TimelineTime? _nativeScrubPointerStartTime;
+  bool _nativeScrubUsesPointerTime = false;
+  TimelineTime _nativeScrubDisplayAnchorTime = TimelineTime.zero;
   TimelineTime _playbackAnchorTime = TimelineTime.zero;
   Duration _playbackAnchorElapsed = Duration.zero;
   Duration _playbackLastElapsed = Duration.zero;
@@ -625,11 +703,9 @@ class _TimelinePanelState extends State<TimelinePanel>
   double _playbackVisualAnchorOffset = 0;
   bool _ignoreProgrammaticHorizontalScroll = false;
   bool _awaitingConfirmedPlaybackMotion = false;
+  DateTime? _playbackStartConfirmationStartedAt;
   _TimelineInteractionOwner _interactionOwner = _TimelineInteractionOwner.idle;
   _TimelineInteractionPhase _interactionPhase = _TimelineInteractionPhase.idle;
-  int? _nativeScrubPointerId;
-  double? _nativeScrubPointerDownDx;
-  TimelineTime? _nativeScrubPointerStartTime;
 
   VoidCallback? _playbackSampleListener;
   VoidCallback? _displayTimeListener;
@@ -639,33 +715,85 @@ class _TimelinePanelState extends State<TimelinePanel>
   double get _timelineDurationSeconds =>
       widget.timelineDurationTime.inSecondsDouble;
 
-  bool get _shouldAnimatePlayback =>
+  double get _timelineOriginX =>
+      _leadingOffset + _timelineControlColumnWidth + _controlGap;
+
+  double get _effectiveScrollViewportWidth =>
+      _horizontalPositionOrNull?.viewportDimension ?? _scrollViewportWidth;
+
+  double _requiredTrailingPaddingForViewport(double viewportWidth) => math.max(
+        _trailingPadding,
+        viewportWidth - _playheadLeft + 24,
+      );
+
+  bool get _canFollowPlaybackTimeline =>
       widget.isPlaying &&
-      !_usesExternalPlaybackSamples &&
       !_isAnyTimelineScrubbing &&
-      !_isScaleGestureActive &&
+      !_isScaleVisualLockActive &&
       !_isTrimDragging &&
       !_isClipMoveMode &&
       !_isReorderMode;
 
+  bool get _shouldAnimatePlayback =>
+      _canFollowPlaybackTimeline && !_usesExternalPlaybackSamples;
+
+  bool get _canUsePlaybackVisualFollow =>
+      _canFollowPlaybackTimeline && !_usesExternalPlaybackSamples;
+
+  bool get _canUseExternalPlaybackScrollFollow =>
+      _canFollowPlaybackTimeline && _usesExternalPlaybackSamples;
+
+  bool get _isDrivenByExternalPlaybackSamples =>
+      widget.isPlaying && _usesExternalPlaybackSamples;
+
   bool get _isPlaybackVisualFollowActive =>
-      _shouldAnimatePlayback && !_awaitingConfirmedPlaybackMotion;
+      _canUsePlaybackVisualFollow && !_awaitingConfirmedPlaybackMotion;
+
+  bool get _shouldSuppressPlaybackScrollSync => _canUsePlaybackVisualFollow;
 
   bool get _usesExternalPlaybackSamples =>
       widget.playbackSampleTimeListenable != null;
 
-  bool get _hasHorizontalPanExtent =>
-      _scrollController.hasClients &&
-      (_scrollController.position.maxScrollExtent -
-                  _scrollController.position.minScrollExtent)
-              .abs() >
-          0.5;
+  bool get _isScaleVisualLockActive =>
+      _isScaleGestureActive || _scaleVisualScrollOffset != null;
+
+  ScrollPosition? get _horizontalPositionOrNull {
+    if (!_scrollController.hasClients) {
+      return null;
+    }
+    final positions = _scrollController.positions;
+    if (positions.length != 1) {
+      return null;
+    }
+    return positions.single;
+  }
+
+  ScrollPosition? get _verticalPositionOrNull {
+    if (!_verticalController.hasClients) {
+      return null;
+    }
+    final positions = _verticalController.positions;
+    if (positions.length != 1) {
+      return null;
+    }
+    return positions.single;
+  }
+
+  double? get _horizontalOffsetOrNull => _horizontalPositionOrNull?.pixels;
+
+  double? get _verticalOffsetOrNull => _verticalPositionOrNull?.pixels;
+
+  bool get _hasHorizontalPanExtent {
+    final position = _horizontalPositionOrNull;
+    return position != null &&
+        (position.maxScrollExtent - position.minScrollExtent).abs() > 0.5;
+  }
 
   bool get _blocksVerticalTrackNavigation =>
       _isInteractionPending(_TimelineInteractionOwner.pan) ||
       _isInteractionActive(_TimelineInteractionOwner.pan) ||
       _isAnyTimelineScrubbing ||
-      _isScaleGestureActive ||
+      _isScaleVisualLockActive ||
       _isTrimDragging ||
       _isClipMoveMode ||
       _isTrimInteractionLocked ||
@@ -810,7 +938,7 @@ class _TimelinePanelState extends State<TimelinePanel>
         _endTrimInteractionLock();
         return;
       case _TimelineInteractionOwner.zoom:
-        _cancelScaleGesture(syncToTime: syncAfterCancel);
+        _cancelScaleGesture();
         return;
       case _TimelineInteractionOwner.move:
         _clearClipMoveMode(syncToTime: syncAfterCancel);
@@ -842,15 +970,52 @@ class _TimelinePanelState extends State<TimelinePanel>
       );
 
   TimelineTime _timelineTimeForOffset(double offset) {
-    final nextSeconds = (offset / _secondsWidth)
-        .clamp(0.0, _timelineDurationSeconds)
-        .toDouble();
-    return TimelineTime.fromSecondsDouble(nextSeconds);
+    return _timelineGeometryForScale(_secondsWidth).timeForOffset(offset);
   }
 
-  double _contentWidthForScale(double secondsWidth) {
-    return _buildContentWidth(_activeTrailingPadding,
-        secondsWidth: secondsWidth);
+  TimelineTime _stabilizeNativeScrubTime(TimelineTime time) {
+    final clamped = time.clamp(
+      TimelineTime.zero,
+      widget.timelineDurationTime,
+    );
+    final previous = _nativeScrubFilteredTime;
+    if (previous == null) {
+      _nativeScrubFilteredTime = clamped;
+      return clamped;
+    }
+    final deltaTicks = clamped.inProjectTicks - previous.inProjectTicks;
+    if (deltaTicks == 0) {
+      return previous;
+    }
+    final nextDirection = deltaTicks > 0 ? 1 : -1;
+    final deltaMs = deltaTicks.abs() / 1000.0;
+    if (_nativeScrubDirectionSign != 0 &&
+        nextDirection != _nativeScrubDirectionSign &&
+        deltaMs <= _nativeScrubReverseJitterToleranceMs) {
+      return previous;
+    }
+    _nativeScrubFilteredTime = clamped;
+    _nativeScrubDirectionSign = nextDirection;
+    return clamped;
+  }
+
+  double _contentWidthForScale(
+    double secondsWidth, {
+    _TimelineScaleLayoutSnapshot? layoutSnapshot,
+  }) {
+    final snapshot = layoutSnapshot ??
+        (_isScaleVisualLockActive ? _scaleLayoutSnapshot : null);
+    final trailingPadding = math.max(
+      snapshot?.trailingPadding ?? _activeTrailingPadding,
+      snapshot == null
+          ? _requiredTrailingPaddingForViewport(_effectiveScrollViewportWidth)
+          : snapshot.trailingPadding,
+    );
+    return _buildContentWidth(
+      trailingPadding,
+      secondsWidth: secondsWidth,
+      timelineOriginX: snapshot?.timelineOriginX,
+    );
   }
 
   double _headerTextTopInset(TextStyle style) {
@@ -864,16 +1029,6 @@ class _TimelinePanelState extends State<TimelinePanel>
   }
 
   double get _resolvedViewportWidth => math.max(_scrollViewportWidth, 1);
-
-  TimelineTime _timeUnderPlayhead() {
-    if (!_scrollController.hasClients) {
-      return _displayTimeNotifier.value.clamp(
-        TimelineTime.zero,
-        widget.timelineDurationTime,
-      );
-    }
-    return _timelineTimeForOffset(_scrollController.offset);
-  }
 
   _TimelineRulerMode _resolveRulerMode(
     double secondsWidth, {
@@ -1058,23 +1213,22 @@ class _TimelinePanelState extends State<TimelinePanel>
   }
 
   void _captureLockedVerticalOffset() {
-    _lockedVerticalOffset ??=
-        _verticalController.hasClients ? _verticalController.offset : 0.0;
+    _lockedVerticalOffset ??= _verticalOffsetOrNull ?? 0.0;
   }
 
   void _restoreLockedVerticalOffset() {
     final lockedOffset = _lockedVerticalOffset;
-    if (lockedOffset == null || !_verticalController.hasClients) {
+    final position = _verticalPositionOrNull;
+    if (lockedOffset == null || position == null) {
       return;
     }
-    final position = _verticalController.position;
     final safeOffset = lockedOffset
         .clamp(position.minScrollExtent, position.maxScrollExtent)
         .toDouble();
-    if ((_verticalController.offset - safeOffset).abs() < 0.5) {
+    if ((position.pixels - safeOffset).abs() < 0.5) {
       return;
     }
-    _verticalController.jumpTo(safeOffset);
+    position.jumpTo(safeOffset);
   }
 
   void _releaseLockedVerticalOffsetIfPossible() {
@@ -1158,11 +1312,6 @@ class _TimelinePanelState extends State<TimelinePanel>
   void didUpdateWidget(covariant TimelinePanel oldWidget) {
     super.didUpdateWidget(oldWidget);
     final clampedWidgetTime = _externalDisplayTime;
-    final seededPlaybackTime = widget.playbackSampleTimeListenable?.value.clamp(
-          TimelineTime.zero,
-          widget.timelineDurationTime,
-        ) ??
-        clampedWidgetTime;
     final enteringPlayback = !oldWidget.isPlaying && widget.isPlaying;
     final leavingPlayback = oldWidget.isPlaying && !widget.isPlaying;
     final preserveDisplayTimeOnPlaybackExit = leavingPlayback;
@@ -1172,21 +1321,34 @@ class _TimelinePanelState extends State<TimelinePanel>
       );
     }
     if (enteringPlayback) {
-      _setDisplayTime(seededPlaybackTime);
-      _snapScrollForPlaybackStart(seededPlaybackTime);
+      final playbackStartTime = clampedWidgetTime;
+      _setDisplayTime(playbackStartTime);
+      _snapScrollForPlaybackStart(playbackStartTime);
       _playbackAnchorTime = _displayTimeNotifier.value;
       _playbackAnchorElapsed = Duration.zero;
       _playbackLastElapsed = Duration.zero;
-      _capturePlaybackVisualAnchor(anchorTime: seededPlaybackTime);
-      _awaitingConfirmedPlaybackMotion = true;
+      _playbackStartConfirmationStartedAt = null;
+      _capturePlaybackVisualAnchor(
+        anchorTime: playbackStartTime,
+        anchorOffset: _targetHorizontalOffsetForTime(playbackStartTime),
+      );
+      _awaitingConfirmedPlaybackMotion = false;
     }
     if (leavingPlayback) {
-      _awaitingConfirmedPlaybackMotion = false;
       final settledDisplayTime = _displayTimeNotifier.value.clamp(
         TimelineTime.zero,
         widget.timelineDurationTime,
       );
-      _driveScrollToTime(settledDisplayTime, epsilonPx: 0.01);
+      if (_usesExternalPlaybackSamples) {
+        _driveScrollToTime(
+          settledDisplayTime,
+          epsilonPx: 0.01,
+        );
+      } else {
+        _commitPlaybackVisualScrollOffset(settledDisplayTime);
+      }
+      _awaitingConfirmedPlaybackMotion = false;
+      _playbackStartConfirmationStartedAt = null;
       _setDisplayTime(settledDisplayTime);
     }
     _ensurePlaybackTickerForCurrentMode();
@@ -1197,16 +1359,22 @@ class _TimelinePanelState extends State<TimelinePanel>
           snapDisplay: oldWidget.isPlaying && !widget.isPlaying,
         );
       }
-    } else if (!preserveDisplayTimeOnPlaybackExit && !_isNativeScrubbing) {
+    } else if (!preserveDisplayTimeOnPlaybackExit &&
+        !_isDrivenByExternalPlaybackSamples &&
+        !_isNativeScrubbing &&
+        !_isScaleVisualLockActive &&
+        !_shouldSuppressPlaybackScrollSync) {
       _setDisplayTime(clampedWidgetTime);
     }
     if ((oldWidget.currentTime != widget.currentTime ||
             oldWidget.isPlaying != widget.isPlaying) &&
         !_shouldAnimatePlayback &&
-        !_isNativeScrubbing) {
+        !_isDrivenByExternalPlaybackSamples &&
+        !_isNativeScrubbing &&
+        !_isScaleVisualLockActive &&
+        !_shouldSuppressPlaybackScrollSync) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (preserveDisplayTimeOnPlaybackExit) {
-          _driveScrollToTime(_displayTimeNotifier.value, epsilonPx: 0.01);
           return;
         }
         _syncToTime();
@@ -1259,10 +1427,12 @@ class _TimelinePanelState extends State<TimelinePanel>
     }
     _displayTimeListener = () {
       if (_shouldAnimatePlayback ||
+          _isDrivenByExternalPlaybackSamples ||
+          _shouldSuppressPlaybackScrollSync ||
           _isAnyTimelineScrubbing ||
           _isTrimDragging ||
           _isClipMoveMode ||
-          _isScaleGestureActive) {
+          _isScaleVisualLockActive) {
         return;
       }
       final clamped = listenable.value.clamp(
@@ -1273,10 +1443,12 @@ class _TimelinePanelState extends State<TimelinePanel>
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted ||
             _shouldAnimatePlayback ||
+            _isDrivenByExternalPlaybackSamples ||
             _isAnyTimelineScrubbing ||
             _isTrimDragging ||
             _isClipMoveMode ||
-            _isScaleGestureActive) {
+            _isScaleVisualLockActive ||
+            _shouldSuppressPlaybackScrollSync) {
           return;
         }
         _syncToTime();
@@ -1304,12 +1476,17 @@ class _TimelinePanelState extends State<TimelinePanel>
       return;
     }
     _playbackSampleListener = () {
-      if (!_shouldAnimatePlayback) {
+      if (!widget.isPlaying ||
+          !_usesExternalPlaybackSamples ||
+          !_canUseExternalPlaybackScrollFollow) {
         return;
       }
       _applyReportedPlaybackSample(listenable.value);
     };
     listenable.addListener(_playbackSampleListener!);
+    if (widget.isPlaying && _usesExternalPlaybackSamples) {
+      _playbackSampleListener!.call();
+    }
   }
 
   void _detachPlaybackSampleListener(
@@ -1329,6 +1506,16 @@ class _TimelinePanelState extends State<TimelinePanel>
     bool invokeParentSynchronously = false,
     bool notifyParent = true,
   }) {
+    if (_isScaleVisualLockActive) {
+      final lockedTime = _scaleDisplayLockTime.clamp(
+        TimelineTime.zero,
+        widget.timelineDurationTime,
+      );
+      if (_displayTimeNotifier.value != lockedTime) {
+        _displayTimeNotifier.value = lockedTime;
+      }
+      return;
+    }
     final clamped = time.clamp(TimelineTime.zero, widget.timelineDurationTime);
     if (_displayTimeNotifier.value == clamped) {
       return;
@@ -1358,6 +1545,19 @@ class _TimelinePanelState extends State<TimelinePanel>
     final displayTime = _displayTimeNotifier.value;
     if (widget.isPlaying && _awaitingConfirmedPlaybackMotion) {
       final advanceSeconds = (clamped - displayTime).inSecondsDouble;
+      if (advanceSeconds < -_playbackStartConfirmationThresholdSeconds) {
+        return;
+      }
+      final confirmationStartedAt = _playbackStartConfirmationStartedAt;
+      final elapsedSeconds = confirmationStartedAt == null
+          ? 0.0
+          : DateTime.now().difference(confirmationStartedAt).inMicroseconds /
+              Duration.microsecondsPerSecond;
+      final maxAcceptedLeadSeconds =
+          elapsedSeconds + _playbackStartConfirmationLeadAllowanceSeconds;
+      if (advanceSeconds > maxAcceptedLeadSeconds) {
+        return;
+      }
       _playbackAnchorTime = clamped;
       _playbackAnchorElapsed = Duration.zero;
       _playbackLastElapsed = Duration.zero;
@@ -1366,6 +1566,7 @@ class _TimelinePanelState extends State<TimelinePanel>
         return;
       }
       _awaitingConfirmedPlaybackMotion = false;
+      _playbackStartConfirmationStartedAt = null;
       _rebasePlaybackVisualFollow(clamped);
       _setDisplayTime(clamped);
       _ensurePlaybackTickerForCurrentMode();
@@ -1373,7 +1574,7 @@ class _TimelinePanelState extends State<TimelinePanel>
     }
     final regressionSeconds = (displayTime - clamped).inSecondsDouble;
     final maxPlaybackRegressionToleranceSeconds = _usesExternalPlaybackSamples
-        ? 0.0
+        ? _maxExternalPlaybackRegressionToleranceSeconds
         : _maxPlaybackRegressionToleranceSeconds;
     if (widget.isPlaying &&
         regressionSeconds > 0 &&
@@ -1384,6 +1585,14 @@ class _TimelinePanelState extends State<TimelinePanel>
     }
     _playbackAnchorTime = clamped;
     _playbackAnchorElapsed = _playbackLastElapsed;
+    if (widget.isPlaying && _usesExternalPlaybackSamples) {
+      _setDisplayTime(clamped);
+      _driveScrollToTime(
+        clamped,
+        epsilonPx: 0.01,
+      );
+      return;
+    }
     if (snapDisplay ||
         !_playbackTicker.isActive ||
         (displayTime - clamped).inSecondsDouble.abs() > 0.18) {
@@ -1391,7 +1600,8 @@ class _TimelinePanelState extends State<TimelinePanel>
         _rebasePlaybackVisualFollow(clamped);
       }
       _setDisplayTime(clamped);
-      if (!_shouldAnimatePlayback || snapDisplay) {
+      if ((!_shouldAnimatePlayback && !_shouldSuppressPlaybackScrollSync) ||
+          snapDisplay) {
         _driveScrollToTime(
           clamped,
           epsilonPx: _playbackTicker.isActive ? 0.01 : 0.5,
@@ -1422,7 +1632,10 @@ class _TimelinePanelState extends State<TimelinePanel>
     if (_playbackTicker.isActive) {
       _playbackTicker.stop();
     }
-    _awaitingConfirmedPlaybackMotion = false;
+    if (!widget.isPlaying || !_usesExternalPlaybackSamples) {
+      _awaitingConfirmedPlaybackMotion = false;
+      _playbackStartConfirmationStartedAt = null;
+    }
   }
 
   void _handlePlaybackTick(Duration elapsed) {
@@ -1450,28 +1663,29 @@ class _TimelinePanelState extends State<TimelinePanel>
       widget.timelineDurationTime,
     );
     final resolvedOffset = anchorOffset ??
-        (_scrollController.hasClients
-            ? _scrollController.offset
+        (_horizontalOffsetOrNull != null
+            ? _horizontalOffsetOrNull!
             : _targetHorizontalOffsetForTime(resolvedTime));
     _playbackVisualAnchorTime = resolvedTime;
     _playbackVisualAnchorOffset = resolvedOffset;
   }
 
   void _snapScrollForPlaybackStart(TimelineTime time) {
-    if (!_scrollController.hasClients ||
-        _isScaleGestureActive ||
+    final position = _horizontalPositionOrNull;
+    if (position == null ||
+        _isScaleVisualLockActive ||
         _isAnyTimelineScrubbing ||
         _isTrimDragging ||
         _isClipMoveMode) {
       return;
     }
     final targetOffset = _targetHorizontalOffsetForTime(time);
-    if ((_scrollController.offset - targetOffset).abs() < 0.01) {
+    if ((position.pixels - targetOffset).abs() < 0.01) {
       return;
     }
     _ignoreProgrammaticHorizontalScroll = true;
     _isSyncingFromExternal = true;
-    _scrollController.jumpTo(targetOffset);
+    position.jumpTo(targetOffset);
     _isSyncingFromExternal = false;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _ignoreProgrammaticHorizontalScroll = false;
@@ -1485,35 +1699,95 @@ class _TimelinePanelState extends State<TimelinePanel>
     );
   }
 
-  double _targetHorizontalOffsetForTime(TimelineTime time) {
-    if (!_scrollController.hasClients) {
-      return _targetOffsetForAnchorTime(time, _secondsWidth);
+  TimelineTime _timelineTimeForNativeScrubSample(TimelineTime reportedTime) {
+    final clampedReportedTime = reportedTime.clamp(
+      TimelineTime.zero,
+      widget.timelineDurationTime,
+    );
+    final reportedAnchorTime = _nativeScrubReportedAnchorTime;
+    if (!_isNativeScrubbing || reportedAnchorTime == null) {
+      return clampedReportedTime;
     }
-    return (time.inSecondsDouble * _secondsWidth)
-        .clamp(0, _scrollController.position.maxScrollExtent)
-        .toDouble();
+    final delta = clampedReportedTime - reportedAnchorTime;
+    return (_nativeScrubDisplayAnchorTime + delta).clamp(
+      TimelineTime.zero,
+      widget.timelineDurationTime,
+    );
+  }
+
+  double? _playbackVisualOffsetForTime(TimelineTime time) {
+    final position = _horizontalPositionOrNull;
+    if (position == null) {
+      return null;
+    }
+    final maxOffset = math.min(
+      position.maxScrollExtent,
+      _maxScrollOffsetForScale(_secondsWidth),
+    );
+    return _timelineGeometryForScale(_secondsWidth).offsetForTimeFromAnchor(
+      anchorTime: _playbackVisualAnchorTime,
+      anchorOffset: _playbackVisualAnchorOffset,
+      time: time,
+      minScrollOffset: position.minScrollExtent,
+      maxScrollOffsetOverride: maxOffset,
+    );
+  }
+
+  void _commitPlaybackVisualScrollOffset(TimelineTime time) {
+    final position = _horizontalPositionOrNull;
+    final targetOffset = _playbackVisualOffsetForTime(time);
+    if (position == null || targetOffset == null) {
+      return;
+    }
+    if ((position.pixels - targetOffset).abs() < 0.01) {
+      return;
+    }
+    _ignoreProgrammaticHorizontalScroll = true;
+    _isSyncingFromExternal = true;
+    position.jumpTo(targetOffset);
+    _isSyncingFromExternal = false;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ignoreProgrammaticHorizontalScroll = false;
+    });
+  }
+
+  double _targetHorizontalOffsetForTime(TimelineTime time) {
+    return _targetOffsetForAnchorTime(time, _secondsWidth);
   }
 
   double _effectiveHorizontalScrollOffset() {
-    if (!_scrollController.hasClients) {
+    final position = _horizontalPositionOrNull;
+    if (position == null) {
       return _targetHorizontalOffsetForTime(_displayTimeNotifier.value);
     }
-    if (!_isPlaybackVisualFollowActive) {
-      return _scrollController.offset;
+    final scaleVisualScrollOffset = _scaleVisualScrollOffset;
+    if (scaleVisualScrollOffset != null) {
+      return scaleVisualScrollOffset
+          .clamp(0.0, _maxScrollOffsetForScale(_secondsWidth))
+          .toDouble();
     }
-    final visualDeltaSeconds =
-        (_displayTimeNotifier.value - _playbackVisualAnchorTime)
-            .inSecondsDouble;
-    return (_playbackVisualAnchorOffset + (visualDeltaSeconds * _secondsWidth))
-        .clamp(0, _scrollController.position.maxScrollExtent)
-        .toDouble();
+    if (!_isPlaybackVisualFollowActive) {
+      return position.pixels;
+    }
+    final maxOffset = math.min(
+      position.maxScrollExtent,
+      _maxScrollOffsetForScale(_secondsWidth),
+    );
+    return _timelineGeometryForScale(_secondsWidth).offsetForTimeFromAnchor(
+      anchorTime: _playbackVisualAnchorTime,
+      anchorOffset: _playbackVisualAnchorOffset,
+      time: _displayTimeNotifier.value,
+      minScrollOffset: 0,
+      maxScrollOffsetOverride: maxOffset,
+    );
   }
 
-  double _playbackVisualTranslateX() {
-    if (!_scrollController.hasClients || !_isPlaybackVisualFollowActive) {
+  double _timelineVisualTranslateX() {
+    final position = _horizontalPositionOrNull;
+    if (position == null) {
       return 0;
     }
-    final baseOffset = _scrollController.offset;
+    final baseOffset = position.pixels;
     final effectiveOffset = _effectiveHorizontalScrollOffset();
     return -(effectiveOffset - baseOffset);
   }
@@ -1523,22 +1797,21 @@ class _TimelinePanelState extends State<TimelinePanel>
     double epsilonPx = 0.5,
     bool allowDuringNativeScrub = false,
   }) {
-    if (!_scrollController.hasClients ||
-        _isScaleGestureActive ||
+    final position = _horizontalPositionOrNull;
+    if (position == null ||
+        _isScaleVisualLockActive ||
         (_isAnyTimelineScrubbing && !allowDuringNativeScrub) ||
         _isTrimDragging ||
         _isClipMoveMode) {
       return;
     }
-    final target = (time.inSecondsDouble * _secondsWidth)
-        .clamp(0, _scrollController.position.maxScrollExtent)
-        .toDouble();
-    if ((_scrollController.offset - target).abs() < epsilonPx) {
+    final target = _targetOffsetForAnchorTime(time, _secondsWidth);
+    if ((position.pixels - target).abs() < epsilonPx) {
       return;
     }
     _ignoreProgrammaticHorizontalScroll = true;
     _isSyncingFromExternal = true;
-    _scrollController.jumpTo(target);
+    position.jumpTo(target);
     _isSyncingFromExternal = false;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _ignoreProgrammaticHorizontalScroll = false;
@@ -1592,16 +1865,181 @@ class _TimelinePanelState extends State<TimelinePanel>
     return (firstPosition - secondPosition).distance;
   }
 
+  _TimelineScaleLayoutSnapshot _captureScaleLayoutSnapshot() {
+    final viewportWidth = math.max(_effectiveScrollViewportWidth, 1.0);
+    final trailingPadding = math.max(
+      _activeTrailingPadding,
+      _requiredTrailingPaddingForViewport(viewportWidth),
+    );
+    return _TimelineScaleLayoutSnapshot(
+      playheadLeft: _playheadLeft,
+      leadingOffset: _leadingOffset,
+      timelineOriginX: _timelineOriginX,
+      viewportWidth: viewportWidth,
+      trailingPadding: trailingPadding,
+      secondsWidth: _secondsWidth,
+    );
+  }
+
+  void _notifyZoomState(bool isZooming) {
+    final onZoomStateChanged = widget.onZoomStateChanged;
+    if (onZoomStateChanged == null) {
+      return;
+    }
+    final state = TimelineZoomState(
+      isZooming: isZooming,
+      anchorTime: _scaleDisplayLockTime.clamp(
+        TimelineTime.zero,
+        widget.timelineDurationTime,
+      ),
+      revision: _scaleScrollCorrectionRevision,
+    );
+    onZoomStateChanged(state);
+  }
+
   double _targetOffsetForAnchorTime(
     TimelineTime anchorTime,
-    double secondsWidth,
-  ) {
-    final nextContentWidth = _contentWidthForScale(secondsWidth);
-    final maxOffset =
-        math.max(0.0, nextContentWidth - math.max(_scrollViewportWidth, 1));
-    return (anchorTime.inSecondsDouble * secondsWidth)
-        .clamp(0.0, maxOffset)
+    double secondsWidth, {
+    _TimelineScaleLayoutSnapshot? layoutSnapshot,
+  }) {
+    return _timelineGeometryForScale(
+      secondsWidth,
+      layoutSnapshot: layoutSnapshot,
+    ).offsetForTime(anchorTime);
+  }
+
+  TimelineGeometryMapper _timelineGeometryForScale(
+    double secondsWidth, {
+    _TimelineScaleLayoutSnapshot? layoutSnapshot,
+  }) {
+    final snapshot = layoutSnapshot ??
+        (_isScaleVisualLockActive ? _scaleLayoutSnapshot : null);
+    return TimelineGeometryMapper(
+      timelineDuration: widget.timelineDurationTime,
+      secondsWidth: secondsWidth,
+      timelineOriginX: snapshot?.timelineOriginX ?? _timelineOriginX,
+      playheadLeft: snapshot?.playheadLeft ?? _playheadLeft,
+      maxScrollOffset: _maxScrollOffsetForScale(
+        secondsWidth,
+        layoutSnapshot: snapshot,
+      ),
+    );
+  }
+
+  double _maxScrollOffsetForScale(
+    double secondsWidth, {
+    _TimelineScaleLayoutSnapshot? layoutSnapshot,
+  }) {
+    final snapshot = layoutSnapshot ??
+        (_isScaleVisualLockActive ? _scaleLayoutSnapshot : null);
+    final nextContentWidth = _contentWidthForScale(
+      secondsWidth,
+      layoutSnapshot: snapshot,
+    );
+    final viewportWidth =
+        snapshot?.viewportWidth ?? _effectiveScrollViewportWidth;
+    return math.max(0.0, nextContentWidth - math.max(viewportWidth, 1));
+  }
+
+  void _scheduleScaleAnchorCorrection(
+    int revision, {
+    bool requireActiveGesture = true,
+  }) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          (requireActiveGesture && !_isScaleGestureActive) ||
+          revision != _scaleScrollCorrectionRevision) {
+        return;
+      }
+      final targetOffset = _targetOffsetForAnchorTime(
+        _scaleAnchorTime,
+        _secondsWidth,
+      );
+      if (_isScaleGestureActive) {
+        if (_scaleVisualScrollOffset != targetOffset) {
+          setState(() {
+            _scaleVisualScrollOffset = targetOffset;
+          });
+        }
+        return;
+      }
+      _commitScaleVisualScrollOffset(targetOffset);
+    });
+  }
+
+  void _commitScaleVisualScrollOffset(
+    double targetOffset, {
+    int layoutRetryCount = 0,
+  }) {
+    final position = _horizontalPositionOrNull;
+    if (position == null) {
+      if (_scaleVisualScrollOffset != null) {
+        setState(() {
+          _scaleVisualScrollOffset = null;
+          _scaleLayoutSnapshot = null;
+          _isScrubGeometrySettling = true;
+          _scrubGeometryRevision++;
+        });
+        _releaseScrubGeometrySettlingAfterFrame();
+        _notifyZoomState(false);
+      }
+      return;
+    }
+    final safeTarget = targetOffset
+        .clamp(position.minScrollExtent, position.maxScrollExtent)
         .toDouble();
+    final isExtentReady = (safeTarget - targetOffset).abs() < 0.5;
+    if (!isExtentReady && layoutRetryCount < 12) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _scaleVisualScrollOffset == null) {
+          return;
+        }
+        _commitScaleVisualScrollOffset(
+          targetOffset,
+          layoutRetryCount: layoutRetryCount + 1,
+        );
+      });
+      return;
+    }
+    if ((position.pixels - safeTarget).abs() >= 0.01) {
+      _isSyncingFromExternal = true;
+      position.jumpTo(safeTarget);
+      _isSyncingFromExternal = false;
+    }
+    if (_scaleVisualScrollOffset == null) {
+      return;
+    }
+    final visibleTime = _scaleDisplayLockTime.clamp(
+      TimelineTime.zero,
+      widget.timelineDurationTime,
+    );
+    _capturePlaybackVisualAnchor(
+      anchorTime: visibleTime,
+      anchorOffset: safeTarget,
+    );
+    _notifyZoomState(false);
+    setState(() {
+      _scaleVisualScrollOffset = null;
+      _scaleLayoutSnapshot = null;
+      _isScrubGeometrySettling = true;
+      _scrubGeometryRevision++;
+    });
+    _releaseScrubGeometrySettlingAfterFrame();
+  }
+
+  void _releaseScrubGeometrySettlingAfterFrame() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          _isScaleGestureActive ||
+          _isScaleVisualLockActive ||
+          !_isScrubGeometrySettling) {
+        return;
+      }
+      setState(() {
+        _isScrubGeometrySettling = false;
+        _scrubGeometryRevision++;
+      });
+    });
   }
 
   void _rebaseActiveScaleGesture() {
@@ -1624,11 +2062,11 @@ class _TimelinePanelState extends State<TimelinePanel>
     _scalePointerIds = pointerIds;
     _scaleStartDistance = rebasedDistance;
     _scaleStartSecondsWidth = _secondsWidth;
-    _scaleAnchorTime = _timeUnderPlayhead();
+    _pendingScaleGestureDistance = null;
   }
 
-  void _beginScaleGesture() {
-    if (_isScaleGestureActive || !_canRunScaleGesture) {
+  void _beginScaleGesture({TimelineTime? anchorTime}) {
+    if (_isScaleVisualLockActive || !_canRunScaleGesture) {
       return;
     }
     final pointerIds = _resolveBestScalePointerIds();
@@ -1651,22 +2089,45 @@ class _TimelinePanelState extends State<TimelinePanel>
     )) {
       return;
     }
+    _stopManualTimelineFling();
+    if (_isPlaybackVisualFollowActive) {
+      final visibleTime = _displayTimeNotifier.value.clamp(
+        TimelineTime.zero,
+        widget.timelineDurationTime,
+      );
+      _commitPlaybackVisualScrollOffset(visibleTime);
+      _capturePlaybackVisualAnchor(
+        anchorTime: visibleTime,
+        anchorOffset: _horizontalOffsetOrNull,
+      );
+    }
     _captureLockedVerticalOffset();
     _restoreLockedVerticalOffset();
     _scalePointerIds = pointerIds;
     _scaleStartDistance = startDistance;
     _scaleStartSecondsWidth = _secondsWidth;
-    _scaleAnchorTime = _timeUnderPlayhead();
+    final lockedTime = (anchorTime ?? _displayTimeNotifier.value).clamp(
+      TimelineTime.zero,
+      widget.timelineDurationTime,
+    );
+    _scaleDisplayLockTime = lockedTime;
+    _scaleAnchorTime = lockedTime;
+    _scaleLayoutSnapshot = _captureScaleLayoutSnapshot();
+    ++_scaleScrollCorrectionRevision;
+    _scaleVisualScrollOffset = _targetOffsetForAnchorTime(
+      _scaleAnchorTime,
+      _secondsWidth,
+    );
     _isScaleGestureActive = true;
+    _notifyZoomState(true);
     _ensurePlaybackTickerForCurrentMode();
   }
 
-  void _updateScaleGesture() {
+  void _updateScaleGesture(double currentDistance) {
     if (!_isScaleGestureActive) {
       return;
     }
-    final currentDistance = _currentScaleDistance();
-    if (currentDistance == null || currentDistance <= 0) {
+    if (currentDistance <= 0) {
       return;
     }
     final rawScale = currentDistance / math.max(_scaleStartDistance, 0.001);
@@ -1678,43 +2139,81 @@ class _TimelinePanelState extends State<TimelinePanel>
     if ((nextWidth - _secondsWidth).abs() < _scaleGestureWidthEpsilon) {
       return;
     }
-
-    final targetOffset =
-        _targetOffsetForAnchorTime(_scaleAnchorTime, nextWidth);
     final nextMode = _resolveRulerMode(
       nextWidth,
       viewportWidth: _resolvedViewportWidth,
       previousMode: _rulerMode,
     );
+    final correctionRevision = ++_scaleScrollCorrectionRevision;
+    final targetOffset = _targetOffsetForAnchorTime(
+      _scaleAnchorTime,
+      nextWidth,
+    );
 
     setState(() {
       _secondsWidth = nextWidth;
       _rulerMode = nextMode;
+      _scaleVisualScrollOffset = targetOffset;
     });
 
-    if (_scrollController.hasClients) {
-      _isSyncingFromExternal = true;
-      _scrollController.jumpTo(targetOffset);
-      _isSyncingFromExternal = false;
-    }
+    _scheduleScaleAnchorCorrection(correctionRevision);
   }
 
-  void _cancelScaleGesture({bool syncToTime = true}) {
+  void _scheduleScaleGestureUpdate() {
+    if (!_isScaleGestureActive) {
+      return;
+    }
+    final currentDistance = _currentScaleDistance();
+    if (currentDistance == null || currentDistance <= 0) {
+      return;
+    }
+    _pendingScaleGestureDistance = currentDistance;
+    if (_isScaleGestureUpdateScheduled) {
+      return;
+    }
+    _isScaleGestureUpdateScheduled = true;
+    SchedulerBinding.instance.scheduleFrameCallback((_) {
+      _isScaleGestureUpdateScheduled = false;
+      final pendingDistance = _pendingScaleGestureDistance;
+      _pendingScaleGestureDistance = null;
+      if (!mounted ||
+          !_isScaleGestureActive ||
+          pendingDistance == null ||
+          pendingDistance <= 0) {
+        return;
+      }
+      _updateScaleGesture(pendingDistance);
+    });
+  }
+
+  void _cancelScaleGesture() {
     if (!_isScaleGestureActive) {
       _releaseInteractionOwner(_TimelineInteractionOwner.zoom);
       return;
     }
+    _suppressSinglePointerTimelineGesture = _activePointers.isNotEmpty;
+    final correctionRevision = ++_scaleScrollCorrectionRevision;
+    _scheduleScaleAnchorCorrection(
+      correctionRevision,
+      requireActiveGesture: false,
+    );
     _isScaleGestureActive = false;
     _scalePointerIds = null;
     _scaleStartDistance = 0;
+    _pendingScaleGestureDistance = null;
     _releaseInteractionOwner(_TimelineInteractionOwner.zoom);
     _releaseLockedVerticalOffsetIfPossible();
-    _ensurePlaybackTickerForCurrentMode();
-    if (syncToTime &&
-        (_externalDisplayTime - _scaleAnchorTime).inSecondsDouble.abs() >
-            0.05) {
-      _syncToTime();
+    if (widget.isPlaying) {
+      final visibleTime = _displayTimeNotifier.value.clamp(
+        TimelineTime.zero,
+        widget.timelineDurationTime,
+      );
+      _capturePlaybackVisualAnchor(
+        anchorTime: visibleTime,
+        anchorOffset: _effectiveHorizontalScrollOffset(),
+      );
     }
+    _ensurePlaybackTickerForCurrentMode();
   }
 
   void _setScrubInteractionActive(bool isActive) {
@@ -1751,6 +2250,13 @@ class _TimelinePanelState extends State<TimelinePanel>
       }
     }
     _isNativeScrubbing = false;
+    _nativeScrubFilteredTime = null;
+    _nativeScrubDirectionSign = 0;
+    _nativeScrubReportedAnchorTime = null;
+    _nativeScrubPointerId = null;
+    _nativeScrubPointerDownDx = null;
+    _nativeScrubPointerStartTime = null;
+    _nativeScrubUsesPointerTime = false;
     _releaseLockedVerticalOffsetIfPossible();
     _syncScrubInteractionActive();
     _ensurePlaybackTickerForCurrentMode();
@@ -1762,17 +2268,43 @@ class _TimelinePanelState extends State<TimelinePanel>
     }
   }
 
+  void _cancelNativeScrubForScaleGesture({TimelineTime? restoreTime}) {
+    final preservedTime = (restoreTime ?? _displayTimeNotifier.value).clamp(
+      TimelineTime.zero,
+      widget.timelineDurationTime,
+    );
+    _pendingNativeScrubUiTime = null;
+    _nativeScrubUiUpdateScheduled = false;
+    _nativeScrubFilteredTime = null;
+    _nativeScrubDirectionSign = 0;
+    _nativeScrubReportedAnchorTime = null;
+    _nativeScrubPointerId = null;
+    _nativeScrubPointerDownDx = null;
+    _nativeScrubPointerStartTime = null;
+    _nativeScrubUsesPointerTime = false;
+    if (_isNativeScrubbing) {
+      _isNativeScrubbing = false;
+      _releaseLockedVerticalOffsetIfPossible();
+      _syncScrubInteractionActive();
+    }
+    _setDisplayTime(
+      preservedTime,
+      invokeParentSynchronously: true,
+    );
+    _ensurePlaybackTickerForCurrentMode();
+  }
+
   void _handleManualPanFlingTick() {
-    if (!_scrollController.hasClients) {
+    final position = _horizontalPositionOrNull;
+    if (position == null || _isScaleVisualLockActive) {
       return;
     }
-    final position = _scrollController.position;
     final targetOffset = _manualPanFlingController.value
         .clamp(position.minScrollExtent, position.maxScrollExtent)
         .toDouble();
-    if ((_scrollController.offset - targetOffset).abs() >= 0.01) {
+    if ((position.pixels - targetOffset).abs() >= 0.01) {
       _isSyncingFromExternal = true;
-      _scrollController.jumpTo(targetOffset);
+      position.jumpTo(targetOffset);
       _isSyncingFromExternal = false;
     }
     _setDisplayTime(
@@ -1795,7 +2327,7 @@ class _TimelinePanelState extends State<TimelinePanel>
     if (!_hasHorizontalPanExtent ||
         widget.isPlaying ||
         _isNativeScrubbing ||
-        _isScaleGestureActive ||
+        _isScaleVisualLockActive ||
         _isTrimDragging ||
         _isClipMoveMode) {
       return;
@@ -1803,7 +2335,10 @@ class _TimelinePanelState extends State<TimelinePanel>
     if (velocityDx.abs() < _manualPanMinFlingVelocity) {
       return;
     }
-    final currentOffset = _scrollController.offset;
+    final currentOffset = _horizontalOffsetOrNull;
+    if (currentOffset == null) {
+      return;
+    }
     _manualPanFlingController.value = currentOffset;
     _manualPanFlingController.animateWith(
       ClampingScrollSimulation(
@@ -1834,7 +2369,8 @@ class _TimelinePanelState extends State<TimelinePanel>
         _isReorderMode ||
         _isTrimDragging ||
         _isClipMoveMode ||
-        _isScaleGestureActive ||
+        _isScaleVisualLockActive ||
+        _suppressSinglePointerTimelineGesture ||
         _isAnyTimelineScrubbing ||
         !_hasHorizontalPanExtent) {
       return;
@@ -1846,6 +2382,7 @@ class _TimelinePanelState extends State<TimelinePanel>
     _manualPanAccumulatedDx = 0;
     _captureLockedVerticalOffset();
     _restoreLockedVerticalOffset();
+    _setScrubInteractionActive(true);
   }
 
   void _updateManualTimelinePan(double deltaDx) {
@@ -1878,20 +2415,24 @@ class _TimelinePanelState extends State<TimelinePanel>
     } else {
       _activateInteractionOwner(_TimelineInteractionOwner.pan);
     }
-    final position = _scrollController.position;
-    final targetOffset = (_scrollController.offset - appliedDeltaDx)
+    final position = _horizontalPositionOrNull;
+    if (position == null) {
+      _cancelManualTimelinePan();
+      return;
+    }
+    final targetOffset = (position.pixels - appliedDeltaDx)
         .clamp(position.minScrollExtent, position.maxScrollExtent)
         .toDouble();
-    if ((_scrollController.offset - targetOffset).abs() < 0.01) {
+    if ((position.pixels - targetOffset).abs() < 0.01) {
       _restoreLockedVerticalOffset();
       return;
     }
     _isSyncingFromExternal = true;
-    _scrollController.jumpTo(targetOffset);
+    position.jumpTo(targetOffset);
     _isSyncingFromExternal = false;
     _setDisplayTime(
       _timelineTimeForOffset(targetOffset),
-      notifyParent: false,
+      invokeParentSynchronously: true,
     );
     _restoreLockedVerticalOffset();
   }
@@ -1931,17 +2472,33 @@ class _TimelinePanelState extends State<TimelinePanel>
     _restoreLockedVerticalOffset();
     _releaseInteractionOwner(_TimelineInteractionOwner.pan);
     _releaseLockedVerticalOffsetIfPossible();
+    _setScrubInteractionActive(false);
   }
 
   void _handleGlobalPointerDown(PointerDownEvent event) {
+    final isFirstPointer = _activePointers.isEmpty;
+    if (isFirstPointer) {
+      _singlePointerDisplayAnchorTime = _displayTimeNotifier.value.clamp(
+        TimelineTime.zero,
+        widget.timelineDurationTime,
+      );
+    }
     _activePointers.add(event.pointer);
     _activePointerPositions[event.pointer] = event.position;
     _pointerDownPositions[event.pointer] = event.position;
+    if (_activePointers.length > 1) {
+      final scaleAnchorTime =
+          (_singlePointerDisplayAnchorTime ?? _displayTimeNotifier.value).clamp(
+        TimelineTime.zero,
+        widget.timelineDurationTime,
+      );
+      _suppressSinglePointerTimelineGesture = true;
+      _cancelNativeScrubForScaleGesture(restoreTime: scaleAnchorTime);
+      _beginScaleGesture(anchorTime: scaleAnchorTime);
+      return;
+    }
     if (_isScaleGestureActive) {
       _rebaseActiveScaleGesture();
-    }
-    if (_activePointers.length > 1) {
-      _beginScaleGesture();
     }
   }
 
@@ -1952,25 +2509,30 @@ class _TimelinePanelState extends State<TimelinePanel>
     _activePointerPositions[event.pointer] = event.position;
     if (_isNativeScrubbing &&
         event.pointer == _nativeScrubPointerId &&
-        !_isScaleGestureActive &&
+        !_isScaleVisualLockActive &&
         !_isReorderMode &&
         !_isTrimDragging &&
         !_isClipMoveMode) {
       final pointerDownDx = _nativeScrubPointerDownDx;
       final pointerStartTime = _nativeScrubPointerStartTime;
       if (pointerDownDx != null && pointerStartTime != null) {
-        final secondsWidth =
-            _secondsWidth.abs() < 0.0001 ? 0.0001 : _secondsWidth;
-        final deltaMs =
-            (((event.position.dx - pointerDownDx) / secondsWidth) * 1000.0)
-                .round();
-        final nextTime =
-            (pointerStartTime - TimelineTime.fromMilliseconds(deltaMs)).clamp(
+        final deltaDx = event.position.dx - pointerDownDx;
+        final deltaTime =
+            _timelineGeometryForScale(_secondsWidth).durationForPixels(
+          -deltaDx,
+        );
+        final nextTime = (pointerStartTime + deltaTime).clamp(
           TimelineTime.zero,
           widget.timelineDurationTime,
         );
         _scheduleNativeScrubUiUpdate(nextTime);
       }
+      return;
+    }
+    if (_suppressSinglePointerTimelineGesture &&
+        !_isScaleVisualLockActive &&
+        _activePointers.length <= 1) {
+      return;
     }
     if (_reorderPointerId == event.pointer &&
         _isReorderMode &&
@@ -1979,11 +2541,17 @@ class _TimelinePanelState extends State<TimelinePanel>
       return;
     }
     if (_isScaleGestureActive) {
-      _updateScaleGesture();
+      _scheduleScaleGestureUpdate();
       return;
     }
     if (_activePointers.length > 1) {
-      _beginScaleGesture();
+      final scaleAnchorTime =
+          (_singlePointerDisplayAnchorTime ?? _displayTimeNotifier.value).clamp(
+        TimelineTime.zero,
+        widget.timelineDurationTime,
+      );
+      _cancelNativeScrubForScaleGesture(restoreTime: scaleAnchorTime);
+      _beginScaleGesture(anchorTime: scaleAnchorTime);
     }
   }
 
@@ -2013,6 +2581,10 @@ class _TimelinePanelState extends State<TimelinePanel>
     } else if (_isScaleGestureActive) {
       _rebaseActiveScaleGesture();
     }
+    if (_activePointers.isEmpty) {
+      _suppressSinglePointerTimelineGesture = false;
+      _singlePointerDisplayAnchorTime = null;
+    }
     if (_activePointers.isEmpty &&
         (_isInteractionPending(_TimelineInteractionOwner.pan) ||
             _isInteractionActive(_TimelineInteractionOwner.pan))) {
@@ -2020,29 +2592,44 @@ class _TimelinePanelState extends State<TimelinePanel>
     }
   }
 
-  void _handleNativeScrubStart() {
+  void _handleNativeScrubStart(TimelineTime reportedStartTime) {
     if (_isReorderMode ||
         _isTrimDragging ||
         _isClipMoveMode ||
-        _isScaleGestureActive) {
+        _isScaleVisualLockActive ||
+        _suppressSinglePointerTimelineGesture) {
       return;
     }
     if (_isNativeScrubbing) {
       return;
     }
+    final anchorTime = _displayTimeNotifier.value.clamp(
+      TimelineTime.zero,
+      widget.timelineDurationTime,
+    );
     _captureLockedVerticalOffset();
     _restoreLockedVerticalOffset();
     _isNativeScrubbing = true;
+    _nativeScrubDisplayAnchorTime = anchorTime;
+    _nativeScrubReportedAnchorTime = reportedStartTime.clamp(
+      TimelineTime.zero,
+      widget.timelineDurationTime,
+    );
+    _nativeScrubFilteredTime = anchorTime;
+    _nativeScrubDirectionSign = 0;
     if (_activePointers.length == 1) {
       final pointerId = _activePointers.first;
       _nativeScrubPointerId = pointerId;
       _nativeScrubPointerDownDx = _pointerDownPositions[pointerId]?.dx ??
           _activePointerPositions[pointerId]?.dx;
-      _nativeScrubPointerStartTime = _displayTimeNotifier.value;
+      _nativeScrubPointerStartTime = anchorTime;
+      _nativeScrubUsesPointerTime = _nativeScrubPointerDownDx != null &&
+          _nativeScrubPointerStartTime != null;
     } else {
       _nativeScrubPointerId = null;
       _nativeScrubPointerDownDx = null;
       _nativeScrubPointerStartTime = null;
+      _nativeScrubUsesPointerTime = false;
     }
     _syncScrubInteractionActive();
     _ensurePlaybackTickerForCurrentMode();
@@ -2053,6 +2640,9 @@ class _TimelinePanelState extends State<TimelinePanel>
     bool notifyParent = false,
     bool invokeParentSynchronously = false,
   }) {
+    if (_isScaleVisualLockActive) {
+      return;
+    }
     _driveScrollToTime(
       time,
       epsilonPx: 0.01,
@@ -2066,14 +2656,23 @@ class _TimelinePanelState extends State<TimelinePanel>
   }
 
   void _scheduleNativeScrubUiUpdate(TimelineTime time) {
-    _pendingNativeScrubUiTime = time;
+    final nextTime = time.clamp(
+      TimelineTime.zero,
+      widget.timelineDurationTime,
+    );
+    if (_pendingNativeScrubUiTime == nextTime ||
+        (_pendingNativeScrubUiTime == null &&
+            _displayTimeNotifier.value == nextTime)) {
+      return;
+    }
+    _pendingNativeScrubUiTime = nextTime;
     if (_nativeScrubUiUpdateScheduled) {
       return;
     }
     _nativeScrubUiUpdateScheduled = true;
     SchedulerBinding.instance.scheduleFrameCallback((_) {
       _nativeScrubUiUpdateScheduled = false;
-      if (!mounted || !_isNativeScrubbing) {
+      if (!mounted || !_isNativeScrubbing || _isScaleVisualLockActive) {
         _pendingNativeScrubUiTime = null;
         return;
       }
@@ -2093,31 +2692,50 @@ class _TimelinePanelState extends State<TimelinePanel>
     final pendingTime = _pendingNativeScrubUiTime;
     _pendingNativeScrubUiTime = null;
     _nativeScrubUiUpdateScheduled = false;
-    if (pendingTime == null) {
+    if (pendingTime == null || _isScaleVisualLockActive) {
       return;
     }
     _applyNativeScrubUiTime(pendingTime);
   }
 
   void _handleNativeScrubTimeChanged(TimelineTime time) {
-    final nextTime = time.clamp(
-      TimelineTime.zero,
-      widget.timelineDurationTime,
-    );
+    if (_isScaleVisualLockActive) {
+      return;
+    }
     if (!_isNativeScrubbing) {
-      _handleNativeScrubStart();
+      if (_suppressSinglePointerTimelineGesture) {
+        return;
+      }
+      _handleNativeScrubStart(time);
       if (!_isNativeScrubbing) {
         return;
       }
     }
+    if (_nativeScrubUsesPointerTime) {
+      return;
+    }
+    final nextTime = _stabilizeNativeScrubTime(
+      _timelineTimeForNativeScrubSample(time),
+    );
     _scheduleNativeScrubUiUpdate(nextTime);
   }
 
   void _handleNativeScrubEnd(TimelineTime time) {
-    final finalTime = time.clamp(
-      TimelineTime.zero,
-      widget.timelineDurationTime,
-    );
+    final usesPointerTime = _nativeScrubUsesPointerTime;
+    if (usesPointerTime) {
+      _flushPendingNativeScrubUiUpdate();
+    }
+    final finalTime = usesPointerTime
+        ? _displayTimeNotifier.value.clamp(
+            TimelineTime.zero,
+            widget.timelineDurationTime,
+          )
+        : _stabilizeNativeScrubTime(
+            _timelineTimeForNativeScrubSample(time),
+          );
+    if (_isScaleVisualLockActive || _suppressSinglePointerTimelineGesture) {
+      return;
+    }
     if (!_isNativeScrubbing) {
       final onScrubFinalized = widget.onScrubFinalized;
       if (onScrubFinalized != null) {
@@ -2125,7 +2743,9 @@ class _TimelinePanelState extends State<TimelinePanel>
       }
       return;
     }
-    _flushPendingNativeScrubUiUpdate();
+    if (!usesPointerTime) {
+      _flushPendingNativeScrubUiUpdate();
+    }
     _applyNativeScrubUiTime(
       finalTime,
       notifyParent: true,
@@ -2136,11 +2756,15 @@ class _TimelinePanelState extends State<TimelinePanel>
       _invokeParentCallback(() => onScrubFinalized(finalTime));
     }
     _isNativeScrubbing = false;
+    _pendingNativeScrubUiTime = null;
+    _nativeScrubUiUpdateScheduled = false;
+    _nativeScrubFilteredTime = null;
+    _nativeScrubDirectionSign = 0;
+    _nativeScrubReportedAnchorTime = null;
     _nativeScrubPointerId = null;
     _nativeScrubPointerDownDx = null;
     _nativeScrubPointerStartTime = null;
-    _pendingNativeScrubUiTime = null;
-    _nativeScrubUiUpdateScheduled = false;
+    _nativeScrubUsesPointerTime = false;
     _releaseLockedVerticalOffsetIfPossible();
     _syncScrubInteractionActive();
     _ensurePlaybackTickerForCurrentMode();
@@ -2229,7 +2853,8 @@ class _TimelinePanelState extends State<TimelinePanel>
 
     final previewWidth = math.max(
       1.0,
-      trimSession.durationTime.inSecondsDouble * _secondsWidth,
+      _timelineGeometryForScale(_secondsWidth)
+          .pixelsForDuration(trimSession.durationTime),
     );
     final previewLeft = trimSession.edge == TimelineTrimEdge.start
         ? originalLeft + (originalWidth - previewWidth)
@@ -2314,18 +2939,22 @@ class _TimelinePanelState extends State<TimelinePanel>
     required double contentWidth,
     required double tracksContentHeight,
   }) {
-    final horizontalOffset = _scrollController.hasClients
-        ? _scrollController.offset
-            .clamp(0.0, _scrollController.position.maxScrollExtent)
-            .toDouble()
-        : 0.0;
-    final verticalOffset = _verticalController.hasClients
-        ? _verticalController.offset
-            .clamp(0.0, _verticalController.position.maxScrollExtent)
-            .toDouble()
-        : 0.0;
+    final verticalPosition = _verticalPositionOrNull;
+    final maxHorizontalOffset =
+        math.max(0.0, contentWidth - math.max(viewportWidth, 1.0));
+    final horizontalOffset = _effectiveHorizontalScrollOffset()
+        .clamp(0.0, maxHorizontalOffset)
+        .toDouble();
+    final verticalOffset = verticalPosition == null
+        ? 0.0
+        : verticalPosition.pixels
+            .clamp(0.0, verticalPosition.maxScrollExtent)
+            .toDouble();
     final regions = <TimelineScrubViewportRegion>[];
     final densityProfile = _stackDensityProfileForTracks(widget.tracks);
+    final leadingOffset = _isScaleVisualLockActive
+        ? (_scaleLayoutSnapshot?.leadingOffset ?? _leadingOffset)
+        : _leadingOffset;
     var rowTop = -verticalOffset;
 
     for (var trackIndex = 0; trackIndex < widget.tracks.length; trackIndex++) {
@@ -2340,6 +2969,7 @@ class _TimelinePanelState extends State<TimelinePanel>
         viewportWidth: viewportWidth,
         viewportHeight: viewportHeight,
         contentWidth: contentWidth,
+        leadingOffset: leadingOffset,
         horizontalOffset: horizontalOffset,
       );
       rowTop += rowHeight;
@@ -2372,15 +3002,16 @@ class _TimelinePanelState extends State<TimelinePanel>
     required double viewportWidth,
     required double viewportHeight,
     required double contentWidth,
+    required double leadingOffset,
     required double horizontalOffset,
   }) {
     final laneProfile = _TimelineTrackLaneProfile.forKind(track.kind);
     final controlHitSize =
         math.max(_controlTileSize, laneProfile.controlHitSize);
-    final panZoneRight = _leadingOffset + controlHitSize + _controlGap;
+    final panZoneRight = leadingOffset + controlHitSize + _controlGap;
     final clipStart = panZoneRight;
     final controlLeft =
-        _leadingOffset - _nativeScrubTrackToolButtonsWidthForTrack(track);
+        leadingOffset - _nativeScrubTrackToolButtonsWidthForTrack(track);
     final scrubExclusions = <_TimelineScrubExclusion>[
       _TimelineScrubExclusion(left: controlLeft, right: panZoneRight),
     ];
@@ -2408,7 +3039,9 @@ class _TimelinePanelState extends State<TimelinePanel>
         trimSession: activeTrimSession,
       );
       final previewLeft = previewClipId == clip.id && previewStartTime != null
-          ? clipStart + (previewStartTime.inSecondsDouble * _secondsWidth)
+          ? clipStart +
+              _timelineGeometryForScale(_secondsWidth)
+                  .pixelsForDuration(previewStartTime)
           : trimGeometry.left;
       final trimTouchInset =
           showsTrimChrome ? _TimelineTrimChrome.handleTouchInset : 0.0;
@@ -2568,6 +3201,7 @@ class _TimelinePanelState extends State<TimelinePanel>
       animation: Listenable.merge(<Listenable>[
         _scrollController,
         _verticalController,
+        _displayTimeNotifier,
       ]),
       builder: (context, _) {
         final regions = _buildUnifiedNativeScrubRegions(
@@ -2581,15 +3215,21 @@ class _TimelinePanelState extends State<TimelinePanel>
             currentTime: _displayTimeNotifier.value,
             currentTimeListenable: _displayTimeNotifier,
             timelineDurationTime: widget.timelineDurationTime,
-            timelineOffsetTime: widget.timeDisplayOffset,
+            timelineOffsetTime:
+                widget.nativeTimelineOffsetTime ?? widget.timeDisplayOffset,
             secondsWidth: _secondsWidth,
+            timelineFps: widget.timelineFps,
             regions: regions,
+            geometryRevision: _scrubGeometryRevision,
             onTap: widget.onBackgroundTap == null
                 ? null
                 : _handleOwnedBackgroundTap,
             onScrubStart: _handleNativeScrubStart,
             onScrubTimeChanged: _handleNativeScrubTimeChanged,
             onScrubEnd: _handleNativeScrubEnd,
+            interactionEnabled: !_isScaleVisualLockActive &&
+                !_isScrubGeometrySettling &&
+                !_suppressSinglePointerTimelineGesture,
           ),
         );
       },
@@ -2616,13 +3256,13 @@ class _TimelinePanelState extends State<TimelinePanel>
   }
 
   void _handleManualPanDragCancel() {
-    _cancelInteractionOwner(_TimelineInteractionOwner.pan);
+    _cancelManualTimelinePan();
   }
 
   void _syncToTime() {
-    if (!_scrollController.hasClients ||
+    if (_horizontalPositionOrNull == null ||
         _shouldAnimatePlayback ||
-        _isScaleGestureActive ||
+        _isScaleVisualLockActive ||
         _isAnyTimelineScrubbing ||
         _isTrimDragging ||
         _isClipMoveMode) {
@@ -2826,7 +3466,7 @@ class _TimelinePanelState extends State<TimelinePanel>
     if (_isTrimDragging ||
         widget.trimSelection != null ||
         _isAnyTimelineScrubbing ||
-        _isScaleGestureActive ||
+        _isScaleVisualLockActive ||
         widget.onClipReorder == null ||
         widget.tracks[trackIndex].clips.length < 2) {
       return;
@@ -2996,7 +3636,7 @@ class _TimelinePanelState extends State<TimelinePanel>
         _isTrimDragging ||
         widget.trimSelection != null ||
         _isAnyTimelineScrubbing ||
-        _isScaleGestureActive ||
+        _isScaleVisualLockActive ||
         !_supportsClipTimeShift(track, clip)) {
       return;
     }
@@ -3036,7 +3676,7 @@ class _TimelinePanelState extends State<TimelinePanel>
     }
     _activateInteractionOwner(_TimelineInteractionOwner.move);
     final candidateStartTime = session.originalStartTime +
-        TimelineTime.fromSecondsDouble(deltaDx / _secondsWidth);
+        _timelineGeometryForScale(_secondsWidth).durationForPixels(deltaDx);
     final resolvedStartTime = _resolveNearestAllowedClipStartTime(
       track: widget.tracks[trackIndex],
       clip: clip,
@@ -3225,7 +3865,8 @@ class _TimelinePanelState extends State<TimelinePanel>
     required TimelineTrimEdge edge,
     required double dragDx,
   }) {
-    final deltaTime = TimelineTime.fromSecondsDouble(dragDx / _secondsWidth);
+    final deltaTime =
+        _timelineGeometryForScale(_secondsWidth).durationForPixels(dragDx);
     final playbackRate =
         selection.playbackRate <= 0 ? 1.0 : selection.playbackRate;
     TimelineTime sourceDurationForTimelineDuration(
@@ -3316,6 +3957,7 @@ class _TimelinePanelState extends State<TimelinePanel>
   double _buildContentWidth(
     double trailingPadding, {
     double? secondsWidth,
+    double? timelineOriginX,
   }) {
     final resolvedSecondsWidth = secondsWidth ?? _secondsWidth;
     final farthest = widget.tracks.fold<double>(
@@ -3343,11 +3985,10 @@ class _TimelinePanelState extends State<TimelinePanel>
       },
     );
 
-    return _leadingOffset +
-        math.max(
-            _controlTileSize, _TimelineTrackLaneProfile.video.controlHitSize) +
-        _controlGap +
-        farthest +
+    final timelineWidth = _timelineDurationSeconds * resolvedSecondsWidth;
+    final resolvedFarthest = math.max(farthest, timelineWidth);
+    return (timelineOriginX ?? _timelineOriginX) +
+        resolvedFarthest +
         trailingPadding;
   }
 
@@ -3410,16 +4051,12 @@ class _TimelinePanelState extends State<TimelinePanel>
         final contentHeight = _tracksContentHeight(tracks);
         final maxHorizontalOffset = math.max(0.0, contentWidth - viewportWidth);
         final maxVerticalOffset = math.max(0.0, contentHeight - viewportHeight);
-        final horizontalOffset = _scrollController.hasClients
-            ? _scrollController.offset
-                .clamp(0.0, maxHorizontalOffset)
-                .toDouble()
-            : 0.0;
-        final verticalOffset = _verticalController.hasClients
-            ? _verticalController.offset
-                .clamp(0.0, maxVerticalOffset)
-                .toDouble()
-            : 0.0;
+        final horizontalOffset = (_horizontalOffsetOrNull ?? 0.0)
+            .clamp(0.0, maxHorizontalOffset)
+            .toDouble();
+        final verticalOffset = (_verticalOffsetOrNull ?? 0.0)
+            .clamp(0.0, maxVerticalOffset)
+            .toDouble();
         final activeLayout = activeTrackIndex == null
             ? null
             : _buildReorderRowLayout(
@@ -3501,12 +4138,20 @@ class _TimelinePanelState extends State<TimelinePanel>
           6,
           _playheadLeft - _timelineControlColumnWidth - _controlGap,
         );
-        final trailingPadding = math.max(
-          _trailingPadding,
-          contentViewportWidth - _playheadLeft + 24,
+        final trailingPadding =
+            _requiredTrailingPaddingForViewport(contentViewportWidth);
+        final scaleSnapshot =
+            _isScaleVisualLockActive ? _scaleLayoutSnapshot : null;
+        final activePlayheadLeft = scaleSnapshot?.playheadLeft ?? _playheadLeft;
+        final activeLeadingOffset =
+            scaleSnapshot?.leadingOffset ?? _leadingOffset;
+        final activeTrailingPadding =
+            scaleSnapshot?.trailingPadding ?? trailingPadding;
+        _activeTrailingPadding = activeTrailingPadding;
+        final contentWidth = _buildContentWidth(
+          activeTrailingPadding,
+          timelineOriginX: scaleSnapshot?.timelineOriginX,
         );
-        _activeTrailingPadding = trailingPadding;
-        final contentWidth = _buildContentWidth(trailingPadding);
         final tracksViewportHeight = math.max(
           0.0,
           constraints.maxHeight - _rulerHeaderHeight - 8,
@@ -3572,7 +4217,7 @@ class _TimelinePanelState extends State<TimelinePanel>
                                       scrollOffset: effectiveScrollOffset,
                                       playheadLeft: math.max(
                                           0,
-                                          _playheadLeft -
+                                          activePlayheadLeft -
                                               _timeReadoutWidth -
                                               6),
                                       viewportWidth: math.max(
@@ -3641,6 +4286,7 @@ class _TimelinePanelState extends State<TimelinePanel>
                                         animation: Listenable.merge(
                                           <Listenable>[
                                             _displayTimeNotifier,
+                                            _scrollController,
                                             _reorderTransitionController,
                                           ],
                                         ),
@@ -3690,7 +4336,7 @@ class _TimelinePanelState extends State<TimelinePanel>
                                                             contentWidth:
                                                                 contentWidth,
                                                             leadingOffset:
-                                                                _leadingOffset,
+                                                                activeLeadingOffset,
                                                             controlTileSize:
                                                                 _controlTileSize,
                                                             controlGap:
@@ -3856,7 +4502,7 @@ class _TimelinePanelState extends State<TimelinePanel>
                                             ),
                                           );
                                           final translateX =
-                                              _playbackVisualTranslateX();
+                                              _timelineVisualTranslateX();
                                           if (translateX == 0) {
                                             return timelineContent;
                                           }
@@ -3895,7 +4541,7 @@ class _TimelinePanelState extends State<TimelinePanel>
                   ),
                 if (!_isReorderMode)
                   Positioned(
-                    left: _playheadLeft - (_playheadLineWidth / 2),
+                    left: activePlayheadLeft - (_playheadLineWidth / 2),
                     top: 30,
                     bottom: 10,
                     child: IgnorePointer(
@@ -4844,9 +5490,9 @@ class _TimelineAnimationSegmentState extends State<_TimelineAnimationSegment> {
   @override
   Widget build(BuildContext context) {
     final resolvedWidth = math.max(30.0, widget.width);
-    const segmentHeight = 24.0;
-    const lineThickness = 1.2;
-    const markerTouchWidth = 20.0;
+    const segmentHeight = 34.0;
+    const lineThickness = 1.55;
+    const markerTouchWidth = 44.0;
     const markerTouchHeight = segmentHeight;
     const draggableInset = 0.0;
     final resolvedStops = widget.keyframeStops
@@ -4938,15 +5584,15 @@ class _TimelineAnimationKeyframeMarker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final markerWidth = isKeyframeSelected ? 9.8 : (isPrimary ? 9.1 : 8.5);
-    final markerHeight = isKeyframeSelected ? 15.2 : (isPrimary ? 14.1 : 13.1);
+    final markerWidth = isKeyframeSelected ? 12.2 : (isPrimary ? 11.4 : 10.8);
+    final markerHeight = isKeyframeSelected ? 18.6 : (isPrimary ? 17.4 : 16.4);
     final inactiveBorderColor =
         (isSelected ? FxPalette.textMuted : FxPalette.textFaint)
             .withOpacity(isPrimary ? 0.86 : 0.78);
     final borderColor = isKeyframeSelected
         ? Colors.white.withOpacity(0.88)
         : inactiveBorderColor;
-    final borderWidth = isKeyframeSelected ? 1.22 : (isPrimary ? 0.98 : 0.9);
+    final borderWidth = isKeyframeSelected ? 1.18 : (isPrimary ? 0.92 : 0.84);
     final fillColor =
         isKeyframeSelected ? Colors.white.withOpacity(0.9) : Colors.transparent;
     final glowColor = isKeyframeSelected
@@ -6693,11 +7339,16 @@ class _TimelineVideoFilmstrip extends StatefulWidget {
 
 class _TimelineVideoFilmstripState extends State<_TimelineVideoFilmstrip> {
   static const Duration _thumbnailLoadDelay = Duration.zero;
+  static const Duration _widthRetileDebounce = Duration(milliseconds: 160);
 
   Future<List<Uint8List>>? _thumbnailsFuture;
   List<Uint8List>? _seedThumbnails;
+  Timer? _widthRetileTimer;
+  late int _stableTileCount;
 
-  int get _tileCount => math.max(2, (widget.width / 54).ceil());
+  int _tileCountForWidth(double width) => math.max(2, (width / 54).ceil());
+
+  int get _tileCount => _stableTileCount;
 
   int get _targetWidth {
     final tileWidth = widget.width / _tileCount;
@@ -6709,21 +7360,57 @@ class _TimelineVideoFilmstripState extends State<_TimelineVideoFilmstrip> {
   @override
   void initState() {
     super.initState();
+    _stableTileCount = _tileCountForWidth(widget.width);
     _refreshThumbnails();
   }
 
   @override
   void didUpdateWidget(covariant _TimelineVideoFilmstrip oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.path != widget.path ||
-        oldWidget.isPlaying != widget.isPlaying ||
-        (oldWidget.width - widget.width).abs() > 0.5 ||
+    final sourceChanged = oldWidget.path != widget.path ||
         (oldWidget.height - widget.height).abs() > 0.5 ||
         (oldWidget.sourceOffsetSeconds - widget.sourceOffsetSeconds).abs() >
             0.001 ||
-        (oldWidget.durationSeconds - widget.durationSeconds).abs() > 0.001) {
+        (oldWidget.durationSeconds - widget.durationSeconds).abs() > 0.001;
+    if (sourceChanged) {
+      _widthRetileTimer?.cancel();
+      _stableTileCount = _tileCountForWidth(widget.width);
+      _refreshThumbnails();
+      return;
+    }
+    if (oldWidget.isPlaying != widget.isPlaying) {
       _refreshThumbnails();
     }
+    if ((oldWidget.width - widget.width).abs() > 0.5) {
+      _scheduleWidthRetile();
+    }
+  }
+
+  @override
+  void dispose() {
+    _widthRetileTimer?.cancel();
+    super.dispose();
+  }
+
+  void _scheduleWidthRetile() {
+    final nextTileCount = _tileCountForWidth(widget.width);
+    if (nextTileCount == _stableTileCount) {
+      return;
+    }
+    _widthRetileTimer?.cancel();
+    _widthRetileTimer = Timer(_widthRetileDebounce, () {
+      if (!mounted) {
+        return;
+      }
+      final settledTileCount = _tileCountForWidth(widget.width);
+      if (settledTileCount == _stableTileCount) {
+        return;
+      }
+      setState(() {
+        _stableTileCount = settledTileCount;
+        _refreshThumbnails();
+      });
+    });
   }
 
   void _refreshThumbnails() {
@@ -6823,25 +7510,27 @@ class _TimelineVideoFilmstripState extends State<_TimelineVideoFilmstrip> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<Uint8List>>(
-      future: _thumbnailsFuture,
-      builder: (context, snapshot) {
-        final thumbnails = snapshot.data;
-        if (thumbnails != null && thumbnails.isNotEmpty) {
-          return _buildThumbnails(thumbnails);
-        }
+    return RepaintBoundary(
+      child: FutureBuilder<List<Uint8List>>(
+        future: _thumbnailsFuture,
+        builder: (context, snapshot) {
+          final thumbnails = snapshot.data;
+          if (thumbnails != null && thumbnails.isNotEmpty) {
+            return _buildThumbnails(thumbnails);
+          }
 
-        final seededThumbnails = _seedThumbnails;
-        if (seededThumbnails != null && seededThumbnails.isNotEmpty) {
-          return _buildThumbnails(seededThumbnails);
-        }
+          final seededThumbnails = _seedThumbnails;
+          if (seededThumbnails != null && seededThumbnails.isNotEmpty) {
+            return _buildThumbnails(seededThumbnails);
+          }
 
-        if (snapshot.hasError) {
+          if (snapshot.hasError) {
+            return _buildFallback();
+          }
+
           return _buildFallback();
-        }
-
-        return _buildFallback();
-      },
+        },
+      ),
     );
   }
 }

@@ -96,6 +96,38 @@ Stage5ScrubOverlayTextureView.setContentAspectRatio
 Stage5PreviewPlatformView scrub overlay sizing
 ```
 
+### Slow scrub jitters at high or normal timeline zoom
+
+Likely causes:
+
+- Flutter UI follow depends only on native millisecond samples, so slow finger
+  movement quantizes into visible forward/back jumps
+- a visual transform layer moves the timeline while `ScrollController` stays at
+  an older offset
+- active scrub receives two competing UI time writers: pointer delta and native
+  sample callbacks
+- scrub config is stale at touch start, so native start time and Flutter display
+  time disagree
+
+Check:
+
+```text
+TimelinePanel pointer-delta scrub handoff
+_handleNativeScrubStart anchor time
+_handleGlobalPointerMove during _isNativeScrubbing
+_applyNativeScrubUiTime drives ScrollController directly
+NativeTimelineScrubSurface does not push config during active scrub
+```
+
+Rule:
+
+```text
+Native remains the active frame renderer.
+Flutter timeline chrome should follow pointer delta during active scrub.
+Native scrubTimeChanged samples are fallback UI timing when pointer ownership is
+not available, not a second competing UI writer.
+```
+
 ### Black flash or wrong final frame on lift
 
 Likely causes:
@@ -137,4 +169,3 @@ Preferred order:
 4. verify engine target mapping
 5. verify decoder URI and frame render
 6. verify final settle handoff
-

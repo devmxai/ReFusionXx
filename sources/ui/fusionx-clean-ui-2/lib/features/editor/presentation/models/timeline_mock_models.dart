@@ -52,7 +52,7 @@ extension TimelineTransitionPresetPresentation on TimelineTransitionPreset {
 
   TimelineTime get defaultDurationTime {
     return switch (this) {
-      TimelineTransitionPreset.manual => TimelineTime.fromMilliseconds(620),
+      TimelineTransitionPreset.manual => TimelineTime.fromMilliseconds(2000),
       TimelineTransitionPreset.crossDissolve =>
         TimelineTime.fromMilliseconds(720),
       TimelineTransitionPreset.fadeBlack => TimelineTime.fromMilliseconds(540),
@@ -453,7 +453,7 @@ extension TimelineAnimationLaneEvaluation on TimelineAnimationLaneData {
   }) {
     final stopCount = normalizedKeyframeStops.length;
     if (stopCount == 0) {
-      return const <double>[];
+      return <double>[];
     }
     final values = List<double>.from(keyframeValues);
     final resolvedFallback = clampToPercent

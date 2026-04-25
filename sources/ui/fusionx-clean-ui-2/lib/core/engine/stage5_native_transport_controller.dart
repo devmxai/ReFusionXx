@@ -370,8 +370,21 @@ class Stage5NativeTransportController extends ChangeNotifier {
   }
 
   Future<void> play() async {
-    _applyOptimisticPlaybackState(true);
+    _applyOptimisticPlaybackState(true, isScrubSettling: false);
     await _invokeWithoutResult('play');
+  }
+
+  Future<void> playFromPositionMs(int positionMs) async {
+    final clampedPositionMs = positionMs < 0 ? 0 : positionMs;
+    _applyOptimisticPlaybackState(
+      true,
+      positionMs: clampedPositionMs,
+      isScrubSettling: false,
+    );
+    await _invokeWithoutResult(
+      'playFromPosition',
+      <String, dynamic>{'positionMs': clampedPositionMs},
+    );
   }
 
   Future<void> pause() async {
@@ -505,9 +518,15 @@ class Stage5NativeTransportController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _applyOptimisticPlaybackState(bool isPlaying) {
+  void _applyOptimisticPlaybackState(
+    bool isPlaying, {
+    int? positionMs,
+    bool? isScrubSettling,
+  }) {
     final nextState = _state.copyWith(
       isPlaying: isPlaying,
+      positionMs: positionMs ?? _state.positionMs,
+      isScrubSettling: isScrubSettling ?? _state.isScrubSettling,
       error: null,
     );
     if (_statesEqual(_state, nextState)) {
