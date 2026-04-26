@@ -330,6 +330,13 @@ Current foundation:
   - `NormalTransitionInstance`,
   - `NormalTransitionOverlapWindow`,
   - canonical `MotionPropertyChannelModel` graph channels.
+- It also returns `NormalTransitionGraphAuthoringBundle` metadata:
+  - `animationGroupId`,
+  - `presetId`,
+  - `transitionWindowId`,
+  - `nodeId`,
+  - `instanceId`,
+  - per-channel `role` and `propertyId`.
 - Tests prove the graph apply path creates channels that can be projected into unified transition scope lanes.
 - This is domain infrastructure only. It is not wired to the legacy Transition Scope UI yet and does not touch Stage5 or Live Scrub.
 

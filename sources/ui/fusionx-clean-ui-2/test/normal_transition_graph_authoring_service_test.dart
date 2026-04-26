@@ -134,6 +134,14 @@ void main() {
     expect(result.node!.definitionId, 'cross_dissolve');
     expect(result.instance!.nodeId, result.node!.id);
     expect(result.window!.boundaryTime, at(10));
+    expect(result.bundle, isNotNull);
+    expect(result.bundle!.presetId, 'cross_dissolve');
+    expect(result.bundle!.transitionWindowId, result.node!.id);
+    expect(result.bundle!.nodeId, result.node!.id);
+    expect(result.bundle!.instanceId, result.instance!.id);
+    expect(result.bundle!.windowRange.start, result.window!.start);
+    expect(
+        result.bundle!.windowRange.endExclusive, result.window!.endExclusive);
     expect(result.graphChannels, hasLength(2));
     expect(
       result.graphChannels.map((channel) => channel.definition.id),
@@ -145,6 +153,19 @@ void main() {
     expect(
       result.graphChannels.map((channel) => channel.target.targetId),
       <String>['outgoing-element', 'incoming-element'],
+    );
+    expect(
+      result.bundle!.channelBindings.map((binding) => binding.role),
+      <NormalTransitionGraphChannelRole>[
+        NormalTransitionGraphChannelRole.outgoing,
+        NormalTransitionGraphChannelRole.incoming,
+      ],
+    );
+    expect(
+      result.bundle!.channelsForRole(
+        NormalTransitionGraphChannelRole.outgoing,
+      ),
+      <Object>[result.graphChannels.first],
     );
   });
 
@@ -180,6 +201,24 @@ void main() {
       lanes.map((lane) => lane.normalizedKeyframeStops),
       everyElement(<double>[0, 1]),
     );
+  });
+
+  test('exposes transition metadata for every graph channel', () {
+    final result = service.createFromDefinition(crossDissolveRequest());
+    final bundle = result.bundle!;
+    final outgoingMetadata = bundle.metadataForChannel(
+      result.graphChannels.first.id,
+    );
+    final incomingMetadata = bundle.metadataForChannel(
+      result.graphChannels.last.id,
+    );
+
+    expect(outgoingMetadata['animationGroupId'], bundle.animationGroupId);
+    expect(outgoingMetadata['presetId'], 'cross_dissolve');
+    expect(outgoingMetadata['transitionWindowId'], result.node!.id);
+    expect(outgoingMetadata['role'], 'outgoing');
+    expect(outgoingMetadata['propertyId'], MotionPropertyCatalog.opacity.id);
+    expect(incomingMetadata['role'], 'incoming');
   });
 
   test('passes parameter overrides through authoring and graph lowering', () {
@@ -255,6 +294,7 @@ void main() {
     );
 
     expect(result.canApply, isFalse);
+    expect(result.bundle, isNull);
     expect(result.node, isNull);
     expect(result.instance, isNull);
     expect(result.graphChannels, isEmpty);
@@ -297,6 +337,7 @@ void main() {
     );
 
     expect(result.canApply, isFalse);
+    expect(result.bundle, isNotNull);
     expect(result.graphChannels, isEmpty);
     expect(
       result.issues.map((issue) => issue.path),
