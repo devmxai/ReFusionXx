@@ -661,6 +661,11 @@ Required order:
    - Current status: `test/layer_scope_keyframe_operation_integration_test.dart`
      verifies the opacity-first Layer Scope projection stays backed by real
      add, move, value edit, and delete operations.
+   - Current status: `LayerScopeMotionAuthoringAdapter` exists in
+     `lib/features/editor/presentation/services/layer_scope_motion_authoring_adapter.dart`.
+     It gives the future Layer Scope UI one safe opacity-first entry point for
+     add, move, value edit, delete, and re-project, all through
+     `UnifiedKeyframeOperationService`.
 5. Verify scrub/play/pause with the existing Timeline Clock tests.
    - Current status: `test/timeline_clock_coordinator_test.dart`,
      `test/timeline_geometry_mapper_test.dart`,
