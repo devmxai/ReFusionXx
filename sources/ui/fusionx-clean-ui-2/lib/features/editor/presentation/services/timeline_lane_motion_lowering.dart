@@ -35,8 +35,68 @@ class TimelineLaneMotionLoweringResult {
   bool get hasIssues => issues.isNotEmpty;
 }
 
+@immutable
+class TimelineLaneMotionLoweringRequest {
+  const TimelineLaneMotionLoweringRequest({
+    required this.lane,
+    required this.target,
+    required this.definition,
+    required this.activeRange,
+    this.valueScale = 1.0,
+    this.interpolation = const MotionInterpolationSpec.linear(),
+  });
+
+  final TimelineAnimationLaneData lane;
+  final MotionPropertyTarget target;
+  final MotionPropertyDefinition definition;
+  final TimelineTimeRange activeRange;
+  final double valueScale;
+  final MotionInterpolationSpec interpolation;
+}
+
+@immutable
+class TimelineLaneMotionLoweringBatchResult {
+  TimelineLaneMotionLoweringBatchResult({
+    List<MotionPropertyChannelModel> channels =
+        const <MotionPropertyChannelModel>[],
+    List<TimelineLaneMotionLoweringIssue> issues =
+        const <TimelineLaneMotionLoweringIssue>[],
+  })  : channels = List.unmodifiable(channels),
+        issues = List.unmodifiable(issues);
+
+  final List<MotionPropertyChannelModel> channels;
+  final List<TimelineLaneMotionLoweringIssue> issues;
+
+  bool get hasIssues => issues.isNotEmpty;
+}
+
 class TimelineLaneMotionLoweringService {
   const TimelineLaneMotionLoweringService();
+
+  TimelineLaneMotionLoweringBatchResult lowerLanes({
+    required Iterable<TimelineLaneMotionLoweringRequest> requests,
+  }) {
+    final channels = <MotionPropertyChannelModel>[];
+    final issues = <TimelineLaneMotionLoweringIssue>[];
+    for (final request in requests) {
+      final result = lowerLane(
+        lane: request.lane,
+        target: request.target,
+        definition: request.definition,
+        activeRange: request.activeRange,
+        valueScale: request.valueScale,
+        interpolation: request.interpolation,
+      );
+      if (result.channel != null) {
+        channels.add(result.channel!);
+      }
+      issues.addAll(result.issues);
+    }
+    return TimelineLaneMotionLoweringBatchResult(
+      channels: channels,
+      issues: issues,
+    );
+  }
 
   TimelineLaneMotionLoweringResult lowerLane({
     required TimelineAnimationLaneData lane,

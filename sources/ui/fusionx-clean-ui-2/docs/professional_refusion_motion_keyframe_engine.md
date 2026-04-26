@@ -33,7 +33,7 @@ This rule exists so timeline, Live Scrub, keyframe, transition, and motion-engin
 - Phase 3: in progress. `TimelineGeometryMapper` exists in `lib/features/editor/domain/services/timeline_geometry_mapper.dart` with tests in `test/timeline_geometry_mapper_test.dart`; central time/offset mapping, visual follow, clip move, trim drag, and native scrub pointer delta paths are being routed through it. Contract tests now lock scrub/settle/play and zoom/play handoff behavior before deeper motion-engine unification.
 - Phase 4+: open. Scope projection, motion graph import, transition unification, scriptable scene programs, and export parity must be built on top of the clock foundation.
 - Phase 5: started as isolated domain/presentation infrastructure. `UnifiedKeyframeOperationService` exists in `lib/features/editor/domain/services/unified_keyframe_operations.dart`; it wraps existing graph-backed canvas keyframe operations and adds an atomic group-move entry point for compound properties such as Position. `UnifiedKeyframeTimelineProjectionService` exists in `lib/features/editor/presentation/services/unified_keyframe_timeline_projection.dart`; it projects scalar graph channels into single or batched timeline lanes without making UI lanes the source of truth. Neither service is connected to UI yet.
-- Phase 6: started as isolated compatibility infrastructure. `TimelineLaneMotionLoweringService` exists in `lib/features/editor/presentation/services/timeline_lane_motion_lowering.dart`; it lowers legacy scalar timeline lanes into graph-backed motion channels while rejecting duplicate keyframe times and unsupported value kinds. It is not connected to UI yet.
+- Phase 6: started as isolated compatibility infrastructure. `TimelineLaneMotionLoweringService` exists in `lib/features/editor/presentation/services/timeline_lane_motion_lowering.dart`; it lowers single or batched legacy scalar timeline lanes into graph-backed motion channels while rejecting duplicate keyframe times and unsupported value kinds. Round-trip tests now cover lane -> graph channel -> lane identity/timing stability. It is not connected to UI yet.
 - Live Scrub status: protected. Stage5 Live Scrub is not part of a rewrite. It is a production path that must remain fast, precise, and native-optimized.
 
 ## 0. Non-Negotiable Live Scrub Protection
@@ -565,6 +565,7 @@ Exit criteria:
 
 - `TimelineAnimationLaneData` is a projection, not permanent source of truth.
 - Existing scalar lanes can be lowered into graph-backed channels without silent keyframe merges.
+- Lowered scalar lanes can be projected back without changing keyframe IDs, normalized stops, or displayed values.
 - Text, image, shape, and transition motion all have graph-backed channels.
 - Existing text script import is moved out of screen code into a reusable domain lowerer.
 
