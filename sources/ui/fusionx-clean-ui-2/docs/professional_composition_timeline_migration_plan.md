@@ -338,6 +338,10 @@ Current foundation:
   - `instanceId`,
   - per-channel `role` and `propertyId`.
 - Tests prove the graph apply path creates channels that can be projected into unified transition scope lanes.
+- `TransitionScopeGraphLaneAdapter` exists in `lib/features/editor/presentation/services/transition_scope_graph_lane_adapter.dart`.
+- It turns `NormalTransitionGraphAuthoringBundle` channels into transition-aware timeline lanes with role labels such as `Outgoing Opacity` and `Incoming Opacity`.
+- It preserves lane-to-channel metadata so the UI can map selection, value editing, and future move-to-playhead operations back to the graph channel.
+- It refuses non-transition scopes or mismatched transition windows instead of silently showing incorrect lanes.
 - This is domain infrastructure only. It is not wired to the legacy Transition Scope UI yet and does not touch Stage5 or Live Scrub.
 
 ### Phase C5: Transition Mode In Unified Layer Scope Timeline
