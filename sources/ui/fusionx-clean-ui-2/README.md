@@ -69,6 +69,11 @@ audio, accurate seeking, and native performance on both platforms.
 
 - `docs/live_scrub_migration_mandate.md`: the single binding live scrub
   migration directive for the native scrub engine rebuild
+- `docs/professional_checkpoint_policy.md`: mandatory checkpoint and GitHub
+  push policy for every completed build step
+- `docs/professional_refusion_motion_keyframe_engine.md`: the master plan for
+  the professional timeline clock, unified keyframes, motion graph, scene
+  program, script import, preview parity, and export parity
 - `docs/professional_direct_text_effects_and_scriptable_motion.md`: the
   unified architecture for direct text effects and scriptable/programmatic
   motion over the shared motion substrate
@@ -103,6 +108,8 @@ scrub work.
 
 To keep development reversible and stable, ReFusion uses a checkpoint-based
 Git workflow instead of pushing unfinished work to `main`.
+
+Binding policy: `docs/professional_checkpoint_policy.md`
 
 Rules:
 

@@ -1,7 +1,7 @@
 # Professional Timeline Clock Audit
 
 Status: Phase 0 baseline audit  
-Parent plan: `docs/professional_timeline_clock_contract.md`  
+Parent plan: `docs/professional_refusion_motion_keyframe_engine.md`  
 Scope: current timeline time writers before coordinator migration
 
 ## Live Scrub Protection
