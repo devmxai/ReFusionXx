@@ -14124,6 +14124,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required bool effectiveIsPlaying,
     required Widget child,
   }) {
+    if (_useNativePreview) {
+      // Flutter's ImageFiltered cannot reliably filter Android platform views.
+      // Applying blur here snapshots/stalls the native video surface, so native
+      // preview must wait for the compositor-owned transition FX path.
+      return child;
+    }
     return ValueListenableBuilder<TimelineTime>(
       valueListenable: _previewTimeListenable(
         effectiveIsPlaying: effectiveIsPlaying,
