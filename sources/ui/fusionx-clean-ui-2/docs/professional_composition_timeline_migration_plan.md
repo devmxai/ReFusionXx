@@ -247,8 +247,10 @@ Current foundation:
 - It converts a layer id, scene id, global time, and graph channels into a `ScopeProjection`.
 - It routes layer-scope add/move/value/interpolation/delete keyframe operations through `CanvasTimelineUnifiedKeyframeAdapter`, which uses `UnifiedKeyframeOperations`.
 - It validates that authored keyframes target the active layer scope before mutation.
+- `UnifiedScopeTimelineProjectionAdapter` exists in `lib/features/editor/presentation/services/unified_scope_timeline_projection_adapter.dart`.
+- It converts graph-backed `ScopeProjection.channels` into `TimelineAnimationLaneData` as presentation-only lanes, preserving channel IDs, keyframe IDs, normalized local-time stops, and numeric keyframe values.
 - This is domain/adapter infrastructure only. It is not wired to the production Layer Scope UI yet.
-- Tests exist in `test/layer_scope_composition_adapter_test.dart`.
+- Tests exist in `test/layer_scope_composition_adapter_test.dart` and `test/unified_scope_timeline_projection_adapter_test.dart`.
 
 ### Phase C3: Image And Shape Scope Parity
 
