@@ -326,10 +326,9 @@ private class Stage5TimelineScrubInputView(
                 val wasScrubbing = scrubbing
                 val tapped = !wasScrubbing && config.tapEnabled
                 if (wasScrubbing) {
-                    val activeIndex = event.findPointerIndex(pointerId)
-                    if (activeIndex >= 0) {
-                        gesturePositionMs = resolveGesturePositionMs(event, activeIndex)
-                    }
+                    // ACTION_UP coordinates can include a tiny lift-off drift that was never
+                    // presented to the user. Commit the last stable scrub frame instead, so
+                    // releasing the finger cannot jump to a different timeline frame.
                     nativeScrubEngine.commitFinalTimelinePosition(gesturePositionMs)
                     channel.invokeMethod(
                         "scrubEnd",
@@ -351,10 +350,8 @@ private class Stage5TimelineScrubInputView(
                     return true
                 }
                 if (scrubbing) {
-                    val activeIndex = event.findPointerIndex(pointerId)
-                    if (activeIndex >= 0) {
-                        gesturePositionMs = resolveGesturePositionMs(event, activeIndex)
-                    }
+                    // Same policy as ACTION_UP: cancellation should preserve the last rendered
+                    // scrub frame instead of sampling a potentially noisy terminal coordinate.
                     nativeScrubEngine.commitFinalTimelinePosition(gesturePositionMs)
                     channel.invokeMethod(
                         "scrubEnd",

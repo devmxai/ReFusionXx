@@ -251,6 +251,7 @@ class Stage5PreviewPlatformView(
             }
         playerView.setRenderEffect(renderEffect)
         playerView.videoSurfaceView?.setRenderEffect(renderEffect)
+        scrubOverlayView.setRenderEffect(renderEffect)
     }
 
     private fun clearPreviewTransitionEffects() {
@@ -259,6 +260,7 @@ class Stage5PreviewPlatformView(
         }
         playerView.setRenderEffect(null)
         playerView.videoSurfaceView?.setRenderEffect(null)
+        scrubOverlayView.setRenderEffect(null)
     }
 
     private fun runOnUiThread(action: () -> Unit) {
