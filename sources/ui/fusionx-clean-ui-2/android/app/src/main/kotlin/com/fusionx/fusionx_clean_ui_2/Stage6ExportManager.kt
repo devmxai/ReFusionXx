@@ -1348,6 +1348,36 @@ class Stage6ExportManager(
         )
     }
 
+    private fun readTransitionVideoEffectSegments(
+        value: Any?,
+    ): List<NativeTransitionVideoEffectSegment> {
+        return (value as? List<*> ?: emptyList<Any?>())
+            .mapNotNull { entry ->
+                val segmentMap = entry as? Map<*, *> ?: return@mapNotNull null
+                val id = segmentMap["id"]?.toString()?.takeIf { it.isNotBlank() }
+                    ?: return@mapNotNull null
+                val transitionId = segmentMap["transitionId"]?.toString()?.takeIf { it.isNotBlank() }
+                    ?: return@mapNotNull null
+                val effectId = segmentMap["effectId"]?.toString()?.takeIf { it.isNotBlank() }
+                    ?: return@mapNotNull null
+                val startMs = readLong(segmentMap["timelineStartMs"])
+                val endExclusiveMs = readLong(segmentMap["timelineEndExclusiveMs"])
+                if (endExclusiveMs <= startMs) {
+                    return@mapNotNull null
+                }
+                val blurSigmaPx =
+                    readFloatOrDefault(segmentMap["blurSigma"], 0f).coerceIn(0f, 64f)
+                NativeTransitionVideoEffectSegment(
+                    id = id,
+                    transitionId = transitionId,
+                    effectId = effectId,
+                    timelineStartMs = startMs,
+                    timelineEndExclusiveMs = endExclusiveMs,
+                    blurSigmaPx = blurSigmaPx,
+                )
+            }
+    }
+
     private fun buildPreflightCanonicalEffectsDiagnostics(
         compositionMap: Map<String, Any?>,
     ): NativeCanonicalEffectsDiagnostics? {
@@ -2837,6 +2867,8 @@ class Stage6ExportManager(
             readAuthoredVisualSurfaceProgram(compositionMap["authoredVisualSurfaceProgram"])
         val motionTextProgram = readMotionTextProgram(compositionMap["motionTextProgram"])
         val motionTextRenderTrack = readMotionTextRenderTrack(compositionMap["motionTextRenderTrack"])
+        val transitionVideoEffectSegments =
+            readTransitionVideoEffectSegments(compositionMap["transitionVideoEffects"])
         val motionTextRuntime =
             NativeMotionTextRuntimeBundle(
                 program = motionTextProgram,
@@ -2925,6 +2957,7 @@ class Stage6ExportManager(
                 motionTextRuntime = motionTextRuntime,
                 visualAssemblyWindows = visualCompositorGraph.windows,
                 resolvedCompositorExecutions = resolvedCompositorExecutions,
+                transitionVideoEffectSegments = transitionVideoEffectSegments,
                 attachMotionTextOverlayToMediaClips = !usesIndependentMotionTextOverlayClock,
             )
         val motionTextOverlaySequenceAssembly =
@@ -3184,6 +3217,7 @@ class Stage6ExportManager(
         motionTextRuntime: NativeMotionTextRuntimeBundle?,
         visualAssemblyWindows: List<NativeVisualAssemblyWindow>,
         resolvedCompositorExecutions: Map<String, NativeResolvedCompositorWindowExecution>,
+        transitionVideoEffectSegments: List<NativeTransitionVideoEffectSegment> = emptyList(),
         attachMotionTextOverlayToMediaClips: Boolean = true,
     ): NativeEditedSequenceAssembly? {
         if (clips.isEmpty()) {
@@ -3312,6 +3346,10 @@ class Stage6ExportManager(
                                                 Presentation.LAYOUT_SCALE_TO_FIT,
                                         )
                                 }
+                                videoEffects += buildTransitionVideoEffectsForClip(
+                                    clip = clip,
+                                    segments = transitionVideoEffectSegments,
+                                )
                                 val overlayItems = mutableListOf<TextureOverlay>()
                                 if (compositorExecution != null) {
                                     val compositorWindow =
@@ -3388,6 +3426,32 @@ class Stage6ExportManager(
             sequence = sequenceBuilder.build(),
             durationMs = assembledDurationMs,
         )
+    }
+
+    private fun buildTransitionVideoEffectsForClip(
+        clip: NativeExportClip,
+        segments: List<NativeTransitionVideoEffectSegment>,
+    ): List<Effect> {
+        if (clip.assetKind == NativeExportClipKind.AUDIO || segments.isEmpty()) {
+            return emptyList()
+        }
+        val clipStartMs = clip.timelineStartMs
+        val clipEndExclusiveMs = clip.timelineStartMs + clip.timelineDurationMs
+        return segments.mapNotNull { segment ->
+            if (segment.effectId != "blurAmount" || segment.blurSigmaPx <= 0.05f) {
+                return@mapNotNull null
+            }
+            val startMs = maxOf(segment.timelineStartMs, clipStartMs)
+            val endExclusiveMs = minOf(segment.timelineEndExclusiveMs, clipEndExclusiveMs)
+            if (endExclusiveMs <= startMs) {
+                return@mapNotNull null
+            }
+            TimestampWrapper(
+                GaussianBlur(segment.blurSigmaPx),
+                (startMs - clipStartMs).coerceAtLeast(0L) * 1000L,
+                (endExclusiveMs - clipStartMs).coerceAtLeast(1L) * 1000L,
+            )
+        }
     }
 
     private fun buildMotionTextOverlaySequence(
@@ -4862,6 +4926,15 @@ private data class NativeExportClip(
     val graphZOrder: Int? = null,
     val graphAssemblyOrder: Int? = null,
     val coveredWindowIds: List<String> = emptyList(),
+)
+
+private data class NativeTransitionVideoEffectSegment(
+    val id: String,
+    val transitionId: String,
+    val effectId: String,
+    val timelineStartMs: Long,
+    val timelineEndExclusiveMs: Long,
+    val blurSigmaPx: Float,
 )
 
 private data class NativeExportComposition(

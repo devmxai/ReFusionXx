@@ -728,6 +728,32 @@ class ExportTrackDescriptor {
   bool get isEmpty => clips.isEmpty;
 }
 
+@immutable
+class ExportTransitionVideoEffectSegment {
+  const ExportTransitionVideoEffectSegment({
+    required this.id,
+    required this.transitionId,
+    required this.effectId,
+    required this.timelineRange,
+    required this.blurSigma,
+  });
+
+  final String id;
+  final String transitionId;
+  final String effectId;
+  final TimelineTimeRange timelineRange;
+  final double blurSigma;
+
+  Map<String, Object?> toBridgeMap() => <String, Object?>{
+        'id': id,
+        'transitionId': transitionId,
+        'effectId': effectId,
+        'timelineStartMs': timelineRange.start.inMilliseconds,
+        'timelineEndExclusiveMs': timelineRange.endExclusive.inMilliseconds,
+        'blurSigma': blurSigma,
+      };
+}
+
 enum ExportCanonicalEffectsNodeKind {
   mediaClip,
   textElement,
@@ -961,6 +987,8 @@ class ExportComposition {
     required this.format,
     required List<ExportAssetDescriptor> assets,
     required List<ExportTrackDescriptor> tracks,
+    List<ExportTransitionVideoEffectSegment> transitionVideoEffects =
+        const <ExportTransitionVideoEffectSegment>[],
     required List<ExportCompositionIssue> issues,
     required this.canonicalEffectsGraph,
     this.motionTextRasterContract,
@@ -971,6 +999,7 @@ class ExportComposition {
     this.motionTextRenderTrack,
   })  : assets = List.unmodifiable(assets),
         tracks = List.unmodifiable(tracks),
+        transitionVideoEffects = List.unmodifiable(transitionVideoEffects),
         issues = List.unmodifiable(issues);
 
   final String contractVersion;
@@ -978,6 +1007,7 @@ class ExportComposition {
   final ExportProjectFormatDescriptor format;
   final List<ExportAssetDescriptor> assets;
   final List<ExportTrackDescriptor> tracks;
+  final List<ExportTransitionVideoEffectSegment> transitionVideoEffects;
   final ExportCanonicalEffectsGraph canonicalEffectsGraph;
   final MotionTextRasterContract? motionTextRasterContract;
   final MotionTextRasterExportProgram? motionTextRasterProgram;
@@ -2133,6 +2163,8 @@ class ExportComposition {
             },
           )
           .toList(growable: false),
+      'transitionVideoEffects':
+          transitionVideoEffects.map((effect) => effect.toBridgeMap()).toList(),
       'preflightSummary': preflightSummary,
       'capabilityMatrix':
           capabilityMatrix.map((entry) => entry.toBridgeMap()).toList(),
@@ -3976,17 +4008,21 @@ class ExportCompositionBuildInput {
     required this.projectFormat,
     required List<ExportAssetDescriptor> assets,
     required List<ExportTrackSeed> timelineTracks,
+    List<ExportTransitionVideoEffectSegment> transitionVideoEffects =
+        const <ExportTransitionVideoEffectSegment>[],
     this.motionComposition,
     this.motionTextProgram,
     this.motionTextRenderTrack,
   })  : assets = List.unmodifiable(assets),
-        timelineTracks = List.unmodifiable(timelineTracks);
+        timelineTracks = List.unmodifiable(timelineTracks),
+        transitionVideoEffects = List.unmodifiable(transitionVideoEffects);
 
   final String contractVersion;
   final String projectId;
   final ExportProjectFormatDescriptor projectFormat;
   final List<ExportAssetDescriptor> assets;
   final List<ExportTrackSeed> timelineTracks;
+  final List<ExportTransitionVideoEffectSegment> transitionVideoEffects;
   final MotionNormalizedComposition? motionComposition;
   final ExportMotionTextProgram? motionTextProgram;
   final ExportMotionTextRenderTrack? motionTextRenderTrack;

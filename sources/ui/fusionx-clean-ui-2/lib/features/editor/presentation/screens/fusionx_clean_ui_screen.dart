@@ -913,6 +913,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
     final exportAssets = _buildExportAssetDescriptors(canonicalTracks);
     final exportTracks = _buildExportTrackSeeds(canonicalTracks);
+    final transitionVideoEffects = _buildExportTransitionVideoEffectSegments(
+      canonicalTracks,
+      projectFormat,
+    );
     final motionTextProgram = buildExportMotionTextProgram(motionComposition);
     final motionTextRenderTrack = includeMotionTextRenderTrack
         ? _buildMotionTextRenderTrackForExport(
@@ -927,6 +931,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         projectFormat: projectFormat,
         assets: exportAssets,
         timelineTracks: exportTracks,
+        transitionVideoEffects: transitionVideoEffects,
         motionComposition: motionComposition,
         motionTextProgram: motionTextProgram,
         motionTextRenderTrack: motionTextRenderTrack,
@@ -1137,6 +1142,141 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       );
     }
     return List<ExportTrackSeed>.unmodifiable(exportTracks);
+  }
+
+  List<ExportTransitionVideoEffectSegment>
+      _buildExportTransitionVideoEffectSegments(
+    List<TimelineTrackData> tracks,
+    ExportProjectFormatDescriptor projectFormat,
+  ) {
+    final output = <ExportTransitionVideoEffectSegment>[];
+    final projectDuration = projectFormat.durationTime;
+    if (projectDuration <= TimelineTime.zero) {
+      return const <ExportTransitionVideoEffectSegment>[];
+    }
+    final exportFps = projectFormat.framesPerSecond.isFinite &&
+            projectFormat.framesPerSecond > 0
+        ? projectFormat.framesPerSecond
+        : _timelineFps;
+    final stepMs = (1000 / exportFps.clamp(12.0, 30.0)).round().clamp(16, 84);
+
+    for (final track in tracks) {
+      if (track.kind != TimelineTrackKind.video ||
+          track.transitions.isEmpty ||
+          track.clips.length < 2) {
+        continue;
+      }
+      final positionedClips = _positionedMediaClipsForTrack(track);
+      final clipById = <String, _PositionedTimelineTrackClip>{
+        for (final positionedClip in positionedClips)
+          positionedClip.clip.id: positionedClip,
+      };
+      for (final transition in _sanitizeTransitionsForTrack(track)) {
+        final leftClip = clipById[transition.leftClipId];
+        final rightClip = clipById[transition.rightClipId];
+        if (leftClip == null || rightClip == null) {
+          continue;
+        }
+        final focusContext =
+            transition.preset == TimelineTransitionPreset.manual
+                ? _transitionFocusContextById(transition.id)
+                : null;
+        final manualAuthoredRange = focusContext == null
+            ? null
+            : _manualTransitionAuthoredEffectTimeRange(focusContext);
+        final seamTime = leftClip.endTime;
+        final startTime = manualAuthoredRange?.start ??
+            focusContext?.activeStartTime ??
+            (seamTime - transition.resolvedLeadingDurationTime).clamp(
+              TimelineTime.zero,
+              projectDuration,
+            );
+        final endTime = manualAuthoredRange?.end ??
+            focusContext?.activeEndTime ??
+            (seamTime + transition.resolvedTrailingDurationTime).clamp(
+              TimelineTime.zero,
+              projectDuration,
+            );
+        if (endTime <= startTime) {
+          continue;
+        }
+        final startMs = startTime.inMilliseconds;
+        final endMs = endTime.inMilliseconds;
+        var cursorMs = startMs;
+        var segmentIndex = 0;
+        while (cursorMs < endMs) {
+          final nextMs = math.min(endMs, cursorMs + stepMs);
+          final midpoint = TimelineTime.fromMilliseconds(
+            cursorMs + ((nextMs - cursorMs) ~/ 2),
+          );
+          final totalSpanMs = math.max(1, endMs - startMs);
+          final elapsedMs = (midpoint - startTime).inMilliseconds;
+          final progress = (elapsedMs / totalSpanMs).clamp(0.0, 1.0).toDouble();
+          final manualLaneProgress = focusContext == null
+              ? progress
+              : _transitionFocusProgressForTime(focusContext, midpoint);
+          final sigma = _transitionBlurSigmaForExport(
+            transition: transition,
+            progress: progress,
+            manualLaneProgress: manualLaneProgress,
+          );
+          if (sigma > 0.05) {
+            output.add(
+              ExportTransitionVideoEffectSegment(
+                id: 'transition-fx-${transition.id}-blur-$segmentIndex',
+                transitionId: transition.id,
+                effectId: 'blurAmount',
+                timelineRange: TimelineTimeRange(
+                  start: TimelineTime.fromMilliseconds(cursorMs),
+                  endExclusive: TimelineTime.fromMilliseconds(nextMs),
+                ),
+                blurSigma: sigma,
+              ),
+            );
+            segmentIndex += 1;
+          }
+          cursorMs = nextMs;
+        }
+      }
+    }
+
+    return List<ExportTransitionVideoEffectSegment>.unmodifiable(output);
+  }
+
+  double _transitionBlurSigmaForExport({
+    required TimelineTrackTransitionData transition,
+    required double progress,
+    required double manualLaneProgress,
+  }) {
+    final blurSigma = switch (transition.preset) {
+      TimelineTransitionPreset.manual =>
+        transition.manualEffectIds.contains('blurAmount')
+            ? transition.manualLaneValueAtProgress(
+                'blurAmount',
+                manualLaneProgress,
+                fallbackValue: transition.parameterValue(
+                  'blurAmount',
+                  fallback: 0.0,
+                ),
+              )
+            : 0.0,
+      TimelineTransitionPreset.blurDissolve =>
+        transition.parameterValue('maxBlur', fallback: 10.0) *
+            _centeredTransitionPulse(progress),
+      TimelineTransitionPreset.whipPanLeft ||
+      TimelineTransitionPreset.whipPanRight =>
+        transition.parameterValue('maxBlur', fallback: 16.0) *
+            _sineTransitionPulse(progress),
+      TimelineTransitionPreset.slideBlurLeft ||
+      TimelineTransitionPreset.slideBlurRight =>
+        transition.parameterValue('maxBlur', fallback: 8.0) *
+            _sineTransitionPulse(progress),
+      _ => 0.0,
+    };
+    if (blurSigma.isNaN || blurSigma.isInfinite) {
+      return 0.0;
+    }
+    return blurSigma.clamp(0.0, 24.0).toDouble();
   }
 
   ExportTrackKind _exportTrackKindForTimelineTrack(TimelineTrackKind kind) {

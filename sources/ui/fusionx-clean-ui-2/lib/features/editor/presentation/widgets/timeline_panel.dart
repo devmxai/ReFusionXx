@@ -2725,13 +2725,14 @@ class _TimelinePanelState extends State<TimelinePanel>
     if (usesPointerTime) {
       _flushPendingNativeScrubUiUpdate();
     }
+    final nativeFinalTime = _timelineTimeForNativeScrubSample(time).clamp(
+      TimelineTime.zero,
+      widget.timelineDurationTime,
+    );
     final finalTime = usesPointerTime
-        ? _displayTimeNotifier.value.clamp(
-            TimelineTime.zero,
-            widget.timelineDurationTime,
-          )
+        ? nativeFinalTime
         : _stabilizeNativeScrubTime(
-            _timelineTimeForNativeScrubSample(time),
+            nativeFinalTime,
           );
     if (_isScaleVisualLockActive || _suppressSinglePointerTimelineGesture) {
       return;

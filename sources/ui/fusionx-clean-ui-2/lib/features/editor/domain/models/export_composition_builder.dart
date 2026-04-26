@@ -133,6 +133,7 @@ class ExportCompositionBuilder {
       format: input.projectFormat,
       assets: input.assets,
       tracks: tracks,
+      transitionVideoEffects: input.transitionVideoEffects,
       canonicalEffectsGraph: canonicalEffectsGraph,
       motionTextRasterContract: motionTextRasterContract,
       motionTextRasterProgram: motionTextRasterProgram,
