@@ -135,6 +135,9 @@ class Stage5NativeScrubEngine(
     private var renderLoopRunning = false
     private var sessionFrozen = false
     private var freezeAfterNextRenderedTarget = false
+    private var finalRenderAwaitGeneration: Long? = null
+    private var finalRenderAwaitLatch: CountDownLatch? = null
+    private var finalRenderAwaitSucceeded = false
     private var configuredTargetWidth: Int = 480
     private var configuredTargetHeight: Int = 854
     private var configuredPreviewSources: List<Stage5NativeScrubSourceDescriptor> =
@@ -408,61 +411,44 @@ class Stage5NativeScrubEngine(
         timeoutMs: Long = 180L,
     ): Boolean {
         val normalizedTimelinePositionMs = positionMs.coerceAtLeast(0L)
-        val snapshot =
-            synchronized(this) {
-                latestKnownTimelinePositionMs = normalizedTimelinePositionMs
-                val descriptor = resolveDescriptorForPosition(normalizedTimelinePositionMs)
-                    ?: return false
-                val sourcePositionMs =
-                    descriptor.resolveSourcePositionMs(normalizedTimelinePositionMs)
-                primeBoundaryNeighborsLocked(
-                    timelinePositionMs = normalizedTimelinePositionMs,
-                    descriptor = descriptor,
-                )
-                configuredTargetWidth = configuredTargetWidth.coerceAtLeast(2)
-                configuredTargetHeight = configuredTargetHeight.coerceAtLeast(2)
-                sessionFrozen = false
-                freezeAfterNextRenderedTarget = false
-                val descriptorChanged =
-                    activeDescriptor?.scrubStoreKey != descriptor.scrubStoreKey
-                activeDescriptor = descriptor
-                latestTargetSourcePositionMs =
-                    normalizeDescriptorPositionMs(descriptor, sourcePositionMs)
-                targetGeneration += 1
-                if (descriptorChanged) {
-                    pendingDecoderForceSeekStoreKey = descriptor.scrubStoreKey
-                }
-                RenderSnapshot(
-                    descriptor = descriptor,
-                    sourcePositionMs = latestTargetSourcePositionMs ?: sourcePositionMs,
-                    generation = targetGeneration,
-                    forceSeekBeforeRender =
-                        pendingDecoderForceSeekStoreKey == descriptor.scrubStoreKey,
-                )
-            }
-        val result = BooleanArray(1)
         val latch = CountDownLatch(1)
-        renderExecutor.execute {
-            try {
-                result[0] = renderSnapshot(snapshot)
-                synchronized(this) {
-                    if (
-                        result[0] &&
-                            targetGeneration == snapshot.generation &&
-                            activeDescriptor?.scrubStoreKey == snapshot.descriptor.scrubStoreKey
-                    ) {
-                        sessionFrozen = true
-                        freezeAfterNextRenderedTarget = false
-                        targetGeneration += 1
-                    }
-                }
-            } finally {
-                latch.countDown()
+        synchronized(this) {
+            latestKnownTimelinePositionMs = normalizedTimelinePositionMs
+            val descriptor = resolveDescriptorForPosition(normalizedTimelinePositionMs)
+                ?: return false
+            val sourcePositionMs =
+                descriptor.resolveSourcePositionMs(normalizedTimelinePositionMs)
+            primeBoundaryNeighborsLocked(
+                timelinePositionMs = normalizedTimelinePositionMs,
+                descriptor = descriptor,
+            )
+            val didUpdateTarget =
+                updateTarget(
+                    descriptor = descriptor,
+                    positionMs = sourcePositionMs,
+                    targetWidth = configuredTargetWidth.coerceAtLeast(2),
+                    targetHeight = configuredTargetHeight.coerceAtLeast(2),
+                )
+            if (!didUpdateTarget) {
+                return false
             }
+            finalRenderAwaitGeneration = targetGeneration
+            finalRenderAwaitLatch = latch
+            finalRenderAwaitSucceeded = false
+            freezeAfterNextRenderedTarget = true
+            scheduleRenderLoopLocked()
         }
         val completed =
             latch.await(timeoutMs.coerceAtLeast(1L), TimeUnit.MILLISECONDS)
-        return completed && result[0]
+        return synchronized(this) {
+            val succeeded = completed && finalRenderAwaitSucceeded
+            if (finalRenderAwaitLatch === latch) {
+                finalRenderAwaitGeneration = null
+                finalRenderAwaitLatch = null
+                finalRenderAwaitSucceeded = false
+            }
+            succeeded
+        }
     }
 
     @Synchronized
@@ -641,12 +627,20 @@ class Stage5NativeScrubEngine(
                     !sessionFrozen && activeDescriptor != null && latestTargetSourcePositionMs != null
                 val targetChanged = targetGeneration != snapshot.generation
                 if (!sessionActive) {
+                    completeFinalRenderAwaitLocked(
+                        generation = snapshot.generation,
+                        success = false,
+                    )
                     renderLoopRunning = false
                     return
                 }
                 if (!targetChanged && rendered && freezeAfterNextRenderedTarget) {
                     sessionFrozen = true
                     freezeAfterNextRenderedTarget = false
+                    completeFinalRenderAwaitLocked(
+                        generation = snapshot.generation,
+                        success = true,
+                    )
                     targetGeneration += 1
                     renderLoopRunning = false
                     return
@@ -663,6 +657,19 @@ class Stage5NativeScrubEngine(
                 Thread.sleep(retryDelayMs)
             }
         }
+    }
+
+    private fun completeFinalRenderAwaitLocked(
+        generation: Long,
+        success: Boolean,
+    ) {
+        if (finalRenderAwaitGeneration != generation) {
+            return
+        }
+        finalRenderAwaitSucceeded = success
+        finalRenderAwaitGeneration = null
+        finalRenderAwaitLatch?.countDown()
+        finalRenderAwaitLatch = null
     }
 
     private fun renderSnapshot(snapshot: RenderSnapshot): Boolean {
