@@ -192,6 +192,8 @@ Exit criteria:
 - Documentation checkpoint pushed.
 - No code behavior change.
 
+Status: completed in checkpoint `ddebdd1`.
+
 ### Phase C1: Composition Projection Domain
 
 Purpose: add domain-only projection infrastructure without UI changes.
@@ -212,6 +214,14 @@ Exit criteria:
 - No UI wiring.
 - No Stage5/Live Scrub changes.
 - Tests prove projection does not own a second clock.
+
+Current foundation:
+
+- `CompositionTimelineProjectionResolver` exists in `lib/features/editor/domain/services/composition_timeline_projection.dart`.
+- It produces composition, scene, layer, and transition scope projections from existing `MotionProjectModel` / `MotionSceneModel` data.
+- It derives scope-local time from composition-global time and does not create or own a second clock.
+- It filters property channels into the current scene/layer/transition projection while preserving existing channel and keyframe identities.
+- Tests exist in `test/composition_timeline_projection_test.dart`.
 
 ### Phase C2: Unified Scope Adapter For Layer Scope
 
@@ -420,4 +430,3 @@ Mutate graph channels through unified keyframe operations.
 Protect Live Scrub.
 Checkpoint, push, install, then continue.
 ```
-
