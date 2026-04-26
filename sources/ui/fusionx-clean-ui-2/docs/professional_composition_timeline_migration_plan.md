@@ -323,6 +323,14 @@ Current foundation:
 - It supports scalar parameter references such as `$peakBlur` for imported transition recipes.
 - Unsupported targets, properties, values, or duplicate keyframe times produce explicit issues instead of hidden preview-only motion.
 - Tests prove Cross Dissolve lowers into editable opacity channels and that the lowered channels project through transition scope.
+- `NormalTransitionGraphAuthoringService` exists in `lib/features/editor/domain/services/normal_transition_graph_authoring_service.dart`.
+- It combines transition node/instance creation with graph lowering in one domain-level apply operation.
+- Applying a graph-backed transition now returns:
+  - `NormalTransitionNode`,
+  - `NormalTransitionInstance`,
+  - `NormalTransitionOverlapWindow`,
+  - canonical `MotionPropertyChannelModel` graph channels.
+- Tests prove the graph apply path creates channels that can be projected into unified transition scope lanes.
 - This is domain infrastructure only. It is not wired to the legacy Transition Scope UI yet and does not touch Stage5 or Live Scrub.
 
 ### Phase C5: Transition Mode In Unified Layer Scope Timeline
