@@ -27,7 +27,7 @@ This rule exists so timeline, Live Scrub, keyframe, transition, and motion-engin
 
 ## Execution Status
 
-- Phase 0: completed. Baseline timeline writer audit is documented in `docs/professional_timeline_clock_audit.md`.
+- Phase 0: completed. Expanded baseline audit for timeline time writers, geometry writers, keyframe data paths, effect data paths, transition data paths, script import outputs, preview inputs, and export inputs is documented in `docs/professional_timeline_clock_audit.md`.
 - Phase 1: completed as isolated infrastructure. `TimelineClockCoordinator` exists in `lib/features/editor/domain/services/timeline_clock_coordinator.dart` with tests in `test/timeline_clock_coordinator_test.dart`.
 - Phase 2: device-validated candidate. Main timeline playback start, native playback samples, and scrub handoff pass through `TimelineClockCoordinator`. Real-device validation on April 25, 2026 reported high stability for play/pause and Live Scrub on valid media.
 - Phase 3: in progress. `TimelineGeometryMapper` exists in `lib/features/editor/domain/services/timeline_geometry_mapper.dart` with tests in `test/timeline_geometry_mapper_test.dart`; central time/offset mapping, visual follow, clip move, trim drag, and native scrub pointer delta paths are being routed through it.
