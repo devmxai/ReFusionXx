@@ -1,8 +1,12 @@
 import '../../domain/models/professional_motion_models.dart';
 import '../../domain/models/professional_normal_transition_models.dart';
+import '../../domain/services/composition_timeline_projection.dart';
+import '../../domain/services/normal_transition_graph_authoring_service.dart';
 import '../../domain/services/normal_transition_catalog.dart';
 import '../models/timeline_mock_models.dart';
+import '../models/timeline_time.dart';
 import 'normal_transition_timeline_adapter.dart';
+import 'transition_scope_graph_lane_adapter.dart';
 import 'transition_unified_scope_entry_gate.dart';
 import 'transition_unified_scope_request_factory.dart';
 
@@ -49,6 +53,7 @@ class TransitionUnifiedScopeBridgeEntryResult {
     this.definition,
     this.factoryResult,
     this.entryResult,
+    this.session,
     List<NormalTransitionIssue> issues = const <NormalTransitionIssue>[],
   }) : issues = List.unmodifiable(issues);
 
@@ -57,11 +62,80 @@ class TransitionUnifiedScopeBridgeEntryResult {
   final NormalTransitionDefinition? definition;
   final TransitionUnifiedScopeRequestFactoryResult? factoryResult;
   final TransitionUnifiedScopeEntryResult? entryResult;
+  final TransitionUnifiedScopeBridgeSession? session;
   final List<NormalTransitionIssue> issues;
 
   bool get opensUnifiedScope =>
       decision == TransitionUnifiedScopeEntryDecision.unifiedScope &&
-      entryResult?.opensUnifiedScope == true;
+      entryResult?.opensUnifiedScope == true &&
+      session != null;
+}
+
+class TransitionUnifiedScopeBridgeSession {
+  TransitionUnifiedScopeBridgeSession({
+    required this.id,
+    required this.project,
+    required this.definition,
+    required this.graphBundle,
+    required this.scope,
+    required this.laneProjection,
+    required this.trackId,
+    required this.leftClipId,
+    required this.rightClipId,
+    required this.outgoingLayerId,
+    required this.incomingLayerId,
+    required this.outgoingElementId,
+    required this.incomingElementId,
+    required this.boundaryTime,
+  });
+
+  final String id;
+  final MotionProjectModel project;
+  final NormalTransitionDefinition definition;
+  final NormalTransitionGraphAuthoringBundle graphBundle;
+  final ScopeProjection scope;
+  final TransitionScopeGraphLaneProjection laneProjection;
+  final String trackId;
+  final String leftClipId;
+  final String rightClipId;
+  final String outgoingLayerId;
+  final String incomingLayerId;
+  final String outgoingElementId;
+  final String incomingElementId;
+  final TimelineTime boundaryTime;
+
+  String get presetId => graphBundle.presetId;
+  String get transitionWindowId => graphBundle.transitionWindowId;
+  TimelineTimeRange get globalWorkRange => scope.globalRange;
+  TimelineTimeRange get localWorkRange => scope.localRange;
+  TimelineTime get initialGlobalTime => scope.globalTime;
+  TimelineTime get initialLocalTime => scope.localTime;
+  List<TimelineAnimationLaneData> get lanes => laneProjection.lanes;
+  List<TransitionScopeGraphLaneBinding> get laneBindings =>
+      laneProjection.bindings;
+
+  bool get hasEditableLanes =>
+      lanes.isNotEmpty &&
+      !laneProjection.hasIssues &&
+      scope.mode == CompositionScopeMode.transition;
+
+  TimelineTime globalToLocal(TimelineTime globalTime) {
+    return scope.globalToLocal(globalTime);
+  }
+
+  TimelineTime localToGlobal(TimelineTime localTime) {
+    return scope.localToGlobal(localTime);
+  }
+
+  TransitionScopeGraphLaneBinding? bindingForLane(String laneId) {
+    return laneProjection.bindingForLane(laneId);
+  }
+
+  List<TimelineAnimationLaneData> lanesForRole(
+    NormalTransitionGraphChannelRole role,
+  ) {
+    return laneProjection.lanesForRole(role);
+  }
 }
 
 class TransitionUnifiedScopeBridgeEntryAdapter {
@@ -187,7 +261,42 @@ class TransitionUnifiedScopeBridgeEntryAdapter {
       definition: definition,
       factoryResult: factoryResult,
       entryResult: entryResult,
+      session: _buildSession(
+        request: request,
+        definition: definition,
+        factoryResult: factoryResult,
+        entryResult: entryResult,
+      ),
       issues: entryResult.graphIssues,
+    );
+  }
+
+  TransitionUnifiedScopeBridgeSession _buildSession({
+    required TransitionUnifiedScopeBridgeEntryRequest request,
+    required NormalTransitionDefinition definition,
+    required TransitionUnifiedScopeRequestFactoryResult factoryResult,
+    required TransitionUnifiedScopeEntryResult entryResult,
+  }) {
+    final unifiedScope = entryResult.unifiedScope!;
+    final project = factoryResult.project!;
+    final scope = unifiedScope.scope!;
+    final laneProjection = unifiedScope.lanes!;
+    final graphBundle = unifiedScope.graph.bundle!;
+    return TransitionUnifiedScopeBridgeSession(
+      id: 'unified.transition.scope.${graphBundle.transitionWindowId}',
+      project: project,
+      definition: definition,
+      graphBundle: graphBundle,
+      scope: scope,
+      laneProjection: laneProjection,
+      trackId: request.trackId,
+      leftClipId: request.leftClip.id,
+      rightClipId: request.rightClip.id,
+      outgoingLayerId: factoryResult.outgoingLayerId!,
+      incomingLayerId: factoryResult.incomingLayerId!,
+      outgoingElementId: factoryResult.outgoingElementId!,
+      incomingElementId: factoryResult.incomingElementId!,
+      boundaryTime: factoryResult.boundaryTime!,
     );
   }
 

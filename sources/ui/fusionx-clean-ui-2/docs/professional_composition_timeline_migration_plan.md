@@ -376,6 +376,14 @@ Current foundation:
   - existing/new transition bridge taps call this preflight before legacy handling,
   - because the flag is false, current production behavior is unchanged until the real Unified Layer Scope handoff is built and explicitly enabled.
 - This is preflight infrastructure only. It does not yet open Unified Layer Scope for users and does not touch Stage5 or Live Scrub.
+- `TransitionUnifiedScopeBridgeSession` now exists as the launch payload for the future handoff:
+  - carries the temporary transition-scope `MotionProjectModel`,
+  - carries the graph-backed `ScopeProjection`,
+  - carries projected editable lanes and lane-to-channel bindings,
+  - carries outgoing/incoming layer and element identities,
+  - exposes local/global transition time conversion,
+  - proves the bridge has enough structured data to open Unified Layer Scope without rebuilding transition context inside the editor screen.
+- The production flag remains disabled; this is still infrastructure only.
 
 ### Phase C5: Transition Mode In Unified Layer Scope Timeline
 

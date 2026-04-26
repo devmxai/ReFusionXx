@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_models.dart';
+import 'package:refusion_app/features/editor/domain/services/normal_transition_graph_authoring_service.dart';
 import 'package:refusion_app/features/editor/presentation/models/timeline_mock_models.dart';
 import 'package:refusion_app/features/editor/presentation/models/timeline_time.dart';
 import 'package:refusion_app/features/editor/presentation/services/transition_unified_scope_bridge_entry_adapter.dart';
@@ -104,6 +105,40 @@ void main() {
     expect(
       result.entryResult!.unifiedScope!.lanes!.lanes.map((lane) => lane.label),
       <String>['Outgoing Opacity', 'Incoming Opacity'],
+    );
+    expect(result.session, isNotNull);
+    expect(result.session!.hasEditableLanes, isTrue);
+    expect(result.session!.project.id, 'project');
+    expect(result.session!.trackId, 'video-main');
+    expect(result.session!.leftClipId, 'clip-a');
+    expect(result.session!.rightClipId, 'clip-b');
+    expect(
+      result.session!.transitionWindowId,
+      result.entryResult!.unifiedScope!.graph.bundle!.transitionWindowId,
+    );
+    expect(
+      result.session!.initialLocalTime,
+      result.session!.globalToLocal(result.session!.boundaryTime),
+    );
+    expect(
+      result.session!.localToGlobal(result.session!.initialLocalTime),
+      result.session!.boundaryTime,
+    );
+    expect(
+      result.session!
+          .lanesForRole(NormalTransitionGraphChannelRole.outgoing)
+          .map((lane) => lane.label),
+      <String>['Outgoing Opacity'],
+    );
+    expect(
+      result.session!
+          .lanesForRole(NormalTransitionGraphChannelRole.incoming)
+          .map((lane) => lane.label),
+      <String>['Incoming Opacity'],
+    );
+    expect(
+      result.session!.bindingForLane(result.session!.lanes.first.id)!.metadata,
+      containsPair('presetId', 'cross_dissolve'),
     );
   });
 
