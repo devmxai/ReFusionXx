@@ -11,6 +11,10 @@ All implementation work under this plan must follow:
 
 `docs/professional_checkpoint_policy.md`
 
+The Composition Timeline migration must also follow:
+
+`docs/professional_composition_timeline_migration_plan.md`
+
 This is a strict project rule. Every completed build step must be committed as a focused checkpoint and pushed to GitHub before starting the next build step, unless the user explicitly says not to push.
 
 The required order is:
@@ -34,6 +38,7 @@ This rule exists so timeline, Live Scrub, keyframe, transition, and motion-engin
 - Phase 3: in progress. `TimelineGeometryMapper` exists in `lib/features/editor/domain/services/timeline_geometry_mapper.dart` with tests in `test/timeline_geometry_mapper_test.dart`; central time/offset mapping, visual follow, clip move, trim drag, and native scrub pointer delta paths are being routed through it. Contract tests now lock scrub/settle/play and zoom/play handoff behavior before deeper motion-engine unification.
 - Phase 5A: completed as isolated infrastructure. `UnifiedKeyframeOperations` exists in `lib/features/editor/domain/services/unified_keyframe_operations.dart` with tests in `test/unified_keyframe_operations_test.dart`. It is not wired to UI yet and does not touch Stage5 or Live Scrub.
 - Phase 5B: completed as Layer Scope adapter parity infrastructure. `CanvasTimelineUnifiedKeyframeAdapter` exists in `lib/features/editor/domain/services/canvas_timeline_unified_keyframe_adapter.dart` with tests in `test/canvas_timeline_unified_keyframe_adapter_test.dart`. It preserves existing canvas timeline IDs and is not wired to UI yet.
+- Composition Timeline migration: documented in `docs/professional_composition_timeline_migration_plan.md`. The approved direction is Composition Timeline Graph as canonical truth, Unified Layer Scope Timeline as the only scope editing surface, and Legacy Transition Scope Timeline as deprecated compatibility.
 - Phase 4/5B+: open. Scope projection wiring, UI adapters, motion graph import, transition unification, scriptable scene programs, and export parity must be built on top of the clock/keyframe foundations.
 - Live Scrub status: protected. Stage5 Live Scrub is not part of a rewrite. It is a production path that must remain fast, precise, and native-optimized.
 

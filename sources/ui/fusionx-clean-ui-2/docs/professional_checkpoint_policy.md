@@ -21,6 +21,7 @@ implement scoped change
 -> verify the smallest relevant behavior
 -> commit only the related files
 -> push the branch to GitHub
+-> install on the connected device when a device is available
 -> record the result in the response
 ```
 
@@ -118,6 +119,7 @@ After every checkpoint push, the response must include:
 - files included,
 - verification performed,
 - push result,
+- install result on the connected device, or a clear note that no device was connected,
 - rollback note.
 
 Minimum rollback note:
