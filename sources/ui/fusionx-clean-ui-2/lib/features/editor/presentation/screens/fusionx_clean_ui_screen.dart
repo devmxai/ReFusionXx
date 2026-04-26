@@ -35,6 +35,7 @@ import '../models/editor_asset_item.dart';
 import '../models/editor_media_tab.dart';
 import '../models/timeline_mock_models.dart';
 import '../models/timeline_time.dart';
+import '../services/layer_scope_motion_authoring_adapter.dart';
 import '../services/normal_transition_timeline_authoring_adapter.dart';
 import '../widgets/editor_tools_bar.dart';
 import '../widgets/editor_top_bar.dart';
@@ -4388,37 +4389,24 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (context.track.kind != TimelineTrackKind.text) {
       return null;
     }
-    final channel = _manualOpacityChannelForElement(context.clip.id);
-    if (channel == null) {
+    final target = _layerScopeMotionAuthoringTargetForText(context);
+    if (target == null) {
       return null;
     }
     final existingLane = _existingLayerScopeAnimationLane(context, 'opacity');
-    final durationSeconds = context.durationTime.inSecondsDouble;
-    final stops = <double>[];
-    final keyframeIds = <String>[];
-    final values = <double>[];
-    if (durationSeconds > 0) {
-      for (final keyframe in channel.keyframes) {
-        if (keyframe.value.kind != MotionPropertyValueKind.scalar) {
-          continue;
-        }
-        final progress = ((keyframe.time - context.startTime).inSecondsDouble /
-                durationSeconds)
-            .clamp(0.0, 1.0)
-            .toDouble();
-        stops.add(progress);
-        keyframeIds.add(keyframe.id);
-        values.add(
-          ((keyframe.value.rawValue as double) * 100.0)
-              .clamp(0.0, 100.0)
-              .toDouble(),
-        );
-      }
-    }
-    if (existingLane == null && stops.isEmpty) {
+    final projected = _buildLayerScopeMotionAuthoringAdapter().projectOpacity(
+      channels: _manualMotionPropertyChannels,
+      target: target,
+    );
+    final projectedLane =
+        projected.lanes.isEmpty ? null : projected.lanes.first;
+    if (existingLane == null &&
+        (projectedLane == null ||
+            projectedLane.normalizedKeyframeStops.isEmpty)) {
       return null;
     }
-    final baseLane = existingLane ??
+    final baseLane = projectedLane ??
+        existingLane ??
         TimelineAnimationLaneData(
           id: 'anim-${context.track.kind.name}-${context.clip.id}-opacity',
           label: 'Opacity',
@@ -4429,9 +4417,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return baseLane.copyWith(
       label: 'Opacity',
       targetClipId: context.clip.id,
-      normalizedKeyframeStops: List<double>.unmodifiable(stops),
-      keyframeIds: List<String>.unmodifiable(keyframeIds),
-      keyframeValues: List<double>.unmodifiable(values),
     );
   }
 
@@ -4633,6 +4618,29 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         'blurCrop',
       };
 
+  LayerScopeMotionAuthoringTarget? _layerScopeMotionAuthoringTargetForText(
+    _LayerScopeContext context,
+  ) {
+    if (context.track.kind != TimelineTrackKind.text) {
+      return null;
+    }
+    final textContext = _motionTextElementContextForId(context.clip.id);
+    if (textContext == null) {
+      return null;
+    }
+    final activeRange = _motionTextTimingRangeForElement(
+      scene: textContext.scene,
+      element: textContext.element,
+    );
+    return LayerScopeMotionAuthoringTarget(
+      elementId: textContext.element.id,
+      targetClipId: context.clip.id,
+      motionTarget: textContext.elementTarget,
+      activeRange: activeRange,
+      projectionWindow: activeRange,
+    );
+  }
+
   List<MotionPropertyChannelModel>? _syncLayerScopeOpacityKeyframeToGraph({
     required _LayerScopeContext context,
     required TimelineAnimationLaneData lane,
@@ -4643,25 +4651,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         context.track.kind != TimelineTrackKind.text) {
       return null;
     }
-    final textContext = _motionTextElementContextForId(context.clip.id);
-    if (textContext == null) {
+    final target = _layerScopeMotionAuthoringTargetForText(context);
+    final keyframeTime = _layerScopeTimeForProgress(context, progress);
+    if (target == null) {
       return null;
     }
-    final keyframeTime = _layerScopeTimeForProgress(context, progress);
-    final result = _buildCanvasTimelineAuthoringService().addKeyframe(
-      CanvasTimelineKeyframeRequest(
-        channels: _manualMotionPropertyChannels,
-        target: textContext.elementTarget,
-        activeRange: _motionTextTimingRangeForElement(
-          scene: textContext.scene,
-          element: textContext.element,
-        ),
-        definition: MotionPropertyCatalog.opacity,
-        time: keyframeTime,
-        value: MotionPropertyValue.scalar(
-          (percent / 100.0).clamp(0.0, 1.0).toDouble(),
-        ),
-      ),
+    final result = _buildLayerScopeMotionAuthoringAdapter().addOpacityKeyframe(
+      channels: _manualMotionPropertyChannels,
+      target: target,
+      time: keyframeTime,
+      percent: percent,
     );
     if (result.hasIssues) {
       return null;
@@ -9408,6 +9407,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   ProfessionalCanvasTimelineAuthoringService
       _buildCanvasTimelineAuthoringService() {
     return const ProfessionalCanvasTimelineAuthoringService();
+  }
+
+  LayerScopeMotionAuthoringAdapter _buildLayerScopeMotionAuthoringAdapter() {
+    return const LayerScopeMotionAuthoringAdapter();
   }
 
   TimelineTimeRange _defaultTextPresetRange() {

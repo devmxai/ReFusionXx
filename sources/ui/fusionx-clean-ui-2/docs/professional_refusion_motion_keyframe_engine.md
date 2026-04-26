@@ -666,6 +666,11 @@ Required order:
      It gives the future Layer Scope UI one safe opacity-first entry point for
      add, move, value edit, delete, and re-project, all through
      `UnifiedKeyframeOperationService`.
+   - Current status: Layer Scope text opacity projection and opacity keyframe
+     authoring in `FusionXCleanUiScreen` now route through
+     `LayerScopeMotionAuthoringAdapter`. This is still opacity-first and keeps
+     the existing Layer Scope behavior as the fallback for other property
+     families.
 5. Verify scrub/play/pause with the existing Timeline Clock tests.
    - Current status: `test/timeline_clock_coordinator_test.dart`,
      `test/timeline_geometry_mapper_test.dart`,
