@@ -63,6 +63,10 @@ private class Stage5TimelineScrubInputView(
     private val channel: MethodChannel,
     private val nativeScrubEngine: Stage5NativeScrubEngine,
 ) : View(context) {
+    companion object {
+        private const val FINAL_SCRUB_RENDER_TIMEOUT_MS = 260L
+    }
+
     private val displayDensity = context.resources.displayMetrics.density.coerceAtLeast(1f)
     private val touchSlop =
         ViewConfiguration.get(context).scaledTouchSlop.toFloat() / displayDensity
@@ -165,6 +169,17 @@ private class Stage5TimelineScrubInputView(
         pointerIndex: Int,
     ): Long = stabilizeGesturePositionMs(resolveRawGesturePositionMs(event, pointerIndex))
 
+    private fun commitFinalScrubFrame(positionMs: Long) {
+        val renderedFinalFrame =
+            nativeScrubEngine.commitFinalTimelinePositionAndWait(
+                positionMs = positionMs,
+                timeoutMs = FINAL_SCRUB_RENDER_TIMEOUT_MS,
+            )
+        if (!renderedFinalFrame) {
+            nativeScrubEngine.commitFinalTimelinePosition(positionMs)
+        }
+    }
+
     fun updateConfig(nextConfig: Stage5TimelineScrubSurfaceConfig) {
         val previousConfig = config
         val previousSources =
@@ -233,7 +248,7 @@ private class Stage5TimelineScrubInputView(
     private fun suppressGestureForMultiTouch() {
         if (scrubbing) {
             gesturePositionMs = config.currentPositionMs
-            nativeScrubEngine.commitFinalTimelinePosition(gesturePositionMs)
+            commitFinalScrubFrame(gesturePositionMs)
             channel.invokeMethod(
                 "scrubEnd",
                 mapOf("positionMs" to gesturePositionMs),
@@ -329,7 +344,7 @@ private class Stage5TimelineScrubInputView(
                     // ACTION_UP coordinates can include a tiny lift-off drift that was never
                     // presented to the user. Commit the last stable scrub frame instead, so
                     // releasing the finger cannot jump to a different timeline frame.
-                    nativeScrubEngine.commitFinalTimelinePosition(gesturePositionMs)
+                    commitFinalScrubFrame(gesturePositionMs)
                     channel.invokeMethod(
                         "scrubEnd",
                         mapOf("positionMs" to gesturePositionMs),
@@ -352,7 +367,7 @@ private class Stage5TimelineScrubInputView(
                 if (scrubbing) {
                     // Same policy as ACTION_UP: cancellation should preserve the last rendered
                     // scrub frame instead of sampling a potentially noisy terminal coordinate.
-                    nativeScrubEngine.commitFinalTimelinePosition(gesturePositionMs)
+                    commitFinalScrubFrame(gesturePositionMs)
                     channel.invokeMethod(
                         "scrubEnd",
                         mapOf("positionMs" to gesturePositionMs),

@@ -403,6 +403,68 @@ class Stage5NativeScrubEngine(
         return didUpdateTarget
     }
 
+    fun commitFinalTimelinePositionAndWait(
+        positionMs: Long,
+        timeoutMs: Long = 180L,
+    ): Boolean {
+        val normalizedTimelinePositionMs = positionMs.coerceAtLeast(0L)
+        val snapshot =
+            synchronized(this) {
+                latestKnownTimelinePositionMs = normalizedTimelinePositionMs
+                val descriptor = resolveDescriptorForPosition(normalizedTimelinePositionMs)
+                    ?: return false
+                val sourcePositionMs =
+                    descriptor.resolveSourcePositionMs(normalizedTimelinePositionMs)
+                primeBoundaryNeighborsLocked(
+                    timelinePositionMs = normalizedTimelinePositionMs,
+                    descriptor = descriptor,
+                )
+                configuredTargetWidth = configuredTargetWidth.coerceAtLeast(2)
+                configuredTargetHeight = configuredTargetHeight.coerceAtLeast(2)
+                sessionFrozen = false
+                freezeAfterNextRenderedTarget = false
+                val descriptorChanged =
+                    activeDescriptor?.scrubStoreKey != descriptor.scrubStoreKey
+                activeDescriptor = descriptor
+                latestTargetSourcePositionMs =
+                    normalizeDescriptorPositionMs(descriptor, sourcePositionMs)
+                targetGeneration += 1
+                if (descriptorChanged) {
+                    pendingDecoderForceSeekStoreKey = descriptor.scrubStoreKey
+                }
+                RenderSnapshot(
+                    descriptor = descriptor,
+                    sourcePositionMs = latestTargetSourcePositionMs ?: sourcePositionMs,
+                    generation = targetGeneration,
+                    forceSeekBeforeRender =
+                        pendingDecoderForceSeekStoreKey == descriptor.scrubStoreKey,
+                )
+            }
+        val result = BooleanArray(1)
+        val latch = CountDownLatch(1)
+        renderExecutor.execute {
+            try {
+                result[0] = renderSnapshot(snapshot)
+                synchronized(this) {
+                    if (
+                        result[0] &&
+                            targetGeneration == snapshot.generation &&
+                            activeDescriptor?.scrubStoreKey == snapshot.descriptor.scrubStoreKey
+                    ) {
+                        sessionFrozen = true
+                        freezeAfterNextRenderedTarget = false
+                        targetGeneration += 1
+                    }
+                }
+            } finally {
+                latch.countDown()
+            }
+        }
+        val completed =
+            latch.await(timeoutMs.coerceAtLeast(1L), TimeUnit.MILLISECONDS)
+        return completed && result[0]
+    }
+
     @Synchronized
     fun beginSession(
         scrubStoreKey: String,
