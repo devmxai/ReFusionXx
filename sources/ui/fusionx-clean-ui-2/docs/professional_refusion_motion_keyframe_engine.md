@@ -31,7 +31,8 @@ This rule exists so timeline, Live Scrub, keyframe, transition, and motion-engin
 - Phase 1: completed as isolated infrastructure. `TimelineClockCoordinator` exists in `lib/features/editor/domain/services/timeline_clock_coordinator.dart` with tests in `test/timeline_clock_coordinator_test.dart`.
 - Phase 2: device-validated candidate. Main timeline playback start, native playback samples, and scrub handoff pass through `TimelineClockCoordinator`. Real-device validation on April 25, 2026 reported high stability for play/pause and Live Scrub on valid media.
 - Phase 3: in progress. `TimelineGeometryMapper` exists in `lib/features/editor/domain/services/timeline_geometry_mapper.dart` with tests in `test/timeline_geometry_mapper_test.dart`; central time/offset mapping, visual follow, clip move, trim drag, and native scrub pointer delta paths are being routed through it. Contract tests now lock scrub/settle/play and zoom/play handoff behavior before deeper motion-engine unification.
-- Phase 4+: open. Scope projection, unified keyframe operations, motion graph import, transition unification, scriptable scene programs, and export parity must be built on top of the clock foundation.
+- Phase 4+: open. Scope projection, motion graph import, transition unification, scriptable scene programs, and export parity must be built on top of the clock foundation.
+- Phase 5: started as isolated domain infrastructure. `UnifiedKeyframeOperationService` exists in `lib/features/editor/domain/services/unified_keyframe_operations.dart`; it wraps existing graph-backed canvas keyframe operations and adds an atomic group-move entry point for compound properties such as Position. It is not connected to UI yet.
 - Live Scrub status: protected. Stage5 Live Scrub is not part of a rewrite. It is a production path that must remain fast, precise, and native-optimized.
 
 ## 0. Non-Negotiable Live Scrub Protection
