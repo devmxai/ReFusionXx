@@ -241,6 +241,15 @@ Exit criteria:
 - No Live Scrub regression.
 - Device install after checkpoint.
 
+Current foundation:
+
+- `LayerScopeCompositionAdapter` exists in `lib/features/editor/domain/services/layer_scope_composition_adapter.dart`.
+- It converts a layer id, scene id, global time, and graph channels into a `ScopeProjection`.
+- It routes layer-scope add/move/value/interpolation/delete keyframe operations through `CanvasTimelineUnifiedKeyframeAdapter`, which uses `UnifiedKeyframeOperations`.
+- It validates that authored keyframes target the active layer scope before mutation.
+- This is domain/adapter infrastructure only. It is not wired to the production Layer Scope UI yet.
+- Tests exist in `test/layer_scope_composition_adapter_test.dart`.
+
 ### Phase C3: Image And Shape Scope Parity
 
 Purpose: make image and shape scopes real graph-backed scopes, not partial UI surfaces.
