@@ -91,7 +91,7 @@ class Stage5TransportManager(context: Context) {
     private var lastAppliedPlaybackRate: Float? = null
     private var isScrubSettling = false
     private var scrubSettleTargetPositionMs: Long? = null
-    private var scrubSettleRenderedFrameCandidatesMs = LongArray(0)
+    private var scrubSettleRenderedFrameTargetMs: Long? = null
     private var scrubSettlePositionSatisfied = false
     private var scrubSettleRenderedFirstFrameSeen = false
     private var scrubSettleWatchdogAttempts = 0
@@ -963,8 +963,8 @@ class Stage5TransportManager(context: Context) {
         lastRequestedPositionMs = safePositionMs
         isScrubSettling = true
         scrubSettleTargetPositionMs = safePositionMs
-        scrubSettleRenderedFrameCandidatesMs =
-            resolveScrubSettleRenderedFrameCandidates(safePositionMs)
+        scrubSettleRenderedFrameTargetMs =
+            resolveScrubSettleRenderedFrameTarget(safePositionMs)
         scrubSettlePositionSatisfied = false
         scrubSettleRenderedFirstFrameSeen = false
         scrubSettleWatchdogAttempts = 0
@@ -980,7 +980,7 @@ class Stage5TransportManager(context: Context) {
         mainHandler.removeCallbacks(scrubSettleWatchdog)
         isScrubSettling = false
         scrubSettleTargetPositionMs = null
-        scrubSettleRenderedFrameCandidatesMs = LongArray(0)
+        scrubSettleRenderedFrameTargetMs = null
         scrubSettlePositionSatisfied = false
         scrubSettleRenderedFirstFrameSeen = false
         scrubSettleWatchdogAttempts = 0
@@ -1259,6 +1259,10 @@ class Stage5TransportManager(context: Context) {
         if (!isScrubSettling || presentationTimeUs < 0L) {
             return
         }
+        if (!isScrubSettleTargetPositionSatisfied()) {
+            return
+        }
+        scrubSettlePositionSatisfied = true
         val renderedPositionMs = (presentationTimeUs / 1_000L).coerceAtLeast(0L)
         if (!doesRenderedFrameMatchScrubSettleTarget(renderedPositionMs)) {
             return
@@ -1279,30 +1283,30 @@ class Stage5TransportManager(context: Context) {
     }
 
     private fun doesRenderedFrameMatchScrubSettleTarget(renderedPositionMs: Long): Boolean {
-        val candidates = scrubSettleRenderedFrameCandidatesMs
-        if (candidates.isEmpty()) {
+        val targetMs = scrubSettleRenderedFrameTargetMs
+        if (targetMs == null) {
             return isScrubSettleTargetPositionSatisfied()
         }
-        return candidates.any { candidateMs ->
-            kotlin.math.abs(renderedPositionMs - candidateMs) <=
-                SCRUB_SETTLE_RENDERED_FRAME_TOLERANCE_MS
-        }
+        return kotlin.math.abs(renderedPositionMs - targetMs) <=
+            SCRUB_SETTLE_RENDERED_FRAME_TOLERANCE_MS
     }
 
-    private fun resolveScrubSettleRenderedFrameCandidates(positionMs: Long): LongArray {
+    private fun resolveScrubSettleRenderedFrameTarget(positionMs: Long): Long {
         val safePositionMs = positionMs.coerceAtLeast(0L)
-        val candidates = linkedSetOf(safePositionMs)
-        if (timelineSegments.isNotEmpty()) {
-            val seekPoint =
-                if (isRunTimelineMode()) {
-                    resolveTimelineRunSeekPoint(globalPositionMs = safePositionMs)
-                } else {
-                    resolveTimelineSeekPoint(globalPositionMs = safePositionMs)
-                }
-            candidates.add(seekPoint.itemPositionMs)
-            candidates.add(seekPoint.sourcePositionMs)
+        if (timelineSegments.isEmpty() || isCompositionTimelineMode()) {
+            return safePositionMs
         }
-        return candidates.filter { it >= 0L }.toLongArray()
+        val seekPoint =
+            if (isRunTimelineMode()) {
+                resolveTimelineRunSeekPoint(globalPositionMs = safePositionMs)
+            } else {
+                resolveTimelineSeekPoint(globalPositionMs = safePositionMs)
+            }
+        return if (isSingleSourceTimelineMode()) {
+            seekPoint.sourcePositionMs
+        } else {
+            seekPoint.itemPositionMs
+        }.coerceAtLeast(0L)
     }
 
     private fun finishScrubSettle(forcePositionUpdate: Boolean) {
@@ -1311,7 +1315,7 @@ class Stage5TransportManager(context: Context) {
         mainHandler.removeCallbacks(scrubSettleWatchdog)
         isScrubSettling = false
         scrubSettleTargetPositionMs = null
-        scrubSettleRenderedFrameCandidatesMs = LongArray(0)
+        scrubSettleRenderedFrameTargetMs = null
         scrubSettlePositionSatisfied = false
         scrubSettleRenderedFirstFrameSeen = false
         scrubSettleWatchdogAttempts = 0
