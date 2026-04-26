@@ -1353,15 +1353,18 @@ class Stage5TransportManager(context: Context) {
         timelineOffsetMs: Long,
     ): Long {
         val clampedTimelineOffset = timelineOffsetMs.coerceIn(0L, segment.timelineDurationMs)
-        if (segment.timelineDurationMs <= 0L || segment.sourceDurationMs <= 0L) {
+        if (
+            segment.timelineDurationMs <= 0L ||
+                segment.sourceDurationMs <= 0L ||
+                segment.playbackRate <= 0.0
+        ) {
             return 0L
         }
         if (clampedTimelineOffset >= segment.timelineDurationMs) {
             return segment.sourceDurationMs
         }
-        return ((clampedTimelineOffset.toDouble() / segment.timelineDurationMs.toDouble()) *
-            segment.sourceDurationMs.toDouble())
-            .roundToLong()
+        return (clampedTimelineOffset.toDouble() * segment.playbackRate)
+            .toLong()
             .coerceIn(0L, segment.sourceDurationMs)
     }
 
@@ -1370,14 +1373,17 @@ class Stage5TransportManager(context: Context) {
         sourceOffsetMs: Long,
     ): Long {
         val clampedSourceOffset = sourceOffsetMs.coerceIn(0L, segment.sourceDurationMs)
-        if (segment.timelineDurationMs <= 0L || segment.sourceDurationMs <= 0L) {
+        if (
+            segment.timelineDurationMs <= 0L ||
+                segment.sourceDurationMs <= 0L ||
+                segment.playbackRate <= 0.0
+        ) {
             return 0L
         }
         if (clampedSourceOffset >= segment.sourceDurationMs) {
             return segment.timelineDurationMs
         }
-        return ((clampedSourceOffset.toDouble() / segment.sourceDurationMs.toDouble()) *
-            segment.timelineDurationMs.toDouble())
+        return (clampedSourceOffset.toDouble() / segment.playbackRate)
             .roundToLong()
             .coerceIn(0L, segment.timelineDurationMs)
     }
