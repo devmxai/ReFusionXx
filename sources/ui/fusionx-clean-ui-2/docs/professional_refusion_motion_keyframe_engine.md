@@ -611,7 +611,7 @@ Create the documentation that external agents use to generate valid `ReFusionSce
 
 Exit criteria:
 
-- Agent prompt contract exists.
+- Agent prompt contract exists in `docs/refusion_scene_program_agent_contract.md`.
 - Example scripts exist for text intro, promo card, transition, lower third, and motion graphic scene.
 - Validation errors are human-readable.
 - Imported agent output is visible and editable as normal timeline/keyframe data.
