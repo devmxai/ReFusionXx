@@ -1,0 +1,116 @@
+{
+  "kind": "refusion.sceneProgram",
+  "schemaVersion": "refusion.scene-program/v1",
+  "id": "kinetic-shape-reveal",
+  "name": "Kinetic Shape Reveal",
+  "durationMs": 2200,
+  "elements": [
+    {
+      "id": "bar",
+      "kind": "shape",
+      "range": {
+        "startMs": 0,
+        "endMs": 2200
+      }
+    },
+    {
+      "id": "caption",
+      "kind": "text",
+      "text": "Frame Accurate",
+      "range": {
+        "startMs": 260,
+        "endMs": 2200
+      }
+    }
+  ],
+  "channels": [
+    {
+      "id": "bar.width",
+      "targetId": "bar",
+      "property": "shape.width",
+      "keyframes": [
+        {
+          "timeMs": 0,
+          "value": 12,
+          "interpolation": "easeOut"
+        },
+        {
+          "timeMs": 420,
+          "value": 540,
+          "interpolation": "easyEase"
+        },
+        {
+          "timeMs": 1750,
+          "value": 540,
+          "interpolation": "easeIn"
+        },
+        {
+          "timeMs": 2200,
+          "value": 12,
+          "interpolation": "easeIn"
+        }
+      ]
+    },
+    {
+      "id": "bar.rotation",
+      "targetId": "bar",
+      "property": "transform.rotation.degrees",
+      "keyframes": [
+        {
+          "timeMs": 0,
+          "value": -2,
+          "interpolation": "easeOut"
+        },
+        {
+          "timeMs": 420,
+          "value": 0,
+          "interpolation": "easyEase"
+        }
+      ]
+    },
+    {
+      "id": "caption.opacity",
+      "targetId": "caption",
+      "property": "visual.opacity",
+      "keyframes": [
+        {
+          "timeMs": 260,
+          "value": 0,
+          "interpolation": "linear"
+        },
+        {
+          "timeMs": 520,
+          "value": 1,
+          "interpolation": "easeOut"
+        },
+        {
+          "timeMs": 1750,
+          "value": 1,
+          "interpolation": "linear"
+        },
+        {
+          "timeMs": 2200,
+          "value": 0,
+          "interpolation": "easeIn"
+        }
+      ]
+    },
+    {
+      "id": "caption.blur",
+      "targetId": "caption",
+      "property": "visual.blur.amount",
+      "keyframes": [
+        {
+          "timeMs": 260,
+          "value": 12,
+          "interpolation": "easeOut"
+        },
+        {
+          "timeMs": 620,
+          "value": 0,
+          "interpolation": "easyEase"
+        }
+      ]
+    }
+  ]
+}

@@ -613,6 +613,7 @@ Exit criteria:
 
 - Agent prompt contract exists in `docs/refusion_scene_program_agent_contract.md`.
 - Example scripts exist for text intro, promo card, transition, lower third, and motion graphic scene.
+- V1 machine-checked example scripts exist under `docs/examples/refusion_scene_program/`.
 - Validation errors are human-readable.
 - Imported agent output is visible and editable as normal timeline/keyframe data.
 

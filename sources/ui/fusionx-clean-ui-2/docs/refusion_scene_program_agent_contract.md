@@ -121,6 +121,13 @@ Rules:
 
 ## Example: Text Pop
 
+Machine-checked JSON examples are available in:
+
+- `docs/examples/refusion_scene_program/text_pop_intro.json`
+- `docs/examples/refusion_scene_program/lower_third_slide.json`
+- `docs/examples/refusion_scene_program/promo_card_motion.json`
+- `docs/examples/refusion_scene_program/kinetic_shape_reveal.json`
+
 ```json
 {
   "kind": "refusion.sceneProgram",

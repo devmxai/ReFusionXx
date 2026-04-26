@@ -1,0 +1,141 @@
+{
+  "kind": "refusion.sceneProgram",
+  "schemaVersion": "refusion.scene-program/v1",
+  "id": "promo-card-motion",
+  "name": "Promo Card Motion",
+  "durationMs": 2600,
+  "elements": [
+    {
+      "id": "headline",
+      "kind": "text",
+      "text": "CREATE FASTER",
+      "range": {
+        "startMs": 0,
+        "endMs": 2600
+      }
+    },
+    {
+      "id": "badge",
+      "kind": "shape",
+      "range": {
+        "startMs": 0,
+        "endMs": 2600
+      }
+    }
+  ],
+  "channels": [
+    {
+      "id": "headline.opacity",
+      "targetId": "headline",
+      "property": "visual.opacity",
+      "keyframes": [
+        {
+          "timeMs": 0,
+          "value": 0,
+          "interpolation": "linear"
+        },
+        {
+          "timeMs": 260,
+          "value": 1,
+          "interpolation": "easeOut"
+        },
+        {
+          "timeMs": 2200,
+          "value": 1,
+          "interpolation": "linear"
+        },
+        {
+          "timeMs": 2600,
+          "value": 0,
+          "interpolation": "easeIn"
+        }
+      ]
+    },
+    {
+      "id": "headline.scale.x",
+      "targetId": "headline",
+      "property": "transform.scale.x",
+      "keyframes": [
+        {
+          "timeMs": 0,
+          "value": 0.86,
+          "interpolation": {
+            "kind": "spring",
+            "stiffness": 240,
+            "damping": 24
+          }
+        },
+        {
+          "timeMs": 500,
+          "value": 1,
+          "interpolation": "easyEase"
+        }
+      ]
+    },
+    {
+      "id": "headline.scale.y",
+      "targetId": "headline",
+      "property": "transform.scale.y",
+      "keyframes": [
+        {
+          "timeMs": 0,
+          "value": 0.86,
+          "interpolation": {
+            "kind": "spring",
+            "stiffness": 240,
+            "damping": 24
+          }
+        },
+        {
+          "timeMs": 500,
+          "value": 1,
+          "interpolation": "easyEase"
+        }
+      ]
+    },
+    {
+      "id": "badge.width",
+      "targetId": "badge",
+      "property": "shape.width",
+      "keyframes": [
+        {
+          "timeMs": 0,
+          "value": 0,
+          "interpolation": "easeOut"
+        },
+        {
+          "timeMs": 420,
+          "value": 420,
+          "interpolation": "easyEase"
+        }
+      ]
+    },
+    {
+      "id": "badge.opacity",
+      "targetId": "badge",
+      "property": "visual.opacity",
+      "keyframes": [
+        {
+          "timeMs": 0,
+          "value": 0,
+          "interpolation": "linear"
+        },
+        {
+          "timeMs": 220,
+          "value": 1,
+          "interpolation": "easeOut"
+        },
+        {
+          "timeMs": 2300,
+          "value": 1,
+          "interpolation": "linear"
+        },
+        {
+          "timeMs": 2600,
+          "value": 0,
+          "interpolation": "easeIn"
+        }
+      ]
+    }
+  ]
+}

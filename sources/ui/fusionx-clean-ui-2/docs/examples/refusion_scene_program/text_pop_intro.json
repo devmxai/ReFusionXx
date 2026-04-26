@@ -1,0 +1,111 @@
+{
+  "kind": "refusion.sceneProgram",
+  "schemaVersion": "refusion.scene-program/v1",
+  "id": "text-pop-intro",
+  "name": "Text Pop Intro",
+  "durationMs": 1600,
+  "elements": [
+    {
+      "id": "title",
+      "kind": "text",
+      "text": "FUSION",
+      "range": {
+        "startMs": 0,
+        "endMs": 1600
+      }
+    }
+  ],
+  "channels": [
+    {
+      "id": "title.opacity",
+      "targetId": "title",
+      "property": "visual.opacity",
+      "keyframes": [
+        {
+          "timeMs": 0,
+          "value": 0,
+          "interpolation": "linear"
+        },
+        {
+          "timeMs": 180,
+          "value": 1,
+          "interpolation": "easeOut"
+        },
+        {
+          "timeMs": 1400,
+          "value": 1,
+          "interpolation": "linear"
+        }
+      ]
+    },
+    {
+      "id": "title.scale.x",
+      "targetId": "title",
+      "property": "transform.scale.x",
+      "keyframes": [
+        {
+          "timeMs": 0,
+          "value": 0.72,
+          "interpolation": {
+            "kind": "spring",
+            "stiffness": 260,
+            "damping": 20
+          }
+        },
+        {
+          "timeMs": 360,
+          "value": 1.08,
+          "interpolation": "easeOut"
+        },
+        {
+          "timeMs": 520,
+          "value": 1,
+          "interpolation": "easyEase"
+        }
+      ]
+    },
+    {
+      "id": "title.scale.y",
+      "targetId": "title",
+      "property": "transform.scale.y",
+      "keyframes": [
+        {
+          "timeMs": 0,
+          "value": 0.72,
+          "interpolation": {
+            "kind": "spring",
+            "stiffness": 260,
+            "damping": 20
+          }
+        },
+        {
+          "timeMs": 360,
+          "value": 1.08,
+          "interpolation": "easeOut"
+        },
+        {
+          "timeMs": 520,
+          "value": 1,
+          "interpolation": "easyEase"
+        }
+      ]
+    },
+    {
+      "id": "title.position.y",
+      "targetId": "title",
+      "property": "transform.position.y",
+      "keyframes": [
+        {
+          "timeMs": 0,
+          "value": 90,
+          "interpolation": "easeOut"
+        },
+        {
+          "timeMs": 520,
+          "value": 0,
+          "interpolation": "easyEase"
+        }
+      ]
+    }
+  ]
+}

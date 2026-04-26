@@ -1,0 +1,137 @@
+{
+  "kind": "refusion.sceneProgram",
+  "schemaVersion": "refusion.scene-program/v1",
+  "id": "lower-third-slide",
+  "name": "Lower Third Slide",
+  "durationMs": 3200,
+  "elements": [
+    {
+      "id": "name",
+      "kind": "text",
+      "text": "ReFusion Studio",
+      "range": {
+        "startMs": 0,
+        "endMs": 3200
+      }
+    },
+    {
+      "id": "subtitle",
+      "kind": "text",
+      "text": "Motion Keyframe Engine",
+      "range": {
+        "startMs": 160,
+        "endMs": 3200
+      }
+    }
+  ],
+  "channels": [
+    {
+      "id": "name.position.x",
+      "targetId": "name",
+      "property": "transform.position.x",
+      "keyframes": [
+        {
+          "timeMs": 0,
+          "value": -260,
+          "interpolation": "easeOut"
+        },
+        {
+          "timeMs": 520,
+          "value": 0,
+          "interpolation": "easyEase"
+        },
+        {
+          "timeMs": 2500,
+          "value": 0,
+          "interpolation": "easeIn"
+        },
+        {
+          "timeMs": 3200,
+          "value": -260,
+          "interpolation": "easeIn"
+        }
+      ]
+    },
+    {
+      "id": "name.opacity",
+      "targetId": "name",
+      "property": "visual.opacity",
+      "keyframes": [
+        {
+          "timeMs": 0,
+          "value": 0,
+          "interpolation": "linear"
+        },
+        {
+          "timeMs": 300,
+          "value": 1,
+          "interpolation": "easeOut"
+        },
+        {
+          "timeMs": 2700,
+          "value": 1,
+          "interpolation": "linear"
+        },
+        {
+          "timeMs": 3200,
+          "value": 0,
+          "interpolation": "easeIn"
+        }
+      ]
+    },
+    {
+      "id": "subtitle.position.x",
+      "targetId": "subtitle",
+      "property": "transform.position.x",
+      "keyframes": [
+        {
+          "timeMs": 160,
+          "value": -220,
+          "interpolation": "easeOut"
+        },
+        {
+          "timeMs": 620,
+          "value": 0,
+          "interpolation": "easyEase"
+        },
+        {
+          "timeMs": 2500,
+          "value": 0,
+          "interpolation": "easeIn"
+        },
+        {
+          "timeMs": 3200,
+          "value": -220,
+          "interpolation": "easeIn"
+        }
+      ]
+    },
+    {
+      "id": "subtitle.opacity",
+      "targetId": "subtitle",
+      "property": "visual.opacity",
+      "keyframes": [
+        {
+          "timeMs": 160,
+          "value": 0,
+          "interpolation": "linear"
+        },
+        {
+          "timeMs": 460,
+          "value": 1,
+          "interpolation": "easeOut"
+        },
+        {
+          "timeMs": 2700,
+          "value": 1,
+          "interpolation": "linear"
+        },
+        {
+          "timeMs": 3200,
+          "value": 0,
+          "interpolation": "easeIn"
+        }
+      ]
+    }
+  ]
+}
