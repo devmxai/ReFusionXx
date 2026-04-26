@@ -307,6 +307,24 @@ Exit criteria:
 - Keyframes appear through the unified scope lane projection.
 - Transition timing changes are real graph changes.
 
+Current foundation:
+
+- `NormalTransitionMotionGraphLowerer` exists in `lib/features/editor/domain/services/normal_transition_motion_graph_lowerer.dart`.
+- It treats existing `NormalTransitionInstance` data as a recipe input, not as a permanent timeline engine.
+- It lowers transition channel specs into canonical `MotionPropertyChannelModel` channels with stable IDs and local transition-window keyframe times.
+- It maps `from` / `to` recipe targets to explicit outgoing/incoming `MotionPropertyTarget`s supplied by the caller.
+- It currently supports graph-backed scalar transition properties:
+  - opacity,
+  - blur amount / horizontal / vertical / mix,
+  - position X/Y,
+  - scale X/Y,
+  - rotation,
+  - shake amount.
+- It supports scalar parameter references such as `$peakBlur` for imported transition recipes.
+- Unsupported targets, properties, values, or duplicate keyframe times produce explicit issues instead of hidden preview-only motion.
+- Tests prove Cross Dissolve lowers into editable opacity channels and that the lowered channels project through transition scope.
+- This is domain infrastructure only. It is not wired to the legacy Transition Scope UI yet and does not touch Stage5 or Live Scrub.
+
 ### Phase C5: Transition Mode In Unified Layer Scope Timeline
 
 Purpose: replace the old Transition Scope editing UI with Unified Layer Scope Timeline in transition mode.
