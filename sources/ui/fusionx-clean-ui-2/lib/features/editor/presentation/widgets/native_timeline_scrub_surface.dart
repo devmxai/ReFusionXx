@@ -228,8 +228,11 @@ class _NativeTimelineScrubSurfaceState
     if (call.method == 'scrubEnd') {
       _lastNativeTimelineTime = timelineTime;
       widget.onScrubEnd(timelineTime);
-      _isScrubSessionActive = false;
-      await _pushConfig();
+      try {
+        await _pushConfig();
+      } finally {
+        _isScrubSessionActive = false;
+      }
       return;
     }
     if (call.method == 'tap') {
@@ -374,7 +377,7 @@ class _NativeTimelineScrubSurfaceState
     final mediaQuery = MediaQuery.maybeOf(context);
     final logicalWidth = mediaQuery?.size.width ?? 360;
     final devicePixelRatio = mediaQuery?.devicePixelRatio ?? 2.0;
-    return (logicalWidth * devicePixelRatio).round().clamp(540, 720);
+    return (logicalWidth * devicePixelRatio).round().clamp(720, 960);
   }
 
   int _resolvedTargetHeight(
@@ -388,7 +391,7 @@ class _NativeTimelineScrubSurfaceState
     final aspectRatio = mediaQuery == null || mediaQuery.size.width <= 0
         ? (16 / 9)
         : (mediaQuery.size.height / mediaQuery.size.width);
-    return (targetWidth * aspectRatio).round().clamp(960, 1280);
+    return (targetWidth * aspectRatio).round().clamp(1280, 1600);
   }
 }
 
