@@ -117,6 +117,70 @@ void main() {
     expect(result.lane!.keyframeValues, <double>[1.2]);
   });
 
+  test('projects multiple channels while preserving unsupported issues', () {
+    final opacityChannel = MotionPropertyChannelModel(
+      id: 'opacity-channel',
+      target: target,
+      definition: MotionPropertyCatalog.opacity,
+      keyframes: <MotionKeyframeModel>[
+        scalarKeyframe(
+          id: 'opacity-start',
+          channelId: 'opacity-channel',
+          seconds: 0,
+          value: 0.5,
+        ),
+      ],
+    );
+    final rotationChannel = MotionPropertyChannelModel(
+      id: 'rotation-channel',
+      target: target,
+      definition: MotionPropertyCatalog.rotationDegrees,
+      keyframes: <MotionKeyframeModel>[
+        scalarKeyframe(
+          id: 'rotation-start',
+          channelId: 'rotation-channel',
+          seconds: 2,
+          value: 45,
+        ),
+      ],
+    );
+    final cropChannel = MotionPropertyChannelModel(
+      id: 'crop-channel',
+      target: target,
+      definition: MotionPropertyCatalog.cropRect,
+    );
+
+    final result = service.projectChannels(
+      channels: <MotionPropertyChannelModel>[
+        opacityChannel,
+        cropChannel,
+        rotationChannel,
+      ],
+      window: range(0, 4),
+      targetClipId: 'clip-1',
+      labelsByChannelId: const <String, String>{
+        'opacity-channel': 'Opacity',
+      },
+      valueScalesByChannelId: const <String, double>{
+        'opacity-channel': 100,
+      },
+    );
+
+    expect(result.hasIssues, isTrue);
+    expect(
+      result.issues.single.code,
+      UnifiedKeyframeProjectionIssueCode.unsupportedValueKind,
+    );
+    expect(
+      result.lanes.map((lane) => lane.id),
+      <String>['opacity-channel', 'rotation-channel'],
+    );
+    expect(result.lanes.first.label, 'Opacity');
+    expect(result.lanes.first.keyframeValues, <double>[50]);
+    expect(result.lanes.last.label, 'rotation.degrees');
+    expect(result.lanes.last.normalizedKeyframeStops, <double>[0.5]);
+  });
+
   test('rejects non-scalar channels instead of creating fake UI lanes', () {
     final cropChannel = MotionPropertyChannelModel(
       id: 'crop-channel',

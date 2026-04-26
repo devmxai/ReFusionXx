@@ -34,8 +34,51 @@ class UnifiedKeyframeTimelineProjectionResult {
   bool get hasIssues => issues.isNotEmpty;
 }
 
+@immutable
+class UnifiedKeyframeTimelineProjectionBatchResult {
+  UnifiedKeyframeTimelineProjectionBatchResult({
+    List<TimelineAnimationLaneData> lanes = const <TimelineAnimationLaneData>[],
+    List<UnifiedKeyframeProjectionIssue> issues =
+        const <UnifiedKeyframeProjectionIssue>[],
+  })  : lanes = List.unmodifiable(lanes),
+        issues = List.unmodifiable(issues);
+
+  final List<TimelineAnimationLaneData> lanes;
+  final List<UnifiedKeyframeProjectionIssue> issues;
+
+  bool get hasIssues => issues.isNotEmpty;
+}
+
 class UnifiedKeyframeTimelineProjectionService {
   const UnifiedKeyframeTimelineProjectionService();
+
+  UnifiedKeyframeTimelineProjectionBatchResult projectChannels({
+    required Iterable<MotionPropertyChannelModel> channels,
+    required TimelineTimeRange window,
+    required String targetClipId,
+    Map<String, String> labelsByChannelId = const <String, String>{},
+    Map<String, double> valueScalesByChannelId = const <String, double>{},
+  }) {
+    final lanes = <TimelineAnimationLaneData>[];
+    final issues = <UnifiedKeyframeProjectionIssue>[];
+    for (final channel in channels) {
+      final result = projectChannel(
+        channel: channel,
+        window: window,
+        targetClipId: targetClipId,
+        label: labelsByChannelId[channel.id],
+        valueScale: valueScalesByChannelId[channel.id] ?? 1.0,
+      );
+      if (result.lane != null) {
+        lanes.add(result.lane!);
+      }
+      issues.addAll(result.issues);
+    }
+    return UnifiedKeyframeTimelineProjectionBatchResult(
+      lanes: lanes,
+      issues: issues,
+    );
+  }
 
   UnifiedKeyframeTimelineProjectionResult projectChannel({
     required MotionPropertyChannelModel channel,
