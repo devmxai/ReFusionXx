@@ -36,6 +36,8 @@ import '../models/editor_media_tab.dart';
 import '../models/timeline_mock_models.dart';
 import '../models/timeline_time.dart';
 import '../services/normal_transition_timeline_authoring_adapter.dart';
+import '../services/transition_unified_scope_bridge_entry_adapter.dart';
+import '../services/transition_unified_scope_entry_gate.dart';
 import '../widgets/editor_tools_bar.dart';
 import '../widgets/editor_top_bar.dart';
 import '../widgets/animate_browser_bottom_sheet.dart';
@@ -84,6 +86,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   static final TimelineTime _manualTransitionScopeSideTime =
       TimelineTime.fromSecondsDouble(10);
   static const bool _textPresetPickerEnabled = false;
+  static const bool _unifiedTransitionScopeBridgeEnabled = false;
   static const String _defaultInsertedTextValue = 'Text';
   static const double _defaultInsertedTextFontSize = 56;
   static const bool _timelineClockCoordinatorOwnsPlaybackSamples = true;
@@ -330,6 +333,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   late final Ticker _motionPreviewFrameTicker;
   late final BasicMotionRuntimeEvaluator _motionEvaluator;
   late final BasicMotionTextRenderAdapter _motionTextRenderAdapter;
+  late final TransitionUnifiedScopeBridgeEntryAdapter
+      _transitionUnifiedScopeBridgeEntryAdapter;
   final Map<String, EditorAssetItem> _importedAssetsById =
       <String, EditorAssetItem>{};
   final Map<String, Uint8List> _previewThumbnailCache = <String, Uint8List>{};
@@ -434,6 +439,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _normalTransitionHistory = NormalTransitionCommandHistoryController();
     _motionEvaluator = const BasicMotionRuntimeEvaluator();
     _motionTextRenderAdapter = const BasicMotionTextRenderAdapter();
+    _transitionUnifiedScopeBridgeEntryAdapter =
+        TransitionUnifiedScopeBridgeEntryAdapter(
+      config: const TransitionUnifiedScopeEntryConfig(
+        enableUnifiedTransitionScope: _unifiedTransitionScopeBridgeEnabled,
+      ),
+    );
     _assetLibrary =
         ValueNotifier<List<EditorAssetItem>>(const <EditorAssetItem>[]);
     _assetLibraryLoading = ValueNotifier<bool>(false);
@@ -12679,6 +12690,47 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
   static String _formatTransitionScale(double value) => '${value.round()}%';
 
+  bool _tryOpenUnifiedTransitionScopeBridge({
+    required TimelineTrackData track,
+    required TimelineClipData leftClip,
+    required TimelineClipData rightClip,
+    required TimelineTransitionPreset preset,
+    TimelineTrackTransitionData? transition,
+  }) {
+    if (!_unifiedTransitionScopeBridgeEnabled) {
+      return false;
+    }
+    final result = _transitionUnifiedScopeBridgeEntryAdapter.resolveBridgeEntry(
+      TransitionUnifiedScopeBridgeEntryRequest(
+        track: track,
+        leftClip: leftClip,
+        rightClip: rightClip,
+        preset: preset,
+        transition: transition,
+        projectId: _motionProjectId,
+        sceneId: _motionSceneId,
+        trackId: _normalTransitionTrackIdForTrack(track),
+        format: _motionProjectFormat,
+        frameRate: _effectiveMotionProject.frameRate,
+      ),
+    );
+    if (!result.opensUnifiedScope) {
+      final shouldReportIssue = result.fallbackReason !=
+              TransitionUnifiedScopeBridgeFallbackReason.featureDisabled &&
+          result.fallbackReason !=
+              TransitionUnifiedScopeBridgeFallbackReason.unsupportedPreset &&
+          result.issues.isNotEmpty;
+      if (shouldReportIssue) {
+        _showNormalTransitionIssues(result.issues);
+      }
+      return false;
+    }
+    _showStageMessage(
+      'Unified Transition Scope graph is ready. UI handoff is the next checkpoint.',
+    );
+    return true;
+  }
+
   Future<void> _handleTimelineTransitionTap(
     TimelineTrackData track,
     TimelineClipData leftClip,
@@ -12700,6 +12752,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
     });
     if (existingTransition != null) {
+      if (_tryOpenUnifiedTransitionScopeBridge(
+        track: track,
+        leftClip: leftClip,
+        rightClip: rightClip,
+        preset: existingTransition.preset,
+        transition: existingTransition,
+      )) {
+        return;
+      }
       if (existingTransition.preset == TimelineTransitionPreset.manual) {
         _enterTransitionFocusMode(existingTransition.id);
         return;
@@ -12755,6 +12816,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return;
     }
     _upsertVideoTrackTransition(transition);
+    if (_tryOpenUnifiedTransitionScopeBridge(
+      track: track,
+      leftClip: leftClip,
+      rightClip: rightClip,
+      preset: preset,
+      transition: transition,
+    )) {
+      return;
+    }
     if (browserResult.action == TransitionBrowserAction.openManual) {
       _enterTransitionFocusMode(transition.id);
       return;

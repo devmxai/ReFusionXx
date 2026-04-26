@@ -370,7 +370,12 @@ Current foundation:
   - builds the unified transition request,
   - sends it through the entry gate,
   - falls back to legacy Transition Scope when the feature is disabled, the preset is unsupported, the boundary is invalid, or the graph/projection/lane gate blocks opening.
-- This is domain infrastructure only. It is not wired to the legacy Transition Scope UI yet and does not touch Stage5 or Live Scrub.
+- `FusionXCleanUiScreen` now contains a disabled-by-default bridge preflight:
+  - `_unifiedTransitionScopeBridgeEnabled = false`,
+  - `_tryOpenUnifiedTransitionScopeBridge(...)`,
+  - existing/new transition bridge taps call this preflight before legacy handling,
+  - because the flag is false, current production behavior is unchanged until the real Unified Layer Scope handoff is built and explicitly enabled.
+- This is preflight infrastructure only. It does not yet open Unified Layer Scope for users and does not touch Stage5 or Live Scrub.
 
 ### Phase C5: Transition Mode In Unified Layer Scope Timeline
 
