@@ -4,6 +4,16 @@ import '../../presentation/models/timeline_time.dart';
 import '../models/professional_motion_animation_models.dart';
 import '../models/professional_motion_models.dart';
 
+typedef UnifiedKeyframeChannelIdFactory = String Function({
+  required MotionPropertyTarget target,
+  required MotionPropertyDefinition definition,
+});
+
+typedef UnifiedKeyframeIdFactory = String Function({
+  required String channelId,
+  required TimelineTime time,
+});
+
 enum UnifiedKeyframeIssueCode {
   emptyRange,
   emptySelection,
@@ -172,7 +182,14 @@ class UnifiedKeyframeSelectionResult {
 }
 
 class UnifiedKeyframeOperations {
-  const UnifiedKeyframeOperations();
+  const UnifiedKeyframeOperations({
+    UnifiedKeyframeChannelIdFactory? channelIdFactory,
+    UnifiedKeyframeIdFactory? keyframeIdFactory,
+  })  : _channelIdFactory = channelIdFactory ?? _defaultChannelIdFor,
+        _keyframeIdFactory = keyframeIdFactory ?? _defaultKeyframeIdFor;
+
+  final UnifiedKeyframeChannelIdFactory _channelIdFactory;
+  final UnifiedKeyframeIdFactory _keyframeIdFactory;
 
   UnifiedKeyframeOperationResult addKeyframe(
     UnifiedKeyframeAddRequest request,
@@ -760,10 +777,24 @@ class UnifiedKeyframeOperations {
     required MotionPropertyTarget target,
     required MotionPropertyDefinition definition,
   }) {
-    return 'unifiedKeyframe.${target.canonicalAddress}.${definition.id}';
+    return _channelIdFactory(target: target, definition: definition);
   }
 
   String _keyframeIdFor({
+    required String channelId,
+    required TimelineTime time,
+  }) {
+    return _keyframeIdFactory(channelId: channelId, time: time);
+  }
+
+  static String _defaultChannelIdFor({
+    required MotionPropertyTarget target,
+    required MotionPropertyDefinition definition,
+  }) {
+    return 'unifiedKeyframe.${target.canonicalAddress}.${definition.id}';
+  }
+
+  static String _defaultKeyframeIdFor({
     required String channelId,
     required TimelineTime time,
   }) {
