@@ -2513,19 +2513,21 @@ class _TimelinePanelState extends State<TimelinePanel>
         !_isReorderMode &&
         !_isTrimDragging &&
         !_isClipMoveMode) {
-      final pointerDownDx = _nativeScrubPointerDownDx;
-      final pointerStartTime = _nativeScrubPointerStartTime;
-      if (pointerDownDx != null && pointerStartTime != null) {
-        final deltaDx = event.position.dx - pointerDownDx;
-        final deltaTime =
-            _timelineGeometryForScale(_secondsWidth).durationForPixels(
-          -deltaDx,
-        );
-        final nextTime = (pointerStartTime + deltaTime).clamp(
-          TimelineTime.zero,
-          widget.timelineDurationTime,
-        );
-        _scheduleNativeScrubUiUpdate(nextTime);
+      if (_nativeScrubUsesPointerTime) {
+        final pointerDownDx = _nativeScrubPointerDownDx;
+        final pointerStartTime = _nativeScrubPointerStartTime;
+        if (pointerDownDx != null && pointerStartTime != null) {
+          final deltaDx = event.position.dx - pointerDownDx;
+          final deltaTime =
+              _timelineGeometryForScale(_secondsWidth).durationForPixels(
+            -deltaDx,
+          );
+          final nextTime = (pointerStartTime + deltaTime).clamp(
+            TimelineTime.zero,
+            widget.timelineDurationTime,
+          );
+          _scheduleNativeScrubUiUpdate(nextTime);
+        }
       }
       return;
     }
@@ -2623,8 +2625,7 @@ class _TimelinePanelState extends State<TimelinePanel>
       _nativeScrubPointerDownDx = _pointerDownPositions[pointerId]?.dx ??
           _activePointerPositions[pointerId]?.dx;
       _nativeScrubPointerStartTime = anchorTime;
-      _nativeScrubUsesPointerTime = _nativeScrubPointerDownDx != null &&
-          _nativeScrubPointerStartTime != null;
+      _nativeScrubUsesPointerTime = false;
     } else {
       _nativeScrubPointerId = null;
       _nativeScrubPointerDownDx = null;

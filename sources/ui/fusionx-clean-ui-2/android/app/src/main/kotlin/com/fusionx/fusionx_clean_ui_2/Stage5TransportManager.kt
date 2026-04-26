@@ -56,7 +56,9 @@ class Stage5TransportManager(context: Context) {
         private const val SCRUB_SETTLE_WATCHDOG_MS = 320L
         private const val SCRUB_SETTLE_MAX_WATCHDOG_ATTEMPTS = 3
         private const val SCRUB_SETTLE_TOLERANCE_MS = 12L
-        private const val SCRUB_SETTLE_RENDERED_FRAME_TOLERANCE_MS = 90L
+        // Keep the scrub overlay visible until PlayerView renders essentially
+        // the same frame. A wide tolerance causes a visible jump on finger lift.
+        private const val SCRUB_SETTLE_RENDERED_FRAME_TOLERANCE_MS = 22L
         private const val DISPLAYABLE_END_EPSILON_MS = 1L
         // Composition-based multi-clip preview remains future-gated until it can preserve
         // live scrub parity with the accepted Exo baseline.

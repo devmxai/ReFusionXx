@@ -82,7 +82,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   static const String _motionSceneId = 'scene-main';
   static const String _exportContractVersion = 'v1alpha1';
   static const String _normalTransitionVideoTrackId = 'video-main';
-  static const int _playbackStartPositionToleranceMs = 24;
+  static const int _playbackStartPositionToleranceMs = 12;
   static const NormalTransitionTimelineAuthoringAdapter
       _normalTransitionAuthoringAdapter =
       NormalTransitionTimelineAuthoringAdapter();
