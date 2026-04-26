@@ -269,6 +269,23 @@ Exit criteria:
 - Unsupported properties are explicit blockers.
 - Preview/export parity status is documented per property.
 
+Current foundation:
+
+- `ScopeMotionPropertyCatalog` exists in `lib/features/editor/domain/services/scope_motion_property_catalog.dart`.
+- It declares the shared graph-backed motion surface for text, image, and shape elements:
+  - position X/Y,
+  - scale X/Y,
+  - rotation,
+  - opacity,
+  - blur amount.
+- It keeps type-specific properties explicit:
+  - text: font size, letter spacing, reveal progress,
+  - image: crop rect,
+  - shape: width, height, corner radius.
+- It builds canonical element targets for layer-scope authoring.
+- Tests prove that text, image, and shape keyframes can be authored through the same `LayerScopeCompositionAdapter`.
+- This is domain/adapter infrastructure only. It is not wired to production UI yet and does not touch Stage5 or Live Scrub.
+
 ### Phase C4: Transition Recipe Lowering
 
 Purpose: stop creating new transition behavior in legacy transition lanes.
