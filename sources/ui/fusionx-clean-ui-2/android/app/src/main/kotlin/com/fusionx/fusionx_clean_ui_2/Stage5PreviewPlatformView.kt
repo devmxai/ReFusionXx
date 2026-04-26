@@ -2,8 +2,12 @@ package com.refusion.app
 
 import android.content.Context
 import android.graphics.Color
+import android.graphics.RenderEffect
+import android.graphics.Shader
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.view.LayoutInflater
 import android.view.Surface
 import android.view.View
 import android.widget.FrameLayout
@@ -61,16 +65,30 @@ class Stage5PreviewPlatformView(
             stage5NativeScrubEngine.endSession()
         }
     }
+    private val previewTransitionEffectObserver: (Stage5PreviewTransitionEffects) -> Unit = { effects ->
+        runOnUiThreadIfActive {
+            applyPreviewTransitionEffects(effects)
+        }
+    }
 
     private val playerView =
-        PlayerView(context).apply {
+        (LayoutInflater.from(context).inflate(
+            R.layout.stage5_preview_player_view,
+            null,
+            false,
+        ) as PlayerView).apply {
             useController = false
             resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            setShutterBackgroundColor(Color.TRANSPARENT)
+            setBackgroundColor(Color.BLACK)
+            setShutterBackgroundColor(Color.BLACK)
             setKeepContentOnPlayerReset(true)
             alpha = 0f
-            setAspectRatioListener { contentAspectRatio, _, aspectRatioMismatch ->
-                val sized = contentAspectRatio > 0f && !aspectRatioMismatch
+            setAspectRatioListener { contentAspectRatio, _, _ ->
+                // A mismatch only means the media and viewport have different
+                // aspect ratios; RESIZE_MODE_FIT handles that with letterboxing.
+                // Treating it as "not sized" hides valid video and exposes the
+                // black preview background on clips with a different shape.
+                val sized = contentAspectRatio > 0f
                 val changed = sized != isPlayerContentSized
                 isPlayerContentSized = sized
                 // The transport resets its presentation state during same-player
@@ -95,6 +113,7 @@ class Stage5PreviewPlatformView(
         }
     private val rootView =
         FrameLayout(context).apply {
+            setBackgroundColor(Color.BLACK)
             addView(
                 playerView,
                 FrameLayout.LayoutParams(
@@ -118,6 +137,9 @@ class Stage5PreviewPlatformView(
             previewOutputSuppressionObserver,
         )
         stage5TransportManager.addScrubSettlingObserver(scrubSettlingObserver)
+        stage5TransportManager.addPreviewTransitionEffectObserver(
+            previewTransitionEffectObserver,
+        )
         stage5NativeScrubEngine.registerRenderHost(this)
     }
 
@@ -160,9 +182,13 @@ class Stage5PreviewPlatformView(
             previewOutputSuppressionObserver,
         )
         stage5TransportManager.removeScrubSettlingObserver(scrubSettlingObserver)
+        stage5TransportManager.removePreviewTransitionEffectObserver(
+            previewTransitionEffectObserver,
+        )
         scrubOverlayView.releaseOutputSurface()
         mainHandler.removeCallbacksAndMessages(null)
         runOnUiThread {
+            clearPreviewTransitionEffects()
             playerView.player = null
         }
     }
@@ -210,6 +236,29 @@ class Stage5PreviewPlatformView(
             } else {
                 0f
             }
+    }
+
+    private fun applyPreviewTransitionEffects(effects: Stage5PreviewTransitionEffects) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            return
+        }
+        val sigma = effects.blurSigmaPx.coerceIn(0f, 64f)
+        val renderEffect =
+            if (sigma > 0.05f) {
+                RenderEffect.createBlurEffect(sigma, sigma, Shader.TileMode.CLAMP)
+            } else {
+                null
+            }
+        playerView.setRenderEffect(renderEffect)
+        playerView.videoSurfaceView?.setRenderEffect(renderEffect)
+    }
+
+    private fun clearPreviewTransitionEffects() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            return
+        }
+        playerView.setRenderEffect(null)
+        playerView.videoSurfaceView?.setRenderEffect(null)
     }
 
     private fun runOnUiThread(action: () -> Unit) {

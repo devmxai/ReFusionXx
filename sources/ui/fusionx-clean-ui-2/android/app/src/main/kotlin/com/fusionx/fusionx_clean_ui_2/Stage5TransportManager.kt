@@ -35,6 +35,10 @@ import java.io.ByteArrayOutputStream
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
+data class Stage5PreviewTransitionEffects(
+    val blurSigmaPx: Float = 0f,
+)
+
 @UnstableApi
 class Stage5TransportManager(context: Context) {
     companion object {
@@ -96,6 +100,9 @@ class Stage5TransportManager(context: Context) {
     private val previewRetentionObservers = LinkedHashSet<(Boolean) -> Unit>()
     private val previewOutputSuppressionObservers = LinkedHashSet<(Boolean) -> Unit>()
     private val scrubSettlingObservers = LinkedHashSet<(Boolean) -> Unit>()
+    private val previewTransitionEffectObservers =
+        LinkedHashSet<(Stage5PreviewTransitionEffects) -> Unit>()
+    private var previewTransitionEffects = Stage5PreviewTransitionEffects()
     private val audioSignatureCache = HashMap<String, AudioSignature?>()
     private val mediaDisplayGeometryResolver = MediaDisplayGeometryResolver(appContext)
     private val thumbnailCache =
@@ -838,6 +845,31 @@ class Stage5TransportManager(context: Context) {
 
     fun removeScrubSettlingObserver(observer: (Boolean) -> Unit) {
         scrubSettlingObservers.remove(observer)
+    }
+
+    fun addPreviewTransitionEffectObserver(
+        observer: (Stage5PreviewTransitionEffects) -> Unit,
+    ) {
+        previewTransitionEffectObservers.add(observer)
+        observer(previewTransitionEffects)
+    }
+
+    fun removePreviewTransitionEffectObserver(
+        observer: (Stage5PreviewTransitionEffects) -> Unit,
+    ) {
+        previewTransitionEffectObservers.remove(observer)
+    }
+
+    fun setPreviewTransitionEffects(blurSigmaPx: Float) {
+        val next =
+            Stage5PreviewTransitionEffects(
+                blurSigmaPx = blurSigmaPx.coerceIn(0f, 64f),
+            )
+        if (previewTransitionEffects == next) {
+            return
+        }
+        previewTransitionEffects = next
+        previewTransitionEffectObservers.forEach { observer -> observer(next) }
     }
 
     fun suspendPreviewOutputForExport() {
@@ -1701,12 +1733,10 @@ class Stage5TransportManager(context: Context) {
         if (isScrubSettling) {
             return true
         }
-        val player = activePlayer ?: exoPlayer ?: compositionPlayer
-        val isRunTimelinePlayback =
-            isRunTimelineMode() &&
-                timelineRuns.size > 1 &&
-                player?.playWhenReady == true
-        return isRunTimelinePlayback
+        // During normal timeline playback, retaining the previous MediaItem frame can
+        // leave the outgoing clip visible behind a smaller incoming clip. Let the
+        // black shutter/background own that gap instead.
+        return false
     }
 
     private fun emitPreviewRetentionPolicy() {

@@ -417,6 +417,22 @@ class Stage5NativeTransportController extends ChangeNotifier {
     );
   }
 
+  Future<void> setPreviewTransitionEffects({
+    required double blurSigma,
+  }) async {
+    if (!isPlatformSupported) {
+      return;
+    }
+    final safeBlurSigma =
+        blurSigma.isNaN || blurSigma.isInfinite ? 0.0 : blurSigma;
+    await _invokeWithoutResult(
+      'setPreviewTransitionEffects',
+      <String, dynamic>{
+        'blurSigmaPx': safeBlurSigma.clamp(0.0, 64.0).toDouble(),
+      },
+    );
+  }
+
   Future<void> recoverPreviewSurface({int? positionMs}) async {
     if (!isPlatformSupported) {
       return;

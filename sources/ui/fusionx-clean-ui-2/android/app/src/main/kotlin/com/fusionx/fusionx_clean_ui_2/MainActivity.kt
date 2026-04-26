@@ -263,6 +263,12 @@ class MainActivity: FlutterActivity() {
                     stage5TransportManager.settleAfterScrub(positionMs)
                     result.success(null)
                 }
+                "setPreviewTransitionEffects" -> {
+                    val blurSigmaPx =
+                        call.argument<Number>("blurSigmaPx")?.toFloat() ?: 0f
+                    stage5TransportManager.setPreviewTransitionEffects(blurSigmaPx)
+                    result.success(null)
+                }
                 "recoverPreviewSurface" -> {
                     val positionMs = call.argument<Number>("positionMs")?.toLong()
                     result.success(stage5TransportManager.recoverPreviewSurface(positionMs))

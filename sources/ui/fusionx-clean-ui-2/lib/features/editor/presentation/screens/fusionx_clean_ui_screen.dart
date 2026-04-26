@@ -495,6 +495,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   Size? _lastPreviewStageSize;
   int _nativePreviewRecoveryRevision = 0;
   bool _isNativePreviewRecoveryScheduled = false;
+  int _nativeTransitionEffectRevision = 0;
+  double? _lastNativeTransitionBlurSigma;
 
   @override
   void initState() {
@@ -546,6 +548,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _dismissTopStageBanner();
+    unawaited(
+      _transportController.setPreviewTransitionEffects(blurSigma: 0),
+    );
     _exportController
       ..removeListener(_handleExportStateChanged)
       ..dispose();
@@ -14125,10 +14130,17 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required Widget child,
   }) {
     if (_useNativePreview) {
-      // Flutter's ImageFiltered cannot reliably filter Android platform views.
-      // Applying blur here snapshots/stalls the native video surface, so native
-      // preview must wait for the compositor-owned transition FX path.
-      return child;
+      return ValueListenableBuilder<TimelineTime>(
+        valueListenable: _previewTimeListenable(
+          effectiveIsPlaying: effectiveIsPlaying,
+        ),
+        child: child,
+        builder: (context, previewTime, livePreviewChild) {
+          final command = _activeTransitionVideoFxCommandAt(previewTime);
+          _scheduleNativeTransitionPreviewEffects(command);
+          return livePreviewChild ?? child;
+        },
+      );
     }
     return ValueListenableBuilder<TimelineTime>(
       valueListenable: _previewTimeListenable(
@@ -14153,6 +14165,35 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         return result;
       },
     );
+  }
+
+  void _scheduleNativeTransitionPreviewEffects(
+    _TransitionVideoFxCommand? command,
+  ) {
+    if (!_useNativePreview) {
+      return;
+    }
+    final nextBlurSigma = command?.blurSigma ?? 0.0;
+    final normalizedBlurSigma =
+        nextBlurSigma.isNaN || nextBlurSigma.isInfinite ? 0.0 : nextBlurSigma;
+    final clampedBlurSigma = normalizedBlurSigma.clamp(0.0, 64.0).toDouble();
+    final previousBlurSigma = _lastNativeTransitionBlurSigma;
+    if (previousBlurSigma != null &&
+        (previousBlurSigma - clampedBlurSigma).abs() <= 0.02) {
+      return;
+    }
+    _lastNativeTransitionBlurSigma = clampedBlurSigma;
+    final revision = ++_nativeTransitionEffectRevision;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || revision != _nativeTransitionEffectRevision) {
+        return;
+      }
+      unawaited(
+        _transportController.setPreviewTransitionEffects(
+          blurSigma: clampedBlurSigma,
+        ),
+      );
+    });
   }
 
   _TransitionVideoFxCommand? _activeTransitionVideoFxCommandAt(
