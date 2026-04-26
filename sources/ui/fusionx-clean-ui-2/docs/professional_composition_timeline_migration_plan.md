@@ -363,6 +363,13 @@ Current foundation:
   - outgoing/incoming element targets,
   - a `TransitionScopeGraphAuthoringRequest` for the gate.
 - Tests prove this request can pass through the gate into graph-backed role-aware unified transition lanes.
+- `TransitionUnifiedScopeBridgeEntryAdapter` exists in `lib/features/editor/presentation/services/transition_unified_scope_bridge_entry_adapter.dart`.
+- It is the bridge-level adapter for future production UI wiring:
+  - reads a timeline transition preset,
+  - resolves the matching normal transition definition,
+  - builds the unified transition request,
+  - sends it through the entry gate,
+  - falls back to legacy Transition Scope when the feature is disabled, the preset is unsupported, the boundary is invalid, or the graph/projection/lane gate blocks opening.
 - This is domain infrastructure only. It is not wired to the legacy Transition Scope UI yet and does not touch Stage5 or Live Scrub.
 
 ### Phase C5: Transition Mode In Unified Layer Scope Timeline
