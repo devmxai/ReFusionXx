@@ -25,9 +25,41 @@ void main() {
     expect(result.instance!.nodeId, result.node!.id);
   });
 
+  test('creates phase-one normal presets through canonical authoring', () {
+    for (final preset in <TimelineTransitionPreset>[
+      TimelineTransitionPreset.fadeBlack,
+      TimelineTransitionPreset.whiteFlash,
+      TimelineTransitionPreset.zoomInCamera,
+      TimelineTransitionPreset.blurDissolve,
+      TimelineTransitionPreset.pushLeft,
+      TimelineTransitionPreset.pushRight,
+      TimelineTransitionPreset.zoomOutCamera,
+      TimelineTransitionPreset.whipPanLeft,
+      TimelineTransitionPreset.whipPanRight,
+      TimelineTransitionPreset.slideBlurLeft,
+      TimelineTransitionPreset.slideBlurRight,
+      TimelineTransitionPreset.flashZoom,
+    ]) {
+      final result = adapter.createBuiltInPresetTransition(
+        preset: preset,
+        trackId: 'video-main',
+        leftClipId: 'clip-a',
+        rightClipId: 'clip-b',
+        boundaryTime: TimelineTime.fromMilliseconds(5000),
+        leftAvailableTail: TimelineTime.fromMilliseconds(1000),
+        rightAvailableHead: TimelineTime.fromMilliseconds(1000),
+      );
+
+      expect(result.canApply, isTrue, reason: preset.name);
+      expect(result.transition!.preset, preset);
+      expect(result.node!.definitionId, isNotEmpty);
+      expect(result.instance!.channels, isNotEmpty);
+    }
+  });
+
   test('rejects presets outside the normal transition registry', () {
     final result = adapter.createBuiltInPresetTransition(
-      preset: TimelineTransitionPreset.fadeBlack,
+      preset: TimelineTransitionPreset.manual,
       trackId: 'video-main',
       leftClipId: 'clip-a',
       rightClipId: 'clip-b',

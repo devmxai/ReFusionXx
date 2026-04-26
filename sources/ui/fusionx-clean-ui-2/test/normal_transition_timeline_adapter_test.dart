@@ -64,12 +64,35 @@ void main() {
     expect(result.instance!.nodeId, result.node!.id);
   });
 
+  test('maps every phase-one preset to a catalog definition id', () {
+    for (final preset in <TimelineTransitionPreset>[
+      TimelineTransitionPreset.crossDissolve,
+      TimelineTransitionPreset.fadeBlack,
+      TimelineTransitionPreset.whiteFlash,
+      TimelineTransitionPreset.zoomInCamera,
+      TimelineTransitionPreset.blurDissolve,
+      TimelineTransitionPreset.pushLeft,
+      TimelineTransitionPreset.pushRight,
+      TimelineTransitionPreset.zoomOutCamera,
+      TimelineTransitionPreset.whipPanLeft,
+      TimelineTransitionPreset.whipPanRight,
+      TimelineTransitionPreset.slideBlurLeft,
+      TimelineTransitionPreset.slideBlurRight,
+      TimelineTransitionPreset.flashZoom,
+    ]) {
+      final definitionId = adapter.definitionIdForPreset(preset);
+
+      expect(definitionId, isNotNull, reason: preset.name);
+      expect(adapter.presetForDefinitionId(definitionId!), preset);
+    }
+  });
+
   test('rejects non-normal timeline presets', () {
     final transition = TimelineTrackTransitionData(
       id: 'transition-1',
       leftClipId: 'clip-a',
       rightClipId: 'clip-b',
-      preset: TimelineTransitionPreset.fadeBlack,
+      preset: TimelineTransitionPreset.manual,
       durationTime: TimelineTime.fromMilliseconds(540),
     );
 

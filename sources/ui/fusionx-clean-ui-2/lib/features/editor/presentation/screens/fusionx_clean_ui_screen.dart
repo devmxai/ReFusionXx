@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:math' as math;
+import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -37,6 +39,7 @@ import '../models/timeline_mock_models.dart';
 import '../models/timeline_time.dart';
 import '../services/layer_scope_motion_authoring_adapter.dart';
 import '../services/normal_transition_timeline_authoring_adapter.dart';
+import '../services/normal_transition_script_timeline_mapper.dart';
 import '../widgets/editor_tools_bar.dart';
 import '../widgets/editor_top_bar.dart';
 import '../widgets/animate_browser_bottom_sheet.dart';
@@ -61,6 +64,7 @@ import '../widgets/timeline_transition_preview_overlay.dart';
 import '../widgets/transition_browser_bottom_sheet.dart';
 import '../widgets/transition_focus_panel.dart';
 import '../widgets/transition_inspector_bottom_sheet.dart';
+import '../widgets/transition_script_import_bottom_sheet.dart';
 import '../widgets/text_preset_bottom_sheet.dart';
 
 class FusionXCleanUiScreen extends StatefulWidget {
@@ -82,6 +86,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   static const NormalTransitionTimelineAuthoringAdapter
       _normalTransitionAuthoringAdapter =
       NormalTransitionTimelineAuthoringAdapter();
+  static const NormalTransitionScriptTimelineMapper
+      _normalTransitionScriptTimelineMapper =
+      NormalTransitionScriptTimelineMapper();
   static final TimelineTime _manualTransitionScopeSideTime =
       TimelineTime.fromSecondsDouble(10);
   static const bool _textPresetPickerEnabled = false;
@@ -117,6 +124,48 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       keywords: <String>['zoom in', 'scale', 'size'],
     ),
     AnimateBrowserItem(
+      id: 'outgoingOffsetX',
+      label: 'Outgoing Slide X',
+      category: 'Animate',
+      summary: 'Move the outgoing clip horizontally through the seam.',
+      keywords: <String>['push', 'slide', 'position', 'x'],
+    ),
+    AnimateBrowserItem(
+      id: 'incomingOffsetX',
+      label: 'Incoming Slide X',
+      category: 'Animate',
+      summary: 'Bring the incoming clip from the side.',
+      keywords: <String>['push', 'slide', 'position', 'x'],
+    ),
+    AnimateBrowserItem(
+      id: 'outgoingOffsetY',
+      label: 'Outgoing Slide Y',
+      category: 'Animate',
+      summary: 'Move the outgoing clip vertically through the seam.',
+      keywords: <String>['push', 'slide', 'position', 'y'],
+    ),
+    AnimateBrowserItem(
+      id: 'incomingOffsetY',
+      label: 'Incoming Slide Y',
+      category: 'Animate',
+      summary: 'Bring the incoming clip from above or below.',
+      keywords: <String>['push', 'slide', 'position', 'y'],
+    ),
+    AnimateBrowserItem(
+      id: 'outgoingRotation',
+      label: 'Outgoing Rotation',
+      category: 'Animate',
+      summary: 'Rotate the outgoing clip during the handoff.',
+      keywords: <String>['rotate', 'rotation', 'angle'],
+    ),
+    AnimateBrowserItem(
+      id: 'incomingRotation',
+      label: 'Incoming Rotation',
+      category: 'Animate',
+      summary: 'Rotate the incoming clip into place.',
+      keywords: <String>['rotate', 'rotation', 'angle'],
+    ),
+    AnimateBrowserItem(
       id: 'entryDelay',
       label: 'Entry Delay',
       category: 'Animate',
@@ -139,6 +188,34 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       category: 'FX',
       summary: 'Add a dark cinematic bridge between the two clips.',
       keywords: <String>['dark', 'bridge', 'shade'],
+    ),
+    AnimateBrowserItem(
+      id: 'whiteFlash',
+      label: 'White Flash',
+      category: 'FX',
+      summary: 'Flash through white at the seam.',
+      keywords: <String>['flash', 'white', 'light'],
+    ),
+    AnimateBrowserItem(
+      id: 'blurAmount',
+      label: 'Blur Amount',
+      category: 'FX',
+      summary: 'Blur the seam to hide fast motion.',
+      keywords: <String>['blur', 'soft', 'motion'],
+    ),
+    AnimateBrowserItem(
+      id: 'outgoingOpacity',
+      label: 'Outgoing Opacity',
+      category: 'FX',
+      summary: 'Fade the outgoing clip with editable keyframes.',
+      keywords: <String>['opacity', 'fade', 'alpha'],
+    ),
+    AnimateBrowserItem(
+      id: 'incomingOpacity',
+      label: 'Incoming Opacity',
+      category: 'FX',
+      summary: 'Fade the incoming clip with editable keyframes.',
+      keywords: <String>['opacity', 'fade', 'alpha'],
     ),
   ];
   static const List<AnimateBrowserItem> _scopedLayerCoreAnimateItems =
@@ -1648,7 +1725,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       TimelineTransitionPreset.manual => MotionTransitionKind.cameraPush,
       TimelineTransitionPreset.crossDissolve => MotionTransitionKind.fade,
       TimelineTransitionPreset.fadeBlack => MotionTransitionKind.fade,
+      TimelineTransitionPreset.whiteFlash => MotionTransitionKind.fade,
       TimelineTransitionPreset.zoomInCamera => MotionTransitionKind.cameraPush,
+      TimelineTransitionPreset.zoomOutCamera => MotionTransitionKind.cameraPush,
+      TimelineTransitionPreset.blurDissolve => MotionTransitionKind.fade,
+      TimelineTransitionPreset.pushLeft ||
+      TimelineTransitionPreset.pushRight ||
+      TimelineTransitionPreset.whipPanLeft ||
+      TimelineTransitionPreset.whipPanRight ||
+      TimelineTransitionPreset.slideBlurLeft ||
+      TimelineTransitionPreset.slideBlurRight ||
+      TimelineTransitionPreset.flashZoom =>
+        MotionTransitionKind.cameraPush,
       TimelineTransitionPreset.aiGenerated => MotionTransitionKind.fade,
     };
   }
@@ -10252,14 +10340,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
     }
 
-    if (preferredAssetId != null &&
-        orderedVisualAssetIds.contains(preferredAssetId)) {
-      return preferredAssetId;
-    }
     final timelineAssetId = nearestAssetIdForTime();
     if (timelineAssetId != null &&
         orderedVisualAssetIds.contains(timelineAssetId)) {
       return timelineAssetId;
+    }
+    if (preferredAssetId != null &&
+        orderedVisualAssetIds.contains(preferredAssetId)) {
+      return preferredAssetId;
     }
     if (_previewAssetId != null &&
         orderedVisualAssetIds.contains(_previewAssetId)) {
@@ -11472,9 +11560,19 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return switch (laneId) {
       'outgoingBoostScale' => const <double>[100.0, 105.0],
       'incomingStartScale' => const <double>[118.0, 100.0],
+      'outgoingOffsetX' => const <double>[0.0, -100.0],
+      'incomingOffsetX' => const <double>[100.0, 0.0],
+      'outgoingOffsetY' => const <double>[0.0, -36.0],
+      'incomingOffsetY' => const <double>[36.0, 0.0],
+      'outgoingRotation' => const <double>[0.0, -4.0],
+      'incomingRotation' => const <double>[4.0, 0.0],
       'entryDelay' => const <double>[18.0],
       'bridgeDarkness' => const <double>[0.0, 22.0, 0.0],
       'blackPeak' => const <double>[0.0, 100.0, 100.0, 0.0],
+      'whiteFlash' => const <double>[0.0, 88.0, 0.0],
+      'blurAmount' => const <double>[0.0, 10.0, 0.0],
+      'outgoingOpacity' => const <double>[100.0, 0.0],
+      'incomingOpacity' => const <double>[0.0, 100.0],
       _ => const <double>[0.0, 100.0],
     };
   }
@@ -11562,6 +11660,184 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
     }
     return true;
+  }
+
+  List<double> _presetTransitionFocusLaneValues(
+    TimelineTrackTransitionData transition,
+    String laneId,
+  ) {
+    final baseValues = _defaultTransitionFocusLaneValues(laneId);
+    double percentParameter(
+      String key, {
+      required double fallback,
+      double multiplier = 100.0,
+    }) {
+      final raw = transition.parameterValue(key, fallback: fallback);
+      return raw.abs() <= 2.0 ? raw * multiplier : raw;
+    }
+
+    switch (transition.preset) {
+      case TimelineTransitionPreset.crossDissolve:
+        return switch (laneId) {
+          'outgoingOpacity' => const <double>[100.0, 0.0],
+          'incomingOpacity' => const <double>[0.0, 100.0],
+          _ => baseValues,
+        };
+      case TimelineTransitionPreset.fadeBlack:
+        final peak = percentParameter('blackPeak', fallback: 0.94);
+        return laneId == 'blackPeak'
+            ? <double>[0.0, peak, peak, 0.0]
+            : baseValues;
+      case TimelineTransitionPreset.whiteFlash:
+        final peak = percentParameter('flashPeak', fallback: 0.88);
+        return laneId == 'whiteFlash' ? <double>[0.0, peak, 0.0] : baseValues;
+      case TimelineTransitionPreset.blurDissolve:
+        final peak = transition.parameterValue('maxBlur', fallback: 10.0);
+        return switch (laneId) {
+          'blackPeak' => const <double>[0.0, 18.0, 18.0, 0.0],
+          'blurAmount' => <double>[0.0, peak, 0.0],
+          _ => baseValues,
+        };
+      case TimelineTransitionPreset.pushLeft:
+      case TimelineTransitionPreset.slideBlurLeft:
+        final distance = percentParameter('distance', fallback: 1.0);
+        return switch (laneId) {
+          'outgoingOffsetX' => <double>[0.0, -distance],
+          'incomingOffsetX' => <double>[distance, 0.0],
+          'blurAmount' => <double>[
+              0.0,
+              transition.parameterValue('maxBlur', fallback: 8.0),
+              0.0,
+            ],
+          _ => baseValues,
+        };
+      case TimelineTransitionPreset.pushRight:
+      case TimelineTransitionPreset.slideBlurRight:
+        final distance = percentParameter('distance', fallback: 1.0);
+        return switch (laneId) {
+          'outgoingOffsetX' => <double>[0.0, distance],
+          'incomingOffsetX' => <double>[-distance, 0.0],
+          'blurAmount' => <double>[
+              0.0,
+              transition.parameterValue('maxBlur', fallback: 8.0),
+              0.0,
+            ],
+          _ => baseValues,
+        };
+      case TimelineTransitionPreset.whipPanLeft:
+        final distance = percentParameter('distance', fallback: 1.15);
+        return switch (laneId) {
+          'outgoingOffsetX' => <double>[0.0, -distance],
+          'incomingOffsetX' => <double>[distance, 0.0],
+          'blurAmount' => <double>[
+              0.0,
+              transition.parameterValue('maxBlur', fallback: 16.0),
+              0.0,
+            ],
+          'whiteFlash' => <double>[
+              0.0,
+              percentParameter('flashPeak', fallback: 0.22),
+              0.0,
+            ],
+          _ => baseValues,
+        };
+      case TimelineTransitionPreset.whipPanRight:
+        final distance = percentParameter('distance', fallback: 1.15);
+        return switch (laneId) {
+          'outgoingOffsetX' => <double>[0.0, distance],
+          'incomingOffsetX' => <double>[-distance, 0.0],
+          'blurAmount' => <double>[
+              0.0,
+              transition.parameterValue('maxBlur', fallback: 16.0),
+              0.0,
+            ],
+          'whiteFlash' => <double>[
+              0.0,
+              percentParameter('flashPeak', fallback: 0.22),
+              0.0,
+            ],
+          _ => baseValues,
+        };
+      case TimelineTransitionPreset.zoomInCamera:
+      case TimelineTransitionPreset.zoomOutCamera:
+      case TimelineTransitionPreset.flashZoom:
+        return switch (laneId) {
+          'outgoingBoostScale' => <double>[
+              100.0,
+              percentParameter('outgoingBoostScale', fallback: 1.08),
+            ],
+          'incomingStartScale' => <double>[
+              percentParameter('incomingStartScale', fallback: 1.18),
+              100.0,
+            ],
+          'entryDelay' => <double>[
+              percentParameter('entryDelay', fallback: 0.18),
+            ],
+          'bridgeDarkness' => <double>[
+              0.0,
+              percentParameter('bridgeDarkness', fallback: 0.18),
+              0.0,
+            ],
+          'whiteFlash' => <double>[
+              0.0,
+              percentParameter('flashPeak', fallback: 0.72),
+              0.0,
+            ],
+          _ => baseValues,
+        };
+      case TimelineTransitionPreset.manual:
+      case TimelineTransitionPreset.aiGenerated:
+        return baseValues;
+    }
+  }
+
+  TimelineTrackTransitionData _materializeTransitionPresetForFocus(
+    _TransitionFocusContext context,
+  ) {
+    final transition = context.transition;
+    if (transition.preset == TimelineTransitionPreset.manual ||
+        transition.preset == TimelineTransitionPreset.aiGenerated) {
+      return transition;
+    }
+    final laneSpecs = _transitionFocusLaneSpecs(transition);
+    if (laneSpecs.isEmpty) {
+      return transition;
+    }
+    final manualLanes = <TimelineAnimationLaneData>[];
+    for (final spec in laneSpecs) {
+      final stops = _transitionFocusScopeStopsForActiveStops(
+        context,
+        spec.keyframeStops,
+      );
+      manualLanes.add(
+        TimelineAnimationLaneData(
+          id: spec.id,
+          label: spec.label,
+          targetClipId: transition.leftClipId,
+          normalizedKeyframeStops: List<double>.unmodifiable(stops),
+          keyframeIds: List<String>.unmodifiable(
+            <String>[
+              for (var index = 0; index < stops.length; index++)
+                'preset.${transition.id}.${spec.id}.$index.${(stops[index] * 1000).round()}',
+            ],
+          ),
+          keyframeValues: List<double>.unmodifiable(
+            _presetTransitionFocusLaneValues(transition, spec.id),
+          ),
+          trackSpanStartProgress: 0,
+          trackSpanEndProgress: 1,
+        ),
+      );
+    }
+    return transition.copyWith(
+      preset: TimelineTransitionPreset.manual,
+      manualEffectIds: List<String>.unmodifiable(
+        <String>[for (final lane in manualLanes) lane.id],
+      ),
+      manualAnimationLanes: List<TimelineAnimationLaneData>.unmodifiable(
+        manualLanes,
+      ),
+    );
   }
 
   TimelineAnimationLaneData _normalizeTransitionFocusManualLane(
@@ -11804,6 +12080,79 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       keyframeStops: <double>[0.0, 1.0],
       valueFormatter: _formatTransitionScale,
     ),
+    'outgoingOffsetX': _TransitionFocusLaneSpec(
+      id: 'outgoingOffsetX',
+      groupLabel: 'Outgoing',
+      label: 'Outgoing Slide X',
+      editorDescription:
+          'Moves the outgoing clip horizontally across the seam.',
+      min: -120.0,
+      max: 120.0,
+      fallback: 0.0,
+      tint: Color(0xFF74D8FF),
+      keyframeStops: <double>[0.0, 1.0],
+      valueFormatter: _formatTransitionPercent,
+    ),
+    'incomingOffsetX': _TransitionFocusLaneSpec(
+      id: 'incomingOffsetX',
+      groupLabel: 'Incoming',
+      label: 'Incoming Slide X',
+      editorDescription: 'Moves the incoming clip horizontally into the seam.',
+      min: -120.0,
+      max: 120.0,
+      fallback: 0.0,
+      tint: Color(0xFF7DFFB2),
+      keyframeStops: <double>[0.0, 1.0],
+      valueFormatter: _formatTransitionPercent,
+    ),
+    'outgoingOffsetY': _TransitionFocusLaneSpec(
+      id: 'outgoingOffsetY',
+      groupLabel: 'Outgoing',
+      label: 'Outgoing Slide Y',
+      editorDescription: 'Moves the outgoing clip vertically across the seam.',
+      min: -120.0,
+      max: 120.0,
+      fallback: 0.0,
+      tint: Color(0xFF74D8FF),
+      keyframeStops: <double>[0.0, 1.0],
+      valueFormatter: _formatTransitionPercent,
+    ),
+    'incomingOffsetY': _TransitionFocusLaneSpec(
+      id: 'incomingOffsetY',
+      groupLabel: 'Incoming',
+      label: 'Incoming Slide Y',
+      editorDescription: 'Moves the incoming clip vertically into the seam.',
+      min: -120.0,
+      max: 120.0,
+      fallback: 0.0,
+      tint: Color(0xFF7DFFB2),
+      keyframeStops: <double>[0.0, 1.0],
+      valueFormatter: _formatTransitionPercent,
+    ),
+    'outgoingRotation': _TransitionFocusLaneSpec(
+      id: 'outgoingRotation',
+      groupLabel: 'Outgoing',
+      label: 'Outgoing Rotation',
+      editorDescription: 'Rotates the outgoing clip through the handoff.',
+      min: -45.0,
+      max: 45.0,
+      fallback: 0.0,
+      tint: Color(0xFF8FD8FF),
+      keyframeStops: <double>[0.0, 1.0],
+      valueFormatter: _formatTransitionDegrees,
+    ),
+    'incomingRotation': _TransitionFocusLaneSpec(
+      id: 'incomingRotation',
+      groupLabel: 'Incoming',
+      label: 'Incoming Rotation',
+      editorDescription: 'Rotates the incoming clip into final alignment.',
+      min: -45.0,
+      max: 45.0,
+      fallback: 0.0,
+      tint: Color(0xFF90FFCB),
+      keyframeStops: <double>[0.0, 1.0],
+      valueFormatter: _formatTransitionDegrees,
+    ),
     'entryDelay': _TransitionFocusLaneSpec(
       id: 'entryDelay',
       groupLabel: 'Timing',
@@ -11843,6 +12192,56 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       keyframeStops: <double>[0.0, 0.46, 0.54, 1.0],
       valueFormatter: _formatTransitionPercent,
     ),
+    'whiteFlash': _TransitionFocusLaneSpec(
+      id: 'whiteFlash',
+      groupLabel: 'Visual',
+      label: 'White Flash',
+      editorDescription:
+          'Adds a bright flash pulse to hide a hard visual seam.',
+      min: 0.0,
+      max: 100.0,
+      fallback: 0.0,
+      tint: Color(0xFFFFF5B8),
+      keyframeStops: <double>[0.0, 0.5, 1.0],
+      valueFormatter: _formatTransitionPercent,
+    ),
+    'blurAmount': _TransitionFocusLaneSpec(
+      id: 'blurAmount',
+      groupLabel: 'Visual',
+      label: 'Blur Amount',
+      editorDescription:
+          'Softens the seam with Gaussian-style blur during fast motion.',
+      min: 0.0,
+      max: 24.0,
+      fallback: 0.0,
+      tint: Color(0xFFC5B8FF),
+      keyframeStops: <double>[0.0, 0.5, 1.0],
+      valueFormatter: _formatTransitionPixels,
+    ),
+    'outgoingOpacity': _TransitionFocusLaneSpec(
+      id: 'outgoingOpacity',
+      groupLabel: 'Visual',
+      label: 'Outgoing Opacity',
+      editorDescription: 'Fades the outgoing clip with direct opacity keys.',
+      min: 0.0,
+      max: 100.0,
+      fallback: 100.0,
+      tint: Color(0xFFB5C0D9),
+      keyframeStops: <double>[0.0, 1.0],
+      valueFormatter: _formatTransitionPercent,
+    ),
+    'incomingOpacity': _TransitionFocusLaneSpec(
+      id: 'incomingOpacity',
+      groupLabel: 'Visual',
+      label: 'Incoming Opacity',
+      editorDescription: 'Fades the incoming clip with direct opacity keys.',
+      min: 0.0,
+      max: 100.0,
+      fallback: 0.0,
+      tint: Color(0xFFB5F0D0),
+      keyframeStops: <double>[0.0, 1.0],
+      valueFormatter: _formatTransitionPercent,
+    ),
   };
 
   List<_TransitionFocusLaneSpec> _transitionFocusLaneSpecs(
@@ -11855,12 +12254,54 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           if (!transition.manualEffectIds.contains(lane.id)) lane.id,
       ] else
         ...switch (transition.preset) {
-          TimelineTransitionPreset.crossDissolve => const <String>[],
+          TimelineTransitionPreset.crossDissolve => const <String>[
+              'outgoingOpacity',
+              'incomingOpacity',
+            ],
           TimelineTransitionPreset.fadeBlack => const <String>['blackPeak'],
+          TimelineTransitionPreset.whiteFlash => const <String>['whiteFlash'],
           TimelineTransitionPreset.zoomInCamera => const <String>[
               'outgoingBoostScale',
               'incomingStartScale',
               'entryDelay',
+              'bridgeDarkness',
+            ],
+          TimelineTransitionPreset.zoomOutCamera => const <String>[
+              'outgoingBoostScale',
+              'incomingStartScale',
+              'bridgeDarkness',
+            ],
+          TimelineTransitionPreset.blurDissolve => const <String>[
+              'blackPeak',
+              'blurAmount',
+            ],
+          TimelineTransitionPreset.pushLeft => const <String>[
+              'outgoingOffsetX',
+              'incomingOffsetX',
+            ],
+          TimelineTransitionPreset.pushRight => const <String>[
+              'outgoingOffsetX',
+              'incomingOffsetX',
+            ],
+          TimelineTransitionPreset.whipPanLeft ||
+          TimelineTransitionPreset.whipPanRight =>
+            const <String>[
+              'outgoingOffsetX',
+              'incomingOffsetX',
+              'blurAmount',
+              'whiteFlash',
+            ],
+          TimelineTransitionPreset.slideBlurLeft ||
+          TimelineTransitionPreset.slideBlurRight =>
+            const <String>[
+              'outgoingOffsetX',
+              'incomingOffsetX',
+              'blurAmount',
+            ],
+          TimelineTransitionPreset.flashZoom => const <String>[
+              'outgoingBoostScale',
+              'incomingStartScale',
+              'whiteFlash',
               'bridgeDarkness',
             ],
           TimelineTransitionPreset.aiGenerated => const <String>[],
@@ -11960,6 +12401,128 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return (start: start, end: end);
   }
 
+  ({double start, double end})? _manualTransitionAuthoredEffectProgressRange(
+    TimelineTrackTransitionData transition,
+  ) {
+    if (transition.preset != TimelineTransitionPreset.manual ||
+        transition.manualAnimationLanes.isEmpty) {
+      return null;
+    }
+    double? rangeStart;
+    double? rangeEnd;
+    const epsilon = 0.0001;
+
+    void include(double start, double end) {
+      final clampedStart = start.clamp(0.0, 1.0).toDouble();
+      final clampedEnd = end.clamp(0.0, 1.0).toDouble();
+      final orderedStart = math.min(clampedStart, clampedEnd);
+      final orderedEnd = math.max(clampedStart, clampedEnd);
+      rangeStart = rangeStart == null
+          ? orderedStart
+          : math.min(rangeStart!, orderedStart);
+      rangeEnd =
+          rangeEnd == null ? orderedEnd : math.max(rangeEnd!, orderedEnd);
+    }
+
+    for (final lane in transition.manualAnimationLanes) {
+      if (!transition.manualEffectIds.contains(lane.id) ||
+          lane.normalizedKeyframeStops.isEmpty) {
+        continue;
+      }
+      final spec = _transitionLaneLibrary[lane.id];
+      if (spec == null) {
+        continue;
+      }
+      final values = lane.alignedKeyframeValues(
+        fallbackValue: spec.fallback,
+        clampToPercent: false,
+      );
+      final keyframes = <({double stop, double value})>[
+        for (var index = 0;
+            index < lane.normalizedKeyframeStops.length;
+            index++)
+          (
+            stop:
+                lane.normalizedKeyframeStops[index].clamp(0.0, 1.0).toDouble(),
+            value: values[index],
+          ),
+      ]..sort((left, right) => left.stop.compareTo(right.stop));
+      if (keyframes.isEmpty) {
+        continue;
+      }
+      bool differsFromFallback(double value) =>
+          (value - spec.fallback).abs() > epsilon;
+
+      if (keyframes.length == 1) {
+        if (differsFromFallback(keyframes.first.value)) {
+          include(0.0, 1.0);
+        }
+        continue;
+      }
+
+      if (differsFromFallback(keyframes.first.value)) {
+        include(0.0, keyframes.first.stop);
+      }
+      for (var index = 1; index < keyframes.length; index++) {
+        final previous = keyframes[index - 1];
+        final current = keyframes[index];
+        if (differsFromFallback(previous.value) ||
+            differsFromFallback(current.value) ||
+            (current.value - previous.value).abs() > epsilon) {
+          include(previous.stop, current.stop);
+        }
+      }
+      if (differsFromFallback(keyframes.last.value)) {
+        include(keyframes.last.stop, 1.0);
+      }
+    }
+
+    if (rangeStart == null || rangeEnd == null) {
+      return null;
+    }
+    final start = rangeStart!.clamp(0.0, 1.0).toDouble();
+    final end = rangeEnd!.clamp(0.0, 1.0).toDouble();
+    if (end - start <= epsilon) {
+      const minWindow = 0.015;
+      final center = ((start + end) / 2).clamp(0.0, 1.0).toDouble();
+      return (
+        start: (center - (minWindow / 2)).clamp(0.0, 1.0).toDouble(),
+        end: (center + (minWindow / 2)).clamp(0.0, 1.0).toDouble(),
+      );
+    }
+    return (start: start, end: end);
+  }
+
+  ({TimelineTime start, TimelineTime end})?
+      _manualTransitionAuthoredEffectTimeRange(
+    _TransitionFocusContext context,
+  ) {
+    final progressRange =
+        _manualTransitionAuthoredEffectProgressRange(context.transition);
+    if (progressRange == null) {
+      return null;
+    }
+    final scopeSpanMs = (context.endTime - context.startTime).inMilliseconds;
+    if (scopeSpanMs <= 0) {
+      return null;
+    }
+    final start = context.startTime +
+        TimelineTime.fromMilliseconds(
+          (scopeSpanMs * progressRange.start).round(),
+        );
+    final end = context.startTime +
+        TimelineTime.fromMilliseconds(
+          (scopeSpanMs * progressRange.end).round(),
+        );
+    if (end <= start) {
+      return null;
+    }
+    return (
+      start: start.clamp(context.startTime, context.endTime),
+      end: end.clamp(context.startTime, context.endTime),
+    );
+  }
+
   List<double> _transitionFocusScopeStopsForActiveStops(
     _TransitionFocusContext context,
     List<double> activeStops,
@@ -11993,6 +12556,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     var context = _transitionFocusContextById(transitionId);
     if (context == null) {
       return;
+    }
+    final materializedTransition = _materializeTransitionPresetForFocus(
+      context,
+    );
+    if (materializedTransition != context.transition) {
+      _upsertVideoTrackTransition(materializedTransition);
+      context = _transitionFocusContextById(transitionId);
+      if (context == null) {
+        return;
+      }
     }
     if (context.transition.preset == TimelineTransitionPreset.manual) {
       final normalizedTransition = _normalizeTransitionFocusManualTransition(
@@ -12139,7 +12712,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                 ),
                 title: const Text('Script'),
                 subtitle: const Text(
-                  'Transition script import is reserved for the next phase.',
+                  'Paste or upload JSON and convert it to editable lanes.',
                 ),
                 onTap: () => Navigator.of(sheetContext).pop('script'),
               ),
@@ -12160,11 +12733,95 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         await _openManualTransitionFxBrowser(transitionId);
         break;
       case 'script':
-        _showStageMessage(
-          'Transition script import will be wired in the transition scripting phase.',
-        );
+        await _openTransitionScriptImportSheet(transitionId);
         break;
     }
+  }
+
+  Future<void> _openTransitionScriptImportSheet(String transitionId) async {
+    setState(() {
+      _isAnimateBrowserOpen = true;
+    });
+    final definition = await showModalBottomSheet<NormalTransitionDefinition>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => MediaQuery.removeViewInsets(
+        context: context,
+        removeBottom: true,
+        child: const TransitionScriptImportBottomSheet(),
+      ),
+    ).whenComplete(() {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isAnimateBrowserOpen = false;
+      });
+    });
+    if (!mounted || definition == null) {
+      return;
+    }
+    _applyTransitionScriptDefinition(transitionId, definition);
+  }
+
+  void _applyTransitionScriptDefinition(
+    String transitionId,
+    NormalTransitionDefinition definition,
+  ) {
+    final transition = _videoTrackTransitionById(transitionId);
+    if (transition == null) {
+      return;
+    }
+    final mapping = _normalTransitionScriptTimelineMapper.mapDefinition(
+      definition: definition,
+      targetClipId: transition.leftClipId,
+    );
+    if (!mapping.hasSupportedLanes) {
+      final issueMessage = mapping.issues.isEmpty
+          ? 'No editable transition lanes were found in this script.'
+          : mapping.issues.first.message;
+      _showStageMessage(issueMessage);
+      return;
+    }
+    final importedLaneIds = mapping.effectIds.toSet();
+    _updateTransitionFocusTransition(
+      transitionId,
+      preserveProgress: true,
+      update: (current) {
+        final nextEffectIds = <String>[
+          for (final effectId in current.manualEffectIds)
+            if (!importedLaneIds.contains(effectId)) effectId,
+          ...mapping.effectIds,
+        ];
+        final nextLanes = <TimelineAnimationLaneData>[
+          for (final lane in current.manualAnimationLanes)
+            if (!importedLaneIds.contains(lane.id)) lane,
+          ...mapping.lanes,
+        ];
+        return current.copyWith(
+          preset: TimelineTransitionPreset.manual,
+          parameterValues: <String, double>{
+            ...current.parameterValues,
+            ...mapping.parameterValues,
+          },
+          manualEffectIds: List<String>.unmodifiable(nextEffectIds),
+          manualAnimationLanes:
+              List<TimelineAnimationLaneData>.unmodifiable(nextLanes),
+        );
+      },
+    );
+    _selectTransitionFocusLane(mapping.effectIds.first);
+    final warningCount = mapping.issues
+        .where(
+          (issue) => issue.severity != NormalTransitionIssueSeverity.error,
+        )
+        .length;
+    _showStageMessage(
+      warningCount == 0
+          ? 'Transition script imported as editable keyframes.'
+          : 'Transition script imported with $warningCount warning${warningCount == 1 ? '' : 's'}.',
+    );
   }
 
   Future<void> _openManualTransitionAnimateBrowser(String transitionId) async {
@@ -12288,7 +12945,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         preserveProgress ? _transitionFocusContextById(transitionId) : null;
     final preservedProgress = existingContext == null
         ? null
-        : _transitionFocusProgressForTime(existingContext, _currentTime);
+        : _transitionFocusProgressForTime(
+            existingContext,
+            _transitionFocusVisibleGlobalTime(existingContext),
+          );
     _upsertVideoTrackTransition(update(current));
     if (preservedProgress != null) {
       final nextContext = _transitionFocusContextById(transitionId);
@@ -12497,7 +13157,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final frameMs = 1000.0 / (_timelineFps <= 0 ? 30.0 : _timelineFps);
     final snapEpsilon = scopeDurationMs <= 0
         ? 0.0001
-        : ((frameMs * 0.5) / scopeDurationMs).clamp(0.0001, 0.0015);
+        : ((frameMs * 0.25) / scopeDurationMs).clamp(0.00005, 0.00075);
     for (var index = 0; index < stops.length; index++) {
       if ((stops[index] - progress).abs() <= snapEpsilon) {
         setState(() {
@@ -12508,10 +13168,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         return;
       }
     }
-    final insertedValue = lane.evaluateValueAtProgress(
-      progress,
-      fallbackValue: values.isEmpty ? 0.0 : values.last,
-    );
+    final selectedIndex = _selectedTransitionFocusKeyframeIndex;
+    final insertedValue = selectedIndex != null &&
+            selectedIndex >= 0 &&
+            selectedIndex < values.length
+        ? values[selectedIndex]
+        : lane.evaluateValueAtProgress(
+            progress,
+            fallbackValue: values.isEmpty ? 0.0 : values.last,
+          );
     var insertIndex = 0;
     while (insertIndex < stops.length && stops[insertIndex] < progress) {
       insertIndex += 1;
@@ -12681,6 +13346,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   static String _formatTransitionPercent(double value) => '${value.round()}%';
 
   static String _formatTransitionScale(double value) => '${value.round()}%';
+
+  static String _formatTransitionPixels(double value) =>
+      '${value.toStringAsFixed(1)}px';
+
+  static String _formatTransitionDegrees(double value) =>
+      '${value.toStringAsFixed(1)}deg';
 
   Future<void> _handleTimelineTransitionTap(
     TimelineTrackData track,
@@ -13344,13 +14015,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       final focusContext = transition.preset == TimelineTransitionPreset.manual
           ? _transitionFocusContextById(transition.id)
           : null;
+      final manualAuthoredRange = focusContext == null
+          ? null
+          : _manualTransitionAuthoredEffectTimeRange(focusContext);
       final seamTime = leftClip.startTime + leftClip.clip.durationTime;
-      final start = focusContext?.startTime ??
+      final start = manualAuthoredRange?.start ??
+          focusContext?.activeStartTime ??
           (seamTime - transition.resolvedLeadingDurationTime).clamp(
             TimelineTime.zero,
             _timelineDurationTime,
           );
-      final end = focusContext?.endTime ??
+      final end = manualAuthoredRange?.end ??
+          focusContext?.activeEndTime ??
           (seamTime + transition.resolvedTrailingDurationTime).clamp(
             TimelineTime.zero,
             _timelineDurationTime,
@@ -13436,12 +14112,103 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return _previewThumbnailCache[assetId];
   }
 
+  ValueListenable<TimelineTime> _previewTimeListenable({
+    required bool effectiveIsPlaying,
+  }) {
+    return effectiveIsPlaying && _useNativePreview
+        ? _playbackSampleTimeNotifier
+        : _timelineDisplayTimeNotifier;
+  }
+
+  Widget _buildTransitionVideoFxPreviewHost({
+    required bool effectiveIsPlaying,
+    required Widget child,
+  }) {
+    return ValueListenableBuilder<TimelineTime>(
+      valueListenable: _previewTimeListenable(
+        effectiveIsPlaying: effectiveIsPlaying,
+      ),
+      child: child,
+      builder: (context, previewTime, livePreviewChild) {
+        final command = _activeTransitionVideoFxCommandAt(previewTime);
+        if (command == null || !command.hasVisibleEffect) {
+          return livePreviewChild ?? child;
+        }
+        var result = livePreviewChild ?? child;
+        if (command.blurSigma > 0.05) {
+          result = ImageFiltered(
+            imageFilter: ImageFilter.blur(
+              sigmaX: command.blurSigma,
+              sigmaY: command.blurSigma,
+            ),
+            child: result,
+          );
+        }
+        return result;
+      },
+    );
+  }
+
+  _TransitionVideoFxCommand? _activeTransitionVideoFxCommandAt(
+    TimelineTime previewTime,
+  ) {
+    final activeTransition = _activeTimelineTransitionPreviewAt(previewTime);
+    if (activeTransition == null) {
+      return null;
+    }
+    return _transitionVideoFxCommandForActiveTransition(activeTransition);
+  }
+
+  _TransitionVideoFxCommand? _transitionVideoFxCommandForActiveTransition(
+    _ActiveTimelineTransitionPreview activeTransition,
+  ) {
+    final transition = activeTransition.transition;
+    double blurSigma = 0;
+    if (transition.preset == TimelineTransitionPreset.manual &&
+        transition.manualEffectIds.contains('blurAmount')) {
+      blurSigma = transition.manualLaneValueAtProgress(
+        'blurAmount',
+        activeTransition.manualLaneProgress,
+        fallbackValue: transition.parameterValue('blurAmount', fallback: 0.0),
+      );
+    } else {
+      blurSigma = switch (transition.preset) {
+        TimelineTransitionPreset.blurDissolve =>
+          transition.parameterValue('maxBlur', fallback: 10.0) *
+              _centeredTransitionPulse(activeTransition.progress),
+        TimelineTransitionPreset.whipPanLeft ||
+        TimelineTransitionPreset.whipPanRight =>
+          transition.parameterValue('maxBlur', fallback: 16.0) *
+              _sineTransitionPulse(activeTransition.progress),
+        TimelineTransitionPreset.slideBlurLeft ||
+        TimelineTransitionPreset.slideBlurRight =>
+          transition.parameterValue('maxBlur', fallback: 8.0) *
+              _sineTransitionPulse(activeTransition.progress),
+        _ => 0.0,
+      };
+    }
+    final clampedBlur = blurSigma.clamp(0.0, 24.0).toDouble();
+    if (clampedBlur <= 0.05) {
+      return null;
+    }
+    return _TransitionVideoFxCommand(blurSigma: clampedBlur);
+  }
+
+  double _centeredTransitionPulse(double progress) {
+    final t = progress.clamp(0.0, 1.0).toDouble();
+    return (1 - ((t - 0.5).abs() / 0.5)).clamp(0.0, 1.0).toDouble();
+  }
+
+  double _sineTransitionPulse(double progress) {
+    return math.sin(progress.clamp(0.0, 1.0).toDouble() * math.pi).abs();
+  }
+
   Widget? _buildPreviewOverlay({
     required bool effectiveIsPlaying,
   }) {
-    final previewTimeListenable = effectiveIsPlaying && _useNativePreview
-        ? _playbackSampleTimeNotifier
-        : _timelineDisplayTimeNotifier;
+    final previewTimeListenable = _previewTimeListenable(
+      effectiveIsPlaying: effectiveIsPlaying,
+    );
     return ValueListenableBuilder<TimelineTime>(
       valueListenable: previewTimeListenable,
       builder: (context, previewTime, _) {
@@ -13638,6 +14405,21 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                             previewThumbnailListenable:
                                 _previewThumbnailNotifier,
                           );
+                          final nativePreviewChild = _useNativePreview
+                              ? NativePreviewSurface(
+                                  controller: _transportController,
+                                  previewIdentity: previewAsset?.sourceUri ??
+                                      previewAsset?.id,
+                                  recoveryRevision:
+                                      _nativePreviewRecoveryRevision,
+                                  fallback: previewFallback,
+                                )
+                              : previewFallback;
+                          final previewChild =
+                              _buildTransitionVideoFxPreviewHost(
+                            effectiveIsPlaying: effectiveIsPlaying,
+                            child: nativePreviewChild,
+                          );
                           return PreviewStage(
                             workspaceAspectRatio: _previewAspectRatio,
                             hasVisibleContent: hasPreviewCanvasContent,
@@ -13647,16 +14429,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                             overlay: _buildPreviewOverlay(
                               effectiveIsPlaying: effectiveIsPlaying,
                             ),
-                            child: _useNativePreview
-                                ? NativePreviewSurface(
-                                    controller: _transportController,
-                                    previewIdentity: previewAsset?.sourceUri ??
-                                        previewAsset?.id,
-                                    recoveryRevision:
-                                        _nativePreviewRecoveryRevision,
-                                    fallback: previewFallback,
-                                  )
-                                : previewFallback,
+                            child: previewChild,
                           );
                         },
                       ),
@@ -13682,6 +14455,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                     onBack: _exitTransitionFocusMode,
                                     onFrameToolsTap:
                                         _handleTransitionFrameToolsTap,
+                                    onScriptImport: () =>
+                                        _openTransitionScriptImportSheet(
+                                      transitionFocusContext.transition.id,
+                                    ),
                                     onMoveToKeyframe:
                                         canMoveTransitionFocusSelectedKeyframe
                                             ? _handleTransitionFocusMoveSelectedKeyframeToPlayhead
@@ -14559,6 +15336,16 @@ class _ActiveTimelineTransitionPreview {
   final double progress;
   final double manualLaneProgress;
   final double manualSeamProgress;
+}
+
+class _TransitionVideoFxCommand {
+  const _TransitionVideoFxCommand({
+    required this.blurSigma,
+  });
+
+  final double blurSigma;
+
+  bool get hasVisibleEffect => blurSigma > 0.05;
 }
 
 class _TransitionFocusSession {

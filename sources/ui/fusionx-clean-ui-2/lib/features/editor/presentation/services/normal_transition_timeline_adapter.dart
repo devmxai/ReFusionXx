@@ -5,10 +5,34 @@ class NormalTransitionTimelineAdapter {
   const NormalTransitionTimelineAdapter();
 
   static const String crossDissolveDefinitionId = 'cross_dissolve';
+  static const String fadeBlackDefinitionId = 'fade_black';
+  static const String whiteFlashDefinitionId = 'white_flash';
+  static const String zoomInCameraDefinitionId = 'zoom_in_camera';
+  static const String zoomOutCameraDefinitionId = 'zoom_out_camera';
+  static const String blurDissolveDefinitionId = 'blur_dissolve';
+  static const String pushLeftDefinitionId = 'push_left';
+  static const String pushRightDefinitionId = 'push_right';
+  static const String whipPanLeftDefinitionId = 'whip_pan_left';
+  static const String whipPanRightDefinitionId = 'whip_pan_right';
+  static const String slideBlurLeftDefinitionId = 'slide_blur_left';
+  static const String slideBlurRightDefinitionId = 'slide_blur_right';
+  static const String flashZoomDefinitionId = 'flash_zoom';
 
   TimelineTransitionPreset? presetForDefinitionId(String definitionId) {
     return switch (definitionId) {
       crossDissolveDefinitionId => TimelineTransitionPreset.crossDissolve,
+      fadeBlackDefinitionId => TimelineTransitionPreset.fadeBlack,
+      whiteFlashDefinitionId => TimelineTransitionPreset.whiteFlash,
+      zoomInCameraDefinitionId => TimelineTransitionPreset.zoomInCamera,
+      zoomOutCameraDefinitionId => TimelineTransitionPreset.zoomOutCamera,
+      blurDissolveDefinitionId => TimelineTransitionPreset.blurDissolve,
+      pushLeftDefinitionId => TimelineTransitionPreset.pushLeft,
+      pushRightDefinitionId => TimelineTransitionPreset.pushRight,
+      whipPanLeftDefinitionId => TimelineTransitionPreset.whipPanLeft,
+      whipPanRightDefinitionId => TimelineTransitionPreset.whipPanRight,
+      slideBlurLeftDefinitionId => TimelineTransitionPreset.slideBlurLeft,
+      slideBlurRightDefinitionId => TimelineTransitionPreset.slideBlurRight,
+      flashZoomDefinitionId => TimelineTransitionPreset.flashZoom,
       _ => null,
     };
   }
@@ -16,9 +40,19 @@ class NormalTransitionTimelineAdapter {
   String? definitionIdForPreset(TimelineTransitionPreset preset) {
     return switch (preset) {
       TimelineTransitionPreset.crossDissolve => crossDissolveDefinitionId,
+      TimelineTransitionPreset.fadeBlack => fadeBlackDefinitionId,
+      TimelineTransitionPreset.whiteFlash => whiteFlashDefinitionId,
+      TimelineTransitionPreset.zoomInCamera => zoomInCameraDefinitionId,
+      TimelineTransitionPreset.zoomOutCamera => zoomOutCameraDefinitionId,
+      TimelineTransitionPreset.blurDissolve => blurDissolveDefinitionId,
+      TimelineTransitionPreset.pushLeft => pushLeftDefinitionId,
+      TimelineTransitionPreset.pushRight => pushRightDefinitionId,
+      TimelineTransitionPreset.whipPanLeft => whipPanLeftDefinitionId,
+      TimelineTransitionPreset.whipPanRight => whipPanRightDefinitionId,
+      TimelineTransitionPreset.slideBlurLeft => slideBlurLeftDefinitionId,
+      TimelineTransitionPreset.slideBlurRight => slideBlurRightDefinitionId,
+      TimelineTransitionPreset.flashZoom => flashZoomDefinitionId,
       TimelineTransitionPreset.manual ||
-      TimelineTransitionPreset.fadeBlack ||
-      TimelineTransitionPreset.zoomInCamera ||
       TimelineTransitionPreset.aiGenerated =>
         null,
     };

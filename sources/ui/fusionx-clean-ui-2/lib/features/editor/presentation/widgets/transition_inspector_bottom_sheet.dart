@@ -187,6 +187,26 @@ class _TransitionInspectorBottomSheetState
                           ),
                         ),
                       ),
+                    if (_draft.preset == TimelineTransitionPreset.whiteFlash ||
+                        _draft.preset == TimelineTransitionPreset.flashZoom ||
+                        _draft.preset == TimelineTransitionPreset.whipPanLeft ||
+                        _draft.preset == TimelineTransitionPreset.whipPanRight)
+                      _InspectorSection(
+                        label: 'Flash Peak',
+                        child: _InspectorSliderRow(
+                          valueLabel: _formatPercent(
+                            _parameter('flashPeak', fallback: 0.88),
+                          ),
+                          slider: Slider(
+                            min: 0.0,
+                            max: 1.0,
+                            value: _parameter('flashPeak', fallback: 0.88)
+                                .clamp(0.0, 1.0),
+                            onChanged: (value) =>
+                                _updateParameter('flashPeak', value),
+                          ),
+                        ),
+                      ),
                     if (_draft.preset ==
                         TimelineTransitionPreset.zoomInCamera) ...[
                       _InspectorSection(
@@ -261,6 +281,133 @@ class _TransitionInspectorBottomSheetState
                         ),
                       ),
                     ],
+                    if (_draft.preset ==
+                        TimelineTransitionPreset.zoomOutCamera) ...[
+                      _InspectorSection(
+                        label: 'Outgoing Start',
+                        child: _InspectorSliderRow(
+                          valueLabel: _formatScale(
+                            _parameter('outgoingStartScale', fallback: 1.14),
+                          ),
+                          slider: Slider(
+                            min: 1.0,
+                            max: 1.45,
+                            value: _parameter(
+                              'outgoingStartScale',
+                              fallback: 1.14,
+                            ).clamp(1.0, 1.45),
+                            onChanged: (value) => _updateParameter(
+                              'outgoingStartScale',
+                              value,
+                            ),
+                          ),
+                        ),
+                      ),
+                      _InspectorSection(
+                        label: 'Incoming Start',
+                        child: _InspectorSliderRow(
+                          valueLabel: _formatScale(
+                            _parameter('incomingStartScale', fallback: 1.04),
+                          ),
+                          slider: Slider(
+                            min: 1.0,
+                            max: 1.25,
+                            value: _parameter(
+                              'incomingStartScale',
+                              fallback: 1.04,
+                            ).clamp(1.0, 1.25),
+                            onChanged: (value) => _updateParameter(
+                              'incomingStartScale',
+                              value,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                    if (_draft.preset == TimelineTransitionPreset.flashZoom)
+                      _InspectorSection(
+                        label: 'Zoom Punch',
+                        child: _InspectorSliderRow(
+                          valueLabel: _formatScale(
+                            _parameter('incomingStartScale', fallback: 1.24),
+                          ),
+                          slider: Slider(
+                            min: 1.0,
+                            max: 1.55,
+                            value: _parameter(
+                              'incomingStartScale',
+                              fallback: 1.24,
+                            ).clamp(1.0, 1.55),
+                            onChanged: (value) => _updateParameter(
+                              'incomingStartScale',
+                              value,
+                            ),
+                          ),
+                        ),
+                      ),
+                    if (_draft.preset == TimelineTransitionPreset.blurDissolve)
+                      _InspectorSection(
+                        label: 'Max Blur',
+                        child: _InspectorSliderRow(
+                          valueLabel:
+                              '${_parameter('maxBlur', fallback: 10).toStringAsFixed(1)}px',
+                          slider: Slider(
+                            min: 0.0,
+                            max: 24.0,
+                            value: _parameter('maxBlur', fallback: 10)
+                                .clamp(0.0, 24.0),
+                            onChanged: (value) =>
+                                _updateParameter('maxBlur', value),
+                          ),
+                        ),
+                      ),
+                    if (_draft.preset == TimelineTransitionPreset.pushLeft ||
+                        _draft.preset == TimelineTransitionPreset.pushRight ||
+                        _draft.preset == TimelineTransitionPreset.whipPanLeft ||
+                        _draft.preset ==
+                            TimelineTransitionPreset.whipPanRight ||
+                        _draft.preset ==
+                            TimelineTransitionPreset.slideBlurLeft ||
+                        _draft.preset ==
+                            TimelineTransitionPreset.slideBlurRight)
+                      _InspectorSection(
+                        label: 'Distance',
+                        child: _InspectorSliderRow(
+                          valueLabel: _formatPercent(
+                            _parameter('distance', fallback: 1.0),
+                          ),
+                          slider: Slider(
+                            min: 0.25,
+                            max: 1.25,
+                            value: _parameter('distance', fallback: 1.0)
+                                .clamp(0.25, 1.25),
+                            onChanged: (value) =>
+                                _updateParameter('distance', value),
+                          ),
+                        ),
+                      ),
+                    if (_draft.preset == TimelineTransitionPreset.whipPanLeft ||
+                        _draft.preset ==
+                            TimelineTransitionPreset.whipPanRight ||
+                        _draft.preset ==
+                            TimelineTransitionPreset.slideBlurLeft ||
+                        _draft.preset ==
+                            TimelineTransitionPreset.slideBlurRight)
+                      _InspectorSection(
+                        label: 'Motion Blur',
+                        child: _InspectorSliderRow(
+                          valueLabel:
+                              '${_parameter('maxBlur', fallback: 8).toStringAsFixed(1)}px',
+                          slider: Slider(
+                            min: 0.0,
+                            max: 32.0,
+                            value: _parameter('maxBlur', fallback: 8)
+                                .clamp(0.0, 32.0),
+                            onChanged: (value) =>
+                                _updateParameter('maxBlur', value),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),

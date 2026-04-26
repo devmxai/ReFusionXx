@@ -3,14 +3,32 @@ import 'package:refusion_app/features/editor/domain/models/professional_normal_t
 import 'package:refusion_app/features/editor/domain/services/normal_transition_catalog.dart';
 
 void main() {
-  test('built-in catalog loads cross dissolve through JSON DSL path', () {
+  test('built-in catalog loads phase-one presets through JSON DSL path', () {
     const catalog = NormalTransitionCatalog();
 
     final result = catalog.loadBuiltIns();
 
     expect(result.isValid, isTrue);
     expect(result.issues, isEmpty);
-    expect(result.definitions, hasLength(1));
+    expect(result.definitions, hasLength(13));
+    expect(
+      result.definitions.map((definition) => definition.definitionId),
+      containsAll(<String>[
+        'cross_dissolve',
+        'fade_black',
+        'white_flash',
+        'zoom_in_camera',
+        'blur_dissolve',
+        'push_left',
+        'push_right',
+        'zoom_out_camera',
+        'whip_pan_left',
+        'whip_pan_right',
+        'slide_blur_left',
+        'slide_blur_right',
+        'flash_zoom',
+      ]),
+    );
 
     final definition = result.definitionById('cross_dissolve');
     expect(definition, isNotNull);
@@ -25,6 +43,16 @@ void main() {
       'from',
       'to',
     ]);
+
+    final zoom = result.definitionById('zoom_in_camera');
+    expect(zoom, isNotNull);
+    expect(zoom!.category, NormalTransitionCategory.motion);
+    expect(zoom.capabilities, contains('scale'));
+
+    final blur = result.definitionById('blur_dissolve');
+    expect(blur, isNotNull);
+    expect(blur!.category, NormalTransitionCategory.blur);
+    expect(blur.capabilities, contains('blur'));
   });
 
   test('catalog rejects definitions whose internal id differs from key', () {

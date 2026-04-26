@@ -9,6 +9,7 @@ class TransitionFocusToolsBar extends StatelessWidget {
     required this.isPlaying,
     required this.onBack,
     required this.onFrameToolsTap,
+    required this.onScriptImport,
     required this.onMoveToKeyframe,
     required this.onPlayToggle,
   });
@@ -16,6 +17,7 @@ class TransitionFocusToolsBar extends StatelessWidget {
   final bool isPlaying;
   final VoidCallback onBack;
   final VoidCallback? onFrameToolsTap;
+  final VoidCallback? onScriptImport;
   final VoidCallback? onMoveToKeyframe;
   final VoidCallback? onPlayToggle;
 
@@ -40,6 +42,16 @@ class TransitionFocusToolsBar extends StatelessWidget {
             iconScale: 0.45,
             foregroundColor: FxPalette.textPrimary,
             onPressed: onFrameToolsTap,
+          ),
+          const SizedBox(width: 5),
+          FxIconButton(
+            icon: Icons.code_rounded,
+            size: 30,
+            iconScale: 0.42,
+            foregroundColor: onScriptImport == null
+                ? FxPalette.textMuted.withOpacity(0.42)
+                : FxPalette.textPrimary,
+            onPressed: onScriptImport,
           ),
           const SizedBox(width: 5),
           FxIconButton(

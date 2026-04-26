@@ -25,7 +25,17 @@ class TransitionBrowserBottomSheet extends StatefulWidget {
     this.presets = const <TimelineTransitionPreset>[
       TimelineTransitionPreset.crossDissolve,
       TimelineTransitionPreset.fadeBlack,
+      TimelineTransitionPreset.whiteFlash,
       TimelineTransitionPreset.zoomInCamera,
+      TimelineTransitionPreset.zoomOutCamera,
+      TimelineTransitionPreset.blurDissolve,
+      TimelineTransitionPreset.pushLeft,
+      TimelineTransitionPreset.pushRight,
+      TimelineTransitionPreset.whipPanLeft,
+      TimelineTransitionPreset.whipPanRight,
+      TimelineTransitionPreset.slideBlurLeft,
+      TimelineTransitionPreset.slideBlurRight,
+      TimelineTransitionPreset.flashZoom,
     ],
   });
 
@@ -347,8 +357,25 @@ class _TransitionPresetCard extends StatelessWidget {
                       Icons.blur_linear_rounded,
                     TimelineTransitionPreset.fadeBlack =>
                       Icons.gradient_rounded,
+                    TimelineTransitionPreset.whiteFlash =>
+                      Icons.flash_on_rounded,
                     TimelineTransitionPreset.zoomInCamera =>
                       Icons.center_focus_strong_rounded,
+                    TimelineTransitionPreset.zoomOutCamera =>
+                      Icons.center_focus_weak_rounded,
+                    TimelineTransitionPreset.blurDissolve =>
+                      Icons.blur_on_rounded,
+                    TimelineTransitionPreset.pushLeft ||
+                    TimelineTransitionPreset.pushRight =>
+                      Icons.keyboard_double_arrow_left_rounded,
+                    TimelineTransitionPreset.whipPanLeft ||
+                    TimelineTransitionPreset.whipPanRight =>
+                      Icons.compare_arrows_rounded,
+                    TimelineTransitionPreset.slideBlurLeft ||
+                    TimelineTransitionPreset.slideBlurRight =>
+                      Icons.blur_on_rounded,
+                    TimelineTransitionPreset.flashZoom =>
+                      Icons.flash_on_rounded,
                     TimelineTransitionPreset.aiGenerated =>
                       Icons.auto_awesome_rounded,
                   },

@@ -14,8 +14,10 @@ void main() {
 
   Widget buildHarness({
     required TimelineTrackTransitionData transition,
+    Uint8List? outgoingBytes,
     Uint8List? incomingBytes,
     double progress = 0.35,
+    double? manualLaneProgress,
   }) {
     return MaterialApp(
       home: Scaffold(
@@ -23,6 +25,8 @@ void main() {
           child: TimelineTransitionPreviewOverlay(
             transition: transition,
             progress: progress,
+            manualLaneProgress: manualLaneProgress,
+            outgoingThumbnailBytes: outgoingBytes,
             incomingThumbnailBytes: incomingBytes,
           ),
         ),
@@ -102,6 +106,37 @@ void main() {
     expect(blackBoxOpacity(tester), closeTo(1.0, 0.01));
   });
 
+  testWidgets('manual black mix interpolates between authored keyframes',
+      (tester) async {
+    final transition = TimelineTrackTransitionData(
+      id: 'transition-1',
+      leftClipId: 'clip-a',
+      rightClipId: 'clip-b',
+      preset: TimelineTransitionPreset.manual,
+      durationTime: TimelineTime.fromMilliseconds(2000),
+      manualEffectIds: const <String>['blackPeak'],
+      manualAnimationLanes: const <TimelineAnimationLaneData>[
+        TimelineAnimationLaneData(
+          id: 'blackPeak',
+          label: 'Black Mix',
+          targetClipId: 'clip-a',
+          normalizedKeyframeStops: <double>[0.2, 0.8],
+          keyframeValues: <double>[0.0, 100.0],
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      buildHarness(
+        transition: transition,
+        progress: 0.5,
+        manualLaneProgress: 0.5,
+      ),
+    );
+
+    expect(blackBoxOpacity(tester), closeTo(0.5, 0.01));
+  });
+
   testWidgets(
       'manual black mix stays inactive until real keyframes are authored',
       (tester) async {
@@ -132,6 +167,37 @@ void main() {
     );
 
     expect(blackBoxOpacity(tester), isNull);
+  });
+
+  testWidgets('manual blur amount does not render a static thumbnail layer',
+      (tester) async {
+    final transition = TimelineTrackTransitionData(
+      id: 'transition-1',
+      leftClipId: 'clip-a',
+      rightClipId: 'clip-b',
+      preset: TimelineTransitionPreset.manual,
+      durationTime: TimelineTime.fromMilliseconds(2000),
+      manualEffectIds: const <String>['blurAmount'],
+      manualAnimationLanes: const <TimelineAnimationLaneData>[
+        TimelineAnimationLaneData(
+          id: 'blurAmount',
+          label: 'Blur Amount',
+          targetClipId: 'clip-a',
+          normalizedKeyframeStops: <double>[0.0, 1.0],
+          keyframeValues: <double>[12.0, 12.0],
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      buildHarness(
+        transition: transition,
+        outgoingBytes: samplePngBytes,
+        progress: 0.5,
+      ),
+    );
+
+    expect(find.byType(Image), findsNothing);
   });
 
   testWidgets('manual black mix accepts normalized and percent fallbacks',
@@ -167,5 +233,36 @@ void main() {
     );
 
     expect(blackBoxOpacity(tester), closeTo(0.5, 0.01));
+  });
+
+  testWidgets('manual incoming opacity lane renders incoming media',
+      (tester) async {
+    final transition = TimelineTrackTransitionData(
+      id: 'transition-1',
+      leftClipId: 'clip-a',
+      rightClipId: 'clip-b',
+      preset: TimelineTransitionPreset.manual,
+      durationTime: TimelineTime.fromMilliseconds(2000),
+      manualEffectIds: const <String>['incomingOpacity'],
+      manualAnimationLanes: const <TimelineAnimationLaneData>[
+        TimelineAnimationLaneData(
+          id: 'incomingOpacity',
+          label: 'Incoming Opacity',
+          targetClipId: 'clip-a',
+          normalizedKeyframeStops: <double>[0.0, 1.0],
+          keyframeValues: <double>[100.0, 100.0],
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      buildHarness(
+        transition: transition,
+        incomingBytes: samplePngBytes,
+        progress: 0.25,
+      ),
+    );
+
+    expect(find.byType(ClipRRect), findsOneWidget);
   });
 }

@@ -28,6 +28,11 @@ These rules are mandatory before any implementation begins.
    or arbitrary shader source in user scripts.
 7. Do not claim professional transition support from the current Flutter
    overlay/thumbnail preview. That is a temporary UI aid only.
+   Video-modifying FX such as blur, scale, zoom, push, and motion blur must not
+   render from timeline thumbnails. They must consume live preview frames through
+   a video FX/compositor path. Flutter overlays are acceptable only for pure
+   color/opacity cover effects such as black mix, white flash, and bridge
+   darkness.
 8. Do not claim export parity while transition export remains blocked in the
    export composition layer.
 9. Every transition edit must be undoable and redoable through the same command
@@ -425,6 +430,16 @@ Preview path:
 - eased progress
 - shared parameter evaluation
 - real video frames, not thumbnail-only transition output
+
+Current implementation checkpoint:
+
+- Manual `Blur Amount` no longer paints `outgoingThumbnailBytes` as a fake
+  blurred video frame.
+- The preview stage now derives a `TransitionVideoFxCommand` from the active
+  transition keyframes and applies the blur command to the live preview child.
+- This is the first safe bridge away from thumbnail FX. Full BMFLite/OpenGL
+  ownership remains the target for guaranteed Android platform-view parity and
+  export parity.
 
 Export path:
 

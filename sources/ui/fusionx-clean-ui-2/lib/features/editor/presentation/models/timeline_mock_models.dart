@@ -13,7 +13,17 @@ enum TimelineTransitionPreset {
   manual,
   crossDissolve,
   fadeBlack,
+  whiteFlash,
   zoomInCamera,
+  zoomOutCamera,
+  blurDissolve,
+  pushLeft,
+  pushRight,
+  whipPanLeft,
+  whipPanRight,
+  slideBlurLeft,
+  slideBlurRight,
+  flashZoom,
   aiGenerated,
 }
 
@@ -30,7 +40,17 @@ extension TimelineTransitionPresetPresentation on TimelineTransitionPreset {
       TimelineTransitionPreset.manual => 'Manual',
       TimelineTransitionPreset.crossDissolve => 'Cross Dissolve',
       TimelineTransitionPreset.fadeBlack => 'Fade Black',
+      TimelineTransitionPreset.whiteFlash => 'White Flash',
       TimelineTransitionPreset.zoomInCamera => 'Zoom In Camera',
+      TimelineTransitionPreset.zoomOutCamera => 'Zoom Out Camera',
+      TimelineTransitionPreset.blurDissolve => 'Blur Dissolve',
+      TimelineTransitionPreset.pushLeft => 'Push Left',
+      TimelineTransitionPreset.pushRight => 'Push Right',
+      TimelineTransitionPreset.whipPanLeft => 'Whip Pan Left',
+      TimelineTransitionPreset.whipPanRight => 'Whip Pan Right',
+      TimelineTransitionPreset.slideBlurLeft => 'Slide Blur Left',
+      TimelineTransitionPreset.slideBlurRight => 'Slide Blur Right',
+      TimelineTransitionPreset.flashZoom => 'Flash Zoom',
       TimelineTransitionPreset.aiGenerated => 'AI Transition',
     };
   }
@@ -43,8 +63,28 @@ extension TimelineTransitionPresetPresentation on TimelineTransitionPreset {
         'Blend outgoing and incoming clips with a clean opacity handoff.',
       TimelineTransitionPreset.fadeBlack =>
         'Dip through black between two clips.',
+      TimelineTransitionPreset.whiteFlash =>
+        'Use a fast bright flash to hide the seam between clips.',
       TimelineTransitionPreset.zoomInCamera =>
         'Push into the next clip with a camera-style zoom.',
+      TimelineTransitionPreset.zoomOutCamera =>
+        'Pull back from the outgoing clip while the incoming clip settles in.',
+      TimelineTransitionPreset.blurDissolve =>
+        'Blend clips while blur rises through the handoff and relaxes out.',
+      TimelineTransitionPreset.pushLeft =>
+        'Push the outgoing clip left while the incoming clip enters from the right.',
+      TimelineTransitionPreset.pushRight =>
+        'Push the outgoing clip right while the incoming clip enters from the left.',
+      TimelineTransitionPreset.whipPanLeft =>
+        'Fast left camera whip with blur and a bright seam flash.',
+      TimelineTransitionPreset.whipPanRight =>
+        'Fast right camera whip with blur and a bright seam flash.',
+      TimelineTransitionPreset.slideBlurLeft =>
+        'Slide left with a softer blur trail for smoother motion.',
+      TimelineTransitionPreset.slideBlurRight =>
+        'Slide right with a softer blur trail for smoother motion.',
+      TimelineTransitionPreset.flashZoom =>
+        'Punch through a bright zoom flash into the next clip.',
       TimelineTransitionPreset.aiGenerated =>
         'Generate a seam bridge from the last frame of A to the first frame of B.',
     };
@@ -56,8 +96,23 @@ extension TimelineTransitionPresetPresentation on TimelineTransitionPreset {
       TimelineTransitionPreset.crossDissolve =>
         TimelineTime.fromMilliseconds(720),
       TimelineTransitionPreset.fadeBlack => TimelineTime.fromMilliseconds(540),
+      TimelineTransitionPreset.whiteFlash => TimelineTime.fromMilliseconds(420),
       TimelineTransitionPreset.zoomInCamera =>
         TimelineTime.fromMilliseconds(620),
+      TimelineTransitionPreset.zoomOutCamera =>
+        TimelineTime.fromMilliseconds(680),
+      TimelineTransitionPreset.blurDissolve =>
+        TimelineTime.fromMilliseconds(760),
+      TimelineTransitionPreset.pushLeft ||
+      TimelineTransitionPreset.pushRight =>
+        TimelineTime.fromMilliseconds(640),
+      TimelineTransitionPreset.whipPanLeft ||
+      TimelineTransitionPreset.whipPanRight =>
+        TimelineTime.fromMilliseconds(460),
+      TimelineTransitionPreset.slideBlurLeft ||
+      TimelineTransitionPreset.slideBlurRight =>
+        TimelineTime.fromMilliseconds(680),
+      TimelineTransitionPreset.flashZoom => TimelineTime.fromMilliseconds(520),
       TimelineTransitionPreset.aiGenerated =>
         TimelineTime.fromMilliseconds(3000),
     };
@@ -72,11 +127,48 @@ extension TimelineTransitionPresetPresentation on TimelineTransitionPreset {
       TimelineTransitionPreset.fadeBlack => <String, double>{
           'blackPeak': 0.94,
         },
+      TimelineTransitionPreset.whiteFlash => <String, double>{
+          'flashPeak': 0.88,
+        },
       TimelineTransitionPreset.zoomInCamera => <String, double>{
           'incomingStartScale': 1.18,
           'outgoingBoostScale': 1.05,
           'entryDelay': 0.18,
           'bridgeDarkness': 0.22,
+        },
+      TimelineTransitionPreset.zoomOutCamera => <String, double>{
+          'outgoingStartScale': 1.14,
+          'incomingStartScale': 1.04,
+          'bridgeDarkness': 0.18,
+        },
+      TimelineTransitionPreset.blurDissolve => <String, double>{
+          'maxBlur': 10.0,
+          'softness': 0.55,
+        },
+      TimelineTransitionPreset.pushLeft => <String, double>{
+          'distance': 1.0,
+        },
+      TimelineTransitionPreset.pushRight => <String, double>{
+          'distance': 1.0,
+        },
+      TimelineTransitionPreset.whipPanLeft ||
+      TimelineTransitionPreset.whipPanRight =>
+        <String, double>{
+          'distance': 1.15,
+          'maxBlur': 16.0,
+          'flashPeak': 0.22,
+        },
+      TimelineTransitionPreset.slideBlurLeft ||
+      TimelineTransitionPreset.slideBlurRight =>
+        <String, double>{
+          'distance': 1.0,
+          'maxBlur': 8.0,
+        },
+      TimelineTransitionPreset.flashZoom => <String, double>{
+          'incomingStartScale': 1.24,
+          'outgoingBoostScale': 1.12,
+          'flashPeak': 0.72,
+          'bridgeDarkness': 0.16,
         },
       TimelineTransitionPreset.aiGenerated => const <String, double>{},
     };
