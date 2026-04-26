@@ -640,6 +640,29 @@ Required tests before accepting relevant phases:
 - Transition preset then scrub/play.
 - Preview/export parity probe for every accepted effect family.
 
+## 13.1 Current Integration Gate
+
+The new motion/keyframe/script services are intentionally not connected to UI
+yet. The next implementation must connect only one surface first: Layer Scope.
+
+Required order:
+
+1. Add a Layer Scope adapter that reads an existing element's graph channels and
+   projects them through `UnifiedKeyframeTimelineProjectionService`.
+2. Keep the existing Layer Scope UI behavior available as a fallback until real
+   device testing confirms parity.
+3. Route one property family first, preferably opacity or scale.
+4. Verify add/move/value/delete keyframes through `UnifiedKeyframeOperationService`.
+5. Verify scrub/play/pause with the existing Timeline Clock tests.
+6. Only after Layer Scope is stable, repeat the same projection pattern for
+   Transition Scope.
+
+Do not connect Transition Scope first. Its current lanes are known to have more
+manual-transition-specific behavior and can obscure whether the core keyframe
+engine is correct.
+
+Do not modify Stage5 Live Scrub files for this gate.
+
 ## 14. Rejection Criteria
 
 Reject any implementation if:
