@@ -342,6 +342,13 @@ Current foundation:
 - It turns `NormalTransitionGraphAuthoringBundle` channels into transition-aware timeline lanes with role labels such as `Outgoing Opacity` and `Incoming Opacity`.
 - It preserves lane-to-channel metadata so the UI can map selection, value editing, and future move-to-playhead operations back to the graph channel.
 - It refuses non-transition scopes or mismatched transition windows instead of silently showing incorrect lanes.
+- `TransitionScopeGraphAuthoringAdapter` exists in `lib/features/editor/presentation/services/transition_scope_graph_authoring_adapter.dart`.
+- It is the UI-facing facade for the next wiring slice:
+  - apply transition preset,
+  - create graph channels,
+  - resolve transition scope,
+  - project role-aware unified scope lanes.
+- It blocks scope opening when graph apply fails or when the transition context cannot resolve to real outgoing/incoming layers.
 - This is domain infrastructure only. It is not wired to the legacy Transition Scope UI yet and does not touch Stage5 or Live Scrub.
 
 ### Phase C5: Transition Mode In Unified Layer Scope Timeline
