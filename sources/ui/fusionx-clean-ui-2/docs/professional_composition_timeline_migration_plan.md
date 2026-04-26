@@ -349,6 +349,13 @@ Current foundation:
   - resolve transition scope,
   - project role-aware unified scope lanes.
 - It blocks scope opening when graph apply fails or when the transition context cannot resolve to real outgoing/incoming layers.
+- `TransitionUnifiedScopeEntryGate` exists in `lib/features/editor/presentation/services/transition_unified_scope_entry_gate.dart`.
+- It is the guarded entry decision layer for future UI wiring:
+  - disabled by default,
+  - returns legacy Transition Scope while disabled,
+  - opens graph-backed Unified Scope only when graph apply, transition projection, and lane projection all succeed,
+  - returns explicit fallback reasons for graph, projection, or lane failures.
+- This keeps the next UI step small and reversible instead of directly replacing the legacy Transition Scope path.
 - This is domain infrastructure only. It is not wired to the legacy Transition Scope UI yet and does not touch Stage5 or Live Scrub.
 
 ### Phase C5: Transition Mode In Unified Layer Scope Timeline
