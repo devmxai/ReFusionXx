@@ -26,6 +26,11 @@ implement scoped change
 
 Do not wait for a large feature to finish before pushing.
 
+This policy is also mirrored in the local Codex skill
+`refusion-development-guardrails`. If the skill is available, it must be used
+for ReFusion implementation work. If the skill is unavailable, this document is
+still authoritative.
+
 ## What Counts As A Build Step
 
 A build step is any meaningful change that alters behavior, architecture, UI, timeline state, media playback, export, script import, keyframes, effects, or documentation that controls future implementation.
@@ -147,3 +152,8 @@ Before implementation:
 7. checkpoint and push.
 
 If the user explicitly asks not to push, document the local checkpoint state and wait.
+
+For tasks near timeline, keyframes, transitions, preview, playback, export, or
+script import, the agent must also state whether the change touches protected
+Live Scrub files. If it does, the task must stop unless the user explicitly
+approved that exact Live Scrub change.

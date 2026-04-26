@@ -27,11 +27,13 @@ This rule exists so timeline, Live Scrub, keyframe, transition, and motion-engin
 
 ## Execution Status
 
+- Current stable rollback baseline: `acea124` (`checkpoint: lock timeline clock handoff contracts`). This is the verified point where Live Scrub returned to normal after rollback testing.
 - Phase 0: completed. Expanded baseline audit for timeline time writers, geometry writers, keyframe data paths, effect data paths, transition data paths, script import outputs, preview inputs, and export inputs is documented in `docs/professional_timeline_clock_audit.md`.
 - Phase 1: completed as isolated infrastructure. `TimelineClockCoordinator` exists in `lib/features/editor/domain/services/timeline_clock_coordinator.dart` with tests in `test/timeline_clock_coordinator_test.dart`.
 - Phase 2: device-validated candidate. Main timeline playback start, native playback samples, and scrub handoff pass through `TimelineClockCoordinator`. Real-device validation on April 25, 2026 reported high stability for play/pause and Live Scrub on valid media.
 - Phase 3: in progress. `TimelineGeometryMapper` exists in `lib/features/editor/domain/services/timeline_geometry_mapper.dart` with tests in `test/timeline_geometry_mapper_test.dart`; central time/offset mapping, visual follow, clip move, trim drag, and native scrub pointer delta paths are being routed through it. Contract tests now lock scrub/settle/play and zoom/play handoff behavior before deeper motion-engine unification.
-- Phase 4+: open. Scope projection, unified keyframe operations, motion graph import, transition unification, scriptable scene programs, and export parity must be built on top of the clock foundation.
+- Phase 5A: completed as isolated infrastructure. `UnifiedKeyframeOperations` exists in `lib/features/editor/domain/services/unified_keyframe_operations.dart` with tests in `test/unified_keyframe_operations_test.dart`. It is not wired to UI yet and does not touch Stage5 or Live Scrub.
+- Phase 4/5B+: open. Scope projection wiring, UI adapters, motion graph import, transition unification, scriptable scene programs, and export parity must be built on top of the clock/keyframe foundations.
 - Live Scrub status: protected. Stage5 Live Scrub is not part of a rewrite. It is a production path that must remain fast, precise, and native-optimized.
 
 ## 0. Non-Negotiable Live Scrub Protection
@@ -552,6 +554,12 @@ Exit criteria:
 - Move-to-playhead is available where keyframes exist.
 - Time collisions are explicit, not silent.
 - Position-like compound channels can move as one visible keyframe group.
+
+Current foundation:
+
+- `UnifiedKeyframeOperations` provides add, move, grouped move-to-time, value edit, interpolation edit, delete, and selection helpers over `MotionPropertyChannelModel`.
+- The first slice is domain-only and must not be connected to Layer Scope or Transition Scope until adapter tests exist.
+- This slice intentionally avoids `Stage5TimelineScrubPlatformView`, `Stage5NativeScrubEngine`, `Stage5SurfaceScrubDecoder`, and `Stage5PreviewPlatformView`.
 
 ### Phase 6: Motion Property Graph Lowering
 
