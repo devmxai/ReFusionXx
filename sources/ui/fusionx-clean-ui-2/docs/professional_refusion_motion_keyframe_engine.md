@@ -34,6 +34,7 @@ This rule exists so timeline, Live Scrub, keyframe, transition, and motion-engin
 - Phase 4+: open. Scope projection, motion graph import, transition unification, scriptable scene programs, and export parity must be built on top of the clock foundation.
 - Phase 5: started as isolated domain/presentation infrastructure. `UnifiedKeyframeOperationService` exists in `lib/features/editor/domain/services/unified_keyframe_operations.dart`; it wraps existing graph-backed canvas keyframe operations and adds an atomic group-move entry point for compound properties such as Position. `UnifiedKeyframeTimelineProjectionService` exists in `lib/features/editor/presentation/services/unified_keyframe_timeline_projection.dart`; it projects scalar graph channels into single or batched timeline lanes without making UI lanes the source of truth. Neither service is connected to UI yet.
 - Phase 6: started as isolated compatibility infrastructure. `TimelineLaneMotionLoweringService` exists in `lib/features/editor/presentation/services/timeline_lane_motion_lowering.dart`; it lowers single or batched legacy scalar timeline lanes into graph-backed motion channels while rejecting duplicate keyframe times and unsupported value kinds. Round-trip tests now cover lane -> graph channel -> lane identity/timing stability. It is not connected to UI yet.
+- Phase 7: started as isolated script infrastructure. `ReFusionSceneProgramImportService` exists in `lib/features/editor/domain/services/refusion_scene_program_import_service.dart`; it validates strict declarative JSON scene programs with required schema version, no executable fields, and editable scalar/integer channels. It is not connected to UI yet.
 - Live Scrub status: protected. Stage5 Live Scrub is not part of a rewrite. It is a production path that must remain fast, precise, and native-optimized.
 
 ## 0. Non-Negotiable Live Scrub Protection
@@ -577,6 +578,7 @@ Exit criteria:
 
 - JSON schema exists.
 - Schema version is required.
+- Executable fields are rejected; scripts are declarative editable data only.
 - Importer produces a `MotionAuthoringBundle`.
 - Imported scene can create layers, elements, effects, channels, and keyframes.
 - Imported scene remains editable in the UI.
