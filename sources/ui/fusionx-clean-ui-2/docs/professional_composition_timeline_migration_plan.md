@@ -356,6 +356,13 @@ Current foundation:
   - opens graph-backed Unified Scope only when graph apply, transition projection, and lane projection all succeed,
   - returns explicit fallback reasons for graph, projection, or lane failures.
 - This keeps the next UI step small and reversible instead of directly replacing the legacy Transition Scope path.
+- `TransitionUnifiedScopeRequestFactory` exists in `lib/features/editor/presentation/services/transition_unified_scope_request_factory.dart`.
+- It converts an adjacent video clip boundary into:
+  - a temporary transition-scope `MotionProjectModel`,
+  - outgoing/incoming video layers,
+  - outgoing/incoming element targets,
+  - a `TransitionScopeGraphAuthoringRequest` for the gate.
+- Tests prove this request can pass through the gate into graph-backed role-aware unified transition lanes.
 - This is domain infrastructure only. It is not wired to the legacy Transition Scope UI yet and does not touch Stage5 or Live Scrub.
 
 ### Phase C5: Transition Mode In Unified Layer Scope Timeline
