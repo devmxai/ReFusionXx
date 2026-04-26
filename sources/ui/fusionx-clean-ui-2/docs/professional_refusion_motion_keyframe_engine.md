@@ -658,6 +658,9 @@ Required order:
    device testing confirms parity.
 3. Route one property family first, preferably opacity or scale.
 4. Verify add/move/value/delete keyframes through `UnifiedKeyframeOperationService`.
+   - Current status: `test/layer_scope_keyframe_operation_integration_test.dart`
+     verifies the opacity-first Layer Scope projection stays backed by real
+     add, move, value edit, and delete operations.
 5. Verify scrub/play/pause with the existing Timeline Clock tests.
 6. Only after Layer Scope is stable, repeat the same projection pattern for
    Transition Scope.
