@@ -662,6 +662,11 @@ Required order:
      verifies the opacity-first Layer Scope projection stays backed by real
      add, move, value edit, and delete operations.
 5. Verify scrub/play/pause with the existing Timeline Clock tests.
+   - Current status: `test/timeline_clock_coordinator_test.dart`,
+     `test/timeline_geometry_mapper_test.dart`,
+     `test/timeline_panel_native_scrub_regions_test.dart`, and
+     `test/native_timeline_scrub_surface_test.dart` pass after the opacity-first
+     Layer Scope projection gate.
 6. Only after Layer Scope is stable, repeat the same projection pattern for
    Transition Scope.
 
