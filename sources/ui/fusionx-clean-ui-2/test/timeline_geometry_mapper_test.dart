@@ -60,6 +60,34 @@ void main() {
       expect(close.timeForOffset(close.offsetForTime(lockedTime)), lockedTime);
     });
 
+    test('recomputes zoom offsets from the locked playhead frame', () {
+      final lockedTime = TimelineTime.fromSecondsDouble(10);
+      const timelineOriginX = 24.0;
+      const playheadLeft = 180.0;
+
+      final zoomedOut = TimelineGeometryMapper(
+        timelineDuration: TimelineTime.fromSecondsDouble(30),
+        secondsWidth: 24,
+        timelineOriginX: timelineOriginX,
+        playheadLeft: playheadLeft,
+        maxScrollOffset: 4000,
+      );
+      final zoomedIn = TimelineGeometryMapper(
+        timelineDuration: TimelineTime.fromSecondsDouble(30),
+        secondsWidth: 240,
+        timelineOriginX: timelineOriginX,
+        playheadLeft: playheadLeft,
+        maxScrollOffset: 4000,
+      );
+
+      final zoomedOutOffset = zoomedOut.offsetForTime(lockedTime);
+      final zoomedInOffset = zoomedIn.offsetForTime(lockedTime);
+
+      expect(zoomedOut.timeForOffset(zoomedOutOffset), lockedTime);
+      expect(zoomedIn.timeForOffset(zoomedInOffset), lockedTime);
+      expect(zoomedInOffset, greaterThan(zoomedOutOffset));
+    });
+
     test('computes playback visual follow offset from a stable anchor', () {
       final geometry = TimelineGeometryMapper(
         timelineDuration: TimelineTime.fromSecondsDouble(30),

@@ -73,6 +73,68 @@ void main() {
       expect(clock.snapshot.requestedPlaybackStartTime, isNull);
     });
 
+    test('native samples cannot steal time during scrub or scrub settling', () {
+      final clock = newClock();
+
+      clock.playFrom(TimelineTime.fromMilliseconds(1000));
+      expect(
+        clock.applyNativeSample(TimelineTime.fromMilliseconds(1200)),
+        TimelineClockSampleDecision.accepted,
+      );
+      expect(clock.phase, TimelineClockPhase.playing);
+
+      clock.scrubStart(TimelineTime.fromMilliseconds(3000));
+      expect(clock.phase, TimelineClockPhase.scrubbing);
+      expect(clock.time.inMilliseconds, 3000);
+
+      expect(
+        clock.applyNativeSample(TimelineTime.fromMilliseconds(7200)),
+        TimelineClockSampleDecision.ignoredForPhase,
+      );
+      expect(clock.time.inMilliseconds, 3000);
+      expect(clock.evaluationTime.inMilliseconds, 3000);
+
+      expect(clock.scrubUpdate(TimelineTime.fromMilliseconds(3400)), isTrue);
+      expect(clock.scrubEnd(TimelineTime.fromMilliseconds(3600)), isTrue);
+      expect(clock.phase, TimelineClockPhase.scrubSettling);
+
+      expect(
+        clock.applyNativeSample(TimelineTime.fromMilliseconds(8200)),
+        TimelineClockSampleDecision.ignoredForPhase,
+      );
+      expect(clock.time.inMilliseconds, 3600);
+      expect(clock.evaluationTime.inMilliseconds, 3600);
+    });
+
+    test('scrub settle followed by play requests the exact settled frame', () {
+      final clock = newClock();
+
+      clock.scrubStart(TimelineTime.fromMilliseconds(9000));
+      clock.scrubUpdate(TimelineTime.fromMilliseconds(4200));
+      clock.scrubEnd(TimelineTime.fromMilliseconds(4100));
+      expect(
+        clock.confirmScrubSettled(TimelineTime.fromMilliseconds(4100)),
+        isTrue,
+      );
+
+      clock.playFrom(clock.time);
+      expect(clock.phase, TimelineClockPhase.playStarting);
+      expect(clock.snapshot.requestedPlaybackStartTime!.inMilliseconds, 4100);
+
+      expect(
+        clock.applyNativeSample(TimelineTime.fromMilliseconds(0)),
+        TimelineClockSampleDecision.rejectedStale,
+      );
+      expect(clock.time.inMilliseconds, 4100);
+
+      expect(
+        clock.applyNativeSample(TimelineTime.fromMilliseconds(4100)),
+        TimelineClockSampleDecision.accepted,
+      );
+      expect(clock.phase, TimelineClockPhase.playing);
+      expect(clock.time.inMilliseconds, 4100);
+    });
+
     test('playStarting accepts delayed samples after requested start', () {
       final clock = newClock();
 
@@ -149,6 +211,27 @@ void main() {
       expect(clock.zoomEnd(TimelineTime.fromMilliseconds(4500)), isTrue);
       expect(clock.phase, TimelineClockPhase.paused);
       expect(clock.time.inMilliseconds, 3000);
+    });
+
+    test('zoom end preserves the locked frame before playback starts', () {
+      final clock = newClock(initialMs: 8000);
+
+      clock.zoomStart(TimelineTime.fromMilliseconds(8000));
+      clock.zoomUpdate(TimelineTime.fromMilliseconds(2000));
+      clock.zoomEnd(TimelineTime.fromMilliseconds(2000));
+
+      expect(clock.phase, TimelineClockPhase.paused);
+      expect(clock.time.inMilliseconds, 8000);
+      expect(clock.evaluationTime.inMilliseconds, 8000);
+
+      clock.playFrom(clock.evaluationTime);
+      expect(clock.snapshot.requestedPlaybackStartTime!.inMilliseconds, 8000);
+
+      expect(
+        clock.applyNativeSample(TimelineTime.fromMilliseconds(7900)),
+        TimelineClockSampleDecision.rejectedStale,
+      );
+      expect(clock.time.inMilliseconds, 8000);
     });
 
     test('projects global time to scoped local time without a second clock',
