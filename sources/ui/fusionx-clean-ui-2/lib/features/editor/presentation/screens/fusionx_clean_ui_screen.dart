@@ -683,6 +683,21 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return false;
   }
 
+  bool get _hasFlutterTimelinePlaybackContent {
+    final previewAsset = _previewAsset;
+    final hasNonVideoPreviewAsset =
+        previewAsset != null && previewAsset.tab != EditorMediaTab.video;
+    return hasNonVideoPreviewAsset ||
+        _hasMotionTextContent ||
+        _motionTextAnimationBindings.isNotEmpty ||
+        _manualMotionPropertyChannels.isNotEmpty;
+  }
+
+  bool get _canUseFlutterTimelinePlayback =>
+      !_useNativePreview &&
+      _hasFlutterTimelinePlaybackContent &&
+      _timelineDurationTime > TimelineTime.zero;
+
   MotionNormalizedComposition? _motionCompositionForCurrentState() {
     if (!_hasMotionTextContent &&
         _motionTextAnimationBindings.isEmpty &&
@@ -2627,6 +2642,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         !state.isScrubSettling;
   }
 
+  bool get _shouldUseFlutterTimelineFrameClock =>
+      _canUseFlutterTimelinePlayback &&
+      _isPlaying &&
+      !_isTimelineScrubbing &&
+      !_isTimelineScrubHandoffInFlight &&
+      !_isApplyingStructuralEdit &&
+      _timelineZoomLockedDisplayTime == null &&
+      _timelineTrimPreviewSession == null;
+
   void _syncMotionPreviewFrameClock(TimelineTime transportTime) {
     final elapsed = _motionPreviewClockLatestElapsed;
     if (!_motionPreviewFrameTicker.isActive) {
@@ -2698,6 +2722,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   void _handleMotionPreviewFrameTick(Duration elapsed) {
     _motionPreviewClockLatestElapsed = elapsed;
     if (!mounted) {
+      return;
+    }
+    if (_shouldUseFlutterTimelineFrameClock) {
+      _tickFlutterTimelinePlayback(elapsed);
       return;
     }
     final transportState = _transportController.state;
@@ -11403,6 +11431,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       unawaited(_toggleTransitionFocusPlayback(transitionFocusContext));
       return;
     }
+    if (_canUseFlutterTimelinePlayback) {
+      _toggleFlutterTimelinePlayback();
+      return;
+    }
     if (_canFastTogglePlayback) {
       unawaited(_toggleTimelinePlaybackFromVisibleTime());
       return;
@@ -11415,6 +11447,75 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       !_isApplyingStructuralEdit &&
       _timelineTrimPreviewSession == null &&
       _transportController.state.sourceKind == 'timeline';
+
+  void _toggleFlutterTimelinePlayback() {
+    if (_isApplyingStructuralEdit || _timelineTrimPreviewSession != null) {
+      return;
+    }
+    final duration = _timelineDurationTime;
+    if (duration <= TimelineTime.zero) {
+      return;
+    }
+    if (_isPlaying) {
+      final stopTime = _visibleTimelinePlaybackTime().clamp(
+        TimelineTime.zero,
+        duration,
+      );
+      _timelineClockCoordinator.pauseAt(stopTime);
+      _stopMotionPreviewFrameClock(resetTo: stopTime);
+      setState(() {
+        _isPlaying = false;
+      });
+      _setCurrentTime(stopTime);
+      return;
+    }
+
+    final visibleTime = _visibleTimelinePlaybackTime().clamp(
+      TimelineTime.zero,
+      duration,
+    );
+    final playbackStart =
+        visibleTime >= duration ? TimelineTime.zero : visibleTime;
+    _clearPlaybackStopTimeLock();
+    _requestTimelineClockPlaybackStart(playbackStart);
+    _motionPreviewClockAnchorTime = playbackStart;
+    _motionPreviewClockAnchorElapsed = _motionPreviewClockLatestElapsed;
+    setState(() {
+      _isPlaying = true;
+    });
+    if (!_motionPreviewFrameTicker.isActive) {
+      _motionPreviewFrameTicker.start();
+    }
+  }
+
+  void _tickFlutterTimelinePlayback(Duration elapsed) {
+    final duration = _timelineDurationTime;
+    if (duration <= TimelineTime.zero) {
+      _stopFlutterTimelinePlaybackAt(TimelineTime.zero);
+      return;
+    }
+    final nextTime = _motionPreviewClockTimeForElapsed(elapsed).clamp(
+      TimelineTime.zero,
+      duration,
+    );
+    if (nextTime >= duration) {
+      _stopFlutterTimelinePlaybackAt(duration);
+      return;
+    }
+    _setCurrentTime(nextTime);
+  }
+
+  void _stopFlutterTimelinePlaybackAt(TimelineTime time) {
+    final clampedTime = time.clamp(TimelineTime.zero, _timelineDurationTime);
+    _timelineClockCoordinator.pauseAt(clampedTime);
+    _stopMotionPreviewFrameClock(resetTo: clampedTime);
+    if (_isPlaying && mounted) {
+      setState(() {
+        _isPlaying = false;
+      });
+    }
+    _setCurrentTime(clampedTime);
+  }
 
   TimelineTime _visibleTimelinePlaybackTime({
     TimelineTime? minTime,
@@ -14606,7 +14707,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                 ),
         )
         .toList(growable: false);
-    final effectiveIsPlaying = _useNativePreview && _isPlaying;
+    final canToggleTimelinePlayback =
+        _useNativePreview || _canUseFlutterTimelinePlayback;
+    final effectiveIsPlaying = canToggleTimelinePlayback && _isPlaying;
     final hasSelectedImportedClip = _hasSelectedImportedClip;
     final hasSelectedMotionTextClip =
         _selectedClipId != null && _isMotionTextElementId(_selectedClipId!);
@@ -14826,9 +14929,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                 canMoveLayerScopeSelectedKeyframe
                                                     ? _handleLayerScopeMoveSelectedKeyframeToPlayhead
                                                     : null,
-                                            onPlayToggle: _useNativePreview
-                                                ? _handlePlayToggle
-                                                : null,
+                                            onPlayToggle:
+                                                canToggleTimelinePlayback
+                                                    ? _handlePlayToggle
+                                                    : null,
                                           )
                                         : EditorToolsBar(
                                             embedded: true,
@@ -14850,9 +14954,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                     hasSelectedMotionTextClip
                                                 ? _handleDeleteSelectedClip
                                                 : null,
-                                            onPlayToggle: _useNativePreview
-                                                ? _handlePlayToggle
-                                                : null,
+                                            onPlayToggle:
+                                                canToggleTimelinePlayback
+                                                    ? _handlePlayToggle
+                                                    : null,
                                           ),
                           ),
                           Divider(
