@@ -401,6 +401,13 @@ Current foundation:
   - lane and keyframe selection are visible,
   - add/value/graph remain read-only placeholders until the next keyframe-operation checkpoint.
 - The production flag remains disabled; this is still infrastructure only.
+- `TransitionUnifiedScopeKeyframeAdapter` now provides the graph mutation foundation for that hidden transition-mode scope:
+  - add keyframe,
+  - move keyframe,
+  - set keyframe value,
+  - delete keyframe.
+- The adapter resolves a visible transition lane back to its graph channel binding, calls `UnifiedKeyframeOperations`, rebuilds the `TransitionUnifiedScopeBridgeSession`, and regenerates the Layer Scope style view model from the updated graph.
+- This proves transition keyframe mutations can use the same identity-based operation layer as Layer Scope, while still staying behind the disabled production flag.
 
 ### Phase C5: Transition Mode In Unified Layer Scope Timeline
 
