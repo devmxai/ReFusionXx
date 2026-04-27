@@ -11,6 +11,7 @@ This plan is governed by:
 - `docs/professional_checkpoint_policy.md`
 - `docs/professional_refusion_motion_keyframe_engine.md`
 - `docs/professional_composition_timeline_migration_plan.md`
+- `docs/professional_scene_container_and_mention_motion_plan.md`
 
 Every completed build step must be a focused checkpoint:
 
@@ -54,12 +55,19 @@ Prompt
 -> Agent writes ReFusion Scene Program JSON
 -> App validates JSON
 -> App lowers JSON into MotionProject graph
--> User sees layers, elements, channels, and keyframes
+-> App places one Scene Clip on the root timeline
+-> User opens the Scene Clip to see layers, elements, channels, and keyframes
 -> User edits the generated scene manually
 -> Preview and export evaluate the same graph
 ```
 
 The generated scene must never become an opaque baked video when the user expects editable motion graphics.
+
+When the user wants to animate existing assets rather than generate a full scene,
+the agent must use the mention-driven Motion Patch workflow defined in
+`docs/professional_scene_container_and_mention_motion_plan.md`. In that mode,
+`@mentions` resolve to stable graph IDs and the returned JSON patches existing
+channels/keyframes instead of inventing new unrelated elements.
 
 ## 3. Architectural Inspiration
 

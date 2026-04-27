@@ -5,6 +5,9 @@ Package: `com.refusion.app`
 Date: 2026-04-26  
 Depends on: `docs/professional_refusion_motion_keyframe_engine.md`, `docs/professional_checkpoint_policy.md`
 
+Scene container clips, nested Scene Scope, and mention-driven motion patches are
+specified in `docs/professional_scene_container_and_mention_motion_plan.md`.
+
 ## 1. Final Decision
 
 ReFusion will migrate toward a canonical internal Composition Timeline.
@@ -80,7 +83,8 @@ Future goal:
 User prompt
 -> Agent/API creates a ReFusion Scene Program
 -> App validates it
--> App creates background assets, text, shapes, effects, channels, keyframes
+-> App creates a nested Scene Source plus one root Scene Clip
+-> App creates background assets, text, shapes, effects, channels, keyframes inside the Scene Source
 -> User opens the same Scope Timeline and edits everything manually
 -> Preview and export match the same graph
 ```
