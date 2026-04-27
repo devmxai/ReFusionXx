@@ -10,6 +10,14 @@ Depends on:
 - `docs/professional_composition_timeline_migration_plan.md`
 - `docs/professional_agent_scene_program_engine.md`
 
+## Execution Status
+
+- Phase S1 foundation: `CompositionSceneClipModel` defines the root-timeline
+  Scene Clip container contract, source-scene binding, stable clip IDs,
+  root/source/local time mapping, source reuse, and validation. This is
+  domain-only infrastructure; it is not wired to UI, preview, export, or Live
+  Scrub.
+
 ## 1. Final Product Goal
 
 ReFusion must support two professional agent-assisted motion workflows without
