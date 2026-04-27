@@ -2481,6 +2481,9 @@ class _TimelinePanelState extends State<TimelinePanel>
     _releaseInteractionOwner(_TimelineInteractionOwner.pan);
     _releaseLockedVerticalOffsetIfPossible();
     _setScrubInteractionActive(false);
+    if (widget.scrubSurfaceBuilder == null) {
+      return;
+    }
     _startManualTimelineFling(details?.velocity.pixelsPerSecond.dx ?? 0);
   }
 
@@ -4482,6 +4485,9 @@ class _TimelinePanelState extends State<TimelinePanel>
                                                                         null
                                                                     ? null
                                                                     : _handleOwnedBackgroundTap,
+                                                            enableBackgroundManualPan:
+                                                                widget.scrubSurfaceBuilder ==
+                                                                    null,
                                                             onManualPanDragStart:
                                                                 _handleManualPanDragStart,
                                                             onManualPanDragUpdate:
@@ -4637,6 +4643,7 @@ class _TimelineTrackRow extends StatelessWidget {
     required this.onAnimationKeyframeDrag,
     required this.onTransitionTap,
     required this.onBackgroundTap,
+    required this.enableBackgroundManualPan,
     required this.onManualPanDragStart,
     required this.onManualPanDragUpdate,
     required this.onManualPanDragEnd,
@@ -4681,6 +4688,7 @@ class _TimelineTrackRow extends StatelessWidget {
   final TimelineAnimationKeyframeDragCallback? onAnimationKeyframeDrag;
   final TimelineBoundaryTransitionTapCallback? onTransitionTap;
   final VoidCallback? onBackgroundTap;
+  final bool enableBackgroundManualPan;
   final GestureDragStartCallback onManualPanDragStart;
   final GestureDragUpdateCallback onManualPanDragUpdate;
   final GestureDragEndCallback onManualPanDragEnd;
@@ -5166,6 +5174,20 @@ class _TimelineTrackRow extends StatelessWidget {
                 isActive: _isActiveRow,
                 showRail: baseClipOpacity >= 0.999,
               ),
+            ),
+          ),
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onBackgroundTap,
+              onHorizontalDragStart:
+                  enableBackgroundManualPan ? onManualPanDragStart : null,
+              onHorizontalDragUpdate:
+                  enableBackgroundManualPan ? onManualPanDragUpdate : null,
+              onHorizontalDragEnd:
+                  enableBackgroundManualPan ? onManualPanDragEnd : null,
+              onHorizontalDragCancel:
+                  enableBackgroundManualPan ? onManualPanDragCancel : null,
             ),
           ),
           Positioned(
