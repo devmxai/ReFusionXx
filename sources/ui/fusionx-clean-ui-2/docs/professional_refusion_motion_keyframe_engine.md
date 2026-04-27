@@ -15,6 +15,10 @@ The Composition Timeline migration must also follow:
 
 `docs/professional_composition_timeline_migration_plan.md`
 
+Agent-authored editable scene generation must also follow:
+
+`docs/professional_agent_scene_program_engine.md`
+
 This is a strict project rule. Every completed build step must be committed as a focused checkpoint and pushed to GitHub before starting the next build step, unless the user explicitly says not to push.
 
 The required order is:
@@ -60,6 +64,7 @@ This rule exists so timeline, Live Scrub, keyframe, transition, and motion-engin
 - Composition Phase C5 hidden UI operation wiring: when the disabled-by-default unified transition flag is enabled, the staged transition `TimelinePanel` now routes keyframe drag, Key add, Value editing, and move-selected-to-playhead through `TransitionUnifiedScopeKeyframeAdapter`. The production flag remains off, so legacy transition behavior is unchanged.
 - Composition Phase C5 hidden Graph/Easy Ease wiring: when the disabled-by-default unified transition flag is enabled, the staged transition Graph button can open the existing Layer Scope graph sheet and route Easy Ease interpolation changes through `TransitionUnifiedScopeKeyframeAdapter` and `UnifiedKeyframeOperations`. The production flag remains off, so legacy transition behavior and Live Scrub are unchanged.
 - Composition Phase C6 schema foundation: `ReFusionSceneProgramImportService` exists in `lib/features/editor/domain/services/refusion_scene_program_import_service.dart` with tests in `test/refusion_scene_program_import_service_test.dart`. It validates declarative JSON scene programs, rejects executable/import/shader-source keys, and preserves layers/elements/channels/keyframes for the future graph lowerer. It is not wired to UI and does not touch Live Scrub.
+- Agent Scene Program Engine plan: documented in `docs/professional_agent_scene_program_engine.md`. The approved direction is Remotion-inspired frame-based composition, After Effects-style editable layer/property/keyframe semantics, declarative JSON-only scene programs, and a `ReFusionSceneProgramLowerer` as the next safe implementation slice. The plan explicitly forbids Live Scrub changes for this engine path.
 - Phase 4/5B+: open. Scope projection wiring, UI adapters, motion graph import, transition unification, scriptable scene programs, and export parity must be built on top of the clock/keyframe foundations.
 - Live Scrub status: protected. Stage5 Live Scrub is not part of a rewrite. It is a production path that must remain fast, precise, and native-optimized.
 
