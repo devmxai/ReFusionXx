@@ -57,6 +57,7 @@ import '../widgets/motion_text_transform_overlay.dart';
 import '../widgets/native_timeline_scrub_surface.dart';
 import '../widgets/native_preview_surface.dart';
 import '../widgets/preview_stage.dart';
+import '../widgets/scene_program_import_bottom_sheet.dart';
 import '../widgets/scoped_text_motion_script_bottom_sheet.dart';
 import '../widgets/text_clip_edit_bottom_sheet.dart';
 import '../widgets/timeline_panel.dart';
@@ -3561,8 +3562,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   void _applyUnifiedTransitionScopeKeyframeResult(
-    TransitionUnifiedScopeKeyframeOperationResult result,
-  {
+    TransitionUnifiedScopeKeyframeOperationResult result, {
     bool preserveValueEditor = false,
     bool preserveGraphEditor = false,
   }) {
@@ -9680,6 +9680,21 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
   }
 
+  Future<void> _openSceneProgramImportSheet() async {
+    final result = await showModalBottomSheet<SceneProgramImportSheetResult>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const SceneProgramImportBottomSheet(),
+    );
+    if (!mounted || result == null) {
+      return;
+    }
+    _showStageMessage(
+      'Scene program validated: ${result.layerCount} layers, ${result.channelCount} channels. Apply is next.',
+    );
+  }
+
   Future<void> _openTextPresetSheet() async {
     final preset = await showModalBottomSheet<MotionTextPresetDefinition>(
       context: context,
@@ -15317,6 +15332,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                           )
                                         : MediaDock(
                                             activeTab: effectiveDockActiveTab,
+                                            onSceneTap:
+                                                _openSceneProgramImportSheet,
                                             onAddTap: () {
                                               if (effectiveDockActiveTab ==
                                                       EditorMediaTab.video ||
