@@ -94,6 +94,37 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   static const double _defaultInsertedTextFontSize = 56;
   static const bool _timelineClockCoordinatorOwnsPlaybackSamples = true;
   static const double _motionPreviewClockResyncThresholdSeconds = 0.08;
+  static const List<_CompositionTemplate> _compositionTemplates =
+      <_CompositionTemplate>[
+    _CompositionTemplate(
+      id: 'story',
+      label: 'Story',
+      details: '9:16, 14s',
+      aspectRatio: 9 / 16,
+      duration: TimelineTime(value: 14000000),
+    ),
+    _CompositionTemplate(
+      id: 'square',
+      label: 'Square',
+      details: '1:1, 14s',
+      aspectRatio: 1,
+      duration: TimelineTime(value: 14000000),
+    ),
+    _CompositionTemplate(
+      id: 'youtube',
+      label: 'YouTube',
+      details: '16:9, 14s',
+      aspectRatio: 16 / 9,
+      duration: TimelineTime(value: 14000000),
+    ),
+    _CompositionTemplate(
+      id: 'cinematic',
+      label: 'Cinematic',
+      details: '21:9, 14s',
+      aspectRatio: 21 / 9,
+      duration: TimelineTime(value: 14000000),
+    ),
+  ];
   static const MotionInterpolationSpec _afterEffectsEasyEaseInterpolation =
       MotionInterpolationSpec.cubicBezier(
     bezier: MotionBezierControlPoints(
@@ -590,9 +621,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         ? TimelineTime.fromSecondsDouble(nativeDuration)
         : TimelineTime.zero;
     final tracksDuration = _timelineDurationForTracksTime(_timelineTruthTracks);
+    final motionDurationTime =
+        _motionProject?.durationTime ?? TimelineTime.zero;
     if (_isApplyingStructuralEdit) {
       if (tracksDuration > TimelineTime.zero) {
         return tracksDuration;
+      }
+      if (motionDurationTime > TimelineTime.zero) {
+        return motionDurationTime;
       }
       return nativeDurationTime > TimelineTime.zero
           ? nativeDurationTime
@@ -602,12 +638,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return nativeDurationTime;
     }
     if (tracksDuration <= TimelineTime.zero) {
+      if (motionDurationTime > TimelineTime.zero) {
+        return motionDurationTime;
+      }
       return nativeDurationTime > TimelineTime.zero
           ? nativeDurationTime
           : TimelineTime.fromSecondsDouble(14);
     }
-    return tracksDuration >= nativeDurationTime
+    final contentDuration = tracksDuration >= motionDurationTime
         ? tracksDuration
+        : motionDurationTime;
+    return contentDuration >= nativeDurationTime
+        ? contentDuration
         : nativeDurationTime;
   }
 
@@ -688,6 +730,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final hasNonVideoPreviewAsset =
         previewAsset != null && previewAsset.tab != EditorMediaTab.video;
     return hasNonVideoPreviewAsset ||
+        _motionProject != null ||
         _hasMotionTextContent ||
         _motionTextAnimationBindings.isNotEmpty ||
         _manualMotionPropertyChannels.isNotEmpty;
@@ -9708,6 +9751,68 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
   }
 
+  Future<void> _openCreateCompositionSheet() async {
+    final template = await showModalBottomSheet<_CompositionTemplate>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const _CreateCompositionSheet(
+        templates: _compositionTemplates,
+      ),
+    );
+    if (template == null || !mounted) {
+      return;
+    }
+    _createBlankComposition(template);
+  }
+
+  Future<void> _handleStartFromVideo() async {
+    await _openMediaSheet(EditorMediaTab.video);
+  }
+
+  void _createBlankComposition(_CompositionTemplate template) {
+    const canvasWidth = 1080.0;
+    final canvasHeight =
+        (canvasWidth / template.aspectRatio).clamp(1.0, 10000.0);
+    final format = MotionProjectFormat(
+      canvasSize: MotionSize2D(
+        width: canvasWidth,
+        height: canvasHeight,
+      ),
+    );
+    final project = MotionProjectModel(
+      id: _motionProjectId,
+      format: format,
+      frameRate: const MotionFrameRate(numerator: 30, denominator: 1),
+      scenes: <MotionSceneModel>[
+        MotionSceneModel(
+          id: _motionSceneId,
+          projectRange: TimelineTimeRange(
+            start: TimelineTime.zero,
+            endExclusive: template.duration,
+          ),
+          layers: const <MotionLayerModel>[],
+          name: template.label,
+        ),
+      ],
+      name: '${template.label} Composition',
+    );
+    setState(() {
+      _lockedWorkspaceAspectRatio = template.aspectRatio;
+      _motionProject = project;
+      _motionTextAnimationBindings = const <MotionTextAnimationBindingModel>[];
+      _manualMotionPropertyChannels = const <MotionPropertyChannelModel>[];
+      _tracks = const <TimelineTrackData>[];
+      _selectedClipId = null;
+      _selectedTransitionId = null;
+      _previewAssetId = null;
+      _activeTab = EditorMediaTab.text;
+      _setCurrentTime(TimelineTime.zero);
+    });
+    _syncTimelineClockDuration();
+    _markMotionAuthoringChanged();
+  }
+
   Future<void> _openSceneProgramImportSheet() async {
     final result = await showModalBottomSheet<SceneProgramImportSheetResult>(
       context: context,
@@ -11780,6 +11885,31 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
   void _handleScrubStateChanged(bool isScrubbing) {
     if (!_useNativePreview) {
+      if (_isApplyingStructuralEdit) {
+        return;
+      }
+      if (_isTimelineScrubbing == isScrubbing) {
+        return;
+      }
+      _isTimelineScrubbing = isScrubbing;
+      if (isScrubbing) {
+        final scrubAnchorTime =
+            (_timelineScrubFinalTime ?? _timelineDisplayTimeNotifier.value)
+                .clamp(TimelineTime.zero, _timelineDurationTime);
+        _timelineScrubFinalTime = scrubAnchorTime;
+        _syncTimelineClockDuration();
+        _timelineClockCoordinator.scrubStart(scrubAnchorTime);
+        _applyTimelineClockSnapshotToUi();
+        return;
+      }
+      final resolvedFinalTime =
+          (_timelineScrubFinalTime ?? _timelineDisplayTimeNotifier.value)
+              .clamp(TimelineTime.zero, _timelineDurationTime);
+      _timelineScrubFinalTime = null;
+      _syncTimelineClockDuration();
+      _timelineClockCoordinator.scrubEnd(resolvedFinalTime);
+      _timelineClockCoordinator.confirmScrubSettled(resolvedFinalTime);
+      _setCurrentTime(resolvedFinalTime);
       return;
     }
     if (_isApplyingStructuralEdit) {
@@ -11836,6 +11966,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         }
       }),
     );
+  }
+
+  void _handleMainTimelineDisplayTimeChanged(TimelineTime time) {
+    if (_canUseFlutterTimelinePlayback) {
+      _setCurrentTime(time);
+      return;
+    }
+    _setTimelineDisplayTime(time);
   }
 
   void _handleTimelineScrubFinalized(TimelineTime time) {
@@ -14691,11 +14829,78 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
   }
 
+  Widget _buildCompositionStartOverlay() {
+    return Positioned.fill(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.58),
+        ),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Start a composition',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: FxPalette.textPrimary,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Create a blank motion canvas or start from a video.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: FxPalette.textMuted,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      height: 1.25,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _CompositionStartButton(
+                          icon: Icons.aspect_ratio_rounded,
+                          label: 'Create',
+                          onPressed: _openCreateCompositionSheet,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _CompositionStartButton(
+                          icon: Icons.video_library_rounded,
+                          label: 'Video',
+                          onPressed: _handleStartFromVideo,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final previewAsset = _previewAsset;
+    final hasTimelineClips = _tracks.any((track) => track.clips.isNotEmpty);
+    final shouldShowCompositionStartOverlay =
+        previewAsset == null && !hasTimelineClips && _motionProject == null;
     final hasPreviewCanvasContent =
-        previewAsset != null || _hasMotionTextContent;
+        previewAsset != null || _hasMotionTextContent || _motionProject != null;
     _schedulePreviewThumbnailWarmup(previewAsset);
     final displayTracks = _displayTracks;
     final mainTimelineTracks = displayTracks
@@ -14840,7 +15045,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                             previewThumbnailListenable:
                                 _previewThumbnailNotifier,
                           );
-                          return PreviewStage(
+                          final previewStage = PreviewStage(
                             workspaceAspectRatio: _previewAspectRatio,
                             hasVisibleContent: hasPreviewCanvasContent,
                             viewportState: _previewViewportState,
@@ -14859,6 +15064,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                     fallback: previewFallback,
                                   )
                                 : previewFallback,
+                          );
+                          return Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              previewStage,
+                              if (shouldShowCompositionStartOverlay)
+                                _buildCompositionStartOverlay(),
+                            ],
                           );
                         },
                       ),
@@ -15360,7 +15573,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                               displayTimeListenable:
                                                   _timelineDisplayTimeNotifier,
                                               onDisplayTimeChanged:
-                                                  _setTimelineDisplayTime,
+                                                  _handleMainTimelineDisplayTimeChanged,
                                               onZoomStateChanged:
                                                   _handleTimelineZoomStateChanged,
                                               playbackSampleTimeListenable:
@@ -16240,6 +16453,206 @@ class _CleanPreviewCanvas extends StatelessWidget {
               filterQuality: FilterQuality.medium,
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _CompositionTemplate {
+  const _CompositionTemplate({
+    required this.id,
+    required this.label,
+    required this.details,
+    required this.aspectRatio,
+    required this.duration,
+  });
+
+  final String id;
+  final String label;
+  final String details;
+  final double aspectRatio;
+  final TimelineTime duration;
+}
+
+class _CompositionStartButton extends StatelessWidget {
+  const _CompositionStartButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: FxPalette.surfaceRaised.withOpacity(0.96),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onPressed,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: FxPalette.textPrimary, size: 22),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: FxPalette.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CreateCompositionSheet extends StatelessWidget {
+  const _CreateCompositionSheet({
+    required this.templates,
+  });
+
+  final List<_CompositionTemplate> templates;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: FxPalette.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      padding: EdgeInsets.fromLTRB(
+        20,
+        14,
+        20,
+        20 + MediaQuery.of(context).padding.bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: Container(
+              width: 52,
+              height: 5,
+              decoration: BoxDecoration(
+                color: FxPalette.divider,
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'Create Composition',
+            style: TextStyle(
+              color: FxPalette.textPrimary,
+              fontSize: 24,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Choose the canvas that the scene, shapes, text, and motion graph will use.',
+            style: TextStyle(
+              color: FxPalette.textMuted,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              height: 1.25,
+            ),
+          ),
+          const SizedBox(height: 18),
+          for (final template in templates) ...[
+            _CompositionTemplateTile(
+              template: template,
+              onTap: () => Navigator.of(context).pop(template),
+            ),
+            const SizedBox(height: 10),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _CompositionTemplateTile extends StatelessWidget {
+  const _CompositionTemplateTile({
+    required this.template,
+    required this.onTap,
+  });
+
+  final _CompositionTemplate template;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: FxPalette.surfaceRaised,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: FxPalette.accent.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.crop_free_rounded,
+                  color: FxPalette.accent,
+                  size: 19,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      template.label,
+                      style: const TextStyle(
+                        color: FxPalette.textPrimary,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      template.details,
+                      style: const TextStyle(
+                        color: FxPalette.textMuted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: FxPalette.textMuted,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

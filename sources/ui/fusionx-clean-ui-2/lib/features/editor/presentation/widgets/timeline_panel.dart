@@ -789,6 +789,13 @@ class _TimelinePanelState extends State<TimelinePanel>
         (position.maxScrollExtent - position.minScrollExtent).abs() > 0.5;
   }
 
+  bool get _canUseVirtualTimelinePan =>
+      widget.scrubSurfaceBuilder == null &&
+      widget.timelineDurationTime > TimelineTime.zero;
+
+  bool get _canUseManualTimelinePan =>
+      _hasHorizontalPanExtent || _canUseVirtualTimelinePan;
+
   bool get _blocksVerticalTrackNavigation =>
       _isInteractionPending(_TimelineInteractionOwner.pan) ||
       _isInteractionActive(_TimelineInteractionOwner.pan) ||
@@ -2372,7 +2379,7 @@ class _TimelinePanelState extends State<TimelinePanel>
         _isScaleVisualLockActive ||
         _suppressSinglePointerTimelineGesture ||
         _isAnyTimelineScrubbing ||
-        !_hasHorizontalPanExtent) {
+        !_canUseManualTimelinePan) {
       return;
     }
     if (!_acquireInteractionOwner(_TimelineInteractionOwner.pan)) {
@@ -2391,7 +2398,7 @@ class _TimelinePanelState extends State<TimelinePanel>
     if (!isPending && !isActive) {
       return;
     }
-    if (!_hasHorizontalPanExtent) {
+    if (!_canUseManualTimelinePan) {
       _cancelManualTimelinePan();
       return;
     }
@@ -2414,6 +2421,22 @@ class _TimelinePanelState extends State<TimelinePanel>
       }
     } else {
       _activateInteractionOwner(_TimelineInteractionOwner.pan);
+    }
+    if (!_hasHorizontalPanExtent) {
+      final deltaTime =
+          _timelineGeometryForScale(_secondsWidth).durationForPixels(
+        -appliedDeltaDx,
+      );
+      final nextTime = (_displayTimeNotifier.value + deltaTime).clamp(
+        TimelineTime.zero,
+        widget.timelineDurationTime,
+      );
+      _setDisplayTime(
+        nextTime,
+        invokeParentSynchronously: true,
+      );
+      _restoreLockedVerticalOffset();
+      return;
     }
     final position = _horizontalPositionOrNull;
     if (position == null) {
