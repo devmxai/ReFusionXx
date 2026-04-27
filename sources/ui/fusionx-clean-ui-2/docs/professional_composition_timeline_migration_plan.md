@@ -469,6 +469,27 @@ Exit criteria:
 - Scope Timeline can inspect and edit imported motion.
 - No hidden runtime code.
 
+Current foundation:
+
+- `ReFusionSceneProgramImportService` exists in `lib/features/editor/domain/services/refusion_scene_program_import_service.dart`.
+- It validates `refusion.scene-program/v1` JSON documents before any lowerer or UI path can accept them.
+- It preserves declarative scene structure:
+  - layers,
+  - elements,
+  - properties,
+  - channels,
+  - keyframes,
+  - easing tokens.
+- It rejects executable or unsafe keys anywhere in the document:
+  - `code`,
+  - `script`,
+  - `function`,
+  - `eval`,
+  - `imports`,
+  - `remoteImports`,
+  - `shaderSource`.
+- This is schema/validation foundation only. It does not import into the composition graph yet and does not touch Live Scrub.
+
 ### Phase C7: Preview And Export Parity Gate
 
 Purpose: ensure the new graph is not preview-only.
