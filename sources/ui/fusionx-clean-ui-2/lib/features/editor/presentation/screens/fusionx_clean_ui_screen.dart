@@ -52,6 +52,7 @@ import '../widgets/layer_scope_keyframe_dock.dart';
 import '../widgets/layer_scope_value_bottom_sheet.dart';
 import '../widgets/media_bottom_sheet.dart';
 import '../widgets/media_dock.dart';
+import '../widgets/motion_shape_preview_overlay.dart';
 import '../widgets/motion_text_preview_overlay.dart';
 import '../widgets/motion_text_transform_overlay.dart';
 import '../widgets/native_timeline_scrub_surface.dart';
@@ -1312,6 +1313,30 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       time: snapshot.time,
       canvasSize: snapshot.canvasSize,
       nodes: activeNodes,
+    );
+  }
+
+  MotionEvaluationSnapshot? _motionShapeEvaluationSnapshotForTime(
+    TimelineTime time, {
+    MotionEvaluationReason reason = MotionEvaluationReason.previewPlayback,
+  }) {
+    final composition = _motionCompositionForCurrentState();
+    if (composition == null) {
+      return null;
+    }
+    return _motionEvaluator.evaluate(
+      MotionEvaluationRequest(
+        composition: composition,
+        time: time.clamp(
+          TimelineTime.zero,
+          composition.projectRange.endExclusive,
+        ),
+        reason: reason == MotionEvaluationReason.previewPlayback
+            ? (_isTimelineScrubbing
+                ? MotionEvaluationReason.liveScrub
+                : MotionEvaluationReason.previewPlayback)
+            : reason,
+      ),
     );
   }
 
@@ -14863,6 +14888,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         }
         final motionTextRenderSnapshot =
             _motionTextRenderSnapshotForTime(previewTime);
+        final motionShapeEvaluationSnapshot =
+            _motionShapeEvaluationSnapshotForTime(previewTime);
+        final hasMotionShapePreview = motionShapeEvaluationSnapshot != null &&
+            MotionShapePreviewOverlay.hasVisibleShapes(
+              motionShapeEvaluationSnapshot,
+            );
         return AnimatedBuilder(
           animation: _transportController,
           builder: (context, __) {
@@ -14870,6 +14901,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
               previewTime,
             );
             if (motionTextRenderSnapshot == null &&
+                !hasMotionShapePreview &&
                 activeTransition == null &&
                 activeVisualOpacity >= 0.999) {
               return const SizedBox.shrink();
@@ -14907,6 +14939,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                         ),
                       ),
                     ),
+                  ),
+                if (motionShapeEvaluationSnapshot != null &&
+                    hasMotionShapePreview)
+                  MotionShapePreviewOverlay(
+                    snapshot: motionShapeEvaluationSnapshot,
+                    canvasSize: _motionProjectFormat.canvasSize,
                   ),
                 if (motionTextRenderSnapshot != null)
                   MotionTextPreviewOverlay(

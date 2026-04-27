@@ -74,6 +74,152 @@ class _SceneProgramImportBottomSheetState
   ReFusionSceneProgramAuthoringResult? _result;
   bool _isUploading = false;
 
+  static const String _lineRevealSceneProgram = '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "name": "Line Reveal Refusion Demo",
+  "durationMs": 3600,
+  "frameRate": 30,
+  "layers": [
+    {
+      "id": "deep-bg-layer",
+      "kind": "shape",
+      "startMs": 0,
+      "durationMs": 3600,
+      "elements": [
+        {
+          "id": "deep-bg",
+          "kind": "shape",
+          "properties": {
+            "shapeKind": "rectangle",
+            "width": 1080,
+            "height": 1920,
+            "color": "#070A12",
+            "opacity": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "reveal-line-layer",
+      "kind": "shape",
+      "startMs": 0,
+      "durationMs": 3600,
+      "elements": [
+        {
+          "id": "reveal-line",
+          "kind": "shape",
+          "properties": {
+            "shapeKind": "roundedRectangle",
+            "width": 8,
+            "height": 16,
+            "cornerRadius": 999,
+            "color": "#FFFFFF",
+            "opacity": 1
+          },
+          "channels": [
+            {
+              "property": "width",
+              "keyframes": [
+                { "timeMs": 0, "value": 8, "easing": "easeOut" },
+                { "timeMs": 140, "value": 18, "easing": "easeOut" },
+                { "timeMs": 880, "value": 720, "easing": "spring" },
+                { "timeMs": 2100, "value": 720, "easing": "linear" },
+                { "timeMs": 3000, "value": 820, "easing": "easeInOut" },
+                { "timeMs": 3600, "value": 1080, "easing": "easeIn" }
+              ]
+            },
+            {
+              "property": "height",
+              "keyframes": [
+                { "timeMs": 0, "value": 16, "easing": "linear" },
+                { "timeMs": 2820, "value": 16, "easing": "linear" },
+                { "timeMs": 3600, "value": 1920, "easing": "easeIn" }
+              ]
+            },
+            {
+              "property": "position",
+              "keyframes": [
+                { "timeMs": 0, "value": { "x": 0, "y": 0 }, "easing": "easeOut" },
+                { "timeMs": 980, "value": { "x": 0, "y": 0 }, "easing": "linear" },
+                { "timeMs": 1420, "value": { "x": 0, "y": 112 }, "easing": "easeOut" },
+                { "timeMs": 3000, "value": { "x": 0, "y": 112 }, "easing": "linear" },
+                { "timeMs": 3600, "value": { "x": 0, "y": 0 }, "easing": "easeIn" }
+              ]
+            },
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 0, "value": 1.0, "easing": "linear" },
+                { "timeMs": 3600, "value": 1.0, "easing": "linear" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "refusion-title-layer",
+      "kind": "text",
+      "startMs": 0,
+      "durationMs": 3600,
+      "elements": [
+        {
+          "id": "refusion-title",
+          "kind": "text",
+          "text": "Refusion",
+          "properties": {
+            "fontSize": 122,
+            "color": "#FFFFFF",
+            "opacity": 0,
+            "letterSpacing": 18
+          },
+          "channels": [
+            {
+              "property": "position",
+              "keyframes": [
+                { "timeMs": 0, "value": { "x": 0, "y": 18 }, "easing": "linear" },
+                { "timeMs": 1120, "value": { "x": 0, "y": 18 }, "easing": "linear" },
+                { "timeMs": 1650, "value": { "x": 0, "y": -16 }, "easing": "easeOut" },
+                { "timeMs": 2800, "value": { "x": 0, "y": -16 }, "easing": "linear" },
+                { "timeMs": 3400, "value": { "x": 0, "y": -4 }, "easing": "easeIn" }
+              ]
+            },
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 0, "value": 0.0, "easing": "linear" },
+                { "timeMs": 1160, "value": 0.0, "easing": "easeOut" },
+                { "timeMs": 1700, "value": 1.0, "easing": "easeOut" },
+                { "timeMs": 2980, "value": 1.0, "easing": "linear" },
+                { "timeMs": 3520, "value": 0.0, "easing": "easeIn" }
+              ]
+            },
+            {
+              "property": "scale",
+              "keyframes": [
+                { "timeMs": 0, "value": 0.92, "easing": "linear" },
+                { "timeMs": 1700, "value": 1.0, "easing": "spring" },
+                { "timeMs": 3000, "value": 1.0, "easing": "linear" },
+                { "timeMs": 3520, "value": 1.08, "easing": "easeIn" }
+              ]
+            },
+            {
+              "property": "letterSpacing",
+              "keyframes": [
+                { "timeMs": 0, "value": 18, "easing": "linear" },
+                { "timeMs": 1700, "value": 0, "easing": "easeOut" },
+                { "timeMs": 3000, "value": 0, "easing": "linear" }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+''';
+
   static const String _basicSceneProgram = '''
 {
   "schemaVersion": "refusion.scene-program/v1",
@@ -347,8 +493,8 @@ class _SceneProgramImportBottomSheetState
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: _shapeTextWipeSceneProgram);
-    _result = _importCurrentSource(_shapeTextWipeSceneProgram);
+    _controller = TextEditingController(text: _lineRevealSceneProgram);
+    _result = _importCurrentSource(_lineRevealSceneProgram);
   }
 
   @override
@@ -550,6 +696,11 @@ class _SceneProgramImportBottomSheetState
                     spacing: 8,
                     runSpacing: 8,
                     children: [
+                      _SceneProgramActionButton(
+                        icon: Icons.horizontal_rule_rounded,
+                        label: 'Line Reveal',
+                        onTap: () => _loadPreset(_lineRevealSceneProgram),
+                      ),
                       _SceneProgramActionButton(
                         icon: Icons.auto_awesome_motion_rounded,
                         label: 'Shape Text Wipe',
