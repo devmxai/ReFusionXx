@@ -205,8 +205,8 @@ class ReFusionSceneProgramImportService {
     final ids = <String>{};
     for (var index = 0; index < raw.length; index += 1) {
       final path = 'layers[$index]';
-      final entry = raw[index];
-      if (entry is! Map<String, dynamic>) {
+      final rawEntry = raw[index];
+      if (rawEntry is! Map<String, dynamic>) {
         issues.add(
           ReFusionSceneProgramIssue(
             severity: ReFusionSceneProgramIssueSeverity.error,
@@ -216,6 +216,11 @@ class ReFusionSceneProgramImportService {
         );
         continue;
       }
+      final entry = _normalizeLayerEntryForImport(
+        rawEntry,
+        layerPath: path,
+        issues: issues,
+      );
       final id = _readRequiredString(entry, 'id', issues, path: path);
       final kind = _readRequiredString(entry, 'kind', issues, path: path);
       if (id == null || kind == null) {
@@ -299,6 +304,266 @@ class ReFusionSceneProgramImportService {
       );
     }
     return List.unmodifiable(layers);
+  }
+
+  Map<String, dynamic> _normalizeLayerEntryForImport(
+    Map<String, dynamic> entry, {
+    required String layerPath,
+    required List<ReFusionSceneProgramIssue> issues,
+  }) {
+    final rawElements = entry['elements'];
+    if (rawElements is! List || rawElements.length < 4) {
+      return entry;
+    }
+    final textElements = <Map<String, dynamic>>[];
+    final passthroughElements = <Object?>[];
+    for (final rawElement in rawElements) {
+      if (rawElement is! Map<String, dynamic> ||
+          _normalizeToken('${rawElement['kind']}') != 'text') {
+        passthroughElements.add(rawElement);
+        continue;
+      }
+      final text = rawElement['text'];
+      if (text is String && text == '|') {
+        continue;
+      }
+      if (text is String && text.runes.length <= 1) {
+        textElements.add(rawElement);
+        continue;
+      }
+      passthroughElements.add(rawElement);
+    }
+    if (textElements.length < 3) {
+      return entry;
+    }
+    final typedText = _reconstructTypedText(textElements);
+    if (typedText.trim().isEmpty) {
+      return entry;
+    }
+    final sortedTextElements = List<Map<String, dynamic>>.from(textElements)
+      ..sort(
+        (left, right) => _firstVisibleOpacityTimeMs(left)
+            .compareTo(_firstVisibleOpacityTimeMs(right)),
+      );
+    final firstElement = sortedTextElements.first;
+    final firstVisibleMs = _firstVisibleOpacityTimeMs(firstElement);
+    final lastVisibleMs = sortedTextElements
+        .map(_firstVisibleOpacityTimeMs)
+        .reduce((left, right) => left > right ? left : right);
+    final fadeOutStartMs = sortedTextElements
+        .map(_lastSustainedOpacityTimeMs)
+        .whereType<int>()
+        .fold<int?>(null, (current, value) {
+      if (current == null || value < current) {
+        return value;
+      }
+      return current;
+    });
+    final fadeOutEndMs = sortedTextElements
+        .map(_lastOpacityZeroTimeMs)
+        .whereType<int>()
+        .fold<int?>(null, (current, value) {
+      if (current == null || value > current) {
+        return value;
+      }
+      return current;
+    });
+    final mergedProperties = Map<String, Object?>.from(
+      (firstElement['properties'] as Map?)?.cast<String, Object?>() ??
+          const <String, Object?>{},
+    );
+    final mergedPosition = _averageTextElementPosition(sortedTextElements);
+    if (mergedPosition != null) {
+      mergedProperties['position'] = mergedPosition;
+    }
+    mergedProperties['opacity'] = mergedProperties['opacity'] ?? 1.0;
+    mergedProperties['reveal'] = 0.0;
+
+    final revealStartMs = firstVisibleMs <= 40 ? 0 : firstVisibleMs - 40;
+    final mergedChannels = <Map<String, Object?>>[
+      <String, Object?>{
+        'property': 'typewriterProgress',
+        'keyframes': <Map<String, Object?>>[
+          <String, Object?>{
+            'timeMs': revealStartMs,
+            'value': 0.0,
+            'easing': 'linear',
+          },
+          <String, Object?>{
+            'timeMs': lastVisibleMs,
+            'value': 1.0,
+            'easing': 'linear',
+          },
+        ],
+      },
+    ];
+    if (fadeOutStartMs != null &&
+        fadeOutEndMs != null &&
+        fadeOutEndMs > fadeOutStartMs) {
+      mergedChannels.add(
+        <String, Object?>{
+          'property': 'opacity',
+          'keyframes': <Map<String, Object?>>[
+            <String, Object?>{
+              'timeMs': 0,
+              'value': 1.0,
+              'easing': 'linear',
+            },
+            <String, Object?>{
+              'timeMs': fadeOutStartMs,
+              'value': 1.0,
+              'easing': 'linear',
+            },
+            <String, Object?>{
+              'timeMs': fadeOutEndMs,
+              'value': 0.0,
+              'easing': 'easeInOut',
+            },
+          ],
+        },
+      );
+    }
+    final layerId = _readString(entry, const <String>['id']) ?? 'typing-layer';
+    final mergedElement = <String, Object?>{
+      'id': '${layerId}_typewriter_text',
+      'kind': 'text',
+      'text': typedText,
+      'properties': mergedProperties,
+      'channels': mergedChannels,
+    };
+    issues.add(
+      ReFusionSceneProgramIssue(
+        severity: ReFusionSceneProgramIssueSeverity.warning,
+        message:
+            'Character-by-character text elements were compacted into one `typewriterProgress` text element. Use a single text element for keyboard typing.',
+        path: '$layerPath.elements',
+      ),
+    );
+    return <String, dynamic>{
+      ...entry,
+      'elements': <Object?>[
+        ...passthroughElements,
+        mergedElement,
+      ],
+    };
+  }
+
+  String _reconstructTypedText(List<Map<String, dynamic>> textElements) {
+    final sorted = List<Map<String, dynamic>>.from(textElements)
+      ..sort(
+        (left, right) => _firstVisibleOpacityTimeMs(left)
+            .compareTo(_firstVisibleOpacityTimeMs(right)),
+      );
+    return sorted.map((element) => '${element['text'] ?? ''}').join();
+  }
+
+  int _firstVisibleOpacityTimeMs(Map<String, dynamic> element) {
+    final opacityChannel = _channelForProperty(element, 'opacity');
+    final keyframes = opacityChannel?['keyframes'];
+    if (keyframes is List) {
+      for (final rawKeyframe in keyframes) {
+        if (rawKeyframe is! Map<String, dynamic>) {
+          continue;
+        }
+        final value = rawKeyframe['value'];
+        final timeMs = rawKeyframe['timeMs'];
+        if (value is num && value >= 0.5 && timeMs is num && timeMs >= 0) {
+          return timeMs.round();
+        }
+      }
+    }
+    final id = '${element['id'] ?? ''}';
+    final match = RegExp(r'(\d+)').firstMatch(id);
+    return match == null ? 0 : int.tryParse(match.group(1) ?? '') ?? 0;
+  }
+
+  int? _lastSustainedOpacityTimeMs(Map<String, dynamic> element) {
+    final opacityChannel = _channelForProperty(element, 'opacity');
+    final keyframes = opacityChannel?['keyframes'];
+    if (keyframes is! List) {
+      return null;
+    }
+    int? sustainedTimeMs;
+    for (final rawKeyframe in keyframes) {
+      if (rawKeyframe is! Map<String, dynamic>) {
+        continue;
+      }
+      final value = rawKeyframe['value'];
+      final timeMs = rawKeyframe['timeMs'];
+      if (value is num && value >= 0.5 && timeMs is num && timeMs >= 0) {
+        sustainedTimeMs = timeMs.round();
+      }
+    }
+    return sustainedTimeMs;
+  }
+
+  int? _lastOpacityZeroTimeMs(Map<String, dynamic> element) {
+    final opacityChannel = _channelForProperty(element, 'opacity');
+    final keyframes = opacityChannel?['keyframes'];
+    if (keyframes is! List) {
+      return null;
+    }
+    int? zeroTimeMs;
+    for (final rawKeyframe in keyframes) {
+      if (rawKeyframe is! Map<String, dynamic>) {
+        continue;
+      }
+      final value = rawKeyframe['value'];
+      final timeMs = rawKeyframe['timeMs'];
+      if (value is num && value <= 0.05 && timeMs is num && timeMs >= 0) {
+        zeroTimeMs = timeMs.round();
+      }
+    }
+    return zeroTimeMs;
+  }
+
+  Map<String, dynamic>? _channelForProperty(
+    Map<String, dynamic> element,
+    String property,
+  ) {
+    final channels = element['channels'];
+    if (channels is! List) {
+      return null;
+    }
+    final normalizedProperty = _normalizeToken(property);
+    for (final rawChannel in channels) {
+      if (rawChannel is! Map<String, dynamic>) {
+        continue;
+      }
+      if (_normalizeToken('${rawChannel['property'] ?? ''}') ==
+          normalizedProperty) {
+        return rawChannel;
+      }
+    }
+    return null;
+  }
+
+  Map<String, double>? _averageTextElementPosition(
+    List<Map<String, dynamic>> elements,
+  ) {
+    var count = 0;
+    var totalX = 0.0;
+    var totalY = 0.0;
+    for (final element in elements) {
+      final properties = element['properties'];
+      if (properties is! Map) {
+        continue;
+      }
+      final position = properties['position'];
+      if (position is! Map || position['x'] is! num || position['y'] is! num) {
+        continue;
+      }
+      count += 1;
+      totalX += (position['x'] as num).toDouble();
+      totalY += (position['y'] as num).toDouble();
+    }
+    if (count == 0) {
+      return null;
+    }
+    return <String, double>{
+      'x': totalX / count,
+      'y': totalY / count,
+    };
   }
 
   List<ReFusionSceneProgramElement> _readElements(

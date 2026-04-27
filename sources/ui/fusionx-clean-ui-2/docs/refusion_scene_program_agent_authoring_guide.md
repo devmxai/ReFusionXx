@@ -200,6 +200,13 @@ For a keyboard/type-on effect, always animate reveal forward:
 Do not use `1.0 -> 0.0` unless you intentionally want a delete/backspace
 effect where the visible text disappears over time.
 
+Do not create one text element per character such as `char-h`, `char-e`,
+`char-l`. That is not the professional ReFusion typewriter path and it creates
+unnecessary timeline content. Use one text element with the complete string and
+one `typewriterProgress` channel. ReFusion can compact simple
+character-by-character scripts into one typewriter element, but agents should
+author the clean form directly.
+
 ## Supported Channels
 
 Every animated property is declared as a channel:

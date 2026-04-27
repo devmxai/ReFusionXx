@@ -446,4 +446,125 @@ void main() {
       isNotEmpty,
     );
   });
+
+  test('compacts character-by-character text layers into typewriter channel',
+      () {
+    final result = service.validate(
+      source: '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "durationMs": 3000,
+  "layers": [
+    {
+      "id": "letter-typing-layer",
+      "kind": "text",
+      "startMs": 500,
+      "durationMs": 2200,
+      "elements": [
+        {
+          "id": "cursor",
+          "kind": "text",
+          "text": "|",
+          "properties": { "position": { "x": -40, "y": 0 } },
+          "channels": [
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 0, "value": 0 },
+                { "timeMs": 120, "value": 1 }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "char-h",
+          "kind": "text",
+          "text": "H",
+          "properties": {
+            "fontSize": 40,
+            "color": "#FFFFFF",
+            "position": { "x": -30, "y": 0 }
+          },
+          "channels": [
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 100, "value": 0 },
+                { "timeMs": 140, "value": 1 },
+                { "timeMs": 1900, "value": 1 },
+                { "timeMs": 2200, "value": 0 }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "char-i",
+          "kind": "text",
+          "text": "i",
+          "properties": {
+            "fontSize": 40,
+            "color": "#FFFFFF",
+            "position": { "x": 10, "y": 0 }
+          },
+          "channels": [
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 300, "value": 0 },
+                { "timeMs": 340, "value": 1 },
+                { "timeMs": 1900, "value": 1 },
+                { "timeMs": 2200, "value": 0 }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "char-bang",
+          "kind": "text",
+          "text": "!",
+          "properties": {
+            "fontSize": 40,
+            "color": "#FFFFFF",
+            "position": { "x": 44, "y": 0 }
+          },
+          "channels": [
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 500, "value": 0 },
+                { "timeMs": 540, "value": 1 },
+                { "timeMs": 1900, "value": 1 },
+                { "timeMs": 2200, "value": 0 }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+''',
+    );
+
+    expect(result.isValid, isTrue);
+    expect(
+      result.issues.where(
+        (issue) => issue.message.contains('Character-by-character'),
+      ),
+      isNotEmpty,
+    );
+    final elements = result.program!.layers.single.elements;
+    expect(elements, hasLength(1));
+    expect(elements.single.id, 'letter-typing-layer_typewriter_text');
+    expect(elements.single.text, 'Hi!');
+    expect(
+      elements.single.channels.map((channel) => channel.property),
+      contains('typewriterProgress'),
+    );
+    final revealChannel = elements.single.channels.firstWhere(
+      (channel) => channel.property == 'typewriterProgress',
+    );
+    expect(revealChannel.keyframes.first.value, 0.0);
+    expect(revealChannel.keyframes.last.value, 1.0);
+  });
 }
