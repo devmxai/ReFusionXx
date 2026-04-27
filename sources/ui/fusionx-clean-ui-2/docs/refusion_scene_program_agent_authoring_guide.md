@@ -185,6 +185,21 @@ These aliases are lowered to the same editable `reveal` channel. `typewriter`,
 `typing`, and `letterReveal` create a letter-by-letter text binding. `wordReveal`
 creates a word-by-word text binding.
 
+For a keyboard/type-on effect, always animate reveal forward:
+
+```json
+{
+  "property": "typewriterProgress",
+  "keyframes": [
+    { "timeMs": 0, "value": 0.0, "easing": "linear" },
+    { "timeMs": 1400, "value": 1.0, "easing": "linear" }
+  ]
+}
+```
+
+Do not use `1.0 -> 0.0` unless you intentionally want a delete/backspace
+effect where the visible text disappears over time.
+
 ## Supported Channels
 
 Every animated property is declared as a channel:
@@ -205,6 +220,8 @@ By default, channel keyframes use **local layer time**:
 
 - a layer with `startMs: 1800` and `durationMs: 800` accepts local keyframes from `0` to `800`;
 - the app places those keyframes at project time `1800` to `2600`.
+- every keyframe inside that layer or its elements must fit inside the layer's
+  timeline range.
 
 If you prefer writing absolute project/scene times, set:
 
@@ -222,6 +239,19 @@ If you prefer writing absolute project/scene times, set:
 Recommended for agents: use local time for simple scenes, or explicitly set
 `"timeBasis": "project"` when staggering many layers on one global timeline.
 Do not mix local and project times inside the same channel.
+
+Layer `durationMs` must cover the latest keyframe in that layer:
+
+- local-time layer example: if the latest keyframe is `timeMs: 4200`, the layer
+  must have at least `"durationMs": 4200`;
+- project-time layer example: if the layer starts at `startMs: 1000` and its
+  latest project keyframe is `timeMs: 4200`, the layer must have at least
+  `"durationMs": 3200`;
+- keyframes must never be outside the scene `durationMs`.
+
+ReFusion can repair a too-short layer duration when all keyframes are still
+inside the scene, but this creates warnings. Prefer writing the correct
+`durationMs` in the JSON.
 
 Keyframes should be sorted by ascending `timeMs`. ReFusion can normalize
 out-of-order keyframes during import, but sorted keyframes are preferred so the

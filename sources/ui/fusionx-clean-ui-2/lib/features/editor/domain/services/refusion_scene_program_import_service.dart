@@ -247,12 +247,20 @@ class ReFusionSceneProgramImportService {
         issues: issues,
         pathPrefix: path,
       );
-      final durationMs = _readPositiveInt(
+      final declaredDurationMs = _readPositiveInt(
         entry,
         'durationMs',
         fallback: sceneDurationMs,
         issues: issues,
         pathPrefix: path,
+      );
+      final durationMs = _effectiveOwnerDurationMs(
+        entry,
+        ownerStartMs: startMs,
+        declaredDurationMs: declaredDurationMs,
+        sceneDurationMs: sceneDurationMs,
+        ownerPath: path,
+        issues: issues,
       );
       if (startMs + durationMs > sceneDurationMs) {
         issues.add(
@@ -438,6 +446,12 @@ class ReFusionSceneProgramImportService {
         );
         continue;
       }
+      _warnIfTypingRevealRunsBackward(
+        property: property,
+        keyframes: keyframes,
+        channelPath: path,
+        issues: issues,
+      );
       channels.add(
         ReFusionSceneProgramChannel(
           target: _readString(entry, const <String>['target']) ?? 'self',
@@ -447,6 +461,180 @@ class ReFusionSceneProgramImportService {
       );
     }
     return List.unmodifiable(channels);
+  }
+
+  int _effectiveOwnerDurationMs(
+    Map<String, dynamic> ownerJson, {
+    required int ownerStartMs,
+    required int declaredDurationMs,
+    required int sceneDurationMs,
+    required String ownerPath,
+    required List<ReFusionSceneProgramIssue> issues,
+  }) {
+    var requiredDurationMs = declaredDurationMs;
+
+    void scanChannels(Object? rawChannels) {
+      if (rawChannels is! List) {
+        return;
+      }
+      for (var channelIndex = 0;
+          channelIndex < rawChannels.length;
+          channelIndex += 1) {
+        final channel = rawChannels[channelIndex];
+        if (channel is! Map<String, dynamic>) {
+          continue;
+        }
+        final timeBasis = _readString(
+              channel,
+              const <String>['timeBasis', 'timeMode', 'timeReference'],
+            ) ??
+            'local';
+        final keyframes = channel['keyframes'];
+        if (keyframes is! List) {
+          continue;
+        }
+        for (var keyframeIndex = 0;
+            keyframeIndex < keyframes.length;
+            keyframeIndex += 1) {
+          final keyframe = keyframes[keyframeIndex];
+          if (keyframe is! Map<String, dynamic>) {
+            continue;
+          }
+          final rawTime = keyframe['timeMs'];
+          if (rawTime is! num || rawTime < 0) {
+            continue;
+          }
+          final localTimeMs = _localTimeForDurationScan(
+            rawTimeMs: rawTime.round(),
+            timeBasis: timeBasis,
+            ownerStartMs: ownerStartMs,
+            declaredDurationMs: declaredDurationMs,
+            sceneDurationMs: sceneDurationMs,
+          );
+          if (localTimeMs != null && localTimeMs > requiredDurationMs) {
+            requiredDurationMs = localTimeMs;
+          }
+        }
+      }
+    }
+
+    scanChannels(ownerJson['channels']);
+    final elements = ownerJson['elements'];
+    if (elements is List) {
+      for (var elementIndex = 0;
+          elementIndex < elements.length;
+          elementIndex += 1) {
+        final element = elements[elementIndex];
+        if (element is Map<String, dynamic>) {
+          scanChannels(element['channels']);
+        }
+      }
+    }
+
+    if (requiredDurationMs > declaredDurationMs) {
+      issues.add(
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.warning,
+          message:
+              'Layer duration was extended to cover valid scene-program keyframes. Prefer increasing `durationMs` or using `timeBasis: "project"` explicitly.',
+          path: '$ownerPath.durationMs',
+        ),
+      );
+    }
+    return requiredDurationMs;
+  }
+
+  int? _localTimeForDurationScan({
+    required int rawTimeMs,
+    required String timeBasis,
+    required int ownerStartMs,
+    required int declaredDurationMs,
+    required int sceneDurationMs,
+  }) {
+    if (rawTimeMs < 0 || rawTimeMs > sceneDurationMs) {
+      return null;
+    }
+    final normalizedBasis = _normalizeToken(timeBasis);
+    final maxLocalDurationMs = sceneDurationMs - ownerStartMs;
+    if (maxLocalDurationMs < 0) {
+      return null;
+    }
+    final isProjectTime = switch (normalizedBasis) {
+      'project' || 'global' || 'timeline' || 'scene' => true,
+      _ => false,
+    };
+    if (isProjectTime) {
+      if (rawTimeMs < ownerStartMs) {
+        return null;
+      }
+      return rawTimeMs - ownerStartMs;
+    }
+    final isExplicitLocal = switch (normalizedBasis) {
+      'local' || 'layer' || 'element' => true,
+      _ => false,
+    };
+    if (isExplicitLocal || ownerStartMs == 0) {
+      if (rawTimeMs <= maxLocalDurationMs) {
+        return rawTimeMs;
+      }
+      return null;
+    }
+    if (rawTimeMs <= declaredDurationMs) {
+      return rawTimeMs;
+    }
+    if (rawTimeMs >= ownerStartMs) {
+      return rawTimeMs - ownerStartMs;
+    }
+    if (rawTimeMs <= maxLocalDurationMs) {
+      return rawTimeMs;
+    }
+    return null;
+  }
+
+  void _warnIfTypingRevealRunsBackward({
+    required String property,
+    required List<ReFusionSceneProgramKeyframe> keyframes,
+    required String channelPath,
+    required List<ReFusionSceneProgramIssue> issues,
+  }) {
+    if (!_isTypingRevealProperty(property) || keyframes.length < 2) {
+      return;
+    }
+    final firstValue = _numericKeyframeValue(keyframes.first.value);
+    final lastValue = _numericKeyframeValue(keyframes.last.value);
+    if (firstValue == null || lastValue == null || firstValue <= lastValue) {
+      return;
+    }
+    issues.add(
+      ReFusionSceneProgramIssue(
+        severity: ReFusionSceneProgramIssueSeverity.warning,
+        message:
+            'Typing/typewriter reveal decreases over time. This creates a delete/backspace effect. Use values from 0.0 to 1.0 for keyboard type-on.',
+        path: '$channelPath.keyframes',
+      ),
+    );
+  }
+
+  bool _isTypingRevealProperty(String property) {
+    final normalized = _normalizeToken(property);
+    return normalized == 'reveal' ||
+        normalized == 'revealprogress' ||
+        normalized == 'textreveal' ||
+        normalized == 'textrevealprogress' ||
+        normalized == 'letterreveal' ||
+        normalized == 'letterrevealprogress' ||
+        normalized == 'typing' ||
+        normalized == 'typingprogress' ||
+        normalized == 'typewriter' ||
+        normalized == 'typewriterprogress' ||
+        normalized == 'texttypingprogress';
+  }
+
+  double? _numericKeyframeValue(Object value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+    return null;
   }
 
   List<ReFusionSceneProgramKeyframe> _readKeyframes(

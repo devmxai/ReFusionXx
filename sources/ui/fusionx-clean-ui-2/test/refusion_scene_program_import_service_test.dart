@@ -281,4 +281,169 @@ void main() {
     expect(keyframes.first.timeMs, 0);
     expect(keyframes.last.timeMs, 600);
   });
+
+  test('extends delayed layer duration for project-time element keyframes', () {
+    final result = service.validate(
+      source: '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "durationMs": 5000,
+  "layers": [
+    {
+      "id": "late-copy-layer",
+      "kind": "text",
+      "startMs": 1000,
+      "durationMs": 1000,
+      "elements": [
+        {
+          "id": "late-copy",
+          "kind": "text",
+          "text": "Scene",
+          "channels": [
+            {
+              "property": "opacity",
+              "timeBasis": "project",
+              "keyframes": [
+                { "timeMs": 1000, "value": 0.0 },
+                { "timeMs": 4200, "value": 1.0 }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+''',
+    );
+
+    expect(result.isValid, isTrue);
+    expect(
+      result.issues.where(
+        (issue) => issue.message.contains('duration was extended'),
+      ),
+      isNotEmpty,
+    );
+    final layer = result.program!.layers.single;
+    expect(layer.durationMs, 3200);
+    final keyframes = layer.elements.single.channels.single.keyframes;
+    expect(keyframes.map((keyframe) => keyframe.timeMs), <int>[0, 3200]);
+  });
+
+  test('extends local layer duration for local keyframes inside the scene', () {
+    final result = service.validate(
+      source: '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "durationMs": 5000,
+  "layers": [
+    {
+      "id": "long-local-layer",
+      "kind": "shape",
+      "startMs": 0,
+      "durationMs": 1000,
+      "channels": [
+        {
+          "property": "opacity",
+          "timeBasis": "local",
+          "keyframes": [
+            { "timeMs": 0, "value": 0.0 },
+            { "timeMs": 4200, "value": 1.0 }
+          ]
+        }
+      ]
+    }
+  ]
+}
+''',
+    );
+
+    expect(result.isValid, isTrue);
+    expect(result.program!.layers.single.durationMs, 4200);
+    expect(
+      result.program!.layers.single.channels.single.keyframes
+          .map((keyframe) => keyframe.timeMs),
+      <int>[0, 4200],
+    );
+  });
+
+  test('still rejects keyframes that are outside the scene duration', () {
+    final result = service.validate(
+      source: '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "durationMs": 3000,
+  "layers": [
+    {
+      "id": "bad-layer",
+      "kind": "shape",
+      "startMs": 0,
+      "durationMs": 1000,
+      "channels": [
+        {
+          "property": "opacity",
+          "timeBasis": "local",
+          "keyframes": [
+            { "timeMs": 0, "value": 0.0 },
+            { "timeMs": 4000, "value": 1.0 }
+          ]
+        }
+      ]
+    }
+  ]
+}
+''',
+    );
+
+    expect(result.isValid, isFalse);
+    expect(
+      result.issues.where(
+        (issue) => issue.message.contains('inside the owning timeline range'),
+      ),
+      isNotEmpty,
+    );
+  });
+
+  test('warns when typewriter progress is authored backwards', () {
+    final result = service.validate(
+      source: '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "durationMs": 2000,
+  "layers": [
+    {
+      "id": "typing-layer",
+      "kind": "text",
+      "startMs": 0,
+      "durationMs": 2000,
+      "elements": [
+        {
+          "id": "typing",
+          "kind": "text",
+          "text": "hello",
+          "channels": [
+            {
+              "property": "typewriterProgress",
+              "keyframes": [
+                { "timeMs": 0, "value": 1.0 },
+                { "timeMs": 1200, "value": 0.0 }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+''',
+    );
+
+    expect(result.isValid, isTrue);
+    expect(
+      result.issues.where(
+        (issue) => issue.message.contains('delete/backspace'),
+      ),
+      isNotEmpty,
+    );
+  });
 }
