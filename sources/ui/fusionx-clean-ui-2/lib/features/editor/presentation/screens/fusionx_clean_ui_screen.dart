@@ -11911,6 +11911,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
       _isTimelineScrubbing = isScrubbing;
       if (isScrubbing) {
+        _clearPlaybackStopTimeLock();
+        _timelineZoomLockedDisplayTime = null;
         final scrubAnchorTime =
             (_timelineScrubFinalTime ?? _timelineDisplayTimeNotifier.value)
                 .clamp(TimelineTime.zero, _timelineDurationTime);

@@ -1369,6 +1369,7 @@ class _TimelinePanelState extends State<TimelinePanel>
     } else if (!preserveDisplayTimeOnPlaybackExit &&
         !_isDrivenByExternalPlaybackSamples &&
         !_isNativeScrubbing &&
+        !_isScrubInteractionActive &&
         !_isScaleVisualLockActive &&
         !_shouldSuppressPlaybackScrollSync) {
       _setDisplayTime(clampedWidgetTime);
@@ -1378,6 +1379,7 @@ class _TimelinePanelState extends State<TimelinePanel>
         !_shouldAnimatePlayback &&
         !_isDrivenByExternalPlaybackSamples &&
         !_isNativeScrubbing &&
+        !_isScrubInteractionActive &&
         !_isScaleVisualLockActive &&
         !_shouldSuppressPlaybackScrollSync) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1437,6 +1439,7 @@ class _TimelinePanelState extends State<TimelinePanel>
           _isDrivenByExternalPlaybackSamples ||
           _shouldSuppressPlaybackScrollSync ||
           _isAnyTimelineScrubbing ||
+          _isScrubInteractionActive ||
           _isTrimDragging ||
           _isClipMoveMode ||
           _isScaleVisualLockActive) {
@@ -1452,6 +1455,7 @@ class _TimelinePanelState extends State<TimelinePanel>
             _shouldAnimatePlayback ||
             _isDrivenByExternalPlaybackSamples ||
             _isAnyTimelineScrubbing ||
+            _isScrubInteractionActive ||
             _isTrimDragging ||
             _isClipMoveMode ||
             _isScaleVisualLockActive ||
@@ -4335,215 +4339,247 @@ class _TimelinePanelState extends State<TimelinePanel>
                                           ],
                                         ),
                                         builder: (context, _) {
-                                          final timelineContent = SizedBox(
-                                            width: contentWidth,
-                                            height: scrollConstraints.maxHeight,
-                                            child: SingleChildScrollView(
-                                              controller: _verticalController,
-                                              physics: !canVerticallyScrollTracks ||
-                                                      _blocksVerticalTrackNavigation
-                                                  ? const NeverScrollableScrollPhysics()
-                                                  : const BouncingScrollPhysics(),
-                                              child: ConstrainedBox(
-                                                constraints: BoxConstraints(
-                                                  minHeight: scrollConstraints
-                                                      .maxHeight,
-                                                ),
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: [
-                                                    for (var i = 0;
-                                                        i <
-                                                            widget
-                                                                .tracks.length;
-                                                        i++) ...[
-                                                      Builder(
-                                                        builder: (context) {
-                                                          final track =
-                                                              widget.tracks[i];
-                                                          final moveSession =
-                                                              _clipMoveSession;
-                                                          final previewClipId =
-                                                              moveSession?.trackIndex ==
-                                                                      i
-                                                                  ? moveSession
-                                                                      ?.clipId
-                                                                  : null;
-                                                          final previewStartTime =
-                                                              moveSession?.trackIndex ==
-                                                                      i
-                                                                  ? moveSession
-                                                                      ?.currentStartTime
-                                                                  : null;
-                                                          return _TimelineTrackRow(
-                                                            contentWidth:
-                                                                contentWidth,
-                                                            leadingOffset:
-                                                                activeLeadingOffset,
-                                                            controlTileSize:
-                                                                _controlTileSize,
-                                                            controlGap:
-                                                                _controlGap,
-                                                            splitGap: _splitGap,
-                                                            rowHeight:
-                                                                _rowHeightForTrack(
-                                                              track,
-                                                            ),
-                                                            secondsWidth:
-                                                                _secondsWidth,
-                                                            track: track,
-                                                            isPlaying: widget
-                                                                .isPlaying,
-                                                            selectedClipId: widget
-                                                                .selectedClipId,
-                                                            selectedTransitionId:
-                                                                widget
-                                                                    .selectedTransitionId,
-                                                            selectedAnimationLaneId:
-                                                                widget
-                                                                    .selectedAnimationLaneId,
-                                                            selectedAnimationKeyframeIndex:
-                                                                widget
-                                                                    .selectedAnimationKeyframeIndex,
-                                                            onClipSelected:
-                                                                _handleOwnedClipSelected,
-                                                            onClipDoubleTap:
-                                                                widget.onClipDoubleTap ==
-                                                                        null
-                                                                    ? null
-                                                                    : _handleOwnedClipDoubleTap,
-                                                            onClipLongPressStart:
-                                                                (clip) {
-                                                              if (track.kind ==
-                                                                  TimelineTrackKind
-                                                                      .video) {
-                                                                _beginClipReorder(
+                                          final timelineContent =
+                                              GestureDetector(
+                                            behavior: HitTestBehavior.opaque,
+                                            onHorizontalDragStart:
+                                                widget.scrubSurfaceBuilder ==
+                                                        null
+                                                    ? _handleManualPanDragStart
+                                                    : null,
+                                            onHorizontalDragUpdate:
+                                                widget.scrubSurfaceBuilder ==
+                                                        null
+                                                    ? _handleManualPanDragUpdate
+                                                    : null,
+                                            onHorizontalDragEnd:
+                                                widget.scrubSurfaceBuilder ==
+                                                        null
+                                                    ? _handleManualPanDragEnd
+                                                    : null,
+                                            onHorizontalDragCancel:
+                                                widget.scrubSurfaceBuilder ==
+                                                        null
+                                                    ? _handleManualPanDragCancel
+                                                    : null,
+                                            child: SizedBox(
+                                              width: contentWidth,
+                                              height:
+                                                  scrollConstraints.maxHeight,
+                                              child: SingleChildScrollView(
+                                                controller: _verticalController,
+                                                physics: !canVerticallyScrollTracks ||
+                                                        _blocksVerticalTrackNavigation
+                                                    ? const NeverScrollableScrollPhysics()
+                                                    : const BouncingScrollPhysics(),
+                                                child: ConstrainedBox(
+                                                  constraints: BoxConstraints(
+                                                    minHeight: scrollConstraints
+                                                        .maxHeight,
+                                                  ),
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      for (var i = 0;
+                                                          i <
+                                                              widget.tracks
+                                                                  .length;
+                                                          i++) ...[
+                                                        Builder(
+                                                          builder: (context) {
+                                                            final track = widget
+                                                                .tracks[i];
+                                                            final moveSession =
+                                                                _clipMoveSession;
+                                                            final previewClipId =
+                                                                moveSession?.trackIndex ==
+                                                                        i
+                                                                    ? moveSession
+                                                                        ?.clipId
+                                                                    : null;
+                                                            final previewStartTime =
+                                                                moveSession?.trackIndex ==
+                                                                        i
+                                                                    ? moveSession
+                                                                        ?.currentStartTime
+                                                                    : null;
+                                                            return _TimelineTrackRow(
+                                                              contentWidth:
+                                                                  contentWidth,
+                                                              leadingOffset:
+                                                                  activeLeadingOffset,
+                                                              controlTileSize:
+                                                                  _controlTileSize,
+                                                              controlGap:
+                                                                  _controlGap,
+                                                              splitGap:
+                                                                  _splitGap,
+                                                              rowHeight:
+                                                                  _rowHeightForTrack(
+                                                                track,
+                                                              ),
+                                                              secondsWidth:
+                                                                  _secondsWidth,
+                                                              track: track,
+                                                              isPlaying: widget
+                                                                  .isPlaying,
+                                                              selectedClipId: widget
+                                                                  .selectedClipId,
+                                                              selectedTransitionId:
+                                                                  widget
+                                                                      .selectedTransitionId,
+                                                              selectedAnimationLaneId:
+                                                                  widget
+                                                                      .selectedAnimationLaneId,
+                                                              selectedAnimationKeyframeIndex:
+                                                                  widget
+                                                                      .selectedAnimationKeyframeIndex,
+                                                              onClipSelected:
+                                                                  _handleOwnedClipSelected,
+                                                              onClipDoubleTap:
+                                                                  widget.onClipDoubleTap ==
+                                                                          null
+                                                                      ? null
+                                                                      : _handleOwnedClipDoubleTap,
+                                                              onClipLongPressStart:
+                                                                  (clip) {
+                                                                if (track
+                                                                        .kind ==
+                                                                    TimelineTrackKind
+                                                                        .video) {
+                                                                  _beginClipReorder(
+                                                                    i,
+                                                                    clip,
+                                                                  );
+                                                                  return;
+                                                                }
+                                                                _beginClipTimeShift(
                                                                   i,
                                                                   clip,
                                                                 );
-                                                                return;
-                                                              }
-                                                              _beginClipTimeShift(
-                                                                i,
-                                                                clip,
-                                                              );
-                                                            },
-                                                            onClipLongPressMove:
-                                                                (clip,
-                                                                    deltaDx) {
-                                                              if (track.kind ==
-                                                                  TimelineTrackKind
-                                                                      .video) {
-                                                                _updateClipReorder(
+                                                              },
+                                                              onClipLongPressMove:
+                                                                  (clip,
+                                                                      deltaDx) {
+                                                                if (track
+                                                                        .kind ==
+                                                                    TimelineTrackKind
+                                                                        .video) {
+                                                                  _updateClipReorder(
+                                                                    i,
+                                                                    clip,
+                                                                    deltaDx,
+                                                                  );
+                                                                  return;
+                                                                }
+                                                                _updateClipTimeShift(
                                                                   i,
                                                                   clip,
                                                                   deltaDx,
                                                                 );
-                                                                return;
-                                                              }
-                                                              _updateClipTimeShift(
-                                                                i,
-                                                                clip,
-                                                                deltaDx,
-                                                              );
-                                                            },
-                                                            onClipLongPressEnd:
-                                                                (clip) {
-                                                              if (track.kind ==
-                                                                  TimelineTrackKind
-                                                                      .video) {
-                                                                _finishClipReorder(
+                                                              },
+                                                              onClipLongPressEnd:
+                                                                  (clip) {
+                                                                if (track
+                                                                        .kind ==
+                                                                    TimelineTrackKind
+                                                                        .video) {
+                                                                  _finishClipReorder(
+                                                                    i,
+                                                                    clip,
+                                                                  );
+                                                                  return;
+                                                                }
+                                                                _finishClipTimeShift(
                                                                   i,
                                                                   clip,
                                                                 );
-                                                                return;
-                                                              }
-                                                              _finishClipTimeShift(
-                                                                i,
-                                                                clip,
-                                                              );
-                                                            },
-                                                            onTrackAnimateTap:
-                                                                widget
-                                                                    .onTrackAnimateTap,
-                                                            onTrackFxTap: widget
-                                                                .onTrackFxTap,
-                                                            onAnimationLaneTap:
-                                                                widget
-                                                                    .onAnimationLaneTap,
-                                                            onAnimationKeyframeTap:
-                                                                widget
-                                                                    .onAnimationKeyframeTap,
-                                                            onAnimationKeyframeDrag:
-                                                                widget
-                                                                    .onAnimationKeyframeDrag,
-                                                            onTransitionTap: widget
-                                                                .onTransitionTap,
-                                                            onBackgroundTap:
-                                                                widget.onBackgroundTap ==
-                                                                        null
-                                                                    ? null
-                                                                    : _handleOwnedBackgroundTap,
-                                                            enableBackgroundManualPan:
-                                                                widget.scrubSurfaceBuilder ==
-                                                                    null,
-                                                            onManualPanDragStart:
-                                                                _handleManualPanDragStart,
-                                                            onManualPanDragUpdate:
-                                                                _handleManualPanDragUpdate,
-                                                            onManualPanDragEnd:
-                                                                _handleManualPanDragEnd,
-                                                            onManualPanDragCancel:
-                                                                _handleManualPanDragCancel,
-                                                            assetPathResolver:
-                                                                widget
-                                                                    .assetPathResolver,
-                                                            trimSelection:
-                                                                !_isReorderMode
-                                                                    ? widget
-                                                                        .trimSelection
-                                                                    : null,
-                                                            trimDragSession:
-                                                                !_isReorderMode
-                                                                    ? _trimDragSession
-                                                                    : null,
-                                                            onTrimDragStart:
-                                                                _beginTrimDrag,
-                                                            onTrimDragUpdate:
-                                                                _updateTrimDrag,
-                                                            onTrimDragEnd:
-                                                                _endTrimDrag,
-                                                            onTrimHandleEngagementChanged:
-                                                                _handleTrimHandleEngagementChanged,
-                                                            animateTrackKinds:
-                                                                widget
-                                                                    .animateTrackKinds,
-                                                            fxTrackKinds: widget
-                                                                .fxTrackKinds,
-                                                            timeShiftPreviewClipId:
-                                                                previewClipId,
-                                                            timeShiftPreviewStartTime:
-                                                                previewStartTime,
-                                                            baseClipOpacity:
-                                                                _isReorderMode &&
-                                                                        _reorderTrackIndex ==
-                                                                            i
-                                                                    ? _resolvedBaseTimelineOpacity()
-                                                                    : 1,
-                                                          );
-                                                        },
-                                                      ),
-                                                      if (i !=
-                                                          widget.tracks.length -
-                                                              1)
-                                                        SizedBox(
-                                                          height:
-                                                              stackDensityProfile
-                                                                  .rowGap,
+                                                              },
+                                                              onTrackAnimateTap:
+                                                                  widget
+                                                                      .onTrackAnimateTap,
+                                                              onTrackFxTap: widget
+                                                                  .onTrackFxTap,
+                                                              onAnimationLaneTap:
+                                                                  widget
+                                                                      .onAnimationLaneTap,
+                                                              onAnimationKeyframeTap:
+                                                                  widget
+                                                                      .onAnimationKeyframeTap,
+                                                              onAnimationKeyframeDrag:
+                                                                  widget
+                                                                      .onAnimationKeyframeDrag,
+                                                              onTransitionTap:
+                                                                  widget
+                                                                      .onTransitionTap,
+                                                              onBackgroundTap:
+                                                                  widget.onBackgroundTap ==
+                                                                          null
+                                                                      ? null
+                                                                      : _handleOwnedBackgroundTap,
+                                                              enableBackgroundManualPan:
+                                                                  widget.scrubSurfaceBuilder ==
+                                                                      null,
+                                                              onManualPanDragStart:
+                                                                  _handleManualPanDragStart,
+                                                              onManualPanDragUpdate:
+                                                                  _handleManualPanDragUpdate,
+                                                              onManualPanDragEnd:
+                                                                  _handleManualPanDragEnd,
+                                                              onManualPanDragCancel:
+                                                                  _handleManualPanDragCancel,
+                                                              assetPathResolver:
+                                                                  widget
+                                                                      .assetPathResolver,
+                                                              trimSelection:
+                                                                  !_isReorderMode
+                                                                      ? widget
+                                                                          .trimSelection
+                                                                      : null,
+                                                              trimDragSession:
+                                                                  !_isReorderMode
+                                                                      ? _trimDragSession
+                                                                      : null,
+                                                              onTrimDragStart:
+                                                                  _beginTrimDrag,
+                                                              onTrimDragUpdate:
+                                                                  _updateTrimDrag,
+                                                              onTrimDragEnd:
+                                                                  _endTrimDrag,
+                                                              onTrimHandleEngagementChanged:
+                                                                  _handleTrimHandleEngagementChanged,
+                                                              animateTrackKinds:
+                                                                  widget
+                                                                      .animateTrackKinds,
+                                                              fxTrackKinds: widget
+                                                                  .fxTrackKinds,
+                                                              timeShiftPreviewClipId:
+                                                                  previewClipId,
+                                                              timeShiftPreviewStartTime:
+                                                                  previewStartTime,
+                                                              baseClipOpacity:
+                                                                  _isReorderMode &&
+                                                                          _reorderTrackIndex ==
+                                                                              i
+                                                                      ? _resolvedBaseTimelineOpacity()
+                                                                      : 1,
+                                                            );
+                                                          },
                                                         ),
+                                                        if (i !=
+                                                            widget.tracks
+                                                                    .length -
+                                                                1)
+                                                          SizedBox(
+                                                            height:
+                                                                stackDensityProfile
+                                                                    .rowGap,
+                                                          ),
+                                                      ],
                                                     ],
-                                                  ],
+                                                  ),
                                                 ),
                                               ),
                                             ),
