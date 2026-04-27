@@ -9685,14 +9685,146 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => const SceneProgramImportBottomSheet(),
+      builder: (context) => SceneProgramImportBottomSheet(
+        projectId: _motionProjectId,
+        sceneId: _motionSceneId,
+        canvasSize: _motionProjectFormat.canvasSize,
+      ),
     );
     if (!mounted || result == null) {
       return;
     }
-    _showStageMessage(
-      'Scene program validated: ${result.layerCount} layers, ${result.channelCount} channels. Apply is next.',
+    _applySceneProgramImportResult(result);
+  }
+
+  void _applySceneProgramImportResult(SceneProgramImportSheetResult result) {
+    final importedProject = result.project;
+    if (importedProject.scenes.isEmpty) {
+      _showStageMessage('Scene program has no scenes to apply.');
+      return;
+    }
+    final importedScene = importedProject.scenes.firstWhere(
+      (scene) => scene.id == _motionSceneId,
+      orElse: () => importedProject.scenes.first,
     );
+    final baseProject = _effectiveMotionProject;
+    final baseScenes = List<MotionSceneModel>.from(baseProject.scenes);
+    final baseSceneIndex = baseScenes.indexWhere(
+      (scene) => scene.id == _motionSceneId,
+    );
+    final baseScene = baseSceneIndex >= 0
+        ? baseScenes[baseSceneIndex]
+        : MotionSceneModel(
+            id: _motionSceneId,
+            name: 'Main Scene',
+            projectRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: _timelineDurationTime,
+            ),
+            layers: const <MotionLayerModel>[],
+          );
+    final importedLayerIds =
+        importedScene.layers.map((layer) => layer.id).toSet();
+    final retainedLayers = baseScene.layers
+        .where((layer) => !importedLayerIds.contains(layer.id))
+        .toList(growable: false);
+    final nextSceneEnd = _maxTimelineTime(<TimelineTime>[
+      baseScene.projectRange.endExclusive,
+      importedScene.projectRange.endExclusive,
+      _timelineDurationTime,
+    ]);
+    final nextScene = baseScene.copyWith(
+      projectRange: TimelineTimeRange(
+        start: TimelineTime.zero,
+        endExclusive: nextSceneEnd,
+      ),
+      layers: <MotionLayerModel>[
+        ...retainedLayers,
+        ...importedScene.layers,
+      ],
+      metadata: <String, String>{
+        ...baseScene.metadata,
+        'lastSceneProgramImport': result.name,
+      },
+    );
+    if (baseSceneIndex >= 0) {
+      baseScenes[baseSceneIndex] = nextScene;
+    } else {
+      baseScenes.add(nextScene);
+    }
+    final incomingChannelIds =
+        result.channels.map((channel) => channel.id).toSet();
+    final nextChannels = <MotionPropertyChannelModel>[
+      for (final channel in _manualMotionPropertyChannels)
+        if (!incomingChannelIds.contains(channel.id)) channel,
+      ...result.channels,
+    ];
+    final nextProject = baseProject.copyWith(
+      scenes: List<MotionSceneModel>.unmodifiable(baseScenes),
+      metadata: <String, String>{
+        ...baseProject.metadata,
+        'lastSceneProgramImport': result.name,
+      },
+    );
+    final firstTextElementId = _firstTextElementIdForScene(importedScene);
+    final importStartTime = _firstTextElementStartForScene(importedScene) ??
+        importedScene.projectRange.start;
+    final nextTracks = _ensureTrackKind(_tracks, TimelineTrackKind.text);
+    setState(() {
+      _tracks = nextTracks;
+      _motionProject = nextProject;
+      _manualMotionPropertyChannels =
+          List<MotionPropertyChannelModel>.unmodifiable(nextChannels);
+      _markMotionAuthoringChanged();
+      _selectedClipId = firstTextElementId;
+      _activeTab = EditorMediaTab.text;
+      _previewAssetId = null;
+      _setCurrentTime(importStartTime.clamp(
+        TimelineTime.zero,
+        nextScene.projectRange.endExclusive,
+      ));
+    });
+    _showStageMessage(
+      'Scene applied: ${result.layerCount} layers, ${result.channelCount} channels.',
+    );
+  }
+
+  TimelineTime _maxTimelineTime(Iterable<TimelineTime> values) {
+    var max = TimelineTime.zero;
+    for (final value in values) {
+      if (value > max) {
+        max = value;
+      }
+    }
+    return max;
+  }
+
+  String? _firstTextElementIdForScene(MotionSceneModel scene) {
+    for (final layer in scene.layers) {
+      if (layer.kind != MotionLayerKind.text) {
+        continue;
+      }
+      for (final element in layer.elements) {
+        if (element.kind == MotionElementKind.text) {
+          return element.id;
+        }
+      }
+    }
+    return null;
+  }
+
+  TimelineTime? _firstTextElementStartForScene(MotionSceneModel scene) {
+    for (final layer in scene.layers) {
+      if (layer.kind != MotionLayerKind.text) {
+        continue;
+      }
+      for (final element in layer.elements) {
+        if (element.kind == MotionElementKind.text) {
+          return scene.projectRange.start + element.localRange.start;
+        }
+      }
+    }
+    return null;
   }
 
   Future<void> _openTextPresetSheet() async {

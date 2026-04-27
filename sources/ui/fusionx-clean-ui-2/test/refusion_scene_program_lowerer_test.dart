@@ -168,6 +168,12 @@ void main() {
     );
 
     expect(result.hasErrors, isFalse);
+    expect(
+      result.issues.where(
+        (issue) => issue.message.contains('shapeKind'),
+      ),
+      isEmpty,
+    );
     final element = result.project.scenes.single.layers.single.elements.single;
     expect(element.shapeKind, MotionShapeKind.roundedRectangle);
     expect(

@@ -31,6 +31,7 @@ void main() {
     expect(result.project!.format.canvasSize.height, 1280);
     expect(result.project!.metadata['source'], 'refusion.scene-program');
     expect(result.channels, hasLength(8));
+    expect(result.hasWarnings, isFalse);
   });
 
   test('does not lower invalid JSON or executable scene programs', () {

@@ -655,9 +655,10 @@ class ReFusionSceneProgramLowerer {
       'cornerradius' || 'shapecornerradius' => <_LoweredProperty>[
           _LoweredProperty(definition: MotionPropertyCatalog.cornerRadius),
         ],
+      'shapekind' || 'shape' || 'type' => const <_LoweredProperty>[],
       _ => const <_LoweredProperty>[],
     };
-    if (definitions.isEmpty) {
+    if (definitions.isEmpty && !_isMetadataOnlyProperty(normalized)) {
       _addIssue(
         issues,
         severity: ReFusionSceneProgramIssueSeverity.warning,
@@ -666,6 +667,17 @@ class ReFusionSceneProgramLowerer {
       );
     }
     return definitions;
+  }
+
+  bool _isMetadataOnlyProperty(String normalizedProperty) {
+    return const <String>{
+      'shapekind',
+      'shape',
+      'type',
+      'source',
+      'uri',
+      'assetid',
+    }.contains(normalizedProperty);
   }
 
   MotionPropertyValue? _valueForDefinition({

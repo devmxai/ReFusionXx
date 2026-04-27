@@ -4,11 +4,22 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../domain/models/professional_motion_animation_models.dart';
+import '../../domain/models/professional_motion_models.dart';
 import '../../domain/models/refusion_scene_program_models.dart';
 import '../../domain/services/refusion_scene_program_authoring_service.dart';
 
 class SceneProgramImportBottomSheet extends StatefulWidget {
-  const SceneProgramImportBottomSheet({super.key});
+  const SceneProgramImportBottomSheet({
+    super.key,
+    required this.projectId,
+    required this.sceneId,
+    required this.canvasSize,
+  });
+
+  final String projectId;
+  final String sceneId;
+  final MotionSize2D canvasSize;
 
   @override
   State<SceneProgramImportBottomSheet> createState() =>
@@ -21,6 +32,8 @@ class SceneProgramImportSheetResult {
     required this.layerCount,
     required this.channelCount,
     required this.warningCount,
+    required this.project,
+    required this.channels,
   });
 
   factory SceneProgramImportSheetResult.fromAuthoringResult(
@@ -39,6 +52,8 @@ class SceneProgramImportSheetResult {
       layerCount: scene?.layers.length ?? 0,
       channelCount: result.channels.length,
       warningCount: warningCount,
+      project: result.project!,
+      channels: result.channels,
     );
   }
 
@@ -46,6 +61,8 @@ class SceneProgramImportSheetResult {
   final int layerCount;
   final int channelCount;
   final int warningCount;
+  final MotionProjectModel project;
+  final List<MotionPropertyChannelModel> channels;
 }
 
 class _SceneProgramImportBottomSheetState
@@ -125,9 +142,7 @@ class _SceneProgramImportBottomSheetState
   void initState() {
     super.initState();
     _controller = TextEditingController(text: _sampleSceneProgram);
-    _result = _authoringService.importSceneProgram(
-      const ReFusionSceneProgramAuthoringRequest(source: _sampleSceneProgram),
-    );
+    _result = _importCurrentSource(_sampleSceneProgram);
   }
 
   @override
@@ -136,14 +151,21 @@ class _SceneProgramImportBottomSheetState
     super.dispose();
   }
 
+  ReFusionSceneProgramAuthoringResult _importCurrentSource(String source) {
+    return _authoringService.importSceneProgram(
+      ReFusionSceneProgramAuthoringRequest(
+        source: source.trim(),
+        fileName: _fileName,
+        projectId: widget.projectId,
+        sceneId: widget.sceneId,
+        canvasSize: widget.canvasSize,
+      ),
+    );
+  }
+
   void _validate() {
     setState(() {
-      _result = _authoringService.importSceneProgram(
-        ReFusionSceneProgramAuthoringRequest(
-          source: _controller.text.trim(),
-          fileName: _fileName,
-        ),
-      );
+      _result = _importCurrentSource(_controller.text);
     });
   }
 
@@ -182,12 +204,7 @@ class _SceneProgramImportBottomSheetState
       setState(() {
         _fileName = file.name;
         _controller.text = text;
-        _result = _authoringService.importSceneProgram(
-          ReFusionSceneProgramAuthoringRequest(
-            source: text.trim(),
-            fileName: file.name,
-          ),
-        );
+        _result = _importCurrentSource(text);
       });
     } finally {
       if (mounted) {
@@ -199,12 +216,7 @@ class _SceneProgramImportBottomSheetState
   }
 
   void _done() {
-    final result = _authoringService.importSceneProgram(
-      ReFusionSceneProgramAuthoringRequest(
-        source: _controller.text.trim(),
-        fileName: _fileName,
-      ),
-    );
+    final result = _importCurrentSource(_controller.text);
     setState(() {
       _result = result;
     });
@@ -304,7 +316,7 @@ class _SceneProgramImportBottomSheetState
                   alignment: Alignment.centerLeft,
                   child: Text(
                     _fileName == null
-                        ? 'JSON only. This checkpoint validates and previews the graph summary; it does not apply the scene yet.'
+                        ? 'JSON only. Validate, then tap the check mark to apply editable scene layers.'
                         : 'File: $_fileName',
                     style: const TextStyle(
                       color: FxPalette.textMuted,
@@ -467,7 +479,7 @@ class _SceneProgramResultCard extends StatelessWidget {
           icon: Icons.verified_rounded,
           title: value.hasWarnings ? 'Valid with warnings' : 'Ready',
           message:
-              '${value.program?.name ?? 'Scene'} -> ${value.project?.scenes.single.layers.length ?? 0} layers, ${value.channels.length} channels. The next phase applies this graph as editable timeline content.',
+              '${value.program?.name ?? 'Scene'} -> ${value.project?.scenes.single.layers.length ?? 0} layers, ${value.channels.length} channels. Tap the check mark to place it on the editable timeline.',
           accent: value.hasWarnings
               ? const Color(0xFFFFC857)
               : const Color(0xFF45D483),
