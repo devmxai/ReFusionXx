@@ -412,6 +412,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   bool _isApplyingStructuralEdit = false;
   Future<void> _timelineStructuralCommit = Future<void>.value();
   MotionProjectModel? _motionProject;
+  bool _hasStartedCompositionSession = false;
   List<MotionTextAnimationBindingModel> _motionTextAnimationBindings =
       const <MotionTextAnimationBindingModel>[];
   List<MotionPropertyChannelModel> _manualMotionPropertyChannels =
@@ -725,12 +726,28 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return false;
   }
 
+  bool get _hasAuthoredMotionContent {
+    final project = _motionProject;
+    if (project != null) {
+      for (final scene in project.scenes) {
+        for (final layer in scene.layers) {
+          if (layer.elements.isNotEmpty || layer.properties.isNotEmpty) {
+            return true;
+          }
+        }
+      }
+    }
+    return _motionTextAnimationBindings.isNotEmpty ||
+        _manualMotionPropertyChannels.isNotEmpty;
+  }
+
   bool get _hasFlutterTimelinePlaybackContent {
     final previewAsset = _previewAsset;
     final hasNonVideoPreviewAsset =
         previewAsset != null && previewAsset.tab != EditorMediaTab.video;
     return hasNonVideoPreviewAsset ||
-        _motionProject != null ||
+        _hasStartedCompositionSession ||
+        _hasAuthoredMotionContent ||
         _hasMotionTextContent ||
         _motionTextAnimationBindings.isNotEmpty ||
         _manualMotionPropertyChannels.isNotEmpty;
@@ -9800,6 +9817,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     setState(() {
       _lockedWorkspaceAspectRatio = template.aspectRatio;
       _motionProject = project;
+      _hasStartedCompositionSession = true;
       _motionTextAnimationBindings = const <MotionTextAnimationBindingModel>[];
       _manualMotionPropertyChannels = const <MotionPropertyChannelModel>[];
       _tracks = const <TimelineTrackData>[];
@@ -14897,8 +14915,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   Widget build(BuildContext context) {
     final previewAsset = _previewAsset;
     final hasTimelineClips = _tracks.any((track) => track.clips.isNotEmpty);
+    final hasStartedComposition = _hasStartedCompositionSession ||
+        hasTimelineClips ||
+        _hasAuthoredMotionContent;
     final shouldShowCompositionStartOverlay =
-        previewAsset == null && !hasTimelineClips && _motionProject == null;
+        previewAsset == null && !hasStartedComposition;
     final hasPreviewCanvasContent =
         previewAsset != null || _hasMotionTextContent || _motionProject != null;
     _schedulePreviewThumbnailWarmup(previewAsset);
