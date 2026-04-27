@@ -4903,6 +4903,14 @@ class _TimelineTrackRow extends StatelessWidget {
                   onDoubleTap: _supportsScopedLayerDoubleTap(clip)
                       ? () => onClipDoubleTap!(clip)
                       : null,
+                  onHorizontalDragStart:
+                      enableBackgroundManualPan ? onManualPanDragStart : null,
+                  onHorizontalDragUpdate:
+                      enableBackgroundManualPan ? onManualPanDragUpdate : null,
+                  onHorizontalDragEnd:
+                      enableBackgroundManualPan ? onManualPanDragEnd : null,
+                  onHorizontalDragCancel:
+                      enableBackgroundManualPan ? onManualPanDragCancel : null,
                   onLongPressStart: onClipLongPressStart == null
                       ? null
                       : () => onClipLongPressStart!(clip),
@@ -4938,6 +4946,14 @@ class _TimelineTrackRow extends StatelessWidget {
                   onDoubleTap: _supportsScopedLayerDoubleTap(clip)
                       ? () => onClipDoubleTap!(clip)
                       : null,
+                  onHorizontalDragStart:
+                      enableBackgroundManualPan ? onManualPanDragStart : null,
+                  onHorizontalDragUpdate:
+                      enableBackgroundManualPan ? onManualPanDragUpdate : null,
+                  onHorizontalDragEnd:
+                      enableBackgroundManualPan ? onManualPanDragEnd : null,
+                  onHorizontalDragCancel:
+                      enableBackgroundManualPan ? onManualPanDragCancel : null,
                   height: clipHeight,
                   onLongPressStart:
                       showsTrimChrome || onClipLongPressStart == null
@@ -6698,6 +6714,10 @@ class _TimelineMediaClip extends StatelessWidget {
     required this.joinRight,
     required this.onTap,
     this.onDoubleTap,
+    this.onHorizontalDragStart,
+    this.onHorizontalDragUpdate,
+    this.onHorizontalDragEnd,
+    this.onHorizontalDragCancel,
     this.height = 38,
     this.onLongPressStart,
     this.onLongPressMoveUpdate,
@@ -6722,6 +6742,10 @@ class _TimelineMediaClip extends StatelessWidget {
   final bool joinRight;
   final VoidCallback onTap;
   final VoidCallback? onDoubleTap;
+  final GestureDragStartCallback? onHorizontalDragStart;
+  final GestureDragUpdateCallback? onHorizontalDragUpdate;
+  final GestureDragEndCallback? onHorizontalDragEnd;
+  final GestureDragCancelCallback? onHorizontalDragCancel;
   final double height;
   final VoidCallback? onLongPressStart;
   final GestureLongPressMoveUpdateCallback? onLongPressMoveUpdate;
@@ -6769,6 +6793,10 @@ class _TimelineMediaClip extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       onDoubleTap: onDoubleTap,
+      onHorizontalDragStart: onHorizontalDragStart,
+      onHorizontalDragUpdate: onHorizontalDragUpdate,
+      onHorizontalDragEnd: onHorizontalDragEnd,
+      onHorizontalDragCancel: onHorizontalDragCancel,
       onLongPressStart:
           onLongPressStart == null ? null : (_) => onLongPressStart!(),
       onLongPressMoveUpdate: onLongPressMoveUpdate,
@@ -7753,6 +7781,10 @@ class _TimelinePlaceholderClip extends StatelessWidget {
     required this.isSelected,
     required this.onTap,
     this.onDoubleTap,
+    this.onHorizontalDragStart,
+    this.onHorizontalDragUpdate,
+    this.onHorizontalDragEnd,
+    this.onHorizontalDragCancel,
     this.height = 38,
     this.isDragged = false,
     this.onLongPressStart,
@@ -7765,6 +7797,10 @@ class _TimelinePlaceholderClip extends StatelessWidget {
   final bool isSelected;
   final VoidCallback onTap;
   final VoidCallback? onDoubleTap;
+  final GestureDragStartCallback? onHorizontalDragStart;
+  final GestureDragUpdateCallback? onHorizontalDragUpdate;
+  final GestureDragEndCallback? onHorizontalDragEnd;
+  final GestureDragCancelCallback? onHorizontalDragCancel;
   final double height;
   final bool isDragged;
   final VoidCallback? onLongPressStart;
@@ -7780,6 +7816,10 @@ class _TimelinePlaceholderClip extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       onDoubleTap: onDoubleTap,
+      onHorizontalDragStart: onHorizontalDragStart,
+      onHorizontalDragUpdate: onHorizontalDragUpdate,
+      onHorizontalDragEnd: onHorizontalDragEnd,
+      onHorizontalDragCancel: onHorizontalDragCancel,
       onLongPressStart:
           onLongPressStart == null ? null : (_) => onLongPressStart!(),
       onLongPressMoveUpdate: onLongPressMoveUpdate,
