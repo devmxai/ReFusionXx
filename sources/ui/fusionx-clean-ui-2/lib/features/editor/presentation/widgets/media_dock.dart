@@ -31,8 +31,7 @@ class MediaDock extends StatelessWidget {
   ];
 
   bool get _isAddActive =>
-      addEnabled &&
-      (activeTab == EditorMediaTab.video || activeTab == EditorMediaTab.image);
+      activeTab == EditorMediaTab.video || activeTab == EditorMediaTab.image;
 
   bool _isToolEnabled(EditorMediaTab tab) => enabledTabs?.contains(tab) ?? true;
 
@@ -54,7 +53,7 @@ class MediaDock extends StatelessWidget {
               icon: Icons.add_rounded,
               label: 'Add',
               isActive: _isAddActive,
-              onTap: _isAddActive ? onAddTap : null,
+              onTap: addEnabled ? onAddTap : null,
             ),
           ),
           Expanded(

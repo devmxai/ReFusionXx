@@ -14847,70 +14847,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
   }
 
-  Widget _buildCompositionStartOverlay() {
-    return Positioned.fill(
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.58),
-        ),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 360),
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Start a composition',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: FxPalette.textPrimary,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    'Create a blank motion canvas or start from a video.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: FxPalette.textMuted,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      height: 1.25,
-                    ),
-                  ),
-                  const SizedBox(height: 18),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _CompositionStartButton(
-                          icon: Icons.aspect_ratio_rounded,
-                          label: 'Create',
-                          onPressed: _openCreateCompositionSheet,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _CompositionStartButton(
-                          icon: Icons.video_library_rounded,
-                          label: 'Video',
-                          onPressed: _handleStartFromVideo,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final previewAsset = _previewAsset;
@@ -14918,8 +14854,20 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final hasStartedComposition = _hasStartedCompositionSession ||
         hasTimelineClips ||
         _hasAuthoredMotionContent;
-    final shouldShowCompositionStartOverlay =
+    final shouldShowCompositionStartPage =
         previewAsset == null && !hasStartedComposition;
+    if (shouldShowCompositionStartPage) {
+      return Scaffold(
+        resizeToAvoidBottomInset: false,
+        body: SafeArea(
+          bottom: false,
+          child: _CompositionStartPage(
+            onCreateComposition: _openCreateCompositionSheet,
+            onStartFromVideo: _handleStartFromVideo,
+          ),
+        ),
+      );
+    }
     final hasPreviewCanvasContent =
         previewAsset != null || _hasMotionTextContent || _motionProject != null;
     _schedulePreviewThumbnailWarmup(previewAsset);
@@ -15086,14 +15034,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                   )
                                 : previewFallback,
                           );
-                          return Stack(
-                            fit: StackFit.expand,
-                            children: [
-                              previewStage,
-                              if (shouldShowCompositionStartOverlay)
-                                _buildCompositionStartOverlay(),
-                            ],
-                          );
+                          return previewStage;
                         },
                       ),
                     ),
@@ -15806,25 +15747,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                             onSceneTap:
                                                 _openSceneProgramImportSheet,
                                             onAddTap: () {
-                                              if (effectiveDockActiveTab ==
-                                                      EditorMediaTab.video ||
-                                                  effectiveDockActiveTab ==
-                                                      EditorMediaTab.image) {
-                                                _openMediaSheet(
-                                                  effectiveDockActiveTab ==
-                                                          EditorMediaTab.image
-                                                      ? EditorMediaTab.image
-                                                      : EditorMediaTab.video,
-                                                );
-                                              }
+                                              _openMediaSheet(
+                                                effectiveDockActiveTab ==
+                                                        EditorMediaTab.image
+                                                    ? EditorMediaTab.image
+                                                    : EditorMediaTab.video,
+                                              );
                                             },
                                             onToolTap: _handleDockTab,
                                             enabledTabs: enabledDockTabs,
-                                            addEnabled:
-                                                effectiveDockActiveTab ==
-                                                        EditorMediaTab.video ||
-                                                    effectiveDockActiveTab ==
-                                                        EditorMediaTab.image,
+                                            addEnabled: true,
                                             embedded: true,
                                           ),
                           ),
@@ -16493,6 +16425,63 @@ class _CompositionTemplate {
   final String details;
   final double aspectRatio;
   final TimelineTime duration;
+}
+
+class _CompositionStartPage extends StatelessWidget {
+  const _CompositionStartPage({
+    required this.onCreateComposition,
+    required this.onStartFromVideo,
+  });
+
+  final VoidCallback onCreateComposition;
+  final VoidCallback onStartFromVideo;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: FxPalette.background,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(22, 24, 22, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'ReFusion Studio',
+              style: TextStyle(
+                color: FxPalette.textPrimary,
+                fontSize: 28,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Start from a composition canvas or import a video.',
+              style: TextStyle(
+                color: FxPalette.textMuted,
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                height: 1.25,
+              ),
+            ),
+            const Spacer(),
+            _CompositionStartButton(
+              icon: Icons.aspect_ratio_rounded,
+              label: 'Create Composition',
+              onPressed: onCreateComposition,
+            ),
+            const SizedBox(height: 12),
+            _CompositionStartButton(
+              icon: Icons.video_library_rounded,
+              label: 'Start from Video',
+              onPressed: onStartFromVideo,
+            ),
+            const Spacer(flex: 2),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _CompositionStartButton extends StatelessWidget {

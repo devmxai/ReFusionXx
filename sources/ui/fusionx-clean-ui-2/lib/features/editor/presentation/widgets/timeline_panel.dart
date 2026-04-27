@@ -4279,6 +4279,24 @@ class _TimelinePanelState extends State<TimelinePanel>
                                     child: const SizedBox.expand(),
                                   ),
                                 ),
+                                Positioned(
+                                  left: _timeReadoutWidth + 6,
+                                  right: 0,
+                                  top: 0,
+                                  bottom: 0,
+                                  child: GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onHorizontalDragStart:
+                                        _handleManualPanDragStart,
+                                    onHorizontalDragUpdate:
+                                        _handleManualPanDragUpdate,
+                                    onHorizontalDragEnd:
+                                        _handleManualPanDragEnd,
+                                    onHorizontalDragCancel:
+                                        _handleManualPanDragCancel,
+                                    child: const SizedBox.expand(),
+                                  ),
+                                ),
                               ],
                             );
                           },
