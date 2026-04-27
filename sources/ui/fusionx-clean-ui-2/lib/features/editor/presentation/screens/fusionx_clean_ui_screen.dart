@@ -38,6 +38,7 @@ import '../models/timeline_time.dart';
 import '../services/normal_transition_timeline_authoring_adapter.dart';
 import '../services/transition_unified_scope_bridge_entry_adapter.dart';
 import '../services/transition_unified_scope_entry_gate.dart';
+import '../services/transition_unified_scope_keyframe_adapter.dart';
 import '../services/transition_unified_scope_timeline_session_adapter.dart';
 import '../widgets/editor_tools_bar.dart';
 import '../widgets/editor_top_bar.dart';
@@ -336,6 +337,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   late final BasicMotionTextRenderAdapter _motionTextRenderAdapter;
   late final TransitionUnifiedScopeBridgeEntryAdapter
       _transitionUnifiedScopeBridgeEntryAdapter;
+  late final TransitionUnifiedScopeKeyframeAdapter
+      _transitionUnifiedScopeKeyframeAdapter;
   late final TransitionUnifiedScopeTimelineSessionAdapter
       _transitionUnifiedScopeTimelineSessionAdapter;
   final Map<String, EditorAssetItem> _importedAssetsById =
@@ -450,6 +453,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         enableUnifiedTransitionScope: _unifiedTransitionScopeBridgeEnabled,
       ),
     );
+    _transitionUnifiedScopeKeyframeAdapter =
+        const TransitionUnifiedScopeKeyframeAdapter();
     _transitionUnifiedScopeTimelineSessionAdapter =
         const TransitionUnifiedScopeTimelineSessionAdapter();
     _assetLibrary =
@@ -3409,6 +3414,472 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _isLayerScopeValueEditorOpen = false;
       _isLayerScopeGraphEditorOpen = false;
     });
+  }
+
+  TimelineAnimationLaneData? _unifiedTransitionScopeSelectedAnimationLane(
+    TransitionUnifiedScopeTimelineViewModel? viewModel,
+  ) {
+    final selectedLaneId = _selectedLayerScopeAnimationLaneId;
+    if (viewModel == null || selectedLaneId == null) {
+      return null;
+    }
+    for (final lane in viewModel.lanes) {
+      if (lane.id == selectedLaneId) {
+        return lane;
+      }
+    }
+    return null;
+  }
+
+  TimelineAnimationLaneData? _unifiedTransitionScopeLaneById(
+    TransitionUnifiedScopeTimelineViewModel viewModel,
+    String laneId,
+  ) {
+    for (final lane in viewModel.lanes) {
+      if (lane.id == laneId) {
+        return lane;
+      }
+    }
+    return null;
+  }
+
+  TimelineTime _unifiedTransitionScopeLocalTimeForProgress(
+    TransitionUnifiedScopeTimelineViewModel viewModel,
+    double progress,
+  ) {
+    final ticks =
+        (viewModel.durationTime.inProjectTicks * progress.clamp(0.0, 1.0))
+            .round();
+    return TimelineTime.fromProjectTicks(ticks).clamp(
+      TimelineTime.zero,
+      viewModel.durationTime,
+    );
+  }
+
+  TimelineTime _unifiedTransitionScopeVisibleLocalTime(
+    TransitionUnifiedScopeTimelineViewModel viewModel,
+  ) {
+    return _unifiedTransitionScopeLocalTime(viewModel, _currentTime);
+  }
+
+  double _unifiedTransitionScopeCurrentProgress(
+    TransitionUnifiedScopeTimelineViewModel viewModel,
+  ) {
+    final durationSeconds = viewModel.durationTime.inSecondsDouble;
+    if (durationSeconds <= 0) {
+      return 0.0;
+    }
+    return (_unifiedTransitionScopeVisibleLocalTime(viewModel).inSecondsDouble /
+            durationSeconds)
+        .clamp(0.0, 1.0);
+  }
+
+  bool _canAddUnifiedTransitionScopeKeyframe(
+    TransitionUnifiedScopeTimelineViewModel? viewModel,
+  ) {
+    return _unifiedTransitionScopeSelectedAnimationLane(viewModel) != null;
+  }
+
+  bool _canMoveUnifiedTransitionScopeSelectedKeyframe(
+    TransitionUnifiedScopeTimelineViewModel? viewModel,
+  ) {
+    final lane = _unifiedTransitionScopeSelectedAnimationLane(viewModel);
+    final keyframeIndex = _selectedLayerScopeKeyframeIndex;
+    return lane != null &&
+        keyframeIndex != null &&
+        keyframeIndex >= 0 &&
+        keyframeIndex < lane.normalizedKeyframeStops.length;
+  }
+
+  bool _canOpenUnifiedTransitionScopeValueEditor(
+    TransitionUnifiedScopeTimelineViewModel? viewModel,
+  ) {
+    final lane = _unifiedTransitionScopeSelectedAnimationLane(viewModel);
+    if (viewModel == null || lane == null) {
+      return false;
+    }
+    return (_selectedLayerScopeKeyframeIndex != null &&
+            _selectedLayerScopeKeyframeIndex! >= 0 &&
+            _selectedLayerScopeKeyframeIndex! <
+                lane.normalizedKeyframeStops.length) ||
+        _nearestUnifiedTransitionScopeKeyframeIndex(viewModel, lane) != null;
+  }
+
+  void _applyUnifiedTransitionScopeKeyframeResult(
+    TransitionUnifiedScopeKeyframeOperationResult result,
+  ) {
+    if (result.hasIssues) {
+      _showStageMessage(result.issues.first.message);
+      return;
+    }
+    final selectedLaneId = result.selectedLaneId;
+    final primaryKeyframeId = result.primaryKeyframeId;
+    final selectedLane = selectedLaneId == null
+        ? null
+        : _unifiedTransitionScopeLaneById(result.viewModel, selectedLaneId);
+    final selectedIndex = selectedLane == null || primaryKeyframeId == null
+        ? null
+        : _layerScopeKeyframeIndexForId(selectedLane, primaryKeyframeId);
+    setState(() {
+      _unifiedTransitionScopeSession = result.session;
+      _unifiedTransitionScopeViewModel = result.viewModel;
+      _selectedLayerScopeAnimationLaneId = selectedLaneId;
+      _selectedLayerScopeKeyframeIndex = selectedIndex;
+      _selectedLayerScopeKeyframeId = primaryKeyframeId;
+      _isLayerScopeValueEditorOpen = false;
+      _isLayerScopeGraphEditorOpen = false;
+    });
+    _syncLayerScopeTimeNotifiers();
+  }
+
+  void _handleUnifiedTransitionScopeAnimationKeyframeDrag(
+    String laneId,
+    int keyframeIndex,
+    String keyframeId,
+    double progress,
+  ) {
+    final session = _unifiedTransitionScopeSession;
+    final viewModel = _unifiedTransitionScopeViewModel;
+    if (session == null || viewModel == null) {
+      return;
+    }
+    _applyUnifiedTransitionScopeKeyframeResult(
+      _transitionUnifiedScopeKeyframeAdapter.moveKeyframe(
+        TransitionUnifiedScopeMoveKeyframeRequest(
+          session: session,
+          laneId: laneId,
+          keyframeId: keyframeId,
+          localTime: _unifiedTransitionScopeLocalTimeForProgress(
+            viewModel,
+            progress,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _handleUnifiedTransitionScopeAddKeyframe() {
+    final session = _unifiedTransitionScopeSession;
+    final viewModel = _unifiedTransitionScopeViewModel;
+    final lane = _unifiedTransitionScopeSelectedAnimationLane(viewModel);
+    if (session == null || viewModel == null || lane == null) {
+      _showStageMessage('Select an animation or FX row before adding a key.');
+      return;
+    }
+    final progress = _unifiedTransitionScopeCurrentProgress(viewModel);
+    final values = lane.alignedKeyframeValues(
+      fallbackValue: _unifiedTransitionScopeFallbackValueForLane(lane),
+      clampToPercent: false,
+    );
+    final value = _selectedLayerScopeKeyframeIndex != null &&
+            _selectedLayerScopeKeyframeIndex! >= 0 &&
+            _selectedLayerScopeKeyframeIndex! < values.length
+        ? values[_selectedLayerScopeKeyframeIndex!]
+        : lane.evaluateValueAtProgress(
+            progress,
+            fallbackValue: values.isEmpty
+                ? _unifiedTransitionScopeFallbackValueForLane(lane)
+                : values.last,
+          );
+    _applyUnifiedTransitionScopeKeyframeResult(
+      _transitionUnifiedScopeKeyframeAdapter.addKeyframe(
+        TransitionUnifiedScopeAddKeyframeRequest(
+          session: session,
+          laneId: lane.id,
+          localTime: _unifiedTransitionScopeLocalTimeForProgress(
+            viewModel,
+            progress,
+          ),
+          value: MotionPropertyValue.scalar(value),
+        ),
+      ),
+    );
+  }
+
+  void _handleUnifiedTransitionScopeMoveSelectedKeyframeToPlayhead() {
+    final session = _unifiedTransitionScopeSession;
+    final viewModel = _unifiedTransitionScopeViewModel;
+    final lane = _unifiedTransitionScopeSelectedAnimationLane(viewModel);
+    final keyframeIndex = _selectedLayerScopeKeyframeIndex;
+    if (session == null ||
+        viewModel == null ||
+        lane == null ||
+        keyframeIndex == null ||
+        keyframeIndex < 0 ||
+        keyframeIndex >= lane.normalizedKeyframeStops.length) {
+      return;
+    }
+    final keyframeId = _selectedLayerScopeKeyframeId ??
+        _layerScopeKeyframeIdAt(lane, keyframeIndex);
+    if (keyframeId == null) {
+      return;
+    }
+    _applyUnifiedTransitionScopeKeyframeResult(
+      _transitionUnifiedScopeKeyframeAdapter.moveKeyframe(
+        TransitionUnifiedScopeMoveKeyframeRequest(
+          session: session,
+          laneId: lane.id,
+          keyframeId: keyframeId,
+          localTime: _unifiedTransitionScopeVisibleLocalTime(viewModel),
+        ),
+      ),
+    );
+  }
+
+  List<LayerScopeValueControlSpec>?
+      _unifiedTransitionScopeValueControlsForSelection({
+    required TransitionUnifiedScopeTimelineViewModel viewModel,
+    required TimelineAnimationLaneData lane,
+    required int keyframeIndex,
+  }) {
+    if (keyframeIndex < 0 ||
+        keyframeIndex >= lane.normalizedKeyframeStops.length) {
+      return null;
+    }
+    final values = lane.alignedKeyframeValues(
+      fallbackValue: _unifiedTransitionScopeFallbackValueForLane(lane),
+      clampToPercent: false,
+    );
+    final rawValue =
+        keyframeIndex < values.length ? values[keyframeIndex] : values.last;
+    final propertyId = _unifiedTransitionScopePropertyIdForLane(lane);
+    final displayValue = _unifiedTransitionScopeDisplayValueForProperty(
+      propertyId: propertyId,
+      rawValue: rawValue,
+    );
+    return <LayerScopeValueControlSpec>[
+      LayerScopeValueControlSpec(
+        id: lane.id,
+        label: lane.label,
+        value: displayValue.clamp(
+          _unifiedTransitionScopeValueMin(propertyId),
+          _unifiedTransitionScopeValueMax(propertyId),
+        ),
+        min: _unifiedTransitionScopeValueMin(propertyId),
+        max: _unifiedTransitionScopeValueMax(propertyId),
+        divisions: _unifiedTransitionScopeValueDivisions(propertyId),
+        formatValue: (value) => _formatUnifiedTransitionScopeValue(
+          propertyId: propertyId,
+          value: value,
+        ),
+      ),
+    ];
+  }
+
+  Future<void> _handleUnifiedTransitionScopeValueToolTap() async {
+    if (_isLayerScopeValueEditorOpen) {
+      return;
+    }
+    final viewModel = _unifiedTransitionScopeViewModel;
+    final lane = _unifiedTransitionScopeSelectedAnimationLane(viewModel);
+    if (viewModel == null || lane == null) {
+      return;
+    }
+    final resolvedKeyframeIndex = _selectedLayerScopeKeyframeIndex ??
+        _nearestUnifiedTransitionScopeKeyframeIndex(viewModel, lane);
+    if (resolvedKeyframeIndex == null) {
+      return;
+    }
+    final controls = _unifiedTransitionScopeValueControlsForSelection(
+      viewModel: viewModel,
+      lane: lane,
+      keyframeIndex: resolvedKeyframeIndex,
+    );
+    if (controls == null || controls.isEmpty) {
+      return;
+    }
+    setState(() {
+      _selectedLayerScopeKeyframeIndex = resolvedKeyframeIndex;
+      _selectedLayerScopeKeyframeId =
+          _layerScopeKeyframeIdAt(lane, resolvedKeyframeIndex);
+      _isLayerScopeValueEditorOpen = true;
+    });
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => MediaQuery.removeViewInsets(
+        context: sheetContext,
+        removeBottom: true,
+        child: LayerScopeValueBottomSheet(
+          controls: controls,
+          onDone: () => Navigator.of(sheetContext).maybePop(),
+          onChanged: (change) => _handleUnifiedTransitionScopeValueChanged(
+            change.controlId,
+            change.value,
+          ),
+        ),
+      ),
+    ).whenComplete(() {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isLayerScopeValueEditorOpen = false;
+      });
+    });
+  }
+
+  void _handleUnifiedTransitionScopeValueChanged(
+    String laneId,
+    double value,
+  ) {
+    final session = _unifiedTransitionScopeSession;
+    final viewModel = _unifiedTransitionScopeViewModel;
+    final lane = viewModel == null
+        ? null
+        : _unifiedTransitionScopeLaneById(viewModel, laneId);
+    final keyframeIndex = _selectedLayerScopeKeyframeIndex;
+    if (session == null ||
+        viewModel == null ||
+        lane == null ||
+        keyframeIndex == null ||
+        keyframeIndex < 0 ||
+        keyframeIndex >= lane.keyframeIds.length) {
+      return;
+    }
+    final propertyId = _unifiedTransitionScopePropertyIdForLane(lane);
+    final rawValue = _unifiedTransitionScopeRawValueForProperty(
+      propertyId: propertyId,
+      displayValue: value,
+    );
+    _applyUnifiedTransitionScopeKeyframeResult(
+      _transitionUnifiedScopeKeyframeAdapter.setKeyframeValue(
+        TransitionUnifiedScopeSetValueRequest(
+          session: session,
+          laneId: lane.id,
+          keyframeId: lane.keyframeIds[keyframeIndex],
+          value: MotionPropertyValue.scalar(rawValue),
+        ),
+      ),
+    );
+  }
+
+  String? _unifiedTransitionScopePropertyIdForLane(
+    TimelineAnimationLaneData lane,
+  ) {
+    final session = _unifiedTransitionScopeSession;
+    final binding = session?.bindingForLane(lane.id);
+    return binding?.metadata['propertyId'];
+  }
+
+  double _unifiedTransitionScopeFallbackValueForLane(
+    TimelineAnimationLaneData lane,
+  ) {
+    final propertyId = _unifiedTransitionScopePropertyIdForLane(lane);
+    if (propertyId == MotionPropertyCatalog.opacity.id ||
+        propertyId == MotionPropertyCatalog.scaleX.id ||
+        propertyId == MotionPropertyCatalog.scaleY.id ||
+        propertyId == MotionPropertyCatalog.blurHorizontal.id ||
+        propertyId == MotionPropertyCatalog.blurVertical.id ||
+        propertyId == MotionPropertyCatalog.blurMix.id) {
+      return 1.0;
+    }
+    return 0.0;
+  }
+
+  double _unifiedTransitionScopeDisplayValueForProperty({
+    required String? propertyId,
+    required double rawValue,
+  }) {
+    if (propertyId == MotionPropertyCatalog.opacity.id ||
+        propertyId == MotionPropertyCatalog.scaleX.id ||
+        propertyId == MotionPropertyCatalog.scaleY.id ||
+        propertyId == MotionPropertyCatalog.blurHorizontal.id ||
+        propertyId == MotionPropertyCatalog.blurVertical.id ||
+        propertyId == MotionPropertyCatalog.blurMix.id) {
+      return rawValue * 100.0;
+    }
+    return rawValue;
+  }
+
+  double _unifiedTransitionScopeRawValueForProperty({
+    required String? propertyId,
+    required double displayValue,
+  }) {
+    if (propertyId == MotionPropertyCatalog.opacity.id ||
+        propertyId == MotionPropertyCatalog.scaleX.id ||
+        propertyId == MotionPropertyCatalog.scaleY.id ||
+        propertyId == MotionPropertyCatalog.blurHorizontal.id ||
+        propertyId == MotionPropertyCatalog.blurVertical.id ||
+        propertyId == MotionPropertyCatalog.blurMix.id) {
+      return (displayValue / 100.0).clamp(0.0, 8.0).toDouble();
+    }
+    return displayValue;
+  }
+
+  double _unifiedTransitionScopeValueMin(String? propertyId) {
+    if (propertyId == MotionPropertyCatalog.opacity.id ||
+        propertyId == MotionPropertyCatalog.blurHorizontal.id ||
+        propertyId == MotionPropertyCatalog.blurVertical.id ||
+        propertyId == MotionPropertyCatalog.blurMix.id ||
+        propertyId == MotionPropertyCatalog.blurAmount.id ||
+        propertyId == MotionPropertyCatalog.shakeAmount.id) {
+      return 0;
+    }
+    if (propertyId == MotionPropertyCatalog.scaleX.id ||
+        propertyId == MotionPropertyCatalog.scaleY.id) {
+      return 0;
+    }
+    if (propertyId == MotionPropertyCatalog.rotationDegrees.id) {
+      return -360;
+    }
+    return -1000;
+  }
+
+  double _unifiedTransitionScopeValueMax(String? propertyId) {
+    if (propertyId == MotionPropertyCatalog.opacity.id ||
+        propertyId == MotionPropertyCatalog.blurHorizontal.id ||
+        propertyId == MotionPropertyCatalog.blurVertical.id ||
+        propertyId == MotionPropertyCatalog.blurMix.id) {
+      return 100;
+    }
+    if (propertyId == MotionPropertyCatalog.blurAmount.id ||
+        propertyId == MotionPropertyCatalog.shakeAmount.id) {
+      return 100;
+    }
+    if (propertyId == MotionPropertyCatalog.scaleX.id ||
+        propertyId == MotionPropertyCatalog.scaleY.id) {
+      return 800;
+    }
+    if (propertyId == MotionPropertyCatalog.rotationDegrees.id) {
+      return 360;
+    }
+    return 1000;
+  }
+
+  int? _unifiedTransitionScopeValueDivisions(String? propertyId) {
+    if (propertyId == MotionPropertyCatalog.positionX.id ||
+        propertyId == MotionPropertyCatalog.positionY.id) {
+      return null;
+    }
+    return (_unifiedTransitionScopeValueMax(propertyId) -
+            _unifiedTransitionScopeValueMin(propertyId))
+        .round()
+        .clamp(1, 2000);
+  }
+
+  String _formatUnifiedTransitionScopeValue({
+    required String? propertyId,
+    required double value,
+  }) {
+    if (propertyId == MotionPropertyCatalog.opacity.id ||
+        propertyId == MotionPropertyCatalog.scaleX.id ||
+        propertyId == MotionPropertyCatalog.scaleY.id ||
+        propertyId == MotionPropertyCatalog.blurHorizontal.id ||
+        propertyId == MotionPropertyCatalog.blurVertical.id ||
+        propertyId == MotionPropertyCatalog.blurMix.id) {
+      return '${value.round()}%';
+    }
+    if (propertyId == MotionPropertyCatalog.blurAmount.id) {
+      return '${value.toStringAsFixed(value >= 10 ? 0 : 1)}px';
+    }
+    if (propertyId == MotionPropertyCatalog.rotationDegrees.id) {
+      return '${value.round()} deg';
+    }
+    return value.toStringAsFixed(value.abs() >= 10 ? 0 : 1);
   }
 
   int? _nearestUnifiedTransitionScopeKeyframeIndex(
@@ -13881,6 +14352,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         _canMoveLayerScopeSelectedKeyframe(layerScopeContext);
     final isUnifiedTransitionScopeActive =
         unifiedTransitionScopeViewModel != null;
+    final canAddUnifiedTransitionScopeKeyframe =
+        _canAddUnifiedTransitionScopeKeyframe(unifiedTransitionScopeViewModel);
+    final canOpenUnifiedTransitionScopeValueEditor =
+        _canOpenUnifiedTransitionScopeValueEditor(
+      unifiedTransitionScopeViewModel,
+    );
+    final canMoveUnifiedTransitionScopeSelectedKeyframe =
+        _canMoveUnifiedTransitionScopeSelectedKeyframe(
+      unifiedTransitionScopeViewModel,
+    );
     final selectedLayerScopeAnimationLane = layerScopeContext == null
         ? null
         : _layerScopeSelectedAnimationLane(layerScopeContext);
@@ -13982,7 +14463,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                         onTrimToggle: null,
                                         isTrimModeActive: false,
                                         onDuplicate: null,
-                                        onMoveToKeyframe: null,
+                                        onMoveToKeyframe:
+                                            canMoveUnifiedTransitionScopeSelectedKeyframe
+                                                ? _handleUnifiedTransitionScopeMoveSelectedKeyframeToPlayhead
+                                                : null,
                                         onPlayToggle: _useNativePreview
                                             ? _handlePlayToggle
                                             : null,
@@ -14226,6 +14710,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                               _selectUnifiedTransitionScopeLane,
                                           onAnimationKeyframeTap:
                                               _handleUnifiedTransitionScopeKeyframeTap,
+                                          onAnimationKeyframeDrag:
+                                              _handleUnifiedTransitionScopeAnimationKeyframeDrag,
                                           onBackgroundTap: () {
                                             setState(() {
                                               _selectedLayerScopeAnimationLaneId =
@@ -14575,16 +15061,26 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                 : isUnifiedTransitionScopeActive
                                     ? LayerScopeKeyframeDock(
                                         addEnabled: true,
-                                        keyframeEnabled: false,
-                                        valueEnabled: false,
+                                        keyframeEnabled:
+                                            canAddUnifiedTransitionScopeKeyframe,
+                                        valueEnabled:
+                                            canOpenUnifiedTransitionScopeValueEditor,
                                         graphEnabled: false,
-                                        isValueActive: false,
+                                        isValueActive:
+                                            _isLayerScopeValueEditorOpen &&
+                                                canOpenUnifiedTransitionScopeValueEditor,
                                         isGraphActive: false,
                                         onAddTap: () => _showStageMessage(
-                                          'Unified transition tools connect in the next checkpoint.',
+                                          'Unified transition preset and script tools connect in the next checkpoint.',
                                         ),
-                                        onAddKeyframeTap: null,
-                                        onValueTap: null,
+                                        onAddKeyframeTap:
+                                            canAddUnifiedTransitionScopeKeyframe
+                                                ? _handleUnifiedTransitionScopeAddKeyframe
+                                                : null,
+                                        onValueTap:
+                                            canOpenUnifiedTransitionScopeValueEditor
+                                                ? _handleUnifiedTransitionScopeValueToolTap
+                                                : null,
                                         onGraphTap: null,
                                         embedded: true,
                                         addLabel: 'Add',

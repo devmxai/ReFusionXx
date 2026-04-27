@@ -408,6 +408,12 @@ Current foundation:
   - delete keyframe.
 - The adapter resolves a visible transition lane back to its graph channel binding, calls `UnifiedKeyframeOperations`, rebuilds the `TransitionUnifiedScopeBridgeSession`, and regenerates the Layer Scope style view model from the updated graph.
 - This proves transition keyframe mutations can use the same identity-based operation layer as Layer Scope, while still staying behind the disabled production flag.
+- `FusionXCleanUiScreen` now wires the hidden unified transition scope UI controls to that adapter when the feature flag is enabled:
+  - dragging a transition keyframe moves the graph keyframe,
+  - the Key button adds a graph keyframe at the scoped playhead time,
+  - the Value button edits the selected graph keyframe value,
+  - the move-to-playhead tool moves the selected graph keyframe to the scoped playhead.
+- The production flag remains disabled. This step is a reversible UI wiring slice, not a user-facing transition-scope replacement yet.
 
 ### Phase C5: Transition Mode In Unified Layer Scope Timeline
 
