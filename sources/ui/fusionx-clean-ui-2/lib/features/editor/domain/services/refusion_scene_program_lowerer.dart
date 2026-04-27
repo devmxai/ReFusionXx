@@ -4,6 +4,7 @@ import '../../presentation/models/timeline_time.dart';
 import '../models/professional_motion_animation_models.dart';
 import '../models/professional_motion_interpolation_parsing.dart';
 import '../models/professional_motion_models.dart';
+import '../models/professional_motion_text_models.dart';
 import '../models/refusion_scene_program_models.dart';
 import 'refusion_core_design_pack.dart';
 
@@ -27,13 +28,17 @@ class ReFusionSceneProgramLoweringResult {
   ReFusionSceneProgramLoweringResult({
     required this.project,
     required List<MotionPropertyChannelModel> channels,
+    List<MotionTextAnimationBindingModel> textAnimationBindings =
+        const <MotionTextAnimationBindingModel>[],
     List<ReFusionSceneProgramIssue> issues =
         const <ReFusionSceneProgramIssue>[],
   })  : channels = List.unmodifiable(channels),
+        textAnimationBindings = List.unmodifiable(textAnimationBindings),
         issues = List.unmodifiable(issues);
 
   final MotionProjectModel project;
   final List<MotionPropertyChannelModel> channels;
+  final List<MotionTextAnimationBindingModel> textAnimationBindings;
   final List<ReFusionSceneProgramIssue> issues;
 
   bool get hasErrors => issues.any(
@@ -49,6 +54,7 @@ class ReFusionSceneProgramLowerer {
   ) {
     final issues = <ReFusionSceneProgramIssue>[];
     final channels = <MotionPropertyChannelModel>[];
+    final textAnimationBindings = <MotionTextAnimationBindingModel>[];
     final projectId = _sanitizeId(request.projectId ?? request.program.name);
     final sceneId = _sanitizeId(request.sceneId ?? '${projectId}_scene');
     final projectDuration = TimelineTime.fromMilliseconds(
@@ -73,6 +79,7 @@ class ReFusionSceneProgramLowerer {
         sceneDuration: projectDuration,
         channels: channels,
         channelIds: channelIds,
+        textAnimationBindings: textAnimationBindings,
         issues: issues,
       );
       if (layerModel != null) {
@@ -106,6 +113,7 @@ class ReFusionSceneProgramLowerer {
     return ReFusionSceneProgramLoweringResult(
       project: project,
       channels: channels,
+      textAnimationBindings: textAnimationBindings,
       issues: issues,
     );
   }
@@ -119,6 +127,7 @@ class ReFusionSceneProgramLowerer {
     required TimelineTime sceneDuration,
     required List<MotionPropertyChannelModel> channels,
     required Set<String> channelIds,
+    required List<MotionTextAnimationBindingModel> textAnimationBindings,
     required List<ReFusionSceneProgramIssue> issues,
   }) {
     final layerKind = _layerKindFor(layer.kind);
@@ -171,6 +180,17 @@ class ReFusionSceneProgramLowerer {
         channelIds: channelIds,
         issues: issues,
       );
+      final textBinding = _textRevealBindingForElement(
+        element: element,
+        elementKind: elementModel.kind,
+        layer: layer,
+        projectId: projectId,
+        sceneId: sceneId,
+        activeRange: visibleRange,
+      );
+      if (textBinding != null) {
+        textAnimationBindings.add(textBinding);
+      }
     }
 
     if (elements.isEmpty) {
@@ -650,6 +670,10 @@ class ReFusionSceneProgramLowerer {
       'revealprogress' ||
       'textreveal' ||
       'textrevealprogress' ||
+      'wordreveal' ||
+      'wordrevealprogress' ||
+      'letterreveal' ||
+      'letterrevealprogress' ||
       'typing' ||
       'typingprogress' ||
       'typewriter' ||
@@ -940,6 +964,94 @@ class ReFusionSceneProgramLowerer {
         return MotionElementKind.shape;
       case 'image':
         return MotionElementKind.image;
+    }
+    return null;
+  }
+
+  MotionTextAnimationBindingModel? _textRevealBindingForElement({
+    required ReFusionSceneProgramElement element,
+    required MotionElementKind elementKind,
+    required ReFusionSceneProgramLayer layer,
+    required String projectId,
+    required String sceneId,
+    required TimelineTimeRange activeRange,
+  }) {
+    if (elementKind != MotionElementKind.text) {
+      return null;
+    }
+    final revealUnit = _textRevealIntentForElement(element);
+    if (revealUnit == null) {
+      return null;
+    }
+    final animationKind = revealUnit == MotionTextRevealUnit.word
+        ? MotionTextAnimationKind.wordReveal
+        : MotionTextAnimationKind.typewriter;
+    return MotionTextAnimationBindingModel(
+      id: _sanitizeId('${layer.id}_${element.id}_scene_text_reveal'),
+      elementTarget: _elementTarget(
+        projectId: projectId,
+        sceneId: sceneId,
+        layerId: layer.id,
+        elementId: element.id,
+      ),
+      activeRange: activeRange,
+      animationBlocks: <MotionTextAnimationBlock>[
+        MotionTextAnimationBlock(
+          id: _sanitizeId('${layer.id}_${element.id}_scene_reveal_block'),
+          kind: animationKind,
+          relativeRange: TimelineTimeRange(
+            start: TimelineTime.zero,
+            endExclusive: activeRange.duration,
+          ),
+          interpolation: const MotionInterpolationSpec.linear(),
+          revealSpec: MotionTextRevealSpec(
+            unit: revealUnit,
+            stagger: TimelineTime.zero,
+          ),
+          parameters: const <String, MotionPropertyValue>{
+            'manualRevealProgress': MotionPropertyValue.boolean(true),
+            'revealDirection': MotionPropertyValue.enumValue('forward'),
+          },
+        ),
+      ],
+    );
+  }
+
+  MotionTextRevealUnit? _textRevealIntentForElement(
+    ReFusionSceneProgramElement element,
+  ) {
+    for (final channel in element.channels) {
+      final intent = _textRevealIntentForProperty(channel.property);
+      if (intent != null) {
+        return intent;
+      }
+    }
+    for (final property in element.properties.keys) {
+      final intent = _textRevealIntentForProperty(property);
+      if (intent != null) {
+        return intent;
+      }
+    }
+    return null;
+  }
+
+  MotionTextRevealUnit? _textRevealIntentForProperty(String property) {
+    switch (_normalizeToken(property)) {
+      case 'wordreveal':
+      case 'wordrevealprogress':
+        return MotionTextRevealUnit.word;
+      case 'reveal':
+      case 'revealprogress':
+      case 'textreveal':
+      case 'textrevealprogress':
+      case 'letterreveal':
+      case 'letterrevealprogress':
+      case 'typing':
+      case 'typingprogress':
+      case 'typewriter':
+      case 'typewriterprogress':
+      case 'texttypingprogress':
+        return MotionTextRevealUnit.letter;
     }
     return null;
   }

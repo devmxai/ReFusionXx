@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../domain/models/professional_motion_animation_models.dart';
 import '../../domain/models/professional_motion_models.dart';
+import '../../domain/models/professional_motion_text_models.dart';
 import '../../domain/models/refusion_scene_program_models.dart';
 import '../../domain/services/refusion_scene_program_authoring_service.dart';
 
@@ -34,6 +35,7 @@ class SceneProgramImportSheetResult {
     required this.warningCount,
     required this.project,
     required this.channels,
+    required this.textAnimationBindings,
   });
 
   factory SceneProgramImportSheetResult.fromAuthoringResult(
@@ -54,6 +56,7 @@ class SceneProgramImportSheetResult {
       warningCount: warningCount,
       project: result.project!,
       channels: result.channels,
+      textAnimationBindings: result.textAnimationBindings,
     );
   }
 
@@ -63,6 +66,7 @@ class SceneProgramImportSheetResult {
   final int warningCount;
   final MotionProjectModel project;
   final List<MotionPropertyChannelModel> channels;
+  final List<MotionTextAnimationBindingModel> textAnimationBindings;
 }
 
 class _SceneProgramImportBottomSheetState

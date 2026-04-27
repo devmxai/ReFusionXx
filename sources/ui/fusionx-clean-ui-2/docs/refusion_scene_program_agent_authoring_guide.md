@@ -176,8 +176,14 @@ Accepted typing aliases:
 - `typewriterProgress`
 - `typing`
 - `typingProgress`
+- `letterReveal`
+- `letterRevealProgress`
+- `wordReveal`
+- `wordRevealProgress`
 
-These aliases are lowered to the same editable `reveal` channel.
+These aliases are lowered to the same editable `reveal` channel. `typewriter`,
+`typing`, and `letterReveal` create a letter-by-letter text binding. `wordReveal`
+creates a word-by-word text binding.
 
 ## Supported Channels
 

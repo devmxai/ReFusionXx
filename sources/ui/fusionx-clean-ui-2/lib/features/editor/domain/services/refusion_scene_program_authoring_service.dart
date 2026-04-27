@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/professional_motion_animation_models.dart';
 import '../models/professional_motion_models.dart';
+import '../models/professional_motion_text_models.dart';
 import '../models/refusion_scene_program_models.dart';
 import 'refusion_scene_program_import_service.dart';
 import 'refusion_scene_program_lowerer.dart';
@@ -31,12 +32,16 @@ class ReFusionSceneProgramAuthoringResult {
     this.project,
     List<MotionPropertyChannelModel> channels =
         const <MotionPropertyChannelModel>[],
+    List<MotionTextAnimationBindingModel> textAnimationBindings =
+        const <MotionTextAnimationBindingModel>[],
   })  : issues = List.unmodifiable(issues),
-        channels = List.unmodifiable(channels);
+        channels = List.unmodifiable(channels),
+        textAnimationBindings = List.unmodifiable(textAnimationBindings);
 
   final ReFusionSceneProgram? program;
   final MotionProjectModel? project;
   final List<MotionPropertyChannelModel> channels;
+  final List<MotionTextAnimationBindingModel> textAnimationBindings;
   final List<ReFusionSceneProgramIssue> issues;
 
   bool get isValid =>
@@ -88,6 +93,7 @@ class ReFusionSceneProgramAuthoringService {
       program: importResult.program,
       project: loweringResult.project,
       channels: loweringResult.channels,
+      textAnimationBindings: loweringResult.textAnimationBindings,
       issues: <ReFusionSceneProgramIssue>[
         ...importResult.issues,
         ...loweringResult.issues,

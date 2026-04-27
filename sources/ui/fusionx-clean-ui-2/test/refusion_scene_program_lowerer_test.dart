@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_animation_models.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_models.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_text_models.dart';
 import 'package:refusion_app/features/editor/domain/models/refusion_scene_program_models.dart';
 import 'package:refusion_app/features/editor/domain/services/refusion_scene_program_import_service.dart';
 import 'package:refusion_app/features/editor/domain/services/refusion_scene_program_lowerer.dart';
@@ -329,6 +330,18 @@ void main() {
     );
     expect(revealChannel.keyframes.map((keyframe) => keyframe.value.rawValue),
         <double>[0.0, 1.0]);
+    expect(result.textAnimationBindings, hasLength(1));
+    final binding = result.textAnimationBindings.single;
+    expect(binding.elementTarget.targetId, 'typing-text');
+    expect(binding.animationBlocks.single.kind,
+        MotionTextAnimationKind.typewriter);
+    expect(binding.animationBlocks.single.revealSpec!.unit,
+        MotionTextRevealUnit.letter);
+    expect(
+      binding
+          .animationBlocks.single.parameters['manualRevealProgress']!.rawValue,
+      isTrue,
+    );
   });
 
   test('keeps supported channels when unsupported properties are present', () {

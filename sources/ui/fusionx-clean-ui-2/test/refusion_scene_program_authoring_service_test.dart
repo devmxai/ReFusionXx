@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_models.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_text_models.dart';
 import 'package:refusion_app/features/editor/domain/models/refusion_scene_program_models.dart';
 import 'package:refusion_app/features/editor/domain/services/refusion_scene_program_authoring_service.dart';
 
@@ -126,5 +127,51 @@ void main() {
     expect(result.hasWarnings, isTrue);
     expect(result.project, isNotNull);
     expect(result.channels, hasLength(1));
+  });
+
+  test('returns typewriter bindings for scene-program typing channels', () {
+    final result = service.importSceneProgram(
+      const ReFusionSceneProgramAuthoringRequest(
+        source: '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "name": "Typing Scene",
+  "durationMs": 1800,
+  "frameRate": 30,
+  "layers": [
+    {
+      "id": "typing-layer",
+      "kind": "text",
+      "startMs": 0,
+      "durationMs": 1800,
+      "elements": [
+        {
+          "id": "typing-text",
+          "kind": "text",
+          "text": "hello world",
+          "channels": [
+            {
+              "property": "typingProgress",
+              "keyframes": [
+                { "timeMs": 0, "value": 0.0 },
+                { "timeMs": 1400, "value": 1.0 }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+''',
+      ),
+    );
+
+    expect(result.isValid, isTrue);
+    expect(result.textAnimationBindings, hasLength(1));
+    expect(result.textAnimationBindings.single.elementTarget.targetId,
+        'typing-text');
+    expect(result.textAnimationBindings.single.animationBlocks.single.kind,
+        MotionTextAnimationKind.typewriter);
   });
 }

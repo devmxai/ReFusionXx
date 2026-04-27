@@ -10003,6 +10003,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         if (!incomingChannelIds.contains(channel.id)) channel,
       ...result.channels,
     ];
+    final incomingBindingElementIds = result.textAnimationBindings
+        .map((binding) => binding.elementTarget.targetId)
+        .toSet();
+    final nextTextAnimationBindings = <MotionTextAnimationBindingModel>[
+      for (final binding in _motionTextAnimationBindings)
+        if (!incomingBindingElementIds.contains(binding.elementTarget.targetId))
+          binding,
+      ...result.textAnimationBindings,
+    ];
     final nextProject = baseProject.copyWith(
       scenes: List<MotionSceneModel>.unmodifiable(baseScenes),
       metadata: <String, String>{
@@ -10019,6 +10028,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _motionProject = nextProject;
       _manualMotionPropertyChannels =
           List<MotionPropertyChannelModel>.unmodifiable(nextChannels);
+      _motionTextAnimationBindings =
+          List<MotionTextAnimationBindingModel>.unmodifiable(
+        nextTextAnimationBindings,
+      );
       _markMotionAuthoringChanged();
       _selectedClipId = firstTextElementId;
       _activeTab = EditorMediaTab.text;
