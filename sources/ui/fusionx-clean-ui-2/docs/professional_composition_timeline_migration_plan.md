@@ -395,6 +395,11 @@ Current foundation:
   - stores `TransitionUnifiedScopeTimelineViewModel`,
   - clears that staged state when entering normal Layer Scope, legacy Transition Focus, selection clear, or transition deletion,
   - syncs the existing scope time notifiers from the unified transition view model while staged.
+- With the feature flag enabled, the screen can now render the staged transition view model in the existing `TimelinePanel`:
+  - transition-local time maps back to composition-global time,
+  - zoom anchors map back to composition-global time,
+  - lane and keyframe selection are visible,
+  - add/value/graph remain read-only placeholders until the next keyframe-operation checkpoint.
 - The production flag remains disabled; this is still infrastructure only.
 
 ### Phase C5: Transition Mode In Unified Layer Scope Timeline
