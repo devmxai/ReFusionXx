@@ -390,6 +390,11 @@ Current foundation:
   - global display offset,
   - seam-local time for accurate transition mode alignment.
 - This keeps the real UI handoff small: the screen can consume one view model instead of recomputing transition timeline geometry.
+- `FusionXCleanUiScreen` now has screen-level staged state for the future transition-mode handoff:
+  - stores `TransitionUnifiedScopeBridgeSession`,
+  - stores `TransitionUnifiedScopeTimelineViewModel`,
+  - clears that staged state when entering normal Layer Scope, legacy Transition Focus, selection clear, or transition deletion,
+  - syncs the existing scope time notifiers from the unified transition view model while staged.
 - The production flag remains disabled; this is still infrastructure only.
 
 ### Phase C5: Transition Mode In Unified Layer Scope Timeline

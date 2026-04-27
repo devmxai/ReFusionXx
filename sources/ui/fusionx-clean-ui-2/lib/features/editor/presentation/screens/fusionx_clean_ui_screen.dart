@@ -38,6 +38,7 @@ import '../models/timeline_time.dart';
 import '../services/normal_transition_timeline_authoring_adapter.dart';
 import '../services/transition_unified_scope_bridge_entry_adapter.dart';
 import '../services/transition_unified_scope_entry_gate.dart';
+import '../services/transition_unified_scope_timeline_session_adapter.dart';
 import '../widgets/editor_tools_bar.dart';
 import '../widgets/editor_top_bar.dart';
 import '../widgets/animate_browser_bottom_sheet.dart';
@@ -335,6 +336,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   late final BasicMotionTextRenderAdapter _motionTextRenderAdapter;
   late final TransitionUnifiedScopeBridgeEntryAdapter
       _transitionUnifiedScopeBridgeEntryAdapter;
+  late final TransitionUnifiedScopeTimelineSessionAdapter
+      _transitionUnifiedScopeTimelineSessionAdapter;
   final Map<String, EditorAssetItem> _importedAssetsById =
       <String, EditorAssetItem>{};
   final Map<String, Uint8List> _previewThumbnailCache = <String, Uint8List>{};
@@ -347,6 +350,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   String? _selectedTransitionId;
   _TransitionFocusSession? _transitionFocusSession;
   _LayerScopeSession? _layerScopeSession;
+  TransitionUnifiedScopeBridgeSession? _unifiedTransitionScopeSession;
+  TransitionUnifiedScopeTimelineViewModel? _unifiedTransitionScopeViewModel;
   String? _selectedLayerScopeAnimationLaneId;
   int? _selectedLayerScopeKeyframeIndex;
   String? _selectedLayerScopeKeyframeId;
@@ -445,6 +450,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         enableUnifiedTransitionScope: _unifiedTransitionScopeBridgeEnabled,
       ),
     );
+    _transitionUnifiedScopeTimelineSessionAdapter =
+        const TransitionUnifiedScopeTimelineSessionAdapter();
     _assetLibrary =
         ValueNotifier<List<EditorAssetItem>>(const <EditorAssetItem>[]);
     _assetLibraryLoading = ValueNotifier<bool>(false);
@@ -2729,6 +2736,23 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   void _syncLayerScopeTimeNotifiers() {
+    final unifiedTransitionScope = _unifiedTransitionScopeViewModel;
+    if (unifiedTransitionScope != null) {
+      final localDisplayTime = (_timelineDisplayTimeNotifier.value -
+              unifiedTransitionScope.timeDisplayOffset)
+          .clamp(TimelineTime.zero, unifiedTransitionScope.durationTime);
+      final localPlaybackSampleTime = (_playbackSampleTimeNotifier.value -
+              unifiedTransitionScope.timeDisplayOffset)
+          .clamp(TimelineTime.zero, unifiedTransitionScope.durationTime);
+      if (_layerScopeDisplayTimeNotifier.value != localDisplayTime) {
+        _layerScopeDisplayTimeNotifier.value = localDisplayTime;
+      }
+      if (_layerScopePlaybackSampleTimeNotifier.value !=
+          localPlaybackSampleTime) {
+        _layerScopePlaybackSampleTimeNotifier.value = localPlaybackSampleTime;
+      }
+      return;
+    }
     final context = _activeLayerScopeContext;
     if (context == null) {
       if (_layerScopeDisplayTimeNotifier.value != TimelineTime.zero) {
@@ -3199,6 +3223,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final nextPreviewAssetId = _previewAssetIdForTimelineTime(nextTimelineTime);
     setState(() {
       _transitionFocusSession = null;
+      _clearUnifiedTransitionScopeSession();
       _selectedClipId = elementId;
       _selectedTransitionId = null;
       _activeTab = EditorMediaTab.text;
@@ -3218,6 +3243,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     setState(() {
       _transitionFocusSession = null;
       _layerScopeSession = null;
+      _clearUnifiedTransitionScopeSession();
       _selectedClipId = null;
       _selectedTransitionId = null;
       if (_activeTab == EditorMediaTab.speed) {
@@ -3268,6 +3294,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
   void _handleTimelineClipDoubleTap(String clipId) {
     _enterLayerScope(clipId);
+  }
+
+  void _clearUnifiedTransitionScopeSession() {
+    _unifiedTransitionScopeSession = null;
+    _unifiedTransitionScopeViewModel = null;
   }
 
   bool get _isLayerScopeTransitionBlocked =>
@@ -3422,6 +3453,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     setState(() {
       _transitionFocusSession = null;
       _selectedTransitionId = null;
+      _clearUnifiedTransitionScopeSession();
       _layerScopeSession = _LayerScopeSession(
         clipId: clipId,
         returnSelectedClipId: _selectedClipId,
@@ -3449,6 +3481,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
     setState(() {
       _layerScopeSession = null;
+      _clearUnifiedTransitionScopeSession();
       _selectedLayerScopeAnimationLaneId = null;
       _selectedLayerScopeKeyframeIndex = null;
       _selectedLayerScopeKeyframeId = null;
@@ -11164,6 +11197,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         _isTransitionFocusValueEditorOpen = false;
         _isTransitionFocusGraphEditorOpen = false;
       }
+      if (_unifiedTransitionScopeSession?.graphBundle.nodeId == transitionId) {
+        _clearUnifiedTransitionScopeSession();
+        _selectedLayerScopeAnimationLaneId = null;
+        _selectedLayerScopeKeyframeIndex = null;
+        _selectedLayerScopeKeyframeId = null;
+        _isLayerScopeValueEditorOpen = false;
+        _isLayerScopeGraphEditorOpen = false;
+      }
     });
   }
 
@@ -12041,6 +12082,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _warmTransitionFocusPreviewAssets(context);
     setState(() {
       _layerScopeSession = null;
+      _clearUnifiedTransitionScopeSession();
       _transitionFocusSession = _TransitionFocusSession(
         transitionId: transitionId,
         selectedLaneId: resolvedLaneId,
@@ -12725,8 +12767,31 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
       return false;
     }
+    final session = result.session!;
+    final viewModel =
+        _transitionUnifiedScopeTimelineSessionAdapter.viewModelForSession(
+      session,
+    );
+    setState(() {
+      _transitionFocusSession = null;
+      _layerScopeSession = null;
+      _unifiedTransitionScopeSession = session;
+      _unifiedTransitionScopeViewModel = viewModel;
+      _selectedClipId = null;
+      _selectedTransitionId = transition?.id ?? session.graphBundle.nodeId;
+      _selectedLayerScopeAnimationLaneId =
+          viewModel.lanes.isEmpty ? null : viewModel.lanes.first.id;
+      _selectedLayerScopeKeyframeIndex = null;
+      _selectedLayerScopeKeyframeId = null;
+      _isLayerScopeValueEditorOpen = false;
+      _isLayerScopeGraphEditorOpen = false;
+      if (_activeTab == EditorMediaTab.speed) {
+        _activeTab = EditorMediaTab.video;
+      }
+    });
+    _syncLayerScopeTimeNotifiers();
     _showStageMessage(
-      'Unified Transition Scope graph is ready. UI handoff is the next checkpoint.',
+      'Unified Transition Scope is staged with ${viewModel.lanes.length} editable lane(s).',
     );
     return true;
   }
@@ -13642,8 +13707,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             transitionFocusContext,
             _currentTime,
           );
-    final layerScopeContext =
-        transitionFocusContext == null ? _activeLayerScopeContext : null;
+    final unifiedTransitionScopeViewModel = transitionFocusContext == null
+        ? _unifiedTransitionScopeViewModel
+        : null;
+    final layerScopeContext = transitionFocusContext == null &&
+            unifiedTransitionScopeViewModel == null
+        ? _activeLayerScopeContext
+        : null;
     final layerScopeTracks = layerScopeContext == null
         ? const <TimelineTrackData>[]
         : _buildLayerScopeTracks(layerScopeContext);
