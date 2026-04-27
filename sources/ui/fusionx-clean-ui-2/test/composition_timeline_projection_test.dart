@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_animation_models.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_models.dart';
 import 'package:refusion_app/features/editor/domain/services/composition_timeline_projection.dart';
+import 'package:refusion_app/features/editor/domain/services/refusion_scene_program_authoring_service.dart';
 import 'package:refusion_app/features/editor/presentation/models/timeline_time.dart';
 
 void main() {
@@ -258,6 +261,67 @@ void main() {
     expect(
       missingLayer.issues.single.code,
       CompositionProjectionIssueCode.missingLayer,
+    );
+  });
+
+  test('scene program output can pass through composition projections', () {
+    const authoringService = ReFusionSceneProgramAuthoringService();
+    final source = File(
+      'test/fixtures/refusion_scene_programs/first_generated_scene.json',
+    ).readAsStringSync();
+    final authoring = authoringService.importSceneProgram(
+      ReFusionSceneProgramAuthoringRequest(
+        source: source,
+        projectId: 'generated-project',
+        sceneId: 'generated-scene',
+      ),
+    );
+    expect(authoring.isValid, isTrue);
+
+    final sceneProjection = resolver.resolveSceneScope(
+      project: authoring.project!,
+      sceneId: 'generated-scene',
+      globalTime: TimelineTime.fromMilliseconds(900),
+      channels: authoring.channels,
+    );
+
+    expect(sceneProjection.hasIssues, isFalse);
+    final sceneScope = sceneProjection.projection!;
+    expect(sceneScope.mode, CompositionScopeMode.scene);
+    expect(sceneScope.globalTime.inMilliseconds, 900);
+    expect(sceneScope.localTime.inMilliseconds, 900);
+    expect(
+      sceneScope.layers.map((layer) => layer.id),
+      <String>['background-layer', 'accent-orb-layer', 'title-layer'],
+    );
+    expect(sceneScope.elements, hasLength(3));
+    expect(sceneScope.channels, hasLength(8));
+
+    final layerProjection = resolver.resolveLayerScope(
+      project: authoring.project!,
+      sceneId: 'generated-scene',
+      layerId: 'title-layer',
+      globalTime: TimelineTime.fromMilliseconds(900),
+      channels: authoring.channels,
+    );
+
+    expect(layerProjection.hasIssues, isFalse);
+    final titleScope = layerProjection.projection!;
+    expect(titleScope.mode, CompositionScopeMode.layer);
+    expect(titleScope.layerId, 'title-layer');
+    expect(titleScope.globalTime.inMilliseconds, 900);
+    expect(titleScope.localTime.inMilliseconds, 600);
+    expect(titleScope.layers.single.id, 'title-layer');
+    expect(titleScope.elements.single.id, 'hero-title');
+    expect(
+      titleScope.channels.map((channel) => channel.definition.id),
+      containsAll(<String>[
+        MotionPropertyCatalog.positionX.id,
+        MotionPropertyCatalog.positionY.id,
+        MotionPropertyCatalog.opacity.id,
+        MotionPropertyCatalog.scaleX.id,
+        MotionPropertyCatalog.scaleY.id,
+      ]),
     );
   });
 }
