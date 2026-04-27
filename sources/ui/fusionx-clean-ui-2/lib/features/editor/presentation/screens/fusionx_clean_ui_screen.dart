@@ -622,8 +622,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         ? TimelineTime.fromSecondsDouble(nativeDuration)
         : TimelineTime.zero;
     final tracksDuration = _timelineDurationForTracksTime(_timelineTruthTracks);
-    final motionDurationTime =
-        _motionProject?.durationTime ?? TimelineTime.zero;
+    final motionAuthoredDurationTime = _motionAuthoredContentDurationTime;
+    final motionDurationTime = motionAuthoredDurationTime > TimelineTime.zero
+        ? motionAuthoredDurationTime
+        : (_motionProject?.durationTime ?? TimelineTime.zero);
     if (_isApplyingStructuralEdit) {
       if (tracksDuration > TimelineTime.zero) {
         return tracksDuration;
@@ -652,6 +654,59 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return contentDuration >= nativeDurationTime
         ? contentDuration
         : nativeDurationTime;
+  }
+
+  TimelineTime get _motionAuthoredContentDurationTime {
+    final project = _motionProject;
+    if (project == null) {
+      return TimelineTime.zero;
+    }
+    var duration = TimelineTime.zero;
+    void includeTime(TimelineTime time) {
+      if (time > duration) {
+        duration = time;
+      }
+    }
+
+    for (final scene in project.scenes) {
+      if (!scene.isEnabled) {
+        continue;
+      }
+      final sceneStart = scene.projectRange.start;
+      for (final layer in scene.layers) {
+        if (!layer.isEnabled) {
+          continue;
+        }
+        if (layer.elements.isNotEmpty || layer.properties.isNotEmpty) {
+          includeTime(sceneStart + layer.visibleRange.endExclusive);
+        }
+        for (final element in layer.elements) {
+          if (!element.isEnabled) {
+            continue;
+          }
+          includeTime(sceneStart + element.localRange.endExclusive);
+        }
+      }
+      if (scene.properties.isNotEmpty) {
+        includeTime(scene.projectRange.endExclusive);
+      }
+    }
+
+    for (final channel in _manualMotionPropertyChannels) {
+      final activeRange = channel.activeRange;
+      if (activeRange != null) {
+        includeTime(activeRange.endExclusive);
+      }
+      for (final keyframe in channel.keyframes) {
+        includeTime(keyframe.time);
+      }
+    }
+
+    for (final binding in _motionTextAnimationBindings) {
+      includeTime(binding.activeRange.endExclusive);
+    }
+
+    return duration;
   }
 
   MotionProjectFormat get _motionProjectFormat {
@@ -9879,10 +9934,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final retainedLayers = baseScene.layers
         .where((layer) => !importedLayerIds.contains(layer.id))
         .toList(growable: false);
+    final hasExistingTimelineContent =
+        _tracks.any((track) => track.clips.isNotEmpty);
+    final hasExistingMotionContent = retainedLayers.isNotEmpty ||
+        _manualMotionPropertyChannels.isNotEmpty ||
+        _motionTextAnimationBindings.isNotEmpty;
     final nextSceneEnd = _maxTimelineTime(<TimelineTime>[
-      baseScene.projectRange.endExclusive,
       importedScene.projectRange.endExclusive,
-      _timelineDurationTime,
+      if (hasExistingTimelineContent || hasExistingMotionContent)
+        baseScene.projectRange.endExclusive,
+      if (hasExistingTimelineContent) _timelineDurationTime,
     ]);
     final nextScene = baseScene.copyWith(
       projectRange: TimelineTimeRange(
@@ -9935,6 +9996,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         nextScene.projectRange.endExclusive,
       ));
     });
+    _syncTimelineClockDuration();
     _showStageMessage(
       'Scene applied: ${result.layerCount} layers, ${result.channelCount} channels.',
     );
@@ -11593,14 +11655,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return;
     }
 
-    final visibleTime = _visibleTimelinePlaybackTime().clamp(
+    final visibleTime =
+        (_timelineScrubFinalTime ?? _visibleTimelinePlaybackTime()).clamp(
       TimelineTime.zero,
       duration,
     );
     final playbackStart =
         visibleTime >= duration ? TimelineTime.zero : visibleTime;
     _clearPlaybackStopTimeLock();
+    _timelineScrubFinalTime = null;
+    _prepareMotionPreviewForPlaybackStart(time: playbackStart);
     _requestTimelineClockPlaybackStart(playbackStart);
+    _setCurrentTime(playbackStart);
     _motionPreviewClockAnchorTime = playbackStart;
     _motionPreviewClockAnchorElapsed = _motionPreviewClockLatestElapsed;
     setState(() {
