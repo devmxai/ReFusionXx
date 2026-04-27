@@ -79,6 +79,8 @@ class TransitionUnifiedScopeBridgeSession {
     required this.graphBundle,
     required this.scope,
     required this.laneProjection,
+    required this.leftClip,
+    required this.rightClip,
     required this.trackId,
     required this.leftClipId,
     required this.rightClipId,
@@ -95,6 +97,8 @@ class TransitionUnifiedScopeBridgeSession {
   final NormalTransitionGraphAuthoringBundle graphBundle;
   final ScopeProjection scope;
   final TransitionScopeGraphLaneProjection laneProjection;
+  final TimelineClipData leftClip;
+  final TimelineClipData rightClip;
   final String trackId;
   final String leftClipId;
   final String rightClipId;
@@ -289,6 +293,8 @@ class TransitionUnifiedScopeBridgeEntryAdapter {
       graphBundle: graphBundle,
       scope: scope,
       laneProjection: laneProjection,
+      leftClip: request.leftClip,
+      rightClip: request.rightClip,
       trackId: request.trackId,
       leftClipId: request.leftClip.id,
       rightClipId: request.rightClip.id,

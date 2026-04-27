@@ -383,6 +383,13 @@ Current foundation:
   - carries outgoing/incoming layer and element identities,
   - exposes local/global transition time conversion,
   - proves the bridge has enough structured data to open Unified Layer Scope without rebuilding transition context inside the editor screen.
+- `TransitionUnifiedScopeTimelineSessionAdapter` now converts that launch payload into Layer Scope style presentation data:
+  - a scoped video track with outgoing and incoming clip slices,
+  - graph-backed editable animation lanes,
+  - local transition duration,
+  - global display offset,
+  - seam-local time for accurate transition mode alignment.
+- This keeps the real UI handoff small: the screen can consume one view model instead of recomputing transition timeline geometry.
 - The production flag remains disabled; this is still infrastructure only.
 
 ### Phase C5: Transition Mode In Unified Layer Scope Timeline
