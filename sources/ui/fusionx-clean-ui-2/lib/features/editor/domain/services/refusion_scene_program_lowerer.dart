@@ -5,6 +5,7 @@ import '../models/professional_motion_animation_models.dart';
 import '../models/professional_motion_interpolation_parsing.dart';
 import '../models/professional_motion_models.dart';
 import '../models/refusion_scene_program_models.dart';
+import 'refusion_core_design_pack.dart';
 
 @immutable
 class ReFusionSceneProgramLoweringRequest {
@@ -541,6 +542,7 @@ class ReFusionSceneProgramLowerer {
           MotionPropertyCatalog.width.id,
           MotionPropertyCatalog.height.id,
           MotionPropertyCatalog.cornerRadius.id,
+          _SceneProgramPropertyDefinitions.icon.id,
         },
       MotionElementKind.image => <String>{
           MotionPropertyCatalog.positionX.id,
@@ -655,6 +657,9 @@ class ReFusionSceneProgramLowerer {
       'cornerradius' || 'shapecornerradius' => <_LoweredProperty>[
           _LoweredProperty(definition: MotionPropertyCatalog.cornerRadius),
         ],
+      'icon' || 'iconname' || 'symbol' || 'coreicon' => <_LoweredProperty>[
+          _LoweredProperty(definition: _SceneProgramPropertyDefinitions.icon),
+        ],
       'shapekind' || 'shape' || 'type' => const <_LoweredProperty>[],
       _ => const <_LoweredProperty>[],
     };
@@ -692,6 +697,24 @@ class ReFusionSceneProgramLowerer {
       component: loweredProperty.component,
       property: channelProperty,
     );
+    if (loweredProperty.definition.id ==
+        _SceneProgramPropertyDefinitions.icon.id) {
+      if (rawComponent is String) {
+        final normalizedIcon =
+            ReFusionCoreDesignPack.normalizeIconId(rawComponent);
+        if (normalizedIcon != null) {
+          return MotionPropertyValue.stringValue(normalizedIcon);
+        }
+      }
+      _addIssue(
+        issues,
+        severity: ReFusionSceneProgramIssueSeverity.warning,
+        message:
+            'Icon `$raw` is not in the ReFusion Core Pack and was replaced with `sparkles`.',
+        path: path,
+      );
+      return const MotionPropertyValue.stringValue('sparkles');
+    }
     final value = switch (loweredProperty.definition.valueKind) {
       MotionPropertyValueKind.scalar => _scalarValue(rawComponent),
       MotionPropertyValueKind.integer when rawComponent is int =>
@@ -875,6 +898,7 @@ class ReFusionSceneProgramLowerer {
         return MotionElementKind.text;
       case 'shape':
       case 'solid':
+      case 'icon':
         return MotionElementKind.shape;
       case 'image':
         return MotionElementKind.image;
@@ -886,6 +910,9 @@ class ReFusionSceneProgramLowerer {
     final normalizedKind = _normalizeToken(element.kind);
     if (normalizedKind == 'text' || normalizedKind == 'image') {
       return null;
+    }
+    if (normalizedKind == 'icon') {
+      return MotionShapeKind.customPath;
     }
     final rawShape = element.properties['shapeKind'] ??
         element.properties['shape'] ??
@@ -919,6 +946,8 @@ class ReFusionSceneProgramLowerer {
         if (element.text != null) 'text': element.text!,
         if (element.properties['color'] != null)
           'color': '${element.properties['color']}',
+        if (element.properties['icon'] != null)
+          'icon': '${element.properties['icon']}',
         if (element.properties['uri'] != null)
           'uri': '${element.properties['uri']}',
       },
@@ -1043,5 +1072,16 @@ class _SceneProgramPropertyDefinitions {
     valueKind: MotionPropertyValueKind.colorArgb,
     supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
     defaultValue: const MotionPropertyValue.colorArgb(0xFFFFFFFF),
+  );
+
+  static final MotionPropertyDefinition icon = MotionPropertyDefinition(
+    id: 'asset.icon',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.visual,
+      name: 'icon',
+    ),
+    valueKind: MotionPropertyValueKind.stringValue,
+    supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
+    defaultValue: const MotionPropertyValue.stringValue('sparkles'),
   );
 }

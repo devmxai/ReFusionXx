@@ -125,6 +125,7 @@ class MotionShapePreviewOverlay extends StatelessWidget {
                 MotionPropertyCatalog.cornerRadius.id,
                 0,
               ),
+              iconId: _string(properties, 'asset.icon'),
             ),
           );
         }
@@ -200,6 +201,17 @@ class MotionShapePreviewOverlay extends StatelessWidget {
     }
     return fallback;
   }
+
+  static String? _string(
+    Map<String, MotionPropertyValue> properties,
+    String id,
+  ) {
+    final rawValue = properties[id]?.rawValue;
+    if (rawValue is String && rawValue.trim().isNotEmpty) {
+      return rawValue.trim();
+    }
+    return null;
+  }
 }
 
 class _MotionShapePreviewNode {
@@ -218,6 +230,7 @@ class _MotionShapePreviewNode {
     required this.opacity,
     required this.color,
     required this.cornerRadius,
+    this.iconId,
   });
 
   final String id;
@@ -234,6 +247,7 @@ class _MotionShapePreviewNode {
   final double opacity;
   final Color color;
   final double cornerRadius;
+  final String? iconId;
 }
 
 class _MotionShapePreviewNodeWidget extends StatelessWidget {
@@ -273,6 +287,7 @@ class _MotionShapePreviewNodeWidget extends StatelessWidget {
       height: height,
       cornerRadius: node.cornerRadius * math.min(scaleX, scaleY),
     );
+    final iconData = _iconDataFor(node.iconId);
 
     return Positioned(
       left: centerX - (width / 2),
@@ -284,10 +299,52 @@ class _MotionShapePreviewNodeWidget extends StatelessWidget {
         child: Transform.scale(
           scaleX: node.scaleX,
           scaleY: node.scaleY,
-          child: DecoratedBox(decoration: decoration),
+          child: iconData == null
+              ? DecoratedBox(decoration: decoration)
+              : FittedBox(
+                  fit: BoxFit.contain,
+                  child: Icon(iconData, color: decorationColor),
+                ),
         ),
       ),
     );
+  }
+
+  IconData? _iconDataFor(String? iconId) {
+    return switch (iconId) {
+      'arrow-down' => Icons.arrow_downward_rounded,
+      'arrow-left' => Icons.arrow_back_rounded,
+      'arrow-right' => Icons.arrow_forward_rounded,
+      'arrow-up' => Icons.arrow_upward_rounded,
+      'bookmark' => Icons.bookmark_border_rounded,
+      'camera' => Icons.photo_camera_outlined,
+      'check' => Icons.check_rounded,
+      'chevron-left' => Icons.chevron_left_rounded,
+      'chevron-right' => Icons.chevron_right_rounded,
+      'close' => Icons.close_rounded,
+      'comment' => Icons.mode_comment_outlined,
+      'crop' => Icons.crop_rounded,
+      'heart' => Icons.favorite_border_rounded,
+      'image' => Icons.image_outlined,
+      'lock' => Icons.lock_outline_rounded,
+      'mic' => Icons.mic_none_rounded,
+      'music' => Icons.music_note_rounded,
+      'paperclip' => Icons.attach_file_rounded,
+      'pause' => Icons.pause_rounded,
+      'play' => Icons.play_arrow_rounded,
+      'plus' => Icons.add_rounded,
+      'search' => Icons.search_rounded,
+      'send' => Icons.arrow_upward_rounded,
+      'settings' => Icons.tune_rounded,
+      'share' => Icons.send_outlined,
+      'sparkles' => Icons.auto_awesome_rounded,
+      'text' => Icons.text_fields_rounded,
+      'user' => Icons.person_outline_rounded,
+      'verified' => Icons.verified_rounded,
+      'video' => Icons.videocam_outlined,
+      'volume' => Icons.graphic_eq_rounded,
+      _ => null,
+    };
   }
 
   BoxDecoration _decorationFor({

@@ -201,6 +201,55 @@ void main() {
     expect(result.project.frameRate.framesPerSecond, 60);
   });
 
+  test('lowers core pack icon elements as editable generated shapes', () {
+    final importResult = importService.validate(
+      source: '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "name": "Prompt Icon Scene",
+  "durationMs": 1200,
+  "frameRate": 30,
+  "layers": [
+    {
+      "id": "send-layer",
+      "kind": "shape",
+      "startMs": 0,
+      "durationMs": 1200,
+      "elements": [
+        {
+          "id": "send-icon",
+          "kind": "icon",
+          "properties": {
+            "icon": "submit",
+            "width": 96,
+            "height": 96,
+            "color": "#FFFFFF"
+          }
+        }
+      ]
+    }
+  ]
+}
+''',
+    );
+    expect(importResult.isValid, isTrue);
+
+    final result = lowerer.lower(
+      ReFusionSceneProgramLoweringRequest(program: importResult.program!),
+    );
+
+    expect(result.hasErrors, isFalse);
+    final element = result.project.scenes.single.layers.single.elements.single;
+    expect(element.kind, MotionElementKind.shape);
+    expect(element.shapeKind, MotionShapeKind.customPath);
+    expect(element.sourceBinding!.metadata['sceneProgramElementKind'], 'icon');
+
+    final iconAssignment = element.properties.singleWhere(
+      (assignment) => assignment.definition.id == 'asset.icon',
+    );
+    expect(iconAssignment.value.rawValue, 'send');
+  });
+
   test('keeps supported channels when unsupported properties are present', () {
     final importResult = importService.validate(
       source: '''

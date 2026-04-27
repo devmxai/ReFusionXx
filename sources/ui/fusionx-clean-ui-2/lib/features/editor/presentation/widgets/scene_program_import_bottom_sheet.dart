@@ -284,6 +284,164 @@ class _SceneProgramImportBottomSheetState
 }
 ''';
 
+  static const String _promptInputSceneProgram = '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "name": "Prompt Input Core Pack Demo",
+  "durationMs": 3200,
+  "frameRate": 30,
+  "layers": [
+    {
+      "id": "prompt-bg-layer",
+      "kind": "shape",
+      "startMs": 0,
+      "durationMs": 3200,
+      "elements": [
+        {
+          "id": "prompt-bg",
+          "kind": "shape",
+          "properties": {
+            "shapeKind": "rectangle",
+            "width": 1080,
+            "height": 1920,
+            "color": "#090A0F",
+            "opacity": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "input-shell-layer",
+      "kind": "shape",
+      "startMs": 0,
+      "durationMs": 3200,
+      "elements": [
+        {
+          "id": "input-shell",
+          "kind": "shape",
+          "properties": {
+            "shapeKind": "roundedRectangle",
+            "width": 900,
+            "height": 132,
+            "cornerRadius": 54,
+            "color": "#191B24",
+            "opacity": 1
+          },
+          "channels": [
+            {
+              "property": "scale",
+              "keyframes": [
+                { "timeMs": 0, "value": 0.92, "easing": "easeOut" },
+                { "timeMs": 520, "value": 1.0, "easing": "spring" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "attach-icon-layer",
+      "kind": "shape",
+      "startMs": 0,
+      "durationMs": 3200,
+      "elements": [
+        {
+          "id": "attach-icon",
+          "kind": "icon",
+          "properties": {
+            "icon": "plus",
+            "width": 54,
+            "height": 54,
+            "color": "#DDE2F2",
+            "position": { "x": -360, "y": 0 }
+          }
+        }
+      ]
+    },
+    {
+      "id": "prompt-text-layer",
+      "kind": "text",
+      "startMs": 0,
+      "durationMs": 3200,
+      "elements": [
+        {
+          "id": "prompt-text",
+          "kind": "text",
+          "text": "hello world",
+          "properties": {
+            "fontSize": 58,
+            "color": "#FFFFFF",
+            "position": { "x": -74, "y": 2 },
+            "opacity": 1,
+            "reveal": 0
+          },
+          "channels": [
+            {
+              "property": "reveal",
+              "keyframes": [
+                { "timeMs": 620, "value": 0.0, "easing": "linear" },
+                { "timeMs": 2050, "value": 1.0, "easing": "linear" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "mic-icon-layer",
+      "kind": "shape",
+      "startMs": 0,
+      "durationMs": 3200,
+      "elements": [
+        {
+          "id": "mic-icon",
+          "kind": "icon",
+          "properties": {
+            "icon": "mic",
+            "width": 48,
+            "height": 48,
+            "color": "#DDE2F2",
+            "position": { "x": 258, "y": 0 }
+          }
+        }
+      ]
+    },
+    {
+      "id": "send-button-layer",
+      "kind": "shape",
+      "startMs": 0,
+      "durationMs": 3200,
+      "elements": [
+        {
+          "id": "send-button-bg",
+          "kind": "shape",
+          "properties": {
+            "shapeKind": "circle",
+            "width": 76,
+            "height": 76,
+            "color": "#FFFFFF",
+            "position": { "x": 364, "y": 0 },
+            "opacity": 1
+          }
+        },
+        {
+          "id": "send-icon",
+          "kind": "icon",
+          "properties": {
+            "icon": "send",
+            "width": 42,
+            "height": 42,
+            "color": "#090A0F",
+            "position": { "x": 364, "y": 0 },
+            "opacity": 1
+          }
+        }
+      ]
+    }
+  ]
+}
+''';
+
   static const String _shapeTextWipeSceneProgram = '''
 {
   "schemaVersion": "refusion.scene-program/v1",
@@ -705,6 +863,11 @@ class _SceneProgramImportBottomSheetState
                         icon: Icons.auto_awesome_motion_rounded,
                         label: 'Shape Text Wipe',
                         onTap: () => _loadPreset(_shapeTextWipeSceneProgram),
+                      ),
+                      _SceneProgramActionButton(
+                        icon: Icons.chat_bubble_outline_rounded,
+                        label: 'Prompt Bar',
+                        onTap: () => _loadPreset(_promptInputSceneProgram),
                       ),
                       _SceneProgramActionButton(
                         icon: Icons.text_fields_rounded,
