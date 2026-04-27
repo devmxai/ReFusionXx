@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_animation_models.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_models.dart';
@@ -253,5 +255,65 @@ void main() {
       ),
       isNotEmpty,
     );
+  });
+
+  test('lowers the first generated scene fixture', () {
+    final source = File(
+      'test/fixtures/refusion_scene_programs/first_generated_scene.json',
+    ).readAsStringSync();
+    final importResult = importService.validate(source: source);
+    expect(importResult.isValid, isTrue);
+
+    final result = lowerer.lower(
+      ReFusionSceneProgramLoweringRequest(program: importResult.program!),
+    );
+
+    expect(result.hasErrors, isFalse);
+    expect(result.project.name, 'First Generated Scene');
+    expect(result.project.scenes.single.layers, hasLength(3));
+    expect(result.channels, hasLength(8));
+    expect(
+      result.channels.map((channel) => channel.definition.id),
+      containsAll(<String>[
+        MotionPropertyCatalog.opacity.id,
+        MotionPropertyCatalog.positionX.id,
+        MotionPropertyCatalog.positionY.id,
+        MotionPropertyCatalog.scaleX.id,
+        MotionPropertyCatalog.scaleY.id,
+      ]),
+    );
+
+    final background =
+        result.project.scenes.single.layers.first.elements.single;
+    expect(background.shapeKind, MotionShapeKind.rectangle);
+    expect(
+      background.properties.map((assignment) => assignment.definition.id),
+      containsAll(<String>[
+        MotionPropertyCatalog.width.id,
+        MotionPropertyCatalog.height.id,
+        'visual.color',
+        MotionPropertyCatalog.opacity.id,
+      ]),
+    );
+
+    final orb = result.project.scenes.single.layers[1].elements.single;
+    expect(orb.shapeKind, MotionShapeKind.circle);
+    expect(orb.sourceBinding!.metadata['color'], '#36D1DC');
+
+    final springChannels = result.channels.where(
+      (channel) => channel.keyframes.any(
+        (keyframe) =>
+            keyframe.interpolationToNext.kind == MotionInterpolationKind.spring,
+      ),
+    );
+    expect(springChannels, isNotEmpty);
+
+    final titlePositionY = result.channels.singleWhere(
+      (channel) =>
+          channel.target.targetId == 'hero-title' &&
+          channel.definition.id == MotionPropertyCatalog.positionY.id,
+    );
+    expect(titlePositionY.keyframes.first.value.rawValue, 120);
+    expect(titlePositionY.keyframes.last.value.rawValue, 0);
   });
 }

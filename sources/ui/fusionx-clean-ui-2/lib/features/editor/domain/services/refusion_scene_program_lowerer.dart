@@ -524,6 +524,7 @@ class ReFusionSceneProgramLowerer {
           MotionPropertyCatalog.rotationDegrees.id,
           MotionPropertyCatalog.opacity.id,
           MotionPropertyCatalog.blurAmount.id,
+          _SceneProgramPropertyDefinitions.color.id,
           MotionPropertyCatalog.fontSize.id,
           MotionPropertyCatalog.letterSpacing.id,
           MotionPropertyCatalog.revealProgress.id,
@@ -536,6 +537,7 @@ class ReFusionSceneProgramLowerer {
           MotionPropertyCatalog.rotationDegrees.id,
           MotionPropertyCatalog.opacity.id,
           MotionPropertyCatalog.blurAmount.id,
+          _SceneProgramPropertyDefinitions.color.id,
           MotionPropertyCatalog.width.id,
           MotionPropertyCatalog.height.id,
           MotionPropertyCatalog.cornerRadius.id,
@@ -548,6 +550,7 @@ class ReFusionSceneProgramLowerer {
           MotionPropertyCatalog.rotationDegrees.id,
           MotionPropertyCatalog.opacity.id,
           MotionPropertyCatalog.blurAmount.id,
+          _SceneProgramPropertyDefinitions.color.id,
           MotionPropertyCatalog.cropRect.id,
         },
       _ => const <String>{},
@@ -622,6 +625,14 @@ class ReFusionSceneProgramLowerer {
       'visualbluramount' =>
         <_LoweredProperty>[
           _LoweredProperty(definition: MotionPropertyCatalog.blurAmount),
+        ],
+      'color' ||
+      'fill' ||
+      'fillcolor' ||
+      'textcolor' ||
+      'shapefillcolor' =>
+        <_LoweredProperty>[
+          _LoweredProperty(definition: _SceneProgramPropertyDefinitions.color),
         ],
       'fontsize' || 'textfontsize' => <_LoweredProperty>[
           _LoweredProperty(definition: MotionPropertyCatalog.fontSize),
@@ -888,13 +899,34 @@ class ReFusionSceneProgramLowerer {
     };
     return MotionElementSourceBinding(
       kind: sourceKind,
-      sourceId: element.id,
+      sourceId: _sourceIdFor(element),
+      assetId: _assetIdFor(element),
       label: element.text ?? element.name ?? element.id,
       metadata: <String, String>{
         'sceneProgramElementKind': element.kind,
         if (element.text != null) 'text': element.text!,
+        if (element.properties['color'] != null)
+          'color': '${element.properties['color']}',
+        if (element.properties['uri'] != null)
+          'uri': '${element.properties['uri']}',
       },
     );
+  }
+
+  String _sourceIdFor(ReFusionSceneProgramElement element) {
+    final source = element.properties['source'] ?? element.properties['uri'];
+    if (source is String && source.trim().isNotEmpty) {
+      return source.trim();
+    }
+    return element.id;
+  }
+
+  String? _assetIdFor(ReFusionSceneProgramElement element) {
+    final assetId = element.properties['assetId'];
+    if (assetId is String && assetId.trim().isNotEmpty) {
+      return assetId.trim();
+    }
+    return null;
   }
 
   MotionPropertyTarget _elementTarget({
@@ -985,4 +1017,19 @@ class _LoweredProperty {
 
   final MotionPropertyDefinition definition;
   final _VectorComponent? component;
+}
+
+class _SceneProgramPropertyDefinitions {
+  _SceneProgramPropertyDefinitions._();
+
+  static final MotionPropertyDefinition color = MotionPropertyDefinition(
+    id: 'visual.color',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.visual,
+      name: 'color',
+    ),
+    valueKind: MotionPropertyValueKind.colorArgb,
+    supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
+    defaultValue: const MotionPropertyValue.colorArgb(0xFFFFFFFF),
+  );
 }

@@ -1,0 +1,115 @@
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "name": "First Generated Scene",
+  "durationMs": 3000,
+  "frameRate": 30,
+  "layers": [
+    {
+      "id": "background-layer",
+      "kind": "shape",
+      "name": "Deep Background",
+      "startMs": 0,
+      "durationMs": 3000,
+      "elements": [
+        {
+          "id": "background-solid",
+          "kind": "solid",
+          "name": "Background Solid",
+          "properties": {
+            "shapeKind": "rectangle",
+            "width": 1080,
+            "height": 1920,
+            "color": "#101820",
+            "opacity": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "accent-orb-layer",
+      "kind": "shape",
+      "name": "Accent Orb",
+      "startMs": 150,
+      "durationMs": 2200,
+      "elements": [
+        {
+          "id": "accent-orb",
+          "kind": "shape",
+          "name": "Accent Orb",
+          "properties": {
+            "shapeKind": "circle",
+            "width": 260,
+            "height": 260,
+            "color": "#36D1DC",
+            "position": { "x": 170, "y": 360 },
+            "opacity": 0.9
+          },
+          "channels": [
+            {
+              "property": "scale",
+              "keyframes": [
+                { "timeMs": 0, "value": 0.3, "easing": "spring" },
+                { "timeMs": 650, "value": 1.0, "easing": "easeOut" }
+              ]
+            },
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 0, "value": 0.0, "easing": "easeOut" },
+                { "timeMs": 500, "value": 0.9, "easing": "linear" },
+                { "timeMs": 1900, "value": 0.9, "easing": "easeIn" },
+                { "timeMs": 2200, "value": 0.0, "easing": "linear" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "title-layer",
+      "kind": "text",
+      "name": "Hero Title",
+      "startMs": 300,
+      "durationMs": 2100,
+      "elements": [
+        {
+          "id": "hero-title",
+          "kind": "text",
+          "name": "Hero Title",
+          "text": "ReFusion",
+          "properties": {
+            "fontSize": 118,
+            "color": "#FFFFFF",
+            "position": { "x": 0, "y": 0 },
+            "scale": 1
+          },
+          "channels": [
+            {
+              "property": "position",
+              "keyframes": [
+                { "timeMs": 0, "value": { "x": 0, "y": 120 }, "easing": "spring" },
+                { "timeMs": 720, "value": { "x": 0, "y": 0 }, "easing": "easeOut" }
+              ]
+            },
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 0, "value": 0.0, "easing": "easeOut" },
+                { "timeMs": 420, "value": 1.0, "easing": "linear" },
+                { "timeMs": 1800, "value": 1.0, "easing": "easeIn" },
+                { "timeMs": 2100, "value": 0.0, "easing": "linear" }
+              ]
+            },
+            {
+              "property": "scale",
+              "keyframes": [
+                { "timeMs": 0, "value": 0.82, "easing": "spring" },
+                { "timeMs": 720, "value": 1.0, "easing": "linear" }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
