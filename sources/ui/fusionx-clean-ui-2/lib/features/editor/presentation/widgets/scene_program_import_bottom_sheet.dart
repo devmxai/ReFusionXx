@@ -74,7 +74,7 @@ class _SceneProgramImportBottomSheetState
   ReFusionSceneProgramAuthoringResult? _result;
   bool _isUploading = false;
 
-  static const String _sampleSceneProgram = '''
+  static const String _basicSceneProgram = '''
 {
   "schemaVersion": "refusion.scene-program/v1",
   "name": "First Generated Scene",
@@ -138,11 +138,217 @@ class _SceneProgramImportBottomSheetState
 }
 ''';
 
+  static const String _shapeTextWipeSceneProgram = '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "name": "Shape Text Wipe Demo",
+  "durationMs": 5200,
+  "frameRate": 30,
+  "layers": [
+    {
+      "id": "midnight-bg-layer",
+      "kind": "shape",
+      "startMs": 0,
+      "durationMs": 5200,
+      "elements": [
+        {
+          "id": "midnight-bg",
+          "kind": "shape",
+          "properties": {
+            "shapeKind": "rectangle",
+            "width": 1080,
+            "height": 1920,
+            "color": "#0B1020",
+            "opacity": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": "first-word-layer",
+      "kind": "text",
+      "startMs": 0,
+      "durationMs": 5200,
+      "elements": [
+        {
+          "id": "first-word",
+          "kind": "text",
+          "text": "MOTION",
+          "properties": {
+            "fontSize": 128,
+            "color": "#FFFFFF",
+            "opacity": 0
+          },
+          "channels": [
+            {
+              "property": "position",
+              "keyframes": [
+                { "timeMs": 0, "value": { "x": -18, "y": 0 }, "easing": "easeOut" },
+                { "timeMs": 1200, "value": { "x": -6, "y": 0 }, "easing": "easeOut" },
+                { "timeMs": 2400, "value": { "x": 24, "y": 0 }, "easing": "easeIn" },
+                { "timeMs": 3000, "value": { "x": 24, "y": 0 }, "easing": "linear" },
+                { "timeMs": 3600, "value": { "x": 46, "y": 0 }, "easing": "easeIn" }
+              ]
+            },
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 0, "value": 0.0, "easing": "linear" },
+                { "timeMs": 850, "value": 0.0, "easing": "easeOut" },
+                { "timeMs": 1280, "value": 1.0, "easing": "easeOut" },
+                { "timeMs": 2850, "value": 1.0, "easing": "linear" },
+                { "timeMs": 3450, "value": 0.0, "easing": "easeIn" }
+              ]
+            },
+            {
+              "property": "scale",
+              "keyframes": [
+                { "timeMs": 0, "value": 0.96, "easing": "linear" },
+                { "timeMs": 1280, "value": 1.0, "easing": "easeOut" },
+                { "timeMs": 3450, "value": 0.98, "easing": "easeIn" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "second-word-layer",
+      "kind": "text",
+      "startMs": 0,
+      "durationMs": 5200,
+      "elements": [
+        {
+          "id": "second-word",
+          "kind": "text",
+          "text": "GRAPHICS",
+          "properties": {
+            "fontSize": 108,
+            "color": "#101820",
+            "opacity": 0
+          },
+          "channels": [
+            {
+              "property": "position",
+              "keyframes": [
+                { "timeMs": 0, "value": { "x": -32, "y": 150 }, "easing": "linear" },
+                { "timeMs": 3250, "value": { "x": -32, "y": 150 }, "easing": "easeOut" },
+                { "timeMs": 3860, "value": { "x": 0, "y": 150 }, "easing": "easeOut" },
+                { "timeMs": 4550, "value": { "x": 0, "y": 150 }, "easing": "linear" }
+              ]
+            },
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 0, "value": 0.0, "easing": "linear" },
+                { "timeMs": 3200, "value": 0.0, "easing": "easeOut" },
+                { "timeMs": 3820, "value": 1.0, "easing": "easeOut" },
+                { "timeMs": 4700, "value": 1.0, "easing": "linear" },
+                { "timeMs": 5200, "value": 0.0, "easing": "easeIn" }
+              ]
+            },
+            {
+              "property": "scale",
+              "keyframes": [
+                { "timeMs": 0, "value": 0.92, "easing": "linear" },
+                { "timeMs": 3820, "value": 1.0, "easing": "easeOut" },
+                { "timeMs": 4700, "value": 1.04, "easing": "easeIn" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wipe-circle-layer",
+      "kind": "shape",
+      "startMs": 0,
+      "durationMs": 5200,
+      "elements": [
+        {
+          "id": "wipe-circle",
+          "kind": "shape",
+          "properties": {
+            "shapeKind": "circle",
+            "width": 330,
+            "height": 330,
+            "color": "#FFFFFF",
+            "opacity": 1
+          },
+          "channels": [
+            {
+              "property": "position",
+              "keyframes": [
+                { "timeMs": 0, "value": { "x": -460, "y": 0 }, "easing": "easeOut" },
+                { "timeMs": 720, "value": { "x": 360, "y": 0 }, "easing": "spring" },
+                { "timeMs": 1680, "value": { "x": -360, "y": 0 }, "easing": "easeInOut" },
+                { "timeMs": 3050, "value": { "x": -360, "y": 0 }, "easing": "linear" },
+                { "timeMs": 3650, "value": { "x": 410, "y": 0 }, "easing": "easeOut" },
+                { "timeMs": 4550, "value": { "x": 0, "y": 0 }, "easing": "easeInOut" },
+                { "timeMs": 5200, "value": { "x": 0, "y": 0 }, "easing": "linear" }
+              ]
+            },
+            {
+              "property": "scale",
+              "keyframes": [
+                { "timeMs": 0, "value": 0.78, "easing": "easeOut" },
+                { "timeMs": 720, "value": 1.0, "easing": "spring" },
+                { "timeMs": 1680, "value": 0.86, "easing": "easeInOut" },
+                { "timeMs": 3650, "value": 1.05, "easing": "easeOut" },
+                { "timeMs": 4550, "value": 1.18, "easing": "easeInOut" },
+                { "timeMs": 5200, "value": 7.8, "easing": "easeIn" }
+              ]
+            },
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 0, "value": 1.0, "easing": "linear" },
+                { "timeMs": 5000, "value": 1.0, "easing": "linear" },
+                { "timeMs": 5200, "value": 1.0, "easing": "linear" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "white-finish-layer",
+      "kind": "shape",
+      "startMs": 0,
+      "durationMs": 5200,
+      "elements": [
+        {
+          "id": "white-finish",
+          "kind": "shape",
+          "properties": {
+            "shapeKind": "rectangle",
+            "width": 1080,
+            "height": 1920,
+            "color": "#FFFFFF",
+            "opacity": 0
+          },
+          "channels": [
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 0, "value": 0.0, "easing": "linear" },
+                { "timeMs": 4720, "value": 0.0, "easing": "linear" },
+                { "timeMs": 5200, "value": 1.0, "easing": "easeIn" }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+''';
+
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: _sampleSceneProgram);
-    _result = _importCurrentSource(_sampleSceneProgram);
+    _controller = TextEditingController(text: _shapeTextWipeSceneProgram);
+    _result = _importCurrentSource(_shapeTextWipeSceneProgram);
   }
 
   @override
@@ -166,6 +372,14 @@ class _SceneProgramImportBottomSheetState
   void _validate() {
     setState(() {
       _result = _importCurrentSource(_controller.text);
+    });
+  }
+
+  void _loadPreset(String source) {
+    setState(() {
+      _fileName = null;
+      _controller.text = source;
+      _result = _importCurrentSource(source);
     });
   }
 
@@ -324,6 +538,29 @@ class _SceneProgramImportBottomSheetState
                       height: 1.35,
                       fontWeight: FontWeight.w600,
                     ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _SceneProgramActionButton(
+                        icon: Icons.auto_awesome_motion_rounded,
+                        label: 'Shape Text Wipe',
+                        onTap: () => _loadPreset(_shapeTextWipeSceneProgram),
+                      ),
+                      _SceneProgramActionButton(
+                        icon: Icons.text_fields_rounded,
+                        label: 'Basic Text',
+                        onTap: () => _loadPreset(_basicSceneProgram),
+                      ),
+                    ],
                   ),
                 ),
               ),
