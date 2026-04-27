@@ -274,13 +274,17 @@ class ReFusionSceneProgramImportService {
           elements: _readElements(
             entry['elements'],
             layerPath: path,
+            layerStartMs: startMs,
             layerDurationMs: durationMs,
+            sceneDurationMs: sceneDurationMs,
             issues: issues,
           ),
           channels: _readChannels(
             entry['channels'],
             ownerPath: path,
+            ownerStartMs: startMs,
             ownerDurationMs: durationMs,
+            sceneDurationMs: sceneDurationMs,
             issues: issues,
           ),
         ),
@@ -292,7 +296,9 @@ class ReFusionSceneProgramImportService {
   List<ReFusionSceneProgramElement> _readElements(
     Object? raw, {
     required String layerPath,
+    required int layerStartMs,
     required int layerDurationMs,
+    required int sceneDurationMs,
     required List<ReFusionSceneProgramIssue> issues,
   }) {
     if (raw == null) {
@@ -357,7 +363,9 @@ class ReFusionSceneProgramImportService {
           channels: _readChannels(
             entry['channels'],
             ownerPath: path,
+            ownerStartMs: layerStartMs,
             ownerDurationMs: layerDurationMs,
+            sceneDurationMs: sceneDurationMs,
             issues: issues,
           ),
         ),
@@ -369,7 +377,9 @@ class ReFusionSceneProgramImportService {
   List<ReFusionSceneProgramChannel> _readChannels(
     Object? raw, {
     required String ownerPath,
+    required int ownerStartMs,
     required int ownerDurationMs,
+    required int sceneDurationMs,
     required List<ReFusionSceneProgramIssue> issues,
   }) {
     if (raw == null) {
@@ -404,10 +414,18 @@ class ReFusionSceneProgramImportService {
       if (property == null) {
         continue;
       }
+      final timeBasis = _readString(
+            entry,
+            const <String>['timeBasis', 'timeMode', 'timeReference'],
+          ) ??
+          'local';
       final keyframes = _readKeyframes(
         entry['keyframes'],
         channelPath: path,
+        ownerStartMs: ownerStartMs,
         ownerDurationMs: ownerDurationMs,
+        sceneDurationMs: sceneDurationMs,
+        timeBasis: timeBasis,
         issues: issues,
       );
       if (keyframes.isEmpty) {
@@ -434,7 +452,10 @@ class ReFusionSceneProgramImportService {
   List<ReFusionSceneProgramKeyframe> _readKeyframes(
     Object? raw, {
     required String channelPath,
+    required int ownerStartMs,
     required int ownerDurationMs,
+    required int sceneDurationMs,
+    required String timeBasis,
     required List<ReFusionSceneProgramIssue> issues,
   }) {
     if (raw is! List) {
@@ -462,22 +483,23 @@ class ReFusionSceneProgramImportService {
         );
         continue;
       }
-      final timeMs = _readNonNegativeInt(
+      final rawTimeMs = _readNonNegativeInt(
         entry,
         'timeMs',
         fallback: -1,
         issues: issues,
         pathPrefix: path,
       );
-      if (timeMs < 0 || timeMs > ownerDurationMs) {
-        issues.add(
-          ReFusionSceneProgramIssue(
-            severity: ReFusionSceneProgramIssueSeverity.error,
-            message:
-                'Keyframe `timeMs` must be inside the owning timeline range.',
-            path: '$path.timeMs',
-          ),
-        );
+      final timeMs = _localKeyframeTimeMs(
+        rawTimeMs: rawTimeMs,
+        timeBasis: timeBasis,
+        ownerStartMs: ownerStartMs,
+        ownerDurationMs: ownerDurationMs,
+        sceneDurationMs: sceneDurationMs,
+        path: '$path.timeMs',
+        issues: issues,
+      );
+      if (timeMs == null) {
         continue;
       }
       if (lastTimeMs != null && timeMs < lastTimeMs) {
@@ -511,6 +533,83 @@ class ReFusionSceneProgramImportService {
       );
     }
     return List.unmodifiable(keyframes);
+  }
+
+  int? _localKeyframeTimeMs({
+    required int rawTimeMs,
+    required String timeBasis,
+    required int ownerStartMs,
+    required int ownerDurationMs,
+    required int sceneDurationMs,
+    required String path,
+    required List<ReFusionSceneProgramIssue> issues,
+  }) {
+    if (rawTimeMs < 0) {
+      return null;
+    }
+    final normalizedBasis = _normalizeToken(timeBasis);
+    final isProjectTime = switch (normalizedBasis) {
+      'project' || 'global' || 'timeline' || 'scene' => true,
+      'local' || 'layer' || 'element' || '' => false,
+      _ => false,
+    };
+    if (normalizedBasis.isNotEmpty &&
+        normalizedBasis != 'local' &&
+        normalizedBasis != 'layer' &&
+        normalizedBasis != 'element' &&
+        normalizedBasis != 'project' &&
+        normalizedBasis != 'global' &&
+        normalizedBasis != 'timeline' &&
+        normalizedBasis != 'scene') {
+      issues.add(
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.warning,
+          message:
+              'Unsupported keyframe time basis `$timeBasis`; using local time.',
+          path: path,
+        ),
+      );
+    }
+    if (isProjectTime) {
+      final ownerEndMs = ownerStartMs + ownerDurationMs;
+      if (rawTimeMs < ownerStartMs || rawTimeMs > ownerEndMs) {
+        issues.add(
+          ReFusionSceneProgramIssue(
+            severity: ReFusionSceneProgramIssueSeverity.error,
+            message:
+                'Project keyframe `timeMs` must be inside the owning project-time range.',
+            path: path,
+          ),
+        );
+        return null;
+      }
+      return rawTimeMs - ownerStartMs;
+    }
+    if (rawTimeMs <= ownerDurationMs) {
+      return rawTimeMs;
+    }
+    final ownerEndMs = ownerStartMs + ownerDurationMs;
+    if (rawTimeMs <= sceneDurationMs &&
+        rawTimeMs >= ownerStartMs &&
+        rawTimeMs <= ownerEndMs) {
+      issues.add(
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.warning,
+          message:
+              'Keyframe `timeMs` looked like project time and was converted to local time. Prefer `timeBasis: "project"` when using project-time keyframes.',
+          path: path,
+        ),
+      );
+      return rawTimeMs - ownerStartMs;
+    }
+    issues.add(
+      ReFusionSceneProgramIssue(
+        severity: ReFusionSceneProgramIssueSeverity.error,
+        message: 'Keyframe `timeMs` must be inside the owning timeline range.',
+        path: path,
+      ),
+    );
+    return null;
   }
 
   Map<String, Object?> _readProperties(
@@ -647,6 +746,10 @@ class ReFusionSceneProgramImportService {
           value.values.every(_isSupportedJsonValue);
     }
     return false;
+  }
+
+  String _normalizeToken(String value) {
+    return value.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '');
   }
 
   String _joinPath(String prefix, String key) =>

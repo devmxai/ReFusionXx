@@ -178,6 +178,30 @@ Every animated property is declared as a channel:
 }
 ```
 
+### Keyframe Time Rules
+
+By default, channel keyframes use **local layer time**:
+
+- a layer with `startMs: 1800` and `durationMs: 800` accepts local keyframes from `0` to `800`;
+- the app places those keyframes at project time `1800` to `2600`.
+
+If you prefer writing absolute project/scene times, set:
+
+```json
+{
+  "property": "opacity",
+  "timeBasis": "project",
+  "keyframes": [
+    { "timeMs": 1800, "value": 0.0, "easing": "linear" },
+    { "timeMs": 2400, "value": 1.0, "easing": "easeOut" }
+  ]
+}
+```
+
+Recommended for agents: use local time for simple scenes, or explicitly set
+`"timeBasis": "project"` when staggering many layers on one global timeline.
+Do not mix local and project times inside the same channel.
+
 Supported easing names:
 
 - `linear`

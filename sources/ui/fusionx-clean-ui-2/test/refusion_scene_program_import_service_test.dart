@@ -57,7 +57,8 @@ void main() {
     expect(result.program!.durationMs, 3000);
     expect(result.program!.frameRate, 60);
     expect(result.program!.layers.single.id, 'headline-layer');
-    expect(result.program!.layers.single.elements.single.channels, hasLength(2));
+    expect(
+        result.program!.layers.single.elements.single.channels, hasLength(2));
   });
 
   test('rejects executable or remote script keys anywhere in the document', () {
@@ -131,5 +132,94 @@ void main() {
         'layers[0].channels[0].keyframes[1]',
       ]),
     );
+  });
+
+  test('accepts explicit project-time keyframes inside delayed layers', () {
+    final result = service.validate(
+      source: '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "durationMs": 3000,
+  "layers": [
+    {
+      "id": "delayed-layer",
+      "kind": "text",
+      "startMs": 1800,
+      "durationMs": 800,
+      "elements": [
+        {
+          "id": "delayed-title",
+          "kind": "text",
+          "text": "Late",
+          "channels": [
+            {
+              "property": "opacity",
+              "timeBasis": "project",
+              "keyframes": [
+                { "timeMs": 1800, "value": 0.0 },
+                { "timeMs": 2400, "value": 1.0 }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+''',
+    );
+
+    expect(result.isValid, isTrue);
+    final keyframes =
+        result.program!.layers.single.elements.single.channels.single.keyframes;
+    expect(keyframes.first.timeMs, 0);
+    expect(keyframes.last.timeMs, 600);
+  });
+
+  test('converts likely project-time keyframes with warnings', () {
+    final result = service.validate(
+      source: '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "durationMs": 3000,
+  "layers": [
+    {
+      "id": "delayed-layer",
+      "kind": "text",
+      "startMs": 1800,
+      "durationMs": 800,
+      "elements": [
+        {
+          "id": "delayed-title",
+          "kind": "text",
+          "text": "Late",
+          "channels": [
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 1800, "value": 0.0 },
+                { "timeMs": 2400, "value": 1.0 }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+''',
+    );
+
+    expect(result.isValid, isTrue);
+    expect(
+      result.issues.where(
+        (issue) => issue.message.contains('looked like project time'),
+      ),
+      isNotEmpty,
+    );
+    final keyframes =
+        result.program!.layers.single.elements.single.channels.single.keyframes;
+    expect(keyframes.first.timeMs, 0);
+    expect(keyframes.last.timeMs, 600);
   });
 }
