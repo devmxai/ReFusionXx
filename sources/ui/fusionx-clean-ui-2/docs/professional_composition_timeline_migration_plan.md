@@ -413,6 +413,10 @@ Current foundation:
   - the Key button adds a graph keyframe at the scoped playhead time,
   - the Value button edits the selected graph keyframe value,
   - the move-to-playhead tool moves the selected graph keyframe to the scoped playhead.
+- The same hidden unified transition scope wiring now enables the existing Graph/Easy Ease bottom sheet in transition mode:
+  - the Graph button is enabled only when a projected transition lane has an editable keyframe selection,
+  - Easy Ease updates transition graph interpolation through `UnifiedKeyframeOperations`,
+  - the graph sheet is reused from Layer Scope so transition mode follows the same UX contract instead of inventing a second easing editor.
 - The production flag remains disabled. This step is a reversible UI wiring slice, not a user-facing transition-scope replacement yet.
 
 ### Phase C5: Transition Mode In Unified Layer Scope Timeline

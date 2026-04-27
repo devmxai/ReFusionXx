@@ -76,6 +76,20 @@ class TransitionUnifiedScopeSetValueRequest {
   final MotionPropertyValue value;
 }
 
+class TransitionUnifiedScopeSetInterpolationRequest {
+  const TransitionUnifiedScopeSetInterpolationRequest({
+    required this.session,
+    required this.laneId,
+    required this.keyframeId,
+    required this.interpolation,
+  });
+
+  final TransitionUnifiedScopeBridgeSession session;
+  final String laneId;
+  final String keyframeId;
+  final MotionInterpolationSpec interpolation;
+}
+
 class TransitionUnifiedScopeDeleteKeyframeRequest {
   const TransitionUnifiedScopeDeleteKeyframeRequest({
     required this.session,
@@ -183,6 +197,35 @@ class TransitionUnifiedScopeKeyframeAdapter {
         channelId: resolved.channel!.id,
         keyframeId: request.keyframeId,
         value: request.value,
+      ),
+    );
+    return _fromOperationResult(
+      source: request.session,
+      selectedLaneId: request.laneId,
+      result: result,
+    );
+  }
+
+  TransitionUnifiedScopeKeyframeOperationResult setKeyframeInterpolation(
+    TransitionUnifiedScopeSetInterpolationRequest request,
+  ) {
+    final resolved = _resolveLaneChannel(
+      session: request.session,
+      laneId: request.laneId,
+    );
+    if (resolved.issue != null) {
+      return _blocked(
+        session: request.session,
+        selectedLaneId: request.laneId,
+        issue: resolved.issue!,
+      );
+    }
+    final result = operations.setKeyframeInterpolation(
+      UnifiedKeyframeInterpolationRequest(
+        channels: request.session.graphBundle.channels,
+        channelId: resolved.channel!.id,
+        keyframeId: request.keyframeId,
+        interpolation: request.interpolation,
       ),
     );
     return _fromOperationResult(

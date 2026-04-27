@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_animation_models.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_models.dart';
 import 'package:refusion_app/features/editor/domain/services/unified_keyframe_operations.dart';
 import 'package:refusion_app/features/editor/presentation/models/timeline_mock_models.dart';
@@ -175,6 +176,34 @@ void main() {
       channel.keyframes.any((candidate) => candidate.id == keyframeId),
       isFalse,
     );
+  });
+
+  test('sets transition keyframe interpolation through the lane binding', () {
+    final source = session();
+    final lane = source.lanes.first;
+    final keyframeId = lane.keyframeIds.first;
+
+    final result = const TransitionUnifiedScopeKeyframeAdapter()
+        .setKeyframeInterpolation(
+      TransitionUnifiedScopeSetInterpolationRequest(
+        session: source,
+        laneId: lane.id,
+        keyframeId: keyframeId,
+        interpolation: const MotionInterpolationSpec.easeOut(),
+      ),
+    );
+
+    expect(result.hasIssues, isFalse);
+    expect(result.selectedLaneId, lane.id);
+    expect(result.primaryKeyframeId, keyframeId);
+    final binding = result.session.bindingForLane(lane.id)!;
+    final channel = result.session.graphBundle.channels.singleWhere(
+      (candidate) => candidate.id == binding.channelId,
+    );
+    final keyframe = channel.keyframes.singleWhere(
+      (candidate) => candidate.id == keyframeId,
+    );
+    expect(keyframe.interpolationToNext.kind, MotionInterpolationKind.easeOut);
   });
 
   test('reports a clear issue for an unbound lane', () {

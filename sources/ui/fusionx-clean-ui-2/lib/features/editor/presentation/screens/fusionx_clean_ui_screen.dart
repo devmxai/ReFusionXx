@@ -3505,9 +3505,67 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         _nearestUnifiedTransitionScopeKeyframeIndex(viewModel, lane) != null;
   }
 
+  bool _canOpenUnifiedTransitionScopeGraphEditor(
+    TransitionUnifiedScopeTimelineViewModel? viewModel,
+  ) {
+    final lane = _unifiedTransitionScopeSelectedAnimationLane(viewModel);
+    if (viewModel == null || lane == null) {
+      return false;
+    }
+    final keyframeIndex = _selectedLayerScopeKeyframeIndex ??
+        _nearestUnifiedTransitionScopeKeyframeIndex(viewModel, lane);
+    return keyframeIndex != null &&
+        keyframeIndex >= 0 &&
+        keyframeIndex < lane.normalizedKeyframeStops.length &&
+        lane.normalizedKeyframeStops.length > 1;
+  }
+
+  bool _isUnifiedTransitionScopeEasyEaseActive({
+    required TimelineAnimationLaneData lane,
+    required int keyframeIndex,
+  }) {
+    final session = _unifiedTransitionScopeSession;
+    final binding = session?.bindingForLane(lane.id);
+    if (session == null || binding == null) {
+      return false;
+    }
+    MotionPropertyChannelModel? channel;
+    for (final candidate in session.graphBundle.channels) {
+      if (candidate.id == binding.channelId) {
+        channel = candidate;
+        break;
+      }
+    }
+    if (channel == null ||
+        keyframeIndex < 0 ||
+        keyframeIndex >= lane.keyframeIds.length) {
+      return false;
+    }
+    final keyframeId = lane.keyframeIds[keyframeIndex];
+    final channelKeyframeIndex = channel.keyframes.indexWhere(
+      (keyframe) => keyframe.id == keyframeId,
+    );
+    if (channelKeyframeIndex < 0) {
+      return false;
+    }
+    if (channelKeyframeIndex > 0 &&
+        _motionInterpolationMatchesEasyEase(
+          channel.keyframes[channelKeyframeIndex - 1].interpolationToNext,
+        )) {
+      return true;
+    }
+    return channelKeyframeIndex < channel.keyframes.length - 1 &&
+        _motionInterpolationMatchesEasyEase(
+          channel.keyframes[channelKeyframeIndex].interpolationToNext,
+        );
+  }
+
   void _applyUnifiedTransitionScopeKeyframeResult(
     TransitionUnifiedScopeKeyframeOperationResult result,
-  ) {
+  {
+    bool preserveValueEditor = false,
+    bool preserveGraphEditor = false,
+  }) {
     if (result.hasIssues) {
       _showStageMessage(result.issues.first.message);
       return;
@@ -3526,10 +3584,134 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _selectedLayerScopeAnimationLaneId = selectedLaneId;
       _selectedLayerScopeKeyframeIndex = selectedIndex;
       _selectedLayerScopeKeyframeId = primaryKeyframeId;
-      _isLayerScopeValueEditorOpen = false;
-      _isLayerScopeGraphEditorOpen = false;
+      _isLayerScopeValueEditorOpen =
+          preserveValueEditor && _isLayerScopeValueEditorOpen;
+      _isLayerScopeGraphEditorOpen =
+          preserveGraphEditor && _isLayerScopeGraphEditorOpen;
     });
     _syncLayerScopeTimeNotifiers();
+  }
+
+  Future<void> _handleUnifiedTransitionScopeGraphToolTap() async {
+    if (_isLayerScopeGraphEditorOpen) {
+      return;
+    }
+    final viewModel = _unifiedTransitionScopeViewModel;
+    final lane = _unifiedTransitionScopeSelectedAnimationLane(viewModel);
+    if (viewModel == null || lane == null) {
+      return;
+    }
+    final resolvedKeyframeIndex = _selectedLayerScopeKeyframeIndex ??
+        _nearestUnifiedTransitionScopeKeyframeIndex(viewModel, lane);
+    if (resolvedKeyframeIndex == null ||
+        resolvedKeyframeIndex < 0 ||
+        resolvedKeyframeIndex >= lane.normalizedKeyframeStops.length) {
+      return;
+    }
+    final easyEaseEnabled = _isUnifiedTransitionScopeEasyEaseActive(
+      lane: lane,
+      keyframeIndex: resolvedKeyframeIndex,
+    );
+    setState(() {
+      _selectedLayerScopeKeyframeIndex = resolvedKeyframeIndex;
+      _selectedLayerScopeKeyframeId =
+          _layerScopeKeyframeIdAt(lane, resolvedKeyframeIndex);
+      _isLayerScopeGraphEditorOpen = true;
+    });
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => MediaQuery.removeViewInsets(
+        context: sheetContext,
+        removeBottom: true,
+        child: LayerScopeGraphBottomSheet(
+          easyEaseEnabled: easyEaseEnabled,
+          onDone: () => Navigator.of(sheetContext).maybePop(),
+          onEasyEaseChanged: _handleUnifiedTransitionScopeEasyEaseChanged,
+        ),
+      ),
+    ).whenComplete(() {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isLayerScopeGraphEditorOpen = false;
+      });
+    });
+  }
+
+  void _handleUnifiedTransitionScopeEasyEaseChanged(bool enabled) {
+    final session = _unifiedTransitionScopeSession;
+    final viewModel = _unifiedTransitionScopeViewModel;
+    final lane = _unifiedTransitionScopeSelectedAnimationLane(viewModel);
+    final keyframeIndex = _selectedLayerScopeKeyframeIndex;
+    if (session == null ||
+        viewModel == null ||
+        lane == null ||
+        keyframeIndex == null ||
+        keyframeIndex < 0 ||
+        keyframeIndex >= lane.keyframeIds.length) {
+      return;
+    }
+    final binding = session.bindingForLane(lane.id);
+    if (binding == null) {
+      return;
+    }
+    MotionPropertyChannelModel? channel;
+    for (final candidate in session.graphBundle.channels) {
+      if (candidate.id == binding.channelId) {
+        channel = candidate;
+        break;
+      }
+    }
+    if (channel == null) {
+      return;
+    }
+    final selectedKeyframeId = lane.keyframeIds[keyframeIndex];
+    final channelKeyframeIndex = channel.keyframes.indexWhere(
+      (keyframe) => keyframe.id == selectedKeyframeId,
+    );
+    if (channelKeyframeIndex < 0) {
+      return;
+    }
+    final interpolation = enabled
+        ? _afterEffectsEasyEaseInterpolation
+        : const MotionInterpolationSpec.linear();
+    var workingSession = session;
+    TransitionUnifiedScopeKeyframeOperationResult? lastResult;
+    final keyframeIdsToUpdate = <String>{
+      if (channelKeyframeIndex > 0)
+        channel.keyframes[channelKeyframeIndex - 1].id,
+      if (channelKeyframeIndex < channel.keyframes.length - 1)
+        channel.keyframes[channelKeyframeIndex].id,
+    };
+    for (final keyframeId in keyframeIdsToUpdate) {
+      final result =
+          _transitionUnifiedScopeKeyframeAdapter.setKeyframeInterpolation(
+        TransitionUnifiedScopeSetInterpolationRequest(
+          session: workingSession,
+          laneId: lane.id,
+          keyframeId: keyframeId,
+          interpolation: interpolation,
+        ),
+      );
+      if (result.hasIssues) {
+        _showStageMessage(result.issues.first.message);
+        return;
+      }
+      workingSession = result.session;
+      lastResult = result;
+    }
+    if (lastResult == null) {
+      return;
+    }
+    _applyUnifiedTransitionScopeKeyframeResult(
+      lastResult,
+      preserveGraphEditor: true,
+    );
   }
 
   void _handleUnifiedTransitionScopeAnimationKeyframeDrag(
@@ -3754,6 +3936,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           value: MotionPropertyValue.scalar(rawValue),
         ),
       ),
+      preserveValueEditor: true,
     );
   }
 
@@ -14358,6 +14541,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         _canOpenUnifiedTransitionScopeValueEditor(
       unifiedTransitionScopeViewModel,
     );
+    final canOpenUnifiedTransitionScopeGraphEditor =
+        _canOpenUnifiedTransitionScopeGraphEditor(
+      unifiedTransitionScopeViewModel,
+    );
     final canMoveUnifiedTransitionScopeSelectedKeyframe =
         _canMoveUnifiedTransitionScopeSelectedKeyframe(
       unifiedTransitionScopeViewModel,
@@ -15065,11 +15252,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                             canAddUnifiedTransitionScopeKeyframe,
                                         valueEnabled:
                                             canOpenUnifiedTransitionScopeValueEditor,
-                                        graphEnabled: false,
+                                        graphEnabled:
+                                            canOpenUnifiedTransitionScopeGraphEditor,
                                         isValueActive:
                                             _isLayerScopeValueEditorOpen &&
                                                 canOpenUnifiedTransitionScopeValueEditor,
-                                        isGraphActive: false,
+                                        isGraphActive:
+                                            _isLayerScopeGraphEditorOpen &&
+                                                canOpenUnifiedTransitionScopeGraphEditor,
                                         onAddTap: () => _showStageMessage(
                                           'Unified transition preset and script tools connect in the next checkpoint.',
                                         ),
@@ -15081,7 +15271,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                             canOpenUnifiedTransitionScopeValueEditor
                                                 ? _handleUnifiedTransitionScopeValueToolTap
                                                 : null,
-                                        onGraphTap: null,
+                                        onGraphTap:
+                                            canOpenUnifiedTransitionScopeGraphEditor
+                                                ? _handleUnifiedTransitionScopeGraphToolTap
+                                                : null,
                                         embedded: true,
                                         addLabel: 'Add',
                                         addIcon:
