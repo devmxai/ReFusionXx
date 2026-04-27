@@ -10,7 +10,14 @@ void main() {
 
     expect(result.isValid, isTrue);
     expect(result.issues, isEmpty);
-    expect(result.definitions, hasLength(1));
+    expect(
+      result.definitions.map((definition) => definition.definitionId),
+      <String>[
+        'cross_dissolve',
+        'fade_black',
+        'zoom_in_camera',
+      ],
+    );
 
     final definition = result.definitionById('cross_dissolve');
     expect(definition, isNotNull);
@@ -25,6 +32,30 @@ void main() {
       'from',
       'to',
     ]);
+
+    final fadeBlack = result.definitionById('fade_black');
+    expect(fadeBlack, isNotNull);
+    expect(fadeBlack!.category, NormalTransitionCategory.basic);
+    expect(fadeBlack.channels.map((channel) => channel.property), <String>[
+      'opacity',
+      'opacity',
+    ]);
+
+    final zoomInCamera = result.definitionById('zoom_in_camera');
+    expect(zoomInCamera, isNotNull);
+    expect(zoomInCamera!.category, NormalTransitionCategory.motion);
+    expect(zoomInCamera.defaultParameterValues['zoom'], 1.14);
+    expect(
+      zoomInCamera.channels.map((channel) => channel.property),
+      <String>[
+        'scaleX',
+        'scaleY',
+        'opacity',
+        'scaleX',
+        'scaleY',
+        'opacity',
+      ],
+    );
   });
 
   test('catalog rejects definitions whose internal id differs from key', () {

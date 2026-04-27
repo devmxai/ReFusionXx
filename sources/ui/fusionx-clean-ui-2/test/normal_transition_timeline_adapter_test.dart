@@ -6,10 +6,8 @@ import 'package:refusion_app/features/editor/presentation/models/timeline_time.d
 import 'package:refusion_app/features/editor/presentation/services/normal_transition_timeline_adapter.dart';
 
 void main() {
-  final definition =
-      const NormalTransitionCatalog().loadBuiltIns().definitionById(
-            'cross_dissolve',
-          )!;
+  final catalogResult = const NormalTransitionCatalog().loadBuiltIns();
+  final definition = catalogResult.definitionById('cross_dissolve')!;
   const authoring = NormalTransitionAuthoringService();
   const adapter = NormalTransitionTimelineAdapter();
 
@@ -64,12 +62,53 @@ void main() {
     expect(result.instance!.nodeId, result.node!.id);
   });
 
+  test('maps graph-backed fade and zoom timeline presets', () {
+    final fadeDefinition = catalogResult.definitionById('fade_black')!;
+    final zoomDefinition = catalogResult.definitionById('zoom_in_camera')!;
+    final fadeTransition = TimelineTrackTransitionData(
+      id: 'transition-fade',
+      leftClipId: 'clip-a',
+      rightClipId: 'clip-b',
+      preset: TimelineTransitionPreset.fadeBlack,
+      durationTime: TimelineTime.fromMilliseconds(900),
+      parameterValues: const <String, double>{'hold': 0.12},
+    );
+    final zoomTransition = TimelineTrackTransitionData(
+      id: 'transition-zoom',
+      leftClipId: 'clip-a',
+      rightClipId: 'clip-b',
+      preset: TimelineTransitionPreset.zoomInCamera,
+      durationTime: TimelineTime.fromMilliseconds(840),
+      parameterValues: const <String, double>{'zoom': 1.24},
+    );
+
+    final fade = adapter.fromTimelineTransition(
+      transition: fadeTransition,
+      trackId: 'video-main',
+      definition: fadeDefinition,
+    );
+    final zoom = adapter.fromTimelineTransition(
+      transition: zoomTransition,
+      trackId: 'video-main',
+      definition: zoomDefinition,
+    );
+
+    expect(fade.canAdapt, isTrue);
+    expect(fade.node!.definitionId, 'fade_black');
+    expect(fade.node!.parameterValues['hold'], 0.12);
+    expect(fade.instance!.channels, hasLength(2));
+    expect(zoom.canAdapt, isTrue);
+    expect(zoom.node!.definitionId, 'zoom_in_camera');
+    expect(zoom.node!.parameterValues['zoom'], 1.24);
+    expect(zoom.instance!.channels, hasLength(6));
+  });
+
   test('rejects non-normal timeline presets', () {
     final transition = TimelineTrackTransitionData(
       id: 'transition-1',
       leftClipId: 'clip-a',
       rightClipId: 'clip-b',
-      preset: TimelineTransitionPreset.fadeBlack,
+      preset: TimelineTransitionPreset.manual,
       durationTime: TimelineTime.fromMilliseconds(540),
     );
 

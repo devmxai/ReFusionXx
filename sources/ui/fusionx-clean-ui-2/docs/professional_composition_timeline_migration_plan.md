@@ -338,6 +338,11 @@ Current foundation:
   - `instanceId`,
   - per-channel `role` and `propertyId`.
 - Tests prove the graph apply path creates channels that can be projected into unified transition scope lanes.
+- The built-in normal transition catalog now includes graph-backed definitions for:
+  - `cross_dissolve`,
+  - `fade_black`,
+  - `zoom_in_camera`.
+- `NormalTransitionTimelineAdapter` maps those supported timeline presets into normal transition definition IDs so the hidden unified transition bridge can open them as editable graph channels instead of treating them as unsupported legacy-only presets.
 - `TransitionScopeGraphLaneAdapter` exists in `lib/features/editor/presentation/services/transition_scope_graph_lane_adapter.dart`.
 - It turns `NormalTransitionGraphAuthoringBundle` channels into transition-aware timeline lanes with role labels such as `Outgoing Opacity` and `Incoming Opacity`.
 - It preserves lane-to-channel metadata so the UI can map selection, value editing, and future move-to-playhead operations back to the graph channel.

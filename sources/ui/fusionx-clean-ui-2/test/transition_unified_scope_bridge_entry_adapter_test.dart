@@ -142,6 +142,41 @@ void main() {
     );
   });
 
+  test('enabled fade black and zoom bridges open graph-backed lanes', () {
+    final adapter = TransitionUnifiedScopeBridgeEntryAdapter(
+      config: const TransitionUnifiedScopeEntryConfig(
+        enableUnifiedTransitionScope: true,
+      ),
+    );
+
+    final fade = adapter.resolveBridgeEntry(
+      request(preset: TimelineTransitionPreset.fadeBlack),
+    );
+    final zoom = adapter.resolveBridgeEntry(
+      request(preset: TimelineTransitionPreset.zoomInCamera),
+    );
+
+    expect(fade.opensUnifiedScope, isTrue);
+    expect(fade.definition!.definitionId, 'fade_black');
+    expect(
+      fade.entryResult!.unifiedScope!.lanes!.lanes.map((lane) => lane.label),
+      <String>['Outgoing Opacity', 'Incoming Opacity'],
+    );
+    expect(zoom.opensUnifiedScope, isTrue);
+    expect(zoom.definition!.definitionId, 'zoom_in_camera');
+    expect(
+      zoom.entryResult!.unifiedScope!.lanes!.lanes.map((lane) => lane.label),
+      <String>[
+        'Outgoing Opacity',
+        'Outgoing Scale X',
+        'Outgoing Scale Y',
+        'Incoming Opacity',
+        'Incoming Scale X',
+        'Incoming Scale Y',
+      ],
+    );
+  });
+
   test('invalid boundary falls back before opening unified scope', () {
     final adapter = TransitionUnifiedScopeBridgeEntryAdapter(
       config: const TransitionUnifiedScopeEntryConfig(
