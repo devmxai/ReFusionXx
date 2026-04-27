@@ -2780,7 +2780,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
               ? visibleSampleTime
               : transportTime;
       _motionPreviewClockAnchorTime = anchorTime;
-      _motionPreviewClockAnchorElapsed = elapsed;
+      _motionPreviewClockAnchorElapsed = Duration.zero;
+      _motionPreviewClockLatestElapsed = Duration.zero;
       _setPlaybackSampleTime(anchorTime);
       _motionPreviewFrameTicker.start();
       return;
@@ -2808,9 +2809,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       TimelineTime.zero,
       _timelineDurationTime,
     );
-    _motionPreviewClockAnchorElapsed = _motionPreviewClockLatestElapsed;
+    final isTickerActive = _motionPreviewFrameTicker.isActive;
+    _motionPreviewClockAnchorElapsed =
+        isTickerActive ? _motionPreviewClockLatestElapsed : Duration.zero;
     _setPlaybackSampleTime(_motionPreviewClockAnchorTime);
-    if (!_motionPreviewFrameTicker.isActive) {
+    if (!isTickerActive) {
+      _motionPreviewClockLatestElapsed = Duration.zero;
       _motionPreviewFrameTicker.start();
     }
   }
@@ -2819,7 +2823,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (_motionPreviewFrameTicker.isActive) {
       _motionPreviewFrameTicker.stop(canceled: false);
     }
-    _motionPreviewClockAnchorElapsed = _motionPreviewClockLatestElapsed;
+    _motionPreviewClockAnchorElapsed = Duration.zero;
+    _motionPreviewClockLatestElapsed = Duration.zero;
     if (resetTo != null) {
       _motionPreviewClockAnchorTime = resetTo;
       _setPlaybackSampleTime(resetTo);
@@ -2828,7 +2833,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
   TimelineTime _motionPreviewClockTimeForElapsed(Duration elapsed) {
     final delta = elapsed - _motionPreviewClockAnchorElapsed;
-    final deltaSeconds = delta.inMicroseconds / Duration.microsecondsPerSecond;
+    final deltaMicroseconds =
+        delta.inMicroseconds < 0 ? 0 : delta.inMicroseconds;
+    final deltaSeconds = deltaMicroseconds / Duration.microsecondsPerSecond;
     return (_motionPreviewClockAnchorTime +
             TimelineTime.fromSecondsDouble(deltaSeconds))
         .clamp(TimelineTime.zero, _timelineDurationTime);
@@ -11668,11 +11675,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _requestTimelineClockPlaybackStart(playbackStart);
     _setCurrentTime(playbackStart);
     _motionPreviewClockAnchorTime = playbackStart;
-    _motionPreviewClockAnchorElapsed = _motionPreviewClockLatestElapsed;
+    final isTickerActive = _motionPreviewFrameTicker.isActive;
+    _motionPreviewClockAnchorElapsed =
+        isTickerActive ? _motionPreviewClockLatestElapsed : Duration.zero;
     setState(() {
       _isPlaying = true;
     });
-    if (!_motionPreviewFrameTicker.isActive) {
+    if (!isTickerActive) {
+      _motionPreviewClockLatestElapsed = Duration.zero;
       _motionPreviewFrameTicker.start();
     }
   }
