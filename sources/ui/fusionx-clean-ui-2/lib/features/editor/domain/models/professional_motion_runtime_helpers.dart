@@ -232,7 +232,7 @@ class BasicMotionCompositionCompiler implements MotionCompositionCompiler {
                   ? textBindingRangeByElementId[element.id]
                   : null;
           final baseElementProjectRange = preferredTextProjectRange ??
-              element.localRange.shiftBy(scene.projectRange.start);
+              element.localRange.shiftBy(layerProjectRange.start);
           final elementProjectRange = _intersectRanges(
             baseElementProjectRange,
             layerProjectRange,

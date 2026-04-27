@@ -174,7 +174,8 @@ class ReFusionSceneProgramLowerer {
           elementId: element.id,
         ),
         elementKind: elementModel.kind,
-        activeRange: elementModel.localRange,
+        activeRange: visibleRange,
+        timeOffset: visibleRange.start,
         channelPrefix: <String>[layer.id, element.id],
         channels: channels,
         channelIds: channelIds,
@@ -223,6 +224,7 @@ class ReFusionSceneProgramLowerer {
       ),
       fallbackElementKind: elements.first.kind,
       activeRange: visibleRange,
+      timeOffset: visibleRange.start,
       channelPrefix: <String>[layer.id],
       channels: channels,
       channelIds: channelIds,
@@ -295,6 +297,7 @@ class ReFusionSceneProgramLowerer {
     required String ownerId,
     required MotionPropertyTarget ownerTarget,
     required TimelineTimeRange activeRange,
+    required TimelineTime timeOffset,
     required List<String> channelPrefix,
     required List<MotionPropertyChannelModel> channels,
     required Set<String> channelIds,
@@ -334,6 +337,7 @@ class ReFusionSceneProgramLowerer {
           channelProperty: channel.property,
           loweredProperty: loweredProperty,
           path: '$path.keyframes',
+          timeOffset: timeOffset,
           issues: issues,
         );
         if (keyframes.isEmpty) {
@@ -432,6 +436,7 @@ class ReFusionSceneProgramLowerer {
     required String channelProperty,
     required _LoweredProperty loweredProperty,
     required String path,
+    required TimelineTime timeOffset,
     required List<ReFusionSceneProgramIssue> issues,
   }) {
     final lowered = <MotionKeyframeModel>[];
@@ -439,7 +444,8 @@ class ReFusionSceneProgramLowerer {
     for (var index = 0; index < keyframes.length; index += 1) {
       final keyframe = keyframes[index];
       final keyframePath = '$path[$index]';
-      final time = TimelineTime.fromMilliseconds(keyframe.timeMs);
+      final localTime = TimelineTime.fromMilliseconds(keyframe.timeMs);
+      final time = timeOffset + localTime;
       if (!usedTimes.add(time.inProjectTicks)) {
         _addIssue(
           issues,

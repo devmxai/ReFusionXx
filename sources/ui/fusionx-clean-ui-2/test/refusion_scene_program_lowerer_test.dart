@@ -2,11 +2,15 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_animation_models.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_compilation_models.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_evaluation_models.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_models.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_runtime_helpers.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_text_models.dart';
 import 'package:refusion_app/features/editor/domain/models/refusion_scene_program_models.dart';
 import 'package:refusion_app/features/editor/domain/services/refusion_scene_program_import_service.dart';
 import 'package:refusion_app/features/editor/domain/services/refusion_scene_program_lowerer.dart';
+import 'package:refusion_app/features/editor/presentation/models/timeline_time.dart';
 
 void main() {
   const importService = ReFusionSceneProgramImportService();
@@ -114,12 +118,148 @@ void main() {
       (channel) => channel.definition.id == MotionPropertyCatalog.positionY.id,
     );
     expect(positionY.keyframes, hasLength(2));
-    expect(positionY.keyframes.first.time.inMilliseconds, 0);
+    expect(positionY.activeRange!.start.inMilliseconds, 250);
+    expect(positionY.keyframes.first.time.inMilliseconds, 250);
+    expect(positionY.keyframes.last.time.inMilliseconds, 750);
     expect(positionY.keyframes.first.value.rawValue, 96);
     expect(
       positionY.keyframes.first.interpolationToNext.kind,
       MotionInterpolationKind.easeOut,
     );
+  });
+
+  test('offsets delayed layer keyframes into project time before runtime eval',
+      () {
+    final importResult = importService.validate(
+      source: '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "name": "Delayed Typewriter Scene",
+  "durationMs": 7000,
+  "frameRate": 30,
+  "layers": [
+    {
+      "id": "letter-typing-layer",
+      "kind": "text",
+      "startMs": 2050,
+      "durationMs": 2950,
+      "elements": [
+        {
+          "id": "typing-text",
+          "kind": "text",
+          "text": "Hello World",
+          "channels": [
+            {
+              "property": "typewriterProgress",
+              "keyframes": [
+                { "timeMs": 780, "value": 0.0 },
+                { "timeMs": 2420, "value": 1.0 }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+''',
+    );
+    expect(importResult.isValid, isTrue);
+
+    final result = lowerer.lower(
+      ReFusionSceneProgramLoweringRequest(program: importResult.program!),
+    );
+
+    expect(result.hasErrors, isFalse);
+    final revealChannel = result.channels.singleWhere(
+      (channel) =>
+          channel.target.targetId == 'typing-text' &&
+          channel.definition.id == MotionPropertyCatalog.revealProgress.id,
+    );
+    expect(revealChannel.activeRange!.start.inMilliseconds, 2050);
+    expect(revealChannel.activeRange!.endExclusive.inMilliseconds, 5000);
+    expect(
+      revealChannel.keyframes.map((keyframe) => keyframe.time.inMilliseconds),
+      <int>[2830, 4470],
+    );
+
+    final compileResult = BasicMotionCompositionCompiler().compile(
+      MotionCompileRequest(
+        project: result.project,
+        propertyChannels: result.channels,
+        textAnimationBindings: result.textAnimationBindings,
+      ),
+    );
+    expect(compileResult.hasErrors, isFalse);
+    final composition = compileResult.composition!;
+
+    double? revealAt(int milliseconds) {
+      final snapshot = const BasicMotionRuntimeEvaluator().evaluate(
+        MotionEvaluationRequest(
+          composition: composition,
+          time: TimelineTime.fromMilliseconds(milliseconds),
+        ),
+      );
+      return snapshot.textAnimations.single.revealProgress;
+    }
+
+    expect(revealAt(2149), 0.0);
+    expect(revealAt(3600), closeTo(0.469, 0.002));
+    expect(revealAt(4600), 1.0);
+  });
+
+  test('keeps delayed shape elements active for the full layer project range',
+      () {
+    final importResult = importService.validate(
+      source: '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "name": "Delayed Shape Scene",
+  "durationMs": 4000,
+  "frameRate": 30,
+  "layers": [
+    {
+      "id": "delayed-shape-layer",
+      "kind": "shape",
+      "startMs": 2000,
+      "durationMs": 1000,
+      "elements": [
+        {
+          "id": "line",
+          "kind": "shape",
+          "properties": {
+            "shapeKind": "roundedRectangle",
+            "width": 640,
+            "height": 12,
+            "backgroundColor": "#FFFFFF"
+          }
+        }
+      ]
+    }
+  ]
+}
+''',
+    );
+    expect(importResult.isValid, isTrue);
+
+    final result = lowerer.lower(
+      ReFusionSceneProgramLoweringRequest(program: importResult.program!),
+    );
+    final compileResult = BasicMotionCompositionCompiler().compile(
+      MotionCompileRequest(
+        project: result.project,
+        propertyChannels: result.channels,
+        textAnimationBindings: result.textAnimationBindings,
+      ),
+    );
+
+    expect(compileResult.hasErrors, isFalse);
+    final layer = compileResult.composition!.scenes.single.layers.single;
+    expect(layer.projectRange.start.inMilliseconds, 2000);
+    expect(layer.projectRange.endExclusive.inMilliseconds, 3000);
+    final element = layer.elements.single;
+    expect(element.projectRange.start.inMilliseconds, 2000);
+    expect(element.projectRange.endExclusive.inMilliseconds, 3000);
   });
 
   test('routes layer channels to the first editable element when required', () {
