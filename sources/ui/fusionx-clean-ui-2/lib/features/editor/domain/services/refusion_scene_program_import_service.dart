@@ -470,6 +470,7 @@ class ReFusionSceneProgramImportService {
     }
     final keyframes = <ReFusionSceneProgramKeyframe>[];
     int? lastTimeMs;
+    var requiresSort = false;
     for (var index = 0; index < raw.length; index += 1) {
       final path = '$channelPath.keyframes[$index]';
       final entry = raw[index];
@@ -505,12 +506,13 @@ class ReFusionSceneProgramImportService {
       if (lastTimeMs != null && timeMs < lastTimeMs) {
         issues.add(
           ReFusionSceneProgramIssue(
-            severity: ReFusionSceneProgramIssueSeverity.error,
-            message: 'Keyframes must be sorted by `timeMs`.',
+            severity: ReFusionSceneProgramIssueSeverity.warning,
+            message:
+                'Keyframes were not sorted by `timeMs` and were normalized during import.',
             path: path,
           ),
         );
-        continue;
+        requiresSort = true;
       }
       lastTimeMs = timeMs;
       final value = entry['value'];
@@ -531,6 +533,9 @@ class ReFusionSceneProgramImportService {
           easing: _readString(entry, const <String>['easing']) ?? 'linear',
         ),
       );
+    }
+    if (requiresSort) {
+      keyframes.sort((a, b) => a.timeMs.compareTo(b.timeMs));
     }
     return List.unmodifiable(keyframes);
   }

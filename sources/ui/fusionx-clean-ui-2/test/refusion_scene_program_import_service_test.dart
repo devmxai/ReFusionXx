@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:refusion_app/features/editor/domain/models/refusion_scene_program_models.dart';
 import 'package:refusion_app/features/editor/domain/services/refusion_scene_program_import_service.dart';
 
 void main() {
@@ -97,7 +98,8 @@ void main() {
     );
   });
 
-  test('rejects unsorted keyframes and unsupported schema versions', () {
+  test('normalizes unsorted keyframes and rejects unsupported schema versions',
+      () {
     final result = service.validate(
       source: '''
 {
@@ -127,11 +129,68 @@ void main() {
     expect(result.isValid, isFalse);
     expect(
       result.issues.map((issue) => issue.path),
-      containsAll(<String>[
-        'schemaVersion',
-        'layers[0].channels[0].keyframes[1]',
-      ]),
+      contains('schemaVersion'),
     );
+    expect(
+      result.issues.where(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.warning &&
+            issue.message.contains('not sorted'),
+      ),
+      isNotEmpty,
+    );
+    final keyframes = result.program!.layers.single.channels.single.keyframes;
+    expect(keyframes.map((keyframe) => keyframe.timeMs), <int>[100, 500]);
+  });
+
+  test('accepts and sorts agent generated keyframes that arrive out of order',
+      () {
+    final result = service.validate(
+      source: '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "durationMs": 2400,
+  "layers": [
+    {
+      "id": "typing-layer",
+      "kind": "text",
+      "startMs": 0,
+      "durationMs": 2400,
+      "elements": [
+        {
+          "id": "typing",
+          "kind": "text",
+          "text": "hello world",
+          "channels": [
+            {
+              "property": "typingProgress",
+              "keyframes": [
+                { "timeMs": 1400, "value": 1.0 },
+                { "timeMs": 0, "value": 0.0 },
+                { "timeMs": 700, "value": 0.55 }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+''',
+    );
+
+    expect(result.isValid, isTrue);
+    expect(
+      result.issues.where(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.warning &&
+            issue.message.contains('not sorted'),
+      ),
+      isNotEmpty,
+    );
+    final keyframes =
+        result.program!.layers.single.elements.single.channels.single.keyframes;
+    expect(keyframes.map((keyframe) => keyframe.timeMs), <int>[0, 700, 1400]);
   });
 
   test('accepts explicit project-time keyframes inside delayed layers', () {

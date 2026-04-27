@@ -250,6 +250,87 @@ void main() {
     expect(iconAssignment.value.rawValue, 'send');
   });
 
+  test('lowers agent-friendly aliases for typing, size, radius, and background',
+      () {
+    final importResult = importService.validate(
+      source: '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "name": "Agent Alias Scene",
+  "durationMs": 1600,
+  "frameRate": 30,
+  "layers": [
+    {
+      "id": "prompt-layer",
+      "kind": "shape",
+      "startMs": 0,
+      "durationMs": 1600,
+      "elements": [
+        {
+          "id": "prompt-shell",
+          "kind": "shape",
+          "properties": {
+            "shapeKind": "roundedRectangle",
+            "size": { "width": 760, "height": 132 },
+            "radius": 52,
+            "backgroundColor": "#22242C",
+            "position": { "x": 0, "y": 120 }
+          }
+        }
+      ]
+    },
+    {
+      "id": "typing-layer",
+      "kind": "text",
+      "startMs": 0,
+      "durationMs": 1600,
+      "elements": [
+        {
+          "id": "typing-text",
+          "kind": "text",
+          "text": "hello world",
+          "channels": [
+            {
+              "property": "typewriterProgress",
+              "keyframes": [
+                { "timeMs": 0, "value": 0.0 },
+                { "timeMs": 1200, "value": 1.0 }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+''',
+    );
+    expect(importResult.isValid, isTrue);
+
+    final result = lowerer.lower(
+      ReFusionSceneProgramLoweringRequest(program: importResult.program!),
+    );
+
+    expect(result.hasErrors, isFalse);
+    final shell = result.project.scenes.single.layers.first.elements.single;
+    expect(
+      shell.properties.map((assignment) => assignment.definition.id),
+      containsAll(<String>[
+        MotionPropertyCatalog.width.id,
+        MotionPropertyCatalog.height.id,
+        MotionPropertyCatalog.cornerRadius.id,
+        'visual.color',
+      ]),
+    );
+    final revealChannel = result.channels.singleWhere(
+      (channel) =>
+          channel.target.targetId == 'typing-text' &&
+          channel.definition.id == MotionPropertyCatalog.revealProgress.id,
+    );
+    expect(revealChannel.keyframes.map((keyframe) => keyframe.value.rawValue),
+        <double>[0.0, 1.0]);
+  });
+
   test('keeps supported channels when unsupported properties are present', () {
     final importResult = importService.validate(
       source: '''

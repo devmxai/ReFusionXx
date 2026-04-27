@@ -631,6 +631,10 @@ class ReFusionSceneProgramLowerer {
       'color' ||
       'fill' ||
       'fillcolor' ||
+      'background' ||
+      'backgroundcolor' ||
+      'bg' ||
+      'bgcolor' ||
       'textcolor' ||
       'shapefillcolor' =>
         <_LoweredProperty>[
@@ -644,7 +648,13 @@ class ReFusionSceneProgramLowerer {
         ],
       'reveal' ||
       'revealprogress' ||
-      'textrevealprogress' =>
+      'textreveal' ||
+      'textrevealprogress' ||
+      'typing' ||
+      'typingprogress' ||
+      'typewriter' ||
+      'typewriterprogress' ||
+      'texttypingprogress' =>
         <_LoweredProperty>[
           _LoweredProperty(definition: MotionPropertyCatalog.revealProgress),
         ],
@@ -656,6 +666,19 @@ class ReFusionSceneProgramLowerer {
         ],
       'cornerradius' || 'shapecornerradius' => <_LoweredProperty>[
           _LoweredProperty(definition: MotionPropertyCatalog.cornerRadius),
+        ],
+      'radius' || 'borderradius' => <_LoweredProperty>[
+          _LoweredProperty(definition: MotionPropertyCatalog.cornerRadius),
+        ],
+      'size' || 'iconsize' || 'shapesize' => <_LoweredProperty>[
+          _LoweredProperty(
+            definition: MotionPropertyCatalog.width,
+            component: _VectorComponent.x,
+          ),
+          _LoweredProperty(
+            definition: MotionPropertyCatalog.height,
+            component: _VectorComponent.y,
+          ),
         ],
       'icon' || 'iconname' || 'symbol' || 'coreicon' => <_LoweredProperty>[
           _LoweredProperty(definition: _SceneProgramPropertyDefinitions.icon),
@@ -682,6 +705,16 @@ class ReFusionSceneProgramLowerer {
       'source',
       'uri',
       'assetid',
+      'layout',
+      'padding',
+      'gap',
+      'align',
+      'alignment',
+      'anchor',
+      'zindex',
+      'role',
+      'description',
+      'notes',
     }.contains(normalizedProperty);
   }
 
@@ -752,6 +785,11 @@ class ReFusionSceneProgramLowerer {
       return raw;
     }
     if (raw is num && _normalizeToken(property).contains('scale')) {
+      return raw;
+    }
+    if (raw is num &&
+        const <String>{'size', 'iconsize', 'shapesize'}
+            .contains(_normalizeToken(property))) {
       return raw;
     }
     if (raw is List && raw.isNotEmpty) {

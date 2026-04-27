@@ -151,6 +151,12 @@ For shape and icon elements:
 - `cornerRadius`
 - `icon` for `kind: "icon"`
 
+Accepted aliases for agent convenience:
+
+- `backgroundColor`, `bgColor`, `fillColor` -> `color`
+- `size`, `iconSize`, `shapeSize` -> `width` + `height`
+- `radius`, `borderRadius` -> `cornerRadius`
+
 For text elements:
 
 - `text`
@@ -163,6 +169,15 @@ For text elements:
 - `fontSize`
 - `letterSpacing`
 - `reveal`: `0..1`
+
+Accepted typing aliases:
+
+- `typewriter`
+- `typewriterProgress`
+- `typing`
+- `typingProgress`
+
+These aliases are lowered to the same editable `reveal` channel.
 
 ## Supported Channels
 
@@ -201,6 +216,10 @@ If you prefer writing absolute project/scene times, set:
 Recommended for agents: use local time for simple scenes, or explicitly set
 `"timeBasis": "project"` when staggering many layers on one global timeline.
 Do not mix local and project times inside the same channel.
+
+Keyframes should be sorted by ascending `timeMs`. ReFusion can normalize
+out-of-order keyframes during import, but sorted keyframes are preferred so the
+script stays readable and warnings stay minimal.
 
 Supported easing names:
 
