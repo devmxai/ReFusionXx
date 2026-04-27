@@ -11917,6 +11917,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             (_timelineScrubFinalTime ?? _timelineDisplayTimeNotifier.value)
                 .clamp(TimelineTime.zero, _timelineDurationTime);
         _timelineScrubFinalTime = scrubAnchorTime;
+        _stopMotionPreviewFrameClock(resetTo: scrubAnchorTime);
         _syncTimelineClockDuration();
         _timelineClockCoordinator.scrubStart(scrubAnchorTime);
         _applyTimelineClockSnapshotToUi();
@@ -11929,6 +11930,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _syncTimelineClockDuration();
       _timelineClockCoordinator.scrubEnd(resolvedFinalTime);
       _timelineClockCoordinator.confirmScrubSettled(resolvedFinalTime);
+      _stopMotionPreviewFrameClock(resetTo: resolvedFinalTime);
       _setCurrentTime(resolvedFinalTime);
       return;
     }
@@ -11990,6 +11992,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
   void _handleMainTimelineDisplayTimeChanged(TimelineTime time) {
     if (_canUseFlutterTimelinePlayback) {
+      _timelineScrubFinalTime = time.clamp(
+        TimelineTime.zero,
+        _timelineDurationTime,
+      );
       _setCurrentTime(time);
       return;
     }
