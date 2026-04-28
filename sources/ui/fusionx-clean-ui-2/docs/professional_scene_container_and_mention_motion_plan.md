@@ -40,6 +40,11 @@ Depends on:
   mapping and projected internal layers/elements/channels. This is domain-only
   navigation infrastructure; it is not wired to production UI, preview, export,
   or Live Scrub yet.
+- Phase S4 UI wiring: double tapping a root Scene Clip now opens a Scene Scope
+  timeline view that projects the nested source scene layers as local tracks and
+  provides a back action to return to the root timeline. This checkpoint keeps
+  element-level editing, native Scene Scope scrub, and export nesting for later
+  phases, and does not modify Stage5 Live Scrub.
 
 ## 1. Final Product Goal
 

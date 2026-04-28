@@ -4844,7 +4844,8 @@ class _TimelineTrackRow extends StatelessWidget {
   }
 
   bool _supportsScopedLayerDoubleTap(TimelineClipData clip) {
-    return onClipDoubleTap != null && clip.type == TimelineClipType.media;
+    return onClipDoubleTap != null &&
+        (clip.type == TimelineClipType.media || clip.isSceneClip);
   }
 
   _ResolvedTrimClipGeometry _resolveTrimClipGeometry({
