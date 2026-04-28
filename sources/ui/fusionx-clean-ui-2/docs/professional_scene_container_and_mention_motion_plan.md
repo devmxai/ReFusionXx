@@ -45,6 +45,12 @@ Depends on:
   provides a back action to return to the root timeline. This checkpoint keeps
   element-level editing, native Scene Scope scrub, and export nesting for later
   phases, and does not modify Stage5 Live Scrub.
+- Phase S5 foundation: double tapping a supported internal Scene Scope layer
+  opens a Unified Layer Scope style timeline for that layer. The scope projects
+  graph channels/keyframes into timeline lanes with correct scene/source/local
+  time mapping while preserving the root Scene Clip container. Keyframe mutation
+  from this nested scope remains a future checkpoint, and Stage5 Live Scrub is
+  untouched.
 
 ## 1. Final Product Goal
 

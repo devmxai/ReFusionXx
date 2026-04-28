@@ -40,6 +40,7 @@ import '../models/timeline_mock_models.dart';
 import '../models/timeline_time.dart';
 import '../services/normal_transition_timeline_authoring_adapter.dart';
 import '../services/root_scene_clip_projection_adapter.dart';
+import '../services/scene_layer_scope_timeline_adapter.dart';
 import '../services/transition_unified_scope_bridge_entry_adapter.dart';
 import '../services/transition_unified_scope_entry_gate.dart';
 import '../services/transition_unified_scope_keyframe_adapter.dart';
@@ -105,6 +106,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       RootSceneClipProjectionAdapter();
   static const SceneScopeSessionResolver _sceneScopeSessionResolver =
       SceneScopeSessionResolver();
+  static const SceneLayerScopeTimelineAdapter _sceneLayerScopeTimelineAdapter =
+      SceneLayerScopeTimelineAdapter();
   static const List<_CompositionTemplate> _compositionTemplates =
       <_CompositionTemplate>[
     _CompositionTemplate(
@@ -396,6 +399,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   String? _selectedTransitionId;
   _TransitionFocusSession? _transitionFocusSession;
   SceneScopeSession? _sceneScopeSession;
+  String? _sceneLayerScopeLayerId;
   _LayerScopeSession? _layerScopeSession;
   TransitionUnifiedScopeBridgeSession? _unifiedTransitionScopeSession;
   TransitionUnifiedScopeTimelineViewModel? _unifiedTransitionScopeViewModel;
@@ -3452,6 +3456,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     setState(() {
       _transitionFocusSession = null;
       _sceneScopeSession = null;
+      _sceneLayerScopeLayerId = null;
       _layerScopeSession = null;
       _clearUnifiedTransitionScopeSession();
       _selectedClipId = null;
@@ -3539,6 +3544,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _clearUnifiedTransitionScopeSession();
       _layerScopeSession = null;
       _sceneScopeSession = session;
+      _sceneLayerScopeLayerId = null;
       _selectedLayerScopeAnimationLaneId = null;
       _selectedLayerScopeKeyframeIndex = null;
       _selectedLayerScopeKeyframeId = null;
@@ -3564,12 +3570,89 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
     setState(() {
       _sceneScopeSession = null;
+      _sceneLayerScopeLayerId = null;
       _selectedLayerScopeAnimationLaneId = null;
       _selectedLayerScopeKeyframeIndex = null;
       _selectedLayerScopeKeyframeId = null;
       _isLayerScopeValueEditorOpen = false;
       _isLayerScopeGraphEditorOpen = false;
       _selectedClipId = session.sceneClipId;
+    });
+    _syncLayerScopeTimeNotifiers();
+  }
+
+  SceneLayerScopeTimelineViewModel? get _activeSceneLayerScopeViewModel {
+    final session = _sceneScopeSession;
+    final layerId = _sceneLayerScopeLayerId;
+    if (session == null || layerId == null) {
+      return null;
+    }
+    return _sceneLayerScopeTimelineAdapter
+        .viewModelForLayer(
+          project: _effectiveMotionProject,
+          sceneSession: session,
+          layerId: layerId,
+          channels: _manualMotionPropertyChannels,
+        )
+        .viewModel;
+  }
+
+  void _enterSceneLayerScope(
+    SceneScopeSession session,
+    String layerId,
+  ) {
+    if (_isLayerScopeTransitionBlocked) {
+      _showStageMessage(_layerScopeBlockedMessage());
+      return;
+    }
+    final result = _sceneLayerScopeTimelineAdapter.viewModelForLayer(
+      project: _effectiveMotionProject,
+      sceneSession: session,
+      layerId: layerId,
+      channels: _manualMotionPropertyChannels,
+    );
+    final viewModel = result.viewModel;
+    if (viewModel == null) {
+      final message = result.issues.isEmpty
+          ? 'Layer Scope is not available for this Scene layer yet.'
+          : result.issues.first.message;
+      _showStageMessage(message);
+      return;
+    }
+    setState(() {
+      _sceneLayerScopeLayerId = layerId;
+      _selectedClipId = layerId;
+      _selectedTransitionId = null;
+      _selectedLayerScopeAnimationLaneId = null;
+      _selectedLayerScopeKeyframeIndex = null;
+      _selectedLayerScopeKeyframeId = null;
+      _isLayerScopeValueEditorOpen = false;
+      _isLayerScopeGraphEditorOpen = false;
+      _setCurrentTime(
+          viewModel.localToRoot(viewModel.rootToLocal(_currentTime)));
+    });
+    _syncLayerScopeTimeNotifiers();
+    _showStageMessage(
+        'Layer Scope opened: ${viewModel.track.animationLanes.length} channels.');
+  }
+
+  void _exitSceneLayerScope() {
+    if (_isLayerScopeTransitionBlocked) {
+      _showStageMessage('Finish the current timeline gesture first.');
+      return;
+    }
+    final layerId = _sceneLayerScopeLayerId;
+    if (layerId == null) {
+      return;
+    }
+    setState(() {
+      _sceneLayerScopeLayerId = null;
+      _selectedClipId = layerId;
+      _selectedLayerScopeAnimationLaneId = null;
+      _selectedLayerScopeKeyframeIndex = null;
+      _selectedLayerScopeKeyframeId = null;
+      _isLayerScopeValueEditorOpen = false;
+      _isLayerScopeGraphEditorOpen = false;
     });
     _syncLayerScopeTimeNotifiers();
   }
@@ -4518,6 +4601,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _selectedTransitionId = null;
       _clearUnifiedTransitionScopeSession();
       _sceneScopeSession = null;
+      _sceneLayerScopeLayerId = null;
       _layerScopeSession = _LayerScopeSession(
         clipId: clipId,
         returnSelectedClipId: _selectedClipId,
@@ -4720,11 +4804,97 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     });
   }
 
+  void _handleSceneScopeClipDoubleTap(
+    SceneScopeSession session,
+    String clipId,
+  ) {
+    if (!session.layers.any((layer) => layer.id == clipId)) {
+      return;
+    }
+    _enterSceneLayerScope(session, clipId);
+  }
+
   void _handleSceneScopeScrubFinalized(
     SceneScopeSession session,
     TimelineTime localTime,
   ) {
     _handleTimelineScrubFinalized(session.localToRoot(localTime));
+  }
+
+  void _handleSceneLayerScopeDisplayTimeChanged(
+    SceneLayerScopeTimelineViewModel viewModel,
+    TimelineTime localTime,
+  ) {
+    _setTimelineDisplayTime(viewModel.localToRoot(localTime));
+  }
+
+  void _handleSceneLayerScopeZoomStateChanged(
+    SceneLayerScopeTimelineViewModel viewModel,
+    TimelineZoomState state,
+  ) {
+    _applyTimelineZoomState(
+      isZooming: state.isZooming,
+      globalAnchorTime: viewModel.localToRoot(state.anchorTime),
+      revision: state.revision,
+    );
+  }
+
+  void _handleSceneLayerScopeClipSelected(
+    SceneLayerScopeTimelineViewModel viewModel,
+    String clipId,
+  ) {
+    if (clipId != viewModel.layerId) {
+      return;
+    }
+    setState(() {
+      _selectedClipId = clipId;
+      _selectedTransitionId = null;
+    });
+  }
+
+  void _handleSceneLayerScopeScrubFinalized(
+    SceneLayerScopeTimelineViewModel viewModel,
+    TimelineTime localTime,
+  ) {
+    _handleTimelineScrubFinalized(viewModel.localToRoot(localTime));
+  }
+
+  void _handleSceneLayerScopeAnimationLaneTap(
+    SceneLayerScopeTimelineViewModel viewModel,
+    String laneId,
+  ) {
+    TimelineAnimationLaneData? lane;
+    for (final candidate in viewModel.track.animationLanes) {
+      if (candidate.id == laneId) {
+        lane = candidate;
+        break;
+      }
+    }
+    if (lane == null) {
+      return;
+    }
+    final keyframeIndex = _nearestSceneLayerScopeKeyframeIndex(viewModel, lane);
+    setState(() {
+      _selectedLayerScopeAnimationLaneId = laneId;
+      _selectedLayerScopeKeyframeIndex = keyframeIndex;
+      _selectedLayerScopeKeyframeId = keyframeIndex == null
+          ? null
+          : _layerScopeKeyframeIdAt(lane!, keyframeIndex);
+      _isLayerScopeValueEditorOpen = false;
+    });
+  }
+
+  void _handleSceneLayerScopeAnimationKeyframeTap(
+    String laneId,
+    int keyframeIndex,
+    String keyframeId,
+  ) {
+    setState(() {
+      _selectedLayerScopeAnimationLaneId = laneId;
+      _selectedLayerScopeKeyframeIndex = keyframeIndex;
+      _selectedLayerScopeKeyframeId = keyframeId;
+      _isLayerScopeValueEditorOpen = false;
+    });
   }
 
   void _handleLayerScopeDisplayTimeChanged(
@@ -4827,6 +4997,32 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
     }
     return null;
+  }
+
+  int? _nearestSceneLayerScopeKeyframeIndex(
+    SceneLayerScopeTimelineViewModel viewModel,
+    TimelineAnimationLaneData lane,
+  ) {
+    final stops = lane.normalizedKeyframeStops;
+    if (stops.isEmpty) {
+      return null;
+    }
+    final durationSeconds = viewModel.durationTime.inSecondsDouble;
+    final progress = durationSeconds <= 0
+        ? 0.0
+        : (viewModel.rootToLocal(_currentTime).inSecondsDouble /
+                durationSeconds)
+            .clamp(0.0, 1.0);
+    var nearestIndex = 0;
+    var nearestDistance = double.infinity;
+    for (var index = 0; index < stops.length; index++) {
+      final distance = (stops[index].clamp(0.0, 1.0) - progress).abs();
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestIndex = index;
+      }
+    }
+    return nearestIndex;
   }
 
   int? _nearestLayerScopeKeyframeIndex(
@@ -15205,12 +15401,21 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             layerScopeContext == null
         ? _sceneScopeSession
         : null;
-    final sceneScopeTracks = sceneScopeSession == null
-        ? const <TimelineTrackData>[]
-        : _buildSceneScopeTracks(sceneScopeSession);
+    final sceneLayerScopeViewModel =
+        sceneScopeSession == null ? null : _activeSceneLayerScopeViewModel;
+    final sceneScopeTracks =
+        sceneScopeSession == null || sceneLayerScopeViewModel != null
+            ? const <TimelineTrackData>[]
+            : _buildSceneScopeTracks(sceneScopeSession);
     final sceneScopeLocalTime = sceneScopeSession == null
         ? TimelineTime.zero
         : sceneScopeSession.rootToLocal(_currentTime);
+    final sceneLayerScopeTracks = sceneLayerScopeViewModel == null
+        ? const <TimelineTrackData>[]
+        : sceneLayerScopeViewModel.tracks;
+    final sceneLayerScopeLocalTime = sceneLayerScopeViewModel == null
+        ? TimelineTime.zero
+        : sceneLayerScopeViewModel.rootToLocal(_currentTime);
     final canOpenLayerScopeValueEditor =
         _canOpenLayerScopeValueEditor(layerScopeContext);
     final canOpenLayerScopeGraphEditor =
@@ -15244,8 +15449,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         : _layerScopeSelectedAnimationLane(layerScopeContext);
     final canAddLayerScopeKeyframe = selectedLayerScopeAnimationLane != null &&
         _layerScopeDefinitionsForLane(selectedLayerScopeAnimationLane) != null;
+    final isSceneLayerScopeActive = sceneLayerScopeViewModel != null;
     final isLayerScopeActive = layerScopeContext != null ||
         isUnifiedTransitionScopeActive ||
+        isSceneLayerScopeActive ||
         sceneScopeSession != null;
     final isTextLayerScopeActive =
         layerScopeContext?.track.kind == TimelineTrackKind.text;
@@ -15376,10 +15583,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                     ? _handlePlayToggle
                                                     : null,
                                           )
-                                        : sceneScopeSession != null
+                                        : sceneLayerScopeViewModel != null
                                             ? _LayerScopeToolsBar(
                                                 isPlaying: effectiveIsPlaying,
-                                                onBack: _exitSceneScope,
+                                                onBack: _exitSceneLayerScope,
                                                 onSplit: null,
                                                 onTrimToggle: null,
                                                 isTrimModeActive: false,
@@ -15390,32 +15597,49 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                         ? _handlePlayToggle
                                                         : null,
                                               )
-                                            : EditorToolsBar(
-                                                embedded: true,
-                                                isPlaying: effectiveIsPlaying,
-                                                onSplit: hasSelectedImportedClip
-                                                    ? _handleSplitSelectedClip
-                                                    : null,
-                                                onTrimToggle:
-                                                    hasSelectedImportedClip ||
+                                            : sceneScopeSession != null
+                                                ? _LayerScopeToolsBar(
+                                                    isPlaying:
+                                                        effectiveIsPlaying,
+                                                    onBack: _exitSceneScope,
+                                                    onSplit: null,
+                                                    onTrimToggle: null,
+                                                    isTrimModeActive: false,
+                                                    onDuplicate: null,
+                                                    onMoveToKeyframe: null,
+                                                    onPlayToggle:
+                                                        canToggleTimelinePlayback
+                                                            ? _handlePlayToggle
+                                                            : null,
+                                                  )
+                                                : EditorToolsBar(
+                                                    embedded: true,
+                                                    isPlaying:
+                                                        effectiveIsPlaying,
+                                                    onSplit: hasSelectedImportedClip
+                                                        ? _handleSplitSelectedClip
+                                                        : null,
+                                                    onTrimToggle:
+                                                        hasSelectedImportedClip ||
+                                                                hasSelectedMotionTextClip
+                                                            ? _handleTrimModeToggle
+                                                            : null,
+                                                    isTrimModeActive:
+                                                        isTrimModeActive,
+                                                    onDuplicate:
+                                                        hasSelectedImportedClip ||
+                                                                hasSelectedMotionTextClip
+                                                            ? _handleDuplicateSelectedClip
+                                                            : null,
+                                                    onDelete: hasSelectedImportedClip ||
                                                             hasSelectedMotionTextClip
-                                                        ? _handleTrimModeToggle
+                                                        ? _handleDeleteSelectedClip
                                                         : null,
-                                                isTrimModeActive:
-                                                    isTrimModeActive,
-                                                onDuplicate: hasSelectedImportedClip ||
-                                                        hasSelectedMotionTextClip
-                                                    ? _handleDuplicateSelectedClip
-                                                    : null,
-                                                onDelete: hasSelectedImportedClip ||
-                                                        hasSelectedMotionTextClip
-                                                    ? _handleDeleteSelectedClip
-                                                    : null,
-                                                onPlayToggle:
-                                                    canToggleTimelinePlayback
-                                                        ? _handlePlayToggle
-                                                        : null,
-                                              ),
+                                                    onPlayToggle:
+                                                        canToggleTimelinePlayback
+                                                            ? _handlePlayToggle
+                                                            : null,
+                                                  ),
                           ),
                           Divider(
                             height: 1,
@@ -15810,54 +16034,70 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                 TimelineTrackKind.text,
                                               },
                                             )
-                                          : sceneScopeSession != null
+                                          : sceneLayerScopeViewModel != null
                                               ? TimelinePanel(
                                                   embedded: true,
-                                                  tracks: sceneScopeTracks,
+                                                  tracks: sceneLayerScopeTracks,
                                                   currentTime:
-                                                      sceneScopeLocalTime,
+                                                      sceneLayerScopeLocalTime,
                                                   displayTimeListenable:
                                                       _layerScopeDisplayTimeNotifier,
                                                   onDisplayTimeChanged:
                                                       (localTime) =>
-                                                          _handleSceneScopeDisplayTimeChanged(
-                                                    sceneScopeSession,
+                                                          _handleSceneLayerScopeDisplayTimeChanged(
+                                                    sceneLayerScopeViewModel,
                                                     localTime,
                                                   ),
                                                   onZoomStateChanged: (state) =>
-                                                      _handleSceneScopeZoomStateChanged(
-                                                    sceneScopeSession,
+                                                      _handleSceneLayerScopeZoomStateChanged(
+                                                    sceneLayerScopeViewModel,
                                                     state,
                                                   ),
                                                   playbackSampleTimeListenable:
                                                       _layerScopePlaybackSampleTimeNotifier,
                                                   timelineDurationTime:
-                                                      sceneScopeSession
-                                                          .localRange.duration,
+                                                      sceneLayerScopeViewModel
+                                                          .durationTime,
                                                   timeDisplayOffset:
                                                       TimelineTime.zero,
                                                   timeReadoutTotalTime:
-                                                      sceneScopeSession
-                                                          .localRange.duration,
+                                                      sceneLayerScopeViewModel
+                                                          .durationTime,
                                                   isPlaying: effectiveIsPlaying,
                                                   timelineFps: _timelineFps,
                                                   selectedClipId:
                                                       _selectedClipId,
+                                                  selectedAnimationLaneId:
+                                                      _selectedLayerScopeAnimationLaneId,
+                                                  selectedAnimationKeyframeIndex:
+                                                      _selectedLayerScopeKeyframeIndex,
                                                   onClipSelected: (clipId) =>
-                                                      _handleSceneScopeClipSelected(
-                                                    sceneScopeSession,
+                                                      _handleSceneLayerScopeClipSelected(
+                                                    sceneLayerScopeViewModel,
                                                     clipId,
                                                   ),
+                                                  onAnimationLaneTap: (laneId) =>
+                                                      _handleSceneLayerScopeAnimationLaneTap(
+                                                    sceneLayerScopeViewModel,
+                                                    laneId,
+                                                  ),
+                                                  onAnimationKeyframeTap:
+                                                      _handleSceneLayerScopeAnimationKeyframeTap,
                                                   onBackgroundTap: () {
                                                     setState(() {
-                                                      _selectedClipId = null;
+                                                      _selectedLayerScopeAnimationLaneId =
+                                                          null;
+                                                      _selectedLayerScopeKeyframeIndex =
+                                                          null;
+                                                      _selectedLayerScopeKeyframeId =
+                                                          null;
                                                     });
                                                   },
                                                   onScrubStateChanged:
                                                       _handleScrubStateChanged,
                                                   onScrubFinalized: (localTime) =>
-                                                      _handleSceneScopeScrubFinalized(
-                                                    sceneScopeSession,
+                                                      _handleSceneLayerScopeScrubFinalized(
+                                                    sceneLayerScopeViewModel,
                                                     localTime,
                                                   ),
                                                   assetPathResolver:
@@ -15865,116 +16105,184 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                   animateTrackKinds: const <TimelineTrackKind>{},
                                                   fxTrackKinds: const <TimelineTrackKind>{},
                                                 )
-                                              : TimelinePanel(
-                                                  embedded: true,
-                                                  tracks: mainTimelineTracks,
-                                                  currentTime: _currentTime,
-                                                  displayTimeListenable:
-                                                      _timelineDisplayTimeNotifier,
-                                                  onDisplayTimeChanged:
-                                                      _handleMainTimelineDisplayTimeChanged,
-                                                  onZoomStateChanged:
-                                                      _handleTimelineZoomStateChanged,
-                                                  playbackSampleTimeListenable:
-                                                      _playbackSampleTimeNotifier,
-                                                  timelineDurationTime:
-                                                      _timelineDurationTime,
-                                                  isPlaying: effectiveIsPlaying,
-                                                  timelineFps: _timelineFps,
-                                                  selectedClipId:
-                                                      _selectedClipId,
-                                                  selectedTransitionId:
-                                                      _selectedClipId == null
-                                                          ? _selectedTransitionId
-                                                          : null,
-                                                  trimSelection:
-                                                      _timelineTrimSelection,
-                                                  onClipSelected: _selectClip,
-                                                  onClipDoubleTap:
-                                                      _handleTimelineClipDoubleTap,
-                                                  onClipReorder: _reorderClip,
-                                                  onClipTimeShift:
-                                                      _shiftClipInTimeline,
-                                                  onTransitionTap: (track,
-                                                      leftClip, rightClip) {
-                                                    unawaited(
-                                                      _handleTimelineTransitionTap(
-                                                        track,
-                                                        leftClip,
-                                                        rightClip,
+                                              : sceneScopeSession != null
+                                                  ? TimelinePanel(
+                                                      embedded: true,
+                                                      tracks: sceneScopeTracks,
+                                                      currentTime:
+                                                          sceneScopeLocalTime,
+                                                      displayTimeListenable:
+                                                          _layerScopeDisplayTimeNotifier,
+                                                      onDisplayTimeChanged:
+                                                          (localTime) =>
+                                                              _handleSceneScopeDisplayTimeChanged(
+                                                        sceneScopeSession,
+                                                        localTime,
                                                       ),
-                                                    );
-                                                  },
-                                                  onTrackAnimateTap:
-                                                      _openAnimateBrowserForTrack,
-                                                  animateTrackKinds: const <TimelineTrackKind>{},
-                                                  onBackgroundTap:
-                                                      _clearSelection,
-                                                  onTrimCommit:
-                                                      _handleTimelineTrimCommit,
-                                                  onTrimPreviewChanged:
-                                                      _handleTimelineTrimPreviewChanged,
-                                                  assetPathResolver:
-                                                      _resolveAssetPath,
-                                                  onScrubStateChanged:
-                                                      _handleScrubStateChanged,
-                                                  onScrubFinalized:
-                                                      _handleTimelineScrubFinalized,
-                                                  scrubSurfaceBuilder:
-                                                      !_useNativeTimelineScrubInput
-                                                          ? null
-                                                          : (surfaceConfig) =>
-                                                              NativeTimelineScrubSurface(
-                                                                currentTime:
-                                                                    surfaceConfig
-                                                                        .currentTime,
-                                                                currentTimeListenable:
-                                                                    surfaceConfig
-                                                                        .currentTimeListenable,
-                                                                timelineDurationTime:
-                                                                    surfaceConfig
-                                                                        .timelineDurationTime,
-                                                                timelineOffsetTime:
-                                                                    surfaceConfig
-                                                                        .timelineOffsetTime,
-                                                                secondsWidth:
-                                                                    surfaceConfig
-                                                                        .secondsWidth,
-                                                                timelineFps:
-                                                                    surfaceConfig
-                                                                        .timelineFps,
-                                                                configRevision:
-                                                                    _nativeTimelineScrubConfigRevisionFor(
-                                                                  surfaceConfig,
-                                                                ),
-                                                                onConfigApplied:
-                                                                    (_) =>
-                                                                        _handleTimelineScrubConfigApplied(
-                                                                  _timelineScrubConfigRevision,
-                                                                ),
-                                                                regions:
-                                                                    surfaceConfig
-                                                                        .regions,
-                                                                previewSources:
-                                                                    _allLiveScrubPreviewSources(),
-                                                                onTap:
-                                                                    surfaceConfig
-                                                                        .onTap,
-                                                                onScrubStart:
-                                                                    surfaceConfig
-                                                                        .onScrubStart,
-                                                                onScrubTimeChanged:
-                                                                    surfaceConfig
-                                                                        .onScrubTimeChanged,
-                                                                onScrubEnd:
-                                                                    surfaceConfig
-                                                                        .onScrubEnd,
-                                                                interactionEnabled:
-                                                                    !_isApplyingStructuralEdit &&
+                                                      onZoomStateChanged: (state) =>
+                                                          _handleSceneScopeZoomStateChanged(
+                                                        sceneScopeSession,
+                                                        state,
+                                                      ),
+                                                      playbackSampleTimeListenable:
+                                                          _layerScopePlaybackSampleTimeNotifier,
+                                                      timelineDurationTime:
+                                                          sceneScopeSession
+                                                              .localRange
+                                                              .duration,
+                                                      timeDisplayOffset:
+                                                          TimelineTime.zero,
+                                                      timeReadoutTotalTime:
+                                                          sceneScopeSession
+                                                              .localRange
+                                                              .duration,
+                                                      isPlaying:
+                                                          effectiveIsPlaying,
+                                                      timelineFps: _timelineFps,
+                                                      selectedClipId:
+                                                          _selectedClipId,
+                                                      onClipSelected: (clipId) =>
+                                                          _handleSceneScopeClipSelected(
+                                                        sceneScopeSession,
+                                                        clipId,
+                                                      ),
+                                                      onClipDoubleTap: (clipId) =>
+                                                          _handleSceneScopeClipDoubleTap(
+                                                        sceneScopeSession,
+                                                        clipId,
+                                                      ),
+                                                      onBackgroundTap: () {
+                                                        setState(() {
+                                                          _selectedClipId =
+                                                              null;
+                                                        });
+                                                      },
+                                                      onScrubStateChanged:
+                                                          _handleScrubStateChanged,
+                                                      onScrubFinalized:
+                                                          (localTime) =>
+                                                              _handleSceneScopeScrubFinalized(
+                                                        sceneScopeSession,
+                                                        localTime,
+                                                      ),
+                                                      assetPathResolver:
+                                                          _resolveAssetPath,
+                                                      animateTrackKinds: const <TimelineTrackKind>{},
+                                                      fxTrackKinds: const <TimelineTrackKind>{},
+                                                    )
+                                                  : TimelinePanel(
+                                                      embedded: true,
+                                                      tracks:
+                                                          mainTimelineTracks,
+                                                      currentTime: _currentTime,
+                                                      displayTimeListenable:
+                                                          _timelineDisplayTimeNotifier,
+                                                      onDisplayTimeChanged:
+                                                          _handleMainTimelineDisplayTimeChanged,
+                                                      onZoomStateChanged:
+                                                          _handleTimelineZoomStateChanged,
+                                                      playbackSampleTimeListenable:
+                                                          _playbackSampleTimeNotifier,
+                                                      timelineDurationTime:
+                                                          _timelineDurationTime,
+                                                      isPlaying:
+                                                          effectiveIsPlaying,
+                                                      timelineFps: _timelineFps,
+                                                      selectedClipId:
+                                                          _selectedClipId,
+                                                      selectedTransitionId:
+                                                          _selectedClipId ==
+                                                                  null
+                                                              ? _selectedTransitionId
+                                                              : null,
+                                                      trimSelection:
+                                                          _timelineTrimSelection,
+                                                      onClipSelected:
+                                                          _selectClip,
+                                                      onClipDoubleTap:
+                                                          _handleTimelineClipDoubleTap,
+                                                      onClipReorder:
+                                                          _reorderClip,
+                                                      onClipTimeShift:
+                                                          _shiftClipInTimeline,
+                                                      onTransitionTap: (track,
+                                                          leftClip, rightClip) {
+                                                        unawaited(
+                                                          _handleTimelineTransitionTap(
+                                                            track,
+                                                            leftClip,
+                                                            rightClip,
+                                                          ),
+                                                        );
+                                                      },
+                                                      onTrackAnimateTap:
+                                                          _openAnimateBrowserForTrack,
+                                                      animateTrackKinds: const <TimelineTrackKind>{},
+                                                      onBackgroundTap:
+                                                          _clearSelection,
+                                                      onTrimCommit:
+                                                          _handleTimelineTrimCommit,
+                                                      onTrimPreviewChanged:
+                                                          _handleTimelineTrimPreviewChanged,
+                                                      assetPathResolver:
+                                                          _resolveAssetPath,
+                                                      onScrubStateChanged:
+                                                          _handleScrubStateChanged,
+                                                      onScrubFinalized:
+                                                          _handleTimelineScrubFinalized,
+                                                      scrubSurfaceBuilder:
+                                                          !_useNativeTimelineScrubInput
+                                                              ? null
+                                                              : (surfaceConfig) =>
+                                                                  NativeTimelineScrubSurface(
+                                                                    currentTime:
                                                                         surfaceConfig
-                                                                            .interactionEnabled,
-                                                              ),
-                                                ),
+                                                                            .currentTime,
+                                                                    currentTimeListenable:
+                                                                        surfaceConfig
+                                                                            .currentTimeListenable,
+                                                                    timelineDurationTime:
+                                                                        surfaceConfig
+                                                                            .timelineDurationTime,
+                                                                    timelineOffsetTime:
+                                                                        surfaceConfig
+                                                                            .timelineOffsetTime,
+                                                                    secondsWidth:
+                                                                        surfaceConfig
+                                                                            .secondsWidth,
+                                                                    timelineFps:
+                                                                        surfaceConfig
+                                                                            .timelineFps,
+                                                                    configRevision:
+                                                                        _nativeTimelineScrubConfigRevisionFor(
+                                                                      surfaceConfig,
+                                                                    ),
+                                                                    onConfigApplied:
+                                                                        (_) =>
+                                                                            _handleTimelineScrubConfigApplied(
+                                                                      _timelineScrubConfigRevision,
+                                                                    ),
+                                                                    regions:
+                                                                        surfaceConfig
+                                                                            .regions,
+                                                                    previewSources:
+                                                                        _allLiveScrubPreviewSources(),
+                                                                    onTap: surfaceConfig
+                                                                        .onTap,
+                                                                    onScrubStart:
+                                                                        surfaceConfig
+                                                                            .onScrubStart,
+                                                                    onScrubTimeChanged:
+                                                                        surfaceConfig
+                                                                            .onScrubTimeChanged,
+                                                                    onScrubEnd:
+                                                                        surfaceConfig
+                                                                            .onScrubEnd,
+                                                                    interactionEnabled:
+                                                                        !_isApplyingStructuralEdit &&
+                                                                            surfaceConfig.interactionEnabled,
+                                                                  ),
+                                                    ),
                             ),
                           ),
                           Divider(
@@ -16049,40 +16357,56 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                             Icons.auto_awesome_motion_rounded,
                                       )
                                     : isLayerScopeActive
-                                        ? LayerScopeKeyframeDock(
-                                            addEnabled: true,
-                                            keyframeEnabled:
-                                                canAddLayerScopeKeyframe,
-                                            valueEnabled:
-                                                canOpenLayerScopeValueEditor,
-                                            graphEnabled:
-                                                canOpenLayerScopeGraphEditor,
-                                            isValueActive:
-                                                _isLayerScopeValueEditorOpen &&
+                                        ? isSceneLayerScopeActive
+                                            ? const LayerScopeKeyframeDock(
+                                                addEnabled: false,
+                                                keyframeEnabled: false,
+                                                valueEnabled: false,
+                                                graphEnabled: false,
+                                                isValueActive: false,
+                                                isGraphActive: false,
+                                                onAddTap: null,
+                                                onAddKeyframeTap: null,
+                                                onValueTap: null,
+                                                onGraphTap: null,
+                                                embedded: true,
+                                                addLabel: 'Add',
+                                                addIcon: Icons.add_rounded,
+                                              )
+                                            : LayerScopeKeyframeDock(
+                                                addEnabled: true,
+                                                keyframeEnabled:
+                                                    canAddLayerScopeKeyframe,
+                                                valueEnabled:
                                                     canOpenLayerScopeValueEditor,
-                                            isGraphActive:
-                                                _isLayerScopeGraphEditorOpen &&
+                                                graphEnabled:
                                                     canOpenLayerScopeGraphEditor,
-                                            onAddTap:
-                                                _handleLayerScopeDockAddTap,
-                                            onAddKeyframeTap:
-                                                _handleLayerScopeAddKeyframe,
-                                            onValueTap:
-                                                canOpenLayerScopeValueEditor
-                                                    ? _handleLayerScopeValueToolTap
-                                                    : null,
-                                            onGraphTap:
-                                                canOpenLayerScopeGraphEditor
-                                                    ? _handleLayerScopeGraphToolTap
-                                                    : null,
-                                            embedded: true,
-                                            addLabel: isTextLayerScopeActive
-                                                ? 'Script'
-                                                : 'Add',
-                                            addIcon: isTextLayerScopeActive
-                                                ? Icons.code_rounded
-                                                : Icons.add_rounded,
-                                          )
+                                                isValueActive:
+                                                    _isLayerScopeValueEditorOpen &&
+                                                        canOpenLayerScopeValueEditor,
+                                                isGraphActive:
+                                                    _isLayerScopeGraphEditorOpen &&
+                                                        canOpenLayerScopeGraphEditor,
+                                                onAddTap:
+                                                    _handleLayerScopeDockAddTap,
+                                                onAddKeyframeTap:
+                                                    _handleLayerScopeAddKeyframe,
+                                                onValueTap:
+                                                    canOpenLayerScopeValueEditor
+                                                        ? _handleLayerScopeValueToolTap
+                                                        : null,
+                                                onGraphTap:
+                                                    canOpenLayerScopeGraphEditor
+                                                        ? _handleLayerScopeGraphToolTap
+                                                        : null,
+                                                embedded: true,
+                                                addLabel: isTextLayerScopeActive
+                                                    ? 'Script'
+                                                    : 'Add',
+                                                addIcon: isTextLayerScopeActive
+                                                    ? Icons.code_rounded
+                                                    : Icons.add_rounded,
+                                              )
                                         : MediaDock(
                                             activeTab: effectiveDockActiveTab,
                                             onSceneTap:
