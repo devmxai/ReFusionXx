@@ -127,6 +127,14 @@ class KieSceneProgramAgentService {
     ).sceneProgramJson;
   }
 
+  KieSceneProgramExtractionResult extractSceneProgramPayloadFromContent({
+    required String content,
+  }) {
+    final jsonText = _extractJsonObjectText(content);
+    final object = jsonDecode(jsonText);
+    return _extractSceneProgramPayloadObject(object);
+  }
+
   @visibleForTesting
   KieSceneProgramExtractionResult extractSceneProgramPayload({
     required String rawResponse,
@@ -141,6 +149,12 @@ class KieSceneProgramAgentService {
     };
     final jsonText = _extractJsonObjectText(content);
     final object = jsonDecode(jsonText);
+    return _extractSceneProgramPayloadObject(object);
+  }
+
+  KieSceneProgramExtractionResult _extractSceneProgramPayloadObject(
+    Object? object,
+  ) {
     if (object is! Map) {
       throw const KieSceneProgramAgentException(
         'Generated scene payload must be a JSON object.',
@@ -524,6 +538,14 @@ class KieSceneProgramAgentService {
         );
       }
       return raw;
+    } on SocketException catch (error) {
+      throw KieSceneProgramAgentException(
+        'KIE connection failed: ${error.message}. Check network stability and try again.',
+      );
+    } on HttpException catch (error) {
+      throw KieSceneProgramAgentException(
+        'KIE connection was interrupted before completion. Try again, or use the generated JSON from KIE history if the request succeeded there. ${error.message}',
+      );
     } finally {
       client.close(force: true);
     }

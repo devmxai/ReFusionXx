@@ -141,6 +141,23 @@ void main() {
     );
   });
 
+  test('extracts pasted directorPlan and Scene Program wrapper content', () {
+    final extracted = service.extractSceneProgramPayloadFromContent(
+      content: jsonEncode(
+        <String, Object?>{
+          'directorPlan': _directorPlanJson(),
+          'sceneProgram': jsonDecode(_sceneProgramJson('Manual KIE Scene')),
+        },
+      ),
+    );
+    final decoded =
+        jsonDecode(extracted.sceneProgramJson) as Map<String, dynamic>;
+
+    expect(decoded['schemaVersion'], 'refusion.scene-program/v1');
+    expect(decoded['name'], 'Manual KIE Scene');
+    expect(extracted.directorPlan, isNotNull);
+  });
+
   test('rejects wrapped Scene Program when directorPlan fails lint', () {
     final rawResponse = jsonEncode(
       <String, Object?>{

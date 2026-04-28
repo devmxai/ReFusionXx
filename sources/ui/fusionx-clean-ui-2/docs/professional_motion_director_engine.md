@@ -255,6 +255,10 @@ Status:
   the Generate tab is active, so the default Script preset cannot be applied by
   accident. Generate now shows a visible progress state and uses a longer
   provider timeout for complex Director-first scene requests.
+- Manual Script import now accepts the same Director-first wrapper that KIE
+  returns (`directorPlan + sceneProgram`). The Script tab extracts and validates
+  the executable Scene Program through the same Director lint/alignment path
+  instead of rejecting pasted KIE history output as an unknown root schema.
 
 ### Phase D4 - Lint And Auto-Repair Before Apply
 

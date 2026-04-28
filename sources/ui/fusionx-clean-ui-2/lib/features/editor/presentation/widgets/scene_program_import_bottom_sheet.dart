@@ -696,15 +696,63 @@ class _SceneProgramImportBottomSheetState
   }
 
   ReFusionSceneProgramAuthoringResult _importCurrentSource(String source) {
+    final String normalizedSource;
+    try {
+      normalizedSource = _sceneProgramSourceForImport(source);
+    } on KieSceneProgramAgentException catch (error) {
+      return ReFusionSceneProgramAuthoringResult(
+        issues: <ReFusionSceneProgramIssue>[
+          ReFusionSceneProgramIssue(
+            severity: ReFusionSceneProgramIssueSeverity.error,
+            message: error.message,
+            path: 'source',
+          ),
+        ],
+      );
+    }
     return _authoringService.importSceneProgram(
       ReFusionSceneProgramAuthoringRequest(
-        source: source.trim(),
+        source: normalizedSource,
         fileName: _fileName,
         projectId: widget.projectId,
         sceneId: widget.sceneId,
         canvasSize: widget.canvasSize,
       ),
     );
+  }
+
+  String _sceneProgramSourceForImport(String source) {
+    final trimmed = source.trim();
+    if (trimmed.isEmpty) {
+      return trimmed;
+    }
+    if (!_looksLikeScenePayloadWrapper(trimmed)) {
+      return trimmed;
+    }
+    try {
+      return _sceneAgentService
+          .extractSceneProgramPayloadFromContent(content: trimmed)
+          .sceneProgramJson;
+    } on KieSceneProgramAgentException {
+      rethrow;
+    } catch (_) {
+      return trimmed;
+    }
+  }
+
+  bool _looksLikeScenePayloadWrapper(String source) {
+    try {
+      final decoded = jsonDecode(source);
+      if (decoded is! Map) {
+        return false;
+      }
+      return decoded.containsKey('directorPlan') ||
+          decoded.containsKey('motionDirector') ||
+          decoded.containsKey('sceneProgram') ||
+          decoded.containsKey('program');
+    } catch (_) {
+      return false;
+    }
   }
 
   void _validate() {
