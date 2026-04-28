@@ -190,20 +190,27 @@ Goal:
   executable Scene Program or Motion Patch JSON;
 - expose a compact app-owned checklist to external agents;
 - keep the final output JSON-only and editable.
+- expose Scene sheet generation with the approved model set only.
 
 Acceptance:
 
 - model requests include beats/components/primitives rules;
 - typewriter guidance is explicit;
 - no API call happens during tests.
+- Scene sheet has a Generate tab that can request a full editable Scene Program
+  and then show the generated JSON in the Script tab before apply.
+- approved full-scene providers are limited to Codex and Claude Opus.
 
 Status:
 
 - completed foundation for Mention Motion requests. KIE motion-agent request
   previews now carry a `directorContract`, and the system instruction requires
   ordered beat planning before JSON output.
-- full Scene Program generation UI will reuse the same contract in a later
-  slice.
+- completed foundation for full Scene Program generation. The Scene sheet now
+  exposes a Generate tab backed by KIE.ai Codex (`gpt-5.4-codex`) and Claude
+  Opus (`claude-opus-4-6`) profiles only. Generated output is extracted as
+  `refusion.scene-program/v1`, placed into the Script tab, validated, and then
+  applied through the existing editable Scene Clip path.
 
 ### Phase D3 - Director To Scene Program Compiler
 

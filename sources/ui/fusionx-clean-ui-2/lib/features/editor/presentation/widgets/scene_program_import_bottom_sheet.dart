@@ -8,6 +8,8 @@ import '../../domain/models/professional_motion_animation_models.dart';
 import '../../domain/models/professional_motion_models.dart';
 import '../../domain/models/professional_motion_text_models.dart';
 import '../../domain/models/refusion_scene_program_models.dart';
+import '../../domain/services/kie_scene_program_agent_service.dart';
+import '../../domain/services/refusion_scene_agent_provider_catalog.dart';
 import '../../domain/services/refusion_scene_program_authoring_service.dart';
 
 class SceneProgramImportBottomSheet extends StatefulWidget {
@@ -72,14 +74,28 @@ class SceneProgramImportSheetResult {
   final ReFusionSceneProgramAuthoringResult authoringResult;
 }
 
+enum _SceneProgramSheetTab {
+  script,
+  generate,
+}
+
 class _SceneProgramImportBottomSheetState
     extends State<SceneProgramImportBottomSheet> {
   final ReFusionSceneProgramAuthoringService _authoringService =
       const ReFusionSceneProgramAuthoringService();
+  final ReFusionSceneAgentProviderCatalog _sceneAgentCatalog =
+      const ReFusionSceneAgentProviderCatalog();
+  late final KieSceneProgramAgentService _sceneAgentService;
   late final TextEditingController _controller;
+  late final TextEditingController _promptController;
+  late ReFusionSceneAgentProfile _selectedSceneAgentProfile;
+  _SceneProgramSheetTab _selectedTab = _SceneProgramSheetTab.script;
   String? _fileName;
   ReFusionSceneProgramAuthoringResult? _result;
   bool _isUploading = false;
+  bool _isGenerating = false;
+  String? _generationErrorMessage;
+  ReFusionSceneAgentRequestPreview? _generationPreview;
 
   static const String _lineRevealSceneProgram = '''
 {
@@ -658,13 +674,23 @@ class _SceneProgramImportBottomSheetState
   @override
   void initState() {
     super.initState();
+    _sceneAgentService = KieSceneProgramAgentService(
+      catalog: _sceneAgentCatalog,
+    );
     _controller = TextEditingController(text: _lineRevealSceneProgram);
+    _promptController = TextEditingController(
+      text:
+          'Create a professional 4 second prompt input animation. A dark background appears, a rounded prompt bar enters, text types "hello world", the send button presses, then a circle expands to cover the screen.',
+    );
+    _selectedSceneAgentProfile =
+        ReFusionSceneAgentProviderCatalog.profiles.first;
     _result = _importCurrentSource(_lineRevealSceneProgram);
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _promptController.dispose();
     super.dispose();
   }
 
@@ -691,7 +717,83 @@ class _SceneProgramImportBottomSheetState
       _fileName = null;
       _controller.text = source;
       _result = _importCurrentSource(source);
+      _selectedTab = _SceneProgramSheetTab.script;
     });
+  }
+
+  void _selectTab(_SceneProgramSheetTab tab) {
+    setState(() {
+      _selectedTab = tab;
+      _generationErrorMessage = null;
+    });
+  }
+
+  void _selectSceneAgentProfile(ReFusionSceneAgentProfile profile) {
+    setState(() {
+      _selectedSceneAgentProfile = profile;
+      _generationPreview = null;
+      _generationErrorMessage = null;
+    });
+  }
+
+  Future<void> _generateSceneProgram() async {
+    final prompt = _promptController.text.trim();
+    if (prompt.isEmpty) {
+      setState(() {
+        _generationErrorMessage = 'Write a scene prompt before Generate.';
+      });
+      return;
+    }
+    final preview = _sceneAgentCatalog.buildRequestPreview(
+      profile: _selectedSceneAgentProfile,
+      prompt: prompt,
+      durationMs: 4200,
+      canvasWidth: widget.canvasSize.width.round(),
+      canvasHeight: widget.canvasSize.height.round(),
+      frameRate: 30,
+    );
+    setState(() {
+      _isGenerating = true;
+      _generationPreview = preview;
+      _generationErrorMessage = null;
+    });
+    try {
+      final generated = await _sceneAgentService.generateSceneProgram(
+        profile: _selectedSceneAgentProfile,
+        prompt: prompt,
+        durationMs: 4200,
+        canvasWidth: widget.canvasSize.width.round(),
+        canvasHeight: widget.canvasSize.height.round(),
+        frameRate: 30,
+      );
+      if (!mounted) {
+        return;
+      }
+      final imported = _importCurrentSource(generated.sceneProgramJson);
+      setState(() {
+        _isGenerating = false;
+        _fileName = null;
+        _controller.text = generated.sceneProgramJson;
+        _result = imported;
+        _selectedTab = _SceneProgramSheetTab.script;
+      });
+    } on KieSceneProgramAgentException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isGenerating = false;
+        _generationErrorMessage = error.message;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isGenerating = false;
+        _generationErrorMessage = 'Scene generation failed: $error';
+      });
+    }
   }
 
   Future<void> _uploadSceneProgram() async {
@@ -820,29 +922,59 @@ class _SceneProgramImportBottomSheetState
                         ),
                       ),
                     ),
-                    _SceneProgramActionButton(
-                      icon: _isUploading ? null : Icons.upload_file_rounded,
-                      label: _isUploading ? 'Loading' : 'Upload',
-                      onTap: _isUploading ? null : _uploadSceneProgram,
-                    ),
-                    const SizedBox(width: 8),
-                    _SceneProgramActionButton(
-                      icon: Icons.rule_rounded,
-                      label: 'Validate',
-                      onTap: _validate,
-                    ),
+                    if (_selectedTab == _SceneProgramSheetTab.script) ...[
+                      _SceneProgramActionButton(
+                        icon: _isUploading ? null : Icons.upload_file_rounded,
+                        label: _isUploading ? 'Loading' : 'Upload',
+                        onTap: _isUploading ? null : _uploadSceneProgram,
+                      ),
+                      const SizedBox(width: 8),
+                      _SceneProgramActionButton(
+                        icon: Icons.rule_rounded,
+                        label: 'Validate',
+                        onTap: _validate,
+                      ),
+                    ],
                   ],
                 ),
               ),
               const SizedBox(height: 8),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 18),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _SceneProgramTabButton(
+                        selected: _selectedTab == _SceneProgramSheetTab.script,
+                        icon: Icons.data_object_rounded,
+                        label: 'Script',
+                        onTap: () => _selectTab(_SceneProgramSheetTab.script),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _SceneProgramTabButton(
+                        selected:
+                            _selectedTab == _SceneProgramSheetTab.generate,
+                        icon: Icons.auto_awesome_rounded,
+                        label: 'Generate',
+                        onTap: () => _selectTab(_SceneProgramSheetTab.generate),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    _fileName == null
-                        ? 'JSON only. Validate, then tap the check mark to apply editable scene layers.'
-                        : 'File: $_fileName',
+                    _selectedTab == _SceneProgramSheetTab.generate
+                        ? 'Generate a full editable scene with Codex or Claude Opus. The generated JSON appears in Script after completion.'
+                        : _fileName == null
+                            ? 'JSON only. Validate, then tap the check mark to apply editable scene layers.'
+                            : 'File: $_fileName',
                     style: const TextStyle(
                       color: FxPalette.textMuted,
                       fontSize: 12,
@@ -852,91 +984,300 @@ class _SceneProgramImportBottomSheetState
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 18),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      _SceneProgramActionButton(
-                        icon: Icons.horizontal_rule_rounded,
-                        label: 'Line Reveal',
-                        onTap: () => _loadPreset(_lineRevealSceneProgram),
-                      ),
-                      _SceneProgramActionButton(
-                        icon: Icons.auto_awesome_motion_rounded,
-                        label: 'Shape Text Wipe',
-                        onTap: () => _loadPreset(_shapeTextWipeSceneProgram),
-                      ),
-                      _SceneProgramActionButton(
-                        icon: Icons.chat_bubble_outline_rounded,
-                        label: 'Prompt Bar',
-                        onTap: () => _loadPreset(_promptInputSceneProgram),
-                      ),
-                      _SceneProgramActionButton(
-                        icon: Icons.text_fields_rounded,
-                        label: 'Basic Text',
-                        onTap: () => _loadPreset(_basicSceneProgram),
-                      ),
-                    ],
+              if (_selectedTab == _SceneProgramSheetTab.script) ...[
+                const SizedBox(height: 10),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _SceneProgramActionButton(
+                          icon: Icons.horizontal_rule_rounded,
+                          label: 'Line Reveal',
+                          onTap: () => _loadPreset(_lineRevealSceneProgram),
+                        ),
+                        _SceneProgramActionButton(
+                          icon: Icons.auto_awesome_motion_rounded,
+                          label: 'Shape Text Wipe',
+                          onTap: () => _loadPreset(_shapeTextWipeSceneProgram),
+                        ),
+                        _SceneProgramActionButton(
+                          icon: Icons.chat_bubble_outline_rounded,
+                          label: 'Prompt Bar',
+                          onTap: () => _loadPreset(_promptInputSceneProgram),
+                        ),
+                        _SceneProgramActionButton(
+                          icon: Icons.text_fields_rounded,
+                          label: 'Basic Text',
+                          onTap: () => _loadPreset(_basicSceneProgram),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
+              ],
               const SizedBox(height: 12),
               Expanded(
-                child: ListView(
-                  padding: EdgeInsets.fromLTRB(
-                    18,
-                    0,
-                    18,
-                    (safeBottom > 0 ? safeBottom : 12) + 12,
-                  ),
-                  children: [
-                    Container(
-                      constraints: const BoxConstraints(minHeight: 260),
-                      decoration: BoxDecoration(
-                        color: FxPalette.surfaceRaised.withOpacity(0.84),
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: FxPalette.dividerSoft),
-                      ),
-                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                      child: TextField(
+                child: _selectedTab == _SceneProgramSheetTab.generate
+                    ? _SceneGeneratePane(
+                        safeBottom: safeBottom,
+                        promptController: _promptController,
+                        profiles: ReFusionSceneAgentProviderCatalog.profiles,
+                        selectedProfile: _selectedSceneAgentProfile,
+                        onSelectProfile: _selectSceneAgentProfile,
+                        onGenerate:
+                            _isGenerating ? null : _generateSceneProgram,
+                        isGenerating: _isGenerating,
+                        generationErrorMessage: _generationErrorMessage,
+                        preview: _generationPreview,
+                      )
+                    : _SceneScriptPane(
+                        safeBottom: safeBottom,
                         controller: _controller,
-                        onChanged: (_) {
+                        result: result,
+                        onChanged: () {
                           setState(() {
                             _result = null;
                           });
                         },
-                        keyboardType: TextInputType.multiline,
-                        textInputAction: TextInputAction.newline,
-                        maxLines: null,
-                        minLines: 15,
-                        style: const TextStyle(
-                          color: FxPalette.textPrimary,
-                          fontSize: 13,
-                          height: 1.45,
-                          fontFamily: 'monospace',
-                        ),
-                        decoration: const InputDecoration.collapsed(
-                          hintText: 'Paste a ReFusion Scene Program JSON...',
-                          hintStyle: TextStyle(
-                            color: FxPalette.textFaint,
-                            fontSize: 13,
-                            fontFamily: 'monospace',
-                          ),
-                        ),
                       ),
-                    ),
-                    const SizedBox(height: 14),
-                    _SceneProgramResultCard(result: result),
-                  ],
-                ),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SceneScriptPane extends StatelessWidget {
+  const _SceneScriptPane({
+    required this.safeBottom,
+    required this.controller,
+    required this.result,
+    required this.onChanged,
+  });
+
+  final double safeBottom;
+  final TextEditingController controller;
+  final ReFusionSceneProgramAuthoringResult? result;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: EdgeInsets.fromLTRB(
+        18,
+        0,
+        18,
+        (safeBottom > 0 ? safeBottom : 12) + 12,
+      ),
+      children: [
+        Container(
+          constraints: const BoxConstraints(minHeight: 260),
+          decoration: BoxDecoration(
+            color: FxPalette.surfaceRaised.withOpacity(0.84),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: FxPalette.dividerSoft),
+          ),
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          child: TextField(
+            controller: controller,
+            onChanged: (_) => onChanged(),
+            keyboardType: TextInputType.multiline,
+            textInputAction: TextInputAction.newline,
+            maxLines: null,
+            minLines: 15,
+            style: const TextStyle(
+              color: FxPalette.textPrimary,
+              fontSize: 13,
+              height: 1.45,
+              fontFamily: 'monospace',
+            ),
+            decoration: const InputDecoration.collapsed(
+              hintText: 'Paste a ReFusion Scene Program JSON...',
+              hintStyle: TextStyle(
+                color: FxPalette.textFaint,
+                fontSize: 13,
+                fontFamily: 'monospace',
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 14),
+        _SceneProgramResultCard(result: result),
+      ],
+    );
+  }
+}
+
+class _SceneGeneratePane extends StatelessWidget {
+  const _SceneGeneratePane({
+    required this.safeBottom,
+    required this.promptController,
+    required this.profiles,
+    required this.selectedProfile,
+    required this.onSelectProfile,
+    required this.onGenerate,
+    required this.isGenerating,
+    required this.generationErrorMessage,
+    required this.preview,
+  });
+
+  final double safeBottom;
+  final TextEditingController promptController;
+  final List<ReFusionSceneAgentProfile> profiles;
+  final ReFusionSceneAgentProfile selectedProfile;
+  final ValueChanged<ReFusionSceneAgentProfile> onSelectProfile;
+  final VoidCallback? onGenerate;
+  final bool isGenerating;
+  final String? generationErrorMessage;
+  final ReFusionSceneAgentRequestPreview? preview;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: EdgeInsets.fromLTRB(
+        18,
+        0,
+        18,
+        (safeBottom > 0 ? safeBottom : 12) + 12,
+      ),
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final profile in profiles)
+              _SceneProgramTabButton(
+                selected: profile.id == selectedProfile.id,
+                icon: profile.id.contains('claude')
+                    ? Icons.psychology_alt_rounded
+                    : Icons.terminal_rounded,
+                label: profile.shortLabel,
+                onTap: () => onSelectProfile(profile),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Container(
+          decoration: BoxDecoration(
+            color: FxPalette.surfaceRaised.withOpacity(0.84),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: FxPalette.dividerSoft),
+          ),
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+          child: TextField(
+            controller: promptController,
+            keyboardType: TextInputType.multiline,
+            textInputAction: TextInputAction.newline,
+            maxLines: null,
+            minLines: 7,
+            style: const TextStyle(
+              color: FxPalette.textPrimary,
+              fontSize: 14,
+              height: 1.42,
+              fontWeight: FontWeight.w600,
+            ),
+            decoration: const InputDecoration.collapsed(
+              hintText: 'Describe the full editable scene...',
+              hintStyle: TextStyle(
+                color: FxPalette.textFaint,
+                fontSize: 14,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        _SceneProgramActionButton(
+          icon: isGenerating ? null : Icons.auto_awesome_rounded,
+          label: isGenerating ? 'Generating' : 'Generate',
+          onTap: onGenerate,
+        ),
+        const SizedBox(height: 14),
+        _SceneProgramInfoCard(
+          icon: Icons.memory_rounded,
+          title: selectedProfile.label,
+          message: selectedProfile.recommendedUse,
+          accent: const Color(0xFF8DD7FF),
+        ),
+        if (preview != null) ...[
+          const SizedBox(height: 10),
+          _SceneProgramInfoCard(
+            icon: Icons.rule_folder_rounded,
+            title: 'Director contract ready',
+            message:
+                'Generate will request ordered beats, semantic components, and editable Scene Program JSON from ${preview!.profile.shortLabel}.',
+            accent: const Color(0xFF45D483),
+          ),
+        ],
+        if (generationErrorMessage != null) ...[
+          const SizedBox(height: 10),
+          _SceneProgramInfoCard(
+            icon: Icons.error_outline_rounded,
+            title: 'Generation failed',
+            message: generationErrorMessage!,
+            accent: const Color(0xFFFF6B6B),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _SceneProgramTabButton extends StatelessWidget {
+  const _SceneProgramTabButton({
+    required this.selected,
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final bool selected;
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: selected
+              ? Colors.white.withOpacity(0.13)
+              : Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected ? FxPalette.textMuted : FxPalette.dividerSoft,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: selected ? FxPalette.textPrimary : FxPalette.textMuted,
+              size: 16,
+            ),
+            const SizedBox(width: 7),
+            Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: selected ? FxPalette.textPrimary : FxPalette.textMuted,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
         ),
       ),
     );

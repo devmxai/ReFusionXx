@@ -145,6 +145,11 @@ Depends on:
   ordered beats, semantic components, and primitives before emitting executable
   scene data. This is how ReFusion prevents valid-but-random keyframe output
   from becoming the production authoring path.
+- Motion Director Phase D2 Scene Generate UI: full-scene generation now lives
+  inside the Scene sheet under a dedicated Generate tab. It uses only the
+  approved Codex and Claude Opus KIE.ai profiles, then writes the generated
+  `refusion.scene-program/v1` JSON back into the Script tab for validation and
+  normal Scene Clip application.
 - Performance watch note: if repeated keyframe drag/edit or repeated scene
   script edits show intermittent heaviness on real devices, capture it as a
   profiling task after the mutation surface is complete. Do not treat Live Scrub
