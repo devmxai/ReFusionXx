@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../domain/models/refusion_motion_patch_models.dart';
+import '../../domain/services/kie_motion_agent_service.dart';
 import '../../domain/services/refusion_motion_agent_provider_catalog.dart';
 import '../../domain/services/refusion_motion_patch_import_service.dart';
 import '../../domain/services/scene_mention_index.dart';
@@ -37,6 +38,7 @@ class _RemotionPromptBottomSheetState extends State<RemotionPromptBottomSheet> {
       const ReFusionMotionAgentProviderCatalog();
   final ReFusionMotionPatchImportService _patchImportService =
       const ReFusionMotionPatchImportService();
+  late final KieMotionAgentService _motionAgentService;
   late final TextEditingController _promptController;
   late final TextEditingController _localPatchController;
   late ReFusionMotionAgentProfile _selectedAgentProfile;
@@ -44,6 +46,8 @@ class _RemotionPromptBottomSheetState extends State<RemotionPromptBottomSheet> {
   String _mentionQuery = '';
   bool _showMentionSuggestions = false;
   bool _showAdvancedPatch = false;
+  bool _isGenerating = false;
+  String? _generationErrorMessage;
   SceneMentionPromptContext? _context;
   ReFusionMotionAgentRequestPreview? _generatedRequestPreview;
   List<ReFusionMotionPatchIssue> _localPatchIssues =
@@ -53,6 +57,7 @@ class _RemotionPromptBottomSheetState extends State<RemotionPromptBottomSheet> {
   @override
   void initState() {
     super.initState();
+    _motionAgentService = KieMotionAgentService(catalog: _agentCatalog);
     _selectedAgentProfile = ReFusionMotionAgentProviderCatalog.profiles.first;
     _promptController = TextEditingController();
     _localPatchController = TextEditingController();
@@ -94,6 +99,7 @@ class _RemotionPromptBottomSheetState extends State<RemotionPromptBottomSheet> {
       _updateMentionQuery();
       _context = _buildContext();
       _generatedRequestPreview = null;
+      _generationErrorMessage = null;
     });
   }
 
@@ -150,10 +156,11 @@ class _RemotionPromptBottomSheetState extends State<RemotionPromptBottomSheet> {
       _showMentionSuggestions = false;
       _context = _buildContext();
       _generatedRequestPreview = null;
+      _generationErrorMessage = null;
     });
   }
 
-  void _generatePayload() {
+  Future<void> _generatePayload() async {
     final nextContext = _buildContext();
     final preview = _agentCatalog.buildRequestPreview(
       profile: _selectedAgentProfile,
@@ -163,13 +170,66 @@ class _RemotionPromptBottomSheetState extends State<RemotionPromptBottomSheet> {
     setState(() {
       _context = nextContext;
       _generatedRequestPreview = preview;
+      _generationErrorMessage = null;
+      _localPatchIssues = const <ReFusionMotionPatchIssue>[];
+      _localPatchValidated = false;
+      _isGenerating = true;
     });
+    try {
+      final generated = await _motionAgentService.generateMotionPatch(
+        profile: _selectedAgentProfile,
+        context: nextContext,
+        scopeDurationMs: widget.scopeDurationMs,
+      );
+      if (!mounted) {
+        return;
+      }
+      final importResult = _patchImportService.validate(
+        source: generated.motionPatchJson,
+        mentionEntities: widget.mentionEntities,
+        scopeDurationMs: widget.scopeDurationMs,
+      );
+      if (!importResult.isValid) {
+        setState(() {
+          _isGenerating = false;
+          _localPatchValidated = true;
+          _localPatchIssues = importResult.issues;
+          _generationErrorMessage =
+              'Generated patch did not pass validation. Review issues below.';
+          _localPatchController.text = generated.motionPatchJson;
+          _showAdvancedPatch = true;
+        });
+        return;
+      }
+      Navigator.of(context).pop(
+        RemotionPromptSheetResult.localPatch(
+          source: generated.motionPatchJson,
+        ),
+      );
+    } on KieMotionAgentException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isGenerating = false;
+        _generationErrorMessage = error.message;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isGenerating = false;
+        _generationErrorMessage = 'Motion generation failed: $error';
+      });
+    }
   }
 
   void _selectAgentProfile(ReFusionMotionAgentProfile profile) {
     setState(() {
       _selectedAgentProfile = profile;
       _generatedRequestPreview = null;
+      _generationErrorMessage = null;
     });
   }
 
@@ -225,7 +285,8 @@ class _RemotionPromptBottomSheetState extends State<RemotionPromptBottomSheet> {
     final suggestions = _matchingEntities;
     final canGenerate = currentContext.mentions.isNotEmpty &&
         !currentContext.hasBrokenMentions &&
-        currentContext.prompt.trim().isNotEmpty;
+        currentContext.prompt.trim().isNotEmpty &&
+        !_isGenerating;
     return Align(
       alignment: Alignment.bottomCenter,
       child: Container(
@@ -285,6 +346,7 @@ class _RemotionPromptBottomSheetState extends State<RemotionPromptBottomSheet> {
                     ),
                     _RemotionGenerateButton(
                       enabled: canGenerate,
+                      loading: _isGenerating,
                       onTap: canGenerate ? _generatePayload : null,
                     ),
                   ],
@@ -295,7 +357,7 @@ class _RemotionPromptBottomSheetState extends State<RemotionPromptBottomSheet> {
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'Animate existing scene layers with @mentions. Generate prepares a KIE.ai request preview only; no API call or credits are used here.',
+                    'Animate existing scene layers with @mentions. Generate calls KIE.ai, validates the Motion Patch, then applies editable keyframes.',
                     style: TextStyle(
                       color: FxPalette.textMuted,
                       fontSize: 12,
@@ -346,6 +408,15 @@ class _RemotionPromptBottomSheetState extends State<RemotionPromptBottomSheet> {
                     ],
                     const SizedBox(height: 12),
                     _MentionPayloadSummary(context: currentContext),
+                    if (_generationErrorMessage != null) ...[
+                      const SizedBox(height: 12),
+                      _RemotionStatusCard(
+                        icon: Icons.error_outline_rounded,
+                        title: 'Generation stopped',
+                        message: _generationErrorMessage!,
+                        accent: const Color(0xFFFF6472),
+                      ),
+                    ],
                     if (_generatedRequestPreview != null) ...[
                       const SizedBox(height: 12),
                       _GeneratedRequestPreview(
@@ -804,17 +875,19 @@ class _PromptEditorCard extends StatelessWidget {
 class _RemotionGenerateButton extends StatelessWidget {
   const _RemotionGenerateButton({
     required this.enabled,
+    required this.loading,
     required this.onTap,
   });
 
   final bool enabled;
+  final bool loading;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       borderRadius: BorderRadius.circular(16),
-      onTap: enabled ? onTap : null,
+      onTap: enabled && !loading ? onTap : null,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
@@ -831,16 +904,26 @@ class _RemotionGenerateButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.auto_awesome_rounded,
-              color: enabled
-                  ? FxPalette.textPrimary
-                  : FxPalette.textMuted.withOpacity(0.55),
-              size: 16,
-            ),
+            if (loading)
+              const SizedBox(
+                width: 15,
+                height: 15,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: FxPalette.textPrimary,
+                ),
+              )
+            else
+              Icon(
+                Icons.auto_awesome_rounded,
+                color: enabled
+                    ? FxPalette.textPrimary
+                    : FxPalette.textMuted.withOpacity(0.55),
+                size: 16,
+              ),
             const SizedBox(width: 7),
             Text(
-              'Generate',
+              loading ? 'Generating' : 'Generate',
               style: TextStyle(
                 color: enabled
                     ? FxPalette.textPrimary
@@ -1064,7 +1147,7 @@ class _GeneratedRequestPreview extends StatelessWidget {
                   ),
                 ),
                 child: const Text(
-                  'no API call',
+                  'will call API',
                   style: TextStyle(
                     color: Color(0xFF9AF0BA),
                     fontSize: 9,
@@ -1097,7 +1180,7 @@ class _GeneratedRequestPreview extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           const Text(
-            'This is prepared locally only. The real API call remains disabled until you explicitly run it.',
+            'This request is sent only when you tap Generate. The response must validate before it is applied.',
             style: TextStyle(
               color: FxPalette.textFaint,
               fontSize: 10,

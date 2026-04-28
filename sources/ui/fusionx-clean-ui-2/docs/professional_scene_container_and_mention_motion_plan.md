@@ -119,6 +119,14 @@ Depends on:
   `RemotionPromptBottomSheet` now exposes provider/model selection and prepares
   a dry-run request body only. No API call is performed, no credits are used,
   and Stage5/Live Scrub remains untouched.
+- Phase S11B live agent generation: `KieMotionAgentService` connects the
+  Remotion sheet to KIE.ai on explicit Generate tap only. The service reuses the
+  existing secure `KIE_API_KEY` runtime channel, sends the selected provider
+  request, extracts a JSON Motion Patch from Responses/chat-completions output,
+  validates it through `ReFusionMotionPatchImportService`, and only then returns
+  it to the editor for normal editable graph application. GPT-5.5 is the first
+  profile when the KIE account supports it; documented Codex 5.3 remains a
+  fallback profile. Stage5/Live Scrub remains untouched.
 - Performance watch note: if repeated keyframe drag/edit or repeated scene
   script edits show intermittent heaviness on real devices, capture it as a
   profiling task after the mutation surface is complete. Do not treat Live Scrub
@@ -981,6 +989,49 @@ User inspection:
 - choose Codex / GPT 5.2 / Gemini;
 - type a prompt with `@mentions`;
 - tap Generate and confirm the preview says `no API call`.
+
+#### Phase S11B: Live KIE.ai Motion Patch Generation
+
+Purpose:
+
+- turn Remotion from request preview into a real provider-backed motion patch
+  generator.
+
+Deliverables:
+
+- KIE API client for selected provider profile;
+- secure API key resolution via existing runtime config channel and
+  `--dart-define` fallback;
+- Android internet permission for live provider calls;
+- response extraction for Responses and chat-completions payloads;
+- validator gate before applying generated patches;
+- no direct graph mutation by the remote model.
+
+Exit criteria:
+
+- Generate sends one request only after explicit user tap;
+- missing API key shows a clear message and preserves the scene;
+- provider response must validate as `refusion.motion-patch/v1` before apply;
+- invalid generated JSON is shown in Advanced local JSON with validation
+  issues;
+- successful generated patches become editable keyframes through the existing
+  local applicator path.
+
+Verification:
+
+```bash
+flutter test test/kie_motion_agent_service_test.dart test/refusion_motion_agent_provider_catalog_test.dart
+flutter analyze
+flutter build apk --debug
+```
+
+User inspection:
+
+- open a scene with mentionable text/shape layers;
+- open Remotion;
+- choose GPT 5.5 first, or Codex 5.3 fallback if KIE rejects the model;
+- type a prompt with an `@mention`;
+- tap Generate and confirm editable keyframes appear after validation.
 
 Deliverables:
 

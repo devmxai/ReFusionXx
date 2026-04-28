@@ -31,17 +31,18 @@ void main() {
     expect(
       ReFusionMotionAgentProviderCatalog.profiles.map((profile) => profile.id),
       containsAll(<String>[
-        'kie-codex-motion-architect',
+        'kie-gpt55-motion-architect',
+        'kie-codex53-motion-architect',
         'kie-gpt52-motion-designer',
       ]),
     );
     expect(
       ReFusionMotionAgentProviderCatalog.profiles.first.modelId,
-      'gpt-5.3-codex',
+      'gpt-5-5-openai-resp',
     );
   });
 
-  test('builds a dry-run Codex responses request without auth headers', () {
+  test('builds a dry-run GPT 5.5 responses request without auth headers', () {
     final context = contextBuilder.build(
       prompt: 'Move @{Headline} in from the left.',
       entities: <SceneMentionEntity>[target()],
@@ -55,7 +56,7 @@ void main() {
     expect(preview.isDryRun, isTrue);
     expect(preview.method, 'POST');
     expect(preview.endpointUrl, endsWith('/api/v1/responses'));
-    expect(preview.body['model'], 'gpt-5.3-codex');
+    expect(preview.body['model'], 'gpt-5-5-openai-resp');
     expect(preview.body.containsKey('Authorization'), isFalse);
     expect(preview.prettyBody, contains('refusion.motion-patch/v1'));
     expect(preview.prettyBody, contains('Move @{Headline} in from the left.'));

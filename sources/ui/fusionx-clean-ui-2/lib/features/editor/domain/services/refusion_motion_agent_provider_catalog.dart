@@ -63,17 +63,31 @@ class ReFusionMotionAgentProviderCatalog {
   static const List<ReFusionMotionAgentProfile> profiles =
       <ReFusionMotionAgentProfile>[
     ReFusionMotionAgentProfile(
-      id: 'kie-codex-motion-architect',
+      id: 'kie-gpt55-motion-architect',
       providerId: 'kie.ai',
-      label: 'Codex Motion Architect',
-      shortLabel: 'Codex',
+      label: 'GPT 5.5 Motion Architect',
+      shortLabel: 'GPT 5.5',
       description:
-          'Best for strict Motion Patch JSON, schema repair, and code-like timing logic.',
+          'Best available KIE.ai GPT-5.5 reasoning profile for strict Motion Patch JSON.',
+      endpointPath: '/api/v1/responses',
+      modelId: 'gpt-5-5-openai-resp',
+      transport: ReFusionMotionAgentTransport.responses,
+      recommendedUse:
+          'Use first for professional prompt-to-keyframe motion when your KIE account supports GPT-5.5.',
+      reasoningEffort: 'high',
+    ),
+    ReFusionMotionAgentProfile(
+      id: 'kie-codex53-motion-architect',
+      providerId: 'kie.ai',
+      label: 'Codex 5.3 Motion Architect',
+      shortLabel: 'Codex 5.3',
+      description:
+          'Documented Codex fallback for strict Motion Patch JSON, schema repair, and code-like timing logic.',
       endpointPath: '/api/v1/responses',
       modelId: 'gpt-5.3-codex',
       transport: ReFusionMotionAgentTransport.responses,
       recommendedUse:
-          'Use for precise keyframes, graph patches, and strict JSON output.',
+          'Use if GPT-5.5 is not enabled for the current KIE API key.',
       reasoningEffort: 'high',
     ),
     ReFusionMotionAgentProfile(
