@@ -132,6 +132,13 @@ Depends on:
   several code-oriented models infer that key from the mention context. This is
   a schema-repair compatibility layer only; unknown IDs, unsupported properties,
   executable keys, and out-of-scope keyframes still reject the patch.
+- Phase S12 foundation: `SceneExportParityGate` now evaluates generated scene
+  export readiness before production export. Generated text motion can pass when
+  it has a visual media baseline and a deterministic motion-text export program;
+  scene-only canvas export and non-text authored visuals are blocked explicitly
+  until their native renderer paths ship. This prevents shape/image scene
+  content from being silently dropped during export and does not touch Stage5 or
+  Live Scrub.
 - Performance watch note: if repeated keyframe drag/edit or repeated scene
   script edits show intermittent heaviness on real devices, capture it as a
   profiling task after the mutation surface is complete. Do not treat Live Scrub
