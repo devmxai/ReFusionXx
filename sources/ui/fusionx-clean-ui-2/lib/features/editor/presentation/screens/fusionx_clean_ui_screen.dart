@@ -1676,7 +1676,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final sortedEntries = List<_MotionTextTimelineEntry>.from(entries)
       ..sort((left, right) => left.start.compareTo(right.start));
     if (sortedEntries.isEmpty) {
-      return const TimelineTrackData(
+      return TimelineTrackData(
         kind: TimelineTrackKind.text,
         clips: <TimelineClipData>[],
         placeholderLabel: 'Text',

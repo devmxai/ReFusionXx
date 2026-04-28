@@ -9,6 +9,15 @@ enum TimelineTrackKind {
   lipSync,
 }
 
+enum TimelineTrackContentKind {
+  video,
+  image,
+  audio,
+  text,
+  lipSync,
+  scene,
+}
+
 enum TimelineTransitionPreset {
   manual,
   crossDissolve,
@@ -106,6 +115,12 @@ enum TimelineClipType {
   placeholder,
 }
 
+enum TimelineClipContentKind {
+  media,
+  placeholder,
+  scene,
+}
+
 enum TimelineClipSpeedMode {
   normal,
   curve,
@@ -133,6 +148,8 @@ class TimelineClipData {
     this.speedMode = TimelineClipSpeedMode.normal,
     double playbackRate = 1.0,
     this.aiTransition,
+    TimelineClipContentKind? contentKind,
+    this.sourceSceneId,
   })  : _durationTime =
             durationTime ?? TimelineTime.fromSecondsDouble(duration ?? 0),
         _sourceDurationTime = sourceDurationTime ??
@@ -142,7 +159,8 @@ class TimelineClipData {
                     TimelineTime.fromSecondsDouble(duration ?? 0))),
         _sourceStartTime = sourceStartTime ??
             TimelineTime.fromSecondsDouble(sourceOffsetSeconds ?? 0),
-        playbackRate = playbackRate <= 0 ? 1.0 : playbackRate;
+        playbackRate = playbackRate <= 0 ? 1.0 : playbackRate,
+        contentKind = contentKind ?? _defaultContentKindFor(type);
 
   final String id;
   final TimelineClipType type;
@@ -153,6 +171,8 @@ class TimelineClipData {
   final TimelineClipSpeedMode speedMode;
   final double playbackRate;
   final AiTransitionDraftData? aiTransition;
+  final TimelineClipContentKind contentKind;
+  final String? sourceSceneId;
   final TimelineTime _durationTime;
   final TimelineTime _sourceDurationTime;
   final TimelineTime _sourceStartTime;
@@ -184,6 +204,8 @@ class TimelineClipData {
       type == TimelineClipType.placeholder &&
       (label == null || label!.trim().isEmpty);
 
+  bool get isSceneClip => contentKind == TimelineClipContentKind.scene;
+
   TimelineClipData copyWith({
     String? id,
     double? duration,
@@ -200,8 +222,11 @@ class TimelineClipData {
     TimelineClipSpeedMode? speedMode,
     double? playbackRate,
     AiTransitionDraftData? aiTransition,
+    TimelineClipContentKind? contentKind,
+    String? sourceSceneId,
     bool clearSplitGroupId = false,
     bool clearAiTransition = false,
+    bool clearSourceSceneId = false,
   }) {
     final resolvedDurationTime = durationTime ??
         (duration != null
@@ -229,6 +254,9 @@ class TimelineClipData {
       playbackRate: playbackRate ?? this.playbackRate,
       aiTransition:
           clearAiTransition ? null : aiTransition ?? this.aiTransition,
+      contentKind: contentKind ?? this.contentKind,
+      sourceSceneId:
+          clearSourceSceneId ? null : sourceSceneId ?? this.sourceSceneId,
     );
   }
 
@@ -240,6 +268,13 @@ class TimelineClipData {
     const minWidth = 118.0;
     return baseWidth < minWidth ? minWidth : baseWidth;
   }
+}
+
+TimelineClipContentKind _defaultContentKindFor(TimelineClipType type) {
+  return switch (type) {
+    TimelineClipType.media => TimelineClipContentKind.media,
+    TimelineClipType.placeholder => TimelineClipContentKind.placeholder,
+  };
 }
 
 class TimelineTrackTransitionData {
@@ -356,19 +391,30 @@ class TimelineTrackTransitionData {
 }
 
 class TimelineTrackData {
-  const TimelineTrackData({
+  TimelineTrackData({
     required this.kind,
     required this.clips,
     this.placeholderLabel,
     this.animationLanes = const <TimelineAnimationLaneData>[],
     this.transitions = const <TimelineTrackTransitionData>[],
-  });
+    TimelineTrackContentKind? contentKind,
+  }) : contentKind = contentKind ??
+            switch (kind) {
+              TimelineTrackKind.video => TimelineTrackContentKind.video,
+              TimelineTrackKind.image => TimelineTrackContentKind.image,
+              TimelineTrackKind.audio => TimelineTrackContentKind.audio,
+              TimelineTrackKind.text => TimelineTrackContentKind.text,
+              TimelineTrackKind.lipSync => TimelineTrackContentKind.lipSync,
+            };
 
   final TimelineTrackKind kind;
   final List<TimelineClipData> clips;
   final String? placeholderLabel;
   final List<TimelineAnimationLaneData> animationLanes;
   final List<TimelineTrackTransitionData> transitions;
+  final TimelineTrackContentKind contentKind;
+
+  bool get isSceneTrack => contentKind == TimelineTrackContentKind.scene;
 
   TimelineTrackTransitionData? transitionForBoundary(
     String leftClipId,
@@ -389,6 +435,7 @@ class TimelineTrackData {
     String? placeholderLabel,
     List<TimelineAnimationLaneData>? animationLanes,
     List<TimelineTrackTransitionData>? transitions,
+    TimelineTrackContentKind? contentKind,
   }) {
     return TimelineTrackData(
       kind: kind ?? this.kind,
@@ -396,6 +443,7 @@ class TimelineTrackData {
       placeholderLabel: placeholderLabel ?? this.placeholderLabel,
       animationLanes: animationLanes ?? this.animationLanes,
       transitions: transitions ?? this.transitions,
+      contentKind: contentKind ?? this.contentKind,
     );
   }
 }

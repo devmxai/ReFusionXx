@@ -23,6 +23,12 @@ Depends on:
   a source-scene namespace and keeps the root scene from exploding into many
   generated tracks. This is domain-only infrastructure; it is not wired to UI,
   preview, export, or Live Scrub.
+- Phase S3 foundation: `RootSceneClipProjectionAdapter` projects
+  `CompositionSceneClipModel` instances into one root scene timeline track with
+  one clip per generated scene, preserves root-time gaps, rejects overlaps, and
+  does not expose internal layers on the root timeline. This is projection
+  infrastructure; it is not wired to production UI, preview, export, or Live
+  Scrub yet.
 
 ## 1. Final Product Goal
 
