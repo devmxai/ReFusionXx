@@ -31,6 +31,7 @@ import '../../domain/services/ai_transition/kie_ai_transition_service.dart';
 import '../../domain/services/normal_transition_command_history.dart';
 import '../../domain/services/layer_scope_composition_adapter.dart';
 import '../../domain/services/scene_program_apply_transaction.dart';
+import '../../domain/services/scene_mention_index.dart';
 import '../../domain/services/scene_scope_session.dart';
 import '../../domain/services/scoped_text_motion_script_import_service.dart';
 import '../../domain/services/timeline_clock_coordinator.dart';
@@ -111,6 +112,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       SceneLayerScopeTimelineAdapter();
   static const LayerScopeCompositionAdapter _layerScopeCompositionAdapter =
       LayerScopeCompositionAdapter();
+  static const SceneMentionIndex _sceneMentionIndex = SceneMentionIndex();
   static const List<_CompositionTemplate> _compositionTemplates =
       <_CompositionTemplate>[
     _CompositionTemplate(
@@ -11336,6 +11338,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   Future<void> _openSceneProgramImportSheet() async {
+    final mentionEntities = _sceneMentionEntitiesForCurrentScope();
     final result = await showModalBottomSheet<SceneProgramImportSheetResult>(
       context: context,
       isScrollControlled: true,
@@ -11344,6 +11347,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         projectId: _motionProjectId,
         sceneId: _motionSceneId,
         canvasSize: _motionProjectFormat.canvasSize,
+        mentionEntities: mentionEntities,
       ),
     );
     if (!mounted || result == null) {
@@ -11396,6 +11400,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _showStageMessage(
       'Scene applied as one clip: ${result.layerCount} layers, ${result.channelCount} channels.',
     );
+  }
+
+  List<SceneMentionEntity> _sceneMentionEntitiesForCurrentScope() {
+    final activeSceneScope = _sceneScopeSession;
+    final result = _sceneMentionIndex.buildForScene(
+      project: _effectiveMotionProject,
+      sceneId: activeSceneScope?.sourceSceneId ?? _motionSceneId,
+      sceneClips: activeSceneScope == null
+          ? _sceneClips
+          : const <CompositionSceneClipModel>[],
+    );
+    return result.entities;
   }
 
   Future<void> _openTextPresetSheet() async {

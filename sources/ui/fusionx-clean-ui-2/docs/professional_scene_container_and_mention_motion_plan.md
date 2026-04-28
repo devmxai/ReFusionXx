@@ -81,6 +81,11 @@ Depends on:
   elements as invalid mentions on the rebuilt index. This is domain-only
   infrastructure for future prompt/autocomplete UI and does not touch Stage5 or
   Live Scrub.
+- Phase S7 foundation: Scene Program import now includes a Mention Motion Prompt
+  panel. Typing `@` shows current scope entities, selecting a suggestion inserts
+  a stable mention chip, and `SceneMentionPromptContextBuilder` produces a
+  resolved prompt payload with broken mention diagnostics. This checkpoint does
+  not call an API, mutate graph data, or touch Stage5/Live Scrub.
 - Performance watch note: if repeated keyframe drag/edit or repeated scene
   script edits show intermittent heaviness on real devices, capture it as a
   profiling task after the mutation surface is complete. Do not treat Live Scrub

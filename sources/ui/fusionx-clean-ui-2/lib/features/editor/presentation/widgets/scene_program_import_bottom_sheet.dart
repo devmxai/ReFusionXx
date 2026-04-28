@@ -9,6 +9,8 @@ import '../../domain/models/professional_motion_models.dart';
 import '../../domain/models/professional_motion_text_models.dart';
 import '../../domain/models/refusion_scene_program_models.dart';
 import '../../domain/services/refusion_scene_program_authoring_service.dart';
+import '../../domain/services/scene_mention_index.dart';
+import '../../domain/services/scene_mention_prompt_context.dart';
 
 class SceneProgramImportBottomSheet extends StatefulWidget {
   const SceneProgramImportBottomSheet({
@@ -16,11 +18,13 @@ class SceneProgramImportBottomSheet extends StatefulWidget {
     required this.projectId,
     required this.sceneId,
     required this.canvasSize,
+    this.mentionEntities = const <SceneMentionEntity>[],
   });
 
   final String projectId;
   final String sceneId;
   final MotionSize2D canvasSize;
+  final List<SceneMentionEntity> mentionEntities;
 
   @override
   State<SceneProgramImportBottomSheet> createState() =>
@@ -76,9 +80,16 @@ class _SceneProgramImportBottomSheetState
     extends State<SceneProgramImportBottomSheet> {
   final ReFusionSceneProgramAuthoringService _authoringService =
       const ReFusionSceneProgramAuthoringService();
+  final SceneMentionPromptContextBuilder _promptContextBuilder =
+      const SceneMentionPromptContextBuilder();
   late final TextEditingController _controller;
+  late final TextEditingController _promptController;
   String? _fileName;
   ReFusionSceneProgramAuthoringResult? _result;
+  SceneMentionPromptContext? _promptContext;
+  final Set<String> _selectedMentionIds = <String>{};
+  String _mentionQuery = '';
+  bool _showMentionSuggestions = false;
   bool _isUploading = false;
 
   static const String _lineRevealSceneProgram = '''
@@ -659,13 +670,222 @@ class _SceneProgramImportBottomSheetState
   void initState() {
     super.initState();
     _controller = TextEditingController(text: _lineRevealSceneProgram);
+    _promptController = TextEditingController();
     _result = _importCurrentSource(_lineRevealSceneProgram);
+    _promptContext = _buildPromptContext();
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _promptController.dispose();
     super.dispose();
+  }
+
+  SceneMentionPromptContext _buildPromptContext() {
+    return _promptContextBuilder.build(
+      prompt: _promptController.text,
+      entities: widget.mentionEntities,
+      selectedMentionIds: _selectedMentionIds.toList(growable: false),
+    );
+  }
+
+  void _handlePromptChanged(String value) {
+    setState(() {
+      _updateMentionQuery();
+      _promptContext = _buildPromptContext();
+    });
+  }
+
+  void _updateMentionQuery() {
+    final selection = _promptController.selection;
+    final text = _promptController.text;
+    final cursor =
+        selection.baseOffset >= 0 ? selection.baseOffset : text.length;
+    if (cursor > text.length) {
+      _showMentionSuggestions = false;
+      _mentionQuery = '';
+      return;
+    }
+    final beforeCursor = text.substring(0, cursor);
+    final triggerIndex = beforeCursor.lastIndexOf('@');
+    if (triggerIndex < 0) {
+      _showMentionSuggestions = false;
+      _mentionQuery = '';
+      return;
+    }
+    final afterTrigger = beforeCursor.substring(triggerIndex + 1);
+    if (afterTrigger.contains(RegExp(r'\s')) || afterTrigger.contains('}')) {
+      _showMentionSuggestions = false;
+      _mentionQuery = '';
+      return;
+    }
+    _showMentionSuggestions = true;
+    _mentionQuery = afterTrigger.replaceFirst('{', '').trim().toLowerCase();
+  }
+
+  List<SceneMentionEntity> get _matchingMentionEntities {
+    if (!_showMentionSuggestions) {
+      return const <SceneMentionEntity>[];
+    }
+    final query = _mentionQuery;
+    final matches = widget.mentionEntities.where((entity) {
+      if (query.isEmpty) {
+        return true;
+      }
+      return entity.displayName.toLowerCase().contains(query) ||
+          entity.typeLabel.toLowerCase().contains(query);
+    }).toList(growable: false);
+    return matches.take(6).toList(growable: false);
+  }
+
+  void _insertMention(SceneMentionEntity entity) {
+    final token = _promptContextBuilder.mentionTokenFor(entity);
+    final text = _promptController.text;
+    final selection = _promptController.selection;
+    final cursor =
+        selection.baseOffset >= 0 ? selection.baseOffset : text.length;
+    final safeCursor = cursor.clamp(0, text.length).toInt();
+    final beforeCursor = text.substring(0, safeCursor);
+    final triggerIndex = beforeCursor.lastIndexOf('@');
+    final replaceStart = triggerIndex >= 0 ? triggerIndex : safeCursor;
+    final before = text.substring(0, replaceStart);
+    final after = text.substring(safeCursor);
+    final separator = after.startsWith(' ') || after.isEmpty ? '' : ' ';
+    final nextText = '$before$token $separator$after';
+    final nextCursor = (before.length + token.length + 1)
+        .clamp(
+          0,
+          nextText.length,
+        )
+        .toInt();
+    _promptController.value = TextEditingValue(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: nextCursor),
+    );
+    setState(() {
+      _selectedMentionIds.add(entity.mentionId);
+      _showMentionSuggestions = false;
+      _mentionQuery = '';
+      _promptContext = _buildPromptContext();
+    });
+  }
+
+  Widget _buildMentionPromptPanel() {
+    final promptContext = _promptContext ?? _buildPromptContext();
+    final suggestions = _matchingMentionEntities;
+    final hasMentions = widget.mentionEntities.isNotEmpty;
+    return Container(
+      decoration: BoxDecoration(
+        color: FxPalette.surfaceRaised.withOpacity(0.7),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: FxPalette.dividerSoft),
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.alternate_email_rounded,
+                color: FxPalette.textPrimary,
+                size: 17,
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'Mention Motion Prompt',
+                  style: TextStyle(
+                    color: FxPalette.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              Text(
+                '${promptContext.mentions.length} linked',
+                style: const TextStyle(
+                  color: FxPalette.textMuted,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _promptController,
+            onChanged: _handlePromptChanged,
+            minLines: 2,
+            maxLines: 4,
+            style: const TextStyle(
+              color: FxPalette.textPrimary,
+              fontSize: 13,
+              height: 1.35,
+              fontWeight: FontWeight.w600,
+            ),
+            decoration: InputDecoration(
+              hintText: hasMentions
+                  ? 'Type @ to target a layer, then describe the motion...'
+                  : 'Open a Scene Scope with layers to target elements with @mentions.',
+              hintStyle: const TextStyle(
+                color: FxPalette.textFaint,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+              isDense: true,
+              filled: true,
+              fillColor: Colors.black.withOpacity(0.18),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: FxPalette.dividerSoft),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: FxPalette.dividerSoft),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: FxPalette.accent),
+              ),
+            ),
+          ),
+          if (suggestions.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.22),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: FxPalette.dividerSoft),
+              ),
+              child: Column(
+                children: [
+                  for (final entity in suggestions)
+                    _MentionSuggestionTile(
+                      entity: entity,
+                      onTap: () => _insertMention(entity),
+                    ),
+                ],
+              ),
+            ),
+          ],
+          if (promptContext.mentions.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final mention in promptContext.mentions)
+                  _MentionChip(entity: mention.entity),
+              ],
+            ),
+          ],
+          const SizedBox(height: 8),
+          _MentionPayloadSummary(context: promptContext),
+        ],
+      ),
+    );
   }
 
   ReFusionSceneProgramAuthoringResult _importCurrentSource(String source) {
@@ -895,6 +1115,8 @@ class _SceneProgramImportBottomSheetState
                     (safeBottom > 0 ? safeBottom : 12) + 12,
                   ),
                   children: [
+                    _buildMentionPromptPanel(),
+                    const SizedBox(height: 14),
                     Container(
                       constraints: const BoxConstraints(minHeight: 260),
                       decoration: BoxDecoration(
@@ -993,6 +1215,187 @@ class _SceneProgramActionButton extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _MentionSuggestionTile extends StatelessWidget {
+  const _MentionSuggestionTile({
+    required this.entity,
+    required this.onTap,
+  });
+
+  final SceneMentionEntity entity;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+        child: Row(
+          children: [
+            Icon(
+              _iconFor(entity),
+              color: FxPalette.textPrimary,
+              size: 16,
+            ),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    entity.displayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: FxPalette.textPrimary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${entity.typeLabel} · ${entity.supportedProperties.length} properties',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: FxPalette.textMuted,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.add_circle_outline_rounded,
+              color: FxPalette.textMuted,
+              size: 16,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MentionChip extends StatelessWidget {
+  const _MentionChip({required this.entity});
+
+  final SceneMentionEntity entity;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: FxPalette.accent.withOpacity(0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: FxPalette.accent.withOpacity(0.32)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            _iconFor(entity),
+            color: FxPalette.textPrimary,
+            size: 13,
+          ),
+          const SizedBox(width: 5),
+          Text(
+            entity.displayName,
+            style: const TextStyle(
+              color: FxPalette.textPrimary,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MentionPayloadSummary extends StatelessWidget {
+  const _MentionPayloadSummary({required this.context});
+
+  final SceneMentionPromptContext context;
+
+  @override
+  Widget build(BuildContext _) {
+    if (context.hasBrokenMentions) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final issue in context.issues.take(3))
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.warning_amber_rounded,
+                    color: Color(0xFFFFC857),
+                    size: 14,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      issue.message,
+                      style: const TextStyle(
+                        color: Color(0xFFFFC857),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      );
+    }
+    if (context.mentions.isEmpty) {
+      return const Text(
+        'No motion targets linked yet. Type @ to attach real scene elements.',
+        style: TextStyle(
+          color: FxPalette.textMuted,
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+        ),
+      );
+    }
+    return Text(
+      'Payload ready: ${context.mentions.length} resolved target${context.mentions.length == 1 ? '' : 's'}.',
+      style: const TextStyle(
+        color: Color(0xFF45D483),
+        fontSize: 11,
+        fontWeight: FontWeight.w800,
+      ),
+    );
+  }
+}
+
+IconData _iconFor(SceneMentionEntity entity) {
+  switch (entity.entityKind) {
+    case SceneMentionEntityKind.sceneClip:
+      return Icons.auto_awesome_motion_rounded;
+    case SceneMentionEntityKind.element:
+      switch (entity.typeLabel) {
+        case 'Text':
+          return Icons.text_fields_rounded;
+        case 'Image':
+          return Icons.image_outlined;
+        case 'Video':
+          return Icons.videocam_rounded;
+        case 'Camera':
+          return Icons.photo_camera_outlined;
+        case 'Audio':
+          return Icons.music_note_rounded;
+        default:
+          return Icons.category_rounded;
+      }
   }
 }
 
