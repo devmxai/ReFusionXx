@@ -86,6 +86,14 @@ Depends on:
   a stable mention chip, and `SceneMentionPromptContextBuilder` produces a
   resolved prompt payload with broken mention diagnostics. This checkpoint does
   not call an API, mutate graph data, or touch Stage5/Live Scrub.
+- Phase S8 foundation: `ReFusionMotionPatch` and
+  `ReFusionMotionPatchImportService` define the declarative JSON-only patch
+  contract for animating existing mentioned elements. The validator resolves
+  targets against stable mention entities, resolves property aliases to motion
+  graph definitions, rejects unsupported property/type combinations, rejects
+  keyframes outside the active scope, blocks executable/runtime keys, and
+  normalizes unsorted keyframes with warnings. This checkpoint does not mutate
+  graph data, call an API, or touch Stage5/Live Scrub.
 - Performance watch note: if repeated keyframe drag/edit or repeated scene
   script edits show intermittent heaviness on real devices, capture it as a
   profiling task after the mutation surface is complete. Do not treat Live Scrub
