@@ -27,9 +27,12 @@ import '../../domain/models/professional_motion_text_preview_models.dart';
 import '../../domain/models/professional_motion_text_render_models.dart';
 import '../../domain/models/professional_motion_text_runtime_helpers.dart';
 import '../../domain/models/professional_normal_transition_models.dart';
+import '../../domain/models/refusion_motion_patch_models.dart';
 import '../../domain/services/ai_transition/kie_ai_transition_service.dart';
 import '../../domain/services/normal_transition_command_history.dart';
 import '../../domain/services/layer_scope_composition_adapter.dart';
+import '../../domain/services/refusion_motion_patch_applicator.dart';
+import '../../domain/services/refusion_motion_patch_import_service.dart';
 import '../../domain/services/scene_program_apply_transaction.dart';
 import '../../domain/services/scene_mention_index.dart';
 import '../../domain/services/scene_scope_session.dart';
@@ -114,6 +117,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   static const LayerScopeCompositionAdapter _layerScopeCompositionAdapter =
       LayerScopeCompositionAdapter();
   static const SceneMentionIndex _sceneMentionIndex = SceneMentionIndex();
+  static const ReFusionMotionPatchImportService _motionPatchImportService =
+      ReFusionMotionPatchImportService();
+  static const ReFusionMotionPatchApplicator _motionPatchApplicator =
+      ReFusionMotionPatchApplicator();
   static const List<_CompositionTemplate> _compositionTemplates =
       <_CompositionTemplate>[
     _CompositionTemplate(
@@ -11405,15 +11412,208 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final activeSceneScope = _sceneScopeSession;
     final scopeDuration = activeSceneScope?.localRange.duration ??
         _effectiveMotionProject.durationTime;
-    await showModalBottomSheet<void>(
+    final mentionEntities = _sceneMentionEntitiesForCurrentScope();
+    final result = await showModalBottomSheet<RemotionPromptSheetResult>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => RemotionPromptBottomSheet(
-        mentionEntities: _sceneMentionEntitiesForCurrentScope(),
+        mentionEntities: mentionEntities,
         scopeDurationMs: scopeDuration.inMilliseconds,
       ),
     );
+    if (!mounted || result == null) {
+      return;
+    }
+    _applyLocalRemotionMotionPatch(
+      source: result.source,
+      mentionEntities: mentionEntities,
+      scopeDurationMs: scopeDuration.inMilliseconds,
+      sceneScope: activeSceneScope,
+    );
+  }
+
+  void _applyLocalRemotionMotionPatch({
+    required String source,
+    required List<SceneMentionEntity> mentionEntities,
+    required int scopeDurationMs,
+    required SceneScopeSession? sceneScope,
+  }) {
+    final importResult = _motionPatchImportService.validate(
+      source: source,
+      mentionEntities: mentionEntities,
+      scopeDurationMs: scopeDurationMs,
+    );
+    if (!importResult.isValid) {
+      final issue = importResult.issues.isEmpty
+          ? null
+          : importResult.issues.firstWhere(
+              (candidate) =>
+                  candidate.severity == ReFusionMotionPatchIssueSeverity.error,
+              orElse: () => importResult.issues.first,
+            );
+      _showStageMessage(issue?.message ?? 'Motion patch is not valid.');
+      return;
+    }
+
+    final scopedChannels = _motionPatchInputChannelsForScope(sceneScope);
+    final applied = _motionPatchApplicator.apply(
+      ReFusionMotionPatchApplyRequest(
+        channels: scopedChannels,
+        importResult: importResult,
+      ),
+    );
+    if (applied.hasErrors) {
+      final issue = applied.issues.firstWhere(
+        (candidate) =>
+            candidate.severity == ReFusionMotionPatchIssueSeverity.error,
+        orElse: () => applied.issues.first,
+      );
+      _showStageMessage(issue.message);
+      return;
+    }
+
+    final nextChannels = sceneScope == null
+        ? applied.channels
+        : _mergeSceneScopeLocalMotionPatchChannels(
+            sceneScope,
+            applied.channels,
+          );
+    setState(() {
+      _manualMotionPropertyChannels =
+          List<MotionPropertyChannelModel>.unmodifiable(nextChannels);
+      _markMotionAuthoringChanged();
+      _selectedLayerScopeAnimationLaneId = null;
+      _selectedLayerScopeKeyframeIndex = null;
+      _selectedLayerScopeKeyframeId = null;
+      _isLayerScopeValueEditorOpen = false;
+      _isLayerScopeGraphEditorOpen = false;
+    });
+    final changedCount = applied.changedKeyframeIds.length;
+    _showStageMessage(
+      'Applied local motion patch: ${applied.channels.length} channel(s), $changedCount keyframe(s).',
+    );
+  }
+
+  List<MotionPropertyChannelModel> _motionPatchInputChannelsForScope(
+    SceneScopeSession? sceneScope,
+  ) {
+    if (sceneScope == null) {
+      return _manualMotionPropertyChannels;
+    }
+    return List<MotionPropertyChannelModel>.unmodifiable(
+      <MotionPropertyChannelModel>[
+        for (final channel in _manualMotionPropertyChannels)
+          if (channel.target.sceneId == sceneScope.sourceSceneId)
+            _sceneScopeChannelToLocalTime(sceneScope, channel),
+      ],
+    );
+  }
+
+  List<MotionPropertyChannelModel> _mergeSceneScopeLocalMotionPatchChannels(
+    SceneScopeSession sceneScope,
+    List<MotionPropertyChannelModel> localChannels,
+  ) {
+    final replacements = <String, MotionPropertyChannelModel>{
+      for (final channel in localChannels)
+        channel.id: _sceneScopeChannelToSourceTime(sceneScope, channel),
+    };
+    final nextChannels = <MotionPropertyChannelModel>[];
+    final replacedIds = <String>{};
+    for (final channel in _manualMotionPropertyChannels) {
+      if (channel.target.sceneId != sceneScope.sourceSceneId) {
+        nextChannels.add(channel);
+        continue;
+      }
+      final replacement = replacements[channel.id];
+      if (replacement == null) {
+        nextChannels.add(channel);
+        continue;
+      }
+      nextChannels.add(replacement);
+      replacedIds.add(channel.id);
+    }
+    for (final replacement in replacements.entries) {
+      if (!replacedIds.contains(replacement.key)) {
+        nextChannels.add(replacement.value);
+      }
+    }
+    return List<MotionPropertyChannelModel>.unmodifiable(nextChannels);
+  }
+
+  MotionPropertyChannelModel _sceneScopeChannelToLocalTime(
+    SceneScopeSession sceneScope,
+    MotionPropertyChannelModel channel,
+  ) {
+    final activeRange = channel.activeRange;
+    final localActiveRange = activeRange == null
+        ? null
+        : TimelineTimeRange(
+            start: _sceneScopeSourceToLocalTime(sceneScope, activeRange.start),
+            endExclusive: _sceneScopeSourceToLocalTime(
+              sceneScope,
+              activeRange.endExclusive,
+            ),
+          );
+    return channel.copyWith(
+      activeRange: localActiveRange,
+      clearActiveRange: localActiveRange == null,
+      keyframes: List<MotionKeyframeModel>.unmodifiable(
+        <MotionKeyframeModel>[
+          for (final keyframe in channel.keyframes)
+            keyframe.copyWith(
+              time: _sceneScopeSourceToLocalTime(sceneScope, keyframe.time),
+            ),
+        ]..sort((left, right) => left.time.compareTo(right.time)),
+      ),
+    );
+  }
+
+  MotionPropertyChannelModel _sceneScopeChannelToSourceTime(
+    SceneScopeSession sceneScope,
+    MotionPropertyChannelModel channel,
+  ) {
+    final activeRange = channel.activeRange;
+    final sourceActiveRange = activeRange == null
+        ? null
+        : TimelineTimeRange(
+            start: _sceneScopeLocalToSourceTime(sceneScope, activeRange.start),
+            endExclusive: _sceneScopeLocalToSourceTime(
+              sceneScope,
+              activeRange.endExclusive,
+            ),
+          );
+    return channel.copyWith(
+      activeRange: sourceActiveRange,
+      clearActiveRange: sourceActiveRange == null,
+      keyframes: List<MotionKeyframeModel>.unmodifiable(
+        <MotionKeyframeModel>[
+          for (final keyframe in channel.keyframes)
+            keyframe.copyWith(
+              time: _sceneScopeLocalToSourceTime(sceneScope, keyframe.time),
+            ),
+        ]..sort((left, right) => left.time.compareTo(right.time)),
+      ),
+    );
+  }
+
+  TimelineTime _sceneScopeSourceToLocalTime(
+    SceneScopeSession sceneScope,
+    TimelineTime sourceTime,
+  ) {
+    return (sourceTime - sceneScope.sourceRange.start).clamp(
+      TimelineTime.zero,
+      sceneScope.localRange.duration,
+    );
+  }
+
+  TimelineTime _sceneScopeLocalToSourceTime(
+    SceneScopeSession sceneScope,
+    TimelineTime localTime,
+  ) {
+    final local =
+        localTime.clamp(TimelineTime.zero, sceneScope.localRange.duration);
+    return sceneScope.sourceRange.start + local;
   }
 
   List<SceneMentionEntity> _sceneMentionEntitiesForCurrentScope() {

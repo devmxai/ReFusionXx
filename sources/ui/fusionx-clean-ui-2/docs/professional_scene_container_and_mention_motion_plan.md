@@ -106,6 +106,13 @@ Depends on:
   operations such as `position` into component channels, and reports unsupported
   easing as warnings. This checkpoint is domain-only; it does not call an API,
   wire UI apply, mutate Stage5, or touch Live Scrub.
+- Phase S10 local test mode: `RemotionPromptBottomSheet` now includes a Local
+  Motion Patch JSON section that validates pasted `refusion.motion-patch/v1`
+  JSON before returning it to the editor. `FusionXCleanUiScreen` applies valid
+  patches through `ReFusionMotionPatchImportService` and
+  `ReFusionMotionPatchApplicator`, writing editable graph channels in the
+  current root or Scene Scope. This mode makes no API calls and does not touch
+  Stage5/Live Scrub.
 - Performance watch note: if repeated keyframe drag/edit or repeated scene
   script edits show intermittent heaviness on real devices, capture it as a
   profiling task after the mutation surface is complete. Do not treat Live Scrub

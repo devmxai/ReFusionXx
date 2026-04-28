@@ -3,8 +3,18 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../domain/models/refusion_motion_patch_models.dart';
+import '../../domain/services/refusion_motion_patch_import_service.dart';
 import '../../domain/services/scene_mention_index.dart';
 import '../../domain/services/scene_mention_prompt_context.dart';
+
+class RemotionPromptSheetResult {
+  const RemotionPromptSheetResult.localPatch({
+    required this.source,
+  });
+
+  final String source;
+}
 
 class RemotionPromptBottomSheet extends StatefulWidget {
   const RemotionPromptBottomSheet({
@@ -24,23 +34,31 @@ class RemotionPromptBottomSheet extends StatefulWidget {
 class _RemotionPromptBottomSheetState extends State<RemotionPromptBottomSheet> {
   final SceneMentionPromptContextBuilder _contextBuilder =
       const SceneMentionPromptContextBuilder();
+  final ReFusionMotionPatchImportService _patchImportService =
+      const ReFusionMotionPatchImportService();
   late final TextEditingController _promptController;
+  late final TextEditingController _localPatchController;
   final Set<String> _selectedMentionIds = <String>{};
   String _mentionQuery = '';
   bool _showMentionSuggestions = false;
   SceneMentionPromptContext? _context;
   String? _generatedPayloadPreview;
+  List<ReFusionMotionPatchIssue> _localPatchIssues =
+      const <ReFusionMotionPatchIssue>[];
+  bool _localPatchValidated = false;
 
   @override
   void initState() {
     super.initState();
     _promptController = TextEditingController();
+    _localPatchController = TextEditingController();
     _context = _buildContext();
   }
 
   @override
   void dispose() {
     _promptController.dispose();
+    _localPatchController.dispose();
     super.dispose();
   }
 
@@ -157,6 +175,48 @@ class _RemotionPromptBottomSheetState extends State<RemotionPromptBottomSheet> {
       _context = nextContext;
       _generatedPayloadPreview = encoder.convert(payload);
     });
+  }
+
+  void _handleLocalPatchChanged(String _) {
+    if (!_localPatchValidated && _localPatchIssues.isEmpty) {
+      return;
+    }
+    setState(() {
+      _localPatchValidated = false;
+      _localPatchIssues = const <ReFusionMotionPatchIssue>[];
+    });
+  }
+
+  void _validateAndReturnLocalPatch() {
+    final source = _localPatchController.text.trim();
+    if (source.isEmpty) {
+      setState(() {
+        _localPatchValidated = true;
+        _localPatchIssues = const <ReFusionMotionPatchIssue>[
+          ReFusionMotionPatchIssue(
+            severity: ReFusionMotionPatchIssueSeverity.error,
+            message: 'Paste a Motion Patch JSON before applying.',
+            path: 'motionPatch',
+          ),
+        ];
+      });
+      return;
+    }
+    final result = _patchImportService.validate(
+      source: source,
+      mentionEntities: widget.mentionEntities,
+      scopeDurationMs: widget.scopeDurationMs,
+    );
+    if (!result.isValid) {
+      setState(() {
+        _localPatchValidated = true;
+        _localPatchIssues = result.issues;
+      });
+      return;
+    }
+    Navigator.of(context).pop(
+      RemotionPromptSheetResult.localPatch(source: source),
+    );
   }
 
   @override
@@ -290,6 +350,14 @@ class _RemotionPromptBottomSheetState extends State<RemotionPromptBottomSheet> {
                         payload: _generatedPayloadPreview!,
                       ),
                     ],
+                    const SizedBox(height: 12),
+                    _LocalMotionPatchCard(
+                      controller: _localPatchController,
+                      onChanged: _handleLocalPatchChanged,
+                      onApply: _validateAndReturnLocalPatch,
+                      issues: _localPatchIssues,
+                      validated: _localPatchValidated,
+                    ),
                   ],
                 ),
               ),
@@ -297,6 +365,187 @@ class _RemotionPromptBottomSheetState extends State<RemotionPromptBottomSheet> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _LocalMotionPatchCard extends StatelessWidget {
+  const _LocalMotionPatchCard({
+    required this.controller,
+    required this.onChanged,
+    required this.onApply,
+    required this.issues,
+    required this.validated,
+  });
+
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onApply;
+  final List<ReFusionMotionPatchIssue> issues;
+  final bool validated;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasErrors = issues.any(
+      (issue) => issue.severity == ReFusionMotionPatchIssueSeverity.error,
+    );
+    return Container(
+      decoration: BoxDecoration(
+        color: FxPalette.surfaceRaised.withOpacity(0.72),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: FxPalette.dividerSoft),
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Local Motion Patch JSON',
+                      style: TextStyle(
+                        color: FxPalette.textPrimary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    SizedBox(height: 3),
+                    Text(
+                      'No API call. Paste validated JSON and apply locally.',
+                      style: TextStyle(
+                        color: FxPalette.textMuted,
+                        fontSize: 10,
+                        height: 1.3,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: onApply,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: FxPalette.accent.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: FxPalette.accent.withOpacity(0.36),
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.playlist_add_check_rounded,
+                        color: FxPalette.textPrimary,
+                        size: 15,
+                      ),
+                      SizedBox(width: 6),
+                      Text(
+                        'Apply',
+                        style: TextStyle(
+                          color: FxPalette.textPrimary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: controller,
+            onChanged: onChanged,
+            minLines: 7,
+            maxLines: 12,
+            style: const TextStyle(
+              color: FxPalette.textPrimary,
+              fontSize: 11,
+              height: 1.35,
+              fontFamily: 'monospace',
+              fontWeight: FontWeight.w600,
+            ),
+            decoration: InputDecoration(
+              isDense: true,
+              filled: true,
+              fillColor: Colors.black.withOpacity(0.24),
+              hintText:
+                  '{ "schemaVersion": "refusion.motion-patch/v1", "operations": [...] }',
+              hintStyle: const TextStyle(
+                color: FxPalette.textFaint,
+                fontSize: 10,
+                height: 1.35,
+                fontFamily: 'monospace',
+                fontWeight: FontWeight.w600,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: FxPalette.dividerSoft),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: FxPalette.dividerSoft),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(
+                  color: FxPalette.accent.withOpacity(0.55),
+                ),
+              ),
+            ),
+          ),
+          if (validated || issues.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            if (issues.isEmpty)
+              const _RemotionStatusCard(
+                icon: Icons.verified_rounded,
+                title: 'Patch ready',
+                message: 'Motion Patch JSON validated and can be applied.',
+                accent: Color(0xFF45D483),
+              )
+            else
+              _LocalPatchIssuesCard(
+                issues: issues,
+                hasErrors: hasErrors,
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _LocalPatchIssuesCard extends StatelessWidget {
+  const _LocalPatchIssuesCard({
+    required this.issues,
+    required this.hasErrors,
+  });
+
+  final List<ReFusionMotionPatchIssue> issues;
+  final bool hasErrors;
+
+  @override
+  Widget build(BuildContext context) {
+    final visibleIssues = issues.take(4).toList(growable: false);
+    return _RemotionStatusCard(
+      icon:
+          hasErrors ? Icons.error_outline_rounded : Icons.warning_amber_rounded,
+      title: hasErrors ? 'Patch rejected' : 'Patch warnings',
+      message: visibleIssues
+          .map((issue) =>
+              '${issue.path == null ? '' : '${issue.path}: '}${issue.message}')
+          .join('\n'),
+      accent: hasErrors ? const Color(0xFFFF6472) : const Color(0xFFFFC857),
     );
   }
 }
