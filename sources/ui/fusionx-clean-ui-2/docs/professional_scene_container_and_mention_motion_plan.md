@@ -68,8 +68,12 @@ Depends on:
 - Phase S5 keyframe tool wiring: Scene Layer Scope now shows a focused keyframe
   toolbar instead of disabled clip-edit tools. Selected graph keyframes can move
   to the current playhead or be deleted through `LayerScopeCompositionAdapter`.
-  Graph controls and nested export semantics remain future checkpoints, and
-  Stage5 Live Scrub is untouched.
+  Nested export semantics remain future checkpoints, and Stage5 Live Scrub is
+  untouched.
+- Phase S5 graph/ease wiring: the Graph button in Scene Layer Scope can apply or
+  remove Easy Ease interpolation on the selected graph keyframe through
+  `LayerScopeCompositionAdapter`. Nested export semantics remain future
+  checkpoints, and Stage5 Live Scrub is untouched.
 - Performance watch note: if repeated keyframe drag/edit or repeated scene
   script edits show intermittent heaviness on real devices, capture it as a
   profiling task after the mutation surface is complete. Do not treat Live Scrub

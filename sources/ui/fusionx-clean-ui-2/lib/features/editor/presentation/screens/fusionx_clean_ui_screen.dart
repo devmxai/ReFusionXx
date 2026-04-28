@@ -5007,6 +5007,59 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return _canMoveSceneLayerScopeSelectedKeyframe(viewModel);
   }
 
+  bool _canOpenSceneLayerScopeGraphEditor(
+    SceneLayerScopeTimelineViewModel? viewModel,
+  ) {
+    if (viewModel == null) {
+      return false;
+    }
+    final lane = _sceneLayerScopeSelectedAnimationLane(viewModel);
+    final channel =
+        lane == null ? null : _sceneLayerScopeChannelForLane(viewModel, lane);
+    if (lane == null || channel == null || channel.keyframes.length < 2) {
+      return false;
+    }
+    final keyframeIndex = _selectedLayerScopeKeyframeIndex ??
+        _nearestSceneLayerScopeKeyframeIndex(viewModel, lane);
+    if (keyframeIndex == null ||
+        keyframeIndex < 0 ||
+        keyframeIndex >= lane.normalizedKeyframeStops.length) {
+      return false;
+    }
+    return keyframeIndex > 0 ||
+        keyframeIndex < lane.normalizedKeyframeStops.length - 1;
+  }
+
+  bool _isSceneLayerScopeEasyEaseActive({
+    required SceneLayerScopeTimelineViewModel viewModel,
+    required TimelineAnimationLaneData lane,
+    required int keyframeIndex,
+  }) {
+    final channel = _sceneLayerScopeChannelForLane(viewModel, lane);
+    if (channel == null ||
+        keyframeIndex < 0 ||
+        keyframeIndex >= lane.keyframeIds.length) {
+      return false;
+    }
+    final keyframeId = lane.keyframeIds[keyframeIndex];
+    final channelKeyframeIndex = channel.keyframes.indexWhere(
+      (keyframe) => keyframe.id == keyframeId,
+    );
+    if (channelKeyframeIndex < 0) {
+      return false;
+    }
+    if (channelKeyframeIndex > 0 &&
+        _motionInterpolationMatchesEasyEase(
+          channel.keyframes[channelKeyframeIndex - 1].interpolationToNext,
+        )) {
+      return true;
+    }
+    return channelKeyframeIndex < channel.keyframes.length - 1 &&
+        _motionInterpolationMatchesEasyEase(
+          channel.keyframes[channelKeyframeIndex].interpolationToNext,
+        );
+  }
+
   void _handleSceneLayerScopeAddKeyframe() {
     final viewModel = _activeSceneLayerScopeViewModel;
     if (viewModel == null) {
@@ -5542,6 +5595,149 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _selectedLayerScopeKeyframeId = nextSelectedKeyframe?.id;
       _isLayerScopeValueEditorOpen = false;
       _isLayerScopeGraphEditorOpen = false;
+    });
+  }
+
+  Future<void> _handleSceneLayerScopeGraphToolTap() async {
+    if (_isLayerScopeGraphEditorOpen) {
+      return;
+    }
+    final viewModel = _activeSceneLayerScopeViewModel;
+    if (viewModel == null) {
+      return;
+    }
+    final lane = _sceneLayerScopeSelectedAnimationLane(viewModel);
+    if (lane == null) {
+      return;
+    }
+    final resolvedKeyframeIndex = _selectedLayerScopeKeyframeIndex ??
+        _nearestSceneLayerScopeKeyframeIndex(viewModel, lane);
+    if (resolvedKeyframeIndex == null ||
+        resolvedKeyframeIndex < 0 ||
+        resolvedKeyframeIndex >= lane.normalizedKeyframeStops.length) {
+      return;
+    }
+    final easyEaseEnabled = _isSceneLayerScopeEasyEaseActive(
+      viewModel: viewModel,
+      lane: lane,
+      keyframeIndex: resolvedKeyframeIndex,
+    );
+    setState(() {
+      _selectedLayerScopeAnimationLaneId = lane.id;
+      _selectedLayerScopeKeyframeIndex = resolvedKeyframeIndex;
+      _selectedLayerScopeKeyframeId =
+          _layerScopeKeyframeIdAt(lane, resolvedKeyframeIndex);
+      _isLayerScopeGraphEditorOpen = true;
+    });
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => MediaQuery.removeViewInsets(
+        context: sheetContext,
+        removeBottom: true,
+        child: LayerScopeGraphBottomSheet(
+          easyEaseEnabled: easyEaseEnabled,
+          onDone: () => Navigator.of(sheetContext).maybePop(),
+          onEasyEaseChanged: _handleSceneLayerScopeEasyEaseChanged,
+        ),
+      ),
+    ).whenComplete(() {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isLayerScopeGraphEditorOpen = false;
+      });
+    });
+  }
+
+  void _handleSceneLayerScopeEasyEaseChanged(bool enabled) {
+    final viewModel = _activeSceneLayerScopeViewModel;
+    if (viewModel == null) {
+      return;
+    }
+    final lane = _sceneLayerScopeSelectedAnimationLane(viewModel);
+    final keyframeIndex = _selectedLayerScopeKeyframeIndex;
+    final keyframeId = _selectedLayerScopeKeyframeId;
+    if (lane == null ||
+        keyframeIndex == null ||
+        keyframeIndex < 0 ||
+        keyframeIndex >= lane.keyframeIds.length) {
+      return;
+    }
+    var channel = _sceneLayerScopeChannelForLane(viewModel, lane);
+    if (channel == null) {
+      return;
+    }
+    final selectedKeyframeId = keyframeId ?? lane.keyframeIds[keyframeIndex];
+    final interpolation = enabled
+        ? _afterEffectsEasyEaseInterpolation
+        : const MotionInterpolationSpec.linear();
+    var channelKeyframeIndex = channel.keyframes.indexWhere(
+      (keyframe) => keyframe.id == selectedKeyframeId,
+    );
+    if (channelKeyframeIndex < 0) {
+      return;
+    }
+    var nextChannels = viewModel.projection.channels;
+    var changedAny = false;
+    if (channelKeyframeIndex > 0) {
+      final previousKeyframe = channel.keyframes[channelKeyframeIndex - 1];
+      final result = _layerScopeCompositionAdapter.setKeyframeInterpolation(
+        LayerScopeCompositionKeyframeInterpolationRequest(
+          channels: nextChannels,
+          channelId: channel.id,
+          keyframeId: previousKeyframe.id,
+          interpolation: interpolation,
+        ),
+      );
+      if (result.hasIssues) {
+        _showStageMessage(result.issues.first.message);
+        return;
+      }
+      nextChannels = result.channels;
+      changedAny = true;
+      channel = _channelById(nextChannels, lane.id);
+      channelKeyframeIndex = channel?.keyframes.indexWhere(
+            (keyframe) => keyframe.id == selectedKeyframeId,
+          ) ??
+          -1;
+      if (channel == null || channelKeyframeIndex < 0) {
+        return;
+      }
+    }
+    if (channelKeyframeIndex < channel.keyframes.length - 1) {
+      final currentKeyframe = channel.keyframes[channelKeyframeIndex];
+      final result = _layerScopeCompositionAdapter.setKeyframeInterpolation(
+        LayerScopeCompositionKeyframeInterpolationRequest(
+          channels: nextChannels,
+          channelId: channel.id,
+          keyframeId: currentKeyframe.id,
+          interpolation: interpolation,
+        ),
+      );
+      if (result.hasIssues) {
+        _showStageMessage(result.issues.first.message);
+        return;
+      }
+      nextChannels = result.channels;
+      changedAny = true;
+    }
+    if (!changedAny) {
+      return;
+    }
+    setState(() {
+      _manualMotionPropertyChannels = _mergeSceneLayerScopeChannels(
+        viewModel,
+        nextChannels,
+      );
+      _markMotionAuthoringChanged();
+      _selectedLayerScopeAnimationLaneId = lane.id;
+      _selectedLayerScopeKeyframeIndex = keyframeIndex;
+      _selectedLayerScopeKeyframeId = selectedKeyframeId;
     });
   }
 
@@ -16319,6 +16515,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         _canMoveSceneLayerScopeSelectedKeyframe(sceneLayerScopeViewModel);
     final canDeleteSceneLayerScopeSelectedKeyframe =
         _canDeleteSceneLayerScopeSelectedKeyframe(sceneLayerScopeViewModel);
+    final canOpenSceneLayerScopeGraphEditor =
+        _canOpenSceneLayerScopeGraphEditor(sceneLayerScopeViewModel);
     final isLayerScopeActive = layerScopeContext != null ||
         isUnifiedTransitionScopeActive ||
         isSceneLayerScopeActive ||
@@ -17249,11 +17447,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                     canAddSceneLayerScopeKeyframe,
                                                 valueEnabled:
                                                     canOpenSceneLayerScopeValueEditor,
-                                                graphEnabled: false,
+                                                graphEnabled:
+                                                    canOpenSceneLayerScopeGraphEditor,
                                                 isValueActive:
                                                     _isLayerScopeValueEditorOpen &&
                                                         canOpenSceneLayerScopeValueEditor,
-                                                isGraphActive: false,
+                                                isGraphActive:
+                                                    _isLayerScopeGraphEditorOpen &&
+                                                        canOpenSceneLayerScopeGraphEditor,
                                                 onAddTap: null,
                                                 onAddKeyframeTap:
                                                     canAddSceneLayerScopeKeyframe
@@ -17263,7 +17464,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                     canOpenSceneLayerScopeValueEditor
                                                         ? _handleSceneLayerScopeValueToolTap
                                                         : null,
-                                                onGraphTap: null,
+                                                onGraphTap:
+                                                    canOpenSceneLayerScopeGraphEditor
+                                                        ? _handleSceneLayerScopeGraphToolTap
+                                                        : null,
                                                 embedded: true,
                                                 addLabel: 'Add',
                                                 addIcon: Icons.add_rounded,
