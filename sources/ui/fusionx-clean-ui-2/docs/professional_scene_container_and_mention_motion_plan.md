@@ -98,6 +98,14 @@ Depends on:
   keyframes outside the active scope, blocks executable/runtime keys, and
   normalizes unsorted keyframes with warnings. This checkpoint does not mutate
   graph data, call an API, or touch Stage5/Live Scrub.
+- Phase S9 foundation: `ReFusionMotionPatchApplicator` applies a validated
+  `refusion.motion-patch/v1` result into editable `MotionPropertyChannelModel`
+  graph channels through `UnifiedKeyframeOperations`. It creates missing
+  channels, updates existing keyframes at the same time without changing their
+  IDs, preserves endpoint keyframes at the scope duration, maps vector
+  operations such as `position` into component channels, and reports unsupported
+  easing as warnings. This checkpoint is domain-only; it does not call an API,
+  wire UI apply, mutate Stage5, or touch Live Scrub.
 - Performance watch note: if repeated keyframe drag/edit or repeated scene
   script edits show intermittent heaviness on real devices, capture it as a
   profiling task after the mutation surface is complete. Do not treat Live Scrub
