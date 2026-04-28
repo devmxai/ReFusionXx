@@ -12435,6 +12435,42 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
   }
 
+  void _handleCompositionScopeScrubStateChanged(bool isScrubbing) {
+    if (_isApplyingStructuralEdit) {
+      return;
+    }
+    if (_isTimelineScrubbing == isScrubbing) {
+      return;
+    }
+    _isTimelineScrubbing = isScrubbing;
+    if (isScrubbing) {
+      _clearPlaybackStopTimeLock();
+      _clearTimelineScrubHandoff();
+      _timelineZoomLockedDisplayTime = null;
+      final scrubAnchorTime =
+          (_timelineScrubFinalTime ?? _timelineDisplayTimeNotifier.value)
+              .clamp(TimelineTime.zero, _timelineDurationTime);
+      _timelineScrubFinalTime = scrubAnchorTime;
+      _stopMotionPreviewFrameClock(resetTo: scrubAnchorTime);
+      _syncTimelineClockDuration();
+      _timelineClockCoordinator.scrubStart(scrubAnchorTime);
+      _applyTimelineClockSnapshotToUi();
+      return;
+    }
+
+    final resolvedFinalTime =
+        (_timelineScrubFinalTime ?? _timelineDisplayTimeNotifier.value).clamp(
+      TimelineTime.zero,
+      _timelineDurationTime,
+    );
+    _timelineScrubFinalTime = null;
+    _syncTimelineClockDuration();
+    _timelineClockCoordinator.scrubEnd(resolvedFinalTime);
+    _timelineClockCoordinator.confirmScrubSettled(resolvedFinalTime);
+    _stopMotionPreviewFrameClock(resetTo: resolvedFinalTime);
+    _setCurrentTime(resolvedFinalTime);
+  }
+
   void _handleMainTimelineDisplayTimeChanged(TimelineTime time) {
     if (_canUseFlutterTimelinePlayback) {
       _timelineScrubFinalTime = time.clamp(
@@ -16109,7 +16145,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                     });
                                                   },
                                                   onScrubStateChanged:
-                                                      _handleScrubStateChanged,
+                                                      _handleCompositionScopeScrubStateChanged,
                                                   onScrubFinalized: (localTime) =>
                                                       _handleSceneLayerScopeScrubFinalized(
                                                     sceneLayerScopeViewModel,
@@ -16173,7 +16209,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                         });
                                                       },
                                                       onScrubStateChanged:
-                                                          _handleScrubStateChanged,
+                                                          _handleCompositionScopeScrubStateChanged,
                                                       onScrubFinalized:
                                                           (localTime) =>
                                                               _handleSceneScopeScrubFinalized(
