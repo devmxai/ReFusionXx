@@ -166,6 +166,11 @@ Depends on:
   returns choreography intent without a `sceneProgram` field. This keeps
   Director-first generation useful while preserving normal validation and Scene
   Clip application.
+- Motion Director Phase D4 alignment gate foundation: when a live generated
+  response includes both a Director Plan and Scene Program, the app checks that
+  Director components exist as real layers/elements and that primitives map to
+  matching graph channels. The prompt plan and executable data are therefore
+  tied together instead of being two unrelated JSON blocks.
 - Performance watch note: if repeated keyframe drag/edit or repeated scene
   script edits show intermittent heaviness on real devices, capture it as a
   profiling task after the mutation surface is complete. Do not treat Live Scrub

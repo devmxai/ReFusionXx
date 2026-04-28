@@ -206,6 +206,36 @@ void main() {
     );
   });
 
+  test('rejects wrapped Scene Program that does not match directorPlan', () {
+    final rawResponse = jsonEncode(
+      <String, Object?>{
+        'output_text': jsonEncode(
+          <String, Object?>{
+            'directorPlan': _directorPlanJson(),
+            'sceneProgram': jsonDecode(
+              _sceneProgramJson('Mismatched Director Scene',
+                  property: 'opacity'),
+            ),
+          },
+        ),
+      },
+    );
+
+    expect(
+      () => service.extractSceneProgramPayload(
+        rawResponse: rawResponse,
+        transport: ReFusionSceneAgentTransport.responses,
+      ),
+      throwsA(
+        isA<KieSceneProgramAgentException>().having(
+          (error) => error.message,
+          'message',
+          contains('does not match directorPlan'),
+        ),
+      ),
+    );
+  });
+
   test('compiles directorPlan-only response into Scene Program JSON', () {
     final rawResponse = jsonEncode(
       <String, Object?>{
@@ -282,7 +312,8 @@ Map<String, Object?> _directorPlanJson({bool reverseTyping = false}) {
   };
 }
 
-String _sceneProgramJson(String name) {
+String _sceneProgramJson(String name,
+    {String property = 'typewriterProgress'}) {
   return jsonEncode(
     <String, Object?>{
       'schemaVersion': 'refusion.scene-program/v1',
@@ -302,7 +333,7 @@ String _sceneProgramJson(String name) {
               'text': 'ReFusion',
               'channels': <Object?>[
                 <String, Object?>{
-                  'property': 'opacity',
+                  'property': property,
                   'keyframes': <Object?>[
                     <String, Object?>{'timeMs': 0, 'value': 0},
                     <String, Object?>{'timeMs': 1200, 'value': 1},

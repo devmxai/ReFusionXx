@@ -246,6 +246,11 @@ Status:
   Plan into an editable Scene Program locally. This keeps the app-owned
   choreography compiler in the generation path and reduces dependence on raw
   keyframes authored directly by the model.
+- completed alignment gate foundation. When an agent returns both
+  `directorPlan` and `sceneProgram`, ReFusion validates that Director
+  components are represented by real scene layers/elements and that primitives
+  map to matching animation channels. Valid JSON that does not implement its own
+  Director Plan is rejected before application.
 
 ### Phase D4 - Lint And Auto-Repair Before Apply
 

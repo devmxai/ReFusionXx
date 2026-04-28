@@ -8,8 +8,10 @@ import '../models/refusion_motion_director_models.dart';
 import '../models/refusion_scene_program_models.dart';
 import 'refusion_motion_director_linter.dart';
 import 'refusion_motion_director_plan_import_service.dart';
+import 'refusion_motion_director_scene_program_alignment_linter.dart';
 import 'refusion_motion_director_scene_program_compiler.dart';
 import 'refusion_scene_agent_provider_catalog.dart';
+import 'refusion_scene_program_import_service.dart';
 
 class KieSceneProgramAgentService {
   KieSceneProgramAgentService({
@@ -21,12 +23,18 @@ class KieSceneProgramAgentService {
         const ReFusionMotionDirectorLinter(),
     ReFusionMotionDirectorSceneProgramCompiler directorCompiler =
         const ReFusionMotionDirectorSceneProgramCompiler(),
+    ReFusionMotionDirectorSceneProgramAlignmentLinter alignmentLinter =
+        const ReFusionMotionDirectorSceneProgramAlignmentLinter(),
+    ReFusionSceneProgramImportService sceneProgramImportService =
+        const ReFusionSceneProgramImportService(),
     MethodChannel runtimeConfigChannel =
         const MethodChannel('com.refusion.app/runtime_config'),
   })  : _catalog = catalog,
         _directorPlanImportService = directorPlanImportService,
         _directorLinter = directorLinter,
         _directorCompiler = directorCompiler,
+        _alignmentLinter = alignmentLinter,
+        _sceneProgramImportService = sceneProgramImportService,
         _runtimeConfigChannel = runtimeConfigChannel;
 
   static const String _apiKey = String.fromEnvironment('KIE_API_KEY');
@@ -35,6 +43,8 @@ class KieSceneProgramAgentService {
   final ReFusionMotionDirectorPlanImportService _directorPlanImportService;
   final ReFusionMotionDirectorLinter _directorLinter;
   final ReFusionMotionDirectorSceneProgramCompiler _directorCompiler;
+  final ReFusionMotionDirectorSceneProgramAlignmentLinter _alignmentLinter;
+  final ReFusionSceneProgramImportService _sceneProgramImportService;
   final MethodChannel _runtimeConfigChannel;
   String _runtimeApiKey = '';
   bool _attemptedRuntimeKeyLoad = false;
@@ -164,8 +174,16 @@ class KieSceneProgramAgentService {
       );
     }
     const encoder = JsonEncoder.withIndent('  ');
+    final sceneProgramJson = encoder.convert(sceneProgram);
+    if (directorExtraction.plan != null) {
+      _lintSceneProgramAlignment(
+        plan: directorExtraction.plan!,
+        sceneProgramJson: sceneProgramJson,
+        directorIssues: directorExtraction.issues,
+      );
+    }
     return KieSceneProgramExtractionResult(
-      sceneProgramJson: encoder.convert(sceneProgram),
+      sceneProgramJson: sceneProgramJson,
       directorPlan: directorExtraction.plan,
       directorIssues: directorExtraction.issues,
     );
@@ -186,6 +204,42 @@ class KieSceneProgramAgentService {
       );
     }
     return compileResult.program!;
+  }
+
+  void _lintSceneProgramAlignment({
+    required ReFusionMotionDirectorPlan plan,
+    required String sceneProgramJson,
+    required List<ReFusionMotionDirectorIssue> directorIssues,
+  }) {
+    final importResult =
+        _sceneProgramImportService.validate(source: sceneProgramJson);
+    final importErrors = importResult.issues.where(
+      (issue) => issue.severity == ReFusionSceneProgramIssueSeverity.error,
+    );
+    if (importErrors.isNotEmpty || importResult.program == null) {
+      final summary = importErrors
+          .take(3)
+          .map((issue) => issue.path == null
+              ? issue.message
+              : '${issue.path}: ${issue.message}')
+          .join(' ');
+      throw KieSceneProgramAgentException(
+        'Generated sceneProgram failed validation before Director alignment: $summary',
+      );
+    }
+    final alignmentResult = _alignmentLinter.lint(
+      plan: plan,
+      program: importResult.program!,
+    );
+    directorIssues.addAll(alignmentResult.issues);
+    final hasAlignmentErrors = alignmentResult.issues.any(
+      (issue) => issue.severity == ReFusionMotionDirectorIssueSeverity.error,
+    );
+    if (hasAlignmentErrors) {
+      throw KieSceneProgramAgentException(
+        'Generated sceneProgram does not match directorPlan: ${_directorIssueSummary(alignmentResult.issues)}',
+      );
+    }
   }
 
   String _encodeSceneProgram(ReFusionSceneProgram program) {
