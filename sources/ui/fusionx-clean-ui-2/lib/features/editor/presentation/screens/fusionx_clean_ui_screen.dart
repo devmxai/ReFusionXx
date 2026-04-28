@@ -65,6 +65,7 @@ import '../widgets/motion_text_transform_overlay.dart';
 import '../widgets/native_timeline_scrub_surface.dart';
 import '../widgets/native_preview_surface.dart';
 import '../widgets/preview_stage.dart';
+import '../widgets/remotion_prompt_bottom_sheet.dart';
 import '../widgets/scene_program_import_bottom_sheet.dart';
 import '../widgets/scoped_text_motion_script_bottom_sheet.dart';
 import '../widgets/text_clip_edit_bottom_sheet.dart';
@@ -11338,7 +11339,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   Future<void> _openSceneProgramImportSheet() async {
-    final mentionEntities = _sceneMentionEntitiesForCurrentScope();
     final result = await showModalBottomSheet<SceneProgramImportSheetResult>(
       context: context,
       isScrollControlled: true,
@@ -11347,7 +11347,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         projectId: _motionProjectId,
         sceneId: _motionSceneId,
         canvasSize: _motionProjectFormat.canvasSize,
-        mentionEntities: mentionEntities,
       ),
     );
     if (!mounted || result == null) {
@@ -11399,6 +11398,21 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _syncTimelineClockDuration();
     _showStageMessage(
       'Scene applied as one clip: ${result.layerCount} layers, ${result.channelCount} channels.',
+    );
+  }
+
+  Future<void> _openRemotionPromptSheet() async {
+    final activeSceneScope = _sceneScopeSession;
+    final scopeDuration = activeSceneScope?.localRange.duration ??
+        _effectiveMotionProject.durationTime;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => RemotionPromptBottomSheet(
+        mentionEntities: _sceneMentionEntitiesForCurrentScope(),
+        scopeDurationMs: scopeDuration.inMilliseconds,
+      ),
     );
   }
 
@@ -17526,6 +17540,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                             activeTab: effectiveDockActiveTab,
                                             onSceneTap:
                                                 _openSceneProgramImportSheet,
+                                            onRemotionTap:
+                                                _openRemotionPromptSheet,
                                             onAddTap: () {
                                               _openMediaSheet(
                                                 effectiveDockActiveTab ==

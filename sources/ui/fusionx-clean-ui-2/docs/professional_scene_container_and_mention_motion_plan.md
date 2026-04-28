@@ -81,11 +81,15 @@ Depends on:
   elements as invalid mentions on the rebuilt index. This is domain-only
   infrastructure for future prompt/autocomplete UI and does not touch Stage5 or
   Live Scrub.
-- Phase S7 foundation: Scene Program import now includes a Mention Motion Prompt
-  panel. Typing `@` shows current scope entities, selecting a suggestion inserts
-  a stable mention chip, and `SceneMentionPromptContextBuilder` produces a
-  resolved prompt payload with broken mention diagnostics. This checkpoint does
-  not call an API, mutate graph data, or touch Stage5/Live Scrub.
+- Phase S7 foundation: mention-driven motion authoring is separated from Scene
+  Program import. `SceneProgramImportBottomSheet` remains JSON/preset-only for
+  creating full scene containers, while the new `RemotionPromptBottomSheet` is
+  opened from its own bottom dock action for `@mention`-based animation of
+  existing layers. Typing `@` shows current scope entities, selecting a
+  suggestion inserts a stable mention chip, and
+  `SceneMentionPromptContextBuilder` produces an API-ready motion-patch payload
+  with broken mention diagnostics. This checkpoint does not call an API, mutate
+  graph data, or touch Stage5/Live Scrub.
 - Phase S8 foundation: `ReFusionMotionPatch` and
   `ReFusionMotionPatchImportService` define the declarative JSON-only patch
   contract for animating existing mentioned elements. The validator resolves
