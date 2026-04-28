@@ -74,19 +74,21 @@ class ReFusionMotionDirectorBeat {
 
 @immutable
 class ReFusionMotionDirectorComponent {
-  const ReFusionMotionDirectorComponent({
+  ReFusionMotionDirectorComponent({
     required this.id,
     required this.role,
     required this.label,
     this.layerId,
     this.elementId,
-  });
+    Map<String, Object?> properties = const <String, Object?>{},
+  }) : properties = Map.unmodifiable(properties);
 
   final String id;
   final String role;
   final String label;
   final String? layerId;
   final String? elementId;
+  final Map<String, Object?> properties;
 }
 
 @immutable

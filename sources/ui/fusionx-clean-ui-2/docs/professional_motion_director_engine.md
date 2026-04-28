@@ -223,9 +223,18 @@ Goal:
 
 Acceptance:
 
-- prompt-bar director plan lowers to one root Scene Clip;
-- Scene Scope shows internal layers;
-- Layer Scope shows editable keyframes.
+- prompt-bar director plan compiles to a valid `refusion.scene-program/v1`;
+- the compiled Scene Program lowers into graph channels and text reveal
+  bindings;
+- invalid Director Plans do not compile.
+
+Status:
+
+- completed foundation. `ReFusionMotionDirectorSceneProgramCompiler` compiles
+  supported semantic components such as background, prompt shell, typewriter
+  text, send button, cover circle, icons, lines, and generic shapes into
+  editable Scene Program layers/elements/channels. The result can be lowered by
+  the existing Scene Program lowerer. UI use of this compiler is a later slice.
 
 ### Phase D4 - Lint And Auto-Repair Before Apply
 

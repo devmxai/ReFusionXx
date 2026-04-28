@@ -16,7 +16,7 @@ void main() {
       durationMs: 4200,
       frameRate: 30,
       components: components ??
-          const <ReFusionMotionDirectorComponent>[
+          <ReFusionMotionDirectorComponent>[
             ReFusionMotionDirectorComponent(
               id: 'prompt-shell',
               role: 'promptInputBar.shell',

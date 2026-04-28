@@ -150,6 +150,11 @@ Depends on:
   approved Codex and Claude Opus KIE.ai profiles, then writes the generated
   `refusion.scene-program/v1` JSON back into the Script tab for validation and
   normal Scene Clip application.
+- Motion Director Phase D3 compiler foundation: semantic Director plans can now
+  compile into real Scene Program layers/channels before entering the existing
+  Scene Clip transaction path. This is the first app-owned bridge from
+  choreography intent to editable composition data; production UI still applies
+  generated Scene Program JSON directly until the next integration slice.
 - Performance watch note: if repeated keyframe drag/edit or repeated scene
   script edits show intermittent heaviness on real devices, capture it as a
   profiling task after the mutation surface is complete. Do not treat Live Scrub
