@@ -98,6 +98,24 @@ void main() {
     );
   });
 
+  test('reports incomplete pasted JSON with a specific recovery message', () {
+    final result = service.validate(
+      source: '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "durationMs": 1000,
+  "layers": [
+    {
+      "id": "layer-1",
+      "kind": "shape"
+''',
+    );
+
+    expect(result.isValid, isFalse);
+    expect(result.issues.single.message, contains('appears incomplete'));
+    expect(result.issues.single.message, contains('final `}`'));
+  });
+
   test('normalizes unsorted keyframes and rejects unsupported schema versions',
       () {
     final result = service.validate(

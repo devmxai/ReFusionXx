@@ -190,11 +190,39 @@ class KieSceneProgramAgentService {
     const encoder = JsonEncoder.withIndent('  ');
     final sceneProgramJson = encoder.convert(sceneProgram);
     if (directorExtraction.plan != null) {
-      _lintSceneProgramAlignment(
+      final alignmentResult = _lintSceneProgramAlignment(
         plan: directorExtraction.plan!,
         sceneProgramJson: sceneProgramJson,
-        directorIssues: directorExtraction.issues,
       );
+      if (!alignmentResult.isValid) {
+        final fallbackIssues = <ReFusionMotionDirectorIssue>[
+          ...directorExtraction.issues,
+          const ReFusionMotionDirectorIssue(
+            severity: ReFusionMotionDirectorIssueSeverity.warning,
+            message:
+                'Generated sceneProgram did not fully implement its directorPlan; ReFusion compiled the directorPlan locally instead.',
+            path: 'sceneProgram',
+          ),
+          ...alignmentResult.issues.take(3).map(
+                (issue) => ReFusionMotionDirectorIssue(
+                  severity: ReFusionMotionDirectorIssueSeverity.warning,
+                  message: 'Ignored generated sceneProgram mismatch: '
+                      '${issue.path == null ? issue.message : '${issue.path}: ${issue.message}'}',
+                  path: issue.path,
+                ),
+              ),
+        ];
+        final compiled = _compileDirectorPlanToSceneProgram(
+          directorExtraction.plan!,
+          fallbackIssues,
+        );
+        return KieSceneProgramExtractionResult(
+          sceneProgramJson: _encodeSceneProgram(compiled),
+          directorPlan: directorExtraction.plan,
+          directorIssues: fallbackIssues,
+        );
+      }
+      directorExtraction.issues.addAll(alignmentResult.issues);
     }
     return KieSceneProgramExtractionResult(
       sceneProgramJson: sceneProgramJson,
@@ -220,10 +248,9 @@ class KieSceneProgramAgentService {
     return compileResult.program!;
   }
 
-  void _lintSceneProgramAlignment({
+  ReFusionMotionDirectorSceneProgramAlignmentResult _lintSceneProgramAlignment({
     required ReFusionMotionDirectorPlan plan,
     required String sceneProgramJson,
-    required List<ReFusionMotionDirectorIssue> directorIssues,
   }) {
     final importResult =
         _sceneProgramImportService.validate(source: sceneProgramJson);
@@ -231,29 +258,26 @@ class KieSceneProgramAgentService {
       (issue) => issue.severity == ReFusionSceneProgramIssueSeverity.error,
     );
     if (importErrors.isNotEmpty || importResult.program == null) {
-      final summary = importErrors
-          .take(3)
-          .map((issue) => issue.path == null
-              ? issue.message
-              : '${issue.path}: ${issue.message}')
-          .join(' ');
-      throw KieSceneProgramAgentException(
-        'Generated sceneProgram failed validation before Director alignment: $summary',
+      return ReFusionMotionDirectorSceneProgramAlignmentResult(
+        issues: importErrors
+            .take(3)
+            .map(
+              (issue) => ReFusionMotionDirectorIssue(
+                severity: ReFusionMotionDirectorIssueSeverity.error,
+                message:
+                    'Generated sceneProgram failed validation before Director alignment: ${issue.message}',
+                path: issue.path == null
+                    ? 'sceneProgram'
+                    : 'sceneProgram.${issue.path}',
+              ),
+            )
+            .toList(growable: false),
       );
     }
-    final alignmentResult = _alignmentLinter.lint(
+    return _alignmentLinter.lint(
       plan: plan,
       program: importResult.program!,
     );
-    directorIssues.addAll(alignmentResult.issues);
-    final hasAlignmentErrors = alignmentResult.issues.any(
-      (issue) => issue.severity == ReFusionMotionDirectorIssueSeverity.error,
-    );
-    if (hasAlignmentErrors) {
-      throw KieSceneProgramAgentException(
-        'Generated sceneProgram does not match directorPlan: ${_directorIssueSummary(alignmentResult.issues)}',
-      );
-    }
   }
 
   String _encodeSceneProgram(ReFusionSceneProgram program) {

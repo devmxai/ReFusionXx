@@ -127,8 +127,20 @@ class ReFusionSceneProgramImportService {
     required String? fileName,
     required List<ReFusionSceneProgramIssue> issues,
   }) {
+    final trimmed = source.trim();
+    if (trimmed.startsWith('{') && !trimmed.endsWith('}')) {
+      issues.add(
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message:
+              'Invalid JSON: the pasted scene appears incomplete. Copy or upload the full JSON object from the first `{` through the final `}`.',
+          path: fileName,
+        ),
+      );
+      return null;
+    }
     try {
-      final decoded = jsonDecode(source);
+      final decoded = jsonDecode(trimmed);
       if (decoded is Map<String, dynamic>) {
         return decoded;
       }

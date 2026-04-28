@@ -11,6 +11,10 @@ Return JSON only.
 
 Do not return JSX, JavaScript, TypeScript, HTML, CSS, Markdown wrappers, comments, imports, executable code, shader source, or URLs that must execute code.
 
+Return the complete object from the first `{` through the final `}`. A partial
+object or a copied middle fragment will be rejected as incomplete JSON and
+cannot be repaired safely by the app.
+
 Preferred live-agent output is a Director-first wrapper:
 
 ```json
@@ -39,6 +43,12 @@ Preferred live-agent output is a Director-first wrapper:
 Legacy pasted JSON may use a direct Scene Program root, but live generation
 should return the wrapper above. The app imports and lints `directorPlan` before
 accepting the executable `sceneProgram`.
+
+`directorPlan` is the choreography source of truth. If a live model returns a
+valid `directorPlan` but the paired `sceneProgram` does not implement it,
+ReFusion may compile the Director Plan locally and ignore the mismatched
+generated Scene Program. To preserve your exact visual intent, make the
+`sceneProgram` represent every Director component and primitive directly.
 
 The executable scene itself must remain declarative:
 
@@ -94,6 +104,14 @@ Typewriter text must be one complete text element with one
 `typewriterProgress` channel. Its Director primitive should declare
 `property: "typewriterProgress"`, `fromValue: 0.0`, and `toValue: 1.0`.
 Never create one layer or element per character.
+
+Every Director component must be represented by a real Scene Program layer or
+element. Use stable IDs when possible, for example `background`, `promptShell`,
+`promptText`, `sendButton`, and `coverCircle`. Background/canvas components may
+also be represented with clear aliases such as `bg-layer`, `bg-solid`,
+`canvas-fill`, or `backdrop`, but any primitive such as `fade` still requires a
+real animated channel such as `opacity`; a static `properties.opacity` value is
+not enough to satisfy a fade primitive.
 
 ## Coordinate System
 

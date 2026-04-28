@@ -39,6 +39,7 @@ void main() {
 
     expect(preview.endpointUrl, endsWith('/api/v1/responses'));
     expect(preview.body['model'], 'gpt-5.4-codex');
+    expect(preview.body['max_output_tokens'], 8192);
     expect(preview.prettyBody, contains('refusion.motion-director/v1'));
     expect(preview.prettyBody, contains('refusion.scene-program/v1'));
     expect(preview.prettyBody, contains('directorPlan'));
@@ -223,7 +224,7 @@ void main() {
     );
   });
 
-  test('rejects wrapped Scene Program that does not match directorPlan', () {
+  test('falls back to compiled directorPlan when Scene Program mismatches', () {
     final rawResponse = jsonEncode(
       <String, Object?>{
         'output_text': jsonEncode(
@@ -238,18 +239,26 @@ void main() {
       },
     );
 
+    final extracted = service.extractSceneProgramPayload(
+      rawResponse: rawResponse,
+      transport: ReFusionSceneAgentTransport.responses,
+    );
+    final decoded =
+        jsonDecode(extracted.sceneProgramJson) as Map<String, dynamic>;
+
+    expect(decoded['schemaVersion'], 'refusion.scene-program/v1');
+    expect(decoded['name'], 'Prompt Director');
     expect(
-      () => service.extractSceneProgramPayload(
-        rawResponse: rawResponse,
-        transport: ReFusionSceneAgentTransport.responses,
+      extracted.directorIssues.where(
+        (issue) => issue.message.contains('compiled the directorPlan locally'),
       ),
-      throwsA(
-        isA<KieSceneProgramAgentException>().having(
-          (error) => error.message,
-          'message',
-          contains('does not match directorPlan'),
-        ),
+      isNotEmpty,
+    );
+    expect(
+      extracted.directorIssues.where(
+        (issue) => issue.severity.name == 'error',
       ),
+      isEmpty,
     );
   });
 

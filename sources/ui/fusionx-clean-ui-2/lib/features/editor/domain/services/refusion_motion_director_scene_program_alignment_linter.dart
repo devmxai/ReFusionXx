@@ -21,7 +21,7 @@ class ReFusionMotionDirectorSceneProgramAlignmentLinter {
     required ReFusionSceneProgram program,
   }) {
     final issues = <ReFusionMotionDirectorIssue>[];
-    final index = _SceneProgramTargetIndex(program);
+    final index = _SceneProgramTargetIndex(program, plan: plan);
     for (var indexInPlan = 0;
         indexInPlan < plan.components.length;
         indexInPlan += 1) {
@@ -80,13 +80,33 @@ class ReFusionMotionDirectorSceneProgramAlignmentLinter {
   }
 
   Set<String> _targetKeysFor(ReFusionMotionDirectorComponent component) {
-    return <String>{
+    final keys = <String>{
       component.id,
       '${component.id}-layer',
       '${component.id}_layer',
       if (component.layerId != null) component.layerId!,
       if (component.elementId != null) component.elementId!,
     }.map(_normalizeToken).where((value) => value.isNotEmpty).toSet();
+    if (_isBackgroundComponent(component)) {
+      keys.addAll(_SceneProgramTargetIndex.backgroundAliases);
+    }
+    return keys;
+  }
+
+  bool _isBackgroundComponent(ReFusionMotionDirectorComponent component) {
+    final role = _normalizeToken(component.role);
+    final id = _normalizeToken(component.id);
+    final label = _normalizeToken(component.label);
+    return role.contains('background') ||
+        role.contains('canvas') ||
+        role.contains('backdrop') ||
+        id == 'bg' ||
+        id.contains('background') ||
+        id.contains('canvas') ||
+        id.contains('backdrop') ||
+        label.contains('background') ||
+        label.contains('canvas') ||
+        label.contains('backdrop');
   }
 
   String? _propertyForPrimitive(
@@ -125,44 +145,80 @@ class ReFusionMotionDirectorSceneProgramAlignmentLinter {
 }
 
 class _SceneProgramTargetIndex {
-  _SceneProgramTargetIndex(ReFusionSceneProgram program) {
+  _SceneProgramTargetIndex(
+    ReFusionSceneProgram program, {
+    required ReFusionMotionDirectorPlan plan,
+  }) {
     for (final layer in program.layers) {
       final layerKey = _normalizeToken(layer.id);
-      _targets.add(layerKey);
-      _channelsByTarget.putIfAbsent(layerKey, () => <String>{}).addAll(
-          layer.channels.map((channel) => _propertyKey(channel.property)));
+      final layerChannelProperties =
+          layer.channels.map((channel) => _propertyKey(channel.property));
+      _addTargetWithChannels(layerKey, layerChannelProperties);
+      if (layer.name != null) {
+        _addTargetWithChannels(
+          _normalizeToken(layer.name!),
+          layerChannelProperties,
+        );
+      }
+      if (_isLikelyBackgroundLayer(layer)) {
+        _addBackgroundAliases(layerChannelProperties);
+      }
       for (final channel in layer.channels) {
         final targetKey = _normalizeToken(channel.target);
-        _targets.add(targetKey);
-        _channelsByTarget
-            .putIfAbsent(targetKey, () => <String>{})
-            .add(_propertyKey(channel.property));
-      }
-      if (layer.name != null) {
-        _targets.add(_normalizeToken(layer.name!));
+        _addTargetWithChannels(
+          targetKey,
+          <String>{_propertyKey(channel.property)},
+        );
       }
       for (final element in layer.elements) {
         final elementKey = _normalizeToken(element.id);
-        _targets.add(elementKey);
-        _channelsByTarget.putIfAbsent(elementKey, () => <String>{}).addAll(
-              element.channels.map((channel) => _propertyKey(channel.property)),
-            );
+        final elementChannelProperties =
+            element.channels.map((channel) => _propertyKey(channel.property));
+        _addTargetWithChannels(elementKey, elementChannelProperties);
+        if (element.name != null) {
+          _addTargetWithChannels(
+            _normalizeToken(element.name!),
+            elementChannelProperties,
+          );
+        }
+        if (_isLikelyBackgroundElement(
+          element,
+          canvasWidth: plan.canvasWidth,
+          canvasHeight: plan.canvasHeight,
+        )) {
+          _addBackgroundAliases(elementChannelProperties);
+        }
         for (final channel in element.channels) {
           final targetKey = _normalizeToken(channel.target);
           if (targetKey.isEmpty) {
             continue;
           }
-          _targets.add(targetKey);
-          _channelsByTarget
-              .putIfAbsent(targetKey, () => <String>{})
-              .add(_propertyKey(channel.property));
-        }
-        if (element.name != null) {
-          _targets.add(_normalizeToken(element.name!));
+          _addTargetWithChannels(
+            targetKey,
+            <String>{_propertyKey(channel.property)},
+          );
         }
       }
     }
   }
+
+  static const Set<String> backgroundAliases = <String>{
+    'background',
+    'backgroundlayer',
+    'backgroundsolid',
+    'backgroundfill',
+    'bg',
+    'bglayer',
+    'bgsolid',
+    'bgfill',
+    'canvas',
+    'canvaslayer',
+    'canvassolid',
+    'canvasfill',
+    'backdrop',
+    'backdroplayer',
+    'backdropsolid',
+  };
 
   final Set<String> _targets = <String>{};
   final Map<String, Set<String>> _channelsByTarget = <String, Set<String>>{};
@@ -209,6 +265,88 @@ class _SceneProgramTargetIndex {
       return const <String>{'scale', 'scalex', 'scaley'};
     }
     return <String>{key};
+  }
+
+  void _addTargetWithChannels(
+    String targetKey,
+    Iterable<String> properties,
+  ) {
+    if (targetKey.isEmpty) {
+      return;
+    }
+    _targets.add(targetKey);
+    final normalizedProperties =
+        properties.where((property) => property.isNotEmpty);
+    _channelsByTarget
+        .putIfAbsent(targetKey, () => <String>{})
+        .addAll(normalizedProperties);
+  }
+
+  void _addBackgroundAliases(Iterable<String> properties) {
+    for (final alias in backgroundAliases) {
+      _addTargetWithChannels(alias, properties);
+    }
+  }
+
+  bool _isLikelyBackgroundLayer(ReFusionSceneProgramLayer layer) {
+    return _containsBackgroundToken(layer.id) ||
+        (layer.name != null && _containsBackgroundToken(layer.name!));
+  }
+
+  bool _isLikelyBackgroundElement(
+    ReFusionSceneProgramElement element, {
+    required int canvasWidth,
+    required int canvasHeight,
+  }) {
+    return _containsBackgroundToken(element.id) ||
+        (element.name != null && _containsBackgroundToken(element.name!)) ||
+        _isFullCanvasSolid(
+          element,
+          canvasWidth: canvasWidth,
+          canvasHeight: canvasHeight,
+        );
+  }
+
+  bool _containsBackgroundToken(String value) {
+    final key = _normalizeToken(value);
+    return key == 'bg' ||
+        key.startsWith('bg') ||
+        key.endsWith('bg') ||
+        key.contains('background') ||
+        key.contains('canvas') ||
+        key.contains('backdrop');
+  }
+
+  bool _isFullCanvasSolid(
+    ReFusionSceneProgramElement element, {
+    required int canvasWidth,
+    required int canvasHeight,
+  }) {
+    final kind = _normalizeToken(element.kind);
+    final shapeKind =
+        _normalizeToken('${element.properties['shapeKind'] ?? ''}');
+    if (kind != 'solid' &&
+        shapeKind != 'solid' &&
+        shapeKind != 'rectangle' &&
+        shapeKind != 'rect') {
+      return false;
+    }
+    final width = _readDouble(element.properties['width']);
+    final height = _readDouble(element.properties['height']);
+    if (width == null || height == null) {
+      return false;
+    }
+    return width >= canvasWidth * 0.9 && height >= canvasHeight * 0.9;
+  }
+
+  double? _readDouble(Object? value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+    if (value is String) {
+      return double.tryParse(value);
+    }
+    return null;
   }
 
   String _propertyKey(String value) => _normalizeToken(value);

@@ -189,6 +189,7 @@ class ReFusionSceneAgentProviderCatalog {
         'reasoning': <String, Object?>{
           'effort': profile.reasoningEffort,
         },
+      'max_output_tokens': profile.maxTokens,
       'text': const <String, Object?>{
         'format': <String, Object?>{
           'type': 'json_object',
