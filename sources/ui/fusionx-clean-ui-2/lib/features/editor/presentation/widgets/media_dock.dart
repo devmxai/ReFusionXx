@@ -10,6 +10,7 @@ class MediaDock extends StatelessWidget {
     required this.onAddTap,
     required this.onToolTap,
     this.onSceneTap,
+    this.onPresentTap,
     this.onRemotionTap,
     this.enabledTabs,
     this.addEnabled = true,
@@ -20,6 +21,7 @@ class MediaDock extends StatelessWidget {
   final VoidCallback onAddTap;
   final ValueChanged<EditorMediaTab> onToolTap;
   final VoidCallback? onSceneTap;
+  final VoidCallback? onPresentTap;
   final VoidCallback? onRemotionTap;
   final Set<EditorMediaTab>? enabledTabs;
   final bool addEnabled;
@@ -64,6 +66,14 @@ class MediaDock extends StatelessWidget {
               label: 'Scene',
               isActive: false,
               onTap: onSceneTap,
+            ),
+          ),
+          Expanded(
+            child: _DockButton(
+              icon: Icons.slideshow_rounded,
+              label: 'Present',
+              isActive: false,
+              onTap: onPresentTap,
             ),
           ),
           Expanded(

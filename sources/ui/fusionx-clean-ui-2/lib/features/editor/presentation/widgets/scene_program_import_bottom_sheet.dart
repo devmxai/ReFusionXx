@@ -75,6 +75,276 @@ class SceneProgramImportSheetResult {
   final ReFusionSceneProgramAuthoringResult authoringResult;
 }
 
+class SceneProgramPresentBottomSheet extends StatelessWidget {
+  const SceneProgramPresentBottomSheet({
+    super.key,
+    required this.projectId,
+    required this.sceneId,
+    required this.canvasSize,
+  });
+
+  final String projectId;
+  final String sceneId;
+  final MotionSize2D canvasSize;
+
+  static const ReFusionSceneProgramAuthoringService _authoringService =
+      ReFusionSceneProgramAuthoringService();
+
+  static const List<_SceneProgramPresentPreset> _presets =
+      <_SceneProgramPresentPreset>[
+    _SceneProgramPresentPreset(
+      title: 'Codex Intro',
+      subtitle:
+          'Mac-style icon, prompt bar, typewriter text, send action, and reveal.',
+      source: _SceneProgramImportBottomSheetState._codexIntroSceneProgram,
+      icon: Icons.terminal_rounded,
+      status: 'UI Promo Pack',
+    ),
+    _SceneProgramPresentPreset(
+      title: 'Line Reveal',
+      subtitle: 'Typography line reveal baseline for scene-clip validation.',
+      source: _SceneProgramImportBottomSheetState._lineRevealSceneProgram,
+      icon: Icons.horizontal_rule_rounded,
+      status: 'Typography',
+    ),
+    _SceneProgramPresentPreset(
+      title: 'Shape Text Wipe',
+      subtitle: 'Shape-led text wipe choreography with editable channels.',
+      source: _SceneProgramImportBottomSheetState._shapeTextWipeSceneProgram,
+      icon: Icons.auto_awesome_motion_rounded,
+      status: 'Shape/Text',
+    ),
+    _SceneProgramPresentPreset(
+      title: 'Prompt Bar',
+      subtitle: 'Core Pack prompt input bar with icons and typewriter reveal.',
+      source: _SceneProgramImportBottomSheetState._promptInputSceneProgram,
+      icon: Icons.chat_bubble_outline_rounded,
+      status: 'Core Pack',
+    ),
+    _SceneProgramPresentPreset(
+      title: 'Basic Text',
+      subtitle: 'Minimal generated text scene for graph/layer sanity checks.',
+      source: _SceneProgramImportBottomSheetState._basicSceneProgram,
+      icon: Icons.text_fields_rounded,
+      status: 'Baseline',
+    ),
+  ];
+
+  void _applyPreset(BuildContext context, _SceneProgramPresentPreset preset) {
+    final result = _authoringService.importSceneProgram(
+      ReFusionSceneProgramAuthoringRequest(
+        source: preset.source,
+        fileName: '${preset.title}.json',
+        projectId: projectId,
+        sceneId: sceneId,
+        canvasSize: canvasSize,
+      ),
+    );
+    if (!result.isValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            result.issues.isEmpty
+                ? 'Present preset could not be imported.'
+                : result.issues.first.message,
+          ),
+        ),
+      );
+      return;
+    }
+    Navigator.of(context).pop(
+      SceneProgramImportSheetResult.fromAuthoringResult(result),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final safeBottom = MediaQuery.paddingOf(context).bottom;
+    return SafeArea(
+      top: false,
+      child: Container(
+        height: MediaQuery.sizeOf(context).height * 0.72,
+        padding: EdgeInsets.fromLTRB(18, 12, 18, 16 + safeBottom),
+        decoration: const BoxDecoration(
+          color: FxPalette.surface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 54,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.28),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
+            const SizedBox(height: 22),
+            const Text(
+              'Present',
+              style: TextStyle(
+                color: FxPalette.textPrimary,
+                fontSize: 30,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Curated tutorial-derived scene demos. Each item applies as one editable Scene Clip; open it to inspect layers, elements, and keyframes.',
+              style: TextStyle(
+                color: FxPalette.textMuted.withOpacity(0.88),
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Expanded(
+              child: ListView.separated(
+                itemCount: _presets.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (context, index) {
+                  final preset = _presets[index];
+                  return _SceneProgramPresentCard(
+                    preset: preset,
+                    onTap: () => _applyPreset(context, preset),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SceneProgramPresentPreset {
+  const _SceneProgramPresentPreset({
+    required this.title,
+    required this.subtitle,
+    required this.source,
+    required this.icon,
+    required this.status,
+  });
+
+  final String title;
+  final String subtitle;
+  final String source;
+  final IconData icon;
+  final String status;
+}
+
+class _SceneProgramPresentCard extends StatelessWidget {
+  const _SceneProgramPresentCard({
+    required this.preset,
+    required this.onTap,
+  });
+
+  final _SceneProgramPresentPreset preset;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withOpacity(0.045),
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.08),
+                  ),
+                ),
+                child: Icon(
+                  preset.icon,
+                  color: FxPalette.textPrimary,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            preset.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: FxPalette.textPrimary,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            preset.status,
+                            style: TextStyle(
+                              color: FxPalette.textMuted.withOpacity(0.92),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      preset.subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: FxPalette.textMuted.withOpacity(0.82),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        height: 1.25,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              const Icon(
+                Icons.add_circle_outline_rounded,
+                color: FxPalette.textMuted,
+                size: 22,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 enum _SceneProgramSheetTab {
   script,
   generate,

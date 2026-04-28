@@ -11363,6 +11363,23 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _applySceneProgramImportResult(result);
   }
 
+  Future<void> _openSceneProgramPresentSheet() async {
+    final result = await showModalBottomSheet<SceneProgramImportSheetResult>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => SceneProgramPresentBottomSheet(
+        projectId: _motionProjectId,
+        sceneId: _motionSceneId,
+        canvasSize: _motionProjectFormat.canvasSize,
+      ),
+    );
+    if (!mounted || result == null) {
+      return;
+    }
+    _applySceneProgramImportResult(result);
+  }
+
   void _applySceneProgramImportResult(SceneProgramImportSheetResult result) {
     final transaction = _sceneProgramApplyTransaction.apply(
       SceneProgramApplyTransactionRequest(
@@ -17754,6 +17771,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                             activeTab: effectiveDockActiveTab,
                                             onSceneTap:
                                                 _openSceneProgramImportSheet,
+                                            onPresentTap:
+                                                _openSceneProgramPresentSheet,
                                             onRemotionTap:
                                                 _openRemotionPromptSheet,
                                             onAddTap: () {

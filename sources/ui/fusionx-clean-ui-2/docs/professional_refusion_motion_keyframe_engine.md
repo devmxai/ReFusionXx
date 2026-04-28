@@ -27,6 +27,10 @@ Professional prompt-to-scene choreography must also follow:
 
 `docs/professional_motion_director_engine.md`
 
+Tutorial-derived professional capability growth must also follow:
+
+`docs/super_professional_engine_like_after_effects.md`
+
 This is a strict project rule. Every completed build step must be committed as a focused checkpoint and pushed to GitHub before starting the next build step, unless the user explicitly says not to push.
 
 The required order is:
@@ -113,6 +117,7 @@ This rule exists so timeline, Live Scrub, keyframe, transition, and motion-engin
 - Motion Director Phase D4 alignment gate foundation: live Scene Generate responses that include both `directorPlan` and `sceneProgram` now pass an alignment check. Director components must appear as real scene layers/elements, and Director primitives must map to matching animation channels. This blocks valid-looking JSON that ignores its own choreography plan.
 - Motion Director Phase D4 hardening: the alignment gate now understands background/canvas aliases such as `bg-layer`, `bg-solid`, `canvas-fill`, and full-canvas solid fills, while still requiring real animated channels for primitives such as `opacity`. If a generated `sceneProgram` fails to implement a valid `directorPlan`, Scene Generate falls back to compiling the Director Plan locally instead of failing the entire generation. Incomplete pasted JSON now reports a specific copy/upload recovery message.
 - Motion Director Phase D4 handoff hardening: Director beat overlap on the same component is now accepted only for inspectable handoff choreography where overlapping primitives animate disjoint property groups, such as `scale` ending while `width` begins. Same-component overlap on the same property remains an error. This fixes valid prompt-shell scenes that pop a circle and begin expanding it into an input bar without weakening the anti-random-motion gate.
+- Super Professional Engine like After Effects plan: `docs/super_professional_engine_like_after_effects.md` now defines the official tutorial-to-capability workflow, capability taxonomy, registry contract, choreography rules, and `Present` demo-library purpose. Tutorials must produce reusable engine capabilities, not one-off cloned presets.
 - Phase 4/5B+: open. Scope projection wiring, UI adapters, motion graph import, transition unification, scriptable scene programs, and export parity must be built on top of the clock/keyframe foundations.
 - Live Scrub status: protected. Stage5 Live Scrub is not part of a rewrite. It is a production path that must remain fast, precise, and native-optimized.
 
