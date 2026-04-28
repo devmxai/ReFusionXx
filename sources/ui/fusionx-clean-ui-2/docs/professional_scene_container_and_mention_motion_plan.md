@@ -35,6 +35,11 @@ Depends on:
   text/shape fragments. The nested source scene, channels, and text animation
   bindings are preserved for future Scene Scope editing. This checkpoint does
   not modify preview/export semantics, Scene Scope opening, or Live Scrub.
+- Phase S4 foundation: `SceneScopeSessionResolver` and `ScopeStack` define how
+  a root Scene Clip opens into a nested Scene Scope with root/source/local time
+  mapping and projected internal layers/elements/channels. This is domain-only
+  navigation infrastructure; it is not wired to production UI, preview, export,
+  or Live Scrub yet.
 
 ## 1. Final Product Goal
 
