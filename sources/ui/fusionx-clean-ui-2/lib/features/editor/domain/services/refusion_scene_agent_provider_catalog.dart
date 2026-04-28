@@ -254,13 +254,14 @@ class ReFusionSceneAgentProviderCatalog {
     'beatRules': <String>[
       'Create ordered beats before writing layers or keyframes.',
       'Each beat must have a clear role: enter, reveal/type, hold, action, transform, exit.',
-      'Avoid unrelated simultaneous motion. If several things move together, put them in one intentional beat.',
+      'Avoid unrelated simultaneous motion. Parallel beats are allowed only when their componentRefs are explicit and disjoint.',
+      'If two motions affect the same component at the same time, put them in one intentional beat.',
       'Use readable holds for text or UI states before the next action.',
     ],
     'primitiveRules': <String>[
       'One primitive should explain one motion intention.',
       'Every primitive must stay inside its owning beat.',
-      'Typewriter must move forward from 0 to 1 unless the prompt asks for deletion.',
+      'Typewriter/typing primitives must include property typewriterProgress, fromValue 0.0, and toValue 1.0 unless the prompt asks for deletion.',
       'Do not create one text element per character.',
     ],
   };
@@ -384,6 +385,8 @@ The final Scene Program must reflect that plan with real layers, elements, chann
 
 Use ReFusion's center-origin canvas. Keep all keyframe timeMs values inside the owning timeline range.
 Do not create one text element per character. Use a single text element with typewriterProgress or reveal from 0 to 1.
+For every typewriter/typing primitive, include property "typewriterProgress", fromValue 0.0, and toValue 1.0.
+Parallel beats are valid only when componentRefs are explicit and disjoint; same-component overlap must be one intentional beat.
 Do not use JSX, JavaScript, CSS, imports, URLs, shader source, functions, eval, or runtime code.
 Prefer professional choreography: enter, reveal/type, hold, action, transform/exit.
 ''';

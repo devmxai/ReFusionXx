@@ -130,6 +130,7 @@ class ReFusionMotionDirectorLinter {
         plan.components.map((component) => component.id).toSet();
     final ids = <String>{};
     var previousEndMs = 0;
+    final previousBeats = <ReFusionMotionDirectorBeat>[];
     for (var index = 0; index < plan.beats.length; index += 1) {
       final beat = plan.beats[index];
       final path = 'beats[$index]';
@@ -169,12 +170,22 @@ class ReFusionMotionDirectorLinter {
           ),
         );
       }
-      if (index > 0 && beat.startMs < previousEndMs) {
+      for (final previousBeat in previousBeats) {
+        if (!_beatsOverlap(previousBeat, beat)) {
+          continue;
+        }
+        final sharedRefs = _sharedComponentRefs(previousBeat, beat);
+        final hasExplicitRefs = previousBeat.componentRefs.isNotEmpty &&
+            beat.componentRefs.isNotEmpty;
+        final isAmbiguous = !hasExplicitRefs || sharedRefs.isNotEmpty;
         issues.add(
           ReFusionMotionDirectorIssue(
-            severity: ReFusionMotionDirectorIssueSeverity.error,
-            message:
-                'Beat `${beat.id}` overlaps the previous beat. Use ordered beats instead of ambiguous simultaneous scene direction.',
+            severity: isAmbiguous
+                ? ReFusionMotionDirectorIssueSeverity.error
+                : ReFusionMotionDirectorIssueSeverity.warning,
+            message: isAmbiguous
+                ? 'Beat `${beat.id}` overlaps beat `${previousBeat.id}` on the same or unspecified components. Put shared-component motion in one intentional beat.'
+                : 'Beat `${beat.id}` overlaps beat `${previousBeat.id}` on distinct components. Accepted as intentional parallel choreography.',
             path: '$path.startMs',
           ),
         );
@@ -202,6 +213,7 @@ class ReFusionMotionDirectorLinter {
         }
       }
       previousEndMs = beat.endMs > previousEndMs ? beat.endMs : previousEndMs;
+      previousBeats.add(beat);
     }
   }
 
@@ -322,15 +334,16 @@ class ReFusionMotionDirectorLinter {
       if (from == null || to == null) {
         issues.add(
           ReFusionMotionDirectorIssue(
-            severity: ReFusionMotionDirectorIssueSeverity.error,
+            severity: ReFusionMotionDirectorIssueSeverity.warning,
             message:
-                'Typewriter primitive `${primitive.id}` must declare numeric fromValue and toValue.',
+                'Typewriter primitive `${primitive.id}` omitted numeric fromValue/toValue. ReFusion will default to 0.0 -> 1.0.',
             path: path,
           ),
         );
-        return;
       }
-      if (to < from) {
+      final effectiveFrom = from ?? 0.0;
+      final effectiveTo = to ?? 1.0;
+      if (effectiveTo < effectiveFrom) {
         issues.add(
           ReFusionMotionDirectorIssue(
             severity: ReFusionMotionDirectorIssueSeverity.error,
@@ -341,6 +354,20 @@ class ReFusionMotionDirectorLinter {
         );
       }
     }
+  }
+
+  bool _beatsOverlap(
+    ReFusionMotionDirectorBeat left,
+    ReFusionMotionDirectorBeat right,
+  ) {
+    return left.startMs < right.endMs && right.startMs < left.endMs;
+  }
+
+  Set<String> _sharedComponentRefs(
+    ReFusionMotionDirectorBeat left,
+    ReFusionMotionDirectorBeat right,
+  ) {
+    return left.componentRefs.toSet().intersection(right.componentRefs.toSet());
   }
 
   double? _numberValue(Object? value) {

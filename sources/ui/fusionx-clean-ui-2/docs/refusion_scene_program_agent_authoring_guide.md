@@ -76,9 +76,10 @@ Professional timing example:
 2300-4200ms Circle expands and covers the screen
 ```
 
-Every primitive must stay inside its owning beat. Beats must not overlap unless
-the scene specifically needs simultaneous action, and even then the simultaneous
-motion should be expressed inside one beat with several primitives.
+Every primitive must stay inside its owning beat. Beats may overlap only when
+their `componentRefs` are explicit and disjoint, such as a background settling
+while a prompt shell enters. If two motions affect the same component at the
+same time, express them inside one intentional beat with several primitives.
 
 The returned `directorPlan` must include:
 
@@ -90,7 +91,9 @@ The returned `directorPlan` must include:
   `easing`.
 
 Typewriter text must be one complete text element with one
-`typewriterProgress` channel. Never create one layer or element per character.
+`typewriterProgress` channel. Its Director primitive should declare
+`property: "typewriterProgress"`, `fromValue: 0.0`, and `toValue: 1.0`.
+Never create one layer or element per character.
 
 ## Coordinate System
 

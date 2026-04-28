@@ -162,12 +162,20 @@ class ReFusionMotionDirectorSceneProgramCompiler {
           keyframes: <ReFusionSceneProgramKeyframe>[
             ReFusionSceneProgramKeyframe(
               timeMs: primitive.startMs,
-              value: _coerceChannelValue(primitive.fromValue, property),
+              value: _coercePrimitiveChannelValue(
+                primitive,
+                property,
+                isStart: true,
+              ),
               easing: primitive.easing,
             ),
             ReFusionSceneProgramKeyframe(
               timeMs: primitive.endMs,
-              value: _coerceChannelValue(primitive.toValue, property),
+              value: _coercePrimitiveChannelValue(
+                primitive,
+                property,
+                isStart: false,
+              ),
               easing: primitive.easing,
             ),
           ],
@@ -207,11 +215,25 @@ class ReFusionMotionDirectorSceneProgramCompiler {
     return null;
   }
 
-  Object _coerceChannelValue(Object? value, String property) {
+  Object _coercePrimitiveChannelValue(
+    ReFusionMotionDirectorPrimitive primitive,
+    String property, {
+    required bool isStart,
+  }) {
+    final value = isStart ? primitive.fromValue : primitive.toValue;
     if (value != null) {
       return value;
     }
     final normalizedProperty = _normalizeToken(property);
+    final kind = _normalizeToken(primitive.kind);
+    if (normalizedProperty == 'typewriterprogress' ||
+        normalizedProperty == 'typingprogress' ||
+        normalizedProperty == 'reveal' ||
+        kind == 'typewriter' ||
+        kind == 'typing' ||
+        kind == 'letterreveal') {
+      return isStart ? 0.0 : 1.0;
+    }
     if (normalizedProperty == 'position') {
       return const <String, double>{'x': 0, 'y': 0};
     }

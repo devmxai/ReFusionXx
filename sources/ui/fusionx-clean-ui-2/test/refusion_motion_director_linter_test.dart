@@ -130,7 +130,41 @@ void main() {
     expect(result.issues, isEmpty);
   });
 
-  test('rejects overlapping beats because the choreography is ambiguous', () {
+  test('accepts overlapping beats when component refs are distinct', () {
+    final result = linter.lint(
+      promptBarPlan(
+        beats: <ReFusionMotionDirectorBeat>[
+          ReFusionMotionDirectorBeat(
+            id: 'background-enter',
+            label: 'Background enter',
+            startMs: 0,
+            endMs: 1000,
+            intent: 'Bring in the background.',
+            componentRefs: const <String>['cover-circle'],
+          ),
+          ReFusionMotionDirectorBeat(
+            id: 'prompt-enter',
+            label: 'Prompt enter',
+            startMs: 800,
+            endMs: 1600,
+            intent: 'Bring in the prompt shell while the background settles.',
+            componentRefs: const <String>['prompt-shell'],
+          ),
+        ],
+        primitives: const <ReFusionMotionDirectorPrimitive>[],
+      ),
+    );
+
+    expect(result.isValid, isTrue);
+    expect(
+      result.issues.where(
+        (issue) => issue.message.contains('Accepted as intentional parallel'),
+      ),
+      isNotEmpty,
+    );
+  });
+
+  test('rejects overlapping beats when shared components are ambiguous', () {
     final result = linter.lint(
       promptBarPlan(
         beats: <ReFusionMotionDirectorBeat>[
@@ -140,6 +174,7 @@ void main() {
             startMs: 0,
             endMs: 1000,
             intent: 'Enter.',
+            componentRefs: const <String>['prompt-shell'],
           ),
           ReFusionMotionDirectorBeat(
             id: 'typing',
@@ -147,6 +182,7 @@ void main() {
             startMs: 800,
             endMs: 1600,
             intent: 'Type.',
+            componentRefs: const <String>['prompt-shell'],
           ),
         ],
         primitives: const <ReFusionMotionDirectorPrimitive>[],
@@ -156,7 +192,34 @@ void main() {
     expect(result.isValid, isFalse);
     expect(
       result.issues.where(
-        (issue) => issue.message.contains('overlaps the previous beat'),
+        (issue) => issue.message.contains('overlaps beat `enter`'),
+      ),
+      isNotEmpty,
+    );
+  });
+
+  test('warns and accepts typewriter primitives with omitted range values', () {
+    final result = linter.lint(
+      promptBarPlan(
+        primitives: const <ReFusionMotionDirectorPrimitive>[
+          ReFusionMotionDirectorPrimitive(
+            id: 'text-type-on',
+            beatId: 'typing',
+            targetComponentId: 'prompt-text',
+            kind: 'typewriter',
+            property: 'typewriterProgress',
+            startMs: 520,
+            endMs: 1900,
+            easing: 'linear',
+          ),
+        ],
+      ),
+    );
+
+    expect(result.isValid, isTrue);
+    expect(
+      result.issues.where(
+        (issue) => issue.message.contains('default to 0.0 -> 1.0'),
       ),
       isNotEmpty,
     );

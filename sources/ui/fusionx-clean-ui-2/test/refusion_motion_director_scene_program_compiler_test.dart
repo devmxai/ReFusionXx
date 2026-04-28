@@ -7,7 +7,9 @@ void main() {
   const compiler = ReFusionMotionDirectorSceneProgramCompiler();
   const lowerer = ReFusionSceneProgramLowerer();
 
-  ReFusionMotionDirectorPlan promptBarPlan() {
+  ReFusionMotionDirectorPlan promptBarPlan({
+    List<ReFusionMotionDirectorPrimitive>? primitives,
+  }) {
     return ReFusionMotionDirectorPlan(
       schemaVersion: ReFusionMotionDirectorPlan.currentSchemaVersion,
       name: 'Director Prompt Bar',
@@ -82,56 +84,57 @@ void main() {
           componentRefs: const <String>['send-button', 'cover-circle'],
         ),
       ],
-      primitives: const <ReFusionMotionDirectorPrimitive>[
-        ReFusionMotionDirectorPrimitive(
-          id: 'shell-scale',
-          beatId: 'enter',
-          targetComponentId: 'prompt-shell',
-          kind: 'scale',
-          property: 'scale',
-          startMs: 0,
-          endMs: 520,
-          fromValue: 0.92,
-          toValue: 1.0,
-          easing: 'easeOut',
-        ),
-        ReFusionMotionDirectorPrimitive(
-          id: 'type-prompt',
-          beatId: 'typing',
-          targetComponentId: 'prompt-text',
-          kind: 'typewriter',
-          property: 'typewriterProgress',
-          startMs: 520,
-          endMs: 1900,
-          fromValue: 0.0,
-          toValue: 1.0,
-          easing: 'linear',
-        ),
-        ReFusionMotionDirectorPrimitive(
-          id: 'send-press',
-          beatId: 'action',
-          targetComponentId: 'send-button',
-          kind: 'press',
-          property: 'scale',
-          startMs: 1960,
-          endMs: 2140,
-          fromValue: 1.0,
-          toValue: 0.92,
-          easing: 'easeInOut',
-        ),
-        ReFusionMotionDirectorPrimitive(
-          id: 'cover',
-          beatId: 'action',
-          targetComponentId: 'cover-circle',
-          kind: 'cover',
-          property: 'scale',
-          startMs: 2300,
-          endMs: 4200,
-          fromValue: 0.0,
-          toValue: 32.0,
-          easing: 'easeInOut',
-        ),
-      ],
+      primitives: primitives ??
+          const <ReFusionMotionDirectorPrimitive>[
+            ReFusionMotionDirectorPrimitive(
+              id: 'shell-scale',
+              beatId: 'enter',
+              targetComponentId: 'prompt-shell',
+              kind: 'scale',
+              property: 'scale',
+              startMs: 0,
+              endMs: 520,
+              fromValue: 0.92,
+              toValue: 1.0,
+              easing: 'easeOut',
+            ),
+            ReFusionMotionDirectorPrimitive(
+              id: 'type-prompt',
+              beatId: 'typing',
+              targetComponentId: 'prompt-text',
+              kind: 'typewriter',
+              property: 'typewriterProgress',
+              startMs: 520,
+              endMs: 1900,
+              fromValue: 0.0,
+              toValue: 1.0,
+              easing: 'linear',
+            ),
+            ReFusionMotionDirectorPrimitive(
+              id: 'send-press',
+              beatId: 'action',
+              targetComponentId: 'send-button',
+              kind: 'press',
+              property: 'scale',
+              startMs: 1960,
+              endMs: 2140,
+              fromValue: 1.0,
+              toValue: 0.92,
+              easing: 'easeInOut',
+            ),
+            ReFusionMotionDirectorPrimitive(
+              id: 'cover',
+              beatId: 'action',
+              targetComponentId: 'cover-circle',
+              kind: 'cover',
+              property: 'scale',
+              startMs: 2300,
+              endMs: 4200,
+              fromValue: 0.0,
+              toValue: 32.0,
+              easing: 'easeInOut',
+            ),
+          ],
     );
   }
 
@@ -188,6 +191,38 @@ void main() {
     expect(
       loweringResult.textAnimationBindings.single.elementTarget.targetId,
       'prompt-text',
+    );
+  });
+
+  test('defaults omitted typewriter primitive values to type-on range', () {
+    final result = compiler.compile(
+      promptBarPlan(
+        primitives: const <ReFusionMotionDirectorPrimitive>[
+          ReFusionMotionDirectorPrimitive(
+            id: 'type-prompt',
+            beatId: 'typing',
+            targetComponentId: 'prompt-text',
+            kind: 'typewriter',
+            property: 'typewriterProgress',
+            startMs: 520,
+            endMs: 1900,
+            easing: 'linear',
+          ),
+        ],
+      ),
+    );
+
+    expect(result.isValid, isTrue);
+    final textLayer = result.program!.layers.firstWhere(
+      (layer) => layer.id == 'prompt-text-layer',
+    );
+    final keyframes = textLayer.elements.single.channels.single.keyframes;
+    expect(keyframes.map((keyframe) => keyframe.value), <Object>[0.0, 1.0]);
+    expect(
+      result.issues.where(
+        (issue) => issue.message.contains('default to 0.0 -> 1.0'),
+      ),
+      isNotEmpty,
     );
   });
 

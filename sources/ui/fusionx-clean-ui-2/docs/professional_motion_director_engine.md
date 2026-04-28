@@ -114,12 +114,18 @@ Example choreography:
 
 The linter rejects:
 
-- overlapping beats,
+- overlapping beats that share component refs or omit component refs,
 - primitives outside their beat,
 - missing component targets,
 - timing outside composition duration,
 - backward typewriter primitives,
 - empty IDs and invalid core metadata.
+
+The linter accepts disjoint-component beat overlap as intentional parallel
+choreography, but records it as a warning so the agent still sees that timing
+was concurrent. Typewriter primitives should include explicit
+`fromValue: 0.0` and `toValue: 1.0`; if omitted, ReFusion defaults to a
+forward type-on range and warns instead of rejecting the scene.
 
 ## 3. Agent Authoring Behavior
 
