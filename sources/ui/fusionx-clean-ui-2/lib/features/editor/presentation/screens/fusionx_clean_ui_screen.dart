@@ -3536,10 +3536,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _showStageMessage(_layerScopeBlockedMessage());
       return;
     }
+    final entryRootTime = _visibleTimelinePlaybackTime();
     final result = _sceneScopeSessionResolver.open(
       SceneScopeSessionRequest(
         project: _effectiveMotionProject,
-        rootTime: _currentTime,
+        rootTime: entryRootTime,
         sceneClipId: clipId,
         sceneClips: _sceneClips,
         channels: _manualMotionPropertyChannels,
@@ -3553,6 +3554,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _showStageMessage(message);
       return;
     }
+    _clearTimelineScrubHandoff();
     setState(() {
       _transitionFocusSession = null;
       _selectedTransitionId = null;
@@ -3620,6 +3622,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _showStageMessage(_layerScopeBlockedMessage());
       return;
     }
+    final entryRootTime = _visibleTimelinePlaybackTime();
     final result = _sceneLayerScopeTimelineAdapter.viewModelForLayer(
       project: _effectiveMotionProject,
       sceneSession: session,
@@ -3634,6 +3637,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _showStageMessage(message);
       return;
     }
+    final scopedRootTime = viewModel.localToRoot(
+      viewModel.rootToLocal(entryRootTime),
+    );
+    _clearTimelineScrubHandoff();
     setState(() {
       _sceneLayerScopeLayerId = layerId;
       _selectedClipId = layerId;
@@ -3643,8 +3650,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _selectedLayerScopeKeyframeId = null;
       _isLayerScopeValueEditorOpen = false;
       _isLayerScopeGraphEditorOpen = false;
-      _setCurrentTime(
-          viewModel.localToRoot(viewModel.rootToLocal(_currentTime)));
+      _setCurrentTime(scopedRootTime);
     });
     _syncLayerScopeTimeNotifiers();
     _showStageMessage(
@@ -4792,7 +4798,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     SceneScopeSession session,
     TimelineTime localTime,
   ) {
-    _setTimelineDisplayTime(session.localToRoot(localTime));
+    _handleCompositionScopeTimelineTimeChanged(session.localToRoot(localTime));
   }
 
   void _handleSceneScopeZoomStateChanged(
@@ -4833,14 +4839,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     SceneScopeSession session,
     TimelineTime localTime,
   ) {
-    _handleTimelineScrubFinalized(session.localToRoot(localTime));
+    _handleCompositionScopeScrubFinalized(session.localToRoot(localTime));
   }
 
   void _handleSceneLayerScopeDisplayTimeChanged(
     SceneLayerScopeTimelineViewModel viewModel,
     TimelineTime localTime,
   ) {
-    _setTimelineDisplayTime(viewModel.localToRoot(localTime));
+    _handleCompositionScopeTimelineTimeChanged(
+        viewModel.localToRoot(localTime));
   }
 
   void _handleSceneLayerScopeZoomStateChanged(
@@ -4871,7 +4878,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     SceneLayerScopeTimelineViewModel viewModel,
     TimelineTime localTime,
   ) {
-    _handleTimelineScrubFinalized(viewModel.localToRoot(localTime));
+    _handleCompositionScopeScrubFinalized(viewModel.localToRoot(localTime));
   }
 
   void _handleSceneLayerScopeAnimationLaneTap(
@@ -12435,6 +12442,32 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
   }
 
+  void _handleCompositionScopeTimelineTimeChanged(TimelineTime rootTime) {
+    final clampedTime = rootTime.clamp(
+      TimelineTime.zero,
+      _timelineDurationTime,
+    );
+    _timelineScrubFinalTime = clampedTime;
+    if (_isTimelineScrubbing) {
+      _syncTimelineClockDuration();
+      _timelineClockCoordinator.scrubUpdate(clampedTime);
+    }
+    _setCurrentTime(clampedTime);
+  }
+
+  void _handleCompositionScopeScrubFinalized(TimelineTime rootTime) {
+    final clampedTime = rootTime.clamp(
+      TimelineTime.zero,
+      _timelineDurationTime,
+    );
+    _timelineScrubFinalTime = clampedTime;
+    if (_isTimelineScrubbing) {
+      _syncTimelineClockDuration();
+      _timelineClockCoordinator.scrubUpdate(clampedTime);
+    }
+    _setCurrentTime(clampedTime);
+  }
+
   void _handleCompositionScopeScrubStateChanged(bool isScrubbing) {
     if (_isApplyingStructuralEdit) {
       return;
@@ -12447,9 +12480,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _clearPlaybackStopTimeLock();
       _clearTimelineScrubHandoff();
       _timelineZoomLockedDisplayTime = null;
-      final scrubAnchorTime =
-          (_timelineScrubFinalTime ?? _timelineDisplayTimeNotifier.value)
-              .clamp(TimelineTime.zero, _timelineDurationTime);
+      final scrubAnchorTime = (_timelineScrubFinalTime ?? _currentTime)
+          .clamp(TimelineTime.zero, _timelineDurationTime);
       _timelineScrubFinalTime = scrubAnchorTime;
       _stopMotionPreviewFrameClock(resetTo: scrubAnchorTime);
       _syncTimelineClockDuration();
@@ -12458,8 +12490,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return;
     }
 
-    final resolvedFinalTime =
-        (_timelineScrubFinalTime ?? _timelineDisplayTimeNotifier.value).clamp(
+    final resolvedFinalTime = (_timelineScrubFinalTime ?? _currentTime).clamp(
       TimelineTime.zero,
       _timelineDurationTime,
     );
