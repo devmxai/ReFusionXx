@@ -211,6 +211,12 @@ Status:
   Opus (`claude-opus-4-6`) profiles only. Generated output is extracted as
   `refusion.scene-program/v1`, placed into the Script tab, validated, and then
   applied through the existing editable Scene Clip path.
+- completed Director payload hardening. Full-scene Generate now asks agents to
+  return one strict wrapper:
+  `{"directorPlan": {...}, "sceneProgram": {...}}`. When `directorPlan` is
+  present, ReFusion imports and lints it before accepting the Scene Program.
+  Direct Scene Program JSON remains a compatibility fallback for pasted legacy
+  output, but provider prompts must produce the Director wrapper.
 
 ### Phase D3 - Director To Scene Program Compiler
 

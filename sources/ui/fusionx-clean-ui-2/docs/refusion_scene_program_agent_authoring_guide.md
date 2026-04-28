@@ -1,8 +1,8 @@
 # ReFusion Scene Program Agent Authoring Guide
 
-Status: official agent-facing authoring guide  
-Schema: `refusion.scene-program/v1`  
-Core pack: `refusion.core-design-pack/v1`  
+Status: official agent-facing authoring guide
+Schemas: `refusion.motion-director/v1` + `refusion.scene-program/v1`
+Core pack: `refusion.core-design-pack/v1`
 Purpose: give any coding or design agent enough rules to generate editable ReFusion motion scenes that import cleanly into the app.
 
 ## Non-Negotiable Output Rules
@@ -11,7 +11,36 @@ Return JSON only.
 
 Do not return JSX, JavaScript, TypeScript, HTML, CSS, Markdown wrappers, comments, imports, executable code, shader source, or URLs that must execute code.
 
-Every scene must be declarative:
+Preferred live-agent output is a Director-first wrapper:
+
+```json
+{
+  "directorPlan": {
+    "schemaVersion": "refusion.motion-director/v1",
+    "name": "Readable Plan Name",
+    "durationMs": 3200,
+    "frameRate": 30,
+    "canvasWidth": 1080,
+    "canvasHeight": 1920,
+    "beats": [],
+    "components": [],
+    "primitives": []
+  },
+  "sceneProgram": {
+    "schemaVersion": "refusion.scene-program/v1",
+    "name": "Readable Scene Name",
+    "durationMs": 3200,
+    "frameRate": 30,
+    "layers": []
+  }
+}
+```
+
+Legacy pasted JSON may use a direct Scene Program root, but live generation
+should return the wrapper above. The app imports and lints `directorPlan` before
+accepting the executable `sceneProgram`.
+
+The executable scene itself must remain declarative:
 
 ```json
 {
@@ -29,7 +58,7 @@ The generated file must be editable after import. Any motion must be represented
 
 Do not jump straight from a prompt to random keyframes.
 
-Before writing the final Scene Program JSON, internally plan:
+Before writing the final Scene Program JSON, explicitly plan:
 
 1. **Beats**: ordered time blocks with clear intent.
 2. **Semantic components**: prompt shell, typed text, send button, reveal circle,
@@ -50,6 +79,15 @@ Professional timing example:
 Every primitive must stay inside its owning beat. Beats must not overlap unless
 the scene specifically needs simultaneous action, and even then the simultaneous
 motion should be expressed inside one beat with several primitives.
+
+The returned `directorPlan` must include:
+
+- `beats`: ordered time blocks with `id`, `label`, `startMs`, `endMs`,
+  `intent`, and `componentRefs`;
+- `components`: semantic targets with `id`, `role`, and `label`;
+- `primitives`: motion intentions with `id`, `beatId`, `targetComponentId`,
+  `kind`, `startMs`, `endMs`, optional `property`, `fromValue`, `toValue`, and
+  `easing`.
 
 Typewriter text must be one complete text element with one
 `typewriterProgress` channel. Never create one layer or element per character.
@@ -495,7 +533,7 @@ Keep scenes clean:
 
 When asked to generate a ReFusion scene, return:
 
-1. valid JSON only,
+1. valid JSON only, preferably `{"directorPlan": {...}, "sceneProgram": {...}}`,
 2. no Markdown code fence unless explicitly requested,
 3. no explanatory prose inside the JSON,
 4. IDs and names that describe the design,

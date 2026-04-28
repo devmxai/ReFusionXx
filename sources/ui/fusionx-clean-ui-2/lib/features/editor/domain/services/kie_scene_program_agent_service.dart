@@ -4,20 +4,31 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import '../models/refusion_motion_director_models.dart';
+import 'refusion_motion_director_linter.dart';
+import 'refusion_motion_director_plan_import_service.dart';
 import 'refusion_scene_agent_provider_catalog.dart';
 
 class KieSceneProgramAgentService {
   KieSceneProgramAgentService({
     ReFusionSceneAgentProviderCatalog catalog =
         const ReFusionSceneAgentProviderCatalog(),
+    ReFusionMotionDirectorPlanImportService directorPlanImportService =
+        const ReFusionMotionDirectorPlanImportService(),
+    ReFusionMotionDirectorLinter directorLinter =
+        const ReFusionMotionDirectorLinter(),
     MethodChannel runtimeConfigChannel =
         const MethodChannel('com.refusion.app/runtime_config'),
   })  : _catalog = catalog,
+        _directorPlanImportService = directorPlanImportService,
+        _directorLinter = directorLinter,
         _runtimeConfigChannel = runtimeConfigChannel;
 
   static const String _apiKey = String.fromEnvironment('KIE_API_KEY');
 
   final ReFusionSceneAgentProviderCatalog _catalog;
+  final ReFusionMotionDirectorPlanImportService _directorPlanImportService;
+  final ReFusionMotionDirectorLinter _directorLinter;
   final MethodChannel _runtimeConfigChannel;
   String _runtimeApiKey = '';
   bool _attemptedRuntimeKeyLoad = false;
@@ -76,19 +87,32 @@ class KieSceneProgramAgentService {
       body: preview.body,
       authToken: _resolvedApiKey,
     );
-    final sceneProgramJson = extractSceneProgramJson(
+    final extracted = extractSceneProgramPayload(
       rawResponse: rawResponse,
       transport: profile.transport,
     );
     return KieSceneProgramGenerationResult(
       requestPreview: preview,
       rawResponse: rawResponse,
-      sceneProgramJson: sceneProgramJson,
+      sceneProgramJson: extracted.sceneProgramJson,
+      directorPlan: extracted.directorPlan,
+      directorIssues: extracted.directorIssues,
     );
   }
 
   @visibleForTesting
   String extractSceneProgramJson({
+    required String rawResponse,
+    required ReFusionSceneAgentTransport transport,
+  }) {
+    return extractSceneProgramPayload(
+      rawResponse: rawResponse,
+      transport: transport,
+    ).sceneProgramJson;
+  }
+
+  @visibleForTesting
+  KieSceneProgramExtractionResult extractSceneProgramPayload({
     required String rawResponse,
     required ReFusionSceneAgentTransport transport,
   }) {
@@ -106,6 +130,7 @@ class KieSceneProgramAgentService {
         'Generated scene payload must be a JSON object.',
       );
     }
+    final directorExtraction = _extractAndLintDirectorPlan(object);
     final sceneProgram = object['sceneProgram'] ?? object['program'] ?? object;
     if (sceneProgram is! Map) {
       throw const KieSceneProgramAgentException(
@@ -118,7 +143,66 @@ class KieSceneProgramAgentService {
       );
     }
     const encoder = JsonEncoder.withIndent('  ');
-    return encoder.convert(sceneProgram);
+    return KieSceneProgramExtractionResult(
+      sceneProgramJson: encoder.convert(sceneProgram),
+      directorPlan: directorExtraction.plan,
+      directorIssues: directorExtraction.issues,
+    );
+  }
+
+  _DirectorExtraction _extractAndLintDirectorPlan(
+      Map<dynamic, dynamic> object) {
+    final rawDirectorPlan = object['directorPlan'] ?? object['motionDirector'];
+    if (rawDirectorPlan == null) {
+      return const _DirectorExtraction(
+        issues: <ReFusionMotionDirectorIssue>[
+          ReFusionMotionDirectorIssue(
+            severity: ReFusionMotionDirectorIssueSeverity.warning,
+            message:
+                'Generated scene did not include `directorPlan`; accepted for compatibility but lower confidence.',
+            path: 'directorPlan',
+          ),
+        ],
+      );
+    }
+    final importResult =
+        _directorPlanImportService.importFromJson(rawDirectorPlan);
+    final issues = <ReFusionMotionDirectorIssue>[
+      ...importResult.issues,
+    ];
+    final plan = importResult.plan;
+    final hasImportErrors = issues.any(
+      (issue) => issue.severity == ReFusionMotionDirectorIssueSeverity.error,
+    );
+    if (hasImportErrors || plan == null) {
+      throw KieSceneProgramAgentException(
+        'Generated directorPlan failed validation: ${_directorIssueSummary(issues)}',
+      );
+    }
+    final lintResult = _directorLinter.lint(plan);
+    issues.addAll(lintResult.issues);
+    final hasErrors = issues.any(
+      (issue) => issue.severity == ReFusionMotionDirectorIssueSeverity.error,
+    );
+    if (hasErrors) {
+      throw KieSceneProgramAgentException(
+        'Generated directorPlan failed validation: ${_directorIssueSummary(issues)}',
+      );
+    }
+    return _DirectorExtraction(plan: plan, issues: issues);
+  }
+
+  String _directorIssueSummary(List<ReFusionMotionDirectorIssue> issues) {
+    return issues
+        .where(
+          (issue) =>
+              issue.severity == ReFusionMotionDirectorIssueSeverity.error,
+        )
+        .take(3)
+        .map((issue) => issue.path == null
+            ? issue.message
+            : '${issue.path}: ${issue.message}')
+        .join(' ');
   }
 
   Object? _decodeJsonOrSse(String rawResponse) {
@@ -294,11 +378,27 @@ class KieSceneProgramGenerationResult {
     required this.requestPreview,
     required this.rawResponse,
     required this.sceneProgramJson,
+    this.directorPlan,
+    this.directorIssues = const <ReFusionMotionDirectorIssue>[],
   });
 
   final ReFusionSceneAgentRequestPreview requestPreview;
   final String rawResponse;
   final String sceneProgramJson;
+  final ReFusionMotionDirectorPlan? directorPlan;
+  final List<ReFusionMotionDirectorIssue> directorIssues;
+}
+
+class KieSceneProgramExtractionResult {
+  const KieSceneProgramExtractionResult({
+    required this.sceneProgramJson,
+    this.directorPlan,
+    this.directorIssues = const <ReFusionMotionDirectorIssue>[],
+  });
+
+  final String sceneProgramJson;
+  final ReFusionMotionDirectorPlan? directorPlan;
+  final List<ReFusionMotionDirectorIssue> directorIssues;
 }
 
 class KieSceneProgramAgentException implements Exception {
@@ -308,4 +408,14 @@ class KieSceneProgramAgentException implements Exception {
 
   @override
   String toString() => message;
+}
+
+class _DirectorExtraction {
+  const _DirectorExtraction({
+    this.plan,
+    this.issues = const <ReFusionMotionDirectorIssue>[],
+  });
+
+  final ReFusionMotionDirectorPlan? plan;
+  final List<ReFusionMotionDirectorIssue> issues;
 }

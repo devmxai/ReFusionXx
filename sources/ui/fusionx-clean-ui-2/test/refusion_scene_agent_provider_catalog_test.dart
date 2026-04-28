@@ -41,6 +41,7 @@ void main() {
     expect(preview.body['model'], 'gpt-5.4-codex');
     expect(preview.prettyBody, contains('refusion.motion-director/v1'));
     expect(preview.prettyBody, contains('refusion.scene-program/v1'));
+    expect(preview.prettyBody, contains('directorPlan'));
     expect(preview.prettyBody, contains('typewriterProgress'));
     expect(preview.prettyBody, contains('Create a prompt bar'));
   });
@@ -65,7 +66,9 @@ void main() {
     expect(preview.prettyBody, contains('No markdown'));
   });
 
-  test('extracts direct Scene Program JSON from Codex responses output', () {
+  test(
+      'extracts direct Scene Program JSON from Codex responses output with warning',
+      () {
     final rawResponse = jsonEncode(
       <String, Object?>{
         'output': <Object?>[
@@ -82,17 +85,27 @@ void main() {
       },
     );
 
-    final extracted = service.extractSceneProgramJson(
+    final extracted = service.extractSceneProgramPayload(
       rawResponse: rawResponse,
       transport: ReFusionSceneAgentTransport.responses,
     );
-    final decoded = jsonDecode(extracted) as Map<String, dynamic>;
+    final decoded =
+        jsonDecode(extracted.sceneProgramJson) as Map<String, dynamic>;
 
     expect(decoded['schemaVersion'], 'refusion.scene-program/v1');
     expect(decoded['name'], 'Direct Codex Scene');
+    expect(extracted.directorPlan, isNull);
+    expect(
+      extracted.directorIssues.where(
+        (issue) => issue.message.contains('did not include `directorPlan`'),
+      ),
+      isNotEmpty,
+    );
   });
 
-  test('extracts wrapped Scene Program JSON from Claude messages output', () {
+  test(
+      'extracts wrapped directorPlan and Scene Program JSON from Claude output',
+      () {
     final rawResponse = jsonEncode(
       <String, Object?>{
         'content': <Object?>[
@@ -100,6 +113,7 @@ void main() {
             'type': 'text',
             'text': jsonEncode(
               <String, Object?>{
+                'directorPlan': _directorPlanJson(),
                 'sceneProgram': jsonDecode(_sceneProgramJson('Claude Scene')),
               },
             ),
@@ -108,15 +122,139 @@ void main() {
       },
     );
 
-    final extracted = service.extractSceneProgramJson(
+    final extracted = service.extractSceneProgramPayload(
       rawResponse: rawResponse,
       transport: ReFusionSceneAgentTransport.claudeMessages,
     );
-    final decoded = jsonDecode(extracted) as Map<String, dynamic>;
+    final decoded =
+        jsonDecode(extracted.sceneProgramJson) as Map<String, dynamic>;
 
     expect(decoded['schemaVersion'], 'refusion.scene-program/v1');
     expect(decoded['name'], 'Claude Scene');
+    expect(extracted.directorPlan, isNotNull);
+    expect(extracted.directorPlan!.beats, hasLength(2));
+    expect(
+      extracted.directorIssues.where(
+        (issue) => issue.severity.name == 'error',
+      ),
+      isEmpty,
+    );
   });
+
+  test('rejects wrapped Scene Program when directorPlan fails lint', () {
+    final rawResponse = jsonEncode(
+      <String, Object?>{
+        'output': <Object?>[
+          <String, Object?>{
+            'type': 'message',
+            'content': <Object?>[
+              <String, Object?>{
+                'type': 'output_text',
+                'text': jsonEncode(
+                  <String, Object?>{
+                    'directorPlan': _directorPlanJson(reverseTyping: true),
+                    'sceneProgram':
+                        jsonDecode(_sceneProgramJson('Bad Director Scene')),
+                  },
+                ),
+              },
+            ],
+          },
+        ],
+      },
+    );
+
+    expect(
+      () => service.extractSceneProgramPayload(
+        rawResponse: rawResponse,
+        transport: ReFusionSceneAgentTransport.responses,
+      ),
+      throwsA(
+        isA<KieSceneProgramAgentException>().having(
+          (error) => error.message,
+          'message',
+          contains('directorPlan failed validation'),
+        ),
+      ),
+    );
+  });
+
+  test('rejects wrapped Scene Program when directorPlan is malformed', () {
+    final rawResponse = jsonEncode(
+      <String, Object?>{
+        'output_text': jsonEncode(
+          <String, Object?>{
+            'directorPlan': <Object?>['not', 'a', 'plan'],
+            'sceneProgram': jsonDecode(_sceneProgramJson('Malformed Director')),
+          },
+        ),
+      },
+    );
+
+    expect(
+      () => service.extractSceneProgramPayload(
+        rawResponse: rawResponse,
+        transport: ReFusionSceneAgentTransport.responses,
+      ),
+      throwsA(
+        isA<KieSceneProgramAgentException>().having(
+          (error) => error.message,
+          'message',
+          contains('Director plan must be a JSON object'),
+        ),
+      ),
+    );
+  });
+}
+
+Map<String, Object?> _directorPlanJson({bool reverseTyping = false}) {
+  return <String, Object?>{
+    'schemaVersion': 'refusion.motion-director/v1',
+    'name': 'Prompt Director',
+    'durationMs': 1200,
+    'frameRate': 30,
+    'canvasWidth': 1080,
+    'canvasHeight': 1920,
+    'components': <Object?>[
+      <String, Object?>{
+        'id': 'title',
+        'role': 'text.typewriter',
+        'label': 'Title',
+      },
+    ],
+    'beats': <Object?>[
+      <String, Object?>{
+        'id': 'enter',
+        'label': 'Enter',
+        'startMs': 0,
+        'endMs': 300,
+        'intent': 'Text prepares.',
+        'componentRefs': <String>['title'],
+      },
+      <String, Object?>{
+        'id': 'typing',
+        'label': 'Typing',
+        'startMs': 300,
+        'endMs': 1200,
+        'intent': 'Text types.',
+        'componentRefs': <String>['title'],
+      },
+    ],
+    'primitives': <Object?>[
+      <String, Object?>{
+        'id': 'type-on',
+        'beatId': 'typing',
+        'targetComponentId': 'title',
+        'kind': 'typewriter',
+        'property': 'typewriterProgress',
+        'startMs': 300,
+        'endMs': 1200,
+        'fromValue': reverseTyping ? 1.0 : 0.0,
+        'toValue': reverseTyping ? 0.0 : 1.0,
+        'easing': 'linear',
+      },
+    ],
+  };
 }
 
 String _sceneProgramJson(String name) {

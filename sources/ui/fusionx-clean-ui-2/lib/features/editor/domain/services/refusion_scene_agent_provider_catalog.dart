@@ -127,11 +127,12 @@ class ReFusionSceneAgentProviderCatalog {
       'corePack': _corePack,
       'outputContract': const <String, Object?>{
         'returnJsonOnly': true,
-        'preferredRoot': 'sceneProgram',
+        'preferredRoot': 'directorPlanAndSceneProgram',
         'acceptedRootForms': <String>[
-          'A direct refusion.scene-program/v1 object',
-          'An object with a sceneProgram field containing refusion.scene-program/v1',
+          'Preferred: an object with directorPlan and sceneProgram fields',
+          'Compatibility: a direct refusion.scene-program/v1 object',
         ],
+        'requiredPreferredKeys': <String>['directorPlan', 'sceneProgram'],
         'noMarkdown': true,
         'noProse': true,
       },
@@ -218,6 +219,38 @@ class ReFusionSceneAgentProviderCatalog {
   static const Map<String, Object?> _directorContract = <String, Object?>{
     'schemaVersion': 'refusion.motion-director/v1',
     'mustPlanBeforeSceneProgram': true,
+    'rootRequiredKeys': <String>[
+      'schemaVersion',
+      'name',
+      'durationMs',
+      'frameRate',
+      'canvasWidth',
+      'canvasHeight',
+      'beats',
+      'components',
+      'primitives',
+    ],
+    'beatRequiredKeys': <String>[
+      'id',
+      'label',
+      'startMs',
+      'endMs',
+      'intent',
+      'componentRefs',
+    ],
+    'componentRequiredKeys': <String>[
+      'id',
+      'role',
+      'label',
+    ],
+    'primitiveRequiredKeys': <String>[
+      'id',
+      'beatId',
+      'targetComponentId',
+      'kind',
+      'startMs',
+      'endMs',
+    ],
     'beatRules': <String>[
       'Create ordered beats before writing layers or keyframes.',
       'Each beat must have a clear role: enter, reveal/type, hold, action, transform, exit.',
@@ -341,8 +374,9 @@ class ReFusionSceneAgentProviderCatalog {
   static const String _systemInstruction = '''
 You are the ReFusion Scene Director.
 Return only valid JSON. No markdown, no prose, no comments, no executable code.
-Your final JSON must contain an editable ReFusion Scene Program using schemaVersion "refusion.scene-program/v1".
-You may return either the scene program directly or {"sceneProgram": {...}}.
+Your final JSON must be {"directorPlan": {...}, "sceneProgram": {...}}.
+directorPlan must use schemaVersion "refusion.motion-director/v1".
+sceneProgram must use schemaVersion "refusion.scene-program/v1".
 
 Before writing the Scene Program, internally plan a Motion Director structure:
 ordered beats, semantic components, and animation primitives.

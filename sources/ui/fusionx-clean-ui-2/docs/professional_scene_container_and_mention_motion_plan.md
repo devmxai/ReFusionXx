@@ -150,6 +150,12 @@ Depends on:
   approved Codex and Claude Opus KIE.ai profiles, then writes the generated
   `refusion.scene-program/v1` JSON back into the Script tab for validation and
   normal Scene Clip application.
+- Motion Director Phase D2 payload hardening: scene-generation providers are
+  now instructed to return one Director-first wrapper:
+  `{"directorPlan": {...}, "sceneProgram": {...}}`. ReFusion imports and lints
+  the Director Plan when present before accepting the Scene Program. Legacy
+  direct Scene Program output can still be pasted, but it is lower confidence
+  and should not be used by the live provider prompts.
 - Motion Director Phase D3 compiler foundation: semantic Director plans can now
   compile into real Scene Program layers/channels before entering the existing
   Scene Clip transaction path. This is the first app-owned bridge from
