@@ -74,6 +74,13 @@ Depends on:
   remove Easy Ease interpolation on the selected graph keyframe through
   `LayerScopeCompositionAdapter`. Nested export semantics remain future
   checkpoints, and Stage5 Live Scrub is untouched.
+- Phase S6 foundation: `SceneMentionIndex` builds the stable `@mention`
+  entity list for a scene. It indexes Scene Clip containers and animatable
+  scene elements, preserves stable IDs across renames, exposes supported motion
+  properties, disambiguates duplicate display names, and treats deleted
+  elements as invalid mentions on the rebuilt index. This is domain-only
+  infrastructure for future prompt/autocomplete UI and does not touch Stage5 or
+  Live Scrub.
 - Performance watch note: if repeated keyframe drag/edit or repeated scene
   script edits show intermittent heaviness on real devices, capture it as a
   profiling task after the mutation surface is complete. Do not treat Live Scrub
