@@ -17,6 +17,12 @@ Depends on:
   root/source/local time mapping, source reuse, and validation. This is
   domain-only infrastructure; it is not wired to UI, preview, export, or Live
   Scrub.
+- Phase S2 foundation: `SceneProgramApplyTransaction` converts a valid
+  ReFusion Scene Program authoring result into one root `Scene Clip` plus one
+  nested source scene. It preserves internal layers/channels/text bindings under
+  a source-scene namespace and keeps the root scene from exploding into many
+  generated tracks. This is domain-only infrastructure; it is not wired to UI,
+  preview, export, or Live Scrub.
 
 ## 1. Final Product Goal
 
