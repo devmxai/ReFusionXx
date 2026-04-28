@@ -2951,6 +2951,21 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
       return;
     }
+    final sceneLayerScope = _activeSceneLayerScopeViewModel;
+    if (sceneLayerScope != null) {
+      final localDisplayTime =
+          sceneLayerScope.rootToLocal(_timelineDisplayTimeNotifier.value);
+      final localPlaybackSampleTime =
+          sceneLayerScope.rootToLocal(_playbackSampleTimeNotifier.value);
+      if (_layerScopeDisplayTimeNotifier.value != localDisplayTime) {
+        _layerScopeDisplayTimeNotifier.value = localDisplayTime;
+      }
+      if (_layerScopePlaybackSampleTimeNotifier.value !=
+          localPlaybackSampleTime) {
+        _layerScopePlaybackSampleTimeNotifier.value = localPlaybackSampleTime;
+      }
+      return;
+    }
     final sceneScope = _sceneScopeSession;
     if (sceneScope != null) {
       final localDisplayTime =
