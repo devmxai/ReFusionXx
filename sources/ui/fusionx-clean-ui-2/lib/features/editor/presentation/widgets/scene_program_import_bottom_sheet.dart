@@ -244,6 +244,467 @@ class _SceneProgramImportBottomSheetState
 }
 ''';
 
+  static const String _codexIntroSceneProgram = '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "name": "Codex Prompt Intro",
+  "durationMs": 6200,
+  "frameRate": 30,
+  "layers": [
+    {
+      "id": "codex-bg-layer",
+      "name": "White Cinema Background",
+      "kind": "shape",
+      "startMs": 0,
+      "durationMs": 6200,
+      "elements": [
+        {
+          "id": "codex-bg",
+          "kind": "shape",
+          "properties": {
+            "shapeKind": "rectangle",
+            "width": 1080,
+            "height": 1920,
+            "color": "#FFFFFF",
+            "opacity": 1
+          },
+          "channels": [
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 0, "value": 0.0, "easing": "linear" },
+                { "timeMs": 420, "value": 1.0, "easing": "easeOutCubic" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "codex-logo-layer",
+      "name": "Mac Starter Icon",
+      "kind": "shape",
+      "startMs": 0,
+      "durationMs": 6200,
+      "elements": [
+        {
+          "id": "macIcon",
+          "kind": "shape",
+          "properties": {
+            "shapeKind": "roundedRectangle",
+            "width": 154,
+            "height": 154,
+            "cornerRadius": 38,
+            "color": "#050505",
+            "position": { "x": 0, "y": -18 },
+            "opacity": 0,
+            "scale": 0.62,
+            "rotation": -8
+          },
+          "channels": [
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 160, "value": 0.0, "easing": "linear" },
+                { "timeMs": 520, "value": 1.0, "easing": "easeOutCubic" },
+                { "timeMs": 1280, "value": 1.0, "easing": "linear" },
+                { "timeMs": 1680, "value": 0.0, "easing": "easeInCubic" }
+              ]
+            },
+            {
+              "property": "scale",
+              "keyframes": [
+                { "timeMs": 160, "value": 0.62, "easing": "linear" },
+                { "timeMs": 900, "value": 1.0, "easing": "spring" },
+                { "timeMs": 1280, "value": 1.0, "easing": "linear" },
+                { "timeMs": 1680, "value": 0.82, "easing": "easeInCubic" }
+              ]
+            },
+            {
+              "property": "rotation",
+              "keyframes": [
+                { "timeMs": 160, "value": -8, "easing": "linear" },
+                { "timeMs": 900, "value": 0, "easing": "easeOutCubic" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "codex-logo-mark-layer",
+      "name": "Codex Logo Mark",
+      "kind": "text",
+      "startMs": 0,
+      "durationMs": 6200,
+      "elements": [
+        {
+          "id": "codexLogoMark",
+          "kind": "text",
+          "text": "C",
+          "properties": {
+            "fontSize": 78,
+            "letterSpacing": 0,
+            "color": "#FFFFFF",
+            "position": { "x": 0, "y": -21 },
+            "opacity": 0,
+            "scale": 0.84
+          },
+          "channels": [
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 300, "value": 0.0, "easing": "linear" },
+                { "timeMs": 620, "value": 1.0, "easing": "easeOutCubic" },
+                { "timeMs": 1280, "value": 1.0, "easing": "linear" },
+                { "timeMs": 1620, "value": 0.0, "easing": "easeInCubic" }
+              ]
+            },
+            {
+              "property": "scale",
+              "keyframes": [
+                { "timeMs": 300, "value": 0.84, "easing": "linear" },
+                { "timeMs": 900, "value": 1.0, "easing": "spring" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "prompt-shell-layer",
+      "name": "Prompt Input Bar",
+      "kind": "shape",
+      "startMs": 0,
+      "durationMs": 6200,
+      "elements": [
+        {
+          "id": "promptShell",
+          "kind": "shape",
+          "properties": {
+            "shapeKind": "roundedRectangle",
+            "width": 154,
+            "height": 112,
+            "cornerRadius": 56,
+            "color": "#050505",
+            "position": { "x": 0, "y": 0 },
+            "opacity": 0,
+            "scale": 0.86
+          },
+          "channels": [
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 1160, "value": 0.0, "easing": "linear" },
+                { "timeMs": 1420, "value": 1.0, "easing": "easeOutCubic" },
+                { "timeMs": 4920, "value": 1.0, "easing": "linear" },
+                { "timeMs": 5200, "value": 0.0, "easing": "easeInCubic" }
+              ]
+            },
+            {
+              "property": "width",
+              "keyframes": [
+                { "timeMs": 1160, "value": 154, "easing": "linear" },
+                { "timeMs": 2280, "value": 900, "easing": "easeOutQuint" }
+              ]
+            },
+            {
+              "property": "height",
+              "keyframes": [
+                { "timeMs": 1160, "value": 112, "easing": "linear" },
+                { "timeMs": 2280, "value": 118, "easing": "easeOutCubic" }
+              ]
+            },
+            {
+              "property": "cornerRadius",
+              "keyframes": [
+                { "timeMs": 1160, "value": 56, "easing": "linear" },
+                { "timeMs": 2280, "value": 58, "easing": "easeOutCubic" }
+              ]
+            },
+            {
+              "property": "scale",
+              "keyframes": [
+                { "timeMs": 1160, "value": 0.86, "easing": "linear" },
+                { "timeMs": 2280, "value": 1.0, "easing": "spring" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "attach-control-layer",
+      "name": "Attach Control",
+      "kind": "shape",
+      "startMs": 0,
+      "durationMs": 6200,
+      "elements": [
+        {
+          "id": "attachButton",
+          "kind": "shape",
+          "properties": {
+            "shapeKind": "circle",
+            "width": 74,
+            "height": 74,
+            "color": "#111111",
+            "position": { "x": -370, "y": 0 },
+            "opacity": 0,
+            "scale": 0.74
+          },
+          "channels": [
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 2020, "value": 0.0, "easing": "linear" },
+                { "timeMs": 2540, "value": 1.0, "easing": "easeOutCubic" },
+                { "timeMs": 4920, "value": 1.0, "easing": "linear" },
+                { "timeMs": 5200, "value": 0.0, "easing": "easeInCubic" }
+              ]
+            },
+            {
+              "property": "scale",
+              "keyframes": [
+                { "timeMs": 2020, "value": 0.74, "easing": "linear" },
+                { "timeMs": 2540, "value": 1.0, "easing": "spring" }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "attachIcon",
+          "kind": "icon",
+          "properties": {
+            "icon": "paperclip",
+            "width": 34,
+            "height": 34,
+            "color": "#FFFFFF",
+            "position": { "x": -370, "y": 0 },
+            "opacity": 0,
+            "scale": 0.82
+          },
+          "channels": [
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 2140, "value": 0.0, "easing": "linear" },
+                { "timeMs": 2620, "value": 1.0, "easing": "easeOutCubic" },
+                { "timeMs": 4920, "value": 1.0, "easing": "linear" },
+                { "timeMs": 5200, "value": 0.0, "easing": "easeInCubic" }
+              ]
+            },
+            {
+              "property": "scale",
+              "keyframes": [
+                { "timeMs": 2140, "value": 0.82, "easing": "linear" },
+                { "timeMs": 2620, "value": 1.0, "easing": "spring" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "prompt-text-layer",
+      "name": "Typed Prompt",
+      "kind": "text",
+      "startMs": 0,
+      "durationMs": 6200,
+      "elements": [
+        {
+          "id": "promptText",
+          "kind": "text",
+          "text": "Build up for my business",
+          "properties": {
+            "fontSize": 42,
+            "letterSpacing": 0,
+            "color": "#FFFFFF",
+            "position": { "x": -58, "y": 0 },
+            "opacity": 0,
+            "typewriterProgress": 0
+          },
+          "channels": [
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 2440, "value": 0.0, "easing": "linear" },
+                { "timeMs": 2680, "value": 1.0, "easing": "easeOutCubic" },
+                { "timeMs": 4920, "value": 1.0, "easing": "linear" },
+                { "timeMs": 5200, "value": 0.0, "easing": "easeInCubic" }
+              ]
+            },
+            {
+              "property": "typewriterProgress",
+              "keyframes": [
+                { "timeMs": 2680, "value": 0.0, "easing": "linear" },
+                { "timeMs": 4220, "value": 1.0, "easing": "linear" },
+                { "timeMs": 4920, "value": 1.0, "easing": "linear" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "send-control-layer",
+      "name": "Send Control",
+      "kind": "shape",
+      "startMs": 0,
+      "durationMs": 6200,
+      "elements": [
+        {
+          "id": "sendButton",
+          "kind": "shape",
+          "properties": {
+            "shapeKind": "circle",
+            "width": 82,
+            "height": 82,
+            "color": "#FFFFFF",
+            "position": { "x": 372, "y": 0 },
+            "opacity": 0,
+            "scale": 0.72
+          },
+          "channels": [
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 2100, "value": 0.0, "easing": "linear" },
+                { "timeMs": 2660, "value": 1.0, "easing": "easeOutCubic" },
+                { "timeMs": 5050, "value": 1.0, "easing": "linear" }
+              ]
+            },
+            {
+              "property": "scale",
+              "keyframes": [
+                { "timeMs": 2100, "value": 0.72, "easing": "linear" },
+                { "timeMs": 2660, "value": 1.0, "easing": "spring" },
+                { "timeMs": 4340, "value": 1.0, "easing": "linear" },
+                { "timeMs": 4500, "value": 0.86, "easing": "easeInCubic" },
+                { "timeMs": 4680, "value": 1.08, "easing": "easeOutCubic" },
+                { "timeMs": 5000, "value": 1.0, "easing": "easeOutCubic" }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "sendIcon",
+          "kind": "icon",
+          "properties": {
+            "icon": "send",
+            "width": 42,
+            "height": 42,
+            "color": "#050505",
+            "position": { "x": 372, "y": 0 },
+            "opacity": 0,
+            "scale": 0.78
+          },
+          "channels": [
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 2220, "value": 0.0, "easing": "linear" },
+                { "timeMs": 2740, "value": 1.0, "easing": "easeOutCubic" },
+                { "timeMs": 5050, "value": 1.0, "easing": "linear" }
+              ]
+            },
+            {
+              "property": "scale",
+              "keyframes": [
+                { "timeMs": 2220, "value": 0.78, "easing": "linear" },
+                { "timeMs": 2740, "value": 1.0, "easing": "spring" },
+                { "timeMs": 4340, "value": 1.0, "easing": "linear" },
+                { "timeMs": 4500, "value": 0.82, "easing": "easeInCubic" },
+                { "timeMs": 4680, "value": 1.0, "easing": "easeOutCubic" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "screen-cover-layer",
+      "name": "Send Circle Screen Cover",
+      "kind": "shape",
+      "startMs": 0,
+      "durationMs": 6200,
+      "elements": [
+        {
+          "id": "coverCircle",
+          "kind": "shape",
+          "properties": {
+            "shapeKind": "circle",
+            "width": 82,
+            "height": 82,
+            "color": "#FFFFFF",
+            "position": { "x": 372, "y": 0 },
+            "opacity": 0,
+            "scale": 1
+          },
+          "channels": [
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 4680, "value": 0.0, "easing": "linear" },
+                { "timeMs": 4740, "value": 1.0, "easing": "linear" },
+                { "timeMs": 6200, "value": 1.0, "easing": "linear" }
+              ]
+            },
+            {
+              "property": "scale",
+              "keyframes": [
+                { "timeMs": 4680, "value": 1.0, "easing": "linear" },
+                { "timeMs": 5220, "value": 8.0, "easing": "easeOutCubic" },
+                { "timeMs": 5900, "value": 28.0, "easing": "easeOutQuint" },
+                { "timeMs": 6200, "value": 30.0, "easing": "linear" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "welcome-text-layer",
+      "name": "Welcome Title",
+      "kind": "text",
+      "startMs": 0,
+      "durationMs": 6200,
+      "elements": [
+        {
+          "id": "welcomeText",
+          "kind": "text",
+          "text": "Welcome to Codex",
+          "properties": {
+            "fontSize": 74,
+            "letterSpacing": 0,
+            "color": "#050505",
+            "position": { "x": 0, "y": 0 },
+            "opacity": 0,
+            "scale": 0.92
+          },
+          "channels": [
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 5380, "value": 0.0, "easing": "linear" },
+                { "timeMs": 5840, "value": 1.0, "easing": "easeOutCubic" },
+                { "timeMs": 6200, "value": 1.0, "easing": "linear" }
+              ]
+            },
+            {
+              "property": "scale",
+              "keyframes": [
+                { "timeMs": 5380, "value": 0.92, "easing": "linear" },
+                { "timeMs": 5840, "value": 1.0, "easing": "spring" }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+''';
+
   static const String _basicSceneProgram = '''
 {
   "schemaVersion": "refusion.scene-program/v1",
@@ -678,14 +1139,14 @@ class _SceneProgramImportBottomSheetState
     _sceneAgentService = KieSceneProgramAgentService(
       catalog: _sceneAgentCatalog,
     );
-    _controller = TextEditingController(text: _lineRevealSceneProgram);
+    _controller = TextEditingController(text: _codexIntroSceneProgram);
     _promptController = TextEditingController(
       text:
-          'Create a professional 4 second prompt input animation. A dark background appears, a rounded prompt bar enters, text types "hello world", the send button presses, then a circle expands to cover the screen.',
+          'Create a cinematic Codex intro on a white canvas. A black Mac-style app icon appears, morphs into a prompt input bar, types "Build up for my business", presses send, then the send circle expands into a clean white screen with "Welcome to Codex".',
     );
     _selectedSceneAgentProfile =
         ReFusionSceneAgentProviderCatalog.profiles.first;
-    _result = _importCurrentSource(_lineRevealSceneProgram);
+    _result = _importCurrentSource(_codexIntroSceneProgram);
   }
 
   @override
@@ -1058,6 +1519,11 @@ class _SceneProgramImportBottomSheetState
                       spacing: 8,
                       runSpacing: 8,
                       children: [
+                        _SceneProgramActionButton(
+                          icon: Icons.terminal_rounded,
+                          label: 'Codex Intro',
+                          onTap: () => _loadPreset(_codexIntroSceneProgram),
+                        ),
                         _SceneProgramActionButton(
                           icon: Icons.horizontal_rule_rounded,
                           label: 'Line Reveal',
