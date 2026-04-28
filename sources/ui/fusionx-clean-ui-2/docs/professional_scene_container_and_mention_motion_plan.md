@@ -60,6 +60,15 @@ Depends on:
   The edit uses the same `LayerScopeCompositionAdapter` graph path as drag.
   Value/delete/graph controls remain future checkpoints, and Stage5 Live Scrub
   is untouched.
+- Phase S5 keyframe value wiring: the Value button in Scene Layer Scope can edit
+  selected scalar/integer/boolean graph keyframe values and merge them back into
+  source-scene time through `LayerScopeCompositionAdapter`. Delete/graph controls
+  and nested export semantics remain future checkpoints, and Stage5 Live Scrub is
+  untouched.
+- Performance watch note: if repeated keyframe drag/edit or repeated scene
+  script edits show intermittent heaviness on real devices, capture it as a
+  profiling task after the mutation surface is complete. Do not treat Live Scrub
+  as the tuning knob for that issue.
 
 ## 1. Final Product Goal
 

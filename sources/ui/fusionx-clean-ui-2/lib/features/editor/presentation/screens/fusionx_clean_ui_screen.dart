@@ -4949,6 +4949,45 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return null;
   }
 
+  bool _canOpenSceneLayerScopeValueEditor(
+    SceneLayerScopeTimelineViewModel? viewModel,
+  ) {
+    if (viewModel == null) {
+      return false;
+    }
+    final lane = _sceneLayerScopeSelectedAnimationLane(viewModel);
+    final channel =
+        lane == null ? null : _sceneLayerScopeChannelForLane(viewModel, lane);
+    if (lane == null ||
+        channel == null ||
+        !_sceneLayerScopeChannelSupportsValueEditor(channel)) {
+      return false;
+    }
+    final keyframeIndex = _selectedLayerScopeKeyframeIndex ??
+        _nearestSceneLayerScopeKeyframeIndex(viewModel, lane);
+    return keyframeIndex != null &&
+        keyframeIndex >= 0 &&
+        keyframeIndex < lane.normalizedKeyframeStops.length;
+  }
+
+  bool _sceneLayerScopeChannelSupportsValueEditor(
+    MotionPropertyChannelModel channel,
+  ) {
+    return switch (channel.definition.valueKind) {
+      MotionPropertyValueKind.scalar ||
+      MotionPropertyValueKind.integer ||
+      MotionPropertyValueKind.boolean =>
+        true,
+      MotionPropertyValueKind.stringValue ||
+      MotionPropertyValueKind.colorArgb ||
+      MotionPropertyValueKind.point2D ||
+      MotionPropertyValueKind.size2D ||
+      MotionPropertyValueKind.rect ||
+      MotionPropertyValueKind.enumValue =>
+        false,
+    };
+  }
+
   void _handleSceneLayerScopeAddKeyframe() {
     final viewModel = _activeSceneLayerScopeViewModel;
     if (viewModel == null) {
@@ -5011,6 +5050,345 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           nextSelectedKeyframe?.id ?? _selectedLayerScopeKeyframeId;
       _isLayerScopeValueEditorOpen = false;
     });
+  }
+
+  Future<void> _handleSceneLayerScopeValueToolTap() async {
+    if (_isLayerScopeValueEditorOpen) {
+      return;
+    }
+    final viewModel = _activeSceneLayerScopeViewModel;
+    if (viewModel == null) {
+      return;
+    }
+    final lane = _sceneLayerScopeSelectedAnimationLane(viewModel);
+    if (lane == null) {
+      _showStageMessage('Select an animation row before editing value.');
+      return;
+    }
+    final channel = _sceneLayerScopeChannelForLane(viewModel, lane);
+    if (channel == null ||
+        !_sceneLayerScopeChannelSupportsValueEditor(channel)) {
+      _showStageMessage('This animation value is not editable yet.');
+      return;
+    }
+    final resolvedKeyframeIndex = _selectedLayerScopeKeyframeIndex ??
+        _nearestSceneLayerScopeKeyframeIndex(viewModel, lane);
+    if (resolvedKeyframeIndex == null ||
+        resolvedKeyframeIndex < 0 ||
+        resolvedKeyframeIndex >= lane.normalizedKeyframeStops.length) {
+      return;
+    }
+    final controls = _sceneLayerScopeValueControlsForSelection(
+      channel: channel,
+      lane: lane,
+      keyframeIndex: resolvedKeyframeIndex,
+    );
+    if (controls.isEmpty) {
+      return;
+    }
+    setState(() {
+      _selectedLayerScopeAnimationLaneId = lane.id;
+      _selectedLayerScopeKeyframeIndex = resolvedKeyframeIndex;
+      _selectedLayerScopeKeyframeId =
+          _layerScopeKeyframeIdAt(lane, resolvedKeyframeIndex);
+      _isLayerScopeValueEditorOpen = true;
+    });
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => MediaQuery.removeViewInsets(
+        context: sheetContext,
+        removeBottom: true,
+        child: LayerScopeValueBottomSheet(
+          controls: controls,
+          onDone: () => Navigator.of(sheetContext).maybePop(),
+          onChanged: (change) => _handleSceneLayerScopeValueChanged(
+            change.controlId,
+            change.value,
+          ),
+        ),
+      ),
+    ).whenComplete(() {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isLayerScopeValueEditorOpen = false;
+      });
+    });
+  }
+
+  List<LayerScopeValueControlSpec> _sceneLayerScopeValueControlsForSelection({
+    required MotionPropertyChannelModel channel,
+    required TimelineAnimationLaneData lane,
+    required int keyframeIndex,
+  }) {
+    if (keyframeIndex < 0 || keyframeIndex >= channel.keyframes.length) {
+      return const <LayerScopeValueControlSpec>[];
+    }
+    final rawValue = _sceneLayerScopeDoubleFromValue(
+      channel.keyframes[keyframeIndex].value,
+    );
+    if (rawValue == null) {
+      return const <LayerScopeValueControlSpec>[];
+    }
+    final displayValue = _sceneLayerScopeDisplayValueForChannel(
+      channel: channel,
+      rawValue: rawValue,
+    );
+    final min = _sceneLayerScopeValueMin(channel);
+    final max = _sceneLayerScopeValueMax(channel);
+    return <LayerScopeValueControlSpec>[
+      LayerScopeValueControlSpec(
+        id: channel.id,
+        label: lane.label,
+        value: displayValue.clamp(min, max).toDouble(),
+        min: min,
+        max: max,
+        divisions: _sceneLayerScopeValueDivisions(channel),
+        formatValue: (value) => _formatSceneLayerScopeValue(
+          channel: channel,
+          value: value,
+        ),
+        options: _sceneLayerScopeValueOptions(channel),
+      ),
+    ];
+  }
+
+  void _handleSceneLayerScopeValueChanged(
+    String channelId,
+    double displayValue,
+  ) {
+    final viewModel = _activeSceneLayerScopeViewModel;
+    if (viewModel == null) {
+      return;
+    }
+    final lane = _sceneLayerScopeSelectedAnimationLane(viewModel);
+    final channel =
+        lane == null ? null : _sceneLayerScopeChannelForLane(viewModel, lane);
+    final keyframeIndex = _selectedLayerScopeKeyframeIndex;
+    if (lane == null ||
+        channel == null ||
+        keyframeIndex == null ||
+        channel.id != channelId ||
+        keyframeIndex < 0 ||
+        keyframeIndex >= channel.keyframes.length) {
+      return;
+    }
+    final keyframeId =
+        _selectedLayerScopeKeyframeId ?? channel.keyframes[keyframeIndex].id;
+    final rawValue = _sceneLayerScopeRawValueForDisplay(
+      channel: channel,
+      displayValue: displayValue,
+    );
+    final result = _layerScopeCompositionAdapter.setKeyframeValue(
+      LayerScopeCompositionKeyframeValueRequest(
+        channels: viewModel.projection.channels,
+        channelId: channel.id,
+        keyframeId: keyframeId,
+        value: rawValue,
+      ),
+    );
+    if (result.hasIssues) {
+      _showStageMessage(result.issues.first.message);
+      return;
+    }
+    final editedChannel = _channelById(result.channels, channel.id);
+    final nextSelectedIndex = editedChannel?.keyframes.indexWhere(
+      (keyframe) => keyframe.id == keyframeId,
+    );
+    setState(() {
+      _manualMotionPropertyChannels = _mergeSceneLayerScopeChannels(
+        viewModel,
+        result.channels,
+      );
+      _markMotionAuthoringChanged();
+      _selectedLayerScopeAnimationLaneId = lane.id;
+      _selectedLayerScopeKeyframeIndex =
+          nextSelectedIndex == null || nextSelectedIndex < 0
+              ? keyframeIndex
+              : nextSelectedIndex;
+      _selectedLayerScopeKeyframeId = keyframeId;
+    });
+  }
+
+  double? _sceneLayerScopeDoubleFromValue(MotionPropertyValue value) {
+    return switch (value.kind) {
+      MotionPropertyValueKind.scalar => value.rawValue as double,
+      MotionPropertyValueKind.integer => (value.rawValue as int).toDouble(),
+      MotionPropertyValueKind.boolean => (value.rawValue as bool) ? 1.0 : 0.0,
+      MotionPropertyValueKind.stringValue ||
+      MotionPropertyValueKind.colorArgb ||
+      MotionPropertyValueKind.point2D ||
+      MotionPropertyValueKind.size2D ||
+      MotionPropertyValueKind.rect ||
+      MotionPropertyValueKind.enumValue =>
+        null,
+    };
+  }
+
+  double _sceneLayerScopeDisplayValueForChannel({
+    required MotionPropertyChannelModel channel,
+    required double rawValue,
+  }) {
+    final propertyId = channel.definition.id;
+    if (propertyId == MotionPropertyCatalog.opacity.id ||
+        propertyId == MotionPropertyCatalog.revealProgress.id ||
+        propertyId == MotionPropertyCatalog.scaleX.id ||
+        propertyId == MotionPropertyCatalog.scaleY.id) {
+      return rawValue * 100.0;
+    }
+    return rawValue;
+  }
+
+  MotionPropertyValue _sceneLayerScopeRawValueForDisplay({
+    required MotionPropertyChannelModel channel,
+    required double displayValue,
+  }) {
+    final propertyId = channel.definition.id;
+    final normalizedDisplay = displayValue
+        .clamp(
+          _sceneLayerScopeValueMin(channel),
+          _sceneLayerScopeValueMax(channel),
+        )
+        .toDouble();
+    final rawDouble = propertyId == MotionPropertyCatalog.opacity.id ||
+            propertyId == MotionPropertyCatalog.revealProgress.id ||
+            propertyId == MotionPropertyCatalog.scaleX.id ||
+            propertyId == MotionPropertyCatalog.scaleY.id
+        ? normalizedDisplay / 100.0
+        : normalizedDisplay;
+    return _sceneLayerScopeValueFromDouble(
+      rawDouble,
+      kind: channel.definition.valueKind,
+      fallback: channel.definition.defaultValue,
+    );
+  }
+
+  double _sceneLayerScopeValueMin(MotionPropertyChannelModel channel) {
+    final propertyId = channel.definition.id;
+    if (propertyId == MotionPropertyCatalog.opacity.id ||
+        propertyId == MotionPropertyCatalog.revealProgress.id ||
+        propertyId == MotionPropertyCatalog.blurMix.id) {
+      return 0;
+    }
+    if (propertyId == MotionPropertyCatalog.scaleX.id ||
+        propertyId == MotionPropertyCatalog.scaleY.id) {
+      return 20;
+    }
+    if (propertyId == MotionPropertyCatalog.rotationDegrees.id) {
+      return -720;
+    }
+    if (propertyId == MotionPropertyCatalog.positionX.id) {
+      return -_sceneLayerScopeCanvasWidth();
+    }
+    if (propertyId == MotionPropertyCatalog.positionY.id) {
+      return -_sceneLayerScopeCanvasHeight();
+    }
+    if (channel.definition.valueKind == MotionPropertyValueKind.boolean) {
+      return 0;
+    }
+    return -1000;
+  }
+
+  double _sceneLayerScopeValueMax(MotionPropertyChannelModel channel) {
+    final propertyId = channel.definition.id;
+    if (propertyId == MotionPropertyCatalog.opacity.id ||
+        propertyId == MotionPropertyCatalog.revealProgress.id ||
+        propertyId == MotionPropertyCatalog.blurMix.id ||
+        propertyId == MotionPropertyCatalog.blurAmount.id) {
+      return 100;
+    }
+    if (propertyId == MotionPropertyCatalog.scaleX.id ||
+        propertyId == MotionPropertyCatalog.scaleY.id) {
+      return 800;
+    }
+    if (propertyId == MotionPropertyCatalog.rotationDegrees.id) {
+      return 720;
+    }
+    if (propertyId == MotionPropertyCatalog.positionX.id) {
+      return _sceneLayerScopeCanvasWidth();
+    }
+    if (propertyId == MotionPropertyCatalog.positionY.id) {
+      return _sceneLayerScopeCanvasHeight();
+    }
+    if (channel.definition.valueKind == MotionPropertyValueKind.boolean) {
+      return 1;
+    }
+    return 1000;
+  }
+
+  int? _sceneLayerScopeValueDivisions(MotionPropertyChannelModel channel) {
+    final propertyId = channel.definition.id;
+    if (channel.definition.valueKind == MotionPropertyValueKind.boolean) {
+      return 1;
+    }
+    if (channel.definition.valueKind == MotionPropertyValueKind.integer) {
+      final span =
+          _sceneLayerScopeValueMax(channel) - _sceneLayerScopeValueMin(channel);
+      return span.clamp(1, 2000).round();
+    }
+    if (propertyId == MotionPropertyCatalog.opacity.id ||
+        propertyId == MotionPropertyCatalog.revealProgress.id ||
+        propertyId == MotionPropertyCatalog.blurMix.id ||
+        propertyId == MotionPropertyCatalog.blurAmount.id) {
+      return 100;
+    }
+    if (propertyId == MotionPropertyCatalog.scaleX.id ||
+        propertyId == MotionPropertyCatalog.scaleY.id) {
+      return 780;
+    }
+    if (propertyId == MotionPropertyCatalog.rotationDegrees.id) {
+      return 1440;
+    }
+    return null;
+  }
+
+  List<LayerScopeValueOption> _sceneLayerScopeValueOptions(
+    MotionPropertyChannelModel channel,
+  ) {
+    if (channel.definition.valueKind != MotionPropertyValueKind.boolean) {
+      return const <LayerScopeValueOption>[];
+    }
+    return const <LayerScopeValueOption>[
+      LayerScopeValueOption(label: 'Off', value: 0),
+      LayerScopeValueOption(label: 'On', value: 1),
+    ];
+  }
+
+  String _formatSceneLayerScopeValue({
+    required MotionPropertyChannelModel channel,
+    required double value,
+  }) {
+    final propertyId = channel.definition.id;
+    if (channel.definition.valueKind == MotionPropertyValueKind.boolean) {
+      return value.round() <= 0 ? 'Off' : 'On';
+    }
+    if (propertyId == MotionPropertyCatalog.opacity.id ||
+        propertyId == MotionPropertyCatalog.revealProgress.id ||
+        propertyId == MotionPropertyCatalog.blurMix.id ||
+        propertyId == MotionPropertyCatalog.scaleX.id ||
+        propertyId == MotionPropertyCatalog.scaleY.id) {
+      return '${value.round()}%';
+    }
+    if (propertyId == MotionPropertyCatalog.rotationDegrees.id) {
+      return '${value.round()} deg';
+    }
+    if (propertyId == MotionPropertyCatalog.blurAmount.id) {
+      return value.round().toString();
+    }
+    return value.toStringAsFixed(value.abs() >= 100 ? 0 : 1);
+  }
+
+  double _sceneLayerScopeCanvasWidth() {
+    return _effectiveMotionProject.format.canvasSize.width;
+  }
+
+  double _sceneLayerScopeCanvasHeight() {
+    return _effectiveMotionProject.format.canvasSize.height;
   }
 
   void _handleSceneLayerScopeAnimationKeyframeDrag(
@@ -15835,6 +16213,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final isSceneLayerScopeActive = sceneLayerScopeViewModel != null;
     final canAddSceneLayerScopeKeyframe = sceneLayerScopeViewModel != null &&
         _sceneLayerScopeSelectedAnimationLane(sceneLayerScopeViewModel) != null;
+    final canOpenSceneLayerScopeValueEditor =
+        _canOpenSceneLayerScopeValueEditor(sceneLayerScopeViewModel);
     final isLayerScopeActive = layerScopeContext != null ||
         isUnifiedTransitionScopeActive ||
         isSceneLayerScopeActive ||
@@ -16760,16 +17140,22 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                 addEnabled: false,
                                                 keyframeEnabled:
                                                     canAddSceneLayerScopeKeyframe,
-                                                valueEnabled: false,
+                                                valueEnabled:
+                                                    canOpenSceneLayerScopeValueEditor,
                                                 graphEnabled: false,
-                                                isValueActive: false,
+                                                isValueActive:
+                                                    _isLayerScopeValueEditorOpen &&
+                                                        canOpenSceneLayerScopeValueEditor,
                                                 isGraphActive: false,
                                                 onAddTap: null,
                                                 onAddKeyframeTap:
                                                     canAddSceneLayerScopeKeyframe
                                                         ? _handleSceneLayerScopeAddKeyframe
                                                         : null,
-                                                onValueTap: null,
+                                                onValueTap:
+                                                    canOpenSceneLayerScopeValueEditor
+                                                        ? _handleSceneLayerScopeValueToolTap
+                                                        : null,
                                                 onGraphTap: null,
                                                 embedded: true,
                                                 addLabel: 'Add',
