@@ -148,6 +148,37 @@ class ReFusionMotionAgentProviderCatalog {
           .map((mention) => mention.toJson())
           .toList(growable: false),
       'allowedOperations': const <String>['animate'],
+      'outputContract': const <String, Object?>{
+        'rootRequiredKeys': <String>[
+          'schemaVersion',
+          'scopeDurationMs',
+          'operations',
+        ],
+        'schemaVersion': 'refusion.motion-patch/v1',
+        'operationRequiredKeys': <String>[
+          'action',
+          'target',
+          'property',
+          'keyframes',
+        ],
+        'targetRule':
+            'Set operation.target to an exact target.mentionId such as "element:headline" or exact target.targetId such as "headline". Do not emit targetId as the operation key.',
+        'canonicalExample': <String, Object?>{
+          'schemaVersion': 'refusion.motion-patch/v1',
+          'scopeDurationMs': 1200,
+          'operations': <Map<String, Object?>>[
+            <String, Object?>{
+              'action': 'animate',
+              'target': 'element:example',
+              'property': 'opacity',
+              'keyframes': <Map<String, Object?>>[
+                <String, Object?>{'timeMs': 0, 'value': 0},
+                <String, Object?>{'timeMs': 1200, 'value': 1},
+              ],
+            },
+          ],
+        },
+      },
       'constraints': const <String, Object?>{
         'returnJsonOnly': true,
         'doNotCreateNewElements': true,
@@ -251,5 +282,7 @@ Do not create new layers, new elements, executable code, imports, URLs, markdown
 All keyframe timeMs values must be inside the supplied scope-local allowedRangeMs.
 Prefer professional timing: short ease-in/ease-out, clean overshoot only when requested, and editable keyframes.
 Use only properties listed under each target.supportedProperties.
+Each operation must use "target" as the target key. The value must be an exact target.mentionId or target.targetId from the supplied target list. Do not use "targetId" as an operation key.
+Each operation must use "action": "animate"; do not use "op".
 ''';
 }

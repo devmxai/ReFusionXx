@@ -61,6 +61,8 @@ void main() {
     expect(preview.prettyBody, contains('refusion.motion-patch/v1'));
     expect(preview.prettyBody, contains('Move @{Headline} in from the left.'));
     expect(preview.prettyBody, contains('element:headline'));
+    expect(preview.prettyBody, contains(r'\"target\"'));
+    expect(preview.prettyBody, contains('Do not emit targetId'));
     expect(preview.prettyBody, contains('scope-local-ms'));
   });
 

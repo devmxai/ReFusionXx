@@ -307,7 +307,8 @@ class ReFusionMotionPatchImportService {
     required List<ReFusionMotionPatchIssue> issues,
   }) {
     final action =
-        (_readString(entry, const <String>['action']) ?? 'animate').trim();
+        (_readString(entry, const <String>['action', 'op']) ?? 'animate')
+            .trim();
     if (!_supportedActions.contains(action)) {
       issues.add(
         ReFusionMotionPatchIssue(
@@ -327,8 +328,12 @@ class ReFusionMotionPatchImportService {
     return ReFusionMotionPatchOperation(
       id: _readString(entry, const <String>['id']) ?? fallbackId,
       action: action,
-      target: _readString(
-              entry, const <String>['target', 'mention', 'mentionId']) ??
+      target: _readString(entry, const <String>[
+            'target',
+            'mention',
+            'mentionId',
+            'targetId',
+          ]) ??
           '',
       property: _readString(entry, const <String>['property']) ?? '',
       keyframes: keyframes,

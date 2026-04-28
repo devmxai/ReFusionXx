@@ -127,6 +127,11 @@ Depends on:
   it to the editor for normal editable graph application. GPT-5.5 is the first
   profile when the KIE account supports it; documented Codex 5.3 remains a
   fallback profile. Stage5/Live Scrub remains untouched.
+- Phase S11B hardening: generated Motion Patch operations must canonically use
+  `target`, but the importer accepts `targetId` as a defensive alias because
+  several code-oriented models infer that key from the mention context. This is
+  a schema-repair compatibility layer only; unknown IDs, unsupported properties,
+  executable keys, and out-of-scope keyframes still reject the patch.
 - Performance watch note: if repeated keyframe drag/edit or repeated scene
   script edits show intermittent heaviness on real devices, capture it as a
   profiling task after the mutation surface is complete. Do not treat Live Scrub
@@ -1012,6 +1017,8 @@ Exit criteria:
 - Generate sends one request only after explicit user tap;
 - missing API key shows a clear message and preserves the scene;
 - provider response must validate as `refusion.motion-patch/v1` before apply;
+- operations should use canonical `target`, with `targetId` accepted only as a
+  defensive compatibility alias;
 - invalid generated JSON is shown in Advanced local JSON with validation
   issues;
 - successful generated patches become editable keyframes through the existing

@@ -35,6 +35,7 @@ void main() {
       MotionPropertyCatalog.opacity,
       MotionPropertyCatalog.positionX,
       MotionPropertyCatalog.positionY,
+      MotionPropertyCatalog.scaleX,
       MotionPropertyCatalog.revealProgress,
     ],
   );
@@ -92,6 +93,55 @@ void main() {
         MotionPropertyCatalog.revealProgress.id,
         MotionPropertyCatalog.positionX.id,
         MotionPropertyCatalog.positionY.id,
+      ]),
+    );
+  });
+
+  test('accepts targetId as a defensive alias for agent output', () {
+    final result = service.validate(
+      scopeDurationMs: 13000,
+      mentionEntities: <SceneMentionEntity>[textEntity],
+      source: '''
+{
+  "schemaVersion": "refusion.motion-patch/v1",
+  "operations": [
+    {
+      "op": "animate",
+      "targetId": "headline",
+      "property": "visual.opacity",
+      "keyframes": [
+        { "timeMs": 0, "value": 0.0 },
+        { "timeMs": 320, "value": 1.0 },
+        { "timeMs": 12200, "value": 1.0 },
+        { "timeMs": 12900, "value": 0.0 }
+      ]
+    },
+    {
+      "op": "animate",
+      "targetId": "headline",
+      "property": "transform.scale.x",
+      "keyframes": [
+        { "timeMs": 0, "value": 0.82 },
+        { "timeMs": 220, "value": 1.04 },
+        { "timeMs": 420, "value": 1.0 }
+      ]
+    }
+  ]
+}
+''',
+    );
+
+    expect(result.isValid, isTrue);
+    expect(result.patch!.operations.first.action, 'animate');
+    expect(result.patch!.operations.map((operation) => operation.target), [
+      'headline',
+      'headline',
+    ]);
+    expect(
+      result.resolvedChannels.map((channel) => channel.definition.id),
+      containsAll(<String>[
+        MotionPropertyCatalog.opacity.id,
+        MotionPropertyCatalog.scaleX.id,
       ]),
     );
   });
