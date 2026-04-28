@@ -4922,6 +4922,97 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     });
   }
 
+  TimelineAnimationLaneData? _sceneLayerScopeSelectedAnimationLane(
+    SceneLayerScopeTimelineViewModel viewModel,
+  ) {
+    final selectedLaneId = _selectedLayerScopeAnimationLaneId;
+    if (selectedLaneId == null) {
+      return null;
+    }
+    for (final lane in viewModel.track.animationLanes) {
+      if (lane.id == selectedLaneId) {
+        return lane;
+      }
+    }
+    return null;
+  }
+
+  MotionPropertyChannelModel? _sceneLayerScopeChannelForLane(
+    SceneLayerScopeTimelineViewModel viewModel,
+    TimelineAnimationLaneData lane,
+  ) {
+    for (final channel in viewModel.projection.channels) {
+      if (channel.id == lane.id) {
+        return channel;
+      }
+    }
+    return null;
+  }
+
+  void _handleSceneLayerScopeAddKeyframe() {
+    final viewModel = _activeSceneLayerScopeViewModel;
+    if (viewModel == null) {
+      return;
+    }
+    final lane = _sceneLayerScopeSelectedAnimationLane(viewModel);
+    if (lane == null) {
+      _showStageMessage('Select an animation row before adding a key.');
+      return;
+    }
+    final channel = _sceneLayerScopeChannelForLane(viewModel, lane);
+    if (channel == null) {
+      _showStageMessage('Unable to resolve this animation channel.');
+      return;
+    }
+    final progress = _sceneLayerScopeCurrentProgress(viewModel);
+    final localTime = _sceneLayerScopeLocalTimeForProgress(
+      viewModel,
+      progress,
+    );
+    final result = _layerScopeCompositionAdapter.addKeyframe(
+      LayerScopeCompositionKeyframeRequest(
+        projection: viewModel.projection,
+        channels: viewModel.projection.channels,
+        target: channel.target,
+        definition: channel.definition,
+        localTime: localTime,
+        value: _sceneLayerScopeValueForNewKeyframe(
+          lane: lane,
+          channel: channel,
+          progress: progress,
+        ),
+      ),
+    );
+    if (result.hasIssues) {
+      _showStageMessage(result.issues.first.message);
+      return;
+    }
+    final nextChannel = _channelById(result.channels, channel.id);
+    final nextSelectedIndex = nextChannel?.keyframes.indexWhere(
+      (keyframe) => keyframe.time.inProjectTicks == localTime.inProjectTicks,
+    );
+    final nextSelectedKeyframe = nextSelectedIndex == null ||
+            nextSelectedIndex < 0 ||
+            nextChannel == null
+        ? null
+        : nextChannel.keyframes[nextSelectedIndex];
+    setState(() {
+      _manualMotionPropertyChannels = _mergeSceneLayerScopeChannels(
+        viewModel,
+        result.channels,
+      );
+      _markMotionAuthoringChanged();
+      _selectedLayerScopeAnimationLaneId = lane.id;
+      _selectedLayerScopeKeyframeIndex =
+          nextSelectedIndex == null || nextSelectedIndex < 0
+              ? _selectedLayerScopeKeyframeIndex
+              : nextSelectedIndex;
+      _selectedLayerScopeKeyframeId =
+          nextSelectedKeyframe?.id ?? _selectedLayerScopeKeyframeId;
+      _isLayerScopeValueEditorOpen = false;
+    });
+  }
+
   void _handleSceneLayerScopeAnimationKeyframeDrag(
     SceneLayerScopeTimelineViewModel viewModel,
     String laneId,
@@ -4939,8 +5030,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (lane == null) {
       return;
     }
-    final localTime = TimelineTime.fromSecondsDouble(
-      viewModel.durationTime.inSecondsDouble * progress.clamp(0.0, 1.0),
+    final localTime = _sceneLayerScopeLocalTimeForProgress(
+      viewModel,
+      progress,
     );
     final result = _layerScopeCompositionAdapter.moveKeyframe(
       LayerScopeCompositionMoveKeyframeRequest(
@@ -4955,13 +5047,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _showStageMessage(result.issues.first.message);
       return;
     }
-    MotionPropertyChannelModel? movedChannel;
-    for (final channel in result.channels) {
-      if (channel.id == lane.id) {
-        movedChannel = channel;
-        break;
-      }
-    }
+    final movedChannel = _channelById(result.channels, lane.id);
     final nextSelectedIndex = movedChannel?.keyframes.indexWhere(
       (keyframe) => keyframe.id == keyframeId,
     );
@@ -4979,6 +5065,95 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _selectedLayerScopeKeyframeId = keyframeId;
       _isLayerScopeValueEditorOpen = false;
     });
+  }
+
+  MotionPropertyChannelModel? _channelById(
+    Iterable<MotionPropertyChannelModel> channels,
+    String channelId,
+  ) {
+    for (final channel in channels) {
+      if (channel.id == channelId) {
+        return channel;
+      }
+    }
+    return null;
+  }
+
+  double _sceneLayerScopeCurrentProgress(
+    SceneLayerScopeTimelineViewModel viewModel,
+  ) {
+    final durationSeconds = viewModel.durationTime.inSecondsDouble;
+    if (durationSeconds <= 0) {
+      return 0.0;
+    }
+    return (viewModel.rootToLocal(_currentTime).inSecondsDouble /
+            durationSeconds)
+        .clamp(0.0, 1.0)
+        .toDouble();
+  }
+
+  TimelineTime _sceneLayerScopeLocalTimeForProgress(
+    SceneLayerScopeTimelineViewModel viewModel,
+    double progress,
+  ) {
+    return TimelineTime.fromSecondsDouble(
+      viewModel.durationTime.inSecondsDouble * progress.clamp(0.0, 1.0),
+    );
+  }
+
+  MotionPropertyValue _sceneLayerScopeValueForNewKeyframe({
+    required TimelineAnimationLaneData lane,
+    required MotionPropertyChannelModel channel,
+    required double progress,
+  }) {
+    final selectedKeyframeId = _selectedLayerScopeKeyframeId;
+    if (selectedKeyframeId != null) {
+      for (final keyframe in channel.keyframes) {
+        if (keyframe.id == selectedKeyframeId) {
+          return keyframe.value;
+        }
+      }
+    }
+    final fallbackRaw =
+        channel.baseValue?.rawValue ?? channel.definition.defaultValue.rawValue;
+    final fallbackValue = switch (fallbackRaw) {
+      final double value => value,
+      final int value => value.toDouble(),
+      final bool value => value ? 1.0 : 0.0,
+      _ => 0.0,
+    };
+    final value = lane.evaluateValueAtProgress(
+      progress,
+      fallbackValue: fallbackValue,
+    );
+    return _sceneLayerScopeValueFromDouble(
+      value,
+      kind: channel.definition.valueKind,
+      fallback: channel.definition.defaultValue,
+    );
+  }
+
+  MotionPropertyValue _sceneLayerScopeValueFromDouble(
+    double value, {
+    required MotionPropertyValueKind kind,
+    required MotionPropertyValue fallback,
+  }) {
+    return switch (kind) {
+      MotionPropertyValueKind.scalar => MotionPropertyValue.scalar(value),
+      MotionPropertyValueKind.integer => MotionPropertyValue.integer(
+          value.round(),
+        ),
+      MotionPropertyValueKind.boolean => MotionPropertyValue.boolean(
+          value >= 0.5,
+        ),
+      MotionPropertyValueKind.stringValue ||
+      MotionPropertyValueKind.colorArgb ||
+      MotionPropertyValueKind.point2D ||
+      MotionPropertyValueKind.size2D ||
+      MotionPropertyValueKind.rect ||
+      MotionPropertyValueKind.enumValue =>
+        fallback,
+    };
   }
 
   List<MotionPropertyChannelModel> _mergeSceneLayerScopeChannels(
@@ -15658,6 +15833,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final canAddLayerScopeKeyframe = selectedLayerScopeAnimationLane != null &&
         _layerScopeDefinitionsForLane(selectedLayerScopeAnimationLane) != null;
     final isSceneLayerScopeActive = sceneLayerScopeViewModel != null;
+    final canAddSceneLayerScopeKeyframe = sceneLayerScopeViewModel != null &&
+        _sceneLayerScopeSelectedAnimationLane(sceneLayerScopeViewModel) != null;
     final isLayerScopeActive = layerScopeContext != null ||
         isUnifiedTransitionScopeActive ||
         isSceneLayerScopeActive ||
@@ -16579,15 +16756,19 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                       )
                                     : isLayerScopeActive
                                         ? isSceneLayerScopeActive
-                                            ? const LayerScopeKeyframeDock(
+                                            ? LayerScopeKeyframeDock(
                                                 addEnabled: false,
-                                                keyframeEnabled: false,
+                                                keyframeEnabled:
+                                                    canAddSceneLayerScopeKeyframe,
                                                 valueEnabled: false,
                                                 graphEnabled: false,
                                                 isValueActive: false,
                                                 isGraphActive: false,
                                                 onAddTap: null,
-                                                onAddKeyframeTap: null,
+                                                onAddKeyframeTap:
+                                                    canAddSceneLayerScopeKeyframe
+                                                        ? _handleSceneLayerScopeAddKeyframe
+                                                        : null,
                                                 onValueTap: null,
                                                 onGraphTap: null,
                                                 embedded: true,

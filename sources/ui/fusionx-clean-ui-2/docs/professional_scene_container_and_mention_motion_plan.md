@@ -55,6 +55,11 @@ Depends on:
   dragged on the timeline. The edit flows through `LayerScopeCompositionAdapter`
   and is merged back into source-scene graph time. Add/value/delete/graph
   controls remain future checkpoints, and Stage5 Live Scrub is untouched.
+- Phase S5 keyframe add wiring: the Key button in Scene Layer Scope can add a
+  new keyframe to the selected animation row at the current scoped playhead time.
+  The edit uses the same `LayerScopeCompositionAdapter` graph path as drag.
+  Value/delete/graph controls remain future checkpoints, and Stage5 Live Scrub
+  is untouched.
 
 ## 1. Final Product Goal
 
