@@ -159,6 +159,35 @@ void main() {
     expect(extracted.directorPlan, isNotNull);
   });
 
+  test('extracts director wrapper with shared-component handoff beats', () {
+    final extracted = service.extractSceneProgramPayloadFromContent(
+      content: jsonEncode(
+        <String, Object?>{
+          'directorPlan': _handoffDirectorPlanJson(),
+          'sceneProgram': jsonDecode(_handoffSceneProgramJson()),
+        },
+      ),
+    );
+    final decoded =
+        jsonDecode(extracted.sceneProgramJson) as Map<String, dynamic>;
+
+    expect(decoded['schemaVersion'], 'refusion.scene-program/v1');
+    expect(decoded['name'], 'Prompt Handoff Scene');
+    expect(
+      extracted.directorIssues.where(
+        (issue) =>
+            issue.message.contains('Accepted as intentional handoff'),
+      ),
+      isNotEmpty,
+    );
+    expect(
+      extracted.directorIssues.where(
+        (issue) => issue.severity.name == 'error',
+      ),
+      isEmpty,
+    );
+  });
+
   test('rejects wrapped Scene Program when directorPlan fails lint', () {
     final rawResponse = jsonEncode(
       <String, Object?>{
@@ -363,6 +392,113 @@ String _sceneProgramJson(String name,
                   'keyframes': <Object?>[
                     <String, Object?>{'timeMs': 0, 'value': 0},
                     <String, Object?>{'timeMs': 1200, 'value': 1},
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  );
+}
+
+Map<String, Object?> _handoffDirectorPlanJson() {
+  return <String, Object?>{
+    'schemaVersion': 'refusion.motion-director/v1',
+    'name': 'Prompt Handoff',
+    'durationMs': 3600,
+    'frameRate': 30,
+    'canvasWidth': 1080,
+    'canvasHeight': 1920,
+    'components': <Object?>[
+      <String, Object?>{
+        'id': 'promptShell',
+        'role': 'promptInputBar.shell',
+        'label': 'Prompt Shell',
+      },
+    ],
+    'beats': <Object?>[
+      <String, Object?>{
+        'id': 'input-circle',
+        'label': 'Input Circle',
+        'startMs': 300,
+        'endMs': 1500,
+        'intent': 'The prompt shell scales into view.',
+        'componentRefs': <String>['promptShell'],
+      },
+      <String, Object?>{
+        'id': 'input-expand',
+        'label': 'Input Expand',
+        'startMs': 1400,
+        'endMs': 3100,
+        'intent': 'The same shell expands into an input field.',
+        'componentRefs': <String>['promptShell'],
+      },
+    ],
+    'primitives': <Object?>[
+      <String, Object?>{
+        'id': 'shell-pop',
+        'beatId': 'input-circle',
+        'targetComponentId': 'promptShell',
+        'kind': 'scale',
+        'property': 'scale',
+        'startMs': 300,
+        'endMs': 1500,
+        'fromValue': 0.2,
+        'toValue': 1.0,
+      },
+      <String, Object?>{
+        'id': 'shell-expand-width',
+        'beatId': 'input-expand',
+        'targetComponentId': 'promptShell',
+        'kind': 'widthGrow',
+        'property': 'width',
+        'startMs': 1400,
+        'endMs': 3100,
+        'fromValue': 112,
+        'toValue': 780,
+      },
+    ],
+  };
+}
+
+String _handoffSceneProgramJson() {
+  return jsonEncode(
+    <String, Object?>{
+      'schemaVersion': 'refusion.scene-program/v1',
+      'name': 'Prompt Handoff Scene',
+      'durationMs': 3600,
+      'frameRate': 30,
+      'layers': <Object?>[
+        <String, Object?>{
+          'id': 'promptShell-layer',
+          'kind': 'shape',
+          'startMs': 0,
+          'durationMs': 3600,
+          'elements': <Object?>[
+            <String, Object?>{
+              'id': 'promptShell',
+              'kind': 'shape',
+              'properties': <String, Object?>{
+                'shapeKind': 'roundedRectangle',
+                'width': 112,
+                'height': 112,
+                'cornerRadius': 56,
+              },
+              'channels': <Object?>[
+                <String, Object?>{
+                  'property': 'scale',
+                  'keyframes': <Object?>[
+                    <String, Object?>{'timeMs': 300, 'value': 0.2},
+                    <String, Object?>{'timeMs': 1500, 'value': 1.0},
+                  ],
+                },
+                <String, Object?>{
+                  'property': 'width',
+                  'keyframes': <Object?>[
+                    <String, Object?>{'timeMs': 1400, 'value': 112},
+                    <String, Object?>{'timeMs': 3100, 'value': 780},
                   ],
                 },
               ],

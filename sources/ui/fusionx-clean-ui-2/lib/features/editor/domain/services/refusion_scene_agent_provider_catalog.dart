@@ -256,7 +256,7 @@ class ReFusionSceneAgentProviderCatalog {
       'Create ordered beats before writing layers or keyframes.',
       'Each beat must have a clear role: enter, reveal/type, hold, action, transform, exit.',
       'Avoid unrelated simultaneous motion. Parallel beats are allowed only when their componentRefs are explicit and disjoint.',
-      'If two motions affect the same component at the same time, put them in one intentional beat.',
+      'Same-component handoff overlap is allowed only when the overlapping primitives animate disjoint properties such as scale then width. If the same property overlaps, put it in one intentional beat.',
       'Use readable holds for text or UI states before the next action.',
     ],
     'primitiveRules': <String>[

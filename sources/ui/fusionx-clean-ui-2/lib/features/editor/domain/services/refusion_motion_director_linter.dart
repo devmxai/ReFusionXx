@@ -177,7 +177,16 @@ class ReFusionMotionDirectorLinter {
         final sharedRefs = _sharedComponentRefs(previousBeat, beat);
         final hasExplicitRefs = previousBeat.componentRefs.isNotEmpty &&
             beat.componentRefs.isNotEmpty;
-        final isAmbiguous = !hasExplicitRefs || sharedRefs.isNotEmpty;
+        final hasSafeSharedComponentHandoff = hasExplicitRefs &&
+            sharedRefs.isNotEmpty &&
+            _hasDisjointSharedComponentPrimitiveHandoff(
+              plan: plan,
+              left: previousBeat,
+              right: beat,
+              sharedRefs: sharedRefs,
+            );
+        final isAmbiguous = !hasExplicitRefs ||
+            (sharedRefs.isNotEmpty && !hasSafeSharedComponentHandoff);
         issues.add(
           ReFusionMotionDirectorIssue(
             severity: isAmbiguous
@@ -185,7 +194,9 @@ class ReFusionMotionDirectorLinter {
                 : ReFusionMotionDirectorIssueSeverity.warning,
             message: isAmbiguous
                 ? 'Beat `${beat.id}` overlaps beat `${previousBeat.id}` on the same or unspecified components. Put shared-component motion in one intentional beat.'
-                : 'Beat `${beat.id}` overlaps beat `${previousBeat.id}` on distinct components. Accepted as intentional parallel choreography.',
+                : sharedRefs.isNotEmpty
+                    ? 'Beat `${beat.id}` overlaps beat `${previousBeat.id}` on shared components, but their overlapping primitives animate disjoint properties. Accepted as intentional handoff choreography.'
+                    : 'Beat `${beat.id}` overlaps beat `${previousBeat.id}` on distinct components. Accepted as intentional parallel choreography.',
             path: '$path.startMs',
           ),
         );
@@ -368,6 +379,143 @@ class ReFusionMotionDirectorLinter {
     ReFusionMotionDirectorBeat right,
   ) {
     return left.componentRefs.toSet().intersection(right.componentRefs.toSet());
+  }
+
+  bool _hasDisjointSharedComponentPrimitiveHandoff({
+    required ReFusionMotionDirectorPlan plan,
+    required ReFusionMotionDirectorBeat left,
+    required ReFusionMotionDirectorBeat right,
+    required Set<String> sharedRefs,
+  }) {
+    final overlapStartMs =
+        left.startMs > right.startMs ? left.startMs : right.startMs;
+    final overlapEndMs = left.endMs < right.endMs ? left.endMs : right.endMs;
+    if (overlapEndMs <= overlapStartMs) {
+      return false;
+    }
+
+    var hasInspectableSharedRef = false;
+    for (final sharedRef in sharedRefs) {
+      final leftProperties = _overlappingPrimitivePropertyGroups(
+        plan: plan,
+        beatId: left.id,
+        componentId: sharedRef,
+        overlapStartMs: overlapStartMs,
+        overlapEndMs: overlapEndMs,
+      );
+      final rightProperties = _overlappingPrimitivePropertyGroups(
+        plan: plan,
+        beatId: right.id,
+        componentId: sharedRef,
+        overlapStartMs: overlapStartMs,
+        overlapEndMs: overlapEndMs,
+      );
+      if (leftProperties.isEmpty || rightProperties.isEmpty) {
+        return false;
+      }
+      hasInspectableSharedRef = true;
+      if (leftProperties.intersection(rightProperties).isNotEmpty) {
+        return false;
+      }
+    }
+    return hasInspectableSharedRef;
+  }
+
+  Set<String> _overlappingPrimitivePropertyGroups({
+    required ReFusionMotionDirectorPlan plan,
+    required String beatId,
+    required String componentId,
+    required int overlapStartMs,
+    required int overlapEndMs,
+  }) {
+    final properties = <String>{};
+    for (final primitive in plan.primitives) {
+      if (primitive.beatId != beatId ||
+          primitive.targetComponentId != componentId ||
+          !_timeRangesOverlap(
+            primitive.startMs,
+            primitive.endMs,
+            overlapStartMs,
+            overlapEndMs,
+          )) {
+        continue;
+      }
+      final property = _propertyGroupForPrimitive(primitive);
+      if (property != null) {
+        properties.add(property);
+      }
+    }
+    return properties;
+  }
+
+  bool _timeRangesOverlap(
+    int leftStartMs,
+    int leftEndMs,
+    int rightStartMs,
+    int rightEndMs,
+  ) {
+    return leftStartMs < rightEndMs && rightStartMs < leftEndMs;
+  }
+
+  String? _propertyGroupForPrimitive(
+    ReFusionMotionDirectorPrimitive primitive,
+  ) {
+    final explicit = primitive.property?.trim();
+    final property = explicit != null && explicit.isNotEmpty
+        ? explicit
+        : _propertyForPrimitiveKind(primitive.kind);
+    if (property == null) {
+      return null;
+    }
+    final normalized = _normalizeToken(property);
+    if (normalized == 'positionx' ||
+        normalized == 'positiony' ||
+        normalized == 'x' ||
+        normalized == 'y') {
+      return 'position';
+    }
+    if (normalized == 'scalex' || normalized == 'scaley') {
+      return 'scale';
+    }
+    if (normalized == 'typingprogress' ||
+        normalized == 'letterrevealprogress' ||
+        normalized == 'letterreveal' ||
+        normalized == 'reveal') {
+      return 'typewriterprogress';
+    }
+    return normalized;
+  }
+
+  String? _propertyForPrimitiveKind(String kind) {
+    final normalizedKind = _normalizeToken(kind);
+    if (normalizedKind == 'typewriter' ||
+        normalizedKind == 'typing' ||
+        normalizedKind == 'letterreveal') {
+      return 'typewriterProgress';
+    }
+    if (normalizedKind == 'enter' ||
+        normalizedKind == 'fade' ||
+        normalizedKind == 'opacity') {
+      return 'opacity';
+    }
+    if (normalizedKind == 'move' || normalizedKind == 'slide') {
+      return 'position';
+    }
+    if (normalizedKind == 'scale' ||
+        normalizedKind == 'press' ||
+        normalizedKind == 'cover') {
+      return 'scale';
+    }
+    if (normalizedKind == 'widthgrow' || normalizedKind == 'linegrow') {
+      return 'width';
+    }
+    if (normalizedKind == 'blur' || normalizedKind == 'deblur') {
+      return 'blur';
+    }
+    if (normalizedKind == 'colorpulse' || normalizedKind == 'color') {
+      return 'color';
+    }
+    return null;
   }
 
   double? _numberValue(Object? value) {

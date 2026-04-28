@@ -90,6 +90,10 @@ Every primitive must stay inside its owning beat. Beats may overlap only when
 their `componentRefs` are explicit and disjoint, such as a background settling
 while a prompt shell enters. If two motions affect the same component at the
 same time, express them inside one intentional beat with several primitives.
+One narrow handoff exception is allowed: two overlapping beats may share a
+component only when the overlapping primitives animate disjoint property groups,
+such as `scale` ending while `width` begins. If both beats animate the same
+property group, such as two `scale` motions, combine them into one beat.
 
 The returned `directorPlan` must include:
 
