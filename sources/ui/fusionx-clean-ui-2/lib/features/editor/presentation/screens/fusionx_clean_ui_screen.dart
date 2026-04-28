@@ -33,6 +33,7 @@ import '../../domain/services/normal_transition_command_history.dart';
 import '../../domain/services/layer_scope_composition_adapter.dart';
 import '../../domain/services/refusion_motion_patch_applicator.dart';
 import '../../domain/services/refusion_motion_patch_import_service.dart';
+import '../../domain/services/scene_export_parity_gate.dart';
 import '../../domain/services/scene_program_apply_transaction.dart';
 import '../../domain/services/scene_mention_index.dart';
 import '../../domain/services/scene_scope_session.dart';
@@ -13130,6 +13131,19 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       includeMotionTextRenderTrack: true,
     );
     final issuesCount = exportComposition.issues.length;
+    final sceneExportParity =
+        const SceneExportParityGate().evaluate(exportComposition);
+    final sceneExportBlockers = sceneExportParity.issues
+        .where(
+          (issue) => issue.severity == SceneExportParityIssueSeverity.blocker,
+        )
+        .toList(growable: false);
+    if (sceneExportBlockers.isNotEmpty) {
+      _showStageMessage(
+        'Scene export blocked: ${sceneExportBlockers.first.message}',
+      );
+      return;
+    }
     final blockers = exportComposition.firstBaselineBlockingReasons;
     if (blockers.isNotEmpty) {
       _showStageMessage(

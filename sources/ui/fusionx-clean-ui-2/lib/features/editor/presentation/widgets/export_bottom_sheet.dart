@@ -5,6 +5,7 @@ import '../../../../core/engine/stage6_export_controller.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../domain/models/export_composition_models.dart';
 import '../../domain/models/export_output_profile.dart';
+import '../../domain/services/scene_export_parity_gate.dart';
 
 class ExportBottomSheet extends StatefulWidget {
   const ExportBottomSheet({
@@ -479,6 +480,14 @@ class _ExportBottomSheetState extends State<ExportBottomSheet> {
         final state = widget.controller.state;
         final blockers = composition.firstBaselineBlockingReasons;
         final parityLimitations = composition.currentParityLimitations;
+        final sceneExportParity =
+            const SceneExportParityGate().evaluate(composition);
+        final sceneExportBlockers = sceneExportParity.issues
+            .where(
+              (issue) =>
+                  issue.severity == SceneExportParityIssueSeverity.blocker,
+            )
+            .toList(growable: false);
         final issues = composition.issues;
         final validation = state.validation;
         final motionTextParity = state.motionTextParity;
@@ -758,6 +767,18 @@ class _ExportBottomSheetState extends State<ExportBottomSheet> {
                                   'Effects: ${composition.motionEffectCount}\n'
                                   'Transitions: ${composition.motionTransitionCount}\n'
                                   'Status: text-only renderer path is wired, wider parity still pending',
+                            ),
+                            const SizedBox(height: 10),
+                            _ExportInfoCard(
+                              toneColor: sceneExportParity.hasBlockers
+                                  ? FxPalette.danger
+                                  : FxPalette.accent,
+                              title: 'Scene Export Parity',
+                              body:
+                                  'Text Nodes: ${sceneExportParity.motionTextProgramNodeCount}\n'
+                                  'Authored Nodes: ${sceneExportParity.authoredVisualSurfaceNodeCount}\n'
+                                  'Status: ${sceneExportBlockers.isEmpty ? 'Ready' : 'Blocked'}'
+                                  '${sceneExportBlockers.isEmpty ? '' : '\n${sceneExportBlockers.take(3).map((issue) => '- ${issue.message}').join('\n')}'}',
                             ),
                             const SizedBox(height: 10),
                           ],
