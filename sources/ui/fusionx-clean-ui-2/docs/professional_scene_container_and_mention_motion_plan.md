@@ -29,6 +29,12 @@ Depends on:
   does not expose internal layers on the root timeline. This is projection
   infrastructure; it is not wired to production UI, preview, export, or Live
   Scrub yet.
+- Phase S3 UI wiring: Scene Program import now applies through
+  `SceneProgramApplyTransaction` and `RootSceneClipProjectionAdapter`, so the
+  root timeline receives one Scene Clip container instead of many generated
+  text/shape fragments. The nested source scene, channels, and text animation
+  bindings are preserved for future Scene Scope editing. This checkpoint does
+  not modify preview/export semantics, Scene Scope opening, or Live Scrub.
 
 ## 1. Final Product Goal
 

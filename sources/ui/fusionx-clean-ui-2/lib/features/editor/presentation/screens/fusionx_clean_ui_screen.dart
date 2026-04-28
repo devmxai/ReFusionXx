@@ -12,6 +12,7 @@ import '../../domain/models/export_composition_builder.dart';
 import '../../domain/models/export_composition_models.dart';
 import '../../domain/models/export_motion_text_program_models.dart';
 import '../../domain/models/export_output_profile.dart';
+import '../../domain/models/composition_scene_clip_models.dart';
 import '../../domain/models/professional_canvas_timeline_authoring_models.dart';
 import '../../domain/models/professional_motion_animation_models.dart';
 import '../../domain/models/professional_motion_compilation_models.dart';
@@ -28,6 +29,7 @@ import '../../domain/models/professional_motion_text_runtime_helpers.dart';
 import '../../domain/models/professional_normal_transition_models.dart';
 import '../../domain/services/ai_transition/kie_ai_transition_service.dart';
 import '../../domain/services/normal_transition_command_history.dart';
+import '../../domain/services/scene_program_apply_transaction.dart';
 import '../../domain/services/scoped_text_motion_script_import_service.dart';
 import '../../domain/services/timeline_clock_coordinator.dart';
 import '../models/ai_transition_models.dart';
@@ -36,6 +38,7 @@ import '../models/editor_media_tab.dart';
 import '../models/timeline_mock_models.dart';
 import '../models/timeline_time.dart';
 import '../services/normal_transition_timeline_authoring_adapter.dart';
+import '../services/root_scene_clip_projection_adapter.dart';
 import '../services/transition_unified_scope_bridge_entry_adapter.dart';
 import '../services/transition_unified_scope_entry_gate.dart';
 import '../services/transition_unified_scope_keyframe_adapter.dart';
@@ -95,6 +98,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   static const double _defaultInsertedTextFontSize = 56;
   static const bool _timelineClockCoordinatorOwnsPlaybackSamples = true;
   static const double _motionPreviewClockResyncThresholdSeconds = 0.08;
+  static const SceneProgramApplyTransaction _sceneProgramApplyTransaction =
+      SceneProgramApplyTransaction();
+  static const RootSceneClipProjectionAdapter _rootSceneClipProjectionAdapter =
+      RootSceneClipProjectionAdapter();
   static const List<_CompositionTemplate> _compositionTemplates =
       <_CompositionTemplate>[
     _CompositionTemplate(
@@ -414,6 +421,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   Future<void> _timelineStructuralCommit = Future<void>.value();
   MotionProjectModel? _motionProject;
   bool _hasStartedCompositionSession = false;
+  List<CompositionSceneClipModel> _sceneClips =
+      const <CompositionSceneClipModel>[];
   List<MotionTextAnimationBindingModel> _motionTextAnimationBindings =
       const <MotionTextAnimationBindingModel>[];
   List<MotionPropertyChannelModel> _manualMotionPropertyChannels =
@@ -9905,6 +9914,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _lockedWorkspaceAspectRatio = template.aspectRatio;
       _motionProject = project;
       _hasStartedCompositionSession = true;
+      _sceneClips = const <CompositionSceneClipModel>[];
       _motionTextAnimationBindings = const <MotionTextAnimationBindingModel>[];
       _manualMotionPropertyChannels = const <MotionPropertyChannelModel>[];
       _tracks = const <TimelineTrackData>[];
@@ -9936,153 +9946,49 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   void _applySceneProgramImportResult(SceneProgramImportSheetResult result) {
-    final importedProject = result.project;
-    if (importedProject.scenes.isEmpty) {
-      _showStageMessage('Scene program has no scenes to apply.');
+    final transaction = _sceneProgramApplyTransaction.apply(
+      SceneProgramApplyTransactionRequest(
+        baseProject: _effectiveMotionProject,
+        authoringResult: result.authoringResult,
+        rootSceneId: _motionSceneId,
+        startTime: TimelineTime.zero,
+        existingSceneClips: _sceneClips,
+        existingChannels: _manualMotionPropertyChannels,
+        existingTextAnimationBindings: _motionTextAnimationBindings,
+        clipName: result.name,
+      ),
+    );
+    if (transaction == null) {
+      _showStageMessage('Scene program could not be applied.');
       return;
     }
-    final importedScene = importedProject.scenes.firstWhere(
-      (scene) => scene.id == _motionSceneId,
-      orElse: () => importedProject.scenes.first,
-    );
-    final baseProject = _effectiveMotionProject;
-    final baseScenes = List<MotionSceneModel>.from(baseProject.scenes);
-    final baseSceneIndex = baseScenes.indexWhere(
-      (scene) => scene.id == _motionSceneId,
-    );
-    final baseScene = baseSceneIndex >= 0
-        ? baseScenes[baseSceneIndex]
-        : MotionSceneModel(
-            id: _motionSceneId,
-            name: 'Main Scene',
-            projectRange: TimelineTimeRange(
-              start: TimelineTime.zero,
-              endExclusive: _timelineDurationTime,
-            ),
-            layers: const <MotionLayerModel>[],
-          );
-    final importedLayerIds =
-        importedScene.layers.map((layer) => layer.id).toSet();
-    final retainedLayers = baseScene.layers
-        .where((layer) => !importedLayerIds.contains(layer.id))
-        .toList(growable: false);
-    final hasExistingTimelineContent =
-        _tracks.any((track) => track.clips.isNotEmpty);
-    final hasExistingMotionContent = retainedLayers.isNotEmpty ||
-        _manualMotionPropertyChannels.isNotEmpty ||
-        _motionTextAnimationBindings.isNotEmpty;
-    final nextSceneEnd = _maxTimelineTime(<TimelineTime>[
-      importedScene.projectRange.endExclusive,
-      if (hasExistingTimelineContent || hasExistingMotionContent)
-        baseScene.projectRange.endExclusive,
-      if (hasExistingTimelineContent) _timelineDurationTime,
-    ]);
-    final nextScene = baseScene.copyWith(
-      projectRange: TimelineTimeRange(
-        start: TimelineTime.zero,
-        endExclusive: nextSceneEnd,
+    final nextSceneClips =
+        List<CompositionSceneClipModel>.unmodifiable(transaction.sceneClips);
+    final nextTracks = List<TimelineTrackData>.unmodifiable(
+      _rootSceneClipProjectionAdapter.mergeSceneTrack(
+        existingTracks: _tracks,
+        sceneClips: nextSceneClips,
       ),
-      layers: <MotionLayerModel>[
-        ...retainedLayers,
-        ...importedScene.layers,
-      ],
-      metadata: <String, String>{
-        ...baseScene.metadata,
-        'lastSceneProgramImport': result.name,
-      },
     );
-    if (baseSceneIndex >= 0) {
-      baseScenes[baseSceneIndex] = nextScene;
-    } else {
-      baseScenes.add(nextScene);
-    }
-    final incomingChannelIds =
-        result.channels.map((channel) => channel.id).toSet();
-    final nextChannels = <MotionPropertyChannelModel>[
-      for (final channel in _manualMotionPropertyChannels)
-        if (!incomingChannelIds.contains(channel.id)) channel,
-      ...result.channels,
-    ];
-    final incomingBindingElementIds = result.textAnimationBindings
-        .map((binding) => binding.elementTarget.targetId)
-        .toSet();
-    final nextTextAnimationBindings = <MotionTextAnimationBindingModel>[
-      for (final binding in _motionTextAnimationBindings)
-        if (!incomingBindingElementIds.contains(binding.elementTarget.targetId))
-          binding,
-      ...result.textAnimationBindings,
-    ];
-    final nextProject = baseProject.copyWith(
-      scenes: List<MotionSceneModel>.unmodifiable(baseScenes),
-      metadata: <String, String>{
-        ...baseProject.metadata,
-        'lastSceneProgramImport': result.name,
-      },
-    );
-    final firstTextElementId = _firstTextElementIdForScene(importedScene);
-    final importStartTime = _firstTextElementStartForScene(importedScene) ??
-        importedScene.projectRange.start;
-    final nextTracks = _ensureTrackKind(_tracks, TimelineTrackKind.text);
     setState(() {
       _tracks = nextTracks;
-      _motionProject = nextProject;
-      _manualMotionPropertyChannels =
-          List<MotionPropertyChannelModel>.unmodifiable(nextChannels);
-      _motionTextAnimationBindings =
-          List<MotionTextAnimationBindingModel>.unmodifiable(
-        nextTextAnimationBindings,
-      );
+      _motionProject = transaction.project;
+      _sceneClips = nextSceneClips;
+      _manualMotionPropertyChannels = transaction.channels;
+      _motionTextAnimationBindings = transaction.textAnimationBindings;
       _markMotionAuthoringChanged();
-      _selectedClipId = firstTextElementId;
+      _selectedClipId = transaction.sceneClip.id;
       _activeTab = EditorMediaTab.text;
       _previewAssetId = null;
-      _setCurrentTime(importStartTime.clamp(
+      _setCurrentTime(transaction.sceneClip.startTime.clamp(
         TimelineTime.zero,
-        nextScene.projectRange.endExclusive,
+        transaction.rootScene.projectRange.endExclusive,
       ));
     });
     _syncTimelineClockDuration();
     _showStageMessage(
-      'Scene applied: ${result.layerCount} layers, ${result.channelCount} channels.',
+      'Scene applied as one clip: ${result.layerCount} layers, ${result.channelCount} channels.',
     );
-  }
-
-  TimelineTime _maxTimelineTime(Iterable<TimelineTime> values) {
-    var max = TimelineTime.zero;
-    for (final value in values) {
-      if (value > max) {
-        max = value;
-      }
-    }
-    return max;
-  }
-
-  String? _firstTextElementIdForScene(MotionSceneModel scene) {
-    for (final layer in scene.layers) {
-      if (layer.kind != MotionLayerKind.text) {
-        continue;
-      }
-      for (final element in layer.elements) {
-        if (element.kind == MotionElementKind.text) {
-          return element.id;
-        }
-      }
-    }
-    return null;
-  }
-
-  TimelineTime? _firstTextElementStartForScene(MotionSceneModel scene) {
-    for (final layer in scene.layers) {
-      if (layer.kind != MotionLayerKind.text) {
-        continue;
-      }
-      for (final element in layer.elements) {
-        if (element.kind == MotionElementKind.text) {
-          return scene.projectRange.start + element.localRange.start;
-        }
-      }
-    }
-    return null;
   }
 
   Future<void> _openTextPresetSheet() async {

@@ -36,6 +36,7 @@ class SceneProgramImportSheetResult {
     required this.project,
     required this.channels,
     required this.textAnimationBindings,
+    required this.authoringResult,
   });
 
   factory SceneProgramImportSheetResult.fromAuthoringResult(
@@ -57,6 +58,7 @@ class SceneProgramImportSheetResult {
       project: result.project!,
       channels: result.channels,
       textAnimationBindings: result.textAnimationBindings,
+      authoringResult: result,
     );
   }
 
@@ -67,6 +69,7 @@ class SceneProgramImportSheetResult {
   final MotionProjectModel project;
   final List<MotionPropertyChannelModel> channels;
   final List<MotionTextAnimationBindingModel> textAnimationBindings;
+  final ReFusionSceneProgramAuthoringResult authoringResult;
 }
 
 class _SceneProgramImportBottomSheetState
