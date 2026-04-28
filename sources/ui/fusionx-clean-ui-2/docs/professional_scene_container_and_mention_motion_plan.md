@@ -113,6 +113,12 @@ Depends on:
   `ReFusionMotionPatchApplicator`, writing editable graph channels in the
   current root or Scene Scope. This mode makes no API calls and does not touch
   Stage5/Live Scrub.
+- Phase S11A agent dry-run: `ReFusionMotionAgentProviderCatalog` defines the
+  first KIE.ai model profiles for Mention Motion and builds provider-specific
+  request previews for Codex-style Responses and chat-completions style models.
+  `RemotionPromptBottomSheet` now exposes provider/model selection and prepares
+  a dry-run request body only. No API call is performed, no credits are used,
+  and Stage5/Live Scrub remains untouched.
 - Performance watch note: if repeated keyframe drag/edit or repeated scene
   script edits show intermittent heaviness on real devices, capture it as a
   profiling task after the mutation surface is complete. Do not treat Live Scrub
@@ -938,6 +944,43 @@ User inspection:
 Purpose:
 
 - connect prompt/mentions to remote agent provider.
+
+#### Phase S11A: Provider Catalog And Dry-Run Request Builder
+
+Purpose:
+
+- make the Remotion flow model-aware before enabling paid API calls.
+
+Deliverables:
+
+- KIE.ai provider profile catalog;
+- model selection in the Remotion bottom sheet;
+- dry-run request body preview for Codex Responses and chat-completions
+  transports;
+- no Authorization header, network call, or credit usage in this phase;
+- Local Motion Patch JSON remains available only as an advanced developer
+  fallback.
+
+Exit criteria:
+
+- selecting a profile changes the endpoint/model preview;
+- Generate prepares the request body using real `@mention` targets;
+- no API request can be sent from this checkpoint.
+
+Verification:
+
+```bash
+flutter test test/refusion_motion_agent_provider_catalog_test.dart
+flutter analyze
+flutter build apk --debug
+```
+
+User inspection:
+
+- open Remotion;
+- choose Codex / GPT 5.2 / Gemini;
+- type a prompt with `@mentions`;
+- tap Generate and confirm the preview says `no API call`.
 
 Deliverables:
 

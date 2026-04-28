@@ -1,9 +1,8 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../domain/models/refusion_motion_patch_models.dart';
+import '../../domain/services/refusion_motion_agent_provider_catalog.dart';
 import '../../domain/services/refusion_motion_patch_import_service.dart';
 import '../../domain/services/scene_mention_index.dart';
 import '../../domain/services/scene_mention_prompt_context.dart';
@@ -34,15 +33,19 @@ class RemotionPromptBottomSheet extends StatefulWidget {
 class _RemotionPromptBottomSheetState extends State<RemotionPromptBottomSheet> {
   final SceneMentionPromptContextBuilder _contextBuilder =
       const SceneMentionPromptContextBuilder();
+  final ReFusionMotionAgentProviderCatalog _agentCatalog =
+      const ReFusionMotionAgentProviderCatalog();
   final ReFusionMotionPatchImportService _patchImportService =
       const ReFusionMotionPatchImportService();
   late final TextEditingController _promptController;
   late final TextEditingController _localPatchController;
+  late ReFusionMotionAgentProfile _selectedAgentProfile;
   final Set<String> _selectedMentionIds = <String>{};
   String _mentionQuery = '';
   bool _showMentionSuggestions = false;
+  bool _showAdvancedPatch = false;
   SceneMentionPromptContext? _context;
-  String? _generatedPayloadPreview;
+  ReFusionMotionAgentRequestPreview? _generatedRequestPreview;
   List<ReFusionMotionPatchIssue> _localPatchIssues =
       const <ReFusionMotionPatchIssue>[];
   bool _localPatchValidated = false;
@@ -50,6 +53,7 @@ class _RemotionPromptBottomSheetState extends State<RemotionPromptBottomSheet> {
   @override
   void initState() {
     super.initState();
+    _selectedAgentProfile = ReFusionMotionAgentProviderCatalog.profiles.first;
     _promptController = TextEditingController();
     _localPatchController = TextEditingController();
     _context = _buildContext();
@@ -89,7 +93,7 @@ class _RemotionPromptBottomSheetState extends State<RemotionPromptBottomSheet> {
     setState(() {
       _updateMentionQuery();
       _context = _buildContext();
-      _generatedPayloadPreview = null;
+      _generatedRequestPreview = null;
     });
   }
 
@@ -145,35 +149,27 @@ class _RemotionPromptBottomSheetState extends State<RemotionPromptBottomSheet> {
       _mentionQuery = '';
       _showMentionSuggestions = false;
       _context = _buildContext();
-      _generatedPayloadPreview = null;
+      _generatedRequestPreview = null;
     });
   }
 
   void _generatePayload() {
     final nextContext = _buildContext();
-    final payload = <String, Object?>{
-      'provider': 'kie.ai',
-      'intent': 'generate-refusion-motion-patch',
-      'expectedSchema': 'refusion.motion-patch/v1',
-      'prompt': nextContext.prompt,
-      'timeline': <String, Object?>{
-        'scopeDurationMs': widget.scopeDurationMs,
-        'timeBasis': 'scope',
-      },
-      'targets': nextContext.mentions
-          .map((mention) => mention.toJson())
-          .toList(growable: false),
-      'constraints': const <String, Object?>{
-        'jsonOnly': true,
-        'noExecutableCode': true,
-        'useOnlyMentionedTargets': true,
-        'outputMustValidateBeforeApply': true,
-      },
-    };
-    const encoder = JsonEncoder.withIndent('  ');
+    final preview = _agentCatalog.buildRequestPreview(
+      profile: _selectedAgentProfile,
+      context: nextContext,
+      scopeDurationMs: widget.scopeDurationMs,
+    );
     setState(() {
       _context = nextContext;
-      _generatedPayloadPreview = encoder.convert(payload);
+      _generatedRequestPreview = preview;
+    });
+  }
+
+  void _selectAgentProfile(ReFusionMotionAgentProfile profile) {
+    setState(() {
+      _selectedAgentProfile = profile;
+      _generatedRequestPreview = null;
     });
   }
 
@@ -299,7 +295,7 @@ class _RemotionPromptBottomSheetState extends State<RemotionPromptBottomSheet> {
                 child: Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'Animate existing scene layers with @mentions. This checkpoint prepares the KIE.ai request payload; apply is gated by motion-patch validation.',
+                    'Animate existing scene layers with @mentions. Generate prepares a KIE.ai request preview only; no API call or credits are used here.',
                     style: TextStyle(
                       color: FxPalette.textMuted,
                       fontSize: 12,
@@ -319,6 +315,12 @@ class _RemotionPromptBottomSheetState extends State<RemotionPromptBottomSheet> {
                     (safeBottom > 0 ? safeBottom : 12) + 12,
                   ),
                   children: [
+                    _AgentProfilePicker(
+                      profiles: ReFusionMotionAgentProviderCatalog.profiles,
+                      selectedProfile: _selectedAgentProfile,
+                      onSelect: _selectAgentProfile,
+                    ),
+                    const SizedBox(height: 12),
                     _PromptEditorCard(
                       controller: _promptController,
                       onChanged: _handlePromptChanged,
@@ -344,25 +346,227 @@ class _RemotionPromptBottomSheetState extends State<RemotionPromptBottomSheet> {
                     ],
                     const SizedBox(height: 12),
                     _MentionPayloadSummary(context: currentContext),
-                    if (_generatedPayloadPreview != null) ...[
+                    if (_generatedRequestPreview != null) ...[
                       const SizedBox(height: 12),
-                      _GeneratedPayloadPreview(
-                        payload: _generatedPayloadPreview!,
+                      _GeneratedRequestPreview(
+                        preview: _generatedRequestPreview!,
                       ),
                     ],
                     const SizedBox(height: 12),
-                    _LocalMotionPatchCard(
-                      controller: _localPatchController,
-                      onChanged: _handleLocalPatchChanged,
-                      onApply: _validateAndReturnLocalPatch,
-                      issues: _localPatchIssues,
-                      validated: _localPatchValidated,
+                    _AdvancedPatchToggle(
+                      expanded: _showAdvancedPatch,
+                      onTap: () => setState(() {
+                        _showAdvancedPatch = !_showAdvancedPatch;
+                      }),
                     ),
+                    if (_showAdvancedPatch) ...[
+                      const SizedBox(height: 10),
+                      _LocalMotionPatchCard(
+                        controller: _localPatchController,
+                        onChanged: _handleLocalPatchChanged,
+                        onApply: _validateAndReturnLocalPatch,
+                        issues: _localPatchIssues,
+                        validated: _localPatchValidated,
+                      ),
+                    ],
                   ],
                 ),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AgentProfilePicker extends StatelessWidget {
+  const _AgentProfilePicker({
+    required this.profiles,
+    required this.selectedProfile,
+    required this.onSelect,
+  });
+
+  final List<ReFusionMotionAgentProfile> profiles;
+  final ReFusionMotionAgentProfile selectedProfile;
+  final ValueChanged<ReFusionMotionAgentProfile> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: FxPalette.surfaceRaised.withOpacity(0.78),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: FxPalette.dividerSoft),
+      ),
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.psychology_alt_rounded,
+                color: FxPalette.textPrimary,
+                size: 16,
+              ),
+              SizedBox(width: 8),
+              Text(
+                'Motion Agent',
+                style: TextStyle(
+                  color: FxPalette.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              Spacer(),
+              Text(
+                'dry run',
+                style: TextStyle(
+                  color: FxPalette.textMuted,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (final profile in profiles) ...[
+                  _AgentProfilePill(
+                    profile: profile,
+                    selected: profile.id == selectedProfile.id,
+                    onTap: () => onSelect(profile),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            selectedProfile.description,
+            style: const TextStyle(
+              color: FxPalette.textMuted,
+              fontSize: 11,
+              height: 1.32,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            selectedProfile.recommendedUse,
+            style: const TextStyle(
+              color: FxPalette.textFaint,
+              fontSize: 10,
+              height: 1.3,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AgentProfilePill extends StatelessWidget {
+  const _AgentProfilePill({
+    required this.profile,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final ReFusionMotionAgentProfile profile;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected
+              ? FxPalette.accent.withOpacity(0.18)
+              : Colors.white.withOpacity(0.045),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: selected
+                ? FxPalette.accent.withOpacity(0.42)
+                : FxPalette.dividerSoft,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              selected
+                  ? Icons.check_circle_rounded
+                  : Icons.radio_button_unchecked_rounded,
+              color: selected ? FxPalette.textPrimary : FxPalette.textMuted,
+              size: 14,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              profile.shortLabel,
+              style: TextStyle(
+                color: selected ? FxPalette.textPrimary : FxPalette.textMuted,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AdvancedPatchToggle extends StatelessWidget {
+  const _AdvancedPatchToggle({
+    required this.expanded,
+    required this.onTap,
+  });
+
+  final bool expanded;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.04),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: FxPalette.dividerSoft),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+        child: Row(
+          children: [
+            Icon(
+              expanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+              color: FxPalette.textMuted,
+              size: 18,
+            ),
+            const SizedBox(width: 8),
+            const Expanded(
+              child: Text(
+                'Advanced: paste local Motion Patch JSON',
+                style: TextStyle(
+                  color: FxPalette.textMuted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -815,10 +1019,10 @@ class _MentionPayloadSummary extends StatelessWidget {
   }
 }
 
-class _GeneratedPayloadPreview extends StatelessWidget {
-  const _GeneratedPayloadPreview({required this.payload});
+class _GeneratedRequestPreview extends StatelessWidget {
+  const _GeneratedRequestPreview({required this.preview});
 
-  final String payload;
+  final ReFusionMotionAgentRequestPreview preview;
 
   @override
   Widget build(BuildContext context) {
@@ -832,33 +1036,73 @@ class _GeneratedPayloadPreview extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(
+              const Icon(
                 Icons.integration_instructions_rounded,
                 color: FxPalette.textPrimary,
                 size: 16,
               ),
-              SizedBox(width: 8),
-              Text(
-                'KIE.ai request payload',
-                style: TextStyle(
-                  color: FxPalette.textPrimary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  'KIE.ai request preview',
+                  style: TextStyle(
+                    color: FxPalette.textPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF45D483).withOpacity(0.13),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: const Color(0xFF45D483).withOpacity(0.35),
+                  ),
+                ),
+                child: const Text(
+                  'no API call',
+                  style: TextStyle(
+                    color: Color(0xFF9AF0BA),
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 8),
           Text(
-            payload,
+            '${preview.method} ${preview.endpointUrl}\nmodel: ${preview.profile.modelId}',
+            style: const TextStyle(
+              color: FxPalette.textMuted,
+              fontSize: 10,
+              height: 1.35,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            preview.prettyBody,
             style: const TextStyle(
               color: FxPalette.textMuted,
               fontSize: 10,
               height: 1.35,
               fontFamily: 'monospace',
               fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'This is prepared locally only. The real API call remains disabled until you explicitly run it.',
+            style: TextStyle(
+              color: FxPalette.textFaint,
+              fontSize: 10,
+              height: 1.35,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],
