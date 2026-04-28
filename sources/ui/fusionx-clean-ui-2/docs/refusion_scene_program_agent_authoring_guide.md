@@ -293,6 +293,17 @@ Every animated property is declared as a channel:
 
 ### Keyframe Time Rules
 
+Layer timing fields must use canonical numeric JSON values:
+
+```json
+{ "startMs": 0, "durationMs": 2400 }
+```
+
+Do not write timing as strings such as `"startMs": "0"`, and do not prefer
+aliases such as `start`, `startTimeMs`, or `duration`. ReFusion can repair
+simple timing aliases and numeric strings with warnings, but professional
+agent output should use `startMs` and `durationMs`.
+
 By default, channel keyframes use **local layer time**:
 
 - a layer with `startMs: 1800` and `durationMs: 800` accepts local keyframes from `0` to `800`;

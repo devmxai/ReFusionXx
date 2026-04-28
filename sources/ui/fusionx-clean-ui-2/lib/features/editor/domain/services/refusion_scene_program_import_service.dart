@@ -251,6 +251,13 @@ class ReFusionSceneProgramImportService {
         fallback: 0,
         issues: issues,
         pathPrefix: path,
+        aliases: const <String>[
+          'startTimeMs',
+          'startMilliseconds',
+          'start',
+          'beginMs',
+          'offsetMs',
+        ],
       );
       final declaredDurationMs = _readPositiveInt(
         entry,
@@ -258,6 +265,12 @@ class ReFusionSceneProgramImportService {
         fallback: sceneDurationMs,
         issues: issues,
         pathPrefix: path,
+        aliases: const <String>[
+          'duration',
+          'durationMilliseconds',
+          'lengthMs',
+          'length',
+        ],
       );
       final durationMs = _effectiveOwnerDurationMs(
         entry,
@@ -1127,13 +1140,18 @@ class ReFusionSceneProgramImportService {
     required int fallback,
     required List<ReFusionSceneProgramIssue> issues,
     String pathPrefix = '',
+    List<String> aliases = const <String>[],
   }) {
-    final value = json[key];
-    if (value is int && value > 0) {
-      return value;
-    }
-    if (value is num && value > 0) {
-      return value.round();
+    final lookup = _lookupNumericValue(json, key, aliases);
+    final parsed = lookup == null ? null : _parseNumericValue(lookup.value);
+    if (lookup != null && parsed != null && parsed > 0) {
+      _warnIfRepairedNumericValue(
+        lookup: lookup,
+        canonicalKey: key,
+        issues: issues,
+        pathPrefix: pathPrefix,
+      );
+      return parsed.round();
     }
     issues.add(
       ReFusionSceneProgramIssue(
@@ -1151,13 +1169,18 @@ class ReFusionSceneProgramImportService {
     required int fallback,
     required List<ReFusionSceneProgramIssue> issues,
     String pathPrefix = '',
+    List<String> aliases = const <String>[],
   }) {
-    final value = json[key];
-    if (value is int && value >= 0) {
-      return value;
-    }
-    if (value is num && value >= 0) {
-      return value.round();
+    final lookup = _lookupNumericValue(json, key, aliases);
+    final parsed = lookup == null ? null : _parseNumericValue(lookup.value);
+    if (lookup != null && parsed != null && parsed >= 0) {
+      _warnIfRepairedNumericValue(
+        lookup: lookup,
+        canonicalKey: key,
+        issues: issues,
+        pathPrefix: pathPrefix,
+      );
+      return parsed.round();
     }
     issues.add(
       ReFusionSceneProgramIssue(
@@ -1167,6 +1190,72 @@ class ReFusionSceneProgramImportService {
       ),
     );
     return fallback;
+  }
+
+  _SceneProgramNumericLookup? _lookupNumericValue(
+    Map<String, dynamic> json,
+    String canonicalKey,
+    List<String> aliases,
+  ) {
+    if (json.containsKey(canonicalKey)) {
+      return _SceneProgramNumericLookup(
+        key: canonicalKey,
+        value: json[canonicalKey],
+        isAlias: false,
+      );
+    }
+    for (final alias in aliases) {
+      if (json.containsKey(alias)) {
+        return _SceneProgramNumericLookup(
+          key: alias,
+          value: json[alias],
+          isAlias: true,
+        );
+      }
+    }
+    return null;
+  }
+
+  double? _parseNumericValue(Object? value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+    if (value is String) {
+      final trimmed = value.trim();
+      if (trimmed.isEmpty) {
+        return null;
+      }
+      return double.tryParse(trimmed);
+    }
+    return null;
+  }
+
+  void _warnIfRepairedNumericValue({
+    required _SceneProgramNumericLookup lookup,
+    required String canonicalKey,
+    required List<ReFusionSceneProgramIssue> issues,
+    required String pathPrefix,
+  }) {
+    if (lookup.isAlias) {
+      issues.add(
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.warning,
+          message:
+              'Used agent-friendly timing alias `${lookup.key}` as `$canonicalKey`. Prefer `$canonicalKey` in scene-program JSON.',
+          path: _joinPath(pathPrefix, lookup.key),
+        ),
+      );
+    }
+    if (lookup.value is String) {
+      issues.add(
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.warning,
+          message:
+              'Converted numeric string `${lookup.key}` to a number. Prefer numeric JSON values for timing fields.',
+          path: _joinPath(pathPrefix, lookup.key),
+        ),
+      );
+    }
   }
 
   double _readPositiveDouble(
@@ -1212,4 +1301,16 @@ class ReFusionSceneProgramImportService {
 
   String _joinPath(String prefix, String key) =>
       prefix.isEmpty ? key : '$prefix.$key';
+}
+
+class _SceneProgramNumericLookup {
+  const _SceneProgramNumericLookup({
+    required this.key,
+    required this.value,
+    required this.isAlias,
+  });
+
+  final String key;
+  final Object? value;
+  final bool isAlias;
 }

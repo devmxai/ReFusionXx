@@ -193,6 +193,60 @@ void main() {
     expect(keyframes.map((keyframe) => keyframe.timeMs), <int>[0, 700, 1400]);
   });
 
+  test('repairs agent-friendly layer timing aliases and numeric strings', () {
+    final result = service.validate(
+      source: '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "durationMs": 2400,
+  "frameRate": 30,
+  "layers": [
+    {
+      "id": "prompt-shell-layer",
+      "kind": "shape",
+      "startTimeMs": "0",
+      "duration": "2400",
+      "elements": [
+        {
+          "id": "prompt-shell",
+          "kind": "shape",
+          "properties": {
+            "shapeKind": "roundedRectangle",
+            "width": 760,
+            "height": 96,
+            "cornerRadius": 48,
+            "color": "#111824"
+          }
+        }
+      ]
+    }
+  ]
+}
+''',
+    );
+
+    expect(result.isValid, isTrue);
+    final layer = result.program!.layers.single;
+    expect(layer.startMs, 0);
+    expect(layer.durationMs, 2400);
+    expect(
+      result.issues.where(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.warning &&
+            issue.message.contains('agent-friendly timing alias'),
+      ),
+      isNotEmpty,
+    );
+    expect(
+      result.issues.where(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.warning &&
+            issue.message.contains('numeric string'),
+      ),
+      isNotEmpty,
+    );
+  });
+
   test('accepts explicit project-time keyframes inside delayed layers', () {
     final result = service.validate(
       source: '''

@@ -310,6 +310,7 @@ class ReFusionSceneAgentProviderCatalog {
       'reveal',
     ],
     'timeRules': <String>[
+      'Layer timing fields must use canonical numeric startMs and durationMs, not strings.',
       'Default keyframe timeMs is local layer time from 0 to layer.durationMs.',
       'Use timeBasis: project only when all keyframes are absolute scene times.',
       'Layer durationMs must cover every local keyframe.',
