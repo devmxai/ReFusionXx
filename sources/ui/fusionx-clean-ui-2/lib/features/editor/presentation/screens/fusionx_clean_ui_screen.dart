@@ -29,6 +29,7 @@ import '../../domain/models/professional_motion_text_runtime_helpers.dart';
 import '../../domain/models/professional_normal_transition_models.dart';
 import '../../domain/services/ai_transition/kie_ai_transition_service.dart';
 import '../../domain/services/normal_transition_command_history.dart';
+import '../../domain/services/layer_scope_composition_adapter.dart';
 import '../../domain/services/scene_program_apply_transaction.dart';
 import '../../domain/services/scene_scope_session.dart';
 import '../../domain/services/scoped_text_motion_script_import_service.dart';
@@ -108,6 +109,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       SceneScopeSessionResolver();
   static const SceneLayerScopeTimelineAdapter _sceneLayerScopeTimelineAdapter =
       SceneLayerScopeTimelineAdapter();
+  static const LayerScopeCompositionAdapter _layerScopeCompositionAdapter =
+      LayerScopeCompositionAdapter();
   static const List<_CompositionTemplate> _compositionTemplates =
       <_CompositionTemplate>[
     _CompositionTemplate(
@@ -4917,6 +4920,129 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _selectedLayerScopeKeyframeId = keyframeId;
       _isLayerScopeValueEditorOpen = false;
     });
+  }
+
+  void _handleSceneLayerScopeAnimationKeyframeDrag(
+    SceneLayerScopeTimelineViewModel viewModel,
+    String laneId,
+    int keyframeIndex,
+    String keyframeId,
+    double progress,
+  ) {
+    TimelineAnimationLaneData? lane;
+    for (final candidate in viewModel.track.animationLanes) {
+      if (candidate.id == laneId) {
+        lane = candidate;
+        break;
+      }
+    }
+    if (lane == null) {
+      return;
+    }
+    final localTime = TimelineTime.fromSecondsDouble(
+      viewModel.durationTime.inSecondsDouble * progress.clamp(0.0, 1.0),
+    );
+    final result = _layerScopeCompositionAdapter.moveKeyframe(
+      LayerScopeCompositionMoveKeyframeRequest(
+        projection: viewModel.projection,
+        channels: viewModel.projection.channels,
+        channelId: lane.id,
+        keyframeId: keyframeId,
+        localTime: localTime,
+      ),
+    );
+    if (result.hasIssues) {
+      _showStageMessage(result.issues.first.message);
+      return;
+    }
+    MotionPropertyChannelModel? movedChannel;
+    for (final channel in result.channels) {
+      if (channel.id == lane.id) {
+        movedChannel = channel;
+        break;
+      }
+    }
+    final nextSelectedIndex = movedChannel?.keyframes.indexWhere(
+      (keyframe) => keyframe.id == keyframeId,
+    );
+    setState(() {
+      _manualMotionPropertyChannels = _mergeSceneLayerScopeChannels(
+        viewModel,
+        result.channels,
+      );
+      _markMotionAuthoringChanged();
+      _selectedLayerScopeAnimationLaneId = laneId;
+      _selectedLayerScopeKeyframeIndex =
+          nextSelectedIndex == null || nextSelectedIndex < 0
+              ? keyframeIndex
+              : nextSelectedIndex;
+      _selectedLayerScopeKeyframeId = keyframeId;
+      _isLayerScopeValueEditorOpen = false;
+    });
+  }
+
+  List<MotionPropertyChannelModel> _mergeSceneLayerScopeChannels(
+    SceneLayerScopeTimelineViewModel viewModel,
+    List<MotionPropertyChannelModel> localChannels,
+  ) {
+    final replacements = <String, MotionPropertyChannelModel>{
+      for (final channel in localChannels)
+        channel.id: _sceneLayerScopeChannelToSourceTime(viewModel, channel),
+    };
+    final nextChannels = <MotionPropertyChannelModel>[];
+    final replacedIds = <String>{};
+    for (final channel in _manualMotionPropertyChannels) {
+      final replacement = replacements[channel.id];
+      if (replacement == null) {
+        nextChannels.add(channel);
+        continue;
+      }
+      nextChannels.add(replacement);
+      replacedIds.add(channel.id);
+    }
+    for (final replacement in replacements.entries) {
+      if (!replacedIds.contains(replacement.key)) {
+        nextChannels.add(replacement.value);
+      }
+    }
+    return List<MotionPropertyChannelModel>.unmodifiable(nextChannels);
+  }
+
+  MotionPropertyChannelModel _sceneLayerScopeChannelToSourceTime(
+    SceneLayerScopeTimelineViewModel viewModel,
+    MotionPropertyChannelModel channel,
+  ) {
+    final activeRange = channel.activeRange;
+    final sourceActiveRange = activeRange == null
+        ? null
+        : TimelineTimeRange(
+            start:
+                _sceneLayerScopeLocalToSourceTime(viewModel, activeRange.start),
+            endExclusive: _sceneLayerScopeLocalToSourceTime(
+              viewModel,
+              activeRange.endExclusive,
+            ),
+          );
+    return channel.copyWith(
+      activeRange: sourceActiveRange,
+      clearActiveRange: sourceActiveRange == null,
+      keyframes: List<MotionKeyframeModel>.unmodifiable(
+        <MotionKeyframeModel>[
+          for (final keyframe in channel.keyframes)
+            keyframe.copyWith(
+              time: _sceneLayerScopeLocalToSourceTime(viewModel, keyframe.time),
+            ),
+        ]..sort((left, right) => left.time.compareTo(right.time)),
+      ),
+    );
+  }
+
+  TimelineTime _sceneLayerScopeLocalToSourceTime(
+    SceneLayerScopeTimelineViewModel viewModel,
+    TimelineTime localTime,
+  ) {
+    final local = localTime.clamp(TimelineTime.zero, viewModel.durationTime);
+    return viewModel.sourceStartTime + local;
   }
 
   void _handleLayerScopeDisplayTimeChanged(
@@ -16165,6 +16291,19 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                   ),
                                                   onAnimationKeyframeTap:
                                                       _handleSceneLayerScopeAnimationKeyframeTap,
+                                                  onAnimationKeyframeDrag: (
+                                                    laneId,
+                                                    keyframeIndex,
+                                                    keyframeId,
+                                                    progress,
+                                                  ) =>
+                                                      _handleSceneLayerScopeAnimationKeyframeDrag(
+                                                    sceneLayerScopeViewModel,
+                                                    laneId,
+                                                    keyframeIndex,
+                                                    keyframeId,
+                                                    progress,
+                                                  ),
                                                   onBackgroundTap: () {
                                                     setState(() {
                                                       _selectedLayerScopeAnimationLaneId =

@@ -51,6 +51,10 @@ Depends on:
   time mapping while preserving the root Scene Clip container. Keyframe mutation
   from this nested scope remains a future checkpoint, and Stage5 Live Scrub is
   untouched.
+- Phase S5 keyframe drag wiring: existing keyframes in Scene Layer Scope can be
+  dragged on the timeline. The edit flows through `LayerScopeCompositionAdapter`
+  and is merged back into source-scene graph time. Add/value/delete/graph
+  controls remain future checkpoints, and Stage5 Live Scrub is untouched.
 
 ## 1. Final Product Goal
 
