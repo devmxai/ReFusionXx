@@ -64,6 +64,8 @@ void main() {
     expect(preview.prettyBody, contains(r'\"target\"'));
     expect(preview.prettyBody, contains('Do not emit targetId'));
     expect(preview.prettyBody, contains('scope-local-ms'));
+    expect(preview.prettyBody, contains('motion-director-beats'));
+    expect(preview.prettyBody, contains('readable hold'));
   });
 
   test('builds chat-completions dry-run request for GPT 5.2 profile', () {

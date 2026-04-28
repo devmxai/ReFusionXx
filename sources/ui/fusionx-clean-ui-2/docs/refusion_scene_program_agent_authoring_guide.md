@@ -25,6 +25,35 @@ Every scene must be declarative:
 
 The generated file must be editable after import. Any motion must be represented as layers, elements, property channels, keyframes, and easing.
 
+## Director-First Workflow
+
+Do not jump straight from a prompt to random keyframes.
+
+Before writing the final Scene Program JSON, internally plan:
+
+1. **Beats**: ordered time blocks with clear intent.
+2. **Semantic components**: prompt shell, typed text, send button, reveal circle,
+   background, title, icon, image, etc.
+3. **Primitives**: one intentional motion per component inside one beat.
+4. **Compilation**: convert the primitives into real layers, elements, channels,
+   and keyframes.
+
+Professional timing example:
+
+```text
+0-520ms     Prompt shell enters
+520-1900ms  Text types on with typewriterProgress 0 -> 1
+1900-2140ms Send button press
+2300-4200ms Circle expands and covers the screen
+```
+
+Every primitive must stay inside its owning beat. Beats must not overlap unless
+the scene specifically needs simultaneous action, and even then the simultaneous
+motion should be expressed inside one beat with several primitives.
+
+Typewriter text must be one complete text element with one
+`typewriterProgress` channel. Never create one layer or element per character.
+
 ## Coordinate System
 
 Default composition size is portrait `1080 x 1920`.

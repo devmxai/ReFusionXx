@@ -12,6 +12,7 @@ This plan is governed by:
 - `docs/professional_refusion_motion_keyframe_engine.md`
 - `docs/professional_composition_timeline_migration_plan.md`
 - `docs/professional_scene_container_and_mention_motion_plan.md`
+- `docs/professional_motion_director_engine.md`
 
 Every completed build step must be a focused checkpoint:
 
@@ -62,6 +63,12 @@ Prompt
 ```
 
 The generated scene must never become an opaque baked video when the user expects editable motion graphics.
+
+The agent must not write raw keyframes as its first reasoning step. It must
+first create a Director Plan with beats, semantic components, and animation
+primitives as defined in `docs/professional_motion_director_engine.md`, then
+compile that plan into editable Scene Program JSON. This keeps generated scenes
+sequenced and intentional instead of visually random.
 
 When the user wants to animate existing assets rather than generate a full scene,
 the agent must use the mention-driven Motion Patch workflow defined in

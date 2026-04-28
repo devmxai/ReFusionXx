@@ -9,6 +9,7 @@ Depends on:
 - `docs/professional_refusion_motion_keyframe_engine.md`
 - `docs/professional_composition_timeline_migration_plan.md`
 - `docs/professional_agent_scene_program_engine.md`
+- `docs/professional_motion_director_engine.md`
 
 ## Execution Status
 
@@ -139,6 +140,11 @@ Depends on:
   until their native renderer paths ship. This prevents shape/image scene
   content from being silently dropped during export and does not touch Stage5 or
   Live Scrub.
+- Motion Director Phase D1 foundation: prompt-to-scene generation now has a
+  tested Director Plan layer above raw Scene Program JSON. Agents must plan
+  ordered beats, semantic components, and primitives before emitting executable
+  scene data. This is how ReFusion prevents valid-but-random keyframe output
+  from becoming the production authoring path.
 - Performance watch note: if repeated keyframe drag/edit or repeated scene
   script edits show intermittent heaviness on real devices, capture it as a
   profiling task after the mutation surface is complete. Do not treat Live Scrub

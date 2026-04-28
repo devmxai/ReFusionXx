@@ -23,6 +23,10 @@ Scene container clips and mention-driven motion patches must also follow:
 
 `docs/professional_scene_container_and_mention_motion_plan.md`
 
+Professional prompt-to-scene choreography must also follow:
+
+`docs/professional_motion_director_engine.md`
+
 This is a strict project rule. Every completed build step must be committed as a focused checkpoint and pushed to GitHub before starting the next build step, unless the user explicitly says not to push.
 
 The required order is:
@@ -99,6 +103,8 @@ This rule exists so timeline, Live Scrub, keyframe, transition, and motion-engin
 - Scene Program importer now repairs too-short layer durations when all keyframes are still inside the scene timeline, and warns when typewriter/reveal channels run backward (`1.0 -> 0.0`) because that produces a delete/backspace effect rather than keyboard type-on.
 - Scene Program importer now compacts simple agent-generated character-by-character text layers into a single text element with a true `typewriterProgress` channel. This is a defensive repair for agents that incorrectly create one text element per letter instead of using the native text reveal engine.
 - Scene Program lowerer now offsets local layer/element keyframes into project time before runtime evaluation. Delayed text layers therefore type at their visible timeline position instead of revealing early as if their keyframes started at project zero.
+- Motion Director Phase D1 foundation: `ReFusionMotionDirectorPlan`, ordered beats, semantic components, primitives, and `ReFusionMotionDirectorLinter` now define the professional planning layer above Scene Program. Ordered beat plans pass, overlapping beats fail, unknown targets fail, primitives outside their owning beat fail, and backward typewriter motion fails before it can become random generated keyframes.
+- Motion Director Phase D2 prompt foundation: KIE Mention Motion requests now include a director-style beat contract and system instruction before the agent writes Motion Patch JSON, so generated patches are pushed toward ordered enter/hold/action/exit choreography instead of unrelated simultaneous motion.
 - Phase 4/5B+: open. Scope projection wiring, UI adapters, motion graph import, transition unification, scriptable scene programs, and export parity must be built on top of the clock/keyframe foundations.
 - Live Scrub status: protected. Stage5 Live Scrub is not part of a rewrite. It is a production path that must remain fast, precise, and native-optimized.
 

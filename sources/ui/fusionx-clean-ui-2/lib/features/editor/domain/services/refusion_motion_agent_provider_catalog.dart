@@ -179,6 +179,23 @@ class ReFusionMotionAgentProviderCatalog {
           ],
         },
       },
+      'directorContract': const <String, Object?>{
+        'planningStyle': 'motion-director-beats',
+        'mustPlanInternallyBeforeJson': true,
+        'beatRules': <String>[
+          'Split the request into ordered beats before writing operations.',
+          'Keep each operation inside its intended beat.',
+          'Do not animate unrelated targets at the same time unless the prompt asks for simultaneous motion.',
+          'Use short holds when a viewer needs to read or understand the visual state.',
+        ],
+        'qualityRules': <String>[
+          'Motion should have clear cause and effect: enter, type/reveal, hold, press/action, exit or transform.',
+          'Prefer one intentional primitive per target per beat.',
+          'Avoid random opacity flicker, random scale pulses, and overlapping movement that hides the main subject.',
+        ],
+        'typewriterRule':
+            'For typing text, animate a supported reveal/typewriter property from 0 toward 1. Never reverse it unless the user explicitly asks for deletion.',
+      },
       'constraints': const <String, Object?>{
         'returnJsonOnly': true,
         'doNotCreateNewElements': true,
@@ -280,9 +297,12 @@ You are a ReFusion motion agent. Return only valid JSON for schemaVersion "refus
 Animate only the mentioned targets from the supplied target list.
 Do not create new layers, new elements, executable code, imports, URLs, markdown, or prose.
 All keyframe timeMs values must be inside the supplied scope-local allowedRangeMs.
-Prefer professional timing: short ease-in/ease-out, clean overshoot only when requested, and editable keyframes.
+Before writing JSON, internally plan ordered motion-director beats: enter/reveal, readable hold, action, and exit/transform. Keep every operation inside a clear beat.
+Prefer professional timing: short ease-in/ease-out, clean overshoot only when requested, readable holds when text must be understood, and editable keyframes.
+Avoid random simultaneous movement. Motion should show cause and effect, not unrelated targets moving at once.
 Use only properties listed under each target.supportedProperties.
 Each operation must use "target" as the target key. The value must be an exact target.mentionId or target.targetId from the supplied target list. Do not use "targetId" as an operation key.
 Each operation must use "action": "animate"; do not use "op".
+For typewriter or typing requests, animate reveal/typewriter progress forward from 0 toward 1. Do not reverse the value unless deletion/backspace is explicitly requested.
 ''';
 }
