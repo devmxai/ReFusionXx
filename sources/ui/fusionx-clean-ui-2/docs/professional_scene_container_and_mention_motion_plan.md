@@ -161,6 +161,11 @@ Depends on:
   Scene Clip transaction path. This is the first app-owned bridge from
   choreography intent to editable composition data; production UI still applies
   generated Scene Program JSON directly until the next integration slice.
+- Motion Director Phase D3 extraction integration: Scene Generate extraction can
+  now compile a valid Director Plan into Scene Program JSON when the agent
+  returns choreography intent without a `sceneProgram` field. This keeps
+  Director-first generation useful while preserving normal validation and Scene
+  Clip application.
 - Performance watch note: if repeated keyframe drag/edit or repeated scene
   script edits show intermittent heaviness on real devices, capture it as a
   profiling task after the mutation surface is complete. Do not treat Live Scrub

@@ -205,6 +205,31 @@ void main() {
       ),
     );
   });
+
+  test('compiles directorPlan-only response into Scene Program JSON', () {
+    final rawResponse = jsonEncode(
+      <String, Object?>{
+        'output_text': jsonEncode(
+          <String, Object?>{
+            'directorPlan': _directorPlanJson(),
+          },
+        ),
+      },
+    );
+
+    final extracted = service.extractSceneProgramPayload(
+      rawResponse: rawResponse,
+      transport: ReFusionSceneAgentTransport.responses,
+    );
+    final decoded =
+        jsonDecode(extracted.sceneProgramJson) as Map<String, dynamic>;
+
+    expect(decoded['schemaVersion'], 'refusion.scene-program/v1');
+    expect(decoded['name'], 'Prompt Director');
+    expect(decoded['layers'], isA<List<Object?>>());
+    expect(decoded['layers'], isNotEmpty);
+    expect(extracted.directorPlan, isNotNull);
+  });
 }
 
 Map<String, Object?> _directorPlanJson({bool reverseTyping = false}) {

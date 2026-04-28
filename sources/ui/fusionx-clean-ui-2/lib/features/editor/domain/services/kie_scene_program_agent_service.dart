@@ -5,8 +5,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../models/refusion_motion_director_models.dart';
+import '../models/refusion_scene_program_models.dart';
 import 'refusion_motion_director_linter.dart';
 import 'refusion_motion_director_plan_import_service.dart';
+import 'refusion_motion_director_scene_program_compiler.dart';
 import 'refusion_scene_agent_provider_catalog.dart';
 
 class KieSceneProgramAgentService {
@@ -17,11 +19,14 @@ class KieSceneProgramAgentService {
         const ReFusionMotionDirectorPlanImportService(),
     ReFusionMotionDirectorLinter directorLinter =
         const ReFusionMotionDirectorLinter(),
+    ReFusionMotionDirectorSceneProgramCompiler directorCompiler =
+        const ReFusionMotionDirectorSceneProgramCompiler(),
     MethodChannel runtimeConfigChannel =
         const MethodChannel('com.refusion.app/runtime_config'),
   })  : _catalog = catalog,
         _directorPlanImportService = directorPlanImportService,
         _directorLinter = directorLinter,
+        _directorCompiler = directorCompiler,
         _runtimeConfigChannel = runtimeConfigChannel;
 
   static const String _apiKey = String.fromEnvironment('KIE_API_KEY');
@@ -29,6 +34,7 @@ class KieSceneProgramAgentService {
   final ReFusionSceneAgentProviderCatalog _catalog;
   final ReFusionMotionDirectorPlanImportService _directorPlanImportService;
   final ReFusionMotionDirectorLinter _directorLinter;
+  final ReFusionMotionDirectorSceneProgramCompiler _directorCompiler;
   final MethodChannel _runtimeConfigChannel;
   String _runtimeApiKey = '';
   bool _attemptedRuntimeKeyLoad = false;
@@ -131,7 +137,22 @@ class KieSceneProgramAgentService {
       );
     }
     final directorExtraction = _extractAndLintDirectorPlan(object);
-    final sceneProgram = object['sceneProgram'] ?? object['program'] ?? object;
+    final sceneProgram = object['sceneProgram'] ??
+        object['program'] ??
+        (object['schemaVersion'] == 'refusion.scene-program/v1'
+            ? object
+            : null);
+    if (sceneProgram == null && directorExtraction.plan != null) {
+      final compiled = _compileDirectorPlanToSceneProgram(
+        directorExtraction.plan!,
+        directorExtraction.issues,
+      );
+      return KieSceneProgramExtractionResult(
+        sceneProgramJson: _encodeSceneProgram(compiled),
+        directorPlan: directorExtraction.plan,
+        directorIssues: directorExtraction.issues,
+      );
+    }
     if (sceneProgram is! Map) {
       throw const KieSceneProgramAgentException(
         'Generated response did not contain a Scene Program object.',
@@ -148,6 +169,88 @@ class KieSceneProgramAgentService {
       directorPlan: directorExtraction.plan,
       directorIssues: directorExtraction.issues,
     );
+  }
+
+  ReFusionSceneProgram _compileDirectorPlanToSceneProgram(
+    ReFusionMotionDirectorPlan plan,
+    List<ReFusionMotionDirectorIssue> directorIssues,
+  ) {
+    final compileResult = _directorCompiler.compile(plan);
+    directorIssues.addAll(compileResult.issues);
+    final hasErrors = directorIssues.any(
+      (issue) => issue.severity == ReFusionMotionDirectorIssueSeverity.error,
+    );
+    if (hasErrors || compileResult.program == null) {
+      throw KieSceneProgramAgentException(
+        'Generated directorPlan could not compile into Scene Program: ${_directorIssueSummary(directorIssues)}',
+      );
+    }
+    return compileResult.program!;
+  }
+
+  String _encodeSceneProgram(ReFusionSceneProgram program) {
+    const encoder = JsonEncoder.withIndent('  ');
+    return encoder.convert(_sceneProgramToJson(program));
+  }
+
+  Map<String, Object?> _sceneProgramToJson(ReFusionSceneProgram program) {
+    return <String, Object?>{
+      'schemaVersion': program.schemaVersion,
+      'name': program.name,
+      'durationMs': program.durationMs,
+      'frameRate': program.frameRate,
+      'layers': program.layers.map(_sceneLayerToJson).toList(growable: false),
+    };
+  }
+
+  Map<String, Object?> _sceneLayerToJson(ReFusionSceneProgramLayer layer) {
+    return <String, Object?>{
+      'id': layer.id,
+      'kind': layer.kind,
+      if (layer.name != null) 'name': layer.name,
+      'startMs': layer.startMs,
+      'durationMs': layer.durationMs,
+      if (layer.elements.isNotEmpty)
+        'elements':
+            layer.elements.map(_sceneElementToJson).toList(growable: false),
+      if (layer.channels.isNotEmpty)
+        'channels':
+            layer.channels.map(_sceneChannelToJson).toList(growable: false),
+    };
+  }
+
+  Map<String, Object?> _sceneElementToJson(
+      ReFusionSceneProgramElement element) {
+    return <String, Object?>{
+      'id': element.id,
+      'kind': element.kind,
+      if (element.name != null) 'name': element.name,
+      if (element.text != null) 'text': element.text,
+      if (element.properties.isNotEmpty) 'properties': element.properties,
+      if (element.channels.isNotEmpty)
+        'channels':
+            element.channels.map(_sceneChannelToJson).toList(growable: false),
+    };
+  }
+
+  Map<String, Object?> _sceneChannelToJson(
+      ReFusionSceneProgramChannel channel) {
+    return <String, Object?>{
+      'target': channel.target,
+      'property': channel.property,
+      'keyframes':
+          channel.keyframes.map(_sceneKeyframeToJson).toList(growable: false),
+    };
+  }
+
+  Map<String, Object?> _sceneKeyframeToJson(
+    ReFusionSceneProgramKeyframe keyframe,
+  ) {
+    return <String, Object?>{
+      'timeMs': keyframe.timeMs,
+      'value': keyframe.value,
+      'easing': keyframe.easing,
+    };
   }
 
   _DirectorExtraction _extractAndLintDirectorPlan(

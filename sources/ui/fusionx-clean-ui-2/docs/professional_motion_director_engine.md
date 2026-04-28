@@ -241,6 +241,11 @@ Status:
   text, send button, cover circle, icons, lines, and generic shapes into
   editable Scene Program layers/elements/channels. The result can be lowered by
   the existing Scene Program lowerer. UI use of this compiler is a later slice.
+- completed extraction integration. If a trusted agent response contains a
+  valid `directorPlan` but no `sceneProgram`, ReFusion can compile the Director
+  Plan into an editable Scene Program locally. This keeps the app-owned
+  choreography compiler in the generation path and reduces dependence on raw
+  keyframes authored directly by the model.
 
 ### Phase D4 - Lint And Auto-Repair Before Apply
 
