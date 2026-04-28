@@ -515,7 +515,7 @@ class KieSceneProgramAgentService {
       request.headers.set(HttpHeaders.contentTypeHeader, 'application/json');
       request.add(utf8.encode(jsonEncode(body)));
       final response = await request.close().timeout(
-            const Duration(seconds: 120),
+            const Duration(seconds: 240),
           );
       final raw = await response.transform(utf8.decoder).join();
       if (response.statusCode < 200 || response.statusCode >= 300) {

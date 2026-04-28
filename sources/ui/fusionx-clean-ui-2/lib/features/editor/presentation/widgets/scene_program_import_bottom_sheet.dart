@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
@@ -777,6 +778,15 @@ class _SceneProgramImportBottomSheetState
         _result = imported;
         _selectedTab = _SceneProgramSheetTab.script;
       });
+    } on TimeoutException {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isGenerating = false;
+        _generationErrorMessage =
+            'Scene generation timed out. The model did not finish in time; try a shorter prompt or switch provider, then Generate again.';
+      });
     } on KieSceneProgramAgentException catch (error) {
       if (!mounted) {
         return;
@@ -843,6 +853,9 @@ class _SceneProgramImportBottomSheetState
   }
 
   void _done() {
+    if (_selectedTab != _SceneProgramSheetTab.script || _isGenerating) {
+      return;
+    }
     final result = _importCurrentSource(_controller.text);
     setState(() {
       _result = result;
@@ -863,6 +876,9 @@ class _SceneProgramImportBottomSheetState
         (MediaQuery.sizeOf(context).height * 0.82).clamp(500.0, 780.0);
     final result = _result;
     final isValid = result?.isValid ?? false;
+    final canApply = _selectedTab == _SceneProgramSheetTab.script &&
+        isValid &&
+        !_isGenerating;
     return Align(
       alignment: Alignment.bottomCenter,
       child: Container(
@@ -895,10 +911,10 @@ class _SceneProgramImportBottomSheetState
                       ),
                     ),
                     IconButton(
-                      onPressed: isValid ? _done : null,
+                      onPressed: canApply ? _done : null,
                       icon: Icon(
                         Icons.check_rounded,
-                        color: isValid
+                        color: canApply
                             ? FxPalette.textPrimary
                             : FxPalette.textMuted.withOpacity(0.4),
                         size: 20,
@@ -1194,9 +1210,18 @@ class _SceneGeneratePane extends StatelessWidget {
         const SizedBox(height: 12),
         _SceneProgramActionButton(
           icon: isGenerating ? null : Icons.auto_awesome_rounded,
-          label: isGenerating ? 'Generating' : 'Generate',
+          label: isGenerating ? 'Generating...' : 'Generate',
+          isBusy: isGenerating,
           onTap: onGenerate,
         ),
+        if (isGenerating) ...[
+          const SizedBox(height: 10),
+          const _SceneProgramProgressCard(
+            title: 'Generating scene',
+            message:
+                'The selected model is writing a Director Plan and editable Scene Program. Keep this sheet open until the generated JSON appears in Script.',
+          ),
+        ],
         const SizedBox(height: 14),
         _SceneProgramInfoCard(
           icon: Icons.memory_rounded,
@@ -1289,11 +1314,13 @@ class _SceneProgramActionButton extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
+    this.isBusy = false,
   });
 
   final IconData? icon;
   final String label;
   final VoidCallback? onTap;
+  final bool isBusy;
 
   @override
   Widget build(BuildContext context) {
@@ -1319,6 +1346,16 @@ class _SceneProgramActionButton extends StatelessWidget {
                 size: 16,
               ),
               const SizedBox(width: 6),
+            ] else if (isBusy) ...[
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: FxPalette.textPrimary,
+                ),
+              ),
+              const SizedBox(width: 7),
             ],
             Text(
               label,
@@ -1423,6 +1460,66 @@ class _SceneProgramInfoCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, color: accent, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: FxPalette.textPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  message,
+                  style: const TextStyle(
+                    color: FxPalette.textMuted,
+                    fontSize: 12,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SceneProgramProgressCard extends StatelessWidget {
+  const _SceneProgramProgressCard({
+    required this.title,
+    required this.message,
+  });
+
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: FxPalette.surfaceRaised.withOpacity(0.72),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: FxPalette.dividerSoft),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.2,
+              color: Color(0xFF8DD7FF),
+            ),
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(

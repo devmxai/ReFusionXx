@@ -251,6 +251,10 @@ Status:
   components are represented by real scene layers/elements and that primitives
   map to matching animation channels. Valid JSON that does not implement its own
   Director Plan is rejected before application.
+- Scene Generate UX hardening: the sheet's check/apply action is disabled while
+  the Generate tab is active, so the default Script preset cannot be applied by
+  accident. Generate now shows a visible progress state and uses a longer
+  provider timeout for complex Director-first scene requests.
 
 ### Phase D4 - Lint And Auto-Repair Before Apply
 
