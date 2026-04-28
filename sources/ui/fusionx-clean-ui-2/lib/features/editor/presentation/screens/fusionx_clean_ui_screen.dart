@@ -4988,6 +4988,25 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     };
   }
 
+  bool _canMoveSceneLayerScopeSelectedKeyframe(
+    SceneLayerScopeTimelineViewModel? viewModel,
+  ) {
+    final lane = viewModel == null
+        ? null
+        : _sceneLayerScopeSelectedAnimationLane(viewModel);
+    final keyframeIndex = _selectedLayerScopeKeyframeIndex;
+    return lane != null &&
+        keyframeIndex != null &&
+        keyframeIndex >= 0 &&
+        keyframeIndex < lane.normalizedKeyframeStops.length;
+  }
+
+  bool _canDeleteSceneLayerScopeSelectedKeyframe(
+    SceneLayerScopeTimelineViewModel? viewModel,
+  ) {
+    return _canMoveSceneLayerScopeSelectedKeyframe(viewModel);
+  }
+
   void _handleSceneLayerScopeAddKeyframe() {
     final viewModel = _activeSceneLayerScopeViewModel;
     if (viewModel == null) {
@@ -5442,6 +5461,87 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
               : nextSelectedIndex;
       _selectedLayerScopeKeyframeId = keyframeId;
       _isLayerScopeValueEditorOpen = false;
+    });
+  }
+
+  void _handleSceneLayerScopeMoveSelectedKeyframeToPlayhead() {
+    final viewModel = _activeSceneLayerScopeViewModel;
+    if (viewModel == null) {
+      return;
+    }
+    final lane = _sceneLayerScopeSelectedAnimationLane(viewModel);
+    final keyframeIndex = _selectedLayerScopeKeyframeIndex;
+    if (lane == null ||
+        keyframeIndex == null ||
+        keyframeIndex < 0 ||
+        keyframeIndex >= lane.normalizedKeyframeStops.length) {
+      return;
+    }
+    final keyframeId = _selectedLayerScopeKeyframeId ??
+        _layerScopeKeyframeIdAt(lane, keyframeIndex);
+    if (keyframeId == null) {
+      return;
+    }
+    final progress = _sceneLayerScopeCurrentProgress(viewModel);
+    _handleSceneLayerScopeAnimationKeyframeDrag(
+      viewModel,
+      lane.id,
+      keyframeIndex,
+      keyframeId,
+      progress,
+    );
+  }
+
+  void _handleSceneLayerScopeDeleteSelectedKeyframe() {
+    final viewModel = _activeSceneLayerScopeViewModel;
+    if (viewModel == null) {
+      return;
+    }
+    final lane = _sceneLayerScopeSelectedAnimationLane(viewModel);
+    final keyframeIndex = _selectedLayerScopeKeyframeIndex;
+    if (lane == null ||
+        keyframeIndex == null ||
+        keyframeIndex < 0 ||
+        keyframeIndex >= lane.normalizedKeyframeStops.length) {
+      return;
+    }
+    final keyframeId = _selectedLayerScopeKeyframeId ??
+        _layerScopeKeyframeIdAt(lane, keyframeIndex);
+    if (keyframeId == null) {
+      return;
+    }
+    final result = _layerScopeCompositionAdapter.deleteKeyframe(
+      LayerScopeCompositionDeleteKeyframeRequest(
+        channels: viewModel.projection.channels,
+        channelId: lane.id,
+        keyframeId: keyframeId,
+      ),
+    );
+    if (result.hasIssues) {
+      _showStageMessage(result.issues.first.message);
+      return;
+    }
+    final editedChannel = _channelById(result.channels, lane.id);
+    final nextKeyframeCount = editedChannel?.keyframes.length ?? 0;
+    final nextSelectedIndex = nextKeyframeCount == 0
+        ? null
+        : keyframeIndex.clamp(0, nextKeyframeCount - 1).toInt();
+    final nextSelectedKeyframe =
+        nextSelectedIndex == null || editedChannel == null
+            ? null
+            : editedChannel.keyframes[nextSelectedIndex];
+    setState(() {
+      _manualMotionPropertyChannels = _mergeSceneLayerScopeChannels(
+        viewModel,
+        result.channels,
+      );
+      _markMotionAuthoringChanged();
+      _selectedLayerScopeAnimationLaneId =
+          nextKeyframeCount == 0 ? null : lane.id;
+      _selectedLayerScopeKeyframeIndex = nextSelectedIndex;
+      _selectedLayerScopeKeyframeId = nextSelectedKeyframe?.id;
+      _isLayerScopeValueEditorOpen = false;
+      _isLayerScopeGraphEditorOpen = false;
     });
   }
 
@@ -16215,6 +16315,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         _sceneLayerScopeSelectedAnimationLane(sceneLayerScopeViewModel) != null;
     final canOpenSceneLayerScopeValueEditor =
         _canOpenSceneLayerScopeValueEditor(sceneLayerScopeViewModel);
+    final canMoveSceneLayerScopeSelectedKeyframe =
+        _canMoveSceneLayerScopeSelectedKeyframe(sceneLayerScopeViewModel);
+    final canDeleteSceneLayerScopeSelectedKeyframe =
+        _canDeleteSceneLayerScopeSelectedKeyframe(sceneLayerScopeViewModel);
     final isLayerScopeActive = layerScopeContext != null ||
         isUnifiedTransitionScopeActive ||
         isSceneLayerScopeActive ||
@@ -16349,14 +16453,17 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                     : null,
                                           )
                                         : sceneLayerScopeViewModel != null
-                                            ? _LayerScopeToolsBar(
+                                            ? _SceneLayerScopeToolsBar(
                                                 isPlaying: effectiveIsPlaying,
                                                 onBack: _exitSceneLayerScope,
-                                                onSplit: null,
-                                                onTrimToggle: null,
-                                                isTrimModeActive: false,
-                                                onDuplicate: null,
-                                                onMoveToKeyframe: null,
+                                                onMoveToKeyframe:
+                                                    canMoveSceneLayerScopeSelectedKeyframe
+                                                        ? _handleSceneLayerScopeMoveSelectedKeyframeToPlayhead
+                                                        : null,
+                                                onDeleteKeyframe:
+                                                    canDeleteSceneLayerScopeSelectedKeyframe
+                                                        ? _handleSceneLayerScopeDeleteSelectedKeyframe
+                                                        : null,
                                                 onPlayToggle:
                                                     canToggleTimelinePlayback
                                                         ? _handlePlayToggle
@@ -17292,6 +17399,72 @@ class _LayerScopeContext {
   TimelineTrackData get track => clipContext.track;
   TimelineClipData get clip => clipContext.clip;
   TimelineTime get endTime => startTime + durationTime;
+}
+
+class _SceneLayerScopeToolsBar extends StatelessWidget {
+  const _SceneLayerScopeToolsBar({
+    required this.isPlaying,
+    required this.onBack,
+    required this.onMoveToKeyframe,
+    required this.onDeleteKeyframe,
+    required this.onPlayToggle,
+  });
+
+  final bool isPlaying;
+  final VoidCallback onBack;
+  final VoidCallback? onMoveToKeyframe;
+  final VoidCallback? onDeleteKeyframe;
+  final VoidCallback? onPlayToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 40,
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Row(
+        children: [
+          FxIconButton(
+            icon: Icons.arrow_back_rounded,
+            size: 30,
+            iconScale: 0.46,
+            foregroundColor: FxPalette.textPrimary,
+            onPressed: onBack,
+          ),
+          const SizedBox(width: 5),
+          FxIconButton(
+            icon: Icons.open_with_rounded,
+            size: 30,
+            iconScale: 0.4,
+            onPressed: onMoveToKeyframe,
+          ),
+          const SizedBox(width: 5),
+          FxIconButton(
+            icon: Icons.delete_outline_rounded,
+            size: 30,
+            iconScale: 0.4,
+            onPressed: onDeleteKeyframe,
+          ),
+          const Spacer(),
+          Container(
+            height: 26,
+            margin: const EdgeInsets.symmetric(horizontal: 10),
+            width: 1,
+            color: FxPalette.dividerSoft.withOpacity(0.9),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 2),
+            child: FxIconButton(
+              icon: isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+              size: 32,
+              iconScale: 0.48,
+              foregroundColor: FxPalette.textPrimary,
+              onPressed: onPlayToggle,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _LayerScopeToolsBar extends StatelessWidget {
