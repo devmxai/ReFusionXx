@@ -1304,7 +1304,7 @@ class _SceneProgramImportBottomSheetState
 {
   "schemaVersion": "refusion.scene-program/v1",
   "name": "Codex Prompt Bloom",
-  "durationMs": 7600,
+  "durationMs": 7800,
   "frameRate": 30,
   "layers": [
     {
@@ -1312,7 +1312,7 @@ class _SceneProgramImportBottomSheetState
       "name": "Clean White Background",
       "kind": "shape",
       "startMs": 0,
-      "durationMs": 7600,
+      "durationMs": 7800,
       "elements": [
         {
           "id": "bloom-bg",
@@ -1337,23 +1337,23 @@ class _SceneProgramImportBottomSheetState
       ]
     },
     {
-      "id": "welcome-title-layer",
-      "name": "Welcome Title",
+      "id": "welcome-word-layer",
+      "name": "Welcome Word",
       "kind": "text",
       "startMs": 0,
-      "durationMs": 7600,
+      "durationMs": 7800,
       "elements": [
         {
-          "id": "welcome-title",
+          "id": "welcome-word",
           "kind": "text",
-          "text": "Welcome to Codex",
+          "text": "Welcome",
           "properties": {
-            "fontSize": 70,
+            "fontSize": 68,
             "letterSpacing": 0,
             "color": "#050505",
-            "position": { "x": 0, "y": 0 },
+            "position": { "x": -218, "y": 0 },
             "opacity": 0,
-            "scale": 0.92
+            "scale": 0.88
           },
           "channels": [
             {
@@ -1361,26 +1361,128 @@ class _SceneProgramImportBottomSheetState
               "keyframes": [
                 { "timeMs": 180, "value": 0.0, "easing": "linear" },
                 { "timeMs": 620, "value": 1.0, "easing": "spring" },
-                { "timeMs": 1280, "value": 1.0, "easing": "linear" },
-                { "timeMs": 1700, "value": 0.0, "easing": "easeInCubic" }
+                { "timeMs": 1840, "value": 1.0, "easing": "linear" },
+                { "timeMs": 2220, "value": 0.0, "easing": "easeInCubic" }
               ]
             },
             {
               "property": "scale",
               "keyframes": [
-                { "timeMs": 180, "value": 0.92, "easing": "linear" },
-                { "timeMs": 620, "value": 1.0, "easing": "spring" },
-                { "timeMs": 1280, "value": 1.0, "easing": "linear" },
-                { "timeMs": 1700, "value": 0.98, "easing": "easeInCubic" }
+                { "timeMs": 180, "value": 0.88, "easing": "linear" },
+                { "timeMs": 620, "value": 1.05, "easing": "spring" },
+                { "timeMs": 820, "value": 1.0, "easing": "easeOutCubic" },
+                { "timeMs": 1840, "value": 1.0, "easing": "linear" },
+                { "timeMs": 2220, "value": 0.96, "easing": "easeInCubic" }
               ]
             },
             {
               "property": "position",
               "keyframes": [
-                { "timeMs": 180, "value": { "x": 0, "y": 18 }, "easing": "linear" },
-                { "timeMs": 620, "value": { "x": 0, "y": 0 }, "easing": "spring" },
-                { "timeMs": 1280, "value": { "x": 0, "y": 0 }, "easing": "linear" },
-                { "timeMs": 1700, "value": { "x": 0, "y": -26 }, "easing": "easeInCubic" }
+                { "timeMs": 180, "value": { "x": -218, "y": 28 }, "easing": "linear" },
+                { "timeMs": 620, "value": { "x": -218, "y": 0 }, "easing": "spring" },
+                { "timeMs": 1840, "value": { "x": -218, "y": 0 }, "easing": "linear" },
+                { "timeMs": 2220, "value": { "x": -218, "y": -34 }, "easing": "easeInCubic" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "to-word-layer",
+      "name": "To Word",
+      "kind": "text",
+      "startMs": 0,
+      "durationMs": 7800,
+      "elements": [
+        {
+          "id": "to-word",
+          "kind": "text",
+          "text": "to",
+          "properties": {
+            "fontSize": 46,
+            "letterSpacing": 0,
+            "color": "#050505",
+            "position": { "x": 18, "y": 5 },
+            "opacity": 0,
+            "scale": 0.72,
+            "rotation": -8
+          },
+          "channels": [
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 560, "value": 0.0, "easing": "linear" },
+                { "timeMs": 920, "value": 1.0, "easing": "easeOutCubic" },
+                { "timeMs": 1840, "value": 1.0, "easing": "linear" },
+                { "timeMs": 2220, "value": 0.0, "easing": "easeInCubic" }
+              ]
+            },
+            {
+              "property": "scale",
+              "keyframes": [
+                { "timeMs": 560, "value": 0.72, "easing": "linear" },
+                { "timeMs": 920, "value": 1.0, "easing": "spring" },
+                { "timeMs": 1840, "value": 1.0, "easing": "linear" },
+                { "timeMs": 2220, "value": 0.94, "easing": "easeInCubic" }
+              ]
+            },
+            {
+              "property": "rotation",
+              "keyframes": [
+                { "timeMs": 560, "value": -8, "easing": "linear" },
+                { "timeMs": 920, "value": 0, "easing": "spring" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "codex-word-layer",
+      "name": "Codex Word",
+      "kind": "text",
+      "startMs": 0,
+      "durationMs": 7800,
+      "elements": [
+        {
+          "id": "codex-word",
+          "kind": "text",
+          "text": "Codex",
+          "properties": {
+            "fontSize": 70,
+            "letterSpacing": 0,
+            "color": "#050505",
+            "position": { "x": 224, "y": 0 },
+            "opacity": 0,
+            "scale": 1.08
+          },
+          "channels": [
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 900, "value": 0.0, "easing": "linear" },
+                { "timeMs": 1240, "value": 1.0, "easing": "easeOutCubic" },
+                { "timeMs": 1840, "value": 1.0, "easing": "linear" },
+                { "timeMs": 2220, "value": 0.0, "easing": "easeInCubic" }
+              ]
+            },
+            {
+              "property": "scale",
+              "keyframes": [
+                { "timeMs": 900, "value": 1.08, "easing": "linear" },
+                { "timeMs": 1240, "value": 1.0, "easing": "spring" },
+                { "timeMs": 1840, "value": 1.0, "easing": "linear" },
+                { "timeMs": 2220, "value": 0.96, "easing": "easeInCubic" }
+              ]
+            },
+            {
+              "property": "position",
+              "keyframes": [
+                { "timeMs": 900, "value": { "x": 224, "y": -26 }, "easing": "linear" },
+                { "timeMs": 1240, "value": { "x": 224, "y": 0 }, "easing": "spring" },
+                { "timeMs": 1840, "value": { "x": 224, "y": 0 }, "easing": "linear" },
+                { "timeMs": 2220, "value": { "x": 224, "y": -34 }, "easing": "easeInCubic" }
               ]
             }
           ]
@@ -1392,7 +1494,7 @@ class _SceneProgramImportBottomSheetState
       "name": "Icon To Prompt Shell",
       "kind": "shape",
       "startMs": 0,
-      "durationMs": 7600,
+      "durationMs": 7800,
       "elements": [
         {
           "id": "prompt-shell",
@@ -1411,48 +1513,53 @@ class _SceneProgramImportBottomSheetState
             {
               "property": "opacity",
               "keyframes": [
-                { "timeMs": 1540, "value": 0.0, "easing": "linear" },
-                { "timeMs": 1900, "value": 1.0, "easing": "spring" },
-                { "timeMs": 5960, "value": 1.0, "easing": "linear" },
-                { "timeMs": 6120, "value": 0.0, "easing": "easeInCubic" }
+                { "timeMs": 2300, "value": 0.0, "easing": "linear" },
+                { "timeMs": 2660, "value": 1.0, "easing": "spring" },
+                { "timeMs": 6640, "value": 1.0, "easing": "linear" },
+                { "timeMs": 6800, "value": 0.0, "easing": "easeInCubic" }
               ]
             },
             {
               "property": "width",
               "keyframes": [
-                { "timeMs": 1540, "value": 148, "easing": "linear" },
-                { "timeMs": 2380, "value": 148, "easing": "linear" },
-                { "timeMs": 2860, "value": 900, "easing": "easeOutQuint" },
-                { "timeMs": 5960, "value": 900, "easing": "linear" }
+                { "timeMs": 2300, "value": 148, "easing": "linear" },
+                { "timeMs": 3300, "value": 148, "easing": "linear" },
+                { "timeMs": 3600, "value": 148, "easing": "easeOutCubic" },
+                { "timeMs": 4100, "value": 900, "easing": "easeOutQuint" },
+                { "timeMs": 6640, "value": 900, "easing": "linear" }
               ]
             },
             {
               "property": "height",
               "keyframes": [
-                { "timeMs": 1540, "value": 148, "easing": "linear" },
-                { "timeMs": 2380, "value": 148, "easing": "linear" },
-                { "timeMs": 2860, "value": 116, "easing": "easeOutQuint" },
-                { "timeMs": 5960, "value": 116, "easing": "linear" }
+                { "timeMs": 2300, "value": 148, "easing": "linear" },
+                { "timeMs": 3300, "value": 148, "easing": "linear" },
+                { "timeMs": 3600, "value": 148, "easing": "easeOutCubic" },
+                { "timeMs": 4100, "value": 116, "easing": "easeOutQuint" },
+                { "timeMs": 6640, "value": 116, "easing": "linear" }
               ]
             },
             {
               "property": "cornerRadius",
               "keyframes": [
-                { "timeMs": 1540, "value": 38, "easing": "linear" },
-                { "timeMs": 2380, "value": 38, "easing": "linear" },
-                { "timeMs": 2860, "value": 58, "easing": "easeOutQuint" },
-                { "timeMs": 5960, "value": 58, "easing": "linear" }
+                { "timeMs": 2300, "value": 38, "easing": "linear" },
+                { "timeMs": 3300, "value": 38, "easing": "linear" },
+                { "timeMs": 3600, "value": 74, "easing": "easeOutCubic" },
+                { "timeMs": 4100, "value": 58, "easing": "easeOutQuint" },
+                { "timeMs": 6640, "value": 58, "easing": "linear" }
               ]
             },
             {
               "property": "scale",
               "keyframes": [
-                { "timeMs": 1540, "value": 0.78, "easing": "linear" },
-                { "timeMs": 1900, "value": 1.0, "easing": "spring" },
-                { "timeMs": 2260, "value": 1.0, "easing": "linear" },
-                { "timeMs": 2380, "value": 0.9, "easing": "easeInCubic" },
-                { "timeMs": 2580, "value": 1.04, "easing": "spring" },
-                { "timeMs": 2860, "value": 1.0, "easing": "easeOutCubic" }
+                { "timeMs": 2300, "value": 0.62, "easing": "linear" },
+                { "timeMs": 2620, "value": 1.12, "easing": "spring" },
+                { "timeMs": 2840, "value": 0.96, "easing": "easeOutCubic" },
+                { "timeMs": 3020, "value": 1.0, "easing": "spring" },
+                { "timeMs": 3300, "value": 1.0, "easing": "linear" },
+                { "timeMs": 3460, "value": 0.86, "easing": "easeInCubic" },
+                { "timeMs": 3600, "value": 1.04, "easing": "spring" },
+                { "timeMs": 4100, "value": 1.0, "easing": "easeOutCubic" }
               ]
             }
           ]
@@ -1464,7 +1571,7 @@ class _SceneProgramImportBottomSheetState
       "name": "Codex Mark In Icon",
       "kind": "text",
       "startMs": 0,
-      "durationMs": 7600,
+      "durationMs": 7800,
       "elements": [
         {
           "id": "codex-mark",
@@ -1482,19 +1589,19 @@ class _SceneProgramImportBottomSheetState
             {
               "property": "opacity",
               "keyframes": [
-                { "timeMs": 1640, "value": 0.0, "easing": "linear" },
-                { "timeMs": 1980, "value": 1.0, "easing": "spring" },
-                { "timeMs": 2380, "value": 1.0, "easing": "linear" },
-                { "timeMs": 2860, "value": 0.0, "easing": "easeInCubic" }
+                { "timeMs": 2400, "value": 0.0, "easing": "linear" },
+                { "timeMs": 2720, "value": 1.0, "easing": "spring" },
+                { "timeMs": 3300, "value": 1.0, "easing": "linear" },
+                { "timeMs": 3600, "value": 0.0, "easing": "easeInCubic" }
               ]
             },
             {
               "property": "scale",
               "keyframes": [
-                { "timeMs": 1640, "value": 0.86, "easing": "linear" },
-                { "timeMs": 1980, "value": 1.0, "easing": "spring" },
-                { "timeMs": 2380, "value": 1.0, "easing": "linear" },
-                { "timeMs": 2580, "value": 0.92, "easing": "easeInCubic" }
+                { "timeMs": 2400, "value": 0.78, "easing": "linear" },
+                { "timeMs": 2720, "value": 1.0, "easing": "spring" },
+                { "timeMs": 3300, "value": 1.0, "easing": "linear" },
+                { "timeMs": 3460, "value": 0.82, "easing": "easeInCubic" }
               ]
             }
           ]
@@ -1503,10 +1610,10 @@ class _SceneProgramImportBottomSheetState
     },
     {
       "id": "send-button-layer",
-      "name": "Left Send Button",
+      "name": "Right Send Button",
       "kind": "shape",
       "startMs": 0,
-      "durationMs": 7600,
+      "durationMs": 7800,
       "elements": [
         {
           "id": "send-button",
@@ -1516,7 +1623,7 @@ class _SceneProgramImportBottomSheetState
             "width": 78,
             "height": 78,
             "color": "#FFFFFF",
-            "position": { "x": -360, "y": 0 },
+            "position": { "x": 360, "y": 0 },
             "opacity": 0,
             "scale": 0.7
           },
@@ -1524,21 +1631,20 @@ class _SceneProgramImportBottomSheetState
             {
               "property": "opacity",
               "keyframes": [
-                { "timeMs": 2800, "value": 0.0, "easing": "linear" },
-                { "timeMs": 3260, "value": 1.0, "easing": "spring" },
-                { "timeMs": 5960, "value": 1.0, "easing": "linear" },
-                { "timeMs": 6120, "value": 0.0, "easing": "easeInCubic" }
+                { "timeMs": 4020, "value": 0.0, "easing": "linear" },
+                { "timeMs": 4480, "value": 1.0, "easing": "spring" },
+                { "timeMs": 6800, "value": 1.0, "easing": "linear" }
               ]
             },
             {
               "property": "scale",
               "keyframes": [
-                { "timeMs": 2800, "value": 0.7, "easing": "linear" },
-                { "timeMs": 3260, "value": 1.0, "easing": "spring" },
-                { "timeMs": 5660, "value": 1.0, "easing": "linear" },
-                { "timeMs": 5800, "value": 0.82, "easing": "easeInCubic" },
-                { "timeMs": 5940, "value": 1.12, "easing": "spring" },
-                { "timeMs": 6060, "value": 1.0, "easing": "easeOutCubic" }
+                { "timeMs": 4020, "value": 0.7, "easing": "linear" },
+                { "timeMs": 4480, "value": 1.0, "easing": "spring" },
+                { "timeMs": 6400, "value": 1.0, "easing": "linear" },
+                { "timeMs": 6580, "value": 0.82, "easing": "easeInCubic" },
+                { "timeMs": 6740, "value": 1.12, "easing": "spring" },
+                { "timeMs": 6900, "value": 1.0, "easing": "easeOutCubic" }
               ]
             }
           ]
@@ -1551,7 +1657,7 @@ class _SceneProgramImportBottomSheetState
             "width": 36,
             "height": 36,
             "color": "#050505",
-            "position": { "x": -360, "y": 0 },
+            "position": { "x": 360, "y": 0 },
             "opacity": 0,
             "scale": 0.82
           },
@@ -1559,20 +1665,19 @@ class _SceneProgramImportBottomSheetState
             {
               "property": "opacity",
               "keyframes": [
-                { "timeMs": 2920, "value": 0.0, "easing": "linear" },
-                { "timeMs": 3340, "value": 1.0, "easing": "spring" },
-                { "timeMs": 5960, "value": 1.0, "easing": "linear" },
-                { "timeMs": 6120, "value": 0.0, "easing": "easeInCubic" }
+                { "timeMs": 4140, "value": 0.0, "easing": "linear" },
+                { "timeMs": 4560, "value": 1.0, "easing": "spring" },
+                { "timeMs": 6800, "value": 1.0, "easing": "linear" }
               ]
             },
             {
               "property": "scale",
               "keyframes": [
-                { "timeMs": 2920, "value": 0.82, "easing": "linear" },
-                { "timeMs": 3340, "value": 1.0, "easing": "spring" },
-                { "timeMs": 5660, "value": 1.0, "easing": "linear" },
-                { "timeMs": 5800, "value": 0.82, "easing": "easeInCubic" },
-                { "timeMs": 5940, "value": 1.0, "easing": "spring" }
+                { "timeMs": 4140, "value": 0.82, "easing": "linear" },
+                { "timeMs": 4560, "value": 1.0, "easing": "spring" },
+                { "timeMs": 6400, "value": 1.0, "easing": "linear" },
+                { "timeMs": 6580, "value": 0.82, "easing": "easeInCubic" },
+                { "timeMs": 6740, "value": 1.0, "easing": "spring" }
               ]
             }
           ]
@@ -1580,43 +1685,12 @@ class _SceneProgramImportBottomSheetState
       ]
     },
     {
-      "id": "plus-button-layer",
-      "name": "Right Plus Button",
+      "id": "plus-icon-layer",
+      "name": "Left Plus Icon",
       "kind": "shape",
       "startMs": 0,
-      "durationMs": 7600,
+      "durationMs": 7800,
       "elements": [
-        {
-          "id": "plus-button",
-          "kind": "shape",
-          "properties": {
-            "shapeKind": "circle",
-            "width": 78,
-            "height": 78,
-            "color": "#FFFFFF",
-            "position": { "x": 360, "y": 0 },
-            "opacity": 0,
-            "scale": 0.7
-          },
-          "channels": [
-            {
-              "property": "opacity",
-              "keyframes": [
-                { "timeMs": 2860, "value": 0.0, "easing": "linear" },
-                { "timeMs": 3340, "value": 1.0, "easing": "spring" },
-                { "timeMs": 5960, "value": 1.0, "easing": "linear" },
-                { "timeMs": 6120, "value": 0.0, "easing": "easeInCubic" }
-              ]
-            },
-            {
-              "property": "scale",
-              "keyframes": [
-                { "timeMs": 2860, "value": 0.7, "easing": "linear" },
-                { "timeMs": 3340, "value": 1.0, "easing": "spring" }
-              ]
-            }
-          ]
-        },
         {
           "id": "plus-icon",
           "kind": "icon",
@@ -1624,26 +1698,26 @@ class _SceneProgramImportBottomSheetState
             "icon": "plus",
             "width": 36,
             "height": 36,
-            "color": "#050505",
-            "position": { "x": 360, "y": 0 },
+            "color": "#FFFFFF",
+            "position": { "x": -360, "y": 0 },
             "opacity": 0,
-            "scale": 0.82
+            "scale": 0.72
           },
           "channels": [
             {
               "property": "opacity",
               "keyframes": [
-                { "timeMs": 2980, "value": 0.0, "easing": "linear" },
-                { "timeMs": 3420, "value": 1.0, "easing": "spring" },
-                { "timeMs": 5960, "value": 1.0, "easing": "linear" },
-                { "timeMs": 6120, "value": 0.0, "easing": "easeInCubic" }
+                { "timeMs": 4160, "value": 0.0, "easing": "linear" },
+                { "timeMs": 4580, "value": 1.0, "easing": "spring" },
+                { "timeMs": 6640, "value": 1.0, "easing": "linear" },
+                { "timeMs": 6800, "value": 0.0, "easing": "easeInCubic" }
               ]
             },
             {
               "property": "scale",
               "keyframes": [
-                { "timeMs": 2980, "value": 0.82, "easing": "linear" },
-                { "timeMs": 3420, "value": 1.0, "easing": "spring" }
+                { "timeMs": 4160, "value": 0.72, "easing": "linear" },
+                { "timeMs": 4580, "value": 1.0, "easing": "spring" }
               ]
             }
           ]
@@ -1655,7 +1729,7 @@ class _SceneProgramImportBottomSheetState
       "name": "Typed Business Prompt",
       "kind": "text",
       "startMs": 0,
-      "durationMs": 7600,
+      "durationMs": 7800,
       "elements": [
         {
           "id": "prompt-copy",
@@ -1673,18 +1747,18 @@ class _SceneProgramImportBottomSheetState
             {
               "property": "opacity",
               "keyframes": [
-                { "timeMs": 3280, "value": 0.0, "easing": "linear" },
-                { "timeMs": 3480, "value": 1.0, "easing": "easeOutCubic" },
-                { "timeMs": 5960, "value": 1.0, "easing": "linear" },
-                { "timeMs": 6120, "value": 0.0, "easing": "easeInCubic" }
+                { "timeMs": 4380, "value": 0.0, "easing": "linear" },
+                { "timeMs": 4580, "value": 1.0, "easing": "easeOutCubic" },
+                { "timeMs": 6640, "value": 1.0, "easing": "linear" },
+                { "timeMs": 6800, "value": 0.0, "easing": "easeInCubic" }
               ]
             },
             {
               "property": "typewriterProgress",
               "keyframes": [
-                { "timeMs": 3480, "value": 0.0, "easing": "linear" },
-                { "timeMs": 5180, "value": 1.0, "easing": "linear" },
-                { "timeMs": 5960, "value": 1.0, "easing": "linear" }
+                { "timeMs": 4580, "value": 0.0, "easing": "linear" },
+                { "timeMs": 6080, "value": 1.0, "easing": "linear" },
+                { "timeMs": 6640, "value": 1.0, "easing": "linear" }
               ]
             }
           ]
@@ -1696,7 +1770,7 @@ class _SceneProgramImportBottomSheetState
       "name": "Send Button Cover Resolve",
       "kind": "shape",
       "startMs": 0,
-      "durationMs": 7600,
+      "durationMs": 7800,
       "elements": [
         {
           "id": "send-cover-circle",
@@ -1706,7 +1780,7 @@ class _SceneProgramImportBottomSheetState
             "width": 78,
             "height": 78,
             "color": "#FFFFFF",
-            "position": { "x": -360, "y": 0 },
+            "position": { "x": 360, "y": 0 },
             "opacity": 0,
             "scale": 1
           },
@@ -1714,18 +1788,18 @@ class _SceneProgramImportBottomSheetState
             {
               "property": "opacity",
               "keyframes": [
-                { "timeMs": 6000, "value": 0.0, "easing": "linear" },
-                { "timeMs": 6060, "value": 1.0, "easing": "linear" },
-                { "timeMs": 7600, "value": 1.0, "easing": "linear" }
+                { "timeMs": 6740, "value": 0.0, "easing": "linear" },
+                { "timeMs": 6800, "value": 1.0, "easing": "linear" },
+                { "timeMs": 7800, "value": 1.0, "easing": "linear" }
               ]
             },
             {
               "property": "scale",
               "keyframes": [
-                { "timeMs": 6000, "value": 1.0, "easing": "linear" },
-                { "timeMs": 6500, "value": 12.0, "easing": "easeOutCubic" },
-                { "timeMs": 7060, "value": 30.0, "easing": "easeOutQuint" },
-                { "timeMs": 7600, "value": 30.0, "easing": "linear" }
+                { "timeMs": 6740, "value": 1.0, "easing": "linear" },
+                { "timeMs": 7240, "value": 12.0, "easing": "easeOutCubic" },
+                { "timeMs": 7600, "value": 30.0, "easing": "easeOutQuint" },
+                { "timeMs": 7800, "value": 30.0, "easing": "linear" }
               ]
             }
           ]
