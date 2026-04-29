@@ -270,6 +270,17 @@ Scene scope:
 - Null Layer,
 - Adjustment Layer.
 
+Current W3 mobile command split:
+
+- `Media` (`+`) opens only video/image import for the active Scene Scope and
+  inserts the selected media as a scene-local layer.
+- `Shape` and `Text` are direct bottom-dock layer creation commands.
+- `Audio`, `Null`, and `Adjustment` are visible as explicit future layer
+  commands so the workflow shape is stable before their engines are wired.
+- Scene Scope must show content/navigation tools only. Keyframe docks and
+  keyframe move/delete/value/graph controls belong only to Unified Layer Scope
+  after an internal layer is opened.
+
 Layer scope:
 
 - Add Property,

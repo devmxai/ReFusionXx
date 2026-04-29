@@ -10464,6 +10464,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
   }
 
+  void _handleSceneScopePlannedLayerTap(String layerKind) {
+    _showStageMessage(
+      '$layerKind layers are planned for the next composition workspace slices.',
+    );
+  }
+
   Future<void> _openUniversalAddSheet() async {
     final scope = _universalAddScope;
     final action = await showModalBottomSheet<_UniversalAddAction>(
@@ -10539,51 +10545,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       case _UniversalAddScope.scene:
         return const <_UniversalAddSheetItem>[
           _UniversalAddSheetItem(
-            action: _UniversalAddAction.textLayer,
-            icon: Icons.text_fields_rounded,
-            title: 'Text Layer',
-            subtitle: 'Create a real text layer inside this scene.',
-          ),
-          _UniversalAddSheetItem(
             action: _UniversalAddAction.videoLayer,
             icon: Icons.videocam_rounded,
             title: 'Video Layer',
-            subtitle: 'Scene-local video layers are not wired yet.',
-            isReady: false,
+            subtitle: 'Import video media as a layer inside this scene.',
           ),
           _UniversalAddSheetItem(
             action: _UniversalAddAction.imageLayer,
             icon: Icons.image_rounded,
             title: 'Image Layer',
-            subtitle: 'Scene-local image layers are not wired yet.',
-            isReady: false,
-          ),
-          _UniversalAddSheetItem(
-            action: _UniversalAddAction.shapeLayer,
-            icon: Icons.category_rounded,
-            title: 'Shape Layer',
-            subtitle: 'Create a real rounded-rectangle shape layer.',
-          ),
-          _UniversalAddSheetItem(
-            action: _UniversalAddAction.audioLayer,
-            icon: Icons.music_note_rounded,
-            title: 'Audio Layer',
-            subtitle: 'Scene-local audio layers are not wired yet.',
-            isReady: false,
-          ),
-          _UniversalAddSheetItem(
-            action: _UniversalAddAction.nullLayer,
-            icon: Icons.control_camera_rounded,
-            title: 'Null Layer',
-            subtitle: 'Parent/control layers are not wired yet.',
-            isReady: false,
-          ),
-          _UniversalAddSheetItem(
-            action: _UniversalAddAction.adjustmentLayer,
-            icon: Icons.tune_rounded,
-            title: 'Adjustment Layer',
-            subtitle: 'Adjustment layers are not wired yet.',
-            isReady: false,
+            subtitle: 'Import an image as a layer inside this scene.',
           ),
         ];
       case _UniversalAddScope.layer:
@@ -10618,21 +10589,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         await _openSceneProgramPresentSheet();
         return;
       case _UniversalAddAction.videoLayer:
-        if (_sceneScopeSession != null) {
-          _showStageMessage(
-            'Scene-local video layers will be wired in the next W3 slices.',
-          );
-          return;
-        }
         await _openMediaSheet(EditorMediaTab.video);
         return;
       case _UniversalAddAction.imageLayer:
-        if (_sceneScopeSession != null) {
-          _showStageMessage(
-            'Scene-local image layers will be wired in the next W3 slices.',
-          );
-          return;
-        }
         await _openMediaSheet(EditorMediaTab.image);
         return;
       case _UniversalAddAction.textLayer:
@@ -11824,6 +11783,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   Future<void> _openMediaSheet(EditorMediaTab tab) async {
+    final sceneScopeAtOpen = _sceneScopeSession;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -11840,12 +11800,199 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           onLoadMoreRequested: _loadMoreAssetsForTab,
           onAssetAdd: (asset) async {
             Navigator.of(context).pop();
-            await _addAssetToTimeline(asset);
+            final activeSceneScope = _sceneScopeSession;
+            if (sceneScopeAtOpen != null &&
+                activeSceneScope != null &&
+                activeSceneScope.sceneClipId == sceneScopeAtOpen.sceneClipId) {
+              await _addAssetToSceneScope(asset, activeSceneScope);
+            } else {
+              await _addAssetToTimeline(asset);
+            }
           },
           thumbnailBatchLoader: _loadAssetThumbnailBatch,
         );
       },
     );
+  }
+
+  Future<void> _addAssetToSceneScope(
+    EditorAssetItem asset,
+    SceneScopeSession sceneScope,
+  ) async {
+    if (asset.tab != EditorMediaTab.video &&
+        asset.tab != EditorMediaTab.image) {
+      _showStageMessage('Only image and video layers are supported here.');
+      return;
+    }
+    var resolvedAsset = asset;
+    if (resolvedAsset.tab == EditorMediaTab.video) {
+      resolvedAsset =
+          await _normalizeVisualAssetGeometryForInsert(resolvedAsset);
+      final sourceUri = resolvedAsset.sourceUri;
+      if (sourceUri == null || sourceUri.isEmpty) {
+        _showStageMessage('The selected video is missing a playable source.');
+        return;
+      }
+    }
+    final project = _effectiveMotionProject;
+    final sceneIndex = project.scenes.indexWhere(
+      (scene) => scene.id == sceneScope.sourceSceneId,
+    );
+    if (sceneIndex < 0) {
+      _showStageMessage('Scene source is not available for media insertion.');
+      return;
+    }
+    final sourceScene = project.scenes[sceneIndex];
+    final insertionRange = _defaultElementRangeForSceneScope(sceneScope);
+    if (insertionRange.duration <= TimelineTime.zero) {
+      _showStageMessage('This scene has no available duration.');
+      return;
+    }
+
+    final layerKind = resolvedAsset.tab == EditorMediaTab.video
+        ? MotionLayerKind.video
+        : MotionLayerKind.image;
+    final elementKind = resolvedAsset.tab == EditorMediaTab.video
+        ? MotionElementKind.videoClip
+        : MotionElementKind.image;
+    final sourceKind = resolvedAsset.tab == EditorMediaTab.video
+        ? MotionSourceKind.video
+        : MotionSourceKind.image;
+    final layerId = _nextMotionEntityId('${resolvedAsset.tab.name}-layer');
+    final elementId = _nextMotionEntityId('${resolvedAsset.tab.name}-element');
+    final localRange = TimelineTimeRange(
+      start: insertionRange.start - sourceScene.projectRange.start,
+      endExclusive:
+          insertionRange.endExclusive - sourceScene.projectRange.start,
+    );
+    final target = MotionPropertyTarget(
+      kind: MotionTargetKind.element,
+      targetId: elementId,
+      projectId: project.id,
+      sceneId: sourceScene.id,
+      layerId: layerId,
+      elementId: elementId,
+    );
+    MotionPropertyAssignment assignment(
+      MotionPropertyDefinition definition,
+      MotionPropertyValue value,
+    ) {
+      return MotionPropertyAssignment(
+        target: target,
+        definition: definition,
+        value: value,
+      );
+    }
+
+    final sourceUri = resolvedAsset.sourceUri;
+    final label = resolvedAsset.label.trim().isEmpty
+        ? (resolvedAsset.tab == EditorMediaTab.video ? 'Video' : 'Image')
+        : resolvedAsset.label.trim();
+    final element = MotionElementModel(
+      id: elementId,
+      layerId: layerId,
+      kind: elementKind,
+      localRange: localRange,
+      name: label,
+      sourceBinding: MotionElementSourceBinding(
+        kind: sourceKind,
+        sourceId: resolvedAsset.id,
+        assetId: resolvedAsset.id,
+        label: label,
+        sourceRange: TimelineTimeRange(
+          start: TimelineTime.zero,
+          endExclusive: insertionRange.duration,
+        ),
+        metadata: <String, String>{
+          'source': 'manual.add.media',
+          'mediaKind': resolvedAsset.tab.name,
+          if (sourceUri != null && sourceUri.isNotEmpty) 'uri': sourceUri,
+        },
+      ),
+      properties: <MotionPropertyAssignment>[
+        assignment(
+          MotionPropertyCatalog.positionX,
+          const MotionPropertyValue.scalar(0),
+        ),
+        assignment(
+          MotionPropertyCatalog.positionY,
+          const MotionPropertyValue.scalar(0),
+        ),
+        assignment(
+          MotionPropertyCatalog.scaleX,
+          const MotionPropertyValue.scalar(1),
+        ),
+        assignment(
+          MotionPropertyCatalog.scaleY,
+          const MotionPropertyValue.scalar(1),
+        ),
+        assignment(
+          MotionPropertyCatalog.rotationDegrees,
+          const MotionPropertyValue.scalar(0),
+        ),
+        assignment(
+          MotionPropertyCatalog.opacity,
+          const MotionPropertyValue.scalar(1),
+        ),
+        assignment(
+          MotionPropertyCatalog.blurAmount,
+          const MotionPropertyValue.scalar(0),
+        ),
+      ],
+    );
+    final nextZIndex = sourceScene.layers.fold<int>(
+          -1,
+          (value, layer) => layer.zIndex > value ? layer.zIndex : value,
+        ) +
+        1;
+    final layer = MotionLayerModel(
+      id: layerId,
+      sceneId: sourceScene.id,
+      kind: layerKind,
+      visibleRange: insertionRange,
+      elements: <MotionElementModel>[element],
+      name: label,
+      zIndex: nextZIndex,
+    );
+    final nextLayers = <MotionLayerModel>[
+      ...sourceScene.layers,
+      layer,
+    ];
+    final nextScenes = List<MotionSceneModel>.from(project.scenes)
+      ..[sceneIndex] = sourceScene.copyWith(layers: nextLayers);
+    final nextProject = project.copyWith(scenes: nextScenes);
+    final nextSceneScope = _sceneScopeSessionResolver
+            .open(
+              SceneScopeSessionRequest(
+                project: nextProject,
+                rootTime: sceneScope.rootTime,
+                sceneClipId: sceneScope.sceneClipId,
+                sceneClips: _sceneClips,
+                channels: _manualMotionPropertyChannels,
+              ),
+            )
+            .session ??
+        sceneScope;
+    _markAssetImported(
+      resolvedAsset.id,
+      preferredPreviewPositionMs: TimelineTime.zero.inMilliseconds,
+    );
+    setState(() {
+      _motionProject = nextProject;
+      _sceneScopeSession = nextSceneScope;
+      _selectedClipId = layerId;
+      _selectedTransitionId = null;
+      _sceneLayerScopeLayerId = null;
+      _previewAssetId = resolvedAsset.id;
+      _activeTab = resolvedAsset.tab;
+      _setCurrentTime(
+        sceneScope.localToRoot(
+          insertionRange.start - sceneScope.sourceRange.start,
+        ),
+      );
+      _markMotionAuthoringChanged();
+    });
+    _showStageMessage('${resolvedAsset.tab.label} layer added.');
   }
 
   Future<void> _openCreateCompositionSheet() async {
@@ -17446,8 +17593,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         _canOpenSceneLayerScopeGraphEditor(sceneLayerScopeViewModel);
     final isLayerScopeActive = layerScopeContext != null ||
         isUnifiedTransitionScopeActive ||
-        isSceneLayerScopeActive ||
-        sceneScopeSession != null;
+        isSceneLayerScopeActive;
     final isTextLayerScopeActive =
         layerScopeContext?.track.kind == TimelineTrackKind.text;
     return Scaffold(
@@ -17598,15 +17744,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                         : null,
                                               )
                                             : sceneScopeSession != null
-                                                ? _LayerScopeToolsBar(
+                                                ? _SceneScopeToolsBar(
                                                     isPlaying:
                                                         effectiveIsPlaying,
                                                     onBack: _exitSceneScope,
-                                                    onSplit: null,
-                                                    onTrimToggle: null,
-                                                    isTrimModeActive: false,
-                                                    onDuplicate: null,
-                                                    onMoveToKeyframe: null,
                                                     onPlayToggle:
                                                         canToggleTimelinePlayback
                                                             ? _handlePlayToggle
@@ -18436,20 +18577,45 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                     ? Icons.code_rounded
                                                     : Icons.add_rounded,
                                               )
-                                        : MediaDock(
-                                            activeTab: effectiveDockActiveTab,
-                                            onSceneTap:
-                                                _openSceneProgramImportSheet,
-                                            onPresentTap:
-                                                _openSceneProgramPresentSheet,
-                                            onRemotionTap:
-                                                _openRemotionPromptSheet,
-                                            onAddTap: _openUniversalAddSheet,
-                                            onToolTap: _handleDockTab,
-                                            enabledTabs: enabledDockTabs,
-                                            addEnabled: true,
-                                            embedded: true,
-                                          ),
+                                        : sceneScopeSession != null
+                                            ? _SceneScopeDock(
+                                                onMediaTap:
+                                                    _openUniversalAddSheet,
+                                                onShapeTap:
+                                                    _insertDefaultShapeLayer,
+                                                onTextTap: () =>
+                                                    _insertDefaultTextLayer(
+                                                  openEditorOnInsert: false,
+                                                ),
+                                                onAudioTap: () =>
+                                                    _handleSceneScopePlannedLayerTap(
+                                                  'Audio',
+                                                ),
+                                                onNullTap: () =>
+                                                    _handleSceneScopePlannedLayerTap(
+                                                  'Null',
+                                                ),
+                                                onAdjustmentTap: () =>
+                                                    _handleSceneScopePlannedLayerTap(
+                                                  'Adjustment',
+                                                ),
+                                              )
+                                            : MediaDock(
+                                                activeTab:
+                                                    effectiveDockActiveTab,
+                                                onSceneTap:
+                                                    _openSceneProgramImportSheet,
+                                                onPresentTap:
+                                                    _openSceneProgramPresentSheet,
+                                                onRemotionTap:
+                                                    _openRemotionPromptSheet,
+                                                onAddTap:
+                                                    _openUniversalAddSheet,
+                                                onToolTap: _handleDockTab,
+                                                enabledTabs: enabledDockTabs,
+                                                addEnabled: true,
+                                                embedded: true,
+                                              ),
                           ),
                         ],
                       ),
@@ -18598,6 +18764,72 @@ class _SceneLayerScopeToolsBar extends StatelessWidget {
   }
 }
 
+class _SceneScopeToolsBar extends StatelessWidget {
+  const _SceneScopeToolsBar({
+    required this.isPlaying,
+    required this.onBack,
+    required this.onPlayToggle,
+  });
+
+  final bool isPlaying;
+  final VoidCallback onBack;
+  final VoidCallback? onPlayToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 40,
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Row(
+        children: [
+          FxIconButton(
+            icon: Icons.arrow_back_rounded,
+            size: 30,
+            iconScale: 0.46,
+            foregroundColor: FxPalette.textPrimary,
+            onPressed: onBack,
+          ),
+          const SizedBox(width: 8),
+          const Icon(
+            Icons.auto_awesome_motion_rounded,
+            color: FxPalette.textMuted,
+            size: 17,
+          ),
+          const SizedBox(width: 7),
+          const Expanded(
+            child: Text(
+              'Scene Contents',
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: FxPalette.textPrimary,
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+          Container(
+            height: 26,
+            margin: const EdgeInsets.symmetric(horizontal: 10),
+            width: 1,
+            color: FxPalette.dividerSoft.withOpacity(0.9),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 2),
+            child: FxIconButton(
+              icon: isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+              size: 32,
+              iconScale: 0.48,
+              foregroundColor: FxPalette.textPrimary,
+              onPressed: onPlayToggle,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _LayerScopeToolsBar extends StatelessWidget {
   const _LayerScopeToolsBar({
     required this.isPlaying,
@@ -18683,6 +18915,133 @@ class _LayerScopeToolsBar extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SceneScopeDock extends StatelessWidget {
+  const _SceneScopeDock({
+    required this.onMediaTap,
+    required this.onShapeTap,
+    required this.onTextTap,
+    required this.onAudioTap,
+    required this.onNullTap,
+    required this.onAdjustmentTap,
+  });
+
+  final VoidCallback onMediaTap;
+  final VoidCallback onShapeTap;
+  final VoidCallback onTextTap;
+  final VoidCallback onAudioTap;
+  final VoidCallback onNullTap;
+  final VoidCallback onAdjustmentTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 50,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: const BoxDecoration(color: Colors.transparent),
+      child: Row(
+        children: [
+          Expanded(
+            child: _SceneScopeDockButton(
+              icon: Icons.add_rounded,
+              label: 'Media',
+              onTap: onMediaTap,
+            ),
+          ),
+          Expanded(
+            child: _SceneScopeDockButton(
+              icon: Icons.category_rounded,
+              label: 'Shape',
+              onTap: onShapeTap,
+            ),
+          ),
+          Expanded(
+            child: _SceneScopeDockButton(
+              icon: Icons.text_fields_rounded,
+              label: 'Text',
+              onTap: onTextTap,
+            ),
+          ),
+          Expanded(
+            child: _SceneScopeDockButton(
+              icon: Icons.music_note_rounded,
+              label: 'Audio',
+              onTap: onAudioTap,
+            ),
+          ),
+          Expanded(
+            child: _SceneScopeDockButton(
+              icon: Icons.control_camera_rounded,
+              label: 'Null',
+              onTap: onNullTap,
+            ),
+          ),
+          Expanded(
+            child: _SceneScopeDockButton(
+              icon: Icons.tune_rounded,
+              label: 'Adjust',
+              onTap: onAdjustmentTap,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SceneScopeDockButton extends StatelessWidget {
+  const _SceneScopeDockButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: Colors.transparent,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: onTap == null
+                  ? FxPalette.textMuted.withOpacity(0.5)
+                  : FxPalette.textMuted,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: onTap == null
+                    ? FxPalette.textMuted.withOpacity(0.5)
+                    : FxPalette.textMuted,
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
