@@ -462,11 +462,18 @@ void main() {
               'Primitive `dot-slide` must stay inside owning beat `dot-move` time range.',
           path: 'primitives.dot-slide',
         ),
+        ReFusionMotionDirectorIssue(
+          severity: ReFusionMotionDirectorIssueSeverity.error,
+          message:
+              'Beat `prompt-enter` overlaps beat `background-enter` on distinct components without explicit parallel intent.',
+          path: 'beats[1].startMs',
+        ),
       ],
     );
 
     expect(summary, contains('components.title'));
     expect(summary, contains('Fix: add a readable hold beat'));
     expect(summary, contains('Fix: move the primitive inside its beat'));
+    expect(summary, contains('Fix: either separate the beats'));
   });
 }

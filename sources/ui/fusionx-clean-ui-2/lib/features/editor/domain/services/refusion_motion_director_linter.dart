@@ -192,15 +192,27 @@ class ReFusionMotionDirectorLinter {
               right: beat,
               sharedRefs: sharedRefs,
             );
+        final hasExplicitParallelIntent =
+            _hasExplicitParallelIntent(previousBeat, beat);
+        final hasExplicitHandoffIntent =
+            _hasExplicitHandoffIntent(previousBeat, beat);
+        final hasDistinctRefs = hasExplicitRefs && sharedRefs.isEmpty;
         final isAmbiguous = !hasExplicitRefs ||
-            (sharedRefs.isNotEmpty && !hasSafeSharedComponentHandoff);
+            (sharedRefs.isNotEmpty &&
+                (!hasSafeSharedComponentHandoff ||
+                    !hasExplicitHandoffIntent)) ||
+            (hasDistinctRefs && !hasExplicitParallelIntent);
         issues.add(
           ReFusionMotionDirectorIssue(
             severity: isAmbiguous
                 ? ReFusionMotionDirectorIssueSeverity.error
                 : ReFusionMotionDirectorIssueSeverity.warning,
             message: isAmbiguous
-                ? 'Beat `${beat.id}` overlaps beat `${previousBeat.id}` on the same or unspecified components. Put shared-component motion in one intentional beat.'
+                ? sharedRefs.isEmpty && hasExplicitRefs
+                    ? 'Beat `${beat.id}` overlaps beat `${previousBeat.id}` on distinct components without explicit parallel intent. Mark the overlap as parallel/while/meanwhile choreography or separate the beats.'
+                    : hasSafeSharedComponentHandoff && !hasExplicitHandoffIntent
+                        ? 'Beat `${beat.id}` overlaps beat `${previousBeat.id}` on shared component handoff without explicit handoff intent. Mark the overlap as handoff/morph/transform choreography or separate the beats.'
+                        : 'Beat `${beat.id}` overlaps beat `${previousBeat.id}` on the same or unspecified components. Put shared-component motion in one intentional beat.'
                 : sharedRefs.isNotEmpty
                     ? 'Beat `${beat.id}` overlaps beat `${previousBeat.id}` on shared components, but their overlapping primitives animate disjoint properties. Accepted as intentional handoff choreography.'
                     : 'Beat `${beat.id}` overlaps beat `${previousBeat.id}` on distinct components. Accepted as intentional parallel choreography.',
@@ -426,6 +438,46 @@ class ReFusionMotionDirectorLinter {
       }
     }
     return hasInspectableSharedRef;
+  }
+
+  bool _hasExplicitParallelIntent(
+    ReFusionMotionDirectorBeat left,
+    ReFusionMotionDirectorBeat right,
+  ) {
+    final text = _normalizeToken(
+      '${left.label} ${left.intent} ${right.label} ${right.intent}',
+    );
+    return text.contains('parallel') ||
+        text.contains('while') ||
+        text.contains('meanwhile') ||
+        text.contains('alongside') ||
+        text.contains('simultaneous') ||
+        text.contains('together') ||
+        text.contains('during') ||
+        text.contains('asbackground') ||
+        text.contains('backgroundsettle') ||
+        text.contains('backgroundsettles');
+  }
+
+  bool _hasExplicitHandoffIntent(
+    ReFusionMotionDirectorBeat left,
+    ReFusionMotionDirectorBeat right,
+  ) {
+    final text = _normalizeToken(
+      '${left.label} ${left.intent} ${right.label} ${right.intent}',
+    );
+    return text.contains('handoff') ||
+        text.contains('handsoff') ||
+        text.contains('morph') ||
+        text.contains('transform') ||
+        text.contains('transition') ||
+        text.contains('turnsinto') ||
+        text.contains('becomes') ||
+        text.contains('expand') ||
+        text.contains('collapse') ||
+        text.contains('samecomponent') ||
+        text.contains('sameshell') ||
+        text.contains('sameelement');
   }
 
   Set<String> _overlappingPrimitivePropertyGroups({

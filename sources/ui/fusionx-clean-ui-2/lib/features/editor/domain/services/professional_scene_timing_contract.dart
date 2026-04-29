@@ -155,6 +155,12 @@ class ProfessionalSceneTimingContractIssueFormatter {
     if (normalized.contains('overlaponthesametargetproperty')) {
       return 'model this property as one ordered primitive track, or split the overlap into different property groups.';
     }
+    if (normalized.contains('withoutexplicitparallelintent')) {
+      return 'either separate the beats, or describe the overlap with words like parallel, while, meanwhile, alongside, or during so the overlap is intentional.';
+    }
+    if (normalized.contains('withoutexplicithandoffintent')) {
+      return 'either separate the beats, or describe the shared-component overlap as a handoff, morph, transform, expand, collapse, or becomes transition.';
+    }
     if (normalized.contains('mustreferencetargetcomponent')) {
       return 'put the target component id inside the owning beat componentRefs before assigning a primitive to that beat.';
     }

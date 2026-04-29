@@ -172,6 +172,40 @@ void main() {
     );
   });
 
+  test('rejects distinct-component beat overlap without parallel intent', () {
+    final result = linter.lint(
+      promptBarPlan(
+        beats: <ReFusionMotionDirectorBeat>[
+          ReFusionMotionDirectorBeat(
+            id: 'background-enter',
+            label: 'Background enter',
+            startMs: 0,
+            endMs: 1000,
+            intent: 'Bring in the background.',
+            componentRefs: const <String>['cover-circle'],
+          ),
+          ReFusionMotionDirectorBeat(
+            id: 'prompt-enter',
+            label: 'Prompt enter',
+            startMs: 800,
+            endMs: 1600,
+            intent: 'Bring in the prompt shell.',
+            componentRefs: const <String>['prompt-shell'],
+          ),
+        ],
+        primitives: const <ReFusionMotionDirectorPrimitive>[],
+      ),
+    );
+
+    expect(result.isValid, isFalse);
+    expect(
+      result.issues.where(
+        (issue) => issue.message.contains('without explicit parallel intent'),
+      ),
+      isNotEmpty,
+    );
+  });
+
   test('rejects overlapping beats when shared components are ambiguous', () {
     final result = linter.lint(
       promptBarPlan(
@@ -258,6 +292,63 @@ void main() {
     expect(
       result.issues.where(
         (issue) => issue.message.contains('Accepted as intentional handoff'),
+      ),
+      isNotEmpty,
+    );
+  });
+
+  test('rejects shared-component handoff without explicit handoff intent', () {
+    final result = linter.lint(
+      promptBarPlan(
+        beats: <ReFusionMotionDirectorBeat>[
+          ReFusionMotionDirectorBeat(
+            id: 'circle-pop',
+            label: 'Circle pop',
+            startMs: 300,
+            endMs: 1500,
+            intent: 'The prompt shell scales into view.',
+            componentRefs: const <String>['prompt-shell'],
+          ),
+          ReFusionMotionDirectorBeat(
+            id: 'input-grow',
+            label: 'Input grow',
+            startMs: 1400,
+            endMs: 3100,
+            intent: 'The prompt shell changes width.',
+            componentRefs: const <String>['prompt-shell'],
+          ),
+        ],
+        primitives: const <ReFusionMotionDirectorPrimitive>[
+          ReFusionMotionDirectorPrimitive(
+            id: 'shell-pop-scale',
+            beatId: 'circle-pop',
+            targetComponentId: 'prompt-shell',
+            kind: 'scale',
+            property: 'scale',
+            startMs: 300,
+            endMs: 1500,
+            fromValue: 0.2,
+            toValue: 1.0,
+          ),
+          ReFusionMotionDirectorPrimitive(
+            id: 'shell-grow-width',
+            beatId: 'input-grow',
+            targetComponentId: 'prompt-shell',
+            kind: 'widthGrow',
+            property: 'width',
+            startMs: 1400,
+            endMs: 3100,
+            fromValue: 112,
+            toValue: 780,
+          ),
+        ],
+      ),
+    );
+
+    expect(result.isValid, isFalse);
+    expect(
+      result.issues.where(
+        (issue) => issue.message.contains('without explicit handoff intent'),
       ),
       isNotEmpty,
     );
