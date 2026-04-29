@@ -769,6 +769,7 @@ Current code already has useful foundations:
 - `CompositionSceneClipModel`,
 - `SceneProgramApplyTransaction`,
 - `RootSceneClipProjectionAdapter`,
+- `RootCompositionLayerProjectionAdapter`,
 - `SceneScopeSessionResolver`,
 - Scene Layer Scope projection and keyframe operations,
 - Mention Motion patch import/apply path,
@@ -781,6 +782,8 @@ Current gaps for this plan:
 - Add is not a full layer insertion system,
 - no project/composition/layer outliner,
 - no formal selection-driven inspector,
+- root background and Scene Clip instance visual projections are not wired to
+  production outliner, canvas preview, inspector, or export yet,
 - Scene button does not fully separate create-new from modify-selected,
 - transition between Scene Clips is not yet a first-class workspace object,
 - preview/export parity for scene-only generated visual content is still gated.
