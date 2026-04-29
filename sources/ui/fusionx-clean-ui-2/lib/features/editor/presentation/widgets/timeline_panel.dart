@@ -4770,6 +4770,36 @@ class _TimelineTrackRow extends StatelessWidget {
   _TimelineTrackLaneProfile get _laneProfile =>
       _TimelineTrackLaneProfile.forKind(track.kind);
 
+  String get _laneBadgeLabel {
+    if (track.isSceneTrack ||
+        track.visualKind == TimelineVisualKind.composition) {
+      TimelineClipData? preferredClip;
+      final selectedClipId = this.selectedClipId;
+      if (selectedClipId != null) {
+        for (final clip in track.clips) {
+          if (clip.id == selectedClipId && clip.isSceneClip) {
+            preferredClip = clip;
+            break;
+          }
+        }
+      }
+      preferredClip ??= track.clips.cast<TimelineClipData?>().firstWhere(
+            (clip) => clip?.isSceneClip ?? false,
+            orElse: () => null,
+          );
+      final label = preferredClip?.label?.trim();
+      if (label != null && label.isNotEmpty) {
+        return label;
+      }
+      final placeholderLabel = track.placeholderLabel?.trim();
+      if (placeholderLabel != null && placeholderLabel.isNotEmpty) {
+        return placeholderLabel;
+      }
+      return 'Scene';
+    }
+    return _laneProfile.shortLabel;
+  }
+
   double get _controlHitSize =>
       math.max(controlTileSize, _laneProfile.controlHitSize);
 
@@ -5283,7 +5313,7 @@ class _TimelineTrackRow extends StatelessWidget {
                         child: _TimelineTrackLaneBadge(
                           size: controlTileSize,
                           icon: _trackIcon,
-                          label: _laneProfile.shortLabel,
+                          label: _laneBadgeLabel,
                           accentColor: _laneProfile.accentColor,
                           isReorder: false,
                           isEmphasized: _isActiveRow,
@@ -5884,16 +5914,22 @@ class _TimelineTrackLaneBadge extends StatelessWidget {
             color: iconColor,
           ),
           const SizedBox(height: 2),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.clip,
-            style: TextStyle(
-              color: labelColor,
-              fontSize: 8,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.5,
-              height: 1,
+          SizedBox(
+            width: math.max(1, size - 8),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.clip,
+                style: TextStyle(
+                  color: labelColor,
+                  fontSize: 8,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0,
+                  height: 1,
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 2),
@@ -6475,6 +6511,36 @@ class _TimelineReorderTrackRow extends StatelessWidget {
   _TimelineTrackLaneProfile get _laneProfile =>
       _TimelineTrackLaneProfile.forKind(track.kind);
 
+  String get _laneBadgeLabel {
+    if (track.isSceneTrack ||
+        track.visualKind == TimelineVisualKind.composition) {
+      TimelineClipData? preferredClip;
+      final selectedClipId = this.selectedClipId;
+      if (selectedClipId != null) {
+        for (final clip in track.clips) {
+          if (clip.id == selectedClipId && clip.isSceneClip) {
+            preferredClip = clip;
+            break;
+          }
+        }
+      }
+      preferredClip ??= track.clips.cast<TimelineClipData?>().firstWhere(
+            (clip) => clip?.isSceneClip ?? false,
+            orElse: () => null,
+          );
+      final label = preferredClip?.label?.trim();
+      if (label != null && label.isNotEmpty) {
+        return label;
+      }
+      final placeholderLabel = track.placeholderLabel?.trim();
+      if (placeholderLabel != null && placeholderLabel.isNotEmpty) {
+        return placeholderLabel;
+      }
+      return 'Scene';
+    }
+    return _laneProfile.shortLabel;
+  }
+
   double get _controlHitSize =>
       math.max(controlTileSize, _laneProfile.controlHitSize);
 
@@ -6564,7 +6630,7 @@ class _TimelineReorderTrackRow extends StatelessWidget {
                     child: _TimelineTrackLaneBadge(
                       size: controlTileSize,
                       icon: _trackIcon,
-                      label: _laneProfile.shortLabel,
+                      label: _laneBadgeLabel,
                       accentColor: _laneProfile.accentColor,
                       isReorder: true,
                       isEmphasized: _isActiveRow,
