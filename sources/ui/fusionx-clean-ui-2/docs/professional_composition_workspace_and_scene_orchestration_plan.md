@@ -183,6 +183,13 @@ Root Composition
 This gives the timeline real content from the first frame, while still letting
 the user open the scene and add layers manually.
 
+Implementation note:
+
+- Presets are shortcuts only. They must prefill editable values, not lock the
+  user into fixed Story/Square/YouTube/Cinematic choices.
+- Manual values must be stored as real project format/frame-rate/duration data
+  and must not be overwritten later by preview defaults.
+
 ### 4.3 Root Timeline
 
 The root timeline is for sequencing project-level Scene/Composition Clips.

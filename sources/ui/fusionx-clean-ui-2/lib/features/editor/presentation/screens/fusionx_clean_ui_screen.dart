@@ -166,30 +166,38 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _CompositionTemplate(
       id: 'story',
       label: 'Story',
-      details: '9:16, 14s',
-      aspectRatio: 9 / 16,
+      width: 1080,
+      height: 1920,
+      frameRate: 30,
       duration: TimelineTime(value: 14000000),
+      backgroundColor: Color(0xFF000000),
     ),
     _CompositionTemplate(
       id: 'square',
       label: 'Square',
-      details: '1:1, 14s',
-      aspectRatio: 1,
+      width: 1080,
+      height: 1080,
+      frameRate: 30,
       duration: TimelineTime(value: 14000000),
+      backgroundColor: Color(0xFF000000),
     ),
     _CompositionTemplate(
       id: 'youtube',
       label: 'YouTube',
-      details: '16:9, 14s',
-      aspectRatio: 16 / 9,
+      width: 1920,
+      height: 1080,
+      frameRate: 30,
       duration: TimelineTime(value: 14000000),
+      backgroundColor: Color(0xFF000000),
     ),
     _CompositionTemplate(
       id: 'cinematic',
       label: 'Cinematic',
-      details: '21:9, 14s',
-      aspectRatio: 21 / 9,
+      width: 1920,
+      height: 823,
+      frameRate: 30,
       duration: TimelineTime(value: 14000000),
+      backgroundColor: Color(0xFF000000),
     ),
   ];
   static const MotionInterpolationSpec _afterEffectsEasyEaseInterpolation =
@@ -781,6 +789,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   MotionProjectFormat get _motionProjectFormat {
+    final existingFormat = _motionProject?.format;
+    if (existingFormat != null && _hasStartedCompositionSession) {
+      return existingFormat;
+    }
     const canvasWidth = 1080.0;
     final aspectRatio =
         _previewAspectRatio > 0 ? _previewAspectRatio : (9 / 16);
@@ -11832,19 +11844,20 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   void _createBlankComposition(_CompositionTemplate template) {
-    const canvasWidth = 1080.0;
-    final canvasHeight =
-        (canvasWidth / template.aspectRatio).clamp(1.0, 10000.0);
     final format = MotionProjectFormat(
       canvasSize: MotionSize2D(
-        width: canvasWidth,
-        height: canvasHeight,
+        width: template.width.toDouble(),
+        height: template.height.toDouble(),
       ),
     );
+    final projectMetadata = <String, String>{
+      'backgroundColor': template.backgroundColorHex,
+      'compositionPreset': template.id,
+    };
     final project = MotionProjectModel(
       id: _motionProjectId,
       format: format,
-      frameRate: const MotionFrameRate(numerator: 30, denominator: 1),
+      frameRate: MotionFrameRate(numerator: template.frameRate, denominator: 1),
       scenes: <MotionSceneModel>[
         MotionSceneModel(
           id: _motionSceneId,
@@ -11854,8 +11867,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           ),
           layers: const <MotionLayerModel>[],
           name: template.label,
-          metadata: const <String, String>{
+          metadata: <String, String>{
             'role': 'root-composition',
+            ...projectMetadata,
           },
         ),
         MotionSceneModel(
@@ -11866,13 +11880,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           ),
           layers: const <MotionLayerModel>[],
           name: 'Scene 01',
-          metadata: const <String, String>{
+          metadata: <String, String>{
             'role': 'source-composition',
             'source': 'refusion.empty-scene',
+            ...projectMetadata,
           },
         ),
       ],
       name: '${template.label} Composition',
+      metadata: projectMetadata,
     );
     final sceneClip = CompositionSceneClipModel(
       id: _defaultCompositionSceneClipId,
@@ -19133,16 +19149,50 @@ class _CompositionTemplate {
   const _CompositionTemplate({
     required this.id,
     required this.label,
-    required this.details,
-    required this.aspectRatio,
+    required this.width,
+    required this.height,
+    required this.frameRate,
     required this.duration,
+    required this.backgroundColor,
   });
 
   final String id;
   final String label;
-  final String details;
-  final double aspectRatio;
+  final int width;
+  final int height;
+  final int frameRate;
   final TimelineTime duration;
+  final Color backgroundColor;
+
+  double get aspectRatio => width / height;
+
+  String get details =>
+      '${width}x$height, ${duration.inSecondsDouble.toStringAsFixed(0)}s, ${frameRate}fps';
+
+  String get backgroundColorHex {
+    final value = backgroundColor.value.toRadixString(16).padLeft(8, '0');
+    return '#${value.substring(2).toUpperCase()}';
+  }
+
+  _CompositionTemplate copyWith({
+    String? id,
+    String? label,
+    int? width,
+    int? height,
+    int? frameRate,
+    TimelineTime? duration,
+    Color? backgroundColor,
+  }) {
+    return _CompositionTemplate(
+      id: id ?? this.id,
+      label: label ?? this.label,
+      width: width ?? this.width,
+      height: height ?? this.height,
+      frameRate: frameRate ?? this.frameRate,
+      duration: duration ?? this.duration,
+      backgroundColor: backgroundColor ?? this.backgroundColor,
+    );
+  }
 }
 
 class _CompositionStartPage extends StatelessWidget {
@@ -19455,12 +19505,133 @@ class _UniversalAddTile extends StatelessWidget {
   }
 }
 
-class _CreateCompositionSheet extends StatelessWidget {
+class _CreateCompositionSheet extends StatefulWidget {
   const _CreateCompositionSheet({
     required this.templates,
   });
 
   final List<_CompositionTemplate> templates;
+
+  @override
+  State<_CreateCompositionSheet> createState() =>
+      _CreateCompositionSheetState();
+}
+
+class _CreateCompositionSheetState extends State<_CreateCompositionSheet> {
+  late _CompositionTemplate _selectedTemplate;
+  late final TextEditingController _nameController;
+  late final TextEditingController _widthController;
+  late final TextEditingController _heightController;
+  late final TextEditingController _fpsController;
+  late final TextEditingController _durationController;
+  late Color _backgroundColor;
+  String? _errorText;
+
+  static const List<(String, Color)> _backgroundSwatches = <(String, Color)>[
+    ('Black', Color(0xFF000000)),
+    ('White', Color(0xFFFFFFFF)),
+    ('Canvas', Color(0xFF151515)),
+    ('Blue', Color(0xFF0F5BFF)),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedTemplate = widget.templates.firstWhere(
+      (template) => template.id == 'youtube',
+      orElse: () => widget.templates.first,
+    );
+    _nameController = TextEditingController(text: _selectedTemplate.label);
+    _widthController = TextEditingController(
+      text: _selectedTemplate.width.toString(),
+    );
+    _heightController = TextEditingController(
+      text: _selectedTemplate.height.toString(),
+    );
+    _fpsController = TextEditingController(
+      text: _selectedTemplate.frameRate.toString(),
+    );
+    _durationController = TextEditingController(
+      text: _selectedTemplate.duration.inSecondsDouble.toStringAsFixed(0),
+    );
+    _backgroundColor = _selectedTemplate.backgroundColor;
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _widthController.dispose();
+    _heightController.dispose();
+    _fpsController.dispose();
+    _durationController.dispose();
+    super.dispose();
+  }
+
+  void _applyTemplate(_CompositionTemplate template) {
+    setState(() {
+      _selectedTemplate = template;
+      _errorText = null;
+      _nameController.text = template.label;
+      _widthController.text = template.width.toString();
+      _heightController.text = template.height.toString();
+      _fpsController.text = template.frameRate.toString();
+      _durationController.text =
+          template.duration.inSecondsDouble.toStringAsFixed(0);
+      _backgroundColor = template.backgroundColor;
+    });
+  }
+
+  int? _parseInteger(TextEditingController controller) {
+    return int.tryParse(controller.text.trim());
+  }
+
+  double? _parseDouble(TextEditingController controller) {
+    return double.tryParse(controller.text.trim());
+  }
+
+  void _createComposition() {
+    final width = _parseInteger(_widthController);
+    final height = _parseInteger(_heightController);
+    final frameRate = _parseInteger(_fpsController);
+    final durationSeconds = _parseDouble(_durationController);
+    final name = _nameController.text.trim();
+
+    if (name.isEmpty) {
+      setState(() => _errorText = 'Composition name is required.');
+      return;
+    }
+    if (width == null || width < 128 || width > 8192) {
+      setState(() => _errorText = 'Width must be between 128 and 8192.');
+      return;
+    }
+    if (height == null || height < 128 || height > 8192) {
+      setState(() => _errorText = 'Height must be between 128 and 8192.');
+      return;
+    }
+    if (frameRate == null || frameRate < 1 || frameRate > 120) {
+      setState(() => _errorText = 'FPS must be between 1 and 120.');
+      return;
+    }
+    if (durationSeconds == null ||
+        durationSeconds < 1 ||
+        durationSeconds > 3600) {
+      setState(() => _errorText = 'Duration must be between 1s and 3600s.');
+      return;
+    }
+
+    final result = _selectedTemplate.copyWith(
+      id: _selectedTemplate.id == 'custom'
+          ? 'custom'
+          : '${_selectedTemplate.id}-manual',
+      label: name,
+      width: width,
+      height: height,
+      frameRate: frameRate,
+      duration: TimelineTime.fromSecondsDouble(durationSeconds),
+      backgroundColor: _backgroundColor,
+    );
+    Navigator.of(context).pop(result);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19475,49 +19646,148 @@ class _CreateCompositionSheet extends StatelessWidget {
         20,
         20 + MediaQuery.of(context).padding.bottom,
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Center(
-            child: Container(
-              width: 52,
-              height: 5,
-              decoration: BoxDecoration(
-                color: FxPalette.divider,
-                borderRadius: BorderRadius.circular(99),
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 52,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: FxPalette.divider,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(height: 20),
+              const Text(
+                'Create Composition',
+                style: TextStyle(
+                  color: FxPalette.textPrimary,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Choose a preset, then fine tune canvas size, frame rate, duration, and background.',
+                style: TextStyle(
+                  color: FxPalette.textMuted,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  height: 1.25,
+                ),
+              ),
+              const SizedBox(height: 18),
+              for (final template in widget.templates) ...[
+                _CompositionTemplateTile(
+                  template: template,
+                  isSelected: template.id == _selectedTemplate.id,
+                  onTap: () => _applyTemplate(template),
+                ),
+                const SizedBox(height: 10),
+              ],
+              const SizedBox(height: 8),
+              _CompositionTextField(
+                controller: _nameController,
+                label: 'Name',
+                icon: Icons.drive_file_rename_outline_rounded,
+                keyboardType: TextInputType.text,
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: _CompositionTextField(
+                      controller: _widthController,
+                      label: 'Width',
+                      icon: Icons.swap_horiz_rounded,
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _CompositionTextField(
+                      controller: _heightController,
+                      label: 'Height',
+                      icon: Icons.swap_vert_rounded,
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: _CompositionTextField(
+                      controller: _fpsController,
+                      label: 'FPS',
+                      icon: Icons.speed_rounded,
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _CompositionTextField(
+                      controller: _durationController,
+                      label: 'Seconds',
+                      icon: Icons.timer_rounded,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                'Background',
+                style: TextStyle(
+                  color: FxPalette.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final swatch in _backgroundSwatches)
+                    _CompositionColorSwatch(
+                      label: swatch.$1,
+                      color: swatch.$2,
+                      isSelected: swatch.$2.value == _backgroundColor.value,
+                      onTap: () => setState(() {
+                        _backgroundColor = swatch.$2;
+                        _errorText = null;
+                      }),
+                    ),
+                ],
+              ),
+              if (_errorText != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _errorText!,
+                  style: const TextStyle(
+                    color: Color(0xFFFF6B7A),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 18),
+              _CompositionCreateButton(onPressed: _createComposition),
+            ],
           ),
-          const SizedBox(height: 20),
-          const Text(
-            'Create Composition',
-            style: TextStyle(
-              color: FxPalette.textPrimary,
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 0,
-            ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Choose the canvas that the scene, shapes, text, and motion graph will use.',
-            style: TextStyle(
-              color: FxPalette.textMuted,
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              height: 1.25,
-            ),
-          ),
-          const SizedBox(height: 18),
-          for (final template in templates) ...[
-            _CompositionTemplateTile(
-              template: template,
-              onTap: () => Navigator.of(context).pop(template),
-            ),
-            const SizedBox(height: 10),
-          ],
-        ],
+        ),
       ),
     );
   }
@@ -19526,10 +19796,12 @@ class _CreateCompositionSheet extends StatelessWidget {
 class _CompositionTemplateTile extends StatelessWidget {
   const _CompositionTemplateTile({
     required this.template,
+    required this.isSelected,
     required this.onTap,
   });
 
   final _CompositionTemplate template;
+  final bool isSelected;
   final VoidCallback onTap;
 
   @override
@@ -19548,12 +19820,13 @@ class _CompositionTemplateTile extends StatelessWidget {
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: FxPalette.accent.withOpacity(0.14),
+                  color: (isSelected ? FxPalette.accent : FxPalette.textMuted)
+                      .withOpacity(isSelected ? 0.18 : 0.08),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.crop_free_rounded,
-                  color: FxPalette.accent,
+                  color: isSelected ? FxPalette.accent : FxPalette.textMuted,
                   size: 19,
                 ),
               ),
@@ -19584,11 +19857,154 @@ class _CompositionTemplateTile extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: FxPalette.textMuted,
+              Icon(
+                isSelected
+                    ? Icons.check_circle_rounded
+                    : Icons.touch_app_rounded,
+                color: isSelected ? FxPalette.accent : FxPalette.textMuted,
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CompositionTextField extends StatelessWidget {
+  const _CompositionTextField({
+    required this.controller,
+    required this.label,
+    required this.icon,
+    required this.keyboardType,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final IconData icon;
+  final TextInputType keyboardType;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      style: const TextStyle(
+        color: FxPalette.textPrimary,
+        fontSize: 14,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 0,
+      ),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(
+          color: FxPalette.textMuted,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0,
+        ),
+        prefixIcon: Icon(icon, color: FxPalette.textMuted, size: 19),
+        filled: true,
+        fillColor: FxPalette.surfaceRaised,
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.06)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: FxPalette.accent.withOpacity(0.65)),
+        ),
+      ),
+    );
+  }
+}
+
+class _CompositionColorSwatch extends StatelessWidget {
+  const _CompositionColorSwatch({
+    required this.label,
+    required this.color,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String label;
+  final Color color;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final borderColor =
+        isSelected ? FxPalette.accent : Colors.white.withOpacity(0.08);
+    return Material(
+      color: FxPalette.surfaceRaised,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: borderColor, width: isSelected ? 1.4 : 1),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 16,
+                height: 16,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white.withOpacity(0.2)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color:
+                      isSelected ? FxPalette.textPrimary : FxPalette.textMuted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CompositionCreateButton extends StatelessWidget {
+  const _CompositionCreateButton({
+    required this.onPressed,
+  });
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: FxPalette.accent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onPressed,
+        child: const Padding(
+          padding: EdgeInsets.symmetric(vertical: 15),
+          child: Center(
+            child: Text(
+              'Create Composition',
+              style: TextStyle(
+                color: FxPalette.background,
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0,
+              ),
+            ),
           ),
         ),
       ),
