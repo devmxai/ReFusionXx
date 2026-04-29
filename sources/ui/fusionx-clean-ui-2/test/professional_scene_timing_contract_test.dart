@@ -204,6 +204,86 @@ void main() {
     );
   });
 
+  test('rejects primitives outside their owning beat range', () {
+    final result = validator.validateDirectorPlan(
+      plan(
+        primitives: const <ReFusionMotionDirectorPrimitive>[
+          ReFusionMotionDirectorPrimitive(
+            id: 'dot-slide',
+            beatId: 'dot-move',
+            targetComponentId: 'dot',
+            kind: 'slide',
+            property: 'position',
+            startMs: 1700,
+            endMs: 2600,
+          ),
+        ],
+      ),
+    );
+
+    expect(result.isValid, isFalse);
+    expect(
+      result.issues.where(
+        (issue) => issue.message.contains('inside owning beat'),
+      ),
+      isNotEmpty,
+    );
+  });
+
+  test('rejects owning beats that do not reference the animated component', () {
+    final result = validator.validateDirectorPlan(
+      plan(
+        primitives: const <ReFusionMotionDirectorPrimitive>[
+          ReFusionMotionDirectorPrimitive(
+            id: 'dot-slide',
+            beatId: 'title-type',
+            targetComponentId: 'dot',
+            kind: 'slide',
+            property: 'position',
+            startMs: 100,
+            endMs: 600,
+          ),
+        ],
+      ),
+    );
+
+    expect(result.isValid, isFalse);
+    expect(
+      result.issues.where(
+        (issue) => issue.message.contains('must reference target component'),
+      ),
+      isNotEmpty,
+    );
+  });
+
+  test('warns when visible component final motion ends at scene boundary', () {
+    final result = validator.validateDirectorPlan(
+      plan(
+        primitives: const <ReFusionMotionDirectorPrimitive>[
+          ReFusionMotionDirectorPrimitive(
+            id: 'dot-slide',
+            beatId: 'dot-move',
+            targetComponentId: 'dot',
+            kind: 'slide',
+            property: 'position',
+            startMs: 1800,
+            endMs: 3600,
+          ),
+        ],
+      ),
+    );
+
+    expect(result.isValid, isTrue);
+    expect(
+      result.issues.where(
+        (issue) =>
+            issue.severity == ReFusionMotionDirectorIssueSeverity.warning &&
+            issue.message.contains('final motion ends at the scene boundary'),
+      ),
+      isNotEmpty,
+    );
+  });
+
   test('warns for sequential same-property primitives until compiler merge',
       () {
     final result = validator.validateDirectorPlan(
@@ -305,6 +385,45 @@ void main() {
     );
   });
 
+  test('rejects Scene Program channels without keyframes', () {
+    final result = validator.validateSceneProgram(
+      ReFusionSceneProgram(
+        schemaVersion: 'refusion.scene-program/v1',
+        name: 'Empty Channel Program',
+        durationMs: 1200,
+        frameRate: 30,
+        layers: <ReFusionSceneProgramLayer>[
+          ReFusionSceneProgramLayer(
+            id: 'title-layer',
+            kind: 'text',
+            startMs: 0,
+            durationMs: 1200,
+            elements: <ReFusionSceneProgramElement>[
+              ReFusionSceneProgramElement(
+                id: 'title',
+                kind: 'text',
+                channels: <ReFusionSceneProgramChannel>[
+                  ReFusionSceneProgramChannel(
+                    target: 'self',
+                    property: 'opacity',
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    expect(result.isValid, isFalse);
+    expect(
+      result.issues.where(
+        (issue) => issue.message.contains('must include keyframes'),
+      ),
+      isNotEmpty,
+    );
+  });
+
   test('formats Scene Program timing issues with repair hints', () {
     final summary = formatter.formatSceneProgramIssues(
       const <ReFusionSceneProgramIssue>[
@@ -337,10 +456,17 @@ void main() {
               'Text component `title` must have an explicit readable hold beat of at least 360ms after reveal primitive `title-typewriter`.',
           path: 'components.title',
         ),
+        ReFusionMotionDirectorIssue(
+          severity: ReFusionMotionDirectorIssueSeverity.error,
+          message:
+              'Primitive `dot-slide` must stay inside owning beat `dot-move` time range.',
+          path: 'primitives.dot-slide',
+        ),
       ],
     );
 
     expect(summary, contains('components.title'));
     expect(summary, contains('Fix: add a readable hold beat'));
+    expect(summary, contains('Fix: move the primitive inside its beat'));
   });
 }

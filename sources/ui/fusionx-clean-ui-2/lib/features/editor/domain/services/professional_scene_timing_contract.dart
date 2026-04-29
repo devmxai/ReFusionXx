@@ -4,13 +4,19 @@ import '../models/refusion_scene_program_models.dart';
 class ProfessionalSceneTimingContractPolicy {
   const ProfessionalSceneTimingContractPolicy({
     this.minimumReadableHoldMs = 360,
+    this.minimumCompletionHoldMs = 240,
     this.requireReadableTextHold = true,
+    this.requirePrimitiveBeatOwnership = true,
     this.warnSequentialSamePropertyPrimitives = true,
+    this.warnFinalMotionWithoutHold = true,
   });
 
   final int minimumReadableHoldMs;
+  final int minimumCompletionHoldMs;
   final bool requireReadableTextHold;
+  final bool requirePrimitiveBeatOwnership;
   final bool warnSequentialSamePropertyPrimitives;
+  final bool warnFinalMotionWithoutHold;
 }
 
 class ProfessionalSceneComponentTiming {
@@ -125,6 +131,9 @@ class ProfessionalSceneTimingContractIssueFormatter {
     if (normalized.contains('keyframesmustbesorted')) {
       return 'sort keyframes by ascending timeMs before returning JSON.';
     }
+    if (normalized.contains('channelmustincludekeyframes')) {
+      return 'add at least two meaningful keyframes for animated properties, or remove the empty channel entirely.';
+    }
     if (normalized.contains('lifetimemuststayinside')) {
       return 'adjust layer startMs/durationMs or increase scene durationMs so the layer fits inside the scene.';
     }
@@ -146,8 +155,17 @@ class ProfessionalSceneTimingContractIssueFormatter {
     if (normalized.contains('overlaponthesametargetproperty')) {
       return 'model this property as one ordered primitive track, or split the overlap into different property groups.';
     }
+    if (normalized.contains('mustreferencetargetcomponent')) {
+      return 'put the target component id inside the owning beat componentRefs before assigning a primitive to that beat.';
+    }
+    if (normalized.contains('owningbeat')) {
+      return 'move the primitive inside its beat time range or create a beat that exactly owns this motion.';
+    }
     if (normalized.contains('muststayinside')) {
       return 'keep every beat and primitive inside the scene duration and inside its owning beat.';
+    }
+    if (normalized.contains('finalmotionendsatthesceneboundary')) {
+      return 'extend scene duration and add a resolve/hold beat after the final motion, or mark the component as a transition/background cover.';
     }
     if (normalized.contains('runsbackward')) {
       return 'typewriter values must progress forward from 0.0 toward 1.0.';
@@ -196,8 +214,20 @@ class ProfessionalSceneTimingContractValidator {
     }
 
     _lintSamePropertyPrimitiveTracks(plan, issues);
+    if (policy.requirePrimitiveBeatOwnership) {
+      _lintPrimitiveBeatOwnership(plan, issues);
+    }
     if (policy.requireReadableTextHold) {
       _lintReadableTextHolds(
+        plan: plan,
+        componentById: componentById,
+        beatsByComponent: beatsByComponent,
+        primitivesByComponent: primitivesByComponent,
+        issues: issues,
+      );
+    }
+    if (policy.warnFinalMotionWithoutHold) {
+      _lintFinalMotionCompletion(
         plan: plan,
         componentById: componentById,
         beatsByComponent: beatsByComponent,
@@ -356,6 +386,89 @@ class ProfessionalSceneTimingContractValidator {
     }
   }
 
+  void _lintPrimitiveBeatOwnership(
+    ReFusionMotionDirectorPlan plan,
+    List<ReFusionMotionDirectorIssue> issues,
+  ) {
+    final beatById = <String, ReFusionMotionDirectorBeat>{
+      for (final beat in plan.beats) beat.id: beat,
+    };
+    for (final primitive in plan.primitives) {
+      final beat = beatById[primitive.beatId];
+      if (beat == null) {
+        issues.add(
+          ReFusionMotionDirectorIssue(
+            severity: ReFusionMotionDirectorIssueSeverity.error,
+            message:
+                'Primitive `${primitive.id}` references missing owning beat `${primitive.beatId}`.',
+            path: 'primitives.${primitive.id}.beatId',
+          ),
+        );
+        continue;
+      }
+      if (!beat.componentRefs.contains(primitive.targetComponentId)) {
+        issues.add(
+          ReFusionMotionDirectorIssue(
+            severity: ReFusionMotionDirectorIssueSeverity.error,
+            message:
+                'Owning beat `${beat.id}` must reference target component `${primitive.targetComponentId}` before primitive `${primitive.id}` can animate it.',
+            path: 'beats.${beat.id}.componentRefs',
+          ),
+        );
+      }
+      if (primitive.startMs < beat.startMs || primitive.endMs > beat.endMs) {
+        issues.add(
+          ReFusionMotionDirectorIssue(
+            severity: ReFusionMotionDirectorIssueSeverity.error,
+            message:
+                'Primitive `${primitive.id}` must stay inside owning beat `${beat.id}` time range.',
+            path: 'primitives.${primitive.id}',
+          ),
+        );
+      }
+    }
+  }
+
+  void _lintFinalMotionCompletion({
+    required ReFusionMotionDirectorPlan plan,
+    required Map<String, ReFusionMotionDirectorComponent> componentById,
+    required Map<String, List<ReFusionMotionDirectorBeat>> beatsByComponent,
+    required Map<String, List<ReFusionMotionDirectorPrimitive>>
+        primitivesByComponent,
+    required List<ReFusionMotionDirectorIssue> issues,
+  }) {
+    for (final entry in primitivesByComponent.entries) {
+      final component = componentById[entry.key];
+      if (component == null || _isCompletionExemptComponent(component)) {
+        continue;
+      }
+      if (entry.value.isEmpty) {
+        continue;
+      }
+      final finalPrimitive = entry.value.reduce(
+        (left, right) => left.endMs >= right.endMs ? left : right,
+      );
+      if (finalPrimitive.endMs < plan.durationMs) {
+        continue;
+      }
+      if (_hasCompletionBeatAfter(
+        componentId: component.id,
+        afterMs: finalPrimitive.endMs,
+        beatsByComponent: beatsByComponent,
+      )) {
+        continue;
+      }
+      issues.add(
+        ReFusionMotionDirectorIssue(
+          severity: ReFusionMotionDirectorIssueSeverity.warning,
+          message:
+              'Component `${component.id}` final motion ends at the scene boundary. Add a resolve or hold beat so the final frame is intentional.',
+          path: 'components.${component.id}',
+        ),
+      );
+    }
+  }
+
   void _lintReadableTextHolds({
     required ReFusionMotionDirectorPlan plan,
     required Map<String, ReFusionMotionDirectorComponent> componentById,
@@ -421,6 +534,32 @@ class ProfessionalSceneTimingContractValidator {
     return false;
   }
 
+  bool _hasCompletionBeatAfter({
+    required String componentId,
+    required int afterMs,
+    required Map<String, List<ReFusionMotionDirectorBeat>> beatsByComponent,
+  }) {
+    final beats =
+        beatsByComponent[componentId] ?? const <ReFusionMotionDirectorBeat>[];
+    for (final beat in beats) {
+      if (beat.startMs < afterMs) {
+        continue;
+      }
+      if (beat.durationMs < policy.minimumCompletionHoldMs) {
+        continue;
+      }
+      final text = _normalizeToken('${beat.label} ${beat.intent}');
+      if (text.contains('resolve') ||
+          text.contains('hold') ||
+          text.contains('settle') ||
+          text.contains('final') ||
+          text.contains('complete')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   bool _isReadableTextComponent(ReFusionMotionDirectorComponent component) {
     final role = _normalizeToken(component.role);
     return role.contains('text') ||
@@ -448,6 +587,15 @@ class ProfessionalSceneTimingContractValidator {
         text.contains('read');
   }
 
+  bool _isCompletionExemptComponent(ReFusionMotionDirectorComponent component) {
+    final role = _normalizeToken('${component.role} ${component.label}');
+    return role.contains('background') ||
+        role.contains('canvas') ||
+        role.contains('transition') ||
+        role.contains('mask') ||
+        role.contains('cover');
+  }
+
   void _lintSceneProgramChannels({
     required List<ReFusionSceneProgramChannel> ownerChannels,
     required String ownerPath,
@@ -473,6 +621,15 @@ class ProfessionalSceneTimingContractValidator {
         );
       } else {
         seenTracks[trackKey] = channelIndex;
+      }
+      if (channel.keyframes.isEmpty) {
+        issues.add(
+          ReFusionSceneProgramIssue(
+            severity: ReFusionSceneProgramIssueSeverity.error,
+            message: 'Channel `${channel.property}` must include keyframes.',
+            path: '$ownerPath[$channelIndex].keyframes',
+          ),
+        );
       }
       var previousTimeMs = -1;
       for (var keyframeIndex = 0;
