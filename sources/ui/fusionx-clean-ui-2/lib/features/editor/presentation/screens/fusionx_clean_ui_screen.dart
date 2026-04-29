@@ -692,6 +692,26 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
   double get _timelineFps => _motionProject?.frameRate.framesPerSecond ?? 30;
 
+  Color get _compositionCanvasBackgroundColor {
+    final hex = _motionProject?.metadata['backgroundColor'];
+    return _parseCompositionColor(hex) ?? Colors.black;
+  }
+
+  static Color? _parseCompositionColor(String? value) {
+    if (value == null) {
+      return null;
+    }
+    final normalized = value.trim().replaceFirst('#', '');
+    if (normalized.length != 6 && normalized.length != 8) {
+      return null;
+    }
+    final parsed = int.tryParse(normalized, radix: 16);
+    if (parsed == null) {
+      return null;
+    }
+    return Color(normalized.length == 6 ? 0xFF000000 | parsed : parsed);
+  }
+
   TimelineTime get _minEditableClipDurationTime =>
       TimelineTime.fromSecondsDouble(_minEditableClipDuration);
 
@@ -17457,6 +17477,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                           );
                           final previewFallback = _CleanPreviewCanvas(
                             asset: previewAsset,
+                            backgroundColor: _compositionCanvasBackgroundColor,
                             previewThumbnailAssetId:
                                 _previewThumbnailResolvedAssetId,
                             previewThumbnailListenable:
@@ -17464,6 +17485,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                           );
                           final previewStage = PreviewStage(
                             workspaceAspectRatio: _previewAspectRatio,
+                            canvasBackgroundColor:
+                                _compositionCanvasBackgroundColor,
                             hasVisibleContent: hasPreviewCanvasContent,
                             viewportState: _previewViewportState,
                             onViewportChanged: _handlePreviewViewportChanged,
@@ -19097,11 +19120,13 @@ class _TopStageBannerCard extends StatelessWidget {
 class _CleanPreviewCanvas extends StatelessWidget {
   const _CleanPreviewCanvas({
     required this.asset,
+    required this.backgroundColor,
     this.previewThumbnailAssetId,
     this.previewThumbnailListenable,
   });
 
   final EditorAssetItem? asset;
+  final Color backgroundColor;
   final String? previewThumbnailAssetId;
   final ValueListenable<Uint8List?>? previewThumbnailListenable;
 
@@ -19121,14 +19146,14 @@ class _CleanPreviewCanvas extends StatelessWidget {
 
   Widget _buildCanvas(Uint8List? previewBytes) {
     if (asset == null) {
-      return const SizedBox.expand();
+      return ColoredBox(color: backgroundColor);
     }
     final shouldShowPoster = previewBytes != null &&
         previewBytes.isNotEmpty &&
         (previewThumbnailAssetId == null ||
             previewThumbnailAssetId == asset?.id);
     return ColoredBox(
-      color: Colors.black,
+      color: backgroundColor,
       child: Stack(
         fit: StackFit.expand,
         children: [

@@ -45,6 +45,7 @@ class PreviewStage extends StatelessWidget {
     required this.workspaceAspectRatio,
     required this.child,
     this.overlay,
+    this.canvasBackgroundColor = Colors.black,
     this.hasVisibleContent = true,
     this.viewportState = PreviewViewportState.identity,
     this.onViewportChanged,
@@ -54,6 +55,7 @@ class PreviewStage extends StatelessWidget {
   final double? workspaceAspectRatio;
   final Widget child;
   final Widget? overlay;
+  final Color canvasBackgroundColor;
   final bool hasVisibleContent;
   final PreviewViewportState viewportState;
   final ValueChanged<PreviewViewportState>? onViewportChanged;
@@ -87,6 +89,7 @@ class PreviewStage extends StatelessWidget {
                 viewportState: viewportState,
                 onViewportChanged: onViewportChanged,
                 onViewportReset: onViewportReset,
+                canvasBackgroundColor: canvasBackgroundColor,
                 overlay: overlay,
                 child: child,
               ),
@@ -103,6 +106,7 @@ class _PreviewStageViewportShell extends StatefulWidget {
     required this.hasVisibleContent,
     required this.viewportState,
     required this.child,
+    required this.canvasBackgroundColor,
     this.overlay,
     this.onViewportChanged,
     this.onViewportReset,
@@ -111,6 +115,7 @@ class _PreviewStageViewportShell extends StatefulWidget {
   final bool hasVisibleContent;
   final PreviewViewportState viewportState;
   final Widget child;
+  final Color canvasBackgroundColor;
   final Widget? overlay;
   final ValueChanged<PreviewViewportState>? onViewportChanged;
   final VoidCallback? onViewportReset;
@@ -233,7 +238,7 @@ class _PreviewStageViewportShellState
                 borderRadius: BorderRadius.circular(10),
                 child: ColoredBox(
                   color: widget.hasVisibleContent
-                      ? Colors.black
+                      ? widget.canvasBackgroundColor
                       : Colors.transparent,
                   child: Stack(
                     fit: StackFit.expand,

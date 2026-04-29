@@ -189,6 +189,9 @@ Implementation note:
   user into fixed Story/Square/YouTube/Cinematic choices.
 - Manual values must be stored as real project format/frame-rate/duration data
   and must not be overwritten later by preview defaults.
+- The selected background color must be visible in the composition preview.
+  Export/native render parity for this background is a required follow-up, not
+  a reason to hide the value from preview.
 
 ### 4.3 Root Timeline
 
