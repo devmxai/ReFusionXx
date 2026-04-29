@@ -125,6 +125,21 @@ class MotionShapePreviewOverlay extends StatelessWidget {
                 MotionPropertyCatalog.cornerRadius.id,
                 0,
               ),
+              trimStart: _trimProgress(
+                properties,
+                MotionPropertyCatalog.trimStart.id,
+                0,
+              ),
+              trimEnd: _trimProgress(
+                properties,
+                MotionPropertyCatalog.trimEnd.id,
+                1,
+              ),
+              trimOffset: _trimOffset(
+                properties,
+                MotionPropertyCatalog.trimOffset.id,
+                0,
+              ),
               shadow: _shadow(properties, opacity),
               iconId: _string(properties, 'asset.icon'),
             ),
@@ -190,6 +205,35 @@ class MotionShapePreviewOverlay extends StatelessWidget {
       return rawValue.toDouble();
     }
     return fallback;
+  }
+
+  static double _trimProgress(
+    Map<String, MotionPropertyValue> properties,
+    String id,
+    double fallback,
+  ) {
+    return _normalizeTrimProgress(_scalar(properties, id, fallback));
+  }
+
+  static double _trimOffset(
+    Map<String, MotionPropertyValue> properties,
+    String id,
+    double fallback,
+  ) {
+    final raw = _scalar(properties, id, fallback);
+    final unit = raw.abs() > 1 ? raw / 100 : raw;
+    if (!unit.isFinite) {
+      return 0;
+    }
+    return unit % 1.0;
+  }
+
+  static double _normalizeTrimProgress(double raw) {
+    final unit = raw.abs() > 1 ? raw / 100 : raw;
+    if (!unit.isFinite) {
+      return 0;
+    }
+    return unit.clamp(0.0, 1.0).toDouble();
   }
 
   static Color _color(
@@ -291,6 +335,9 @@ class _MotionShapePreviewNode {
     required this.opacity,
     required this.color,
     required this.cornerRadius,
+    required this.trimStart,
+    required this.trimEnd,
+    required this.trimOffset,
     this.shadow,
     this.iconId,
   });
@@ -309,6 +356,9 @@ class _MotionShapePreviewNode {
   final double opacity;
   final Color color;
   final double cornerRadius;
+  final double trimStart;
+  final double trimEnd;
+  final double trimOffset;
   final _MotionShapePreviewShadow? shadow;
   final String? iconId;
 }
@@ -368,13 +418,15 @@ class _MotionShapePreviewNodeWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final width = math.max(0.0, node.width * scaleX);
-    final height = math.max(0.0, node.height * scaleY);
+    final geometry = _effectiveGeometryForNode(node);
+    final width = math.max(0.0, geometry.width * scaleX);
+    final height = math.max(0.0, geometry.height * scaleY);
     if (width <= 0 || height <= 0) {
       return const SizedBox.shrink();
     }
 
-    final centerX = viewportWidth / 2 + (node.positionX * scaleX);
+    final centerX =
+        viewportWidth / 2 + ((node.positionX + geometry.offsetX) * scaleX);
     final centerY = viewportHeight / 2 + (node.positionY * scaleY);
     final colorOpacity = node.color.opacity;
     final decorationColor = node.color.withOpacity(
@@ -414,6 +466,30 @@ class _MotionShapePreviewNodeWidget extends StatelessWidget {
                 ),
         ),
       ),
+    );
+  }
+
+  _MotionShapePreviewGeometry _effectiveGeometryForNode(
+    _MotionShapePreviewNode node,
+  ) {
+    if (node.shapeKind != MotionShapeKind.line) {
+      return _MotionShapePreviewGeometry(
+        width: node.width,
+        height: node.height,
+      );
+    }
+    final rawLength = (node.trimEnd - node.trimStart).clamp(0.0, 1.0);
+    final length = rawLength.toDouble();
+    if (length <= 0) {
+      return const _MotionShapePreviewGeometry(width: 0, height: 0);
+    }
+    final clampedStart =
+        (node.trimStart + node.trimOffset).clamp(0.0, 1.0 - length).toDouble();
+    final visibleWidth = node.width * length;
+    return _MotionShapePreviewGeometry(
+      width: visibleWidth,
+      height: node.height,
+      offsetX: ((clampedStart + (length / 2)) - 0.5) * node.width,
     );
   }
 
@@ -490,4 +566,16 @@ class _MotionShapePreviewNodeWidget extends StatelessWidget {
         );
     }
   }
+}
+
+class _MotionShapePreviewGeometry {
+  const _MotionShapePreviewGeometry({
+    required this.width,
+    required this.height,
+    this.offsetX = 0,
+  });
+
+  final double width;
+  final double height;
+  final double offsetX;
 }

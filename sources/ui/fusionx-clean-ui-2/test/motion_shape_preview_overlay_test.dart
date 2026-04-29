@@ -140,4 +140,114 @@ void main() {
     expect(shadow.offset.dy, closeTo(18, 0.001));
     expect(shadow.color.alpha, closeTo((255 * 0.35).round(), 1));
   });
+
+  testWidgets('renders trim path progress on line shapes', (tester) async {
+    const target = MotionPropertyTarget(
+      kind: MotionTargetKind.element,
+      targetId: 'line',
+      projectId: 'project',
+      sceneId: 'scene',
+      layerId: 'layer',
+      elementId: 'line',
+    );
+
+    MotionEvaluatedPropertyValue property(
+      MotionPropertyDefinition definition,
+      MotionPropertyValue value,
+    ) {
+      return MotionEvaluatedPropertyValue(
+        target: target,
+        definition: definition,
+        value: value,
+        status: MotionEvaluationStatus.resolved,
+      );
+    }
+
+    final snapshot = MotionEvaluationSnapshot(
+      projectId: 'project',
+      time: TimelineTime.zero,
+      scenes: <MotionEvaluatedSceneState>[
+        MotionEvaluatedSceneState(
+          id: 'scene',
+          sourceSceneId: 'scene',
+          projectRange: TimelineTimeRange(
+            start: TimelineTime.zero,
+            endExclusive: TimelineTime.fromMilliseconds(1000),
+          ),
+          activationState: MotionActivationState.active,
+          properties: const <MotionEvaluatedPropertyValue>[],
+          layers: <MotionEvaluatedLayerState>[
+            MotionEvaluatedLayerState(
+              id: 'layer',
+              sourceLayerId: 'layer',
+              sceneId: 'scene',
+              kind: MotionLayerKind.shape,
+              projectRange: TimelineTimeRange(
+                start: TimelineTime.zero,
+                endExclusive: TimelineTime.fromMilliseconds(1000),
+              ),
+              activationState: MotionActivationState.active,
+              properties: const <MotionEvaluatedPropertyValue>[],
+              elements: <MotionEvaluatedElementState>[
+                MotionEvaluatedElementState(
+                  id: 'line',
+                  sourceElementId: 'line',
+                  sceneId: 'scene',
+                  layerId: 'layer',
+                  kind: MotionElementKind.shape,
+                  shapeKind: MotionShapeKind.line,
+                  projectRange: TimelineTimeRange(
+                    start: TimelineTime.zero,
+                    endExclusive: TimelineTime.fromMilliseconds(1000),
+                  ),
+                  activationState: MotionActivationState.active,
+                  properties: <MotionEvaluatedPropertyValue>[
+                    property(
+                      MotionPropertyCatalog.width,
+                      const MotionPropertyValue.scalar(200),
+                    ),
+                    property(
+                      MotionPropertyCatalog.height,
+                      const MotionPropertyValue.scalar(10),
+                    ),
+                    property(
+                      MotionPropertyCatalog.opacity,
+                      const MotionPropertyValue.scalar(1),
+                    ),
+                    property(
+                      MotionPropertyCatalog.trimStart,
+                      const MotionPropertyValue.scalar(0.25),
+                    ),
+                    property(
+                      MotionPropertyCatalog.trimEnd,
+                      const MotionPropertyValue.scalar(0.75),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: SizedBox(
+          width: 800,
+          height: 600,
+          child: MotionShapePreviewOverlay(
+            snapshot: snapshot,
+            canvasSize: const MotionSize2D(width: 800, height: 600),
+          ),
+        ),
+      ),
+    );
+
+    final decoratedBoxFinder = find.byType(DecoratedBox);
+    expect(decoratedBoxFinder, findsOneWidget);
+    expect(tester.getSize(decoratedBoxFinder).width, closeTo(100, 0.001));
+    expect(tester.getSize(decoratedBoxFinder).height, closeTo(10, 0.001));
+  });
 }

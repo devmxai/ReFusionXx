@@ -579,6 +579,9 @@ class ReFusionSceneProgramLowerer {
           MotionPropertyCatalog.width.id,
           MotionPropertyCatalog.height.id,
           MotionPropertyCatalog.cornerRadius.id,
+          MotionPropertyCatalog.trimStart.id,
+          MotionPropertyCatalog.trimEnd.id,
+          MotionPropertyCatalog.trimOffset.id,
           _SceneProgramPropertyDefinitions.icon.id,
         },
       MotionElementKind.mask => <String>{
@@ -599,6 +602,9 @@ class ReFusionSceneProgramLowerer {
           MotionPropertyCatalog.width.id,
           MotionPropertyCatalog.height.id,
           MotionPropertyCatalog.cornerRadius.id,
+          MotionPropertyCatalog.trimStart.id,
+          MotionPropertyCatalog.trimEnd.id,
+          MotionPropertyCatalog.trimOffset.id,
           _SceneProgramPropertyDefinitions.maskRevealProgress.id,
         },
       MotionElementKind.image => <String>{
@@ -826,6 +832,30 @@ class ReFusionSceneProgramLowerer {
         ],
       'radius' || 'borderradius' => <_LoweredProperty>[
           _LoweredProperty(definition: MotionPropertyCatalog.cornerRadius),
+        ],
+      'trimstart' ||
+      'trimpathstart' ||
+      'linetrimstart' ||
+      'pathtrimstart' =>
+        <_LoweredProperty>[
+          _LoweredProperty(definition: MotionPropertyCatalog.trimStart),
+        ],
+      'trimend' ||
+      'trimpathend' ||
+      'linetrimend' ||
+      'pathtrimend' ||
+      'linereveal' ||
+      'linerevealprogress' ||
+      'revealline' =>
+        <_LoweredProperty>[
+          _LoweredProperty(definition: MotionPropertyCatalog.trimEnd),
+        ],
+      'trimoffset' ||
+      'trimpathoffset' ||
+      'linetrimoffset' ||
+      'pathtrimoffset' =>
+        <_LoweredProperty>[
+          _LoweredProperty(definition: MotionPropertyCatalog.trimOffset),
         ],
       'size' ||
       'iconsize' ||

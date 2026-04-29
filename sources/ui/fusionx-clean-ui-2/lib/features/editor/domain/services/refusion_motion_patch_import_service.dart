@@ -620,6 +620,30 @@ class ReFusionMotionPatchImportService {
         <_PatchProperty>[
           _PatchProperty(definition: MotionPropertyCatalog.cornerRadius),
         ],
+      'trimstart' ||
+      'trimpathstart' ||
+      'linetrimstart' ||
+      'pathtrimstart' =>
+        <_PatchProperty>[
+          _PatchProperty(definition: MotionPropertyCatalog.trimStart),
+        ],
+      'trimend' ||
+      'trimpathend' ||
+      'linetrimend' ||
+      'pathtrimend' ||
+      'linereveal' ||
+      'linerevealprogress' ||
+      'revealline' =>
+        <_PatchProperty>[
+          _PatchProperty(definition: MotionPropertyCatalog.trimEnd),
+        ],
+      'trimoffset' ||
+      'trimpathoffset' ||
+      'linetrimoffset' ||
+      'pathtrimoffset' =>
+        <_PatchProperty>[
+          _PatchProperty(definition: MotionPropertyCatalog.trimOffset),
+        ],
       'crop' || 'croprect' => <_PatchProperty>[
           _PatchProperty(definition: MotionPropertyCatalog.cropRect),
         ],

@@ -888,6 +888,85 @@ void main() {
     );
   });
 
+  test('lowers line trim path controls into editable shape channels', () {
+    final importResult = importService.validate(
+      source: '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "name": "Line Trim Reveal",
+  "durationMs": 1600,
+  "frameRate": 30,
+  "layers": [
+    {
+      "id": "line-layer",
+      "kind": "shape",
+      "startMs": 0,
+      "durationMs": 1600,
+      "elements": [
+        {
+          "id": "line",
+          "kind": "shape",
+          "properties": {
+            "shapeKind": "line",
+            "width": 640,
+            "height": 10,
+            "trimStart": 0,
+            "trimEnd": 0
+          },
+          "channels": [
+            {
+              "property": "lineReveal",
+              "keyframes": [
+                { "timeMs": 200, "value": 0, "easing": "linear" },
+                { "timeMs": 900, "value": 100, "easing": "easeOutCubic" }
+              ]
+            },
+            {
+              "property": "trimOffset",
+              "keyframes": [
+                { "timeMs": 900, "value": 0, "easing": "linear" },
+                { "timeMs": 1200, "value": 0.1, "easing": "linear" }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+''',
+    );
+    expect(importResult.isValid, isTrue);
+
+    final result = lowerer.lower(
+      ReFusionSceneProgramLoweringRequest(program: importResult.program!),
+    );
+
+    expect(result.hasErrors, isFalse);
+    final line = result.project.scenes.single.layers.single.elements.single;
+    expect(line.shapeKind, MotionShapeKind.line);
+    expect(
+      line.properties.map((assignment) => assignment.definition.id),
+      containsAll(<String>[
+        MotionPropertyCatalog.trimStart.id,
+        MotionPropertyCatalog.trimEnd.id,
+      ]),
+    );
+
+    final trimEndChannel = result.channels.singleWhere(
+      (channel) => channel.definition.id == MotionPropertyCatalog.trimEnd.id,
+    );
+    expect(
+      trimEndChannel.keyframes.map((keyframe) => keyframe.value.rawValue),
+      <double>[0, 100],
+    );
+
+    final trimOffsetChannel = result.channels.singleWhere(
+      (channel) => channel.definition.id == MotionPropertyCatalog.trimOffset.id,
+    );
+    expect(trimOffsetChannel.keyframes.last.value.rawValue, 0.1);
+  });
+
   test('lowers the first generated scene fixture', () {
     final source = File(
       'test/fixtures/refusion_scene_programs/first_generated_scene.json',

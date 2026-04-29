@@ -241,6 +241,9 @@ For shape and icon elements:
 - `width`
 - `height`
 - `cornerRadius`
+- `trimStart`: line trim start, `0..1` or `0..100`, line shapes only
+- `trimEnd`: line trim end, `0..1` or `0..100`, line shapes only
+- `trimOffset`: line trim offset, `0..1` or `0..100`, line shapes only
 - `shadowOpacity`: `0..1`, shape/icon only
 - `shadowBlur`: blur radius in canvas pixels, shape/icon only
 - `shadowOffset`: `{ "x": 0, "y": 18 }`, shape/icon only
@@ -255,6 +258,7 @@ Accepted aliases for agent convenience:
 - `backgroundColor`, `bgColor`, `fillColor` -> `color`
 - `size`, `iconSize`, `shapeSize` -> `width` + `height`
 - `radius`, `borderRadius` -> `cornerRadius`
+- `lineReveal`, `lineRevealProgress`, `trimPathEnd` -> `trimEnd`
 - `softShadowOpacity`, `dropShadowOpacity` -> `shadowOpacity`
 - `softShadowBlur`, `dropShadowBlur` -> `shadowBlur`
 - `softShadowOffset`, `dropShadowOffset` -> `shadowOffset`
@@ -290,6 +294,18 @@ Use shadow as a reusable depth tool for UI cards, buttons, and floating shapes.
 Do not fake a shadow by drawing a separate blurred ellipse unless the scene is
 intentionally building a stylized graphic layer that should remain separately
 editable.
+
+Line trim path status:
+
+- preview: supported for `shapeKind: "line"`;
+- Layer Scope: scalar `trimStart`, `trimEnd`, and `trimOffset` controls are
+  editable for shapes;
+- export: still treated as authored-visual export parity work until the native
+  shape compositor consumes the same trim contract.
+
+Use `trimEnd: 0 -> 1` for a professional line reveal. Do not fake a line
+reveal by creating many small rectangles.
+
 For example, do not make `Welcome` huge, `to` tiny, and `Codex` heavy unless
 the user explicitly asked for that contrast. Vary the motion, not the basic
 typographic system.

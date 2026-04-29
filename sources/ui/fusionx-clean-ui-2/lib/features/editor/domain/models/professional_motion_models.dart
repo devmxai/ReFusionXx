@@ -796,6 +796,42 @@ class MotionPropertyCatalog {
     defaultValue: const MotionPropertyValue.scalar(0),
   );
 
+  static final MotionPropertyDefinition trimStart = MotionPropertyDefinition(
+    id: 'shape.trim.start',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.shape,
+      name: 'trim',
+      component: 'start',
+    ),
+    valueKind: MotionPropertyValueKind.scalar,
+    supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
+    defaultValue: const MotionPropertyValue.scalar(0),
+  );
+
+  static final MotionPropertyDefinition trimEnd = MotionPropertyDefinition(
+    id: 'shape.trim.end',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.shape,
+      name: 'trim',
+      component: 'end',
+    ),
+    valueKind: MotionPropertyValueKind.scalar,
+    supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
+    defaultValue: const MotionPropertyValue.scalar(1),
+  );
+
+  static final MotionPropertyDefinition trimOffset = MotionPropertyDefinition(
+    id: 'shape.trim.offset',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.shape,
+      name: 'trim',
+      component: 'offset',
+    ),
+    valueKind: MotionPropertyValueKind.scalar,
+    supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
+    defaultValue: const MotionPropertyValue.scalar(0),
+  );
+
   static final MotionPropertyDefinition fontSize = MotionPropertyDefinition(
     id: 'text.fontSize',
     path: const MotionPropertyPath(
@@ -992,6 +1028,9 @@ class MotionPropertyCatalog {
     width,
     height,
     cornerRadius,
+    trimStart,
+    trimEnd,
+    trimOffset,
     fontSize,
     fontWeight,
     fontFamily,

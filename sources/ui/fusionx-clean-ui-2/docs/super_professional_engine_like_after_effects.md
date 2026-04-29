@@ -292,6 +292,47 @@ Rules:
 - if a scene needs export-perfect shadows, mark the current export limitation
   instead of pretending parity is complete.
 
+### `shape.trimPath`
+
+Category: Shape
+
+Professional name: Trim Paths / Line Reveal
+
+Supported targets: `shapeKind: "line"` Scene Program elements
+
+Scene Program properties:
+
+```text
+trimStart
+trimEnd
+trimOffset
+```
+
+Aliases:
+
+```text
+lineReveal, lineRevealProgress, trimPathEnd
+trimPathStart, lineTrimStart
+trimPathOffset, lineTrimOffset
+```
+
+Status:
+
+```text
+implemented-domain: yes
+editableInScope: scalar controls for shapes
+previewSupport: line reveal preview
+exportSupport: blocked until authored visual native compositor parity
+```
+
+Rules:
+
+- animate `trimEnd` from `0` to `1` for a clean horizontal line reveal;
+- accepted values may be normalized `0..1` or percent-like `0..100`;
+- do not fake trim paths by generating many small rectangles;
+- circular progress, arcs, dashed paths, and wraparound offset are still future
+  renderer work.
+
 ## 10. Non-Negotiable Safety
 
 This plan does not modify Live Scrub directly.
