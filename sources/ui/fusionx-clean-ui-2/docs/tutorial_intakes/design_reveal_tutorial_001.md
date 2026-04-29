@@ -13,7 +13,7 @@ Build a reusable professional title-reveal grammar inspired by the tutorial:
 red ramp background
 -> white circular shape enters and leads the eye
 -> shape morphs between circle / pill / dot
--> bold white title is revealed with a masked/type-on feeling
+-> bold white title is already present but revealed by a moving matte
 -> soft dark-red shadow grows under the title
 -> timing uses snappy eased graph-like motion
 ```
@@ -33,7 +33,7 @@ Layer Scope edits.
 | Opacity animation | `transform.opacity` | Transform | preview-ready / editable |
 | Easy Ease / speed graph | `choreography.snappyEase`, `interpolation.graphHandle` | Choreography | partially supported through named easings |
 | Frame-by-frame text mask | `mask.movingReveal` | Mask | planned |
-| Text reveal | `text.typewriter`, future `text.rangeSelector` | Text | typewriter preview-ready; range selector planned |
+| Text reveal by matte | `mask.movingReveal`, future `text.rangeSelector` | Mask / Text | approximated through a moving cover shape; real matte planned |
 | Soft ellipse shadow + Gaussian blur | `effects.softShadow` | Effects | partially supported through blurred shape approximation |
 
 ## Present Demo Boundary
@@ -44,7 +44,8 @@ the current Scene Program path:
 - layered shape fills to approximate a red ramp;
 - `width`, `height`, and `cornerRadius` channels to approximate circle/pill/dot
   morphing;
-- `typewriterProgress` to approximate a reveal in place of a true moving mask;
+- a moving same-color cover shape to approximate a matte reveal until the real
+  mask engine exists;
 - blurred rounded shape to approximate a soft shadow.
 
 It does not claim full After Effects parity yet. The missing reusable engine
@@ -124,3 +125,22 @@ Manual test after install:
 
 Known expected gap: the reveal is an approximation until real `mask.movingReveal`
 and `effects.gradientRamp` exist.
+
+## Correction From Device Review
+
+The user confirmed that this tutorial is not a keyboard/typewriter reveal.
+
+Correct interpretation:
+
+```text
+circle enters from below
+-> circle reaches center
+-> circle travels left and stretches into a horizontal matte/line
+-> line travels from left to right
+-> the complete word is uncovered by the moving matte
+-> line collapses back into a dot near the word end
+```
+
+Agent rule: do not use `typewriterProgress` for this effect. Use
+`mask.movingReveal` once available. Until then, Present demos may only use a
+clearly labeled moving-cover approximation.

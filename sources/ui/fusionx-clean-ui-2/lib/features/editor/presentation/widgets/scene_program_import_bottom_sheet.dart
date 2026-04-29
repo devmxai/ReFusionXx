@@ -672,32 +672,71 @@ class _SceneProgramImportBottomSheetState
             "color": "#FFFFFF",
             "position": { "x": -42, "y": -26 },
             "opacity": 0,
-            "scale": 0.98,
-            "typewriterProgress": 0
+            "scale": 0.98
           },
           "channels": [
             {
               "property": "opacity",
               "keyframes": [
-                { "timeMs": 620, "value": 0.0, "easing": "linear" },
-                { "timeMs": 980, "value": 1.0, "easing": "easeOutCubic" },
-                { "timeMs": 4300, "value": 1.0, "easing": "linear" }
-              ]
-            },
-            {
-              "property": "typewriterProgress",
-              "keyframes": [
-                { "timeMs": 720, "value": 0.0, "easing": "linear" },
-                { "timeMs": 1780, "value": 1.0, "easing": "easeOutCubic" },
+                { "timeMs": 1040, "value": 0.0, "easing": "linear" },
+                { "timeMs": 1120, "value": 1.0, "easing": "linear" },
                 { "timeMs": 4300, "value": 1.0, "easing": "linear" }
               ]
             },
             {
               "property": "scale",
               "keyframes": [
-                { "timeMs": 620, "value": 0.98, "easing": "linear" },
-                { "timeMs": 1780, "value": 1.0, "easing": "spring" },
+                { "timeMs": 1040, "value": 0.98, "easing": "linear" },
+                { "timeMs": 1860, "value": 1.0, "easing": "spring" },
                 { "timeMs": 4300, "value": 1.0, "easing": "linear" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "design-title-matte-cover-layer",
+      "name": "Moving Background Matte Approximation",
+      "kind": "shape",
+      "startMs": 0,
+      "durationMs": 4300,
+      "elements": [
+        {
+          "id": "design-title-matte-cover",
+          "kind": "shape",
+          "properties": {
+            "shapeKind": "rectangle",
+            "width": 880,
+            "height": 250,
+            "color": "#F53D4E",
+            "position": { "x": 0, "y": -22 },
+            "opacity": 0
+          },
+          "channels": [
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 0, "value": 0.0, "easing": "linear" },
+                { "timeMs": 1080, "value": 1.0, "easing": "linear" },
+                { "timeMs": 2500, "value": 1.0, "easing": "linear" },
+                { "timeMs": 2580, "value": 0.0, "easing": "linear" }
+              ]
+            },
+            {
+              "property": "position",
+              "keyframes": [
+                { "timeMs": 1080, "value": { "x": 0, "y": -22 }, "easing": "linear" },
+                { "timeMs": 1480, "value": { "x": 0, "y": -22 }, "easing": "linear" },
+                { "timeMs": 2380, "value": { "x": 454, "y": -22 }, "easing": "easeOutCubic" }
+              ]
+            },
+            {
+              "property": "width",
+              "keyframes": [
+                { "timeMs": 1080, "value": 880, "easing": "linear" },
+                { "timeMs": 1480, "value": 880, "easing": "linear" },
+                { "timeMs": 2380, "value": 0, "easing": "easeOutCubic" }
               ]
             }
           ]
@@ -730,46 +769,49 @@ class _SceneProgramImportBottomSheetState
               "keyframes": [
                 { "timeMs": 0, "value": 0.0, "easing": "linear" },
                 { "timeMs": 360, "value": 1.0, "easing": "easeOutCubic" },
-                { "timeMs": 3000, "value": 1.0, "easing": "linear" },
-                { "timeMs": 3540, "value": 0.0, "easing": "easeInCubic" }
+                { "timeMs": 3300, "value": 1.0, "easing": "linear" },
+                { "timeMs": 3820, "value": 0.0, "easing": "easeInCubic" }
               ]
             },
             {
               "property": "position",
               "keyframes": [
-                { "timeMs": 0, "value": { "x": -360, "y": 360 }, "easing": "linear" },
-                { "timeMs": 760, "value": { "x": -360, "y": 18 }, "easing": "easeOutCubic" },
-                { "timeMs": 1320, "value": { "x": -72, "y": 18 }, "easing": "easeOutCubic" },
-                { "timeMs": 2050, "value": { "x": 394, "y": 18 }, "easing": "easeOutCubic" },
-                { "timeMs": 3000, "value": { "x": 394, "y": 18 }, "easing": "linear" },
-                { "timeMs": 3540, "value": { "x": 430, "y": 72 }, "easing": "easeInCubic" }
+                { "timeMs": 0, "value": { "x": 0, "y": 410 }, "easing": "linear" },
+                { "timeMs": 760, "value": { "x": 0, "y": 18 }, "easing": "easeOutCubic" },
+                { "timeMs": 1320, "value": { "x": -430, "y": 18 }, "easing": "easeInOut" },
+                { "timeMs": 1480, "value": { "x": -430, "y": 18 }, "easing": "linear" },
+                { "timeMs": 2380, "value": { "x": 430, "y": 18 }, "easing": "easeOutCubic" },
+                { "timeMs": 3300, "value": { "x": 430, "y": 18 }, "easing": "linear" },
+                { "timeMs": 3820, "value": { "x": 430, "y": 92 }, "easing": "easeInCubic" }
               ]
             },
             {
               "property": "width",
               "keyframes": [
                 { "timeMs": 0, "value": 86, "easing": "linear" },
-                { "timeMs": 920, "value": 86, "easing": "linear" },
-                { "timeMs": 1450, "value": 420, "easing": "easeOutCubic" },
-                { "timeMs": 2050, "value": 86, "easing": "easeInOut" },
-                { "timeMs": 3000, "value": 86, "easing": "linear" }
+                { "timeMs": 760, "value": 86, "easing": "linear" },
+                { "timeMs": 1320, "value": 620, "easing": "easeOutCubic" },
+                { "timeMs": 1480, "value": 620, "easing": "linear" },
+                { "timeMs": 2380, "value": 86, "easing": "easeInOut" },
+                { "timeMs": 3300, "value": 86, "easing": "linear" }
               ]
             },
             {
               "property": "height",
               "keyframes": [
                 { "timeMs": 0, "value": 86, "easing": "linear" },
-                { "timeMs": 1450, "value": 86, "easing": "linear" },
-                { "timeMs": 3000, "value": 86, "easing": "linear" }
+                { "timeMs": 1320, "value": 42, "easing": "easeOutCubic" },
+                { "timeMs": 2380, "value": 86, "easing": "easeInOut" },
+                { "timeMs": 3300, "value": 86, "easing": "linear" }
               ]
             },
             {
               "property": "cornerRadius",
               "keyframes": [
                 { "timeMs": 0, "value": 999, "easing": "linear" },
-                { "timeMs": 1450, "value": 44, "easing": "easeOutCubic" },
-                { "timeMs": 2050, "value": 999, "easing": "easeInOut" },
-                { "timeMs": 3000, "value": 999, "easing": "linear" }
+                { "timeMs": 1320, "value": 24, "easing": "easeOutCubic" },
+                { "timeMs": 2380, "value": 999, "easing": "easeInOut" },
+                { "timeMs": 3300, "value": 999, "easing": "linear" }
               ]
             },
             {
@@ -777,8 +819,8 @@ class _SceneProgramImportBottomSheetState
               "keyframes": [
                 { "timeMs": 0, "value": 0.72, "easing": "linear" },
                 { "timeMs": 760, "value": 1.0, "easing": "spring" },
-                { "timeMs": 3000, "value": 1.0, "easing": "linear" },
-                { "timeMs": 3540, "value": 0.72, "easing": "easeInCubic" }
+                { "timeMs": 3300, "value": 1.0, "easing": "linear" },
+                { "timeMs": 3820, "value": 0.72, "easing": "easeInCubic" }
               ]
             }
           ]
