@@ -39,6 +39,10 @@ class MotionTextPreviewStyleState {
     required this.letterSpacing,
     required this.colorArgb,
     required this.fontWeight,
+    required this.fontFamily,
+    required this.fontStyle,
+    required this.lineHeight,
+    required this.textAlignment,
   });
 
   final double opacity;
@@ -52,6 +56,10 @@ class MotionTextPreviewStyleState {
   final double letterSpacing;
   final int colorArgb;
   final int fontWeight;
+  final String? fontFamily;
+  final String fontStyle;
+  final double lineHeight;
+  final String textAlignment;
 }
 
 @immutable
@@ -294,6 +302,22 @@ class BasicMotionTextPreviewBinder implements MotionTextPreviewBinder {
                   element.properties,
                   MotionPropertyCatalog.fontWeight,
                 ),
+                fontFamily: _nullableStringPropertyOrDefault(
+                  element.properties,
+                  MotionPropertyCatalog.fontFamily,
+                ),
+                fontStyle: _stringPropertyOrDefault(
+                  element.properties,
+                  MotionPropertyCatalog.fontStyle,
+                ),
+                lineHeight: _scalarPropertyOrDefault(
+                  element.properties,
+                  MotionPropertyCatalog.lineHeight,
+                ),
+                textAlignment: _stringPropertyOrDefault(
+                  element.properties,
+                  MotionPropertyCatalog.textAlignment,
+                ),
               ),
             ),
           );
@@ -450,5 +474,30 @@ class BasicMotionTextPreviewBinder implements MotionTextPreviewBinder {
       return property.value.rawValue as int;
     }
     return definition.defaultValue.rawValue as int;
+  }
+
+  String? _nullableStringPropertyOrDefault(
+    List<MotionEvaluatedPropertyValue> properties,
+    MotionPropertyDefinition definition,
+  ) {
+    final value = _stringPropertyOrDefault(properties, definition).trim();
+    return value.isEmpty ? null : value;
+  }
+
+  String _stringPropertyOrDefault(
+    List<MotionEvaluatedPropertyValue> properties,
+    MotionPropertyDefinition definition,
+  ) {
+    for (final property in properties) {
+      if (property.definition.id != definition.id) {
+        continue;
+      }
+      if (property.value.kind != MotionPropertyValueKind.stringValue &&
+          property.value.kind != MotionPropertyValueKind.enumValue) {
+        break;
+      }
+      return property.value.rawValue as String;
+    }
+    return definition.defaultValue.rawValue as String;
   }
 }

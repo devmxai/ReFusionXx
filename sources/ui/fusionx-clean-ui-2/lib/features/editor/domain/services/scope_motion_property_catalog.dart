@@ -19,6 +19,7 @@ class ScopeMotionPropertyCatalog {
     ...sharedVisualElementProperties,
     MotionPropertyCatalog.fontSize,
     MotionPropertyCatalog.fontWeight,
+    MotionPropertyCatalog.lineHeight,
     MotionPropertyCatalog.letterSpacing,
     MotionPropertyCatalog.revealProgress,
   ]);

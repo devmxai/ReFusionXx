@@ -554,6 +554,10 @@ class ReFusionSceneProgramLowerer {
           _SceneProgramPropertyDefinitions.color.id,
           MotionPropertyCatalog.fontSize.id,
           MotionPropertyCatalog.fontWeight.id,
+          MotionPropertyCatalog.fontFamily.id,
+          MotionPropertyCatalog.fontStyle.id,
+          MotionPropertyCatalog.lineHeight.id,
+          MotionPropertyCatalog.textAlignment.id,
           MotionPropertyCatalog.letterSpacing.id,
           MotionPropertyCatalog.revealProgress.id,
         },
@@ -686,6 +690,26 @@ class ReFusionSceneProgramLowerer {
         ],
       'fontweight' || 'textfontweight' || 'weight' => <_LoweredProperty>[
           _LoweredProperty(definition: MotionPropertyCatalog.fontWeight),
+        ],
+      'fontfamily' ||
+      'textfontfamily' ||
+      'font' ||
+      'typeface' =>
+        <_LoweredProperty>[
+          _LoweredProperty(definition: MotionPropertyCatalog.fontFamily),
+        ],
+      'fontstyle' || 'textfontstyle' => <_LoweredProperty>[
+          _LoweredProperty(definition: MotionPropertyCatalog.fontStyle),
+        ],
+      'lineheight' || 'textlineheight' => <_LoweredProperty>[
+          _LoweredProperty(definition: MotionPropertyCatalog.lineHeight),
+        ],
+      'textalign' ||
+      'textalignment' ||
+      'align' ||
+      'alignment' =>
+        <_LoweredProperty>[
+          _LoweredProperty(definition: MotionPropertyCatalog.textAlignment),
         ],
       'letterspacing' || 'textletterspacing' => <_LoweredProperty>[
           _LoweredProperty(definition: MotionPropertyCatalog.letterSpacing),

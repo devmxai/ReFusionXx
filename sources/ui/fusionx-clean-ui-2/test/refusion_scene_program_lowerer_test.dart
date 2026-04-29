@@ -232,6 +232,10 @@ void main() {
           "properties": {
             "fontSize": 64,
             "fontWeight": 900,
+            "fontFamily": "Inter",
+            "fontStyle": "italic",
+            "lineHeight": 1.12,
+            "textAlign": "left",
             "color": "#050505",
             "opacity": 1
           }
@@ -276,6 +280,10 @@ void main() {
 
     expect(render.nodes.single.colorArgb, 0xFF050505);
     expect(render.nodes.single.fontWeight, 900);
+    expect(render.nodes.single.fontFamily, 'Inter');
+    expect(render.nodes.single.fontStyle, 'italic');
+    expect(render.nodes.single.lineHeight, closeTo(1.12, 0.001));
+    expect(render.nodes.single.textAlignment, 'left');
   });
 
   test('keeps delayed shape elements active for the full layer project range',

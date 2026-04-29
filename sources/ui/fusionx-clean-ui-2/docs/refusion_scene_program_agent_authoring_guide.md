@@ -259,8 +259,18 @@ For text elements:
 - `blur`
 - `color`
 - `fontSize`
+- `fontWeight`: integer weight such as `400`, `700`, or `900`
+- `fontFamily`: optional static font family name
+- `fontStyle`: `normal` or `italic`
+- `lineHeight`: text line-height multiplier, usually `1.0..1.3`
+- `textAlign`: `left`, `center`, or `right`
 - `letterSpacing`
 - `reveal`: `0..1`
+
+Use a consistent typography block for words that belong to the same title.
+For example, do not make `Welcome` huge, `to` tiny, and `Codex` heavy unless
+the user explicitly asked for that contrast. Vary the motion, not the basic
+typographic system.
 
 Accepted typing aliases:
 

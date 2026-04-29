@@ -743,6 +743,54 @@ class MotionPropertyCatalog {
     defaultValue: const MotionPropertyValue.integer(700),
   );
 
+  static final MotionPropertyDefinition fontFamily = MotionPropertyDefinition(
+    id: 'text.fontFamily',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.text,
+      name: 'fontFamily',
+    ),
+    valueKind: MotionPropertyValueKind.stringValue,
+    supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
+    defaultValue: const MotionPropertyValue.stringValue(''),
+    isAnimatable: false,
+  );
+
+  static final MotionPropertyDefinition fontStyle = MotionPropertyDefinition(
+    id: 'text.fontStyle',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.text,
+      name: 'fontStyle',
+    ),
+    valueKind: MotionPropertyValueKind.stringValue,
+    supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
+    defaultValue: const MotionPropertyValue.stringValue('normal'),
+    isAnimatable: false,
+  );
+
+  static final MotionPropertyDefinition lineHeight = MotionPropertyDefinition(
+    id: 'text.lineHeight',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.text,
+      name: 'lineHeight',
+    ),
+    valueKind: MotionPropertyValueKind.scalar,
+    supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
+    defaultValue: const MotionPropertyValue.scalar(1),
+  );
+
+  static final MotionPropertyDefinition textAlignment =
+      MotionPropertyDefinition(
+    id: 'text.alignment',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.text,
+      name: 'alignment',
+    ),
+    valueKind: MotionPropertyValueKind.stringValue,
+    supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
+    defaultValue: const MotionPropertyValue.stringValue('center'),
+    isAnimatable: false,
+  );
+
   static final MotionPropertyDefinition letterSpacing =
       MotionPropertyDefinition(
     id: 'text.letterSpacing',
