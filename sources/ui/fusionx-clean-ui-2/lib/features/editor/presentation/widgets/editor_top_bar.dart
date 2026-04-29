@@ -7,12 +7,14 @@ class EditorTopBar extends StatelessWidget {
   const EditorTopBar({
     super.key,
     this.onOutliner,
+    this.onInspector,
     this.onShare,
     this.isExporting = false,
     this.exportProgress = 0,
   });
 
   final VoidCallback? onOutliner;
+  final VoidCallback? onInspector;
   final VoidCallback? onShare;
   final bool isExporting;
   final double exportProgress;
@@ -37,6 +39,16 @@ class EditorTopBar extends StatelessWidget {
               size: 34,
               iconScale: 0.38,
               onPressed: onOutliner,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Tooltip(
+            message: 'Inspector',
+            child: FxIconButton(
+              icon: Icons.tune_rounded,
+              size: 34,
+              iconScale: 0.38,
+              onPressed: onInspector,
             ),
           ),
           const SizedBox(width: 6),

@@ -45,6 +45,7 @@ import '../models/editor_asset_item.dart';
 import '../models/editor_media_tab.dart';
 import '../models/timeline_mock_models.dart';
 import '../models/timeline_time.dart';
+import '../services/composition_workspace_inspector_adapter.dart';
 import '../services/composition_workspace_outliner_adapter.dart';
 import '../services/normal_transition_timeline_authoring_adapter.dart';
 import '../services/root_scene_clip_projection_adapter.dart';
@@ -58,6 +59,7 @@ import '../widgets/editor_top_bar.dart';
 import '../widgets/animate_browser_bottom_sheet.dart';
 import '../widgets/ai_transition_bottom_sheet.dart';
 import '../widgets/clip_speed_bottom_sheet.dart';
+import '../widgets/composition_workspace_inspector_bottom_sheet.dart';
 import '../widgets/composition_workspace_outliner_bottom_sheet.dart';
 import '../widgets/export_bottom_sheet.dart';
 import '../widgets/fx_icon_button.dart';
@@ -156,6 +158,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   static const CompositionWorkspaceOutlinerAdapter
       _compositionWorkspaceOutlinerAdapter =
       CompositionWorkspaceOutlinerAdapter();
+  static const CompositionWorkspaceInspectorAdapter
+      _compositionWorkspaceInspectorAdapter =
+      CompositionWorkspaceInspectorAdapter();
   static const SceneScopeSessionResolver _sceneScopeSessionResolver =
       SceneScopeSessionResolver();
   static const SceneLayerScopeTimelineAdapter _sceneLayerScopeTimelineAdapter =
@@ -12022,6 +12027,22 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _handleCompositionOutlinerSelection(selectedNode);
   }
 
+  Future<void> _openCompositionWorkspaceInspectorSheet() async {
+    final workspace = _compositionWorkspaceForOutliner();
+    final result = _compositionWorkspaceInspectorAdapter.inspect(
+      workspace: workspace,
+      channels: _manualMotionPropertyChannels,
+    );
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => CompositionWorkspaceInspectorBottomSheet(
+        result: result,
+      ),
+    );
+  }
+
   CompositionWorkspaceModel _compositionWorkspaceForOutliner() {
     return CompositionWorkspaceModel(
       project: _effectiveMotionProject,
@@ -17884,6 +17905,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                 children: [
                   EditorTopBar(
                     onOutliner: _openCompositionWorkspaceOutlinerSheet,
+                    onInspector: _openCompositionWorkspaceInspectorSheet,
                     onShare: _handleShare,
                     isExporting: _exportController.state.isActive,
                     exportProgress: _exportController.state.progress,

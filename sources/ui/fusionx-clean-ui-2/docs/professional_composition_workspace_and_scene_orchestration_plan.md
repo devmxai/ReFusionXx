@@ -413,7 +413,9 @@ Current W5 foundation:
   without exploding nested source layers onto the root timeline.
 - Layer, element, and keyframe inspection resolves real graph/channel ownership
   and reports missing targets instead of inventing fake values.
-- UI sheet wiring and write-back operations are future W5 slices.
+- A mobile read-only Inspector bottom sheet is now wired from the top bar. It
+  shows the current selection's projected sections and keeps write-back as a
+  future W5 slice.
 
 Root composition selected:
 
@@ -687,7 +689,8 @@ Current status:
 
 - Inspector projection foundation is complete and covered by
   `test/composition_workspace_inspector_adapter_test.dart`.
-- Mobile sheet wiring, visual controls, and property write-back are still open.
+- Mobile read-only sheet wiring is complete. Visual property editors, key
+  buttons, and graph/static value write-back are still open.
 
 ### Phase W6: Scene Create/Modify Flow
 
