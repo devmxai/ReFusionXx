@@ -540,7 +540,10 @@ Implementation status:
   Text authoring now has an explicit `reuseExistingLayer` contract so scene
   insertion can create a new layer instead of silently merging into the first
   text layer.
-- Video/image/audio/shape/null/adjustment layer entries are visible as explicit
+- Scene Scope can create a real generated shape layer with editable transform,
+  opacity, size, and corner-radius assignments. This is a graph layer, not a
+  UI-only placeholder.
+- Video/image/audio/null/adjustment layer entries are visible as explicit
   W3 blockers where their graph insertion path is not wired yet. They must not
   create fake UI-only layers.
 

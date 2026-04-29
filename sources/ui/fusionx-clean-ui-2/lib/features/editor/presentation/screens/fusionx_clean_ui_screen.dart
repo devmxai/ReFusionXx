@@ -10530,8 +10530,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             action: _UniversalAddAction.shapeLayer,
             icon: Icons.category_rounded,
             title: 'Shape Layer',
-            subtitle: 'Manual shape authoring is next in W3.',
-            isReady: false,
+            subtitle: 'Create a real rounded-rectangle shape layer.',
           ),
           _UniversalAddSheetItem(
             action: _UniversalAddAction.audioLayer,
@@ -10608,7 +10607,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         _insertDefaultTextLayer(openEditorOnInsert: _sceneScopeSession == null);
         return;
       case _UniversalAddAction.shapeLayer:
-        _showStageMessage('Manual shape layer creation is next in W3.');
+        _insertDefaultShapeLayer();
         return;
       case _UniversalAddAction.audioLayer:
         _showStageMessage(
@@ -10753,6 +10752,164 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
     }
     return maxSceneNumber + 1;
+  }
+
+  void _insertDefaultShapeLayer() {
+    final sceneScope = _sceneScopeSession;
+    if (sceneScope == null) {
+      _showStageMessage('Open a scene before adding a shape layer.');
+      return;
+    }
+    final project = _effectiveMotionProject;
+    final sceneIndex = project.scenes.indexWhere(
+      (scene) => scene.id == sceneScope.sourceSceneId,
+    );
+    if (sceneIndex < 0) {
+      _showStageMessage('Scene source is not available for shape insertion.');
+      return;
+    }
+    final sourceScene = project.scenes[sceneIndex];
+    final insertionRange = _defaultElementRangeForSceneScope(sceneScope);
+    if (insertionRange.duration <= TimelineTime.zero) {
+      _showStageMessage('This scene has no available duration.');
+      return;
+    }
+
+    final layerId = _nextMotionEntityId('shape-layer');
+    final elementId = _nextMotionEntityId('shape-element');
+    final sourceId = _nextMotionEntityId('generated-shape');
+    final localRange = TimelineTimeRange(
+      start: insertionRange.start - sourceScene.projectRange.start,
+      endExclusive:
+          insertionRange.endExclusive - sourceScene.projectRange.start,
+    );
+    final target = MotionPropertyTarget(
+      kind: MotionTargetKind.element,
+      targetId: elementId,
+      projectId: project.id,
+      sceneId: sourceScene.id,
+      layerId: layerId,
+      elementId: elementId,
+    );
+    MotionPropertyAssignment assignment(
+      MotionPropertyDefinition definition,
+      MotionPropertyValue value,
+    ) {
+      return MotionPropertyAssignment(
+        target: target,
+        definition: definition,
+        value: value,
+      );
+    }
+
+    final element = MotionElementModel(
+      id: elementId,
+      layerId: layerId,
+      kind: MotionElementKind.shape,
+      shapeKind: MotionShapeKind.roundedRectangle,
+      localRange: localRange,
+      name: 'Shape',
+      sourceBinding: MotionElementSourceBinding(
+        kind: MotionSourceKind.generatedShape,
+        sourceId: sourceId,
+        label: 'Shape',
+        metadata: const <String, String>{
+          'source': 'manual.add.shape',
+        },
+      ),
+      properties: <MotionPropertyAssignment>[
+        assignment(MotionPropertyCatalog.positionX,
+            const MotionPropertyValue.scalar(0)),
+        assignment(MotionPropertyCatalog.positionY,
+            const MotionPropertyValue.scalar(0)),
+        assignment(
+            MotionPropertyCatalog.scaleX, const MotionPropertyValue.scalar(1)),
+        assignment(
+            MotionPropertyCatalog.scaleY, const MotionPropertyValue.scalar(1)),
+        assignment(
+            MotionPropertyCatalog.opacity, const MotionPropertyValue.scalar(1)),
+        assignment(
+            MotionPropertyCatalog.width, const MotionPropertyValue.scalar(360)),
+        assignment(MotionPropertyCatalog.height,
+            const MotionPropertyValue.scalar(180)),
+        assignment(MotionPropertyCatalog.cornerRadius,
+            const MotionPropertyValue.scalar(36)),
+      ],
+    );
+    final nextZIndex = sourceScene.layers.fold<int>(
+          -1,
+          (value, layer) => layer.zIndex > value ? layer.zIndex : value,
+        ) +
+        1;
+    final layer = MotionLayerModel(
+      id: layerId,
+      sceneId: sourceScene.id,
+      kind: MotionLayerKind.shape,
+      visibleRange: insertionRange,
+      elements: <MotionElementModel>[element],
+      name: 'Shape',
+      zIndex: nextZIndex,
+    );
+    final nextLayers = <MotionLayerModel>[
+      ...sourceScene.layers,
+      layer,
+    ];
+    final nextScenes = List<MotionSceneModel>.from(project.scenes)
+      ..[sceneIndex] = sourceScene.copyWith(layers: nextLayers);
+    final nextProject = project.copyWith(scenes: nextScenes);
+    final nextSceneScope = _sceneScopeSessionResolver
+            .open(
+              SceneScopeSessionRequest(
+                project: nextProject,
+                rootTime: sceneScope.rootTime,
+                sceneClipId: sceneScope.sceneClipId,
+                sceneClips: _sceneClips,
+                channels: _manualMotionPropertyChannels,
+              ),
+            )
+            .session ??
+        sceneScope;
+    setState(() {
+      _motionProject = nextProject;
+      _sceneScopeSession = nextSceneScope;
+      _selectedClipId = layerId;
+      _selectedTransitionId = null;
+      _sceneLayerScopeLayerId = null;
+      _setCurrentTime(
+        sceneScope.localToRoot(
+          insertionRange.start - sceneScope.sourceRange.start,
+        ),
+      );
+      _markMotionAuthoringChanged();
+    });
+    _showStageMessage('Shape layer added.');
+  }
+
+  TimelineTimeRange _defaultElementRangeForSceneScope(
+    SceneScopeSession sceneScope,
+  ) {
+    final scopeDuration = sceneScope.localRange.duration;
+    if (scopeDuration <= TimelineTime.zero) {
+      return TimelineTimeRange(
+        start: sceneScope.sourceRange.start,
+        endExclusive: sceneScope.sourceRange.start,
+      );
+    }
+    final defaultDuration = TimelineTime.fromSecondsDouble(3);
+    final duration =
+        scopeDuration < defaultDuration ? scopeDuration : defaultDuration;
+    final localTime = sceneScope.rootToLocal(_visibleTimelinePlaybackTime());
+    final maxLocalStart = scopeDuration - duration;
+    final localStart = localTime > maxLocalStart ? maxLocalStart : localTime;
+    final sourceStart = sceneScope.sourceRange.start +
+        localStart.clamp(TimelineTime.zero, scopeDuration);
+    return TimelineTimeRange(
+      start: sourceStart,
+      endExclusive: (sourceStart + duration).clamp(
+        sceneScope.sourceRange.start,
+        sceneScope.sourceRange.endExclusive,
+      ),
+    );
   }
 
   void _handleTextDockTap() {
