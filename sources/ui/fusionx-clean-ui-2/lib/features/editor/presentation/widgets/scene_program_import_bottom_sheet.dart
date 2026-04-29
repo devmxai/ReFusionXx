@@ -1349,39 +1349,42 @@ class _SceneProgramImportBottomSheetState
           "text": "Welcome",
           "properties": {
             "fontSize": 64,
+            "fontWeight": 900,
             "letterSpacing": 0,
             "color": "#050505",
-            "position": { "x": -232, "y": 0 },
+            "position": { "x": -170, "y": 0 },
             "opacity": 0,
-            "scale": 0.88
+            "scale": 0.72
           },
           "channels": [
             {
               "property": "opacity",
               "keyframes": [
                 { "timeMs": 180, "value": 0.0, "easing": "linear" },
-                { "timeMs": 620, "value": 1.0, "easing": "spring" },
-                { "timeMs": 1840, "value": 1.0, "easing": "linear" },
-                { "timeMs": 2220, "value": 0.0, "easing": "easeInCubic" }
+                { "timeMs": 520, "value": 1.0, "easing": "spring" },
+                { "timeMs": 1940, "value": 1.0, "easing": "linear" },
+                { "timeMs": 2300, "value": 0.0, "easing": "easeInCubic" }
               ]
             },
             {
               "property": "scale",
               "keyframes": [
-                { "timeMs": 180, "value": 0.88, "easing": "linear" },
-                { "timeMs": 620, "value": 1.05, "easing": "spring" },
-                { "timeMs": 820, "value": 1.0, "easing": "easeOutCubic" },
-                { "timeMs": 1840, "value": 1.0, "easing": "linear" },
-                { "timeMs": 2220, "value": 0.96, "easing": "easeInCubic" }
+                { "timeMs": 180, "value": 0.72, "easing": "linear" },
+                { "timeMs": 520, "value": 1.16, "easing": "spring" },
+                { "timeMs": 760, "value": 0.98, "easing": "easeOutCubic" },
+                { "timeMs": 940, "value": 1.0, "easing": "easeOutCubic" },
+                { "timeMs": 1940, "value": 1.0, "easing": "linear" },
+                { "timeMs": 2300, "value": 0.86, "easing": "easeInCubic" }
               ]
             },
             {
               "property": "position",
               "keyframes": [
-                { "timeMs": 180, "value": { "x": -232, "y": 28 }, "easing": "linear" },
-                { "timeMs": 620, "value": { "x": -232, "y": 0 }, "easing": "spring" },
-                { "timeMs": 1840, "value": { "x": -232, "y": 0 }, "easing": "linear" },
-                { "timeMs": 2220, "value": { "x": -232, "y": -34 }, "easing": "easeInCubic" }
+                { "timeMs": 180, "value": { "x": -170, "y": 34 }, "easing": "linear" },
+                { "timeMs": 520, "value": { "x": -170, "y": -3 }, "easing": "spring" },
+                { "timeMs": 760, "value": { "x": -170, "y": 0 }, "easing": "easeOutCubic" },
+                { "timeMs": 1940, "value": { "x": -170, "y": 0 }, "easing": "linear" },
+                { "timeMs": 2300, "value": { "x": -170, "y": -26 }, "easing": "easeInCubic" }
               ]
             }
           ]
@@ -1401,37 +1404,41 @@ class _SceneProgramImportBottomSheetState
           "text": "to",
           "properties": {
             "fontSize": 64,
+            "fontWeight": 900,
             "letterSpacing": 0,
             "color": "#050505",
-            "position": { "x": 16, "y": 0 },
+            "position": { "x": 18, "y": 0 },
             "opacity": 0,
-            "scale": 0.82,
-            "rotation": -4
+            "scale": 0.72,
+            "rotation": -3
           },
           "channels": [
             {
               "property": "opacity",
               "keyframes": [
                 { "timeMs": 560, "value": 0.0, "easing": "linear" },
-                { "timeMs": 920, "value": 1.0, "easing": "easeOutCubic" },
-                { "timeMs": 1840, "value": 1.0, "easing": "linear" },
-                { "timeMs": 2220, "value": 0.0, "easing": "easeInCubic" }
+                { "timeMs": 880, "value": 1.0, "easing": "spring" },
+                { "timeMs": 1940, "value": 1.0, "easing": "linear" },
+                { "timeMs": 2300, "value": 0.0, "easing": "easeInCubic" }
               ]
             },
             {
               "property": "scale",
               "keyframes": [
-                { "timeMs": 560, "value": 0.82, "easing": "linear" },
-                { "timeMs": 920, "value": 1.0, "easing": "spring" },
-                { "timeMs": 1840, "value": 1.0, "easing": "linear" },
-                { "timeMs": 2220, "value": 0.94, "easing": "easeInCubic" }
+                { "timeMs": 560, "value": 0.72, "easing": "linear" },
+                { "timeMs": 880, "value": 1.14, "easing": "spring" },
+                { "timeMs": 1080, "value": 1.0, "easing": "easeOutCubic" },
+                { "timeMs": 1940, "value": 1.0, "easing": "linear" },
+                { "timeMs": 2300, "value": 0.86, "easing": "easeInCubic" }
               ]
             },
             {
               "property": "rotation",
               "keyframes": [
-                { "timeMs": 560, "value": -4, "easing": "linear" },
-                { "timeMs": 920, "value": 0, "easing": "spring" }
+                { "timeMs": 560, "value": -3, "easing": "linear" },
+                { "timeMs": 880, "value": 0, "easing": "spring" },
+                { "timeMs": 1940, "value": 0, "easing": "linear" },
+                { "timeMs": 2300, "value": 3, "easing": "easeInCubic" }
               ]
             }
           ]
@@ -1451,38 +1458,41 @@ class _SceneProgramImportBottomSheetState
           "text": "Codex",
           "properties": {
             "fontSize": 64,
+            "fontWeight": 900,
             "letterSpacing": 0,
             "color": "#050505",
-            "position": { "x": 236, "y": 0 },
+            "position": { "x": 180, "y": 0 },
             "opacity": 0,
-            "scale": 0.9
+            "scale": 0.72
           },
           "channels": [
             {
               "property": "opacity",
               "keyframes": [
                 { "timeMs": 900, "value": 0.0, "easing": "linear" },
-                { "timeMs": 1240, "value": 1.0, "easing": "easeOutCubic" },
-                { "timeMs": 1840, "value": 1.0, "easing": "linear" },
-                { "timeMs": 2220, "value": 0.0, "easing": "easeInCubic" }
+                { "timeMs": 1220, "value": 1.0, "easing": "spring" },
+                { "timeMs": 1940, "value": 1.0, "easing": "linear" },
+                { "timeMs": 2300, "value": 0.0, "easing": "easeInCubic" }
               ]
             },
             {
               "property": "scale",
               "keyframes": [
-                { "timeMs": 900, "value": 0.9, "easing": "linear" },
-                { "timeMs": 1240, "value": 1.0, "easing": "spring" },
-                { "timeMs": 1840, "value": 1.0, "easing": "linear" },
-                { "timeMs": 2220, "value": 0.96, "easing": "easeInCubic" }
+                { "timeMs": 900, "value": 0.72, "easing": "linear" },
+                { "timeMs": 1220, "value": 1.14, "easing": "spring" },
+                { "timeMs": 1440, "value": 1.0, "easing": "easeOutCubic" },
+                { "timeMs": 1940, "value": 1.0, "easing": "linear" },
+                { "timeMs": 2300, "value": 0.86, "easing": "easeInCubic" }
               ]
             },
             {
               "property": "position",
               "keyframes": [
-                { "timeMs": 900, "value": { "x": 236, "y": -26 }, "easing": "linear" },
-                { "timeMs": 1240, "value": { "x": 236, "y": 0 }, "easing": "spring" },
-                { "timeMs": 1840, "value": { "x": 236, "y": 0 }, "easing": "linear" },
-                { "timeMs": 2220, "value": { "x": 236, "y": -34 }, "easing": "easeInCubic" }
+                { "timeMs": 900, "value": { "x": 180, "y": -30 }, "easing": "linear" },
+                { "timeMs": 1220, "value": { "x": 180, "y": 3 }, "easing": "spring" },
+                { "timeMs": 1440, "value": { "x": 180, "y": 0 }, "easing": "easeOutCubic" },
+                { "timeMs": 1940, "value": { "x": 180, "y": 0 }, "easing": "linear" },
+                { "timeMs": 2300, "value": { "x": 180, "y": -26 }, "easing": "easeInCubic" }
               ]
             }
           ]

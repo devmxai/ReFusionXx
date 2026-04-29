@@ -231,6 +231,7 @@ void main() {
           "text": "Welcome",
           "properties": {
             "fontSize": 64,
+            "fontWeight": 900,
             "color": "#050505",
             "opacity": 1
           }
@@ -274,6 +275,7 @@ void main() {
     );
 
     expect(render.nodes.single.colorArgb, 0xFF050505);
+    expect(render.nodes.single.fontWeight, 900);
   });
 
   test('keeps delayed shape elements active for the full layer project range',

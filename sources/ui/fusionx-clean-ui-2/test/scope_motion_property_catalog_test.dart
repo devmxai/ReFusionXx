@@ -140,6 +140,7 @@ void main() {
           ),
       containsAll(<String>[
         MotionPropertyCatalog.fontSize.id,
+        MotionPropertyCatalog.fontWeight.id,
         MotionPropertyCatalog.letterSpacing.id,
         MotionPropertyCatalog.revealProgress.id,
       ]),

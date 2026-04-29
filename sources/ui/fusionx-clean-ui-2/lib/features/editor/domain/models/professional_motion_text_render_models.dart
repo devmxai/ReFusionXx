@@ -192,7 +192,7 @@ class BasicMotionTextRenderAdapter implements MotionTextRenderAdapter {
             letterSpacing: node.style.letterSpacing,
             colorArgb: node.style.colorArgb,
             fontFamily: kMotionTextCanonicalFontFamily,
-            fontWeight: kMotionTextCanonicalFontWeight,
+            fontWeight: node.style.fontWeight,
             fontStyle: kMotionTextCanonicalFontStyle,
             lineHeight: kMotionTextCanonicalLineHeight,
             textAlignment: kMotionTextCanonicalTextAlignment,

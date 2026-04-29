@@ -18,6 +18,7 @@ class ScopeMotionPropertyCatalog {
       List<MotionPropertyDefinition>.unmodifiable(<MotionPropertyDefinition>[
     ...sharedVisualElementProperties,
     MotionPropertyCatalog.fontSize,
+    MotionPropertyCatalog.fontWeight,
     MotionPropertyCatalog.letterSpacing,
     MotionPropertyCatalog.revealProgress,
   ]);

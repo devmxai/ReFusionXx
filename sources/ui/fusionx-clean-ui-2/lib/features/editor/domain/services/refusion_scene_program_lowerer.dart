@@ -553,6 +553,7 @@ class ReFusionSceneProgramLowerer {
           MotionPropertyCatalog.blurAmount.id,
           _SceneProgramPropertyDefinitions.color.id,
           MotionPropertyCatalog.fontSize.id,
+          MotionPropertyCatalog.fontWeight.id,
           MotionPropertyCatalog.letterSpacing.id,
           MotionPropertyCatalog.revealProgress.id,
         },
@@ -682,6 +683,9 @@ class ReFusionSceneProgramLowerer {
         ],
       'fontsize' || 'textfontsize' => <_LoweredProperty>[
           _LoweredProperty(definition: MotionPropertyCatalog.fontSize),
+        ],
+      'fontweight' || 'textfontweight' || 'weight' => <_LoweredProperty>[
+          _LoweredProperty(definition: MotionPropertyCatalog.fontWeight),
         ],
       'letterspacing' || 'textletterspacing' => <_LoweredProperty>[
           _LoweredProperty(definition: MotionPropertyCatalog.letterSpacing),
@@ -830,8 +834,7 @@ class ReFusionSceneProgramLowerer {
     }
     final value = switch (loweredProperty.definition.valueKind) {
       MotionPropertyValueKind.scalar => _scalarValue(rawComponent),
-      MotionPropertyValueKind.integer when rawComponent is int =>
-        MotionPropertyValue.integer(rawComponent),
+      MotionPropertyValueKind.integer => _integerValue(rawComponent),
       MotionPropertyValueKind.boolean when rawComponent is bool =>
         MotionPropertyValue.boolean(rawComponent),
       MotionPropertyValueKind.stringValue when rawComponent is String =>
@@ -906,6 +909,22 @@ class ReFusionSceneProgramLowerer {
       final parsed = double.tryParse(raw.trim());
       if (parsed != null) {
         return MotionPropertyValue.scalar(parsed);
+      }
+    }
+    return null;
+  }
+
+  MotionPropertyValue? _integerValue(Object? raw) {
+    if (raw is int) {
+      return MotionPropertyValue.integer(raw);
+    }
+    if (raw is num && raw.isFinite) {
+      return MotionPropertyValue.integer(raw.round());
+    }
+    if (raw is String) {
+      final parsed = num.tryParse(raw.trim());
+      if (parsed != null && parsed.isFinite) {
+        return MotionPropertyValue.integer(parsed.round());
       }
     }
     return null;

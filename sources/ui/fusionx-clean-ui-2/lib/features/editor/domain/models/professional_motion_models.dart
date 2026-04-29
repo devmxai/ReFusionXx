@@ -732,6 +732,17 @@ class MotionPropertyCatalog {
     defaultValue: const MotionPropertyValue.scalar(16),
   );
 
+  static final MotionPropertyDefinition fontWeight = MotionPropertyDefinition(
+    id: 'text.fontWeight',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.text,
+      name: 'fontWeight',
+    ),
+    valueKind: MotionPropertyValueKind.integer,
+    supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
+    defaultValue: const MotionPropertyValue.integer(700),
+  );
+
   static final MotionPropertyDefinition letterSpacing =
       MotionPropertyDefinition(
     id: 'text.letterSpacing',

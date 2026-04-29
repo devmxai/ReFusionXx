@@ -38,6 +38,7 @@ class MotionTextPreviewStyleState {
     required this.fontSize,
     required this.letterSpacing,
     required this.colorArgb,
+    required this.fontWeight,
   });
 
   final double opacity;
@@ -50,6 +51,7 @@ class MotionTextPreviewStyleState {
   final double fontSize;
   final double letterSpacing;
   final int colorArgb;
+  final int fontWeight;
 }
 
 @immutable
@@ -288,6 +290,10 @@ class BasicMotionTextPreviewBinder implements MotionTextPreviewBinder {
                   MotionPropertyCatalog.letterSpacing,
                 ),
                 colorArgb: _colorPropertyOrDefault(element.properties),
+                fontWeight: _integerPropertyOrDefault(
+                  element.properties,
+                  MotionPropertyCatalog.fontWeight,
+                ),
               ),
             ),
           );
@@ -428,5 +434,21 @@ class BasicMotionTextPreviewBinder implements MotionTextPreviewBinder {
       return property.value.rawValue as int;
     }
     return kMotionTextPreviewDefaultColorArgb;
+  }
+
+  int _integerPropertyOrDefault(
+    List<MotionEvaluatedPropertyValue> properties,
+    MotionPropertyDefinition definition,
+  ) {
+    for (final property in properties) {
+      if (property.definition.id != definition.id) {
+        continue;
+      }
+      if (property.value.kind != MotionPropertyValueKind.integer) {
+        break;
+      }
+      return property.value.rawValue as int;
+    }
+    return definition.defaultValue.rawValue as int;
   }
 }
