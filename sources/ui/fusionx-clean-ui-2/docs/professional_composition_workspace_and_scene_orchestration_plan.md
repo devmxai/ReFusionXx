@@ -770,6 +770,7 @@ Current code already has useful foundations:
 - `SceneProgramApplyTransaction`,
 - `RootSceneClipProjectionAdapter`,
 - `RootCompositionLayerProjectionAdapter`,
+- `CompositionWorkspaceOutlinerAdapter`,
 - `SceneScopeSessionResolver`,
 - Scene Layer Scope projection and keyframe operations,
 - Mention Motion patch import/apply path,
@@ -780,7 +781,8 @@ Current gaps for this plan:
 - startup still exposes a media-oriented path,
 - create composition does not create an editable default Scene Clip by default,
 - Add is not a full layer insertion system,
-- no project/composition/layer outliner,
+- the project/composition/layer outliner projection exists, but the mobile
+  outliner sheet is not wired to production UI yet,
 - no formal selection-driven inspector,
 - root background and Scene Clip instance visual projections are not wired to
   production outliner, canvas preview, inspector, or export yet,
