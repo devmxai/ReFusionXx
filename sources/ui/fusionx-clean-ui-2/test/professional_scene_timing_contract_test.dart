@@ -233,7 +233,7 @@ void main() {
     expect(result.isValid, isTrue);
     expect(
       result.issues.where(
-        (issue) => issue.message.contains('compiler must merge'),
+        (issue) => issue.message.contains('compiler will merge'),
       ),
       isNotEmpty,
     );

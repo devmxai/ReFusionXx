@@ -246,7 +246,7 @@ class ProfessionalSceneTimingContractValidator {
           const ReFusionMotionDirectorIssue(
             severity: ReFusionMotionDirectorIssueSeverity.warning,
             message:
-                'Multiple sequential primitives target the same component/property. The compiler must merge them into one ordered channel before lowering.',
+                'Multiple sequential primitives target the same component/property. The compiler will merge them into one ordered channel before lowering.',
             path: 'primitives',
           ),
         );

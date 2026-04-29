@@ -149,40 +149,106 @@ class ReFusionMotionDirectorSceneProgramCompiler {
     required String role,
     required String ownerId,
   }) {
-    final channels = <ReFusionSceneProgramChannel>[];
+    final primitiveBuckets =
+        <String, List<_CompiledDirectorPrimitiveChannel>>{};
     for (final primitive in primitives) {
       final property = _propertyForPrimitive(primitive, role);
       if (property == null) {
         continue;
       }
+      final normalizedProperty = _normalizeToken(property);
+      primitiveBuckets
+          .putIfAbsent(
+            normalizedProperty,
+            () => <_CompiledDirectorPrimitiveChannel>[],
+          )
+          .add(
+            _CompiledDirectorPrimitiveChannel(
+              property: property,
+              primitive: primitive,
+            ),
+          );
+    }
+
+    final channels = <ReFusionSceneProgramChannel>[];
+    for (final entry in primitiveBuckets.entries) {
+      final primitiveChannels = List<_CompiledDirectorPrimitiveChannel>.from(
+        entry.value,
+      )..sort(
+          (left, right) {
+            final startComparison =
+                left.primitive.startMs.compareTo(right.primitive.startMs);
+            if (startComparison != 0) {
+              return startComparison;
+            }
+            return left.primitive.endMs.compareTo(right.primitive.endMs);
+          },
+        );
+      if (primitiveChannels.isEmpty) {
+        continue;
+      }
+      final property = primitiveChannels.first.property;
+      final keyframes = <ReFusionSceneProgramKeyframe>[];
+      for (final primitiveChannel in primitiveChannels) {
+        final primitive = primitiveChannel.primitive;
+        _appendMergedKeyframe(
+          keyframes,
+          ReFusionSceneProgramKeyframe(
+            timeMs: primitive.startMs,
+            value: _coercePrimitiveChannelValue(
+              primitive,
+              property,
+              isStart: true,
+            ),
+            easing: primitive.easing,
+          ),
+        );
+        _appendMergedKeyframe(
+          keyframes,
+          ReFusionSceneProgramKeyframe(
+            timeMs: primitive.endMs,
+            value: _coercePrimitiveChannelValue(
+              primitive,
+              property,
+              isStart: false,
+            ),
+            easing: primitive.easing,
+          ),
+        );
+      }
       channels.add(
         ReFusionSceneProgramChannel(
           target: ownerId,
           property: property,
-          keyframes: <ReFusionSceneProgramKeyframe>[
-            ReFusionSceneProgramKeyframe(
-              timeMs: primitive.startMs,
-              value: _coercePrimitiveChannelValue(
-                primitive,
-                property,
-                isStart: true,
-              ),
-              easing: primitive.easing,
-            ),
-            ReFusionSceneProgramKeyframe(
-              timeMs: primitive.endMs,
-              value: _coercePrimitiveChannelValue(
-                primitive,
-                property,
-                isStart: false,
-              ),
-              easing: primitive.easing,
-            ),
-          ],
+          keyframes: keyframes,
         ),
       );
     }
     return channels;
+  }
+
+  void _appendMergedKeyframe(
+    List<ReFusionSceneProgramKeyframe> keyframes,
+    ReFusionSceneProgramKeyframe next,
+  ) {
+    if (keyframes.isEmpty) {
+      keyframes.add(next);
+      return;
+    }
+    final previous = keyframes.last;
+    if (previous.timeMs != next.timeMs) {
+      keyframes.add(next);
+      return;
+    }
+
+    // Same-time handoffs should remain one editable timeline point. If the
+    // values differ, keep the later primitive's value because it defines the
+    // state after the handoff.
+    keyframes[keyframes.length - 1] = ReFusionSceneProgramKeyframe(
+      timeMs: next.timeMs,
+      value: next.value,
+      easing: next.easing,
+    );
   }
 
   String? _propertyForPrimitive(
@@ -401,4 +467,14 @@ class _DirectorComponentSpec {
   final String elementKind;
   final String? text;
   final Map<String, Object?> properties;
+}
+
+class _CompiledDirectorPrimitiveChannel {
+  const _CompiledDirectorPrimitiveChannel({
+    required this.property,
+    required this.primitive,
+  });
+
+  final String property;
+  final ReFusionMotionDirectorPrimitive primitive;
 }

@@ -181,6 +181,57 @@ void main() {
     );
   });
 
+  test('merges sequential same-property primitives into one editable channel',
+      () {
+    final result = compiler.compile(
+      promptBarPlan(
+        primitives: const <ReFusionMotionDirectorPrimitive>[
+          ReFusionMotionDirectorPrimitive(
+            id: 'shell-pop-in',
+            beatId: 'enter',
+            targetComponentId: 'prompt-shell',
+            kind: 'scale',
+            property: 'scale',
+            startMs: 0,
+            endMs: 250,
+            fromValue: 0.82,
+            toValue: 1.08,
+            easing: 'easeOut',
+          ),
+          ReFusionMotionDirectorPrimitive(
+            id: 'shell-settle',
+            beatId: 'enter',
+            targetComponentId: 'prompt-shell',
+            kind: 'scale',
+            property: 'scale',
+            startMs: 250,
+            endMs: 520,
+            fromValue: 1.08,
+            toValue: 1.0,
+            easing: 'easeOut',
+          ),
+        ],
+      ),
+    );
+
+    expect(result.isValid, isTrue);
+    final shellLayer = result.program!.layers.firstWhere(
+      (layer) => layer.id == 'prompt-shell-layer',
+    );
+    final scaleChannels = shellLayer.elements.single.channels.where(
+      (channel) => channel.property == 'scale',
+    );
+    expect(scaleChannels, hasLength(1));
+    expect(
+      scaleChannels.single.keyframes.map((keyframe) => keyframe.timeMs),
+      <int>[0, 250, 520],
+    );
+    expect(
+      scaleChannels.single.keyframes.map((keyframe) => keyframe.value),
+      <Object>[0.82, 1.08, 1.0],
+    );
+  });
+
   test('compiled scene program lowers into graph channels and text bindings',
       () {
     final compileResult = compiler.compile(promptBarPlan());

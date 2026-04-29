@@ -133,7 +133,7 @@ void main() {
     expect(decoded['schemaVersion'], 'refusion.scene-program/v1');
     expect(decoded['name'], 'Claude Scene');
     expect(extracted.directorPlan, isNotNull);
-    expect(extracted.directorPlan!.beats, hasLength(2));
+    expect(extracted.directorPlan!.beats, hasLength(3));
     expect(
       extracted.directorIssues.where(
         (issue) => issue.severity.name == 'error',
@@ -175,8 +175,7 @@ void main() {
     expect(decoded['name'], 'Prompt Handoff Scene');
     expect(
       extracted.directorIssues.where(
-        (issue) =>
-            issue.message.contains('Accepted as intentional handoff'),
+        (issue) => issue.message.contains('Accepted as intentional handoff'),
       ),
       isNotEmpty,
     );
@@ -321,7 +320,7 @@ Map<String, Object?> _directorPlanJson({bool reverseTyping = false}) {
   return <String, Object?>{
     'schemaVersion': 'refusion.motion-director/v1',
     'name': 'Prompt Director',
-    'durationMs': 1200,
+    'durationMs': 1600,
     'frameRate': 30,
     'canvasWidth': 1080,
     'canvasHeight': 1920,
@@ -347,6 +346,14 @@ Map<String, Object?> _directorPlanJson({bool reverseTyping = false}) {
         'startMs': 300,
         'endMs': 1200,
         'intent': 'Text types.',
+        'componentRefs': <String>['title'],
+      },
+      <String, Object?>{
+        'id': 'readable-hold',
+        'label': 'Readable hold',
+        'startMs': 1200,
+        'endMs': 1600,
+        'intent': 'Hold the typed text so it can be read.',
         'componentRefs': <String>['title'],
       },
     ],
