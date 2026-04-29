@@ -93,6 +93,14 @@ class SceneProgramPresentBottomSheet extends StatelessWidget {
   static const List<_SceneProgramPresentPreset> _presets =
       <_SceneProgramPresentPreset>[
     _SceneProgramPresentPreset(
+      title: 'Design Reveal Study',
+      subtitle:
+          'Tutorial 001: red ramp field, shape-led title reveal, dot morph, and soft shadow study.',
+      source: _SceneProgramImportBottomSheetState._designRevealSceneProgram,
+      icon: Icons.motion_photos_auto_rounded,
+      status: 'Tutorial 001',
+    ),
+    _SceneProgramPresentPreset(
       title: 'Codex Intro',
       subtitle:
           'Mac-style icon, prompt bar, typewriter text, send action, and reveal.',
@@ -504,6 +512,273 @@ class _SceneProgramImportBottomSheetState
                 { "timeMs": 0, "value": 18, "easing": "linear" },
                 { "timeMs": 1700, "value": 0, "easing": "easeOut" },
                 { "timeMs": 3000, "value": 0, "easing": "linear" }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+''';
+
+  static const String _designRevealSceneProgram = '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "name": "Design Reveal Study",
+  "durationMs": 4300,
+  "frameRate": 30,
+  "layers": [
+    {
+      "id": "design-red-field-layer",
+      "name": "Red Gradient Field Study",
+      "kind": "shape",
+      "startMs": 0,
+      "durationMs": 4300,
+      "elements": [
+        {
+          "id": "design-red-base",
+          "kind": "shape",
+          "properties": {
+            "shapeKind": "rectangle",
+            "width": 1080,
+            "height": 1920,
+            "color": "#F53D4E",
+            "opacity": 1
+          },
+          "channels": [
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 0, "value": 0.0, "easing": "linear" },
+                { "timeMs": 360, "value": 1.0, "easing": "easeOutCubic" }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "design-red-glow-left",
+          "kind": "shape",
+          "properties": {
+            "shapeKind": "circle",
+            "width": 1380,
+            "height": 1380,
+            "color": "#FF7B85",
+            "position": { "x": -240, "y": -300 },
+            "opacity": 0.22,
+            "blur": 80
+          },
+          "channels": [
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 0, "value": 0.0, "easing": "linear" },
+                { "timeMs": 620, "value": 0.22, "easing": "easeOutCubic" },
+                { "timeMs": 4300, "value": 0.22, "easing": "linear" }
+              ]
+            },
+            {
+              "property": "scale",
+              "keyframes": [
+                { "timeMs": 0, "value": 0.92, "easing": "linear" },
+                { "timeMs": 1800, "value": 1.0, "easing": "easeOutCubic" },
+                { "timeMs": 4300, "value": 1.04, "easing": "linear" }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "design-red-vignette-right",
+          "kind": "shape",
+          "properties": {
+            "shapeKind": "circle",
+            "width": 1760,
+            "height": 1760,
+            "color": "#BD1630",
+            "position": { "x": 340, "y": 260 },
+            "opacity": 0.18,
+            "blur": 120
+          },
+          "channels": [
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 0, "value": 0.0, "easing": "linear" },
+                { "timeMs": 860, "value": 0.18, "easing": "easeOutCubic" },
+                { "timeMs": 4300, "value": 0.18, "easing": "linear" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "design-shadow-layer",
+      "name": "Reusable Soft Shadow",
+      "kind": "shape",
+      "startMs": 0,
+      "durationMs": 4300,
+      "elements": [
+        {
+          "id": "design-title-shadow",
+          "kind": "shape",
+          "properties": {
+            "shapeKind": "roundedRectangle",
+            "width": 640,
+            "height": 72,
+            "cornerRadius": 999,
+            "color": "#96172B",
+            "position": { "x": 0, "y": 252 },
+            "opacity": 0,
+            "scale": 0.52,
+            "blur": 42
+          },
+          "channels": [
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 740, "value": 0.0, "easing": "linear" },
+                { "timeMs": 1500, "value": 0.26, "easing": "easeOutCubic" },
+                { "timeMs": 3180, "value": 0.26, "easing": "linear" },
+                { "timeMs": 3920, "value": 0.12, "easing": "easeInOut" }
+              ]
+            },
+            {
+              "property": "scale",
+              "keyframes": [
+                { "timeMs": 740, "value": 0.52, "easing": "linear" },
+                { "timeMs": 1720, "value": 1.0, "easing": "easeOutCubic" },
+                { "timeMs": 3920, "value": 1.08, "easing": "easeInOut" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "design-title-layer",
+      "name": "Design Title",
+      "kind": "text",
+      "startMs": 0,
+      "durationMs": 4300,
+      "elements": [
+        {
+          "id": "design-title",
+          "kind": "text",
+          "text": "design",
+          "properties": {
+            "fontSize": 184,
+            "letterSpacing": -2,
+            "color": "#FFFFFF",
+            "position": { "x": -42, "y": -26 },
+            "opacity": 0,
+            "scale": 0.98,
+            "typewriterProgress": 0
+          },
+          "channels": [
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 620, "value": 0.0, "easing": "linear" },
+                { "timeMs": 980, "value": 1.0, "easing": "easeOutCubic" },
+                { "timeMs": 4300, "value": 1.0, "easing": "linear" }
+              ]
+            },
+            {
+              "property": "typewriterProgress",
+              "keyframes": [
+                { "timeMs": 720, "value": 0.0, "easing": "linear" },
+                { "timeMs": 1780, "value": 1.0, "easing": "easeOutCubic" },
+                { "timeMs": 4300, "value": 1.0, "easing": "linear" }
+              ]
+            },
+            {
+              "property": "scale",
+              "keyframes": [
+                { "timeMs": 620, "value": 0.98, "easing": "linear" },
+                { "timeMs": 1780, "value": 1.0, "easing": "spring" },
+                { "timeMs": 4300, "value": 1.0, "easing": "linear" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "design-driver-layer",
+      "name": "Circle To Reveal Driver",
+      "kind": "shape",
+      "startMs": 0,
+      "durationMs": 4300,
+      "elements": [
+        {
+          "id": "design-reveal-driver",
+          "kind": "shape",
+          "properties": {
+            "shapeKind": "roundedRectangle",
+            "width": 86,
+            "height": 86,
+            "cornerRadius": 999,
+            "color": "#FFFFFF",
+            "position": { "x": -360, "y": 360 },
+            "opacity": 0,
+            "scale": 1
+          },
+          "channels": [
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 0, "value": 0.0, "easing": "linear" },
+                { "timeMs": 360, "value": 1.0, "easing": "easeOutCubic" },
+                { "timeMs": 3000, "value": 1.0, "easing": "linear" },
+                { "timeMs": 3540, "value": 0.0, "easing": "easeInCubic" }
+              ]
+            },
+            {
+              "property": "position",
+              "keyframes": [
+                { "timeMs": 0, "value": { "x": -360, "y": 360 }, "easing": "linear" },
+                { "timeMs": 760, "value": { "x": -360, "y": 18 }, "easing": "easeOutCubic" },
+                { "timeMs": 1320, "value": { "x": -72, "y": 18 }, "easing": "easeOutCubic" },
+                { "timeMs": 2050, "value": { "x": 394, "y": 18 }, "easing": "easeOutCubic" },
+                { "timeMs": 3000, "value": { "x": 394, "y": 18 }, "easing": "linear" },
+                { "timeMs": 3540, "value": { "x": 430, "y": 72 }, "easing": "easeInCubic" }
+              ]
+            },
+            {
+              "property": "width",
+              "keyframes": [
+                { "timeMs": 0, "value": 86, "easing": "linear" },
+                { "timeMs": 920, "value": 86, "easing": "linear" },
+                { "timeMs": 1450, "value": 420, "easing": "easeOutCubic" },
+                { "timeMs": 2050, "value": 86, "easing": "easeInOut" },
+                { "timeMs": 3000, "value": 86, "easing": "linear" }
+              ]
+            },
+            {
+              "property": "height",
+              "keyframes": [
+                { "timeMs": 0, "value": 86, "easing": "linear" },
+                { "timeMs": 1450, "value": 86, "easing": "linear" },
+                { "timeMs": 3000, "value": 86, "easing": "linear" }
+              ]
+            },
+            {
+              "property": "cornerRadius",
+              "keyframes": [
+                { "timeMs": 0, "value": 999, "easing": "linear" },
+                { "timeMs": 1450, "value": 44, "easing": "easeOutCubic" },
+                { "timeMs": 2050, "value": 999, "easing": "easeInOut" },
+                { "timeMs": 3000, "value": 999, "easing": "linear" }
+              ]
+            },
+            {
+              "property": "scale",
+              "keyframes": [
+                { "timeMs": 0, "value": 0.72, "easing": "linear" },
+                { "timeMs": 760, "value": 1.0, "easing": "spring" },
+                { "timeMs": 3000, "value": 1.0, "easing": "linear" },
+                { "timeMs": 3540, "value": 0.72, "easing": "easeInCubic" }
               ]
             }
           ]

@@ -230,7 +230,21 @@ The first tutorial-derived packs should be:
 - `readableHold`
 - `contrastPolicy`
 
-## 8. Non-Negotiable Safety
+## 8. Tutorial Intake Log
+
+Every tutorial intake must have its own note under `docs/tutorial_intakes/`.
+
+Current intakes:
+
+- `docs/tutorial_intakes/design_reveal_tutorial_001.md`: extracts the first
+  design-title reveal tutorial into reusable capabilities such as
+  `effects.gradientRamp`, `mask.movingReveal`, `effects.softShadow`,
+  `shape.morphCircleRect`, `text.rangeSelector`, and `choreography.snappyEase`.
+  The Present demo `Design Reveal Study` is an approximation built only from
+  already-supported Scene Program capabilities, so the gap between current
+  engine support and full After Effects-style parity remains explicit.
+
+## 9. Non-Negotiable Safety
 
 This plan does not modify Live Scrub directly.
 
@@ -244,4 +258,3 @@ Every implementation slice must follow:
 - focused verification
 - focused checkpoint commit
 - push to GitHub
-
