@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:refusion_app/features/editor/domain/models/composition_scene_clip_models.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_models.dart';
 import 'package:refusion_app/features/editor/presentation/models/timeline_time.dart';
 
 void main() {
@@ -93,6 +94,72 @@ void main() {
     expect(clips.clipAtRootTime(ms(1500)), isNull);
   });
 
+  test('keeps scene clip instance visuals separate from source timing', () {
+    final clip = CompositionSceneClipModel(
+      id: 'clip-card',
+      sourceSceneId: 'scene-reusable',
+      startTime: ms(1000),
+      durationTime: ms(3000),
+      instanceVisualStyle: CompositionSceneClipInstanceVisualStyle(
+        transform: const CompositionSceneClipInstanceTransform(
+          positionX: 120,
+          positionY: -80,
+          scaleX: 0.45,
+          scaleY: 0.45,
+          rotationDegrees: -4,
+        ),
+        opacity: 0.82,
+        zIndex: 12,
+        cropRect: const MotionRect(
+          left: 0,
+          top: 0,
+          width: 0.8,
+          height: 1,
+        ),
+        effectIds: const <String>['shadow-soft'],
+      ),
+    );
+
+    expect(clip.rootToLocalTime(ms(2500)).inMilliseconds, 1500);
+    expect(clip.instanceVisualStyle.hasVisualAdjustment, isTrue);
+    expect(clip.instanceVisualStyle.transform.scaleX, 0.45);
+    expect(clip.instanceVisualStyle.opacity, 0.82);
+    expect(clip.instanceVisualStyle.zIndex, 12);
+    expect(clip.instanceVisualStyle.effectIds, <String>['shadow-soft']);
+    expect(clip.validate(), isEmpty);
+  });
+
+  test('orders overlapping scene clip instances by root draw order', () {
+    final clips = CompositionSceneClipCollection(
+      clips: <CompositionSceneClipModel>[
+        CompositionSceneClipModel(
+          id: 'clip-background-card',
+          sourceSceneId: 'scene-a',
+          startTime: ms(0),
+          durationTime: ms(3000),
+          instanceVisualStyle: CompositionSceneClipInstanceVisualStyle(
+            zIndex: 0,
+          ),
+        ),
+        CompositionSceneClipModel(
+          id: 'clip-foreground-card',
+          sourceSceneId: 'scene-b',
+          startTime: ms(0),
+          durationTime: ms(3000),
+          instanceVisualStyle: CompositionSceneClipInstanceVisualStyle(
+            zIndex: 10,
+          ),
+        ),
+      ],
+    );
+
+    expect(
+      clips.clipsAtRootTimeInDrawOrder(ms(1200)).map((clip) => clip.id),
+      <String>['clip-background-card', 'clip-foreground-card'],
+    );
+    expect(clips.topClipAtRootTime(ms(1200))!.id, 'clip-foreground-card');
+  });
+
   test('reports invalid clip duration and source ranges', () {
     final clips = CompositionSceneClipCollection(
       clips: <CompositionSceneClipModel>[
@@ -143,5 +210,58 @@ void main() {
     expect(clip.sourceOutTime.inMilliseconds, 7000);
     expect(clip.rootToSourceTime(ms(1500)).inMilliseconds, 4000);
     expect(clip.rootToLocalTime(ms(1500)).inMilliseconds, 3000);
+  });
+
+  test('reports invalid scene clip instance visuals', () {
+    final clips = CompositionSceneClipCollection(
+      clips: <CompositionSceneClipModel>[
+        CompositionSceneClipModel(
+          id: 'clip-invalid-transform',
+          sourceSceneId: 'scene-a',
+          startTime: ms(0),
+          durationTime: ms(1000),
+          instanceVisualStyle: CompositionSceneClipInstanceVisualStyle(
+            transform: const CompositionSceneClipInstanceTransform(scaleX: 0),
+          ),
+        ),
+        CompositionSceneClipModel(
+          id: 'clip-invalid-opacity',
+          sourceSceneId: 'scene-b',
+          startTime: ms(0),
+          durationTime: ms(1000),
+          instanceVisualStyle: CompositionSceneClipInstanceVisualStyle(
+            opacity: 1.4,
+          ),
+        ),
+        CompositionSceneClipModel(
+          id: 'clip-invalid-crop',
+          sourceSceneId: 'scene-c',
+          startTime: ms(0),
+          durationTime: ms(1000),
+          instanceVisualStyle: CompositionSceneClipInstanceVisualStyle(
+            cropRect: const MotionRect(
+              left: 0,
+              top: 0,
+              width: 0,
+              height: 1,
+            ),
+          ),
+        ),
+      ],
+    );
+
+    final issueCodes = clips.validate().map((issue) => issue.code);
+    expect(
+      issueCodes,
+      contains(CompositionSceneClipIssueCode.invalidInstanceTransform),
+    );
+    expect(
+      issueCodes,
+      contains(CompositionSceneClipIssueCode.invalidInstanceOpacity),
+    );
+    expect(
+      issueCodes,
+      contains(CompositionSceneClipIssueCode.invalidInstanceCrop),
+    );
   });
 }

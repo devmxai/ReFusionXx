@@ -87,6 +87,55 @@ void main() {
     );
   });
 
+  test('models root background layers behind scene clip instances', () {
+    final workspace = CompositionWorkspaceModel(
+      project: project(),
+      rootSceneId: 'root-scene',
+      currentRootTime: ms(3500),
+      rootBackgroundLayers: <CompositionRootBackgroundLayerModel>[
+        CompositionRootBackgroundLayerModel(
+          id: 'root-bg',
+          name: 'Brand Background',
+          colorArgb: 0xFF101820,
+          visibleRange: range(0, 12000),
+          zIndex: -100,
+        ),
+      ],
+      sceneClips: <CompositionSceneClipModel>[
+        introClip().copyWith(
+          instanceVisualStyle: CompositionSceneClipInstanceVisualStyle(
+            transform: const CompositionSceneClipInstanceTransform(
+              positionX: 180,
+              positionY: 90,
+              scaleX: 0.5,
+              scaleY: 0.5,
+            ),
+            zIndex: 2,
+          ),
+        ),
+      ],
+      activeScope: const CompositionWorkspaceScope.scene(
+        rootSceneId: 'root-scene',
+        sceneClipId: 'intro-clip',
+        sourceSceneId: 'intro-source',
+      ),
+    );
+
+    expect(
+        workspace.rootBackgroundLayersAtCurrentRootTime.single.id, 'root-bg');
+    expect(
+      workspace
+          .sceneClipAtCurrentRootTime!.instanceVisualStyle.transform.scaleX,
+      0.5,
+    );
+    expect(
+      workspace.sceneClipAtCurrentRootTime!.instanceVisualStyle.zIndex,
+      2,
+    );
+    expect(workspace.timeContext().localTime, ms(1500));
+    expect(workspace.validate(), isEmpty);
+  });
+
   test('derives scene-scope time without moving the root clock', () {
     final workspace = CompositionWorkspaceModel(
       project: project(),
@@ -246,6 +295,26 @@ void main() {
         CompositionWorkspaceIssueCode.missingRootScene,
         CompositionWorkspaceIssueCode.missingSourceScene,
       ]),
+    );
+  });
+
+  test('reports invalid root background layer contracts', () {
+    final workspace = CompositionWorkspaceModel(
+      project: project(),
+      rootSceneId: 'root-scene',
+      currentRootTime: TimelineTime.zero,
+      rootBackgroundLayers: <CompositionRootBackgroundLayerModel>[
+        CompositionRootBackgroundLayerModel(
+          id: 'invalid-bg',
+          opacity: -0.2,
+        ),
+      ],
+      sceneClips: <CompositionSceneClipModel>[introClip()],
+    );
+
+    expect(
+      workspace.validate().map((issue) => issue.code),
+      contains(CompositionWorkspaceIssueCode.invalidRootBackgroundLayer),
     );
   });
 }

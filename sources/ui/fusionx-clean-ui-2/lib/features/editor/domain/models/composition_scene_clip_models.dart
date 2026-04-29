@@ -1,12 +1,16 @@
 import 'package:flutter/foundation.dart';
 
 import '../../presentation/models/timeline_time.dart';
+import 'professional_motion_models.dart';
 
 enum CompositionSceneClipIssueCode {
   invalidDuration,
   invalidSourceRange,
   invalidTimeScale,
   localTimeOutOfRange,
+  invalidInstanceTransform,
+  invalidInstanceOpacity,
+  invalidInstanceCrop,
 }
 
 @immutable
@@ -25,6 +29,121 @@ class CompositionSceneClipIssue {
 }
 
 @immutable
+class CompositionSceneClipInstanceTransform {
+  const CompositionSceneClipInstanceTransform({
+    this.positionX = 0,
+    this.positionY = 0,
+    this.scaleX = 1,
+    this.scaleY = 1,
+    this.rotationDegrees = 0,
+  });
+
+  final double positionX;
+  final double positionY;
+  final double scaleX;
+  final double scaleY;
+  final double rotationDegrees;
+
+  static const identity = CompositionSceneClipInstanceTransform();
+
+  bool get isIdentity =>
+      positionX == 0 &&
+      positionY == 0 &&
+      scaleX == 1 &&
+      scaleY == 1 &&
+      rotationDegrees == 0;
+
+  bool get isValid =>
+      positionX.isFinite &&
+      positionY.isFinite &&
+      scaleX.isFinite &&
+      scaleY.isFinite &&
+      rotationDegrees.isFinite &&
+      scaleX > 0 &&
+      scaleY > 0;
+
+  CompositionSceneClipInstanceTransform copyWith({
+    double? positionX,
+    double? positionY,
+    double? scaleX,
+    double? scaleY,
+    double? rotationDegrees,
+  }) {
+    return CompositionSceneClipInstanceTransform(
+      positionX: positionX ?? this.positionX,
+      positionY: positionY ?? this.positionY,
+      scaleX: scaleX ?? this.scaleX,
+      scaleY: scaleY ?? this.scaleY,
+      rotationDegrees: rotationDegrees ?? this.rotationDegrees,
+    );
+  }
+}
+
+@immutable
+class CompositionSceneClipInstanceVisualStyle {
+  CompositionSceneClipInstanceVisualStyle({
+    this.transform = CompositionSceneClipInstanceTransform.identity,
+    this.opacity = 1,
+    this.cropRect,
+    this.zIndex = 0,
+    List<String> effectIds = const <String>[],
+    Map<String, String> metadata = const <String, String>{},
+  })  : effectIds = List.unmodifiable(effectIds),
+        metadata = Map.unmodifiable(metadata);
+
+  final CompositionSceneClipInstanceTransform transform;
+  final double opacity;
+  final MotionRect? cropRect;
+  final int zIndex;
+  final List<String> effectIds;
+  final Map<String, String> metadata;
+
+  static final identity = CompositionSceneClipInstanceVisualStyle();
+
+  bool get hasVisualAdjustment =>
+      !transform.isIdentity ||
+      opacity != 1 ||
+      cropRect != null ||
+      zIndex != 0 ||
+      effectIds.isNotEmpty ||
+      metadata.isNotEmpty;
+
+  bool get hasValidOpacity => opacity.isFinite && opacity >= 0 && opacity <= 1;
+
+  bool get hasValidCrop {
+    final crop = cropRect;
+    if (crop == null) {
+      return true;
+    }
+    return crop.left.isFinite &&
+        crop.top.isFinite &&
+        crop.width.isFinite &&
+        crop.height.isFinite &&
+        crop.width > 0 &&
+        crop.height > 0;
+  }
+
+  CompositionSceneClipInstanceVisualStyle copyWith({
+    CompositionSceneClipInstanceTransform? transform,
+    double? opacity,
+    MotionRect? cropRect,
+    bool clearCropRect = false,
+    int? zIndex,
+    List<String>? effectIds,
+    Map<String, String>? metadata,
+  }) {
+    return CompositionSceneClipInstanceVisualStyle(
+      transform: transform ?? this.transform,
+      opacity: opacity ?? this.opacity,
+      cropRect: clearCropRect ? null : cropRect ?? this.cropRect,
+      zIndex: zIndex ?? this.zIndex,
+      effectIds: effectIds ?? this.effectIds,
+      metadata: metadata ?? this.metadata,
+    );
+  }
+}
+
+@immutable
 class CompositionSceneClipModel {
   CompositionSceneClipModel({
     required this.id,
@@ -35,6 +154,7 @@ class CompositionSceneClipModel {
     TimelineTime? sourceOutTime,
     this.name,
     this.timeScale = 1.0,
+    CompositionSceneClipInstanceVisualStyle? instanceVisualStyle,
     this.isEnabled = true,
     this.isLocked = false,
     Map<String, String> metadata = const <String, String>{},
@@ -42,6 +162,8 @@ class CompositionSceneClipModel {
         sourceOutTime = sourceOutTime ??
             (sourceInTime ?? TimelineTime.zero) +
                 _scaleTime(durationTime, _safeTimeScaleFor(timeScale)),
+        instanceVisualStyle = instanceVisualStyle ??
+            CompositionSceneClipInstanceVisualStyle.identity,
         metadata = Map.unmodifiable(metadata);
 
   final String id;
@@ -52,6 +174,7 @@ class CompositionSceneClipModel {
   final TimelineTime sourceInTime;
   final TimelineTime sourceOutTime;
   final double timeScale;
+  final CompositionSceneClipInstanceVisualStyle instanceVisualStyle;
   final bool isEnabled;
   final bool isLocked;
   final Map<String, String> metadata;
@@ -148,6 +271,36 @@ class CompositionSceneClipModel {
         ),
       );
     }
+    if (!instanceVisualStyle.transform.isValid) {
+      issues.add(
+        CompositionSceneClipIssue(
+          code: CompositionSceneClipIssueCode.invalidInstanceTransform,
+          message: 'Scene clip `$id` has invalid instance transform values.',
+          clipId: id,
+          sceneId: sourceSceneId,
+        ),
+      );
+    }
+    if (!instanceVisualStyle.hasValidOpacity) {
+      issues.add(
+        CompositionSceneClipIssue(
+          code: CompositionSceneClipIssueCode.invalidInstanceOpacity,
+          message: 'Scene clip `$id` instance opacity must be between 0 and 1.',
+          clipId: id,
+          sceneId: sourceSceneId,
+        ),
+      );
+    }
+    if (!instanceVisualStyle.hasValidCrop) {
+      issues.add(
+        CompositionSceneClipIssue(
+          code: CompositionSceneClipIssueCode.invalidInstanceCrop,
+          message: 'Scene clip `$id` has an invalid instance crop rectangle.',
+          clipId: id,
+          sceneId: sourceSceneId,
+        ),
+      );
+    }
     return issues;
   }
 
@@ -160,6 +313,7 @@ class CompositionSceneClipModel {
     TimelineTime? sourceInTime,
     TimelineTime? sourceOutTime,
     double? timeScale,
+    CompositionSceneClipInstanceVisualStyle? instanceVisualStyle,
     bool? isEnabled,
     bool? isLocked,
     Map<String, String>? metadata,
@@ -173,6 +327,7 @@ class CompositionSceneClipModel {
       sourceInTime: sourceInTime ?? this.sourceInTime,
       sourceOutTime: sourceOutTime ?? this.sourceOutTime,
       timeScale: timeScale ?? this.timeScale,
+      instanceVisualStyle: instanceVisualStyle ?? this.instanceVisualStyle,
       isEnabled: isEnabled ?? this.isEnabled,
       isLocked: isLocked ?? this.isLocked,
       metadata: metadata ?? this.metadata,
@@ -215,6 +370,35 @@ class CompositionSceneClipCollection {
       }
     }
     return null;
+  }
+
+  List<CompositionSceneClipModel> clipsAtRootTimeInDrawOrder(
+    TimelineTime rootTime,
+  ) {
+    final visibleClips = clips
+        .where((clip) => clip.isEnabled && clip.containsRootTime(rootTime))
+        .toList(growable: false);
+    visibleClips.sort((left, right) {
+      final zCompare = left.instanceVisualStyle.zIndex
+          .compareTo(right.instanceVisualStyle.zIndex);
+      if (zCompare != 0) {
+        return zCompare;
+      }
+      final startCompare = left.startTime.compareTo(right.startTime);
+      if (startCompare != 0) {
+        return startCompare;
+      }
+      return left.id.compareTo(right.id);
+    });
+    return List<CompositionSceneClipModel>.unmodifiable(visibleClips);
+  }
+
+  CompositionSceneClipModel? topClipAtRootTime(TimelineTime rootTime) {
+    final visibleClips = clipsAtRootTimeInDrawOrder(rootTime);
+    if (visibleClips.isEmpty) {
+      return null;
+    }
+    return visibleClips.last;
   }
 
   List<CompositionSceneClipModel> clipsForSourceScene(String sourceSceneId) {

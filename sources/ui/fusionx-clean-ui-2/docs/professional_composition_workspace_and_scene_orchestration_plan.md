@@ -558,6 +558,11 @@ Implementation status:
 - Root background as a true layer and Scene Clip instance transforms/effects are
   not implemented yet. They are now part of the W1/W4/W5/W9 contract, not a
   separate side plan.
+- W1 root-layering domain foundation is now implemented: `CompositionSceneClip`
+  carries instance visual style data for transform, opacity, crop, effects, and
+  draw order without modifying its source scene, and
+  `CompositionWorkspaceModel` carries root background layer projections with
+  time visibility and draw-order sorting.
 
 ### Phase W2: Create Composition Startup Flow
 

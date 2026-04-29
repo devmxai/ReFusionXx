@@ -8,6 +8,7 @@ enum CompositionWorkspaceIssueCode {
   missingRootScene,
   missingSourceScene,
   invalidSceneClip,
+  invalidRootBackgroundLayer,
 }
 
 @immutable
@@ -29,6 +30,87 @@ enum CompositionWorkspaceScopeKind {
   rootComposition,
   sceneComposition,
   layerScope,
+}
+
+enum CompositionRootBackgroundLayerKind {
+  color,
+  image,
+  video,
+  generated,
+}
+
+@immutable
+class CompositionRootBackgroundLayerModel {
+  CompositionRootBackgroundLayerModel({
+    required this.id,
+    this.kind = CompositionRootBackgroundLayerKind.color,
+    this.name,
+    this.visibleRange,
+    this.colorArgb,
+    this.assetId,
+    this.opacity = 1,
+    this.zIndex = -1000,
+    this.isEnabled = true,
+    this.isLocked = false,
+    Map<String, String> metadata = const <String, String>{},
+  }) : metadata = Map.unmodifiable(metadata);
+
+  final String id;
+  final CompositionRootBackgroundLayerKind kind;
+  final String? name;
+  final TimelineTimeRange? visibleRange;
+  final int? colorArgb;
+  final String? assetId;
+  final double opacity;
+  final int zIndex;
+  final bool isEnabled;
+  final bool isLocked;
+  final Map<String, String> metadata;
+
+  bool isVisibleAt(TimelineTime rootTime) {
+    if (!isEnabled) {
+      return false;
+    }
+    final range = visibleRange;
+    return range == null || range.contains(rootTime);
+  }
+
+  bool get hasValidOpacity => opacity.isFinite && opacity >= 0 && opacity <= 1;
+
+  bool get hasValidVisibleRange {
+    final range = visibleRange;
+    return range == null || range.endExclusive > range.start;
+  }
+
+  CompositionRootBackgroundLayerModel copyWith({
+    String? id,
+    CompositionRootBackgroundLayerKind? kind,
+    String? name,
+    TimelineTimeRange? visibleRange,
+    bool clearVisibleRange = false,
+    int? colorArgb,
+    String? assetId,
+    double? opacity,
+    int? zIndex,
+    bool? isEnabled,
+    bool? isLocked,
+    Map<String, String>? metadata,
+  }) {
+    return CompositionRootBackgroundLayerModel(
+      id: id ?? this.id,
+      kind: kind ?? this.kind,
+      name: name ?? this.name,
+      visibleRange:
+          clearVisibleRange ? null : visibleRange ?? this.visibleRange,
+      colorArgb: colorArgb ?? this.colorArgb,
+      assetId: assetId ?? this.assetId,
+      opacity: opacity ?? this.opacity,
+      zIndex: zIndex ?? this.zIndex,
+      isEnabled: isEnabled ?? this.isEnabled,
+      isLocked: isLocked ?? this.isLocked,
+      metadata: metadata ?? this.metadata,
+    );
+  }
 }
 
 @immutable
@@ -263,17 +345,21 @@ class CompositionWorkspaceModel {
     required this.project,
     required this.rootSceneId,
     required this.currentRootTime,
+    List<CompositionRootBackgroundLayerModel> rootBackgroundLayers =
+        const <CompositionRootBackgroundLayerModel>[],
     List<CompositionSceneClipModel> sceneClips =
         const <CompositionSceneClipModel>[],
     CompositionWorkspaceScope? activeScope,
     this.selection = const CompositionWorkspaceSelection.none(),
-  })  : sceneClips = List.unmodifiable(sceneClips),
+  })  : rootBackgroundLayers = List.unmodifiable(rootBackgroundLayers),
+        sceneClips = List.unmodifiable(sceneClips),
         activeScope = activeScope ??
             CompositionWorkspaceScope.root(rootSceneId: rootSceneId);
 
   final MotionProjectModel project;
   final String rootSceneId;
   final TimelineTime currentRootTime;
+  final List<CompositionRootBackgroundLayerModel> rootBackgroundLayers;
   final List<CompositionSceneClipModel> sceneClips;
   final CompositionWorkspaceScope activeScope;
   final CompositionWorkspaceSelection selection;
@@ -324,6 +410,23 @@ class CompositionWorkspaceModel {
     return sceneClipCollection.clipAtRootTime(currentRootTime);
   }
 
+  List<CompositionRootBackgroundLayerModel>
+      get rootBackgroundLayersAtCurrentRootTime {
+    final visibleLayers = rootBackgroundLayers
+        .where((layer) => layer.isVisibleAt(currentRootTime))
+        .toList(growable: false);
+    visibleLayers.sort((left, right) {
+      final zCompare = left.zIndex.compareTo(right.zIndex);
+      if (zCompare != 0) {
+        return zCompare;
+      }
+      return left.id.compareTo(right.id);
+    });
+    return List<CompositionRootBackgroundLayerModel>.unmodifiable(
+      visibleLayers,
+    );
+  }
+
   CompositionWorkspaceTimeContext timeContext() {
     final sceneClipId = activeScope.sceneClipId ?? selection.sceneClipId;
     final sceneClip = sceneClipId == null ? null : sceneClipById(sceneClipId);
@@ -358,6 +461,19 @@ class CompositionWorkspaceModel {
           sceneId: rootSceneId,
         ),
       );
+    }
+
+    for (final layer in rootBackgroundLayers) {
+      if (!layer.hasValidOpacity || !layer.hasValidVisibleRange) {
+        issues.add(
+          CompositionWorkspaceIssue(
+            code: CompositionWorkspaceIssueCode.invalidRootBackgroundLayer,
+            message:
+                'Root background layer `${layer.id}` has invalid opacity or timing.',
+            sceneId: rootSceneId,
+          ),
+        );
+      }
     }
 
     for (final clip in sceneClips) {
