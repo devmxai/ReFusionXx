@@ -58,6 +58,108 @@ class ProfessionalSceneProgramTimingContractResult {
       );
 }
 
+class ProfessionalSceneTimingContractIssueFormatter {
+  const ProfessionalSceneTimingContractIssueFormatter();
+
+  String formatSceneProgramIssues(
+    List<ReFusionSceneProgramIssue> issues, {
+    int maxIssues = 3,
+  }) {
+    final errors = issues
+        .where(
+          (issue) => issue.severity == ReFusionSceneProgramIssueSeverity.error,
+        )
+        .take(maxIssues)
+        .toList(growable: false);
+    if (errors.isEmpty) {
+      return '';
+    }
+    return errors.map(_formatSceneProgramIssue).join(' ');
+  }
+
+  String formatDirectorIssues(
+    List<ReFusionMotionDirectorIssue> issues, {
+    int maxIssues = 3,
+  }) {
+    final errors = issues
+        .where(
+          (issue) =>
+              issue.severity == ReFusionMotionDirectorIssueSeverity.error,
+        )
+        .take(maxIssues)
+        .toList(growable: false);
+    if (errors.isEmpty) {
+      return '';
+    }
+    return errors.map(_formatDirectorIssue).join(' ');
+  }
+
+  String _formatSceneProgramIssue(ReFusionSceneProgramIssue issue) {
+    final base = _withPath(issue.path, issue.message);
+    final hint = _sceneProgramFixHint(issue.message);
+    return hint == null ? base : '$base Fix: $hint';
+  }
+
+  String _formatDirectorIssue(ReFusionMotionDirectorIssue issue) {
+    final base = _withPath(issue.path, issue.message);
+    final hint = _directorFixHint(issue.message);
+    return hint == null ? base : '$base Fix: $hint';
+  }
+
+  String _withPath(String? path, String message) {
+    final normalizedPath = path?.trim();
+    if (normalizedPath == null || normalizedPath.isEmpty) {
+      return message;
+    }
+    return '$normalizedPath: $message';
+  }
+
+  String? _sceneProgramFixHint(String message) {
+    final normalized = _normalizeToken(message);
+    if (normalized.contains('duplicatesceneprogramchannel')) {
+      return 'merge all keyframes for the same target/property into one ordered channel; never emit a second channel for that property.';
+    }
+    if (normalized.contains('keyframetimemsmustbeinside')) {
+      return 'use layer-local timeMs from 0 to layer.durationMs, or extend the owning layer duration before placing that keyframe.';
+    }
+    if (normalized.contains('keyframesmustbesorted')) {
+      return 'sort keyframes by ascending timeMs before returning JSON.';
+    }
+    if (normalized.contains('lifetimemuststayinside')) {
+      return 'adjust layer startMs/durationMs or increase scene durationMs so the layer fits inside the scene.';
+    }
+    if (normalized.contains('musthavepositiveduration') ||
+        normalized.contains('durationmustbegreaterthanzero')) {
+      return 'use a positive duration and ensure end time is after start time.';
+    }
+    return null;
+  }
+
+  String? _directorFixHint(String message) {
+    final normalized = _normalizeToken(message);
+    if (normalized.contains('readablehold')) {
+      return 'add a readable hold beat after text reveal, reference the same component, and keep it at least 360ms.';
+    }
+    if (normalized.contains('endsatthesceneboundary')) {
+      return 'extend durationMs and add a hold after the reveal before the scene ends.';
+    }
+    if (normalized.contains('overlaponthesametargetproperty')) {
+      return 'model this property as one ordered primitive track, or split the overlap into different property groups.';
+    }
+    if (normalized.contains('muststayinside')) {
+      return 'keep every beat and primitive inside the scene duration and inside its owning beat.';
+    }
+    if (normalized.contains('runsbackward')) {
+      return 'typewriter values must progress forward from 0.0 toward 1.0.';
+    }
+    return null;
+  }
+
+  String _normalizeToken(String value) {
+    return value.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '');
+  }
+}
+
 class ProfessionalSceneTimingContractValidator {
   const ProfessionalSceneTimingContractValidator({
     this.policy = const ProfessionalSceneTimingContractPolicy(),

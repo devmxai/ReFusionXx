@@ -123,7 +123,10 @@ void main() {
         isA<KieSceneProgramAgentException>().having(
           (error) => error.message,
           'message',
-          contains('professional timing contract'),
+          allOf(
+            contains('professional timing contract'),
+            contains('Fix: merge all keyframes'),
+          ),
         ),
       ),
     );

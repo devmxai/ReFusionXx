@@ -30,6 +30,8 @@ class KieSceneProgramAgentService {
         const ReFusionSceneProgramImportService(),
     ProfessionalSceneTimingContractValidator timingContractValidator =
         const ProfessionalSceneTimingContractValidator(),
+    ProfessionalSceneTimingContractIssueFormatter timingIssueFormatter =
+        const ProfessionalSceneTimingContractIssueFormatter(),
     MethodChannel runtimeConfigChannel =
         const MethodChannel('com.refusion.app/runtime_config'),
   })  : _catalog = catalog,
@@ -39,6 +41,7 @@ class KieSceneProgramAgentService {
         _alignmentLinter = alignmentLinter,
         _sceneProgramImportService = sceneProgramImportService,
         _timingContractValidator = timingContractValidator,
+        _timingIssueFormatter = timingIssueFormatter,
         _runtimeConfigChannel = runtimeConfigChannel;
 
   static const String _apiKey = String.fromEnvironment('KIE_API_KEY');
@@ -50,6 +53,7 @@ class KieSceneProgramAgentService {
   final ReFusionMotionDirectorSceneProgramAlignmentLinter _alignmentLinter;
   final ReFusionSceneProgramImportService _sceneProgramImportService;
   final ProfessionalSceneTimingContractValidator _timingContractValidator;
+  final ProfessionalSceneTimingContractIssueFormatter _timingIssueFormatter;
   final MethodChannel _runtimeConfigChannel;
   String _runtimeApiKey = '';
   bool _attemptedRuntimeKeyLoad = false;
@@ -228,7 +232,7 @@ class KieSceneProgramAgentService {
         );
       }
       throw KieSceneProgramAgentException(
-        'Generated sceneProgram failed the professional timing contract: ${_sceneProgramIssueSummary(sceneProgramTimingIssues)}',
+        'Generated sceneProgram failed the professional timing contract: ${_timingIssueFormatter.formatSceneProgramIssues(sceneProgramTimingIssues)}',
       );
     }
     if (directorExtraction.plan != null) {
@@ -293,18 +297,6 @@ class KieSceneProgramAgentService {
         .toList(growable: false);
   }
 
-  String _sceneProgramIssueSummary(List<ReFusionSceneProgramIssue> issues) {
-    return issues
-        .where(
-          (issue) => issue.severity == ReFusionSceneProgramIssueSeverity.error,
-        )
-        .take(3)
-        .map((issue) => issue.path == null
-            ? issue.message
-            : '${issue.path}: ${issue.message}')
-        .join(' ');
-  }
-
   ReFusionSceneProgram _compileDirectorPlanToSceneProgram(
     ReFusionMotionDirectorPlan plan,
     List<ReFusionMotionDirectorIssue> directorIssues,
@@ -316,7 +308,7 @@ class KieSceneProgramAgentService {
     );
     if (hasErrors || compileResult.program == null) {
       throw KieSceneProgramAgentException(
-        'Generated directorPlan could not compile into Scene Program: ${_directorIssueSummary(directorIssues)}',
+        'Generated directorPlan could not compile into Scene Program: ${_timingIssueFormatter.formatDirectorIssues(directorIssues)}',
       );
     }
     return compileResult.program!;
@@ -445,7 +437,7 @@ class KieSceneProgramAgentService {
     );
     if (hasImportErrors || plan == null) {
       throw KieSceneProgramAgentException(
-        'Generated directorPlan failed validation: ${_directorIssueSummary(issues)}',
+        'Generated directorPlan failed validation: ${_timingIssueFormatter.formatDirectorIssues(issues)}',
       );
     }
     final lintResult = _directorLinter.lint(plan);
@@ -455,23 +447,10 @@ class KieSceneProgramAgentService {
     );
     if (hasErrors) {
       throw KieSceneProgramAgentException(
-        'Generated directorPlan failed validation: ${_directorIssueSummary(issues)}',
+        'Generated directorPlan failed validation: ${_timingIssueFormatter.formatDirectorIssues(issues)}',
       );
     }
     return _DirectorExtraction(plan: plan, issues: issues);
-  }
-
-  String _directorIssueSummary(List<ReFusionMotionDirectorIssue> issues) {
-    return issues
-        .where(
-          (issue) =>
-              issue.severity == ReFusionMotionDirectorIssueSeverity.error,
-        )
-        .take(3)
-        .map((issue) => issue.path == null
-            ? issue.message
-            : '${issue.path}: ${issue.message}')
-        .join(' ');
   }
 
   Object? _decodeJsonOrSse(String rawResponse) {

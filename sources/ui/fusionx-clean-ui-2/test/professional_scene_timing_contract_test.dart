@@ -5,6 +5,7 @@ import 'package:refusion_app/features/editor/domain/services/professional_scene_
 
 void main() {
   const validator = ProfessionalSceneTimingContractValidator();
+  const formatter = ProfessionalSceneTimingContractIssueFormatter();
 
   ReFusionMotionDirectorPlan plan({
     List<ReFusionMotionDirectorBeat>? beats,
@@ -302,5 +303,44 @@ void main() {
       ),
       isNotEmpty,
     );
+  });
+
+  test('formats Scene Program timing issues with repair hints', () {
+    final summary = formatter.formatSceneProgramIssues(
+      const <ReFusionSceneProgramIssue>[
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message:
+              'Duplicate Scene Program channel `opacity` targets `self`. Merge same-target/property motion into one ordered channel.',
+          path: 'layers[0].elements[0].channels[1]',
+        ),
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message:
+              'Keyframe `timeMs` must be inside the owning layer duration.',
+          path: 'layers[0].elements[0].channels[0].keyframes[2]',
+        ),
+      ],
+    );
+
+    expect(summary, contains('layers[0].elements[0].channels[1]'));
+    expect(summary, contains('Fix: merge all keyframes'));
+    expect(summary, contains('Fix: use layer-local timeMs'));
+  });
+
+  test('formats Director timing issues with repair hints', () {
+    final summary = formatter.formatDirectorIssues(
+      const <ReFusionMotionDirectorIssue>[
+        ReFusionMotionDirectorIssue(
+          severity: ReFusionMotionDirectorIssueSeverity.error,
+          message:
+              'Text component `title` must have an explicit readable hold beat of at least 360ms after reveal primitive `title-typewriter`.',
+          path: 'components.title',
+        ),
+      ],
+    );
+
+    expect(summary, contains('components.title'));
+    expect(summary, contains('Fix: add a readable hold beat'));
   });
 }
