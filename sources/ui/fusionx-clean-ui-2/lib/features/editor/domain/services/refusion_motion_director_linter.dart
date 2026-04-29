@@ -1,4 +1,5 @@
 import '../models/refusion_motion_director_models.dart';
+import 'professional_scene_timing_contract.dart';
 
 class ReFusionMotionDirectorLintResult {
   ReFusionMotionDirectorLintResult({
@@ -13,7 +14,12 @@ class ReFusionMotionDirectorLintResult {
 }
 
 class ReFusionMotionDirectorLinter {
-  const ReFusionMotionDirectorLinter();
+  const ReFusionMotionDirectorLinter({
+    ProfessionalSceneTimingContractValidator timingContractValidator =
+        const ProfessionalSceneTimingContractValidator(),
+  }) : _timingContractValidator = timingContractValidator;
+
+  final ProfessionalSceneTimingContractValidator _timingContractValidator;
 
   ReFusionMotionDirectorLintResult lint(ReFusionMotionDirectorPlan plan) {
     final issues = <ReFusionMotionDirectorIssue>[];
@@ -21,6 +27,7 @@ class ReFusionMotionDirectorLinter {
     _lintComponents(plan, issues);
     _lintBeats(plan, issues);
     _lintPrimitives(plan, issues);
+    issues.addAll(_timingContractValidator.validateDirectorPlan(plan).issues);
     return ReFusionMotionDirectorLintResult(issues: issues);
   }
 
