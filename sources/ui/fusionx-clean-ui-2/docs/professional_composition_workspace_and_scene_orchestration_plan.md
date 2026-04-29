@@ -474,6 +474,16 @@ Exit criteria:
 - no UI wiring,
 - no Stage5/Live Scrub changes.
 
+Implementation status:
+
+- `CompositionWorkspaceModel` is the domain source for root composition,
+  reusable source compositions, scene clip instances, active scope, and
+  selection.
+- `CompositionWorkspaceInsertionTargetResolver` defines the first strict
+  contracts for Scene/Add/selection edit intent resolution before UI wiring.
+- Guard tests cover root/source/local time mapping, scene clip modification
+  targets, layer insertion targets, and missing composition validation.
+
 ### Phase W2: Create Composition Startup Flow
 
 Deliverables:
