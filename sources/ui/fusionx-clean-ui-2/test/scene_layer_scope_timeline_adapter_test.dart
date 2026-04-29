@@ -35,6 +35,13 @@ void main() {
       localRange: range(0, 3000),
       name: 'Reveal Line',
     );
+    final imageElement = MotionElementModel(
+      id: 'image-element',
+      layerId: 'image-layer',
+      kind: MotionElementKind.image,
+      localRange: range(0, 3000),
+      name: 'Hero Image',
+    );
     return MotionProjectModel(
       id: 'project',
       format: const MotionProjectFormat(
@@ -66,6 +73,14 @@ void main() {
               visibleRange: range(500, 3500),
               elements: <MotionElementModel>[lineElement],
               name: 'Line Layer',
+            ),
+            MotionLayerModel(
+              id: 'image-layer',
+              sceneId: 'source',
+              kind: MotionLayerKind.image,
+              visibleRange: range(500, 3500),
+              elements: <MotionElementModel>[imageElement],
+              name: 'Image Layer',
             ),
           ],
         ),
@@ -178,6 +193,27 @@ void main() {
     expect(viewModel.track.placeholderLabel, 'Shape');
     expect(viewModel.localToRoot(ms(1000)).inMilliseconds, 3000);
     expect(viewModel.rootToLocal(ms(3000)).inMilliseconds, 1000);
+  });
+
+  test('preserves visual identity for image layers inside layer scope', () {
+    final result = adapter.viewModelForLayer(
+      project: project(),
+      sceneSession: sceneSession(),
+      layerId: 'image-layer',
+    );
+
+    expect(result.hasIssues, isFalse);
+    final viewModel = result.viewModel!;
+    expect(viewModel.track.kind, TimelineTrackKind.image);
+    expect(viewModel.track.contentKind, TimelineTrackContentKind.image);
+    expect(viewModel.track.visualKind, TimelineVisualKind.image);
+    expect(viewModel.track.placeholderLabel, 'Image');
+    expect(viewModel.track.clips.single.label, 'Image Layer');
+    expect(viewModel.track.clips.single.visualKind, TimelineVisualKind.image);
+    expect(
+      viewModel.track.clips.single.contentKind,
+      TimelineClipContentKind.placeholder,
+    );
   });
 
   test('reports a missing internal layer without producing tracks', () {

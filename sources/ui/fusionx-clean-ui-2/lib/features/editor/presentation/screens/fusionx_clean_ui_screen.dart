@@ -419,6 +419,31 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   ];
   static const List<AnimateBrowserItem> _scopedImageAnimateItems =
       _scopedLayerCoreAnimateItems;
+  static const List<AnimateBrowserItem> _scopedShapeAnimateItems =
+      <AnimateBrowserItem>[
+    ..._scopedLayerCoreAnimateItems,
+    AnimateBrowserItem(
+      id: 'shape.size',
+      label: 'Size',
+      category: 'Shape',
+      summary: 'Animate shape width and height from the timeline.',
+      keywords: <String>['width', 'height', 'size', 'morph'],
+    ),
+    AnimateBrowserItem(
+      id: 'shape.corner_radius',
+      label: 'Corner Radius',
+      category: 'Shape',
+      summary: 'Animate rounded corners for shape morphs.',
+      keywords: <String>['roundness', 'corner', 'radius'],
+    ),
+    AnimateBrowserItem(
+      id: 'shape.trim_path',
+      label: 'Trim Path',
+      category: 'Shape',
+      summary: 'Animate line reveal with trim start and end controls.',
+      keywords: <String>['line', 'trim', 'path', 'reveal'],
+    ),
+  ];
   static const List<AnimateBrowserItem> _scopedTextFxItems =
       <AnimateBrowserItem>[
     AnimateBrowserItem(
@@ -430,7 +455,32 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     ),
   ];
   static const List<AnimateBrowserItem> _scopedImageFxItems =
-      <AnimateBrowserItem>[];
+      <AnimateBrowserItem>[
+    AnimateBrowserItem(
+      id: 'gaussian_blur',
+      label: 'Gaussian Blur',
+      category: 'FX',
+      summary: 'Soften the selected image layer with keyframeable blur.',
+      keywords: <String>['blur', 'gaussian', 'soften', 'focus', 'defocus'],
+    ),
+  ];
+  static const List<AnimateBrowserItem> _scopedShapeFxItems =
+      <AnimateBrowserItem>[
+    AnimateBrowserItem(
+      id: 'gaussian_blur',
+      label: 'Gaussian Blur',
+      category: 'FX',
+      summary: 'Soften the selected shape layer with keyframeable blur.',
+      keywords: <String>['blur', 'gaussian', 'soften', 'focus', 'defocus'],
+    ),
+    AnimateBrowserItem(
+      id: 'shadow',
+      label: 'Soft Shadow',
+      category: 'FX',
+      summary: 'Animate soft shadow opacity, blur, and offset.',
+      keywords: <String>['shadow', 'depth', 'drop shadow', 'soft'],
+    ),
+  ];
 
   late final Stage5NativeTransportController _transportController;
   late final InMemoryLiveScrubPreviewSourceCatalog
@@ -4991,6 +5041,367 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     TimelineTime localTime,
   ) {
     _handleCompositionScopeScrubFinalized(viewModel.localToRoot(localTime));
+  }
+
+  List<AnimateBrowserItem> _sceneLayerScopeAnimateItemsForViewModel(
+    SceneLayerScopeTimelineViewModel viewModel,
+  ) {
+    return switch (viewModel.layer.kind) {
+      MotionLayerKind.text => _scopedTextAnimateItems,
+      MotionLayerKind.image => _scopedImageAnimateItems,
+      MotionLayerKind.shape => _scopedShapeAnimateItems,
+      MotionLayerKind.video ||
+      MotionLayerKind.audio ||
+      MotionLayerKind.camera ||
+      MotionLayerKind.effectControl =>
+        const <AnimateBrowserItem>[],
+    };
+  }
+
+  List<AnimateBrowserItem> _sceneLayerScopeFxItemsForViewModel(
+    SceneLayerScopeTimelineViewModel viewModel,
+  ) {
+    return switch (viewModel.layer.kind) {
+      MotionLayerKind.text => _scopedTextFxItems,
+      MotionLayerKind.image => _scopedImageFxItems,
+      MotionLayerKind.shape => _scopedShapeFxItems,
+      MotionLayerKind.video ||
+      MotionLayerKind.audio ||
+      MotionLayerKind.camera ||
+      MotionLayerKind.effectControl =>
+        const <AnimateBrowserItem>[],
+    };
+  }
+
+  Future<void> _handleSceneLayerScopeAnimateTap() async {
+    final viewModel = _activeSceneLayerScopeViewModel;
+    if (viewModel == null) {
+      _showStageMessage('Open a scene layer first.');
+      return;
+    }
+    final items = _sceneLayerScopeAnimateItemsForViewModel(viewModel);
+    if (items.isEmpty) {
+      _showStageMessage('Animate controls are not available for this layer.');
+      return;
+    }
+    final item = await _openSceneLayerScopePropertyBrowser(items);
+    if (item == null || !mounted) {
+      return;
+    }
+    _addSceneLayerScopePropertyChannels(viewModel, item);
+  }
+
+  Future<void> _handleSceneLayerScopeFxTap() async {
+    final viewModel = _activeSceneLayerScopeViewModel;
+    if (viewModel == null) {
+      _showStageMessage('Open a scene layer first.');
+      return;
+    }
+    final items = _sceneLayerScopeFxItemsForViewModel(viewModel);
+    if (items.isEmpty) {
+      _showStageMessage('FX controls are not available for this layer yet.');
+      return;
+    }
+    final item = await _openSceneLayerScopePropertyBrowser(items);
+    if (item == null || !mounted) {
+      return;
+    }
+    _addSceneLayerScopePropertyChannels(viewModel, item);
+  }
+
+  Future<AnimateBrowserItem?> _openSceneLayerScopePropertyBrowser(
+    List<AnimateBrowserItem> items,
+  ) async {
+    setState(() {
+      _isAnimateBrowserOpen = true;
+    });
+    return showModalBottomSheet<AnimateBrowserItem>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => ScopedLayerAnimateBottomSheet(
+        items: items,
+      ),
+    ).whenComplete(() {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isAnimateBrowserOpen = false;
+      });
+    });
+  }
+
+  void _addSceneLayerScopePropertyChannels(
+    SceneLayerScopeTimelineViewModel viewModel,
+    AnimateBrowserItem item,
+  ) {
+    final definitions =
+        _sceneLayerScopePropertyDefinitionsForItem(viewModel, item);
+    if (definitions.isEmpty) {
+      _showStageMessage('${item.label} is not supported in this scope yet.');
+      return;
+    }
+    final localTime = _sceneLayerScopeLocalTimeForProgress(
+      viewModel,
+      _sceneLayerScopeCurrentProgress(viewModel),
+    );
+    var nextChannels = viewModel.projection.channels;
+    String? selectedLaneId;
+    String? selectedKeyframeId;
+    int? selectedKeyframeIndex;
+
+    for (final definition in definitions) {
+      final target = _sceneLayerScopeTargetForDefinition(
+        viewModel: viewModel,
+        definition: definition,
+      );
+      if (target == null) {
+        _showStageMessage('${item.label} cannot target this layer yet.');
+        return;
+      }
+      final result = _layerScopeCompositionAdapter.addKeyframe(
+        LayerScopeCompositionKeyframeRequest(
+          projection: viewModel.projection,
+          channels: nextChannels,
+          target: target,
+          definition: definition,
+          localTime: localTime,
+          value: _sceneLayerScopeInitialValueForDefinition(
+            viewModel: viewModel,
+            target: target,
+            definition: definition,
+          ),
+        ),
+      );
+      if (result.hasIssues) {
+        _showStageMessage(result.issues.first.message);
+        return;
+      }
+      nextChannels = result.channels;
+      final channel = _sceneLayerScopeChannelForTargetDefinition(
+        channels: nextChannels,
+        target: target,
+        definition: definition,
+      );
+      selectedLaneId ??= channel?.id;
+      if (selectedKeyframeId == null && channel != null) {
+        final keyframeIndex = channel.keyframes.indexWhere(
+          (keyframe) =>
+              keyframe.time.inProjectTicks == localTime.inProjectTicks,
+        );
+        if (keyframeIndex >= 0) {
+          selectedKeyframeIndex = keyframeIndex;
+          selectedKeyframeId = channel.keyframes[keyframeIndex].id;
+        }
+      }
+    }
+
+    setState(() {
+      _manualMotionPropertyChannels = _mergeSceneLayerScopeChannels(
+        viewModel,
+        nextChannels,
+      );
+      _markMotionAuthoringChanged();
+      _selectedClipId = viewModel.layerId;
+      _selectedLayerScopeAnimationLaneId = selectedLaneId;
+      _selectedLayerScopeKeyframeId = selectedKeyframeId;
+      _selectedLayerScopeKeyframeIndex =
+          selectedKeyframeIndex == null || selectedKeyframeIndex < 0
+              ? null
+              : selectedKeyframeIndex;
+      _isLayerScopeValueEditorOpen = false;
+      _isLayerScopeGraphEditorOpen = false;
+    });
+  }
+
+  List<MotionPropertyDefinition> _sceneLayerScopePropertyDefinitionsForItem(
+    SceneLayerScopeTimelineViewModel viewModel,
+    AnimateBrowserItem item,
+  ) {
+    final definitions = switch (item.id) {
+      'opacity' => <MotionPropertyDefinition>[
+          MotionPropertyCatalog.opacity,
+        ],
+      'position' => <MotionPropertyDefinition>[
+          MotionPropertyCatalog.positionX,
+          MotionPropertyCatalog.positionY,
+        ],
+      'scale' => <MotionPropertyDefinition>[
+          MotionPropertyCatalog.scaleX,
+          MotionPropertyCatalog.scaleY,
+        ],
+      'rotation' => <MotionPropertyDefinition>[
+          MotionPropertyCatalog.rotationDegrees,
+        ],
+      'gaussian_blur' ||
+      'blur' ||
+      'text_effect.blur_in' ||
+      'text_effect.blur_out' ||
+      'text_effect.blur_rise_in' ||
+      'text_effect.slide_blur_in' =>
+        <MotionPropertyDefinition>[
+          MotionPropertyCatalog.blurAmount,
+        ],
+      'shape.size' => <MotionPropertyDefinition>[
+          MotionPropertyCatalog.width,
+          MotionPropertyCatalog.height,
+        ],
+      'shape.corner_radius' => <MotionPropertyDefinition>[
+          MotionPropertyCatalog.cornerRadius,
+        ],
+      'shape.trim_path' => <MotionPropertyDefinition>[
+          MotionPropertyCatalog.trimStart,
+          MotionPropertyCatalog.trimEnd,
+        ],
+      'shadow' => <MotionPropertyDefinition>[
+          MotionPropertyCatalog.shadowOpacity,
+          MotionPropertyCatalog.shadowBlur,
+          MotionPropertyCatalog.shadowOffsetY,
+        ],
+      'text_effect.tracking_settle' => <MotionPropertyDefinition>[
+          MotionPropertyCatalog.letterSpacing,
+        ],
+      _ when item.id.startsWith('text_effect.') => <MotionPropertyDefinition>[
+          MotionPropertyCatalog.revealProgress,
+        ],
+      _ => const <MotionPropertyDefinition>[],
+    };
+    return definitions
+        .where((definition) => _sceneLayerScopeSupportsDefinition(
+              viewModel: viewModel,
+              definition: definition,
+            ))
+        .toList(growable: false);
+  }
+
+  bool _sceneLayerScopeSupportsDefinition({
+    required SceneLayerScopeTimelineViewModel viewModel,
+    required MotionPropertyDefinition definition,
+  }) {
+    final primaryElement = _sceneLayerScopePrimaryElement(viewModel);
+    final elementKind = primaryElement?.kind;
+    final isSharedVisual = definition == MotionPropertyCatalog.positionX ||
+        definition == MotionPropertyCatalog.positionY ||
+        definition == MotionPropertyCatalog.scaleX ||
+        definition == MotionPropertyCatalog.scaleY ||
+        definition == MotionPropertyCatalog.rotationDegrees ||
+        definition == MotionPropertyCatalog.opacity ||
+        definition == MotionPropertyCatalog.blurAmount;
+    if (elementKind == MotionElementKind.text) {
+      return isSharedVisual ||
+          definition == MotionPropertyCatalog.revealProgress ||
+          definition == MotionPropertyCatalog.letterSpacing;
+    }
+    if (elementKind == MotionElementKind.image) {
+      return isSharedVisual;
+    }
+    if (elementKind == MotionElementKind.shape) {
+      return isSharedVisual ||
+          definition == MotionPropertyCatalog.width ||
+          definition == MotionPropertyCatalog.height ||
+          definition == MotionPropertyCatalog.cornerRadius ||
+          definition == MotionPropertyCatalog.trimStart ||
+          definition == MotionPropertyCatalog.trimEnd ||
+          definition == MotionPropertyCatalog.shadowOpacity ||
+          definition == MotionPropertyCatalog.shadowBlur ||
+          definition == MotionPropertyCatalog.shadowOffsetY;
+    }
+    return definition.supportedTargets.contains(MotionTargetKind.layer);
+  }
+
+  MotionElementModel? _sceneLayerScopePrimaryElement(
+    SceneLayerScopeTimelineViewModel viewModel,
+  ) {
+    final preferredKind = switch (viewModel.layer.kind) {
+      MotionLayerKind.text => MotionElementKind.text,
+      MotionLayerKind.image => MotionElementKind.image,
+      MotionLayerKind.shape => MotionElementKind.shape,
+      MotionLayerKind.video => MotionElementKind.videoClip,
+      MotionLayerKind.audio => MotionElementKind.audioClip,
+      MotionLayerKind.camera => MotionElementKind.camera,
+      MotionLayerKind.effectControl => MotionElementKind.effectControl,
+    };
+    for (final element in viewModel.layer.elements) {
+      if (element.kind == preferredKind) {
+        return element;
+      }
+    }
+    return viewModel.layer.elements.isEmpty
+        ? null
+        : viewModel.layer.elements.first;
+  }
+
+  MotionPropertyTarget? _sceneLayerScopeTargetForDefinition({
+    required SceneLayerScopeTimelineViewModel viewModel,
+    required MotionPropertyDefinition definition,
+  }) {
+    final element = _sceneLayerScopePrimaryElement(viewModel);
+    if (element != null &&
+        definition.supportedTargets.contains(MotionTargetKind.element)) {
+      return MotionPropertyTarget(
+        kind: MotionTargetKind.element,
+        targetId: element.id,
+        projectId: _effectiveMotionProject.id,
+        sceneId: viewModel.sourceSceneId,
+        layerId: viewModel.layerId,
+        elementId: element.id,
+      );
+    }
+    if (definition.supportedTargets.contains(MotionTargetKind.layer)) {
+      return MotionPropertyTarget(
+        kind: MotionTargetKind.layer,
+        targetId: viewModel.layerId,
+        projectId: _effectiveMotionProject.id,
+        sceneId: viewModel.sourceSceneId,
+        layerId: viewModel.layerId,
+      );
+    }
+    return null;
+  }
+
+  MotionPropertyValue _sceneLayerScopeInitialValueForDefinition({
+    required SceneLayerScopeTimelineViewModel viewModel,
+    required MotionPropertyTarget target,
+    required MotionPropertyDefinition definition,
+  }) {
+    if (target.kind == MotionTargetKind.element) {
+      for (final element in viewModel.layer.elements) {
+        if (element.id != target.targetId) {
+          continue;
+        }
+        for (final property in element.properties) {
+          if (property.definition.id == definition.id &&
+              property.value.kind == definition.valueKind) {
+            return property.value;
+          }
+        }
+      }
+    }
+    for (final property in viewModel.layer.properties) {
+      if (property.definition.id == definition.id &&
+          property.value.kind == definition.valueKind) {
+        return property.value;
+      }
+    }
+    return definition.defaultValue;
+  }
+
+  MotionPropertyChannelModel? _sceneLayerScopeChannelForTargetDefinition({
+    required List<MotionPropertyChannelModel> channels,
+    required MotionPropertyTarget target,
+    required MotionPropertyDefinition definition,
+  }) {
+    for (final channel in channels) {
+      if (channel.definition.id == definition.id &&
+          channel.target.kind == target.kind &&
+          channel.target.targetId == target.targetId &&
+          channel.target.layerId == target.layerId &&
+          channel.target.elementId == target.elementId) {
+        return channel;
+      }
+    }
+    return null;
   }
 
   void _handleSceneLayerScopeAnimationLaneTap(
@@ -17880,6 +18291,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final isSceneLayerScopeActive = sceneLayerScopeViewModel != null;
     final canAddSceneLayerScopeKeyframe = sceneLayerScopeViewModel != null &&
         _sceneLayerScopeSelectedAnimationLane(sceneLayerScopeViewModel) != null;
+    final canOpenSceneLayerScopeAnimate = sceneLayerScopeViewModel != null &&
+        _sceneLayerScopeAnimateItemsForViewModel(sceneLayerScopeViewModel)
+            .isNotEmpty;
+    final canOpenSceneLayerScopeFx = sceneLayerScopeViewModel != null &&
+        _sceneLayerScopeFxItemsForViewModel(sceneLayerScopeViewModel)
+            .isNotEmpty;
     final canOpenSceneLayerScopeValueEditor =
         _canOpenSceneLayerScopeValueEditor(sceneLayerScopeViewModel);
     final canMoveSceneLayerScopeSelectedKeyframe =
@@ -18813,6 +19230,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                         ? isSceneLayerScopeActive
                                             ? LayerScopeKeyframeDock(
                                                 addEnabled: false,
+                                                showAddButton: false,
+                                                showAnimateButton: true,
+                                                showFxButton: true,
+                                                animateEnabled:
+                                                    canOpenSceneLayerScopeAnimate,
+                                                fxEnabled:
+                                                    canOpenSceneLayerScopeFx,
                                                 keyframeEnabled:
                                                     canAddSceneLayerScopeKeyframe,
                                                 valueEnabled:
@@ -18826,6 +19250,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                     _isLayerScopeGraphEditorOpen &&
                                                         canOpenSceneLayerScopeGraphEditor,
                                                 onAddTap: null,
+                                                onAnimateTap:
+                                                    canOpenSceneLayerScopeAnimate
+                                                        ? _handleSceneLayerScopeAnimateTap
+                                                        : null,
+                                                onFxTap: canOpenSceneLayerScopeFx
+                                                    ? _handleSceneLayerScopeFxTap
+                                                    : null,
+                                                fxLabel: 'Effects',
                                                 onAddKeyframeTap:
                                                     canAddSceneLayerScopeKeyframe
                                                         ? _handleSceneLayerScopeAddKeyframe

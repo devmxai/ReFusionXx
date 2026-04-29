@@ -16,6 +16,17 @@ class LayerScopeKeyframeDock extends StatelessWidget {
     required this.onValueTap,
     required this.onGraphTap,
     this.embedded = false,
+    this.showAddButton = true,
+    this.showAnimateButton = false,
+    this.showFxButton = false,
+    this.animateEnabled = false,
+    this.fxEnabled = false,
+    this.onAnimateTap,
+    this.onFxTap,
+    this.animateLabel = 'Animate',
+    this.fxLabel = 'FX',
+    this.animateIcon = Icons.auto_awesome_motion_rounded,
+    this.fxIcon = Icons.auto_fix_high_rounded,
     this.addLabel = 'Add',
     this.addIcon = Icons.add_rounded,
   });
@@ -31,6 +42,17 @@ class LayerScopeKeyframeDock extends StatelessWidget {
   final VoidCallback? onValueTap;
   final VoidCallback? onGraphTap;
   final bool embedded;
+  final bool showAddButton;
+  final bool showAnimateButton;
+  final bool showFxButton;
+  final bool animateEnabled;
+  final bool fxEnabled;
+  final VoidCallback? onAnimateTap;
+  final VoidCallback? onFxTap;
+  final String animateLabel;
+  final String fxLabel;
+  final IconData animateIcon;
+  final IconData fxIcon;
   final String addLabel;
   final IconData addIcon;
 
@@ -47,14 +69,33 @@ class LayerScopeKeyframeDock extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Expanded(
-            child: _LayerScopeDockButton(
-              icon: addIcon,
-              label: addLabel,
-              isActive: false,
-              onTap: addEnabled ? onAddTap : null,
+          if (showAnimateButton)
+            Expanded(
+              child: _LayerScopeDockButton(
+                icon: animateIcon,
+                label: animateLabel,
+                isActive: false,
+                onTap: animateEnabled ? onAnimateTap : null,
+              ),
             ),
-          ),
+          if (showFxButton)
+            Expanded(
+              child: _LayerScopeDockButton(
+                icon: fxIcon,
+                label: fxLabel,
+                isActive: false,
+                onTap: fxEnabled ? onFxTap : null,
+              ),
+            ),
+          if (showAddButton)
+            Expanded(
+              child: _LayerScopeDockButton(
+                icon: addIcon,
+                label: addLabel,
+                isActive: false,
+                onTap: addEnabled ? onAddTap : null,
+              ),
+            ),
           Expanded(
             child: _LayerScopeDockButton(
               icon: Icons.add_circle_outline_rounded,

@@ -173,12 +173,12 @@ class SceneLayerScopeTimelineAdapter {
       sourceStartTime: TimelineTime.zero,
       sourceDurationTime: duration,
       label: _layerLabel(layer),
-      contentKind: TimelineClipContentKind.scene,
-      sourceSceneId: sceneSession.sourceSceneId,
+      visualKind: _visualKindForLayer(layer),
     );
     final track = TimelineTrackData(
       kind: _trackKindForLayer(layer),
-      contentKind: TimelineTrackContentKind.scene,
+      contentKind: _trackContentKindForLayer(layer),
+      visualKind: _visualKindForLayer(layer),
       placeholderLabel: _layerKindLabel(layer.kind),
       clips: <TimelineClipData>[clip],
       animationLanes: lanes,
@@ -318,6 +318,31 @@ class SceneLayerScopeTimelineAdapter {
       MotionLayerKind.camera ||
       MotionLayerKind.effectControl =>
         TimelineTrackKind.text,
+    };
+  }
+
+  TimelineTrackContentKind _trackContentKindForLayer(MotionLayerModel layer) {
+    return switch (layer.kind) {
+      MotionLayerKind.image => TimelineTrackContentKind.image,
+      MotionLayerKind.video => TimelineTrackContentKind.video,
+      MotionLayerKind.audio => TimelineTrackContentKind.audio,
+      MotionLayerKind.text ||
+      MotionLayerKind.shape ||
+      MotionLayerKind.camera ||
+      MotionLayerKind.effectControl =>
+        TimelineTrackContentKind.text,
+    };
+  }
+
+  TimelineVisualKind _visualKindForLayer(MotionLayerModel layer) {
+    return switch (layer.kind) {
+      MotionLayerKind.video => TimelineVisualKind.video,
+      MotionLayerKind.image => TimelineVisualKind.image,
+      MotionLayerKind.text => TimelineVisualKind.text,
+      MotionLayerKind.shape => TimelineVisualKind.shape,
+      MotionLayerKind.audio => TimelineVisualKind.audio,
+      MotionLayerKind.camera => TimelineVisualKind.camera,
+      MotionLayerKind.effectControl => TimelineVisualKind.control,
     };
   }
 
