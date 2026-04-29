@@ -5653,6 +5653,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return;
     }
     final controls = _sceneLayerScopeValueControlsForSelection(
+      viewModel: viewModel,
       channel: channel,
       lane: lane,
       keyframeIndex: resolvedKeyframeIndex,
@@ -5696,6 +5697,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   List<LayerScopeValueControlSpec> _sceneLayerScopeValueControlsForSelection({
+    required SceneLayerScopeTimelineViewModel viewModel,
     required MotionPropertyChannelModel channel,
     required TimelineAnimationLaneData lane,
     required int keyframeIndex,
@@ -5703,37 +5705,171 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (keyframeIndex < 0 || keyframeIndex >= channel.keyframes.length) {
       return const <LayerScopeValueControlSpec>[];
     }
-    final rawValue = _sceneLayerScopeDoubleFromValue(
-      channel.keyframes[keyframeIndex].value,
+    final selectedTime = channel.keyframes[keyframeIndex].time;
+    final controls = <LayerScopeValueControlSpec>[];
+    final editableChannels = _sceneLayerScopeValueChannelsForSelection(
+      viewModel: viewModel,
+      selectedChannel: channel,
     );
-    if (rawValue == null) {
-      return const <LayerScopeValueControlSpec>[];
-    }
-    final displayValue = _sceneLayerScopeDisplayValueForChannel(
-      channel: channel,
-      rawValue: rawValue,
-    );
-    final min = _sceneLayerScopeValueMin(channel);
-    final max = _sceneLayerScopeValueMax(channel);
-    return <LayerScopeValueControlSpec>[
-      LayerScopeValueControlSpec(
-        id: channel.id,
-        label: lane.label,
-        value: displayValue.clamp(min, max).toDouble(),
-        min: min,
-        max: max,
-        divisions: _sceneLayerScopeValueDivisions(channel),
-        formatValue: (value) => _formatSceneLayerScopeValue(
-          channel: channel,
-          value: value,
+    for (final editableChannel in editableChannels) {
+      final editableKeyframeIndex =
+          editableChannel.keyframes.indexWhere((keyframe) {
+        return keyframe.time.inProjectTicks == selectedTime.inProjectTicks;
+      });
+      if (editableKeyframeIndex < 0) {
+        continue;
+      }
+      final keyframe = editableChannel.keyframes[editableKeyframeIndex];
+      final rawValue = _sceneLayerScopeDoubleFromValue(keyframe.value);
+      if (rawValue == null) {
+        continue;
+      }
+      final displayValue = _sceneLayerScopeDisplayValueForChannel(
+        channel: editableChannel,
+        rawValue: rawValue,
+      );
+      final min = _sceneLayerScopeValueMin(editableChannel);
+      final max = _sceneLayerScopeValueMax(editableChannel);
+      controls.add(
+        LayerScopeValueControlSpec(
+          id: _sceneLayerScopeValueControlId(
+            channelId: editableChannel.id,
+            keyframeId: keyframe.id,
+          ),
+          label: _sceneLayerScopeValueLabelForChannel(
+            selectedLane: lane,
+            channel: editableChannel,
+          ),
+          value: displayValue.clamp(min, max).toDouble(),
+          min: min,
+          max: max,
+          divisions: _sceneLayerScopeValueDivisions(editableChannel),
+          formatValue: (value) => _formatSceneLayerScopeValue(
+            channel: editableChannel,
+            value: value,
+          ),
+          options: _sceneLayerScopeValueOptions(editableChannel),
         ),
-        options: _sceneLayerScopeValueOptions(channel),
-      ),
+      );
+    }
+    return List<LayerScopeValueControlSpec>.unmodifiable(controls);
+  }
+
+  List<MotionPropertyChannelModel> _sceneLayerScopeValueChannelsForSelection({
+    required SceneLayerScopeTimelineViewModel viewModel,
+    required MotionPropertyChannelModel selectedChannel,
+  }) {
+    final pairedDefinitions = _sceneLayerScopePairedValueDefinitions(
+      selectedChannel.definition,
+    );
+    if (pairedDefinitions.length <= 1) {
+      return <MotionPropertyChannelModel>[selectedChannel];
+    }
+    final channels = <MotionPropertyChannelModel>[];
+    for (final definition in pairedDefinitions) {
+      final channel = _sceneLayerScopeChannelForTargetDefinition(
+        channels: viewModel.projection.channels,
+        target: selectedChannel.target,
+        definition: definition,
+      );
+      if (channel == null ||
+          !_sceneLayerScopeChannelSupportsValueEditor(channel)) {
+        continue;
+      }
+      channels.add(channel);
+    }
+    if (channels.isEmpty) {
+      return <MotionPropertyChannelModel>[selectedChannel];
+    }
+    return List<MotionPropertyChannelModel>.unmodifiable(channels);
+  }
+
+  List<MotionPropertyDefinition> _sceneLayerScopePairedValueDefinitions(
+    MotionPropertyDefinition definition,
+  ) {
+    final propertyId = definition.id;
+    if (propertyId == MotionPropertyCatalog.positionX.id ||
+        propertyId == MotionPropertyCatalog.positionY.id) {
+      return <MotionPropertyDefinition>[
+        MotionPropertyCatalog.positionX,
+        MotionPropertyCatalog.positionY,
+      ];
+    }
+    if (propertyId == MotionPropertyCatalog.scaleX.id ||
+        propertyId == MotionPropertyCatalog.scaleY.id) {
+      return <MotionPropertyDefinition>[
+        MotionPropertyCatalog.scaleX,
+        MotionPropertyCatalog.scaleY,
+      ];
+    }
+    if (propertyId == MotionPropertyCatalog.width.id ||
+        propertyId == MotionPropertyCatalog.height.id) {
+      return <MotionPropertyDefinition>[
+        MotionPropertyCatalog.width,
+        MotionPropertyCatalog.height,
+      ];
+    }
+    return <MotionPropertyDefinition>[
+      definition,
     ];
   }
 
+  static const String _sceneLayerScopeValueControlIdSeparator = '::kf::';
+
+  String _sceneLayerScopeValueControlId({
+    required String channelId,
+    required String keyframeId,
+  }) {
+    return '$channelId$_sceneLayerScopeValueControlIdSeparator$keyframeId';
+  }
+
+  String _sceneLayerScopeValueControlChannelId(String controlId) {
+    final separatorIndex =
+        controlId.indexOf(_sceneLayerScopeValueControlIdSeparator);
+    return separatorIndex < 0
+        ? controlId
+        : controlId.substring(0, separatorIndex);
+  }
+
+  String? _sceneLayerScopeValueControlKeyframeId(String controlId) {
+    final separatorIndex =
+        controlId.indexOf(_sceneLayerScopeValueControlIdSeparator);
+    if (separatorIndex < 0) {
+      return null;
+    }
+    return controlId.substring(
+      separatorIndex + _sceneLayerScopeValueControlIdSeparator.length,
+    );
+  }
+
+  String _sceneLayerScopeValueLabelForChannel({
+    required TimelineAnimationLaneData selectedLane,
+    required MotionPropertyChannelModel channel,
+  }) {
+    final propertyId = channel.definition.id;
+    if (propertyId == MotionPropertyCatalog.positionX.id) {
+      return 'Position X';
+    }
+    if (propertyId == MotionPropertyCatalog.positionY.id) {
+      return 'Position Y';
+    }
+    if (propertyId == MotionPropertyCatalog.scaleX.id) {
+      return 'Scale X';
+    }
+    if (propertyId == MotionPropertyCatalog.scaleY.id) {
+      return 'Scale Y';
+    }
+    if (propertyId == MotionPropertyCatalog.width.id) {
+      return 'Width';
+    }
+    if (propertyId == MotionPropertyCatalog.height.id) {
+      return 'Height';
+    }
+    return selectedLane.label;
+  }
+
   void _handleSceneLayerScopeValueChanged(
-    String channelId,
+    String controlId,
     double displayValue,
   ) {
     final viewModel = _activeSceneLayerScopeViewModel;
@@ -5741,19 +5877,30 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return;
     }
     final lane = _sceneLayerScopeSelectedAnimationLane(viewModel);
-    final channel =
+    final selectedChannel =
         lane == null ? null : _sceneLayerScopeChannelForLane(viewModel, lane);
+    final channelId = _sceneLayerScopeValueControlChannelId(controlId);
+    final channel = _channelById(viewModel.projection.channels, channelId);
     final keyframeIndex = _selectedLayerScopeKeyframeIndex;
     if (lane == null ||
+        selectedChannel == null ||
         channel == null ||
         keyframeIndex == null ||
-        channel.id != channelId ||
         keyframeIndex < 0 ||
-        keyframeIndex >= channel.keyframes.length) {
+        keyframeIndex >= selectedChannel.keyframes.length) {
       return;
     }
-    final keyframeId =
-        _selectedLayerScopeKeyframeId ?? channel.keyframes[keyframeIndex].id;
+    final keyframeId = _sceneLayerScopeValueControlKeyframeId(controlId) ??
+        _selectedLayerScopeKeyframeId ??
+        (keyframeIndex < channel.keyframes.length
+            ? channel.keyframes[keyframeIndex].id
+            : null);
+    if (keyframeId == null) {
+      return;
+    }
+    if (!channel.keyframes.any((keyframe) => keyframe.id == keyframeId)) {
+      return;
+    }
     final rawValue = _sceneLayerScopeRawValueForDisplay(
       channel: channel,
       displayValue: displayValue,
@@ -5770,10 +5917,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _showStageMessage(result.issues.first.message);
       return;
     }
-    final editedChannel = _channelById(result.channels, channel.id);
-    final nextSelectedIndex = editedChannel?.keyframes.indexWhere(
-      (keyframe) => keyframe.id == keyframeId,
-    );
+    final selectedKeyframeId = _selectedLayerScopeKeyframeId ??
+        _layerScopeKeyframeIdAt(lane, keyframeIndex);
+    final nextSelectedChannel =
+        _channelById(result.channels, selectedChannel.id);
+    final nextSelectedIndex = selectedKeyframeId == null
+        ? null
+        : nextSelectedChannel?.keyframes.indexWhere(
+            (keyframe) => keyframe.id == selectedKeyframeId,
+          );
     setState(() {
       _manualMotionPropertyChannels = _mergeSceneLayerScopeChannels(
         viewModel,
@@ -5785,7 +5937,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           nextSelectedIndex == null || nextSelectedIndex < 0
               ? keyframeIndex
               : nextSelectedIndex;
-      _selectedLayerScopeKeyframeId = keyframeId;
+      _selectedLayerScopeKeyframeId = selectedKeyframeId;
     });
   }
 
