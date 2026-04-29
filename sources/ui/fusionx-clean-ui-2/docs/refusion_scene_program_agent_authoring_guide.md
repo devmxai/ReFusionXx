@@ -241,6 +241,13 @@ For shape and icon elements:
 - `width`
 - `height`
 - `cornerRadius`
+- `shadowOpacity`: `0..1`, shape/icon only
+- `shadowBlur`: blur radius in canvas pixels, shape/icon only
+- `shadowOffset`: `{ "x": 0, "y": 18 }`, shape/icon only
+- `shadowOffsetX`
+- `shadowOffsetY`
+- `shadowSpread`: spread radius in canvas pixels, shape/icon only
+- `shadowColor`: `"#RRGGBB"` or `"#AARRGGBB"`, shape/icon only
 - `icon` for `kind: "icon"`
 
 Accepted aliases for agent convenience:
@@ -248,6 +255,9 @@ Accepted aliases for agent convenience:
 - `backgroundColor`, `bgColor`, `fillColor` -> `color`
 - `size`, `iconSize`, `shapeSize` -> `width` + `height`
 - `radius`, `borderRadius` -> `cornerRadius`
+- `softShadowOpacity`, `dropShadowOpacity` -> `shadowOpacity`
+- `softShadowBlur`, `dropShadowBlur` -> `shadowBlur`
+- `softShadowOffset`, `dropShadowOffset` -> `shadowOffset`
 
 For text elements:
 
@@ -268,6 +278,18 @@ For text elements:
 - `reveal`: `0..1`
 
 Use a consistent typography block for words that belong to the same title.
+
+Soft shadow status:
+
+- preview: supported for shape/icon elements;
+- Layer Scope: scalar shadow controls are editable for shapes;
+- export: still treated as authored-visual export parity work until the native
+  shape compositor consumes the same shadow contract.
+
+Use shadow as a reusable depth tool for UI cards, buttons, and floating shapes.
+Do not fake a shadow by drawing a separate blurred ellipse unless the scene is
+intentionally building a stylized graphic layer that should remain separately
+editable.
 For example, do not make `Welcome` huge, `to` tiny, and `Codex` heavy unless
 the user explicitly asked for that contrast. Vary the motion, not the basic
 typographic system.

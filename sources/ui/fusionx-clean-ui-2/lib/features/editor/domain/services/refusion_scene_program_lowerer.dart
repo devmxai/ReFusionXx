@@ -570,6 +570,12 @@ class ReFusionSceneProgramLowerer {
           MotionPropertyCatalog.opacity.id,
           MotionPropertyCatalog.blurAmount.id,
           _SceneProgramPropertyDefinitions.color.id,
+          MotionPropertyCatalog.shadowOpacity.id,
+          MotionPropertyCatalog.shadowBlur.id,
+          MotionPropertyCatalog.shadowOffsetX.id,
+          MotionPropertyCatalog.shadowOffsetY.id,
+          MotionPropertyCatalog.shadowSpread.id,
+          MotionPropertyCatalog.shadowColor.id,
           MotionPropertyCatalog.width.id,
           MotionPropertyCatalog.height.id,
           MotionPropertyCatalog.cornerRadius.id,
@@ -584,6 +590,12 @@ class ReFusionSceneProgramLowerer {
           MotionPropertyCatalog.opacity.id,
           MotionPropertyCatalog.blurAmount.id,
           _SceneProgramPropertyDefinitions.color.id,
+          MotionPropertyCatalog.shadowOpacity.id,
+          MotionPropertyCatalog.shadowBlur.id,
+          MotionPropertyCatalog.shadowOffsetX.id,
+          MotionPropertyCatalog.shadowOffsetY.id,
+          MotionPropertyCatalog.shadowSpread.id,
+          MotionPropertyCatalog.shadowColor.id,
           MotionPropertyCatalog.width.id,
           MotionPropertyCatalog.height.id,
           MotionPropertyCatalog.cornerRadius.id,
@@ -672,6 +684,61 @@ class ReFusionSceneProgramLowerer {
       'visualbluramount' =>
         <_LoweredProperty>[
           _LoweredProperty(definition: MotionPropertyCatalog.blurAmount),
+        ],
+      'shadowopacity' ||
+      'softshadowopacity' ||
+      'dropshadowopacity' =>
+        <_LoweredProperty>[
+          _LoweredProperty(definition: MotionPropertyCatalog.shadowOpacity),
+        ],
+      'shadowblur' ||
+      'softshadowblur' ||
+      'dropshadowblur' =>
+        <_LoweredProperty>[
+          _LoweredProperty(definition: MotionPropertyCatalog.shadowBlur),
+        ],
+      'shadowoffset' ||
+      'softshadowoffset' ||
+      'dropshadowoffset' =>
+        <_LoweredProperty>[
+          _LoweredProperty(
+            definition: MotionPropertyCatalog.shadowOffsetX,
+            component: _VectorComponent.x,
+          ),
+          _LoweredProperty(
+            definition: MotionPropertyCatalog.shadowOffsetY,
+            component: _VectorComponent.y,
+          ),
+        ],
+      'shadowoffsetx' ||
+      'softshadowoffsetx' ||
+      'dropshadowoffsetx' =>
+        <_LoweredProperty>[
+          _LoweredProperty(
+            definition: MotionPropertyCatalog.shadowOffsetX,
+            component: _VectorComponent.x,
+          ),
+        ],
+      'shadowoffsety' ||
+      'softshadowoffsety' ||
+      'dropshadowoffsety' =>
+        <_LoweredProperty>[
+          _LoweredProperty(
+            definition: MotionPropertyCatalog.shadowOffsetY,
+            component: _VectorComponent.y,
+          ),
+        ],
+      'shadowspread' ||
+      'softshadowspread' ||
+      'dropshadowspread' =>
+        <_LoweredProperty>[
+          _LoweredProperty(definition: MotionPropertyCatalog.shadowSpread),
+        ],
+      'shadowcolor' ||
+      'softshadowcolor' ||
+      'dropshadowcolor' =>
+        <_LoweredProperty>[
+          _LoweredProperty(definition: MotionPropertyCatalog.shadowColor),
         ],
       'color' ||
       'fill' ||

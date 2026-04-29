@@ -238,13 +238,61 @@ Current intakes:
 
 - `docs/tutorial_intakes/design_reveal_tutorial_001.md`: extracts the first
   design-title reveal tutorial into reusable capabilities such as
-  `effects.gradientRamp`, `mask.movingReveal`, `effects.softShadow`,
-  `shape.morphCircleRect`, `text.rangeSelector`, and `choreography.snappyEase`.
+  `mask.movingReveal`, `shape.morphCircleRect`, `effects.softShadow`, and
+  `choreography.leaderFollower`, plus planned capabilities such as
+  `effects.gradientRamp`, `text.rangeSelector`, and `choreography.snappyEase`.
   The Present demo `Design Reveal Study` is an approximation built only from
   already-supported Scene Program capabilities, so the gap between current
   engine support and full After Effects-style parity remains explicit.
 
-## 9. Non-Negotiable Safety
+## 9. Capability Status Notes
+
+### `effects.softShadow`
+
+Category: Effects
+
+Professional name: Soft Shadow / Drop Shadow
+
+Supported targets: shape and icon Scene Program elements
+
+Scene Program properties:
+
+```text
+shadowOpacity
+shadowBlur
+shadowOffset / shadowOffsetX / shadowOffsetY
+shadowSpread
+shadowColor
+```
+
+Aliases:
+
+```text
+softShadowOpacity, dropShadowOpacity
+softShadowBlur, dropShadowBlur
+softShadowOffset, dropShadowOffset
+softShadowColor, dropShadowColor
+```
+
+Status:
+
+```text
+implemented-domain: yes
+editableInScope: scalar controls for shapes
+previewSupport: shape/icon preview
+exportSupport: blocked until authored visual native compositor parity
+```
+
+Rules:
+
+- use shadow for reusable UI depth, not tutorial-specific fake ellipses;
+- shadow timing must follow the same enter/hold/exit choreography as the owning
+  component;
+- do not describe text shadows as supported yet;
+- if a scene needs export-perfect shadows, mark the current export limitation
+  instead of pretending parity is complete.
+
+## 10. Non-Negotiable Safety
 
 This plan does not modify Live Scrub directly.
 

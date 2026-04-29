@@ -160,6 +160,11 @@ void main() {
         MotionPropertyCatalog.width.id,
         MotionPropertyCatalog.height.id,
         MotionPropertyCatalog.cornerRadius.id,
+        MotionPropertyCatalog.shadowOpacity.id,
+        MotionPropertyCatalog.shadowBlur.id,
+        MotionPropertyCatalog.shadowOffsetX.id,
+        MotionPropertyCatalog.shadowOffsetY.id,
+        MotionPropertyCatalog.shadowSpread.id,
       ]),
     );
 

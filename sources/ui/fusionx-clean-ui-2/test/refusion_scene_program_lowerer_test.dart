@@ -286,6 +286,87 @@ void main() {
     expect(render.nodes.single.textAlignment, 'left');
   });
 
+  test('lowers soft shadow controls as editable shape properties', () {
+    final importResult = importService.validate(
+      source: '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "name": "Soft Shadow Card",
+  "durationMs": 1800,
+  "frameRate": 30,
+  "layers": [
+    {
+      "id": "card-layer",
+      "kind": "shape",
+      "startMs": 0,
+      "durationMs": 1800,
+      "elements": [
+        {
+          "id": "card",
+          "kind": "shape",
+          "properties": {
+            "shapeKind": "roundedRectangle",
+            "width": 720,
+            "height": 180,
+            "cornerRadius": 48,
+            "color": "#FFFFFF",
+            "shadowOpacity": 0.24,
+            "shadowBlur": 42,
+            "shadowOffset": { "x": 0, "y": 26 },
+            "shadowSpread": 4,
+            "shadowColor": "#55111111"
+          },
+          "channels": [
+            {
+              "property": "shadowOpacity",
+              "keyframes": [
+                { "timeMs": 0, "value": 0.0, "easing": "linear" },
+                { "timeMs": 420, "value": 0.24, "easing": "easeOutCubic" }
+              ]
+            },
+            {
+              "property": "shadowOffsetY",
+              "keyframes": [
+                { "timeMs": 0, "value": 8, "easing": "linear" },
+                { "timeMs": 420, "value": 26, "easing": "easeOutCubic" }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+''',
+    );
+    expect(importResult.isValid, isTrue);
+
+    final result = lowerer.lower(
+      ReFusionSceneProgramLoweringRequest(program: importResult.program!),
+    );
+    expect(result.hasErrors, isFalse);
+
+    final card = result.project.scenes.single.layers.single.elements.single;
+    expect(
+      card.properties.map((assignment) => assignment.definition.id),
+      containsAll(<String>[
+        MotionPropertyCatalog.shadowOpacity.id,
+        MotionPropertyCatalog.shadowBlur.id,
+        MotionPropertyCatalog.shadowOffsetX.id,
+        MotionPropertyCatalog.shadowOffsetY.id,
+        MotionPropertyCatalog.shadowSpread.id,
+        MotionPropertyCatalog.shadowColor.id,
+      ]),
+    );
+    expect(
+      result.channels.map((channel) => channel.definition.id),
+      containsAll(<String>[
+        MotionPropertyCatalog.shadowOpacity.id,
+        MotionPropertyCatalog.shadowOffsetY.id,
+      ]),
+    );
+  });
+
   test('keeps delayed shape elements active for the full layer project range',
       () {
     final importResult = importService.validate(

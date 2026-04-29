@@ -36,6 +36,11 @@ class ScopeMotionPropertyCatalog {
     MotionPropertyCatalog.width,
     MotionPropertyCatalog.height,
     MotionPropertyCatalog.cornerRadius,
+    MotionPropertyCatalog.shadowOpacity,
+    MotionPropertyCatalog.shadowBlur,
+    MotionPropertyCatalog.shadowOffsetX,
+    MotionPropertyCatalog.shadowOffsetY,
+    MotionPropertyCatalog.shadowSpread,
   ]);
 
   static final Map<MotionElementKind, List<MotionPropertyDefinition>>

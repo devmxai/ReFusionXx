@@ -280,6 +280,11 @@ class SceneMentionIndex {
           MotionPropertyCatalog.width,
           MotionPropertyCatalog.height,
           MotionPropertyCatalog.cornerRadius,
+          MotionPropertyCatalog.shadowOpacity,
+          MotionPropertyCatalog.shadowBlur,
+          MotionPropertyCatalog.shadowOffsetX,
+          MotionPropertyCatalog.shadowOffsetY,
+          MotionPropertyCatalog.shadowSpread,
         ]);
       case MotionElementKind.image:
       case MotionElementKind.videoClip:

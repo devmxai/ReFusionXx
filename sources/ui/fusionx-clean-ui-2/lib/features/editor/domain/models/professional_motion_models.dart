@@ -675,6 +675,81 @@ class MotionPropertyCatalog {
     defaultValue: const MotionPropertyValue.scalar(0),
   );
 
+  static final MotionPropertyDefinition shadowOpacity =
+      MotionPropertyDefinition(
+    id: 'effect.shadow.opacity',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.effect,
+      name: 'shadow',
+      component: 'opacity',
+    ),
+    valueKind: MotionPropertyValueKind.scalar,
+    supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
+    defaultValue: const MotionPropertyValue.scalar(0),
+  );
+
+  static final MotionPropertyDefinition shadowBlur = MotionPropertyDefinition(
+    id: 'effect.shadow.blur',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.effect,
+      name: 'shadow',
+      component: 'blur',
+    ),
+    valueKind: MotionPropertyValueKind.scalar,
+    supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
+    defaultValue: const MotionPropertyValue.scalar(0),
+  );
+
+  static final MotionPropertyDefinition shadowOffsetX =
+      MotionPropertyDefinition(
+    id: 'effect.shadow.offset.x',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.effect,
+      name: 'shadowOffset',
+      component: 'x',
+    ),
+    valueKind: MotionPropertyValueKind.scalar,
+    supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
+    defaultValue: const MotionPropertyValue.scalar(0),
+  );
+
+  static final MotionPropertyDefinition shadowOffsetY =
+      MotionPropertyDefinition(
+    id: 'effect.shadow.offset.y',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.effect,
+      name: 'shadowOffset',
+      component: 'y',
+    ),
+    valueKind: MotionPropertyValueKind.scalar,
+    supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
+    defaultValue: const MotionPropertyValue.scalar(0),
+  );
+
+  static final MotionPropertyDefinition shadowSpread = MotionPropertyDefinition(
+    id: 'effect.shadow.spread',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.effect,
+      name: 'shadow',
+      component: 'spread',
+    ),
+    valueKind: MotionPropertyValueKind.scalar,
+    supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
+    defaultValue: const MotionPropertyValue.scalar(0),
+  );
+
+  static final MotionPropertyDefinition shadowColor = MotionPropertyDefinition(
+    id: 'effect.shadow.color',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.effect,
+      name: 'shadow',
+      component: 'color',
+    ),
+    valueKind: MotionPropertyValueKind.colorArgb,
+    supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
+    defaultValue: const MotionPropertyValue.colorArgb(0xFF000000),
+  );
+
   static final MotionPropertyDefinition cropRect = MotionPropertyDefinition(
     id: 'crop.rect',
     path: const MotionPropertyPath(
@@ -907,11 +982,22 @@ class MotionPropertyCatalog {
     blurMix,
     blurEdgeMode,
     blurCrop,
+    shadowOpacity,
+    shadowBlur,
+    shadowOffsetX,
+    shadowOffsetY,
+    shadowSpread,
+    shadowColor,
     cropRect,
     width,
     height,
     cornerRadius,
     fontSize,
+    fontWeight,
+    fontFamily,
+    fontStyle,
+    lineHeight,
+    textAlignment,
     letterSpacing,
     revealProgress,
     cameraPanX,

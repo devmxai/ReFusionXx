@@ -565,6 +565,33 @@ class ReFusionMotionPatchImportService {
         <_PatchProperty>[
           _PatchProperty(definition: MotionPropertyCatalog.blurAmount),
         ],
+      'shadowopacity' ||
+      'softshadowopacity' ||
+      'dropshadowopacity' =>
+        <_PatchProperty>[
+          _PatchProperty(definition: MotionPropertyCatalog.shadowOpacity),
+        ],
+      'shadowblur' || 'softshadowblur' || 'dropshadowblur' => <_PatchProperty>[
+          _PatchProperty(definition: MotionPropertyCatalog.shadowBlur),
+        ],
+      'shadowoffsetx' ||
+      'softshadowoffsetx' ||
+      'dropshadowoffsetx' =>
+        <_PatchProperty>[
+          _PatchProperty(definition: MotionPropertyCatalog.shadowOffsetX),
+        ],
+      'shadowoffsety' ||
+      'softshadowoffsety' ||
+      'dropshadowoffsety' =>
+        <_PatchProperty>[
+          _PatchProperty(definition: MotionPropertyCatalog.shadowOffsetY),
+        ],
+      'shadowspread' ||
+      'softshadowspread' ||
+      'dropshadowspread' =>
+        <_PatchProperty>[
+          _PatchProperty(definition: MotionPropertyCatalog.shadowSpread),
+        ],
       'fontsize' || 'textfontsize' => <_PatchProperty>[
           _PatchProperty(definition: MotionPropertyCatalog.fontSize),
         ],

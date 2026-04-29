@@ -125,6 +125,7 @@ class MotionShapePreviewOverlay extends StatelessWidget {
                 MotionPropertyCatalog.cornerRadius.id,
                 0,
               ),
+              shadow: _shadow(properties, opacity),
               iconId: _string(properties, 'asset.icon'),
             ),
           );
@@ -195,11 +196,71 @@ class MotionShapePreviewOverlay extends StatelessWidget {
     Map<String, MotionPropertyValue> properties,
     Color fallback,
   ) {
-    final rawValue = properties['visual.color']?.rawValue;
+    return _colorById(properties, 'visual.color', fallback);
+  }
+
+  static Color _colorById(
+    Map<String, MotionPropertyValue> properties,
+    String id,
+    Color fallback,
+  ) {
+    final rawValue = properties[id]?.rawValue;
     if (rawValue is int) {
       return Color(rawValue);
     }
     return fallback;
+  }
+
+  static _MotionShapePreviewShadow? _shadow(
+    Map<String, MotionPropertyValue> properties,
+    double elementOpacity,
+  ) {
+    final opacity = (_scalar(
+              properties,
+              MotionPropertyCatalog.shadowOpacity.id,
+              0,
+            ) *
+            elementOpacity)
+        .clamp(0.0, 1.0)
+        .toDouble();
+    final blur = math.max(
+      0.0,
+      _scalar(properties, MotionPropertyCatalog.shadowBlur.id, 0),
+    );
+    final spread = _scalar(
+      properties,
+      MotionPropertyCatalog.shadowSpread.id,
+      0,
+    );
+    final offsetX = _scalar(
+      properties,
+      MotionPropertyCatalog.shadowOffsetX.id,
+      0,
+    );
+    final offsetY = _scalar(
+      properties,
+      MotionPropertyCatalog.shadowOffsetY.id,
+      0,
+    );
+    if (opacity <= 0 &&
+        blur <= 0 &&
+        spread == 0 &&
+        offsetX == 0 &&
+        offsetY == 0) {
+      return null;
+    }
+    return _MotionShapePreviewShadow(
+      color: _colorById(
+        properties,
+        MotionPropertyCatalog.shadowColor.id,
+        const Color(0xFF000000),
+      ),
+      opacity: opacity,
+      blur: blur,
+      offsetX: offsetX,
+      offsetY: offsetY,
+      spread: spread,
+    );
   }
 
   static String? _string(
@@ -230,6 +291,7 @@ class _MotionShapePreviewNode {
     required this.opacity,
     required this.color,
     required this.cornerRadius,
+    this.shadow,
     this.iconId,
   });
 
@@ -247,7 +309,45 @@ class _MotionShapePreviewNode {
   final double opacity;
   final Color color;
   final double cornerRadius;
+  final _MotionShapePreviewShadow? shadow;
   final String? iconId;
+}
+
+class _MotionShapePreviewShadow {
+  const _MotionShapePreviewShadow({
+    required this.color,
+    required this.opacity,
+    required this.blur,
+    required this.offsetX,
+    required this.offsetY,
+    required this.spread,
+  });
+
+  final Color color;
+  final double opacity;
+  final double blur;
+  final double offsetX;
+  final double offsetY;
+  final double spread;
+
+  List<BoxShadow> toBoxShadows({
+    required double scaleX,
+    required double scaleY,
+  }) {
+    final effectiveOpacity = (color.opacity * opacity).clamp(0.0, 1.0);
+    if (effectiveOpacity <= 0) {
+      return const <BoxShadow>[];
+    }
+    final scale = math.min(scaleX, scaleY);
+    return <BoxShadow>[
+      BoxShadow(
+        color: color.withOpacity(effectiveOpacity.toDouble()),
+        offset: Offset(offsetX * scaleX, offsetY * scaleY),
+        blurRadius: math.max(0.0, blur * scale),
+        spreadRadius: spread * scale,
+      ),
+    ];
+  }
 }
 
 class _MotionShapePreviewNodeWidget extends StatelessWidget {
@@ -286,6 +386,13 @@ class _MotionShapePreviewNodeWidget extends StatelessWidget {
       width: width,
       height: height,
       cornerRadius: node.cornerRadius * math.min(scaleX, scaleY),
+      boxShadow: node.shadow
+          ?.toBoxShadows(
+            scaleX: scaleX,
+            scaleY: scaleY,
+          )
+          .where((shadow) => shadow.color.opacity > 0)
+          .toList(growable: false),
     );
     final iconData = _iconDataFor(node.iconId);
 
@@ -353,12 +460,14 @@ class _MotionShapePreviewNodeWidget extends StatelessWidget {
     required double width,
     required double height,
     required double cornerRadius,
+    List<BoxShadow>? boxShadow,
   }) {
     switch (shapeKind) {
       case MotionShapeKind.circle:
         return BoxDecoration(
           color: color,
           shape: BoxShape.circle,
+          boxShadow: boxShadow,
         );
       case MotionShapeKind.line:
       case MotionShapeKind.roundedRectangle:
@@ -367,6 +476,7 @@ class _MotionShapePreviewNodeWidget extends StatelessWidget {
           borderRadius: BorderRadius.circular(
             cornerRadius > 0 ? cornerRadius : math.min(width, height) / 2,
           ),
+          boxShadow: boxShadow,
         );
       case MotionShapeKind.rectangle:
       case MotionShapeKind.mask:
@@ -376,6 +486,7 @@ class _MotionShapePreviewNodeWidget extends StatelessWidget {
           borderRadius: cornerRadius > 0
               ? BorderRadius.circular(cornerRadius)
               : BorderRadius.zero,
+          boxShadow: boxShadow,
         );
     }
   }
