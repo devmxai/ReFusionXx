@@ -5582,25 +5582,36 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       viewModel,
       progress,
     );
-    final result = _layerScopeCompositionAdapter.addKeyframe(
-      LayerScopeCompositionKeyframeRequest(
-        projection: viewModel.projection,
-        channels: viewModel.projection.channels,
-        target: channel.target,
-        definition: channel.definition,
-        localTime: localTime,
-        value: _sceneLayerScopeValueForNewKeyframe(
-          lane: lane,
-          channel: channel,
-          progress: progress,
-        ),
-      ),
+    var nextChannels = viewModel.projection.channels;
+    final channelsForKeyframe = _sceneLayerScopeValueChannelsForSelection(
+      viewModel: viewModel,
+      selectedChannel: channel,
     );
-    if (result.hasIssues) {
-      _showStageMessage(result.issues.first.message);
-      return;
+    for (final editableChannel in channelsForKeyframe) {
+      final editableLane =
+          _sceneLayerScopeAnimationLaneById(viewModel, editableChannel.id) ??
+              lane;
+      final result = _layerScopeCompositionAdapter.addKeyframe(
+        LayerScopeCompositionKeyframeRequest(
+          projection: viewModel.projection,
+          channels: nextChannels,
+          target: editableChannel.target,
+          definition: editableChannel.definition,
+          localTime: localTime,
+          value: _sceneLayerScopeValueForNewKeyframe(
+            lane: editableLane,
+            channel: editableChannel,
+            progress: progress,
+          ),
+        ),
+      );
+      if (result.hasIssues) {
+        _showStageMessage(result.issues.first.message);
+        return;
+      }
+      nextChannels = result.channels;
     }
-    final nextChannel = _channelById(result.channels, channel.id);
+    final nextChannel = _channelById(nextChannels, channel.id);
     final nextSelectedIndex = nextChannel?.keyframes.indexWhere(
       (keyframe) => keyframe.time.inProjectTicks == localTime.inProjectTicks,
     );
@@ -5612,7 +5623,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     setState(() {
       _manualMotionPropertyChannels = _mergeSceneLayerScopeChannels(
         viewModel,
-        result.channels,
+        nextChannels,
       );
       _markMotionAuthoringChanged();
       _selectedLayerScopeAnimationLaneId = lane.id;
@@ -5782,6 +5793,57 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return <MotionPropertyChannelModel>[selectedChannel];
     }
     return List<MotionPropertyChannelModel>.unmodifiable(channels);
+  }
+
+  TimelineAnimationLaneData? _sceneLayerScopeAnimationLaneById(
+    SceneLayerScopeTimelineViewModel viewModel,
+    String laneId,
+  ) {
+    for (final lane in viewModel.track.animationLanes) {
+      if (lane.id == laneId) {
+        return lane;
+      }
+    }
+    return null;
+  }
+
+  MotionKeyframeModel? _sceneLayerScopeKeyframeById(
+    MotionPropertyChannelModel channel,
+    String keyframeId,
+  ) {
+    for (final keyframe in channel.keyframes) {
+      if (keyframe.id == keyframeId) {
+        return keyframe;
+      }
+    }
+    return null;
+  }
+
+  List<_SceneLayerScopeKeyframeEdit> _sceneLayerScopePairedKeyframeEditsAtTime({
+    required SceneLayerScopeTimelineViewModel viewModel,
+    required MotionPropertyChannelModel selectedChannel,
+    required TimelineTime localTime,
+  }) {
+    final edits = <_SceneLayerScopeKeyframeEdit>[];
+    final channels = _sceneLayerScopeValueChannelsForSelection(
+      viewModel: viewModel,
+      selectedChannel: selectedChannel,
+    );
+    for (final channel in channels) {
+      for (final keyframe in channel.keyframes) {
+        if (keyframe.time.inProjectTicks != localTime.inProjectTicks) {
+          continue;
+        }
+        edits.add(
+          _SceneLayerScopeKeyframeEdit(
+            channel: channel,
+            keyframeId: keyframe.id,
+          ),
+        );
+        break;
+      }
+    }
+    return List<_SceneLayerScopeKeyframeEdit>.unmodifiable(edits);
   }
 
   List<MotionPropertyDefinition> _sceneLayerScopePairedValueDefinitions(
@@ -6134,31 +6196,55 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (lane == null) {
       return;
     }
+    final selectedChannel = _sceneLayerScopeChannelForLane(viewModel, lane);
+    final selectedKeyframe = selectedChannel == null
+        ? null
+        : _sceneLayerScopeKeyframeById(selectedChannel, keyframeId);
     final localTime = _sceneLayerScopeLocalTimeForProgress(
       viewModel,
       progress,
     );
-    final result = _layerScopeCompositionAdapter.moveKeyframe(
-      LayerScopeCompositionMoveKeyframeRequest(
-        projection: viewModel.projection,
-        channels: viewModel.projection.channels,
-        channelId: lane.id,
-        keyframeId: keyframeId,
-        localTime: localTime,
-      ),
-    );
-    if (result.hasIssues) {
-      _showStageMessage(result.issues.first.message);
-      return;
+    var nextChannels = viewModel.projection.channels;
+    final edits = selectedChannel == null || selectedKeyframe == null
+        ? <_SceneLayerScopeKeyframeEdit>[
+            _SceneLayerScopeKeyframeEdit(
+              channel: _channelById(nextChannels, lane.id),
+              keyframeId: keyframeId,
+            ),
+          ]
+        : _sceneLayerScopePairedKeyframeEditsAtTime(
+            viewModel: viewModel,
+            selectedChannel: selectedChannel,
+            localTime: selectedKeyframe.time,
+          );
+    for (final edit in edits) {
+      final editChannel = edit.channel;
+      if (editChannel == null) {
+        continue;
+      }
+      final result = _layerScopeCompositionAdapter.moveKeyframe(
+        LayerScopeCompositionMoveKeyframeRequest(
+          projection: viewModel.projection,
+          channels: nextChannels,
+          channelId: editChannel.id,
+          keyframeId: edit.keyframeId,
+          localTime: localTime,
+        ),
+      );
+      if (result.hasIssues) {
+        _showStageMessage(result.issues.first.message);
+        return;
+      }
+      nextChannels = result.channels;
     }
-    final movedChannel = _channelById(result.channels, lane.id);
+    final movedChannel = _channelById(nextChannels, lane.id);
     final nextSelectedIndex = movedChannel?.keyframes.indexWhere(
       (keyframe) => keyframe.id == keyframeId,
     );
     setState(() {
       _manualMotionPropertyChannels = _mergeSceneLayerScopeChannels(
         viewModel,
-        result.channels,
+        nextChannels,
       );
       _markMotionAuthoringChanged();
       _selectedLayerScopeAnimationLaneId = laneId;
@@ -6217,18 +6303,42 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (keyframeId == null) {
       return;
     }
-    final result = _layerScopeCompositionAdapter.deleteKeyframe(
-      LayerScopeCompositionDeleteKeyframeRequest(
-        channels: viewModel.projection.channels,
-        channelId: lane.id,
-        keyframeId: keyframeId,
-      ),
-    );
-    if (result.hasIssues) {
-      _showStageMessage(result.issues.first.message);
-      return;
+    final selectedChannel = _sceneLayerScopeChannelForLane(viewModel, lane);
+    final selectedKeyframe = selectedChannel == null
+        ? null
+        : _sceneLayerScopeKeyframeById(selectedChannel, keyframeId);
+    var nextChannels = viewModel.projection.channels;
+    final edits = selectedChannel == null || selectedKeyframe == null
+        ? <_SceneLayerScopeKeyframeEdit>[
+            _SceneLayerScopeKeyframeEdit(
+              channel: _channelById(nextChannels, lane.id),
+              keyframeId: keyframeId,
+            ),
+          ]
+        : _sceneLayerScopePairedKeyframeEditsAtTime(
+            viewModel: viewModel,
+            selectedChannel: selectedChannel,
+            localTime: selectedKeyframe.time,
+          );
+    for (final edit in edits) {
+      final editChannel = edit.channel;
+      if (editChannel == null) {
+        continue;
+      }
+      final result = _layerScopeCompositionAdapter.deleteKeyframe(
+        LayerScopeCompositionDeleteKeyframeRequest(
+          channels: nextChannels,
+          channelId: editChannel.id,
+          keyframeId: edit.keyframeId,
+        ),
+      );
+      if (result.hasIssues) {
+        _showStageMessage(result.issues.first.message);
+        return;
+      }
+      nextChannels = result.channels;
     }
-    final editedChannel = _channelById(result.channels, lane.id);
+    final editedChannel = _channelById(nextChannels, lane.id);
     final nextKeyframeCount = editedChannel?.keyframes.length ?? 0;
     final nextSelectedIndex = nextKeyframeCount == 0
         ? null
@@ -6240,7 +6350,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     setState(() {
       _manualMotionPropertyChannels = _mergeSceneLayerScopeChannels(
         viewModel,
-        result.channels,
+        nextChannels,
       );
       _markMotionAuthoringChanged();
       _selectedLayerScopeAnimationLaneId =
@@ -21263,6 +21373,16 @@ class _CompositionTemplateTile extends StatelessWidget {
       ),
     );
   }
+}
+
+class _SceneLayerScopeKeyframeEdit {
+  const _SceneLayerScopeKeyframeEdit({
+    required this.channel,
+    required this.keyframeId,
+  });
+
+  final MotionPropertyChannelModel? channel;
+  final String keyframeId;
 }
 
 class _CompositionTextField extends StatelessWidget {
