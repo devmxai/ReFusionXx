@@ -68,6 +68,7 @@ import '../widgets/layer_scope_keyframe_dock.dart';
 import '../widgets/layer_scope_value_bottom_sheet.dart';
 import '../widgets/media_bottom_sheet.dart';
 import '../widgets/media_dock.dart';
+import '../widgets/motion_image_preview_overlay.dart';
 import '../widgets/motion_shape_preview_overlay.dart';
 import '../widgets/motion_text_preview_overlay.dart';
 import '../widgets/motion_text_transform_overlay.dart';
@@ -500,6 +501,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   late final ValueNotifier<TimelineTime> _layerScopeDisplayTimeNotifier;
   late final ValueNotifier<TimelineTime> _layerScopePlaybackSampleTimeNotifier;
   late final ValueNotifier<Uint8List?> _previewThumbnailNotifier;
+  late final ValueNotifier<int> _motionImagePreviewRevisionNotifier;
   late final Ticker _motionPreviewFrameTicker;
   late final BasicMotionRuntimeEvaluator _motionEvaluator;
   late final BasicMotionTextRenderAdapter _motionTextRenderAdapter;
@@ -512,6 +514,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   final Map<String, EditorAssetItem> _importedAssetsById =
       <String, EditorAssetItem>{};
   final Map<String, Uint8List> _previewThumbnailCache = <String, Uint8List>{};
+  final Set<String> _motionImagePreviewRequestsInFlight = <String>{};
   final Map<EditorMediaTab, int> _assetOffsets = <EditorMediaTab, int>{};
   final Map<EditorMediaTab, bool> _assetHasMore = <EditorMediaTab, bool>{};
   final Set<EditorMediaTab> _assetPageRequestsInFlight = <EditorMediaTab>{};
@@ -645,6 +648,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _layerScopePlaybackSampleTimeNotifier =
         ValueNotifier<TimelineTime>(TimelineTime.zero);
     _previewThumbnailNotifier = ValueNotifier<Uint8List?>(null);
+    _motionImagePreviewRevisionNotifier = ValueNotifier<int>(0);
     _motionPreviewFrameTicker = createTicker(_handleMotionPreviewFrameTick);
     _assetOffsets[EditorMediaTab.video] = 0;
     _assetOffsets[EditorMediaTab.image] = 0;
@@ -684,6 +688,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _layerScopeDisplayTimeNotifier.dispose();
     _layerScopePlaybackSampleTimeNotifier.dispose();
     _previewThumbnailNotifier.dispose();
+    _motionImagePreviewRevisionNotifier.dispose();
     super.dispose();
   }
 
@@ -978,7 +983,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _timelineDurationTime > TimelineTime.zero;
 
   MotionNormalizedComposition? _motionCompositionForCurrentState() {
-    if (!_hasMotionTextContent &&
+    if (!_hasAuthoredMotionContent &&
+        !_hasMotionTextContent &&
         _motionTextAnimationBindings.isEmpty &&
         _manualMotionPropertyChannels.isEmpty) {
       _cachedMotionComposition = null;
@@ -1476,30 +1482,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       time: snapshot.time,
       canvasSize: snapshot.canvasSize,
       nodes: activeNodes,
-    );
-  }
-
-  MotionEvaluationSnapshot? _motionShapeEvaluationSnapshotForTime(
-    TimelineTime time, {
-    MotionEvaluationReason reason = MotionEvaluationReason.previewPlayback,
-  }) {
-    final composition = _motionCompositionForCurrentState();
-    if (composition == null) {
-      return null;
-    }
-    return _motionEvaluator.evaluate(
-      MotionEvaluationRequest(
-        composition: composition,
-        time: time.clamp(
-          TimelineTime.zero,
-          composition.projectRange.endExclusive,
-        ),
-        reason: reason == MotionEvaluationReason.previewPlayback
-            ? (_isTimelineScrubbing
-                ? MotionEvaluationReason.liveScrub
-                : MotionEvaluationReason.previewPlayback)
-            : reason,
-      ),
     );
   }
 
@@ -18041,6 +18023,102 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return _previewThumbnailCache[assetId];
   }
 
+  MotionImagePreviewAsset? _motionImagePreviewAssetForId(String assetId) {
+    final asset = _assetForId(assetId);
+    if (asset == null || asset.tab != EditorMediaTab.image) {
+      return null;
+    }
+    return MotionImagePreviewAsset(
+      assetId: asset.id,
+      sourceUri: asset.sourceUri,
+      thumbnailBytes: _previewThumbnailCache[asset.id],
+      width: asset.width,
+      height: asset.height,
+    );
+  }
+
+  bool _motionCompositionHasImageElements(
+    MotionNormalizedComposition? composition,
+  ) {
+    if (composition == null) {
+      return false;
+    }
+    for (final scene in composition.scenes) {
+      for (final layer in scene.layers) {
+        for (final element in layer.elements) {
+          if (element.kind == MotionElementKind.image &&
+              element.sourceBinding?.assetId != null) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  void _scheduleMotionImagePreviewWarmup(
+    MotionNormalizedComposition? composition,
+  ) {
+    if (composition == null) {
+      return;
+    }
+    final assets = <EditorAssetItem>[];
+    for (final scene in composition.scenes) {
+      for (final layer in scene.layers) {
+        for (final element in layer.elements) {
+          if (element.kind != MotionElementKind.image) {
+            continue;
+          }
+          final assetId =
+              element.sourceBinding?.assetId ?? element.sourceBinding?.sourceId;
+          final asset = _assetForId(assetId);
+          if (asset == null || asset.tab != EditorMediaTab.image) {
+            continue;
+          }
+          if ((_previewThumbnailCache[asset.id]?.isNotEmpty ?? false) ||
+              _motionImagePreviewRequestsInFlight.contains(asset.id)) {
+            continue;
+          }
+          assets.add(asset);
+        }
+      }
+    }
+    if (assets.isEmpty) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      for (final asset in assets) {
+        unawaited(_primeMotionImagePreviewAsset(asset));
+      }
+    });
+  }
+
+  Future<void> _primeMotionImagePreviewAsset(EditorAssetItem asset) async {
+    if (asset.tab != EditorMediaTab.image ||
+        _motionImagePreviewRequestsInFlight.contains(asset.id) ||
+        (_previewThumbnailCache[asset.id]?.isNotEmpty ?? false)) {
+      return;
+    }
+    _motionImagePreviewRequestsInFlight.add(asset.id);
+    Uint8List? bytes;
+    try {
+      bytes = await _loadPreviewFallbackBytes(asset);
+    } catch (_) {
+      bytes = null;
+    } finally {
+      _motionImagePreviewRequestsInFlight.remove(asset.id);
+    }
+    if (!mounted || bytes == null || bytes.isEmpty) {
+      return;
+    }
+    _previewThumbnailCache[asset.id] = bytes;
+    _motionImagePreviewRevisionNotifier.value =
+        _motionImagePreviewRevisionNotifier.value + 1;
+  }
+
   Widget? _buildPreviewOverlay({
     required bool effectiveIsPlaying,
   }) {
@@ -18055,82 +18133,123 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         if (activeTransition != null) {
           _warmTransitionPreviewAssets(activeTransition);
         }
+        final motionComposition = _motionCompositionForCurrentState();
+        _scheduleMotionImagePreviewWarmup(motionComposition);
+        final motionEvaluationSnapshot = motionComposition == null
+            ? null
+            : _motionEvaluator.evaluate(
+                MotionEvaluationRequest(
+                  composition: motionComposition,
+                  time: previewTime.clamp(
+                    TimelineTime.zero,
+                    motionComposition.projectRange.endExclusive,
+                  ),
+                  reason: _isTimelineScrubbing
+                      ? MotionEvaluationReason.liveScrub
+                      : MotionEvaluationReason.previewPlayback,
+                ),
+              );
         final motionTextRenderSnapshot =
             _motionTextRenderSnapshotForTime(previewTime);
-        final motionShapeEvaluationSnapshot =
-            _motionShapeEvaluationSnapshotForTime(previewTime);
+        final motionShapeEvaluationSnapshot = motionEvaluationSnapshot;
         final hasMotionShapePreview = motionShapeEvaluationSnapshot != null &&
             MotionShapePreviewOverlay.hasVisibleShapes(
               motionShapeEvaluationSnapshot,
             );
-        return AnimatedBuilder(
-          animation: _transportController,
-          builder: (context, __) {
-            final activeVisualOpacity = _activePreviewVisualOpacityForTime(
-              previewTime,
+        final hasMotionImagePreview = motionComposition != null &&
+            motionEvaluationSnapshot != null &&
+            MotionImagePreviewOverlay.hasVisibleImages(
+              composition: motionComposition,
+              snapshot: motionEvaluationSnapshot,
+              assetResolver: _motionImagePreviewAssetForId,
             );
-            if (motionTextRenderSnapshot == null &&
-                !hasMotionShapePreview &&
-                activeTransition == null &&
-                activeVisualOpacity >= 0.999) {
-              return const SizedBox.shrink();
-            }
-            final selectedCanvasElementId = motionTextRenderSnapshot == null
-                ? null
-                : _selectedCanvasTextElementIdForSnapshot(
-                    motionTextRenderSnapshot,
-                  );
-            final outgoingTransitionBytes = activeTransition == null
-                ? null
-                : _previewThumbnailBytesForClip(activeTransition.leftClip.clip);
-            final incomingTransitionBytes = activeTransition == null
-                ? null
-                : _previewThumbnailBytesForClip(
-                    activeTransition.rightClip.clip);
-            return Stack(
-              fit: StackFit.expand,
-              children: [
-                if (activeTransition != null)
-                  TimelineTransitionPreviewOverlay(
-                    transition: activeTransition.transition,
-                    progress: activeTransition.progress,
-                    manualLaneProgress: activeTransition.manualLaneProgress,
-                    manualSeamProgress: activeTransition.manualSeamProgress,
-                    outgoingThumbnailBytes: outgoingTransitionBytes,
-                    incomingThumbnailBytes: incomingTransitionBytes,
-                  ),
-                if (activeVisualOpacity < 0.999)
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: ColoredBox(
-                        color: Colors.black.withOpacity(
-                          (1 - activeVisualOpacity).clamp(0.0, 1.0).toDouble(),
+        return ValueListenableBuilder<int>(
+          valueListenable: _motionImagePreviewRevisionNotifier,
+          builder: (context, _, ___) {
+            return AnimatedBuilder(
+              animation: _transportController,
+              builder: (context, __) {
+                final activeVisualOpacity = _activePreviewVisualOpacityForTime(
+                  previewTime,
+                );
+                if (motionTextRenderSnapshot == null &&
+                    !hasMotionShapePreview &&
+                    !hasMotionImagePreview &&
+                    activeTransition == null &&
+                    activeVisualOpacity >= 0.999) {
+                  return const SizedBox.shrink();
+                }
+                final selectedCanvasElementId = motionTextRenderSnapshot == null
+                    ? null
+                    : _selectedCanvasTextElementIdForSnapshot(
+                        motionTextRenderSnapshot,
+                      );
+                final outgoingTransitionBytes = activeTransition == null
+                    ? null
+                    : _previewThumbnailBytesForClip(
+                        activeTransition.leftClip.clip);
+                final incomingTransitionBytes = activeTransition == null
+                    ? null
+                    : _previewThumbnailBytesForClip(
+                        activeTransition.rightClip.clip);
+                return Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (activeTransition != null)
+                      TimelineTransitionPreviewOverlay(
+                        transition: activeTransition.transition,
+                        progress: activeTransition.progress,
+                        manualLaneProgress: activeTransition.manualLaneProgress,
+                        manualSeamProgress: activeTransition.manualSeamProgress,
+                        outgoingThumbnailBytes: outgoingTransitionBytes,
+                        incomingThumbnailBytes: incomingTransitionBytes,
+                      ),
+                    if (activeVisualOpacity < 0.999)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: ColoredBox(
+                            color: Colors.black.withOpacity(
+                              (1 - activeVisualOpacity)
+                                  .clamp(0.0, 1.0)
+                                  .toDouble(),
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                if (motionShapeEvaluationSnapshot != null &&
-                    hasMotionShapePreview)
-                  MotionShapePreviewOverlay(
-                    snapshot: motionShapeEvaluationSnapshot,
-                    canvasSize: _motionProjectFormat.canvasSize,
-                  ),
-                if (motionTextRenderSnapshot != null)
-                  MotionTextPreviewOverlay(
-                    snapshot: motionTextRenderSnapshot,
-                  ),
-                if (motionTextRenderSnapshot != null && !effectiveIsPlaying)
-                  MotionTextTransformOverlay(
-                    snapshot: motionTextRenderSnapshot,
-                    selectedElementId: selectedCanvasElementId,
-                    isInteractive: !_isTimelineScrubbing && !effectiveIsPlaying,
-                    onNodeSelected: _handleCanvasTextSelected,
-                    onNodeEditRequested: _handleCanvasTextEditRequested,
-                    onNodeMoved: _handleCanvasTextMoved,
-                    onNodeScaleChanged: _handleCanvasTextScaleChanged,
-                    onNodeRotationChanged: _handleCanvasTextRotationChanged,
-                  ),
-              ],
+                    if (motionShapeEvaluationSnapshot != null &&
+                        hasMotionShapePreview)
+                      MotionShapePreviewOverlay(
+                        snapshot: motionShapeEvaluationSnapshot,
+                        canvasSize: _motionProjectFormat.canvasSize,
+                      ),
+                    if (motionComposition != null &&
+                        motionEvaluationSnapshot != null &&
+                        hasMotionImagePreview)
+                      MotionImagePreviewOverlay(
+                        composition: motionComposition,
+                        snapshot: motionEvaluationSnapshot,
+                        canvasSize: _motionProjectFormat.canvasSize,
+                        assetResolver: _motionImagePreviewAssetForId,
+                      ),
+                    if (motionTextRenderSnapshot != null)
+                      MotionTextPreviewOverlay(
+                        snapshot: motionTextRenderSnapshot,
+                      ),
+                    if (motionTextRenderSnapshot != null && !effectiveIsPlaying)
+                      MotionTextTransformOverlay(
+                        snapshot: motionTextRenderSnapshot,
+                        selectedElementId: selectedCanvasElementId,
+                        isInteractive:
+                            !_isTimelineScrubbing && !effectiveIsPlaying,
+                        onNodeSelected: _handleCanvasTextSelected,
+                        onNodeEditRequested: _handleCanvasTextEditRequested,
+                        onNodeMoved: _handleCanvasTextMoved,
+                        onNodeScaleChanged: _handleCanvasTextScaleChanged,
+                        onNodeRotationChanged: _handleCanvasTextRotationChanged,
+                      ),
+                  ],
+                );
+              },
             );
           },
         );
@@ -18158,9 +18277,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         ),
       );
     }
+    final motionCompositionForPreviewCanvas =
+        _motionCompositionForCurrentState();
+    final shouldRenderPreviewImageThroughMotionOverlay = previewAsset?.tab ==
+            EditorMediaTab.image &&
+        _motionCompositionHasImageElements(motionCompositionForPreviewCanvas);
+    final previewCanvasAsset =
+        shouldRenderPreviewImageThroughMotionOverlay ? null : previewAsset;
     final hasPreviewCanvasContent =
         previewAsset != null || _hasMotionTextContent || _motionProject != null;
-    _schedulePreviewThumbnailWarmup(previewAsset);
+    _schedulePreviewThumbnailWarmup(previewCanvasAsset);
     final displayTracks = _displayTracks;
     final mainTimelineTracks = displayTracks
         .map(
@@ -18338,7 +18464,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                             previewConstraints.maxHeight,
                           );
                           final previewFallback = _CleanPreviewCanvas(
-                            asset: previewAsset,
+                            asset: previewCanvasAsset,
                             backgroundColor: _compositionCanvasBackgroundColor,
                             previewThumbnailAssetId:
                                 _previewThumbnailResolvedAssetId,
@@ -18359,8 +18485,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                             child: _useNativePreview
                                 ? NativePreviewSurface(
                                     controller: _transportController,
-                                    previewIdentity: previewAsset?.sourceUri ??
-                                        previewAsset?.id,
+                                    previewIdentity:
+                                        previewCanvasAsset?.sourceUri ??
+                                            previewCanvasAsset?.id,
                                     recoveryRevision:
                                         _nativePreviewRecoveryRevision,
                                     fallback: previewFallback,
