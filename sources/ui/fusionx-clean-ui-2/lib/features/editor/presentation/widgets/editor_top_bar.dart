@@ -6,11 +6,13 @@ import 'fx_icon_button.dart';
 class EditorTopBar extends StatelessWidget {
   const EditorTopBar({
     super.key,
+    this.onOutliner,
     this.onShare,
     this.isExporting = false,
     this.exportProgress = 0,
   });
 
+  final VoidCallback? onOutliner;
   final VoidCallback? onShare;
   final bool isExporting;
   final double exportProgress;
@@ -28,17 +30,27 @@ class EditorTopBar extends StatelessWidget {
       ),
       child: Row(
         children: [
+          Tooltip(
+            message: 'Outliner',
+            child: FxIconButton(
+              icon: Icons.account_tree_rounded,
+              size: 34,
+              iconScale: 0.38,
+              onPressed: onOutliner,
+            ),
+          ),
+          const SizedBox(width: 6),
           const FxIconButton(
-            icon: Icons.history_rounded,
+            icon: Icons.undo_rounded,
             size: 34,
             iconScale: 0.38,
           ),
           const SizedBox(width: 6),
           const FxIconButton(
-              icon: Icons.undo_rounded, size: 34, iconScale: 0.38),
-          const SizedBox(width: 6),
-          const FxIconButton(
-              icon: Icons.redo_rounded, size: 34, iconScale: 0.38),
+            icon: Icons.redo_rounded,
+            size: 34,
+            iconScale: 0.38,
+          ),
           const Spacer(),
           Stack(
             alignment: Alignment.center,

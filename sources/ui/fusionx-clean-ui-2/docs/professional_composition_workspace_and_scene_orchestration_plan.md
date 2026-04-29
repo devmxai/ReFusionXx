@@ -636,11 +636,13 @@ Implementation status:
 
 Deliverables:
 
-- mobile outliner sheet,
-- project/assets/compositions/layers tree,
-- root background layers under Root Composition,
-- Scene Clip instances shown as root composition layers with draw order,
-- selection sync with timeline/canvas,
+- mobile outliner sheet, implemented for inspect/select navigation,
+- project/assets/compositions/layers tree, implemented as projection-backed UI,
+- root background layers under Root Composition, visible in the tree,
+- Scene Clip instances shown as root composition layers with draw order, visible
+  in the tree,
+- selection sync with timeline/canvas, partially implemented for selecting root
+  Scene Clips and opening source composition/layer context from the tree,
 - rename/delete/duplicate where safe.
 
 Exit criteria:

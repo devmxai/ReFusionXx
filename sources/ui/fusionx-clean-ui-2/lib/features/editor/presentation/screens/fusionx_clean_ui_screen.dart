@@ -13,6 +13,7 @@ import '../../domain/models/export_composition_models.dart';
 import '../../domain/models/export_motion_text_program_models.dart';
 import '../../domain/models/export_output_profile.dart';
 import '../../domain/models/composition_scene_clip_models.dart';
+import '../../domain/models/composition_workspace_models.dart';
 import '../../domain/models/professional_canvas_timeline_authoring_models.dart';
 import '../../domain/models/professional_motion_animation_models.dart';
 import '../../domain/models/professional_motion_compilation_models.dart';
@@ -44,6 +45,7 @@ import '../models/editor_asset_item.dart';
 import '../models/editor_media_tab.dart';
 import '../models/timeline_mock_models.dart';
 import '../models/timeline_time.dart';
+import '../services/composition_workspace_outliner_adapter.dart';
 import '../services/normal_transition_timeline_authoring_adapter.dart';
 import '../services/root_scene_clip_projection_adapter.dart';
 import '../services/scene_layer_scope_timeline_adapter.dart';
@@ -56,6 +58,7 @@ import '../widgets/editor_top_bar.dart';
 import '../widgets/animate_browser_bottom_sheet.dart';
 import '../widgets/ai_transition_bottom_sheet.dart';
 import '../widgets/clip_speed_bottom_sheet.dart';
+import '../widgets/composition_workspace_outliner_bottom_sheet.dart';
 import '../widgets/export_bottom_sheet.dart';
 import '../widgets/fx_icon_button.dart';
 import '../widgets/layer_scope_graph_bottom_sheet.dart';
@@ -150,6 +153,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       SceneProgramApplyTransaction();
   static const RootSceneClipProjectionAdapter _rootSceneClipProjectionAdapter =
       RootSceneClipProjectionAdapter();
+  static const CompositionWorkspaceOutlinerAdapter
+      _compositionWorkspaceOutlinerAdapter =
+      CompositionWorkspaceOutlinerAdapter();
   static const SceneScopeSessionResolver _sceneScopeSessionResolver =
       SceneScopeSessionResolver();
   static const SceneLayerScopeTimelineAdapter _sceneLayerScopeTimelineAdapter =
@@ -11995,6 +12001,276 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _showStageMessage('${resolvedAsset.tab.label} layer added.');
   }
 
+  Future<void> _openCompositionWorkspaceOutlinerSheet() async {
+    final workspace = _compositionWorkspaceForOutliner();
+    final result = _compositionWorkspaceOutlinerAdapter.build(
+      workspace: workspace,
+      channels: _manualMotionPropertyChannels,
+    );
+    final selectedNode =
+        await showModalBottomSheet<CompositionWorkspaceOutlinerNode>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => CompositionWorkspaceOutlinerBottomSheet(
+        result: result,
+      ),
+    );
+    if (!mounted || selectedNode == null) {
+      return;
+    }
+    _handleCompositionOutlinerSelection(selectedNode);
+  }
+
+  CompositionWorkspaceModel _compositionWorkspaceForOutliner() {
+    return CompositionWorkspaceModel(
+      project: _effectiveMotionProject,
+      rootSceneId: _motionSceneId,
+      currentRootTime: _currentTime,
+      rootBackgroundLayers: _rootBackgroundLayersForOutliner(),
+      sceneClips: _sceneClips,
+      activeScope: _compositionWorkspaceActiveScopeForOutliner(),
+      selection: _compositionWorkspaceSelectionForOutliner(),
+    );
+  }
+
+  List<CompositionRootBackgroundLayerModel> _rootBackgroundLayersForOutliner() {
+    if (!_hasStartedCompositionSession) {
+      return const <CompositionRootBackgroundLayerModel>[];
+    }
+    final duration = _effectiveMotionProject.durationTime;
+    if (duration <= TimelineTime.zero) {
+      return const <CompositionRootBackgroundLayerModel>[];
+    }
+    return <CompositionRootBackgroundLayerModel>[
+      CompositionRootBackgroundLayerModel(
+        id: 'project-background',
+        name: 'Project Background',
+        kind: CompositionRootBackgroundLayerKind.color,
+        visibleRange: TimelineTimeRange(
+          start: TimelineTime.zero,
+          endExclusive: duration,
+        ),
+        colorArgb: _compositionCanvasBackgroundColor.value,
+        zIndex: -1000,
+      ),
+    ];
+  }
+
+  CompositionWorkspaceScope _compositionWorkspaceActiveScopeForOutliner() {
+    final sceneScope = _sceneScopeSession;
+    final layerId = _sceneLayerScopeLayerId;
+    if (sceneScope != null && layerId != null) {
+      return CompositionWorkspaceScope.layer(
+        rootSceneId: _motionSceneId,
+        sceneClipId: sceneScope.sceneClipId,
+        sourceSceneId: sceneScope.sourceSceneId,
+        layerId: layerId,
+      );
+    }
+    if (sceneScope != null) {
+      return CompositionWorkspaceScope.scene(
+        rootSceneId: _motionSceneId,
+        sceneClipId: sceneScope.sceneClipId,
+        sourceSceneId: sceneScope.sourceSceneId,
+      );
+    }
+    return const CompositionWorkspaceScope.root(rootSceneId: _motionSceneId);
+  }
+
+  CompositionWorkspaceSelection _compositionWorkspaceSelectionForOutliner() {
+    final sceneScope = _sceneScopeSession;
+    final layerScopeLayerId = _sceneLayerScopeLayerId;
+    if (sceneScope != null && layerScopeLayerId != null) {
+      return CompositionWorkspaceSelection.layer(
+        sourceSceneId: sceneScope.sourceSceneId,
+        layerId: layerScopeLayerId,
+        sceneClipId: sceneScope.sceneClipId,
+      );
+    }
+    if (sceneScope != null) {
+      final selectedLayerId = _selectedClipId;
+      if (selectedLayerId != null &&
+          _motionLayerById(sceneScope.sourceSceneId, selectedLayerId) != null) {
+        return CompositionWorkspaceSelection.layer(
+          sourceSceneId: sceneScope.sourceSceneId,
+          layerId: selectedLayerId,
+          sceneClipId: sceneScope.sceneClipId,
+        );
+      }
+      return CompositionWorkspaceSelection.sceneClip(
+        sceneClipId: sceneScope.sceneClipId,
+      );
+    }
+    final selectedClipId = _selectedClipId;
+    if (selectedClipId != null && _sceneClipById(selectedClipId) != null) {
+      return CompositionWorkspaceSelection.sceneClip(
+        sceneClipId: selectedClipId,
+      );
+    }
+    return const CompositionWorkspaceSelection.none();
+  }
+
+  void _handleCompositionOutlinerSelection(
+    CompositionWorkspaceOutlinerNode node,
+  ) {
+    switch (node.kind) {
+      case CompositionWorkspaceOutlinerNodeKind.sceneClipInstance:
+        final sceneClipId = node.sceneClipId;
+        if (sceneClipId == null) {
+          _showStageMessage('Scene Clip reference is missing.');
+          return;
+        }
+        _selectRootSceneClipFromOutliner(sceneClipId);
+        return;
+      case CompositionWorkspaceOutlinerNodeKind.sourceComposition:
+      case CompositionWorkspaceOutlinerNodeKind.layer:
+      case CompositionWorkspaceOutlinerNodeKind.element:
+      case CompositionWorkspaceOutlinerNodeKind.channel:
+        final sourceSceneId = node.sourceSceneId;
+        if (sourceSceneId == null) {
+          _showStageMessage('Source composition reference is missing.');
+          return;
+        }
+        _openSourceCompositionFromOutliner(
+          sourceSceneId: sourceSceneId,
+          selectedLayerId: node.layerId,
+        );
+        return;
+      case CompositionWorkspaceOutlinerNodeKind.rootBackgroundLayer:
+        _showStageMessage('Background inspector is next in the plan.');
+        return;
+      case CompositionWorkspaceOutlinerNodeKind.project:
+      case CompositionWorkspaceOutlinerNodeKind.assetsGroup:
+      case CompositionWorkspaceOutlinerNodeKind.rootComposition:
+      case CompositionWorkspaceOutlinerNodeKind.backgroundLayersGroup:
+      case CompositionWorkspaceOutlinerNodeKind.sceneClipsGroup:
+      case CompositionWorkspaceOutlinerNodeKind.sourceCompositionsGroup:
+        _showStageMessage('Select a scene, layer, element, or channel.');
+        return;
+    }
+  }
+
+  void _selectRootSceneClipFromOutliner(String sceneClipId) {
+    if (_isLayerScopeTransitionBlocked) {
+      _showStageMessage(_layerScopeBlockedMessage());
+      return;
+    }
+    final sceneClip = _sceneClipById(sceneClipId);
+    if (sceneClip == null) {
+      _showStageMessage('Scene Clip was not found.');
+      return;
+    }
+    setState(() {
+      _transitionFocusSession = null;
+      _selectedTransitionId = null;
+      _clearUnifiedTransitionScopeSession();
+      _layerScopeSession = null;
+      _sceneScopeSession = null;
+      _sceneLayerScopeLayerId = null;
+      _selectedLayerScopeAnimationLaneId = null;
+      _selectedLayerScopeKeyframeIndex = null;
+      _selectedLayerScopeKeyframeId = null;
+      _isLayerScopeValueEditorOpen = false;
+      _isLayerScopeGraphEditorOpen = false;
+      _selectedClipId = sceneClip.id;
+    });
+    _syncLayerScopeTimeNotifiers();
+    _showStageMessage('Selected ${sceneClip.name ?? sceneClip.id}.');
+  }
+
+  void _openSourceCompositionFromOutliner({
+    required String sourceSceneId,
+    String? selectedLayerId,
+  }) {
+    if (_isLayerScopeTransitionBlocked) {
+      _showStageMessage(_layerScopeBlockedMessage());
+      return;
+    }
+    final sceneClip = _sceneClipForSourceScene(sourceSceneId);
+    if (sceneClip == null) {
+      _showStageMessage('No root Scene Clip uses this source composition.');
+      return;
+    }
+    final entryRootTime = _currentTime.clamp(
+      sceneClip.rootRange.start,
+      sceneClip.rootRange.endExclusive,
+    );
+    final result = _sceneScopeSessionResolver.open(
+      SceneScopeSessionRequest(
+        project: _effectiveMotionProject,
+        rootTime: entryRootTime,
+        sceneClipId: sceneClip.id,
+        sceneClips: _sceneClips,
+        channels: _manualMotionPropertyChannels,
+      ),
+    );
+    final session = result.session;
+    if (session == null) {
+      final message = result.issues.isEmpty
+          ? 'Scene Scope is not available for this composition.'
+          : result.issues.first.message;
+      _showStageMessage(message);
+      return;
+    }
+    final layerExists = selectedLayerId != null &&
+        _motionLayerById(sourceSceneId, selectedLayerId) != null;
+    _clearTimelineScrubHandoff();
+    setState(() {
+      _transitionFocusSession = null;
+      _selectedTransitionId = null;
+      _clearUnifiedTransitionScopeSession();
+      _layerScopeSession = null;
+      _sceneScopeSession = session;
+      _sceneLayerScopeLayerId = null;
+      _selectedLayerScopeAnimationLaneId = null;
+      _selectedLayerScopeKeyframeIndex = null;
+      _selectedLayerScopeKeyframeId = null;
+      _isLayerScopeValueEditorOpen = false;
+      _isLayerScopeGraphEditorOpen = false;
+      _selectedClipId = layerExists ? selectedLayerId : sceneClip.id;
+      _setCurrentTime(session.rootTime);
+    });
+    _syncLayerScopeTimeNotifiers();
+    _showStageMessage(
+      layerExists
+          ? 'Scene opened and layer selected.'
+          : 'Scene opened from Outliner.',
+    );
+  }
+
+  CompositionSceneClipModel? _sceneClipById(String sceneClipId) {
+    for (final sceneClip in _sceneClips) {
+      if (sceneClip.id == sceneClipId) {
+        return sceneClip;
+      }
+    }
+    return null;
+  }
+
+  CompositionSceneClipModel? _sceneClipForSourceScene(String sourceSceneId) {
+    for (final sceneClip in _sceneClips) {
+      if (sceneClip.sourceSceneId == sourceSceneId) {
+        return sceneClip;
+      }
+    }
+    return null;
+  }
+
+  MotionLayerModel? _motionLayerById(String sourceSceneId, String layerId) {
+    for (final scene in _effectiveMotionProject.scenes) {
+      if (scene.id != sourceSceneId) {
+        continue;
+      }
+      for (final layer in scene.layers) {
+        if (layer.id == layerId) {
+          return layer;
+        }
+      }
+    }
+    return null;
+  }
+
   Future<void> _openCreateCompositionSheet() async {
     final template = await showModalBottomSheet<_CompositionTemplate>(
       context: context,
@@ -17607,6 +17883,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
               Column(
                 children: [
                   EditorTopBar(
+                    onOutliner: _openCompositionWorkspaceOutlinerSheet,
                     onShare: _handleShare,
                     isExporting: _exportController.state.isActive,
                     exportProgress: _exportController.state.progress,
