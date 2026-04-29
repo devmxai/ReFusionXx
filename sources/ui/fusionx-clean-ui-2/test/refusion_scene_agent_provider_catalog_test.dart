@@ -104,6 +104,31 @@ void main() {
     );
   });
 
+  test('rejects direct Scene Program JSON with duplicate timing channels', () {
+    final rawResponse = jsonEncode(
+      <String, Object?>{
+        'output_text': _sceneProgramJson(
+          'Duplicate Timing Scene',
+          duplicateChannel: true,
+        ),
+      },
+    );
+
+    expect(
+      () => service.extractSceneProgramPayload(
+        rawResponse: rawResponse,
+        transport: ReFusionSceneAgentTransport.responses,
+      ),
+      throwsA(
+        isA<KieSceneProgramAgentException>().having(
+          (error) => error.message,
+          'message',
+          contains('professional timing contract'),
+        ),
+      ),
+    );
+  });
+
   test(
       'extracts wrapped directorPlan and Scene Program JSON from Claude output',
       () {
@@ -290,6 +315,47 @@ void main() {
     );
   });
 
+  test('falls back to compiled directorPlan when Scene Program timing fails',
+      () {
+    final rawResponse = jsonEncode(
+      <String, Object?>{
+        'output_text': jsonEncode(
+          <String, Object?>{
+            'directorPlan': _directorPlanJson(),
+            'sceneProgram': jsonDecode(
+              _sceneProgramJson(
+                'Duplicate Timed Director Scene',
+                duplicateChannel: true,
+              ),
+            ),
+          },
+        ),
+      },
+    );
+
+    final extracted = service.extractSceneProgramPayload(
+      rawResponse: rawResponse,
+      transport: ReFusionSceneAgentTransport.responses,
+    );
+    final decoded =
+        jsonDecode(extracted.sceneProgramJson) as Map<String, dynamic>;
+
+    expect(decoded['schemaVersion'], 'refusion.scene-program/v1');
+    expect(decoded['name'], 'Prompt Director');
+    expect(
+      extracted.directorIssues.where(
+        (issue) => issue.message.contains('timing contract'),
+      ),
+      isNotEmpty,
+    );
+    expect(
+      extracted.directorIssues.where(
+        (issue) => issue.severity.name == 'error',
+      ),
+      isEmpty,
+    );
+  });
+
   test('compiles directorPlan-only response into Scene Program JSON', () {
     final rawResponse = jsonEncode(
       <String, Object?>{
@@ -374,8 +440,11 @@ Map<String, Object?> _directorPlanJson({bool reverseTyping = false}) {
   };
 }
 
-String _sceneProgramJson(String name,
-    {String property = 'typewriterProgress'}) {
+String _sceneProgramJson(
+  String name, {
+  String property = 'typewriterProgress',
+  bool duplicateChannel = false,
+}) {
   return jsonEncode(
     <String, Object?>{
       'schemaVersion': 'refusion.scene-program/v1',
@@ -401,6 +470,14 @@ String _sceneProgramJson(String name,
                     <String, Object?>{'timeMs': 1200, 'value': 1},
                   ],
                 },
+                if (duplicateChannel)
+                  <String, Object?>{
+                    'property': property,
+                    'keyframes': <Object?>[
+                      <String, Object?>{'timeMs': 0, 'value': 1},
+                      <String, Object?>{'timeMs': 1200, 'value': 0},
+                    ],
+                  },
               ],
             },
           ],

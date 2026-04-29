@@ -129,6 +129,64 @@ void main() {
     expect(result.channels, hasLength(1));
   });
 
+  test('rejects duplicate target/property channels before lowering', () {
+    final result = service.importSceneProgram(
+      const ReFusionSceneProgramAuthoringRequest(
+        source: '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "name": "Duplicate Channels",
+  "durationMs": 1000,
+  "frameRate": 30,
+  "layers": [
+    {
+      "id": "title-layer",
+      "kind": "text",
+      "startMs": 0,
+      "durationMs": 1000,
+      "elements": [
+        {
+          "id": "title",
+          "kind": "text",
+          "text": "Duplicate",
+          "channels": [
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 0, "value": 0.0 },
+                { "timeMs": 300, "value": 1.0 }
+              ]
+            },
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 600, "value": 1.0 },
+                { "timeMs": 900, "value": 0.0 }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+''',
+      ),
+    );
+
+    expect(result.isValid, isFalse);
+    expect(result.project, isNull);
+    expect(result.channels, isEmpty);
+    expect(
+      result.issues.where(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+            issue.message.contains('Duplicate Scene Program channel'),
+      ),
+      isNotEmpty,
+    );
+  });
+
   test('returns typewriter bindings for scene-program typing channels', () {
     final result = service.importSceneProgram(
       const ReFusionSceneProgramAuthoringRequest(

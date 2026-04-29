@@ -4,6 +4,7 @@ import '../models/professional_motion_animation_models.dart';
 import '../models/professional_motion_models.dart';
 import '../models/professional_motion_text_models.dart';
 import '../models/refusion_scene_program_models.dart';
+import 'professional_scene_timing_contract.dart';
 import 'refusion_scene_program_import_service.dart';
 import 'refusion_scene_program_lowerer.dart';
 
@@ -60,11 +61,15 @@ class ReFusionSceneProgramAuthoringService {
   const ReFusionSceneProgramAuthoringService({
     ReFusionSceneProgramImportService importService =
         const ReFusionSceneProgramImportService(),
+    ProfessionalSceneTimingContractValidator timingContractValidator =
+        const ProfessionalSceneTimingContractValidator(),
     ReFusionSceneProgramLowerer lowerer = const ReFusionSceneProgramLowerer(),
   })  : _importService = importService,
+        _timingContractValidator = timingContractValidator,
         _lowerer = lowerer;
 
   final ReFusionSceneProgramImportService _importService;
+  final ProfessionalSceneTimingContractValidator _timingContractValidator;
   final ReFusionSceneProgramLowerer _lowerer;
 
   ReFusionSceneProgramAuthoringResult importSceneProgram(
@@ -78,6 +83,19 @@ class ReFusionSceneProgramAuthoringService {
       return ReFusionSceneProgramAuthoringResult(
         program: importResult.program,
         issues: importResult.issues,
+      );
+    }
+
+    final timingResult = _timingContractValidator.validateSceneProgram(
+      importResult.program!,
+    );
+    if (!timingResult.isValid) {
+      return ReFusionSceneProgramAuthoringResult(
+        program: importResult.program,
+        issues: <ReFusionSceneProgramIssue>[
+          ...importResult.issues,
+          ...timingResult.issues,
+        ],
       );
     }
 
@@ -96,6 +114,7 @@ class ReFusionSceneProgramAuthoringService {
       textAnimationBindings: loweringResult.textAnimationBindings,
       issues: <ReFusionSceneProgramIssue>[
         ...importResult.issues,
+        ...timingResult.issues,
         ...loweringResult.issues,
       ],
     );

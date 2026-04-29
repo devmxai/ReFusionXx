@@ -11,6 +11,7 @@ import 'refusion_motion_director_plan_import_service.dart';
 import 'refusion_motion_director_scene_program_alignment_linter.dart';
 import 'refusion_motion_director_scene_program_compiler.dart';
 import 'refusion_scene_agent_provider_catalog.dart';
+import 'professional_scene_timing_contract.dart';
 import 'refusion_scene_program_import_service.dart';
 
 class KieSceneProgramAgentService {
@@ -27,6 +28,8 @@ class KieSceneProgramAgentService {
         const ReFusionMotionDirectorSceneProgramAlignmentLinter(),
     ReFusionSceneProgramImportService sceneProgramImportService =
         const ReFusionSceneProgramImportService(),
+    ProfessionalSceneTimingContractValidator timingContractValidator =
+        const ProfessionalSceneTimingContractValidator(),
     MethodChannel runtimeConfigChannel =
         const MethodChannel('com.refusion.app/runtime_config'),
   })  : _catalog = catalog,
@@ -35,6 +38,7 @@ class KieSceneProgramAgentService {
         _directorCompiler = directorCompiler,
         _alignmentLinter = alignmentLinter,
         _sceneProgramImportService = sceneProgramImportService,
+        _timingContractValidator = timingContractValidator,
         _runtimeConfigChannel = runtimeConfigChannel;
 
   static const String _apiKey = String.fromEnvironment('KIE_API_KEY');
@@ -45,6 +49,7 @@ class KieSceneProgramAgentService {
   final ReFusionMotionDirectorSceneProgramCompiler _directorCompiler;
   final ReFusionMotionDirectorSceneProgramAlignmentLinter _alignmentLinter;
   final ReFusionSceneProgramImportService _sceneProgramImportService;
+  final ProfessionalSceneTimingContractValidator _timingContractValidator;
   final MethodChannel _runtimeConfigChannel;
   String _runtimeApiKey = '';
   bool _attemptedRuntimeKeyLoad = false;
@@ -189,6 +194,43 @@ class KieSceneProgramAgentService {
     }
     const encoder = JsonEncoder.withIndent('  ');
     final sceneProgramJson = encoder.convert(sceneProgram);
+    final sceneProgramTimingIssues =
+        _validateExtractedSceneProgramTiming(sceneProgramJson);
+    if (sceneProgramTimingIssues.isNotEmpty) {
+      if (directorExtraction.plan != null) {
+        final fallbackIssues = <ReFusionMotionDirectorIssue>[
+          ...directorExtraction.issues,
+          const ReFusionMotionDirectorIssue(
+            severity: ReFusionMotionDirectorIssueSeverity.warning,
+            message:
+                'Generated sceneProgram failed the professional timing contract; ReFusion compiled the directorPlan locally instead.',
+            path: 'sceneProgram',
+          ),
+          ...sceneProgramTimingIssues.take(3).map(
+                (issue) => ReFusionMotionDirectorIssue(
+                  severity: ReFusionMotionDirectorIssueSeverity.warning,
+                  message: 'Ignored generated sceneProgram timing issue: '
+                      '${issue.path == null ? issue.message : '${issue.path}: ${issue.message}'}',
+                  path: issue.path == null
+                      ? 'sceneProgram'
+                      : 'sceneProgram.${issue.path}',
+                ),
+              ),
+        ];
+        final compiled = _compileDirectorPlanToSceneProgram(
+          directorExtraction.plan!,
+          fallbackIssues,
+        );
+        return KieSceneProgramExtractionResult(
+          sceneProgramJson: _encodeSceneProgram(compiled),
+          directorPlan: directorExtraction.plan,
+          directorIssues: fallbackIssues,
+        );
+      }
+      throw KieSceneProgramAgentException(
+        'Generated sceneProgram failed the professional timing contract: ${_sceneProgramIssueSummary(sceneProgramTimingIssues)}',
+      );
+    }
     if (directorExtraction.plan != null) {
       final alignmentResult = _lintSceneProgramAlignment(
         plan: directorExtraction.plan!,
@@ -229,6 +271,38 @@ class KieSceneProgramAgentService {
       directorPlan: directorExtraction.plan,
       directorIssues: directorExtraction.issues,
     );
+  }
+
+  List<ReFusionSceneProgramIssue> _validateExtractedSceneProgramTiming(
+    String sceneProgramJson,
+  ) {
+    final importResult =
+        _sceneProgramImportService.validate(source: sceneProgramJson);
+    final importErrors = importResult.issues.where(
+      (issue) => issue.severity == ReFusionSceneProgramIssueSeverity.error,
+    );
+    if (importErrors.isNotEmpty || importResult.program == null) {
+      return importErrors.toList(growable: false);
+    }
+    return _timingContractValidator
+        .validateSceneProgram(importResult.program!)
+        .issues
+        .where(
+          (issue) => issue.severity == ReFusionSceneProgramIssueSeverity.error,
+        )
+        .toList(growable: false);
+  }
+
+  String _sceneProgramIssueSummary(List<ReFusionSceneProgramIssue> issues) {
+    return issues
+        .where(
+          (issue) => issue.severity == ReFusionSceneProgramIssueSeverity.error,
+        )
+        .take(3)
+        .map((issue) => issue.path == null
+            ? issue.message
+            : '${issue.path}: ${issue.message}')
+        .join(' ');
   }
 
   ReFusionSceneProgram _compileDirectorPlanToSceneProgram(
