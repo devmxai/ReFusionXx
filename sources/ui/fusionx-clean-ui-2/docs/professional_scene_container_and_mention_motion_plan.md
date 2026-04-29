@@ -518,6 +518,11 @@ duration
 sourceIn
 sourceOut
 timeScale
+instanceTransform
+instanceOpacity
+instanceCropOrMask
+instanceEffects
+zIndex/drawOrder
 thumbnail/summary
 enabled
 locked
@@ -525,7 +530,11 @@ metadata
 ```
 
 It is an instance. Later, multiple Scene Clips may reference the same source
-scene with different start times or transforms.
+scene with different start times, transforms, opacity, effects, and draw order.
+These instance properties belong to the root timeline clip, not to the source
+scene. Opening the Scene Clip edits the source scene; selecting the Scene Clip
+on the root timeline edits the instance/card behavior over the root
+composition background.
 
 ### 5.2 Scene Source
 

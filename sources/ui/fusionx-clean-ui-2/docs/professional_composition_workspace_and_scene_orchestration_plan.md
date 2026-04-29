@@ -192,6 +192,11 @@ Implementation note:
 - The selected background color must be visible in the composition preview.
   Export/native render parity for this background is a required follow-up, not
   a reason to hide the value from preview.
+- Background starts as project metadata/color in the current implementation,
+  but the professional target is an editable root background layer. The create
+  flow must eventually let the user choose between an empty Scene Clip over a
+  transparent/default canvas, or a root background layer with one or more Scene
+  Clips above it.
 
 ### 4.3 Root Timeline
 
@@ -199,6 +204,7 @@ The root timeline is for sequencing project-level Scene/Composition Clips.
 
 It may contain:
 
+- editable root background layers,
 - scene clips,
 - composition clips,
 - transition clips between adjacent scenes,
@@ -207,6 +213,40 @@ It may contain:
 
 The root timeline must not explode every generated internal text/shape into
 many root tracks. A generated scene appears as one Scene Clip container.
+
+Root composition layering contract:
+
+- A root composition may contain an editable background layer behind Scene or
+  Composition Clip instances.
+- The root background belongs to the root composition. It is not silently copied
+  into every nested Scene Source.
+- A Scene Clip is a composition-layer instance. It can be positioned, scaled,
+  rotated, faded, cropped/masked where supported, ordered by draw order, and
+  receive supported effects without modifying its source scene internals.
+- A Scene Clip can fill the whole canvas like a traditional full-screen scene,
+  or it can be reduced to a card/window over the root background.
+- Multiple Scene Clips may overlap in root time only when represented as
+  explicit root composition layers/cards with deterministic draw order. Sequential
+  story scenes remain the default behavior.
+- This supports workflows such as a single branded background with several
+  video or scene cards appearing one after another or simultaneously on top.
+- Preview/export must evaluate in this order:
+
+```text
+root background layer(s)
+-> root Scene Clip instance transform/effects
+-> nested source composition render
+-> root overlays/transitions
+```
+
+The instance/source boundary is strict:
+
+- Scene Clip instance properties belong to the root instance.
+- Opening the Scene Clip edits the nested source composition.
+- Root instance transforms/effects must not explode source-scene internals onto
+  the root timeline.
+- Mention Motion must distinguish `@Scene01 instance` from `@Scene01 source`
+  when both become addressable.
 
 ### 4.4 Scene Scope
 
@@ -337,6 +377,7 @@ The outliner must show:
 Project
   Assets
   Root Composition
+    Background Layers
     Scene Clip instances
   Source Compositions
     Layers
@@ -366,7 +407,8 @@ Root composition selected:
 - canvas size,
 - fps,
 - duration,
-- background,
+- background metadata,
+- root background layer controls when present,
 - safe-area guides.
 
 Scene Clip selected:
@@ -375,6 +417,11 @@ Scene Clip selected:
 - duration,
 - trim,
 - source scene,
+- instance transform,
+- instance opacity,
+- instance crop/mask where supported,
+- instance effects,
+- draw order,
 - transition handles,
 - regenerate/modify controls.
 
@@ -484,8 +531,12 @@ Deliverables:
 
 - `CompositionWorkspaceModel` or equivalent domain projection,
 - root composition settings,
+- editable root background layer model,
 - source composition registry,
 - scene clip instances,
+- Scene Clip instance visual properties:
+  position, scale, rotation, opacity, crop/mask where supported, z-order, and
+  supported effects,
 - selected scope/selection model,
 - insertion target resolver.
 
@@ -504,6 +555,9 @@ Implementation status:
   contracts for Scene/Add/selection edit intent resolution before UI wiring.
 - Guard tests cover root/source/local time mapping, scene clip modification
   targets, layer insertion targets, and missing composition validation.
+- Root background as a true layer and Scene Clip instance transforms/effects are
+  not implemented yet. They are now part of the W1/W4/W5/W9 contract, not a
+  separate side plan.
 
 ### Phase W2: Create Composition Startup Flow
 
@@ -540,6 +594,8 @@ Deliverables:
 
 - context-aware add menu,
 - root insert actions,
+- root background create/replace actions,
+- root Scene/Composition Clip as card/window actions,
 - scene layer insert actions,
 - layer-scope property/effect actions,
 - explicit unsupported blockers.
@@ -567,6 +623,9 @@ Implementation status:
 - Video/image/audio/null/adjustment layer entries are visible as explicit
   W3 blockers where their graph insertion path is not wired yet. They must not
   create fake UI-only layers.
+- Future W3 root actions must allow adding/replacing a root background layer and
+  inserting Scene Clips as full-screen scenes or as transformable cards over the
+  root background.
 
 ### Phase W4: Outliner
 
@@ -574,6 +633,8 @@ Deliverables:
 
 - mobile outliner sheet,
 - project/assets/compositions/layers tree,
+- root background layers under Root Composition,
+- Scene Clip instances shown as root composition layers with draw order,
 - selection sync with timeline/canvas,
 - rename/delete/duplicate where safe.
 
@@ -589,6 +650,8 @@ Deliverables:
 
 - selection-driven inspector sheet,
 - transform/style/effects/timing tabs,
+- root background layer controls,
+- Scene Clip instance transform/opacity/crop/effects/draw-order controls,
 - property changes write graph channels or static graph values,
 - key buttons beside animatable properties.
 
@@ -648,6 +711,8 @@ Exit criteria:
 Deliverables:
 
 - root scene clip renderer evaluates nested source compositions,
+- root background layer renderer,
+- Scene Clip instance transform/effect renderer,
 - scene-only canvas preview/export parity gates,
 - image/shape/text/video/audio layer export paths,
 - transition export parity.
