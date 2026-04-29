@@ -4754,6 +4754,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           sourceDurationTime: localEnd - localStart,
           label: _sceneScopeLayerLabel(layer),
           contentKind: TimelineClipContentKind.scene,
+          visualKind: _timelineVisualKindForSceneScopeLayer(layer),
           sourceSceneId: session.sourceSceneId,
         ),
       ];
@@ -4761,6 +4762,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         TimelineTrackData(
           kind: _timelineTrackKindForSceneScopeLayer(layer),
           contentKind: TimelineTrackContentKind.scene,
+          visualKind: _timelineVisualKindForSceneScopeLayer(layer),
           clips: clips,
           placeholderLabel: _sceneScopeLayerKindLabel(layer.kind),
         ),
@@ -4781,6 +4783,20 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       MotionLayerKind.camera ||
       MotionLayerKind.effectControl =>
         TimelineTrackKind.text,
+    };
+  }
+
+  TimelineVisualKind _timelineVisualKindForSceneScopeLayer(
+    MotionLayerModel layer,
+  ) {
+    return switch (layer.kind) {
+      MotionLayerKind.video => TimelineVisualKind.video,
+      MotionLayerKind.image => TimelineVisualKind.image,
+      MotionLayerKind.audio => TimelineVisualKind.audio,
+      MotionLayerKind.text => TimelineVisualKind.text,
+      MotionLayerKind.shape => TimelineVisualKind.shape,
+      MotionLayerKind.camera => TimelineVisualKind.camera,
+      MotionLayerKind.effectControl => TimelineVisualKind.control,
     };
   }
 

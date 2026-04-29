@@ -41,12 +41,14 @@ void main() {
     expect(result.hasIssues, isFalse);
     expect(result.track.isSceneTrack, isTrue);
     expect(result.track.contentKind, TimelineTrackContentKind.scene);
+    expect(result.track.visualKind, TimelineVisualKind.composition);
     expect(result.track.clips, hasLength(1));
 
     final timelineClip = result.track.clips.single;
     expect(timelineClip.isSceneClip, isTrue);
     expect(timelineClip.type, TimelineClipType.placeholder);
     expect(timelineClip.contentKind, TimelineClipContentKind.scene);
+    expect(timelineClip.visualKind, TimelineVisualKind.composition);
     expect(timelineClip.id, 'scene-clip');
     expect(timelineClip.sourceSceneId, 'source-scene');
     expect(timelineClip.label, 'Generated Scene');

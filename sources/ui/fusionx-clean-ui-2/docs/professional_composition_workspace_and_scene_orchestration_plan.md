@@ -509,6 +509,9 @@ Implementation status:
 - The root timeline receives one real empty Scene Clip container immediately,
   so the project starts with editable composition structure instead of a blank
   media-only state.
+- Timeline rows now carry explicit visual kinds, so root Scene Clips render as
+  composition containers while Scene Scope layers can render text/image/shape
+  icons according to their actual layer type.
 
 ### Phase W3: Universal Add Sheet
 

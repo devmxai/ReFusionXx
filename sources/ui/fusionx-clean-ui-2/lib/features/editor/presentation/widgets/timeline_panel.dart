@@ -433,6 +433,20 @@ Color _timelineSelectionAccentColor(TimelineTrackKind trackKind) {
   return Color.lerp(accent, Colors.white, 0.34) ?? Colors.white;
 }
 
+IconData _timelineVisualIcon(TimelineVisualKind visualKind) {
+  return switch (visualKind) {
+    TimelineVisualKind.video => Icons.videocam_rounded,
+    TimelineVisualKind.image => Icons.image_rounded,
+    TimelineVisualKind.audio => Icons.music_note_rounded,
+    TimelineVisualKind.text => Icons.text_fields_rounded,
+    TimelineVisualKind.lipSync => Icons.graphic_eq_rounded,
+    TimelineVisualKind.composition => Icons.dashboard_rounded,
+    TimelineVisualKind.shape => Icons.crop_square_rounded,
+    TimelineVisualKind.camera => Icons.photo_camera_rounded,
+    TimelineVisualKind.control => Icons.tune_rounded,
+  };
+}
+
 class _TimelineAnimationLaneMetrics {
   static const double sectionTopSpacing = 8;
   static const double sectionBottomSpacing = 6;
@@ -4743,33 +4757,14 @@ class _TimelineTrackRow extends StatelessWidget {
   final double baseClipOpacity;
 
   IconData get _trackIcon {
-    switch (track.kind) {
-      case TimelineTrackKind.video:
-        return Icons.videocam_rounded;
-      case TimelineTrackKind.image:
-        return Icons.image_rounded;
-      case TimelineTrackKind.audio:
-        return Icons.music_note_rounded;
-      case TimelineTrackKind.text:
-        return Icons.text_fields_rounded;
-      case TimelineTrackKind.lipSync:
-        return Icons.graphic_eq_rounded;
-    }
+    return _timelineVisualIcon(track.visualKind);
   }
 
-  IconData get _clipIcon {
-    switch (track.kind) {
-      case TimelineTrackKind.video:
-        return Icons.videocam_rounded;
-      case TimelineTrackKind.image:
-        return Icons.image_rounded;
-      case TimelineTrackKind.audio:
-        return Icons.music_note_rounded;
-      case TimelineTrackKind.text:
-        return Icons.text_fields_rounded;
-      case TimelineTrackKind.lipSync:
-        return Icons.graphic_eq_rounded;
+  IconData _clipIconFor(TimelineClipData clip) {
+    if (clip.type == TimelineClipType.placeholder || clip.isSceneClip) {
+      return _timelineVisualIcon(clip.visualKind);
     }
+    return _timelineVisualIcon(track.visualKind);
   }
 
   _TimelineTrackLaneProfile get _laneProfile =>
@@ -4935,6 +4930,7 @@ class _TimelineTrackRow extends StatelessWidget {
               ? _TimelinePlaceholderClip(
                   width: clipWidth,
                   label: clip.label ?? track.placeholderLabel ?? 'Add',
+                  icon: _clipIconFor(clip),
                   isSelected: isSelected,
                   onTap: () => onClipSelected(clip.id),
                   onDoubleTap: _supportsScopedLayerDoubleTap(clip)
@@ -4964,7 +4960,7 @@ class _TimelineTrackRow extends StatelessWidget {
               : _TimelineMediaClip(
                   width: trimGeometry.width,
                   tone: clip.tone,
-                  icon: _clipIcon,
+                  icon: _clipIconFor(clip),
                   trackKind: track.kind,
                   isPlaying: isPlaying,
                   assetPath: assetPath,
@@ -6466,33 +6462,14 @@ class _TimelineReorderTrackRow extends StatelessWidget {
   final bool showLaneBadge;
 
   IconData get _trackIcon {
-    switch (track.kind) {
-      case TimelineTrackKind.video:
-        return Icons.videocam_rounded;
-      case TimelineTrackKind.image:
-        return Icons.image_rounded;
-      case TimelineTrackKind.audio:
-        return Icons.music_note_rounded;
-      case TimelineTrackKind.text:
-        return Icons.text_fields_rounded;
-      case TimelineTrackKind.lipSync:
-        return Icons.graphic_eq_rounded;
-    }
+    return _timelineVisualIcon(track.visualKind);
   }
 
-  IconData get _clipIcon {
-    switch (track.kind) {
-      case TimelineTrackKind.video:
-        return Icons.videocam_rounded;
-      case TimelineTrackKind.image:
-        return Icons.image_rounded;
-      case TimelineTrackKind.audio:
-        return Icons.music_note_rounded;
-      case TimelineTrackKind.text:
-        return Icons.text_fields_rounded;
-      case TimelineTrackKind.lipSync:
-        return Icons.graphic_eq_rounded;
+  IconData _clipIconFor(TimelineClipData clip) {
+    if (clip.type == TimelineClipType.placeholder || clip.isSceneClip) {
+      return _timelineVisualIcon(clip.visualKind);
     }
+    return _timelineVisualIcon(track.visualKind);
   }
 
   _TimelineTrackLaneProfile get _laneProfile =>
@@ -6519,6 +6496,7 @@ class _TimelineReorderTrackRow extends StatelessWidget {
         width: width,
         height: height,
         label: clip.label ?? track.placeholderLabel ?? 'Add',
+        icon: _clipIconFor(clip),
         isSelected: isSelected,
         isDragged: isDragged,
         onTap: () {},
@@ -6529,7 +6507,7 @@ class _TimelineReorderTrackRow extends StatelessWidget {
       width: width,
       height: height,
       tone: clip.tone,
-      icon: _clipIcon,
+      icon: _clipIconFor(clip),
       trackKind: track.kind,
       assetPath: assetPath,
       sourceOffsetSeconds: clip.sourceOffsetSeconds,
@@ -7815,6 +7793,7 @@ class _TimelinePlaceholderClip extends StatelessWidget {
   const _TimelinePlaceholderClip({
     required this.width,
     required this.label,
+    required this.icon,
     required this.isSelected,
     required this.onTap,
     this.onDoubleTap,
@@ -7831,6 +7810,7 @@ class _TimelinePlaceholderClip extends StatelessWidget {
 
   final double width;
   final String label;
+  final IconData icon;
   final bool isSelected;
   final VoidCallback onTap;
   final VoidCallback? onDoubleTap;
@@ -7896,8 +7876,8 @@ class _TimelinePlaceholderClip extends StatelessWidget {
               padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 12),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.add_rounded,
+                  Icon(
+                    icon,
                     size: 18,
                     color: FxPalette.textMuted,
                   ),

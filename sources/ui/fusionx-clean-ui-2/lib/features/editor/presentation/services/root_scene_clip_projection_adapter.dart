@@ -95,6 +95,7 @@ class RootSceneClipProjectionAdapter {
       track: TimelineTrackData(
         kind: TimelineTrackKind.text,
         contentKind: TimelineTrackContentKind.scene,
+        visualKind: TimelineVisualKind.composition,
         placeholderLabel: placeholderLabel,
         clips: List<TimelineClipData>.unmodifiable(timelineClips),
       ),
@@ -125,6 +126,7 @@ class RootSceneClipProjectionAdapter {
       type: TimelineClipType.placeholder,
       tone: TimelineClipTone.aiGenerated,
       contentKind: TimelineClipContentKind.scene,
+      visualKind: TimelineVisualKind.composition,
       sourceSceneId: sceneClip.sourceSceneId,
       assetId: sceneClip.sourceSceneId,
       label: _labelFor(sceneClip),
