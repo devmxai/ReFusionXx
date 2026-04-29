@@ -78,6 +78,9 @@ Layout
   alignCenter
   safeArea
   padding
+  gap
+  align
+  justify
   readableHold
 
 Composition
@@ -378,6 +381,54 @@ Rules:
 - use `typewriterProgress` for keyboard typing;
 - use `trackingAmount` to animate AE tracking from tight/wide spacing back to
   the final readable typography.
+
+### `composition.parentGroup`
+
+Category: Composition
+
+Professional name: Parent Group / Container Relationship
+
+Supported targets: Scene Program elements through metadata
+
+Scene Program metadata properties:
+
+```text
+parentId
+containerId
+parentGroup
+layoutRole
+layoutMode
+padding
+gap
+align
+justify
+anchor
+safeArea
+constraints
+zIndex
+```
+
+Status:
+
+```text
+implemented-domain: yes
+editableInScope: metadata preserved for future scope adapters
+previewSupport: blocked until inherited group transforms are evaluated
+exportSupport: blocked until authored visual compositor consumes parent metadata
+```
+
+Rules:
+
+- use parent metadata to describe a designed UI hierarchy, not fixed ready-made
+  cards;
+- every `parentId` must reference a real element in the same Scene Program;
+- parent chains may not contain cycles;
+- a child layer's lifetime must stay inside the parent layer's lifetime;
+- parent elements should declare `layoutRole: "container"` or
+  `layoutRole: "group"` so future UI, mention, and export adapters can inspect
+  the composition cleanly;
+- do not claim inherited group transforms are active until the runtime
+  evaluator consumes this metadata.
 
 ## 10. Non-Negotiable Safety
 

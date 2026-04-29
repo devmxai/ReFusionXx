@@ -1117,4 +1117,77 @@ void main() {
     expect(titlePositionY.keyframes.first.value.rawValue, 120);
     expect(titlePositionY.keyframes.last.value.rawValue, 0);
   });
+
+  test('preserves layout and parent metadata on lowered elements', () {
+    final importResult = importService.validate(
+      source: '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "name": "Layout Metadata",
+  "durationMs": 1600,
+  "frameRate": 30,
+  "layers": [
+    {
+      "id": "ui-layer",
+      "kind": "shape",
+      "startMs": 0,
+      "durationMs": 1600,
+      "elements": [
+        {
+          "id": "prompt-shell",
+          "kind": "shape",
+          "properties": {
+            "shapeKind": "roundedRectangle",
+            "layoutRole": "container",
+            "layoutMode": "absolute",
+            "padding": 32,
+            "gap": 18,
+            "align": "center",
+            "zIndex": 10,
+            "width": 820,
+            "height": 104
+          }
+        },
+        {
+          "id": "prompt-text",
+          "kind": "text",
+          "text": "Build an app",
+          "properties": {
+            "parentId": "prompt-shell",
+            "layout": {
+              "role": "content",
+              "align": "centerLeft",
+              "padding": 24
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+''',
+    );
+    expect(importResult.isValid, isTrue);
+
+    final result = lowerer.lower(
+      ReFusionSceneProgramLoweringRequest(program: importResult.program!),
+    );
+
+    expect(result.hasErrors, isFalse);
+    final elements = result.project.scenes.single.layers.single.elements;
+    final shell =
+        elements.singleWhere((element) => element.id == 'prompt-shell');
+    final text = elements.singleWhere((element) => element.id == 'prompt-text');
+
+    expect(shell.sourceBinding!.metadata['layout.role'], 'container');
+    expect(shell.sourceBinding!.metadata['layout.mode'], 'absolute');
+    expect(shell.sourceBinding!.metadata['layout.padding'], '32');
+    expect(shell.sourceBinding!.metadata['layout.gap'], '18');
+    expect(shell.sourceBinding!.metadata['layout.align'], 'center');
+    expect(shell.sourceBinding!.metadata['layout.zIndex'], '10');
+    expect(text.sourceBinding!.metadata['layout.parentId'], 'prompt-shell');
+    expect(text.sourceBinding!.metadata['layout.role'], 'content');
+    expect(text.sourceBinding!.metadata['layout.align'], 'centerLeft');
+    expect(text.sourceBinding!.metadata['layout.padding'], '24');
+  });
 }

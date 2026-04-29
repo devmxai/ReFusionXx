@@ -7,6 +7,7 @@ import '../models/refusion_scene_program_models.dart';
 import 'professional_scene_timing_contract.dart';
 import 'refusion_scene_program_import_service.dart';
 import 'refusion_scene_program_lowerer.dart';
+import 'scene_program_layout_contract.dart';
 
 @immutable
 class ReFusionSceneProgramAuthoringRequest {
@@ -63,13 +64,17 @@ class ReFusionSceneProgramAuthoringService {
         const ReFusionSceneProgramImportService(),
     ProfessionalSceneTimingContractValidator timingContractValidator =
         const ProfessionalSceneTimingContractValidator(),
+    SceneProgramLayoutContractValidator layoutContractValidator =
+        const SceneProgramLayoutContractValidator(),
     ReFusionSceneProgramLowerer lowerer = const ReFusionSceneProgramLowerer(),
   })  : _importService = importService,
         _timingContractValidator = timingContractValidator,
+        _layoutContractValidator = layoutContractValidator,
         _lowerer = lowerer;
 
   final ReFusionSceneProgramImportService _importService;
   final ProfessionalSceneTimingContractValidator _timingContractValidator;
+  final SceneProgramLayoutContractValidator _layoutContractValidator;
   final ReFusionSceneProgramLowerer _lowerer;
 
   ReFusionSceneProgramAuthoringResult importSceneProgram(
@@ -99,6 +104,20 @@ class ReFusionSceneProgramAuthoringService {
       );
     }
 
+    final layoutResult = _layoutContractValidator.validate(
+      importResult.program!,
+    );
+    if (!layoutResult.isValid) {
+      return ReFusionSceneProgramAuthoringResult(
+        program: importResult.program,
+        issues: <ReFusionSceneProgramIssue>[
+          ...importResult.issues,
+          ...timingResult.issues,
+          ...layoutResult.issues,
+        ],
+      );
+    }
+
     final loweringResult = _lowerer.lower(
       ReFusionSceneProgramLoweringRequest(
         program: importResult.program!,
@@ -115,6 +134,7 @@ class ReFusionSceneProgramAuthoringService {
       issues: <ReFusionSceneProgramIssue>[
         ...importResult.issues,
         ...timingResult.issues,
+        ...layoutResult.issues,
         ...loweringResult.issues,
       ],
     );

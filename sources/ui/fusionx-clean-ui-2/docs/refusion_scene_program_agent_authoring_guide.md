@@ -253,6 +253,72 @@ For shape and icon elements:
 - `shadowColor`: `"#RRGGBB"` or `"#AARRGGBB"`, shape/icon only
 - `icon` for `kind: "icon"`
 
+## Layout And Parent Metadata
+
+ReFusion should build UI from reusable primitives, not from fixed ready-made
+cards. Use layout metadata to describe the hierarchy that a future Scene Scope,
+Layer Scope, mention system, preview adapter, and export adapter can inspect.
+
+Container/group example:
+
+```json
+{
+  "id": "prompt-shell",
+  "kind": "shape",
+  "properties": {
+    "shapeKind": "roundedRectangle",
+    "layoutRole": "container",
+    "layoutMode": "absolute",
+    "padding": 32,
+    "gap": 18,
+    "align": "center",
+    "width": 820,
+    "height": 104,
+    "cornerRadius": 52,
+    "color": "#121826",
+    "opacity": 1
+  }
+}
+```
+
+Child example:
+
+```json
+{
+  "id": "prompt-text",
+  "kind": "text",
+  "text": "build an app",
+  "properties": {
+    "parentId": "prompt-shell",
+    "layout": {
+      "role": "content",
+      "align": "centerLeft",
+      "padding": 24
+    },
+    "position": { "x": -180, "y": 0 },
+    "fontSize": 38,
+    "color": "#FFFFFF",
+    "opacity": 1
+  }
+}
+```
+
+Accepted metadata keys:
+
+- `parentId`, `containerId`, `parentGroup`
+- `layoutRole`, `layoutMode`
+- `padding`, `gap`, `align`, `justify`, `anchor`
+- `safeArea`, `constraints`, `zIndex`
+
+Strict contract:
+
+- every parent id must reference a real element in the Scene Program;
+- parent chains may not contain cycles;
+- child layer lifetime must stay inside parent layer lifetime;
+- a parent should declare `layoutRole: "container"` or `layoutRole: "group"`;
+- this metadata is preserved, but inherited group transforms are not active
+  until the runtime evaluator explicitly consumes it.
+
 Accepted aliases for agent convenience:
 
 - `backgroundColor`, `bgColor`, `fillColor` -> `color`

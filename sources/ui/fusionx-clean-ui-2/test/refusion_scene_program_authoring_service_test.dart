@@ -232,4 +232,49 @@ void main() {
     expect(result.textAnimationBindings.single.animationBlocks.single.kind,
         MotionTextAnimationKind.typewriter);
   });
+
+  test('rejects broken layout parent contracts before lowering', () {
+    final result = service.importSceneProgram(
+      const ReFusionSceneProgramAuthoringRequest(
+        source: '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "name": "Broken Layout",
+  "durationMs": 1200,
+  "frameRate": 30,
+  "layers": [
+    {
+      "id": "text-layer",
+      "kind": "text",
+      "startMs": 0,
+      "durationMs": 1200,
+      "elements": [
+        {
+          "id": "prompt-text",
+          "kind": "text",
+          "text": "Broken",
+          "properties": {
+            "parentId": "missing-shell"
+          }
+        }
+      ]
+    }
+  ]
+}
+''',
+      ),
+    );
+
+    expect(result.isValid, isFalse);
+    expect(result.project, isNull);
+    expect(result.channels, isEmpty);
+    expect(
+      result.issues.where(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+            issue.message.contains('does not exist'),
+      ),
+      isNotEmpty,
+    );
+  });
 }

@@ -928,12 +928,25 @@ class ReFusionSceneProgramLowerer {
       'source',
       'uri',
       'assetid',
+      'parent',
+      'parentid',
+      'containerid',
+      'parentgroup',
       'layout',
+      'layoutrole',
+      'layoutmode',
       'padding',
       'gap',
       'align',
       'alignment',
+      'alignitems',
+      'justify',
+      'justifycontent',
+      'direction',
+      'axis',
       'anchor',
+      'safearea',
+      'constraints',
       'zindex',
       'role',
       'description',
@@ -1358,8 +1371,114 @@ class ReFusionSceneProgramLowerer {
         if (element.properties['uri'] != null)
           'uri': '${element.properties['uri']}',
         ..._maskMetadataFor(element.properties),
+        ..._layoutMetadataFor(element.properties),
       },
     );
+  }
+
+  Map<String, String> _layoutMetadataFor(Map<String, Object?> properties) {
+    final metadata = <String, String>{};
+    void add(String metadataKey, Object? value) {
+      if (value == null) {
+        return;
+      }
+      final normalized = '$value'.trim();
+      if (normalized.isEmpty) {
+        return;
+      }
+      metadata[metadataKey] = normalized;
+    }
+
+    add(
+      'layout.parentId',
+      _propertyByNormalizedKey(properties, 'parentId') ??
+          _propertyByNormalizedKey(properties, 'parent') ??
+          _propertyByNormalizedKey(properties, 'containerId') ??
+          _propertyByNormalizedKey(properties, 'parentGroup'),
+    );
+    add(
+      'layout.role',
+      _propertyByNormalizedKey(properties, 'layoutRole') ??
+          _propertyByNormalizedKey(properties, 'role'),
+    );
+    final directLayout = _propertyByNormalizedKey(properties, 'layout');
+    add(
+      'layout.mode',
+      _propertyByNormalizedKey(properties, 'layoutMode') ??
+          _propertyByNormalizedKey(properties, 'display') ??
+          (directLayout is String ? directLayout : null),
+    );
+    add(
+      'layout.align',
+      _propertyByNormalizedKey(properties, 'align') ??
+          _propertyByNormalizedKey(properties, 'alignment') ??
+          _propertyByNormalizedKey(properties, 'alignItems'),
+    );
+    add(
+      'layout.justify',
+      _propertyByNormalizedKey(properties, 'justify') ??
+          _propertyByNormalizedKey(properties, 'justifyContent'),
+    );
+    add('layout.padding', _propertyByNormalizedKey(properties, 'padding'));
+    add('layout.gap', _propertyByNormalizedKey(properties, 'gap'));
+    add('layout.axis', _propertyByNormalizedKey(properties, 'axis'));
+    add('layout.direction', _propertyByNormalizedKey(properties, 'direction'));
+    add('layout.anchor', _propertyByNormalizedKey(properties, 'anchor'));
+    add('layout.safeArea', _propertyByNormalizedKey(properties, 'safeArea'));
+    add('layout.constraints',
+        _propertyByNormalizedKey(properties, 'constraints'));
+    add('layout.zIndex', _propertyByNormalizedKey(properties, 'zIndex'));
+
+    if (directLayout is Map) {
+      final layoutProperties = Map<String, Object?>.from(directLayout);
+      add(
+        'layout.parentId',
+        _propertyByNormalizedKey(layoutProperties, 'parentId') ??
+            _propertyByNormalizedKey(layoutProperties, 'parent') ??
+            _propertyByNormalizedKey(layoutProperties, 'containerId'),
+      );
+      add(
+        'layout.role',
+        _propertyByNormalizedKey(layoutProperties, 'layoutRole') ??
+            _propertyByNormalizedKey(layoutProperties, 'role'),
+      );
+      add(
+        'layout.mode',
+        _propertyByNormalizedKey(layoutProperties, 'layoutMode') ??
+            _propertyByNormalizedKey(layoutProperties, 'display') ??
+            _propertyByNormalizedKey(layoutProperties, 'mode'),
+      );
+      add(
+        'layout.align',
+        _propertyByNormalizedKey(layoutProperties, 'align') ??
+            _propertyByNormalizedKey(layoutProperties, 'alignment') ??
+            _propertyByNormalizedKey(layoutProperties, 'alignItems'),
+      );
+      add(
+        'layout.justify',
+        _propertyByNormalizedKey(layoutProperties, 'justify') ??
+            _propertyByNormalizedKey(layoutProperties, 'justifyContent'),
+      );
+      add('layout.padding',
+          _propertyByNormalizedKey(layoutProperties, 'padding'));
+      add('layout.gap', _propertyByNormalizedKey(layoutProperties, 'gap'));
+      add('layout.axis', _propertyByNormalizedKey(layoutProperties, 'axis'));
+      add(
+        'layout.direction',
+        _propertyByNormalizedKey(layoutProperties, 'direction'),
+      );
+      add('layout.anchor',
+          _propertyByNormalizedKey(layoutProperties, 'anchor'));
+      add(
+        'layout.safeArea',
+        _propertyByNormalizedKey(layoutProperties, 'safeArea'),
+      );
+      add(
+        'layout.constraints',
+        _propertyByNormalizedKey(layoutProperties, 'constraints'),
+      );
+    }
+    return metadata;
   }
 
   Map<String, String> _maskMetadataFor(Map<String, Object?> properties) {
