@@ -134,6 +134,9 @@ class ProfessionalSceneTimingContractIssueFormatter {
     if (normalized.contains('channelmustincludekeyframes')) {
       return 'add at least two meaningful keyframes for animated properties, or remove the empty channel entirely.';
     }
+    if (normalized.contains('readableholdafterfinalkeyframe')) {
+      return 'end the reveal earlier, extend the layer duration, or add a stable hold after the final reveal keyframe.';
+    }
     if (normalized.contains('lifetimemuststayinside')) {
       return 'adjust layer startMs/durationMs or increase scene durationMs so the layer fits inside the scene.';
     }
@@ -325,6 +328,8 @@ class ProfessionalSceneTimingContractValidator {
       _lintSceneProgramChannels(
         ownerChannels: layer.channels,
         ownerPath: '$layerPath.channels',
+        ownerId: layer.id,
+        ownerKind: layer.kind,
         ownerDurationMs: layer.durationMs,
         issues: issues,
       );
@@ -335,6 +340,8 @@ class ProfessionalSceneTimingContractValidator {
         _lintSceneProgramChannels(
           ownerChannels: element.channels,
           ownerPath: '$layerPath.elements[$elementIndex].channels',
+          ownerId: element.id,
+          ownerKind: element.kind,
           ownerDurationMs: layer.durationMs,
           issues: issues,
         );
@@ -605,6 +612,8 @@ class ProfessionalSceneTimingContractValidator {
   void _lintSceneProgramChannels({
     required List<ReFusionSceneProgramChannel> ownerChannels,
     required String ownerPath,
+    required String ownerId,
+    required String ownerKind,
     required int ownerDurationMs,
     required List<ReFusionSceneProgramIssue> issues,
   }) {
@@ -663,7 +672,126 @@ class ProfessionalSceneTimingContractValidator {
         }
         previousTimeMs = keyframe.timeMs;
       }
+      _lintSceneProgramChannelCompletion(
+        channel: channel,
+        ownerPath: ownerPath,
+        ownerId: ownerId,
+        ownerKind: ownerKind,
+        ownerDurationMs: ownerDurationMs,
+        channelIndex: channelIndex,
+        issues: issues,
+      );
     }
+  }
+
+  void _lintSceneProgramChannelCompletion({
+    required ReFusionSceneProgramChannel channel,
+    required String ownerPath,
+    required String ownerId,
+    required String ownerKind,
+    required int ownerDurationMs,
+    required int channelIndex,
+    required List<ReFusionSceneProgramIssue> issues,
+  }) {
+    if (channel.keyframes.length < 2 || ownerDurationMs <= 0) {
+      return;
+    }
+    final keyframes = List<ReFusionSceneProgramKeyframe>.from(
+      channel.keyframes,
+    )..sort((left, right) => left.timeMs.compareTo(right.timeMs));
+    final previous = keyframes[keyframes.length - 2];
+    final last = keyframes.last;
+    if (last.timeMs > ownerDurationMs) {
+      return;
+    }
+    final holdAfterLastMs = ownerDurationMs - last.timeMs;
+    if (_isSceneProgramTextRevealProperty(channel.property)) {
+      if (holdAfterLastMs < policy.minimumReadableHoldMs &&
+          !_valuesEqual(previous.value, last.value)) {
+        issues.add(
+          ReFusionSceneProgramIssue(
+            severity: ReFusionSceneProgramIssueSeverity.error,
+            message:
+                'Text reveal channel `${channel.property}` must leave a readable hold after final keyframe.',
+            path: '$ownerPath[$channelIndex].keyframes',
+          ),
+        );
+      }
+      return;
+    }
+    if (!policy.warnFinalMotionWithoutHold ||
+        _isSceneProgramCompletionExemptOwner(ownerId, ownerKind) ||
+        holdAfterLastMs >= policy.minimumCompletionHoldMs ||
+        _valuesEqual(previous.value, last.value) ||
+        _isSceneProgramFinalOffState(channel.property, last.value)) {
+      return;
+    }
+    issues.add(
+      ReFusionSceneProgramIssue(
+        severity: ReFusionSceneProgramIssueSeverity.warning,
+        message:
+            'Scene Program channel `${channel.property}` final visible motion ends without a completion hold. Add at least ${policy.minimumCompletionHoldMs}ms of stable resolve time.',
+        path: '$ownerPath[$channelIndex].keyframes',
+      ),
+    );
+  }
+
+  bool _isSceneProgramTextRevealProperty(String property) {
+    final normalized = _normalizeToken(property);
+    return normalized == 'typewriter' ||
+        normalized == 'typewriterprogress' ||
+        normalized == 'typing' ||
+        normalized == 'typingprogress' ||
+        normalized == 'texttypingprogress' ||
+        normalized == 'reveal' ||
+        normalized == 'revealprogress' ||
+        normalized == 'textreveal' ||
+        normalized == 'textrevealprogress' ||
+        normalized == 'wordreveal' ||
+        normalized == 'wordrevealprogress' ||
+        normalized == 'letterreveal' ||
+        normalized == 'letterrevealprogress';
+  }
+
+  bool _isSceneProgramCompletionExemptOwner(String ownerId, String ownerKind) {
+    final normalized = _normalizeToken('$ownerId $ownerKind');
+    return normalized.contains('background') ||
+        normalized.contains('canvas') ||
+        normalized.contains('transition') ||
+        normalized.contains('mask') ||
+        normalized.contains('cover');
+  }
+
+  bool _isSceneProgramFinalOffState(String property, Object value) {
+    final normalized = _normalizeToken(property);
+    final scalar = _numberValue(value);
+    if (scalar == null) {
+      return false;
+    }
+    if (normalized == 'opacity' ||
+        normalized == 'alpha' ||
+        normalized == 'visualopacity') {
+      return scalar <= 0.05;
+    }
+    if (normalized == 'scale' ||
+        normalized == 'scalex' ||
+        normalized == 'scaley' ||
+        normalized == 'transformscale' ||
+        normalized == 'transformscalex' ||
+        normalized == 'transformscaley') {
+      return scalar <= 0.05;
+    }
+    return false;
+  }
+
+  bool _valuesEqual(Object left, Object right) {
+    if (left == right) {
+      return true;
+    }
+    if (left is num && right is num) {
+      return (left.toDouble() - right.toDouble()).abs() < 0.0001;
+    }
+    return '$left' == '$right';
   }
 
   String? _propertyGroupForPrimitive(
@@ -725,6 +853,13 @@ class ProfessionalSceneTimingContractValidator {
     }
     if (normalizedKind == 'colorpulse' || normalizedKind == 'color') {
       return 'color';
+    }
+    return null;
+  }
+
+  double? _numberValue(Object? value) {
+    if (value is num) {
+      return value.toDouble();
     }
     return null;
   }

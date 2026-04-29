@@ -424,6 +424,107 @@ void main() {
     );
   });
 
+  test('rejects Scene Program text reveal without readable hold', () {
+    final result = validator.validateSceneProgram(
+      ReFusionSceneProgram(
+        schemaVersion: 'refusion.scene-program/v1',
+        name: 'No Text Hold',
+        durationMs: 1200,
+        frameRate: 30,
+        layers: <ReFusionSceneProgramLayer>[
+          ReFusionSceneProgramLayer(
+            id: 'typing-layer',
+            kind: 'text',
+            startMs: 0,
+            durationMs: 1200,
+            elements: <ReFusionSceneProgramElement>[
+              ReFusionSceneProgramElement(
+                id: 'typing-text',
+                kind: 'text',
+                text: 'Too late',
+                channels: <ReFusionSceneProgramChannel>[
+                  ReFusionSceneProgramChannel(
+                    target: 'self',
+                    property: 'typewriterProgress',
+                    keyframes: const <ReFusionSceneProgramKeyframe>[
+                      ReFusionSceneProgramKeyframe(
+                        timeMs: 0,
+                        value: 0.0,
+                      ),
+                      ReFusionSceneProgramKeyframe(
+                        timeMs: 1100,
+                        value: 1.0,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    expect(result.isValid, isFalse);
+    expect(
+      result.issues.where(
+        (issue) => issue.message.contains('readable hold after final keyframe'),
+      ),
+      isNotEmpty,
+    );
+  });
+
+  test('warns Scene Program final visible motion without completion hold', () {
+    final result = validator.validateSceneProgram(
+      ReFusionSceneProgram(
+        schemaVersion: 'refusion.scene-program/v1',
+        name: 'No Completion Hold',
+        durationMs: 1200,
+        frameRate: 30,
+        layers: <ReFusionSceneProgramLayer>[
+          ReFusionSceneProgramLayer(
+            id: 'dot-layer',
+            kind: 'shape',
+            startMs: 0,
+            durationMs: 1200,
+            elements: <ReFusionSceneProgramElement>[
+              ReFusionSceneProgramElement(
+                id: 'dot',
+                kind: 'shape',
+                channels: <ReFusionSceneProgramChannel>[
+                  ReFusionSceneProgramChannel(
+                    target: 'self',
+                    property: 'position',
+                    keyframes: const <ReFusionSceneProgramKeyframe>[
+                      ReFusionSceneProgramKeyframe(
+                        timeMs: 400,
+                        value: <String, Object?>{'x': -120, 'y': 0},
+                      ),
+                      ReFusionSceneProgramKeyframe(
+                        timeMs: 1100,
+                        value: <String, Object?>{'x': 120, 'y': 0},
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    expect(result.isValid, isTrue);
+    expect(
+      result.issues.where(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.warning &&
+            issue.message.contains('completion hold'),
+      ),
+      isNotEmpty,
+    );
+  });
+
   test('formats Scene Program timing issues with repair hints', () {
     final summary = formatter.formatSceneProgramIssues(
       const <ReFusionSceneProgramIssue>[
@@ -439,12 +540,19 @@ void main() {
               'Keyframe `timeMs` must be inside the owning layer duration.',
           path: 'layers[0].elements[0].channels[0].keyframes[2]',
         ),
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message:
+              'Text reveal channel `typewriterProgress` must leave a readable hold after final keyframe.',
+          path: 'layers[0].elements[0].channels[0].keyframes',
+        ),
       ],
     );
 
     expect(summary, contains('layers[0].elements[0].channels[1]'));
     expect(summary, contains('Fix: merge all keyframes'));
     expect(summary, contains('Fix: use layer-local timeMs'));
+    expect(summary, contains('Fix: end the reveal earlier'));
   });
 
   test('formats Director timing issues with repair hints', () {

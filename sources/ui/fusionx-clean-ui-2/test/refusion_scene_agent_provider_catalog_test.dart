@@ -452,14 +452,14 @@ String _sceneProgramJson(
     <String, Object?>{
       'schemaVersion': 'refusion.scene-program/v1',
       'name': name,
-      'durationMs': 1200,
+      'durationMs': 1600,
       'frameRate': 30,
       'layers': <Object?>[
         <String, Object?>{
           'id': 'title-layer',
           'kind': 'text',
           'startMs': 0,
-          'durationMs': 1200,
+          'durationMs': 1600,
           'elements': <Object?>[
             <String, Object?>{
               'id': 'title',
@@ -471,6 +471,7 @@ String _sceneProgramJson(
                   'keyframes': <Object?>[
                     <String, Object?>{'timeMs': 0, 'value': 0},
                     <String, Object?>{'timeMs': 1200, 'value': 1},
+                    <String, Object?>{'timeMs': 1600, 'value': 1},
                   ],
                 },
                 if (duplicateChannel)
@@ -479,6 +480,7 @@ String _sceneProgramJson(
                     'keyframes': <Object?>[
                       <String, Object?>{'timeMs': 0, 'value': 1},
                       <String, Object?>{'timeMs': 1200, 'value': 0},
+                      <String, Object?>{'timeMs': 1600, 'value': 0},
                     ],
                   },
               ],
