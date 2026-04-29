@@ -87,6 +87,43 @@ class FusionXCleanUiScreen extends StatefulWidget {
   State<FusionXCleanUiScreen> createState() => _FusionXCleanUiScreenState();
 }
 
+enum _UniversalAddScope {
+  root,
+  scene,
+  layer,
+}
+
+enum _UniversalAddAction {
+  newScene,
+  sceneScript,
+  presentDemo,
+  videoLayer,
+  imageLayer,
+  textLayer,
+  shapeLayer,
+  audioLayer,
+  nullLayer,
+  adjustmentLayer,
+  projectAsset,
+}
+
+@immutable
+class _UniversalAddSheetItem {
+  const _UniversalAddSheetItem({
+    required this.action,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.isReady = true,
+  });
+
+  final _UniversalAddAction action;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool isReady;
+}
+
 class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   static const double _minEditableClipDuration = 0.25;
@@ -10395,6 +10432,329 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
   }
 
+  Future<void> _openUniversalAddSheet() async {
+    final scope = _universalAddScope;
+    final action = await showModalBottomSheet<_UniversalAddAction>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _UniversalAddBottomSheet(
+        scope: scope,
+        items: _universalAddItemsForScope(scope),
+      ),
+    );
+    if (!mounted || action == null) {
+      return;
+    }
+    await _handleUniversalAddAction(action);
+  }
+
+  _UniversalAddScope get _universalAddScope {
+    if (_activeSceneLayerScopeViewModel != null ||
+        _activeLayerScopeContext != null) {
+      return _UniversalAddScope.layer;
+    }
+    if (_sceneScopeSession != null) {
+      return _UniversalAddScope.scene;
+    }
+    return _UniversalAddScope.root;
+  }
+
+  List<_UniversalAddSheetItem> _universalAddItemsForScope(
+    _UniversalAddScope scope,
+  ) {
+    switch (scope) {
+      case _UniversalAddScope.root:
+        return const <_UniversalAddSheetItem>[
+          _UniversalAddSheetItem(
+            action: _UniversalAddAction.newScene,
+            icon: Icons.view_timeline_rounded,
+            title: 'New Scene',
+            subtitle: 'Add an empty composition clip after the current scene.',
+          ),
+          _UniversalAddSheetItem(
+            action: _UniversalAddAction.sceneScript,
+            icon: Icons.auto_awesome_motion_rounded,
+            title: 'Scene From Script',
+            subtitle: 'Import or generate a complete editable scene program.',
+          ),
+          _UniversalAddSheetItem(
+            action: _UniversalAddAction.videoLayer,
+            icon: Icons.videocam_rounded,
+            title: 'Video',
+            subtitle: 'Import video media into the project timeline.',
+          ),
+          _UniversalAddSheetItem(
+            action: _UniversalAddAction.imageLayer,
+            icon: Icons.image_rounded,
+            title: 'Image',
+            subtitle: 'Import an image into the project timeline.',
+          ),
+          _UniversalAddSheetItem(
+            action: _UniversalAddAction.textLayer,
+            icon: Icons.text_fields_rounded,
+            title: 'Text',
+            subtitle: 'Create an editable text layer at the playhead.',
+          ),
+          _UniversalAddSheetItem(
+            action: _UniversalAddAction.audioLayer,
+            icon: Icons.music_note_rounded,
+            title: 'Audio',
+            subtitle: 'Audio import lands in a later checkpoint.',
+            isReady: false,
+          ),
+        ];
+      case _UniversalAddScope.scene:
+        return const <_UniversalAddSheetItem>[
+          _UniversalAddSheetItem(
+            action: _UniversalAddAction.textLayer,
+            icon: Icons.text_fields_rounded,
+            title: 'Text Layer',
+            subtitle: 'Create a real text layer inside this scene.',
+          ),
+          _UniversalAddSheetItem(
+            action: _UniversalAddAction.videoLayer,
+            icon: Icons.videocam_rounded,
+            title: 'Video Layer',
+            subtitle: 'Scene-local video layers are not wired yet.',
+            isReady: false,
+          ),
+          _UniversalAddSheetItem(
+            action: _UniversalAddAction.imageLayer,
+            icon: Icons.image_rounded,
+            title: 'Image Layer',
+            subtitle: 'Scene-local image layers are not wired yet.',
+            isReady: false,
+          ),
+          _UniversalAddSheetItem(
+            action: _UniversalAddAction.shapeLayer,
+            icon: Icons.category_rounded,
+            title: 'Shape Layer',
+            subtitle: 'Manual shape authoring is next in W3.',
+            isReady: false,
+          ),
+          _UniversalAddSheetItem(
+            action: _UniversalAddAction.audioLayer,
+            icon: Icons.music_note_rounded,
+            title: 'Audio Layer',
+            subtitle: 'Scene-local audio layers are not wired yet.',
+            isReady: false,
+          ),
+          _UniversalAddSheetItem(
+            action: _UniversalAddAction.nullLayer,
+            icon: Icons.control_camera_rounded,
+            title: 'Null Layer',
+            subtitle: 'Parent/control layers are not wired yet.',
+            isReady: false,
+          ),
+          _UniversalAddSheetItem(
+            action: _UniversalAddAction.adjustmentLayer,
+            icon: Icons.tune_rounded,
+            title: 'Adjustment Layer',
+            subtitle: 'Adjustment layers are not wired yet.',
+            isReady: false,
+          ),
+        ];
+      case _UniversalAddScope.layer:
+        return const <_UniversalAddSheetItem>[
+          _UniversalAddSheetItem(
+            action: _UniversalAddAction.textLayer,
+            icon: Icons.add_circle_outline_rounded,
+            title: 'Add Keyframe',
+            subtitle: 'Use the Key button in this scope to add property keys.',
+            isReady: false,
+          ),
+          _UniversalAddSheetItem(
+            action: _UniversalAddAction.adjustmentLayer,
+            icon: Icons.auto_awesome_motion_rounded,
+            title: 'Add Effect',
+            subtitle: 'Use Animate or FX for layer-scoped properties.',
+            isReady: false,
+          ),
+        ];
+    }
+  }
+
+  Future<void> _handleUniversalAddAction(_UniversalAddAction action) async {
+    switch (action) {
+      case _UniversalAddAction.newScene:
+        _insertEmptySceneClipAfterCurrentSelection();
+        return;
+      case _UniversalAddAction.sceneScript:
+        await _openSceneProgramImportSheet();
+        return;
+      case _UniversalAddAction.presentDemo:
+        await _openSceneProgramPresentSheet();
+        return;
+      case _UniversalAddAction.videoLayer:
+        if (_sceneScopeSession != null) {
+          _showStageMessage(
+            'Scene-local video layers will be wired in the next W3 slices.',
+          );
+          return;
+        }
+        await _openMediaSheet(EditorMediaTab.video);
+        return;
+      case _UniversalAddAction.imageLayer:
+        if (_sceneScopeSession != null) {
+          _showStageMessage(
+            'Scene-local image layers will be wired in the next W3 slices.',
+          );
+          return;
+        }
+        await _openMediaSheet(EditorMediaTab.image);
+        return;
+      case _UniversalAddAction.textLayer:
+        _insertDefaultTextLayer(openEditorOnInsert: _sceneScopeSession == null);
+        return;
+      case _UniversalAddAction.shapeLayer:
+        _showStageMessage('Manual shape layer creation is next in W3.');
+        return;
+      case _UniversalAddAction.audioLayer:
+        _showStageMessage(
+            'Audio layer import is not active in this checkpoint.');
+        return;
+      case _UniversalAddAction.nullLayer:
+        _showStageMessage('Null/control layers are planned for parent motion.');
+        return;
+      case _UniversalAddAction.adjustmentLayer:
+        _showStageMessage(
+          'Adjustment layers will connect to the effects stack later.',
+        );
+        return;
+      case _UniversalAddAction.projectAsset:
+        _showStageMessage(
+            'Project asset browser is planned for a later slice.');
+        return;
+    }
+  }
+
+  void _insertEmptySceneClipAfterCurrentSelection() {
+    final project = _effectiveMotionProject;
+    final rootSceneIndex = project.scenes.indexWhere(
+      (scene) => scene.id == _motionSceneId,
+    );
+    if (rootSceneIndex < 0) {
+      _showStageMessage('Root composition is not ready yet.');
+      return;
+    }
+
+    final sortedSceneClips = List<CompositionSceneClipModel>.from(_sceneClips)
+      ..sort((left, right) => left.startTime.compareTo(right.startTime));
+    final selectedSceneClip = _selectedClipId == null
+        ? null
+        : sortedSceneClips.cast<CompositionSceneClipModel?>().firstWhere(
+              (clip) => clip?.id == _selectedClipId,
+              orElse: () => null,
+            );
+    final lastSceneClip =
+        sortedSceneClips.isEmpty ? null : sortedSceneClips.last;
+    final anchorClip = selectedSceneClip ?? lastSceneClip;
+    final sceneNumber = _nextManualSceneNumber();
+    final sceneLabel = 'Scene ${sceneNumber.toString().padLeft(2, '0')}';
+    final duration =
+        (anchorClip?.durationTime ?? _defaultTextPresetDurationTime).clamp(
+      TimelineTime.fromSecondsDouble(1),
+      TimelineTime.fromSecondsDouble(20),
+    );
+    final startTime = sortedSceneClips.isEmpty
+        ? TimelineTime.zero
+        : (anchorClip?.endTime ?? lastSceneClip!.endTime);
+    final normalizedStart = sortedSceneClips.fold<TimelineTime>(
+      startTime,
+      (candidate, clip) => candidate < clip.endTime ? clip.endTime : candidate,
+    );
+    final sourceSceneId = _nextMotionEntityId('scene-source');
+    final sceneClipId = _nextMotionEntityId('scene-clip');
+    final sourceRange = TimelineTimeRange(
+      start: TimelineTime.zero,
+      endExclusive: duration,
+    );
+    final sourceScene = MotionSceneModel(
+      id: sourceSceneId,
+      projectRange: sourceRange,
+      layers: const <MotionLayerModel>[],
+      name: sceneLabel,
+      metadata: const <String, String>{
+        'role': 'source-composition',
+        'source': 'refusion.empty-scene',
+      },
+    );
+    final sceneClip = CompositionSceneClipModel(
+      id: sceneClipId,
+      sourceSceneId: sourceSceneId,
+      name: sceneLabel,
+      startTime: normalizedStart,
+      durationTime: duration,
+      sourceInTime: TimelineTime.zero,
+      sourceOutTime: duration,
+      metadata: const <String, String>{
+        'source': 'refusion.empty-scene',
+      },
+    );
+    final rootScene = project.scenes[rootSceneIndex];
+    final rootEnd = sceneClip.endTime > rootScene.projectRange.endExclusive
+        ? sceneClip.endTime
+        : rootScene.projectRange.endExclusive;
+    final nextScenes = List<MotionSceneModel>.from(project.scenes)
+      ..[rootSceneIndex] = rootScene.copyWith(
+        projectRange: TimelineTimeRange(
+          start: rootScene.projectRange.start,
+          endExclusive: rootEnd,
+        ),
+      )
+      ..add(sourceScene);
+    final nextProject = project.copyWith(scenes: nextScenes);
+    final nextSceneClips = List<CompositionSceneClipModel>.unmodifiable(
+      <CompositionSceneClipModel>[
+        ..._sceneClips,
+        sceneClip,
+      ]..sort((left, right) => left.startTime.compareTo(right.startTime)),
+    );
+    final nextTracks = List<TimelineTrackData>.unmodifiable(
+      _rootSceneClipProjectionAdapter.mergeSceneTrack(
+        existingTracks: _tracks,
+        sceneClips: nextSceneClips,
+      ),
+    );
+
+    setState(() {
+      _motionProject = nextProject;
+      _sceneClips = nextSceneClips;
+      _tracks = nextTracks;
+      _sceneScopeSession = null;
+      _sceneLayerScopeLayerId = null;
+      _selectedClipId = sceneClip.id;
+      _selectedTransitionId = null;
+      _previewAssetId = null;
+      _setCurrentTime(sceneClip.startTime);
+      _activeTab = EditorMediaTab.text;
+      _markMotionAuthoringChanged();
+    });
+    _syncTimelineClockDuration();
+    _showStageMessage('$sceneLabel added.');
+  }
+
+  int _nextManualSceneNumber() {
+    final scenePattern = RegExp(r'^Scene\s+(\d+)$');
+    var maxSceneNumber = 0;
+    for (final clip in _sceneClips) {
+      final name = clip.name?.trim();
+      if (name == null) {
+        continue;
+      }
+      final match = scenePattern.firstMatch(name);
+      if (match == null) {
+        continue;
+      }
+      final value = int.tryParse(match.group(1) ?? '');
+      if (value != null && value > maxSceneNumber) {
+        maxSceneNumber = value;
+      }
+    }
+    return maxSceneNumber + 1;
+  }
+
   void _handleTextDockTap() {
     final selectedTextElementId = _selectedMainTimelineTextElementId;
     if (selectedTextElementId != null) {
@@ -11719,6 +12079,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       initialFontSize: _defaultInsertedTextFontSize,
       failureMessage: 'Unable to insert text right now.',
       openEditorOnInsert: openEditorOnInsert,
+      forceNewLayer: _sceneScopeSession != null,
     );
   }
 
@@ -12136,6 +12497,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       elementName: preset.label,
       failureMessage: 'Unable to insert text preset right now.',
       openEditorOnInsert: true,
+      forceNewLayer: _sceneScopeSession != null,
     );
   }
 
@@ -12146,17 +12508,24 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     double? initialFontSize,
     required String failureMessage,
     bool openEditorOnInsert = false,
+    bool forceNewLayer = false,
   }) {
-    final insertionRange = _defaultTextPresetRange();
+    final activeSceneScope = _sceneScopeSession;
+    final targetSceneId = activeSceneScope?.sourceSceneId ?? _motionSceneId;
+    final insertionRange = activeSceneScope == null
+        ? _defaultTextPresetRange()
+        : _defaultTextPresetRangeForSceneScope(activeSceneScope);
     final insertionStartTime = insertionRange.start;
     final insertionResult = _buildMotionTextAuthoringService().insertTextPreset(
       MotionTextElementInsertionRequest(
         project: _effectiveMotionProject,
-        sceneId: _motionSceneId,
+        sceneId: targetSceneId,
         projectRange: insertionRange,
         presetId: presetId,
         text: text,
         elementName: elementName,
+        layerName: elementName,
+        reuseExistingLayer: !forceNewLayer,
         elementProperties: initialFontSize == null
             ? const <MotionPropertyAssignment>[]
             : <MotionPropertyAssignment>[
@@ -12181,6 +12550,19 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       ..._motionTextAnimationBindings,
       ...insertionResult.generatedBindings,
     ];
+    final nextSceneScope = activeSceneScope == null
+        ? null
+        : _sceneScopeSessionResolver
+            .open(
+              SceneScopeSessionRequest(
+                project: insertionResult.project,
+                rootTime: activeSceneScope.rootTime,
+                sceneClipId: activeSceneScope.sceneClipId,
+                sceneClips: _sceneClips,
+                channels: _manualMotionPropertyChannels,
+              ),
+            )
+            .session;
     final resolvedState = _resolveMotionTextTimelineStateForProject(
       project: insertionResult.project,
       preferredTimelineTime: insertionStartTime,
@@ -12188,19 +12570,34 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       bindings: nextBindings,
     );
 
-    final nextTracks = _ensureTrackKind(_tracks, TimelineTrackKind.text);
+    final nextTracks = activeSceneScope == null
+        ? _ensureTrackKind(_tracks, TimelineTrackKind.text)
+        : _tracks;
     setState(() {
       _tracks = nextTracks;
       _motionProject = insertionResult.project;
+      if (nextSceneScope != null) {
+        _sceneScopeSession = nextSceneScope;
+      }
       _motionTextAnimationBindings = nextBindings;
       _markMotionAuthoringChanged();
-      _selectedClipId = resolvedState.selectedClipId;
+      _selectedClipId = activeSceneScope == null
+          ? resolvedState.selectedClipId
+          : insertionResult.layerId ?? resolvedState.selectedClipId;
       _activeTab = EditorMediaTab.text;
       _previewAssetId = resolvedState.previewAssetId;
-      _setCurrentTime(resolvedState.timelineTime);
+      _setCurrentTime(
+        activeSceneScope == null
+            ? resolvedState.timelineTime
+            : activeSceneScope.localToRoot(
+                insertionStartTime - activeSceneScope.sourceRange.start,
+              ),
+      );
     });
     final insertedElementId = insertionResult.elementId;
-    if (openEditorOnInsert && insertedElementId != null) {
+    if (activeSceneScope == null &&
+        openEditorOnInsert &&
+        insertedElementId != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) {
           return;
@@ -12208,6 +12605,34 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         unawaited(_openTextClipEditSheet(insertedElementId));
       });
     }
+  }
+
+  TimelineTimeRange _defaultTextPresetRangeForSceneScope(
+    SceneScopeSession sceneScope,
+  ) {
+    final scopeDuration = sceneScope.localRange.duration;
+    if (scopeDuration <= TimelineTime.zero) {
+      return TimelineTimeRange(
+        start: sceneScope.sourceRange.start,
+        endExclusive:
+            sceneScope.sourceRange.start + _defaultTextPresetDurationTime,
+      );
+    }
+    final duration = scopeDuration < _defaultTextPresetDurationTime
+        ? scopeDuration
+        : _defaultTextPresetDurationTime;
+    final localTime = sceneScope.rootToLocal(_visibleTimelinePlaybackTime());
+    final maxLocalStart = scopeDuration - duration;
+    final localStart = localTime > maxLocalStart ? maxLocalStart : localTime;
+    final sourceStart = sceneScope.sourceRange.start +
+        localStart.clamp(TimelineTime.zero, scopeDuration);
+    return TimelineTimeRange(
+      start: sourceStart,
+      endExclusive: (sourceStart + duration).clamp(
+        sceneScope.sourceRange.start,
+        sceneScope.sourceRange.endExclusive,
+      ),
+    );
   }
 
   Future<void> _registerCustomTextPreset(
@@ -17823,14 +18248,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                 _openSceneProgramPresentSheet,
                                             onRemotionTap:
                                                 _openRemotionPromptSheet,
-                                            onAddTap: () {
-                                              _openMediaSheet(
-                                                effectiveDockActiveTab ==
-                                                        EditorMediaTab.image
-                                                    ? EditorMediaTab.image
-                                                    : EditorMediaTab.video,
-                                              );
-                                            },
+                                            onAddTap: _openUniversalAddSheet,
                                             onToolTap: _handleDockTab,
                                             enabledTabs: enabledDockTabs,
                                             addEnabled: true,
@@ -18685,6 +19103,192 @@ class _CompositionStartButton extends StatelessWidget {
                   fontWeight: FontWeight.w900,
                   letterSpacing: 0,
                 ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _UniversalAddBottomSheet extends StatelessWidget {
+  const _UniversalAddBottomSheet({
+    required this.scope,
+    required this.items,
+  });
+
+  final _UniversalAddScope scope;
+  final List<_UniversalAddSheetItem> items;
+
+  String get _title {
+    return switch (scope) {
+      _UniversalAddScope.root => 'Add To Composition',
+      _UniversalAddScope.scene => 'Add To Scene',
+      _UniversalAddScope.layer => 'Layer Tools',
+    };
+  }
+
+  String get _subtitle {
+    return switch (scope) {
+      _UniversalAddScope.root =>
+        'Create scenes or import project-level layers.',
+      _UniversalAddScope.scene =>
+        'Add real layers inside the open scene composition.',
+      _UniversalAddScope.layer =>
+        'Layer scope uses keyframe, value, graph, Animate, and FX tools.',
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: FxPalette.surface,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      padding: EdgeInsets.fromLTRB(
+        20,
+        14,
+        20,
+        20 + MediaQuery.of(context).padding.bottom,
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 52,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: FxPalette.divider,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              _title,
+              style: const TextStyle(
+                color: FxPalette.textPrimary,
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _subtitle,
+              style: const TextStyle(
+                color: FxPalette.textMuted,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                height: 1.25,
+              ),
+            ),
+            const SizedBox(height: 18),
+            for (final item in items) ...[
+              _UniversalAddTile(item: item),
+              const SizedBox(height: 10),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _UniversalAddTile extends StatelessWidget {
+  const _UniversalAddTile({
+    required this.item,
+  });
+
+  final _UniversalAddSheetItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground =
+        item.isReady ? FxPalette.textPrimary : FxPalette.textMuted;
+    final accent = item.isReady ? FxPalette.accent : FxPalette.textMuted;
+    return Material(
+      color: FxPalette.surfaceRaised,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => Navigator.of(context).pop(item.action),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: accent.withOpacity(item.isReady ? 0.14 : 0.08),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Icon(item.icon, color: accent, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            item.title,
+                            style: TextStyle(
+                              color: foreground,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0,
+                            ),
+                          ),
+                        ),
+                        if (!item.isReady)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: FxPalette.textMuted.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(99),
+                            ),
+                            child: const Text(
+                              'Next',
+                              style: TextStyle(
+                                color: FxPalette.textMuted,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      item.subtitle,
+                      style: const TextStyle(
+                        color: FxPalette.textMuted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: FxPalette.textMuted,
               ),
             ],
           ),

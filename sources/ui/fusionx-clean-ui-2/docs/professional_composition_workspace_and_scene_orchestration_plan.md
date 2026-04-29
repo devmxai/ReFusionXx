@@ -529,6 +529,21 @@ Exit criteria:
 - inserted layers are real graph layers,
 - out-of-scope insertion is rejected clearly.
 
+Implementation status:
+
+- First UI slice completed: the bottom-dock `Add` action now opens a
+  context-aware sheet for root composition, Scene Scope, and Layer Scope
+  contexts instead of jumping straight to video/image media import.
+- Root composition can create a real empty `Scene NN` composition clip appended
+  after the current scene sequence.
+- Scene Scope can create a real text layer inside the open source composition.
+  Text authoring now has an explicit `reuseExistingLayer` contract so scene
+  insertion can create a new layer instead of silently merging into the first
+  text layer.
+- Video/image/audio/shape/null/adjustment layer entries are visible as explicit
+  W3 blockers where their graph insertion path is not wired yet. They must not
+  create fake UI-only layers.
+
 ### Phase W4: Outliner
 
 Deliverables:

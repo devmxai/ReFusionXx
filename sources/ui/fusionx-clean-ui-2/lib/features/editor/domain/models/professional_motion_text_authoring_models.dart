@@ -43,6 +43,7 @@ class MotionTextElementInsertionRequest {
     this.layerName,
     this.layerZIndex,
     this.createLayerIfMissing = true,
+    this.reuseExistingLayer = true,
     Map<String, MotionPropertyValue> parameterValues =
         const <String, MotionPropertyValue>{},
     List<MotionTextAnimationBlock> animationBlocks =
@@ -63,6 +64,7 @@ class MotionTextElementInsertionRequest {
   final String? layerName;
   final int? layerZIndex;
   final bool createLayerIfMissing;
+  final bool reuseExistingLayer;
   final Map<String, MotionPropertyValue> parameterValues;
   final List<MotionTextAnimationBlock> animationBlocks;
   final List<MotionPropertyAssignment> elementProperties;
@@ -186,6 +188,7 @@ class BasicMotionTextElementAuthoringService
       layerName: request.layerName,
       requestedZIndex: request.layerZIndex,
       createLayerIfMissing: request.createLayerIfMissing,
+      reuseExistingLayer: request.reuseExistingLayer,
       issues: issues,
     );
     if (resolvedLayerSelection == null) {
@@ -303,6 +306,7 @@ class BasicMotionTextElementAuthoringService
     required String? layerName,
     required int? requestedZIndex,
     required bool createLayerIfMissing,
+    required bool reuseExistingLayer,
     required List<MotionTextInsertionIssue> issues,
   }) {
     if (preferredLayerId != null) {
@@ -339,12 +343,14 @@ class BasicMotionTextElementAuthoringService
       );
     }
 
-    for (final layer in scene.layers) {
-      if (layer.kind == MotionLayerKind.text) {
-        return _ResolvedTextLayerSelection(
-          layer: layer,
-          createdLayer: false,
-        );
+    if (reuseExistingLayer) {
+      for (final layer in scene.layers) {
+        if (layer.kind == MotionLayerKind.text) {
+          return _ResolvedTextLayerSelection(
+            layer: layer,
+            createdLayer: false,
+          );
+        }
       }
     }
 
