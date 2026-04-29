@@ -484,6 +484,189 @@ void main() {
     );
   });
 
+  test('lowers mask reveal elements into editable mask channels', () {
+    final importResult = importService.validate(
+      source: '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "name": "Moving Mask Reveal Scene",
+  "durationMs": 2400,
+  "frameRate": 30,
+  "layers": [
+    {
+      "id": "title-mask-layer",
+      "kind": "shape",
+      "startMs": 0,
+      "durationMs": 2400,
+      "elements": [
+        {
+          "id": "title-mask",
+          "kind": "mask",
+          "properties": {
+            "maskTarget": "title",
+            "maskMode": "alpha",
+            "revealDirection": "leftToRight",
+            "position": { "x": -340, "y": 0 },
+            "width": 80,
+            "height": 180,
+            "color": "#FFFFFF"
+          },
+          "channels": [
+            {
+              "property": "movingMaskReveal",
+              "keyframes": [
+                { "timeMs": 900, "value": 0.0, "easing": "linear" },
+                { "timeMs": 1500, "value": 1.0, "easing": "easeOutCubic" }
+              ]
+            },
+            {
+              "property": "position",
+              "keyframes": [
+                { "timeMs": 900, "value": { "x": -340, "y": 0 }, "easing": "easeOutCubic" },
+                { "timeMs": 1500, "value": { "x": 340, "y": 0 }, "easing": "easeOutCubic" }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+''',
+    );
+    expect(importResult.isValid, isTrue);
+
+    final result = lowerer.lower(
+      ReFusionSceneProgramLoweringRequest(program: importResult.program!),
+    );
+
+    expect(result.hasErrors, isFalse);
+    final element = result.project.scenes.single.layers.single.elements.single;
+    expect(element.kind, MotionElementKind.mask);
+    expect(element.shapeKind, MotionShapeKind.mask);
+    expect(element.sourceBinding!.metadata['maskTarget'], 'title');
+    expect(element.sourceBinding!.metadata['maskMode'], 'alpha');
+    expect(element.sourceBinding!.metadata['revealDirection'], 'leftToRight');
+    expect(
+      element.properties.map((assignment) => assignment.definition.id),
+      containsAll(<String>[
+        MotionPropertyCatalog.positionX.id,
+        MotionPropertyCatalog.positionY.id,
+        MotionPropertyCatalog.width.id,
+        MotionPropertyCatalog.height.id,
+        'visual.color',
+      ]),
+    );
+    final revealChannel = result.channels.singleWhere(
+      (channel) => channel.definition.id == 'mask.revealProgress',
+    );
+    expect(revealChannel.target.targetId, 'title-mask');
+    expect(
+      revealChannel.keyframes.map((keyframe) => keyframe.time.inMilliseconds),
+      <int>[900, 1500],
+    );
+    expect(
+      revealChannel.keyframes.map((keyframe) => keyframe.value.rawValue),
+      <double>[0.0, 1.0],
+    );
+    expect(
+      result.channels.map((channel) => channel.definition.id),
+      containsAll(<String>[
+        MotionPropertyCatalog.positionX.id,
+        MotionPropertyCatalog.positionY.id,
+      ]),
+    );
+  });
+
+  test('lowers shape morph aliases for size and roundness animation', () {
+    final importResult = importService.validate(
+      source: '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "name": "Circle To Bar Morph",
+  "durationMs": 2200,
+  "frameRate": 30,
+  "layers": [
+    {
+      "id": "morph-layer",
+      "kind": "shape",
+      "startMs": 0,
+      "durationMs": 2200,
+      "elements": [
+        {
+          "id": "wipe-shape",
+          "kind": "shape",
+          "properties": {
+            "shapeKind": "roundedRectangle",
+            "morphSize": { "width": 96, "height": 96 },
+            "roundness": 48,
+            "backgroundColor": "#FFFFFF"
+          },
+          "channels": [
+            {
+              "property": "morphSize",
+              "keyframes": [
+                { "timeMs": 600, "value": { "width": 96, "height": 96 }, "easing": "easeOutCubic" },
+                { "timeMs": 1200, "value": { "width": 680, "height": 28 }, "easing": "easeOutCubic" }
+              ]
+            },
+            {
+              "property": "roundness",
+              "keyframes": [
+                { "timeMs": 600, "value": 48, "easing": "easeOutCubic" },
+                { "timeMs": 1200, "value": 14, "easing": "easeOutCubic" }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+''',
+    );
+    expect(importResult.isValid, isTrue);
+
+    final result = lowerer.lower(
+      ReFusionSceneProgramLoweringRequest(program: importResult.program!),
+    );
+
+    expect(result.hasErrors, isFalse);
+    final element = result.project.scenes.single.layers.single.elements.single;
+    expect(element.shapeKind, MotionShapeKind.roundedRectangle);
+    expect(
+      element.properties.map((assignment) => assignment.definition.id),
+      containsAll(<String>[
+        MotionPropertyCatalog.width.id,
+        MotionPropertyCatalog.height.id,
+        MotionPropertyCatalog.cornerRadius.id,
+        'visual.color',
+      ]),
+    );
+    final widthChannel = result.channels.singleWhere(
+      (channel) => channel.definition.id == MotionPropertyCatalog.width.id,
+    );
+    final heightChannel = result.channels.singleWhere(
+      (channel) => channel.definition.id == MotionPropertyCatalog.height.id,
+    );
+    final roundnessChannel = result.channels.singleWhere(
+      (channel) =>
+          channel.definition.id == MotionPropertyCatalog.cornerRadius.id,
+    );
+    expect(
+      widthChannel.keyframes.map((keyframe) => keyframe.value.rawValue),
+      <double>[96, 680],
+    );
+    expect(
+      heightChannel.keyframes.map((keyframe) => keyframe.value.rawValue),
+      <double>[96, 28],
+    );
+    expect(
+      roundnessChannel.keyframes.map((keyframe) => keyframe.value.rawValue),
+      <double>[48, 14],
+    );
+  });
+
   test('keeps supported channels when unsupported properties are present', () {
     final importResult = importService.validate(
       source: '''

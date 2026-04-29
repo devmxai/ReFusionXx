@@ -570,6 +570,20 @@ class ReFusionSceneProgramLowerer {
           MotionPropertyCatalog.cornerRadius.id,
           _SceneProgramPropertyDefinitions.icon.id,
         },
+      MotionElementKind.mask => <String>{
+          MotionPropertyCatalog.positionX.id,
+          MotionPropertyCatalog.positionY.id,
+          MotionPropertyCatalog.scaleX.id,
+          MotionPropertyCatalog.scaleY.id,
+          MotionPropertyCatalog.rotationDegrees.id,
+          MotionPropertyCatalog.opacity.id,
+          MotionPropertyCatalog.blurAmount.id,
+          _SceneProgramPropertyDefinitions.color.id,
+          MotionPropertyCatalog.width.id,
+          MotionPropertyCatalog.height.id,
+          MotionPropertyCatalog.cornerRadius.id,
+          _SceneProgramPropertyDefinitions.maskRevealProgress.id,
+        },
       MotionElementKind.image => <String>{
           MotionPropertyCatalog.positionX.id,
           MotionPropertyCatalog.positionY.id,
@@ -688,19 +702,43 @@ class ReFusionSceneProgramLowerer {
         <_LoweredProperty>[
           _LoweredProperty(definition: MotionPropertyCatalog.revealProgress),
         ],
+      'maskreveal' ||
+      'maskrevealprogress' ||
+      'movingmaskreveal' ||
+      'movingmaskrevealprogress' ||
+      'mattereveal' ||
+      'matterevealprogress' ||
+      'maskprogress' ||
+      'wipeprogress' =>
+        <_LoweredProperty>[
+          _LoweredProperty(
+            definition: _SceneProgramPropertyDefinitions.maskRevealProgress,
+          ),
+        ],
       'width' || 'shapewidth' => <_LoweredProperty>[
           _LoweredProperty(definition: MotionPropertyCatalog.width),
         ],
       'height' || 'shapeheight' => <_LoweredProperty>[
           _LoweredProperty(definition: MotionPropertyCatalog.height),
         ],
-      'cornerradius' || 'shapecornerradius' => <_LoweredProperty>[
+      'cornerradius' ||
+      'shapecornerradius' ||
+      'roundness' ||
+      'rectroundness' ||
+      'shaperoundness' =>
+        <_LoweredProperty>[
           _LoweredProperty(definition: MotionPropertyCatalog.cornerRadius),
         ],
       'radius' || 'borderradius' => <_LoweredProperty>[
           _LoweredProperty(definition: MotionPropertyCatalog.cornerRadius),
         ],
-      'size' || 'iconsize' || 'shapesize' => <_LoweredProperty>[
+      'size' ||
+      'iconsize' ||
+      'shapesize' ||
+      'morphsize' ||
+      'rectsize' ||
+      'shapemorphsize' =>
+        <_LoweredProperty>[
           _LoweredProperty(
             definition: MotionPropertyCatalog.width,
             component: _VectorComponent.x,
@@ -745,6 +783,18 @@ class ReFusionSceneProgramLowerer {
       'role',
       'description',
       'notes',
+      'masktarget',
+      'mattetarget',
+      'revealtarget',
+      'maskmode',
+      'mattemode',
+      'revealmode',
+      'revealrole',
+      'maskrole',
+      'revealdirection',
+      'masksourcetype',
+      'trackmatte',
+      'trackmattemode',
     }.contains(normalizedProperty);
   }
 
@@ -818,8 +868,14 @@ class ReFusionSceneProgramLowerer {
       return raw;
     }
     if (raw is num &&
-        const <String>{'size', 'iconsize', 'shapesize'}
-            .contains(_normalizeToken(property))) {
+        const <String>{
+          'size',
+          'iconsize',
+          'shapesize',
+          'morphsize',
+          'rectsize',
+          'shapemorphsize',
+        }.contains(_normalizeToken(property))) {
       return raw;
     }
     if (raw is List && raw.isNotEmpty) {
@@ -968,6 +1024,8 @@ class ReFusionSceneProgramLowerer {
       case 'solid':
       case 'icon':
         return MotionElementKind.shape;
+      case 'mask':
+        return MotionElementKind.mask;
       case 'image':
         return MotionElementKind.image;
     }
@@ -1070,6 +1128,9 @@ class ReFusionSceneProgramLowerer {
     if (normalizedKind == 'icon') {
       return MotionShapeKind.customPath;
     }
+    if (normalizedKind == 'mask') {
+      return MotionShapeKind.mask;
+    }
     final rawShape = element.properties['shapeKind'] ??
         element.properties['shape'] ??
         element.properties['type'] ??
@@ -1106,8 +1167,47 @@ class ReFusionSceneProgramLowerer {
           'icon': '${element.properties['icon']}',
         if (element.properties['uri'] != null)
           'uri': '${element.properties['uri']}',
+        ..._maskMetadataFor(element.properties),
       },
     );
+  }
+
+  Map<String, String> _maskMetadataFor(Map<String, Object?> properties) {
+    const keys = <String, String>{
+      'maskTarget': 'maskTarget',
+      'matteTarget': 'matteTarget',
+      'revealTarget': 'revealTarget',
+      'maskMode': 'maskMode',
+      'matteMode': 'matteMode',
+      'revealMode': 'revealMode',
+      'revealRole': 'revealRole',
+      'maskRole': 'maskRole',
+      'revealDirection': 'revealDirection',
+      'maskSourceType': 'maskSourceType',
+      'trackMatte': 'trackMatte',
+      'trackMatteMode': 'trackMatteMode',
+    };
+    final metadata = <String, String>{};
+    for (final entry in keys.entries) {
+      final value = _propertyByNormalizedKey(properties, entry.key);
+      if (value != null) {
+        metadata[entry.value] = '$value';
+      }
+    }
+    return metadata;
+  }
+
+  Object? _propertyByNormalizedKey(
+    Map<String, Object?> properties,
+    String key,
+  ) {
+    final normalizedKey = _normalizeToken(key);
+    for (final entry in properties.entries) {
+      if (_normalizeToken(entry.key) == normalizedKey) {
+        return entry.value;
+      }
+    }
+    return null;
   }
 
   String _sourceIdFor(ReFusionSceneProgramElement element) {
@@ -1239,5 +1339,17 @@ class _SceneProgramPropertyDefinitions {
     valueKind: MotionPropertyValueKind.stringValue,
     supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
     defaultValue: const MotionPropertyValue.stringValue('sparkles'),
+  );
+
+  static final MotionPropertyDefinition maskRevealProgress =
+      MotionPropertyDefinition(
+    id: 'mask.revealProgress',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.shape,
+      name: 'maskRevealProgress',
+    ),
+    valueKind: MotionPropertyValueKind.scalar,
+    supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
+    defaultValue: const MotionPropertyValue.scalar(0),
   );
 }

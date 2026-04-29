@@ -47,6 +47,7 @@ class ReFusionSceneProgramImportService {
     'shape',
     'solid',
     'icon',
+    'mask',
   };
 
   ReFusionSceneProgramImportResult validate({
