@@ -93,6 +93,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   static const int _deviceMediaPageSize = 24;
   static const String _motionProjectId = 'motion-project';
   static const String _motionSceneId = 'scene-main';
+  static const String _defaultCompositionSceneClipId = 'scene-clip-01';
+  static const String _defaultCompositionSourceSceneId = 'scene-01-source';
   static const String _exportContractVersion = 'v1alpha1';
   static const String _normalTransitionVideoTrackId = 'video-main';
   static const int _playbackStartPositionToleranceMs = 24;
@@ -11296,10 +11298,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _createBlankComposition(template);
   }
 
-  Future<void> _handleStartFromVideo() async {
-    await _openMediaSheet(EditorMediaTab.video);
-  }
-
   void _createBlankComposition(_CompositionTemplate template) {
     const canvasWidth = 1080.0;
     final canvasHeight =
@@ -11323,20 +11321,55 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           ),
           layers: const <MotionLayerModel>[],
           name: template.label,
+          metadata: const <String, String>{
+            'role': 'root-composition',
+          },
+        ),
+        MotionSceneModel(
+          id: _defaultCompositionSourceSceneId,
+          projectRange: TimelineTimeRange(
+            start: TimelineTime.zero,
+            endExclusive: template.duration,
+          ),
+          layers: const <MotionLayerModel>[],
+          name: 'Scene 01',
+          metadata: const <String, String>{
+            'role': 'source-composition',
+            'source': 'refusion.empty-scene',
+          },
         ),
       ],
       name: '${template.label} Composition',
+    );
+    final sceneClip = CompositionSceneClipModel(
+      id: _defaultCompositionSceneClipId,
+      sourceSceneId: _defaultCompositionSourceSceneId,
+      name: 'Scene 01',
+      startTime: TimelineTime.zero,
+      durationTime: template.duration,
+      sourceInTime: TimelineTime.zero,
+      sourceOutTime: template.duration,
+      metadata: const <String, String>{
+        'source': 'refusion.empty-scene',
+      },
+    );
+    final sceneClips = <CompositionSceneClipModel>[sceneClip];
+    final nextTracks = List<TimelineTrackData>.unmodifiable(
+      _rootSceneClipProjectionAdapter.mergeSceneTrack(
+        existingTracks: const <TimelineTrackData>[],
+        sceneClips: sceneClips,
+      ),
     );
     setState(() {
       _lockedWorkspaceAspectRatio = template.aspectRatio;
       _motionProject = project;
       _hasStartedCompositionSession = true;
-      _sceneClips = const <CompositionSceneClipModel>[];
+      _sceneClips = List<CompositionSceneClipModel>.unmodifiable(sceneClips);
       _sceneScopeSession = null;
       _motionTextAnimationBindings = const <MotionTextAnimationBindingModel>[];
       _manualMotionPropertyChannels = const <MotionPropertyChannelModel>[];
-      _tracks = const <TimelineTrackData>[];
-      _selectedClipId = null;
+      _tracks = nextTracks;
+      _selectedClipId = sceneClip.id;
       _selectedTransitionId = null;
       _previewAssetId = null;
       _activeTab = EditorMediaTab.text;
@@ -16632,7 +16665,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           bottom: false,
           child: _CompositionStartPage(
             onCreateComposition: _openCreateCompositionSheet,
-            onStartFromVideo: _handleStartFromVideo,
           ),
         ),
       );
@@ -18525,11 +18557,9 @@ class _CompositionTemplate {
 class _CompositionStartPage extends StatelessWidget {
   const _CompositionStartPage({
     required this.onCreateComposition,
-    required this.onStartFromVideo,
   });
 
   final VoidCallback onCreateComposition;
-  final VoidCallback onStartFromVideo;
 
   @override
   Widget build(BuildContext context) {
@@ -18551,7 +18581,7 @@ class _CompositionStartPage extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Start from a composition canvas or import a video.',
+              'Create a project composition, then add video, images, shapes, text, audio, and generated scenes inside the editor.',
               style: TextStyle(
                 color: FxPalette.textMuted,
                 fontSize: 14,
@@ -18562,14 +18592,40 @@ class _CompositionStartPage extends StatelessWidget {
             const Spacer(),
             _CompositionStartButton(
               icon: Icons.aspect_ratio_rounded,
-              label: 'Create Composition',
+              label: 'Create New Composition',
               onPressed: onCreateComposition,
             ),
-            const SizedBox(height: 12),
-            _CompositionStartButton(
-              icon: Icons.video_library_rounded,
-              label: 'Start from Video',
-              onPressed: onStartFromVideo,
+            const SizedBox(height: 18),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: FxPalette.surface.withOpacity(0.7),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: FxPalette.divider),
+              ),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.history_rounded,
+                      color: FxPalette.textMuted,
+                      size: 20,
+                    ),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Recent projects will appear here.',
+                        style: TextStyle(
+                          color: FxPalette.textMuted,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
             const Spacer(flex: 2),
           ],

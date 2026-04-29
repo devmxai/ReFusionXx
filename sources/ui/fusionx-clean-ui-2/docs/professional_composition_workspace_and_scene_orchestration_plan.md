@@ -500,6 +500,16 @@ Exit criteria:
 - video import remains possible,
 - no Live Scrub regression for video projects.
 
+Implementation status:
+
+- Startup is composition-first: `Start from Video` is no longer a separate
+  first-screen decision.
+- Create Composition now creates a root composition plus an empty default
+  source composition.
+- The root timeline receives one real empty Scene Clip container immediately,
+  so the project starts with editable composition structure instead of a blank
+  media-only state.
+
 ### Phase W3: Universal Add Sheet
 
 Deliverables:
