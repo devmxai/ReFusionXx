@@ -6,6 +6,8 @@ import 'professional_motion_evaluation_models.dart';
 import 'professional_motion_models.dart';
 import 'professional_motion_text_models.dart';
 
+const int kMotionTextPreviewDefaultColorArgb = 0xFFF3F3F3;
+
 @immutable
 class MotionTextPreviewTransformState {
   const MotionTextPreviewTransformState({
@@ -35,6 +37,7 @@ class MotionTextPreviewStyleState {
     this.blurCrop = 0,
     required this.fontSize,
     required this.letterSpacing,
+    required this.colorArgb,
   });
 
   final double opacity;
@@ -46,6 +49,7 @@ class MotionTextPreviewStyleState {
   final double blurCrop;
   final double fontSize;
   final double letterSpacing;
+  final int colorArgb;
 }
 
 @immutable
@@ -283,6 +287,7 @@ class BasicMotionTextPreviewBinder implements MotionTextPreviewBinder {
                   element.properties,
                   MotionPropertyCatalog.letterSpacing,
                 ),
+                colorArgb: _colorPropertyOrDefault(element.properties),
               ),
             ),
           );
@@ -410,5 +415,18 @@ class BasicMotionTextPreviewBinder implements MotionTextPreviewBinder {
       return property.value.rawValue as double;
     }
     return definition.defaultValue.rawValue as double;
+  }
+
+  int _colorPropertyOrDefault(List<MotionEvaluatedPropertyValue> properties) {
+    for (final property in properties) {
+      if (property.definition.id != 'visual.color') {
+        continue;
+      }
+      if (property.value.kind != MotionPropertyValueKind.colorArgb) {
+        break;
+      }
+      return property.value.rawValue as int;
+    }
+    return kMotionTextPreviewDefaultColorArgb;
   }
 }

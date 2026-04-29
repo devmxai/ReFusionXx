@@ -190,7 +190,7 @@ class BasicMotionTextRenderAdapter implements MotionTextRenderAdapter {
             blurCrop: node.style.blurCrop.clamp(0.0, 1.0),
             fontSize: node.style.fontSize <= 0 ? 16 : node.style.fontSize,
             letterSpacing: node.style.letterSpacing,
-            colorArgb: defaultTextColorArgb,
+            colorArgb: node.style.colorArgb,
             fontFamily: kMotionTextCanonicalFontFamily,
             fontWeight: kMotionTextCanonicalFontWeight,
             fontStyle: kMotionTextCanonicalFontStyle,

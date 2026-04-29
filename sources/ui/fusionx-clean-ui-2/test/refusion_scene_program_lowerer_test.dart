@@ -7,6 +7,8 @@ import 'package:refusion_app/features/editor/domain/models/professional_motion_e
 import 'package:refusion_app/features/editor/domain/models/professional_motion_models.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_runtime_helpers.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_text_models.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_text_preview_models.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_text_render_models.dart';
 import 'package:refusion_app/features/editor/domain/models/refusion_scene_program_models.dart';
 import 'package:refusion_app/features/editor/domain/services/refusion_scene_program_import_service.dart';
 import 'package:refusion_app/features/editor/domain/services/refusion_scene_program_lowerer.dart';
@@ -206,6 +208,72 @@ void main() {
     expect(revealAt(2149), 0.0);
     expect(revealAt(3600), closeTo(0.469, 0.002));
     expect(revealAt(4600), 1.0);
+  });
+
+  test('preserves scene-program text color into preview render nodes', () {
+    final importResult = importService.validate(
+      source: '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "name": "Dark Text On White",
+  "durationMs": 1200,
+  "frameRate": 30,
+  "layers": [
+    {
+      "id": "title-layer",
+      "kind": "text",
+      "startMs": 0,
+      "durationMs": 1200,
+      "elements": [
+        {
+          "id": "title",
+          "kind": "text",
+          "text": "Welcome",
+          "properties": {
+            "fontSize": 64,
+            "color": "#050505",
+            "opacity": 1
+          }
+        }
+      ]
+    }
+  ]
+}
+''',
+    );
+    expect(importResult.isValid, isTrue);
+
+    final result = lowerer.lower(
+      ReFusionSceneProgramLoweringRequest(program: importResult.program!),
+    );
+    expect(result.hasErrors, isFalse);
+
+    final compileResult = BasicMotionCompositionCompiler().compile(
+      MotionCompileRequest(
+        project: result.project,
+        propertyChannels: result.channels,
+        textAnimationBindings: result.textAnimationBindings,
+      ),
+    );
+    expect(compileResult.hasErrors, isFalse);
+
+    final composition = compileResult.composition!;
+    final evaluation = const BasicMotionRuntimeEvaluator().evaluate(
+      MotionEvaluationRequest(
+        composition: composition,
+        time: TimelineTime.zero,
+      ),
+    );
+    final preview = BasicMotionTextPreviewBinder().bind(
+      composition: composition,
+      evaluation: evaluation,
+    );
+    final render = const BasicMotionTextRenderAdapter().adapt(
+      composition: composition,
+      preview: preview,
+    );
+
+    expect(render.nodes.single.colorArgb, 0xFF050505);
   });
 
   test('keeps delayed shape elements active for the full layer project range',

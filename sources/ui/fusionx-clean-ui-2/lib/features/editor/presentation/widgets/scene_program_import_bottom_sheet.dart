@@ -1348,10 +1348,10 @@ class _SceneProgramImportBottomSheetState
           "kind": "text",
           "text": "Welcome",
           "properties": {
-            "fontSize": 68,
+            "fontSize": 64,
             "letterSpacing": 0,
             "color": "#050505",
-            "position": { "x": -218, "y": 0 },
+            "position": { "x": -232, "y": 0 },
             "opacity": 0,
             "scale": 0.88
           },
@@ -1378,10 +1378,10 @@ class _SceneProgramImportBottomSheetState
             {
               "property": "position",
               "keyframes": [
-                { "timeMs": 180, "value": { "x": -218, "y": 28 }, "easing": "linear" },
-                { "timeMs": 620, "value": { "x": -218, "y": 0 }, "easing": "spring" },
-                { "timeMs": 1840, "value": { "x": -218, "y": 0 }, "easing": "linear" },
-                { "timeMs": 2220, "value": { "x": -218, "y": -34 }, "easing": "easeInCubic" }
+                { "timeMs": 180, "value": { "x": -232, "y": 28 }, "easing": "linear" },
+                { "timeMs": 620, "value": { "x": -232, "y": 0 }, "easing": "spring" },
+                { "timeMs": 1840, "value": { "x": -232, "y": 0 }, "easing": "linear" },
+                { "timeMs": 2220, "value": { "x": -232, "y": -34 }, "easing": "easeInCubic" }
               ]
             }
           ]
@@ -1400,13 +1400,13 @@ class _SceneProgramImportBottomSheetState
           "kind": "text",
           "text": "to",
           "properties": {
-            "fontSize": 46,
+            "fontSize": 64,
             "letterSpacing": 0,
             "color": "#050505",
-            "position": { "x": 18, "y": 5 },
+            "position": { "x": 16, "y": 0 },
             "opacity": 0,
-            "scale": 0.72,
-            "rotation": -8
+            "scale": 0.82,
+            "rotation": -4
           },
           "channels": [
             {
@@ -1421,7 +1421,7 @@ class _SceneProgramImportBottomSheetState
             {
               "property": "scale",
               "keyframes": [
-                { "timeMs": 560, "value": 0.72, "easing": "linear" },
+                { "timeMs": 560, "value": 0.82, "easing": "linear" },
                 { "timeMs": 920, "value": 1.0, "easing": "spring" },
                 { "timeMs": 1840, "value": 1.0, "easing": "linear" },
                 { "timeMs": 2220, "value": 0.94, "easing": "easeInCubic" }
@@ -1430,7 +1430,7 @@ class _SceneProgramImportBottomSheetState
             {
               "property": "rotation",
               "keyframes": [
-                { "timeMs": 560, "value": -8, "easing": "linear" },
+                { "timeMs": 560, "value": -4, "easing": "linear" },
                 { "timeMs": 920, "value": 0, "easing": "spring" }
               ]
             }
@@ -1450,12 +1450,12 @@ class _SceneProgramImportBottomSheetState
           "kind": "text",
           "text": "Codex",
           "properties": {
-            "fontSize": 70,
+            "fontSize": 64,
             "letterSpacing": 0,
             "color": "#050505",
-            "position": { "x": 224, "y": 0 },
+            "position": { "x": 236, "y": 0 },
             "opacity": 0,
-            "scale": 1.08
+            "scale": 0.9
           },
           "channels": [
             {
@@ -1470,7 +1470,7 @@ class _SceneProgramImportBottomSheetState
             {
               "property": "scale",
               "keyframes": [
-                { "timeMs": 900, "value": 1.08, "easing": "linear" },
+                { "timeMs": 900, "value": 0.9, "easing": "linear" },
                 { "timeMs": 1240, "value": 1.0, "easing": "spring" },
                 { "timeMs": 1840, "value": 1.0, "easing": "linear" },
                 { "timeMs": 2220, "value": 0.96, "easing": "easeInCubic" }
@@ -1479,10 +1479,10 @@ class _SceneProgramImportBottomSheetState
             {
               "property": "position",
               "keyframes": [
-                { "timeMs": 900, "value": { "x": 224, "y": -26 }, "easing": "linear" },
-                { "timeMs": 1240, "value": { "x": 224, "y": 0 }, "easing": "spring" },
-                { "timeMs": 1840, "value": { "x": 224, "y": 0 }, "easing": "linear" },
-                { "timeMs": 2220, "value": { "x": 224, "y": -34 }, "easing": "easeInCubic" }
+                { "timeMs": 900, "value": { "x": 236, "y": -26 }, "easing": "linear" },
+                { "timeMs": 1240, "value": { "x": 236, "y": 0 }, "easing": "spring" },
+                { "timeMs": 1840, "value": { "x": 236, "y": 0 }, "easing": "linear" },
+                { "timeMs": 2220, "value": { "x": 236, "y": -34 }, "easing": "easeInCubic" }
               ]
             }
           ]
