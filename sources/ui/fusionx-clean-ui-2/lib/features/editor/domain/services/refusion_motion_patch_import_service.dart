@@ -595,11 +595,41 @@ class ReFusionMotionPatchImportService {
       'fontsize' || 'textfontsize' => <_PatchProperty>[
           _PatchProperty(definition: MotionPropertyCatalog.fontSize),
         ],
-      'letterspacing' || 'textletterspacing' => <_PatchProperty>[
+      'letterspacing' ||
+      'textletterspacing' ||
+      'tracking' ||
+      'trackingamount' ||
+      'texttracking' ||
+      'texttrackingamount' ||
+      'rangetracking' ||
+      'rangetrackingamount' =>
+        <_PatchProperty>[
           _PatchProperty(definition: MotionPropertyCatalog.letterSpacing),
         ],
       'reveal' ||
       'revealprogress' ||
+      'rangeselector' ||
+      'rangeselectorstart' ||
+      'rangeselectorprogress' ||
+      'textrangeselector' ||
+      'textrangeselectorstart' ||
+      'textrangeselectorprogress' ||
+      'wordrangeselector' ||
+      'wordrangeselectorstart' ||
+      'wordrangeselectorprogress' ||
+      'rangeselectorwords' ||
+      'rangeselectorbywords' ||
+      'letterrangeselector' ||
+      'letterrangeselectorstart' ||
+      'letterrangeselectorprogress' ||
+      'rangeselectorcharacters' ||
+      'rangeselectorbycharacters' ||
+      'characterrangeselector' ||
+      'characterrangeselectorstart' ||
+      'characterrangeselectorprogress' ||
+      'charrangeselector' ||
+      'charrangeselectorstart' ||
+      'charrangeselectorprogress' ||
       'typing' ||
       'typingprogress' ||
       'typewriter' ||

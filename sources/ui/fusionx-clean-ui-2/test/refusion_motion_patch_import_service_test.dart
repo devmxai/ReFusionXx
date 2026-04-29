@@ -36,6 +36,7 @@ void main() {
       MotionPropertyCatalog.positionX,
       MotionPropertyCatalog.positionY,
       MotionPropertyCatalog.scaleX,
+      MotionPropertyCatalog.letterSpacing,
       MotionPropertyCatalog.revealProgress,
     ],
   );
@@ -93,6 +94,48 @@ void main() {
         MotionPropertyCatalog.revealProgress.id,
         MotionPropertyCatalog.positionX.id,
         MotionPropertyCatalog.positionY.id,
+      ]),
+    );
+  });
+
+  test('accepts text range selector and tracking aliases in motion patches',
+      () {
+    final result = service.validate(
+      scopeDurationMs: 1600,
+      mentionEntities: <SceneMentionEntity>[textEntity],
+      source: '''
+{
+  "schemaVersion": "refusion.motion-patch/v1",
+  "name": "Range selector edit",
+  "durationMs": 1600,
+  "operations": [
+    {
+      "target": "@{Headline}",
+      "property": "wordRangeSelectorProgress",
+      "keyframes": [
+        { "timeMs": 0, "value": 0.0 },
+        { "timeMs": 800, "value": 1.0 }
+      ]
+    },
+    {
+      "target": "@{Headline}",
+      "property": "trackingAmount",
+      "keyframes": [
+        { "timeMs": 0, "value": -120 },
+        { "timeMs": 800, "value": 0 }
+      ]
+    }
+  ]
+}
+''',
+    );
+
+    expect(result.isValid, isTrue);
+    expect(
+      result.resolvedChannels.map((channel) => channel.definition.id),
+      containsAll(<String>[
+        MotionPropertyCatalog.revealProgress.id,
+        MotionPropertyCatalog.letterSpacing.id,
       ]),
     );
   });

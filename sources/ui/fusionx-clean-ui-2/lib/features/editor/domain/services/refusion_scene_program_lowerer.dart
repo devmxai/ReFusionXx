@@ -784,13 +784,43 @@ class ReFusionSceneProgramLowerer {
         <_LoweredProperty>[
           _LoweredProperty(definition: MotionPropertyCatalog.textAlignment),
         ],
-      'letterspacing' || 'textletterspacing' => <_LoweredProperty>[
+      'letterspacing' ||
+      'textletterspacing' ||
+      'tracking' ||
+      'trackingamount' ||
+      'texttracking' ||
+      'texttrackingamount' ||
+      'rangetracking' ||
+      'rangetrackingamount' =>
+        <_LoweredProperty>[
           _LoweredProperty(definition: MotionPropertyCatalog.letterSpacing),
         ],
       'reveal' ||
       'revealprogress' ||
       'textreveal' ||
       'textrevealprogress' ||
+      'rangeselector' ||
+      'rangeselectorstart' ||
+      'rangeselectorprogress' ||
+      'textrangeselector' ||
+      'textrangeselectorstart' ||
+      'textrangeselectorprogress' ||
+      'wordrangeselector' ||
+      'wordrangeselectorstart' ||
+      'wordrangeselectorprogress' ||
+      'rangeselectorwords' ||
+      'rangeselectorbywords' ||
+      'letterrangeselector' ||
+      'letterrangeselectorstart' ||
+      'letterrangeselectorprogress' ||
+      'rangeselectorcharacters' ||
+      'rangeselectorbycharacters' ||
+      'characterrangeselector' ||
+      'characterrangeselectorstart' ||
+      'characterrangeselectorprogress' ||
+      'charrangeselector' ||
+      'charrangeselectorstart' ||
+      'charrangeselectorprogress' ||
       'wordreveal' ||
       'wordrevealprogress' ||
       'letterreveal' ||
@@ -1243,6 +1273,17 @@ class ReFusionSceneProgramLowerer {
     switch (_normalizeToken(property)) {
       case 'wordreveal':
       case 'wordrevealprogress':
+      case 'rangeselector':
+      case 'rangeselectorstart':
+      case 'rangeselectorprogress':
+      case 'textrangeselector':
+      case 'textrangeselectorstart':
+      case 'textrangeselectorprogress':
+      case 'wordrangeselector':
+      case 'wordrangeselectorstart':
+      case 'wordrangeselectorprogress':
+      case 'rangeselectorwords':
+      case 'rangeselectorbywords':
         return MotionTextRevealUnit.word;
       case 'reveal':
       case 'revealprogress':
@@ -1250,6 +1291,15 @@ class ReFusionSceneProgramLowerer {
       case 'textrevealprogress':
       case 'letterreveal':
       case 'letterrevealprogress':
+      case 'letterrangeselector':
+      case 'letterrangeselectorstart':
+      case 'letterrangeselectorprogress':
+      case 'characterrangeselector':
+      case 'characterrangeselectorstart':
+      case 'characterrangeselectorprogress':
+      case 'charrangeselector':
+      case 'charrangeselectorstart':
+      case 'charrangeselectorprogress':
       case 'typing':
       case 'typingprogress':
       case 'typewriter':

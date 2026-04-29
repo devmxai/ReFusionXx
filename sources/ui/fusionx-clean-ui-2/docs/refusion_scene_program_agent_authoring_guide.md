@@ -279,7 +279,10 @@ For text elements:
 - `lineHeight`: text line-height multiplier, usually `1.0..1.3`
 - `textAlign`: `left`, `center`, or `right`
 - `letterSpacing`
+- `trackingAmount`: alias for `letterSpacing`
 - `reveal`: `0..1`
+- `wordRangeSelectorProgress`: AE-style word range reveal, `0..1`
+- `letterRangeSelectorProgress`: AE-style character range reveal, `0..1`
 
 Use a consistent typography block for words that belong to the same title.
 
@@ -320,10 +323,20 @@ Accepted typing aliases:
 - `letterRevealProgress`
 - `wordReveal`
 - `wordRevealProgress`
+- `rangeSelector`
+- `rangeSelectorProgress`
+- `wordRangeSelector`
+- `wordRangeSelectorProgress`
+- `letterRangeSelector`
+- `letterRangeSelectorProgress`
+- `tracking`
+- `trackingAmount`
 
 These aliases are lowered to the same editable `reveal` channel. `typewriter`,
-`typing`, and `letterReveal` create a letter-by-letter text binding. `wordReveal`
-creates a word-by-word text binding.
+`typing`, `letterReveal`, and `letterRangeSelector` create a letter-by-letter
+text binding. `wordReveal`, `rangeSelector`, and `wordRangeSelector` create a
+word-by-word text binding. `tracking`/`trackingAmount` lowers to editable
+`letterSpacing`.
 
 For a keyboard/type-on effect, always animate reveal forward:
 

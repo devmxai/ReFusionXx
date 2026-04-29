@@ -333,6 +333,52 @@ Rules:
 - circular progress, arcs, dashed paths, and wraparound offset are still future
   renderer work.
 
+### `text.rangeSelector`
+
+Category: Text
+
+Professional name: Text Range Selector / Word Reveal / Character Reveal
+
+Supported targets: text Scene Program elements
+
+Scene Program properties:
+
+```text
+wordRangeSelectorProgress
+letterRangeSelectorProgress
+rangeSelectorProgress
+trackingAmount
+```
+
+Aliases:
+
+```text
+rangeSelector, rangeSelectorStart
+wordRangeSelector, wordRangeSelectorStart
+letterRangeSelector, letterRangeSelectorStart
+characterRangeSelector, charRangeSelector
+tracking, textTracking
+```
+
+Status:
+
+```text
+implemented-domain: yes
+editableInScope: revealProgress and letterSpacing controls for text
+previewSupport: text preview resolves word/letter visible text
+exportSupport: existing text motion export path for reveal/letterSpacing
+```
+
+Rules:
+
+- use `wordRangeSelectorProgress` for After Effects-style animate-by-words
+  title reveals;
+- use `letterRangeSelectorProgress` for character-by-character reveals that are
+  not keyboard typing;
+- use `typewriterProgress` for keyboard typing;
+- use `trackingAmount` to animate AE tracking from tight/wide spacing back to
+  the final readable typography.
+
 ## 10. Non-Negotiable Safety
 
 This plan does not modify Live Scrub directly.

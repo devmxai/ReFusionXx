@@ -643,6 +643,97 @@ void main() {
     );
   });
 
+  test('lowers After Effects-style text range selector aliases', () {
+    final importResult = importService.validate(
+      source: '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "name": "Range Selector Title",
+  "durationMs": 1800,
+  "frameRate": 30,
+  "layers": [
+    {
+      "id": "title-layer",
+      "kind": "text",
+      "startMs": 0,
+      "durationMs": 1800,
+      "elements": [
+        {
+          "id": "title",
+          "kind": "text",
+          "text": "Modern Motion Title",
+          "properties": {
+            "fontSize": 96,
+            "trackingAmount": -120
+          },
+          "channels": [
+            {
+              "property": "wordRangeSelectorProgress",
+              "keyframes": [
+                { "timeMs": 0, "value": 0.0, "easing": "linear" },
+                { "timeMs": 700, "value": 1.0, "easing": "easeOutCubic" }
+              ]
+            },
+            {
+              "property": "trackingAmount",
+              "keyframes": [
+                { "timeMs": 0, "value": -120, "easing": "easeOutCubic" },
+                { "timeMs": 700, "value": 0, "easing": "easeOutCubic" }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+''',
+    );
+    expect(importResult.isValid, isTrue);
+
+    final result = lowerer.lower(
+      ReFusionSceneProgramLoweringRequest(program: importResult.program!),
+    );
+
+    expect(result.hasErrors, isFalse);
+    final title = result.project.scenes.single.layers.single.elements.single;
+    expect(
+      title.properties
+          .singleWhere(
+            (assignment) =>
+                assignment.definition.id ==
+                MotionPropertyCatalog.letterSpacing.id,
+          )
+          .value
+          .rawValue,
+      -120,
+    );
+
+    final revealChannel = result.channels.singleWhere(
+      (channel) =>
+          channel.definition.id == MotionPropertyCatalog.revealProgress.id,
+    );
+    expect(
+      revealChannel.keyframes.map((keyframe) => keyframe.value.rawValue),
+      <double>[0.0, 1.0],
+    );
+    final trackingChannel = result.channels.singleWhere(
+      (channel) =>
+          channel.definition.id == MotionPropertyCatalog.letterSpacing.id,
+    );
+    expect(
+      trackingChannel.keyframes.map((keyframe) => keyframe.value.rawValue),
+      <double>[-120, 0],
+    );
+
+    expect(result.textAnimationBindings, hasLength(1));
+    final binding = result.textAnimationBindings.single;
+    expect(binding.animationBlocks.single.kind,
+        MotionTextAnimationKind.wordReveal);
+    expect(binding.animationBlocks.single.revealSpec!.unit,
+        MotionTextRevealUnit.word);
+  });
+
   test('lowers mask reveal elements into editable mask channels', () {
     final importResult = importService.validate(
       source: '''
