@@ -402,6 +402,19 @@ Responsibilities:
 
 The Inspector is selection-driven.
 
+Current W5 foundation:
+
+- `CompositionWorkspaceInspectorAdapter` projects the active workspace selection
+  into a read-only inspector model.
+- Supported selection targets are root composition, Scene Clip instance, source
+  composition, source layer, source element, and keyframe.
+- Scene Clip inspection preserves the root instance/source boundary by exposing
+  instance timing, source binding, transform, opacity, effects, and draw order
+  without exploding nested source layers onto the root timeline.
+- Layer, element, and keyframe inspection resolves real graph/channel ownership
+  and reports missing targets instead of inventing fake values.
+- UI sheet wiring and write-back operations are future W5 slices.
+
 Root composition selected:
 
 - canvas size,
@@ -655,6 +668,8 @@ Exit criteria:
 
 Deliverables:
 
+- selection-driven inspector projection, implemented as
+  `CompositionWorkspaceInspectorAdapter`,
 - selection-driven inspector sheet,
 - transform/style/effects/timing tabs,
 - root background layer controls,
@@ -667,6 +682,12 @@ Exit criteria:
 - selecting a text/shape/image layer shows relevant controls,
 - setting a value updates preview,
 - keying a value creates editable keyframes.
+
+Current status:
+
+- Inspector projection foundation is complete and covered by
+  `test/composition_workspace_inspector_adapter_test.dart`.
+- Mobile sheet wiring, visual controls, and property write-back are still open.
 
 ### Phase W6: Scene Create/Modify Flow
 
