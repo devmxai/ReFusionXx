@@ -23,6 +23,11 @@ Scene container clips and mention-driven motion patches must also follow:
 
 `docs/professional_scene_container_and_mention_motion_plan.md`
 
+Professional composition workspace, scene sequencing, outliner, inspector, and
+context-aware insertion work must also follow:
+
+`docs/professional_composition_workspace_and_scene_orchestration_plan.md`
+
 Professional prompt-to-scene choreography must also follow:
 
 `docs/professional_motion_director_engine.md`
@@ -132,6 +137,7 @@ This rule exists so timeline, Live Scrub, keyframe, transition, and motion-engin
 - Modern UI Motion Pack V1 line reveal foundation: Scene Program line shapes now carry reusable `shape.trimPath` controls (`trimStart`, `trimEnd`, `trimOffset`) through import/lowering and line preview, with scalar trim controls exposed in Shape Layer Scope and Mention Motion patches. Native export parity for authored visual trim paths remains a tracked renderer gap. This does not touch Stage5 or Live Scrub.
 - Text Range Selector V1 foundation: Scene Program and Mention Motion patches now accept After Effects-style text aliases such as `wordRangeSelectorProgress`, `letterRangeSelectorProgress`, `rangeSelectorProgress`, and `trackingAmount`, lowering them into editable `revealProgress` and `letterSpacing` channels with proper word/letter text preview bindings. This does not touch Stage5 or Live Scrub.
 - Modern UI Composition Grammar V1 layout foundation: Scene Program now has a strict layout/parent contract for inspectable UI composition. Elements may declare `parentId`, `containerId`, `parentGroup`, `layoutRole`, `layoutMode`, `padding`, `gap`, `align`, `justify`, `anchor`, `safeArea`, `constraints`, and `zIndex` metadata. Authoring rejects missing parent references, duplicate element IDs, parent cycles, and children whose layer lifetime escapes the parent lifetime; lowering preserves the metadata under `sourceBinding.metadata` for future Scene Scope, Layer Scope, Mention Motion, preview, and export adapters. This is domain/authoring infrastructure only and does not touch Stage5 or Live Scrub.
+- Composition Workspace Orchestration plan: `docs/professional_composition_workspace_and_scene_orchestration_plan.md` defines the official workflow for composition-first startup, default Scene Clip containers, context-aware Add, Scene create/modify semantics, mobile outliner, selection-driven inspector, scene transitions, agent context, preview/export parity, mandatory checkpoints, and Live Scrub protection.
 - Phase 4/5B+: open. Scope projection wiring, UI adapters, motion graph import, transition unification, scriptable scene programs, and export parity must be built on top of the clock/keyframe foundations.
 - Live Scrub status: protected. Stage5 Live Scrub is not part of a rewrite. It is a production path that must remain fast, precise, and native-optimized.
 

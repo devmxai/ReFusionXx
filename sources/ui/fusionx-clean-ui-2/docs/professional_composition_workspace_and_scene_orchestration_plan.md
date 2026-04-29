@@ -1,0 +1,671 @@
+# Professional Composition Workspace And Scene Orchestration Plan
+
+Status: official execution plan  
+Package: `com.refusion.app`  
+Date: 2026-04-29  
+Depends on:
+
+- `docs/professional_checkpoint_policy.md`
+- `docs/professional_refusion_motion_keyframe_engine.md`
+- `docs/professional_composition_timeline_migration_plan.md`
+- `docs/professional_scene_container_and_mention_motion_plan.md`
+- `docs/professional_motion_director_engine.md`
+- `docs/super_professional_engine_like_after_effects.md`
+
+## 1. Purpose
+
+ReFusion must become a professional mobile composition workspace, not a
+single-purpose video inserter and not a preset-only animation toy.
+
+The target workflow is:
+
+```text
+Create Project Composition
+-> create or insert Scene/Composition Clips
+-> open a Scene Clip into its internal layers
+-> open any layer into Unified Layer Scope
+-> edit real properties, effects, keyframes, and timing
+-> preview and export the same graph
+```
+
+The user must be able to build manually, generate scenes from scripts, animate
+existing elements with `@mentions`, and sequence multiple scenes with
+transitions. Every result must be visible, editable, and exportable from the
+same canonical motion graph.
+
+## 2. External Product Principles
+
+This plan follows proven professional patterns without embedding or cloning
+external apps:
+
+- Lottie Creator: canvas, layer system, keyframe timeline, nested scenes, AI
+  assistance, and Lottie-compliant export.
+- Rive: hierarchy/outliner, selection-driven inspector, active-artboard
+  timeline, parent-child transforms, assets panel, and key editing.
+- After Effects: Project panel, compositions, precompositions/nesting,
+  composition layers, source composition editing, and contextual Properties
+  panel.
+- Remotion: declarative `Composition`, `Sequence`, and `Series` timing as a
+  deterministic mental model for scenes and scene sequencing.
+
+ReFusion's mobile UI can differ, but the data model must preserve the same
+professional separation:
+
+```text
+Outliner = hierarchy, ownership, draw order, assets, navigation
+Timeline = time, clips, spans, keyframes, transitions
+Inspector = selected-object properties, effects, motion controls
+Canvas = visual edit and preview
+```
+
+Do not collapse these into one vague bottom sheet. The panels can be represented
+as mobile sheets/sidebars, but the responsibilities must remain separate.
+
+## 3. Non-Negotiable Rules
+
+### 3.1 Checkpoint Rule
+
+Every completed build step under this plan must follow
+`docs/professional_checkpoint_policy.md`.
+
+Required sequence:
+
+```text
+implement smallest safe slice
+-> verify
+-> commit focused files only
+-> push checkpoint
+-> install on connected Android device when available
+-> report branch, commit, files, verification, install, rollback command
+```
+
+### 3.2 Live Scrub Protection
+
+This plan must not use workspace/composition work as a reason to weaken Live
+Scrub.
+
+Do not touch these protected paths unless the user explicitly approves that
+exact Live Scrub change:
+
+- `Stage5TimelineScrubPlatformView`
+- `Stage5NativeScrubEngine`
+- `Stage5SurfaceScrubDecoder`
+- `Stage5ScrubOverlayTextureView`
+- `Stage5PreviewPlatformView`
+- Flutter Live Scrub handoff paths
+
+If a workspace slice appears to require a Live Scrub change, stop and redesign
+through a projection, clock, or adapter layer first.
+
+### 3.3 Capability-First, Not Preset-First
+
+Do not solve professional workflow by adding fixed ready-made cards or one-off
+scene presets.
+
+Build reusable capabilities:
+
+- composition clips,
+- layer types,
+- shape/text/image/video/audio insertion,
+- null and adjustment layers,
+- parent groups,
+- inspector properties,
+- effects,
+- timing contracts,
+- transition objects,
+- outliner navigation.
+
+Presets may exist only as demos or examples that exercise reusable engine
+capabilities. A preset must not be the only way to produce an effect.
+
+### 3.4 Real Graph Or Nothing
+
+No generated, manual, or imported visual motion may be hidden.
+
+Every visible result must lower into:
+
+```text
+Composition Source
+  Layer
+    Element
+      Effect Instance
+        Property Channel
+          Keyframe
+```
+
+UI lanes are projections. They are not source of truth.
+
+## 4. Product Workflow Decision
+
+### 4.1 Startup Flow
+
+The first screen should not split the product into `Start from video` versus
+`Create composition`.
+
+Approved flow:
+
+```text
+Open app
+-> Create New Composition
+-> Recent Projects
+```
+
+`Start from video` becomes a shortcut inside `Create New Composition`:
+
+```text
+Create composition
+-> optional first action: import video as first layer or first scene
+```
+
+This keeps the editor composition-first and prevents the user from being trapped
+in a media-only workflow.
+
+### 4.2 Create New Composition
+
+The create sheet must define the root project composition:
+
+- width,
+- height,
+- aspect preset,
+- fps,
+- duration,
+- background color,
+- optional initial empty scene,
+- optional import video/image/audio after creation.
+
+Default result:
+
+```text
+Root Composition
+  Scene Clip 01, empty, duration = selected duration
+```
+
+This gives the timeline real content from the first frame, while still letting
+the user open the scene and add layers manually.
+
+### 4.3 Root Timeline
+
+The root timeline is for sequencing project-level Scene/Composition Clips.
+
+It may contain:
+
+- scene clips,
+- composition clips,
+- transition clips between adjacent scenes,
+- master audio/music tracks,
+- optional root-level overlays when explicitly created.
+
+The root timeline must not explode every generated internal text/shape into
+many root tracks. A generated scene appears as one Scene Clip container.
+
+### 4.4 Scene Scope
+
+Double tapping a Scene Clip opens its source composition.
+
+Inside the Scene Scope, the user sees internal layers:
+
+- video,
+- image,
+- text,
+- shape,
+- audio,
+- null,
+- adjustment layer,
+- future camera/light when supported.
+
+Scene Scope time is local to the scene, derived from root composition time. It
+must not own a second clock.
+
+### 4.5 Unified Layer Scope
+
+Double tapping a supported layer opens the Unified Layer Scope timeline for that
+layer.
+
+The scope shows:
+
+- layer span,
+- property lanes,
+- effect lanes,
+- keyframes,
+- graph/easing,
+- value editor,
+- move selected key to playhead,
+- add/delete key.
+
+This is the only future scope editing surface. Do not create a second special
+timeline for transitions or generated scenes.
+
+## 5. Context-Aware Commands
+
+### 5.1 Add Button
+
+`+ Add` must change according to active scope.
+
+Root scope:
+
+- New Scene,
+- Insert Existing Composition,
+- Import Video As Scene,
+- Import Image As Scene,
+- Audio,
+- Project Asset.
+
+Scene scope:
+
+- Video Layer,
+- Image Layer,
+- Text Layer,
+- Shape Layer,
+- Audio Layer,
+- Null Layer,
+- Adjustment Layer.
+
+Layer scope:
+
+- Add Property,
+- Add Effect,
+- Add Keyframe,
+- Add Mask where supported.
+
+### 5.2 Scene Button
+
+The Scene button must be selection-aware.
+
+No selected Scene Clip:
+
+```text
+Create New Scene at playhead or after selected/root scene
+```
+
+Selected Scene Clip:
+
+```text
+Modify Scene
+Edit Script
+Regenerate selected scene
+Replace selected scene source with validation
+```
+
+This prevents the current ambiguity where the user cannot tell whether Scene
+means "insert another scene" or "edit the scene I selected".
+
+### 5.3 Remotion/Mention Motion Button
+
+Mention-driven motion must target the active context.
+
+If the user is inside a scene and writes:
+
+```text
+animate @Logo and @Title
+```
+
+The prompt context must include only valid, stable entities from that scene or
+from explicit parent context. The output is a motion patch against existing
+IDs, not a new random scene unless the user asks for one.
+
+## 6. Outliner And Inspector
+
+### 6.1 Outliner
+
+Add a top-left Outliner button. On mobile, it should open a side sheet or tall
+sheet rather than consuming permanent screen width.
+
+The outliner must show:
+
+```text
+Project
+  Assets
+  Root Composition
+    Scene Clip instances
+  Source Compositions
+    Layers
+      Elements
+        Effects
+        Channels
+```
+
+Responsibilities:
+
+- navigate compositions,
+- select scene clips/layers/elements,
+- reveal selected item in timeline,
+- rename,
+- duplicate,
+- delete,
+- change draw order where supported,
+- inspect broken references,
+- show lock/visibility/mute when implemented.
+
+### 6.2 Inspector
+
+The Inspector is selection-driven.
+
+Root composition selected:
+
+- canvas size,
+- fps,
+- duration,
+- background,
+- safe-area guides.
+
+Scene Clip selected:
+
+- start,
+- duration,
+- trim,
+- source scene,
+- transition handles,
+- regenerate/modify controls.
+
+Layer selected:
+
+- transform,
+- style,
+- effects,
+- timing,
+- parent/null binding,
+- visibility/lock.
+
+Keyframe selected:
+
+- time,
+- value,
+- interpolation,
+- easing,
+- move/delete/copy.
+
+On mobile, Inspector can be implemented as a bottom sheet with tabs:
+
+```text
+Transform | Style | Effects | Timing | Advanced
+```
+
+## 7. Transitions Between Scenes
+
+Transitions must become first-class timeline objects between two adjacent Scene
+Clips.
+
+Transition data:
+
+- outgoing scene clip ID,
+- incoming scene clip ID,
+- seam time,
+- duration,
+- presentation/effect recipe,
+- editable property channels,
+- optional transition source composition.
+
+Do not bury a transition as hidden keyframes on Scene A or Scene B without a
+selectable transition object. The user must be able to select the transition,
+open its scope, edit keyframes, and remove it.
+
+## 8. Agent And Script Requirements
+
+### 8.1 Generate Scene From Scratch
+
+The agent may create a complete Scene Program only when the user asks for a new
+scene.
+
+Result:
+
+```text
+one root Scene Clip
+one source composition
+internal layers/elements/channels/keyframes
+```
+
+The root timeline must show one container, not every internal layer.
+
+### 8.2 Modify Existing Scene
+
+When a Scene Clip is selected, generated changes must target that source scene.
+
+Required behavior:
+
+- preserve stable IDs when modifying existing elements,
+- add new layers only when requested,
+- delete only when requested,
+- report broken/unsupported operations,
+- keep every generated keyframe editable.
+
+### 8.3 Animate Existing Elements
+
+Mention Motion must never create unrelated elements unless the prompt asks for
+new elements.
+
+It applies motion patches to existing IDs:
+
+```text
+@Title.position
+@Card.opacity
+@Logo.scale
+```
+
+## 9. Implementation Phases
+
+### Phase W0: Documentation Lock
+
+Deliverables:
+
+- this plan exists,
+- master motion plan links to it,
+- composition migration plan links to it,
+- `refusion-skills` documents the workspace model for external agents.
+
+Exit criteria:
+
+- documentation checkpoint pushed,
+- no app behavior change.
+
+### Phase W1: Composition Workspace Domain
+
+Deliverables:
+
+- `CompositionWorkspaceModel` or equivalent domain projection,
+- root composition settings,
+- source composition registry,
+- scene clip instances,
+- selected scope/selection model,
+- insertion target resolver.
+
+Exit criteria:
+
+- tests prove root/source/local time mapping,
+- no UI wiring,
+- no Stage5/Live Scrub changes.
+
+### Phase W2: Create Composition Startup Flow
+
+Deliverables:
+
+- first screen: Create New Composition and Recent Projects,
+- remove separate `Start from video` decision path,
+- create root composition with default empty Scene Clip,
+- preserve ability to import video after creation.
+
+Exit criteria:
+
+- user can start with empty composition,
+- Add remains available,
+- video import remains possible,
+- no Live Scrub regression for video projects.
+
+### Phase W3: Universal Add Sheet
+
+Deliverables:
+
+- context-aware add menu,
+- root insert actions,
+- scene layer insert actions,
+- layer-scope property/effect actions,
+- explicit unsupported blockers.
+
+Exit criteria:
+
+- can manually build a scene from text/shape/image/video,
+- inserted layers are real graph layers,
+- out-of-scope insertion is rejected clearly.
+
+### Phase W4: Outliner
+
+Deliverables:
+
+- mobile outliner sheet,
+- project/assets/compositions/layers tree,
+- selection sync with timeline/canvas,
+- rename/delete/duplicate where safe.
+
+Exit criteria:
+
+- selected outliner item matches timeline selection,
+- double tap/navigation remains stable,
+- no hidden duplicate source truth.
+
+### Phase W5: Inspector
+
+Deliverables:
+
+- selection-driven inspector sheet,
+- transform/style/effects/timing tabs,
+- property changes write graph channels or static graph values,
+- key buttons beside animatable properties.
+
+Exit criteria:
+
+- selecting a text/shape/image layer shows relevant controls,
+- setting a value updates preview,
+- keying a value creates editable keyframes.
+
+### Phase W6: Scene Create/Modify Flow
+
+Deliverables:
+
+- Scene button selection semantics,
+- create new scene at playhead/after selection,
+- modify selected scene script,
+- replace selected scene safely,
+- keep stable IDs for modified scenes where possible.
+
+Exit criteria:
+
+- second scene can be inserted after first scene,
+- selected scene can be edited without creating unwanted extra clips,
+- gaps/overlaps are explicit.
+
+### Phase W7: Scene Transition Objects
+
+Deliverables:
+
+- selectable transition clip between scenes,
+- transition add/remove UI,
+- transition scope opens in Unified Layer Scope mode,
+- transition recipes write graph channels.
+
+Exit criteria:
+
+- two scene clips can be connected by a real transition object,
+- transition keyframes are visible/editable,
+- preview/export blockers are explicit.
+
+### Phase W8: Agent Context Integration
+
+Deliverables:
+
+- scene generate prompt includes active workspace context,
+- modify prompt includes selected scene source and stable IDs,
+- mention prompt includes active outliner entities,
+- skills repo documents root/scene/layer scope rules.
+
+Exit criteria:
+
+- agents can reliably create first scene, create second scene, or modify the
+  selected scene without ambiguity.
+
+### Phase W9: Preview And Export Parity
+
+Deliverables:
+
+- root scene clip renderer evaluates nested source compositions,
+- scene-only canvas preview/export parity gates,
+- image/shape/text/video/audio layer export paths,
+- transition export parity.
+
+Exit criteria:
+
+- accepted visual content appears in export,
+- unsupported effects block export with clear reason,
+- preview and export evaluate the same graph.
+
+## 10. Acceptance Matrix
+
+Every behavior phase must validate the relevant subset:
+
+- create empty composition,
+- add video layer,
+- add image layer,
+- add text layer,
+- add shape layer,
+- add second scene after first scene,
+- double tap root scene into scene scope,
+- double tap layer into layer scope,
+- add/move/value/delete keyframes,
+- return from scopes without losing time,
+- Live Scrub remains stable on video projects,
+- scene-only scrub/play remains stable,
+- selected scene modify does not create extra scene,
+- transition can be selected and removed,
+- preview/export blockers are explicit.
+
+## 11. Rejection Criteria
+
+Reject or revert a slice if:
+
+- Live Scrub regresses,
+- root timeline shows generated internals instead of one scene container,
+- Add creates fake UI without graph layers,
+- Scene button creates new clips while a selected scene should be modified,
+- scope time becomes independent from composition time,
+- keyframes are hidden or uneditable,
+- outliner selection disagrees with timeline selection,
+- preview accepts content that export silently drops,
+- agent-generated scenes cannot be opened and edited.
+
+## 12. Current Known Code Gaps
+
+Current code already has useful foundations:
+
+- `CompositionSceneClipModel`,
+- `SceneProgramApplyTransaction`,
+- `RootSceneClipProjectionAdapter`,
+- `SceneScopeSessionResolver`,
+- Scene Layer Scope projection and keyframe operations,
+- Mention Motion patch import/apply path,
+- Director Plan timing gates.
+
+Current gaps for this plan:
+
+- startup still exposes a media-oriented path,
+- create composition does not create an editable default Scene Clip by default,
+- Add is not a full layer insertion system,
+- no project/composition/layer outliner,
+- no formal selection-driven inspector,
+- Scene button does not fully separate create-new from modify-selected,
+- transition between Scene Clips is not yet a first-class workspace object,
+- preview/export parity for scene-only generated visual content is still gated.
+
+## 13. Practical Rule
+
+When uncertain, choose the professional workspace model:
+
+```text
+Composition first.
+Scenes are clips.
+Scene internals are layers.
+Layer motion is graph keyframes.
+Outliner navigates hierarchy.
+Timeline owns time.
+Inspector edits selected properties.
+Scripts and agents author real data only.
+Checkpoint after every slice.
+Protect Live Scrub.
+```

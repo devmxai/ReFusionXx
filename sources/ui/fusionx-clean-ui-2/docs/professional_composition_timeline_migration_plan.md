@@ -8,6 +8,10 @@ Depends on: `docs/professional_refusion_motion_keyframe_engine.md`, `docs/profes
 Scene container clips, nested Scene Scope, and mention-driven motion patches are
 specified in `docs/professional_scene_container_and_mention_motion_plan.md`.
 
+Composition-first startup, workspace-level scene sequencing, context-aware Add,
+outliner, inspector, and scene create/modify UX are specified in
+`docs/professional_composition_workspace_and_scene_orchestration_plan.md`.
+
 ## 1. Final Decision
 
 ReFusion will migrate toward a canonical internal Composition Timeline.
@@ -532,6 +536,7 @@ Recommended execution order:
 
 ```text
 C0 Documentation And Baseline Lock
+-> W0 Composition Workspace Documentation Lock
 -> C1 Composition Projection Domain
 -> C2 Layer Scope Adapter Wiring
 -> C3 Image/Shape Scope Parity
