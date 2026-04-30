@@ -49,6 +49,7 @@ import '../services/composition_workspace_inspector_adapter.dart';
 import '../services/composition_workspace_outliner_adapter.dart';
 import '../services/composition_media_playback_projection_adapter.dart';
 import '../services/normal_transition_timeline_authoring_adapter.dart';
+import '../services/native_preview_identity_resolver.dart';
 import '../services/root_scene_clip_projection_adapter.dart';
 import '../services/scene_layer_scope_timeline_adapter.dart';
 import '../services/timeline_media_program_time_mapper.dart';
@@ -170,6 +171,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       CompositionMediaPlaybackProjectionAdapter();
   static const TimelineMediaProgramTimeMapper _mediaProgramTimeMapper =
       TimelineMediaProgramTimeMapper();
+  static const NativePreviewIdentityResolver _nativePreviewIdentityResolver =
+      NativePreviewIdentityResolver();
   static const SceneScopeSessionResolver _sceneScopeSessionResolver =
       SceneScopeSessionResolver();
   static const SceneLayerScopeTimelineAdapter _sceneLayerScopeTimelineAdapter =
@@ -1769,6 +1772,26 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return rootProjection.tracks;
     }
     return tracks;
+  }
+
+  String? _nativePreviewIdentityFor(EditorAssetItem? previewCanvasAsset) {
+    return _nativePreviewIdentityResolver.resolve(
+      tracks: _effectiveMediaPlaybackTracksFor(_timelineTruthTracks),
+      playbackScopeId: _nativePreviewPlaybackScopeId,
+      fallbackIdentity: previewCanvasAsset?.sourceUri ?? previewCanvasAsset?.id,
+    );
+  }
+
+  String get _nativePreviewPlaybackScopeId {
+    final sceneScope = _sceneScopeSession;
+    if (sceneScope != null) {
+      return 'scene:${sceneScope.sourceSceneId}';
+    }
+    final project = _motionProject;
+    if (project != null) {
+      return 'root:${project.id}';
+    }
+    return 'timeline';
   }
 
   List<LiveScrubPreviewSourceDescriptor>
@@ -20764,9 +20787,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                             ),
                             child: _useNativePreview
                                 ? _buildNativePreviewSurface(
-                                    previewIdentity:
-                                        previewCanvasAsset?.sourceUri ??
-                                            previewCanvasAsset?.id,
+                                    previewIdentity: _nativePreviewIdentityFor(
+                                      previewCanvasAsset,
+                                    ),
                                     effectiveIsPlaying: effectiveIsPlaying,
                                     fallback: previewFallback,
                                   )
