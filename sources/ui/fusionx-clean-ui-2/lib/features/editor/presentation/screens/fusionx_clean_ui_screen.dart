@@ -11328,30 +11328,27 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return;
     }
 
-    final sortedSceneClips = List<CompositionSceneClipModel>.from(_sceneClips)
-      ..sort((left, right) => left.startTime.compareTo(right.startTime));
-    final selectedSceneClip = _selectedClipId == null
+    final sceneClipCollection =
+        CompositionSceneClipCollection(clips: _sceneClips);
+    final anchorClip = _selectedClipId == null
         ? null
-        : sortedSceneClips.cast<CompositionSceneClipModel?>().firstWhere(
+        : sceneClipCollection.clips
+            .cast<CompositionSceneClipModel?>()
+            .firstWhere(
               (clip) => clip?.id == _selectedClipId,
               orElse: () => null,
             );
-    final lastSceneClip =
-        sortedSceneClips.isEmpty ? null : sortedSceneClips.last;
-    final anchorClip = selectedSceneClip ?? lastSceneClip;
+    final lastSceneClip = sceneClipCollection.clips.isEmpty
+        ? null
+        : sceneClipCollection.clips.last;
+    final durationAnchorClip = anchorClip ?? lastSceneClip;
     final sceneNumber = _nextManualSceneNumber();
     final sceneLabel = 'Scene ${sceneNumber.toString().padLeft(2, '0')}';
     final duration =
-        (anchorClip?.durationTime ?? _defaultTextPresetDurationTime).clamp(
+        (durationAnchorClip?.durationTime ?? _defaultTextPresetDurationTime)
+            .clamp(
       TimelineTime.fromSecondsDouble(1),
       TimelineTime.fromSecondsDouble(20),
-    );
-    final startTime = sortedSceneClips.isEmpty
-        ? TimelineTime.zero
-        : (anchorClip?.endTime ?? lastSceneClip!.endTime);
-    final normalizedStart = sortedSceneClips.fold<TimelineTime>(
-      startTime,
-      (candidate, clip) => candidate < clip.endTime ? clip.endTime : candidate,
     );
     final sourceSceneId = _nextMotionEntityId('scene-source');
     final sceneClipId = _nextMotionEntityId('scene-clip');
@@ -11373,7 +11370,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       id: sceneClipId,
       sourceSceneId: sourceSceneId,
       name: sceneLabel,
-      startTime: normalizedStart,
+      startTime: TimelineTime.zero,
       durationTime: duration,
       sourceInTime: TimelineTime.zero,
       sourceOutTime: duration,
@@ -11381,25 +11378,26 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         'source': 'refusion.empty-scene',
       },
     );
+    final nextSceneClips = sceneClipCollection.insertSequentialClipAfter(
+      clip: sceneClip,
+      anchorClipId: anchorClip?.id,
+    );
+    final insertedSceneClip =
+        nextSceneClips.firstWhere((clip) => clip.id == sceneClip.id);
     final rootScene = project.scenes[rootSceneIndex];
-    final rootEnd = sceneClip.endTime > rootScene.projectRange.endExclusive
-        ? sceneClip.endTime
-        : rootScene.projectRange.endExclusive;
+    final nextRootEnd = nextSceneClips.fold<TimelineTime>(
+      rootScene.projectRange.endExclusive,
+      (latestEnd, clip) => clip.endTime > latestEnd ? clip.endTime : latestEnd,
+    );
     final nextScenes = List<MotionSceneModel>.from(project.scenes)
       ..[rootSceneIndex] = rootScene.copyWith(
         projectRange: TimelineTimeRange(
           start: rootScene.projectRange.start,
-          endExclusive: rootEnd,
+          endExclusive: nextRootEnd,
         ),
       )
       ..add(sourceScene);
     final nextProject = project.copyWith(scenes: nextScenes);
-    final nextSceneClips = List<CompositionSceneClipModel>.unmodifiable(
-      <CompositionSceneClipModel>[
-        ..._sceneClips,
-        sceneClip,
-      ]..sort((left, right) => left.startTime.compareTo(right.startTime)),
-    );
     final nextTracks = List<TimelineTrackData>.unmodifiable(
       _rootSceneClipProjectionAdapter.mergeSceneTrack(
         existingTracks: _tracks,
@@ -11413,10 +11411,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _tracks = nextTracks;
       _sceneScopeSession = null;
       _sceneLayerScopeLayerId = null;
-      _selectedClipId = sceneClip.id;
+      _selectedClipId = insertedSceneClip.id;
       _selectedTransitionId = null;
       _previewAssetId = null;
-      _setCurrentTime(sceneClip.startTime);
+      _setCurrentTime(insertedSceneClip.startTime);
       _activeTab = EditorMediaTab.text;
       _markMotionAuthoringChanged();
     });

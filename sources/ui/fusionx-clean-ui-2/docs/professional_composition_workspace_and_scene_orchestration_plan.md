@@ -710,6 +710,15 @@ Exit criteria:
 - selected scene can be edited without creating unwanted extra clips,
 - gaps/overlaps are explicit.
 
+Implementation status:
+
+- Root composition `Add > New Scene` now respects the selected Scene Clip as
+  the insertion anchor. The new empty Scene Clip is inserted immediately after
+  the selected clip, and later sequential Scene Clips are shifted forward by the
+  new clip duration so the story sequence remains non-overlapping. With no
+  selected Scene Clip, New Scene still appends at the end of the current scene
+  sequence.
+
 ### Phase W7: Scene Transition Objects
 
 Deliverables:

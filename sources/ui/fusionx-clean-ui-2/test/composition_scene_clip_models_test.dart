@@ -160,6 +160,46 @@ void main() {
     expect(clips.topClipAtRootTime(ms(1200))!.id, 'clip-foreground-card');
   });
 
+  test('inserts a sequential scene clip after the selected clip', () {
+    final clips = CompositionSceneClipCollection(
+      clips: <CompositionSceneClipModel>[
+        CompositionSceneClipModel(
+          id: 'scene-01',
+          sourceSceneId: 'source-01',
+          startTime: ms(0),
+          durationTime: ms(3000),
+        ),
+        CompositionSceneClipModel(
+          id: 'scene-02',
+          sourceSceneId: 'source-02',
+          startTime: ms(3000),
+          durationTime: ms(3000),
+        ),
+      ],
+    );
+
+    final result = clips.insertSequentialClipAfter(
+      anchorClipId: 'scene-01',
+      clip: CompositionSceneClipModel(
+        id: 'scene-inserted',
+        sourceSceneId: 'source-inserted',
+        startTime: ms(0),
+        durationTime: ms(2000),
+      ),
+    );
+
+    expect(result.map((clip) => clip.id), <String>[
+      'scene-01',
+      'scene-inserted',
+      'scene-02',
+    ]);
+    expect(result.map((clip) => clip.startTime.inMilliseconds), <int>[
+      0,
+      3000,
+      5000,
+    ]);
+  });
+
   test('reports invalid clip duration and source ranges', () {
     final clips = CompositionSceneClipCollection(
       clips: <CompositionSceneClipModel>[

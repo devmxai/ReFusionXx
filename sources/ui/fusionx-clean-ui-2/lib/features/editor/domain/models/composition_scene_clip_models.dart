@@ -412,4 +412,42 @@ class CompositionSceneClipCollection {
       for (final clip in clips) ...clip.validate(),
     ];
   }
+
+  List<CompositionSceneClipModel> insertSequentialClipAfter({
+    required CompositionSceneClipModel clip,
+    String? anchorClipId,
+  }) {
+    final sortedClips = List<CompositionSceneClipModel>.from(clips)
+      ..sort((left, right) => left.startTime.compareTo(right.startTime));
+    final anchor = anchorClipId == null
+        ? null
+        : sortedClips.cast<CompositionSceneClipModel?>().firstWhere(
+              (candidate) => candidate?.id == anchorClipId,
+              orElse: () => null,
+            );
+    final insertionStart = anchor == null
+        ? sortedClips.fold<TimelineTime>(
+            TimelineTime.zero,
+            (latestEnd, candidate) =>
+                candidate.endTime > latestEnd ? candidate.endTime : latestEnd,
+          )
+        : anchor.endTime;
+    final insertedClip = clip.copyWith(startTime: insertionStart);
+    final shiftedClips = <CompositionSceneClipModel>[
+      for (final candidate in sortedClips)
+        candidate.startTime >= insertionStart
+            ? candidate.copyWith(
+                startTime: candidate.startTime + insertedClip.durationTime,
+              )
+            : candidate,
+      insertedClip,
+    ]..sort((left, right) {
+        final startCompare = left.startTime.compareTo(right.startTime);
+        if (startCompare != 0) {
+          return startCompare;
+        }
+        return left.id.compareTo(right.id);
+      });
+    return List<CompositionSceneClipModel>.unmodifiable(shiftedClips);
+  }
 }
