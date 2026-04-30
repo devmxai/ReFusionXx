@@ -12733,9 +12733,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           property: property,
         );
         return;
+      case CompositionWorkspaceInspectorTargetKind.keyframe:
+        await _handleKeyframeInspectorPropertyEdit(
+          model: model,
+          property: property,
+        );
+        return;
       case CompositionWorkspaceInspectorTargetKind.rootComposition:
       case CompositionWorkspaceInspectorTargetKind.sourceComposition:
-      case CompositionWorkspaceInspectorTargetKind.keyframe:
         _showStageMessage('Inspector write-back for this selection is next.');
         return;
     }
@@ -12870,6 +12875,88 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
     final didUpdate = _updateElementFromInspector(
       elementId: elementId,
+      propertyId: property.id,
+      value: nextValue,
+    );
+    if (didUpdate) {
+      _showStageMessage('${property.label} updated.');
+    }
+  }
+
+  Future<void> _handleKeyframeInspectorPropertyEdit({
+    required CompositionWorkspaceInspectorModel model,
+    required CompositionWorkspaceInspectorProperty property,
+  }) async {
+    final channelIdValue = model.propertyById('graph.channelId')?.value;
+    final channelId = channelIdValue is String ? channelIdValue : null;
+    if (channelId == null || channelId.isEmpty) {
+      _showStageMessage('Selected keyframe has no graph channel.');
+      return;
+    }
+    final channel = _channelById(_manualMotionPropertyChannels, channelId);
+    if (channel == null) {
+      _showStageMessage('Selected keyframe channel was not found.');
+      return;
+    }
+    final keyframe = _keyframeById(channel, model.targetId);
+    if (keyframe == null) {
+      _showStageMessage('Selected keyframe was not found.');
+      return;
+    }
+
+    if (property.id == 'graph.interpolation') {
+      final nextInterpolation =
+          _nextInspectorInterpolation(keyframe.interpolationToNext);
+      final didUpdate = _updateKeyframeFromInspector(
+        channelId: channel.id,
+        keyframeId: keyframe.id,
+        propertyId: property.id,
+        value: nextInterpolation,
+      );
+      if (didUpdate) {
+        _showStageMessage(
+          'Interpolation changed to ${nextInterpolation.kind.name}.',
+        );
+      }
+      return;
+    }
+
+    if (property.kind == CompositionWorkspaceInspectorPropertyKind.boolean) {
+      final currentValue = keyframe.value.rawValue is bool
+          ? keyframe.value.rawValue as bool
+          : false;
+      final didUpdate = _updateKeyframeFromInspector(
+        channelId: channel.id,
+        keyframeId: keyframe.id,
+        propertyId: property.id,
+        value: !currentValue,
+      );
+      if (didUpdate) {
+        _showStageMessage('${property.label} updated.');
+      }
+      return;
+    }
+
+    final numericValue = _numberFromInspectorProperty(property);
+    if (numericValue == null) {
+      _showStageMessage('This keyframe inspector value is not editable yet.');
+      return;
+    }
+    final nextValue = await showModalBottomSheet<double>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _CompositionInspectorNumberEditSheet(
+        property: property,
+        initialValue: numericValue,
+      ),
+    );
+    if (!mounted || nextValue == null) {
+      return;
+    }
+    final didUpdate = _updateKeyframeFromInspector(
+      channelId: channel.id,
+      keyframeId: keyframe.id,
       propertyId: property.id,
       value: nextValue,
     );
@@ -13155,6 +13242,173 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return false;
   }
 
+  bool _updateKeyframeFromInspector({
+    required String channelId,
+    required String keyframeId,
+    required String propertyId,
+    required Object value,
+  }) {
+    final channelIndex = _manualMotionPropertyChannels.indexWhere(
+      (channel) => channel.id == channelId,
+    );
+    if (channelIndex < 0) {
+      _showStageMessage('Selected keyframe channel was not found.');
+      return false;
+    }
+    final channel = _manualMotionPropertyChannels[channelIndex];
+    final keyframeIndex = channel.keyframes.indexWhere(
+      (keyframe) => keyframe.id == keyframeId,
+    );
+    if (keyframeIndex < 0) {
+      _showStageMessage('Selected keyframe was not found.');
+      return false;
+    }
+    final keyframe = channel.keyframes[keyframeIndex];
+    MotionKeyframeModel? nextKeyframe;
+    switch (propertyId) {
+      case 'timing.timeMs':
+        final nextTime = _inspectorTimeFromValue(value);
+        if (nextTime == null) {
+          return false;
+        }
+        final activeRange = channel.activeRange;
+        if (activeRange != null && !activeRange.contains(nextTime)) {
+          _showStageMessage(
+              'Keyframe time must stay inside its channel range.');
+          return false;
+        }
+        final hasSameTimeKeyframe = channel.keyframes.any(
+          (candidate) =>
+              candidate.id != keyframe.id && candidate.time == nextTime,
+        );
+        if (hasSameTimeKeyframe) {
+          _showStageMessage('Another keyframe already exists at this time.');
+          return false;
+        }
+        nextKeyframe = keyframe.copyWith(time: nextTime);
+        break;
+      case 'graph.value':
+        final nextValue = _motionValueFromInspectorValue(
+          valueKind: channel.definition.valueKind,
+          value: value,
+        );
+        if (nextValue == null) {
+          return false;
+        }
+        nextKeyframe = keyframe.copyWith(value: nextValue);
+        break;
+      case 'graph.interpolation':
+        if (value is! MotionInterpolationSpec) {
+          _showStageMessage('Interpolation edit was not recognized.');
+          return false;
+        }
+        nextKeyframe = keyframe.copyWith(interpolationToNext: value);
+        break;
+      default:
+        _showStageMessage('Keyframe inspector edit for `$propertyId` is next.');
+        return false;
+    }
+    final nextKeyframes = List<MotionKeyframeModel>.from(channel.keyframes)
+      ..[keyframeIndex] = nextKeyframe
+      ..sort((left, right) => left.time.compareTo(right.time));
+    final nextChannel = channel.copyWith(keyframes: nextKeyframes);
+    final nextChannels =
+        List<MotionPropertyChannelModel>.from(_manualMotionPropertyChannels)
+          ..[channelIndex] = nextChannel;
+    setState(() {
+      _manualMotionPropertyChannels =
+          List<MotionPropertyChannelModel>.unmodifiable(nextChannels);
+      _selectedLayerScopeAnimationLaneId ??= channel.id;
+      _selectedLayerScopeKeyframeId = keyframeId;
+      _selectedLayerScopeKeyframeIndex =
+          _keyframeIndexForChannel(nextChannel, keyframeId) ??
+              _selectedLayerScopeKeyframeIndex;
+      _markMotionAuthoringChanged();
+    });
+    _syncLayerScopeTimeNotifiers();
+    return true;
+  }
+
+  MotionKeyframeModel? _keyframeById(
+    MotionPropertyChannelModel channel,
+    String keyframeId,
+  ) {
+    for (final keyframe in channel.keyframes) {
+      if (keyframe.id == keyframeId) {
+        return keyframe;
+      }
+    }
+    return null;
+  }
+
+  int? _keyframeIndexForChannel(
+    MotionPropertyChannelModel channel,
+    String keyframeId,
+  ) {
+    final index = channel.keyframes.indexWhere(
+      (keyframe) => keyframe.id == keyframeId,
+    );
+    return index < 0 ? null : index;
+  }
+
+  MotionPropertyValue? _motionValueFromInspectorValue({
+    required MotionPropertyValueKind valueKind,
+    required Object value,
+  }) {
+    switch (valueKind) {
+      case MotionPropertyValueKind.scalar:
+        final number = value is num ? value.toDouble() : null;
+        if (number == null || !number.isFinite) {
+          _showStageMessage('Keyframe value must be a valid number.');
+          return null;
+        }
+        return MotionPropertyValue.scalar(number);
+      case MotionPropertyValueKind.integer:
+        final number = value is num ? value.toDouble() : null;
+        if (number == null || !number.isFinite) {
+          _showStageMessage('Keyframe value must be a valid number.');
+          return null;
+        }
+        return MotionPropertyValue.integer(number.round());
+      case MotionPropertyValueKind.boolean:
+        if (value is bool) {
+          return MotionPropertyValue.boolean(value);
+        }
+        if (value is num) {
+          return MotionPropertyValue.boolean(value >= 0.5);
+        }
+        _showStageMessage('Keyframe value must be true or false.');
+        return null;
+      case MotionPropertyValueKind.stringValue:
+      case MotionPropertyValueKind.colorArgb:
+      case MotionPropertyValueKind.point2D:
+      case MotionPropertyValueKind.size2D:
+      case MotionPropertyValueKind.rect:
+      case MotionPropertyValueKind.enumValue:
+        _showStageMessage('This keyframe value type is not editable yet.');
+        return null;
+    }
+  }
+
+  MotionInterpolationSpec _nextInspectorInterpolation(
+    MotionInterpolationSpec current,
+  ) {
+    return switch (current.kind) {
+      MotionInterpolationKind.linear => const MotionInterpolationSpec.easeOut(),
+      MotionInterpolationKind.easeOut =>
+        const MotionInterpolationSpec.easeInOut(),
+      MotionInterpolationKind.easeInOut =>
+        const MotionInterpolationSpec.linear(),
+      MotionInterpolationKind.hold ||
+      MotionInterpolationKind.easeIn ||
+      MotionInterpolationKind.cubicBezier ||
+      MotionInterpolationKind.spring ||
+      MotionInterpolationKind.bounce ||
+      MotionInterpolationKind.elastic =>
+        const MotionInterpolationSpec.linear(),
+    };
+  }
+
   MotionElementModel? _elementWithInspectorValue({
     required MotionSceneModel scene,
     required MotionLayerModel layer,
@@ -13340,6 +13594,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final sceneScope = _sceneScopeSession;
     final layerScopeLayerId = _sceneLayerScopeLayerId;
     if (sceneScope != null && layerScopeLayerId != null) {
+      final keyframeSelection =
+          _compositionWorkspaceKeyframeSelectionForLayerScope(
+        sceneScope: sceneScope,
+        layerId: layerScopeLayerId,
+      );
+      if (keyframeSelection != null) {
+        return keyframeSelection;
+      }
       return CompositionWorkspaceSelection.layer(
         sourceSceneId: sceneScope.sourceSceneId,
         layerId: layerScopeLayerId,
@@ -13367,6 +13629,47 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       );
     }
     return const CompositionWorkspaceSelection.none();
+  }
+
+  CompositionWorkspaceSelection?
+      _compositionWorkspaceKeyframeSelectionForLayerScope({
+    required SceneScopeSession sceneScope,
+    required String layerId,
+  }) {
+    final viewModel = _activeSceneLayerScopeViewModel;
+    if (viewModel == null || viewModel.layerId != layerId) {
+      return null;
+    }
+    final lane = _sceneLayerScopeSelectedAnimationLane(viewModel);
+    if (lane == null) {
+      return null;
+    }
+    final channel = _sceneLayerScopeChannelForLane(viewModel, lane);
+    if (channel == null || channel.target.kind != MotionTargetKind.element) {
+      return null;
+    }
+    final elementId = channel.target.elementId ?? channel.target.targetId;
+    if (elementId.isEmpty) {
+      return null;
+    }
+    final keyframeIndex = _selectedLayerScopeKeyframeIndex ??
+        _nearestSceneLayerScopeKeyframeIndex(viewModel, lane);
+    if (keyframeIndex == null) {
+      return null;
+    }
+    final keyframeId = _selectedLayerScopeKeyframeId ??
+        _layerScopeKeyframeIdAt(lane, keyframeIndex);
+    if (keyframeId == null || keyframeId.isEmpty) {
+      return null;
+    }
+    return CompositionWorkspaceSelection.keyframe(
+      sourceSceneId: sceneScope.sourceSceneId,
+      layerId: layerId,
+      elementId: elementId,
+      channelId: channel.id,
+      keyframeId: keyframeId,
+      sceneClipId: sceneScope.sceneClipId,
+    );
   }
 
   void _handleCompositionOutlinerSelection(
