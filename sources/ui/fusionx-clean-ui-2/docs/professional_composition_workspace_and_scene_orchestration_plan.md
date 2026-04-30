@@ -843,8 +843,9 @@ Current gaps for this plan:
 - Scene button does not fully separate create-new from modify-selected,
 - transition between Scene Clips is not yet a first-class workspace object,
 - video layers inside Scene Contents can open Layer Scope and author shared
-  visual graph properties, but full video transform/effect preview and export
-  parity still need explicit renderer work,
+  visual graph properties; Flutter preview now wraps the native video surface
+  with graph-evaluated transform/opacity/blur samples, while full production
+  export parity for authored video surfaces still needs explicit renderer work,
 - preview/export parity for scene-only generated visual content is still gated,
   with nested media preview/scrub projection now partially wired for manual
   Scene Contents media layers.

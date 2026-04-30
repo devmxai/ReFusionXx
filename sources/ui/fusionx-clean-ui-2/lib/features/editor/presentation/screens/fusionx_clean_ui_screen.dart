@@ -73,6 +73,7 @@ import '../widgets/motion_image_preview_overlay.dart';
 import '../widgets/motion_shape_preview_overlay.dart';
 import '../widgets/motion_text_preview_overlay.dart';
 import '../widgets/motion_text_transform_overlay.dart';
+import '../widgets/motion_video_preview_transform.dart';
 import '../widgets/native_timeline_scrub_surface.dart';
 import '../widgets/native_preview_surface.dart';
 import '../widgets/preview_stage.dart';
@@ -170,6 +171,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       SceneScopeSessionResolver();
   static const SceneLayerScopeTimelineAdapter _sceneLayerScopeTimelineAdapter =
       SceneLayerScopeTimelineAdapter();
+  static const MotionVideoPreviewTransformResolver
+      _motionVideoPreviewTransformResolver =
+      MotionVideoPreviewTransformResolver();
   static const LayerScopeCompositionAdapter _layerScopeCompositionAdapter =
       LayerScopeCompositionAdapter();
   static const SceneMentionIndex _sceneMentionIndex = SceneMentionIndex();
@@ -19562,6 +19566,58 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         _motionImagePreviewRevisionNotifier.value + 1;
   }
 
+  MotionVideoPreviewTransform? _motionVideoPreviewTransformForTime(
+    TimelineTime previewTime,
+  ) {
+    final composition = _motionCompositionForCurrentState();
+    if (composition == null) {
+      return null;
+    }
+    final snapshot = _motionEvaluator.evaluate(
+      MotionEvaluationRequest(
+        composition: composition,
+        time: previewTime.clamp(
+          TimelineTime.zero,
+          composition.projectRange.endExclusive,
+        ),
+        reason: _isTimelineScrubbing
+            ? MotionEvaluationReason.liveScrub
+            : MotionEvaluationReason.previewPlayback,
+      ),
+    );
+    return _motionVideoPreviewTransformResolver.resolve(
+      composition: composition,
+      snapshot: snapshot,
+      preferredAssetId: _previewAssetId,
+    );
+  }
+
+  Widget _buildNativePreviewSurface({
+    required Widget fallback,
+    required String? previewIdentity,
+    required bool effectiveIsPlaying,
+  }) {
+    final surface = NativePreviewSurface(
+      controller: _transportController,
+      previewIdentity: previewIdentity,
+      recoveryRevision: _nativePreviewRecoveryRevision,
+      fallback: fallback,
+    );
+    final previewTimeListenable = effectiveIsPlaying && _useNativePreview
+        ? _playbackSampleTimeNotifier
+        : _timelineDisplayTimeNotifier;
+    return ValueListenableBuilder<TimelineTime>(
+      valueListenable: previewTimeListenable,
+      builder: (context, previewTime, _) {
+        return MotionVideoPreviewTransformSurface(
+          transform: _motionVideoPreviewTransformForTime(previewTime),
+          canvasSize: _motionProjectFormat.canvasSize,
+          child: surface,
+        );
+      },
+    );
+  }
+
   Widget? _buildPreviewOverlay({
     required bool effectiveIsPlaying,
   }) {
@@ -19926,13 +19982,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                               effectiveIsPlaying: effectiveIsPlaying,
                             ),
                             child: _useNativePreview
-                                ? NativePreviewSurface(
-                                    controller: _transportController,
+                                ? _buildNativePreviewSurface(
                                     previewIdentity:
                                         previewCanvasAsset?.sourceUri ??
                                             previewCanvasAsset?.id,
-                                    recoveryRevision:
-                                        _nativePreviewRecoveryRevision,
+                                    effectiveIsPlaying: effectiveIsPlaying,
                                     fallback: previewFallback,
                                   )
                                 : previewFallback,
