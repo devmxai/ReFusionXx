@@ -662,6 +662,11 @@ Implementation status:
   professional timeline clock remains in root time. Adapter code must map
   `root <-> scene local` at the native transport boundary; Stage5 scrub files
   remain protected and must not be changed for this workflow.
+- Scene Contents and nested Layer Scope must share the root timeline's native
+  scrub handoff whenever the open composition scope contains playable video.
+  Scoped scrub code must not immediately confirm `scrubSettled` after finger
+  lift while a native video player is active; it must wait for the native
+  transport to settle on the mapped scene-local target frame first.
 - Future W3 root actions must allow adding/replacing a root background layer and
   inserting Scene Clips as full-screen scenes or as transformable cards over the
   root background.

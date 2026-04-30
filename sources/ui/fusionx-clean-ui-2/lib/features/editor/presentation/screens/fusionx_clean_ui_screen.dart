@@ -3523,6 +3523,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       !kIsWeb &&
       defaultTargetPlatform == TargetPlatform.android;
 
+  bool get _shouldUseNativeScrubHandoffForCurrentCompositionScope {
+    if (!_useNativePreview) {
+      return false;
+    }
+    return _compositionMediaProjectionForCurrentScope().hasPlayableVideo;
+  }
+
   void _handleTransportStateChanged() {
     final transportState = _transportController.state;
     final enteringPlayback = transportState.isPlaying && !_isPlaying;
@@ -16656,6 +16663,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   void _handleCompositionScopeScrubStateChanged(bool isScrubbing) {
+    if (_shouldUseNativeScrubHandoffForCurrentCompositionScope) {
+      _handleScrubStateChanged(isScrubbing);
+      return;
+    }
     if (_isApplyingStructuralEdit) {
       return;
     }
