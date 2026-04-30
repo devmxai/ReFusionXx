@@ -52,6 +52,7 @@ import '../services/normal_transition_timeline_authoring_adapter.dart';
 import '../services/native_preview_identity_resolver.dart';
 import '../services/root_scene_clip_projection_adapter.dart';
 import '../services/scene_layer_scope_timeline_adapter.dart';
+import '../services/scene_scope_transition_preview_resolver.dart';
 import '../services/timeline_media_program_time_mapper.dart';
 import '../services/transition_unified_scope_bridge_entry_adapter.dart';
 import '../services/transition_unified_scope_entry_gate.dart';
@@ -177,6 +178,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       SceneScopeSessionResolver();
   static const SceneLayerScopeTimelineAdapter _sceneLayerScopeTimelineAdapter =
       SceneLayerScopeTimelineAdapter();
+  static const SceneScopeTransitionPreviewResolver
+      _sceneScopeTransitionPreviewResolver =
+      SceneScopeTransitionPreviewResolver();
   static const MotionVideoPreviewTransformResolver
       _motionVideoPreviewTransformResolver =
       MotionVideoPreviewTransformResolver();
@@ -20108,6 +20112,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         return sceneScopePreview;
       }
     }
+    final rootScenePreview = _activeRootSceneScopeTransitionPreviewAt(
+      timelineTime,
+    );
+    if (rootScenePreview != null) {
+      return rootScenePreview;
+    }
     final videoTrack =
         _tracks.where((track) => track.kind == TimelineTrackKind.video);
     if (videoTrack.isEmpty) {
@@ -20122,29 +20132,50 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
   }
 
+  _ActiveTimelineTransitionPreview? _activeRootSceneScopeTransitionPreviewAt(
+    TimelineTime rootTime,
+  ) {
+    if (_sceneScopeTransitionsBySourceSceneId.isEmpty ||
+        _motionProject == null ||
+        _sceneClips.isEmpty) {
+      return null;
+    }
+    final result = _sceneScopeSessionResolver.open(
+      SceneScopeSessionRequest(
+        project: _effectiveMotionProject,
+        rootTime: rootTime,
+        sceneClips: _sceneClips,
+        channels: _manualMotionPropertyChannels,
+      ),
+    );
+    final session = result.session;
+    if (session == null ||
+        !_sceneScopeTransitionsBySourceSceneId.containsKey(
+          session.sourceSceneId,
+        )) {
+      return null;
+    }
+    return _activeSceneScopeTransitionPreviewAt(session, rootTime);
+  }
+
   _ActiveTimelineTransitionPreview? _activeSceneScopeTransitionPreviewAt(
     SceneScopeSession session,
     TimelineTime rootTime,
   ) {
-    final localTime = session.rootToLocal(rootTime).clamp(
-          TimelineTime.zero,
-          session.localRange.duration,
-        );
-    for (final track in _buildSceneScopeTracks(session)) {
-      if (track.kind != TimelineTrackKind.video) {
-        continue;
-      }
-      final preview = _activeTransitionPreviewForTrack(
-        track: track,
-        timelineTime: localTime,
-        timelineDurationTime: session.localRange.duration,
-        useTransitionFocusContext: false,
-      );
-      if (preview != null) {
-        return preview;
-      }
+    final projection = _sceneScopeTransitionPreviewResolver.resolve(
+      session: session,
+      sceneScopeTracks: _buildSceneScopeTracks(session),
+      rootTime: rootTime,
+    );
+    if (projection == null) {
+      return null;
     }
-    return null;
+    return _activeTransitionPreviewForTrack(
+      track: projection.track,
+      timelineTime: projection.localTime,
+      timelineDurationTime: projection.localDuration,
+      useTransitionFocusContext: false,
+    );
   }
 
   _ActiveTimelineTransitionPreview? _activeTransitionPreviewForTrack({
