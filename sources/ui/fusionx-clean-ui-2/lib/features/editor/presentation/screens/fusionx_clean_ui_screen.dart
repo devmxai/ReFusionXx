@@ -12688,14 +12688,224 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       workspace: workspace,
       channels: _manualMotionPropertyChannels,
     );
-    await showModalBottomSheet<void>(
+    final selectedProperty =
+        await showModalBottomSheet<CompositionWorkspaceInspectorProperty>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => CompositionWorkspaceInspectorBottomSheet(
         result: result,
+        onPropertyTap: (property) => Navigator.of(context).pop(property),
       ),
     );
+    if (!mounted || selectedProperty == null || result.model == null) {
+      return;
+    }
+    await _handleCompositionInspectorPropertyEdit(
+      model: result.model!,
+      property: selectedProperty,
+    );
+  }
+
+  Future<void> _handleCompositionInspectorPropertyEdit({
+    required CompositionWorkspaceInspectorModel model,
+    required CompositionWorkspaceInspectorProperty property,
+  }) async {
+    if (!property.isEditable) {
+      return;
+    }
+    switch (model.targetKind) {
+      case CompositionWorkspaceInspectorTargetKind.sceneClipInstance:
+        await _handleSceneClipInspectorPropertyEdit(
+          sceneClipId: model.targetId,
+          property: property,
+        );
+        return;
+      case CompositionWorkspaceInspectorTargetKind.rootComposition:
+      case CompositionWorkspaceInspectorTargetKind.sourceComposition:
+      case CompositionWorkspaceInspectorTargetKind.layer:
+      case CompositionWorkspaceInspectorTargetKind.element:
+      case CompositionWorkspaceInspectorTargetKind.keyframe:
+        _showStageMessage('Inspector write-back for this selection is next.');
+        return;
+    }
+  }
+
+  Future<void> _handleSceneClipInspectorPropertyEdit({
+    required String sceneClipId,
+    required CompositionWorkspaceInspectorProperty property,
+  }) async {
+    final sceneClip = _sceneClipById(sceneClipId);
+    if (sceneClip == null) {
+      _showStageMessage('Scene Clip was not found.');
+      return;
+    }
+    if (property.kind == CompositionWorkspaceInspectorPropertyKind.boolean) {
+      final currentValue =
+          property.value is bool ? property.value as bool : false;
+      final didUpdate = _updateSceneClipInstanceFromInspector(
+        sceneClipId: sceneClipId,
+        propertyId: property.id,
+        value: !currentValue,
+      );
+      if (didUpdate) {
+        _showStageMessage('${property.label} updated.');
+      }
+      return;
+    }
+    final numericValue = _numberFromInspectorProperty(property);
+    if (numericValue == null) {
+      _showStageMessage('This inspector value is not editable yet.');
+      return;
+    }
+    final nextValue = await showModalBottomSheet<double>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _CompositionInspectorNumberEditSheet(
+        property: property,
+        initialValue: numericValue,
+      ),
+    );
+    if (!mounted || nextValue == null) {
+      return;
+    }
+    final didUpdate = _updateSceneClipInstanceFromInspector(
+      sceneClipId: sceneClipId,
+      propertyId: property.id,
+      value: nextValue,
+    );
+    if (didUpdate) {
+      _showStageMessage('${property.label} updated.');
+    }
+  }
+
+  double? _numberFromInspectorProperty(
+    CompositionWorkspaceInspectorProperty property,
+  ) {
+    final value = property.value;
+    if (value is num) {
+      return value.toDouble();
+    }
+    return null;
+  }
+
+  bool _updateSceneClipInstanceFromInspector({
+    required String sceneClipId,
+    required String propertyId,
+    required Object value,
+  }) {
+    final sceneClipIndex =
+        _sceneClips.indexWhere((sceneClip) => sceneClip.id == sceneClipId);
+    if (sceneClipIndex < 0) {
+      _showStageMessage('Scene Clip was not found.');
+      return false;
+    }
+    final sceneClip = _sceneClips[sceneClipIndex];
+    final style = sceneClip.instanceVisualStyle;
+    final transform = style.transform;
+    CompositionSceneClipModel? nextSceneClip;
+    double asDouble(double fallback) =>
+        value is num && value.toDouble().isFinite ? value.toDouble() : fallback;
+    int asInt(int fallback) =>
+        value is num && value.toDouble().isFinite ? value.round() : fallback;
+    bool asBool(bool fallback) => value is bool ? value : fallback;
+
+    switch (propertyId) {
+      case 'transform.positionX':
+        nextSceneClip = sceneClip.copyWith(
+          instanceVisualStyle: style.copyWith(
+            transform:
+                transform.copyWith(positionX: asDouble(transform.positionX)),
+          ),
+        );
+        break;
+      case 'transform.positionY':
+        nextSceneClip = sceneClip.copyWith(
+          instanceVisualStyle: style.copyWith(
+            transform:
+                transform.copyWith(positionY: asDouble(transform.positionY)),
+          ),
+        );
+        break;
+      case 'transform.scaleX':
+        nextSceneClip = sceneClip.copyWith(
+          instanceVisualStyle: style.copyWith(
+            transform: transform.copyWith(
+              scaleX: asDouble(transform.scaleX).clamp(0.01, 20).toDouble(),
+            ),
+          ),
+        );
+        break;
+      case 'transform.scaleY':
+        nextSceneClip = sceneClip.copyWith(
+          instanceVisualStyle: style.copyWith(
+            transform: transform.copyWith(
+              scaleY: asDouble(transform.scaleY).clamp(0.01, 20).toDouble(),
+            ),
+          ),
+        );
+        break;
+      case 'transform.rotation':
+        nextSceneClip = sceneClip.copyWith(
+          instanceVisualStyle: style.copyWith(
+            transform: transform.copyWith(
+              rotationDegrees: asDouble(transform.rotationDegrees),
+            ),
+          ),
+        );
+        break;
+      case 'style.opacity':
+        nextSceneClip = sceneClip.copyWith(
+          instanceVisualStyle: style.copyWith(
+            opacity: asDouble(style.opacity).clamp(0, 1).toDouble(),
+          ),
+        );
+        break;
+      case 'style.enabled':
+        nextSceneClip = sceneClip.copyWith(
+          isEnabled: asBool(sceneClip.isEnabled),
+        );
+        break;
+      case 'style.locked':
+        nextSceneClip = sceneClip.copyWith(
+          isLocked: asBool(sceneClip.isLocked),
+        );
+        break;
+      case 'drawOrder.zIndex':
+        nextSceneClip = sceneClip.copyWith(
+          instanceVisualStyle: style.copyWith(zIndex: asInt(style.zIndex)),
+        );
+        break;
+      default:
+        _showStageMessage('Inspector edit for `$propertyId` is next.');
+        return false;
+    }
+    final issues = nextSceneClip.validate();
+    if (issues.isNotEmpty) {
+      _showStageMessage(issues.first.message);
+      return false;
+    }
+    final nextSceneClips = List<CompositionSceneClipModel>.from(_sceneClips)
+      ..[sceneClipIndex] = nextSceneClip;
+    final normalizedSceneClips = List<CompositionSceneClipModel>.unmodifiable(
+      nextSceneClips
+        ..sort((left, right) => left.startTime.compareTo(right.startTime)),
+    );
+    final nextTracks = List<TimelineTrackData>.unmodifiable(
+      _rootSceneClipProjectionAdapter.mergeSceneTrack(
+        existingTracks: _tracks,
+        sceneClips: normalizedSceneClips,
+      ),
+    );
+    setState(() {
+      _sceneClips = normalizedSceneClips;
+      _tracks = nextTracks;
+      _selectedClipId = sceneClipId;
+      _markMotionAuthoringChanged();
+    });
+    _syncTimelineClockDuration();
+    return true;
   }
 
   CompositionWorkspaceModel _compositionWorkspaceForOutliner() {
@@ -21383,6 +21593,177 @@ class _SceneLayerScopeKeyframeEdit {
 
   final MotionPropertyChannelModel? channel;
   final String keyframeId;
+}
+
+class _CompositionInspectorNumberEditSheet extends StatefulWidget {
+  const _CompositionInspectorNumberEditSheet({
+    required this.property,
+    required this.initialValue,
+  });
+
+  final CompositionWorkspaceInspectorProperty property;
+  final double initialValue;
+
+  @override
+  State<_CompositionInspectorNumberEditSheet> createState() =>
+      _CompositionInspectorNumberEditSheetState();
+}
+
+class _CompositionInspectorNumberEditSheetState
+    extends State<_CompositionInspectorNumberEditSheet> {
+  late final TextEditingController _controller;
+  String? _errorText;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(
+      text: _formatInitialValue(widget.initialValue),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomPadding = MediaQuery.paddingOf(context).bottom;
+    return Material(
+      color: Colors.transparent,
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: Container(
+          padding: EdgeInsets.fromLTRB(
+            18,
+            12,
+            18,
+            (bottomPadding > 0 ? bottomPadding : 14) + 10,
+          ),
+          decoration: BoxDecoration(
+            color: FxPalette.surface,
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(26),
+            ),
+            border: Border.all(color: FxPalette.divider, width: 1),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: FxPalette.dividerSoft,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                widget.property.label,
+                style: const TextStyle(
+                  color: FxPalette.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                widget.property.unit == null
+                    ? 'Set an exact inspector value.'
+                    : 'Set an exact value in ${widget.property.unit}.',
+                style: const TextStyle(
+                  color: FxPalette.textMuted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0,
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: _controller,
+                keyboardType: const TextInputType.numberWithOptions(
+                  signed: true,
+                  decimal: true,
+                ),
+                autofocus: true,
+                style: const TextStyle(
+                  color: FxPalette.textPrimary,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0,
+                ),
+                decoration: InputDecoration(
+                  errorText: _errorText,
+                  suffixText: widget.property.unit,
+                  suffixStyle: const TextStyle(
+                    color: FxPalette.textMuted,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0,
+                  ),
+                  filled: true,
+                  fillColor: FxPalette.surfaceRaised,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(
+                      color: FxPalette.accent.withOpacity(0.65),
+                    ),
+                  ),
+                ),
+                onSubmitted: (_) => _submit(),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).maybePop(),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: _submit,
+                      child: const Text('Apply'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _submit() {
+    final parsed = double.tryParse(_controller.text.trim());
+    if (parsed == null || !parsed.isFinite) {
+      setState(() {
+        _errorText = 'Enter a valid number.';
+      });
+      return;
+    }
+    Navigator.of(context).pop(parsed);
+  }
+
+  String _formatInitialValue(double value) {
+    if (value == value.roundToDouble()) {
+      return value.toInt().toString();
+    }
+    return value.toStringAsFixed(3);
+  }
 }
 
 class _CompositionTextField extends StatelessWidget {

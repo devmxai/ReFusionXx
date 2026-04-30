@@ -10,9 +10,11 @@ class CompositionWorkspaceInspectorBottomSheet extends StatelessWidget {
   const CompositionWorkspaceInspectorBottomSheet({
     super.key,
     required this.result,
+    this.onPropertyTap,
   });
 
   final CompositionWorkspaceInspectorResult result;
+  final ValueChanged<CompositionWorkspaceInspectorProperty>? onPropertyTap;
 
   @override
   Widget build(BuildContext context) {
@@ -107,7 +109,10 @@ class CompositionWorkspaceInspectorBottomSheet extends StatelessWidget {
                         _InspectorTargetHeader(model: model),
                         const SizedBox(height: 12),
                         for (final section in model.sections)
-                          _InspectorSectionView(section: section),
+                          _InspectorSectionView(
+                            section: section,
+                            onPropertyTap: onPropertyTap,
+                          ),
                       ],
                     ],
                   ),
@@ -201,9 +206,11 @@ class _InspectorTargetHeader extends StatelessWidget {
 class _InspectorSectionView extends StatelessWidget {
   const _InspectorSectionView({
     required this.section,
+    required this.onPropertyTap,
   });
 
   final CompositionWorkspaceInspectorSection section;
+  final ValueChanged<CompositionWorkspaceInspectorProperty>? onPropertyTap;
 
   @override
   Widget build(BuildContext context) {
@@ -245,7 +252,10 @@ class _InspectorSectionView extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               for (final property in section.properties)
-                _InspectorPropertyRow(property: property),
+                _InspectorPropertyRow(
+                  property: property,
+                  onPropertyTap: onPropertyTap,
+                ),
             ],
           ),
         ),
@@ -275,63 +285,77 @@ class _InspectorSectionView extends StatelessWidget {
 class _InspectorPropertyRow extends StatelessWidget {
   const _InspectorPropertyRow({
     required this.property,
+    required this.onPropertyTap,
   });
 
   final CompositionWorkspaceInspectorProperty property;
+  final ValueChanged<CompositionWorkspaceInspectorProperty>? onPropertyTap;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 5,
-            child: Text(
-              property.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: FxPalette.textMuted,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0,
-              ),
+    final canTap = property.isEditable && onPropertyTap != null;
+    final content = Row(
+      children: [
+        Expanded(
+          flex: 5,
+          child: Text(
+            property.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: FxPalette.textMuted,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            flex: 6,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Flexible(
-                  child: Text(
-                    _formatPropertyValue(property),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.right,
-                    style: const TextStyle(
-                      color: FxPalette.textPrimary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0,
-                    ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          flex: 6,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Flexible(
+                child: Text(
+                  _formatPropertyValue(property),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                  style: const TextStyle(
+                    color: FxPalette.textPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0,
                   ),
                 ),
-                if (property.isEditable)
-                  const Padding(
-                    padding: EdgeInsets.only(left: 6),
-                    child: Icon(
-                      Icons.edit_rounded,
-                      color: FxPalette.accent,
-                      size: 13,
-                    ),
+              ),
+              if (property.isEditable)
+                const Padding(
+                  padding: EdgeInsets.only(left: 6),
+                  child: Icon(
+                    Icons.edit_rounded,
+                    color: FxPalette.accent,
+                    size: 13,
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
-        ],
+        ),
+      ],
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: canTap ? () => onPropertyTap!(property) : null,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            child: content,
+          ),
+        ),
       ),
     );
   }
