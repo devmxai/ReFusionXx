@@ -11222,39 +11222,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             title: 'Image Layer',
             subtitle: 'Import an image as a layer inside this scene.',
           ),
-          _UniversalAddSheetItem(
-            action: _UniversalAddAction.textLayer,
-            icon: Icons.text_fields_rounded,
-            title: 'Text Layer',
-            subtitle: 'Create a graph-backed text layer in this scene.',
-          ),
-          _UniversalAddSheetItem(
-            action: _UniversalAddAction.shapeLayer,
-            icon: Icons.category_rounded,
-            title: 'Shape Layer',
-            subtitle: 'Create a graph-backed shape layer in this scene.',
-          ),
-          _UniversalAddSheetItem(
-            action: _UniversalAddAction.audioLayer,
-            icon: Icons.music_note_rounded,
-            title: 'Audio Layer',
-            subtitle: 'Audio layers are planned for a later checkpoint.',
-            isReady: false,
-          ),
-          _UniversalAddSheetItem(
-            action: _UniversalAddAction.nullLayer,
-            icon: Icons.control_camera_rounded,
-            title: 'Null Layer',
-            subtitle: 'Null/control layers are planned for parent motion.',
-            isReady: false,
-          ),
-          _UniversalAddSheetItem(
-            action: _UniversalAddAction.adjustmentLayer,
-            icon: Icons.tune_rounded,
-            title: 'Adjustment Layer',
-            subtitle: 'Adjustment layers will connect to effects later.',
-            isReady: false,
-          ),
         ];
       case _UniversalAddScope.layer:
         return const <_UniversalAddSheetItem>[
@@ -20615,7 +20582,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                               )
                                         : sceneScopeSession != null
                                             ? _SceneScopeDock(
-                                                onAddTap:
+                                                onMediaTap:
                                                     _openUniversalAddSheet,
                                                 onShapeTap:
                                                     _insertDefaultShapeLayer,
@@ -20958,7 +20925,7 @@ class _LayerScopeToolsBar extends StatelessWidget {
 
 class _SceneScopeDock extends StatelessWidget {
   const _SceneScopeDock({
-    required this.onAddTap,
+    required this.onMediaTap,
     required this.onShapeTap,
     required this.onTextTap,
     required this.onAudioTap,
@@ -20966,7 +20933,7 @@ class _SceneScopeDock extends StatelessWidget {
     required this.onAdjustmentTap,
   });
 
-  final VoidCallback onAddTap;
+  final VoidCallback onMediaTap;
   final VoidCallback onShapeTap;
   final VoidCallback onTextTap;
   final VoidCallback onAudioTap;
@@ -20984,8 +20951,8 @@ class _SceneScopeDock extends StatelessWidget {
           Expanded(
             child: _SceneScopeDockButton(
               icon: Icons.add_rounded,
-              label: 'Add',
-              onTap: onAddTap,
+              label: 'Media',
+              onTap: onMediaTap,
             ),
           ),
           Expanded(

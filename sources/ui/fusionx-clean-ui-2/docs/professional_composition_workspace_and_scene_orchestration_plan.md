@@ -640,11 +640,11 @@ Implementation status:
 - Scene Scope can create a real generated shape layer with editable transform,
   opacity, size, and corner-radius assignments. This is a graph layer, not a
   UI-only placeholder.
-- Scene Contents `Add` is now the primary Scene Scope insertion gateway. It
-  exposes Video Layer, Image Layer, Text Layer, Shape Layer, Audio Layer, Null
-  Layer, and Adjustment Layer in one context-aware sheet. Video/image import and
-  text/shape creation write real source-scene layers; audio/null/adjustment
-  remain explicit planned blockers and must not create fake UI-only layers.
+- Scene Contents keeps media insertion separate from element commands. The
+  `Media`/plus action opens only Video Layer and Image Layer import for the open
+  source scene. Shape and Text remain direct bottom-dock commands, while
+  Audio/Null/Adjustment remain visible planned dock commands and must not create
+  fake UI-only layers.
 - Future W3 root actions must allow adding/replacing a root background layer and
   inserting Scene Clips as full-screen scenes or as transformable cards over the
   root background.
