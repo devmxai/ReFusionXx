@@ -96,6 +96,92 @@ void main() {
       isFalse,
     );
   });
+
+  testWidgets('scene video layer boundaries expose transition bridge taps',
+      (WidgetTester tester) async {
+    TimelineTrackData? tappedTrack;
+    TimelineClipData? tappedLeftClip;
+    TimelineClipData? tappedRightClip;
+
+    final firstClip = TimelineClipData(
+      id: 'scene-video-layer-1',
+      type: TimelineClipType.media,
+      tone: TimelineClipTone.aiGenerated,
+      duration: 2,
+      contentKind: TimelineClipContentKind.scene,
+      visualKind: TimelineVisualKind.video,
+    );
+    final secondClip = TimelineClipData(
+      id: 'scene-video-layer-2',
+      type: TimelineClipType.media,
+      tone: TimelineClipTone.aiGenerated,
+      duration: 1.5,
+      contentKind: TimelineClipContentKind.scene,
+      visualKind: TimelineVisualKind.video,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 600,
+              height: 220,
+              child: TimelinePanel(
+                embedded: true,
+                tracks: <TimelineTrackData>[
+                  TimelineTrackData(
+                    kind: TimelineTrackKind.video,
+                    contentKind: TimelineTrackContentKind.scene,
+                    visualKind: TimelineVisualKind.video,
+                    clips: <TimelineClipData>[firstClip, secondClip],
+                  ),
+                ],
+                currentTime: TimelineTime.zero,
+                timelineDurationTime: TimelineTime.fromSecondsDouble(10),
+                isPlaying: false,
+                selectedClipId: null,
+                onClipSelected: (_) {},
+                onBackgroundTap: () {},
+                onTransitionTap: (track, leftClip, rightClip) {
+                  tappedTrack = track;
+                  tappedLeftClip = leftClip;
+                  tappedRightClip = rightClip;
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    const panelWidth = 600.0;
+    const panelPadding = 8.0;
+    const controlHitSize = 42.0;
+    const controlGap = 6.0;
+    const rulerHeaderHeight = 20.0;
+    const trackGapTop = 8.0;
+    const clipTopInset = 2.0;
+    const clipHeight = 38.0;
+    const secondsWidth = 32.0;
+
+    const contentViewportWidth = panelWidth - (panelPadding * 2);
+    const playheadLeft = contentViewportWidth / 2;
+    const leadingOffset = playheadLeft - controlHitSize - controlGap;
+    const clipStart = leadingOffset + controlHitSize + controlGap;
+    final boundaryX = clipStart + firstClip.visualWidth(secondsWidth);
+    const boundaryY =
+        rulerHeaderHeight + trackGapTop + clipTopInset + (clipHeight / 2);
+
+    final panelOrigin = tester.getTopLeft(find.byType(TimelinePanel));
+    await tester.tapAt(panelOrigin + Offset(boundaryX, boundaryY));
+    await tester.pump();
+
+    expect(tappedTrack?.contentKind, TimelineTrackContentKind.scene);
+    expect(tappedLeftClip?.id, firstClip.id);
+    expect(tappedRightClip?.id, secondClip.id);
+  });
 }
 
 bool _regionsContainPoint(

@@ -547,6 +547,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   final Set<EditorMediaTab> _assetPageRequestsInFlight = <EditorMediaTab>{};
   EditorMediaTab _activeTab = EditorMediaTab.video;
   List<TimelineTrackData> _tracks = const <TimelineTrackData>[];
+  final Map<String, List<TimelineTrackTransitionData>>
+      _sceneScopeTransitionsBySourceSceneId =
+      <String, List<TimelineTrackTransitionData>>{};
   String? _selectedClipId;
   String? _selectedTransitionId;
   _TransitionFocusSession? _transitionFocusSession;
@@ -5234,7 +5237,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         videoClips.add(
           TimelineClipData(
             id: layer.id,
-            type: TimelineClipType.placeholder,
+            type: TimelineClipType.media,
             tone: TimelineClipTone.aiGenerated,
             durationTime: localEnd - localStart,
             sourceStartTime: localStart,
@@ -5250,13 +5253,21 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         }
       }
       if (videoClips.isNotEmpty) {
+        final baseVideoTrack = TimelineTrackData(
+          kind: TimelineTrackKind.video,
+          contentKind: TimelineTrackContentKind.scene,
+          visualKind: TimelineVisualKind.video,
+          clips: videoClips,
+          placeholderLabel: 'Video',
+        );
+        final sceneTransitions =
+            _sceneScopeTransitionsBySourceSceneId[session.sourceSceneId] ??
+                const <TimelineTrackTransitionData>[];
         tracks.add(
-          TimelineTrackData(
-            kind: TimelineTrackKind.video,
-            contentKind: TimelineTrackContentKind.scene,
-            visualKind: TimelineVisualKind.video,
-            clips: videoClips,
-            placeholderLabel: 'Video',
+          baseVideoTrack.copyWith(
+            transitions: _sanitizeTransitionsForTrack(
+              baseVideoTrack.copyWith(transitions: sceneTransitions),
+            ),
           ),
         );
       }
@@ -5630,6 +5641,184 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return;
     }
     _enterSceneLayerScope(session, clipId);
+  }
+
+  TimelineTrackTransitionData _createSceneScopeTransitionForBoundary({
+    required SceneScopeSession session,
+    required TimelineClipData leftClip,
+    required TimelineClipData rightClip,
+    required TimelineTransitionPreset preset,
+  }) {
+    return TimelineTrackTransitionData(
+      id: 'scene-scope-transition-${session.sourceSceneId}-${leftClip.id}-${rightClip.id}',
+      leftClipId: leftClip.id,
+      rightClipId: rightClip.id,
+      preset: preset,
+      durationTime: preset.defaultDurationTime,
+      curve: TimelineTransitionCurve.easeInOut,
+      parameterValues: preset.defaultParameterValues,
+      manualEffectIds: const <String>[],
+    );
+  }
+
+  void _upsertSceneScopeTransition(
+    SceneScopeSession session,
+    TimelineTrackData track,
+    TimelineTrackTransitionData transition,
+  ) {
+    final currentTransitions =
+        _sceneScopeTransitionsBySourceSceneId[session.sourceSceneId] ??
+            const <TimelineTrackTransitionData>[];
+    final nextTransitions = <TimelineTrackTransitionData>[
+      for (final candidate in currentTransitions)
+        if (candidate.id != transition.id &&
+            !(candidate.leftClipId == transition.leftClipId &&
+                candidate.rightClipId == transition.rightClipId))
+          candidate,
+      transition,
+    ];
+    final sanitizedTransitions = _sanitizeTransitionsForTrack(
+      track.copyWith(transitions: nextTransitions),
+    );
+    setState(() {
+      _sceneScopeTransitionsBySourceSceneId[session.sourceSceneId] =
+          sanitizedTransitions;
+      _selectedClipId = null;
+      _selectedTransitionId = transition.id;
+      if (_activeTab == EditorMediaTab.speed) {
+        _activeTab = EditorMediaTab.video;
+      }
+    });
+  }
+
+  void _deleteSceneScopeTransition(
+    SceneScopeSession session,
+    String transitionId,
+  ) {
+    final currentTransitions =
+        _sceneScopeTransitionsBySourceSceneId[session.sourceSceneId] ??
+            const <TimelineTrackTransitionData>[];
+    final nextTransitions = currentTransitions
+        .where((transition) => transition.id != transitionId)
+        .toList(growable: false);
+    setState(() {
+      if (nextTransitions.isEmpty) {
+        _sceneScopeTransitionsBySourceSceneId.remove(session.sourceSceneId);
+      } else {
+        _sceneScopeTransitionsBySourceSceneId[session.sourceSceneId] =
+            List<TimelineTrackTransitionData>.unmodifiable(nextTransitions);
+      }
+      if (_selectedTransitionId == transitionId) {
+        _selectedTransitionId = null;
+      }
+    });
+  }
+
+  Future<void> _openSceneScopeTransitionInspector(
+    SceneScopeSession session,
+    TimelineTrackData track,
+    TimelineTrackTransitionData transition,
+  ) async {
+    final result = await showModalBottomSheet<TransitionInspectorResult>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => TransitionInspectorBottomSheet(
+        initialTransition: transition,
+      ),
+    );
+    if (!mounted || result == null) {
+      return;
+    }
+    switch (result.action) {
+      case TransitionInspectorAction.apply:
+        _upsertSceneScopeTransition(session, track, result.transition);
+        break;
+      case TransitionInspectorAction.delete:
+        _deleteSceneScopeTransition(session, result.transition.id);
+        break;
+      case TransitionInspectorAction.openManual:
+        _upsertSceneScopeTransition(
+          session,
+          track,
+          result.transition.copyWith(
+            preset: TimelineTransitionPreset.manual,
+            durationTime: TimelineTransitionPreset.manual.defaultDurationTime,
+            parameterValues:
+                TimelineTransitionPreset.manual.defaultParameterValues,
+          ),
+        );
+        _showStageMessage(
+          'Manual Scene transition timeline is staged for the next focused transition-scope slice.',
+        );
+        break;
+    }
+  }
+
+  Future<void> _handleSceneScopeTransitionTap(
+    SceneScopeSession session,
+    TimelineTrackData track,
+    TimelineClipData leftClip,
+    TimelineClipData rightClip,
+  ) async {
+    if (track.kind != TimelineTrackKind.video) {
+      return;
+    }
+    final existingTransition = track.transitionForBoundary(
+      leftClip.id,
+      rightClip.id,
+    );
+    setState(() {
+      _selectedClipId = null;
+      _selectedTransitionId = existingTransition?.id;
+      if (_activeTab == EditorMediaTab.speed) {
+        _activeTab = EditorMediaTab.video;
+      }
+    });
+    if (existingTransition != null) {
+      await _openSceneScopeTransitionInspector(
+        session,
+        track,
+        existingTransition,
+      );
+      return;
+    }
+    final browserResult = await showModalBottomSheet<TransitionBrowserResult>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => const TransitionBrowserBottomSheet(),
+    );
+    if (!mounted || browserResult == null) {
+      return;
+    }
+    if (browserResult.action == TransitionBrowserAction.openAi) {
+      final aiTransition = _createSceneScopeTransitionForBoundary(
+        session: session,
+        leftClip: leftClip,
+        rightClip: rightClip,
+        preset: TimelineTransitionPreset.aiGenerated,
+      );
+      _upsertSceneScopeTransition(session, track, aiTransition);
+      _showStageMessage(
+        'AI Scene transition bridge is marked. Scene-frame AI generation is the next transition checkpoint.',
+      );
+      return;
+    }
+    final transition = _createSceneScopeTransitionForBoundary(
+      session: session,
+      leftClip: leftClip,
+      rightClip: rightClip,
+      preset: browserResult.preset,
+    );
+    _upsertSceneScopeTransition(session, track, transition);
+    if (browserResult.action == TransitionBrowserAction.openManual) {
+      _showStageMessage(
+        'Manual Scene transition timeline is staged for the next focused transition-scope slice.',
+      );
+      return;
+    }
+    await _openSceneScopeTransitionInspector(session, track, transition);
   }
 
   void _handleSceneScopeScrubFinalized(
@@ -21139,6 +21328,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                       timelineFps: _timelineFps,
                                                       selectedClipId:
                                                           _selectedClipId,
+                                                      selectedTransitionId:
+                                                          _selectedClipId ==
+                                                                  null
+                                                              ? _selectedTransitionId
+                                                              : null,
                                                       onClipSelected: (clipId) =>
                                                           _handleSceneScopeClipSelected(
                                                         sceneScopeSession,
@@ -21156,9 +21350,22 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                         clipId,
                                                         localStart,
                                                       ),
+                                                      onTransitionTap: (track,
+                                                          leftClip, rightClip) {
+                                                        unawaited(
+                                                          _handleSceneScopeTransitionTap(
+                                                            sceneScopeSession,
+                                                            track,
+                                                            leftClip,
+                                                            rightClip,
+                                                          ),
+                                                        );
+                                                      },
                                                       onBackgroundTap: () {
                                                         setState(() {
                                                           _selectedClipId =
+                                                              null;
+                                                          _selectedTransitionId =
                                                               null;
                                                         });
                                                       },

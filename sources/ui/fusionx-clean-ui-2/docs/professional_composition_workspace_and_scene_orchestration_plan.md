@@ -296,6 +296,11 @@ Scene Scope layer timing rules:
   Scene Clip instance when the layer's end exceeds the current scene duration;
   clamping a full-duration layer to start time zero is not acceptable because it
   turns the visible timeline into a fake, immovable representation.
+- adjacent Scene Contents video-layer boundaries must expose a selectable
+  transition bridge. The bridge is a transition object associated with the
+  source scene and layer boundary, not a decorative gap. Preset/manual/AI
+  selection may be staged before full renderer parity, but the boundary must
+  remain selectable and must not require touching Live Scrub or Stage5.
 
 ### 4.5 Unified Layer Scope
 
@@ -800,6 +805,7 @@ Implementation status:
 Deliverables:
 
 - selectable transition clip between scenes,
+- selectable transition bridge between adjacent Scene Contents video layers,
 - transition add/remove UI,
 - transition scope opens in Unified Layer Scope mode,
 - transition recipes write graph channels.
@@ -901,6 +907,9 @@ Current gaps for this plan:
   production outliner, canvas preview, inspector, or export yet,
 - Scene button does not fully separate create-new from modify-selected,
 - transition between Scene Clips is not yet a first-class workspace object,
+- Scene Contents video layer boundaries now expose a selectable transition
+  bridge and preset/AI/manual entry point; full graph-backed manual transition
+  scope, preview blending, and export parity remain W7 follow-ups,
 - video layers inside Scene Contents can open Layer Scope and author shared
   visual graph properties; Flutter preview now wraps the native video surface
   with graph-evaluated transform/opacity/blur samples, while full production

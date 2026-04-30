@@ -4961,7 +4961,9 @@ class _TimelineTrackRow extends StatelessWidget {
   bool _isMainTrackMediaClip(TimelineClipData clip) =>
       track.kind == TimelineTrackKind.video &&
       clip.type == TimelineClipType.media &&
-      clip.assetId != null;
+      (clip.assetId != null ||
+          (track.contentKind == TimelineTrackContentKind.scene &&
+              clip.visualKind == TimelineVisualKind.video));
 
   bool _shouldJoinWith(TimelineClipData left, TimelineClipData right) =>
       _isMainTrackMediaClip(left) &&
