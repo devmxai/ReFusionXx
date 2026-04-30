@@ -5064,6 +5064,172 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return List<TimelineTrackData>.unmodifiable(tracks);
   }
 
+  void _shiftSceneScopeLayerInTimeline(
+    SceneScopeSession session,
+    String layerId,
+    TimelineTime requestedLocalStart,
+  ) {
+    final project = _effectiveMotionProject;
+    final sceneIndex = project.scenes.indexWhere(
+      (scene) => scene.id == session.sourceSceneId,
+    );
+    if (sceneIndex < 0) {
+      _showStageMessage('Scene source is not available for layer timing.');
+      return;
+    }
+    final sourceScene = project.scenes[sceneIndex];
+    final layerIndex = sourceScene.layers.indexWhere(
+      (layer) => layer.id == layerId,
+    );
+    if (layerIndex < 0) {
+      _showStageMessage('Layer is not available in this scene.');
+      return;
+    }
+    final layer = sourceScene.layers[layerIndex];
+    final layerDuration = layer.visibleRange.duration;
+    if (layerDuration <= TimelineTime.zero) {
+      return;
+    }
+    final maxLocalStart = (session.localRange.duration - layerDuration).clamp(
+      TimelineTime.zero,
+      session.localRange.duration,
+    );
+    final safeLocalStart = requestedLocalStart.clamp(
+      TimelineTime.zero,
+      maxLocalStart,
+    );
+    final nextVisibleRange = TimelineTimeRange(
+      start: session.sourceRange.start + safeLocalStart,
+      endExclusive: session.sourceRange.start + safeLocalStart + layerDuration,
+    );
+    final delta = nextVisibleRange.start - layer.visibleRange.start;
+    if (delta == TimelineTime.zero) {
+      return;
+    }
+
+    final nextElements = layer.elements
+        .map(
+          (element) => element.copyWith(
+            localRange:
+                _absoluteSceneElementRange(layer, element).shiftBy(delta),
+          ),
+        )
+        .toList(growable: false);
+    final nextLayer = layer.copyWith(
+      visibleRange: nextVisibleRange,
+      elements: nextElements,
+    );
+    final nextLayers = List<MotionLayerModel>.from(sourceScene.layers)
+      ..[layerIndex] = nextLayer;
+    final nextScene = sourceScene.copyWith(layers: nextLayers);
+    final nextScenes = List<MotionSceneModel>.from(project.scenes)
+      ..[sceneIndex] = nextScene;
+    final nextProject = project.copyWith(scenes: nextScenes);
+    final shiftedElementIds = <String>{
+      for (final element in layer.elements) element.id,
+    };
+    final nextChannels = _manualMotionPropertyChannels
+        .map(
+          (channel) => _channelTargetsLayerOrElements(
+            channel,
+            layerId: layerId,
+            elementIds: shiftedElementIds,
+          )
+              ? _shiftMotionChannelBy(channel, delta)
+              : channel,
+        )
+        .toList(growable: false);
+    final currentRootTime = _currentTime.clamp(
+      session.rootRange.start,
+      session.rootRange.endExclusive,
+    );
+    final nextSceneScope = _sceneScopeSessionResolver
+            .open(
+              SceneScopeSessionRequest(
+                project: nextProject,
+                rootTime: currentRootTime,
+                sceneClipId: session.sceneClipId,
+                sceneClips: _sceneClips,
+                channels: nextChannels,
+              ),
+            )
+            .session ??
+        session;
+
+    setState(() {
+      _motionProject = nextProject;
+      _manualMotionPropertyChannels =
+          List<MotionPropertyChannelModel>.unmodifiable(nextChannels);
+      _sceneScopeSession = nextSceneScope;
+      _sceneLayerScopeLayerId = null;
+      _selectedClipId = layerId;
+      _selectedTransitionId = null;
+      _markMotionAuthoringChanged();
+    });
+    _syncLayerScopeTimeNotifiers();
+    _refreshLiveScrubPreviewSourceCatalog();
+    _syncTimelineClockDuration();
+    if (_useNativePreview) {
+      unawaited(
+        _syncVideoTimelineTransport(
+          tracks: _tracks,
+          targetTime: _currentTime,
+        ),
+      );
+    }
+  }
+
+  TimelineTimeRange _absoluteSceneElementRange(
+    MotionLayerModel layer,
+    MotionElementModel element,
+  ) {
+    final relativeCandidate = TimelineTimeRange(
+      start: layer.visibleRange.start + element.localRange.start,
+      endExclusive: layer.visibleRange.start + element.localRange.endExclusive,
+    );
+    if (_timeRangesOverlap(relativeCandidate, layer.visibleRange) &&
+        relativeCandidate.endExclusive <= layer.visibleRange.endExclusive) {
+      return relativeCandidate;
+    }
+    if (_timeRangesOverlap(element.localRange, layer.visibleRange)) {
+      return element.localRange;
+    }
+    return layer.visibleRange;
+  }
+
+  bool _timeRangesOverlap(TimelineTimeRange left, TimelineTimeRange right) {
+    return left.start < right.endExclusive && right.start < left.endExclusive;
+  }
+
+  bool _channelTargetsLayerOrElements(
+    MotionPropertyChannelModel channel, {
+    required String layerId,
+    required Set<String> elementIds,
+  }) {
+    final target = channel.target;
+    return target.layerId == layerId ||
+        target.targetId == layerId ||
+        (target.elementId != null && elementIds.contains(target.elementId)) ||
+        elementIds.contains(target.targetId);
+  }
+
+  MotionPropertyChannelModel _shiftMotionChannelBy(
+    MotionPropertyChannelModel channel,
+    TimelineTime delta,
+  ) {
+    final activeRange = channel.activeRange;
+    return channel.copyWith(
+      activeRange: activeRange?.shiftBy(delta),
+      clearActiveRange: activeRange == null,
+      keyframes: List<MotionKeyframeModel>.unmodifiable(
+        <MotionKeyframeModel>[
+          for (final keyframe in channel.keyframes)
+            keyframe.copyWith(time: keyframe.time + delta),
+        ]..sort((left, right) => left.time.compareTo(right.time)),
+      ),
+    );
+  }
+
   TimelineTrackKind _timelineTrackKindForSceneScopeLayer(
     MotionLayerModel layer,
   ) {
@@ -20656,6 +20822,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                         sceneScopeSession,
                                                         clipId,
                                                       ),
+                                                      onClipTimeShift: (clipId,
+                                                              localStart) =>
+                                                          _shiftSceneScopeLayerInTimeline(
+                                                        sceneScopeSession,
+                                                        clipId,
+                                                        localStart,
+                                                      ),
                                                       onBackgroundTap: () {
                                                         setState(() {
                                                           _selectedClipId =
@@ -20732,6 +20905,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                           _resolveAssetPath,
                                                       animateTrackKinds: const <TimelineTrackKind>{},
                                                       fxTrackKinds: const <TimelineTrackKind>{},
+                                                      enableSceneClipTimeShift:
+                                                          true,
                                                     )
                                                   : TimelinePanel(
                                                       embedded: true,

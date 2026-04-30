@@ -562,6 +562,7 @@ class TimelinePanel extends StatefulWidget {
       TimelineTrackKind.text,
     },
     this.fxTrackKinds = const <TimelineTrackKind>{},
+    this.enableSceneClipTimeShift = false,
     this.scrubSurfaceBuilder,
   });
 
@@ -602,6 +603,7 @@ class TimelinePanel extends StatefulWidget {
   final double initialSecondsWidth;
   final Set<TimelineTrackKind> animateTrackKinds;
   final Set<TimelineTrackKind> fxTrackKinds;
+  final bool enableSceneClipTimeShift;
   final TimelineScrubSurfaceBuilder? scrubSurfaceBuilder;
 
   @override
@@ -1124,9 +1126,14 @@ class _TimelinePanelState extends State<TimelinePanel>
   bool _isTrimInteractionLocked = false;
 
   bool _supportsClipTimeShift(TimelineTrackData track, TimelineClipData clip) {
+    if (widget.onClipTimeShift == null || clip.isGapPlaceholder) {
+      return false;
+    }
+    if (clip.isSceneClip) {
+      return widget.enableSceneClipTimeShift;
+    }
     return track.kind != TimelineTrackKind.video &&
-        clip.type == TimelineClipType.media &&
-        widget.onClipTimeShift != null;
+        clip.type == TimelineClipType.media;
   }
 
   TimelineTime? _timelineStartTimeForClip(
@@ -1152,7 +1159,9 @@ class _TimelinePanelState extends State<TimelinePanel>
     for (final clip in track.clips) {
       final clipStartTime = cursor;
       cursor += clip.durationTime;
-      if (clip.type != TimelineClipType.media || clip.id == excludingClipId) {
+      final isMovableClip = clip.type == TimelineClipType.media ||
+          (clip.isSceneClip && widget.enableSceneClipTimeShift);
+      if (!isMovableClip || clip.id == excludingClipId) {
         continue;
       }
       positioned.add(
@@ -4459,6 +4468,16 @@ class _TimelinePanelState extends State<TimelinePanel>
                                                                       : _handleOwnedClipDoubleTap,
                                                               onClipLongPressStart:
                                                                   (clip) {
+                                                                if (_supportsClipTimeShift(
+                                                                  track,
+                                                                  clip,
+                                                                )) {
+                                                                  _beginClipTimeShift(
+                                                                    i,
+                                                                    clip,
+                                                                  );
+                                                                  return;
+                                                                }
                                                                 if (track
                                                                         .kind ==
                                                                     TimelineTrackKind
@@ -4469,14 +4488,21 @@ class _TimelinePanelState extends State<TimelinePanel>
                                                                   );
                                                                   return;
                                                                 }
-                                                                _beginClipTimeShift(
-                                                                  i,
-                                                                  clip,
-                                                                );
                                                               },
                                                               onClipLongPressMove:
                                                                   (clip,
                                                                       deltaDx) {
+                                                                if (_supportsClipTimeShift(
+                                                                  track,
+                                                                  clip,
+                                                                )) {
+                                                                  _updateClipTimeShift(
+                                                                    i,
+                                                                    clip,
+                                                                    deltaDx,
+                                                                  );
+                                                                  return;
+                                                                }
                                                                 if (track
                                                                         .kind ==
                                                                     TimelineTrackKind
@@ -4488,14 +4514,19 @@ class _TimelinePanelState extends State<TimelinePanel>
                                                                   );
                                                                   return;
                                                                 }
-                                                                _updateClipTimeShift(
-                                                                  i,
-                                                                  clip,
-                                                                  deltaDx,
-                                                                );
                                                               },
                                                               onClipLongPressEnd:
                                                                   (clip) {
+                                                                if (_supportsClipTimeShift(
+                                                                  track,
+                                                                  clip,
+                                                                )) {
+                                                                  _finishClipTimeShift(
+                                                                    i,
+                                                                    clip,
+                                                                  );
+                                                                  return;
+                                                                }
                                                                 if (track
                                                                         .kind ==
                                                                     TimelineTrackKind
@@ -4506,10 +4537,6 @@ class _TimelinePanelState extends State<TimelinePanel>
                                                                   );
                                                                   return;
                                                                 }
-                                                                _finishClipTimeShift(
-                                                                  i,
-                                                                  clip,
-                                                                );
                                                               },
                                                               onTrackAnimateTap:
                                                                   widget

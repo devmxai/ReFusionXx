@@ -266,6 +266,18 @@ Inside the Scene Scope, the user sees internal layers:
 Scene Scope time is local to the scene, derived from root composition time. It
 must not own a second clock.
 
+Scene Scope layer timing rules:
+
+- dragging a Scene Contents layer clip must write back to the source
+  `MotionLayerModel.visibleRange`, child element timing, and related graph
+  channel/keyframe times;
+- moving a layer in Scene Scope must not create a detached visual-only clip;
+- overlapping video layers are composited by draw order (`zIndex`, then
+  insertion order) when projected to preview playback;
+- time hidden under a higher video layer remains real elapsed source time for
+  the lower layer. When the lower layer becomes visible later, playback must
+  continue from its true source offset instead of restarting from frame zero.
+
 ### 4.5 Unified Layer Scope
 
 Double tapping a supported layer opens the Unified Layer Scope timeline for that
@@ -653,6 +665,12 @@ Implementation status:
   for root Scene Clip playback. This preserves the root timeline as one Scene
   Clip container while still giving the native preview and Live Scrub catalog a
   truthful media segment list. Stage5/Live Scrub internals remain untouched.
+- Scene Contents layer clips can be time-shifted on the scoped timeline. The
+  operation writes the new time into the source motion graph and reprojects
+  preview/scrub transport; it is not a UI-only drag.
+- When nested video layers overlap, the playback projection must flatten them
+  into visible intervals by draw order so the hidden portion of a lower video is
+  not replayed after the upper video ends.
 - Scene Contents video insertion preserves the selected asset's natural
   duration. If the inserted video extends beyond the current source Scene Clip,
   the source composition and root Scene Clip instance must extend together and
@@ -857,7 +875,10 @@ Current gaps for this plan:
   blockers instead of a generic shape/image message,
 - preview/export parity for scene-only generated visual content is still gated,
   with nested media preview/scrub projection now partially wired for manual
-  Scene Contents media layers.
+  Scene Contents media layers,
+- true empty visual gaps between playable video intervals still need full
+  renderer/export parity; overlapping nested video timing is now projected as
+  visible source intervals instead of replaying hidden source time.
 
 ## 13. Practical Rule
 

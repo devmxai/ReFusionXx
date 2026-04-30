@@ -41,16 +41,19 @@ void main() {
   }
 
   MotionLayerModel videoLayer({
+    String id = 'video-layer',
     TimelineTimeRange? visibleRange,
     MotionElementModel? element,
+    int zIndex = 0,
   }) {
     return MotionLayerModel(
-      id: 'video-layer',
+      id: id,
       sceneId: 'source-scene',
       kind: MotionLayerKind.video,
       visibleRange: visibleRange ?? range(500, 3500),
       elements: <MotionElementModel>[element ?? videoElement()],
       name: 'Nested Video Layer',
+      zIndex: zIndex,
     );
   }
 
@@ -177,5 +180,57 @@ void main() {
     expect(mediaClip.durationTime.inMilliseconds, 2000);
     expect(mediaClip.sourceStartTime.inMilliseconds, 1000);
     expect(mediaClip.sourceDurationTime.inMilliseconds, 2000);
+  });
+
+  test('flattens overlapping video layers to their visible source intervals',
+      () {
+    final backElement = videoElement(
+      id: 'back-element',
+      layerId: 'back-layer',
+      localRange: range(1000, 5000),
+      sourceRange: range(0, 4000),
+    );
+    final frontElement = videoElement(
+      id: 'front-element',
+      layerId: 'front-layer',
+      localRange: range(500, 3000),
+      sourceRange: range(0, 2500),
+    );
+    final backLayer = videoLayer(
+      id: 'back-layer',
+      visibleRange: range(1000, 5000),
+      element: backElement,
+      zIndex: 0,
+    );
+    final frontLayer = videoLayer(
+      id: 'front-layer',
+      visibleRange: range(500, 3000),
+      element: frontElement,
+      zIndex: 10,
+    );
+
+    final result = adapter.projectRootComposition(
+      project: project(sourceLayers: <MotionLayerModel>[
+        backLayer,
+        frontLayer,
+      ]),
+      sceneClips: <CompositionSceneClipModel>[
+        sceneClip(sourceInMs: 500, sourceOutMs: 5500, durationMs: 5000),
+      ],
+    );
+
+    final mediaClips = result.tracks.single.clips
+        .where((clip) => clip.type == TimelineClipType.media)
+        .toList(growable: false);
+
+    expect(mediaClips, hasLength(2));
+    expect(mediaClips.first.id, contains('front-layer'));
+    expect(mediaClips.first.durationTime.inMilliseconds, 2500);
+    expect(mediaClips.first.sourceStartTime.inMilliseconds, 0);
+
+    expect(mediaClips.last.id, contains('back-layer'));
+    expect(mediaClips.last.durationTime.inMilliseconds, 2000);
+    expect(mediaClips.last.sourceStartTime.inMilliseconds, 2000);
+    expect(mediaClips.last.sourceDurationTime.inMilliseconds, 2000);
   });
 }

@@ -100,6 +100,8 @@ class CompositionMediaPlaybackProjectionAdapter {
             duration: rootDuration,
             timelineKind: _timelineKindForLayer(layer.kind),
             visualKind: _visualKindForLayer(layer.kind),
+            zIndex: layer.zIndex,
+            order: projectedClips.length,
             clip: _timelineClipFor(
               id: 'root_media_${sceneClip.id}_${layer.id}_${mediaElement.id}',
               layer: layer,
@@ -160,6 +162,8 @@ class CompositionMediaPlaybackProjectionAdapter {
           duration: duration,
           timelineKind: _timelineKindForLayer(layer.kind),
           visualKind: _visualKindForLayer(layer.kind),
+          zIndex: layer.zIndex,
+          order: projectedClips.length,
           clip: _timelineClipFor(
             id: '${clipIdPrefix}_${layer.id}_${mediaElement.id}',
             layer: layer,
@@ -242,12 +246,18 @@ class CompositionMediaPlaybackProjectionAdapter {
       if (kindClips == null || kindClips.isEmpty) {
         continue;
       }
-      kindClips.sort(
+      final projectedKindClips = kind == TimelineTrackKind.video
+          ? _visibleVideoProgram(kindClips).toList()
+          : kindClips.toList();
+      if (projectedKindClips.isEmpty) {
+        continue;
+      }
+      projectedKindClips.sort(
         (left, right) => left.timelineStart.compareTo(right.timelineStart),
       );
       final timelineClips = <TimelineClipData>[];
       var cursor = TimelineTime.zero;
-      for (final projected in kindClips) {
+      for (final projected in projectedKindClips) {
         if (projected.timelineStart > cursor) {
           timelineClips.add(
             TimelineClipData(
@@ -275,6 +285,150 @@ class CompositionMediaPlaybackProjectionAdapter {
       );
     }
     return List<TimelineTrackData>.unmodifiable(tracks);
+  }
+
+  List<_ProjectedMediaClip> _visibleVideoProgram(
+    List<_ProjectedMediaClip> clips,
+  ) {
+    if (clips.length <= 1) {
+      return clips.toList(growable: false);
+    }
+    final boundaries = <TimelineTime>{};
+    for (final clip in clips) {
+      boundaries
+        ..add(clip.timelineStart)
+        ..add(clip.timelineEnd);
+    }
+    final sortedBoundaries = boundaries.toList(growable: false)
+      ..sort((left, right) => left.compareTo(right));
+    if (sortedBoundaries.length < 2) {
+      return const <_ProjectedMediaClip>[];
+    }
+
+    final visible = <_ProjectedMediaClip>[];
+    for (var index = 0; index < sortedBoundaries.length - 1; index++) {
+      final intervalStart = sortedBoundaries[index];
+      final intervalEnd = sortedBoundaries[index + 1];
+      if (intervalEnd <= intervalStart) {
+        continue;
+      }
+      final active = clips
+          .where(
+            (clip) =>
+                clip.timelineStart < intervalEnd &&
+                intervalStart < clip.timelineEnd,
+          )
+          .toList(growable: false);
+      if (active.isEmpty) {
+        continue;
+      }
+      active.sort((left, right) {
+        final zCompare = right.zIndex.compareTo(left.zIndex);
+        if (zCompare != 0) {
+          return zCompare;
+        }
+        return right.order.compareTo(left.order);
+      });
+      final topClip = active.first;
+      final visibleClip = _projectedClipForVisibleInterval(
+        topClip,
+        intervalStart: intervalStart,
+        intervalEnd: intervalEnd,
+        index: visible.length,
+      );
+      if (visibleClip != null) {
+        if (visible.isNotEmpty &&
+            _canMergeVisibleVideoClips(visible.last, visibleClip)) {
+          final previous = visible.removeLast();
+          final mergedDuration = previous.duration + visibleClip.duration;
+          visible.add(
+            _ProjectedMediaClip(
+              timelineStart: previous.timelineStart,
+              duration: mergedDuration,
+              timelineKind: previous.timelineKind,
+              visualKind: previous.visualKind,
+              zIndex: previous.zIndex,
+              order: previous.order,
+              clip: previous.clip.copyWith(
+                durationTime: mergedDuration,
+                sourceDurationTime: previous.clip.sourceDurationTime +
+                    visibleClip.clip.sourceDurationTime,
+              ),
+            ),
+          );
+          continue;
+        }
+        visible.add(visibleClip);
+      }
+    }
+    return List<_ProjectedMediaClip>.unmodifiable(visible);
+  }
+
+  bool _canMergeVisibleVideoClips(
+    _ProjectedMediaClip left,
+    _ProjectedMediaClip right,
+  ) {
+    return left.order == right.order &&
+        left.timelineEnd == right.timelineStart &&
+        left.clip.sourceEndTime == right.clip.sourceStartTime;
+  }
+
+  _ProjectedMediaClip? _projectedClipForVisibleInterval(
+    _ProjectedMediaClip sourceClip, {
+    required TimelineTime intervalStart,
+    required TimelineTime intervalEnd,
+    required int index,
+  }) {
+    final duration = intervalEnd - intervalStart;
+    if (duration <= TimelineTime.zero) {
+      return null;
+    }
+    final playbackRate =
+        sourceClip.clip.playbackRate <= 0 ? 1.0 : sourceClip.clip.playbackRate;
+    final sourceOffset = _sourceDurationForTimelineDuration(
+      intervalStart - sourceClip.timelineStart,
+      playbackRate,
+    );
+    final sourceDuration = _sourceDurationForTimelineDuration(
+      duration,
+      playbackRate,
+    );
+    final sourceStart = sourceClip.clip.sourceStartTime + sourceOffset;
+    final maxSourceEnd = sourceClip.clip.sourceEndTime;
+    if (sourceStart >= maxSourceEnd) {
+      return null;
+    }
+    final safeSourceDuration = sourceStart + sourceDuration > maxSourceEnd
+        ? maxSourceEnd - sourceStart
+        : sourceDuration;
+    if (safeSourceDuration <= TimelineTime.zero) {
+      return null;
+    }
+    return _ProjectedMediaClip(
+      timelineStart: intervalStart,
+      duration: duration,
+      timelineKind: sourceClip.timelineKind,
+      visualKind: sourceClip.visualKind,
+      zIndex: sourceClip.zIndex,
+      order: sourceClip.order,
+      clip: sourceClip.clip.copyWith(
+        id: '${sourceClip.clip.id}_visible_$index',
+        durationTime: duration,
+        sourceStartTime: sourceStart,
+        sourceDurationTime: safeSourceDuration,
+      ),
+    );
+  }
+
+  static TimelineTime _sourceDurationForTimelineDuration(
+    TimelineTime duration,
+    double playbackRate,
+  ) {
+    final safeRate =
+        playbackRate.isFinite && playbackRate > 0 ? playbackRate : 1.0;
+    return TimelineTime.fromProjectTicks(
+      (duration.inProjectTicks * safeRate).round(),
+    );
   }
 
   static MotionElementModel? _mediaElementForLayer(MotionLayerModel layer) {
@@ -396,6 +550,8 @@ class _ProjectedMediaClip {
     required this.duration,
     required this.timelineKind,
     required this.visualKind,
+    required this.zIndex,
+    required this.order,
     required this.clip,
   });
 
@@ -403,5 +559,9 @@ class _ProjectedMediaClip {
   final TimelineTime duration;
   final TimelineTrackKind timelineKind;
   final TimelineVisualKind visualKind;
+  final int zIndex;
+  final int order;
   final TimelineClipData clip;
+
+  TimelineTime get timelineEnd => timelineStart + duration;
 }
