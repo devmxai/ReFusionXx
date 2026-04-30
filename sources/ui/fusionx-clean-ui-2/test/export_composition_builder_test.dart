@@ -1772,10 +1772,45 @@ void main() {
       );
     }
 
+    const videoTarget = MotionPropertyTarget(
+      kind: MotionTargetKind.element,
+      targetId: 'video-layer-surface',
+      sceneId: 'scene-1',
+      layerId: 'layer-video-surface',
+      elementId: 'video-layer-surface',
+    );
+    final videoPositionXChannel = MotionResolvedPropertyChannel(
+      channel: MotionPropertyChannelModel(
+        id: 'video-position-x-channel',
+        target: videoTarget,
+        definition: MotionPropertyCatalog.positionX,
+        activeRange: range(0, 4),
+        baseValue: const MotionPropertyValue.scalar(0),
+        keyframes: <MotionKeyframeModel>[
+          const MotionKeyframeModel(
+            id: 'video-position-x-0',
+            channelId: 'video-position-x-channel',
+            time: TimelineTime.zero,
+            value: MotionPropertyValue.scalar(-120),
+            interpolationToNext: MotionInterpolationSpec.easeOut(),
+          ),
+          MotionKeyframeModel(
+            id: 'video-position-x-1',
+            channelId: 'video-position-x-channel',
+            time: TimelineTime.fromSecondsDouble(2),
+            value: const MotionPropertyValue.scalar(120),
+            interpolationToNext: const MotionInterpolationSpec.linear(),
+          ),
+        ],
+      ),
+      projectRange: range(0, 4),
+      targetAddress: videoTarget.canonicalAddress,
+    );
+
     final composition = builder.build(
       ExportCompositionBuildInput(
         contractVersion: 'v1alpha1',
-        projectId: 'project-authored-image-shape',
+        projectId: 'project-authored-video-image-shape',
         projectFormat: format(durationSeconds: 4),
         assets: const <ExportAssetDescriptor>[
           ExportAssetDescriptor(
@@ -1816,6 +1851,37 @@ void main() {
               sourceSceneId: 'scene-source-1',
               projectRange: range(0, 4),
               layers: <MotionResolvedLayerModel>[
+                MotionResolvedLayerModel(
+                  id: 'layer-video-surface',
+                  sourceLayerId: 'layer-source-video-surface',
+                  sceneId: 'scene-1',
+                  kind: MotionLayerKind.video,
+                  projectRange: range(0, 4),
+                  zIndex: 1,
+                  elements: <MotionResolvedElementModel>[
+                    MotionResolvedElementModel(
+                      id: 'video-layer-surface',
+                      sourceElementId: 'video-source-surface',
+                      sceneId: 'scene-1',
+                      layerId: 'layer-video-surface',
+                      kind: MotionElementKind.videoClip,
+                      projectRange: range(0, 4),
+                      localRange: range(0, 4),
+                      sourceBinding: MotionElementSourceBinding(
+                        kind: MotionSourceKind.video,
+                        sourceId: 'video-source',
+                        assetId: 'asset-video',
+                        sourceRange: range(0, 4),
+                      ),
+                      staticProperties: const <MotionPropertyAssignment>[],
+                      propertyChannels: <MotionResolvedPropertyChannel>[
+                        videoPositionXChannel,
+                      ],
+                    ),
+                  ],
+                  staticProperties: const <MotionPropertyAssignment>[],
+                  propertyChannels: const <MotionResolvedPropertyChannel>[],
+                ),
                 MotionResolvedLayerModel(
                   id: 'layer-image',
                   sourceLayerId: 'layer-source-image',
@@ -1891,13 +1957,24 @@ void main() {
     final graph = composition.visualCompositorGraph;
     final surfaceProgram = composition.authoredVisualSurfaceProgram;
     expect(surfaceProgram, isNotNull);
-    expect(surfaceProgram!.nodes, hasLength(2));
+    expect(surfaceProgram!.nodes, hasLength(3));
     expect(
       surfaceProgram.nodes.map((node) => node.id).toSet(),
       containsAll(<String>[
+        buildExportAuthoredVisualSurfaceNodeId('video-layer-surface'),
         buildExportAuthoredVisualSurfaceNodeId('image-1'),
         buildExportAuthoredVisualSurfaceNodeId('shape-1'),
       ]),
+    );
+    final videoSurfaceNode = surfaceProgram.nodes.singleWhere(
+      (node) => node.targetElementId == 'video-layer-surface',
+    );
+    expect(videoSurfaceNode.elementKind, MotionElementKind.videoClip.name);
+    expect(videoSurfaceNode.sourceKind, MotionSourceKind.video.name);
+    expect(videoSurfaceNode.sourceAssetId, 'asset-video');
+    expect(
+      videoSurfaceNode.channels.map((channel) => channel.propertyId),
+      contains(MotionPropertyCatalog.positionX.id),
     );
     expect(
       graph.layers
@@ -1908,8 +1985,11 @@ void main() {
     );
     expect(
       graph.segments.map((segment) => segment.id).toSet(),
-      containsAll(
-          <String>['authored.segment.image-1', 'authored.segment.shape-1']),
+      containsAll(<String>[
+        'authored.segment.video-layer-surface',
+        'authored.segment.image-1',
+        'authored.segment.shape-1',
+      ]),
     );
     expect(graph.requiresVisualCompositor, isTrue);
     expect(graph.supportedCompositorWindowCount, 0);
@@ -1930,6 +2010,8 @@ void main() {
     final authoredSegmentIds = graph.compositorWindowExecutionPlans
         .expand((plan) => plan.authoredSegmentIds)
         .toSet();
+    expect(
+        authoredSegmentIds, contains('authored.segment.video-layer-surface'));
     expect(authoredSegmentIds, contains('authored.segment.image-1'));
     expect(authoredSegmentIds, contains('authored.segment.shape-1'));
     expect(

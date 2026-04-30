@@ -226,6 +226,71 @@ void main() {
     );
   }
 
+  MotionNormalizedComposition videoComposition() {
+    const elementTarget = MotionPropertyTarget(
+      kind: MotionTargetKind.element,
+      targetId: 'video-1',
+      sceneId: 'scene-1',
+      layerId: 'layer-video',
+      elementId: 'video-1',
+    );
+    final element = MotionResolvedElementModel(
+      id: 'video-1',
+      sourceElementId: 'source-video-1',
+      sceneId: 'scene-1',
+      layerId: 'layer-video',
+      kind: MotionElementKind.videoClip,
+      projectRange: range(0, 3),
+      localRange: range(0, 3),
+      name: 'Scene Video',
+      sourceBinding: MotionElementSourceBinding(
+        kind: MotionSourceKind.video,
+        sourceId: 'video-source-1',
+        assetId: 'asset-video',
+        sourceRange: range(0, 3),
+      ),
+      staticProperties: const <MotionPropertyAssignment>[],
+      propertyChannels: <MotionResolvedPropertyChannel>[
+        opacityChannel(id: 'video-opacity', target: elementTarget),
+      ],
+    );
+    return MotionNormalizedComposition(
+      projectId: 'project-video-scene',
+      projectRange: range(0, 3),
+      format: const MotionProjectFormat(
+        canvasSize: MotionSize2D(width: 1080, height: 1920),
+      ),
+      frameRate: const MotionFrameRate(numerator: 30, denominator: 1),
+      scenes: <MotionResolvedSceneModel>[
+        MotionResolvedSceneModel(
+          id: 'scene-1',
+          sourceSceneId: 'source-scene-1',
+          projectRange: range(0, 3),
+          layers: <MotionResolvedLayerModel>[
+            MotionResolvedLayerModel(
+              id: 'layer-video',
+              sourceLayerId: 'source-layer-video',
+              sceneId: 'scene-1',
+              kind: MotionLayerKind.video,
+              projectRange: range(0, 3),
+              zIndex: 1,
+              elements: <MotionResolvedElementModel>[element],
+              staticProperties: const <MotionPropertyAssignment>[],
+              propertyChannels: const <MotionResolvedPropertyChannel>[],
+            ),
+          ],
+          staticProperties: const <MotionPropertyAssignment>[],
+          propertyChannels: const <MotionResolvedPropertyChannel>[],
+        ),
+      ],
+      globalChannels: const <MotionResolvedPropertyChannel>[],
+      effects: const <MotionResolvedEffectModel>[],
+      transitions: const <MotionResolvedTransitionModel>[],
+      cameras: const <MotionResolvedCameraModel>[],
+      textAnimations: const <MotionResolvedTextAnimationModel>[],
+    );
+  }
+
   test('accepts generated text motion when a media baseline track exists', () {
     final motion = textComposition();
     final composition = builder.build(
@@ -303,5 +368,37 @@ void main() {
       ),
     );
     expect(result.isProductionExportReady, isFalse);
+  });
+
+  test('names authored video export blockers explicitly', () {
+    final motion = videoComposition();
+    final composition = builder.build(
+      ExportCompositionBuildInput(
+        contractVersion: 'v1alpha1',
+        projectId: 'project-video-export-blocked',
+        projectFormat: format(),
+        assets: baselineAssets(),
+        timelineTracks: baselineVideoTrack(),
+        motionComposition: motion,
+      ),
+    );
+
+    final result = gate.evaluate(composition);
+
+    expect(result.hasSceneMotion, isTrue);
+    expect(result.motionNonTextElementCount, 1);
+    expect(result.authoredVisualSurfaceNodeCount, 1);
+    expect(result.authoredVisualSurfaceKinds, contains('videoClip'));
+    final issue = result.issues.singleWhere(
+      (issue) =>
+          issue.code ==
+          SceneExportParityIssueCode.nonTextAuthoredVisualRendererMissing,
+    );
+    expect(issue.message, contains('video authored visual motion'));
+    expect(issue.detail, contains('authoredVisualSurfaceKinds=videoClip'));
+    expect(
+      result.toBridgeMap()['authoredVisualSurfaceKinds'],
+      contains('videoClip'),
+    );
   });
 }

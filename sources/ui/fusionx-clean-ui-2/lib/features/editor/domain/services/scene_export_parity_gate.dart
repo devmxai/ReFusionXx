@@ -52,8 +52,11 @@ class SceneExportParityResult {
     required this.motionChannelCount,
     required this.motionTextProgramNodeCount,
     required this.authoredVisualSurfaceNodeCount,
+    required Set<String> authoredVisualSurfaceKinds,
     required List<SceneExportParityIssue> issues,
-  }) : issues = List.unmodifiable(issues);
+  })  : authoredVisualSurfaceKinds =
+            Set<String>.unmodifiable(authoredVisualSurfaceKinds),
+        issues = List.unmodifiable(issues);
 
   final bool hasSceneMotion;
   final bool hasBaselineVisualTrack;
@@ -63,6 +66,7 @@ class SceneExportParityResult {
   final int motionChannelCount;
   final int motionTextProgramNodeCount;
   final int authoredVisualSurfaceNodeCount;
+  final Set<String> authoredVisualSurfaceKinds;
   final List<SceneExportParityIssue> issues;
 
   bool get hasBlockers => issues.any(
@@ -87,6 +91,8 @@ class SceneExportParityResult {
         'motionChannelCount': motionChannelCount,
         'motionTextProgramNodeCount': motionTextProgramNodeCount,
         'authoredVisualSurfaceNodeCount': authoredVisualSurfaceNodeCount,
+        'authoredVisualSurfaceKinds':
+            authoredVisualSurfaceKinds.toList(growable: false),
         'hasBlockers': hasBlockers,
         'isProductionExportReady': isProductionExportReady,
         'blockerCodes': blockerCodes.map((code) => code.name).toList(),
@@ -109,6 +115,11 @@ class SceneExportParityGate {
         composition.motionTextProgram?.nodes.length ?? 0;
     final authoredVisualSurfaceNodeCount =
         composition.authoredVisualSurfaceProgram?.nodes.length ?? 0;
+    final authoredVisualSurfaceKinds = <String>{
+      for (final node
+          in composition.authoredVisualSurfaceProgram?.nodes ?? const [])
+        if (node.elementKind.isNotEmpty) node.elementKind,
+    };
 
     if (composition.hasErrors) {
       issues.add(
@@ -147,12 +158,12 @@ class SceneExportParityGate {
     if (composition.motionNonTextElementCount > 0) {
       if (authoredVisualSurfaceNodeCount == 0) {
         issues.add(
-          const SceneExportParityIssue(
+          SceneExportParityIssue(
             code:
                 SceneExportParityIssueCode.missingAuthoredVisualSurfaceProgram,
             severity: SceneExportParityIssueSeverity.blocker,
             message:
-                'Shape/image motion exists but the authored visual surface export program is missing.',
+                '${_formatAuthoredVisualSurfaceKinds(authoredVisualSurfaceKinds)} motion exists but the authored visual surface export program is missing.',
           ),
         );
       } else {
@@ -162,9 +173,9 @@ class SceneExportParityGate {
                 SceneExportParityIssueCode.nonTextAuthoredVisualRendererMissing,
             severity: SceneExportParityIssueSeverity.blocker,
             message:
-                'Shape/image motion is represented in the authored visual surface program, but the production native export renderer is not complete yet.',
+                '${_formatAuthoredVisualSurfaceKinds(authoredVisualSurfaceKinds)} motion is represented in the authored visual surface program, but the production native export renderer is not complete yet.',
             detail:
-                'authoredVisualSurfaceNodeCount=$authoredVisualSurfaceNodeCount',
+                'authoredVisualSurfaceNodeCount=$authoredVisualSurfaceNodeCount; authoredVisualSurfaceKinds=${authoredVisualSurfaceKinds.join(',')}',
           ),
         );
       }
@@ -221,7 +232,40 @@ class SceneExportParityGate {
       motionChannelCount: composition.motionChannelCount,
       motionTextProgramNodeCount: motionTextProgramNodeCount,
       authoredVisualSurfaceNodeCount: authoredVisualSurfaceNodeCount,
+      authoredVisualSurfaceKinds: authoredVisualSurfaceKinds,
       issues: List<SceneExportParityIssue>.unmodifiable(issues),
     );
   }
+}
+
+String _formatAuthoredVisualSurfaceKinds(Set<String> kinds) {
+  if (kinds.isEmpty) {
+    return 'Non-text authored visual';
+  }
+  final labels = <String>[];
+  if (kinds.contains('videoClip')) {
+    labels.add('video');
+  }
+  if (kinds.contains('image')) {
+    labels.add('image');
+  }
+  if (kinds.contains('shape')) {
+    labels.add('shape');
+  }
+  if (kinds.contains('mask')) {
+    labels.add('mask');
+  }
+  final unknownLabels = kinds
+      .where((kind) =>
+          kind != 'videoClip' &&
+          kind != 'image' &&
+          kind != 'shape' &&
+          kind != 'mask')
+      .toList()
+    ..sort();
+  labels.addAll(unknownLabels);
+  if (labels.isEmpty) {
+    return 'Non-text authored visual';
+  }
+  return '${labels.join('/')} authored visual';
 }

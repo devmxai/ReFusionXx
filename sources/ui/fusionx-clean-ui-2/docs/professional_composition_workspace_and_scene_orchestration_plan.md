@@ -846,6 +846,10 @@ Current gaps for this plan:
   visual graph properties; Flutter preview now wraps the native video surface
   with graph-evaluated transform/opacity/blur samples, while full production
   export parity for authored video surfaces still needs explicit renderer work,
+- the export contract now carries authored video surface nodes with their
+  source asset identity and graph channels, and `SceneExportParityGate` reports
+  exact authored visual kinds (`videoClip`, `image`, `shape`, `mask`) in
+  blockers instead of a generic shape/image message,
 - preview/export parity for scene-only generated visual content is still gated,
   with nested media preview/scrub projection now partially wired for manual
   Scene Contents media layers.
