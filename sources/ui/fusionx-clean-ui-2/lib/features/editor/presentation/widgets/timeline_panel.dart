@@ -2849,11 +2849,21 @@ class _TimelinePanelState extends State<TimelinePanel>
     TimelineClipData left,
     TimelineClipData right,
   ) {
-    return track.kind == TimelineTrackKind.video &&
-        left.type == TimelineClipType.media &&
-        right.type == TimelineClipType.media &&
-        left.assetId != null &&
-        right.assetId != null;
+    if (track.kind != TimelineTrackKind.video) {
+      return false;
+    }
+    bool isJoinable(TimelineClipData clip) {
+      if (clip.type == TimelineClipType.media && clip.assetId != null) {
+        return true;
+      }
+      return track.contentKind == TimelineTrackContentKind.scene &&
+          clip.type == TimelineClipType.placeholder &&
+          clip.contentKind == TimelineClipContentKind.scene &&
+          clip.visualKind == TimelineVisualKind.video &&
+          !_nativeScrubIsGapPlaceholderClip(clip);
+    }
+
+    return isJoinable(left) && isJoinable(right);
   }
 
   double _nativeScrubGapAfterClip(
@@ -4958,16 +4968,24 @@ class _TimelineTrackRow extends StatelessWidget {
     return buttonCount * 32;
   }
 
-  bool _isMainTrackMediaClip(TimelineClipData clip) =>
-      track.kind == TimelineTrackKind.video &&
-      clip.type == TimelineClipType.media &&
-      (clip.assetId != null ||
-          (track.contentKind == TimelineTrackContentKind.scene &&
-              clip.visualKind == TimelineVisualKind.video));
+  bool _isJoinableVideoClip(TimelineClipData clip) {
+    if (track.kind != TimelineTrackKind.video ||
+        clip.durationTime <= TimelineTime.zero) {
+      return false;
+    }
+    if (clip.type == TimelineClipType.media && clip.assetId != null) {
+      return true;
+    }
+    return track.contentKind == TimelineTrackContentKind.scene &&
+        clip.type == TimelineClipType.placeholder &&
+        clip.contentKind == TimelineClipContentKind.scene &&
+        clip.visualKind == TimelineVisualKind.video &&
+        !_isGapPlaceholderClip(clip);
+  }
 
   bool _shouldJoinWith(TimelineClipData left, TimelineClipData right) =>
-      _isMainTrackMediaClip(left) &&
-      _isMainTrackMediaClip(right) &&
+      _isJoinableVideoClip(left) &&
+      _isJoinableVideoClip(right) &&
       left.aiTransition == null &&
       right.aiTransition == null;
 

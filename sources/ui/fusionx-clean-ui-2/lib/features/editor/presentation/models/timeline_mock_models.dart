@@ -279,7 +279,12 @@ class TimelineClipData {
 
   double visualWidth(double secondsWidth) {
     final baseWidth = duration * secondsWidth;
-    if (type == TimelineClipType.media || isGapPlaceholder) {
+    final isSceneVideoLayerProxy =
+        contentKind == TimelineClipContentKind.scene &&
+            visualKind == TimelineVisualKind.video;
+    if (type == TimelineClipType.media ||
+        isGapPlaceholder ||
+        isSceneVideoLayerProxy) {
       return baseWidth <= 0 ? 1.0 : baseWidth;
     }
     const minWidth = 118.0;

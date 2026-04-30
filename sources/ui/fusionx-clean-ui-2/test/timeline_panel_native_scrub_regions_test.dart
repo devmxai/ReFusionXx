@@ -5,6 +5,20 @@ import 'package:refusion_app/features/editor/presentation/models/timeline_time.d
 import 'package:refusion_app/features/editor/presentation/widgets/timeline_panel.dart';
 
 void main() {
+  test('scene video layer proxies keep duration-based timeline width', () {
+    final clip = TimelineClipData(
+      id: 'scene-video-layer',
+      type: TimelineClipType.placeholder,
+      tone: TimelineClipTone.aiGenerated,
+      duration: 0.5,
+      label: 'Video Layer',
+      contentKind: TimelineClipContentKind.scene,
+      visualKind: TimelineVisualKind.video,
+    );
+
+    expect(clip.visualWidth(32), 16);
+  });
+
   testWidgets('native scrub regions exclude clip bodies but keep empty gaps',
       (WidgetTester tester) async {
     TimelineScrubSurfaceConfig? capturedConfig;
@@ -105,17 +119,19 @@ void main() {
 
     final firstClip = TimelineClipData(
       id: 'scene-video-layer-1',
-      type: TimelineClipType.media,
+      type: TimelineClipType.placeholder,
       tone: TimelineClipTone.aiGenerated,
       duration: 2,
+      label: 'Video 1',
       contentKind: TimelineClipContentKind.scene,
       visualKind: TimelineVisualKind.video,
     );
     final secondClip = TimelineClipData(
       id: 'scene-video-layer-2',
-      type: TimelineClipType.media,
+      type: TimelineClipType.placeholder,
       tone: TimelineClipTone.aiGenerated,
       duration: 1.5,
+      label: 'Video 2',
       contentKind: TimelineClipContentKind.scene,
       visualKind: TimelineVisualKind.video,
     );

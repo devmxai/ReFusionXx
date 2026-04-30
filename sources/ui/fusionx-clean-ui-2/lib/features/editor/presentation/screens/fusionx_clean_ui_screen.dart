@@ -5237,7 +5237,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         videoClips.add(
           TimelineClipData(
             id: layer.id,
-            type: TimelineClipType.media,
+            type: TimelineClipType.placeholder,
             tone: TimelineClipTone.aiGenerated,
             durationTime: localEnd - localStart,
             sourceStartTime: localStart,
@@ -5818,7 +5818,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       );
       return;
     }
-    await _openSceneScopeTransitionInspector(session, track, transition);
+    _showStageMessage(
+        '${browserResult.preset.label} Scene transition applied.');
   }
 
   void _handleSceneScopeScrubFinalized(
@@ -17590,7 +17591,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final effectiveClips = clips ?? track.clips;
     final mediaClipIds = <String>[];
     for (final clip in effectiveClips) {
-      if (clip.type == TimelineClipType.media) {
+      if (_isTransitionEligibleClipForTrack(track, clip)) {
         mediaClipIds.add(clip.id);
       }
     }
@@ -17607,6 +17608,24 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       cleaned.add(transition);
     }
     return List<TimelineTrackTransitionData>.unmodifiable(cleaned);
+  }
+
+  bool _isTransitionEligibleClipForTrack(
+    TimelineTrackData track,
+    TimelineClipData clip,
+  ) {
+    if (track.kind != TimelineTrackKind.video ||
+        clip.durationTime <= TimelineTime.zero) {
+      return false;
+    }
+    if (clip.type == TimelineClipType.media) {
+      return true;
+    }
+    return track.contentKind == TimelineTrackContentKind.scene &&
+        clip.type == TimelineClipType.placeholder &&
+        clip.contentKind == TimelineClipContentKind.scene &&
+        clip.visualKind == TimelineVisualKind.video &&
+        !clip.isGapPlaceholder;
   }
 
   TimelineTrackTransitionData? _videoTrackTransitionById(
