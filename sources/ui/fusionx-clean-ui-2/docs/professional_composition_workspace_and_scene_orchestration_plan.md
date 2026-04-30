@@ -653,6 +653,15 @@ Implementation status:
   for root Scene Clip playback. This preserves the root timeline as one Scene
   Clip container while still giving the native preview and Live Scrub catalog a
   truthful media segment list. Stage5/Live Scrub internals remain untouched.
+- Scene Contents video insertion preserves the selected asset's natural
+  duration. If the inserted video extends beyond the current source Scene Clip,
+  the source composition and root Scene Clip instance must extend together and
+  later sequential Scene Clips must shift forward instead of truncating the
+  imported video to the generic text/shape default.
+- Scene Contents native preview/scrub uses scene-local transport time while the
+  professional timeline clock remains in root time. Adapter code must map
+  `root <-> scene local` at the native transport boundary; Stage5 scrub files
+  remain protected and must not be changed for this workflow.
 - Future W3 root actions must allow adding/replacing a root background layer and
   inserting Scene Clips as full-screen scenes or as transformable cards over the
   root background.

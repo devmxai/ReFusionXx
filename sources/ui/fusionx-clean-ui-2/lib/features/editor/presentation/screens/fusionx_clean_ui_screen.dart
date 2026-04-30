@@ -1588,6 +1588,33 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return false;
   }
 
+  TimelineTime _nativeTransportDurationForCurrentScope() {
+    final sceneScope = _sceneScopeSession;
+    if (sceneScope != null &&
+        _compositionMediaProjectionForCurrentScope().hasVisualMedia) {
+      return sceneScope.localRange.duration;
+    }
+    return _timelineDurationTime;
+  }
+
+  TimelineTime _nativeTransportTimeForTimelineTime(TimelineTime time) {
+    final sceneScope = _sceneScopeSession;
+    if (sceneScope != null &&
+        _compositionMediaProjectionForCurrentScope().hasVisualMedia) {
+      return sceneScope.rootToLocal(time);
+    }
+    return time;
+  }
+
+  TimelineTime _timelineTimeForNativeTransportTime(TimelineTime time) {
+    final sceneScope = _sceneScopeSession;
+    if (sceneScope != null &&
+        _compositionMediaProjectionForCurrentScope().hasVisualMedia) {
+      return sceneScope.localToRoot(time);
+    }
+    return time;
+  }
+
   CompositionMediaPlaybackProjectionResult
       _compositionMediaProjectionForCurrentScope() {
     final sceneScope = _sceneScopeSession;
@@ -3266,8 +3293,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (requireSettled && state.isScrubSettling) {
       return false;
     }
-    final targetMs =
-        time.clamp(TimelineTime.zero, _timelineDurationTime).inMilliseconds;
+    final targetMs = _nativeTransportTimeForTimelineTime(time)
+        .clamp(
+          TimelineTime.zero,
+          _nativeTransportDurationForCurrentScope(),
+        )
+        .inMilliseconds;
     return (state.positionMs - targetMs).abs() <= toleranceMs;
   }
 
@@ -3289,7 +3320,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     int toleranceMs = _playbackStartPositionToleranceMs,
     bool requireSettled = true,
   }) async {
-    final target = time.clamp(TimelineTime.zero, _timelineDurationTime);
+    final nativeTarget = _nativeTransportTimeForTimelineTime(time).clamp(
+      TimelineTime.zero,
+      _nativeTransportDurationForCurrentScope(),
+    );
+    final target = _timelineTimeForNativeTransportTime(nativeTarget).clamp(
+      TimelineTime.zero,
+      _timelineDurationTime,
+    );
     if (_currentTransportMatchesTimelineTime(
       target,
       toleranceMs: toleranceMs,
@@ -3426,12 +3464,20 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (!_useNativePreview || !_transportController.isPlatformSupported) {
       return _playPlayback();
     }
-    final clampedTime = time.clamp(TimelineTime.zero, _timelineDurationTime);
+    final clampedTime = _nativeTransportTimeForTimelineTime(time).clamp(
+      TimelineTime.zero,
+      _nativeTransportDurationForCurrentScope(),
+    );
     return _transportController.playFromPositionMs(clampedTime.inMilliseconds);
   }
 
-  Future<void> _seekPlaybackTo(TimelineTime time) =>
-      _transportController.seekToPositionMs(time.inMilliseconds);
+  Future<void> _seekPlaybackTo(TimelineTime time) {
+    final clampedTime = _nativeTransportTimeForTimelineTime(time).clamp(
+      TimelineTime.zero,
+      _nativeTransportDurationForCurrentScope(),
+    );
+    return _transportController.seekToPositionMs(clampedTime.inMilliseconds);
+  }
 
   bool get _useNativePreview {
     if (!_transportController.isPlatformSupported) {
@@ -3508,9 +3554,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             _transportController.aspectRatio! > 0)
         ? _transportController.aspectRatio
         : _lockedWorkspaceAspectRatio;
-    final reportedTransportTime = TimelineTime.fromMilliseconds(
+    final reportedNativeTime = TimelineTime.fromMilliseconds(
       transportState.positionMs,
     ).clamp(
+      TimelineTime.zero,
+      _nativeTransportDurationForCurrentScope(),
+    );
+    final reportedTransportTime =
+        _timelineTimeForNativeTransportTime(reportedNativeTime).clamp(
       TimelineTime.zero,
       _timelineDurationTime,
     );
@@ -3783,6 +3834,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _setCurrentTime(session.rootTime);
     });
     _syncLayerScopeTimeNotifiers();
+    _refreshLiveScrubPreviewSourceCatalog();
+    if (_useNativePreview) {
+      unawaited(
+        _syncVideoTimelineTransport(
+          tracks: _tracks,
+          targetTime: _currentTime,
+        ),
+      );
+    }
     _showStageMessage('Scene Scope opened: ${session.layers.length} layers.');
   }
 
@@ -3806,6 +3866,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _selectedClipId = session.sceneClipId;
     });
     _syncLayerScopeTimeNotifiers();
+    _refreshLiveScrubPreviewSourceCatalog();
+    if (_useNativePreview) {
+      unawaited(
+        _syncVideoTimelineTransport(
+          tracks: _tracks,
+          targetTime: _currentTime,
+        ),
+      );
+    }
   }
 
   SceneLayerScopeTimelineViewModel? get _activeSceneLayerScopeViewModel {
@@ -11649,6 +11718,54 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
   }
 
+  TimelineTime _sceneScopeMediaDurationForAsset(
+    EditorAssetItem asset, {
+    required TimelineTime fallback,
+  }) {
+    final durationSeconds = asset.durationSeconds;
+    if (asset.tab == EditorMediaTab.video &&
+        durationSeconds != null &&
+        durationSeconds.isFinite &&
+        durationSeconds > 0) {
+      return TimelineTime.fromSecondsDouble(durationSeconds);
+    }
+    return fallback;
+  }
+
+  TimelineTimeRange _defaultMediaRangeForSceneScope(
+    SceneScopeSession sceneScope,
+    EditorAssetItem asset,
+  ) {
+    final fallbackRange = _defaultElementRangeForSceneScope(sceneScope);
+    if (asset.tab != EditorMediaTab.video) {
+      return fallbackRange;
+    }
+    final duration = _sceneScopeMediaDurationForAsset(
+      asset,
+      fallback: fallbackRange.duration,
+    );
+    if (duration <= TimelineTime.zero) {
+      return fallbackRange;
+    }
+    final localTime = sceneScope.rootToLocal(_visibleTimelinePlaybackTime());
+    final sourceStart = sceneScope.sourceRange.start +
+        localTime.clamp(TimelineTime.zero, sceneScope.localRange.duration);
+    return TimelineTimeRange(
+      start: sourceStart,
+      endExclusive: sourceStart + duration,
+    );
+  }
+
+  TimelineTime _sourceDurationToRootDuration(
+    TimelineTime sourceDuration,
+    double timeScale,
+  ) {
+    final safeScale = timeScale.isFinite && timeScale > 0 ? timeScale : 1.0;
+    return TimelineTime.fromProjectTicks(
+      (sourceDuration.inProjectTicks / safeScale).round(),
+    );
+  }
+
   void _handleTextDockTap() {
     final selectedTextElementId = _selectedMainTimelineTextElementId;
     if (selectedTextElementId != null) {
@@ -12588,11 +12705,58 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _showStageMessage('Scene source is not available for media insertion.');
       return;
     }
-    final sourceScene = project.scenes[sceneIndex];
-    final insertionRange = _defaultElementRangeForSceneScope(sceneScope);
+    var sourceScene = project.scenes[sceneIndex];
+    final insertionRange = _defaultMediaRangeForSceneScope(
+      sceneScope,
+      resolvedAsset,
+    );
     if (insertionRange.duration <= TimelineTime.zero) {
       _showStageMessage('This scene has no available duration.');
       return;
+    }
+    var nextSceneClips = _sceneClips;
+    final sceneClipIndex = nextSceneClips.indexWhere(
+      (clip) => clip.id == sceneScope.sceneClipId,
+    );
+    if (resolvedAsset.tab == EditorMediaTab.video &&
+        insertionRange.endExclusive > sourceScene.projectRange.endExclusive) {
+      sourceScene = sourceScene.copyWith(
+        projectRange: TimelineTimeRange(
+          start: sourceScene.projectRange.start,
+          endExclusive: insertionRange.endExclusive,
+        ),
+      );
+    }
+    if (resolvedAsset.tab == EditorMediaTab.video && sceneClipIndex >= 0) {
+      final sceneClip = nextSceneClips[sceneClipIndex];
+      if (insertionRange.endExclusive > sceneClip.sourceOutTime) {
+        final nextSourceDuration =
+            insertionRange.endExclusive - sceneClip.sourceInTime;
+        final nextRootDuration = _sourceDurationToRootDuration(
+          nextSourceDuration,
+          sceneClip.timeScale,
+        );
+        final durationDelta = nextRootDuration - sceneClip.durationTime;
+        final previousEndTime = sceneClip.endTime;
+        final updatedSceneClip = sceneClip.copyWith(
+          durationTime: nextRootDuration,
+          sourceOutTime: insertionRange.endExclusive,
+        );
+        nextSceneClips = List<CompositionSceneClipModel>.unmodifiable(
+          nextSceneClips.map((candidate) {
+            if (candidate.id == sceneClip.id) {
+              return updatedSceneClip;
+            }
+            if (durationDelta > TimelineTime.zero &&
+                candidate.startTime >= previousEndTime) {
+              return candidate.copyWith(
+                startTime: candidate.startTime + durationDelta,
+              );
+            }
+            return candidate;
+          }),
+        );
+      }
     }
 
     final layerKind = resolvedAsset.tab == EditorMediaTab.video
@@ -12713,18 +12877,26 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                 project: nextProject,
                 rootTime: sceneScope.rootTime,
                 sceneClipId: sceneScope.sceneClipId,
-                sceneClips: _sceneClips,
+                sceneClips: nextSceneClips,
                 channels: _manualMotionPropertyChannels,
               ),
             )
             .session ??
         sceneScope;
+    final nextTracks = List<TimelineTrackData>.unmodifiable(
+      _rootSceneClipProjectionAdapter.mergeSceneTrack(
+        existingTracks: _tracks,
+        sceneClips: nextSceneClips,
+      ),
+    );
     _markAssetImported(
       resolvedAsset.id,
       preferredPreviewPositionMs: TimelineTime.zero.inMilliseconds,
     );
     setState(() {
       _motionProject = nextProject;
+      _sceneClips = nextSceneClips;
+      _tracks = nextTracks;
       _sceneScopeSession = nextSceneScope;
       _selectedClipId = layerId;
       _selectedTransitionId = null;
@@ -12739,10 +12911,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _markMotionAuthoringChanged();
     });
     _refreshLiveScrubPreviewSourceCatalog();
+    _syncTimelineClockDuration();
     if (resolvedAsset.tab == EditorMediaTab.video && _useNativePreview) {
       unawaited(
         _syncVideoTimelineTransport(
-          tracks: _tracks,
+          tracks: nextTracks,
           targetTime: _currentTime,
         ),
       );
@@ -15261,10 +15434,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return;
     }
 
+    final nativeTargetTime = _nativeTransportTimeForTimelineTime(
+      targetTime,
+    ).clamp(
+      TimelineTime.zero,
+      totalDuration,
+    );
     await _transportController.prepareTimelineSegments(
       segments: segments,
-      startPositionMs:
-          targetTime.clamp(TimelineTime.zero, totalDuration).inMilliseconds,
+      startPositionMs: nativeTargetTime.inMilliseconds,
     );
   }
 
@@ -16396,9 +16574,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _syncTimelineClockDuration();
     _timelineClockCoordinator.scrubEnd(resolvedFinalTime);
     _applyTimelineClockSnapshotToUi();
+    final nativeSettleTime = _nativeTransportTimeForTimelineTime(
+      resolvedFinalTime,
+    ).clamp(
+      TimelineTime.zero,
+      _nativeTransportDurationForCurrentScope(),
+    );
     unawaited(
       _transportController
-          .settleAfterScrubPositionMs(resolvedFinalTime.inMilliseconds)
+          .settleAfterScrubPositionMs(nativeSettleTime.inMilliseconds)
           .whenComplete(() {
         if (!mounted) {
           return;
@@ -20392,13 +20576,71 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                         });
                                                       },
                                                       onScrubStateChanged:
-                                                          _handleCompositionScopeScrubStateChanged,
+                                                          _useNativeTimelineScrubInput &&
+                                                                  _compositionMediaProjectionForCurrentScope()
+                                                                      .hasPlayableVideo
+                                                              ? _handleScrubStateChanged
+                                                              : _handleCompositionScopeScrubStateChanged,
                                                       onScrubFinalized:
                                                           (localTime) =>
                                                               _handleSceneScopeScrubFinalized(
                                                         sceneScopeSession,
                                                         localTime,
                                                       ),
+                                                      scrubSurfaceBuilder:
+                                                          !_useNativeTimelineScrubInput ||
+                                                                  !_compositionMediaProjectionForCurrentScope()
+                                                                      .hasPlayableVideo
+                                                              ? null
+                                                              : (surfaceConfig) =>
+                                                                  NativeTimelineScrubSurface(
+                                                                    currentTime:
+                                                                        surfaceConfig
+                                                                            .currentTime,
+                                                                    currentTimeListenable:
+                                                                        surfaceConfig
+                                                                            .currentTimeListenable,
+                                                                    timelineDurationTime:
+                                                                        surfaceConfig
+                                                                            .timelineDurationTime,
+                                                                    timelineOffsetTime:
+                                                                        surfaceConfig
+                                                                            .timelineOffsetTime,
+                                                                    secondsWidth:
+                                                                        surfaceConfig
+                                                                            .secondsWidth,
+                                                                    timelineFps:
+                                                                        surfaceConfig
+                                                                            .timelineFps,
+                                                                    configRevision:
+                                                                        _nativeTimelineScrubConfigRevisionFor(
+                                                                      surfaceConfig,
+                                                                    ),
+                                                                    onConfigApplied:
+                                                                        (_) =>
+                                                                            _handleTimelineScrubConfigApplied(
+                                                                      _timelineScrubConfigRevision,
+                                                                    ),
+                                                                    regions:
+                                                                        surfaceConfig
+                                                                            .regions,
+                                                                    previewSources:
+                                                                        _allLiveScrubPreviewSources(),
+                                                                    onTap: surfaceConfig
+                                                                        .onTap,
+                                                                    onScrubStart:
+                                                                        surfaceConfig
+                                                                            .onScrubStart,
+                                                                    onScrubTimeChanged:
+                                                                        surfaceConfig
+                                                                            .onScrubTimeChanged,
+                                                                    onScrubEnd:
+                                                                        surfaceConfig
+                                                                            .onScrubEnd,
+                                                                    interactionEnabled:
+                                                                        !_isApplyingStructuralEdit &&
+                                                                            surfaceConfig.interactionEnabled,
+                                                                  ),
                                                       assetPathResolver:
                                                           _resolveAssetPath,
                                                       animateTrackKinds: const <TimelineTrackKind>{},
