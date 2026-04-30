@@ -780,8 +780,26 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
   }
 
-  double get _workspaceAspectRatio =>
-      _lockedWorkspaceAspectRatio ?? _previewAsset?.aspectRatio ?? (9 / 16);
+  double? get _compositionProjectAspectRatio {
+    final canvasSize = _motionProject?.format.canvasSize;
+    if (canvasSize == null || canvasSize.width <= 0 || canvasSize.height <= 0) {
+      return null;
+    }
+    return canvasSize.width / canvasSize.height;
+  }
+
+  bool get _hasCompositionProjectCanvas =>
+      _motionProject != null || _hasStartedCompositionSession;
+
+  double get _workspaceAspectRatio {
+    final compositionAspectRatio = _compositionProjectAspectRatio;
+    if (_hasCompositionProjectCanvas && compositionAspectRatio != null) {
+      return compositionAspectRatio;
+    }
+    return _lockedWorkspaceAspectRatio ??
+        _previewAsset?.aspectRatio ??
+        (9 / 16);
+  }
 
   double get _timelineFps => _motionProject?.frameRate.framesPerSecond ?? 30;
 
@@ -818,6 +836,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final motionDurationTime = motionAuthoredDurationTime > TimelineTime.zero
         ? motionAuthoredDurationTime
         : (_motionProject?.durationTime ?? TimelineTime.zero);
+    final hasAuthoredCompositionTimeline =
+        _motionProject != null || _sceneClips.isNotEmpty;
     if (_isApplyingStructuralEdit) {
       if (tracksDuration > TimelineTime.zero) {
         return tracksDuration;
@@ -829,7 +849,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           ? nativeDurationTime
           : TimelineTime.fromSecondsDouble(14);
     }
-    if (_useNativePreview && nativeDuration > 0) {
+    if (!hasAuthoredCompositionTimeline &&
+        _useNativePreview &&
+        nativeDuration > 0) {
       return nativeDurationTime;
     }
     if (tracksDuration <= TimelineTime.zero) {
@@ -843,6 +865,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final contentDuration = tracksDuration >= motionDurationTime
         ? tracksDuration
         : motionDurationTime;
+    if (hasAuthoredCompositionTimeline) {
+      return contentDuration;
+    }
     return contentDuration >= nativeDurationTime
         ? contentDuration
         : nativeDurationTime;
@@ -1558,9 +1583,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   EditorAssetItem? get _previewAsset {
+    final effectiveTracks = _effectiveMediaPlaybackTracksFor(
+      _timelineTruthTracks,
+    );
     final activeTimedAssetId = _activeVisualAssetIdForTracksAtTime(
-      _effectiveMediaPlaybackTracksFor(_timelineTruthTracks),
-      _currentTime,
+      effectiveTracks,
+      _mediaPlaybackLookupTimeForTimelineTime(_currentTime),
     );
     if (activeTimedAssetId != null) {
       final activeAsset = _assetForId(activeTimedAssetId);
@@ -1645,11 +1673,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           _effectiveMediaPlaybackTracksFor(_timelineTruthTracks),
           localTime,
         ) ??
-        _nearestMediaProgramBoundaryForTimelineTime(
-          _effectiveMediaPlaybackTracksFor(_timelineTruthTracks),
-          localTime,
-        ) ??
         localTime;
+  }
+
+  TimelineTime _mediaPlaybackLookupTimeForTimelineTime(TimelineTime time) {
+    final sceneScope = _sceneScopeSession;
+    if (sceneScope != null &&
+        _compositionMediaProjectionForCurrentScope().hasVisualMedia) {
+      return sceneScope.rootToLocal(time);
+    }
+    return time;
   }
 
   TimelineTime _timelineTimeForNativeTransportTime(TimelineTime time) {
@@ -1720,34 +1753,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       timelineCursor = clipEndTime;
     }
     return null;
-  }
-
-  TimelineTime? _nearestMediaProgramBoundaryForTimelineTime(
-    List<TimelineTrackData> tracks,
-    TimelineTime timelineTime,
-  ) {
-    final track = _primaryVideoPlaybackTrackFor(tracks);
-    if (track == null) {
-      return null;
-    }
-    var timelineCursor = TimelineTime.zero;
-    var programCursor = TimelineTime.zero;
-    var sawMedia = false;
-    for (final clip in track.clips) {
-      final clipEndTime = timelineCursor + clip.durationTime;
-      final isMedia = clip.type == TimelineClipType.media &&
-          clip.assetId != null &&
-          clip.durationTime > TimelineTime.zero;
-      if (timelineTime < clipEndTime) {
-        return programCursor;
-      }
-      if (isMedia) {
-        sawMedia = true;
-        programCursor += clip.durationTime;
-      }
-      timelineCursor = clipEndTime;
-    }
-    return sawMedia ? programCursor : null;
   }
 
   TimelineTime? _timelineTimeForMediaProgramTime(
@@ -2697,10 +2702,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     TimelineTime targetTime, {
     String? preferredAssetId,
   }) {
+    final effectiveTracks = _effectiveMediaPlaybackTracksFor(
+      _timelineTruthTracks,
+    );
     return _resolvedPreviewAssetIdForTracks(
-      _effectiveMediaPlaybackTracksFor(_timelineTruthTracks),
+      effectiveTracks,
       preferredAssetId: preferredAssetId,
-      preferredTimelineTime: targetTime,
+      preferredTimelineTime: _mediaPlaybackLookupTimeForTimelineTime(
+        targetTime,
+      ),
     );
   }
 
@@ -3723,7 +3733,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       );
     }
     final isTrimPreviewActive = _timelineTrimPreviewSession != null;
-    final nextAspectRatio = (_lockedWorkspaceAspectRatio == null &&
+    final canAdoptTransportAspectRatio = !_hasCompositionProjectCanvas;
+    final nextAspectRatio = (canAdoptTransportAspectRatio &&
+            _lockedWorkspaceAspectRatio == null &&
             (transportState.sourceKind == 'imported' ||
                 transportState.sourceKind == 'timeline') &&
             _transportController.aspectRatio != null &&
@@ -5339,8 +5351,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final nextElements = layer.elements
         .map(
           (element) => element.copyWith(
-            localRange:
-                _absoluteSceneElementRange(layer, element).shiftBy(delta),
+            localRange: _isLayerLocalSceneElementRange(layer, element)
+                ? element.localRange
+                : _absoluteSceneElementRange(layer, element).shiftBy(delta),
           ),
         )
         .toList(growable: false);
@@ -5476,6 +5489,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return element.localRange;
     }
     return layer.visibleRange;
+  }
+
+  bool _isLayerLocalSceneElementRange(
+    MotionLayerModel layer,
+    MotionElementModel element,
+  ) {
+    final relativeCandidate = TimelineTimeRange(
+      start: layer.visibleRange.start + element.localRange.start,
+      endExclusive: layer.visibleRange.start + element.localRange.endExclusive,
+    );
+    return _timeRangesOverlap(relativeCandidate, layer.visibleRange) &&
+        relativeCandidate.endExclusive <= layer.visibleRange.endExclusive;
   }
 
   bool _timeRangesOverlap(TimelineTimeRange left, TimelineTimeRange right) {
@@ -9079,6 +9104,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     TimelineTime timelineTime,
   ) {
     final tracks = _effectiveMediaPlaybackTracksFor(_timelineTruthTracks);
+    final mediaTimelineTime = _mediaPlaybackLookupTimeForTimelineTime(
+      timelineTime,
+    );
     for (final kind in <TimelineTrackKind>[
       TimelineTrackKind.video,
       TimelineTrackKind.image,
@@ -9104,7 +9132,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
               clipStartTime: clipStartTime,
               clipEndTime: clipEndTime,
             );
-            if (timelineTime >= clipStartTime && timelineTime < clipEndTime) {
+            if (mediaTimelineTime >= clipStartTime &&
+                mediaTimelineTime < clipEndTime) {
               return context;
             }
           }
@@ -13266,9 +13295,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final layerId = _nextMotionEntityId('${resolvedAsset.tab.name}-layer');
     final elementId = _nextMotionEntityId('${resolvedAsset.tab.name}-element');
     final localRange = TimelineTimeRange(
-      start: insertionRange.start - sourceScene.projectRange.start,
-      endExclusive:
-          insertionRange.endExclusive - sourceScene.projectRange.start,
+      start: TimelineTime.zero,
+      endExclusive: insertionRange.duration,
     );
     final target = MotionPropertyTarget(
       kind: MotionTargetKind.element,
@@ -15842,7 +15870,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _previewAssetId = nextPreviewAssetId;
       _refreshLiveScrubPreviewSourceCatalog(tracks: nextTracks);
       _setCurrentTime(preservedTimelineTime);
-      if (_lockedWorkspaceAspectRatio == null &&
+      if (!_hasCompositionProjectCanvas &&
+          _lockedWorkspaceAspectRatio == null &&
           resolvedAsset.tab == EditorMediaTab.video &&
           resolvedAsset.aspectRatio != null &&
           resolvedAsset.aspectRatio! > 0) {
@@ -16772,8 +16801,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final min = minTime ?? TimelineTime.zero;
     final max = maxTime ?? _timelineDurationTime;
     if (_useNativePreview && _transportController.isPlaying) {
-      final transportTime = TimelineTime.fromMilliseconds(
+      final nativeTime = TimelineTime.fromMilliseconds(
         _transportController.state.positionMs,
+      ).clamp(
+        TimelineTime.zero,
+        _nativeTransportDurationForCurrentScope(),
+      );
+      final transportTime = _timelineTimeForNativeTransportTime(
+        nativeTime,
       ).clamp(TimelineTime.zero, _timelineDurationTime);
       if (transportTime >= min && transportTime <= max) {
         return transportTime;

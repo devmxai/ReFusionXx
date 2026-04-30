@@ -236,6 +236,41 @@ void main() {
     expect(mediaClip.sourceDurationTime.inMilliseconds, 2000);
   });
 
+  test('supports media inserted with layer-local element ranges', () {
+    final localElement = videoElement(
+      localRange: range(0, 1800),
+      sourceRange: range(400, 2200),
+    );
+    final shiftedLayer = videoLayer(
+      visibleRange: range(2000, 3800),
+      element: localElement,
+    );
+
+    final result = adapter.projectSceneScope(
+      const SceneScopeSessionResolver()
+          .open(
+            SceneScopeSessionRequest(
+              project: project(sourceLayers: <MotionLayerModel>[shiftedLayer]),
+              rootTime: ms(2000),
+              sceneClipId: 'scene-clip',
+              sceneClips: <CompositionSceneClipModel>[
+                sceneClip(
+                  sourceInMs: 500,
+                  sourceOutMs: 4000,
+                  durationMs: 3500,
+                ),
+              ],
+            ),
+          )
+          .session!,
+    );
+
+    final mediaClip = result.tracks.single.clips.last;
+    expect(mediaClip.durationTime.inMilliseconds, 1800);
+    expect(mediaClip.sourceStartTime.inMilliseconds, 400);
+    expect(mediaClip.sourceDurationTime.inMilliseconds, 1800);
+  });
+
   test('flattens overlapping video layers to their visible source intervals',
       () {
     final backElement = videoElement(

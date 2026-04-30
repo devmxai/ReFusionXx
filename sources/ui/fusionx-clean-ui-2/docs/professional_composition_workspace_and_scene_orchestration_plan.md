@@ -695,6 +695,15 @@ Implementation status:
   the source composition and root Scene Clip instance must extend together and
   later sequential Scene Clips must shift forward instead of truncating the
   imported video to the generic text/shape default.
+- Scene Contents media timing uses two separate clocks: authored
+  composition/source time and compact native media-program time. Native duration
+  is transport-internal only and must never replace the visible timeline
+  duration of a composition, source scene, Scene Clip, or scoped layer timeline.
+- `MotionLayerModel.visibleRange` owns source-scene placement. Newly inserted
+  media elements should use layer-local `localRange` values, normally
+  `0..layer.duration`, so moving a layer does not double-offset the element.
+  Legacy scene-absolute element ranges may be read for compatibility, but new
+  authoring must prefer layer-local ranges.
 - Scene Contents native preview/scrub uses scene-local transport time while the
   professional timeline clock remains in root time. Adapter code must map
   `root <-> scene local` at the native transport boundary; Stage5 scrub files
@@ -704,6 +713,14 @@ Implementation status:
   Scoped scrub code must not immediately confirm `scrubSettled` after finger
   lift while a native video player is active; it must wait for the native
   transport to settle on the mapped scene-local target frame first.
+- Empty Scene Contents time is real. If the playhead is on a gap before,
+  between, or after media layers, preview must show the composition background
+  and authored overlays instead of seeking native playback to the previous,
+  next, or first video. Native transport may stay compact internally, but the UI
+  must map into it only while the playhead is inside a real media interval.
+- Project composition aspect is authoritative after composition creation.
+  Imported media metadata and native rendered video dimensions must not flip,
+  resize, or relock the canvas format.
 - Future W3 root actions must allow adding/replacing a root background layer and
   inserting Scene Clips as full-screen scenes or as transformable cards over the
   root background.
