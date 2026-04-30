@@ -126,6 +126,60 @@ void main() {
     expect(clip.sourceDurationTime.inMilliseconds, 3000);
   });
 
+  test('keeps sequential scene-scope video layers on one media program track',
+      () {
+    final firstElement = videoElement(
+      id: 'first-element',
+      layerId: 'first-layer',
+      localRange: range(500, 2000),
+      sourceRange: range(0, 1500),
+    );
+    final secondElement = videoElement(
+      id: 'second-element',
+      layerId: 'second-layer',
+      localRange: range(2000, 3800),
+      sourceRange: range(0, 1800),
+    );
+    final session = const SceneScopeSessionResolver()
+        .open(
+          SceneScopeSessionRequest(
+            project: project(
+              sourceLayers: <MotionLayerModel>[
+                videoLayer(
+                  id: 'first-layer',
+                  visibleRange: range(500, 2000),
+                  element: firstElement,
+                ),
+                videoLayer(
+                  id: 'second-layer',
+                  visibleRange: range(2000, 3800),
+                  element: secondElement,
+                ),
+              ],
+            ),
+            rootTime: ms(2000),
+            sceneClipId: 'scene-clip',
+            sceneClips: <CompositionSceneClipModel>[
+              sceneClip(sourceInMs: 500, sourceOutMs: 3800, durationMs: 3300),
+            ],
+          ),
+        )
+        .session!;
+
+    final result = adapter.projectSceneScope(session);
+
+    expect(result.tracks, hasLength(1));
+    expect(result.tracks.single.kind, TimelineTrackKind.video);
+    final mediaClips = result.tracks.single.clips
+        .where((clip) => clip.type == TimelineClipType.media)
+        .toList(growable: false);
+    expect(mediaClips, hasLength(2));
+    expect(mediaClips.first.id, contains('first-layer'));
+    expect(mediaClips.first.durationTime.inMilliseconds, 1500);
+    expect(mediaClips.last.id, contains('second-layer'));
+    expect(mediaClips.last.durationTime.inMilliseconds, 1800);
+  });
+
   test('projects nested scene media back onto the root composition timeline',
       () {
     final result = adapter.projectRootComposition(

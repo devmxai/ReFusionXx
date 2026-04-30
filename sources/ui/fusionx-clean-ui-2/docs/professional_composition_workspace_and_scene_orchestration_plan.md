@@ -268,6 +268,11 @@ must not own a second clock.
 
 Scene Scope layer timing rules:
 
+- Scene Contents has one primary video storyline. Adding a normal Video Layer
+  appends it after the last video in that scene and displays all scene videos on
+  one video row. Additional free rows are for text, shape, image, audio, null,
+  adjustment, and future explicit `Video Overlay` layers, not for the default
+  main video sequence;
 - dragging a Scene Contents layer clip must be a direct horizontal layer move,
   not a hidden long-press-only action, and must write back to the source
   `MotionLayerModel.visibleRange`, child element timing, and related graph

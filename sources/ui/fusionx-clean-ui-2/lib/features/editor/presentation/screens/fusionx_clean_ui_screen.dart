@@ -5170,7 +5170,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   List<TimelineTrackData> _buildSceneScopeTracks(SceneScopeSession session) {
     final tracks = <TimelineTrackData>[];
     final localDuration = session.localRange.duration;
-    final orderedLayers = session.layers.asMap().entries.toList()
+    final orderedEntries = session.layers.asMap().entries.toList()
       ..sort((left, right) {
         final zIndexCompare = right.value.zIndex.compareTo(left.value.zIndex);
         if (zIndexCompare != 0) {
@@ -5178,8 +5178,82 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         }
         return right.key.compareTo(left.key);
       });
-    for (final entry in orderedLayers) {
+    final videoEntries = orderedEntries
+        .where((entry) => entry.value.kind == MotionLayerKind.video)
+        .toList(growable: false)
+      ..sort((left, right) {
+        final leftStart = left.value.visibleRange.start;
+        final rightStart = right.value.visibleRange.start;
+        final startCompare = leftStart.compareTo(rightStart);
+        if (startCompare != 0) {
+          return startCompare;
+        }
+        return left.key.compareTo(right.key);
+      });
+    if (videoEntries.isNotEmpty) {
+      final videoClips = <TimelineClipData>[];
+      var cursor = TimelineTime.zero;
+      for (final entry in videoEntries) {
+        final layer = entry.value;
+        final localStart =
+            (layer.visibleRange.start - session.sourceRange.start).clamp(
+          TimelineTime.zero,
+          localDuration,
+        );
+        final localEnd =
+            (layer.visibleRange.endExclusive - session.sourceRange.start).clamp(
+          TimelineTime.zero,
+          localDuration,
+        );
+        if (localEnd <= localStart) {
+          continue;
+        }
+        if (localStart > cursor) {
+          videoClips.add(
+            TimelineClipData(
+              id: 'scene_scope_video_gap_${videoClips.length}',
+              type: TimelineClipType.placeholder,
+              tone: TimelineClipTone.placeholder,
+              durationTime: localStart - cursor,
+              label: '',
+            ),
+          );
+        }
+        videoClips.add(
+          TimelineClipData(
+            id: layer.id,
+            type: TimelineClipType.placeholder,
+            tone: TimelineClipTone.aiGenerated,
+            durationTime: localEnd - localStart,
+            sourceStartTime: localStart,
+            sourceDurationTime: localEnd - localStart,
+            label: _sceneScopeLayerLabel(layer),
+            contentKind: TimelineClipContentKind.scene,
+            visualKind: TimelineVisualKind.video,
+            sourceSceneId: session.sourceSceneId,
+          ),
+        );
+        if (localEnd > cursor) {
+          cursor = localEnd;
+        }
+      }
+      if (videoClips.isNotEmpty) {
+        tracks.add(
+          TimelineTrackData(
+            kind: TimelineTrackKind.video,
+            contentKind: TimelineTrackContentKind.scene,
+            visualKind: TimelineVisualKind.video,
+            clips: videoClips,
+            placeholderLabel: 'Video',
+          ),
+        );
+      }
+    }
+    for (final entry in orderedEntries) {
       final layer = entry.value;
+      if (layer.kind == MotionLayerKind.video) {
+        continue;
+      }
       final localStart = (layer.visibleRange.start - session.sourceRange.start)
           .clamp(TimelineTime.zero, localDuration);
       final localEnd =
@@ -12148,13 +12222,33 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (duration <= TimelineTime.zero) {
       return fallbackRange;
     }
-    final localTime = sceneScope.rootToLocal(_visibleTimelinePlaybackTime());
-    final sourceStart = sceneScope.sourceRange.start +
-        localTime.clamp(TimelineTime.zero, sceneScope.localRange.duration);
+    final sourceStart = _nextVideoStorylineInsertionStart(sceneScope);
     return TimelineTimeRange(
       start: sourceStart,
       endExclusive: sourceStart + duration,
     );
+  }
+
+  TimelineTime _nextVideoStorylineInsertionStart(
+    SceneScopeSession sceneScope,
+  ) {
+    final project = _effectiveMotionProject;
+    for (final scene in project.scenes) {
+      if (scene.id != sceneScope.sourceSceneId) {
+        continue;
+      }
+      var appendTime = sceneScope.sourceRange.start;
+      for (final layer in scene.layers) {
+        if (!layer.isEnabled || layer.kind != MotionLayerKind.video) {
+          continue;
+        }
+        if (layer.visibleRange.endExclusive > appendTime) {
+          appendTime = layer.visibleRange.endExclusive;
+        }
+      }
+      return appendTime;
+    }
+    return sceneScope.sourceRange.start;
   }
 
   TimelineTime _sourceDurationToRootDuration(
