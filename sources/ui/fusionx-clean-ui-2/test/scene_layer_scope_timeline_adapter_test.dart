@@ -42,6 +42,13 @@ void main() {
       localRange: range(0, 3000),
       name: 'Hero Image',
     );
+    final videoElement = MotionElementModel(
+      id: 'video-element',
+      layerId: 'video-layer',
+      kind: MotionElementKind.videoClip,
+      localRange: range(0, 3000),
+      name: 'Hero Video',
+    );
     return MotionProjectModel(
       id: 'project',
       format: const MotionProjectFormat(
@@ -81,6 +88,14 @@ void main() {
               visibleRange: range(500, 3500),
               elements: <MotionElementModel>[imageElement],
               name: 'Image Layer',
+            ),
+            MotionLayerModel(
+              id: 'video-layer',
+              sceneId: 'source',
+              kind: MotionLayerKind.video,
+              visibleRange: range(500, 3500),
+              elements: <MotionElementModel>[videoElement],
+              name: 'Video Layer',
             ),
           ],
         ),
@@ -210,6 +225,27 @@ void main() {
     expect(viewModel.track.placeholderLabel, 'Image');
     expect(viewModel.track.clips.single.label, 'Image Layer');
     expect(viewModel.track.clips.single.visualKind, TimelineVisualKind.image);
+    expect(
+      viewModel.track.clips.single.contentKind,
+      TimelineClipContentKind.placeholder,
+    );
+  });
+
+  test('opens video layers as editable scope tracks', () {
+    final result = adapter.viewModelForLayer(
+      project: project(),
+      sceneSession: sceneSession(),
+      layerId: 'video-layer',
+    );
+
+    expect(result.hasIssues, isFalse);
+    final viewModel = result.viewModel!;
+    expect(viewModel.track.kind, TimelineTrackKind.video);
+    expect(viewModel.track.contentKind, TimelineTrackContentKind.video);
+    expect(viewModel.track.visualKind, TimelineVisualKind.video);
+    expect(viewModel.track.placeholderLabel, 'Video');
+    expect(viewModel.track.clips.single.label, 'Video Layer');
+    expect(viewModel.track.clips.single.visualKind, TimelineVisualKind.video);
     expect(
       viewModel.track.clips.single.contentKind,
       TimelineClipContentKind.placeholder,

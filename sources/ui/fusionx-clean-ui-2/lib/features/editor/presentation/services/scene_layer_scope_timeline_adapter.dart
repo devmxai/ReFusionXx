@@ -298,9 +298,9 @@ class SceneLayerScopeTimelineAdapter {
     return switch (kind) {
       MotionLayerKind.text ||
       MotionLayerKind.shape ||
-      MotionLayerKind.image =>
+      MotionLayerKind.image ||
+      MotionLayerKind.video =>
         true,
-      MotionLayerKind.video ||
       MotionLayerKind.audio ||
       MotionLayerKind.camera ||
       MotionLayerKind.effectControl =>

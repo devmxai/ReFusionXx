@@ -424,6 +424,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   ];
   static const List<AnimateBrowserItem> _scopedImageAnimateItems =
       _scopedLayerCoreAnimateItems;
+  static const List<AnimateBrowserItem> _scopedVideoAnimateItems =
+      _scopedLayerCoreAnimateItems;
   static const List<AnimateBrowserItem> _scopedShapeAnimateItems =
       <AnimateBrowserItem>[
     ..._scopedLayerCoreAnimateItems,
@@ -467,6 +469,23 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       category: 'FX',
       summary: 'Soften the selected image layer with keyframeable blur.',
       keywords: <String>['blur', 'gaussian', 'soften', 'focus', 'defocus'],
+    ),
+  ];
+  static const List<AnimateBrowserItem> _scopedVideoFxItems =
+      <AnimateBrowserItem>[
+    AnimateBrowserItem(
+      id: 'gaussian_blur',
+      label: 'Gaussian Blur',
+      category: 'FX',
+      summary: 'Soften the selected video layer with keyframeable blur.',
+      keywords: <String>[
+        'blur',
+        'gaussian',
+        'soften',
+        'focus',
+        'defocus',
+        'video',
+      ],
     ),
   ];
   static const List<AnimateBrowserItem> _scopedShapeFxItems =
@@ -5183,7 +5202,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       MotionLayerKind.text => _scopedTextAnimateItems,
       MotionLayerKind.image => _scopedImageAnimateItems,
       MotionLayerKind.shape => _scopedShapeAnimateItems,
-      MotionLayerKind.video ||
+      MotionLayerKind.video => _scopedVideoAnimateItems,
       MotionLayerKind.audio ||
       MotionLayerKind.camera ||
       MotionLayerKind.effectControl =>
@@ -5198,7 +5217,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       MotionLayerKind.text => _scopedTextFxItems,
       MotionLayerKind.image => _scopedImageFxItems,
       MotionLayerKind.shape => _scopedShapeFxItems,
-      MotionLayerKind.video ||
+      MotionLayerKind.video => _scopedVideoFxItems,
       MotionLayerKind.audio ||
       MotionLayerKind.camera ||
       MotionLayerKind.effectControl =>
@@ -5427,6 +5446,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           definition == MotionPropertyCatalog.letterSpacing;
     }
     if (elementKind == MotionElementKind.image) {
+      return isSharedVisual;
+    }
+    if (elementKind == MotionElementKind.videoClip) {
       return isSharedVisual;
     }
     if (elementKind == MotionElementKind.shape) {
@@ -12048,7 +12070,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return switch (context.track.kind) {
       TimelineTrackKind.text => _scopedTextAnimateItems,
       TimelineTrackKind.image => _scopedImageAnimateItems,
-      TimelineTrackKind.video ||
+      TimelineTrackKind.video => _scopedVideoAnimateItems,
       TimelineTrackKind.audio ||
       TimelineTrackKind.lipSync =>
         const <AnimateBrowserItem>[],
@@ -12061,7 +12083,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return switch (context.track.kind) {
       TimelineTrackKind.text => _scopedTextFxItems,
       TimelineTrackKind.image => _scopedImageFxItems,
-      TimelineTrackKind.video ||
+      TimelineTrackKind.video => _scopedVideoFxItems,
       TimelineTrackKind.audio ||
       TimelineTrackKind.lipSync =>
         const <AnimateBrowserItem>[],
