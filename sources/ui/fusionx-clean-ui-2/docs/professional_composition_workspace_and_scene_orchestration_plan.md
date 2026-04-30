@@ -645,6 +645,9 @@ Implementation status:
   source scene. Shape and Text remain direct bottom-dock commands, while
   Audio/Null/Adjustment remain visible planned dock commands and must not create
   fake UI-only layers.
+- Scene Contents media import now treats image and video gallery permissions as
+  type-specific access. Image permission must not satisfy video import, and
+  partial visual access is remembered per media tab after the user grants it.
 - Future W3 root actions must allow adding/replacing a root background layer and
   inserting Scene Clips as full-screen scenes or as transformable cards over the
   root background.

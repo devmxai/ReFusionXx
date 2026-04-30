@@ -31,6 +31,7 @@ class MainActivity: FlutterActivity() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var pendingMediaTab: String? = null
     private var pendingMediaResult: MethodChannel.Result? = null
+    private var pendingMediaHadVisualPermission = false
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -463,7 +464,7 @@ class MainActivity: FlutterActivity() {
         result: MethodChannel.Result,
     ) {
         val requiredPermissions = requiredMediaPermissions(tab)
-        if (requiredPermissions.isEmpty() || hasAnyPermission(requiredPermissions)) {
+        if (requiredPermissions.isEmpty() || hasMediaAccessFor(tab)) {
             loadDeviceMediaAsync(tab, offset, limit, result)
             return
         }
@@ -477,6 +478,9 @@ class MainActivity: FlutterActivity() {
         }
         pendingMediaTab = tab
         pendingMediaResult = result
+        pendingMediaHadVisualPermission =
+            Build.VERSION.SDK_INT >= 34 &&
+            hasPermission(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
         ActivityCompat.requestPermissions(
             this,
             requiredPermissions.toTypedArray(),
@@ -503,11 +507,33 @@ class MainActivity: FlutterActivity() {
             else -> listOf(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
 
-    private fun hasAnyPermission(permissions: List<String>): Boolean =
-        permissions.any { permission ->
+    private fun hasMediaAccessFor(tab: String): Boolean {
+        val mediaTypePermission = requiredMediaTypePermission(tab)
+        if (mediaTypePermission.isNullOrBlank()) {
+            return true
+        }
+        if (hasPermission(mediaTypePermission)) {
+            return true
+        }
+        if (Build.VERSION.SDK_INT < 34 || !hasPermission(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)) {
+            return false
+        }
+        return mediaPermissionPrefs().getBoolean("partial_access_$tab", false)
+    }
+
+    private fun requiredMediaTypePermission(tab: String): String? =
+        when {
+            Build.VERSION.SDK_INT >= 33 && tab == "image" -> Manifest.permission.READ_MEDIA_IMAGES
+            Build.VERSION.SDK_INT >= 33 -> Manifest.permission.READ_MEDIA_VIDEO
+            else -> Manifest.permission.READ_EXTERNAL_STORAGE
+        }
+
+    private fun hasPermission(permission: String): Boolean =
             ContextCompat.checkSelfPermission(this, permission) ==
                 PackageManager.PERMISSION_GRANTED
-        }
+
+    private fun mediaPermissionPrefs() =
+        getSharedPreferences("refusion_media_permissions", MODE_PRIVATE)
 
     override fun onRequestPermissionsResult(
         requestCode: Int,
@@ -520,9 +546,22 @@ class MainActivity: FlutterActivity() {
         }
         val result = pendingMediaResult ?: return
         val tab = pendingMediaTab ?: "video"
+        val hadVisualPermissionBeforeRequest = pendingMediaHadVisualPermission
         pendingMediaResult = null
         pendingMediaTab = null
-        if (grantResults.any { it == PackageManager.PERMISSION_GRANTED }) {
+        pendingMediaHadVisualPermission = false
+        val grantedPermissions = permissions.zip(grantResults.toTypedArray())
+            .filter { (_, grantResult) -> grantResult == PackageManager.PERMISSION_GRANTED }
+            .map { (permission, _) -> permission }
+        if (!hadVisualPermissionBeforeRequest &&
+            grantedPermissions.contains(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
+        ) {
+            mediaPermissionPrefs()
+                .edit()
+                .putBoolean("partial_access_$tab", true)
+                .apply()
+        }
+        if (hasMediaAccessFor(tab)) {
             loadDeviceMediaAsync(tab, 0, 24, result)
             return
         }
