@@ -47,6 +47,7 @@ import '../models/timeline_mock_models.dart';
 import '../models/timeline_time.dart';
 import '../services/composition_workspace_inspector_adapter.dart';
 import '../services/composition_workspace_outliner_adapter.dart';
+import '../services/composition_media_playback_projection_adapter.dart';
 import '../services/normal_transition_timeline_authoring_adapter.dart';
 import '../services/root_scene_clip_projection_adapter.dart';
 import '../services/scene_layer_scope_timeline_adapter.dart';
@@ -162,6 +163,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   static const CompositionWorkspaceInspectorAdapter
       _compositionWorkspaceInspectorAdapter =
       CompositionWorkspaceInspectorAdapter();
+  static const CompositionMediaPlaybackProjectionAdapter
+      _compositionMediaPlaybackProjectionAdapter =
+      CompositionMediaPlaybackProjectionAdapter();
   static const SceneScopeSessionResolver _sceneScopeSessionResolver =
       SceneScopeSessionResolver();
   static const SceneLayerScopeTimelineAdapter _sceneLayerScopeTimelineAdapter =
@@ -1551,6 +1555,78 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return null;
   }
 
+  bool _tracksHavePlayableVideo(List<TimelineTrackData> tracks) {
+    for (final track in tracks) {
+      if (track.kind != TimelineTrackKind.video) {
+        continue;
+      }
+      for (final clip in track.clips) {
+        if (clip.type == TimelineClipType.media &&
+            clip.assetId != null &&
+            clip.durationTime > TimelineTime.zero) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  bool _tracksHaveVisualMedia(List<TimelineTrackData> tracks) {
+    for (final track in tracks) {
+      if (track.kind != TimelineTrackKind.video &&
+          track.kind != TimelineTrackKind.image) {
+        continue;
+      }
+      for (final clip in track.clips) {
+        if (clip.type == TimelineClipType.media &&
+            clip.assetId != null &&
+            clip.durationTime > TimelineTime.zero) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  CompositionMediaPlaybackProjectionResult
+      _compositionMediaProjectionForCurrentScope() {
+    final sceneScope = _sceneScopeSession;
+    if (sceneScope != null) {
+      return _compositionMediaPlaybackProjectionAdapter.projectSceneScope(
+        sceneScope,
+      );
+    }
+    final project = _motionProject;
+    if (project == null || _sceneClips.isEmpty) {
+      return CompositionMediaPlaybackProjectionResult(
+        tracks: const <TimelineTrackData>[],
+      );
+    }
+    return _compositionMediaPlaybackProjectionAdapter.projectRootComposition(
+      project: project,
+      sceneClips: _sceneClips,
+    );
+  }
+
+  List<TimelineTrackData> _effectiveMediaPlaybackTracksFor(
+    List<TimelineTrackData> tracks,
+  ) {
+    final scopedProjection = _sceneScopeSession == null
+        ? null
+        : _compositionMediaProjectionForCurrentScope();
+    if (scopedProjection != null && scopedProjection.hasVisualMedia) {
+      return scopedProjection.tracks;
+    }
+    if (_tracksHaveVisualMedia(tracks)) {
+      return tracks;
+    }
+    final rootProjection = _compositionMediaProjectionForCurrentScope();
+    if (rootProjection.hasVisualMedia) {
+      return rootProjection.tracks;
+    }
+    return tracks;
+  }
+
   List<LiveScrubPreviewSourceDescriptor>
       _buildLiveScrubPreviewSourceDescriptors(
     List<TimelineTrackData> tracks,
@@ -1602,8 +1678,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   void _refreshLiveScrubPreviewSourceCatalog({
     List<TimelineTrackData>? tracks,
   }) {
-    final descriptors =
-        _buildLiveScrubPreviewSourceDescriptors(tracks ?? _tracks);
+    final descriptors = _buildLiveScrubPreviewSourceDescriptors(
+      _effectiveMediaPlaybackTracksFor(tracks ?? _tracks),
+    );
     _liveScrubPreviewSourceCatalog.replaceAll(descriptors);
   }
 
@@ -3364,7 +3441,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (previewAsset == null) {
       return false;
     }
-    return previewAsset.tab == EditorMediaTab.video;
+    if (previewAsset.tab != EditorMediaTab.video) {
+      return false;
+    }
+    return _tracksHavePlayableVideo(
+      _effectiveMediaPlaybackTracksFor(_tracks),
+    );
   }
 
   bool get _useNativeTimelineScrubInput =>
@@ -12656,6 +12738,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       );
       _markMotionAuthoringChanged();
     });
+    _refreshLiveScrubPreviewSourceCatalog();
+    if (resolvedAsset.tab == EditorMediaTab.video && _useNativePreview) {
+      unawaited(
+        _syncVideoTimelineTransport(
+          tracks: _tracks,
+          targetTime: _currentTime,
+        ),
+      );
+    }
     _showStageMessage('${resolvedAsset.tab.label} layer added.');
   }
 
@@ -15123,7 +15214,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required List<TimelineTrackData> tracks,
     required TimelineTime targetTime,
   }) async {
-    final videoTrackIndex = tracks.indexWhere(
+    final effectiveTracks = _effectiveMediaPlaybackTracksFor(tracks);
+    final videoTrackIndex = effectiveTracks.indexWhere(
       (track) => track.kind == TimelineTrackKind.video,
     );
     if (videoTrackIndex < 0) {
@@ -15133,7 +15225,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
     final segments = <Map<String, dynamic>>[];
     var totalDuration = TimelineTime.zero;
-    for (final clip in tracks[videoTrackIndex].clips) {
+    for (final clip in effectiveTracks[videoTrackIndex].clips) {
       final asset = _assetForId(clip.assetId);
       final sourceUri = asset?.sourceUri;
       if (asset == null || sourceUri == null || sourceUri.isEmpty) {

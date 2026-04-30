@@ -648,6 +648,11 @@ Implementation status:
 - Scene Contents media import now treats image and video gallery permissions as
   type-specific access. Image permission must not satisfy video import, and
   partial visual access is remembered per media tab after the user grants it.
+- Scene Contents media playback projection now adapts nested video/image layers
+  into real preview/scrub media tracks for the currently open Scene Scope and
+  for root Scene Clip playback. This preserves the root timeline as one Scene
+  Clip container while still giving the native preview and Live Scrub catalog a
+  truthful media segment list. Stage5/Live Scrub internals remain untouched.
 - Future W3 root actions must allow adding/replacing a root background layer and
   inserting Scene Clips as full-screen scenes or as transformable cards over the
   root background.
@@ -828,7 +833,9 @@ Current gaps for this plan:
   production outliner, canvas preview, inspector, or export yet,
 - Scene button does not fully separate create-new from modify-selected,
 - transition between Scene Clips is not yet a first-class workspace object,
-- preview/export parity for scene-only generated visual content is still gated.
+- preview/export parity for scene-only generated visual content is still gated,
+  with nested media preview/scrub projection now partially wired for manual
+  Scene Contents media layers.
 
 ## 13. Practical Rule
 
