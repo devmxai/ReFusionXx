@@ -54,6 +54,7 @@ import '../services/root_scene_clip_projection_adapter.dart';
 import '../services/scene_layer_scope_timeline_adapter.dart';
 import '../services/scene_scope_transition_preview_resolver.dart';
 import '../services/timeline_media_program_time_mapper.dart';
+import '../services/transition_boundary_frame_request.dart';
 import '../services/transition_unified_scope_bridge_entry_adapter.dart';
 import '../services/transition_unified_scope_entry_gate.dart';
 import '../services/transition_unified_scope_keyframe_adapter.dart';
@@ -551,7 +552,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   final Map<String, EditorAssetItem> _importedAssetsById =
       <String, EditorAssetItem>{};
   final Map<String, Uint8List> _previewThumbnailCache = <String, Uint8List>{};
+  final Map<String, Uint8List> _transitionBoundaryFrameCache =
+      <String, Uint8List>{};
   final Set<String> _motionImagePreviewRequestsInFlight = <String>{};
+  final Set<String> _transitionBoundaryFrameRequestsInFlight = <String>{};
+  final TransitionBoundaryFrameRequestResolver
+      _transitionBoundaryFrameRequestResolver =
+      const TransitionBoundaryFrameRequestResolver();
   final Map<EditorMediaTab, int> _assetOffsets = <EditorMediaTab, int>{};
   final Map<EditorMediaTab, bool> _assetHasMore = <EditorMediaTab, bool>{};
   final Set<EditorMediaTab> _assetPageRequestsInFlight = <EditorMediaTab>{};
@@ -2386,6 +2393,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
     if (invalidatePreviewThumbnail) {
       _previewThumbnailCache.remove(updatedAsset.id);
+      _transitionBoundaryFrameCache.removeWhere(
+        (key, _) => key.startsWith('${updatedAsset.id}:'),
+      );
       if (_previewThumbnailAssetId == updatedAsset.id) {
         _previewThumbnailResolvedAssetId = null;
         if (_previewThumbnailNotifier.value != null) {
@@ -20271,6 +20281,98 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         ),
       );
     }
+    _warmTransitionBoundaryFrame(
+      clip: state.leftClip.clip,
+      role: TransitionBoundaryFrameRole.outgoing,
+    );
+    _warmTransitionBoundaryFrame(
+      clip: state.rightClip.clip,
+      role: TransitionBoundaryFrameRole.incoming,
+    );
+  }
+
+  TransitionBoundaryFrameRequest? _transitionBoundaryFrameRequestForClip({
+    required TimelineClipData clip,
+    required TransitionBoundaryFrameRole role,
+  }) {
+    final assetId = clip.assetId;
+    if (assetId == null || assetId.isEmpty) {
+      return null;
+    }
+    final asset = _assetForId(assetId);
+    final sourceUri = asset?.sourceUri;
+    if (asset == null ||
+        asset.tab != EditorMediaTab.video ||
+        sourceUri == null ||
+        sourceUri.isEmpty) {
+      return null;
+    }
+    final target = _resolvePreviewFallbackTargetSizeForAspectRatio(
+      asset.aspectRatio,
+    );
+    return _transitionBoundaryFrameRequestResolver.resolve(
+      clip: clip,
+      sourceUri: sourceUri,
+      role: role,
+      frameDurationMs: (1000 / _timelineFps).round(),
+      targetWidth: target.width,
+      targetHeight: target.height,
+    );
+  }
+
+  void _warmTransitionBoundaryFrame({
+    required TimelineClipData clip,
+    required TransitionBoundaryFrameRole role,
+  }) {
+    final request = _transitionBoundaryFrameRequestForClip(
+      clip: clip,
+      role: role,
+    );
+    if (request == null ||
+        _transitionBoundaryFrameCache.containsKey(request.cacheKey) ||
+        _transitionBoundaryFrameRequestsInFlight.contains(request.cacheKey)) {
+      return;
+    }
+    _transitionBoundaryFrameRequestsInFlight.add(request.cacheKey);
+    unawaited(_loadTransitionBoundaryFrame(request));
+  }
+
+  Future<void> _loadTransitionBoundaryFrame(
+    TransitionBoundaryFrameRequest request,
+  ) async {
+    Uint8List? bytes;
+    try {
+      bytes = await _transportController.loadMediaFramePreview(
+        sourceUri: request.sourceUri,
+        positionMs: request.positionMs,
+        targetWidth: request.targetWidth,
+        targetHeight: request.targetHeight,
+      );
+    } catch (_) {
+      bytes = null;
+    } finally {
+      _transitionBoundaryFrameRequestsInFlight.remove(request.cacheKey);
+    }
+    if (!mounted || bytes == null || bytes.isEmpty) {
+      return;
+    }
+    _transitionBoundaryFrameCache[request.cacheKey] = bytes;
+    _motionImagePreviewRevisionNotifier.value =
+        _motionImagePreviewRevisionNotifier.value + 1;
+  }
+
+  Uint8List? _transitionBoundaryFrameBytesForClip({
+    required TimelineClipData clip,
+    required TransitionBoundaryFrameRole role,
+  }) {
+    final request = _transitionBoundaryFrameRequestForClip(
+      clip: clip,
+      role: role,
+    );
+    if (request == null) {
+      return null;
+    }
+    return _transitionBoundaryFrameCache[request.cacheKey];
   }
 
   void _warmTransitionFocusPreviewAssets(_TransitionFocusContext context) {
@@ -20519,12 +20621,22 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                       );
                 final outgoingTransitionBytes = activeTransition == null
                     ? null
-                    : _previewThumbnailBytesForClip(
-                        activeTransition.leftClip.clip);
+                    : _transitionBoundaryFrameBytesForClip(
+                          clip: activeTransition.leftClip.clip,
+                          role: TransitionBoundaryFrameRole.outgoing,
+                        ) ??
+                        _previewThumbnailBytesForClip(
+                          activeTransition.leftClip.clip,
+                        );
                 final incomingTransitionBytes = activeTransition == null
                     ? null
-                    : _previewThumbnailBytesForClip(
-                        activeTransition.rightClip.clip);
+                    : _transitionBoundaryFrameBytesForClip(
+                          clip: activeTransition.rightClip.clip,
+                          role: TransitionBoundaryFrameRole.incoming,
+                        ) ??
+                        _previewThumbnailBytesForClip(
+                          activeTransition.rightClip.clip,
+                        );
                 return Stack(
                   fit: StackFit.expand,
                   children: [

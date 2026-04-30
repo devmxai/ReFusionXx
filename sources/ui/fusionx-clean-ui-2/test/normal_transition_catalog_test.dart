@@ -44,7 +44,11 @@ void main() {
     final zoomInCamera = result.definitionById('zoom_in_camera');
     expect(zoomInCamera, isNotNull);
     expect(zoomInCamera!.category, NormalTransitionCategory.motion);
-    expect(zoomInCamera.defaultParameterValues['zoom'], 1.14);
+    expect(zoomInCamera.defaultDuration.inMilliseconds, 560);
+    expect(zoomInCamera.defaultParameterValues['outgoingBoostScale'], 1.95);
+    expect(zoomInCamera.defaultParameterValues['incomingStartScale'], 1.95);
+    expect(zoomInCamera.defaultParameterValues['motionBlurAmount'], 12.0);
+    expect(zoomInCamera.capabilities, contains('boundary-frames'));
     expect(
       zoomInCamera.channels.map((channel) => channel.property),
       <String>[

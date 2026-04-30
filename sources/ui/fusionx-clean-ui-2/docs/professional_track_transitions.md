@@ -582,6 +582,43 @@ Every transition implementation must be validated against:
 - enter scoped layer before and after transition
 - return from background and play over transition
 
+## 8.1 Zoom In Camera Baseline
+
+The `Zoom In Camera` preset is an After-Effects-inspired seam transition, not a
+simple card overlay.
+
+Current preview contract:
+
+- outgoing visual source must be the last visible boundary frame of clip A,
+  sampled near `clipA.sourceEnd - one frame`;
+- incoming visual source must be the first visible boundary frame of clip B,
+  sampled at `clipB.sourceStart`;
+- generic asset thumbnails are fallback only while boundary frames warm;
+- no Stage5 Live Scrub internals are touched for boundary-frame warmup;
+- scale velocity peaks at the seam, then resolves;
+- opacity handoff is centered around the seam and must not become a slow
+  cross-dissolve;
+- motion blur and a small deterministic impact shake are allowed in preview as
+  an approximation of AE Transform motion blur;
+- edge fill/overscan must prevent black or transparent gaps when blur/shake
+  exposes frame edges.
+
+Default preview recipe at 30fps:
+
+- duration: about 16 frames / 560ms;
+- outgoing scale: `1.0 -> 1.95`, accelerated into the seam;
+- incoming scale: `1.95 -> 1.0`, decelerated after the seam;
+- overlap handoff: roughly `42%..58%` of the transition window;
+- incoming lead: `12%` of the window before the seam;
+- blur peak: `12px`;
+- impact shake: `7px`;
+- bridge darkness: `12%`.
+
+Known gap:
+
+- this preview is still Flutter-side and export parity remains gated until the
+  export renderer consumes the same boundary-frame and transform recipe.
+
 ## 9. Stop Conditions
 
 Stop transition implementation immediately if:

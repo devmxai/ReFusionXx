@@ -14,6 +14,7 @@ void main() {
 
   Widget buildHarness({
     required TimelineTrackTransitionData transition,
+    Uint8List? outgoingBytes,
     Uint8List? incomingBytes,
     double progress = 0.35,
   }) {
@@ -23,6 +24,7 @@ void main() {
           child: TimelineTransitionPreviewOverlay(
             transition: transition,
             progress: progress,
+            outgoingThumbnailBytes: outgoingBytes,
             incomingThumbnailBytes: incomingBytes,
           ),
         ),
@@ -167,5 +169,35 @@ void main() {
     );
 
     expect(blackBoxOpacity(tester), closeTo(0.5, 0.01));
+  });
+
+  testWidgets('zoom in camera uses full-frame blurred camera layers',
+      (tester) async {
+    final transition = TimelineTrackTransitionData(
+      id: 'transition-zoom',
+      leftClipId: 'clip-a',
+      rightClipId: 'clip-b',
+      preset: TimelineTransitionPreset.zoomInCamera,
+      durationTime: TimelineTime.fromMilliseconds(560),
+      parameterValues: const <String, double>{
+        'outgoingBoostScale': 1.95,
+        'incomingStartScale': 1.95,
+        'motionBlurAmount': 12.0,
+        'shakeAmount': 7.0,
+      },
+    );
+
+    await tester.pumpWidget(
+      buildHarness(
+        transition: transition,
+        outgoingBytes: samplePngBytes,
+        incomingBytes: samplePngBytes,
+        progress: 0.5,
+      ),
+    );
+
+    expect(find.byType(ImageFiltered), findsWidgets);
+    expect(find.byType(ClipRRect), findsNothing);
+    expect(find.text('Preview warming'), findsNothing);
   });
 }

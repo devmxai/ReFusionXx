@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
-import 'dart:ui' show lerpDouble;
+import 'dart:ui' show ImageFilter, lerpDouble;
 
 import 'package:flutter/material.dart';
 
@@ -113,13 +113,17 @@ class TimelineTransitionPreviewOverlay extends StatelessWidget {
               outgoingThumbnailBytes: outgoingThumbnailBytes,
               incomingThumbnailBytes: incomingThumbnailBytes,
               incomingStartScale: transition
-                  .parameterValue('incomingStartScale', fallback: 1.18),
+                  .parameterValue('incomingStartScale', fallback: 1.95),
               outgoingBoostScale: transition
-                  .parameterValue('outgoingBoostScale', fallback: 1.05),
+                  .parameterValue('outgoingBoostScale', fallback: 1.95),
               entryDelay:
-                  transition.parameterValue('entryDelay', fallback: 0.18),
+                  transition.parameterValue('entryDelay', fallback: 0.12),
               bridgeDarkness:
-                  transition.parameterValue('bridgeDarkness', fallback: 0.22),
+                  transition.parameterValue('bridgeDarkness', fallback: 0.12),
+              motionBlurAmount:
+                  transition.parameterValue('motionBlurAmount', fallback: 12),
+              shakeAmount:
+                  transition.parameterValue('shakeAmount', fallback: 7),
             ),
         ],
       ),
@@ -348,6 +352,8 @@ class _ZoomInCameraTransitionLayer extends StatelessWidget {
     required this.outgoingBoostScale,
     required this.entryDelay,
     required this.bridgeDarkness,
+    required this.motionBlurAmount,
+    required this.shakeAmount,
   });
 
   final double progress;
@@ -357,34 +363,73 @@ class _ZoomInCameraTransitionLayer extends StatelessWidget {
   final double outgoingBoostScale;
   final double entryDelay;
   final double bridgeDarkness;
+  final double motionBlurAmount;
+  final double shakeAmount;
 
   @override
   Widget build(BuildContext context) {
-    final entryStart = entryDelay.clamp(0.0, 0.8);
-    final incomingProgress = progress <= entryStart
-        ? 0.0
-        : ((progress - entryStart) / math.max(0.001, 1 - entryStart))
-            .clamp(0.0, 1.0);
-    final outgoingMaskOpacity = (math.sin(progress * math.pi) * bridgeDarkness)
+    const seam = 0.5;
+    final incomingLead = entryDelay.clamp(0.0, 0.32).toDouble();
+    final incomingStart = (seam - incomingLead).clamp(0.0, seam).toDouble();
+    final outgoingPhase = (progress / seam).clamp(0.0, 1.0).toDouble();
+    final incomingPhase =
+        ((progress - incomingStart) / math.max(0.001, 1 - incomingStart))
+            .clamp(0.0, 1.0)
+            .toDouble();
+    final outgoingCurve = Curves.easeInCubic.transform(outgoingPhase);
+    final incomingCurve = Curves.easeOutCubic.transform(incomingPhase);
+    final handoffProgress =
+        ((progress - 0.42) / 0.16).clamp(0.0, 1.0).toDouble();
+    final impactPulse =
+        (1 - ((progress - seam).abs() / 0.24)).clamp(0.0, 1.0).toDouble();
+    final trailingPulse =
+        (1 - ((progress - 0.56).abs() / 0.32)).clamp(0.0, 1.0).toDouble();
+    final outgoingScale =
+        lerpDouble(1.0, outgoingBoostScale, outgoingCurve) ?? 1.0;
+    final incomingScale =
+        lerpDouble(incomingStartScale, 1.0, incomingCurve) ?? 1.0;
+    final outgoingOpacity = (1 - Curves.easeInOut.transform(handoffProgress))
         .clamp(0.0, 1.0)
         .toDouble();
-    final outgoingScale = lerpDouble(1.0, outgoingBoostScale, progress) ?? 1.0;
-    final incomingScale =
-        lerpDouble(incomingStartScale, 1.0, incomingProgress) ?? 1.0;
     final incomingOpacity =
-        Curves.easeOut.transform(incomingProgress).clamp(0.0, 1.0);
+        Curves.easeInOut.transform(handoffProgress).clamp(0.0, 1.0).toDouble();
+    final blurPeak = motionBlurAmount.clamp(0.0, 28.0).toDouble();
+    final outgoingBlur = blurPeak * impactPulse;
+    final incomingBlur = blurPeak * trailingPulse * (1 - incomingCurve * 0.72);
+    final shakePeak = shakeAmount.clamp(0.0, 24.0).toDouble();
+    final shakeDecay = progress < seam
+        ? impactPulse
+        : impactPulse * (1 - incomingCurve * 0.45);
+    final shakeX = math.sin(progress * math.pi * 22.0) * shakePeak * shakeDecay;
+    final shakeY =
+        math.cos(progress * math.pi * 17.0) * shakePeak * shakeDecay * 0.45;
+    final shakeRotation =
+        math.sin(progress * math.pi * 13.0) * 0.006 * shakeDecay;
+    final outgoingMaskOpacity =
+        (impactPulse * bridgeDarkness).clamp(0.0, 1.0).toDouble();
 
     return Stack(
       fit: StackFit.expand,
       children: [
         if (outgoingThumbnailBytes != null)
-          Transform.scale(
+          _CameraZoomFrame(
+            bytes: outgoingThumbnailBytes!,
             scale: outgoingScale,
-            child: Image.memory(
-              outgoingThumbnailBytes!,
-              fit: BoxFit.cover,
-              gaplessPlayback: true,
-            ),
+            opacity: outgoingOpacity,
+            blurSigma: outgoingBlur,
+            offset: Offset(shakeX, shakeY),
+            rotation: shakeRotation,
+            edgeFill: false,
+          ),
+        if (incomingThumbnailBytes != null)
+          _CameraZoomFrame(
+            bytes: incomingThumbnailBytes!,
+            scale: incomingScale,
+            opacity: incomingOpacity,
+            blurSigma: incomingBlur,
+            offset: Offset(-shakeX * 0.72, -shakeY * 0.72),
+            rotation: -shakeRotation * 0.82,
+            edgeFill: true,
           ),
         Positioned.fill(
           child: DecoratedBox(
@@ -402,34 +447,6 @@ class _ZoomInCameraTransitionLayer extends StatelessWidget {
             ),
           ),
         ),
-        if (incomingThumbnailBytes != null)
-          Opacity(
-            opacity: incomingOpacity,
-            child: Transform.scale(
-              scale: incomingScale,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black
-                          .withOpacity(0.18 + (incomingOpacity * 0.2)),
-                      blurRadius: 24,
-                      spreadRadius: 4,
-                    ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: Image.memory(
-                    incomingThumbnailBytes!,
-                    fit: BoxFit.cover,
-                    gaplessPlayback: true,
-                  ),
-                ),
-              ),
-            ),
-          ),
         Positioned.fill(
           child: DecoratedBox(
             decoration: BoxDecoration(
@@ -437,7 +454,7 @@ class _ZoomInCameraTransitionLayer extends StatelessWidget {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.white.withOpacity(progress * 0.035),
+                  Colors.white.withOpacity(impactPulse * 0.06),
                   Colors.transparent,
                   Colors.black.withOpacity(outgoingMaskOpacity * 0.52),
                 ],
@@ -468,6 +485,80 @@ class _ZoomInCameraTransitionLayer extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _CameraZoomFrame extends StatelessWidget {
+  const _CameraZoomFrame({
+    required this.bytes,
+    required this.scale,
+    required this.opacity,
+    required this.blurSigma,
+    required this.offset,
+    required this.rotation,
+    required this.edgeFill,
+  });
+
+  final Uint8List bytes;
+  final double scale;
+  final double opacity;
+  final double blurSigma;
+  final Offset offset;
+  final double rotation;
+  final bool edgeFill;
+
+  @override
+  Widget build(BuildContext context) {
+    if (opacity <= 0.001) {
+      return const SizedBox.shrink();
+    }
+    final frame = Transform.translate(
+      offset: offset,
+      child: Transform.rotate(
+        angle: rotation,
+        child: Transform.scale(
+          scale: scale,
+          child: ImageFiltered(
+            imageFilter: ImageFilter.blur(
+              sigmaX: blurSigma,
+              sigmaY: blurSigma,
+            ),
+            child: Image.memory(
+              bytes,
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    return Opacity(
+      opacity: opacity.clamp(0.0, 1.0).toDouble(),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (edgeFill)
+            Opacity(
+              opacity: (0.18 + (blurSigma / 48)).clamp(0.18, 0.52).toDouble(),
+              child: Transform.scale(
+                scale: 1.12,
+                child: ImageFiltered(
+                  imageFilter: ImageFilter.blur(
+                    sigmaX: math.max(10, blurSigma * 1.6),
+                    sigmaY: math.max(10, blurSigma * 1.6),
+                  ),
+                  child: Image.memory(
+                    bytes,
+                    fit: BoxFit.cover,
+                    gaplessPlayback: true,
+                  ),
+                ),
+              ),
+            ),
+          frame,
+        ],
+      ),
     );
   }
 }

@@ -193,15 +193,15 @@ class _TransitionInspectorBottomSheetState
                         label: 'Incoming Zoom',
                         child: _InspectorSliderRow(
                           valueLabel: _formatScale(
-                            _parameter('incomingStartScale', fallback: 1.18),
+                            _parameter('incomingStartScale', fallback: 1.95),
                           ),
                           slider: Slider(
-                            min: 1.02,
-                            max: 1.45,
+                            min: 1.18,
+                            max: 2.6,
                             value: _parameter(
                               'incomingStartScale',
-                              fallback: 1.18,
-                            ).clamp(1.02, 1.45),
+                              fallback: 1.95,
+                            ).clamp(1.18, 2.6),
                             onChanged: (value) => _updateParameter(
                               'incomingStartScale',
                               value,
@@ -213,30 +213,30 @@ class _TransitionInspectorBottomSheetState
                         label: 'Outgoing Push',
                         child: _InspectorSliderRow(
                           valueLabel: _formatScale(
-                            _parameter('outgoingBoostScale', fallback: 1.05),
+                            _parameter('outgoingBoostScale', fallback: 1.95),
                           ),
                           slider: Slider(
-                            min: 1.0,
-                            max: 1.25,
+                            min: 1.05,
+                            max: 2.6,
                             value: _parameter(
                               'outgoingBoostScale',
-                              fallback: 1.05,
-                            ).clamp(1.0, 1.25),
+                              fallback: 1.95,
+                            ).clamp(1.05, 2.6),
                             onChanged: (value) =>
                                 _updateParameter('outgoingBoostScale', value),
                           ),
                         ),
                       ),
                       _InspectorSection(
-                        label: 'Entry Delay',
+                        label: 'Incoming Overlap',
                         child: _InspectorSliderRow(
                           valueLabel: _formatPercent(
-                              _parameter('entryDelay', fallback: 0.18)),
+                              _parameter('entryDelay', fallback: 0.12)),
                           slider: Slider(
                             min: 0.0,
-                            max: 0.48,
-                            value: _parameter('entryDelay', fallback: 0.18)
-                                .clamp(0.0, 0.48),
+                            max: 0.32,
+                            value: _parameter('entryDelay', fallback: 0.12)
+                                .clamp(0.0, 0.32),
                             onChanged: (value) =>
                                 _updateParameter('entryDelay', value),
                           ),
@@ -246,17 +246,55 @@ class _TransitionInspectorBottomSheetState
                         label: 'Bridge Darkness',
                         child: _InspectorSliderRow(
                           valueLabel: _formatPercent(
-                            _parameter('bridgeDarkness', fallback: 0.22),
+                            _parameter('bridgeDarkness', fallback: 0.12),
                           ),
                           slider: Slider(
                             min: 0.0,
                             max: 0.65,
                             value: _parameter(
                               'bridgeDarkness',
-                              fallback: 0.22,
+                              fallback: 0.12,
                             ).clamp(0.0, 0.65),
                             onChanged: (value) =>
                                 _updateParameter('bridgeDarkness', value),
+                          ),
+                        ),
+                      ),
+                      _InspectorSection(
+                        label: 'Motion Blur',
+                        child: _InspectorSliderRow(
+                          valueLabel: _parameter(
+                            'motionBlurAmount',
+                            fallback: 12,
+                          ).toStringAsFixed(0),
+                          slider: Slider(
+                            min: 0,
+                            max: 28,
+                            value: _parameter(
+                              'motionBlurAmount',
+                              fallback: 12,
+                            ).clamp(0, 28),
+                            onChanged: (value) =>
+                                _updateParameter('motionBlurAmount', value),
+                          ),
+                        ),
+                      ),
+                      _InspectorSection(
+                        label: 'Impact Shake',
+                        child: _InspectorSliderRow(
+                          valueLabel: _parameter(
+                            'shakeAmount',
+                            fallback: 7,
+                          ).toStringAsFixed(0),
+                          slider: Slider(
+                            min: 0,
+                            max: 24,
+                            value: _parameter(
+                              'shakeAmount',
+                              fallback: 7,
+                            ).clamp(0, 24),
+                            onChanged: (value) =>
+                                _updateParameter('shakeAmount', value),
                           ),
                         ),
                       ),

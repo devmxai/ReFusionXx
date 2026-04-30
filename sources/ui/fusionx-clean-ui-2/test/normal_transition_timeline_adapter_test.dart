@@ -78,8 +78,8 @@ void main() {
       leftClipId: 'clip-a',
       rightClipId: 'clip-b',
       preset: TimelineTransitionPreset.zoomInCamera,
-      durationTime: TimelineTime.fromMilliseconds(840),
-      parameterValues: const <String, double>{'zoom': 1.24},
+      durationTime: TimelineTime.fromMilliseconds(560),
+      parameterValues: const <String, double>{'outgoingBoostScale': 2.1},
     );
 
     final fade = adapter.fromTimelineTransition(
@@ -99,7 +99,7 @@ void main() {
     expect(fade.instance!.channels, hasLength(2));
     expect(zoom.canAdapt, isTrue);
     expect(zoom.node!.definitionId, 'zoom_in_camera');
-    expect(zoom.node!.parameterValues['zoom'], 1.24);
+    expect(zoom.node!.parameterValues['outgoingBoostScale'], 2.1);
     expect(zoom.instance!.channels, hasLength(6));
   });
 

@@ -78,7 +78,7 @@ extension TimelineTransitionPresetPresentation on TimelineTransitionPreset {
         TimelineTime.fromMilliseconds(720),
       TimelineTransitionPreset.fadeBlack => TimelineTime.fromMilliseconds(540),
       TimelineTransitionPreset.zoomInCamera =>
-        TimelineTime.fromMilliseconds(620),
+        TimelineTime.fromMilliseconds(560),
       TimelineTransitionPreset.aiGenerated =>
         TimelineTime.fromMilliseconds(3000),
     };
@@ -94,10 +94,12 @@ extension TimelineTransitionPresetPresentation on TimelineTransitionPreset {
           'blackPeak': 0.94,
         },
       TimelineTransitionPreset.zoomInCamera => <String, double>{
-          'incomingStartScale': 1.18,
-          'outgoingBoostScale': 1.05,
-          'entryDelay': 0.18,
-          'bridgeDarkness': 0.22,
+          'incomingStartScale': 1.95,
+          'outgoingBoostScale': 1.95,
+          'entryDelay': 0.12,
+          'bridgeDarkness': 0.12,
+          'motionBlurAmount': 12.0,
+          'shakeAmount': 7.0,
         },
       TimelineTransitionPreset.aiGenerated => const <String, double>{},
     };
