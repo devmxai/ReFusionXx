@@ -2372,8 +2372,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   Future<void> _scheduleScrubFramePreparationForTimelineTracks(
     List<TimelineTrackData> tracks,
   ) async {
-    _refreshLiveScrubPreviewSourceCatalog(tracks: tracks);
-    final sources = _buildLiveScrubPreviewSourceDescriptors(tracks);
+    final effectiveTracks = _effectiveMediaPlaybackTracksFor(tracks);
+    _refreshLiveScrubPreviewSourceCatalog(tracks: effectiveTracks);
+    final sources = _buildLiveScrubPreviewSourceDescriptors(effectiveTracks);
     if (sources.isEmpty) {
       return;
     }
@@ -2426,8 +2427,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return true;
     }
     const readinessTimeoutsMs = <int>[450, 700, 950];
-    final positionMs =
-        targetTime.inMilliseconds < 0 ? 0 : targetTime.inMilliseconds;
+    final nativeTargetTime = _nativeTransportTimeForTimelineTime(
+      targetTime,
+    ).clamp(
+      TimelineTime.zero,
+      _nativeTransportDurationForCurrentScope(),
+    );
+    final positionMs = nativeTargetTime.inMilliseconds < 0
+        ? 0
+        : nativeTargetTime.inMilliseconds;
     for (var index = 0; index < readinessTimeoutsMs.length; index++) {
       final isReady = await _transportController.awaitTimelineScrubReady(
         positionMs: positionMs,
@@ -5400,6 +5408,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             )
             .session ??
         session;
+    final shouldCommitNativePreview = _compositionMediaPlaybackProjectionAdapter
+        .projectSceneScope(nextSceneScope)
+        .hasPlayableVideo;
 
     setState(() {
       _motionProject = nextProject;
@@ -5412,16 +5423,20 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _selectedClipId = layerId;
       _selectedTransitionId = null;
       _previewAssetId = _previewAssetIdForTimelineTime(_currentTime);
+      if (shouldCommitNativePreview) {
+        _isApplyingStructuralEdit = true;
+      }
       _markMotionAuthoringChanged();
     });
     _syncLayerScopeTimeNotifiers();
     _refreshLiveScrubPreviewSourceCatalog();
     _syncTimelineClockDuration();
-    if (_useNativePreview) {
+    if (shouldCommitNativePreview) {
       unawaited(
-        _syncVideoTimelineTransport(
+        _commitStructuralTimelineEdit(
           tracks: nextTracks,
           targetTime: _currentTime,
+          previewAssetId: _previewAssetId,
         ),
       );
     }
@@ -13604,6 +13619,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         sceneClips: nextSceneClips,
       ),
     );
+    final commitTargetTime = sceneScope.localToRoot(
+      insertionRange.start - sceneScope.sourceRange.start,
+    );
     _markAssetImported(
       resolvedAsset.id,
       preferredPreviewPositionMs: TimelineTime.zero.inMilliseconds,
@@ -13618,21 +13636,19 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _sceneLayerScopeLayerId = null;
       _previewAssetId = resolvedAsset.id;
       _activeTab = resolvedAsset.tab;
-      _setCurrentTime(
-        sceneScope.localToRoot(
-          insertionRange.start - sceneScope.sourceRange.start,
-        ),
-      );
+      if (resolvedAsset.tab == EditorMediaTab.video) {
+        _isApplyingStructuralEdit = true;
+      }
+      _setCurrentTime(commitTargetTime);
       _markMotionAuthoringChanged();
     });
     _refreshLiveScrubPreviewSourceCatalog();
     _syncTimelineClockDuration();
-    if (resolvedAsset.tab == EditorMediaTab.video && _useNativePreview) {
-      unawaited(
-        _syncVideoTimelineTransport(
-          tracks: nextTracks,
-          targetTime: _currentTime,
-        ),
+    if (resolvedAsset.tab == EditorMediaTab.video) {
+      await _commitStructuralTimelineEdit(
+        tracks: nextTracks,
+        targetTime: commitTargetTime,
+        previewAssetId: resolvedAsset.id,
       );
     }
     _showStageMessage('${resolvedAsset.tab.label} layer added.');

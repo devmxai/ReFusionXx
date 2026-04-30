@@ -174,9 +174,15 @@ void main() {
         .where((clip) => clip.type == TimelineClipType.media)
         .toList(growable: false);
     expect(mediaClips, hasLength(2));
-    expect(mediaClips.first.id, contains('first-layer'));
+    expect(
+      mediaClips.first.id,
+      'scene_scope_media_first-layer_first-element',
+    );
     expect(mediaClips.first.durationTime.inMilliseconds, 1500);
-    expect(mediaClips.last.id, contains('second-layer'));
+    expect(
+      mediaClips.last.id,
+      'scene_scope_media_second-layer_second-element',
+    );
     expect(mediaClips.last.durationTime.inMilliseconds, 1800);
   });
 

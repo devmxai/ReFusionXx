@@ -404,6 +404,8 @@ class CompositionMediaPlaybackProjectionAdapter {
     if (safeSourceDuration <= TimelineTime.zero) {
       return null;
     }
+    final coversSourceClip = intervalStart == sourceClip.timelineStart &&
+        intervalEnd == sourceClip.timelineEnd;
     return _ProjectedMediaClip(
       timelineStart: intervalStart,
       duration: duration,
@@ -412,7 +414,9 @@ class CompositionMediaPlaybackProjectionAdapter {
       zIndex: sourceClip.zIndex,
       order: sourceClip.order,
       clip: sourceClip.clip.copyWith(
-        id: '${sourceClip.clip.id}_visible_$index',
+        id: coversSourceClip
+            ? sourceClip.clip.id
+            : '${sourceClip.clip.id}_visible_$index',
         durationTime: duration,
         sourceStartTime: sourceStart,
         sourceDurationTime: safeSourceDuration,
