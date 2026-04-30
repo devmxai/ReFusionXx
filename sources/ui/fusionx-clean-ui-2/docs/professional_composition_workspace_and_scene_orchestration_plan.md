@@ -281,6 +281,16 @@ Scene Scope layer timing rules:
 - time hidden under a higher video layer remains real elapsed source time for
   the lower layer. When the lower layer becomes visible later, playback must
   continue from its true source offset instead of restarting from frame zero.
+- empty time is real time. If the playhead is on a gap before, between, or
+  after Scene Contents media layers, preview must be blank/transparent rather
+  than falling back to the previous, next, or first visual asset. Native preview
+  transport may use a compact media program internally, but the app must map
+  timeline time to media-program time only when the playhead is inside a real
+  media interval.
+- moving a Scene Contents layer may extend the source composition and owning
+  Scene Clip instance when the layer's end exceeds the current scene duration;
+  clamping a full-duration layer to start time zero is not acceptable because it
+  turns the visible timeline into a fake, immovable representation.
 
 ### 4.5 Unified Layer Scope
 

@@ -1180,11 +1180,12 @@ class _TimelinePanelState extends State<TimelinePanel>
     required TimelineClipData clip,
     required TimelineTime candidateStartTime,
   }) {
-    final maxStartTime =
-        (widget.timelineDurationTime - clip.durationTime).clamp(
-      TimelineTime.zero,
-      widget.timelineDurationTime,
-    );
+    final maxStartTime = clip.isSceneClip && widget.enableSceneClipTimeShift
+        ? widget.timelineDurationTime
+        : (widget.timelineDurationTime - clip.durationTime).clamp(
+            TimelineTime.zero,
+            widget.timelineDurationTime,
+          );
     final occupiedClips = _positionedMediaClipsForTrack(
       track,
       excludingClipId: clip.id,

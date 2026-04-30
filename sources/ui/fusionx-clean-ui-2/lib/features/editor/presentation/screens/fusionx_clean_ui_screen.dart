@@ -1558,6 +1558,20 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   EditorAssetItem? get _previewAsset {
+    final activeTimedAssetId = _activeVisualAssetIdForTracksAtTime(
+      _effectiveMediaPlaybackTracksFor(_timelineTruthTracks),
+      _currentTime,
+    );
+    if (activeTimedAssetId != null) {
+      final activeAsset = _assetForId(activeTimedAssetId);
+      if (activeAsset != null && activeAsset.isVisual) {
+        return activeAsset;
+      }
+    }
+    if (_compositionMediaProjectionForCurrentScope().hasVisualMedia) {
+      return null;
+    }
+
     final previewAsset = _assetForId(_previewAssetId);
     if (previewAsset != null && previewAsset.isVisual) {
       return previewAsset;
@@ -1612,30 +1626,162 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   TimelineTime _nativeTransportDurationForCurrentScope() {
-    final sceneScope = _sceneScopeSession;
-    if (sceneScope != null &&
-        _compositionMediaProjectionForCurrentScope().hasVisualMedia) {
-      return sceneScope.localRange.duration;
+    final mediaProgramDuration = _mediaProgramDurationForTracks(
+      _effectiveMediaPlaybackTracksFor(_timelineTruthTracks),
+    );
+    if (mediaProgramDuration > TimelineTime.zero) {
+      return mediaProgramDuration;
     }
     return _timelineDurationTime;
   }
 
   TimelineTime _nativeTransportTimeForTimelineTime(TimelineTime time) {
     final sceneScope = _sceneScopeSession;
-    if (sceneScope != null &&
-        _compositionMediaProjectionForCurrentScope().hasVisualMedia) {
-      return sceneScope.rootToLocal(time);
-    }
-    return time;
+    final localTime = sceneScope != null &&
+            _compositionMediaProjectionForCurrentScope().hasVisualMedia
+        ? sceneScope.rootToLocal(time)
+        : time;
+    return _mediaProgramTimeForTimelineTime(
+          _effectiveMediaPlaybackTracksFor(_timelineTruthTracks),
+          localTime,
+        ) ??
+        _nearestMediaProgramBoundaryForTimelineTime(
+          _effectiveMediaPlaybackTracksFor(_timelineTruthTracks),
+          localTime,
+        ) ??
+        localTime;
   }
 
   TimelineTime _timelineTimeForNativeTransportTime(TimelineTime time) {
     final sceneScope = _sceneScopeSession;
+    final localTime = _timelineTimeForMediaProgramTime(
+          _effectiveMediaPlaybackTracksFor(_timelineTruthTracks),
+          time,
+        ) ??
+        time;
     if (sceneScope != null &&
         _compositionMediaProjectionForCurrentScope().hasVisualMedia) {
-      return sceneScope.localToRoot(time);
+      return sceneScope.localToRoot(localTime);
     }
-    return time;
+    return localTime;
+  }
+
+  TimelineTrackData? _primaryVideoPlaybackTrackFor(
+    List<TimelineTrackData> tracks,
+  ) {
+    for (final track in tracks) {
+      if (track.kind == TimelineTrackKind.video) {
+        return track;
+      }
+    }
+    return null;
+  }
+
+  TimelineTime _mediaProgramDurationForTracks(List<TimelineTrackData> tracks) {
+    final track = _primaryVideoPlaybackTrackFor(tracks);
+    if (track == null) {
+      return TimelineTime.zero;
+    }
+    var duration = TimelineTime.zero;
+    for (final clip in track.clips) {
+      if (clip.type == TimelineClipType.media &&
+          clip.assetId != null &&
+          clip.durationTime > TimelineTime.zero) {
+        duration += clip.durationTime;
+      }
+    }
+    return duration;
+  }
+
+  TimelineTime? _mediaProgramTimeForTimelineTime(
+    List<TimelineTrackData> tracks,
+    TimelineTime timelineTime,
+  ) {
+    final track = _primaryVideoPlaybackTrackFor(tracks);
+    if (track == null) {
+      return null;
+    }
+    var timelineCursor = TimelineTime.zero;
+    var programCursor = TimelineTime.zero;
+    for (final clip in track.clips) {
+      final clipStartTime = timelineCursor;
+      final clipEndTime = clipStartTime + clip.durationTime;
+      final isMedia = clip.type == TimelineClipType.media &&
+          clip.assetId != null &&
+          clip.durationTime > TimelineTime.zero;
+      if (isMedia &&
+          timelineTime >= clipStartTime &&
+          timelineTime < clipEndTime) {
+        return programCursor + (timelineTime - clipStartTime);
+      }
+      if (isMedia) {
+        programCursor += clip.durationTime;
+      }
+      timelineCursor = clipEndTime;
+    }
+    return null;
+  }
+
+  TimelineTime? _nearestMediaProgramBoundaryForTimelineTime(
+    List<TimelineTrackData> tracks,
+    TimelineTime timelineTime,
+  ) {
+    final track = _primaryVideoPlaybackTrackFor(tracks);
+    if (track == null) {
+      return null;
+    }
+    var timelineCursor = TimelineTime.zero;
+    var programCursor = TimelineTime.zero;
+    var sawMedia = false;
+    for (final clip in track.clips) {
+      final clipEndTime = timelineCursor + clip.durationTime;
+      final isMedia = clip.type == TimelineClipType.media &&
+          clip.assetId != null &&
+          clip.durationTime > TimelineTime.zero;
+      if (timelineTime < clipEndTime) {
+        return programCursor;
+      }
+      if (isMedia) {
+        sawMedia = true;
+        programCursor += clip.durationTime;
+      }
+      timelineCursor = clipEndTime;
+    }
+    return sawMedia ? programCursor : null;
+  }
+
+  TimelineTime? _timelineTimeForMediaProgramTime(
+    List<TimelineTrackData> tracks,
+    TimelineTime programTime,
+  ) {
+    final track = _primaryVideoPlaybackTrackFor(tracks);
+    if (track == null) {
+      return null;
+    }
+    var timelineCursor = TimelineTime.zero;
+    var programCursor = TimelineTime.zero;
+    TimelineTime? lastMediaEndTime;
+    for (final clip in track.clips) {
+      final clipStartTime = timelineCursor;
+      final clipEndTime = clipStartTime + clip.durationTime;
+      final isMedia = clip.type == TimelineClipType.media &&
+          clip.assetId != null &&
+          clip.durationTime > TimelineTime.zero;
+      if (isMedia) {
+        final nextProgramCursor = programCursor + clip.durationTime;
+        if (programTime <= nextProgramCursor) {
+          return clipStartTime +
+              (programTime - programCursor).clamp(
+                TimelineTime.zero,
+                clip.durationTime,
+              );
+        }
+        programCursor = nextProgramCursor;
+        lastMediaEndTime = clipEndTime;
+      }
+      timelineCursor = clipEndTime;
+    }
+    return lastMediaEndTime;
   }
 
   CompositionMediaPlaybackProjectionResult
@@ -2552,7 +2698,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     String? preferredAssetId,
   }) {
     return _resolvedPreviewAssetIdForTracks(
-      _timelineTruthTracks,
+      _effectiveMediaPlaybackTracksFor(_timelineTruthTracks),
       preferredAssetId: preferredAssetId,
       preferredTimelineTime: targetTime,
     );
@@ -3706,7 +3852,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _timelineScrubHandoffTargetTime = clampedTime;
       return;
     }
-    _setCurrentTime(clampedTime);
+    final nextPreviewAssetId = _previewAssetIdForTimelineTime(clampedTime);
+    setState(() {
+      _previewAssetId = nextPreviewAssetId;
+      _setCurrentTime(clampedTime);
+    });
     if (_useNativePreview && !_isTimelineScrubbing) {
       unawaited(_seekPlaybackTo(clampedTime));
     }
@@ -5099,13 +5249,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (layerDuration <= TimelineTime.zero) {
       return;
     }
-    final maxLocalStart = (session.localRange.duration - layerDuration).clamp(
-      TimelineTime.zero,
-      session.localRange.duration,
-    );
     final safeLocalStart = requestedLocalStart.clamp(
       TimelineTime.zero,
-      maxLocalStart,
+      session.localRange.duration,
     );
     final nextVisibleRange = TimelineTimeRange(
       start: session.sourceRange.start + safeLocalStart,
@@ -5130,10 +5276,59 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
     final nextLayers = List<MotionLayerModel>.from(sourceScene.layers)
       ..[layerIndex] = nextLayer;
-    final nextScene = sourceScene.copyWith(layers: nextLayers);
+    var nextScene = sourceScene.copyWith(layers: nextLayers);
+    var nextSceneClips = _sceneClips;
+    final sceneClipIndex = nextSceneClips.indexWhere(
+      (clip) => clip.id == session.sceneClipId,
+    );
+    if (nextVisibleRange.endExclusive > nextScene.projectRange.endExclusive) {
+      nextScene = nextScene.copyWith(
+        projectRange: TimelineTimeRange(
+          start: nextScene.projectRange.start,
+          endExclusive: nextVisibleRange.endExclusive,
+        ),
+      );
+    }
+    if (sceneClipIndex >= 0) {
+      final sceneClip = nextSceneClips[sceneClipIndex];
+      if (nextVisibleRange.endExclusive > sceneClip.sourceOutTime) {
+        final nextSourceDuration =
+            nextVisibleRange.endExclusive - sceneClip.sourceInTime;
+        final nextRootDuration = _sourceDurationToRootDuration(
+          nextSourceDuration,
+          sceneClip.timeScale,
+        );
+        final durationDelta = nextRootDuration - sceneClip.durationTime;
+        final previousEndTime = sceneClip.endTime;
+        final updatedSceneClip = sceneClip.copyWith(
+          durationTime: nextRootDuration,
+          sourceOutTime: nextVisibleRange.endExclusive,
+        );
+        nextSceneClips = List<CompositionSceneClipModel>.unmodifiable(
+          nextSceneClips.map((candidate) {
+            if (candidate.id == sceneClip.id) {
+              return updatedSceneClip;
+            }
+            if (durationDelta > TimelineTime.zero &&
+                candidate.startTime >= previousEndTime) {
+              return candidate.copyWith(
+                startTime: candidate.startTime + durationDelta,
+              );
+            }
+            return candidate;
+          }),
+        );
+      }
+    }
     final nextScenes = List<MotionSceneModel>.from(project.scenes)
       ..[sceneIndex] = nextScene;
     final nextProject = project.copyWith(scenes: nextScenes);
+    final nextTracks = List<TimelineTrackData>.unmodifiable(
+      _rootSceneClipProjectionAdapter.mergeSceneTrack(
+        existingTracks: _tracks,
+        sceneClips: nextSceneClips,
+      ),
+    );
     final shiftedElementIds = <String>{
       for (final element in layer.elements) element.id,
     };
@@ -5158,7 +5353,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                 project: nextProject,
                 rootTime: currentRootTime,
                 sceneClipId: session.sceneClipId,
-                sceneClips: _sceneClips,
+                sceneClips: nextSceneClips,
                 channels: nextChannels,
               ),
             )
@@ -5167,12 +5362,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
     setState(() {
       _motionProject = nextProject;
+      _sceneClips = nextSceneClips;
+      _tracks = nextTracks;
       _manualMotionPropertyChannels =
           List<MotionPropertyChannelModel>.unmodifiable(nextChannels);
       _sceneScopeSession = nextSceneScope;
       _sceneLayerScopeLayerId = null;
       _selectedClipId = layerId;
       _selectedTransitionId = null;
+      _previewAssetId = _previewAssetIdForTimelineTime(_currentTime);
       _markMotionAuthoringChanged();
     });
     _syncLayerScopeTimeNotifiers();
@@ -5181,7 +5379,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (_useNativePreview) {
       unawaited(
         _syncVideoTimelineTransport(
-          tracks: _tracks,
+          tracks: nextTracks,
           targetTime: _currentTime,
         ),
       );
@@ -8806,7 +9004,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   _SelectedTimelineClipContext? _activePreviewVisualClipContextForTime(
     TimelineTime timelineTime,
   ) {
-    final tracks = _timelineTruthTracks;
+    final tracks = _effectiveMediaPlaybackTracksFor(_timelineTruthTracks);
     for (final kind in <TimelineTrackKind>[
       TimelineTrackKind.video,
       TimelineTrackKind.image,
@@ -8817,7 +9015,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           continue;
         }
         var cursor = TimelineTime.zero;
-        _SelectedTimelineClipContext? lastVisualContext;
         for (var clipIndex = 0; clipIndex < track.clips.length; clipIndex++) {
           final clip = track.clips[clipIndex];
           final clipStartTime = cursor;
@@ -8833,15 +9030,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
               clipStartTime: clipStartTime,
               clipEndTime: clipEndTime,
             );
-            if (timelineTime < clipEndTime) {
+            if (timelineTime >= clipStartTime && timelineTime < clipEndTime) {
               return context;
             }
-            lastVisualContext = context;
           }
           cursor = clipEndTime;
-        }
-        if (lastVisualContext != null) {
-          return lastVisualContext;
         }
       }
     }
@@ -16129,39 +16322,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     String? preferredAssetId,
     TimelineTime? preferredTimelineTime,
   }) {
-    String? nearestAssetIdForTime() {
-      if (preferredTimelineTime == null) {
-        return null;
-      }
-      for (final kind in <TimelineTrackKind>[
-        TimelineTrackKind.video,
-        TimelineTrackKind.image,
-      ]) {
-        for (final track in tracks.where((item) => item.kind == kind)) {
-          var cursor = TimelineTime.zero;
-          TimelineClipData? lastClip;
-          for (final clip in track.clips) {
-            final assetId = clip.assetId;
-            if (assetId == null || assetId.isEmpty) {
-              cursor += clip.durationTime;
-              continue;
-            }
-            final clipEndTime = cursor + clip.durationTime;
-            if (preferredTimelineTime < clipEndTime) {
-              return assetId;
-            }
-            lastClip = clip;
-            cursor = clipEndTime;
-          }
-          final lastAssetId = lastClip?.assetId;
-          if (lastAssetId != null && lastAssetId.isNotEmpty) {
-            return lastAssetId;
-          }
-        }
-      }
-      return null;
-    }
-
     final orderedVisualAssetIds = <String>[];
     for (final kind in <TimelineTrackKind>[
       TimelineTrackKind.video,
@@ -16177,14 +16337,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
     }
 
+    if (preferredTimelineTime != null) {
+      return _activeVisualAssetIdForTracksAtTime(
+        tracks,
+        preferredTimelineTime,
+      );
+    }
     if (preferredAssetId != null &&
         orderedVisualAssetIds.contains(preferredAssetId)) {
       return preferredAssetId;
-    }
-    final timelineAssetId = nearestAssetIdForTime();
-    if (timelineAssetId != null &&
-        orderedVisualAssetIds.contains(timelineAssetId)) {
-      return timelineAssetId;
     }
     if (_previewAssetId != null &&
         orderedVisualAssetIds.contains(_previewAssetId)) {
@@ -16194,6 +16355,34 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return null;
     }
     return orderedVisualAssetIds.first;
+  }
+
+  String? _activeVisualAssetIdForTracksAtTime(
+    List<TimelineTrackData> tracks,
+    TimelineTime timelineTime,
+  ) {
+    for (final kind in <TimelineTrackKind>[
+      TimelineTrackKind.video,
+      TimelineTrackKind.image,
+    ]) {
+      for (final track in tracks.where((item) => item.kind == kind)) {
+        var cursor = TimelineTime.zero;
+        for (final clip in track.clips) {
+          final clipStartTime = cursor;
+          final clipEndTime = clipStartTime + clip.durationTime;
+          final assetId = clip.assetId;
+          if (assetId != null &&
+              assetId.isNotEmpty &&
+              clip.type == TimelineClipType.media &&
+              timelineTime >= clipStartTime &&
+              timelineTime < clipEndTime) {
+            return assetId;
+          }
+          cursor = clipEndTime;
+        }
+      }
+    }
+    return null;
   }
 
   void _markAssetImported(
