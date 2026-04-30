@@ -268,12 +268,16 @@ must not own a second clock.
 
 Scene Scope layer timing rules:
 
-- dragging a Scene Contents layer clip must write back to the source
+- dragging a Scene Contents layer clip must be a direct horizontal layer move,
+  not a hidden long-press-only action, and must write back to the source
   `MotionLayerModel.visibleRange`, child element timing, and related graph
   channel/keyframe times;
 - moving a layer in Scene Scope must not create a detached visual-only clip;
 - overlapping video layers are composited by draw order (`zIndex`, then
   insertion order) when projected to preview playback;
+- Scene Contents rows must be ordered top-to-bottom by the same draw order used
+  for preview (`zIndex`, then insertion order), so the visually higher row is
+  the higher-priority layer;
 - time hidden under a higher video layer remains real elapsed source time for
   the lower layer. When the lower layer becomes visible later, playback must
   continue from its true source offset instead of restarting from frame zero.

@@ -695,6 +695,7 @@ class _TimelinePanelState extends State<TimelinePanel>
   bool _isDropSettling = false;
   Timer? _reorderExitTimer;
   double _manualPanAccumulatedDx = 0;
+  double _directClipTimeShiftDeltaDx = 0;
   _TimelineTrimDragSession? _trimDragSession;
   _TimelineClipMoveSession? _clipMoveSession;
   double? _lockedVerticalOffset;
@@ -3762,7 +3763,48 @@ class _TimelinePanelState extends State<TimelinePanel>
     _clearClipMoveMode(syncToTime: false);
   }
 
+  void _beginDirectClipTimeShift(
+    int trackIndex,
+    TimelineClipData clip,
+    DragStartDetails details,
+  ) {
+    if (!_supportsClipTimeShift(widget.tracks[trackIndex], clip)) {
+      return;
+    }
+    _directClipTimeShiftDeltaDx = 0;
+    _beginClipTimeShift(trackIndex, clip);
+  }
+
+  void _updateDirectClipTimeShift(
+    int trackIndex,
+    TimelineClipData clip,
+    DragUpdateDetails details,
+  ) {
+    if (!_supportsClipTimeShift(widget.tracks[trackIndex], clip)) {
+      return;
+    }
+    _directClipTimeShiftDeltaDx += details.primaryDelta ?? details.delta.dx;
+    _updateClipTimeShift(trackIndex, clip, _directClipTimeShiftDeltaDx);
+  }
+
+  void _finishDirectClipTimeShift(
+    int trackIndex,
+    TimelineClipData clip,
+  ) {
+    if (!_supportsClipTimeShift(widget.tracks[trackIndex], clip)) {
+      return;
+    }
+    _finishClipTimeShift(trackIndex, clip);
+    _directClipTimeShiftDeltaDx = 0;
+  }
+
+  void _cancelDirectClipTimeShift() {
+    _directClipTimeShiftDeltaDx = 0;
+    _clearClipMoveMode(syncToTime: false);
+  }
+
   void _clearClipMoveMode({bool syncToTime = true}) {
+    _directClipTimeShiftDeltaDx = 0;
     if (_clipMoveSession == null) {
       _releaseInteractionOwner(_TimelineInteractionOwner.move);
       _releaseLockedVerticalOffsetIfPossible();
@@ -4538,6 +4580,60 @@ class _TimelinePanelState extends State<TimelinePanel>
                                                                   return;
                                                                 }
                                                               },
+                                                              onClipHorizontalDragStart:
+                                                                  (clip,
+                                                                      details) {
+                                                                if (!_supportsClipTimeShift(
+                                                                  track,
+                                                                  clip,
+                                                                )) {
+                                                                  return;
+                                                                }
+                                                                _beginDirectClipTimeShift(
+                                                                  i,
+                                                                  clip,
+                                                                  details,
+                                                                );
+                                                              },
+                                                              onClipHorizontalDragUpdate:
+                                                                  (clip,
+                                                                      details) {
+                                                                if (!_supportsClipTimeShift(
+                                                                  track,
+                                                                  clip,
+                                                                )) {
+                                                                  return;
+                                                                }
+                                                                _updateDirectClipTimeShift(
+                                                                  i,
+                                                                  clip,
+                                                                  details,
+                                                                );
+                                                              },
+                                                              onClipHorizontalDragEnd:
+                                                                  (clip,
+                                                                      details) {
+                                                                if (!_supportsClipTimeShift(
+                                                                  track,
+                                                                  clip,
+                                                                )) {
+                                                                  return;
+                                                                }
+                                                                _finishDirectClipTimeShift(
+                                                                  i,
+                                                                  clip,
+                                                                );
+                                                              },
+                                                              onClipHorizontalDragCancel:
+                                                                  (clip) {
+                                                                if (!_supportsClipTimeShift(
+                                                                  track,
+                                                                  clip,
+                                                                )) {
+                                                                  return;
+                                                                }
+                                                                _cancelDirectClipTimeShift();
+                                                              },
                                                               onTrackAnimateTap:
                                                                   widget
                                                                       .onTrackAnimateTap,
@@ -4713,6 +4809,10 @@ class _TimelineTrackRow extends StatelessWidget {
     required this.onClipLongPressStart,
     required this.onClipLongPressMove,
     required this.onClipLongPressEnd,
+    required this.onClipHorizontalDragStart,
+    required this.onClipHorizontalDragUpdate,
+    required this.onClipHorizontalDragEnd,
+    required this.onClipHorizontalDragCancel,
     required this.onTrackAnimateTap,
     required this.onTrackFxTap,
     required this.onAnimationLaneTap,
@@ -4758,6 +4858,13 @@ class _TimelineTrackRow extends StatelessWidget {
   final void Function(TimelineClipData clip, double deltaDx)?
       onClipLongPressMove;
   final ValueChanged<TimelineClipData>? onClipLongPressEnd;
+  final void Function(TimelineClipData clip, DragStartDetails details)?
+      onClipHorizontalDragStart;
+  final void Function(TimelineClipData clip, DragUpdateDetails details)?
+      onClipHorizontalDragUpdate;
+  final void Function(TimelineClipData clip, DragEndDetails details)?
+      onClipHorizontalDragEnd;
+  final ValueChanged<TimelineClipData>? onClipHorizontalDragCancel;
   final ValueChanged<TimelineTrackData>? onTrackAnimateTap;
   final ValueChanged<TimelineTrackData>? onTrackFxTap;
   final ValueChanged<String>? onAnimationLaneTap;
@@ -4975,6 +5082,12 @@ class _TimelineTrackRow extends StatelessWidget {
               : trimGeometry.left;
       final trimTouchInset =
           showsTrimChrome ? _TimelineTrimChrome.handleTouchInset : 0.0;
+      final supportsDirectClipTimeShift = !showsTrimChrome &&
+          (clip.type == TimelineClipType.media || clip.isSceneClip) &&
+          onClipHorizontalDragStart != null &&
+          onClipHorizontalDragUpdate != null &&
+          onClipHorizontalDragEnd != null &&
+          onClipHorizontalDragCancel != null;
       if (!isGapPlaceholder && clip.type == TimelineClipType.media) {
         clipGeometryById[clip.id] = _TimelineAnimationClipGeometry(
           left: previewLeft,
@@ -4993,14 +5106,26 @@ class _TimelineTrackRow extends StatelessWidget {
                   onDoubleTap: _supportsScopedLayerDoubleTap(clip)
                       ? () => onClipDoubleTap!(clip)
                       : null,
-                  onHorizontalDragStart:
-                      enableBackgroundManualPan ? onManualPanDragStart : null,
-                  onHorizontalDragUpdate:
-                      enableBackgroundManualPan ? onManualPanDragUpdate : null,
-                  onHorizontalDragEnd:
-                      enableBackgroundManualPan ? onManualPanDragEnd : null,
-                  onHorizontalDragCancel:
-                      enableBackgroundManualPan ? onManualPanDragCancel : null,
+                  onHorizontalDragStart: supportsDirectClipTimeShift
+                      ? (details) => onClipHorizontalDragStart!(clip, details)
+                      : enableBackgroundManualPan
+                          ? onManualPanDragStart
+                          : null,
+                  onHorizontalDragUpdate: supportsDirectClipTimeShift
+                      ? (details) => onClipHorizontalDragUpdate!(clip, details)
+                      : enableBackgroundManualPan
+                          ? onManualPanDragUpdate
+                          : null,
+                  onHorizontalDragEnd: supportsDirectClipTimeShift
+                      ? (details) => onClipHorizontalDragEnd!(clip, details)
+                      : enableBackgroundManualPan
+                          ? onManualPanDragEnd
+                          : null,
+                  onHorizontalDragCancel: supportsDirectClipTimeShift
+                      ? () => onClipHorizontalDragCancel!(clip)
+                      : enableBackgroundManualPan
+                          ? onManualPanDragCancel
+                          : null,
                   onLongPressStart: onClipLongPressStart == null
                       ? null
                       : () => onClipLongPressStart!(clip),
@@ -5036,14 +5161,26 @@ class _TimelineTrackRow extends StatelessWidget {
                   onDoubleTap: _supportsScopedLayerDoubleTap(clip)
                       ? () => onClipDoubleTap!(clip)
                       : null,
-                  onHorizontalDragStart:
-                      enableBackgroundManualPan ? onManualPanDragStart : null,
-                  onHorizontalDragUpdate:
-                      enableBackgroundManualPan ? onManualPanDragUpdate : null,
-                  onHorizontalDragEnd:
-                      enableBackgroundManualPan ? onManualPanDragEnd : null,
-                  onHorizontalDragCancel:
-                      enableBackgroundManualPan ? onManualPanDragCancel : null,
+                  onHorizontalDragStart: supportsDirectClipTimeShift
+                      ? (details) => onClipHorizontalDragStart!(clip, details)
+                      : enableBackgroundManualPan
+                          ? onManualPanDragStart
+                          : null,
+                  onHorizontalDragUpdate: supportsDirectClipTimeShift
+                      ? (details) => onClipHorizontalDragUpdate!(clip, details)
+                      : enableBackgroundManualPan
+                          ? onManualPanDragUpdate
+                          : null,
+                  onHorizontalDragEnd: supportsDirectClipTimeShift
+                      ? (details) => onClipHorizontalDragEnd!(clip, details)
+                      : enableBackgroundManualPan
+                          ? onManualPanDragEnd
+                          : null,
+                  onHorizontalDragCancel: supportsDirectClipTimeShift
+                      ? () => onClipHorizontalDragCancel!(clip)
+                      : enableBackgroundManualPan
+                          ? onManualPanDragCancel
+                          : null,
                   height: clipHeight,
                   onLongPressStart:
                       showsTrimChrome || onClipLongPressStart == null

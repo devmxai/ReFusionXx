@@ -5020,7 +5020,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   List<TimelineTrackData> _buildSceneScopeTracks(SceneScopeSession session) {
     final tracks = <TimelineTrackData>[];
     final localDuration = session.localRange.duration;
-    for (final layer in session.layers) {
+    final orderedLayers = session.layers.asMap().entries.toList()
+      ..sort((left, right) {
+        final zIndexCompare = right.value.zIndex.compareTo(left.value.zIndex);
+        if (zIndexCompare != 0) {
+          return zIndexCompare;
+        }
+        return right.key.compareTo(left.key);
+      });
+    for (final entry in orderedLayers) {
+      final layer = entry.value;
       final localStart = (layer.visibleRange.start - session.sourceRange.start)
           .clamp(TimelineTime.zero, localDuration);
       final localEnd =
