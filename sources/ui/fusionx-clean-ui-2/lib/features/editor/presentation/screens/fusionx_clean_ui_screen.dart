@@ -12721,10 +12721,20 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           property: property,
         );
         return;
+      case CompositionWorkspaceInspectorTargetKind.layer:
+        await _handleLayerInspectorPropertyEdit(
+          layerId: model.targetId,
+          property: property,
+        );
+        return;
+      case CompositionWorkspaceInspectorTargetKind.element:
+        await _handleElementInspectorPropertyEdit(
+          elementId: model.targetId,
+          property: property,
+        );
+        return;
       case CompositionWorkspaceInspectorTargetKind.rootComposition:
       case CompositionWorkspaceInspectorTargetKind.sourceComposition:
-      case CompositionWorkspaceInspectorTargetKind.layer:
-      case CompositionWorkspaceInspectorTargetKind.element:
       case CompositionWorkspaceInspectorTargetKind.keyframe:
         _showStageMessage('Inspector write-back for this selection is next.');
         return;
@@ -12772,6 +12782,94 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
     final didUpdate = _updateSceneClipInstanceFromInspector(
       sceneClipId: sceneClipId,
+      propertyId: property.id,
+      value: nextValue,
+    );
+    if (didUpdate) {
+      _showStageMessage('${property.label} updated.');
+    }
+  }
+
+  Future<void> _handleLayerInspectorPropertyEdit({
+    required String layerId,
+    required CompositionWorkspaceInspectorProperty property,
+  }) async {
+    if (property.kind == CompositionWorkspaceInspectorPropertyKind.boolean) {
+      final currentValue =
+          property.value is bool ? property.value as bool : false;
+      final didUpdate = _updateLayerFromInspector(
+        layerId: layerId,
+        propertyId: property.id,
+        value: !currentValue,
+      );
+      if (didUpdate) {
+        _showStageMessage('${property.label} updated.');
+      }
+      return;
+    }
+    final numericValue = _numberFromInspectorProperty(property);
+    if (numericValue == null) {
+      _showStageMessage('This layer inspector value is not editable yet.');
+      return;
+    }
+    final nextValue = await showModalBottomSheet<double>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _CompositionInspectorNumberEditSheet(
+        property: property,
+        initialValue: numericValue,
+      ),
+    );
+    if (!mounted || nextValue == null) {
+      return;
+    }
+    final didUpdate = _updateLayerFromInspector(
+      layerId: layerId,
+      propertyId: property.id,
+      value: nextValue,
+    );
+    if (didUpdate) {
+      _showStageMessage('${property.label} updated.');
+    }
+  }
+
+  Future<void> _handleElementInspectorPropertyEdit({
+    required String elementId,
+    required CompositionWorkspaceInspectorProperty property,
+  }) async {
+    if (property.kind == CompositionWorkspaceInspectorPropertyKind.boolean) {
+      final currentValue =
+          property.value is bool ? property.value as bool : false;
+      final didUpdate = _updateElementFromInspector(
+        elementId: elementId,
+        propertyId: property.id,
+        value: !currentValue,
+      );
+      if (didUpdate) {
+        _showStageMessage('${property.label} updated.');
+      }
+      return;
+    }
+    final numericValue = _numberFromInspectorProperty(property);
+    if (numericValue == null) {
+      _showStageMessage('This element inspector value is not editable yet.');
+      return;
+    }
+    final nextValue = await showModalBottomSheet<double>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _CompositionInspectorNumberEditSheet(
+        property: property,
+        initialValue: numericValue,
+      ),
+    );
+    if (!mounted || nextValue == null) {
+      return;
+    }
+    final didUpdate = _updateElementFromInspector(
+      elementId: elementId,
       propertyId: property.id,
       value: nextValue,
     );
@@ -12906,6 +13004,280 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     });
     _syncTimelineClockDuration();
     return true;
+  }
+
+  bool _updateLayerFromInspector({
+    required String layerId,
+    required String propertyId,
+    required Object value,
+  }) {
+    final project = _effectiveMotionProject;
+    for (var sceneIndex = 0; sceneIndex < project.scenes.length; sceneIndex++) {
+      final scene = project.scenes[sceneIndex];
+      final layerIndex =
+          scene.layers.indexWhere((layer) => layer.id == layerId);
+      if (layerIndex < 0) {
+        continue;
+      }
+      final layer = scene.layers[layerIndex];
+      final updatedLayer = _layerWithInspectorValue(
+        scene: scene,
+        layer: layer,
+        propertyId: propertyId,
+        value: value,
+      );
+      if (updatedLayer == null) {
+        return false;
+      }
+      final nextLayers = List<MotionLayerModel>.from(scene.layers)
+        ..[layerIndex] = updatedLayer;
+      final nextScenes = List<MotionSceneModel>.from(project.scenes)
+        ..[sceneIndex] = scene.copyWith(layers: nextLayers);
+      final nextProject = project.copyWith(scenes: nextScenes);
+      setState(() {
+        _motionProject = nextProject;
+        _selectedClipId = layerId;
+        _markMotionAuthoringChanged();
+      });
+      _syncLayerScopeTimeNotifiers();
+      _syncTimelineClockDuration();
+      return true;
+    }
+    _showStageMessage('Layer was not found.');
+    return false;
+  }
+
+  MotionLayerModel? _layerWithInspectorValue({
+    required MotionSceneModel scene,
+    required MotionLayerModel layer,
+    required String propertyId,
+    required Object value,
+  }) {
+    switch (propertyId) {
+      case 'timing.startMs':
+        final start = _inspectorTimeFromValue(value);
+        if (start == null) {
+          return null;
+        }
+        final duration = layer.visibleRange.duration;
+        return layer.copyWith(
+          visibleRange: TimelineTimeRange(
+            start: start,
+            endExclusive: start + duration,
+          ),
+        );
+      case 'timing.durationMs':
+        final duration = _inspectorDurationFromValue(value);
+        if (duration == null) {
+          return null;
+        }
+        return layer.copyWith(
+          visibleRange: TimelineTimeRange(
+            start: layer.visibleRange.start,
+            endExclusive: layer.visibleRange.start + duration,
+          ),
+        );
+      case 'style.enabled':
+        return layer.copyWith(
+            isEnabled: value is bool ? value : layer.isEnabled);
+      case 'style.opacity':
+        final opacity = _inspectorOpacityFromValue(value);
+        if (opacity == null) {
+          return null;
+        }
+        return layer.copyWith(
+          properties: _upsertMotionPropertyAssignment(
+            assignments: layer.properties,
+            target: MotionPropertyTarget(
+              kind: MotionTargetKind.layer,
+              targetId: layer.id,
+              projectId: _effectiveMotionProject.id,
+              sceneId: scene.id,
+              layerId: layer.id,
+            ),
+            definition: MotionPropertyCatalog.opacity,
+            value: MotionPropertyValue.scalar(opacity),
+          ),
+        );
+      case 'drawOrder.zIndex':
+        final zIndex = _inspectorIntFromValue(value);
+        return zIndex == null ? null : layer.copyWith(zIndex: zIndex);
+      default:
+        _showStageMessage('Layer inspector edit for `$propertyId` is next.');
+        return null;
+    }
+  }
+
+  bool _updateElementFromInspector({
+    required String elementId,
+    required String propertyId,
+    required Object value,
+  }) {
+    final project = _effectiveMotionProject;
+    for (var sceneIndex = 0; sceneIndex < project.scenes.length; sceneIndex++) {
+      final scene = project.scenes[sceneIndex];
+      for (var layerIndex = 0; layerIndex < scene.layers.length; layerIndex++) {
+        final layer = scene.layers[layerIndex];
+        final elementIndex =
+            layer.elements.indexWhere((element) => element.id == elementId);
+        if (elementIndex < 0) {
+          continue;
+        }
+        final element = layer.elements[elementIndex];
+        final updatedElement = _elementWithInspectorValue(
+          scene: scene,
+          layer: layer,
+          element: element,
+          propertyId: propertyId,
+          value: value,
+        );
+        if (updatedElement == null) {
+          return false;
+        }
+        final nextElements = List<MotionElementModel>.from(layer.elements)
+          ..[elementIndex] = updatedElement;
+        final nextLayers = List<MotionLayerModel>.from(scene.layers)
+          ..[layerIndex] = layer.copyWith(elements: nextElements);
+        final nextScenes = List<MotionSceneModel>.from(project.scenes)
+          ..[sceneIndex] = scene.copyWith(layers: nextLayers);
+        final nextProject = project.copyWith(scenes: nextScenes);
+        setState(() {
+          _motionProject = nextProject;
+          _selectedClipId = layer.id;
+          _markMotionAuthoringChanged();
+        });
+        _syncLayerScopeTimeNotifiers();
+        _syncTimelineClockDuration();
+        return true;
+      }
+    }
+    _showStageMessage('Element was not found.');
+    return false;
+  }
+
+  MotionElementModel? _elementWithInspectorValue({
+    required MotionSceneModel scene,
+    required MotionLayerModel layer,
+    required MotionElementModel element,
+    required String propertyId,
+    required Object value,
+  }) {
+    switch (propertyId) {
+      case 'timing.startMs':
+        final start = _inspectorTimeFromValue(value);
+        if (start == null) {
+          return null;
+        }
+        final duration = element.localRange.duration;
+        return element.copyWith(
+          localRange: TimelineTimeRange(
+            start: start,
+            endExclusive: start + duration,
+          ),
+        );
+      case 'timing.durationMs':
+        final duration = _inspectorDurationFromValue(value);
+        if (duration == null) {
+          return null;
+        }
+        return element.copyWith(
+          localRange: TimelineTimeRange(
+            start: element.localRange.start,
+            endExclusive: element.localRange.start + duration,
+          ),
+        );
+      case 'style.enabled':
+        return element.copyWith(
+          isEnabled: value is bool ? value : element.isEnabled,
+        );
+      case 'style.opacity':
+        final opacity = _inspectorOpacityFromValue(value);
+        if (opacity == null) {
+          return null;
+        }
+        return element.copyWith(
+          properties: _upsertMotionPropertyAssignment(
+            assignments: element.properties,
+            target: MotionPropertyTarget(
+              kind: MotionTargetKind.element,
+              targetId: element.id,
+              projectId: _effectiveMotionProject.id,
+              sceneId: scene.id,
+              layerId: layer.id,
+              elementId: element.id,
+            ),
+            definition: MotionPropertyCatalog.opacity,
+            value: MotionPropertyValue.scalar(opacity),
+          ),
+        );
+      default:
+        _showStageMessage('Element inspector edit for `$propertyId` is next.');
+        return null;
+    }
+  }
+
+  TimelineTime? _inspectorTimeFromValue(Object value) {
+    final number = value is num ? value.toDouble() : null;
+    if (number == null || !number.isFinite || number < 0) {
+      _showStageMessage('Inspector time must be a non-negative number.');
+      return null;
+    }
+    return TimelineTime.fromMilliseconds(number.round());
+  }
+
+  TimelineTime? _inspectorDurationFromValue(Object value) {
+    final number = value is num ? value.toDouble() : null;
+    if (number == null || !number.isFinite || number <= 0) {
+      _showStageMessage('Inspector duration must be greater than zero.');
+      return null;
+    }
+    return TimelineTime.fromMilliseconds(number.round());
+  }
+
+  double? _inspectorOpacityFromValue(Object value) {
+    final number = value is num ? value.toDouble() : null;
+    if (number == null || !number.isFinite) {
+      _showStageMessage('Opacity must be a valid number.');
+      return null;
+    }
+    return number.clamp(0, 1).toDouble();
+  }
+
+  int? _inspectorIntFromValue(Object value) {
+    final number = value is num ? value.toDouble() : null;
+    if (number == null || !number.isFinite) {
+      _showStageMessage('Inspector value must be a valid number.');
+      return null;
+    }
+    return number.round();
+  }
+
+  List<MotionPropertyAssignment> _upsertMotionPropertyAssignment({
+    required List<MotionPropertyAssignment> assignments,
+    required MotionPropertyTarget target,
+    required MotionPropertyDefinition definition,
+    required MotionPropertyValue value,
+  }) {
+    final nextAssignments = List<MotionPropertyAssignment>.from(assignments);
+    final index = nextAssignments.indexWhere((assignment) {
+      return assignment.definition.id == definition.id &&
+          assignment.target.kind == target.kind &&
+          assignment.target.targetId == target.targetId &&
+          assignment.target.sceneId == target.sceneId &&
+          assignment.target.layerId == target.layerId &&
+          assignment.target.elementId == target.elementId;
+    });
+    final nextAssignment = MotionPropertyAssignment(
+      target: target,
+      definition: definition,
+      value: value,
+    );
+    if (index < 0) {
+      nextAssignments.add(nextAssignment);
+    } else {
+      nextAssignments[index] = nextAssignment;
+    }
+    return List<MotionPropertyAssignment>.unmodifiable(nextAssignments);
   }
 
   CompositionWorkspaceModel _compositionWorkspaceForOutliner() {
