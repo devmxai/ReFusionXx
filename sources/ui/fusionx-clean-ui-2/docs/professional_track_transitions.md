@@ -751,6 +751,14 @@ Current gate:
   is missing, the decoder path stays blocked with
   `native_video_source_uri_missing`; asset-id-only decode and generated proxy
   decode are explicitly forbidden.
+- Flutter now has `ProfessionalVideoTransitionRenderPlanAdapter` as the
+  production-facing source-bound plan builder. It accepts adjacent
+  `TimelineClipData` clips, the transition boundary, canvas size, and a
+  `sourceUri` resolver, then builds the strict outgoing/incoming
+  `ProfessionalVideoTransitionRenderPlan`. The adapter fails closed when either
+  side lacks a concrete URI, visible timeline handle, source handle, or explicit
+  source-rate support. Large editor screens must use this adapter instead of
+  hand-assembling compositor sources.
 - Flutter and Android now share `planFrameSamples` as the next compositor
   foundation. A valid render plan is parsed into the same strict native render
   session, then a requested transition timeline frame is converted into:
