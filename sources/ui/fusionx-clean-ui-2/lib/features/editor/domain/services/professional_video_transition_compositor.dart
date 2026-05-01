@@ -170,6 +170,12 @@ abstract class ProfessionalVideoTransitionCompositorClient
     required TimelineTime timelineTime,
   });
 
+  Future<ProfessionalVideoTransitionSurfaceRendererPlanResult>
+      planSurfaceRenderer({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  });
+
   Future<ProfessionalVideoTransitionOutputSurfacePlanResult> planOutputSurface({
     required ProfessionalVideoTransitionRenderPlan plan,
     required TimelineTime timelineTime,
@@ -503,6 +509,34 @@ class MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider
       );
     } on PlatformException catch (error) {
       return ProfessionalVideoTransitionRenderGraphExecutionPlanResult
+          .invalidRequest(
+        reason: error.message ?? error.code,
+      );
+    }
+  }
+
+  @override
+  Future<ProfessionalVideoTransitionSurfaceRendererPlanResult>
+      planSurfaceRenderer({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  }) async {
+    try {
+      final payload = plan.toPlatformMap();
+      payload['timelineTimeMs'] = timelineTime.inMilliseconds;
+      final rawResult = await _channel.invokeMapMethod<String, Object?>(
+        'planSurfaceRenderer',
+        payload,
+      );
+      return ProfessionalVideoTransitionSurfaceRendererPlanResultMapper.fromMap(
+          rawResult);
+    } on MissingPluginException {
+      return ProfessionalVideoTransitionSurfaceRendererPlanResult
+          .invalidRequest(
+        reason: 'native_compositor_channel_missing',
+      );
+    } on PlatformException catch (error) {
+      return ProfessionalVideoTransitionSurfaceRendererPlanResult
           .invalidRequest(
         reason: error.message ?? error.code,
       );
@@ -3095,6 +3129,234 @@ class ProfessionalVideoTransitionOutputSurfacePlanResultMapper {
       outputPassBound: _readBool(map['outputPassBound']),
       renderGraphOutputReady: _readBool(map['renderGraphOutputReady']),
       rendererImplemented: _readBool(map['rendererImplemented']),
+      blockedReasons: _readStringList(map['blockedReasons']),
+      issues: _readIssues(map['issues']),
+    );
+  }
+
+  static TimelineTime? _readTimelineTime(Object? value) {
+    if (value is num) {
+      return TimelineTime.fromMilliseconds(value.round());
+    }
+    final parsed = int.tryParse(value?.toString() ?? '');
+    if (parsed == null) {
+      return null;
+    }
+    return TimelineTime.fromMilliseconds(parsed);
+  }
+
+  static int _readInt(Object? value) {
+    if (value is num) {
+      return value.round();
+    }
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static bool _readBool(Object? value, {bool defaultValue = false}) {
+    if (value is bool) {
+      return value;
+    }
+    return defaultValue;
+  }
+
+  static List<String> _readStringList(Object? value) {
+    if (value is! List) {
+      return const <String>[];
+    }
+    return List<String>.unmodifiable(value.map((entry) => entry.toString()));
+  }
+
+  static List<Map<String, Object?>> _readIssues(Object? value) {
+    if (value is! List) {
+      return const <Map<String, Object?>>[];
+    }
+    return List<Map<String, Object?>>.unmodifiable(
+      value.whereType<Map>().map((issue) {
+        return <String, Object?>{
+          for (final entry in issue.entries) entry.key.toString(): entry.value,
+        };
+      }),
+    );
+  }
+}
+
+enum ProfessionalVideoTransitionSurfaceRendererPlanStatus {
+  planned,
+  invalidRequest,
+}
+
+@immutable
+class ProfessionalVideoTransitionSurfaceRendererPlanResult {
+  const ProfessionalVideoTransitionSurfaceRendererPlanResult({
+    required this.status,
+    required this.reason,
+    required this.rendererVersion,
+    required this.definitionId,
+    required this.renderSessionId,
+    required this.renderPassGraphId,
+    required this.renderGraphExecutorId,
+    required this.surfaceRendererId,
+    required this.outputSurfaceId,
+    required this.outputTarget,
+    required this.outputPassId,
+    required this.outputPassType,
+    required this.outputPassInputs,
+    required this.timelineTime,
+    required this.transitionStartTime,
+    required this.transitionEndTime,
+    required this.canvasWidth,
+    required this.canvasHeight,
+    required this.clipToCanvas,
+    required this.requiresNativeTexture,
+    required this.graphExecutorImplemented,
+    required this.graphOwnershipReady,
+    required this.surfaceRendererImplemented,
+    required this.rendererImplemented,
+    required this.outputSurfaceAttached,
+    required this.outputPassBound,
+    required this.renderGraphOutputReady,
+    required this.rendersRealPixels,
+    required this.drawsPixels,
+    required this.canRenderSurface,
+    required this.blockedReasons,
+    this.issues = const <Map<String, Object?>>[],
+  });
+
+  factory ProfessionalVideoTransitionSurfaceRendererPlanResult.invalidRequest({
+    required String reason,
+    String rendererVersion = 'unknown',
+    List<Map<String, Object?>> issues = const <Map<String, Object?>>[],
+  }) {
+    return ProfessionalVideoTransitionSurfaceRendererPlanResult(
+      status:
+          ProfessionalVideoTransitionSurfaceRendererPlanStatus.invalidRequest,
+      reason: reason,
+      rendererVersion: rendererVersion,
+      definitionId: '',
+      renderSessionId: '',
+      renderPassGraphId: '',
+      renderGraphExecutorId: '',
+      surfaceRendererId: '',
+      outputSurfaceId: '',
+      outputTarget: '',
+      outputPassId: '',
+      outputPassType: '',
+      outputPassInputs: const <String>[],
+      timelineTime: null,
+      transitionStartTime: null,
+      transitionEndTime: null,
+      canvasWidth: 0,
+      canvasHeight: 0,
+      clipToCanvas: true,
+      requiresNativeTexture: true,
+      graphExecutorImplemented: false,
+      graphOwnershipReady: false,
+      surfaceRendererImplemented: false,
+      rendererImplemented: false,
+      outputSurfaceAttached: false,
+      outputPassBound: false,
+      renderGraphOutputReady: false,
+      rendersRealPixels: false,
+      drawsPixels: false,
+      canRenderSurface: false,
+      blockedReasons: const <String>[],
+      issues: issues,
+    );
+  }
+
+  final ProfessionalVideoTransitionSurfaceRendererPlanStatus status;
+  final String reason;
+  final String rendererVersion;
+  final String definitionId;
+  final String renderSessionId;
+  final String renderPassGraphId;
+  final String renderGraphExecutorId;
+  final String surfaceRendererId;
+  final String outputSurfaceId;
+  final String outputTarget;
+  final String outputPassId;
+  final String outputPassType;
+  final List<String> outputPassInputs;
+  final TimelineTime? timelineTime;
+  final TimelineTime? transitionStartTime;
+  final TimelineTime? transitionEndTime;
+  final int canvasWidth;
+  final int canvasHeight;
+  final bool clipToCanvas;
+  final bool requiresNativeTexture;
+  final bool graphExecutorImplemented;
+  final bool graphOwnershipReady;
+  final bool surfaceRendererImplemented;
+  final bool rendererImplemented;
+  final bool outputSurfaceAttached;
+  final bool outputPassBound;
+  final bool renderGraphOutputReady;
+  final bool rendersRealPixels;
+  final bool drawsPixels;
+  final bool canRenderSurface;
+  final List<String> blockedReasons;
+  final List<Map<String, Object?>> issues;
+
+  bool get canPlan =>
+      status == ProfessionalVideoTransitionSurfaceRendererPlanStatus.planned;
+
+  bool get canAttachSurface =>
+      canPlan &&
+      graphExecutorImplemented &&
+      graphOwnershipReady &&
+      surfaceRendererImplemented &&
+      outputSurfaceAttached &&
+      outputPassBound;
+}
+
+class ProfessionalVideoTransitionSurfaceRendererPlanResultMapper {
+  const ProfessionalVideoTransitionSurfaceRendererPlanResultMapper._();
+
+  static ProfessionalVideoTransitionSurfaceRendererPlanResult fromMap(
+    Map<String, Object?>? map,
+  ) {
+    if (map == null) {
+      return ProfessionalVideoTransitionSurfaceRendererPlanResult
+          .invalidRequest(
+        reason: 'native_compositor_empty_surface_renderer_response',
+      );
+    }
+    final status = switch (map['status']?.toString()) {
+      'planned' => ProfessionalVideoTransitionSurfaceRendererPlanStatus.planned,
+      _ => ProfessionalVideoTransitionSurfaceRendererPlanStatus.invalidRequest,
+    };
+    return ProfessionalVideoTransitionSurfaceRendererPlanResult(
+      status: status,
+      reason: map['reason']?.toString() ?? '',
+      rendererVersion: map['rendererVersion']?.toString() ?? 'unknown',
+      definitionId: map['definitionId']?.toString() ?? '',
+      renderSessionId: map['renderSessionId']?.toString() ?? '',
+      renderPassGraphId: map['renderPassGraphId']?.toString() ?? '',
+      renderGraphExecutorId: map['renderGraphExecutorId']?.toString() ?? '',
+      surfaceRendererId: map['surfaceRendererId']?.toString() ?? '',
+      outputSurfaceId: map['outputSurfaceId']?.toString() ?? '',
+      outputTarget: map['outputTarget']?.toString() ?? '',
+      outputPassId: map['outputPassId']?.toString() ?? '',
+      outputPassType: map['outputPassType']?.toString() ?? '',
+      outputPassInputs: _readStringList(map['outputPassInputs']),
+      timelineTime: _readTimelineTime(map['timelineTimeMs']),
+      transitionStartTime: _readTimelineTime(map['transitionStartMs']),
+      transitionEndTime: _readTimelineTime(map['transitionEndMs']),
+      canvasWidth: _readInt(map['canvasWidth']),
+      canvasHeight: _readInt(map['canvasHeight']),
+      clipToCanvas: _readBool(map['clipToCanvas'], defaultValue: true),
+      requiresNativeTexture:
+          _readBool(map['requiresNativeTexture'], defaultValue: true),
+      graphExecutorImplemented: _readBool(map['graphExecutorImplemented']),
+      graphOwnershipReady: _readBool(map['graphOwnershipReady']),
+      surfaceRendererImplemented: _readBool(map['surfaceRendererImplemented']),
+      rendererImplemented: _readBool(map['rendererImplemented']),
+      outputSurfaceAttached: _readBool(map['outputSurfaceAttached']),
+      outputPassBound: _readBool(map['outputPassBound']),
+      renderGraphOutputReady: _readBool(map['renderGraphOutputReady']),
+      rendersRealPixels: _readBool(map['rendersRealPixels']),
+      drawsPixels: _readBool(map['drawsPixels']),
+      canRenderSurface: _readBool(map['canRenderSurface']),
       blockedReasons: _readStringList(map['blockedReasons']),
       issues: _readIssues(map['issues']),
     );

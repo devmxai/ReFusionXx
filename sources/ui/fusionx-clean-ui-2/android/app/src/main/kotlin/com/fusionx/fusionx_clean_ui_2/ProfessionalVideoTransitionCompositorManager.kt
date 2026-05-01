@@ -473,6 +473,48 @@ class ProfessionalVideoTransitionCompositorManager(
         )
     }
 
+    fun planSurfaceRenderer(
+        plan: Map<String, Any?>?,
+        timelineTimeMs: Long?,
+    ): Map<String, Any> {
+        val missingFields = requiredRenderPlanFields.filter { field ->
+            !hasRequiredField(plan, field)
+        }
+        if (missingFields.isNotEmpty()) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_required_video_transition_render_plan_fields",
+                "rendererVersion" to "foundation",
+                "missingFields" to missingFields,
+            )
+        }
+        if (timelineTimeMs == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_timeline_time_for_video_transition_surface_renderer",
+                "rendererVersion" to "foundation",
+            )
+        }
+        val definitionId = plan?.get("definitionId")?.toString() ?: ""
+        val sessionResult = ProfessionalVideoTransitionRenderSession.fromPlan(plan)
+        if (sessionResult.session == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "invalid_video_transition_render_session",
+                "rendererVersion" to "foundation",
+                "definitionId" to definitionId,
+                "issues" to sessionResult.issues,
+            )
+        }
+        return sessionResult.session.planSurfaceRenderer(
+            timelineTimeMs = timelineTimeMs,
+            motionBlurPolicy = plan?.get("motionBlurPolicy") as? Map<*, *>,
+            edgePolicy = plan?.get("edgePolicy") as? Map<*, *>,
+            parameters = plan?.get("parameters") as? Map<*, *>,
+            appContext = appContext,
+        )
+    }
+
     fun planParityOutputs(
         plan: Map<String, Any?>?,
         timelineTimeMs: Long?,
@@ -1860,6 +1902,97 @@ private data class ProfessionalVideoTransitionRenderSession(
                 "outputPassBound" to outputPassBound,
                 "renderGraphOutputReady" to (outputPassBound && upstreamBlockedReasons.isEmpty()),
                 "rendererImplemented" to rendererImplemented,
+                "blockedReasons" to blockedReasons,
+            )
+    }
+
+    fun planSurfaceRenderer(
+        timelineTimeMs: Long,
+        motionBlurPolicy: Map<*, *>?,
+        edgePolicy: Map<*, *>?,
+        parameters: Map<*, *>?,
+        appContext: Context,
+    ): Map<String, Any> {
+        val executionPlan =
+            planRenderGraphExecution(
+                timelineTimeMs = timelineTimeMs,
+                motionBlurPolicy = motionBlurPolicy,
+                edgePolicy = edgePolicy,
+                parameters = parameters,
+                appContext = appContext,
+            )
+        if (executionPlan["status"] != "planned") {
+            return executionPlan
+        }
+        val surfacePlan =
+            planOutputSurface(
+                timelineTimeMs = timelineTimeMs,
+                motionBlurPolicy = motionBlurPolicy,
+                edgePolicy = edgePolicy,
+                parameters = parameters,
+                appContext = appContext,
+            )
+        if (surfacePlan["status"] != "planned") {
+            return surfacePlan
+        }
+        val graphExecutorImplemented = executionPlan["graphExecutorImplemented"] == true
+        val graphOwnershipReady = executionPlan["graphOwnershipReady"] == true
+        val outputPassBound = surfacePlan["outputPassBound"] == true
+        val renderGraphOutputReady = surfacePlan["renderGraphOutputReady"] == true
+        val outputSurfaceId = surfacePlan["outputSurfaceId"]?.toString() ?: ""
+        val outputTarget = surfacePlan["outputTarget"]?.toString() ?: ""
+        val outputSurfaceAttached =
+            graphExecutorImplemented &&
+                graphOwnershipReady &&
+                outputPassBound &&
+                outputSurfaceId.isNotBlank() &&
+                outputTarget == "nativeTransitionCanvasSurface"
+        val surfaceRendererImplemented = true
+        val rendererImplemented = false
+        val upstreamBlockedReasons =
+            (
+                (executionPlan["blockedReasons"] as? List<*>)?.map { reason ->
+                    reason.toString()
+                } ?: emptyList()
+                ) +
+                (
+                    (surfacePlan["blockedReasons"] as? List<*>)?.map { reason ->
+                        reason.toString()
+                    } ?: emptyList()
+                    )
+        val blockedReasons =
+            buildList {
+                addAll(upstreamBlockedReasons)
+                if (!outputSurfaceAttached) {
+                    add("native_transition_surface_renderer_output_not_attached")
+                }
+                if (!surfaceRendererImplemented) {
+                    add("native_transition_surface_renderer_missing")
+                }
+                if (!rendererImplemented) {
+                    add("native_transition_surface_renderer_pixels_missing")
+                }
+            }.distinct()
+        return surfacePlan +
+            mapOf(
+                "renderGraphExecutorId" to
+                    (executionPlan["renderGraphExecutorId"]?.toString() ?: ""),
+                "surfaceRendererId" to "$id:surface-renderer:$timelineTimeMs",
+                "graphExecutorImplemented" to graphExecutorImplemented,
+                "graphOwnershipReady" to graphOwnershipReady,
+                "surfaceRendererImplemented" to surfaceRendererImplemented,
+                "rendererImplemented" to rendererImplemented,
+                "outputSurfaceAttached" to outputSurfaceAttached,
+                "outputPassBound" to outputPassBound,
+                "renderGraphOutputReady" to renderGraphOutputReady,
+                "rendersRealPixels" to false,
+                "drawsPixels" to false,
+                "canRenderSurface" to
+                    (surfaceRendererImplemented &&
+                        rendererImplemented &&
+                        outputSurfaceAttached &&
+                        renderGraphOutputReady &&
+                        blockedReasons.isEmpty()),
                 "blockedReasons" to blockedReasons,
             )
     }

@@ -904,6 +904,15 @@ Current gate:
   `outputPassBound`, and `renderGraphOutputReady`; if the output pass is absent,
   it blocks with `native_transition_output_pass_missing`. The stage still
   remains blocked while `rendererImplemented=false`.
+- Flutter and Android now also share `planSurfaceRenderer`. This is the native
+  surface-renderer skeleton between output-surface binding and parity outputs.
+  It proves that the graph executor, the canvas-clipped native transition
+  surface, and the final `composeToTransitionSurface` pass are attached to one
+  render contract. It still deliberately reports `rendererImplemented=false`,
+  `rendersRealPixels=false`, and `drawsPixels=false`; the readiness blocker is
+  `native_transition_surface_renderer_pixels_missing` until a concrete native
+  renderer emits real pixels. An attached surface is not enough to expose a
+  preset.
 - Flutter and Android now also share `planParityOutputs`. This is the parity
   contract that prevents "works in preview but not in scrub/playback" drift.
   Preview, Live Scrub, and playback must all point at the same native

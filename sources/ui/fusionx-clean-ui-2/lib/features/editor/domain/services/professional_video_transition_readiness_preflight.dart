@@ -16,6 +16,7 @@ enum ProfessionalVideoTransitionReadinessStageId {
   renderPassGraph,
   renderGraphExecution,
   outputSurface,
+  surfaceRenderer,
   parityOutputs,
 }
 
@@ -150,6 +151,12 @@ class ProfessionalVideoTransitionReadinessPreflight {
       timelineTime: timelineTime,
     );
     stages.add(_outputSurfaceStage(outputSurface));
+
+    final surfaceRenderer = await _client.planSurfaceRenderer(
+      plan: plan,
+      timelineTime: timelineTime,
+    );
+    stages.add(_surfaceRendererStage(surfaceRenderer));
 
     final parityOutputs = await _client.planParityOutputs(
       plan: plan,
@@ -378,6 +385,24 @@ class ProfessionalVideoTransitionReadinessPreflight {
         blockedReasons: result.blockedReasons,
         issues: result.issues,
         includeReason: !result.canExecuteGraph,
+      ),
+      issues: result.issues,
+    );
+  }
+
+  static ProfessionalVideoTransitionReadinessStage _surfaceRendererStage(
+    ProfessionalVideoTransitionSurfaceRendererPlanResult result,
+  ) {
+    return ProfessionalVideoTransitionReadinessStage(
+      id: ProfessionalVideoTransitionReadinessStageId.surfaceRenderer,
+      label: 'Native surface renderer',
+      canPlan: result.canPlan,
+      canAdvance: result.canRenderSurface,
+      blockers: _blockers(
+        reason: result.reason,
+        blockedReasons: result.blockedReasons,
+        issues: result.issues,
+        includeReason: !result.canRenderSurface,
       ),
       issues: result.issues,
     );
