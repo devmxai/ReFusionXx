@@ -2889,6 +2889,11 @@ class ProfessionalVideoTransitionParityOutput {
     required this.mode,
     required this.outputSurfaceId,
     required this.outputTarget,
+    required this.outputPassId,
+    required this.outputPassType,
+    required this.outputPassInputs,
+    required this.outputPassBound,
+    required this.renderGraphOutputReady,
     required this.rendererImplemented,
     required this.canRender,
     required this.blockedReasons,
@@ -2897,6 +2902,11 @@ class ProfessionalVideoTransitionParityOutput {
   final String mode;
   final String outputSurfaceId;
   final String outputTarget;
+  final String outputPassId;
+  final String outputPassType;
+  final List<String> outputPassInputs;
+  final bool outputPassBound;
+  final bool renderGraphOutputReady;
   final bool rendererImplemented;
   final bool canRender;
   final List<String> blockedReasons;
@@ -2912,6 +2922,12 @@ class ProfessionalVideoTransitionParityPlanResult {
     required this.renderSessionId,
     required this.renderPassGraphId,
     required this.outputSurfaceId,
+    required this.renderPassCount,
+    required this.outputPassId,
+    required this.outputPassType,
+    required this.outputPassInputs,
+    required this.outputPassBound,
+    required this.renderGraphOutputReady,
     required this.timelineTime,
     required this.transitionStartTime,
     required this.transitionEndTime,
@@ -2936,6 +2952,12 @@ class ProfessionalVideoTransitionParityPlanResult {
       renderSessionId: '',
       renderPassGraphId: '',
       outputSurfaceId: '',
+      renderPassCount: 0,
+      outputPassId: '',
+      outputPassType: '',
+      outputPassInputs: const <String>[],
+      outputPassBound: false,
+      renderGraphOutputReady: false,
       timelineTime: null,
       transitionStartTime: null,
       transitionEndTime: null,
@@ -2955,6 +2977,12 @@ class ProfessionalVideoTransitionParityPlanResult {
   final String renderSessionId;
   final String renderPassGraphId;
   final String outputSurfaceId;
+  final int renderPassCount;
+  final String outputPassId;
+  final String outputPassType;
+  final List<String> outputPassInputs;
+  final bool outputPassBound;
+  final bool renderGraphOutputReady;
   final TimelineTime? timelineTime;
   final TimelineTime? transitionStartTime;
   final TimelineTime? transitionEndTime;
@@ -2973,6 +3001,8 @@ class ProfessionalVideoTransitionParityPlanResult {
       rendererImplemented &&
       sameOutputContractForAllModes &&
       allModesRenderable &&
+      outputPassBound &&
+      renderGraphOutputReady &&
       blockedReasons.isEmpty;
 }
 
@@ -2999,6 +3029,12 @@ class ProfessionalVideoTransitionParityPlanResultMapper {
       renderSessionId: map['renderSessionId']?.toString() ?? '',
       renderPassGraphId: map['renderPassGraphId']?.toString() ?? '',
       outputSurfaceId: map['outputSurfaceId']?.toString() ?? '',
+      renderPassCount: _readInt(map['renderPassCount']),
+      outputPassId: map['outputPassId']?.toString() ?? '',
+      outputPassType: map['outputPassType']?.toString() ?? '',
+      outputPassInputs: _readStringList(map['outputPassInputs']),
+      outputPassBound: _readBool(map['outputPassBound']),
+      renderGraphOutputReady: _readBool(map['renderGraphOutputReady']),
       timelineTime: _readTimelineTime(map['timelineTimeMs']),
       transitionStartTime: _readTimelineTime(map['transitionStartMs']),
       transitionEndTime: _readTimelineTime(map['transitionEndMs']),
@@ -3025,6 +3061,11 @@ class ProfessionalVideoTransitionParityPlanResultMapper {
           mode: output['mode']?.toString() ?? '',
           outputSurfaceId: output['outputSurfaceId']?.toString() ?? '',
           outputTarget: output['outputTarget']?.toString() ?? '',
+          outputPassId: output['outputPassId']?.toString() ?? '',
+          outputPassType: output['outputPassType']?.toString() ?? '',
+          outputPassInputs: _readStringList(output['outputPassInputs']),
+          outputPassBound: _readBool(output['outputPassBound']),
+          renderGraphOutputReady: _readBool(output['renderGraphOutputReady']),
           rendererImplemented: _readBool(output['rendererImplemented']),
           canRender: _readBool(output['canRender']),
           blockedReasons: _readStringList(output['blockedReasons']),
@@ -3045,6 +3086,13 @@ class ProfessionalVideoTransitionParityPlanResultMapper {
   }
 
   static bool _readBool(Object? value) => value is bool && value;
+
+  static int _readInt(Object? value) {
+    if (value is num) {
+      return value.round();
+    }
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
 
   static List<String> _readStringList(Object? value) {
     if (value is! List) {

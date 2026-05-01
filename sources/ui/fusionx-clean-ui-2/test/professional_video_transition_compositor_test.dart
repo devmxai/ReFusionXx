@@ -1930,6 +1930,12 @@ void main() {
         'renderPassGraphId': 'transition-session:zoom-native-1:graph:10000',
         'outputSurfaceId':
             'transition-session:zoom-native-1:surface:transition-output:10000',
+        'renderPassCount': 6,
+        'outputPassId': 'output-pass',
+        'outputPassType': 'composeToTransitionSurface',
+        'outputPassInputs': <String>['transition-pass'],
+        'outputPassBound': true,
+        'renderGraphOutputReady': false,
         'timelineTimeMs': 10000,
         'transitionStartMs': 8000,
         'transitionEndMs': 12000,
@@ -1942,6 +1948,11 @@ void main() {
             'outputSurfaceId':
                 'transition-session:zoom-native-1:surface:transition-output:10000',
             'outputTarget': 'nativeTransitionCanvasSurface',
+            'outputPassId': 'output-pass',
+            'outputPassType': 'composeToTransitionSurface',
+            'outputPassInputs': <String>['transition-pass'],
+            'outputPassBound': true,
+            'renderGraphOutputReady': false,
             'rendererImplemented': false,
             'canRender': false,
             'blockedReasons': <String>[
@@ -1953,6 +1964,11 @@ void main() {
             'outputSurfaceId':
                 'transition-session:zoom-native-1:surface:transition-output:10000',
             'outputTarget': 'nativeTransitionCanvasSurface',
+            'outputPassId': 'output-pass',
+            'outputPassType': 'composeToTransitionSurface',
+            'outputPassInputs': <String>['transition-pass'],
+            'outputPassBound': true,
+            'renderGraphOutputReady': false,
             'rendererImplemented': false,
             'canRender': false,
             'blockedReasons': <String>[
@@ -1964,6 +1980,11 @@ void main() {
             'outputSurfaceId':
                 'transition-session:zoom-native-1:surface:transition-output:10000',
             'outputTarget': 'nativeTransitionCanvasSurface',
+            'outputPassId': 'output-pass',
+            'outputPassType': 'composeToTransitionSurface',
+            'outputPassInputs': <String>['transition-pass'],
+            'outputPassBound': true,
+            'renderGraphOutputReady': false,
             'rendererImplemented': false,
             'canRender': false,
             'blockedReasons': <String>[
@@ -2019,6 +2040,12 @@ void main() {
 
     expect(result.canPlan, isTrue);
     expect(result.canRender, isFalse);
+    expect(result.renderPassCount, 6);
+    expect(result.outputPassId, 'output-pass');
+    expect(result.outputPassType, 'composeToTransitionSurface');
+    expect(result.outputPassInputs, <String>['transition-pass']);
+    expect(result.outputPassBound, isTrue);
+    expect(result.renderGraphOutputReady, isFalse);
     expect(result.sameOutputContractForAllModes, isTrue);
     expect(result.allModesRenderable, isFalse);
     expect(result.outputs.map((output) => output.mode), <String>[
@@ -2027,6 +2054,18 @@ void main() {
       'playback',
     ]);
     expect(result.outputs.every((output) => !output.canRender), isTrue);
+    expect(
+      result.outputs.map((output) => output.outputPassId).toSet(),
+      <String>{'output-pass'},
+    );
+    expect(
+      result.outputs.every((output) => output.outputPassBound),
+      isTrue,
+    );
+    expect(
+      result.outputs.every((output) => !output.renderGraphOutputReady),
+      isTrue,
+    );
     expect(result.blockedReasons,
         contains('native_transition_playback_renderer_missing'));
     expect(

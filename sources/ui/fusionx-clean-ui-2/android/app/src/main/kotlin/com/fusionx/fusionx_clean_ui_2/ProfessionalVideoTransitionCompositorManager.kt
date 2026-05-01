@@ -1694,6 +1694,14 @@ private data class ProfessionalVideoTransitionRenderSession(
         val rendererImplemented = surfacePlan["rendererImplemented"] == true
         val outputSurfaceId = surfacePlan["outputSurfaceId"]?.toString() ?: ""
         val outputTarget = surfacePlan["outputTarget"]?.toString() ?: ""
+        val outputPassId = surfacePlan["outputPassId"]?.toString() ?: ""
+        val outputPassType = surfacePlan["outputPassType"]?.toString() ?: ""
+        val outputPassInputs =
+            (surfacePlan["outputPassInputs"] as? List<*>)?.map { input ->
+                input.toString()
+            } ?: emptyList()
+        val outputPassBound = surfacePlan["outputPassBound"] == true
+        val renderGraphOutputReady = surfacePlan["renderGraphOutputReady"] == true
         val upstreamBlockedReasons =
             (surfacePlan["blockedReasons"] as? List<*>)?.map { reason -> reason.toString() }
                 ?: emptyList()
@@ -1701,17 +1709,29 @@ private data class ProfessionalVideoTransitionRenderSession(
         val outputs =
             parityModes.map { mode ->
                 val blockedReasons =
-                    if (rendererImplemented) {
-                        emptyList()
-                    } else {
-                        listOf("native_transition_${mode}_renderer_missing")
-                    }
+                    buildList {
+                        if (!outputPassBound) {
+                            add("native_transition_${mode}_output_pass_missing")
+                        }
+                        if (!rendererImplemented) {
+                            add("native_transition_${mode}_renderer_missing")
+                        }
+                    }.distinct()
                 mapOf(
                     "mode" to mode,
                     "outputSurfaceId" to outputSurfaceId,
                     "outputTarget" to outputTarget,
+                    "outputPassId" to outputPassId,
+                    "outputPassType" to outputPassType,
+                    "outputPassInputs" to outputPassInputs,
+                    "outputPassBound" to outputPassBound,
+                    "renderGraphOutputReady" to renderGraphOutputReady,
                     "rendererImplemented" to rendererImplemented,
-                    "canRender" to (rendererImplemented && blockedReasons.isEmpty()),
+                    "canRender" to
+                        (rendererImplemented &&
+                            outputPassBound &&
+                            renderGraphOutputReady &&
+                            blockedReasons.isEmpty()),
                     "blockedReasons" to blockedReasons,
                 )
             }
@@ -1723,9 +1743,16 @@ private data class ProfessionalVideoTransitionRenderSession(
                 }).distinct()
         return surfacePlan +
             mapOf(
-                "sameOutputContractForAllModes" to true,
+                "sameOutputContractForAllModes" to
+                    (outputSurfaceId.isNotBlank() &&
+                        outputPassBound &&
+                        outputs.map { output -> output["outputPassId"] }.distinct().size == 1),
                 "exportDeferred" to true,
-                "allModesRenderable" to (rendererImplemented && blockedReasons.isEmpty()),
+                "allModesRenderable" to
+                    (rendererImplemented &&
+                        outputPassBound &&
+                        renderGraphOutputReady &&
+                        blockedReasons.isEmpty()),
                 "outputs" to outputs,
                 "blockedReasons" to blockedReasons,
             )

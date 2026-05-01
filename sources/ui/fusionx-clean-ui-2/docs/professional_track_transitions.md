@@ -899,9 +899,12 @@ Current gate:
 - Flutter and Android now also share `planParityOutputs`. This is the parity
   contract that prevents "works in preview but not in scrub/playback" drift.
   Preview, Live Scrub, and playback must all point at the same native
-  transition output contract. Export remains a later implementation phase per
-  the current product direction and must be added to this same contract when
-  the export renderer is built.
+  transition output contract and the same final `composeToTransitionSurface`
+  output pass. Each mode carries output pass id/type/inputs,
+  `outputPassBound`, and `renderGraphOutputReady`, and mode-level rendering is
+  blocked if that pass binding is missing. Export remains a later
+  implementation phase per the current product direction and must be added to
+  this same contract when the export renderer is built.
 
 ## 9. Stop Conditions
 
