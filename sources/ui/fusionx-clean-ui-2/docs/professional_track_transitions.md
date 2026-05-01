@@ -615,6 +615,15 @@ classify requests as unknown definitions, missing capabilities, or renderer not
 implemented. The registry is intentionally allowed to reject a known transition
 until its real renderer is present.
 
+`crossDissolve` now has a first domain-level frame planner. The planner reads
+the shared `ProfessionalVideoTransitionRenderPlan` and computes normalized
+progress, outgoing opacity, incoming opacity, and real source times for both
+video streams. It also reports whether both source ranges cover the full
+transition window. A renderer must not treat a cross dissolve as renderable when
+coverage is false, because that would force one side to clamp to a still
+boundary frame. This planner is the primitive math contract only; native
+preview/export parity still requires a connected dual-video compositor.
+
 Zoom In Camera is the first demanding test case for this general compositor. It
 is not the architecture itself.
 

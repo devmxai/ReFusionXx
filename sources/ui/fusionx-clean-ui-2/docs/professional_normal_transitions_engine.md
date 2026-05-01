@@ -653,6 +653,14 @@ Exit criteria:
 - real-device validation passes
 - no Live Scrub quality regression outside transition windows
 
+Current implementation note:
+
+- the first Cross Dissolve frame planner exists in the professional video
+  compositor domain. It computes deterministic A/B opacity and source-time
+  samples from the generic render plan, and detects missing source coverage so
+  a real renderer cannot silently fall back to frozen frames. Preview/export
+  connection remains open.
+
 ### Phase 7: Export Parity For Cross Dissolve
 
 Goal:

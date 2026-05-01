@@ -186,6 +186,138 @@ void main() {
     expect(incoming['sourceStartMs'], 750);
   });
 
+  test('cross dissolve planner blends live sources across covered window', () {
+    const planner = ProfessionalCrossDissolveCompositorPlanner();
+    final plan = ProfessionalVideoTransitionRenderPlan(
+      definitionId:
+          ProfessionalVideoTransitionCompositorKind.crossDissolve.name,
+      transitionId: 'dissolve-1',
+      canvasWidth: 1080,
+      canvasHeight: 1920,
+      boundaryTime: TimelineTime.fromMilliseconds(10000),
+      leadingDuration: TimelineTime.fromMilliseconds(2000),
+      trailingDuration: TimelineTime.fromMilliseconds(2000),
+      sources: <ProfessionalVideoTransitionCompositorSource>[
+        ProfessionalVideoTransitionCompositorSource(
+          clipId: 'clip-a',
+          assetId: 'asset-a',
+          timelineRange: TimelineTimeRange(
+            start: TimelineTime.fromMilliseconds(8000),
+            endExclusive: TimelineTime.fromMilliseconds(12000),
+          ),
+          sourceStartTime: TimelineTime.fromMilliseconds(20000),
+          sourceDuration: TimelineTime.fromMilliseconds(4000),
+        ),
+        ProfessionalVideoTransitionCompositorSource(
+          clipId: 'clip-b',
+          assetId: 'asset-b',
+          timelineRange: TimelineTimeRange(
+            start: TimelineTime.fromMilliseconds(8000),
+            endExclusive: TimelineTime.fromMilliseconds(12000),
+          ),
+          sourceStartTime: TimelineTime.fromMilliseconds(30000),
+          sourceDuration: TimelineTime.fromMilliseconds(4000),
+        ),
+      ],
+      requiredCapabilities: const <String>[
+        'dualVideoSampling',
+        'previewParity',
+        'liveScrubParity',
+        'playbackParity',
+        'exportParity',
+      ],
+    );
+
+    final frame = planner.planFrame(
+      renderPlan: plan,
+      timelineTime: TimelineTime.fromMilliseconds(9000),
+    );
+
+    expect(frame.transitionId, 'dissolve-1');
+    expect(frame.progress, closeTo(0.25, 0.0001));
+    expect(frame.outgoingOpacity, closeTo(0.75, 0.0001));
+    expect(frame.incomingOpacity, closeTo(0.25, 0.0001));
+    expect(frame.outgoingSourceTime.inMilliseconds, 21000);
+    expect(frame.incomingSourceTime.inMilliseconds, 31000);
+    expect(frame.hasFullSourceCoverage, isTrue);
+  });
+
+  test('cross dissolve planner rejects frozen-frame coverage gaps', () {
+    const planner = ProfessionalCrossDissolveCompositorPlanner();
+    final plan = ProfessionalVideoTransitionRenderPlan(
+      definitionId:
+          ProfessionalVideoTransitionCompositorKind.crossDissolve.name,
+      transitionId: 'dissolve-coverage-gap',
+      canvasWidth: 1080,
+      canvasHeight: 1920,
+      boundaryTime: TimelineTime.fromMilliseconds(10000),
+      leadingDuration: TimelineTime.fromMilliseconds(2000),
+      trailingDuration: TimelineTime.fromMilliseconds(2000),
+      sources: <ProfessionalVideoTransitionCompositorSource>[
+        ProfessionalVideoTransitionCompositorSource(
+          clipId: 'clip-a',
+          assetId: 'asset-a',
+          timelineRange: TimelineTimeRange(
+            start: TimelineTime.zero,
+            endExclusive: TimelineTime.fromMilliseconds(10000),
+          ),
+          sourceStartTime: TimelineTime.zero,
+          sourceDuration: TimelineTime.fromMilliseconds(10000),
+        ),
+        ProfessionalVideoTransitionCompositorSource(
+          clipId: 'clip-b',
+          assetId: 'asset-b',
+          timelineRange: TimelineTimeRange(
+            start: TimelineTime.fromMilliseconds(10000),
+            endExclusive: TimelineTime.fromMilliseconds(18000),
+          ),
+          sourceStartTime: TimelineTime.fromMilliseconds(5000),
+          sourceDuration: TimelineTime.fromMilliseconds(8000),
+        ),
+      ],
+      requiredCapabilities: const <String>[
+        'dualVideoSampling',
+        'previewParity',
+        'liveScrubParity',
+        'playbackParity',
+        'exportParity',
+      ],
+    );
+
+    final frame = planner.planFrame(
+      renderPlan: plan,
+      timelineTime: TimelineTime.fromMilliseconds(9500),
+    );
+
+    expect(frame.progress, closeTo(0.375, 0.0001));
+    expect(frame.incomingSourceTime.inMilliseconds, 5000);
+    expect(frame.hasFullSourceCoverage, isFalse);
+  });
+
+  test('cross dissolve planner requires two source videos', () {
+    const planner = ProfessionalCrossDissolveCompositorPlanner();
+    final plan = ProfessionalVideoTransitionRenderPlan(
+      definitionId:
+          ProfessionalVideoTransitionCompositorKind.crossDissolve.name,
+      transitionId: 'dissolve-invalid',
+      canvasWidth: 1080,
+      canvasHeight: 1920,
+      boundaryTime: TimelineTime.fromMilliseconds(10000),
+      leadingDuration: TimelineTime.fromMilliseconds(1000),
+      trailingDuration: TimelineTime.fromMilliseconds(1000),
+      sources: const <ProfessionalVideoTransitionCompositorSource>[],
+      requiredCapabilities: const <String>['dualVideoSampling'],
+    );
+
+    expect(
+      () => planner.planFrame(
+        renderPlan: plan,
+        timelineTime: TimelineTime.fromMilliseconds(10000),
+      ),
+      throwsArgumentError,
+    );
+  });
+
   test('zoom camera render plan lowers into the generic native contract', () {
     final plan = ProfessionalZoomCameraRenderPlan(
       canvasWidth: 1080,

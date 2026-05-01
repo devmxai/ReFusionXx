@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import '../../presentation/models/timeline_time.dart';
 
 enum ProfessionalVideoTransitionCompositorKind {
+  crossDissolve,
+  fadeBlack,
   zoomInCamera,
 }
 
@@ -368,6 +370,81 @@ class ProfessionalVideoTransitionCompositorSource {
     final localTime = timelineTime - timelineRange.start;
     final unclamped = sourceStartTime + localTime;
     return unclamped.clamp(sourceStartTime, sourceEndExclusive);
+  }
+}
+
+@immutable
+class ProfessionalCrossDissolveFramePlan {
+  const ProfessionalCrossDissolveFramePlan({
+    required this.transitionId,
+    required this.progress,
+    required this.outgoingOpacity,
+    required this.incomingOpacity,
+    required this.outgoingSourceTime,
+    required this.incomingSourceTime,
+    required this.hasFullSourceCoverage,
+  });
+
+  final String transitionId;
+  final double progress;
+  final double outgoingOpacity;
+  final double incomingOpacity;
+  final TimelineTime outgoingSourceTime;
+  final TimelineTime incomingSourceTime;
+
+  /// True only when both real video sources cover the whole transition window.
+  ///
+  /// A professional renderer must not enable a cross dissolve from this plan
+  /// when coverage is false, because doing so would force one side to freeze at
+  /// a clamped source boundary instead of sampling live frames.
+  final bool hasFullSourceCoverage;
+}
+
+class ProfessionalCrossDissolveCompositorPlanner {
+  const ProfessionalCrossDissolveCompositorPlanner();
+
+  ProfessionalCrossDissolveFramePlan planFrame({
+    required ProfessionalVideoTransitionRenderPlan renderPlan,
+    required TimelineTime timelineTime,
+  }) {
+    if (renderPlan.sources.length < 2) {
+      throw ArgumentError.value(
+        renderPlan.sources.length,
+        'renderPlan.sources.length',
+        'Cross dissolve requires outgoing and incoming video sources.',
+      );
+    }
+
+    final start = renderPlan.boundaryTime - renderPlan.leadingDuration;
+    final end = renderPlan.boundaryTime + renderPlan.trailingDuration;
+    final total = end - start;
+    final progress = total <= TimelineTime.zero
+        ? 0.0
+        : ((timelineTime - start).inProjectTicks / total.inProjectTicks)
+            .clamp(0.0, 1.0)
+            .toDouble();
+    final outgoing = renderPlan.sources[0];
+    final incoming = renderPlan.sources[1];
+
+    return ProfessionalCrossDissolveFramePlan(
+      transitionId: renderPlan.transitionId,
+      progress: progress,
+      outgoingOpacity: 1.0 - progress,
+      incomingOpacity: progress,
+      outgoingSourceTime: outgoing.sourceTimeForTimelineTime(timelineTime),
+      incomingSourceTime: incoming.sourceTimeForTimelineTime(timelineTime),
+      hasFullSourceCoverage: _coversTransitionWindow(outgoing, start, end) &&
+          _coversTransitionWindow(incoming, start, end),
+    );
+  }
+
+  static bool _coversTransitionWindow(
+    ProfessionalVideoTransitionCompositorSource source,
+    TimelineTime start,
+    TimelineTime end,
+  ) {
+    return source.timelineRange.start <= start &&
+        source.timelineRange.endExclusive >= end;
   }
 }
 
