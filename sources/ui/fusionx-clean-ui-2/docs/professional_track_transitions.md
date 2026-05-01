@@ -766,6 +766,13 @@ Current gate:
   render-pass graph, output surface, and preview/scrub/playback/export parity.
   A transition authoring UI may only expose a preset when this report has no
   blocking stage; a single successful planning endpoint is not enough.
+- Flutter now also has
+  `ProfessionalVideoTransitionReadinessPresentationAdapter`. Any transition
+  browser, inspector, script assistant, or future AI transition surface must use
+  this readiness display model instead of inventing a loose "available" flag.
+  Locked UI should name the exact blocked stages so users and agents understand
+  why a preset is unavailable without mistaking a partial planning endpoint for
+  a renderable transition.
 - Flutter and Android now share `planFrameSamples` as the next compositor
   foundation. A valid render plan is parsed into the same strict native render
   session, then a requested transition timeline frame is converted into:

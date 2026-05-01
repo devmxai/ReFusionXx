@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../domain/services/professional_video_transition_compositor.dart';
 import '../models/timeline_mock_models.dart';
+import '../services/professional_video_transition_readiness_presentation_adapter.dart';
 
 enum TransitionBrowserAction {
   applyPreset,
@@ -111,6 +112,11 @@ class _TransitionBrowserBottomSheetState
 
   bool get _transitionEngineReady =>
       _compositorCapabilities.canExposeProfessionalVideoTransitions;
+
+  ProfessionalVideoTransitionReadinessDisplayModel get _readinessDisplay {
+    return const ProfessionalVideoTransitionReadinessPresentationAdapter()
+        .fromCapabilities(_compositorCapabilities);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -228,8 +234,7 @@ class _TransitionBrowserBottomSheetState
                 Padding(
                   padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
                   child: _CompositorLockedCard(
-                    missingCapabilities: _compositorCapabilities
-                        .missingForProfessionalVideoTransitions,
+                    readiness: _readinessDisplay,
                   ),
                 ),
             ],
@@ -279,8 +284,7 @@ class _TransitionBrowserBottomSheetState
                   padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
                   children: [
                     _CompositorLockedCard(
-                      missingCapabilities: _compositorCapabilities
-                          .missingForProfessionalVideoTransitions,
+                      readiness: _readinessDisplay,
                     ),
                   ],
                 )
@@ -711,17 +715,16 @@ class _TransitionPresetCard extends StatelessWidget {
 
 class _CompositorLockedCard extends StatelessWidget {
   const _CompositorLockedCard({
-    required this.missingCapabilities,
+    required this.readiness,
   });
 
-  final List<String> missingCapabilities;
+  final ProfessionalVideoTransitionReadinessDisplayModel readiness;
 
   @override
   Widget build(BuildContext context) {
     const warningColor = Color(0xFFFFC857);
-    final missingText = missingCapabilities.isEmpty
-        ? 'Native renderer has not reported professional transition readiness.'
-        : missingCapabilities.join(', ');
+    final blockingStages = readiness.blockingStages.take(5).toList();
+    final missingText = readiness.missingSummary;
     return DecoratedBox(
       decoration: BoxDecoration(
         color: FxPalette.surfaceRaised,
@@ -758,9 +761,9 @@ class _CompositorLockedCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Professional compositor required',
-                    style: TextStyle(
+                  Text(
+                    readiness.title,
+                    style: const TextStyle(
                       color: FxPalette.textPrimary,
                       fontSize: 14,
                       fontWeight: FontWeight.w800,
@@ -768,7 +771,7 @@ class _CompositorLockedCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Transition authoring is locked until the native compositor can render every transition path with real dual-video sampling, temporal motion blur, mirror edges, preview, scrub, playback, and export parity.',
+                    readiness.summary,
                     style: TextStyle(
                       color: FxPalette.textMuted.withOpacity(0.94),
                       fontSize: 12,
@@ -776,6 +779,40 @@ class _CompositorLockedCard extends StatelessWidget {
                       height: 1.32,
                     ),
                   ),
+                  if (blockingStages.isNotEmpty) ...[
+                    const SizedBox(height: 9),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: blockingStages.map((stage) {
+                        return DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: warningColor.withOpacity(0.09),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: warningColor.withOpacity(0.22),
+                              width: 1,
+                            ),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 9,
+                              vertical: 5,
+                            ),
+                            child: Text(
+                              stage.label,
+                              style: TextStyle(
+                                color: warningColor.withOpacity(0.95),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                height: 1,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(growable: false),
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   Text(
                     'Missing: $missingText',
