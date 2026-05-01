@@ -811,11 +811,14 @@ Current gate:
   mirror-edge tiling, output surface, and parity renderer are implemented.
 - Flutter and Android now also share `planTemporalSampleAccumulator`. This binds
   the two decoder tracks into outgoing/incoming temporal accumulators with
-  deterministic sample weights, exact-frame requirements, and explicit
-  `allowGaussianFallback=false` / `allowDecorativeSpeedLines=false`. Current
-  responses deliberately keep `accumulatorImplemented=false`, so temporal motion
-  blur remains blocked until the native compositor can accumulate real shutter
-  samples instead of poster-frame blur or decorative speed-line substitutes.
+  deterministic sample weights, exact-frame requirements, decoded-sample counts,
+  and explicit `allowGaussianFallback=false` /
+  `allowDecorativeSpeedLines=false`. The accumulator now requires the shutter
+  sample decode probes from the decoder stage to be decodable for each side
+  before it can advance. Current responses deliberately keep
+  `accumulatorImplemented=false`, so temporal motion blur remains blocked until
+  the native compositor can accumulate real shutter samples into pixels instead
+  of poster-frame blur or decorative speed-line substitutes.
 - Flutter and Android now also share `planMirrorEdgeTiling`. This binds temporal
   accumulator outputs into outgoing/incoming mirror-edge tile plans with
   deterministic overscan, canvas clipping, and explicit

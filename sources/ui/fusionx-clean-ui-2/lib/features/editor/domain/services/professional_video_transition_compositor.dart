@@ -1393,6 +1393,10 @@ class ProfessionalVideoTransitionDecoderTrack {
     this.videoFrameRate = 0,
     this.centerSampleSourceTimeMs = 0,
     this.exactFrameDecodeProbeImplemented = true,
+    this.sampleDecodeProbeImplemented = true,
+    this.requestedSampleCount = 0,
+    this.decodedSampleCount = 0,
+    this.allSamplesDecodable = true,
     this.canDecodeCenterFrame = true,
     this.decodedCenterFrameTimeMs = 0,
     this.decodeProbeReason = '',
@@ -1418,6 +1422,10 @@ class ProfessionalVideoTransitionDecoderTrack {
   final int videoFrameRate;
   final int centerSampleSourceTimeMs;
   final bool exactFrameDecodeProbeImplemented;
+  final bool sampleDecodeProbeImplemented;
+  final int requestedSampleCount;
+  final int decodedSampleCount;
+  final bool allSamplesDecodable;
   final bool canDecodeCenterFrame;
   final int decodedCenterFrameTimeMs;
   final String decodeProbeReason;
@@ -1507,7 +1515,9 @@ class ProfessionalVideoTransitionDecoderSessionPlanResult {
       tracks.every((track) {
         return track.sourceProbeReady &&
             track.exactFrameDecodeProbeImplemented &&
-            track.canDecodeCenterFrame;
+            track.sampleDecodeProbeImplemented &&
+            track.canDecodeCenterFrame &&
+            track.allSamplesDecodable;
       }) &&
       blockedReasons.isEmpty;
 }
@@ -1589,6 +1599,16 @@ class ProfessionalVideoTransitionDecoderSessionPlanResultMapper {
             track['exactFrameDecodeProbeImplemented'],
             defaultValue: true,
           ),
+          sampleDecodeProbeImplemented: _readBool(
+            track['sampleDecodeProbeImplemented'],
+            defaultValue: true,
+          ),
+          requestedSampleCount: _readInt(track['requestedSampleCount']),
+          decodedSampleCount: _readInt(track['decodedSampleCount']),
+          allSamplesDecodable: _readBool(
+            track['allSamplesDecodable'],
+            defaultValue: true,
+          ),
           canDecodeCenterFrame: _readBool(
             track['canDecodeCenterFrame'],
             defaultValue: true,
@@ -1662,6 +1682,8 @@ class ProfessionalVideoTransitionTemporalAccumulator {
     required this.role,
     required this.inputTrackRole,
     required this.sampleCount,
+    this.decodedSampleCount = 0,
+    this.inputSamplesDecodable = true,
     required this.sampleWeights,
     required this.normalization,
     required this.requiresTemporalShutter,
@@ -1674,6 +1696,8 @@ class ProfessionalVideoTransitionTemporalAccumulator {
   final String role;
   final String inputTrackRole;
   final int sampleCount;
+  final int decodedSampleCount;
+  final bool inputSamplesDecodable;
   final List<double> sampleWeights;
   final String normalization;
   final bool requiresTemporalShutter;
@@ -1771,6 +1795,7 @@ class ProfessionalVideoTransitionTemporalAccumulatorPlanResult {
       accumulators.length == 2 &&
       accumulators.every((accumulator) {
         return accumulator.requiresExactFrameDecode &&
+            accumulator.inputSamplesDecodable &&
             !accumulator.allowGaussianFallback &&
             !accumulator.allowDecorativeSpeedLines;
       }) &&
@@ -1836,6 +1861,11 @@ class ProfessionalVideoTransitionTemporalAccumulatorPlanResultMapper {
           role: accumulator['role']?.toString() ?? '',
           inputTrackRole: accumulator['inputTrackRole']?.toString() ?? '',
           sampleCount: _readInt(accumulator['sampleCount']),
+          decodedSampleCount: _readInt(accumulator['decodedSampleCount']),
+          inputSamplesDecodable: _readBool(
+            accumulator['inputSamplesDecodable'],
+            defaultValue: true,
+          ),
           sampleWeights: _readDoubleList(accumulator['sampleWeights']),
           normalization: accumulator['normalization']?.toString() ?? '',
           requiresTemporalShutter:
