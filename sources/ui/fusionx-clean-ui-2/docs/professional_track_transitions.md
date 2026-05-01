@@ -634,6 +634,11 @@ Current gate:
 - the previous Flutter-side Zoom In Camera preview has been removed from the
   preset picker and no longer draws fake speed lines, frozen-frame cards, or
   Gaussian motion blur.
+- `ProfessionalZoomCameraCompositorPlanner` now defines the canonical timing
+  contract for the future native compositor: outgoing and incoming source times
+  are resolved from real timeline/source ranges, shutter sample times are
+  generated from shutter angle and frame rate, and mirror-edge motion tiling is
+  required by the render plan.
 - a future `ProfessionalVideoTransitionCompositor` must own preview, scrub,
   playback, and export parity before Zoom In Camera is exposed again as an
   engine-backed preset.

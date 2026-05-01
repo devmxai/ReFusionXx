@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
+import '../../domain/services/professional_video_transition_compositor.dart';
 import '../models/timeline_mock_models.dart';
 
 enum TransitionBrowserAction {
@@ -27,13 +28,10 @@ enum _TransitionBrowserPage {
 class TransitionBrowserBottomSheet extends StatefulWidget {
   const TransitionBrowserBottomSheet({
     super.key,
-    this.presets = const <TimelineTransitionPreset>[
-      TimelineTransitionPreset.crossDissolve,
-      TimelineTransitionPreset.fadeBlack,
-    ],
+    this.presets,
   });
 
-  final List<TimelineTransitionPreset> presets;
+  final List<TimelineTransitionPreset>? presets;
 
   @override
   State<TransitionBrowserBottomSheet> createState() =>
@@ -63,7 +61,9 @@ class _TransitionBrowserBottomSheetState
 
   List<TimelineTransitionPreset> get _filteredPresets {
     final normalized = _query.trim().toLowerCase();
-    final presets = List<TimelineTransitionPreset>.from(widget.presets);
+    final presets = List<TimelineTransitionPreset>.from(
+      widget.presets ?? _defaultPresets,
+    );
     if (normalized.isEmpty) {
       return presets;
     }
@@ -72,6 +72,16 @@ class _TransitionBrowserBottomSheetState
       final summary = preset.summary.toLowerCase();
       return label.contains(normalized) || summary.contains(normalized);
     }).toList(growable: false);
+  }
+
+  static List<TimelineTransitionPreset> get _defaultPresets {
+    return <TimelineTransitionPreset>[
+      TimelineTransitionPreset.crossDissolve,
+      TimelineTransitionPreset.fadeBlack,
+      if (kCurrentProfessionalVideoTransitionCompositorCapabilities
+          .canExposeProfessionalZoomInCamera)
+        TimelineTransitionPreset.zoomInCamera,
+    ];
   }
 
   @override
