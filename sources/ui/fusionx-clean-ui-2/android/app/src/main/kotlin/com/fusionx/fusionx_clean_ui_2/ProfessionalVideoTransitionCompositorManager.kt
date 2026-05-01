@@ -13,34 +13,33 @@ class ProfessionalVideoTransitionCompositorManager {
             "rendererVersion" to "foundation",
         )
 
-    fun prepareZoomInCameraRenderPlan(plan: Map<String, Any?>?): Map<String, Any> {
-        val missingFields = requiredZoomPlanFields.filter { field ->
+    fun prepareRenderPlan(plan: Map<String, Any?>?): Map<String, Any> {
+        val missingFields = requiredRenderPlanFields.filter { field ->
             !hasRequiredField(plan, field)
         }
         if (missingFields.isNotEmpty()) {
             return mapOf(
                 "status" to "invalidRequest",
-                "reason" to "missing_required_zoom_camera_render_plan_fields",
+                "reason" to "missing_required_video_transition_render_plan_fields",
                 "rendererVersion" to "foundation",
                 "missingFields" to missingFields,
             )
         }
+        val requestedCapabilities =
+            (plan?.get("requiredCapabilities") as? List<*>)?.map { entry ->
+                entry.toString()
+            } ?: emptyList()
         return mapOf(
             "status" to "unsupported",
-            "reason" to "native_zoom_camera_renderer_not_implemented",
+            "reason" to "native_video_transition_renderer_not_implemented",
             "rendererVersion" to "foundation",
-            "missingCapabilities" to
-                listOf(
-                    "dualVideoSampling",
-                    "temporalMotionBlur",
-                    "mirrorEdgeTiling",
-                    "previewParity",
-                    "liveScrubParity",
-                    "playbackParity",
-                    "exportParity",
-                ),
+            "definitionId" to (plan?.get("definitionId")?.toString() ?: ""),
+            "missingCapabilities" to requestedCapabilities,
         )
     }
+
+    fun prepareZoomInCameraRenderPlan(plan: Map<String, Any?>?): Map<String, Any> =
+        prepareRenderPlan(plan)
 
     private fun hasRequiredField(plan: Map<String, Any?>?, field: String): Boolean {
         if (plan == null) {
@@ -48,31 +47,30 @@ class ProfessionalVideoTransitionCompositorManager {
         }
         val value = plan[field]
         return when (field) {
-            "outgoing", "incoming" -> value is Map<*, *>
-            "transitionId", "kind" -> value is String && value.isNotBlank()
+            "sources" -> value is List<*> && value.isNotEmpty()
+            "parameters", "samplingPolicy", "edgePolicy", "motionBlurPolicy" -> value is Map<*, *>
+            "requiredCapabilities" -> value is List<*>
+            "transitionId", "definitionId" -> value is String && value.isNotBlank()
             else -> value is Number
         }
     }
 
     private companion object {
-        val requiredZoomPlanFields =
+        val requiredRenderPlanFields =
             listOf(
-                "kind",
+                "definitionId",
                 "transitionId",
                 "canvasWidth",
                 "canvasHeight",
                 "boundaryTimeMs",
                 "leadingDurationMs",
                 "trailingDurationMs",
-                "outgoing",
-                "incoming",
-                "outgoingBoostScale",
-                "incomingStartScale",
-                "shutterAngleDegrees",
-                "frameRate",
-                "shutterSampleCount",
-                "motionTileOutputScaleX",
-                "motionTileOutputScaleY",
+                "sources",
+                "requiredCapabilities",
+                "parameters",
+                "samplingPolicy",
+                "edgePolicy",
+                "motionBlurPolicy",
             )
     }
 }

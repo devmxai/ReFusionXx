@@ -582,7 +582,37 @@ Every transition implementation must be validated against:
 - enter scoped layer before and after transition
 - return from background and play over transition
 
-## 8.1 Zoom In Camera Baseline
+## 8.1 Professional Video Transition Compositor Contract
+
+The professional video transition compositor is a general system, not a
+Zoom-specific system.
+
+Every video transition must enter the native compositor through a shared
+`ProfessionalVideoTransitionRenderPlan` shape:
+
+- `definitionId`: the transition definition, such as `zoomInCamera`,
+  `whipPan`, `motionBlurPush`, `lumaWipe`, or future definitions;
+- `transitionId`: the authored transition instance id;
+- canvas dimensions;
+- seam timing and leading/trailing durations;
+- source list with timeline range and source-media range;
+- required capabilities;
+- transition parameters;
+- sampling policy;
+- edge policy;
+- motion blur policy.
+
+The compositor decides whether it can render a transition by matching the
+definition and its required capabilities against the native renderer registry.
+If a transition is not supported, the renderer must return an explicit
+`unsupported` result with missing capabilities. It must not silently fall back
+to a Flutter overlay, a frozen frame, a thumbnail, Gaussian blur, decorative
+speed lines, or a transformed single video surface.
+
+Zoom In Camera is the first demanding test case for this general compositor. It
+is not the architecture itself.
+
+## 8.2 Zoom In Camera Baseline
 
 The `Zoom In Camera` preset is an After-Effects-inspired seam transition, not a
 simple card overlay.
@@ -649,14 +679,13 @@ Current gate:
   In Camera remains hidden until the real dual-video compositor, temporal
   motion blur, mirror-edge tiling, preview, scrub, playback, and export parity
   are all implemented and reported from native code.
-- Flutter and Android now also share a
-  `prepareZoomInCameraRenderPlan` contract. Dart serializes the complete
-  transition render plan, including canvas size, seam timing, outgoing and
-  incoming source ranges, shutter settings, and mirror-edge tile overscan. The
-  native foundation currently validates the required shape and returns a clear
-  unsupported status instead of rendering. This is intentional: the next
-  implementation slice must replace that unsupported response with the real
-  dual-video GPU compositor, not a Flutter overlay fallback.
+- Flutter and Android now also share the generic `prepareRenderPlan` contract.
+  Zoom In Camera lowers into this general render plan with canvas size, seam
+  timing, outgoing/incoming source ranges, shutter settings, and mirror-edge
+  tile overscan. The native foundation currently validates the required shape
+  and returns a clear unsupported status instead of rendering. This is
+  intentional: the next implementation slice must replace that unsupported
+  response with real renderer capabilities, not a Flutter overlay fallback.
 
 ## 9. Stop Conditions
 

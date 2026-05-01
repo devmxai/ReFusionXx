@@ -87,6 +87,10 @@ abstract class ProfessionalVideoTransitionCompositorClient
     extends ProfessionalVideoTransitionCompositorCapabilityProvider {
   const ProfessionalVideoTransitionCompositorClient();
 
+  Future<ProfessionalVideoTransitionCompositorPrepareResult> prepareRenderPlan(
+    ProfessionalVideoTransitionRenderPlan plan,
+  );
+
   Future<ProfessionalVideoTransitionCompositorPrepareResult>
       prepareZoomInCameraRenderPlan(
     ProfessionalZoomCameraRenderPlan plan,
@@ -121,13 +125,12 @@ class MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider
   }
 
   @override
-  Future<ProfessionalVideoTransitionCompositorPrepareResult>
-      prepareZoomInCameraRenderPlan(
-    ProfessionalZoomCameraRenderPlan plan,
+  Future<ProfessionalVideoTransitionCompositorPrepareResult> prepareRenderPlan(
+    ProfessionalVideoTransitionRenderPlan plan,
   ) async {
     try {
       final rawResult = await _channel.invokeMapMethod<String, Object?>(
-        'prepareZoomInCameraRenderPlan',
+        'prepareRenderPlan',
         plan.toPlatformMap(),
       );
       return ProfessionalVideoTransitionCompositorPrepareResultMapper.fromMap(
@@ -142,6 +145,14 @@ class MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider
         reason: error.message ?? error.code,
       );
     }
+  }
+
+  @override
+  Future<ProfessionalVideoTransitionCompositorPrepareResult>
+      prepareZoomInCameraRenderPlan(
+    ProfessionalZoomCameraRenderPlan plan,
+  ) {
+    return prepareRenderPlan(plan.toGenericRenderPlan());
   }
 }
 
@@ -252,6 +263,70 @@ class ProfessionalVideoTransitionCompositorPrepareResultMapper {
       return const <String>[];
     }
     return List<String>.unmodifiable(value.map((entry) => entry.toString()));
+  }
+}
+
+@immutable
+class ProfessionalVideoTransitionRenderPlan {
+  const ProfessionalVideoTransitionRenderPlan({
+    required this.definitionId,
+    required this.transitionId,
+    required this.canvasWidth,
+    required this.canvasHeight,
+    required this.boundaryTime,
+    required this.leadingDuration,
+    required this.trailingDuration,
+    required this.sources,
+    required this.requiredCapabilities,
+    this.parameters = const <String, Object?>{},
+    this.samplingPolicy = const <String, Object?>{},
+    this.edgePolicy = const <String, Object?>{},
+    this.motionBlurPolicy = const <String, Object?>{},
+  });
+
+  final String definitionId;
+  final String transitionId;
+  final int canvasWidth;
+  final int canvasHeight;
+  final TimelineTime boundaryTime;
+  final TimelineTime leadingDuration;
+  final TimelineTime trailingDuration;
+  final List<ProfessionalVideoTransitionCompositorSource> sources;
+  final List<String> requiredCapabilities;
+  final Map<String, Object?> parameters;
+  final Map<String, Object?> samplingPolicy;
+  final Map<String, Object?> edgePolicy;
+  final Map<String, Object?> motionBlurPolicy;
+
+  Map<String, Object?> toPlatformMap() {
+    return <String, Object?>{
+      'definitionId': definitionId,
+      'transitionId': transitionId,
+      'canvasWidth': canvasWidth,
+      'canvasHeight': canvasHeight,
+      'boundaryTimeMs': boundaryTime.inMilliseconds,
+      'leadingDurationMs': leadingDuration.inMilliseconds,
+      'trailingDurationMs': trailingDuration.inMilliseconds,
+      'sources': sources.map(_sourceToPlatformMap).toList(growable: false),
+      'requiredCapabilities': List<String>.unmodifiable(requiredCapabilities),
+      'parameters': Map<String, Object?>.unmodifiable(parameters),
+      'samplingPolicy': Map<String, Object?>.unmodifiable(samplingPolicy),
+      'edgePolicy': Map<String, Object?>.unmodifiable(edgePolicy),
+      'motionBlurPolicy': Map<String, Object?>.unmodifiable(motionBlurPolicy),
+    };
+  }
+
+  static Map<String, Object?> _sourceToPlatformMap(
+    ProfessionalVideoTransitionCompositorSource source,
+  ) {
+    return <String, Object?>{
+      'clipId': source.clipId,
+      'assetId': source.assetId,
+      'timelineStartMs': source.timelineRange.start.inMilliseconds,
+      'timelineEndMs': source.timelineRange.endExclusive.inMilliseconds,
+      'sourceStartMs': source.sourceStartTime.inMilliseconds,
+      'sourceDurationMs': source.sourceDuration.inMilliseconds,
+    };
   }
 }
 
@@ -382,39 +457,51 @@ class ProfessionalZoomCameraRenderPlan {
   final int canvasHeight;
   final ProfessionalZoomCameraPlanRequest request;
 
-  Map<String, Object?> toPlatformMap() {
-    return <String, Object?>{
-      'kind': ProfessionalVideoTransitionCompositorKind.zoomInCamera.name,
-      'transitionId': request.transitionId,
-      'canvasWidth': canvasWidth,
-      'canvasHeight': canvasHeight,
-      'boundaryTimeMs': request.boundaryTime.inMilliseconds,
-      'leadingDurationMs': request.leadingDuration.inMilliseconds,
-      'trailingDurationMs': request.trailingDuration.inMilliseconds,
-      'outgoing': _sourceToPlatformMap(request.outgoing),
-      'incoming': _sourceToPlatformMap(request.incoming),
-      'outgoingBoostScale': request.outgoingBoostScale,
-      'incomingStartScale': request.incomingStartScale,
-      'shutterAngleDegrees': request.shutterAngleDegrees,
-      'frameRate': request.frameRate,
-      'shutterSampleCount': request.shutterSampleCount,
-      'motionTileOutputScaleX': request.motionTileOutputScaleX,
-      'motionTileOutputScaleY': request.motionTileOutputScaleY,
-    };
+  ProfessionalVideoTransitionRenderPlan toGenericRenderPlan() {
+    return ProfessionalVideoTransitionRenderPlan(
+      definitionId: ProfessionalVideoTransitionCompositorKind.zoomInCamera.name,
+      transitionId: request.transitionId,
+      canvasWidth: canvasWidth,
+      canvasHeight: canvasHeight,
+      boundaryTime: request.boundaryTime,
+      leadingDuration: request.leadingDuration,
+      trailingDuration: request.trailingDuration,
+      sources: <ProfessionalVideoTransitionCompositorSource>[
+        request.outgoing,
+        request.incoming,
+      ],
+      requiredCapabilities: const <String>[
+        'dualVideoSampling',
+        'temporalMotionBlur',
+        'mirrorEdgeTiling',
+        'previewParity',
+        'liveScrubParity',
+        'playbackParity',
+        'exportParity',
+      ],
+      parameters: <String, Object?>{
+        'outgoingBoostScale': request.outgoingBoostScale,
+        'incomingStartScale': request.incomingStartScale,
+      },
+      samplingPolicy: const <String, Object?>{
+        'sourceCount': 2,
+        'sourceRoles': <String>['outgoing', 'incoming'],
+      },
+      edgePolicy: <String, Object?>{
+        'mode': 'mirrorTile',
+        'outputScaleX': request.motionTileOutputScaleX,
+        'outputScaleY': request.motionTileOutputScaleY,
+      },
+      motionBlurPolicy: <String, Object?>{
+        'mode': 'temporalShutter',
+        'shutterAngleDegrees': request.shutterAngleDegrees,
+        'frameRate': request.frameRate,
+        'sampleCount': request.shutterSampleCount,
+      },
+    );
   }
 
-  Map<String, Object?> _sourceToPlatformMap(
-    ProfessionalVideoTransitionCompositorSource source,
-  ) {
-    return <String, Object?>{
-      'clipId': source.clipId,
-      'assetId': source.assetId,
-      'timelineStartMs': source.timelineRange.start.inMilliseconds,
-      'timelineEndMs': source.timelineRange.endExclusive.inMilliseconds,
-      'sourceStartMs': source.sourceStartTime.inMilliseconds,
-      'sourceDurationMs': source.sourceDuration.inMilliseconds,
-    };
-  }
+  Map<String, Object?> toPlatformMap() => toGenericRenderPlan().toPlatformMap();
 }
 
 class ProfessionalZoomCameraCompositorPlanner {

@@ -94,7 +94,89 @@ void main() {
     ]);
   });
 
-  test('zoom camera render plan serializes the full native contract', () {
+  test('generic render plan serializes transition-agnostic native contract',
+      () {
+    final plan = ProfessionalVideoTransitionRenderPlan(
+      definitionId: 'whip_pan_left',
+      transitionId: 'transition-1',
+      canvasWidth: 1080,
+      canvasHeight: 1920,
+      boundaryTime: TimelineTime.fromMilliseconds(10000),
+      leadingDuration: TimelineTime.fromMilliseconds(1200),
+      trailingDuration: TimelineTime.fromMilliseconds(1200),
+      sources: <ProfessionalVideoTransitionCompositorSource>[
+        ProfessionalVideoTransitionCompositorSource(
+          clipId: 'clip-a',
+          assetId: 'asset-a',
+          timelineRange: TimelineTimeRange(
+            start: TimelineTime.zero,
+            endExclusive: TimelineTime.fromMilliseconds(10000),
+          ),
+          sourceStartTime: TimelineTime.fromMilliseconds(1500),
+          sourceDuration: TimelineTime.fromMilliseconds(10000),
+        ),
+        ProfessionalVideoTransitionCompositorSource(
+          clipId: 'clip-b',
+          assetId: 'asset-b',
+          timelineRange: TimelineTimeRange(
+            start: TimelineTime.fromMilliseconds(10000),
+            endExclusive: TimelineTime.fromMilliseconds(18000),
+          ),
+          sourceStartTime: TimelineTime.fromMilliseconds(750),
+          sourceDuration: TimelineTime.fromMilliseconds(8000),
+        ),
+      ],
+      requiredCapabilities: const <String>[
+        'dualVideoSampling',
+        'temporalMotionBlur',
+        'mirrorEdgeTiling',
+      ],
+      parameters: const <String, Object?>{
+        'direction': 'left',
+        'distance': 1.0,
+      },
+      samplingPolicy: const <String, Object?>{
+        'sourceCount': 2,
+      },
+      edgePolicy: const <String, Object?>{
+        'mode': 'mirrorTile',
+      },
+      motionBlurPolicy: const <String, Object?>{
+        'mode': 'temporalShutter',
+      },
+    );
+
+    final payload = plan.toPlatformMap();
+    expect(payload['definitionId'], 'whip_pan_left');
+    expect(payload['transitionId'], 'transition-1');
+    expect(payload['canvasWidth'], 1080);
+    expect(payload['canvasHeight'], 1920);
+    expect(payload['boundaryTimeMs'], 10000);
+    expect(payload['leadingDurationMs'], 1200);
+    expect(payload['trailingDurationMs'], 1200);
+    expect(payload['requiredCapabilities'], <String>[
+      'dualVideoSampling',
+      'temporalMotionBlur',
+      'mirrorEdgeTiling',
+    ]);
+    expect(payload['parameters'], containsPair('direction', 'left'));
+    expect(payload['samplingPolicy'], containsPair('sourceCount', 2));
+    expect(payload['edgePolicy'], containsPair('mode', 'mirrorTile'));
+    expect(
+        payload['motionBlurPolicy'], containsPair('mode', 'temporalShutter'));
+
+    final sources = payload['sources']! as List<Object?>;
+    final outgoing = sources.first! as Map<String, Object?>;
+    final incoming = sources.last! as Map<String, Object?>;
+    expect(outgoing['clipId'], 'clip-a');
+    expect(outgoing['timelineEndMs'], 10000);
+    expect(outgoing['sourceStartMs'], 1500);
+    expect(incoming['clipId'], 'clip-b');
+    expect(incoming['timelineStartMs'], 10000);
+    expect(incoming['sourceStartMs'], 750);
+  });
+
+  test('zoom camera render plan lowers into the generic native contract', () {
     final plan = ProfessionalZoomCameraRenderPlan(
       canvasWidth: 1080,
       canvasHeight: 1920,
@@ -128,20 +210,32 @@ void main() {
     );
 
     final payload = plan.toPlatformMap();
-    expect(payload['kind'], 'zoomInCamera');
+    expect(payload['definitionId'], 'zoomInCamera');
     expect(payload['transitionId'], 'zoom-native-1');
     expect(payload['canvasWidth'], 1080);
     expect(payload['canvasHeight'], 1920);
     expect(payload['boundaryTimeMs'], 10000);
     expect(payload['leadingDurationMs'], 2000);
     expect(payload['trailingDurationMs'], 2000);
-    expect(payload['motionTileOutputScaleX'], 4.0);
-    expect(payload['motionTileOutputScaleY'], 3.5);
-    expect(payload['shutterSampleCount'], 8);
-    expect(payload['shutterAngleDegrees'], 360.0);
+    expect(payload['requiredCapabilities'], contains('dualVideoSampling'));
+    expect(payload['requiredCapabilities'], contains('temporalMotionBlur'));
+    expect(payload['requiredCapabilities'], contains('mirrorEdgeTiling'));
+    expect(
+      payload['parameters'],
+      containsPair('outgoingBoostScale', 3.0),
+    );
+    expect(
+      payload['edgePolicy'],
+      containsPair('outputScaleX', 4.0),
+    );
+    expect(
+      payload['motionBlurPolicy'],
+      containsPair('sampleCount', 8),
+    );
 
-    final outgoing = payload['outgoing']! as Map<String, Object?>;
-    final incoming = payload['incoming']! as Map<String, Object?>;
+    final sources = payload['sources']! as List<Object?>;
+    final outgoing = sources.first! as Map<String, Object?>;
+    final incoming = sources.last! as Map<String, Object?>;
     expect(outgoing['clipId'], 'clip-a');
     expect(outgoing['timelineEndMs'], 10000);
     expect(outgoing['sourceStartMs'], 1500);
@@ -160,14 +254,16 @@ void main() {
       messenger.setMockMethodCallHandler(channel, null);
     });
     messenger.setMockMethodCallHandler(channel, (call) async {
-      expect(call.method, 'prepareZoomInCameraRenderPlan');
+      expect(call.method, 'prepareRenderPlan');
       final arguments = call.arguments! as Map<Object?, Object?>;
-      expect(arguments['kind'], 'zoomInCamera');
-      expect(arguments['outgoing'], isA<Map<Object?, Object?>>());
-      expect(arguments['incoming'], isA<Map<Object?, Object?>>());
+      expect(arguments['definitionId'], 'zoomInCamera');
+      expect(arguments['sources'], isA<List<Object?>>());
+      expect(arguments['parameters'], isA<Map<Object?, Object?>>());
+      expect(arguments['edgePolicy'], isA<Map<Object?, Object?>>());
+      expect(arguments['motionBlurPolicy'], isA<Map<Object?, Object?>>());
       return <String, Object?>{
         'status': 'unsupported',
-        'reason': 'native_zoom_camera_renderer_not_implemented',
+        'reason': 'native_video_transition_renderer_not_implemented',
         'rendererVersion': 'foundation',
         'missingCapabilities': <String>[
           'dualVideoSampling',
@@ -218,7 +314,7 @@ void main() {
       ProfessionalVideoTransitionCompositorPrepareStatus.unsupported,
     );
     expect(result.canRender, isFalse);
-    expect(result.reason, 'native_zoom_camera_renderer_not_implemented');
+    expect(result.reason, 'native_video_transition_renderer_not_implemented');
     expect(result.rendererVersion, 'foundation');
     expect(result.missingCapabilities, <String>[
       'dualVideoSampling',
