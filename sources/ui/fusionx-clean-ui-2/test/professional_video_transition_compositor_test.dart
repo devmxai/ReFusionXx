@@ -415,6 +415,10 @@ void main() {
         'reason': 'missing_renderer_capabilities',
         'rendererVersion': 'foundation',
         'definitionId': 'zoomInCamera',
+        'renderSessionId': 'transition-session:zoom-native-1',
+        'transitionStartMs': 8000,
+        'transitionEndMs': 12000,
+        'sourceRoles': <String>['outgoing', 'incoming'],
         'missingCapabilities': <String>[
           'dualVideoSampling',
           'temporalMotionBlur',
@@ -467,6 +471,10 @@ void main() {
     expect(result.reason, 'missing_renderer_capabilities');
     expect(result.rendererVersion, 'foundation');
     expect(result.definitionId, 'zoomInCamera');
+    expect(result.renderSessionId, 'transition-session:zoom-native-1');
+    expect(result.transitionStartTime!.inMilliseconds, 8000);
+    expect(result.transitionEndTime!.inMilliseconds, 12000);
+    expect(result.sourceRoles, <String>['outgoing', 'incoming']);
     expect(result.missingCapabilities, <String>[
       'dualVideoSampling',
       'temporalMotionBlur',

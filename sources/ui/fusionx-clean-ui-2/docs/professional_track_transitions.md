@@ -629,6 +629,19 @@ Current authoring gate:
   Dissolve, Fade Black, and Zoom In Camera must all wait for the same general
   compositor readiness instead of each shipping a separate fallback path.
 
+Native render-session foundation:
+
+- `prepareRenderPlan` must parse the loose platform map into a strict
+  two-source render session before a renderer is allowed to run;
+- the session must validate positive canvas size, non-negative seam timing,
+  positive transition duration, exactly two sources, `[outgoing, incoming]`
+  roles, positive source timeline/source ranges, outgoing coverage through the
+  boundary, and incoming coverage from the boundary through the trailing window;
+- unsupported native responses should carry session metadata such as
+  `renderSessionId`, transition start/end, source roles, and source times at the
+  seam. This makes the future GPU renderer attach to a real contract without
+  enabling any visual fallback.
+
 `crossDissolve` now has a first domain-level frame planner. The planner reads
 the shared `ProfessionalVideoTransitionRenderPlan` and computes normalized
 progress, outgoing opacity, incoming opacity, and real source times for both

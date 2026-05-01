@@ -218,6 +218,10 @@ class ProfessionalVideoTransitionCompositorPrepareResult {
     required this.rendererVersion,
     required this.missingCapabilities,
     required this.definitionId,
+    this.renderSessionId = '',
+    this.transitionStartTime,
+    this.transitionEndTime,
+    this.sourceRoles = const <String>[],
   });
 
   factory ProfessionalVideoTransitionCompositorPrepareResult.unsupported({
@@ -231,6 +235,7 @@ class ProfessionalVideoTransitionCompositorPrepareResult {
       rendererVersion: rendererVersion,
       missingCapabilities: List<String>.unmodifiable(missingCapabilities),
       definitionId: '',
+      sourceRoles: const <String>[],
     );
   }
 
@@ -244,6 +249,7 @@ class ProfessionalVideoTransitionCompositorPrepareResult {
       rendererVersion: rendererVersion,
       missingCapabilities: const <String>[],
       definitionId: '',
+      sourceRoles: const <String>[],
     );
   }
 
@@ -252,6 +258,10 @@ class ProfessionalVideoTransitionCompositorPrepareResult {
   final String rendererVersion;
   final List<String> missingCapabilities;
   final String definitionId;
+  final String renderSessionId;
+  final TimelineTime? transitionStartTime;
+  final TimelineTime? transitionEndTime;
+  final List<String> sourceRoles;
 
   bool get canRender =>
       status == ProfessionalVideoTransitionCompositorPrepareStatus.ready;
@@ -274,6 +284,10 @@ class ProfessionalVideoTransitionCompositorPrepareResultMapper {
       rendererVersion: map['rendererVersion']?.toString() ?? 'unknown',
       missingCapabilities: _readStringList(map['missingCapabilities']),
       definitionId: map['definitionId']?.toString() ?? '',
+      renderSessionId: map['renderSessionId']?.toString() ?? '',
+      transitionStartTime: _readTimelineTime(map['transitionStartMs']),
+      transitionEndTime: _readTimelineTime(map['transitionEndMs']),
+      sourceRoles: _readStringList(map['sourceRoles']),
     );
   }
 
@@ -293,6 +307,17 @@ class ProfessionalVideoTransitionCompositorPrepareResultMapper {
       return const <String>[];
     }
     return List<String>.unmodifiable(value.map((entry) => entry.toString()));
+  }
+
+  static TimelineTime? _readTimelineTime(Object? value) {
+    if (value is num) {
+      return TimelineTime.fromMilliseconds(value.round());
+    }
+    final parsed = int.tryParse(value?.toString() ?? '');
+    if (parsed == null) {
+      return null;
+    }
+    return TimelineTime.fromMilliseconds(parsed);
   }
 }
 
