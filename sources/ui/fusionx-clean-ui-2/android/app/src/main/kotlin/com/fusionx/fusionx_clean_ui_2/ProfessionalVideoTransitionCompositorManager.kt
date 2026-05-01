@@ -1291,6 +1291,10 @@ private data class ProfessionalVideoTransitionRenderSession(
                     (accumulator["decodedSampleCount"] as? Number)?.toInt()?.coerceAtLeast(0) ?: 0
                 val inputSamplesDecodable = accumulator["inputSamplesDecodable"] == true
                 val accumulatedFrameReady = accumulator["accumulatedFrameReady"] == true
+                val liveDecodeStreamCoverageReady =
+                    accumulator["liveDecodeStreamCoverageReady"] == true
+                val continuousSampleCoverageReady =
+                    accumulator["continuousSampleCoverageReady"] == true
                 mapOf(
                     "tileId" to "$id:mirror-tile:$role:$timelineTimeMs",
                     "role" to role,
@@ -1299,6 +1303,8 @@ private data class ProfessionalVideoTransitionRenderSession(
                     "decodedSampleCount" to decodedSampleCount,
                     "inputSamplesDecodable" to inputSamplesDecodable,
                     "inputAccumulatedFrameReady" to accumulatedFrameReady,
+                    "liveDecodeStreamCoverageReady" to liveDecodeStreamCoverageReady,
+                    "continuousSampleCoverageReady" to continuousSampleCoverageReady,
                     "edgeMode" to edgeMode,
                     "outputScaleX" to outputScaleX,
                     "outputScaleY" to outputScaleY,
@@ -1309,7 +1315,12 @@ private data class ProfessionalVideoTransitionRenderSession(
                     "allowBlackBorders" to false,
                     "tileReady" to (
                         !requiresMirrorEdgeTiling ||
-                            (inputSamplesDecodable && accumulatedFrameReady)
+                            (
+                                inputSamplesDecodable &&
+                                    accumulatedFrameReady &&
+                                    liveDecodeStreamCoverageReady &&
+                                    continuousSampleCoverageReady
+                            )
                     ),
                 )
             }
@@ -1327,6 +1338,9 @@ private data class ProfessionalVideoTransitionRenderSession(
                 }
                 if (tiles.any { tile -> tile["inputAccumulatedFrameReady"] != true }) {
                     add("native_mirror_edge_accumulator_not_ready")
+                }
+                if (tiles.any { tile -> tile["liveDecodeStreamCoverageReady"] != true }) {
+                    add("native_mirror_edge_live_decode_stream_not_ready")
                 }
                 if (requiresMirrorEdgeTiling && !tilerImplemented) {
                     add("native_mirror_edge_tiler_not_ready")

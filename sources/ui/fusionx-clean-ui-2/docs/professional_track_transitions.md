@@ -866,9 +866,11 @@ Current gate:
   deterministic overscan, decoded-sample readiness, canvas clipping, and
   explicit `allowBlackBorders=false`, `allowFlutterOverlay=false`, and
   `allowTimelineOverlay=false`. The tile plan now inherits whether the temporal
-  input samples were actually decodable and accumulated, records overscan
-  scales, and reports tiler readiness only when both outgoing and incoming
-  accumulated inputs can cover the canvas without black borders. Zoom/push/camera
+  input samples were actually decodable, accumulated, and backed by live decode
+  stream coverage, records overscan scales, and reports tiler readiness only
+  when both outgoing and incoming accumulated inputs can cover the canvas
+  without black borders. If live stream coverage is missing, it blocks with
+  `native_mirror_edge_live_decode_stream_not_ready`. Zoom/push/camera
   transitions still cannot render until the downstream native renderer and
   output surface execute the pass graph; stretched thumbnails, Flutter overlays,
   or timeline-area drawing remain forbidden.

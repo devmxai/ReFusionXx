@@ -2174,6 +2174,8 @@ class ProfessionalVideoTransitionMirrorEdgeTile {
     this.sampleCount = 0,
     this.decodedSampleCount = 0,
     this.inputSamplesDecodable = true,
+    this.liveDecodeStreamCoverageReady = true,
+    this.continuousSampleCoverageReady = true,
     required this.edgeMode,
     required this.outputScaleX,
     required this.outputScaleY,
@@ -2188,6 +2190,8 @@ class ProfessionalVideoTransitionMirrorEdgeTile {
   final int sampleCount;
   final int decodedSampleCount;
   final bool inputSamplesDecodable;
+  final bool liveDecodeStreamCoverageReady;
+  final bool continuousSampleCoverageReady;
   final String edgeMode;
   final double outputScaleX;
   final double outputScaleY;
@@ -2291,6 +2295,8 @@ class ProfessionalVideoTransitionMirrorEdgeTilingPlanResult {
       tiles.length == 2 &&
       tiles.every((tile) {
         return tile.inputSamplesDecodable &&
+            tile.liveDecodeStreamCoverageReady &&
+            tile.continuousSampleCoverageReady &&
             !tile.allowBlackBorders &&
             tile.clipToCanvas;
       }) &&
@@ -2361,6 +2367,14 @@ class ProfessionalVideoTransitionMirrorEdgeTilingPlanResultMapper {
           decodedSampleCount: _readInt(tile['decodedSampleCount']),
           inputSamplesDecodable: _readBool(
             tile['inputSamplesDecodable'],
+            defaultValue: true,
+          ),
+          liveDecodeStreamCoverageReady: _readBool(
+            tile['liveDecodeStreamCoverageReady'],
+            defaultValue: true,
+          ),
+          continuousSampleCoverageReady: _readBool(
+            tile['continuousSampleCoverageReady'],
             defaultValue: true,
           ),
           edgeMode: tile['edgeMode']?.toString() ?? '',

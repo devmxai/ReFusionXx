@@ -1528,6 +1528,8 @@ void main() {
             'sampleCount': 2,
             'decodedSampleCount': 2,
             'inputSamplesDecodable': true,
+            'liveDecodeStreamCoverageReady': true,
+            'continuousSampleCoverageReady': true,
             'edgeMode': 'mirrorTile',
             'outputScaleX': 4.0,
             'outputScaleY': 3.5,
@@ -1544,6 +1546,8 @@ void main() {
             'sampleCount': 2,
             'decodedSampleCount': 1,
             'inputSamplesDecodable': false,
+            'liveDecodeStreamCoverageReady': false,
+            'continuousSampleCoverageReady': false,
             'edgeMode': 'mirrorTile',
             'outputScaleX': 4.0,
             'outputScaleY': 3.5,
@@ -1554,6 +1558,7 @@ void main() {
         ],
         'blockedReasons': <String>[
           'native_mirror_edge_input_samples_not_ready',
+          'native_mirror_edge_live_decode_stream_not_ready',
           'native_mirror_edge_tiler_missing',
         ],
       };
@@ -1615,13 +1620,21 @@ void main() {
     expect(result.tiles.first.mirrorEdges, isTrue);
     expect(result.tiles.first.decodedSampleCount, 2);
     expect(result.tiles.first.inputSamplesDecodable, isTrue);
+    expect(result.tiles.first.liveDecodeStreamCoverageReady, isTrue);
+    expect(result.tiles.first.continuousSampleCoverageReady, isTrue);
     expect(result.tiles.last.decodedSampleCount, 1);
     expect(result.tiles.last.inputSamplesDecodable, isFalse);
+    expect(result.tiles.last.liveDecodeStreamCoverageReady, isFalse);
+    expect(result.tiles.last.continuousSampleCoverageReady, isFalse);
     expect(result.tiles.first.clipToCanvas, isTrue);
     expect(result.tiles.first.allowBlackBorders, isFalse);
     expect(
       result.blockedReasons,
       contains('native_mirror_edge_input_samples_not_ready'),
+    );
+    expect(
+      result.blockedReasons,
+      contains('native_mirror_edge_live_decode_stream_not_ready'),
     );
     expect(
       result.blockedReasons,
