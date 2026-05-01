@@ -94,6 +94,138 @@ void main() {
     ]);
   });
 
+  test('zoom camera render plan serializes the full native contract', () {
+    final plan = ProfessionalZoomCameraRenderPlan(
+      canvasWidth: 1080,
+      canvasHeight: 1920,
+      request: ProfessionalZoomCameraPlanRequest(
+        transitionId: 'zoom-native-1',
+        timelineTime: TimelineTime.fromMilliseconds(10000),
+        boundaryTime: TimelineTime.fromMilliseconds(10000),
+        leadingDuration: TimelineTime.fromMilliseconds(2000),
+        trailingDuration: TimelineTime.fromMilliseconds(2000),
+        outgoing: ProfessionalVideoTransitionCompositorSource(
+          clipId: 'clip-a',
+          assetId: 'asset-a',
+          timelineRange: TimelineTimeRange(
+            start: TimelineTime.zero,
+            endExclusive: TimelineTime.fromMilliseconds(10000),
+          ),
+          sourceStartTime: TimelineTime.fromMilliseconds(1500),
+          sourceDuration: TimelineTime.fromMilliseconds(10000),
+        ),
+        incoming: ProfessionalVideoTransitionCompositorSource(
+          clipId: 'clip-b',
+          assetId: 'asset-b',
+          timelineRange: TimelineTimeRange(
+            start: TimelineTime.fromMilliseconds(10000),
+            endExclusive: TimelineTime.fromMilliseconds(18000),
+          ),
+          sourceStartTime: TimelineTime.fromMilliseconds(750),
+          sourceDuration: TimelineTime.fromMilliseconds(8000),
+        ),
+      ),
+    );
+
+    final payload = plan.toPlatformMap();
+    expect(payload['kind'], 'zoomInCamera');
+    expect(payload['transitionId'], 'zoom-native-1');
+    expect(payload['canvasWidth'], 1080);
+    expect(payload['canvasHeight'], 1920);
+    expect(payload['boundaryTimeMs'], 10000);
+    expect(payload['leadingDurationMs'], 2000);
+    expect(payload['trailingDurationMs'], 2000);
+    expect(payload['motionTileOutputScaleX'], 4.0);
+    expect(payload['motionTileOutputScaleY'], 3.5);
+    expect(payload['shutterSampleCount'], 8);
+    expect(payload['shutterAngleDegrees'], 360.0);
+
+    final outgoing = payload['outgoing']! as Map<String, Object?>;
+    final incoming = payload['incoming']! as Map<String, Object?>;
+    expect(outgoing['clipId'], 'clip-a');
+    expect(outgoing['timelineEndMs'], 10000);
+    expect(outgoing['sourceStartMs'], 1500);
+    expect(incoming['clipId'], 'clip-b');
+    expect(incoming['timelineStartMs'], 10000);
+    expect(incoming['sourceStartMs'], 750);
+  });
+
+  test('method channel prepare zoom maps unsupported native renderer',
+      () async {
+    const channel = MethodChannel(
+        'com.refusion.app/professional_video_transition_compositor');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(channel, null);
+    });
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'prepareZoomInCameraRenderPlan');
+      final arguments = call.arguments! as Map<Object?, Object?>;
+      expect(arguments['kind'], 'zoomInCamera');
+      expect(arguments['outgoing'], isA<Map<Object?, Object?>>());
+      expect(arguments['incoming'], isA<Map<Object?, Object?>>());
+      return <String, Object?>{
+        'status': 'unsupported',
+        'reason': 'native_zoom_camera_renderer_not_implemented',
+        'rendererVersion': 'foundation',
+        'missingCapabilities': <String>[
+          'dualVideoSampling',
+          'temporalMotionBlur',
+        ],
+      };
+    });
+
+    final result =
+        await const MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider(
+      channel: channel,
+    ).prepareZoomInCameraRenderPlan(
+      ProfessionalZoomCameraRenderPlan(
+        canvasWidth: 1080,
+        canvasHeight: 1920,
+        request: ProfessionalZoomCameraPlanRequest(
+          transitionId: 'zoom-native-1',
+          timelineTime: TimelineTime.fromMilliseconds(10000),
+          boundaryTime: TimelineTime.fromMilliseconds(10000),
+          leadingDuration: TimelineTime.fromMilliseconds(2000),
+          trailingDuration: TimelineTime.fromMilliseconds(2000),
+          outgoing: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-a',
+            assetId: 'asset-a',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(10000),
+            ),
+            sourceStartTime: TimelineTime.zero,
+            sourceDuration: TimelineTime.fromMilliseconds(10000),
+          ),
+          incoming: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-b',
+            assetId: 'asset-b',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(10000),
+              endExclusive: TimelineTime.fromMilliseconds(18000),
+            ),
+            sourceStartTime: TimelineTime.zero,
+            sourceDuration: TimelineTime.fromMilliseconds(8000),
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      result.status,
+      ProfessionalVideoTransitionCompositorPrepareStatus.unsupported,
+    );
+    expect(result.canRender, isFalse);
+    expect(result.reason, 'native_zoom_camera_renderer_not_implemented');
+    expect(result.rendererVersion, 'foundation');
+    expect(result.missingCapabilities, <String>[
+      'dualVideoSampling',
+      'temporalMotionBlur',
+    ]);
+  });
+
   test('zoom camera plan maps to live source times around the seam', () {
     const planner = ProfessionalZoomCameraCompositorPlanner();
     final plan = planner.planFrame(

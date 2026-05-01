@@ -456,6 +456,14 @@ class MainActivity: FlutterActivity() {
             when (call.method) {
                 "getCapabilities" ->
                     result.success(professionalVideoTransitionCompositorManager.capabilities())
+                "prepareZoomInCameraRenderPlan" -> {
+                    val plan =
+                        (call.arguments as? Map<*, *>)?.mapKeys { (key, _) -> key.toString() }
+                    result.success(
+                        professionalVideoTransitionCompositorManager
+                            .prepareZoomInCameraRenderPlan(plan),
+                    )
+                }
                 else -> result.notImplemented()
             }
         }

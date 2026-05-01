@@ -649,6 +649,14 @@ Current gate:
   In Camera remains hidden until the real dual-video compositor, temporal
   motion blur, mirror-edge tiling, preview, scrub, playback, and export parity
   are all implemented and reported from native code.
+- Flutter and Android now also share a
+  `prepareZoomInCameraRenderPlan` contract. Dart serializes the complete
+  transition render plan, including canvas size, seam timing, outgoing and
+  incoming source ranges, shutter settings, and mirror-edge tile overscan. The
+  native foundation currently validates the required shape and returns a clear
+  unsupported status instead of rendering. This is intentional: the next
+  implementation slice must replace that unsupported response with the real
+  dual-video GPU compositor, not a Flutter overlay fallback.
 
 ## 9. Stop Conditions
 

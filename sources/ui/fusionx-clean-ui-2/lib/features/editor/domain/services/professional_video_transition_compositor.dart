@@ -83,8 +83,18 @@ abstract class ProfessionalVideoTransitionCompositorCapabilityProvider {
   Future<ProfessionalVideoTransitionCompositorCapabilities> loadCapabilities();
 }
 
-class MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider
+abstract class ProfessionalVideoTransitionCompositorClient
     extends ProfessionalVideoTransitionCompositorCapabilityProvider {
+  const ProfessionalVideoTransitionCompositorClient();
+
+  Future<ProfessionalVideoTransitionCompositorPrepareResult>
+      prepareZoomInCameraRenderPlan(
+    ProfessionalZoomCameraRenderPlan plan,
+  );
+}
+
+class MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider
+    extends ProfessionalVideoTransitionCompositorClient {
   const MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider({
     MethodChannel channel = const MethodChannel(_channelName),
   }) : _channel = channel;
@@ -107,6 +117,30 @@ class MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider
       return ProfessionalVideoTransitionCompositorCapabilities.unavailable;
     } on PlatformException {
       return ProfessionalVideoTransitionCompositorCapabilities.unavailable;
+    }
+  }
+
+  @override
+  Future<ProfessionalVideoTransitionCompositorPrepareResult>
+      prepareZoomInCameraRenderPlan(
+    ProfessionalZoomCameraRenderPlan plan,
+  ) async {
+    try {
+      final rawResult = await _channel.invokeMapMethod<String, Object?>(
+        'prepareZoomInCameraRenderPlan',
+        plan.toPlatformMap(),
+      );
+      return ProfessionalVideoTransitionCompositorPrepareResultMapper.fromMap(
+        rawResult,
+      );
+    } on MissingPluginException {
+      return ProfessionalVideoTransitionCompositorPrepareResult.unsupported(
+        reason: 'native_compositor_channel_missing',
+      );
+    } on PlatformException catch (error) {
+      return ProfessionalVideoTransitionCompositorPrepareResult.invalidRequest(
+        reason: error.message ?? error.code,
+      );
     }
   }
 }
@@ -132,6 +166,93 @@ class ProfessionalVideoTransitionCompositorCapabilitiesMapper {
   }
 
   static bool _readBool(Object? value) => value is bool && value;
+}
+
+enum ProfessionalVideoTransitionCompositorPrepareStatus {
+  ready,
+  unsupported,
+  invalidRequest,
+}
+
+@immutable
+class ProfessionalVideoTransitionCompositorPrepareResult {
+  const ProfessionalVideoTransitionCompositorPrepareResult({
+    required this.status,
+    required this.reason,
+    required this.rendererVersion,
+    required this.missingCapabilities,
+  });
+
+  factory ProfessionalVideoTransitionCompositorPrepareResult.unsupported({
+    required String reason,
+    String rendererVersion = 'unknown',
+    List<String> missingCapabilities = const <String>[],
+  }) {
+    return ProfessionalVideoTransitionCompositorPrepareResult(
+      status: ProfessionalVideoTransitionCompositorPrepareStatus.unsupported,
+      reason: reason,
+      rendererVersion: rendererVersion,
+      missingCapabilities: List<String>.unmodifiable(missingCapabilities),
+    );
+  }
+
+  factory ProfessionalVideoTransitionCompositorPrepareResult.invalidRequest({
+    required String reason,
+    String rendererVersion = 'unknown',
+  }) {
+    return ProfessionalVideoTransitionCompositorPrepareResult(
+      status: ProfessionalVideoTransitionCompositorPrepareStatus.invalidRequest,
+      reason: reason,
+      rendererVersion: rendererVersion,
+      missingCapabilities: const <String>[],
+    );
+  }
+
+  final ProfessionalVideoTransitionCompositorPrepareStatus status;
+  final String reason;
+  final String rendererVersion;
+  final List<String> missingCapabilities;
+
+  bool get canRender =>
+      status == ProfessionalVideoTransitionCompositorPrepareStatus.ready;
+}
+
+class ProfessionalVideoTransitionCompositorPrepareResultMapper {
+  const ProfessionalVideoTransitionCompositorPrepareResultMapper._();
+
+  static ProfessionalVideoTransitionCompositorPrepareResult fromMap(
+    Map<String, Object?>? map,
+  ) {
+    if (map == null) {
+      return ProfessionalVideoTransitionCompositorPrepareResult.unsupported(
+        reason: 'native_compositor_empty_response',
+      );
+    }
+    return ProfessionalVideoTransitionCompositorPrepareResult(
+      status: _readStatus(map['status']),
+      reason: map['reason']?.toString() ?? '',
+      rendererVersion: map['rendererVersion']?.toString() ?? 'unknown',
+      missingCapabilities: _readStringList(map['missingCapabilities']),
+    );
+  }
+
+  static ProfessionalVideoTransitionCompositorPrepareStatus _readStatus(
+    Object? value,
+  ) {
+    return switch (value?.toString()) {
+      'ready' => ProfessionalVideoTransitionCompositorPrepareStatus.ready,
+      'invalidRequest' =>
+        ProfessionalVideoTransitionCompositorPrepareStatus.invalidRequest,
+      _ => ProfessionalVideoTransitionCompositorPrepareStatus.unsupported,
+    };
+  }
+
+  static List<String> _readStringList(Object? value) {
+    if (value is! List) {
+      return const <String>[];
+    }
+    return List<String>.unmodifiable(value.map((entry) => entry.toString()));
+  }
 }
 
 @immutable
@@ -247,6 +368,53 @@ class ProfessionalZoomCameraPlanRequest {
   final int shutterSampleCount;
   final double motionTileOutputScaleX;
   final double motionTileOutputScaleY;
+}
+
+@immutable
+class ProfessionalZoomCameraRenderPlan {
+  const ProfessionalZoomCameraRenderPlan({
+    required this.canvasWidth,
+    required this.canvasHeight,
+    required this.request,
+  });
+
+  final int canvasWidth;
+  final int canvasHeight;
+  final ProfessionalZoomCameraPlanRequest request;
+
+  Map<String, Object?> toPlatformMap() {
+    return <String, Object?>{
+      'kind': ProfessionalVideoTransitionCompositorKind.zoomInCamera.name,
+      'transitionId': request.transitionId,
+      'canvasWidth': canvasWidth,
+      'canvasHeight': canvasHeight,
+      'boundaryTimeMs': request.boundaryTime.inMilliseconds,
+      'leadingDurationMs': request.leadingDuration.inMilliseconds,
+      'trailingDurationMs': request.trailingDuration.inMilliseconds,
+      'outgoing': _sourceToPlatformMap(request.outgoing),
+      'incoming': _sourceToPlatformMap(request.incoming),
+      'outgoingBoostScale': request.outgoingBoostScale,
+      'incomingStartScale': request.incomingStartScale,
+      'shutterAngleDegrees': request.shutterAngleDegrees,
+      'frameRate': request.frameRate,
+      'shutterSampleCount': request.shutterSampleCount,
+      'motionTileOutputScaleX': request.motionTileOutputScaleX,
+      'motionTileOutputScaleY': request.motionTileOutputScaleY,
+    };
+  }
+
+  Map<String, Object?> _sourceToPlatformMap(
+    ProfessionalVideoTransitionCompositorSource source,
+  ) {
+    return <String, Object?>{
+      'clipId': source.clipId,
+      'assetId': source.assetId,
+      'timelineStartMs': source.timelineRange.start.inMilliseconds,
+      'timelineEndMs': source.timelineRange.endExclusive.inMilliseconds,
+      'sourceStartMs': source.sourceStartTime.inMilliseconds,
+      'sourceDurationMs': source.sourceDuration.inMilliseconds,
+    };
+  }
 }
 
 class ProfessionalZoomCameraCompositorPlanner {
