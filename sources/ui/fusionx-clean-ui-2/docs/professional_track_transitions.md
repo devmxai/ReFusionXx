@@ -821,11 +821,14 @@ Current gate:
   of poster-frame blur or decorative speed-line substitutes.
 - Flutter and Android now also share `planMirrorEdgeTiling`. This binds temporal
   accumulator outputs into outgoing/incoming mirror-edge tile plans with
-  deterministic overscan, canvas clipping, and explicit
-  `allowBlackBorders=false`, `allowFlutterOverlay=false`, and
-  `allowTimelineOverlay=false`. Current responses keep `tilerImplemented=false`,
-  so zoom/push/camera transitions cannot hide black borders with stretched
-  thumbnails, Flutter overlays, or timeline-area drawing.
+  deterministic overscan, decoded-sample readiness, canvas clipping, and
+  explicit `allowBlackBorders=false`, `allowFlutterOverlay=false`, and
+  `allowTimelineOverlay=false`. The tile plan now inherits whether the temporal
+  input samples were actually decodable, and blocks with
+  `native_mirror_edge_input_samples_not_ready` before any mirror-edge work can
+  proceed. Current responses keep `tilerImplemented=false`, so zoom/push/camera
+  transitions cannot hide black borders with stretched thumbnails, Flutter
+  overlays, or timeline-area drawing.
 - Flutter and Android now also share `planRenderPassGraph`. This is not a
   renderer; it is the renderer-agnostic execution graph every concrete native
   transition must satisfy: exact decode, temporal accumulation, optional

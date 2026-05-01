@@ -1954,6 +1954,9 @@ class ProfessionalVideoTransitionMirrorEdgeTile {
     required this.tileId,
     required this.role,
     required this.inputAccumulatorId,
+    this.sampleCount = 0,
+    this.decodedSampleCount = 0,
+    this.inputSamplesDecodable = true,
     required this.edgeMode,
     required this.outputScaleX,
     required this.outputScaleY,
@@ -1965,6 +1968,9 @@ class ProfessionalVideoTransitionMirrorEdgeTile {
   final String tileId;
   final String role;
   final String inputAccumulatorId;
+  final int sampleCount;
+  final int decodedSampleCount;
+  final bool inputSamplesDecodable;
   final String edgeMode;
   final double outputScaleX;
   final double outputScaleY;
@@ -2066,7 +2072,11 @@ class ProfessionalVideoTransitionMirrorEdgeTilingPlanResult {
       !allowTimelineOverlay &&
       tilerImplemented &&
       tiles.length == 2 &&
-      tiles.every((tile) => !tile.allowBlackBorders && tile.clipToCanvas) &&
+      tiles.every((tile) {
+        return tile.inputSamplesDecodable &&
+            !tile.allowBlackBorders &&
+            tile.clipToCanvas;
+      }) &&
       blockedReasons.isEmpty;
 }
 
@@ -2130,6 +2140,12 @@ class ProfessionalVideoTransitionMirrorEdgeTilingPlanResultMapper {
           tileId: tile['tileId']?.toString() ?? '',
           role: tile['role']?.toString() ?? '',
           inputAccumulatorId: tile['inputAccumulatorId']?.toString() ?? '',
+          sampleCount: _readInt(tile['sampleCount']),
+          decodedSampleCount: _readInt(tile['decodedSampleCount']),
+          inputSamplesDecodable: _readBool(
+            tile['inputSamplesDecodable'],
+            defaultValue: true,
+          ),
           edgeMode: tile['edgeMode']?.toString() ?? '',
           outputScaleX: _readDouble(tile['outputScaleX'], defaultValue: 1),
           outputScaleY: _readDouble(tile['outputScaleY'], defaultValue: 1),
@@ -2164,6 +2180,13 @@ class ProfessionalVideoTransitionMirrorEdgeTilingPlanResultMapper {
       return value.toDouble();
     }
     return double.tryParse(value?.toString() ?? '') ?? defaultValue;
+  }
+
+  static int _readInt(Object? value) {
+    if (value is num) {
+      return value.round();
+    }
+    return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 
   static List<String> _readStringList(Object? value) {

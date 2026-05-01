@@ -1050,10 +1050,18 @@ private data class ProfessionalVideoTransitionRenderSession(
             accumulators.map { accumulator ->
                 val role = accumulator["role"]?.toString() ?: ""
                 val inputAccumulatorId = accumulator["accumulatorId"]?.toString() ?: ""
+                val sampleCount =
+                    (accumulator["sampleCount"] as? Number)?.toInt()?.coerceAtLeast(0) ?: 0
+                val decodedSampleCount =
+                    (accumulator["decodedSampleCount"] as? Number)?.toInt()?.coerceAtLeast(0) ?: 0
+                val inputSamplesDecodable = accumulator["inputSamplesDecodable"] == true
                 mapOf(
                     "tileId" to "$id:mirror-tile:$role:$timelineTimeMs",
                     "role" to role,
                     "inputAccumulatorId" to inputAccumulatorId,
+                    "sampleCount" to sampleCount,
+                    "decodedSampleCount" to decodedSampleCount,
+                    "inputSamplesDecodable" to inputSamplesDecodable,
                     "edgeMode" to edgeMode,
                     "outputScaleX" to outputScaleX,
                     "outputScaleY" to outputScaleY,
@@ -1064,10 +1072,13 @@ private data class ProfessionalVideoTransitionRenderSession(
             }
         val tilerImplemented = false
         val blockedReasons =
-            if (!requiresMirrorEdgeTiling || tilerImplemented) {
-                emptyList()
-            } else {
-                listOf("native_mirror_edge_tiler_missing")
+            buildList {
+                if (tiles.any { tile -> tile["inputSamplesDecodable"] != true }) {
+                    add("native_mirror_edge_input_samples_not_ready")
+                }
+                if (requiresMirrorEdgeTiling && !tilerImplemented) {
+                    add("native_mirror_edge_tiler_missing")
+                }
             }
         return accumulatorPlan +
             mapOf(

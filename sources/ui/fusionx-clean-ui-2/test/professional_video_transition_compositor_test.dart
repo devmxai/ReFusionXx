@@ -1341,6 +1341,9 @@ void main() {
             'role': 'outgoing',
             'inputAccumulatorId':
                 'transition-session:zoom-native-1:accumulator:outgoing:10000',
+            'sampleCount': 2,
+            'decodedSampleCount': 2,
+            'inputSamplesDecodable': true,
             'edgeMode': 'mirrorTile',
             'outputScaleX': 4.0,
             'outputScaleY': 3.5,
@@ -1354,6 +1357,9 @@ void main() {
             'role': 'incoming',
             'inputAccumulatorId':
                 'transition-session:zoom-native-1:accumulator:incoming:10000',
+            'sampleCount': 2,
+            'decodedSampleCount': 1,
+            'inputSamplesDecodable': false,
             'edgeMode': 'mirrorTile',
             'outputScaleX': 4.0,
             'outputScaleY': 3.5,
@@ -1362,7 +1368,10 @@ void main() {
             'allowBlackBorders': false,
           },
         ],
-        'blockedReasons': <String>['native_mirror_edge_tiler_missing'],
+        'blockedReasons': <String>[
+          'native_mirror_edge_input_samples_not_ready',
+          'native_mirror_edge_tiler_missing',
+        ],
       };
     });
 
@@ -1420,8 +1429,16 @@ void main() {
       'incoming',
     ]);
     expect(result.tiles.first.mirrorEdges, isTrue);
+    expect(result.tiles.first.decodedSampleCount, 2);
+    expect(result.tiles.first.inputSamplesDecodable, isTrue);
+    expect(result.tiles.last.decodedSampleCount, 1);
+    expect(result.tiles.last.inputSamplesDecodable, isFalse);
     expect(result.tiles.first.clipToCanvas, isTrue);
     expect(result.tiles.first.allowBlackBorders, isFalse);
+    expect(
+      result.blockedReasons,
+      contains('native_mirror_edge_input_samples_not_ready'),
+    );
     expect(
       result.blockedReasons,
       contains('native_mirror_edge_tiler_missing'),
