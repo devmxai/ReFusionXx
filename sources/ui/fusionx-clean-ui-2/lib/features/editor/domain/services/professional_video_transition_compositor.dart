@@ -1400,6 +1400,15 @@ class ProfessionalVideoTransitionDecoderTrack {
     this.videoHeight = 0,
     this.videoDurationUs = 0,
     this.videoFrameRate = 0,
+    this.requiresContinuousFrameStream = true,
+    this.liveDecodeWindowTimelineStartTime,
+    this.liveDecodeWindowTimelineEndTime,
+    this.liveDecodeWindowSourceStartTime,
+    this.liveDecodeWindowSourceEndTime,
+    this.liveDecodeWindowDuration = TimelineTime.zero,
+    this.liveDecodeSourceWindowDuration = TimelineTime.zero,
+    this.liveDecodeWindowReady = false,
+    this.continuousSampleCoverageReady = false,
     this.centerSampleSourceTimeMs = 0,
     this.exactFrameDecodeProbeImplemented = true,
     this.sampleDecodeProbeImplemented = true,
@@ -1434,6 +1443,15 @@ class ProfessionalVideoTransitionDecoderTrack {
   final int videoHeight;
   final int videoDurationUs;
   final int videoFrameRate;
+  final bool requiresContinuousFrameStream;
+  final TimelineTime? liveDecodeWindowTimelineStartTime;
+  final TimelineTime? liveDecodeWindowTimelineEndTime;
+  final TimelineTime? liveDecodeWindowSourceStartTime;
+  final TimelineTime? liveDecodeWindowSourceEndTime;
+  final TimelineTime liveDecodeWindowDuration;
+  final TimelineTime liveDecodeSourceWindowDuration;
+  final bool liveDecodeWindowReady;
+  final bool continuousSampleCoverageReady;
   final int centerSampleSourceTimeMs;
   final bool exactFrameDecodeProbeImplemented;
   final bool sampleDecodeProbeImplemented;
@@ -1467,6 +1485,7 @@ class ProfessionalVideoTransitionDecoderSessionPlanResult {
     required this.transitionEndTime,
     required this.requiresDualVideoDecoder,
     required this.requiresExactFrameDecode,
+    required this.requiresContinuousFrameStream,
     required this.allowThumbnailFallback,
     required this.allowBoundaryFreeze,
     required this.decoderImplemented,
@@ -1493,6 +1512,7 @@ class ProfessionalVideoTransitionDecoderSessionPlanResult {
       transitionEndTime: null,
       requiresDualVideoDecoder: true,
       requiresExactFrameDecode: true,
+      requiresContinuousFrameStream: true,
       allowThumbnailFallback: false,
       allowBoundaryFreeze: false,
       decoderImplemented: false,
@@ -1513,6 +1533,7 @@ class ProfessionalVideoTransitionDecoderSessionPlanResult {
   final TimelineTime? transitionEndTime;
   final bool requiresDualVideoDecoder;
   final bool requiresExactFrameDecode;
+  final bool requiresContinuousFrameStream;
   final bool allowThumbnailFallback;
   final bool allowBoundaryFreeze;
   final bool decoderImplemented;
@@ -1527,12 +1548,16 @@ class ProfessionalVideoTransitionDecoderSessionPlanResult {
       canPlan &&
       requiresDualVideoDecoder &&
       requiresExactFrameDecode &&
+      requiresContinuousFrameStream &&
       !allowThumbnailFallback &&
       !allowBoundaryFreeze &&
       decoderImplemented &&
       tracks.length == 2 &&
       tracks.every((track) {
         return track.sourceProbeReady &&
+            track.requiresContinuousFrameStream &&
+            track.liveDecodeWindowReady &&
+            track.continuousSampleCoverageReady &&
             track.exactFrameDecodeProbeImplemented &&
             track.sampleDecodeProbeImplemented &&
             track.decodedBufferProbeImplemented &&
@@ -1576,6 +1601,10 @@ class ProfessionalVideoTransitionDecoderSessionPlanResultMapper {
         map['requiresExactFrameDecode'],
         defaultValue: true,
       ),
+      requiresContinuousFrameStream: _readBool(
+        map['requiresContinuousFrameStream'],
+        defaultValue: true,
+      ),
       allowThumbnailFallback: _readBool(map['allowThumbnailFallback']),
       allowBoundaryFreeze: _readBool(map['allowBoundaryFreeze']),
       decoderImplemented: _readBool(map['decoderImplemented']),
@@ -1615,6 +1644,27 @@ class ProfessionalVideoTransitionDecoderSessionPlanResultMapper {
           videoHeight: _readInt(track['videoHeight']),
           videoDurationUs: _readInt(track['videoDurationUs']),
           videoFrameRate: _readInt(track['videoFrameRate']),
+          requiresContinuousFrameStream: _readBool(
+            track['requiresContinuousFrameStream'],
+            defaultValue: true,
+          ),
+          liveDecodeWindowTimelineStartTime:
+              _readTimelineTime(track['liveDecodeWindowTimelineStartMs']),
+          liveDecodeWindowTimelineEndTime:
+              _readTimelineTime(track['liveDecodeWindowTimelineEndMs']),
+          liveDecodeWindowSourceStartTime:
+              _readTimelineTime(track['liveDecodeWindowSourceStartMs']),
+          liveDecodeWindowSourceEndTime:
+              _readTimelineTime(track['liveDecodeWindowSourceEndMs']),
+          liveDecodeWindowDuration:
+              _readTimelineTime(track['liveDecodeWindowDurationMs']) ??
+                  TimelineTime.zero,
+          liveDecodeSourceWindowDuration:
+              _readTimelineTime(track['liveDecodeSourceWindowDurationMs']) ??
+                  TimelineTime.zero,
+          liveDecodeWindowReady: _readBool(track['liveDecodeWindowReady']),
+          continuousSampleCoverageReady:
+              _readBool(track['continuousSampleCoverageReady']),
           centerSampleSourceTimeMs: _readInt(track['centerSampleSourceTimeMs']),
           exactFrameDecodeProbeImplemented: _readBool(
             track['exactFrameDecodeProbeImplemented'],

@@ -349,6 +349,7 @@ class _FakeProfessionalVideoTransitionCompositorClient
       transitionEndTime: plan.boundaryTime + plan.trailingDuration,
       requiresDualVideoDecoder: true,
       requiresExactFrameDecode: true,
+      requiresContinuousFrameStream: true,
       allowThumbnailFallback: false,
       allowBoundaryFreeze: false,
       decoderImplemented: _rendererReady,
@@ -669,6 +670,16 @@ class _FakeProfessionalVideoTransitionCompositorClient
       requiresExactFrameDecode: true,
       allowThumbnailFallback: false,
       allowBoundaryFreeze: false,
+      liveDecodeWindowTimelineStartTime: source.timelineRange.start,
+      liveDecodeWindowTimelineEndTime: source.timelineRange.endExclusive,
+      liveDecodeWindowSourceStartTime: source.sourceStartTime,
+      liveDecodeWindowSourceEndTime:
+          source.sourceStartTime + source.sourceDuration,
+      liveDecodeWindowDuration:
+          source.timelineRange.endExclusive - source.timelineRange.start,
+      liveDecodeSourceWindowDuration: source.sourceDuration,
+      liveDecodeWindowReady: true,
+      continuousSampleCoverageReady: true,
     );
   }
 }

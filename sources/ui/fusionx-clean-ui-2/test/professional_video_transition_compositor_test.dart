@@ -1050,6 +1050,7 @@ void main() {
         'transitionEndMs': 12000,
         'requiresDualVideoDecoder': true,
         'requiresExactFrameDecode': true,
+        'requiresContinuousFrameStream': true,
         'allowThumbnailFallback': false,
         'allowBoundaryFreeze': false,
         'decoderImplemented': false,
@@ -1073,6 +1074,15 @@ void main() {
             'videoHeight': 1920,
             'videoDurationUs': 60000000,
             'videoFrameRate': 30,
+            'requiresContinuousFrameStream': true,
+            'liveDecodeWindowTimelineStartMs': 8000,
+            'liveDecodeWindowTimelineEndMs': 10000,
+            'liveDecodeWindowSourceStartMs': 28000,
+            'liveDecodeWindowSourceEndMs': 30000,
+            'liveDecodeWindowDurationMs': 2000,
+            'liveDecodeSourceWindowDurationMs': 2000,
+            'liveDecodeWindowReady': true,
+            'continuousSampleCoverageReady': false,
             'centerSampleSourceTimeMs': 30017,
             'exactFrameDecodeProbeImplemented': true,
             'sampleDecodeProbeImplemented': true,
@@ -1109,6 +1119,15 @@ void main() {
             'videoHeight': 1920,
             'videoDurationUs': 60000000,
             'videoFrameRate': 30,
+            'requiresContinuousFrameStream': true,
+            'liveDecodeWindowTimelineStartMs': 10000,
+            'liveDecodeWindowTimelineEndMs': 12000,
+            'liveDecodeWindowSourceStartMs': 40000,
+            'liveDecodeWindowSourceEndMs': 42000,
+            'liveDecodeWindowDurationMs': 2000,
+            'liveDecodeSourceWindowDurationMs': 2000,
+            'liveDecodeWindowReady': true,
+            'continuousSampleCoverageReady': false,
             'centerSampleSourceTimeMs': 40017,
             'exactFrameDecodeProbeImplemented': true,
             'sampleDecodeProbeImplemented': true,
@@ -1125,7 +1144,10 @@ void main() {
             'decodeProbeReason': 'native_exact_frame_decode_timeout',
           },
         ],
-        'blockedReasons': <String>['native_dual_video_decoder_missing'],
+        'blockedReasons': <String>[
+          'native_dual_video_decoder_missing',
+          'native_dual_video_live_decode_not_ready',
+        ],
       };
     });
 
@@ -1173,6 +1195,7 @@ void main() {
     expect(result.canDecode, isFalse);
     expect(result.requiresDualVideoDecoder, isTrue);
     expect(result.requiresExactFrameDecode, isTrue);
+    expect(result.requiresContinuousFrameStream, isTrue);
     expect(result.allowThumbnailFallback, isFalse);
     expect(result.allowBoundaryFreeze, isFalse);
     expect(result.decoderImplemented, isFalse);
@@ -1184,6 +1207,13 @@ void main() {
     expect(result.tracks.first.sourceUri, 'file:///tmp/outgoing.mp4');
     expect(result.tracks.first.sourceProbeReady, isTrue);
     expect(result.tracks.first.videoMimeType, 'video/avc');
+    expect(result.tracks.first.requiresContinuousFrameStream, isTrue);
+    expect(result.tracks.first.liveDecodeWindowTimelineStartTime,
+        TimelineTime.fromMilliseconds(8000));
+    expect(result.tracks.first.liveDecodeWindowTimelineEndTime,
+        TimelineTime.fromMilliseconds(10000));
+    expect(result.tracks.first.liveDecodeWindowReady, isTrue);
+    expect(result.tracks.first.continuousSampleCoverageReady, isFalse);
     expect(result.tracks.first.decodedSampleCount, 2);
     expect(result.tracks.first.decodedBufferProbeImplemented, isTrue);
     expect(result.tracks.first.decodedBufferCount, 2);
@@ -1208,6 +1238,10 @@ void main() {
     expect(
       result.blockedReasons,
       contains('native_dual_video_decoder_missing'),
+    );
+    expect(
+      result.blockedReasons,
+      contains('native_dual_video_live_decode_not_ready'),
     );
   });
 

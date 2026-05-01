@@ -829,6 +829,16 @@ Current gate:
   inherits this as `native_temporal_sample_buffer_not_ready`. This is the
   hard boundary that prevents professional motion blur from being unlocked by
   frame metadata, poster frames, or frozen stills.
+- The dual-video decoder session now distinguishes exact decoded sample probes
+  from a continuous live decode stream. Each role must declare its live decode
+  timeline/source window: outgoing covers the leading window up to the seam,
+  incoming covers the trailing window from the seam. A future renderer may not
+  treat decoded shutter samples as a playing transition until
+  `liveDecodeWindowReady=true` and `continuousSampleCoverageReady=true` for both
+  roles. If the continuous stream is absent, the compositor blocks with
+  `native_dual_video_live_decode_not_ready`. This closes the still-frame
+  loophole that caused zoom transitions to animate a single ambiguous frame
+  instead of video motion.
 - Flutter and Android now also share `planTemporalSampleAccumulator`. This binds
   the two decoder tracks into outgoing/incoming temporal accumulators with
   deterministic sample weights, exact-frame requirements, decoded-sample counts,

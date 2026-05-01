@@ -839,6 +839,32 @@ private data class ProfessionalVideoTransitionRenderSession(
                         (request["sourceTimeMs"] as? Number)?.toLong()
                             ?: request["sourceTimeMs"]?.toString()?.toLongOrNull()
                     }
+                val roleSource =
+                    if (role == "outgoing") {
+                        outgoing
+                    } else {
+                        incoming
+                    }
+                val liveDecodeTimelineStartMs =
+                    if (role == "outgoing") {
+                        transitionStartMs
+                    } else {
+                        boundaryTimeMs
+                    }
+                val liveDecodeTimelineEndMs =
+                    if (role == "outgoing") {
+                        boundaryTimeMs
+                    } else {
+                        transitionEndMs
+                    }
+                val liveDecodeSourceStartMs =
+                    roleSource.sourceTimeForTimelineTime(liveDecodeTimelineStartMs)
+                val liveDecodeSourceEndMs =
+                    roleSource.sourceTimeForTimelineTime(liveDecodeTimelineEndMs)
+                val liveDecodeWindowDurationMs =
+                    (liveDecodeTimelineEndMs - liveDecodeTimelineStartMs).coerceAtLeast(0L)
+                val sourceWindowDurationMs =
+                    abs(liveDecodeSourceEndMs - liveDecodeSourceStartMs)
                 val decodeProbe =
                     if (sourceProbeReady && sourceUri.isNotBlank()) {
                         probeExactVideoFrames(
@@ -886,6 +912,19 @@ private data class ProfessionalVideoTransitionRenderSession(
                     "videoHeight" to ((sourceProbe?.get("videoHeight") as? Number)?.toInt() ?: 0),
                     "videoDurationUs" to ((sourceProbe?.get("videoDurationUs") as? Number)?.toLong() ?: 0L),
                     "videoFrameRate" to ((sourceProbe?.get("videoFrameRate") as? Number)?.toInt() ?: 0),
+                    "requiresContinuousFrameStream" to true,
+                    "liveDecodeWindowTimelineStartMs" to liveDecodeTimelineStartMs,
+                    "liveDecodeWindowTimelineEndMs" to liveDecodeTimelineEndMs,
+                    "liveDecodeWindowSourceStartMs" to liveDecodeSourceStartMs,
+                    "liveDecodeWindowSourceEndMs" to liveDecodeSourceEndMs,
+                    "liveDecodeWindowDurationMs" to liveDecodeWindowDurationMs,
+                    "liveDecodeSourceWindowDurationMs" to sourceWindowDurationMs,
+                    "liveDecodeWindowReady" to (
+                        sourceProbeReady &&
+                            liveDecodeWindowDurationMs > 0L &&
+                            sourceWindowDurationMs > 0L
+                    ),
+                    "continuousSampleCoverageReady" to false,
                     "centerSampleSourceTimeMs" to centerSourceTimeMs,
                     "exactFrameDecodeProbeImplemented" to true,
                     "sampleDecodeProbeImplemented" to true,
@@ -920,6 +959,8 @@ private data class ProfessionalVideoTransitionRenderSession(
             tracks.size == 2 &&
                 tracks.all { track ->
                         track["sourceProbeReady"] == true &&
+                        track["liveDecodeWindowReady"] == true &&
+                        track["continuousSampleCoverageReady"] == true &&
                         track["canDecodeCenterFrame"] == true &&
                         track["allSamplesDecodable"] == true &&
                         track["allDecodedBuffersReadable"] == true
@@ -938,6 +979,12 @@ private data class ProfessionalVideoTransitionRenderSession(
                 if (!decoderImplemented) {
                     add("native_dual_video_decoder_not_ready")
                 }
+                if (tracks.any { track -> track["liveDecodeWindowReady"] != true }) {
+                    add("native_dual_video_live_decode_window_not_ready")
+                }
+                if (tracks.any { track -> track["continuousSampleCoverageReady"] != true }) {
+                    add("native_dual_video_live_decode_not_ready")
+                }
                 tracks.forEach { track ->
                     val reason = track["decodeProbeReason"]?.toString().orEmpty()
                     if (reason.isNotBlank() && track["canDecodeCenterFrame"] != true) {
@@ -955,6 +1002,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                 "decoderSessionId" to "$id:decoder:$timelineTimeMs",
                 "requiresDualVideoDecoder" to true,
                 "requiresExactFrameDecode" to true,
+                "requiresContinuousFrameStream" to true,
                 "allowThumbnailFallback" to false,
                 "allowBoundaryFreeze" to false,
                 "decoderImplemented" to decoderImplemented,
