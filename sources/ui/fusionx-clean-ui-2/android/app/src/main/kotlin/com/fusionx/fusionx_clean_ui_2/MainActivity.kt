@@ -18,6 +18,8 @@ class MainActivity: FlutterActivity() {
     companion object {
         private const val MEDIA_PERMISSION_REQUEST_CODE = 4106
         private const val RUNTIME_CONFIG_CHANNEL = "com.refusion.app/runtime_config"
+        private const val PROFESSIONAL_VIDEO_TRANSITION_COMPOSITOR_CHANNEL =
+            "com.refusion.app/professional_video_transition_compositor"
     }
 
     private lateinit var stage5TransportManager: Stage5TransportManager
@@ -25,6 +27,8 @@ class MainActivity: FlutterActivity() {
     private lateinit var stage5ScrubPreviewProxyManager: Stage5ScrubPreviewProxyManager
     private lateinit var stage6ExportManager: Stage6ExportManager
     private lateinit var deviceMediaLibraryManager: DeviceMediaLibraryManager
+    private lateinit var professionalVideoTransitionCompositorManager:
+        ProfessionalVideoTransitionCompositorManager
     private val mediaQueryExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val mediaThumbnailExecutor: ExecutorService = Executors.newFixedThreadPool(4)
     private val scrubReadinessExecutor: ExecutorService = Executors.newSingleThreadExecutor()
@@ -49,6 +53,8 @@ class MainActivity: FlutterActivity() {
                 previewTransportManager = stage5TransportManager,
             )
         deviceMediaLibraryManager = DeviceMediaLibraryManager(applicationContext)
+        professionalVideoTransitionCompositorManager =
+            ProfessionalVideoTransitionCompositorManager()
 
         flutterEngine.platformViewsController.registry.registerViewFactory(
             Stage5TransportManager.PREVIEW_VIEW_TYPE,
@@ -439,6 +445,17 @@ class MainActivity: FlutterActivity() {
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "getKieApiKey" -> result.success(BuildConfig.KIE_API_KEY)
+                else -> result.notImplemented()
+            }
+        }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            PROFESSIONAL_VIDEO_TRANSITION_COMPOSITOR_CHANNEL,
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "getCapabilities" ->
+                    result.success(professionalVideoTransitionCompositorManager.capabilities())
                 else -> result.notImplemented()
             }
         }

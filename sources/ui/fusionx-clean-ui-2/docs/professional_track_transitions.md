@@ -642,6 +642,13 @@ Current gate:
 - a future `ProfessionalVideoTransitionCompositor` must own preview, scrub,
   playback, and export parity before Zoom In Camera is exposed again as an
   engine-backed preset.
+- the Android app now exposes
+  `com.refusion.app/professional_video_transition_compositor.getCapabilities`
+  as the native capability bridge for this compositor. The current native
+  response is deliberately unavailable for every required capability, so Zoom
+  In Camera remains hidden until the real dual-video compositor, temporal
+  motion blur, mirror-edge tiling, preview, scrub, playback, and export parity
+  are all implemented and reported from native code.
 
 ## 9. Stop Conditions
 

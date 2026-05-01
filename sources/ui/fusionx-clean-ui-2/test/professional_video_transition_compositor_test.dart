@@ -1,8 +1,11 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:refusion_app/features/editor/domain/services/professional_video_transition_compositor.dart';
 import 'package:refusion_app/features/editor/presentation/models/timeline_time.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   test('current compositor gate does not expose professional zoom yet', () {
     expect(
       kCurrentProfessionalVideoTransitionCompositorCapabilities
@@ -22,6 +25,73 @@ void main() {
         'exportParity',
       ]),
     );
+  });
+
+  test('capability mapper requires every professional zoom feature', () {
+    final partial =
+        ProfessionalVideoTransitionCompositorCapabilitiesMapper.fromMap(
+      <String, Object?>{
+        'dualVideoSampling': true,
+        'temporalMotionBlur': true,
+        'mirrorEdgeTiling': true,
+        'previewParity': true,
+        'liveScrubParity': false,
+        'playbackParity': true,
+        'exportParity': true,
+      },
+    );
+
+    expect(partial.canExposeProfessionalZoomInCamera, isFalse);
+    expect(partial.missingForProfessionalZoomInCamera, <String>[
+      'liveScrubParity',
+    ]);
+
+    final complete =
+        ProfessionalVideoTransitionCompositorCapabilitiesMapper.fromMap(
+      <String, Object?>{
+        'dualVideoSampling': true,
+        'temporalMotionBlur': true,
+        'mirrorEdgeTiling': true,
+        'previewParity': true,
+        'liveScrubParity': true,
+        'playbackParity': true,
+        'exportParity': true,
+      },
+    );
+
+    expect(complete.canExposeProfessionalZoomInCamera, isTrue);
+  });
+
+  test('method channel capability provider maps native capabilities', () async {
+    const channel = MethodChannel(
+        'com.refusion.app/professional_video_transition_compositor');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(channel, null);
+    });
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'getCapabilities');
+      return <String, Object?>{
+        'dualVideoSampling': true,
+        'temporalMotionBlur': true,
+        'mirrorEdgeTiling': true,
+        'previewParity': true,
+        'liveScrubParity': true,
+        'playbackParity': true,
+        'exportParity': false,
+      };
+    });
+
+    final capabilities =
+        await const MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider(
+      channel: channel,
+    ).loadCapabilities();
+
+    expect(capabilities.canExposeProfessionalZoomInCamera, isFalse);
+    expect(capabilities.missingForProfessionalZoomInCamera, <String>[
+      'exportParity',
+    ]);
   });
 
   test('zoom camera plan maps to live source times around the seam', () {

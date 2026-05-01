@@ -29,9 +29,16 @@ class TransitionBrowserBottomSheet extends StatefulWidget {
   const TransitionBrowserBottomSheet({
     super.key,
     this.presets,
+    this.compositorCapabilities,
+    this.capabilityProvider =
+        const MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider(),
   });
 
   final List<TimelineTransitionPreset>? presets;
+  final ProfessionalVideoTransitionCompositorCapabilities?
+      compositorCapabilities;
+  final ProfessionalVideoTransitionCompositorCapabilityProvider
+      capabilityProvider;
 
   @override
   State<TransitionBrowserBottomSheet> createState() =>
@@ -43,6 +50,8 @@ class _TransitionBrowserBottomSheetState
   late final TextEditingController _searchController;
   late final FocusNode _focusNode;
   _TransitionBrowserPage _page = _TransitionBrowserPage.menu;
+  late ProfessionalVideoTransitionCompositorCapabilities
+      _compositorCapabilities;
   String _query = '';
 
   @override
@@ -50,6 +59,18 @@ class _TransitionBrowserBottomSheetState
     super.initState();
     _searchController = TextEditingController();
     _focusNode = FocusNode();
+    _compositorCapabilities = widget.compositorCapabilities ??
+        kCurrentProfessionalVideoTransitionCompositorCapabilities;
+    if (widget.compositorCapabilities == null) {
+      widget.capabilityProvider.loadCapabilities().then((capabilities) {
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _compositorCapabilities = capabilities;
+        });
+      });
+    }
   }
 
   @override
@@ -74,12 +95,11 @@ class _TransitionBrowserBottomSheetState
     }).toList(growable: false);
   }
 
-  static List<TimelineTransitionPreset> get _defaultPresets {
+  List<TimelineTransitionPreset> get _defaultPresets {
     return <TimelineTransitionPreset>[
       TimelineTransitionPreset.crossDissolve,
       TimelineTransitionPreset.fadeBlack,
-      if (kCurrentProfessionalVideoTransitionCompositorCapabilities
-          .canExposeProfessionalZoomInCamera)
+      if (_compositorCapabilities.canExposeProfessionalZoomInCamera)
         TimelineTransitionPreset.zoomInCamera,
     ];
   }

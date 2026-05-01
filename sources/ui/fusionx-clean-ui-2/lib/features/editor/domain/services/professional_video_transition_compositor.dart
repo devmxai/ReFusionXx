@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import '../../presentation/models/timeline_time.dart';
 
@@ -75,6 +76,63 @@ class ProfessionalVideoTransitionCompositorCapabilities {
 const ProfessionalVideoTransitionCompositorCapabilities
     kCurrentProfessionalVideoTransitionCompositorCapabilities =
     ProfessionalVideoTransitionCompositorCapabilities.unavailable;
+
+abstract class ProfessionalVideoTransitionCompositorCapabilityProvider {
+  const ProfessionalVideoTransitionCompositorCapabilityProvider();
+
+  Future<ProfessionalVideoTransitionCompositorCapabilities> loadCapabilities();
+}
+
+class MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider
+    extends ProfessionalVideoTransitionCompositorCapabilityProvider {
+  const MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider({
+    MethodChannel channel = const MethodChannel(_channelName),
+  }) : _channel = channel;
+
+  static const String _channelName =
+      'com.refusion.app/professional_video_transition_compositor';
+
+  final MethodChannel _channel;
+
+  @override
+  Future<ProfessionalVideoTransitionCompositorCapabilities>
+      loadCapabilities() async {
+    try {
+      final rawCapabilities =
+          await _channel.invokeMapMethod<String, Object?>('getCapabilities');
+      return ProfessionalVideoTransitionCompositorCapabilitiesMapper.fromMap(
+        rawCapabilities,
+      );
+    } on MissingPluginException {
+      return ProfessionalVideoTransitionCompositorCapabilities.unavailable;
+    } on PlatformException {
+      return ProfessionalVideoTransitionCompositorCapabilities.unavailable;
+    }
+  }
+}
+
+class ProfessionalVideoTransitionCompositorCapabilitiesMapper {
+  const ProfessionalVideoTransitionCompositorCapabilitiesMapper._();
+
+  static ProfessionalVideoTransitionCompositorCapabilities fromMap(
+    Map<String, Object?>? map,
+  ) {
+    if (map == null) {
+      return ProfessionalVideoTransitionCompositorCapabilities.unavailable;
+    }
+    return ProfessionalVideoTransitionCompositorCapabilities(
+      dualVideoSampling: _readBool(map['dualVideoSampling']),
+      temporalMotionBlur: _readBool(map['temporalMotionBlur']),
+      mirrorEdgeTiling: _readBool(map['mirrorEdgeTiling']),
+      previewParity: _readBool(map['previewParity']),
+      liveScrubParity: _readBool(map['liveScrubParity']),
+      playbackParity: _readBool(map['playbackParity']),
+      exportParity: _readBool(map['exportParity']),
+    );
+  }
+
+  static bool _readBool(Object? value) => value is bool && value;
+}
 
 @immutable
 class ProfessionalVideoTransitionCompositorSource {
