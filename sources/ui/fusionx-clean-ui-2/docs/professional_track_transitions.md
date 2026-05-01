@@ -766,6 +766,13 @@ Current gate:
   is the contract that prevents MediaMetadataRetriever thumbnails, boundary
   stills, or one-sided video playback from masquerading as professional
   transition decoding.
+- Flutter and Android now also share `planTemporalSampleAccumulator`. This binds
+  the two decoder tracks into outgoing/incoming temporal accumulators with
+  deterministic sample weights, exact-frame requirements, and explicit
+  `allowGaussianFallback=false` / `allowDecorativeSpeedLines=false`. Current
+  responses deliberately keep `accumulatorImplemented=false`, so temporal motion
+  blur remains blocked until the native compositor can accumulate real shutter
+  samples instead of poster-frame blur or decorative speed-line substitutes.
 - Flutter and Android now also share `planRenderPassGraph`. This is not a
   renderer; it is the renderer-agnostic execution graph every concrete native
   transition must satisfy: exact decode, temporal accumulation, optional

@@ -125,6 +125,12 @@ abstract class ProfessionalVideoTransitionCompositorClient
     required TimelineTime timelineTime,
   });
 
+  Future<ProfessionalVideoTransitionTemporalAccumulatorPlanResult>
+      planTemporalSampleAccumulator({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  });
+
   Future<ProfessionalVideoTransitionRenderPassGraphPlanResult>
       planRenderPassGraph({
     required ProfessionalVideoTransitionRenderPlan plan,
@@ -272,6 +278,34 @@ class MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider
       );
     } on PlatformException catch (error) {
       return ProfessionalVideoTransitionDecoderSessionPlanResult.invalidRequest(
+        reason: error.message ?? error.code,
+      );
+    }
+  }
+
+  @override
+  Future<ProfessionalVideoTransitionTemporalAccumulatorPlanResult>
+      planTemporalSampleAccumulator({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  }) async {
+    try {
+      final payload = plan.toPlatformMap();
+      payload['timelineTimeMs'] = timelineTime.inMilliseconds;
+      final rawResult = await _channel.invokeMapMethod<String, Object?>(
+        'planTemporalSampleAccumulator',
+        payload,
+      );
+      return ProfessionalVideoTransitionTemporalAccumulatorPlanResultMapper
+          .fromMap(rawResult);
+    } on MissingPluginException {
+      return ProfessionalVideoTransitionTemporalAccumulatorPlanResult
+          .invalidRequest(
+        reason: 'native_compositor_channel_missing',
+      );
+    } on PlatformException catch (error) {
+      return ProfessionalVideoTransitionTemporalAccumulatorPlanResult
+          .invalidRequest(
         reason: error.message ?? error.code,
       );
     }
@@ -957,6 +991,269 @@ class ProfessionalVideoTransitionDecoderSessionPlanResultMapper {
       return value.round();
     }
     return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static List<String> _readStringList(Object? value) {
+    if (value is! List) {
+      return const <String>[];
+    }
+    return List<String>.unmodifiable(value.map((entry) => entry.toString()));
+  }
+
+  static List<Map<String, Object?>> _readIssues(Object? value) {
+    if (value is! List) {
+      return const <Map<String, Object?>>[];
+    }
+    return List<Map<String, Object?>>.unmodifiable(
+      value.whereType<Map>().map((issue) {
+        return <String, Object?>{
+          for (final entry in issue.entries) entry.key.toString(): entry.value,
+        };
+      }),
+    );
+  }
+}
+
+enum ProfessionalVideoTransitionTemporalAccumulatorPlanStatus {
+  planned,
+  invalidRequest,
+}
+
+@immutable
+class ProfessionalVideoTransitionTemporalAccumulator {
+  const ProfessionalVideoTransitionTemporalAccumulator({
+    required this.accumulatorId,
+    required this.role,
+    required this.inputTrackRole,
+    required this.sampleCount,
+    required this.sampleWeights,
+    required this.normalization,
+    required this.requiresTemporalShutter,
+    required this.requiresExactFrameDecode,
+    required this.allowGaussianFallback,
+    required this.allowDecorativeSpeedLines,
+  });
+
+  final String accumulatorId;
+  final String role;
+  final String inputTrackRole;
+  final int sampleCount;
+  final List<double> sampleWeights;
+  final String normalization;
+  final bool requiresTemporalShutter;
+  final bool requiresExactFrameDecode;
+  final bool allowGaussianFallback;
+  final bool allowDecorativeSpeedLines;
+}
+
+@immutable
+class ProfessionalVideoTransitionTemporalAccumulatorPlanResult {
+  const ProfessionalVideoTransitionTemporalAccumulatorPlanResult({
+    required this.status,
+    required this.reason,
+    required this.rendererVersion,
+    required this.definitionId,
+    required this.renderSessionId,
+    required this.decoderSessionId,
+    required this.temporalAccumulatorSessionId,
+    required this.timelineTime,
+    required this.transitionStartTime,
+    required this.transitionEndTime,
+    required this.motionBlurMode,
+    required this.shutterSampleCount,
+    required this.requiresTemporalAccumulation,
+    required this.requiresExactFrameDecode,
+    required this.allowGaussianFallback,
+    required this.allowDecorativeSpeedLines,
+    required this.accumulatorImplemented,
+    required this.accumulators,
+    required this.blockedReasons,
+    this.issues = const <Map<String, Object?>>[],
+  });
+
+  factory ProfessionalVideoTransitionTemporalAccumulatorPlanResult.invalidRequest({
+    required String reason,
+    String rendererVersion = 'unknown',
+    List<Map<String, Object?>> issues = const <Map<String, Object?>>[],
+  }) {
+    return ProfessionalVideoTransitionTemporalAccumulatorPlanResult(
+      status: ProfessionalVideoTransitionTemporalAccumulatorPlanStatus
+          .invalidRequest,
+      reason: reason,
+      rendererVersion: rendererVersion,
+      definitionId: '',
+      renderSessionId: '',
+      decoderSessionId: '',
+      temporalAccumulatorSessionId: '',
+      timelineTime: null,
+      transitionStartTime: null,
+      transitionEndTime: null,
+      motionBlurMode: '',
+      shutterSampleCount: 0,
+      requiresTemporalAccumulation: false,
+      requiresExactFrameDecode: true,
+      allowGaussianFallback: false,
+      allowDecorativeSpeedLines: false,
+      accumulatorImplemented: false,
+      accumulators: const <ProfessionalVideoTransitionTemporalAccumulator>[],
+      blockedReasons: const <String>[],
+      issues: issues,
+    );
+  }
+
+  final ProfessionalVideoTransitionTemporalAccumulatorPlanStatus status;
+  final String reason;
+  final String rendererVersion;
+  final String definitionId;
+  final String renderSessionId;
+  final String decoderSessionId;
+  final String temporalAccumulatorSessionId;
+  final TimelineTime? timelineTime;
+  final TimelineTime? transitionStartTime;
+  final TimelineTime? transitionEndTime;
+  final String motionBlurMode;
+  final int shutterSampleCount;
+  final bool requiresTemporalAccumulation;
+  final bool requiresExactFrameDecode;
+  final bool allowGaussianFallback;
+  final bool allowDecorativeSpeedLines;
+  final bool accumulatorImplemented;
+  final List<ProfessionalVideoTransitionTemporalAccumulator> accumulators;
+  final List<String> blockedReasons;
+  final List<Map<String, Object?>> issues;
+
+  bool get canPlan =>
+      status ==
+      ProfessionalVideoTransitionTemporalAccumulatorPlanStatus.planned;
+
+  bool get canAccumulate =>
+      canPlan &&
+      requiresExactFrameDecode &&
+      !allowGaussianFallback &&
+      !allowDecorativeSpeedLines &&
+      accumulatorImplemented &&
+      accumulators.length == 2 &&
+      accumulators.every((accumulator) {
+        return accumulator.requiresExactFrameDecode &&
+            !accumulator.allowGaussianFallback &&
+            !accumulator.allowDecorativeSpeedLines;
+      }) &&
+      blockedReasons.isEmpty;
+}
+
+class ProfessionalVideoTransitionTemporalAccumulatorPlanResultMapper {
+  const ProfessionalVideoTransitionTemporalAccumulatorPlanResultMapper._();
+
+  static ProfessionalVideoTransitionTemporalAccumulatorPlanResult fromMap(
+    Map<String, Object?>? map,
+  ) {
+    if (map == null) {
+      return ProfessionalVideoTransitionTemporalAccumulatorPlanResult
+          .invalidRequest(
+        reason: 'native_compositor_empty_temporal_accumulator_response',
+      );
+    }
+    final status = switch (map['status']?.toString()) {
+      'planned' =>
+        ProfessionalVideoTransitionTemporalAccumulatorPlanStatus.planned,
+      _ =>
+        ProfessionalVideoTransitionTemporalAccumulatorPlanStatus.invalidRequest,
+    };
+    return ProfessionalVideoTransitionTemporalAccumulatorPlanResult(
+      status: status,
+      reason: map['reason']?.toString() ?? '',
+      rendererVersion: map['rendererVersion']?.toString() ?? 'unknown',
+      definitionId: map['definitionId']?.toString() ?? '',
+      renderSessionId: map['renderSessionId']?.toString() ?? '',
+      decoderSessionId: map['decoderSessionId']?.toString() ?? '',
+      temporalAccumulatorSessionId:
+          map['temporalAccumulatorSessionId']?.toString() ?? '',
+      timelineTime: _readTimelineTime(map['timelineTimeMs']),
+      transitionStartTime: _readTimelineTime(map['transitionStartMs']),
+      transitionEndTime: _readTimelineTime(map['transitionEndMs']),
+      motionBlurMode: map['motionBlurMode']?.toString() ?? '',
+      shutterSampleCount: _readInt(map['shutterSampleCount']),
+      requiresTemporalAccumulation:
+          _readBool(map['requiresTemporalAccumulation']),
+      requiresExactFrameDecode: _readBool(
+        map['requiresExactFrameDecode'],
+        defaultValue: true,
+      ),
+      allowGaussianFallback: _readBool(map['allowGaussianFallback']),
+      allowDecorativeSpeedLines: _readBool(map['allowDecorativeSpeedLines']),
+      accumulatorImplemented: _readBool(map['accumulatorImplemented']),
+      accumulators: _readAccumulators(map['accumulators']),
+      blockedReasons: _readStringList(map['blockedReasons']),
+      issues: _readIssues(map['issues']),
+    );
+  }
+
+  static List<ProfessionalVideoTransitionTemporalAccumulator> _readAccumulators(
+      Object? value) {
+    if (value is! List) {
+      return const <ProfessionalVideoTransitionTemporalAccumulator>[];
+    }
+    return List<ProfessionalVideoTransitionTemporalAccumulator>.unmodifiable(
+      value.whereType<Map>().map((accumulator) {
+        return ProfessionalVideoTransitionTemporalAccumulator(
+          accumulatorId: accumulator['accumulatorId']?.toString() ?? '',
+          role: accumulator['role']?.toString() ?? '',
+          inputTrackRole: accumulator['inputTrackRole']?.toString() ?? '',
+          sampleCount: _readInt(accumulator['sampleCount']),
+          sampleWeights: _readDoubleList(accumulator['sampleWeights']),
+          normalization: accumulator['normalization']?.toString() ?? '',
+          requiresTemporalShutter:
+              _readBool(accumulator['requiresTemporalShutter']),
+          requiresExactFrameDecode: _readBool(
+            accumulator['requiresExactFrameDecode'],
+            defaultValue: true,
+          ),
+          allowGaussianFallback:
+              _readBool(accumulator['allowGaussianFallback']),
+          allowDecorativeSpeedLines:
+              _readBool(accumulator['allowDecorativeSpeedLines']),
+        );
+      }),
+    );
+  }
+
+  static TimelineTime? _readTimelineTime(Object? value) {
+    if (value is num) {
+      return TimelineTime.fromMilliseconds(value.round());
+    }
+    final parsed = int.tryParse(value?.toString() ?? '');
+    if (parsed == null) {
+      return null;
+    }
+    return TimelineTime.fromMilliseconds(parsed);
+  }
+
+  static bool _readBool(Object? value, {bool defaultValue = false}) {
+    if (value is bool) {
+      return value;
+    }
+    return defaultValue;
+  }
+
+  static int _readInt(Object? value) {
+    if (value is num) {
+      return value.round();
+    }
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static List<double> _readDoubleList(Object? value) {
+    if (value is! List) {
+      return const <double>[];
+    }
+    return List<double>.unmodifiable(
+      value.map((entry) {
+        if (entry is num) {
+          return entry.toDouble();
+        }
+        return double.tryParse(entry.toString()) ?? 0;
+      }),
+    );
   }
 
   static List<String> _readStringList(Object? value) {

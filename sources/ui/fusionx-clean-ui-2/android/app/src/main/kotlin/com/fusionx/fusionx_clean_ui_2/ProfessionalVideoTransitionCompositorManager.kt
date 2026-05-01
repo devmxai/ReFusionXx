@@ -181,6 +181,45 @@ class ProfessionalVideoTransitionCompositorManager {
         )
     }
 
+    fun planTemporalSampleAccumulator(
+        plan: Map<String, Any?>?,
+        timelineTimeMs: Long?,
+    ): Map<String, Any> {
+        val missingFields = requiredRenderPlanFields.filter { field ->
+            !hasRequiredField(plan, field)
+        }
+        if (missingFields.isNotEmpty()) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_required_video_transition_render_plan_fields",
+                "rendererVersion" to "foundation",
+                "missingFields" to missingFields,
+            )
+        }
+        if (timelineTimeMs == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_timeline_time_for_video_transition_temporal_accumulator",
+                "rendererVersion" to "foundation",
+            )
+        }
+        val definitionId = plan?.get("definitionId")?.toString() ?: ""
+        val sessionResult = ProfessionalVideoTransitionRenderSession.fromPlan(plan)
+        if (sessionResult.session == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "invalid_video_transition_render_session",
+                "rendererVersion" to "foundation",
+                "definitionId" to definitionId,
+                "issues" to sessionResult.issues,
+            )
+        }
+        return sessionResult.session.planTemporalSampleAccumulator(
+            timelineTimeMs = timelineTimeMs,
+            motionBlurPolicy = plan?.get("motionBlurPolicy") as? Map<*, *>,
+        )
+    }
+
     fun planRenderPassGraph(
         plan: Map<String, Any?>?,
         timelineTimeMs: Long?,
@@ -540,33 +579,104 @@ private data class ProfessionalVideoTransitionRenderSession(
             )
     }
 
+    fun planTemporalSampleAccumulator(
+        timelineTimeMs: Long,
+        motionBlurPolicy: Map<*, *>?,
+    ): Map<String, Any> {
+        val decoderPlan =
+            planDualVideoDecoderSession(
+                timelineTimeMs = timelineTimeMs,
+                motionBlurPolicy = motionBlurPolicy,
+            )
+        if (decoderPlan["status"] != "planned") {
+            return decoderPlan
+        }
+        val motionBlurMode = decoderPlan["motionBlurMode"]?.toString() ?: "none"
+        val shutterSampleCount =
+            (decoderPlan["shutterSampleCount"] as? Number)?.toInt()?.coerceAtLeast(1) ?: 1
+        val requiresTemporalAccumulation =
+            motionBlurMode == "temporalShutter" && shutterSampleCount > 1
+        val tracks =
+            (decoderPlan["tracks"] as? List<*>)?.mapNotNull { track ->
+                track as? Map<*, *>
+            } ?: emptyList()
+        val accumulators =
+            tracks.map { track ->
+                val role = track["role"]?.toString() ?: ""
+                val sampleCount =
+                    (track["sampleCount"] as? Number)?.toInt()?.coerceAtLeast(0) ?: 0
+                mapOf(
+                    "accumulatorId" to "$id:accumulator:$role:$timelineTimeMs",
+                    "role" to role,
+                    "inputTrackRole" to role,
+                    "sampleCount" to sampleCount,
+                    "sampleWeights" to normalizedSampleWeights(sampleCount),
+                    "normalization" to "weightedAverage",
+                    "requiresTemporalShutter" to requiresTemporalAccumulation,
+                    "requiresExactFrameDecode" to true,
+                    "allowGaussianFallback" to false,
+                    "allowDecorativeSpeedLines" to false,
+                )
+            }
+        val accumulatorImplemented = false
+        val blockedReasons =
+            if (accumulatorImplemented) {
+                emptyList()
+            } else {
+                listOf("native_temporal_sample_accumulator_missing")
+            }
+        return decoderPlan +
+            mapOf(
+                "temporalAccumulatorSessionId" to "$id:accumulator-session:$timelineTimeMs",
+                "motionBlurMode" to motionBlurMode,
+                "shutterSampleCount" to shutterSampleCount,
+                "requiresTemporalAccumulation" to requiresTemporalAccumulation,
+                "requiresExactFrameDecode" to true,
+                "allowGaussianFallback" to false,
+                "allowDecorativeSpeedLines" to false,
+                "accumulatorImplemented" to accumulatorImplemented,
+                "accumulators" to accumulators,
+                "blockedReasons" to blockedReasons,
+            )
+    }
+
     fun planRenderPassGraph(
         timelineTimeMs: Long,
         motionBlurPolicy: Map<*, *>?,
         edgePolicy: Map<*, *>?,
         parameters: Map<*, *>?,
     ): Map<String, Any> {
-        val decodePlan =
-            planFrameDecodeRequests(
+        val accumulatorPlan =
+            planTemporalSampleAccumulator(
                 timelineTimeMs = timelineTimeMs,
                 motionBlurPolicy = motionBlurPolicy,
             )
-        if (decodePlan["status"] != "planned") {
-            return decodePlan
+        if (accumulatorPlan["status"] != "planned") {
+            return accumulatorPlan
         }
         val decodeRequests =
-            (decodePlan["decodeRequests"] as? List<*>)?.mapNotNull { request ->
+            (accumulatorPlan["decodeRequests"] as? List<*>)?.mapNotNull { request ->
                 request as? Map<*, *>
+            } ?: emptyList()
+        val accumulators =
+            (accumulatorPlan["accumulators"] as? List<*>)?.mapNotNull { accumulator ->
+                accumulator as? Map<*, *>
             } ?: emptyList()
         val outgoingDecodeIds = decodeRequests.idsForRole("outgoing")
         val incomingDecodeIds = decodeRequests.idsForRole("incoming")
         val allDecodeIds = outgoingDecodeIds + incomingDecodeIds
+        val outgoingAccumulatorId =
+            accumulators.firstOrNull { accumulator -> accumulator["role"] == "outgoing" }
+                ?.get("accumulatorId")?.toString() ?: outgoingTemporalPassFallback(timelineTimeMs)
+        val incomingAccumulatorId =
+            accumulators.firstOrNull { accumulator -> accumulator["role"] == "incoming" }
+                ?.get("accumulatorId")?.toString() ?: incomingTemporalPassFallback(timelineTimeMs)
         val edgeMode = edgePolicy?.get("mode")?.toString() ?: "none"
         val requiresMirrorEdgeTiling = edgeMode == "mirrorTile"
         val shutterSampleCount =
-            (decodePlan["shutterSampleCount"] as? Number)?.toInt()?.coerceAtLeast(1) ?: 1
+            (accumulatorPlan["shutterSampleCount"] as? Number)?.toInt()?.coerceAtLeast(1) ?: 1
         val requiresTemporalAccumulation =
-            decodePlan["motionBlurMode"] == "temporalShutter" && shutterSampleCount > 1
+            accumulatorPlan["motionBlurMode"] == "temporalShutter" && shutterSampleCount > 1
         val outgoingTemporalPass = "$id:pass:temporal:outgoing:$timelineTimeMs"
         val incomingTemporalPass = "$id:pass:temporal:incoming:$timelineTimeMs"
         val edgePass = "$id:pass:edge:$timelineTimeMs"
@@ -597,7 +707,10 @@ private data class ProfessionalVideoTransitionRenderSession(
                 parameters =
                     mapOf(
                         "sampleCount" to outgoingDecodeIds.size,
-                        "motionBlurMode" to (decodePlan["motionBlurMode"] ?: "none"),
+                        "motionBlurMode" to (accumulatorPlan["motionBlurMode"] ?: "none"),
+                        "accumulatorId" to outgoingAccumulatorId,
+                        "allowGaussianFallback" to false,
+                        "allowDecorativeSpeedLines" to false,
                     ),
             ),
         )
@@ -610,7 +723,10 @@ private data class ProfessionalVideoTransitionRenderSession(
                 parameters =
                     mapOf(
                         "sampleCount" to incomingDecodeIds.size,
-                        "motionBlurMode" to (decodePlan["motionBlurMode"] ?: "none"),
+                        "motionBlurMode" to (accumulatorPlan["motionBlurMode"] ?: "none"),
+                        "accumulatorId" to incomingAccumulatorId,
+                        "allowGaussianFallback" to false,
+                        "allowDecorativeSpeedLines" to false,
                     ),
             ),
         )
@@ -644,7 +760,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                 parameters =
                     mapOf(
                         "definitionId" to definitionId,
-                        "progress" to (decodePlan["progress"] ?: 0.0),
+                        "progress" to (accumulatorPlan["progress"] ?: 0.0),
                         "parameters" to (parameters?.stringKeyMap() ?: emptyMap<String, Any?>()),
                     ),
             ),
@@ -662,7 +778,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                     ),
             ),
         )
-        return decodePlan +
+        return accumulatorPlan +
             mapOf(
                 "renderPassGraphId" to "$id:graph:$timelineTimeMs",
                 "requiresExactVideoDecode" to true,
@@ -673,6 +789,21 @@ private data class ProfessionalVideoTransitionRenderSession(
                 "passes" to passes,
             )
     }
+
+    private fun normalizedSampleWeights(sampleCount: Int): List<Double> {
+        if (sampleCount <= 0) {
+            return emptyList()
+        }
+        val weight = 1.0 / sampleCount.toDouble()
+        return List(sampleCount) { weight }
+    }
+
+    private fun outgoingTemporalPassFallback(timelineTimeMs: Long): String =
+        "$id:accumulator:outgoing:$timelineTimeMs"
+
+    private fun incomingTemporalPassFallback(timelineTimeMs: Long): String =
+        "$id:accumulator:incoming:$timelineTimeMs"
+
 
     fun planOutputSurface(
         timelineTimeMs: Long,

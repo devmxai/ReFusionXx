@@ -851,6 +851,131 @@ void main() {
     );
   });
 
+  test('method channel temporal accumulator forbids fake motion blur',
+      () async {
+    const channel = MethodChannel(
+        'com.refusion.app/professional_video_transition_compositor');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(channel, null);
+    });
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'planTemporalSampleAccumulator');
+      final arguments = call.arguments! as Map<Object?, Object?>;
+      expect(arguments['definitionId'], 'zoomInCamera');
+      expect(arguments['timelineTimeMs'], 10000);
+      return <String, Object?>{
+        'status': 'planned',
+        'reason': '',
+        'rendererVersion': 'foundation',
+        'definitionId': 'zoomInCamera',
+        'renderSessionId': 'transition-session:zoom-native-1',
+        'decoderSessionId': 'transition-session:zoom-native-1:decoder:10000',
+        'temporalAccumulatorSessionId':
+            'transition-session:zoom-native-1:accumulator-session:10000',
+        'timelineTimeMs': 10000,
+        'transitionStartMs': 8000,
+        'transitionEndMs': 12000,
+        'motionBlurMode': 'temporalShutter',
+        'shutterSampleCount': 2,
+        'requiresTemporalAccumulation': true,
+        'requiresExactFrameDecode': true,
+        'allowGaussianFallback': false,
+        'allowDecorativeSpeedLines': false,
+        'accumulatorImplemented': false,
+        'accumulators': <Map<String, Object?>>[
+          <String, Object?>{
+            'accumulatorId':
+                'transition-session:zoom-native-1:accumulator:outgoing:10000',
+            'role': 'outgoing',
+            'inputTrackRole': 'outgoing',
+            'sampleCount': 2,
+            'sampleWeights': <double>[0.5, 0.5],
+            'normalization': 'weightedAverage',
+            'requiresTemporalShutter': true,
+            'requiresExactFrameDecode': true,
+            'allowGaussianFallback': false,
+            'allowDecorativeSpeedLines': false,
+          },
+          <String, Object?>{
+            'accumulatorId':
+                'transition-session:zoom-native-1:accumulator:incoming:10000',
+            'role': 'incoming',
+            'inputTrackRole': 'incoming',
+            'sampleCount': 2,
+            'sampleWeights': <double>[0.5, 0.5],
+            'normalization': 'weightedAverage',
+            'requiresTemporalShutter': true,
+            'requiresExactFrameDecode': true,
+            'allowGaussianFallback': false,
+            'allowDecorativeSpeedLines': false,
+          },
+        ],
+        'blockedReasons': <String>[
+          'native_temporal_sample_accumulator_missing',
+        ],
+      };
+    });
+
+    final result =
+        await const MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider(
+      channel: channel,
+    ).planTemporalSampleAccumulator(
+      timelineTime: TimelineTime.fromMilliseconds(10000),
+      plan: ProfessionalZoomCameraRenderPlan(
+        canvasWidth: 1080,
+        canvasHeight: 1920,
+        request: ProfessionalZoomCameraPlanRequest(
+          transitionId: 'zoom-native-1',
+          timelineTime: TimelineTime.fromMilliseconds(10000),
+          boundaryTime: TimelineTime.fromMilliseconds(10000),
+          leadingDuration: TimelineTime.fromMilliseconds(2000),
+          trailingDuration: TimelineTime.fromMilliseconds(2000),
+          outgoing: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-a',
+            assetId: 'asset-a',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(28000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+          incoming: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-b',
+            assetId: 'asset-b',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(38000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+        ),
+      ).toGenericRenderPlan(),
+    );
+
+    expect(result.canPlan, isTrue);
+    expect(result.canAccumulate, isFalse);
+    expect(result.motionBlurMode, 'temporalShutter');
+    expect(result.requiresTemporalAccumulation, isTrue);
+    expect(result.requiresExactFrameDecode, isTrue);
+    expect(result.allowGaussianFallback, isFalse);
+    expect(result.allowDecorativeSpeedLines, isFalse);
+    expect(result.accumulatorImplemented, isFalse);
+    expect(result.accumulators.map((accumulator) => accumulator.role),
+        <String>['outgoing', 'incoming']);
+    expect(result.accumulators.first.sampleWeights, <double>[0.5, 0.5]);
+    expect(result.accumulators.first.requiresExactFrameDecode, isTrue);
+    expect(result.accumulators.first.allowGaussianFallback, isFalse);
+    expect(result.accumulators.last.allowDecorativeSpeedLines, isFalse);
+    expect(
+      result.blockedReasons,
+      contains('native_temporal_sample_accumulator_missing'),
+    );
+  });
+
   test('method channel render pass graph stays planning-only until renderer',
       () async {
     const channel = MethodChannel(
