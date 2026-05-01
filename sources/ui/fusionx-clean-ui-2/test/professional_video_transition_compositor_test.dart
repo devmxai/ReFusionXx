@@ -846,6 +846,98 @@ void main() {
     expect(result.passes.last.type, 'transitionShaderEvaluation');
   });
 
+  test('method channel output surface forbids overlay fallbacks until renderer',
+      () async {
+    const channel = MethodChannel(
+        'com.refusion.app/professional_video_transition_compositor');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(channel, null);
+    });
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'planOutputSurface');
+      final arguments = call.arguments! as Map<Object?, Object?>;
+      expect(arguments['definitionId'], 'zoomInCamera');
+      expect(arguments['timelineTimeMs'], 10000);
+      return <String, Object?>{
+        'status': 'planned',
+        'reason': '',
+        'rendererVersion': 'foundation',
+        'definitionId': 'zoomInCamera',
+        'renderSessionId': 'transition-session:zoom-native-1',
+        'renderPassGraphId': 'transition-session:zoom-native-1:graph:10000',
+        'outputSurfaceId':
+            'transition-session:zoom-native-1:surface:transition-output:10000',
+        'outputTarget': 'nativeTransitionCanvasSurface',
+        'timelineTimeMs': 10000,
+        'transitionStartMs': 8000,
+        'transitionEndMs': 12000,
+        'canvasWidth': 1080,
+        'canvasHeight': 1920,
+        'clipToCanvas': true,
+        'requiresNativeTexture': true,
+        'allowFlutterOverlay': false,
+        'allowTimelineOverlay': false,
+        'allowPlatformViewTransform': false,
+        'rendererImplemented': false,
+        'blockedReasons': <String>[
+          'native_transition_output_surface_renderer_missing',
+        ],
+      };
+    });
+
+    final result =
+        await const MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider(
+      channel: channel,
+    ).planOutputSurface(
+      timelineTime: TimelineTime.fromMilliseconds(10000),
+      plan: ProfessionalZoomCameraRenderPlan(
+        canvasWidth: 1080,
+        canvasHeight: 1920,
+        request: ProfessionalZoomCameraPlanRequest(
+          transitionId: 'zoom-native-1',
+          timelineTime: TimelineTime.fromMilliseconds(10000),
+          boundaryTime: TimelineTime.fromMilliseconds(10000),
+          leadingDuration: TimelineTime.fromMilliseconds(2000),
+          trailingDuration: TimelineTime.fromMilliseconds(2000),
+          outgoing: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-a',
+            assetId: 'asset-a',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(28000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+          incoming: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-b',
+            assetId: 'asset-b',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(38000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+        ),
+      ).toGenericRenderPlan(),
+    );
+
+    expect(result.canPlan, isTrue);
+    expect(result.canRender, isFalse);
+    expect(result.outputTarget, 'nativeTransitionCanvasSurface');
+    expect(result.clipToCanvas, isTrue);
+    expect(result.requiresNativeTexture, isTrue);
+    expect(result.allowFlutterOverlay, isFalse);
+    expect(result.allowTimelineOverlay, isFalse);
+    expect(result.allowPlatformViewTransform, isFalse);
+    expect(result.rendererImplemented, isFalse);
+    expect(result.blockedReasons,
+        contains('native_transition_output_surface_renderer_missing'));
+  });
+
   test('zoom camera plan maps to live source times around the seam', () {
     const planner = ProfessionalZoomCameraCompositorPlanner();
     final plan = planner.planFrame(

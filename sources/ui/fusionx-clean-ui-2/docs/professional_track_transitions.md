@@ -766,6 +766,12 @@ Current gate:
   transition surface. Current responses deliberately keep
   `rendererImplemented=false`, so this foundation cannot unlock presets or
   playback until a real compositor attaches to the graph.
+- Flutter and Android now also share `planOutputSurface`. This binds the pass
+  graph to the only acceptable output target for professional transitions: a
+  native transition canvas surface clipped to the preview/export canvas. It
+  explicitly forbids Flutter overlay drawing, timeline overlay drawing, and
+  transformed PlatformView fallback paths, and remains blocked while
+  `rendererImplemented=false`.
 
 ## 9. Stop Conditions
 

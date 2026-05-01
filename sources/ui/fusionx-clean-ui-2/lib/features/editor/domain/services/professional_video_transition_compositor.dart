@@ -125,6 +125,11 @@ abstract class ProfessionalVideoTransitionCompositorClient
     required TimelineTime timelineTime,
   });
 
+  Future<ProfessionalVideoTransitionOutputSurfacePlanResult> planOutputSurface({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  });
+
   Future<ProfessionalVideoTransitionCompositorPrepareResult>
       prepareZoomInCameraRenderPlan(
     ProfessionalZoomCameraRenderPlan plan,
@@ -258,6 +263,32 @@ class MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider
     } on PlatformException catch (error) {
       return ProfessionalVideoTransitionRenderPassGraphPlanResult
           .invalidRequest(
+        reason: error.message ?? error.code,
+      );
+    }
+  }
+
+  @override
+  Future<ProfessionalVideoTransitionOutputSurfacePlanResult> planOutputSurface({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  }) async {
+    try {
+      final payload = plan.toPlatformMap();
+      payload['timelineTimeMs'] = timelineTime.inMilliseconds;
+      final rawResult = await _channel.invokeMapMethod<String, Object?>(
+        'planOutputSurface',
+        payload,
+      );
+      return ProfessionalVideoTransitionOutputSurfacePlanResultMapper.fromMap(
+        rawResult,
+      );
+    } on MissingPluginException {
+      return ProfessionalVideoTransitionOutputSurfacePlanResult.invalidRequest(
+        reason: 'native_compositor_channel_missing',
+      );
+    } on PlatformException catch (error) {
+      return ProfessionalVideoTransitionOutputSurfacePlanResult.invalidRequest(
         reason: error.message ?? error.code,
       );
     }
@@ -875,6 +906,190 @@ class ProfessionalVideoTransitionRenderPassGraphPlanResultMapper {
       return value.toDouble();
     }
     return double.tryParse(value?.toString() ?? '') ?? 0;
+  }
+}
+
+enum ProfessionalVideoTransitionOutputSurfacePlanStatus {
+  planned,
+  invalidRequest,
+}
+
+@immutable
+class ProfessionalVideoTransitionOutputSurfacePlanResult {
+  const ProfessionalVideoTransitionOutputSurfacePlanResult({
+    required this.status,
+    required this.reason,
+    required this.rendererVersion,
+    required this.definitionId,
+    required this.renderSessionId,
+    required this.renderPassGraphId,
+    required this.outputSurfaceId,
+    required this.outputTarget,
+    required this.timelineTime,
+    required this.transitionStartTime,
+    required this.transitionEndTime,
+    required this.canvasWidth,
+    required this.canvasHeight,
+    required this.clipToCanvas,
+    required this.requiresNativeTexture,
+    required this.allowFlutterOverlay,
+    required this.allowTimelineOverlay,
+    required this.allowPlatformViewTransform,
+    required this.rendererImplemented,
+    required this.blockedReasons,
+    this.issues = const <Map<String, Object?>>[],
+  });
+
+  factory ProfessionalVideoTransitionOutputSurfacePlanResult.invalidRequest({
+    required String reason,
+    String rendererVersion = 'unknown',
+    List<Map<String, Object?>> issues = const <Map<String, Object?>>[],
+  }) {
+    return ProfessionalVideoTransitionOutputSurfacePlanResult(
+      status: ProfessionalVideoTransitionOutputSurfacePlanStatus.invalidRequest,
+      reason: reason,
+      rendererVersion: rendererVersion,
+      definitionId: '',
+      renderSessionId: '',
+      renderPassGraphId: '',
+      outputSurfaceId: '',
+      outputTarget: '',
+      timelineTime: null,
+      transitionStartTime: null,
+      transitionEndTime: null,
+      canvasWidth: 0,
+      canvasHeight: 0,
+      clipToCanvas: true,
+      requiresNativeTexture: true,
+      allowFlutterOverlay: false,
+      allowTimelineOverlay: false,
+      allowPlatformViewTransform: false,
+      rendererImplemented: false,
+      blockedReasons: const <String>[],
+      issues: issues,
+    );
+  }
+
+  final ProfessionalVideoTransitionOutputSurfacePlanStatus status;
+  final String reason;
+  final String rendererVersion;
+  final String definitionId;
+  final String renderSessionId;
+  final String renderPassGraphId;
+  final String outputSurfaceId;
+  final String outputTarget;
+  final TimelineTime? timelineTime;
+  final TimelineTime? transitionStartTime;
+  final TimelineTime? transitionEndTime;
+  final int canvasWidth;
+  final int canvasHeight;
+  final bool clipToCanvas;
+  final bool requiresNativeTexture;
+  final bool allowFlutterOverlay;
+  final bool allowTimelineOverlay;
+  final bool allowPlatformViewTransform;
+  final bool rendererImplemented;
+  final List<String> blockedReasons;
+  final List<Map<String, Object?>> issues;
+
+  bool get canPlan =>
+      status == ProfessionalVideoTransitionOutputSurfacePlanStatus.planned;
+
+  bool get canRender =>
+      canPlan &&
+      rendererImplemented &&
+      clipToCanvas &&
+      requiresNativeTexture &&
+      !allowFlutterOverlay &&
+      !allowTimelineOverlay &&
+      !allowPlatformViewTransform &&
+      blockedReasons.isEmpty;
+}
+
+class ProfessionalVideoTransitionOutputSurfacePlanResultMapper {
+  const ProfessionalVideoTransitionOutputSurfacePlanResultMapper._();
+
+  static ProfessionalVideoTransitionOutputSurfacePlanResult fromMap(
+    Map<String, Object?>? map,
+  ) {
+    if (map == null) {
+      return ProfessionalVideoTransitionOutputSurfacePlanResult.invalidRequest(
+        reason: 'native_compositor_empty_output_surface_response',
+      );
+    }
+    final status = switch (map['status']?.toString()) {
+      'planned' => ProfessionalVideoTransitionOutputSurfacePlanStatus.planned,
+      _ => ProfessionalVideoTransitionOutputSurfacePlanStatus.invalidRequest,
+    };
+    return ProfessionalVideoTransitionOutputSurfacePlanResult(
+      status: status,
+      reason: map['reason']?.toString() ?? '',
+      rendererVersion: map['rendererVersion']?.toString() ?? 'unknown',
+      definitionId: map['definitionId']?.toString() ?? '',
+      renderSessionId: map['renderSessionId']?.toString() ?? '',
+      renderPassGraphId: map['renderPassGraphId']?.toString() ?? '',
+      outputSurfaceId: map['outputSurfaceId']?.toString() ?? '',
+      outputTarget: map['outputTarget']?.toString() ?? '',
+      timelineTime: _readTimelineTime(map['timelineTimeMs']),
+      transitionStartTime: _readTimelineTime(map['transitionStartMs']),
+      transitionEndTime: _readTimelineTime(map['transitionEndMs']),
+      canvasWidth: _readInt(map['canvasWidth']),
+      canvasHeight: _readInt(map['canvasHeight']),
+      clipToCanvas: _readBool(map['clipToCanvas'], defaultValue: true),
+      requiresNativeTexture:
+          _readBool(map['requiresNativeTexture'], defaultValue: true),
+      allowFlutterOverlay: _readBool(map['allowFlutterOverlay']),
+      allowTimelineOverlay: _readBool(map['allowTimelineOverlay']),
+      allowPlatformViewTransform: _readBool(map['allowPlatformViewTransform']),
+      rendererImplemented: _readBool(map['rendererImplemented']),
+      blockedReasons: _readStringList(map['blockedReasons']),
+      issues: _readIssues(map['issues']),
+    );
+  }
+
+  static TimelineTime? _readTimelineTime(Object? value) {
+    if (value is num) {
+      return TimelineTime.fromMilliseconds(value.round());
+    }
+    final parsed = int.tryParse(value?.toString() ?? '');
+    if (parsed == null) {
+      return null;
+    }
+    return TimelineTime.fromMilliseconds(parsed);
+  }
+
+  static int _readInt(Object? value) {
+    if (value is num) {
+      return value.round();
+    }
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static bool _readBool(Object? value, {bool defaultValue = false}) {
+    if (value is bool) {
+      return value;
+    }
+    return defaultValue;
+  }
+
+  static List<String> _readStringList(Object? value) {
+    if (value is! List) {
+      return const <String>[];
+    }
+    return List<String>.unmodifiable(value.map((entry) => entry.toString()));
+  }
+
+  static List<Map<String, Object?>> _readIssues(Object? value) {
+    if (value is! List) {
+      return const <Map<String, Object?>>[];
+    }
+    return List<Map<String, Object?>>.unmodifiable(
+      value.whereType<Map>().map((issue) {
+        return <String, Object?>{
+          for (final entry in issue.entries) entry.key.toString(): entry.value,
+        };
+      }),
+    );
   }
 }
 

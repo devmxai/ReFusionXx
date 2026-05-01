@@ -183,6 +183,47 @@ class ProfessionalVideoTransitionCompositorManager {
         )
     }
 
+    fun planOutputSurface(
+        plan: Map<String, Any?>?,
+        timelineTimeMs: Long?,
+    ): Map<String, Any> {
+        val missingFields = requiredRenderPlanFields.filter { field ->
+            !hasRequiredField(plan, field)
+        }
+        if (missingFields.isNotEmpty()) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_required_video_transition_render_plan_fields",
+                "rendererVersion" to "foundation",
+                "missingFields" to missingFields,
+            )
+        }
+        if (timelineTimeMs == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_timeline_time_for_video_transition_output_surface",
+                "rendererVersion" to "foundation",
+            )
+        }
+        val definitionId = plan?.get("definitionId")?.toString() ?: ""
+        val sessionResult = ProfessionalVideoTransitionRenderSession.fromPlan(plan)
+        if (sessionResult.session == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "invalid_video_transition_render_session",
+                "rendererVersion" to "foundation",
+                "definitionId" to definitionId,
+                "issues" to sessionResult.issues,
+            )
+        }
+        return sessionResult.session.planOutputSurface(
+            timelineTimeMs = timelineTimeMs,
+            motionBlurPolicy = plan?.get("motionBlurPolicy") as? Map<*, *>,
+            edgePolicy = plan?.get("edgePolicy") as? Map<*, *>,
+            parameters = plan?.get("parameters") as? Map<*, *>,
+        )
+    }
+
     private fun hasRequiredField(plan: Map<String, Any?>?, field: String): Boolean {
         if (plan == null) {
             return false
@@ -495,6 +536,46 @@ private data class ProfessionalVideoTransitionRenderSession(
                 "requiresGpuComposition" to true,
                 "rendererImplemented" to false,
                 "passes" to passes,
+            )
+    }
+
+    fun planOutputSurface(
+        timelineTimeMs: Long,
+        motionBlurPolicy: Map<*, *>?,
+        edgePolicy: Map<*, *>?,
+        parameters: Map<*, *>?,
+    ): Map<String, Any> {
+        val graphPlan =
+            planRenderPassGraph(
+                timelineTimeMs = timelineTimeMs,
+                motionBlurPolicy = motionBlurPolicy,
+                edgePolicy = edgePolicy,
+                parameters = parameters,
+            )
+        if (graphPlan["status"] != "planned") {
+            return graphPlan
+        }
+        val rendererImplemented = graphPlan["rendererImplemented"] == true
+        val outputSurfaceId = "$id:surface:transition-output:$timelineTimeMs"
+        val blockedReasons =
+            if (rendererImplemented) {
+                emptyList()
+            } else {
+                listOf("native_transition_output_surface_renderer_missing")
+            }
+        return graphPlan +
+            mapOf(
+                "outputSurfaceId" to outputSurfaceId,
+                "outputTarget" to "nativeTransitionCanvasSurface",
+                "canvasWidth" to canvasWidth,
+                "canvasHeight" to canvasHeight,
+                "clipToCanvas" to true,
+                "requiresNativeTexture" to true,
+                "allowFlutterOverlay" to false,
+                "allowTimelineOverlay" to false,
+                "allowPlatformViewTransform" to false,
+                "rendererImplemented" to rendererImplemented,
+                "blockedReasons" to blockedReasons,
             )
     }
 
