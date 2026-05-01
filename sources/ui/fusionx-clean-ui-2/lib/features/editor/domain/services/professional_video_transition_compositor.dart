@@ -17,6 +17,7 @@ class ProfessionalVideoTransitionCompositorCapabilities {
     required this.liveScrubParity,
     required this.playbackParity,
     required this.exportParity,
+    this.registeredDefinitions = const <String>[],
   });
 
   static const unavailable = ProfessionalVideoTransitionCompositorCapabilities(
@@ -27,6 +28,7 @@ class ProfessionalVideoTransitionCompositorCapabilities {
     liveScrubParity: false,
     playbackParity: false,
     exportParity: false,
+    registeredDefinitions: <String>[],
   );
 
   final bool dualVideoSampling;
@@ -36,6 +38,7 @@ class ProfessionalVideoTransitionCompositorCapabilities {
   final bool liveScrubParity;
   final bool playbackParity;
   final bool exportParity;
+  final List<String> registeredDefinitions;
 
   bool get canExposeProfessionalZoomInCamera =>
       dualVideoSampling &&
@@ -173,10 +176,18 @@ class ProfessionalVideoTransitionCompositorCapabilitiesMapper {
       liveScrubParity: _readBool(map['liveScrubParity']),
       playbackParity: _readBool(map['playbackParity']),
       exportParity: _readBool(map['exportParity']),
+      registeredDefinitions: _readStringList(map['registeredDefinitions']),
     );
   }
 
   static bool _readBool(Object? value) => value is bool && value;
+
+  static List<String> _readStringList(Object? value) {
+    if (value is! List) {
+      return const <String>[];
+    }
+    return List<String>.unmodifiable(value.map((entry) => entry.toString()));
+  }
 }
 
 enum ProfessionalVideoTransitionCompositorPrepareStatus {
@@ -192,6 +203,7 @@ class ProfessionalVideoTransitionCompositorPrepareResult {
     required this.reason,
     required this.rendererVersion,
     required this.missingCapabilities,
+    required this.definitionId,
   });
 
   factory ProfessionalVideoTransitionCompositorPrepareResult.unsupported({
@@ -204,6 +216,7 @@ class ProfessionalVideoTransitionCompositorPrepareResult {
       reason: reason,
       rendererVersion: rendererVersion,
       missingCapabilities: List<String>.unmodifiable(missingCapabilities),
+      definitionId: '',
     );
   }
 
@@ -216,6 +229,7 @@ class ProfessionalVideoTransitionCompositorPrepareResult {
       reason: reason,
       rendererVersion: rendererVersion,
       missingCapabilities: const <String>[],
+      definitionId: '',
     );
   }
 
@@ -223,6 +237,7 @@ class ProfessionalVideoTransitionCompositorPrepareResult {
   final String reason;
   final String rendererVersion;
   final List<String> missingCapabilities;
+  final String definitionId;
 
   bool get canRender =>
       status == ProfessionalVideoTransitionCompositorPrepareStatus.ready;
@@ -244,6 +259,7 @@ class ProfessionalVideoTransitionCompositorPrepareResultMapper {
       reason: map['reason']?.toString() ?? '',
       rendererVersion: map['rendererVersion']?.toString() ?? 'unknown',
       missingCapabilities: _readStringList(map['missingCapabilities']),
+      definitionId: map['definitionId']?.toString() ?? '',
     );
   }
 

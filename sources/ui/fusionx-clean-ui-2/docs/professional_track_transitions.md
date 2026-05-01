@@ -609,6 +609,12 @@ If a transition is not supported, the renderer must return an explicit
 to a Flutter overlay, a frozen frame, a thumbnail, Gaussian blur, decorative
 speed lines, or a transformed single video surface.
 
+The native foundation includes a renderer registry entry point. It can report
+known definitions such as `crossDissolve`, `fadeBlack`, and `zoomInCamera`, then
+classify requests as unknown definitions, missing capabilities, or renderer not
+implemented. The registry is intentionally allowed to reject a known transition
+until its real renderer is present.
+
 Zoom In Camera is the first demanding test case for this general compositor. It
 is not the architecture itself.
 

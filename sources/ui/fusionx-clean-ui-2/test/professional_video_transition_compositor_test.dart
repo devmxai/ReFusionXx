@@ -80,6 +80,11 @@ void main() {
         'liveScrubParity': true,
         'playbackParity': true,
         'exportParity': false,
+        'registeredDefinitions': <String>[
+          'crossDissolve',
+          'fadeBlack',
+          'zoomInCamera',
+        ],
       };
     });
 
@@ -91,6 +96,11 @@ void main() {
     expect(capabilities.canExposeProfessionalZoomInCamera, isFalse);
     expect(capabilities.missingForProfessionalZoomInCamera, <String>[
       'exportParity',
+    ]);
+    expect(capabilities.registeredDefinitions, <String>[
+      'crossDissolve',
+      'fadeBlack',
+      'zoomInCamera',
     ]);
   });
 
@@ -263,8 +273,9 @@ void main() {
       expect(arguments['motionBlurPolicy'], isA<Map<Object?, Object?>>());
       return <String, Object?>{
         'status': 'unsupported',
-        'reason': 'native_video_transition_renderer_not_implemented',
+        'reason': 'missing_renderer_capabilities',
         'rendererVersion': 'foundation',
+        'definitionId': 'zoomInCamera',
         'missingCapabilities': <String>[
           'dualVideoSampling',
           'temporalMotionBlur',
@@ -314,8 +325,9 @@ void main() {
       ProfessionalVideoTransitionCompositorPrepareStatus.unsupported,
     );
     expect(result.canRender, isFalse);
-    expect(result.reason, 'native_video_transition_renderer_not_implemented');
+    expect(result.reason, 'missing_renderer_capabilities');
     expect(result.rendererVersion, 'foundation');
+    expect(result.definitionId, 'zoomInCamera');
     expect(result.missingCapabilities, <String>[
       'dualVideoSampling',
       'temporalMotionBlur',
