@@ -27,12 +27,17 @@ void main() {
         'previewParity',
         'liveScrubParity',
         'playbackParity',
-        'exportParity',
       ]),
+    );
+    expect(
+      kCurrentProfessionalVideoTransitionCompositorCapabilities
+          .missingForProfessionalVideoTransitionExport,
+      contains('exportParity'),
     );
   });
 
-  test('capability mapper requires every professional zoom feature', () {
+  test('capability mapper requires every interactive professional zoom feature',
+      () {
     final partial =
         ProfessionalVideoTransitionCompositorCapabilitiesMapper.fromMap(
       <String, Object?>{
@@ -67,6 +72,34 @@ void main() {
 
     expect(complete.canExposeProfessionalZoomInCamera, isTrue);
     expect(complete.canExposeProfessionalVideoTransitions, isTrue);
+    expect(complete.canExportProfessionalVideoTransitions, isTrue);
+  });
+
+  test('export parity is tracked separately from interactive authoring', () {
+    final interactiveReady =
+        ProfessionalVideoTransitionCompositorCapabilitiesMapper.fromMap(
+      <String, Object?>{
+        'dualVideoSampling': true,
+        'temporalMotionBlur': true,
+        'mirrorEdgeTiling': true,
+        'previewParity': true,
+        'liveScrubParity': true,
+        'playbackParity': true,
+        'exportParity': false,
+      },
+    );
+
+    expect(interactiveReady.canExposeProfessionalZoomInCamera, isTrue);
+    expect(interactiveReady.canExposeProfessionalVideoTransitions, isTrue);
+    expect(interactiveReady.canExportProfessionalVideoTransitions, isFalse);
+    expect(
+      interactiveReady.missingForProfessionalVideoTransitions,
+      isEmpty,
+    );
+    expect(
+      interactiveReady.missingForProfessionalVideoTransitionExport,
+      <String>['exportParity'],
+    );
   });
 
   test('method channel capability provider maps native capabilities', () async {
@@ -100,10 +133,13 @@ void main() {
       channel: channel,
     ).loadCapabilities();
 
-    expect(capabilities.canExposeProfessionalZoomInCamera, isFalse);
-    expect(capabilities.missingForProfessionalZoomInCamera, <String>[
-      'exportParity',
-    ]);
+    expect(capabilities.canExposeProfessionalZoomInCamera, isTrue);
+    expect(capabilities.canExportProfessionalVideoTransitions, isFalse);
+    expect(capabilities.missingForProfessionalZoomInCamera, isEmpty);
+    expect(
+      capabilities.missingForProfessionalVideoTransitionExport,
+      <String>['exportParity'],
+    );
     expect(capabilities.registeredDefinitions, <String>[
       'crossDissolve',
       'fadeBlack',
@@ -235,7 +271,6 @@ void main() {
         'previewParity',
         'liveScrubParity',
         'playbackParity',
-        'exportParity',
       ],
     );
 
@@ -291,7 +326,6 @@ void main() {
         'previewParity',
         'liveScrubParity',
         'playbackParity',
-        'exportParity',
       ],
     );
 
@@ -1660,7 +1694,8 @@ void main() {
         contains('native_transition_output_surface_renderer_missing'));
   });
 
-  test('method channel parity outputs lock every playback mode until renderer',
+  test(
+      'method channel parity outputs lock every interactive mode until renderer',
       () async {
     const channel = MethodChannel(
         'com.refusion.app/professional_video_transition_compositor');
@@ -1723,23 +1758,11 @@ void main() {
               'native_transition_playback_renderer_missing',
             ],
           },
-          <String, Object?>{
-            'mode': 'export',
-            'outputSurfaceId':
-                'transition-session:zoom-native-1:surface:transition-output:10000',
-            'outputTarget': 'nativeTransitionCanvasSurface',
-            'rendererImplemented': false,
-            'canRender': false,
-            'blockedReasons': <String>[
-              'native_transition_export_renderer_missing',
-            ],
-          },
         ],
         'blockedReasons': <String>[
           'native_transition_preview_renderer_missing',
           'native_transition_liveScrub_renderer_missing',
           'native_transition_playback_renderer_missing',
-          'native_transition_export_renderer_missing',
         ],
       };
     });
@@ -1790,7 +1813,6 @@ void main() {
       'preview',
       'liveScrub',
       'playback',
-      'export',
     ]);
     expect(result.outputs.every((output) => !output.canRender), isTrue);
     expect(result.blockedReasons,

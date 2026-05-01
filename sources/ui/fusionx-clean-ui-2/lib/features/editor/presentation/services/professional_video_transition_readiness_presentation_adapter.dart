@@ -93,11 +93,6 @@ class ProfessionalVideoTransitionReadinessPresentationAdapter {
         label: 'Playback parity',
         ready: capabilities.playbackParity,
       ),
-      _capability(
-        id: 'exportParity',
-        label: 'Export parity',
-        ready: capabilities.exportParity,
-      ),
     ];
     return ProfessionalVideoTransitionReadinessDisplayModel(
       state: capabilities.canExposeProfessionalVideoTransitions
@@ -107,8 +102,8 @@ class ProfessionalVideoTransitionReadinessPresentationAdapter {
           ? 'Professional compositor ready'
           : 'Professional compositor required',
       summary: capabilities.canExposeProfessionalVideoTransitions
-          ? 'Transition authoring can use the native dual-video compositor.'
-          : 'Transition authoring is locked until every native compositor capability is ready.',
+          ? 'Transition authoring can use the native dual-video compositor for preview, scrub, and playback.'
+          : 'Transition authoring is locked until every interactive native compositor capability is ready.',
       stages: List<
           ProfessionalVideoTransitionReadinessStageDisplayModel>.unmodifiable(
         stages,
@@ -135,7 +130,7 @@ class ProfessionalVideoTransitionReadinessPresentationAdapter {
           ? 'Professional compositor ready'
           : 'Professional compositor preflight blocked',
       summary: report.canExposeTransition
-          ? 'The render plan has preview, scrub, playback, and export parity.'
+          ? 'The render plan has preview, scrub, and playback parity.'
           : 'The render plan cannot expose a transition until every preflight stage is ready.',
       stages: List<
           ProfessionalVideoTransitionReadinessStageDisplayModel>.unmodifiable(

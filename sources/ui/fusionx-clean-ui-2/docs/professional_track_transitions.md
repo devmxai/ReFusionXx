@@ -622,9 +622,11 @@ Current authoring gate:
   foundation/unavailable capability set;
 - the browser may show transition categories as locked roadmap entries, but it
   must not return an apply/manual/AI result until the compositor reports every
-  professional capability: dual video sampling, temporal motion blur,
-  mirror-edge tiling, preview parity, Live Scrub parity, playback parity, and
-  export parity;
+  interactive professional capability: dual video sampling, temporal motion
+  blur, mirror-edge tiling, preview parity, Live Scrub parity, and playback
+  parity. Export parity is tracked as a separate later release gate and must
+  not block interactive preview/scrub/playback authoring once the native
+  compositor is otherwise complete;
 - this strict gate intentionally applies to simpler definitions too. Cross
   Dissolve, Fade Black, and Zoom In Camera must all wait for the same general
   compositor readiness instead of each shipping a separate fallback path.
@@ -648,8 +650,8 @@ progress, outgoing opacity, incoming opacity, and real source times for both
 video streams. It also reports whether both source ranges cover the full
 transition window. A renderer must not treat a cross dissolve as renderable when
 coverage is false, because that would force one side to clamp to a still
-boundary frame. This planner is the primitive math contract only; native
-preview/export parity still requires a connected dual-video compositor. The
+boun​dary frame. This planner is the primitive math contract only; native
+preview/scrub/playback parity still requires a connected dual-video compositor. The
 built-in default duration is two seconds split symmetrically around the seam.
 Short windows below about 600ms should be treated as a stylistic quick fade,
 not the professional default.
@@ -727,16 +729,16 @@ Current gate:
   generated from shutter angle and frame rate, and mirror-edge motion tiling is
   required by the render plan.
 - a future `ProfessionalVideoTransitionCompositor` must own preview, scrub,
-  playback, and export parity before any new video transition authoring path is
-  exposed again as engine-backed.
+  and playback parity before any new video transition authoring path is exposed
+  again as engine-backed. Export parity remains a separate later release gate.
 - the Android app now exposes
   `com.refusion.app/professional_video_transition_compositor.getCapabilities`
   as the native capability bridge for this compositor. The current native
-  response is deliberately unavailable for every required capability, so every
-  new video transition authoring path remains locked until the real dual-video
-  compositor, temporal motion blur, mirror-edge tiling, preview, scrub,
-  playback, and export parity are all implemented and reported from native
-  code.
+  response is deliberately unavailable for every required interactive
+  capability, so every new video transition authoring path remains locked until
+  the real dual-video compositor, temporal motion blur, mirror-edge tiling,
+  preview, scrub, and playback parity are all implemented and reported from
+  native code.
 - Flutter and Android now also share the generic `prepareRenderPlan` contract.
   Zoom In Camera lowers into this general render plan with canvas size, seam
   timing, outgoing/incoming source ranges, shutter settings, and mirror-edge
@@ -763,7 +765,7 @@ Current gate:
   the full readiness chain against a render plan: native capabilities, strict
   render-session preparation, source binding, frame sampling, exact decode
   requests, dual decoder session, temporal accumulator, mirror-edge tiler,
-  render-pass graph, output surface, and preview/scrub/playback/export parity.
+  render-pass graph, output surface, and preview/scrub/playback parity.
   A transition authoring UI may only expose a preset when this report has no
   blocking stage; a single successful planning endpoint is not enough.
 - Flutter now also has
@@ -840,17 +842,16 @@ Current gate:
   to the graph.
 - Flutter and Android now also share `planOutputSurface`. This binds the pass
   graph to the only acceptable output target for professional transitions: a
-  native transition canvas surface clipped to the preview/export canvas. It
+  native transition canvas surface clipped to the preview canvas. It
   explicitly forbids Flutter overlay drawing, timeline overlay drawing, and
   transformed PlatformView fallback paths, inherits upstream render blockers,
   and remains blocked while `rendererImplemented=false`.
 - Flutter and Android now also share `planParityOutputs`. This is the parity
-  contract that prevents "works in preview but not in scrub/play/export"
-  drift. Preview, Live Scrub, playback, and export must all point at the same
-  native transition output contract. Export remains a later implementation
-  phase per the current product direction, but preview, Live Scrub, and playback
-  still inherit the same output-surface blockers and may not diverge or fall
-  back to overlays.
+  contract that prevents "works in preview but not in scrub/playback" drift.
+  Preview, Live Scrub, and playback must all point at the same native
+  transition output contract. Export remains a later implementation phase per
+  the current product direction and must be added to this same contract when
+  the export renderer is built.
 
 ## 9. Stop Conditions
 

@@ -45,19 +45,23 @@ class ProfessionalVideoTransitionCompositorCapabilities {
   bool get canExposeProfessionalZoomInCamera =>
       canExposeProfessionalVideoTransitions;
 
-  /// Strict gate for creating any new professional video transition.
+  /// Strict interactive gate for creating any new professional video transition.
   ///
-  /// This intentionally requires the complete compositor stack, even for
-  /// simpler transition definitions, so unsupported presets cannot slip back
-  /// into frozen-frame, Flutter-overlay, or single-surface fallback rendering.
+  /// This intentionally requires the complete preview/scrub/playback
+  /// compositor stack, even for simpler transition definitions, so unsupported
+  /// presets cannot slip back into frozen-frame, Flutter-overlay, or
+  /// single-surface fallback rendering. Export parity is tracked separately so
+  /// interactive transition authoring can ship before the export renderer.
   bool get canExposeProfessionalVideoTransitions =>
       dualVideoSampling &&
       temporalMotionBlur &&
       mirrorEdgeTiling &&
       previewParity &&
       liveScrubParity &&
-      playbackParity &&
-      exportParity;
+      playbackParity;
+
+  bool get canExportProfessionalVideoTransitions =>
+      canExposeProfessionalVideoTransitions && exportParity;
 
   List<String> get missingForProfessionalZoomInCamera {
     return missingForProfessionalVideoTransitions;
@@ -83,6 +87,11 @@ class ProfessionalVideoTransitionCompositorCapabilities {
     if (!playbackParity) {
       missing.add('playbackParity');
     }
+    return List.unmodifiable(missing);
+  }
+
+  List<String> get missingForProfessionalVideoTransitionExport {
+    final missing = <String>[...missingForProfessionalVideoTransitions];
     if (!exportParity) {
       missing.add('exportParity');
     }
@@ -3248,7 +3257,6 @@ class ProfessionalZoomCameraRenderPlan {
         'previewParity',
         'liveScrubParity',
         'playbackParity',
-        'exportParity',
       ],
       parameters: <String, Object?>{
         'outgoingBoostScale': request.outgoingBoostScale,

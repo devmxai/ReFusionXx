@@ -347,5 +347,4 @@ const List<String> _requiredProfessionalCapabilities = <String>[
   'previewParity',
   'liveScrubParity',
   'playbackParity',
-  'exportParity',
 ];

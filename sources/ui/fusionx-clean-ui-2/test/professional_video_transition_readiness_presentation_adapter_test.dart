@@ -8,7 +8,7 @@ void main() {
   const adapter = ProfessionalVideoTransitionReadinessPresentationAdapter();
 
   test(
-      'capability view keeps transition authoring blocked until all parity is ready',
+      'capability view keeps transition authoring blocked until interactive parity is ready',
       () {
     const capabilities = ProfessionalVideoTransitionCompositorCapabilities(
       dualVideoSampling: true,
@@ -30,12 +30,11 @@ void main() {
         'temporalMotionBlur',
         'mirrorEdgeTiling',
         'liveScrubParity',
-        'exportParity',
       ],
     );
     expect(
       display.missingSummary,
-      'temporalMotionBlur, mirrorEdgeTiling, liveScrubParity, exportParity',
+      'temporalMotionBlur, mirrorEdgeTiling, liveScrubParity',
     );
   });
 
@@ -60,10 +59,10 @@ void main() {
         ),
         ProfessionalVideoTransitionReadinessStage(
           id: ProfessionalVideoTransitionReadinessStageId.parityOutputs,
-          label: 'Preview/scrub/playback/export parity',
+          label: 'Preview/scrub/playback parity',
           canPlan: false,
           canAdvance: false,
-          blockers: <String>['exportParity=false'],
+          blockers: <String>['playbackParity=false'],
         ),
       ],
     );
@@ -76,12 +75,12 @@ void main() {
       display.blockingStages.map((stage) => stage.label),
       <String>[
         'Exact frame decode requests',
-        'Preview/scrub/playback/export parity',
+        'Preview/scrub/playback parity',
       ],
     );
     expect(
       display.missingSummary,
-      'decoderImplemented=false, exportParity=false',
+      'decoderImplemented=false, playbackParity=false',
     );
   });
 
@@ -93,7 +92,7 @@ void main() {
       previewParity: true,
       liveScrubParity: true,
       playbackParity: true,
-      exportParity: true,
+      exportParity: false,
     );
 
     final display = adapter.fromCapabilities(capabilities);

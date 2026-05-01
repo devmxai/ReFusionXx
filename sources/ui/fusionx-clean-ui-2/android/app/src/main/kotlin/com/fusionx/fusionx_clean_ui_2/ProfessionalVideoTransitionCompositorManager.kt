@@ -1354,7 +1354,7 @@ private data class ProfessionalVideoTransitionRenderSession(
         val upstreamBlockedReasons =
             (surfacePlan["blockedReasons"] as? List<*>)?.map { reason -> reason.toString() }
                 ?: emptyList()
-        val parityModes = listOf("preview", "liveScrub", "playback", "export")
+        val parityModes = listOf("preview", "liveScrub", "playback")
         val outputs =
             parityModes.map { mode ->
                 val blockedReasons =
@@ -1381,6 +1381,7 @@ private data class ProfessionalVideoTransitionRenderSession(
         return surfacePlan +
             mapOf(
                 "sameOutputContractForAllModes" to true,
+                "exportDeferred" to true,
                 "allModesRenderable" to (rendererImplemented && blockedReasons.isEmpty()),
                 "outputs" to outputs,
                 "blockedReasons" to blockedReasons,

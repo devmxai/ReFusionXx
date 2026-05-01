@@ -363,7 +363,7 @@ class ProfessionalVideoTransitionReadinessPreflight {
   ) {
     return ProfessionalVideoTransitionReadinessStage(
       id: ProfessionalVideoTransitionReadinessStageId.parityOutputs,
-      label: 'Preview/scrub/playback/export parity',
+      label: 'Preview/scrub/playback parity',
       canPlan: result.canPlan,
       canAdvance: result.canRender,
       blockers: _blockers(

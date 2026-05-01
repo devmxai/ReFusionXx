@@ -39,7 +39,7 @@ void main() {
       previewParity: true,
       liveScrubParity: true,
       playbackParity: true,
-      exportParity: true,
+      exportParity: false,
     );
 
     await tester.pumpWidget(

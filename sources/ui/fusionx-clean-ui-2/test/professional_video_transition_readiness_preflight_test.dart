@@ -149,7 +149,6 @@ ProfessionalVideoTransitionRenderPlan _renderPlan() {
       'previewParity',
       'liveScrubParity',
       'playbackParity',
-      'exportParity',
     ],
     samplingPolicy: const <String, Object?>{
       'sourceCount': 2,
@@ -190,7 +189,7 @@ class _FakeProfessionalVideoTransitionCompositorClient
         previewParity: true,
         liveScrubParity: true,
         playbackParity: true,
-        exportParity: true,
+        exportParity: false,
       );
     }
     return ProfessionalVideoTransitionCompositorCapabilities.unavailable;
@@ -564,12 +563,7 @@ class _FakeProfessionalVideoTransitionCompositorClient
       sameOutputContractForAllModes: true,
       allModesRenderable: _rendererReady,
       outputs: <ProfessionalVideoTransitionParityOutput>[
-        for (final mode in <String>[
-          'preview',
-          'liveScrub',
-          'playback',
-          'export'
-        ])
+        for (final mode in <String>['preview', 'liveScrub', 'playback'])
           ProfessionalVideoTransitionParityOutput(
             mode: mode,
             outputSurfaceId: 'surface:${plan.transitionId}',
