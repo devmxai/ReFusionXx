@@ -28,6 +28,7 @@ class NormalTransitionTimelineAuthoringAdapter {
     required TimelineTime boundaryTime,
     required TimelineTime leftAvailableTail,
     required TimelineTime rightAvailableHead,
+    NormalTransitionAlignment alignment = NormalTransitionAlignment.symmetric,
   }) {
     final definitionResult = _definitionForPreset(preset);
     final definition = definitionResult.definition;
@@ -45,6 +46,7 @@ class NormalTransitionTimelineAuthoringAdapter {
         boundaryTime: boundaryTime,
         leftAvailableTail: leftAvailableTail,
         rightAvailableHead: rightAvailableHead,
+        alignment: alignment,
       ),
     );
     if (!applyResult.canApply) {

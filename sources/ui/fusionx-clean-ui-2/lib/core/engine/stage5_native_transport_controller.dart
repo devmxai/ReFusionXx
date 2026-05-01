@@ -258,6 +258,7 @@ class Stage5NativeTransportController extends ChangeNotifier {
     required int positionMs,
     int targetWidth = 320,
     int targetHeight = 568,
+    bool exactPosition = false,
   }) async {
     if (!isPlatformSupported) {
       return null;
@@ -269,6 +270,7 @@ class Stage5NativeTransportController extends ChangeNotifier {
         'positionMs': positionMs < 0 ? 0 : positionMs,
         'targetWidth': targetWidth,
         'targetHeight': targetHeight,
+        'exactPosition': exactPosition,
       },
     );
     return result;

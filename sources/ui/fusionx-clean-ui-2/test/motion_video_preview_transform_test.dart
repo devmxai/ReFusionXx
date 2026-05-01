@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_compilation_models.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_evaluation_models.dart';
@@ -239,5 +240,32 @@ void main() {
     expect(transform, isNotNull);
     expect(transform!.elementId, 'second-video');
     expect(transform.positionX, 220);
+  });
+
+  testWidgets('applies a transition surface transform without graph transform',
+      (tester) async {
+    await tester.pumpWidget(
+      const Directionality(
+        textDirection: TextDirection.ltr,
+        child: SizedBox(
+          width: 540,
+          height: 960,
+          child: MotionVideoPreviewTransformSurface(
+            transform: null,
+            surfaceTransform: MotionVideoPreviewSurfaceTransform(
+              scaleX: 2,
+              scaleY: 2,
+              blurAmount: 12,
+            ),
+            canvasSize: MotionSize2D(width: 1080, height: 1920),
+            child: SizedBox(key: ValueKey<String>('native-video')),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const ValueKey<String>('native-video')), findsOneWidget);
+    expect(find.byType(ImageFiltered), findsOneWidget);
+    expect(find.byType(Transform), findsWidgets);
   });
 }

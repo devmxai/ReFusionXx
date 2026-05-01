@@ -78,7 +78,7 @@ void main() {
       leftClipId: 'clip-a',
       rightClipId: 'clip-b',
       preset: TimelineTransitionPreset.zoomInCamera,
-      durationTime: TimelineTime.fromMilliseconds(560),
+      durationTime: TimelineTime.fromMilliseconds(4000),
       parameterValues: const <String, double>{'outgoingBoostScale': 2.1},
     );
 

@@ -92,23 +92,23 @@ const String kZoomInCameraTransitionDefinitionJson = '''
   "name": "Zoom In Camera",
   "category": "motion",
   "rendererType": "primitive",
-  "defaultDurationMs": 560,
-  "minDurationMs": 180,
-  "maxDurationMs": 2600,
-  "requires": ["dual-texture", "opacity", "transform", "timeline-overlap", "boundary-frames", "motion-blur"],
+  "defaultDurationMs": 4000,
+  "minDurationMs": 1200,
+  "maxDurationMs": 5000,
+  "requires": ["dual-texture", "opacity", "transform", "timeline-overlap", "live-video-surface", "motion-blur"],
   "parameters": [
     {
       "name": "outgoingBoostScale",
       "type": "number",
-      "default": 1.95,
-      "range": [1.05, 2.6],
+      "default": 3.0,
+      "range": [1.05, 3.6],
       "ui": "slider"
     },
     {
       "name": "incomingStartScale",
       "type": "number",
-      "default": 1.95,
-      "range": [1.18, 2.6],
+      "default": 0.28,
+      "range": [0.18, 1.0],
       "ui": "slider"
     },
     {
@@ -128,14 +128,14 @@ const String kZoomInCameraTransitionDefinitionJson = '''
     {
       "name": "motionBlurAmount",
       "type": "number",
-      "default": 12.0,
-      "range": [0.0, 28.0],
+      "default": 18.0,
+      "range": [0.0, 32.0],
       "ui": "slider"
     },
     {
       "name": "shakeAmount",
       "type": "number",
-      "default": 7.0,
+      "default": 5.0,
       "range": [0.0, 24.0],
       "ui": "slider"
     }
@@ -173,7 +173,7 @@ const String kZoomInCameraTransitionDefinitionJson = '''
       "target": "to",
       "property": "scaleX",
       "keyframes": [
-        { "t": 0.38, "value": "\$incomingStartScale", "easing": "linear" },
+        { "t": 0.5, "value": "\$incomingStartScale", "easing": "linear" },
         { "t": 1.0, "value": 1.0, "easing": "easeOutCubic" }
       ]
     },
@@ -181,7 +181,7 @@ const String kZoomInCameraTransitionDefinitionJson = '''
       "target": "to",
       "property": "scaleY",
       "keyframes": [
-        { "t": 0.38, "value": "\$incomingStartScale", "easing": "linear" },
+        { "t": 0.5, "value": "\$incomingStartScale", "easing": "linear" },
         { "t": 1.0, "value": 1.0, "easing": "easeOutCubic" }
       ]
     },

@@ -1,10 +1,9 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
-import 'dart:ui' show ImageFilter, lerpDouble;
+import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/app_theme.dart';
 import '../models/timeline_mock_models.dart';
 
 class TimelineTransitionPreviewOverlay extends StatelessWidget {
@@ -110,20 +109,13 @@ class TimelineTransitionPreviewOverlay extends StatelessWidget {
           if (transition.preset == TimelineTransitionPreset.zoomInCamera)
             _ZoomInCameraTransitionLayer(
               progress: curvedProgress,
-              outgoingThumbnailBytes: outgoingThumbnailBytes,
-              incomingThumbnailBytes: incomingThumbnailBytes,
-              incomingStartScale: transition
-                  .parameterValue('incomingStartScale', fallback: 1.95),
-              outgoingBoostScale: transition
-                  .parameterValue('outgoingBoostScale', fallback: 1.95),
-              entryDelay:
-                  transition.parameterValue('entryDelay', fallback: 0.12),
+              seamProgress: seamProgress,
               bridgeDarkness:
                   transition.parameterValue('bridgeDarkness', fallback: 0.12),
               motionBlurAmount:
-                  transition.parameterValue('motionBlurAmount', fallback: 12),
+                  transition.parameterValue('motionBlurAmount', fallback: 18),
               shakeAmount:
-                  transition.parameterValue('shakeAmount', fallback: 7),
+                  transition.parameterValue('shakeAmount', fallback: 5),
             ),
         ],
       ),
@@ -346,90 +338,50 @@ class _CrossDissolveTransitionLayer extends StatelessWidget {
 class _ZoomInCameraTransitionLayer extends StatelessWidget {
   const _ZoomInCameraTransitionLayer({
     required this.progress,
-    required this.outgoingThumbnailBytes,
-    required this.incomingThumbnailBytes,
-    required this.incomingStartScale,
-    required this.outgoingBoostScale,
-    required this.entryDelay,
+    required this.seamProgress,
     required this.bridgeDarkness,
     required this.motionBlurAmount,
     required this.shakeAmount,
   });
 
   final double progress;
-  final Uint8List? outgoingThumbnailBytes;
-  final Uint8List? incomingThumbnailBytes;
-  final double incomingStartScale;
-  final double outgoingBoostScale;
-  final double entryDelay;
+  final double seamProgress;
   final double bridgeDarkness;
   final double motionBlurAmount;
   final double shakeAmount;
 
   @override
   Widget build(BuildContext context) {
-    const seam = 0.5;
-    final incomingLead = entryDelay.clamp(0.0, 0.32).toDouble();
-    final incomingStart = (seam - incomingLead).clamp(0.0, seam).toDouble();
-    final outgoingPhase = (progress / seam).clamp(0.0, 1.0).toDouble();
-    final incomingPhase =
-        ((progress - incomingStart) / math.max(0.001, 1 - incomingStart))
-            .clamp(0.0, 1.0)
-            .toDouble();
-    final outgoingCurve = Curves.easeInCubic.transform(outgoingPhase);
-    final incomingCurve = Curves.easeOutCubic.transform(incomingPhase);
-    final handoffProgress =
-        ((progress - 0.42) / 0.16).clamp(0.0, 1.0).toDouble();
+    final seam = seamProgress.clamp(0.2, 0.8).toDouble();
     final impactPulse =
         (1 - ((progress - seam).abs() / 0.24)).clamp(0.0, 1.0).toDouble();
     final trailingPulse =
-        (1 - ((progress - 0.56).abs() / 0.32)).clamp(0.0, 1.0).toDouble();
-    final outgoingScale =
-        lerpDouble(1.0, outgoingBoostScale, outgoingCurve) ?? 1.0;
-    final incomingScale =
-        lerpDouble(incomingStartScale, 1.0, incomingCurve) ?? 1.0;
-    final outgoingOpacity = (1 - Curves.easeInOut.transform(handoffProgress))
-        .clamp(0.0, 1.0)
-        .toDouble();
-    final incomingOpacity =
-        Curves.easeInOut.transform(handoffProgress).clamp(0.0, 1.0).toDouble();
-    final blurPeak = motionBlurAmount.clamp(0.0, 28.0).toDouble();
-    final outgoingBlur = blurPeak * impactPulse;
-    final incomingBlur = blurPeak * trailingPulse * (1 - incomingCurve * 0.72);
+        (1 - ((progress - (seam + (1 - seam) * 0.26)).abs() / 0.34))
+            .clamp(0.0, 1.0)
+            .toDouble();
+    final blurPeak = motionBlurAmount.clamp(0.0, 32.0).toDouble();
+    final streakOpacity = ((impactPulse * 0.42) + (trailingPulse * 0.24)) *
+        (blurPeak / 32).clamp(0.0, 1.0);
     final shakePeak = shakeAmount.clamp(0.0, 24.0).toDouble();
-    final shakeDecay = progress < seam
-        ? impactPulse
-        : impactPulse * (1 - incomingCurve * 0.45);
+    final shakeDecay = progress < seam ? impactPulse : trailingPulse * 0.72;
     final shakeX = math.sin(progress * math.pi * 22.0) * shakePeak * shakeDecay;
     final shakeY =
         math.cos(progress * math.pi * 17.0) * shakePeak * shakeDecay * 0.45;
-    final shakeRotation =
-        math.sin(progress * math.pi * 13.0) * 0.006 * shakeDecay;
     final outgoingMaskOpacity =
-        (impactPulse * bridgeDarkness).clamp(0.0, 1.0).toDouble();
+        ((impactPulse * 0.85 + trailingPulse * 0.28) * bridgeDarkness)
+            .clamp(0.0, 1.0)
+            .toDouble();
 
     return Stack(
       fit: StackFit.expand,
       children: [
-        if (outgoingThumbnailBytes != null)
-          _CameraZoomFrame(
-            bytes: outgoingThumbnailBytes!,
-            scale: outgoingScale,
-            opacity: outgoingOpacity,
-            blurSigma: outgoingBlur,
-            offset: Offset(shakeX, shakeY),
-            rotation: shakeRotation,
-            edgeFill: false,
-          ),
-        if (incomingThumbnailBytes != null)
-          _CameraZoomFrame(
-            bytes: incomingThumbnailBytes!,
-            scale: incomingScale,
-            opacity: incomingOpacity,
-            blurSigma: incomingBlur,
-            offset: Offset(-shakeX * 0.72, -shakeY * 0.72),
-            rotation: -shakeRotation * 0.82,
-            edgeFill: true,
+        if (streakOpacity > 0.001)
+          CustomPaint(
+            painter: _ZoomSpeedLinesPainter(
+              opacity: streakOpacity.clamp(0.0, 0.52).toDouble(),
+              progress: progress,
+              shakeOffset: Offset(shakeX, shakeY),
+            ),
           ),
         Positioned.fill(
           child: DecoratedBox(
@@ -454,7 +406,7 @@ class _ZoomInCameraTransitionLayer extends StatelessWidget {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.white.withOpacity(impactPulse * 0.06),
+                  Colors.white.withOpacity(impactPulse * 0.09),
                   Colors.transparent,
                   Colors.black.withOpacity(outgoingMaskOpacity * 0.52),
                 ],
@@ -462,103 +414,49 @@ class _ZoomInCameraTransitionLayer extends StatelessWidget {
             ),
           ),
         ),
-        if (incomingThumbnailBytes == null)
-          Center(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.34),
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.12),
-                  width: 1,
-                ),
-              ),
-              child: const Text(
-                'Preview warming',
-                style: TextStyle(
-                  color: FxPalette.textPrimary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ),
       ],
     );
   }
 }
 
-class _CameraZoomFrame extends StatelessWidget {
-  const _CameraZoomFrame({
-    required this.bytes,
-    required this.scale,
+class _ZoomSpeedLinesPainter extends CustomPainter {
+  const _ZoomSpeedLinesPainter({
     required this.opacity,
-    required this.blurSigma,
-    required this.offset,
-    required this.rotation,
-    required this.edgeFill,
+    required this.progress,
+    required this.shakeOffset,
   });
 
-  final Uint8List bytes;
-  final double scale;
   final double opacity;
-  final double blurSigma;
-  final Offset offset;
-  final double rotation;
-  final bool edgeFill;
+  final double progress;
+  final Offset shakeOffset;
 
   @override
-  Widget build(BuildContext context) {
-    if (opacity <= 0.001) {
-      return const SizedBox.shrink();
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2) + shakeOffset;
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = math.max(1.0, size.shortestSide * 0.003)
+      ..color = Colors.white.withOpacity(opacity);
+    const lineCount = 18;
+    for (var index = 0; index < lineCount; index += 1) {
+      final angle =
+          ((math.pi * 2) / lineCount) * index + (progress * math.pi * 0.24);
+      final direction = Offset(math.cos(angle), math.sin(angle));
+      final startRadius = size.shortestSide * (0.18 + (index % 3) * 0.045);
+      final endRadius = startRadius + size.shortestSide * 0.12;
+      canvas.drawLine(
+        center + direction * startRadius,
+        center + direction * endRadius,
+        paint,
+      );
     }
-    final frame = Transform.translate(
-      offset: offset,
-      child: Transform.rotate(
-        angle: rotation,
-        child: Transform.scale(
-          scale: scale,
-          child: ImageFiltered(
-            imageFilter: ImageFilter.blur(
-              sigmaX: blurSigma,
-              sigmaY: blurSigma,
-            ),
-            child: Image.memory(
-              bytes,
-              fit: BoxFit.cover,
-              gaplessPlayback: true,
-            ),
-          ),
-        ),
-      ),
-    );
-    return Opacity(
-      opacity: opacity.clamp(0.0, 1.0).toDouble(),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          if (edgeFill)
-            Opacity(
-              opacity: (0.18 + (blurSigma / 48)).clamp(0.18, 0.52).toDouble(),
-              child: Transform.scale(
-                scale: 1.12,
-                child: ImageFiltered(
-                  imageFilter: ImageFilter.blur(
-                    sigmaX: math.max(10, blurSigma * 1.6),
-                    sigmaY: math.max(10, blurSigma * 1.6),
-                  ),
-                  child: Image.memory(
-                    bytes,
-                    fit: BoxFit.cover,
-                    gaplessPlayback: true,
-                  ),
-                ),
-              ),
-            ),
-          frame,
-        ],
-      ),
-    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _ZoomSpeedLinesPainter oldDelegate) {
+    return oldDelegate.opacity != opacity ||
+        oldDelegate.progress != progress ||
+        oldDelegate.shakeOffset != shakeOffset;
   }
 }

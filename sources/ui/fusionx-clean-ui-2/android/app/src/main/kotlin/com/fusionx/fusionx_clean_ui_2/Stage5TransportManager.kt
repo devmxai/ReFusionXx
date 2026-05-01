@@ -385,6 +385,7 @@ class Stage5TransportManager(context: Context) {
         positionMs: Long,
         targetWidth: Int,
         targetHeight: Int,
+        exactPosition: Boolean = false,
     ): Bitmap? {
         val safeWidth = targetWidth.coerceIn(120, 480)
         val safeHeight = targetHeight.coerceIn(180, 854)
@@ -427,8 +428,13 @@ class Stage5TransportManager(context: Context) {
             val fitScale = minOf(widthScale, heightScale).coerceAtMost(1f)
             val scaledWidth = (displayWidth * fitScale).roundToInt().coerceAtLeast(1)
             val scaledHeight = (displayHeight * fitScale).roundToInt().coerceAtLeast(1)
-            val bucketedPositionMs = (safePositionMs / 33L) * 33L
-            val timeUs = bucketedPositionMs * 1000L
+            val resolvedPositionMs =
+                if (exactPosition) {
+                    safePositionMs
+                } else {
+                    (safePositionMs / 33L) * 33L
+                }
+            val timeUs = resolvedPositionMs * 1000L
             bitmap =
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
                     retriever.getScaledFrameAtTime(
@@ -503,20 +509,29 @@ class Stage5TransportManager(context: Context) {
         positionMs: Long,
         targetWidth: Int,
         targetHeight: Int,
+        exactPosition: Boolean = false,
     ): ByteArray? {
         val safeWidth = targetWidth.coerceIn(120, 480)
         val safeHeight = targetHeight.coerceIn(180, 854)
         val safePositionMs = positionMs.coerceAtLeast(0L)
-        val bucketedPositionMs = (safePositionMs / 33L) * 33L
-        val cacheKey = "$sourceUri|frame|$bucketedPositionMs|$safeWidth|$safeHeight"
+        val resolvedPositionMs =
+            if (exactPosition) {
+                safePositionMs
+            } else {
+                (safePositionMs / 33L) * 33L
+            }
+        val positionMode = if (exactPosition) "exact" else "bucket"
+        val cacheKey =
+            "$sourceUri|frame|$positionMode|$resolvedPositionMs|$safeWidth|$safeHeight"
         thumbnailCache.get(cacheKey)?.let { return it }
 
         val bitmap =
             loadMediaFramePreviewBitmap(
                 sourceUri = sourceUri,
-                positionMs = bucketedPositionMs,
+                positionMs = resolvedPositionMs,
                 targetWidth = safeWidth,
                 targetHeight = safeHeight,
+                exactPosition = exactPosition,
             ) ?: return null
         return try {
             val bytes =
@@ -536,12 +551,14 @@ class Stage5TransportManager(context: Context) {
         positionMs: Long,
         targetWidth: Int,
         targetHeight: Int,
+        exactPosition: Boolean = false,
     ): Bitmap? =
         loadMediaFramePreviewBitmap(
             sourceUri = sourceUri,
             positionMs = positionMs,
             targetWidth = targetWidth,
             targetHeight = targetHeight,
+            exactPosition = exactPosition,
         )
 
     private fun resolveMediaDisplayGeometry(sourceUri: String): ResolvedMediaDisplayGeometry? =

@@ -171,19 +171,20 @@ void main() {
     expect(blackBoxOpacity(tester), closeTo(0.5, 0.01));
   });
 
-  testWidgets('zoom in camera uses full-frame blurred camera layers',
+  testWidgets(
+      'zoom in camera draws live-video motion cues without still frames',
       (tester) async {
     final transition = TimelineTrackTransitionData(
       id: 'transition-zoom',
       leftClipId: 'clip-a',
       rightClipId: 'clip-b',
       preset: TimelineTransitionPreset.zoomInCamera,
-      durationTime: TimelineTime.fromMilliseconds(560),
+      durationTime: TimelineTime.fromMilliseconds(4000),
       parameterValues: const <String, double>{
-        'outgoingBoostScale': 1.95,
-        'incomingStartScale': 1.95,
-        'motionBlurAmount': 12.0,
-        'shakeAmount': 7.0,
+        'outgoingBoostScale': 3.0,
+        'incomingStartScale': 0.28,
+        'motionBlurAmount': 18.0,
+        'shakeAmount': 5.0,
       },
     );
 
@@ -196,7 +197,8 @@ void main() {
       ),
     );
 
-    expect(find.byType(ImageFiltered), findsWidgets);
+    expect(find.byType(Image), findsNothing);
+    expect(find.byType(CustomPaint), findsWidgets);
     expect(find.byType(ClipRRect), findsNothing);
     expect(find.text('Preview warming'), findsNothing);
   });

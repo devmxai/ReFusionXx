@@ -27,7 +27,7 @@ void main() {
 
   test('rejects presets outside the normal transition registry', () {
     final result = adapter.createBuiltInPresetTransition(
-      preset: TimelineTransitionPreset.fadeBlack,
+      preset: TimelineTransitionPreset.manual,
       trackId: 'video-main',
       leftClipId: 'clip-a',
       rightClipId: 'clip-b',
@@ -38,6 +38,26 @@ void main() {
 
     expect(result.canApply, isFalse);
     expect(result.issues.single.path, 'preset');
+  });
+
+  test('creates cinematic zoom with a two-sided transition window', () {
+    final result = adapter.createBuiltInPresetTransition(
+      preset: TimelineTransitionPreset.zoomInCamera,
+      trackId: 'video-main',
+      leftClipId: 'clip-a',
+      rightClipId: 'clip-b',
+      boundaryTime: TimelineTime.fromMilliseconds(8000),
+      leftAvailableTail: TimelineTime.fromMilliseconds(4000),
+      rightAvailableHead: TimelineTime.fromMilliseconds(4000),
+    );
+
+    expect(result.canApply, isTrue);
+    expect(result.transition!.durationTime.inMilliseconds, 4000);
+    expect(result.transition!.resolvedLeadingDurationTime.inMilliseconds, 2000);
+    expect(
+        result.transition!.resolvedTrailingDurationTime.inMilliseconds, 2000);
+    expect(result.transition!.parameterValues['incomingStartScale'], 0.28);
+    expect(result.transition!.parameterValues['outgoingBoostScale'], 3.0);
   });
 
   test('rehydrates timeline cross dissolve edits back to normal state', () {

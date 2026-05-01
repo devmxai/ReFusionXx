@@ -42,6 +42,35 @@ class MotionVideoPreviewTransform {
       blurAmount <= 0;
 }
 
+class MotionVideoPreviewSurfaceTransform {
+  const MotionVideoPreviewSurfaceTransform({
+    this.positionX = 0,
+    this.positionY = 0,
+    this.scaleX = 1,
+    this.scaleY = 1,
+    this.rotationDegrees = 0,
+    this.opacity = 1,
+    this.blurAmount = 0,
+  });
+
+  final double positionX;
+  final double positionY;
+  final double scaleX;
+  final double scaleY;
+  final double rotationDegrees;
+  final double opacity;
+  final double blurAmount;
+
+  bool get isIdentity =>
+      positionX == 0 &&
+      positionY == 0 &&
+      scaleX == 1 &&
+      scaleY == 1 &&
+      rotationDegrees == 0 &&
+      opacity >= 0.999 &&
+      blurAmount <= 0;
+}
+
 class MotionVideoPreviewTransformResolver {
   const MotionVideoPreviewTransformResolver();
 
@@ -196,18 +225,22 @@ class MotionVideoPreviewTransformSurface extends StatelessWidget {
   const MotionVideoPreviewTransformSurface({
     super.key,
     required this.transform,
+    this.surfaceTransform,
     required this.canvasSize,
     required this.child,
   });
 
   final MotionVideoPreviewTransform? transform;
+  final MotionVideoPreviewSurfaceTransform? surfaceTransform;
   final MotionSize2D canvasSize;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     final transform = this.transform;
-    if (transform == null || transform.isIdentity) {
+    final surfaceTransform = this.surfaceTransform;
+    if ((transform == null || transform.isIdentity) &&
+        (surfaceTransform == null || surfaceTransform.isIdentity)) {
       return child;
     }
     return LayoutBuilder(
@@ -222,36 +255,80 @@ class MotionVideoPreviewTransformSurface extends StatelessWidget {
         }
         final scaleX = viewportWidth / canvasSize.width;
         final scaleY = viewportHeight / canvasSize.height;
-        Widget transformed = ClipRect(
-          child: ImageFiltered(
-            imageFilter: ui.ImageFilter.blur(
-              sigmaX: transform.blurAmount * scaleX,
-              sigmaY: transform.blurAmount * scaleY,
-            ),
-            enabled: transform.blurAmount > 0,
-            child: Opacity(
-              opacity: transform.opacity,
-              child: child,
-            ),
-          ),
-        );
-        transformed = Transform.scale(
-          scaleX: transform.scaleX,
-          scaleY: transform.scaleY,
-          child: transformed,
-        );
-        transformed = Transform.rotate(
-          angle: transform.rotationDegrees * math.pi / 180,
-          child: transformed,
-        );
-        return Transform.translate(
-          offset: Offset(
-            transform.positionX * scaleX,
-            transform.positionY * scaleY,
-          ),
-          child: transformed,
-        );
+        Widget transformed = child;
+        if (transform != null && !transform.isIdentity) {
+          transformed = _applyTransform(
+            transformed,
+            positionX: transform.positionX,
+            positionY: transform.positionY,
+            scaleX: transform.scaleX,
+            scaleY: transform.scaleY,
+            rotationDegrees: transform.rotationDegrees,
+            opacity: transform.opacity,
+            blurAmount: transform.blurAmount,
+            viewportScaleX: scaleX,
+            viewportScaleY: scaleY,
+          );
+        }
+        if (surfaceTransform != null && !surfaceTransform.isIdentity) {
+          transformed = _applyTransform(
+            transformed,
+            positionX: surfaceTransform.positionX,
+            positionY: surfaceTransform.positionY,
+            scaleX: surfaceTransform.scaleX,
+            scaleY: surfaceTransform.scaleY,
+            rotationDegrees: surfaceTransform.rotationDegrees,
+            opacity: surfaceTransform.opacity,
+            blurAmount: surfaceTransform.blurAmount,
+            viewportScaleX: scaleX,
+            viewportScaleY: scaleY,
+          );
+        }
+        return transformed;
       },
+    );
+  }
+
+  Widget _applyTransform(
+    Widget child, {
+    required double positionX,
+    required double positionY,
+    required double scaleX,
+    required double scaleY,
+    required double rotationDegrees,
+    required double opacity,
+    required double blurAmount,
+    required double viewportScaleX,
+    required double viewportScaleY,
+  }) {
+    Widget transformed = ClipRect(
+      child: ImageFiltered(
+        imageFilter: ui.ImageFilter.blur(
+          sigmaX: blurAmount * viewportScaleX,
+          sigmaY: blurAmount * viewportScaleY,
+        ),
+        enabled: blurAmount > 0,
+        child: Opacity(
+          opacity: opacity.clamp(0.0, 1.0).toDouble(),
+          child: child,
+        ),
+      ),
+    );
+    transformed = Transform.scale(
+      scaleX: scaleX,
+      scaleY: scaleY,
+      child: transformed,
+    );
+    transformed = Transform.rotate(
+      angle: rotationDegrees * math.pi / 180,
+      child: transformed,
+    );
+    return Transform.translate(
+      offset: Offset(
+        positionX * viewportScaleX,
+        positionY * viewportScaleY,
+      ),
+      child: transformed,
     );
   }
 }

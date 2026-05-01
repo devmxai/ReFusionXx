@@ -150,6 +150,7 @@ class MainActivity: FlutterActivity() {
                     val positionMs = call.argument<Int>("positionMs") ?: 0
                     val targetWidth = call.argument<Int>("targetWidth") ?: 320
                     val targetHeight = call.argument<Int>("targetHeight") ?: 568
+                    val exactPosition = call.argument<Boolean>("exactPosition") ?: false
                     if (sourceUri.isNullOrBlank()) {
                         result.error(
                             "invalid_frame_preview_source",
@@ -164,6 +165,7 @@ class MainActivity: FlutterActivity() {
                                     positionMs = positionMs.toLong(),
                                     targetWidth = targetWidth,
                                     targetHeight = targetHeight,
+                                    exactPosition = exactPosition,
                                 )
                             }.onSuccess { frameBytes ->
                                 mainHandler.post {

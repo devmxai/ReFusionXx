@@ -589,35 +589,42 @@ simple card overlay.
 
 Current preview contract:
 
-- outgoing visual source must be the last visible boundary frame of clip A,
-  sampled near `clipA.sourceEnd - one frame`;
-- incoming visual source must be the first visible boundary frame of clip B,
-  sampled at `clipB.sourceStart`;
-- generic asset thumbnails are fallback only while boundary frames warm;
-- no Stage5 Live Scrub internals are touched for boundary-frame warmup;
+- Zoom In Camera must animate the live native video surface, not a static
+  boundary-frame image overlay. The outgoing side is the playing end of clip A;
+  the incoming side is the playing beginning of clip B.
+- exact boundary-frame extraction remains available for AI transition seeds and
+  non-live fallback transitions, but Zoom In Camera preview must not fall back
+  to generic asset thumbnails or a frozen frame.
+- no Stage5 Live Scrub internals are touched for exact boundary-frame warmup or
+  live-surface preview transforms;
 - scale velocity peaks at the seam, then resolves;
 - opacity handoff is centered around the seam and must not become a slow
   cross-dissolve;
-- motion blur and a small deterministic impact shake are allowed in preview as
-  an approximation of AE Transform motion blur;
-- edge fill/overscan must prevent black or transparent gaps when blur/shake
-  exposes frame edges.
+- preview motion blur is a live-surface blur plus deterministic speed-line and
+  impact cues. True directional/temporal motion blur remains a future native
+  renderer/shader task, not a frozen-frame trick.
 
 Default preview recipe at 30fps:
 
-- duration: about 16 frames / 560ms;
-- outgoing scale: `1.0 -> 1.95`, accelerated into the seam;
-- incoming scale: `1.95 -> 1.0`, decelerated after the seam;
+- duration: about 4 seconds by default, with the seam centered so roughly the
+  last 2 seconds of A and first 2 seconds of B participate;
+- inspector range: 1.2s..5.0s for shorter or more cinematic cuts;
+- outgoing scale: `1.0 -> 3.0`, accelerated into the seam;
+- incoming scale: `0.28 -> 1.0`, decelerated after the seam, matching the
+  After Effects transform-adjustment-layer pattern where B continues from a
+  compressed scale into normal framing;
 - overlap handoff: roughly `42%..58%` of the transition window;
-- incoming lead: `12%` of the window before the seam;
-- blur peak: `12px`;
-- impact shake: `7px`;
+- incoming lead: no frozen pre-roll; B becomes live at the seam and settles
+  after it;
+- blur peak: `18px`;
+- impact shake: `5px`;
 - bridge darkness: `12%`.
 
 Known gap:
 
 - this preview is still Flutter-side and export parity remains gated until the
-  export renderer consumes the same boundary-frame and transform recipe.
+  export renderer/native video compositor consumes the same live-surface
+  transform recipe and adds true directional motion blur.
 
 ## 9. Stop Conditions
 

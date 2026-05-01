@@ -60,9 +60,27 @@ class _TransitionInspectorBottomSheetState
   }
 
   void _updateDurationMilliseconds(double value) {
+    final nextDuration = TimelineTime.fromMilliseconds(value.round());
+    TimelineTime? nextLeadingDuration;
+    TimelineTime? nextTrailingDuration;
+    if (_draft.leadingDurationTime != null ||
+        _draft.trailingDurationTime != null) {
+      final currentLeading = _draft.resolvedLeadingDurationTime;
+      final currentTrailing = _draft.resolvedTrailingDurationTime;
+      final currentTotal = currentLeading + currentTrailing;
+      final leadingRatio = currentTotal.inProjectTicks <= 0
+          ? 0.5
+          : currentLeading.inProjectTicks / currentTotal.inProjectTicks;
+      final nextLeadingTicks =
+          (nextDuration.inProjectTicks * leadingRatio).round();
+      nextLeadingDuration = TimelineTime.fromProjectTicks(nextLeadingTicks);
+      nextTrailingDuration = nextDuration - nextLeadingDuration;
+    }
     setState(() {
       _draft = _draft.copyWith(
-        durationTime: TimelineTime.fromMilliseconds(value.round()),
+        durationTime: nextDuration,
+        leadingDurationTime: nextLeadingDuration,
+        trailingDurationTime: nextTrailingDuration,
       );
     });
   }
@@ -70,6 +88,11 @@ class _TransitionInspectorBottomSheetState
   @override
   Widget build(BuildContext context) {
     final safeBottom = MediaQuery.of(context).padding.bottom;
+    final durationMin =
+        _draft.preset == TimelineTransitionPreset.zoomInCamera ? 1200.0 : 220.0;
+    final durationMax = _draft.preset == TimelineTransitionPreset.zoomInCamera
+        ? 5000.0
+        : 1600.0;
     return Material(
       color: Colors.transparent,
       child: Align(
@@ -142,10 +165,10 @@ class _TransitionInspectorBottomSheetState
                             overlayColor: FxPalette.accent.withOpacity(0.12),
                           ),
                           child: Slider(
-                            min: 220,
-                            max: 1600,
+                            min: durationMin,
+                            max: durationMax,
                             value: _draft.durationTime.inMilliseconds
-                                .clamp(220, 1600)
+                                .clamp(durationMin.round(), durationMax.round())
                                 .toDouble(),
                             onChanged: _updateDurationMilliseconds,
                           ),
@@ -193,15 +216,15 @@ class _TransitionInspectorBottomSheetState
                         label: 'Incoming Zoom',
                         child: _InspectorSliderRow(
                           valueLabel: _formatScale(
-                            _parameter('incomingStartScale', fallback: 1.95),
+                            _parameter('incomingStartScale', fallback: 0.28),
                           ),
                           slider: Slider(
-                            min: 1.18,
-                            max: 2.6,
+                            min: 0.18,
+                            max: 1.0,
                             value: _parameter(
                               'incomingStartScale',
-                              fallback: 1.95,
-                            ).clamp(1.18, 2.6),
+                              fallback: 0.28,
+                            ).clamp(0.18, 1.0),
                             onChanged: (value) => _updateParameter(
                               'incomingStartScale',
                               value,
@@ -213,15 +236,15 @@ class _TransitionInspectorBottomSheetState
                         label: 'Outgoing Push',
                         child: _InspectorSliderRow(
                           valueLabel: _formatScale(
-                            _parameter('outgoingBoostScale', fallback: 1.95),
+                            _parameter('outgoingBoostScale', fallback: 3.0),
                           ),
                           slider: Slider(
                             min: 1.05,
-                            max: 2.6,
+                            max: 3.6,
                             value: _parameter(
                               'outgoingBoostScale',
-                              fallback: 1.95,
-                            ).clamp(1.05, 2.6),
+                              fallback: 3.0,
+                            ).clamp(1.05, 3.6),
                             onChanged: (value) =>
                                 _updateParameter('outgoingBoostScale', value),
                           ),
@@ -265,15 +288,15 @@ class _TransitionInspectorBottomSheetState
                         child: _InspectorSliderRow(
                           valueLabel: _parameter(
                             'motionBlurAmount',
-                            fallback: 12,
+                            fallback: 18,
                           ).toStringAsFixed(0),
                           slider: Slider(
                             min: 0,
-                            max: 28,
+                            max: 32,
                             value: _parameter(
                               'motionBlurAmount',
-                              fallback: 12,
-                            ).clamp(0, 28),
+                              fallback: 18,
+                            ).clamp(0, 32),
                             onChanged: (value) =>
                                 _updateParameter('motionBlurAmount', value),
                           ),
@@ -284,14 +307,14 @@ class _TransitionInspectorBottomSheetState
                         child: _InspectorSliderRow(
                           valueLabel: _parameter(
                             'shakeAmount',
-                            fallback: 7,
+                            fallback: 5,
                           ).toStringAsFixed(0),
                           slider: Slider(
                             min: 0,
                             max: 24,
                             value: _parameter(
                               'shakeAmount',
-                              fallback: 7,
+                              fallback: 5,
                             ).clamp(0, 24),
                             onChanged: (value) =>
                                 _updateParameter('shakeAmount', value),
