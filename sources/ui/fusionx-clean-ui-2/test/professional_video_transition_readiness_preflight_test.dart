@@ -647,6 +647,11 @@ class _FakeProfessionalVideoTransitionCompositorClient
       probeImplemented: true,
       canOpenSource: true,
       hasVideoTrack: true,
+      videoMimeType: 'video/avc',
+      videoWidth: 1080,
+      videoHeight: 1920,
+      videoDuration: source.sourceDuration,
+      videoFrameRate: 30,
       allowSyntheticSource: false,
       blockedReasons: const <String>[],
     );

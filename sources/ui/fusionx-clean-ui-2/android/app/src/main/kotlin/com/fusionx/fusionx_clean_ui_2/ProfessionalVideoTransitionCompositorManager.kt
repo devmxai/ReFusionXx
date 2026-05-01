@@ -1,6 +1,13 @@
 package com.refusion.app
 
-class ProfessionalVideoTransitionCompositorManager {
+import android.content.Context
+import android.media.MediaExtractor
+import android.media.MediaFormat
+import android.net.Uri
+
+class ProfessionalVideoTransitionCompositorManager(
+    private val appContext: Context,
+) {
     private val rendererRegistry = ProfessionalVideoTransitionRendererRegistry.foundation()
 
     fun capabilities(): Map<String, Any> =
@@ -211,7 +218,10 @@ class ProfessionalVideoTransitionCompositorManager {
                 "issues" to sessionResult.issues,
             )
         }
-        return sessionResult.session.planVideoSourceProbe(timelineTimeMs)
+        return sessionResult.session.planVideoSourceProbe(
+            timelineTimeMs = timelineTimeMs,
+            appContext = appContext,
+        )
     }
 
     fun planDualVideoDecoderSession(
@@ -555,7 +565,10 @@ private data class ProfessionalVideoTransitionRenderSession(
         )
     }
 
-    fun planVideoSourceProbe(timelineTimeMs: Long): Map<String, Any> {
+    fun planVideoSourceProbe(
+        timelineTimeMs: Long,
+        appContext: Context,
+    ): Map<String, Any> {
         val bindingPlan = planVideoSourceBindings(timelineTimeMs)
         if (bindingPlan["status"] != "planned") {
             return bindingPlan
@@ -564,13 +577,28 @@ private data class ProfessionalVideoTransitionRenderSession(
             (bindingPlan["bindings"] as? List<*>)?.mapNotNull { binding ->
                 binding as? Map<*, *>
             } ?: emptyList()
-        val probeImplemented = false
+        val probeImplemented = true
         val probes =
             bindings.map { binding ->
                 val sourceUri = binding["sourceUri"]?.toString() ?: ""
                 val sourceUriBound = binding["sourceUriBound"] == true
                 val uriScheme = sourceUri.substringBefore(":", missingDelimiterValue = "")
                 val supportedScheme = uriScheme == "file" || uriScheme == "content"
+                val probeResult =
+                    if (sourceUriBound && supportedScheme) {
+                        probeVideoSource(appContext, sourceUri)
+                    } else {
+                        VideoSourceProbeResult(
+                            canOpenSource = false,
+                            hasVideoTrack = false,
+                            width = null,
+                            height = null,
+                            durationUs = null,
+                            frameRate = null,
+                            mimeType = "",
+                            reason = null,
+                        )
+                    }
                 val blockedReasons =
                     buildList {
                         if (!sourceUriBound) {
@@ -582,6 +610,12 @@ private data class ProfessionalVideoTransitionRenderSession(
                         if (!probeImplemented) {
                             add("native_video_source_probe_missing")
                         }
+                        if (probeImplemented && supportedScheme && !probeResult.canOpenSource) {
+                            add(probeResult.reason ?: "native_video_source_open_failed")
+                        }
+                        if (probeResult.canOpenSource && !probeResult.hasVideoTrack) {
+                            add("native_video_track_missing")
+                        }
                     }
                 mapOf(
                     "role" to (binding["role"]?.toString() ?: ""),
@@ -592,8 +626,13 @@ private data class ProfessionalVideoTransitionRenderSession(
                     "sourceUriBound" to sourceUriBound,
                     "requiresRealVideoSource" to true,
                     "probeImplemented" to probeImplemented,
-                    "canOpenSource" to false,
-                    "hasVideoTrack" to false,
+                    "canOpenSource" to probeResult.canOpenSource,
+                    "hasVideoTrack" to probeResult.hasVideoTrack,
+                    "videoMimeType" to probeResult.mimeType,
+                    "videoWidth" to (probeResult.width ?: 0),
+                    "videoHeight" to (probeResult.height ?: 0),
+                    "videoDurationUs" to (probeResult.durationUs ?: 0L),
+                    "videoFrameRate" to (probeResult.frameRate ?: 0),
                     "allowSyntheticSource" to false,
                     "blockedReasons" to blockedReasons,
                 )
@@ -603,11 +642,20 @@ private data class ProfessionalVideoTransitionRenderSession(
                 (probe["blockedReasons"] as? List<*>)?.map { reason -> reason.toString() }
                     ?: emptyList()
             }.distinct()
+        val allSourcesProbeable =
+            probes.size == 2 &&
+                probes.all { probe ->
+                    probe["sourceUriBound"] == true &&
+                        probe["canOpenSource"] == true &&
+                        probe["hasVideoTrack"] == true &&
+                        probe["allowSyntheticSource"] == false &&
+                        ((probe["blockedReasons"] as? List<*>)?.isEmpty() != false)
+                }
         return bindingPlan +
             mapOf(
                 "requiresRealVideoSource" to true,
                 "probeImplemented" to probeImplemented,
-                "allSourcesProbeable" to false,
+                "allSourcesProbeable" to allSourcesProbeable,
                 "allowSyntheticSource" to false,
                 "probes" to probes,
                 "blockedReasons" to blockedReasons,
@@ -1493,6 +1541,139 @@ private fun issue(path: String, message: String): Map<String, Any> =
         "path" to path,
         "message" to message,
     )
+
+private data class VideoSourceProbeResult(
+    val canOpenSource: Boolean,
+    val hasVideoTrack: Boolean,
+    val width: Int?,
+    val height: Int?,
+    val durationUs: Long?,
+    val frameRate: Int?,
+    val mimeType: String,
+    val reason: String?,
+)
+
+private fun probeVideoSource(
+    appContext: Context,
+    sourceUri: String,
+): VideoSourceProbeResult {
+    val uri =
+        runCatching { Uri.parse(sourceUri) }.getOrElse {
+            return VideoSourceProbeResult(
+                canOpenSource = false,
+                hasVideoTrack = false,
+                width = null,
+                height = null,
+                durationUs = null,
+                frameRate = null,
+                mimeType = "",
+                reason = "native_video_source_uri_parse_failed",
+            )
+        }
+    val extractor = MediaExtractor()
+    try {
+        when (uri.scheme) {
+            "file" -> {
+                val path = uri.path
+                if (path.isNullOrBlank()) {
+                    return VideoSourceProbeResult(
+                        canOpenSource = false,
+                        hasVideoTrack = false,
+                        width = null,
+                        height = null,
+                        durationUs = null,
+                        frameRate = null,
+                        mimeType = "",
+                        reason = "native_video_source_file_path_missing",
+                    )
+                }
+                extractor.setDataSource(path)
+            }
+            "content" -> extractor.setDataSource(appContext, uri, null)
+            else -> {
+                return VideoSourceProbeResult(
+                    canOpenSource = false,
+                    hasVideoTrack = false,
+                    width = null,
+                    height = null,
+                    durationUs = null,
+                    frameRate = null,
+                    mimeType = "",
+                    reason = "native_video_source_uri_scheme_unsupported",
+                )
+            }
+        }
+        for (index in 0 until extractor.trackCount) {
+            val format = extractor.getTrackFormat(index)
+            val mimeType =
+                if (format.containsKey(MediaFormat.KEY_MIME)) {
+                    format.getString(MediaFormat.KEY_MIME).orEmpty()
+                } else {
+                    ""
+                }
+            if (mimeType.startsWith("video/")) {
+                return VideoSourceProbeResult(
+                    canOpenSource = true,
+                    hasVideoTrack = true,
+                    width = format.optionalInt(MediaFormat.KEY_WIDTH),
+                    height = format.optionalInt(MediaFormat.KEY_HEIGHT),
+                    durationUs = format.optionalLong(MediaFormat.KEY_DURATION),
+                    frameRate = format.optionalInt(MediaFormat.KEY_FRAME_RATE),
+                    mimeType = mimeType,
+                    reason = null,
+                )
+            }
+        }
+        return VideoSourceProbeResult(
+            canOpenSource = true,
+            hasVideoTrack = false,
+            width = null,
+            height = null,
+            durationUs = null,
+            frameRate = null,
+            mimeType = "",
+            reason = "native_video_track_missing",
+        )
+    } catch (_: SecurityException) {
+        return VideoSourceProbeResult(
+            canOpenSource = false,
+            hasVideoTrack = false,
+            width = null,
+            height = null,
+            durationUs = null,
+            frameRate = null,
+            mimeType = "",
+            reason = "native_video_source_permission_denied",
+        )
+    } catch (_: Throwable) {
+        return VideoSourceProbeResult(
+            canOpenSource = false,
+            hasVideoTrack = false,
+            width = null,
+            height = null,
+            durationUs = null,
+            frameRate = null,
+            mimeType = "",
+            reason = "native_video_source_open_failed",
+        )
+    } finally {
+        extractor.release()
+    }
+}
+
+private fun MediaFormat.optionalInt(key: String): Int? =
+    if (containsKey(key)) {
+        getInteger(key)
+    } else {
+        null
+    }
+
+private fun MediaFormat.optionalLong(key: String): Long? =
+    if (containsKey(key)) {
+        getLong(key)
+    } else {
+        null
+    }
 
 private fun Map<String, Any>.withSessionMetadata(
     session: ProfessionalVideoTransitionRenderSession,

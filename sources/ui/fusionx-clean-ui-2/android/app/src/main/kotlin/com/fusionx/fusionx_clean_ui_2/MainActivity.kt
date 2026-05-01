@@ -54,7 +54,7 @@ class MainActivity: FlutterActivity() {
             )
         deviceMediaLibraryManager = DeviceMediaLibraryManager(applicationContext)
         professionalVideoTransitionCompositorManager =
-            ProfessionalVideoTransitionCompositorManager()
+            ProfessionalVideoTransitionCompositorManager(applicationContext)
 
         flutterEngine.platformViewsController.registry.registerViewFactory(
             Stage5TransportManager.PREVIEW_VIEW_TYPE,

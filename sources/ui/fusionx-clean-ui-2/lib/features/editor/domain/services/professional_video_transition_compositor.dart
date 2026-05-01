@@ -744,6 +744,11 @@ class ProfessionalVideoTransitionSourceProbe {
     required this.probeImplemented,
     required this.canOpenSource,
     required this.hasVideoTrack,
+    required this.videoMimeType,
+    required this.videoWidth,
+    required this.videoHeight,
+    required this.videoDuration,
+    required this.videoFrameRate,
     required this.allowSyntheticSource,
     required this.blockedReasons,
   });
@@ -758,6 +763,11 @@ class ProfessionalVideoTransitionSourceProbe {
   final bool probeImplemented;
   final bool canOpenSource;
   final bool hasVideoTrack;
+  final String videoMimeType;
+  final int videoWidth;
+  final int videoHeight;
+  final TimelineTime videoDuration;
+  final int videoFrameRate;
   final bool allowSyntheticSource;
   final List<String> blockedReasons;
 
@@ -904,6 +914,13 @@ class ProfessionalVideoTransitionSourceProbePlanResultMapper {
           probeImplemented: _readBool(probe['probeImplemented']),
           canOpenSource: _readBool(probe['canOpenSource']),
           hasVideoTrack: _readBool(probe['hasVideoTrack']),
+          videoMimeType: probe['videoMimeType']?.toString() ?? '',
+          videoWidth: _readInt(probe['videoWidth']),
+          videoHeight: _readInt(probe['videoHeight']),
+          videoDuration: TimelineTime.fromMilliseconds(
+            (_readInt(probe['videoDurationUs']) / 1000).round(),
+          ),
+          videoFrameRate: _readInt(probe['videoFrameRate']),
           allowSyntheticSource: _readBool(probe['allowSyntheticSource']),
           blockedReasons: _readStringList(probe['blockedReasons']),
         );
@@ -927,6 +944,13 @@ class ProfessionalVideoTransitionSourceProbePlanResultMapper {
       return value;
     }
     return defaultValue;
+  }
+
+  static int _readInt(Object? value) {
+    if (value is num) {
+      return value.round();
+    }
+    return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 
   static List<String> _readStringList(Object? value) {
