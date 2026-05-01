@@ -1384,6 +1384,10 @@ private data class ProfessionalVideoTransitionRenderSession(
             (tilePlan["decodeRequests"] as? List<*>)?.mapNotNull { request ->
                 request as? Map<*, *>
             } ?: emptyList()
+        val decoderTracks =
+            (tilePlan["tracks"] as? List<*>)?.mapNotNull { track ->
+                track as? Map<*, *>
+            } ?: emptyList()
         val accumulators =
             (tilePlan["accumulators"] as? List<*>)?.mapNotNull { accumulator ->
                 accumulator as? Map<*, *>
@@ -1407,6 +1411,7 @@ private data class ProfessionalVideoTransitionRenderSession(
             (tilePlan["shutterSampleCount"] as? Number)?.toInt()?.coerceAtLeast(1) ?: 1
         val requiresTemporalAccumulation =
             tilePlan["motionBlurMode"] == "temporalShutter" && shutterSampleCount > 1
+        val liveStreamPass = "$id:pass:live-stream-decode:$timelineTimeMs"
         val outgoingTemporalPass = "$id:pass:temporal:outgoing:$timelineTimeMs"
         val incomingTemporalPass = "$id:pass:temporal:incoming:$timelineTimeMs"
         val edgePass = "$id:pass:edge:$timelineTimeMs"
@@ -1424,6 +1429,48 @@ private data class ProfessionalVideoTransitionRenderSession(
                 }
             }.distinct()
         val passes = mutableListOf<Map<String, Any>>()
+        passes.add(
+            renderPass(
+                passId = liveStreamPass,
+                type = "decodeLiveVideoStreams",
+                role = "both",
+                inputs =
+                    decoderTracks.mapNotNull { track ->
+                        track["sourceUri"]?.toString()?.takeIf { sourceUri ->
+                            sourceUri.isNotBlank()
+                        }
+                    },
+                parameters =
+                    mapOf(
+                        "requiresContinuousFrameStream" to true,
+                        "trackCount" to decoderTracks.size,
+                        "tracks" to decoderTracks.map { track ->
+                            mapOf(
+                                "role" to (track["role"]?.toString() ?: ""),
+                                "sourceUri" to (track["sourceUri"]?.toString() ?: ""),
+                                "liveDecodeWindowTimelineStartMs" to
+                                    (track["liveDecodeWindowTimelineStartMs"] ?: 0L),
+                                "liveDecodeWindowTimelineEndMs" to
+                                    (track["liveDecodeWindowTimelineEndMs"] ?: 0L),
+                                "liveDecodeWindowSourceStartMs" to
+                                    (track["liveDecodeWindowSourceStartMs"] ?: 0L),
+                                "liveDecodeWindowSourceEndMs" to
+                                    (track["liveDecodeWindowSourceEndMs"] ?: 0L),
+                                "liveDecodeStreamDecodedFrameCount" to
+                                    (track["liveDecodeStreamDecodedFrameCount"] ?: 0),
+                                "liveDecodeStreamReadableBufferCount" to
+                                    (track["liveDecodeStreamReadableBufferCount"] ?: 0),
+                                "liveDecodeStreamCoverageReady" to
+                                    (track["liveDecodeStreamCoverageReady"] == true),
+                                "continuousSampleCoverageReady" to
+                                    (track["continuousSampleCoverageReady"] == true),
+                            )
+                        },
+                        "allowThumbnailFallback" to false,
+                        "allowBoundaryFreeze" to false,
+                    ),
+            ),
+        )
         passes.add(
             renderPass(
                 passId = "$id:pass:decode:$timelineTimeMs",
@@ -1444,12 +1491,13 @@ private data class ProfessionalVideoTransitionRenderSession(
                 passId = outgoingTemporalPass,
                 type = "temporalSampleAccumulator",
                 role = "outgoing",
-                inputs = outgoingDecodeIds,
+                inputs = listOf(liveStreamPass) + outgoingDecodeIds,
                 parameters =
                     mapOf(
                         "sampleCount" to outgoingDecodeIds.size,
                         "motionBlurMode" to (tilePlan["motionBlurMode"] ?: "none"),
                         "accumulatorId" to outgoingAccumulatorId,
+                        "requiresContinuousFrameStream" to true,
                         "allowGaussianFallback" to false,
                         "allowDecorativeSpeedLines" to false,
                     ),
@@ -1460,12 +1508,13 @@ private data class ProfessionalVideoTransitionRenderSession(
                 passId = incomingTemporalPass,
                 type = "temporalSampleAccumulator",
                 role = "incoming",
-                inputs = incomingDecodeIds,
+                inputs = listOf(liveStreamPass) + incomingDecodeIds,
                 parameters =
                     mapOf(
                         "sampleCount" to incomingDecodeIds.size,
                         "motionBlurMode" to (tilePlan["motionBlurMode"] ?: "none"),
                         "accumulatorId" to incomingAccumulatorId,
+                        "requiresContinuousFrameStream" to true,
                         "allowGaussianFallback" to false,
                         "allowDecorativeSpeedLines" to false,
                     ),

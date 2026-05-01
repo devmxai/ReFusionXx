@@ -1675,6 +1675,32 @@ void main() {
         'rendererImplemented': false,
         'passes': <Map<String, Object?>>[
           <String, Object?>{
+            'passId': 'live-stream-pass',
+            'type': 'decodeLiveVideoStreams',
+            'role': 'both',
+            'inputs': <String>[
+              'file:///tmp/outgoing.mp4',
+              'file:///tmp/incoming.mp4',
+            ],
+            'parameters': <String, Object?>{
+              'requiresContinuousFrameStream': true,
+              'allowThumbnailFallback': false,
+              'allowBoundaryFreeze': false,
+              'tracks': <Map<String, Object?>>[
+                <String, Object?>{
+                  'role': 'outgoing',
+                  'liveDecodeStreamCoverageReady': true,
+                  'continuousSampleCoverageReady': true,
+                },
+                <String, Object?>{
+                  'role': 'incoming',
+                  'liveDecodeStreamCoverageReady': false,
+                  'continuousSampleCoverageReady': false,
+                },
+              ],
+            },
+          },
+          <String, Object?>{
             'passId': 'decode-pass',
             'type': 'decodeExactVideoFrames',
             'role': 'both',
@@ -1701,6 +1727,7 @@ void main() {
         ],
         'blockedReasons': <String>[
           'native_mirror_edge_tiler_missing',
+          'native_mirror_edge_live_decode_stream_not_ready',
           'native_transition_renderer_missing',
         ],
       };
@@ -1754,11 +1781,21 @@ void main() {
     expect(result.requiresGpuComposition, isTrue);
     expect(result.rendererInputsReady, isFalse);
     expect(result.rendererImplemented, isFalse);
-    expect(result.passes, hasLength(2));
-    expect(result.passes.first.type, 'decodeExactVideoFrames');
+    expect(result.passes, hasLength(3));
+    expect(result.passes.first.type, 'decodeLiveVideoStreams');
     expect(result.passes.first.inputs, hasLength(2));
-    expect(result.passes.first.parameters['allowThumbnailFallback'], isFalse);
+    expect(
+      result.passes.first.parameters['requiresContinuousFrameStream'],
+      isTrue,
+    );
+    expect(result.passes[1].type, 'decodeExactVideoFrames');
+    expect(result.passes[1].inputs, hasLength(2));
+    expect(result.passes[1].parameters['allowThumbnailFallback'], isFalse);
     expect(result.passes.last.type, 'transitionShaderEvaluation');
+    expect(
+      result.blockedReasons,
+      contains('native_mirror_edge_live_decode_stream_not_ready'),
+    );
     expect(
       result.blockedReasons,
       contains('native_transition_renderer_missing'),

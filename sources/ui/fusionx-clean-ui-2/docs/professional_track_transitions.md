@@ -876,13 +876,16 @@ Current gate:
   or timeline-area drawing remain forbidden.
 - Flutter and Android now also share `planRenderPassGraph`. This is not a
   renderer; it is the renderer-agnostic execution graph every concrete native
-  transition must satisfy: exact decode, temporal accumulation, optional
-  mirror-edge tile, transition shader evaluation, and composition to the output
-  transition surface. The graph now propagates upstream blockers instead of
-  hiding decode/accumulator/tile failures behind a generic renderer failure.
-  Current responses deliberately keep `rendererImplemented=false`, so this
-  foundation cannot unlock presets or playback until a real compositor attaches
-  to the graph.
+  transition must satisfy: live stream decode, exact decode, temporal
+  accumulation, optional mirror-edge tile, transition shader evaluation, and
+  composition to the output transition surface. The graph now makes
+  `decodeLiveVideoStreams` an explicit pass before temporal accumulation, so a
+  future renderer cannot accidentally build motion blur from isolated frame
+  probes while omitting the playing A/B source streams. The graph propagates
+  upstream blockers instead of hiding decode/accumulator/tile failures behind a
+  generic renderer failure. Current responses deliberately keep
+  `rendererImplemented=false`, so this foundation cannot unlock presets or
+  playback until a real compositor attaches to the graph.
 - Flutter and Android now also share `planOutputSurface`. This binds the pass
   graph to the only acceptable output target for professional transitions: a
   native transition canvas surface clipped to the preview canvas. It
