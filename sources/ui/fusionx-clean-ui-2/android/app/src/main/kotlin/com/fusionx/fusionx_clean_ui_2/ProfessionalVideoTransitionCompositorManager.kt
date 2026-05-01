@@ -891,9 +891,14 @@ private data class ProfessionalVideoTransitionRenderSession(
                     "sampleDecodeProbeImplemented" to true,
                     "requestedSampleCount" to sourceSampleTimesMs.size,
                     "decodedSampleCount" to decodeProbe.samples.count { sample -> sample.canDecodeFrame },
+                    "decodedBufferProbeImplemented" to true,
+                    "decodedBufferCount" to decodeProbe.samples.count { sample -> sample.decodedBufferReadable },
                     "allSamplesDecodable" to decodeProbe.canDecodeAllFrames,
+                    "allDecodedBuffersReadable" to decodeProbe.canReadAllBuffers,
                     "canDecodeCenterFrame" to (centerSampleProbe?.canDecodeFrame ?: false),
                     "decodedCenterFrameTimeMs" to ((centerSampleProbe?.decodedFrameTimeUs ?: 0L) / 1000L),
+                    "decodedCenterBufferByteCount" to (centerSampleProbe?.decodedBufferByteCount ?: 0),
+                    "decodedCenterBufferChecksum" to (centerSampleProbe?.decodedBufferChecksum ?: 0L),
                     "decodeProbeReason" to (decodeProbe.reason ?: ""),
                     "decodedOutputMimeType" to decodeProbe.outputFormatMimeType,
                     "decodedOutputWidth" to decodeProbe.outputWidth,
@@ -903,6 +908,9 @@ private data class ProfessionalVideoTransitionRenderSession(
                             "sourceTimeMs" to sample.sourceTimeMs,
                             "canDecodeFrame" to sample.canDecodeFrame,
                             "decodedFrameTimeMs" to ((sample.decodedFrameTimeUs ?: 0L) / 1000L),
+                            "decodedBufferReadable" to sample.decodedBufferReadable,
+                            "decodedBufferByteCount" to sample.decodedBufferByteCount,
+                            "decodedBufferChecksum" to sample.decodedBufferChecksum,
                             "reason" to (sample.reason ?: ""),
                         )
                     },
@@ -911,9 +919,10 @@ private data class ProfessionalVideoTransitionRenderSession(
         val decoderImplemented =
             tracks.size == 2 &&
                 tracks.all { track ->
-                    track["sourceProbeReady"] == true &&
+                        track["sourceProbeReady"] == true &&
                         track["canDecodeCenterFrame"] == true &&
-                        track["allSamplesDecodable"] == true
+                        track["allSamplesDecodable"] == true &&
+                        track["allDecodedBuffersReadable"] == true
                 }
         val sourceUrisBound =
             tracks.all { track -> track["sourceUri"]?.toString()?.isNotBlank() == true }
@@ -933,6 +942,11 @@ private data class ProfessionalVideoTransitionRenderSession(
                     val reason = track["decodeProbeReason"]?.toString().orEmpty()
                     if (reason.isNotBlank() && track["canDecodeCenterFrame"] != true) {
                         add(reason)
+                    }
+                    if (track["allSamplesDecodable"] == true &&
+                        track["allDecodedBuffersReadable"] != true
+                    ) {
+                        add("native_exact_frame_output_buffer_not_ready")
                     }
                 }
             }.distinct()
@@ -982,14 +996,19 @@ private data class ProfessionalVideoTransitionRenderSession(
                     (track["sampleCount"] as? Number)?.toInt()?.coerceAtLeast(0) ?: 0
                 val decodedSampleCount =
                     (track["decodedSampleCount"] as? Number)?.toInt()?.coerceAtLeast(0) ?: 0
+                val decodedBufferCount =
+                    (track["decodedBufferCount"] as? Number)?.toInt()?.coerceAtLeast(0) ?: 0
                 val inputSamplesDecodable = track["allSamplesDecodable"] == true
+                val inputDecodedBuffersReadable = track["allDecodedBuffersReadable"] == true
                 mapOf(
                     "accumulatorId" to "$id:accumulator:$role:$timelineTimeMs",
                     "role" to role,
                     "inputTrackRole" to role,
                     "sampleCount" to sampleCount,
                     "decodedSampleCount" to decodedSampleCount,
+                    "decodedBufferCount" to decodedBufferCount,
                     "inputSamplesDecodable" to inputSamplesDecodable,
+                    "inputDecodedBuffersReadable" to inputDecodedBuffersReadable,
                     "sampleWeights" to normalizedSampleWeights(sampleCount),
                     "normalization" to "weightedAverage",
                     "requiresTemporalShutter" to requiresTemporalAccumulation,
@@ -1003,6 +1022,9 @@ private data class ProfessionalVideoTransitionRenderSession(
             buildList {
                 if (accumulators.any { accumulator -> accumulator["inputSamplesDecodable"] != true }) {
                     add("native_temporal_sample_decode_not_ready")
+                }
+                if (accumulators.any { accumulator -> accumulator["inputDecodedBuffersReadable"] != true }) {
+                    add("native_temporal_sample_buffer_not_ready")
                 }
                 if (!accumulatorImplemented) {
                     add("native_temporal_sample_accumulator_missing")
@@ -1721,6 +1743,9 @@ private data class VideoSourceProbeResult(
 private data class ExactVideoFrameProbeResult(
     val canDecodeFrame: Boolean,
     val decodedFrameTimeUs: Long?,
+    val decodedBufferReadable: Boolean = false,
+    val decodedBufferByteCount: Int = 0,
+    val decodedBufferChecksum: Long = 0L,
     val outputFormatMimeType: String,
     val outputWidth: Int,
     val outputHeight: Int,
@@ -1731,16 +1756,26 @@ private data class ExactVideoFrameSampleProbeResult(
     val sourceTimeMs: Long,
     val canDecodeFrame: Boolean,
     val decodedFrameTimeUs: Long?,
+    val decodedBufferReadable: Boolean = false,
+    val decodedBufferByteCount: Int = 0,
+    val decodedBufferChecksum: Long = 0L,
     val reason: String?,
 )
 
 private data class ExactVideoFrameBatchProbeResult(
     val canDecodeAllFrames: Boolean,
+    val canReadAllBuffers: Boolean = false,
     val outputFormatMimeType: String,
     val outputWidth: Int,
     val outputHeight: Int,
     val samples: List<ExactVideoFrameSampleProbeResult>,
     val reason: String?,
+)
+
+private data class DecodedVideoBufferSignature(
+    val readable: Boolean,
+    val byteCount: Int,
+    val checksum: Long,
 )
 
 private fun probeVideoSource(
@@ -1992,6 +2027,16 @@ private fun probeExactVideoFrame(
                         val hasFrame = bufferInfo.size > 0
                         val eos =
                             bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0
+                        val bufferSignature =
+                            if (hasFrame) {
+                                decodedBufferSignature(codec, outputBufferIndex, bufferInfo)
+                            } else {
+                                DecodedVideoBufferSignature(
+                                    readable = false,
+                                    byteCount = 0,
+                                    checksum = 0L,
+                                )
+                            }
                         codec.releaseOutputBuffer(outputBufferIndex, false)
                         if (hasFrame) {
                             decodedFrames += 1
@@ -1999,6 +2044,9 @@ private fun probeExactVideoFrame(
                                 return ExactVideoFrameProbeResult(
                                     canDecodeFrame = true,
                                     decodedFrameTimeUs = presentationUs,
+                                    decodedBufferReadable = bufferSignature.readable,
+                                    decodedBufferByteCount = bufferSignature.byteCount,
+                                    decodedBufferChecksum = bufferSignature.checksum,
                                     outputFormatMimeType = mimeType,
                                     outputWidth = format.optionalInt(MediaFormat.KEY_WIDTH) ?: 0,
                                     outputHeight = format.optionalInt(MediaFormat.KEY_HEIGHT) ?: 0,
@@ -2009,6 +2057,9 @@ private fun probeExactVideoFrame(
                                 return ExactVideoFrameProbeResult(
                                     canDecodeFrame = false,
                                     decodedFrameTimeUs = presentationUs,
+                                    decodedBufferReadable = bufferSignature.readable,
+                                    decodedBufferByteCount = bufferSignature.byteCount,
+                                    decodedBufferChecksum = bufferSignature.checksum,
                                     outputFormatMimeType = mimeType,
                                     outputWidth = format.optionalInt(MediaFormat.KEY_WIDTH) ?: 0,
                                     outputHeight = format.optionalInt(MediaFormat.KEY_HEIGHT) ?: 0,
@@ -2020,6 +2071,9 @@ private fun probeExactVideoFrame(
                             return ExactVideoFrameProbeResult(
                                 canDecodeFrame = false,
                                 decodedFrameTimeUs = presentationUs.takeIf { hasFrame },
+                                decodedBufferReadable = bufferSignature.readable,
+                                decodedBufferByteCount = bufferSignature.byteCount,
+                                decodedBufferChecksum = bufferSignature.checksum,
                                 outputFormatMimeType = mimeType,
                                 outputWidth = format.optionalInt(MediaFormat.KEY_WIDTH) ?: 0,
                                 outputHeight = format.optionalInt(MediaFormat.KEY_HEIGHT) ?: 0,
@@ -2106,18 +2160,67 @@ private fun probeExactVideoFrames(
                 sourceTimeMs = sourceTimeMs,
                 canDecodeFrame = result.canDecodeFrame,
                 decodedFrameTimeUs = result.decodedFrameTimeUs,
+                decodedBufferReadable = result.decodedBufferReadable,
+                decodedBufferByteCount = result.decodedBufferByteCount,
+                decodedBufferChecksum = result.decodedBufferChecksum,
                 reason = result.reason,
             )
         }
     val firstFailure = samples.firstOrNull { sample -> !sample.canDecodeFrame }
+    val firstUnreadableBuffer =
+        samples.firstOrNull { sample -> sample.canDecodeFrame && !sample.decodedBufferReadable }
     return ExactVideoFrameBatchProbeResult(
         canDecodeAllFrames = firstFailure == null,
+        canReadAllBuffers = firstFailure == null && firstUnreadableBuffer == null,
         outputFormatMimeType = outputMimeType,
         outputWidth = outputWidth,
         outputHeight = outputHeight,
         samples = samples,
-        reason = firstFailure?.reason,
+        reason = firstFailure?.reason
+            ?: firstUnreadableBuffer?.let { "native_exact_frame_output_buffer_not_ready" },
     )
+}
+
+private fun decodedBufferSignature(
+    codec: MediaCodec,
+    outputBufferIndex: Int,
+    bufferInfo: MediaCodec.BufferInfo,
+): DecodedVideoBufferSignature {
+    val byteCount = bufferInfo.size.coerceAtLeast(0)
+    if (byteCount <= 0) {
+        return DecodedVideoBufferSignature(readable = false, byteCount = 0, checksum = 0L)
+    }
+    val outputBuffer =
+        codec.getOutputBuffer(outputBufferIndex)
+            ?: return DecodedVideoBufferSignature(
+                readable = false,
+                byteCount = byteCount,
+                checksum = 0L,
+            )
+    return runCatching {
+        val duplicate = outputBuffer.duplicate()
+        val start = bufferInfo.offset.coerceAtLeast(0)
+        val end = (start + byteCount).coerceAtMost(duplicate.capacity())
+        if (start >= end) {
+            DecodedVideoBufferSignature(readable = false, byteCount = byteCount, checksum = 0L)
+        } else {
+            duplicate.position(start)
+            duplicate.limit(end)
+            var checksum = -3750763034362895579L
+            var remaining = minOf(duplicate.remaining(), 4096)
+            while (remaining > 0) {
+                checksum = (checksum xor (duplicate.get().toLong() and 0xffL)) * 1099511628211L
+                remaining -= 1
+            }
+            DecodedVideoBufferSignature(
+                readable = true,
+                byteCount = byteCount,
+                checksum = checksum,
+            )
+        }
+    }.getOrElse {
+        DecodedVideoBufferSignature(readable = false, byteCount = byteCount, checksum = 0L)
+    }
 }
 
 private fun MediaFormat.optionalInt(key: String): Int? =

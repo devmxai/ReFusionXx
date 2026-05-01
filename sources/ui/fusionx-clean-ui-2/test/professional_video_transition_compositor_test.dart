@@ -1078,9 +1078,14 @@ void main() {
             'sampleDecodeProbeImplemented': true,
             'requestedSampleCount': 2,
             'decodedSampleCount': 2,
+            'decodedBufferProbeImplemented': true,
+            'decodedBufferCount': 2,
             'allSamplesDecodable': true,
+            'allDecodedBuffersReadable': true,
             'canDecodeCenterFrame': true,
             'decodedCenterFrameTimeMs': 30017,
+            'decodedCenterBufferByteCount': 3110400,
+            'decodedCenterBufferChecksum': 123456789,
             'decodedOutputMimeType': 'video/avc',
             'decodedOutputWidth': 1080,
             'decodedOutputHeight': 1920,
@@ -1109,9 +1114,14 @@ void main() {
             'sampleDecodeProbeImplemented': true,
             'requestedSampleCount': 2,
             'decodedSampleCount': 1,
+            'decodedBufferProbeImplemented': true,
+            'decodedBufferCount': 1,
             'allSamplesDecodable': false,
+            'allDecodedBuffersReadable': false,
             'canDecodeCenterFrame': false,
             'decodedCenterFrameTimeMs': 0,
+            'decodedCenterBufferByteCount': 0,
+            'decodedCenterBufferChecksum': 0,
             'decodeProbeReason': 'native_exact_frame_decode_timeout',
           },
         ],
@@ -1175,14 +1185,21 @@ void main() {
     expect(result.tracks.first.sourceProbeReady, isTrue);
     expect(result.tracks.first.videoMimeType, 'video/avc');
     expect(result.tracks.first.decodedSampleCount, 2);
+    expect(result.tracks.first.decodedBufferProbeImplemented, isTrue);
+    expect(result.tracks.first.decodedBufferCount, 2);
     expect(result.tracks.first.allSamplesDecodable, isTrue);
+    expect(result.tracks.first.allDecodedBuffersReadable, isTrue);
     expect(result.tracks.first.canDecodeCenterFrame, isTrue);
     expect(result.tracks.first.decodedCenterFrameTimeMs, 30017);
+    expect(result.tracks.first.decodedCenterBufferByteCount, 3110400);
+    expect(result.tracks.first.decodedCenterBufferChecksum, 123456789);
     expect(result.tracks.last.assetId, 'asset-b');
     expect(result.tracks.last.sourceUri, 'file:///tmp/incoming.mp4');
     expect(result.tracks.last.videoMimeType, 'video/hevc');
     expect(result.tracks.last.decodedSampleCount, 1);
+    expect(result.tracks.last.decodedBufferCount, 1);
     expect(result.tracks.last.allSamplesDecodable, isFalse);
+    expect(result.tracks.last.allDecodedBuffersReadable, isFalse);
     expect(result.tracks.last.canDecodeCenterFrame, isFalse);
     expect(
       result.tracks.last.decodeProbeReason,
@@ -1235,7 +1252,9 @@ void main() {
             'inputTrackRole': 'outgoing',
             'sampleCount': 2,
             'decodedSampleCount': 2,
+            'decodedBufferCount': 2,
             'inputSamplesDecodable': true,
+            'inputDecodedBuffersReadable': true,
             'sampleWeights': <double>[0.5, 0.5],
             'normalization': 'weightedAverage',
             'requiresTemporalShutter': true,
@@ -1250,7 +1269,9 @@ void main() {
             'inputTrackRole': 'incoming',
             'sampleCount': 2,
             'decodedSampleCount': 1,
+            'decodedBufferCount': 0,
             'inputSamplesDecodable': false,
+            'inputDecodedBuffersReadable': false,
             'sampleWeights': <double>[0.5, 0.5],
             'normalization': 'weightedAverage',
             'requiresTemporalShutter': true,
@@ -1261,6 +1282,7 @@ void main() {
         ],
         'blockedReasons': <String>[
           'native_temporal_sample_decode_not_ready',
+          'native_temporal_sample_buffer_not_ready',
           'native_temporal_sample_accumulator_missing',
         ],
       };
@@ -1316,15 +1338,23 @@ void main() {
         <String>['outgoing', 'incoming']);
     expect(result.accumulators.first.sampleWeights, <double>[0.5, 0.5]);
     expect(result.accumulators.first.decodedSampleCount, 2);
+    expect(result.accumulators.first.decodedBufferCount, 2);
     expect(result.accumulators.first.inputSamplesDecodable, isTrue);
+    expect(result.accumulators.first.inputDecodedBuffersReadable, isTrue);
     expect(result.accumulators.first.requiresExactFrameDecode, isTrue);
     expect(result.accumulators.first.allowGaussianFallback, isFalse);
     expect(result.accumulators.last.decodedSampleCount, 1);
+    expect(result.accumulators.last.decodedBufferCount, 0);
     expect(result.accumulators.last.inputSamplesDecodable, isFalse);
+    expect(result.accumulators.last.inputDecodedBuffersReadable, isFalse);
     expect(result.accumulators.last.allowDecorativeSpeedLines, isFalse);
     expect(
       result.blockedReasons,
       contains('native_temporal_sample_decode_not_ready'),
+    );
+    expect(
+      result.blockedReasons,
+      contains('native_temporal_sample_buffer_not_ready'),
     );
     expect(
       result.blockedReasons,

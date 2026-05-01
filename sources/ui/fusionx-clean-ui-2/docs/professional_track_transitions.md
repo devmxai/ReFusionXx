@@ -811,13 +811,23 @@ Current gate:
   freezing remain forbidden. This is the first concrete dual-video sampling
   slice; it still does not render a transition until temporal accumulation,
   mirror-edge tiling, output surface, and parity renderer are implemented.
+- The dual-video decoder session must now prove readable decoded sample
+  buffers. A decoded timestamp is not enough. Android records per-sample
+  decoded-buffer readability, decoded buffer byte counts, and deterministic
+  checksums, plus center-sample buffer metadata for each source. If a frame
+  decodes but its output buffer cannot be read, the decoder blocks with
+  `native_exact_frame_output_buffer_not_ready`; temporal accumulation also
+  inherits this as `native_temporal_sample_buffer_not_ready`. This is the
+  hard boundary that prevents professional motion blur from being unlocked by
+  frame metadata, poster frames, or frozen stills.
 - Flutter and Android now also share `planTemporalSampleAccumulator`. This binds
   the two decoder tracks into outgoing/incoming temporal accumulators with
   deterministic sample weights, exact-frame requirements, decoded-sample counts,
-  and explicit `allowGaussianFallback=false` /
+  decoded-buffer counts, decoded-buffer readiness, and explicit
+  `allowGaussianFallback=false` /
   `allowDecorativeSpeedLines=false`. The accumulator now requires the shutter
-  sample decode probes from the decoder stage to be decodable for each side
-  before it can advance. Current responses deliberately keep
+  sample decode probes and decoded sample buffers from the decoder stage to be
+  ready for each side before it can advance. Current responses deliberately keep
   `accumulatorImplemented=false`, so temporal motion blur remains blocked until
   the native compositor can accumulate real shutter samples into pixels instead
   of poster-frame blur or decorative speed-line substitutes.

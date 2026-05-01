@@ -955,11 +955,11 @@ class ProfessionalVideoTransitionSourceProbePlanResultMapper {
     return defaultValue;
   }
 
-  static int _readInt(Object? value) {
+  static int _readInt(Object? value, {int fallback = 0}) {
     if (value is num) {
       return value.round();
     }
-    return int.tryParse(value?.toString() ?? '') ?? 0;
+    return int.tryParse(value?.toString() ?? '') ?? fallback;
   }
 
   static List<String> _readStringList(Object? value) {
@@ -1405,9 +1405,14 @@ class ProfessionalVideoTransitionDecoderTrack {
     this.sampleDecodeProbeImplemented = true,
     this.requestedSampleCount = 0,
     this.decodedSampleCount = 0,
+    this.decodedBufferProbeImplemented = true,
+    this.decodedBufferCount = 0,
     this.allSamplesDecodable = true,
+    this.allDecodedBuffersReadable = true,
     this.canDecodeCenterFrame = true,
     this.decodedCenterFrameTimeMs = 0,
+    this.decodedCenterBufferByteCount = 0,
+    this.decodedCenterBufferChecksum = 0,
     this.decodeProbeReason = '',
     this.decodedOutputMimeType = '',
     this.decodedOutputWidth = 0,
@@ -1434,9 +1439,14 @@ class ProfessionalVideoTransitionDecoderTrack {
   final bool sampleDecodeProbeImplemented;
   final int requestedSampleCount;
   final int decodedSampleCount;
+  final bool decodedBufferProbeImplemented;
+  final int decodedBufferCount;
   final bool allSamplesDecodable;
+  final bool allDecodedBuffersReadable;
   final bool canDecodeCenterFrame;
   final int decodedCenterFrameTimeMs;
+  final int decodedCenterBufferByteCount;
+  final int decodedCenterBufferChecksum;
   final String decodeProbeReason;
   final String decodedOutputMimeType;
   final int decodedOutputWidth;
@@ -1525,8 +1535,10 @@ class ProfessionalVideoTransitionDecoderSessionPlanResult {
         return track.sourceProbeReady &&
             track.exactFrameDecodeProbeImplemented &&
             track.sampleDecodeProbeImplemented &&
+            track.decodedBufferProbeImplemented &&
             track.canDecodeCenterFrame &&
-            track.allSamplesDecodable;
+            track.allSamplesDecodable &&
+            track.allDecodedBuffersReadable;
       }) &&
       blockedReasons.isEmpty;
 }
@@ -1614,15 +1626,34 @@ class ProfessionalVideoTransitionDecoderSessionPlanResultMapper {
           ),
           requestedSampleCount: _readInt(track['requestedSampleCount']),
           decodedSampleCount: _readInt(track['decodedSampleCount']),
+          decodedBufferProbeImplemented: _readBool(
+            track['decodedBufferProbeImplemented'],
+            defaultValue: true,
+          ),
+          decodedBufferCount: _readInt(
+            track['decodedBufferCount'],
+            fallback: _readInt(track['decodedSampleCount']),
+          ),
           allSamplesDecodable: _readBool(
             track['allSamplesDecodable'],
             defaultValue: true,
+          ),
+          allDecodedBuffersReadable: _readBool(
+            track['allDecodedBuffersReadable'],
+            defaultValue: _readBool(
+              track['allSamplesDecodable'],
+              defaultValue: true,
+            ),
           ),
           canDecodeCenterFrame: _readBool(
             track['canDecodeCenterFrame'],
             defaultValue: true,
           ),
           decodedCenterFrameTimeMs: _readInt(track['decodedCenterFrameTimeMs']),
+          decodedCenterBufferByteCount:
+              _readInt(track['decodedCenterBufferByteCount']),
+          decodedCenterBufferChecksum:
+              _readInt(track['decodedCenterBufferChecksum']),
           decodeProbeReason: track['decodeProbeReason']?.toString() ?? '',
           decodedOutputMimeType:
               track['decodedOutputMimeType']?.toString() ?? '',
@@ -1651,11 +1682,11 @@ class ProfessionalVideoTransitionDecoderSessionPlanResultMapper {
     return defaultValue;
   }
 
-  static int _readInt(Object? value) {
+  static int _readInt(Object? value, {int fallback = 0}) {
     if (value is num) {
       return value.round();
     }
-    return int.tryParse(value?.toString() ?? '') ?? 0;
+    return int.tryParse(value?.toString() ?? '') ?? fallback;
   }
 
   static List<String> _readStringList(Object? value) {
@@ -1692,7 +1723,9 @@ class ProfessionalVideoTransitionTemporalAccumulator {
     required this.inputTrackRole,
     required this.sampleCount,
     this.decodedSampleCount = 0,
+    this.decodedBufferCount = 0,
     this.inputSamplesDecodable = true,
+    this.inputDecodedBuffersReadable = true,
     required this.sampleWeights,
     required this.normalization,
     required this.requiresTemporalShutter,
@@ -1706,7 +1739,9 @@ class ProfessionalVideoTransitionTemporalAccumulator {
   final String inputTrackRole;
   final int sampleCount;
   final int decodedSampleCount;
+  final int decodedBufferCount;
   final bool inputSamplesDecodable;
+  final bool inputDecodedBuffersReadable;
   final List<double> sampleWeights;
   final String normalization;
   final bool requiresTemporalShutter;
@@ -1805,6 +1840,7 @@ class ProfessionalVideoTransitionTemporalAccumulatorPlanResult {
       accumulators.every((accumulator) {
         return accumulator.requiresExactFrameDecode &&
             accumulator.inputSamplesDecodable &&
+            accumulator.inputDecodedBuffersReadable &&
             !accumulator.allowGaussianFallback &&
             !accumulator.allowDecorativeSpeedLines;
       }) &&
@@ -1875,6 +1911,17 @@ class ProfessionalVideoTransitionTemporalAccumulatorPlanResultMapper {
             accumulator['inputSamplesDecodable'],
             defaultValue: true,
           ),
+          decodedBufferCount: _readInt(
+            accumulator['decodedBufferCount'],
+            fallback: _readInt(accumulator['decodedSampleCount']),
+          ),
+          inputDecodedBuffersReadable: _readBool(
+            accumulator['inputDecodedBuffersReadable'],
+            defaultValue: _readBool(
+              accumulator['inputSamplesDecodable'],
+              defaultValue: true,
+            ),
+          ),
           sampleWeights: _readDoubleList(accumulator['sampleWeights']),
           normalization: accumulator['normalization']?.toString() ?? '',
           requiresTemporalShutter:
@@ -1910,11 +1957,11 @@ class ProfessionalVideoTransitionTemporalAccumulatorPlanResultMapper {
     return defaultValue;
   }
 
-  static int _readInt(Object? value) {
+  static int _readInt(Object? value, {int fallback = 0}) {
     if (value is num) {
       return value.round();
     }
-    return int.tryParse(value?.toString() ?? '') ?? 0;
+    return int.tryParse(value?.toString() ?? '') ?? fallback;
   }
 
   static List<double> _readDoubleList(Object? value) {
