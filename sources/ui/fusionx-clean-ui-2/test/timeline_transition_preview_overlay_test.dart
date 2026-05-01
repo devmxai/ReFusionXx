@@ -172,7 +172,7 @@ void main() {
   });
 
   testWidgets(
-      'zoom in camera draws live-video motion cues without still frames',
+      'zoom in camera does not draw fake still-frame or speed-line preview',
       (tester) async {
     final transition = TimelineTrackTransitionData(
       id: 'transition-zoom',
@@ -198,7 +198,6 @@ void main() {
     );
 
     expect(find.byType(Image), findsNothing);
-    expect(find.byType(CustomPaint), findsWidgets);
     expect(find.byType(ClipRRect), findsNothing);
     expect(find.text('Preview warming'), findsNothing);
   });

@@ -267,5 +267,6 @@ void main() {
     expect(find.byKey(const ValueKey<String>('native-video')), findsOneWidget);
     expect(find.byType(ImageFiltered), findsOneWidget);
     expect(find.byType(Transform), findsWidgets);
+    expect(find.byType(ClipRect), findsOneWidget);
   });
 }

@@ -24,7 +24,7 @@ void main() {
     expect(find.text('Preset Transitions'), findsOneWidget);
     expect(find.text('Cross Dissolve'), findsOneWidget);
     expect(find.text('Fade Black'), findsOneWidget);
-    expect(find.text('Zoom In Camera'), findsOneWidget);
+    expect(find.text('Zoom In Camera'), findsNothing);
 
     await tester.tap(find.byIcon(Icons.arrow_back_rounded));
     await tester.pumpAndSettle();

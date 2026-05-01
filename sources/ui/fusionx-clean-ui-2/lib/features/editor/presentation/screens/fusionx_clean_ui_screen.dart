@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -20557,83 +20556,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             TimelineTransitionPreset.zoomInCamera) {
       return null;
     }
-    final transition = activeTransition.transition;
-    final progress = _applyPreviewTransitionCurve(
-      activeTransition.progress,
-      transition.curve,
-    );
-    final seam = _transitionSeamProgress(transition).clamp(0.2, 0.8).toDouble();
-    final outgoingPhase =
-        (progress / math.max(seam, 0.001)).clamp(0.0, 1.0).toDouble();
-    final incomingPhase = ((progress - seam) / math.max(1 - seam, 0.001))
-        .clamp(0.0, 1.0)
-        .toDouble();
-    final outgoingCurve = Curves.easeInCubic.transform(outgoingPhase);
-    final incomingCurve = Curves.easeOutCubic.transform(incomingPhase);
-    final outgoingScale = _lerpDouble(
-      1.0,
-      transition.parameterValue('outgoingBoostScale', fallback: 3.0),
-      outgoingCurve,
-    );
-    final incomingScale = _lerpDouble(
-      transition.parameterValue('incomingStartScale', fallback: 0.28),
-      1.0,
-      incomingCurve,
-    );
-    final isOutgoingSide = progress <= seam;
-    final impactPulse =
-        (1 - ((progress - seam).abs() / 0.24)).clamp(0.0, 1.0).toDouble();
-    final trailingPulse =
-        (1 - ((progress - (seam + (1 - seam) * 0.26)).abs() / 0.34))
-            .clamp(0.0, 1.0)
-            .toDouble();
-    final blurPeak =
-        transition.parameterValue('motionBlurAmount', fallback: 18.0);
-    final blurAmount = isOutgoingSide
-        ? blurPeak * impactPulse
-        : blurPeak * trailingPulse * (1 - incomingCurve * 0.58);
-    final shakePeak = transition.parameterValue('shakeAmount', fallback: 5.0);
-    final shakeDecay = isOutgoingSide ? impactPulse : trailingPulse * 0.72;
-    final shakeX = math.sin(progress * math.pi * 22.0) * shakePeak * shakeDecay;
-    final shakeY =
-        math.cos(progress * math.pi * 17.0) * shakePeak * shakeDecay * 0.45;
-    final rotationDegrees =
-        math.sin(progress * math.pi * 13.0) * 0.34 * shakeDecay;
-    return MotionVideoPreviewSurfaceTransform(
-      scaleX: isOutgoingSide ? outgoingScale : incomingScale,
-      scaleY: isOutgoingSide ? outgoingScale : incomingScale,
-      positionX: shakeX,
-      positionY: shakeY,
-      rotationDegrees: rotationDegrees,
-      blurAmount: blurAmount.clamp(0.0, 32.0).toDouble(),
-    );
-  }
-
-  double _transitionSeamProgress(TimelineTrackTransitionData transition) {
-    final leading = transition.resolvedLeadingDurationTime.inMilliseconds;
-    final trailing = transition.resolvedTrailingDurationTime.inMilliseconds;
-    final total = leading + trailing;
-    if (total <= 0) {
-      return 0.5;
-    }
-    return (leading / total).clamp(0.0, 1.0).toDouble();
-  }
-
-  double _applyPreviewTransitionCurve(
-    double value,
-    TimelineTransitionCurve curve,
-  ) {
-    final clamped = value.clamp(0.0, 1.0).toDouble();
-    return switch (curve) {
-      TimelineTransitionCurve.linear => clamped,
-      TimelineTransitionCurve.easeIn => Curves.easeIn.transform(clamped),
-      TimelineTransitionCurve.easeOut => Curves.easeOut.transform(clamped),
-      TimelineTransitionCurve.easeInOut => Curves.easeInOut.transform(clamped),
-    };
-  }
-
-  double _lerpDouble(double start, double end, double amount) {
-    return start + ((end - start) * amount.clamp(0.0, 1.0));
+    // Zoom In Camera requires a real dual-video compositor with temporal
+    // shutter sampling and mirrored edge tiling. The previous Flutter-side
+    // PlatformView scale/blur path was intentionally removed because it could
+    // leak outside the preview canvas and could only fake motion blur.
+    return null;
   }
 
   Widget _buildNativePreviewSurface({

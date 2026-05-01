@@ -223,7 +223,7 @@ class _PreviewStageViewportShellState
           widget.onViewportChanged?.call(_interactiveViewportState);
         },
         child: Stack(
-          clipBehavior: Clip.none,
+          clipBehavior: Clip.hardEdge,
           fit: StackFit.expand,
           children: [
             Transform(

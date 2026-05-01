@@ -301,17 +301,15 @@ class MotionVideoPreviewTransformSurface extends StatelessWidget {
     required double viewportScaleX,
     required double viewportScaleY,
   }) {
-    Widget transformed = ClipRect(
-      child: ImageFiltered(
-        imageFilter: ui.ImageFilter.blur(
-          sigmaX: blurAmount * viewportScaleX,
-          sigmaY: blurAmount * viewportScaleY,
-        ),
-        enabled: blurAmount > 0,
-        child: Opacity(
-          opacity: opacity.clamp(0.0, 1.0).toDouble(),
-          child: child,
-        ),
+    Widget transformed = ImageFiltered(
+      imageFilter: ui.ImageFilter.blur(
+        sigmaX: blurAmount * viewportScaleX,
+        sigmaY: blurAmount * viewportScaleY,
+      ),
+      enabled: blurAmount > 0,
+      child: Opacity(
+        opacity: opacity.clamp(0.0, 1.0).toDouble(),
+        child: child,
       ),
     );
     transformed = Transform.scale(
@@ -323,12 +321,13 @@ class MotionVideoPreviewTransformSurface extends StatelessWidget {
       angle: rotationDegrees * math.pi / 180,
       child: transformed,
     );
-    return Transform.translate(
+    transformed = Transform.translate(
       offset: Offset(
         positionX * viewportScaleX,
         positionY * viewportScaleY,
       ),
       child: transformed,
     );
+    return ClipRect(child: transformed);
   }
 }

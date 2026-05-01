@@ -587,24 +587,31 @@ Every transition implementation must be validated against:
 The `Zoom In Camera` preset is an After-Effects-inspired seam transition, not a
 simple card overlay.
 
-Current preview contract:
+Strict current contract:
 
-- Zoom In Camera must animate the live native video surface, not a static
-  boundary-frame image overlay. The outgoing side is the playing end of clip A;
-  the incoming side is the playing beginning of clip B.
+- Zoom In Camera is not allowed to ship through a Flutter overlay or transformed
+  Android `PlatformView`. That path can only fake motion blur, can leak outside
+  the preview canvas, and cannot composite A/B video streams.
+- Zoom In Camera must be gated until a real professional video transition
+  compositor exists. The compositor must read the playing end of clip A and the
+  playing beginning of clip B as live video samples over the whole transition
+  window.
 - exact boundary-frame extraction remains available for AI transition seeds and
   non-live fallback transitions, but Zoom In Camera preview must not fall back
   to generic asset thumbnails or a frozen frame.
 - no Stage5 Live Scrub internals are touched for exact boundary-frame warmup or
-  live-surface preview transforms;
+  compositor preparation unless a specific reviewed native preview task approves
+  it first;
 - scale velocity peaks at the seam, then resolves;
 - opacity handoff is centered around the seam and must not become a slow
   cross-dissolve;
-- preview motion blur is a live-surface blur plus deterministic speed-line and
-  impact cues. True directional/temporal motion blur remains a future native
-  renderer/shader task, not a frozen-frame trick.
+- motion blur must be temporal shutter sampling or an equivalent native/GPU
+  compositor implementation. Gaussian blur and decorative speed lines are not
+  valid motion blur for this preset.
+- Motion Tile / mirror-edge expansion must happen before transform sampling so
+  scaled or compressed incoming video never reveals black edges.
 
-Default preview recipe at 30fps:
+Professional compositor recipe at 30fps:
 
 - duration: about 4 seconds by default, with the seam centered so roughly the
   last 2 seconds of A and first 2 seconds of B participate;
@@ -616,15 +623,20 @@ Default preview recipe at 30fps:
 - overlap handoff: roughly `42%..58%` of the transition window;
 - incoming lead: no frozen pre-roll; B becomes live at the seam and settles
   after it;
-- blur peak: `18px`;
+- shutter angle: `180..360` degrees, with bounded temporal samples;
+- mirror edges: enabled, with output overscan large enough to cover the largest
+  scale/rotation in the transition;
 - impact shake: `5px`;
 - bridge darkness: `12%`.
 
-Known gap:
+Current gate:
 
-- this preview is still Flutter-side and export parity remains gated until the
-  export renderer/native video compositor consumes the same live-surface
-  transform recipe and adds true directional motion blur.
+- the previous Flutter-side Zoom In Camera preview has been removed from the
+  preset picker and no longer draws fake speed lines, frozen-frame cards, or
+  Gaussian motion blur.
+- a future `ProfessionalVideoTransitionCompositor` must own preview, scrub,
+  playback, and export parity before Zoom In Camera is exposed again as an
+  engine-backed preset.
 
 ## 9. Stop Conditions
 
