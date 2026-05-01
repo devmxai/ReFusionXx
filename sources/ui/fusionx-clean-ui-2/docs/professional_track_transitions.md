@@ -759,6 +759,13 @@ Current gate:
   side lacks a concrete URI, visible timeline handle, source handle, or explicit
   source-rate support. Large editor screens must use this adapter instead of
   hand-assembling compositor sources.
+- Flutter now also has `ProfessionalVideoTransitionReadinessPreflight`. It runs
+  the full readiness chain against a render plan: native capabilities, strict
+  render-session preparation, source binding, frame sampling, exact decode
+  requests, dual decoder session, temporal accumulator, mirror-edge tiler,
+  render-pass graph, output surface, and preview/scrub/playback/export parity.
+  A transition authoring UI may only expose a preset when this report has no
+  blocking stage; a single successful planning endpoint is not enough.
 - Flutter and Android now share `planFrameSamples` as the next compositor
   foundation. A valid render plan is parsed into the same strict native render
   session, then a requested transition timeline frame is converted into:
