@@ -5210,6 +5210,19 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         if (localEnd <= localStart) {
           continue;
         }
+        final visibleSourceRange = TimelineTimeRange(
+          start: session.sourceRange.start + localStart,
+          endExclusive: session.sourceRange.start + localEnd,
+        );
+        final mediaElement = _sceneScopeMediaElementForLayer(layer);
+        final mediaSourceTiming = mediaElement == null
+            ? null
+            : _sceneScopeMediaSourceTimingForLayer(
+                layer: layer,
+                element: mediaElement,
+                visibleSourceRange: visibleSourceRange,
+              );
+        final duration = localEnd - localStart;
         if (localStart > cursor) {
           videoClips.add(
             TimelineClipData(
@@ -5227,9 +5240,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             type: TimelineClipType.placeholder,
             tone: TimelineClipTone.aiGenerated,
             assetId: _sceneScopeLayerAssetId(layer),
-            durationTime: localEnd - localStart,
-            sourceStartTime: localStart,
-            sourceDurationTime: localEnd - localStart,
+            durationTime: duration,
+            sourceStartTime:
+                mediaSourceTiming?.sourceStartTime ?? TimelineTime.zero,
+            sourceDurationTime:
+                mediaSourceTiming?.sourceDurationTime ?? duration,
             label: _sceneScopeLayerLabel(layer),
             contentKind: TimelineClipContentKind.scene,
             visualKind: TimelineVisualKind.video,
@@ -5306,6 +5321,66 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       );
     }
     return List<TimelineTrackData>.unmodifiable(tracks);
+  }
+
+  MotionElementModel? _sceneScopeMediaElementForLayer(MotionLayerModel layer) {
+    if (!layer.isEnabled || layer.kind != MotionLayerKind.video) {
+      return null;
+    }
+    for (final element in layer.elements) {
+      if (!element.isEnabled ||
+          element.kind != MotionElementKind.videoClip ||
+          !_sceneScopeElementHasSourceBinding(element)) {
+        continue;
+      }
+      return element;
+    }
+    return null;
+  }
+
+  bool _sceneScopeElementHasSourceBinding(MotionElementModel element) {
+    final binding = element.sourceBinding;
+    return binding != null &&
+        ((binding.assetId != null && binding.assetId!.isNotEmpty) ||
+            binding.sourceId.isNotEmpty);
+  }
+
+  ({TimelineTime sourceStartTime, TimelineTime sourceDurationTime})?
+      _sceneScopeMediaSourceTimingForLayer({
+    required MotionLayerModel layer,
+    required MotionElementModel element,
+    required TimelineTimeRange visibleSourceRange,
+  }) {
+    final sourceBinding = element.sourceBinding;
+    if (sourceBinding == null ||
+        visibleSourceRange.duration <= TimelineTime.zero) {
+      return null;
+    }
+    final bindingSourceRange = sourceBinding.sourceRange ??
+        TimelineTimeRange(
+          start: TimelineTime.zero,
+          endExclusive: visibleSourceRange.duration,
+        );
+    if (bindingSourceRange.duration <= TimelineTime.zero) {
+      return null;
+    }
+    final elementAbsoluteRange = _absoluteSceneElementRange(layer, element);
+    final sourceOffset = visibleSourceRange.start - elementAbsoluteRange.start;
+    final sourceStart = (bindingSourceRange.start + sourceOffset).clamp(
+      bindingSourceRange.start,
+      bindingSourceRange.endExclusive,
+    );
+    final remainingSource = bindingSourceRange.endExclusive - sourceStart;
+    final sourceDuration = remainingSource < visibleSourceRange.duration
+        ? remainingSource
+        : visibleSourceRange.duration;
+    if (sourceDuration <= TimelineTime.zero) {
+      return null;
+    }
+    return (
+      sourceStartTime: sourceStart,
+      sourceDurationTime: sourceDuration,
+    );
   }
 
   void _shiftSceneScopeLayerInTimeline(

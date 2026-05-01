@@ -104,6 +104,8 @@ class TimelineTransitionPreviewOverlay extends StatelessWidget {
           if (transition.preset == TimelineTransitionPreset.crossDissolve)
             _CrossDissolveTransitionLayer(
               progress: curvedProgress,
+              seamProgress: seamProgress,
+              outgoingThumbnailBytes: outgoingThumbnailBytes,
               incomingThumbnailBytes: incomingThumbnailBytes,
             ),
           if (transition.preset == TimelineTransitionPreset.zoomInCamera)
@@ -303,21 +305,34 @@ class _FadeBlackTransitionLayer extends StatelessWidget {
 class _CrossDissolveTransitionLayer extends StatelessWidget {
   const _CrossDissolveTransitionLayer({
     required this.progress,
+    required this.seamProgress,
+    required this.outgoingThumbnailBytes,
     required this.incomingThumbnailBytes,
   });
 
   final double progress;
+  final double seamProgress;
+  final Uint8List? outgoingThumbnailBytes;
   final Uint8List? incomingThumbnailBytes;
 
   @override
   Widget build(BuildContext context) {
-    final bytes = incomingThumbnailBytes;
+    final clampedProgress = progress.clamp(0.0, 1.0).toDouble();
+    final seam = seamProgress.clamp(0.001, 0.999).toDouble();
+    final isBeforeSeam = clampedProgress <= seam;
+    final bytes =
+        isBeforeSeam ? incomingThumbnailBytes : outgoingThumbnailBytes;
     if (bytes == null || bytes.isEmpty) {
       return const SizedBox.shrink();
     }
     return Opacity(
-      opacity: progress.clamp(0.0, 1.0).toDouble(),
+      opacity: isBeforeSeam ? clampedProgress : 1.0 - clampedProgress,
       child: Image.memory(
+        key: ValueKey(
+          isBeforeSeam
+              ? 'cross-dissolve-incoming-boundary'
+              : 'cross-dissolve-outgoing-boundary',
+        ),
         bytes,
         fit: BoxFit.cover,
         gaplessPlayback: true,

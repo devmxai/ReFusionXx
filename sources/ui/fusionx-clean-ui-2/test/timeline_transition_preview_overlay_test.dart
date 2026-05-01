@@ -201,4 +201,72 @@ void main() {
     expect(find.byType(ClipRRect), findsNothing);
     expect(find.text('Preview warming'), findsNothing);
   });
+
+  testWidgets('cross dissolve overlays incoming boundary before the seam',
+      (tester) async {
+    final transition = TimelineTrackTransitionData(
+      id: 'transition-cross',
+      leftClipId: 'clip-a',
+      rightClipId: 'clip-b',
+      preset: TimelineTransitionPreset.crossDissolve,
+      durationTime: TimelineTime.fromMilliseconds(1000),
+      curve: TimelineTransitionCurve.linear,
+    );
+
+    await tester.pumpWidget(
+      buildHarness(
+        transition: transition,
+        outgoingBytes: samplePngBytes,
+        incomingBytes: samplePngBytes,
+        progress: 0.25,
+      ),
+    );
+
+    expect(
+      find.byKey(const ValueKey('cross-dissolve-incoming-boundary')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('cross-dissolve-outgoing-boundary')),
+      findsNothing,
+    );
+    expect(
+      tester.widget<Opacity>(find.byType(Opacity)).opacity,
+      closeTo(0.25, 0.01),
+    );
+  });
+
+  testWidgets('cross dissolve overlays outgoing boundary after the seam',
+      (tester) async {
+    final transition = TimelineTrackTransitionData(
+      id: 'transition-cross',
+      leftClipId: 'clip-a',
+      rightClipId: 'clip-b',
+      preset: TimelineTransitionPreset.crossDissolve,
+      durationTime: TimelineTime.fromMilliseconds(1000),
+      curve: TimelineTransitionCurve.linear,
+    );
+
+    await tester.pumpWidget(
+      buildHarness(
+        transition: transition,
+        outgoingBytes: samplePngBytes,
+        incomingBytes: samplePngBytes,
+        progress: 0.75,
+      ),
+    );
+
+    expect(
+      find.byKey(const ValueKey('cross-dissolve-outgoing-boundary')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('cross-dissolve-incoming-boundary')),
+      findsNothing,
+    );
+    expect(
+      tester.widget<Opacity>(find.byType(Opacity)).opacity,
+      closeTo(0.25, 0.01),
+    );
+  });
 }
