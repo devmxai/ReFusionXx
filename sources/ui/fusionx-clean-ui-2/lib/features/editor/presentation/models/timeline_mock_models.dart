@@ -35,6 +35,7 @@ enum TimelineTransitionPreset {
   crossDissolve,
   fadeBlack,
   zoomInCamera,
+  zoomInPro,
   aiGenerated,
 }
 
@@ -52,6 +53,7 @@ extension TimelineTransitionPresetPresentation on TimelineTransitionPreset {
       TimelineTransitionPreset.crossDissolve => 'Cross Dissolve',
       TimelineTransitionPreset.fadeBlack => 'Fade Black',
       TimelineTransitionPreset.zoomInCamera => 'Zoom In Camera',
+      TimelineTransitionPreset.zoomInPro => 'Zoom In Pro',
       TimelineTransitionPreset.aiGenerated => 'AI Transition',
     };
   }
@@ -66,6 +68,8 @@ extension TimelineTransitionPresetPresentation on TimelineTransitionPreset {
         'Dip through black between two clips.',
       TimelineTransitionPreset.zoomInCamera =>
         'Push into the next clip with a camera-style zoom.',
+      TimelineTransitionPreset.zoomInPro =>
+        'Experimental live-surface zoom trial for testing the transition engine path.',
       TimelineTransitionPreset.aiGenerated =>
         'Generate a seam bridge from the last frame of A to the first frame of B.',
     };
@@ -79,6 +83,7 @@ extension TimelineTransitionPresetPresentation on TimelineTransitionPreset {
       TimelineTransitionPreset.fadeBlack => TimelineTime.fromMilliseconds(540),
       TimelineTransitionPreset.zoomInCamera =>
         TimelineTime.fromMilliseconds(4000),
+      TimelineTransitionPreset.zoomInPro => TimelineTime.fromMilliseconds(4000),
       TimelineTransitionPreset.aiGenerated =>
         TimelineTime.fromMilliseconds(3000),
     };
@@ -101,8 +106,21 @@ extension TimelineTransitionPresetPresentation on TimelineTransitionPreset {
           'motionBlurAmount': 18.0,
           'shakeAmount': 5.0,
         },
+      TimelineTransitionPreset.zoomInPro => <String, double>{
+          'incomingStartScale': 0.42,
+          'outgoingBoostScale': 2.4,
+          'entryDelay': 0.0,
+          'bridgeDarkness': 0.0,
+          'motionBlurAmount': 0.0,
+          'shakeAmount': 0.0,
+        },
       TimelineTransitionPreset.aiGenerated => const <String, double>{},
     };
+  }
+
+  bool get isZoomCameraFamily {
+    return this == TimelineTransitionPreset.zoomInCamera ||
+        this == TimelineTransitionPreset.zoomInPro;
   }
 }
 

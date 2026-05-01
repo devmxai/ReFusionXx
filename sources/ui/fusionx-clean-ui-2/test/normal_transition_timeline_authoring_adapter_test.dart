@@ -60,6 +60,26 @@ void main() {
     expect(result.transition!.parameterValues['outgoingBoostScale'], 3.0);
   });
 
+  test('creates Zoom In Pro as isolated live-surface experiment', () {
+    final result = adapter.createBuiltInPresetTransition(
+      preset: TimelineTransitionPreset.zoomInPro,
+      trackId: 'video-main',
+      leftClipId: 'clip-a',
+      rightClipId: 'clip-b',
+      boundaryTime: TimelineTime.fromMilliseconds(8000),
+      leftAvailableTail: TimelineTime.fromMilliseconds(4000),
+      rightAvailableHead: TimelineTime.fromMilliseconds(4000),
+    );
+
+    expect(result.canApply, isTrue);
+    expect(result.transition!.preset, TimelineTransitionPreset.zoomInPro);
+    expect(result.node!.definitionId, 'zoom_in_camera');
+    expect(result.transition!.durationTime.inMilliseconds, 4000);
+    expect(result.transition!.parameterValues['incomingStartScale'], 0.42);
+    expect(result.transition!.parameterValues['outgoingBoostScale'], 2.4);
+    expect(result.transition!.parameterValues['motionBlurAmount'], 0.0);
+  });
+
   test('rehydrates timeline cross dissolve edits back to normal state', () {
     final transition = TimelineTrackTransitionData(
       id: 'transition.video-main.clip-a.clip-b.cross-dissolve',

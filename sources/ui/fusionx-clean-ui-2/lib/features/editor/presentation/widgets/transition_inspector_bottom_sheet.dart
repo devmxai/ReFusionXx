@@ -90,11 +90,13 @@ class _TransitionInspectorBottomSheetState
     final safeBottom = MediaQuery.of(context).padding.bottom;
     final durationMin = switch (_draft.preset) {
       TimelineTransitionPreset.zoomInCamera => 1200.0,
+      TimelineTransitionPreset.zoomInPro => 1200.0,
       TimelineTransitionPreset.crossDissolve => 600.0,
       _ => 220.0,
     };
     final durationMax = switch (_draft.preset) {
       TimelineTransitionPreset.zoomInCamera => 5000.0,
+      TimelineTransitionPreset.zoomInPro => 5000.0,
       TimelineTransitionPreset.crossDissolve => 5000.0,
       _ => 1600.0,
     };
@@ -215,8 +217,7 @@ class _TransitionInspectorBottomSheetState
                           ),
                         ),
                       ),
-                    if (_draft.preset ==
-                        TimelineTransitionPreset.zoomInCamera) ...[
+                    if (_draft.preset.isZoomCameraFamily) ...[
                       _InspectorSection(
                         label: 'Incoming Zoom',
                         child: _InspectorSliderRow(

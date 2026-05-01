@@ -55,12 +55,12 @@ class NormalTransitionTimelineAuthoringAdapter {
         window: applyResult.window,
       );
     }
-    final transition = timelineAdapter.toTimelineTransition(
+    final adaptedTransition = timelineAdapter.toTimelineTransition(
       node: applyResult.node!,
       instance: applyResult.instance!,
       window: applyResult.window,
     );
-    if (transition == null) {
+    if (adaptedTransition == null) {
       return const NormalTransitionTimelineAuthoringResult(
         issues: <NormalTransitionIssue>[
           NormalTransitionIssue(
@@ -72,6 +72,15 @@ class NormalTransitionTimelineAuthoringAdapter {
         ],
       );
     }
+    final transition = adaptedTransition.preset == preset
+        ? adaptedTransition
+        : adaptedTransition.copyWith(
+            preset: preset,
+            parameterValues: <String, double>{
+              ...adaptedTransition.parameterValues,
+              ...preset.defaultParameterValues,
+            },
+          );
     return NormalTransitionTimelineAuthoringResult(
       transition: transition,
       node: applyResult.node,

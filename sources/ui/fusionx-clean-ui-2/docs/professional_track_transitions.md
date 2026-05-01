@@ -631,6 +631,20 @@ Current authoring gate:
   Dissolve, Fade Black, and Zoom In Camera must all wait for the same general
   compositor readiness instead of each shipping a separate fallback path.
 
+Temporary diagnostic exception:
+
+- `Zoom In Pro` may be exposed as a product-requested live-surface experiment
+  while the full compositor is still blocked. It is not a professional
+  transition release, not a native compositor renderer, and not proof that Zoom
+  In Camera is supported.
+- `Zoom In Pro` must transform only the currently live native preview surface.
+  It must not use boundary thumbnails, frozen frames, timeline overlays,
+  decorative speed lines, Gaussian transition blur, or a second fake video
+  surface.
+- This exception exists only to let the product team inspect timing and
+  selection flow while the real compositor is still being built. It must not
+  unlock Cross Dissolve, Fade Black, Zoom In Camera, Manual, or AI Transition.
+
 Native render-session foundation:
 
 - `prepareRenderPlan` must parse the loose platform map into a strict
@@ -723,6 +737,11 @@ Current gate:
 - the previous Flutter-side Zoom In Camera preview has been removed from the
   preset picker and no longer draws fake speed lines, frozen-frame cards, or
   Gaussian motion blur.
+- `Zoom In Pro` is the only temporary diagnostic preset that may appear before
+  compositor completion. It deliberately stays outside the professional Zoom In
+  Camera support claim: it scales the already live native surface for visual
+  timing inspection and carries no blur, no thumbnail bridge, no fake speed
+  lines, and no production parity promise.
 - `ProfessionalZoomCameraCompositorPlanner` now defines the canonical timing
   contract for the future native compositor: outgoing and incoming source times
   are resolved from real timeline/source ranges, shutter sample times are

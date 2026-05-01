@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -2227,6 +2228,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       TimelineTransitionPreset.crossDissolve => MotionTransitionKind.fade,
       TimelineTransitionPreset.fadeBlack => MotionTransitionKind.fade,
       TimelineTransitionPreset.zoomInCamera => MotionTransitionKind.cameraPush,
+      TimelineTransitionPreset.zoomInPro => MotionTransitionKind.cameraPush,
       TimelineTransitionPreset.aiGenerated => MotionTransitionKind.fade,
     };
   }
@@ -5739,7 +5741,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       durationTime: preset.defaultDurationTime,
       leadingDurationTime: timing.leadingDurationTime,
       trailingDurationTime: timing.trailingDurationTime,
-      curve: preset == TimelineTransitionPreset.zoomInCamera ||
+      curve: preset.isZoomCameraFamily ||
               preset == TimelineTransitionPreset.crossDissolve
           ? TimelineTransitionCurve.linear
           : TimelineTransitionCurve.easeInOut,
@@ -5750,7 +5752,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
   ({TimelineTime? leadingDurationTime, TimelineTime? trailingDurationTime})
       _defaultTransitionTimingForPreset(TimelineTransitionPreset preset) {
-    if (preset != TimelineTransitionPreset.zoomInCamera) {
+    if (!preset.isZoomCameraFamily) {
       return (leadingDurationTime: null, trailingDurationTime: null);
     }
     final duration = preset.defaultDurationTime;
@@ -18677,6 +18679,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
               'entryDelay',
               'bridgeDarkness',
             ],
+          TimelineTransitionPreset.zoomInPro => const <String>[
+              'outgoingBoostScale',
+              'incomingStartScale',
+            ],
           TimelineTransitionPreset.aiGenerated => const <String>[],
           TimelineTransitionPreset.manual => const <String>[],
         },
@@ -20381,7 +20387,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         ),
       );
     }
-    if (state.transition.preset != TimelineTransitionPreset.zoomInCamera) {
+    if (!state.transition.preset.isZoomCameraFamily) {
       _warmTransitionBoundaryFrame(
         clip: state.leftClip.clip,
         role: TransitionBoundaryFrameRole.outgoing,
@@ -20633,15 +20639,55 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   ) {
     final activeTransition = _activeTimelineTransitionPreviewAt(previewTime);
     if (activeTransition == null ||
-        activeTransition.transition.preset !=
-            TimelineTransitionPreset.zoomInCamera) {
+        !activeTransition.transition.preset.isZoomCameraFamily) {
       return null;
     }
-    // Zoom In Camera requires a real dual-video compositor with temporal
-    // shutter sampling and mirrored edge tiling. The previous Flutter-side
-    // PlatformView scale/blur path was intentionally removed because it could
-    // leak outside the preview canvas and could only fake motion blur.
-    return null;
+    if (activeTransition.transition.preset ==
+        TimelineTransitionPreset.zoomInCamera) {
+      // Zoom In Camera remains locked to the real dual-video compositor path.
+      return null;
+    }
+    return _zoomInProPreviewSurfaceTransform(activeTransition);
+  }
+
+  MotionVideoPreviewSurfaceTransform _zoomInProPreviewSurfaceTransform(
+    _ActiveTimelineTransitionPreview state,
+  ) {
+    final transition = state.transition;
+    final seam = _transitionSeamProgress(transition);
+    final progress = state.progress.clamp(0.0, 1.0).toDouble();
+    final outgoingBoostScale =
+        transition.parameterValue('outgoingBoostScale', fallback: 2.4);
+    final incomingStartScale =
+        transition.parameterValue('incomingStartScale', fallback: 0.42);
+    if (progress <= seam) {
+      final phase =
+          seam <= 0 ? 1.0 : (progress / seam).clamp(0.0, 1.0).toDouble();
+      final eased = Curves.easeInCubic.transform(phase);
+      final scale = lerpDouble(1.0, outgoingBoostScale, eased) ?? 1.0;
+      return MotionVideoPreviewSurfaceTransform(
+        scaleX: scale,
+        scaleY: scale,
+      );
+    }
+    final trailingSpan = (1.0 - seam).clamp(0.001, 1.0).toDouble();
+    final phase = ((progress - seam) / trailingSpan).clamp(0.0, 1.0).toDouble();
+    final eased = Curves.easeOutCubic.transform(phase);
+    final scale = lerpDouble(incomingStartScale, 1.0, eased) ?? 1.0;
+    return MotionVideoPreviewSurfaceTransform(
+      scaleX: scale,
+      scaleY: scale,
+    );
+  }
+
+  double _transitionSeamProgress(TimelineTrackTransitionData transition) {
+    final leading = transition.resolvedLeadingDurationTime.inMilliseconds;
+    final trailing = transition.resolvedTrailingDurationTime.inMilliseconds;
+    final total = leading + trailing;
+    if (total <= 0) {
+      return 0.5;
+    }
+    return (leading / total).clamp(0.0, 1.0).toDouble();
   }
 
   Widget _buildNativePreviewSurface({

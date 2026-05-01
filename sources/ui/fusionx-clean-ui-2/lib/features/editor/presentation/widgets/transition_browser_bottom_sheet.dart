@@ -83,12 +83,15 @@ class _TransitionBrowserBottomSheetState
 
   List<TimelineTransitionPreset> get _filteredPresets {
     final normalized = _query.trim().toLowerCase();
-    if (!_transitionEngineReady) {
+    if (!_presetPickerEnabled) {
       return const <TimelineTransitionPreset>[];
     }
     final presets = List<TimelineTransitionPreset>.from(
       widget.presets ?? _defaultPresets,
-    );
+    ).where((preset) {
+      return _transitionEngineReady ||
+          preset == TimelineTransitionPreset.zoomInPro;
+    }).toList(growable: false);
     if (normalized.isEmpty) {
       return presets;
     }
@@ -101,17 +104,25 @@ class _TransitionBrowserBottomSheetState
 
   List<TimelineTransitionPreset> get _defaultPresets {
     if (!_transitionEngineReady) {
-      return const <TimelineTransitionPreset>[];
+      return const <TimelineTransitionPreset>[
+        TimelineTransitionPreset.zoomInPro,
+      ];
     }
     return <TimelineTransitionPreset>[
       TimelineTransitionPreset.crossDissolve,
       TimelineTransitionPreset.fadeBlack,
       TimelineTransitionPreset.zoomInCamera,
+      TimelineTransitionPreset.zoomInPro,
     ];
   }
 
   bool get _transitionEngineReady =>
       _compositorCapabilities.canExposeProfessionalVideoTransitions;
+
+  bool get _presetPickerEnabled =>
+      _transitionEngineReady || _zoomInProExperimentEnabled;
+
+  static const bool _zoomInProExperimentEnabled = true;
 
   ProfessionalVideoTransitionReadinessDisplayModel get _readinessDisplay {
     return const ProfessionalVideoTransitionReadinessPresentationAdapter()
@@ -191,11 +202,11 @@ class _TransitionBrowserBottomSheetState
                   title: 'Preset',
                   summary: _transitionEngineReady
                       ? 'Choose an engine-backed transition that keeps playback and scrub on the main timeline.'
-                      : 'Locked until the native compositor supports dual video, motion blur, mirror edges, preview, scrub, playback, and export parity.',
+                      : 'Zoom In Pro is open as an explicit live-surface experiment; other presets stay locked until the native compositor is complete.',
                   icon: Icons.video_settings_rounded,
                   emphasized: true,
-                  enabled: _transitionEngineReady,
-                  onTap: _transitionEngineReady
+                  enabled: _presetPickerEnabled,
+                  onTap: _presetPickerEnabled
                       ? () => setState(() {
                             _page = _TransitionBrowserPage.presets;
                           })
@@ -653,6 +664,8 @@ class _TransitionPresetCard extends StatelessWidget {
                     TimelineTransitionPreset.fadeBlack =>
                       Icons.gradient_rounded,
                     TimelineTransitionPreset.zoomInCamera =>
+                      Icons.center_focus_strong_rounded,
+                    TimelineTransitionPreset.zoomInPro =>
                       Icons.center_focus_strong_rounded,
                     TimelineTransitionPreset.aiGenerated =>
                       Icons.auto_awesome_rounded,

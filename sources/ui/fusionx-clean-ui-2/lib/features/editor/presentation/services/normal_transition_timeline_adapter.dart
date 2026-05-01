@@ -22,6 +22,7 @@ class NormalTransitionTimelineAdapter {
       TimelineTransitionPreset.crossDissolve => crossDissolveDefinitionId,
       TimelineTransitionPreset.fadeBlack => fadeBlackDefinitionId,
       TimelineTransitionPreset.zoomInCamera => zoomInCameraDefinitionId,
+      TimelineTransitionPreset.zoomInPro => zoomInCameraDefinitionId,
       TimelineTransitionPreset.manual ||
       TimelineTransitionPreset.aiGenerated =>
         null,
