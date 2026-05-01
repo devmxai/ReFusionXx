@@ -131,6 +131,12 @@ abstract class ProfessionalVideoTransitionCompositorClient
     required TimelineTime timelineTime,
   });
 
+  Future<ProfessionalVideoTransitionMirrorEdgeTilingPlanResult>
+      planMirrorEdgeTiling({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  });
+
   Future<ProfessionalVideoTransitionRenderPassGraphPlanResult>
       planRenderPassGraph({
     required ProfessionalVideoTransitionRenderPlan plan,
@@ -305,6 +311,34 @@ class MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider
       );
     } on PlatformException catch (error) {
       return ProfessionalVideoTransitionTemporalAccumulatorPlanResult
+          .invalidRequest(
+        reason: error.message ?? error.code,
+      );
+    }
+  }
+
+  @override
+  Future<ProfessionalVideoTransitionMirrorEdgeTilingPlanResult>
+      planMirrorEdgeTiling({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  }) async {
+    try {
+      final payload = plan.toPlatformMap();
+      payload['timelineTimeMs'] = timelineTime.inMilliseconds;
+      final rawResult = await _channel.invokeMapMethod<String, Object?>(
+        'planMirrorEdgeTiling',
+        payload,
+      );
+      return ProfessionalVideoTransitionMirrorEdgeTilingPlanResultMapper
+          .fromMap(rawResult);
+    } on MissingPluginException {
+      return ProfessionalVideoTransitionMirrorEdgeTilingPlanResult
+          .invalidRequest(
+        reason: 'native_compositor_channel_missing',
+      );
+    } on PlatformException catch (error) {
+      return ProfessionalVideoTransitionMirrorEdgeTilingPlanResult
           .invalidRequest(
         reason: error.message ?? error.code,
       );
@@ -1254,6 +1288,250 @@ class ProfessionalVideoTransitionTemporalAccumulatorPlanResultMapper {
         return double.tryParse(entry.toString()) ?? 0;
       }),
     );
+  }
+
+  static List<String> _readStringList(Object? value) {
+    if (value is! List) {
+      return const <String>[];
+    }
+    return List<String>.unmodifiable(value.map((entry) => entry.toString()));
+  }
+
+  static List<Map<String, Object?>> _readIssues(Object? value) {
+    if (value is! List) {
+      return const <Map<String, Object?>>[];
+    }
+    return List<Map<String, Object?>>.unmodifiable(
+      value.whereType<Map>().map((issue) {
+        return <String, Object?>{
+          for (final entry in issue.entries) entry.key.toString(): entry.value,
+        };
+      }),
+    );
+  }
+}
+
+enum ProfessionalVideoTransitionMirrorEdgeTilingPlanStatus {
+  planned,
+  invalidRequest,
+}
+
+@immutable
+class ProfessionalVideoTransitionMirrorEdgeTile {
+  const ProfessionalVideoTransitionMirrorEdgeTile({
+    required this.tileId,
+    required this.role,
+    required this.inputAccumulatorId,
+    required this.edgeMode,
+    required this.outputScaleX,
+    required this.outputScaleY,
+    required this.mirrorEdges,
+    required this.clipToCanvas,
+    required this.allowBlackBorders,
+  });
+
+  final String tileId;
+  final String role;
+  final String inputAccumulatorId;
+  final String edgeMode;
+  final double outputScaleX;
+  final double outputScaleY;
+  final bool mirrorEdges;
+  final bool clipToCanvas;
+  final bool allowBlackBorders;
+}
+
+@immutable
+class ProfessionalVideoTransitionMirrorEdgeTilingPlanResult {
+  const ProfessionalVideoTransitionMirrorEdgeTilingPlanResult({
+    required this.status,
+    required this.reason,
+    required this.rendererVersion,
+    required this.definitionId,
+    required this.renderSessionId,
+    required this.temporalAccumulatorSessionId,
+    required this.mirrorEdgeTilingSessionId,
+    required this.timelineTime,
+    required this.transitionStartTime,
+    required this.transitionEndTime,
+    required this.edgeMode,
+    required this.outputScaleX,
+    required this.outputScaleY,
+    required this.requiresMirrorEdgeTiling,
+    required this.requiresTemporalAccumulator,
+    required this.allowBlackBorders,
+    required this.allowFlutterOverlay,
+    required this.allowTimelineOverlay,
+    required this.tilerImplemented,
+    required this.tiles,
+    required this.blockedReasons,
+    this.issues = const <Map<String, Object?>>[],
+  });
+
+  factory ProfessionalVideoTransitionMirrorEdgeTilingPlanResult.invalidRequest({
+    required String reason,
+    String rendererVersion = 'unknown',
+    List<Map<String, Object?>> issues = const <Map<String, Object?>>[],
+  }) {
+    return ProfessionalVideoTransitionMirrorEdgeTilingPlanResult(
+      status:
+          ProfessionalVideoTransitionMirrorEdgeTilingPlanStatus.invalidRequest,
+      reason: reason,
+      rendererVersion: rendererVersion,
+      definitionId: '',
+      renderSessionId: '',
+      temporalAccumulatorSessionId: '',
+      mirrorEdgeTilingSessionId: '',
+      timelineTime: null,
+      transitionStartTime: null,
+      transitionEndTime: null,
+      edgeMode: '',
+      outputScaleX: 1,
+      outputScaleY: 1,
+      requiresMirrorEdgeTiling: false,
+      requiresTemporalAccumulator: true,
+      allowBlackBorders: false,
+      allowFlutterOverlay: false,
+      allowTimelineOverlay: false,
+      tilerImplemented: false,
+      tiles: const <ProfessionalVideoTransitionMirrorEdgeTile>[],
+      blockedReasons: const <String>[],
+      issues: issues,
+    );
+  }
+
+  final ProfessionalVideoTransitionMirrorEdgeTilingPlanStatus status;
+  final String reason;
+  final String rendererVersion;
+  final String definitionId;
+  final String renderSessionId;
+  final String temporalAccumulatorSessionId;
+  final String mirrorEdgeTilingSessionId;
+  final TimelineTime? timelineTime;
+  final TimelineTime? transitionStartTime;
+  final TimelineTime? transitionEndTime;
+  final String edgeMode;
+  final double outputScaleX;
+  final double outputScaleY;
+  final bool requiresMirrorEdgeTiling;
+  final bool requiresTemporalAccumulator;
+  final bool allowBlackBorders;
+  final bool allowFlutterOverlay;
+  final bool allowTimelineOverlay;
+  final bool tilerImplemented;
+  final List<ProfessionalVideoTransitionMirrorEdgeTile> tiles;
+  final List<String> blockedReasons;
+  final List<Map<String, Object?>> issues;
+
+  bool get canPlan =>
+      status == ProfessionalVideoTransitionMirrorEdgeTilingPlanStatus.planned;
+
+  bool get canTile =>
+      canPlan &&
+      requiresTemporalAccumulator &&
+      !allowBlackBorders &&
+      !allowFlutterOverlay &&
+      !allowTimelineOverlay &&
+      tilerImplemented &&
+      tiles.length == 2 &&
+      tiles.every((tile) => !tile.allowBlackBorders && tile.clipToCanvas) &&
+      blockedReasons.isEmpty;
+}
+
+class ProfessionalVideoTransitionMirrorEdgeTilingPlanResultMapper {
+  const ProfessionalVideoTransitionMirrorEdgeTilingPlanResultMapper._();
+
+  static ProfessionalVideoTransitionMirrorEdgeTilingPlanResult fromMap(
+    Map<String, Object?>? map,
+  ) {
+    if (map == null) {
+      return ProfessionalVideoTransitionMirrorEdgeTilingPlanResult
+          .invalidRequest(
+        reason: 'native_compositor_empty_mirror_edge_tiling_response',
+      );
+    }
+    final status = switch (map['status']?.toString()) {
+      'planned' =>
+        ProfessionalVideoTransitionMirrorEdgeTilingPlanStatus.planned,
+      _ => ProfessionalVideoTransitionMirrorEdgeTilingPlanStatus.invalidRequest,
+    };
+    return ProfessionalVideoTransitionMirrorEdgeTilingPlanResult(
+      status: status,
+      reason: map['reason']?.toString() ?? '',
+      rendererVersion: map['rendererVersion']?.toString() ?? 'unknown',
+      definitionId: map['definitionId']?.toString() ?? '',
+      renderSessionId: map['renderSessionId']?.toString() ?? '',
+      temporalAccumulatorSessionId:
+          map['temporalAccumulatorSessionId']?.toString() ?? '',
+      mirrorEdgeTilingSessionId:
+          map['mirrorEdgeTilingSessionId']?.toString() ?? '',
+      timelineTime: _readTimelineTime(map['timelineTimeMs']),
+      transitionStartTime: _readTimelineTime(map['transitionStartMs']),
+      transitionEndTime: _readTimelineTime(map['transitionEndMs']),
+      edgeMode: map['edgeMode']?.toString() ?? '',
+      outputScaleX: _readDouble(map['outputScaleX'], defaultValue: 1),
+      outputScaleY: _readDouble(map['outputScaleY'], defaultValue: 1),
+      requiresMirrorEdgeTiling: _readBool(map['requiresMirrorEdgeTiling']),
+      requiresTemporalAccumulator: _readBool(
+        map['requiresTemporalAccumulator'],
+        defaultValue: true,
+      ),
+      allowBlackBorders: _readBool(map['allowBlackBorders']),
+      allowFlutterOverlay: _readBool(map['allowFlutterOverlay']),
+      allowTimelineOverlay: _readBool(map['allowTimelineOverlay']),
+      tilerImplemented: _readBool(map['tilerImplemented']),
+      tiles: _readTiles(map['tiles']),
+      blockedReasons: _readStringList(map['blockedReasons']),
+      issues: _readIssues(map['issues']),
+    );
+  }
+
+  static List<ProfessionalVideoTransitionMirrorEdgeTile> _readTiles(
+    Object? value,
+  ) {
+    if (value is! List) {
+      return const <ProfessionalVideoTransitionMirrorEdgeTile>[];
+    }
+    return List<ProfessionalVideoTransitionMirrorEdgeTile>.unmodifiable(
+      value.whereType<Map>().map((tile) {
+        return ProfessionalVideoTransitionMirrorEdgeTile(
+          tileId: tile['tileId']?.toString() ?? '',
+          role: tile['role']?.toString() ?? '',
+          inputAccumulatorId: tile['inputAccumulatorId']?.toString() ?? '',
+          edgeMode: tile['edgeMode']?.toString() ?? '',
+          outputScaleX: _readDouble(tile['outputScaleX'], defaultValue: 1),
+          outputScaleY: _readDouble(tile['outputScaleY'], defaultValue: 1),
+          mirrorEdges: _readBool(tile['mirrorEdges']),
+          clipToCanvas: _readBool(tile['clipToCanvas'], defaultValue: true),
+          allowBlackBorders: _readBool(tile['allowBlackBorders']),
+        );
+      }),
+    );
+  }
+
+  static TimelineTime? _readTimelineTime(Object? value) {
+    if (value is num) {
+      return TimelineTime.fromMilliseconds(value.round());
+    }
+    final parsed = int.tryParse(value?.toString() ?? '');
+    if (parsed == null) {
+      return null;
+    }
+    return TimelineTime.fromMilliseconds(parsed);
+  }
+
+  static bool _readBool(Object? value, {bool defaultValue = false}) {
+    if (value is bool) {
+      return value;
+    }
+    return defaultValue;
+  }
+
+  static double _readDouble(Object? value, {double defaultValue = 0}) {
+    if (value is num) {
+      return value.toDouble();
+    }
+    return double.tryParse(value?.toString() ?? '') ?? defaultValue;
   }
 
   static List<String> _readStringList(Object? value) {

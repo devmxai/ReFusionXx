@@ -976,6 +976,136 @@ void main() {
     );
   });
 
+  test('method channel mirror edge tiling blocks black-border fallbacks',
+      () async {
+    const channel = MethodChannel(
+        'com.refusion.app/professional_video_transition_compositor');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(channel, null);
+    });
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'planMirrorEdgeTiling');
+      final arguments = call.arguments! as Map<Object?, Object?>;
+      expect(arguments['definitionId'], 'zoomInCamera');
+      expect(arguments['timelineTimeMs'], 10000);
+      return <String, Object?>{
+        'status': 'planned',
+        'reason': '',
+        'rendererVersion': 'foundation',
+        'definitionId': 'zoomInCamera',
+        'renderSessionId': 'transition-session:zoom-native-1',
+        'temporalAccumulatorSessionId':
+            'transition-session:zoom-native-1:accumulator-session:10000',
+        'mirrorEdgeTilingSessionId':
+            'transition-session:zoom-native-1:mirror-edge:10000',
+        'timelineTimeMs': 10000,
+        'transitionStartMs': 8000,
+        'transitionEndMs': 12000,
+        'edgeMode': 'mirrorTile',
+        'outputScaleX': 4.0,
+        'outputScaleY': 3.5,
+        'requiresMirrorEdgeTiling': true,
+        'requiresTemporalAccumulator': true,
+        'allowBlackBorders': false,
+        'allowFlutterOverlay': false,
+        'allowTimelineOverlay': false,
+        'tilerImplemented': false,
+        'tiles': <Map<String, Object?>>[
+          <String, Object?>{
+            'tileId':
+                'transition-session:zoom-native-1:mirror-tile:outgoing:10000',
+            'role': 'outgoing',
+            'inputAccumulatorId':
+                'transition-session:zoom-native-1:accumulator:outgoing:10000',
+            'edgeMode': 'mirrorTile',
+            'outputScaleX': 4.0,
+            'outputScaleY': 3.5,
+            'mirrorEdges': true,
+            'clipToCanvas': true,
+            'allowBlackBorders': false,
+          },
+          <String, Object?>{
+            'tileId':
+                'transition-session:zoom-native-1:mirror-tile:incoming:10000',
+            'role': 'incoming',
+            'inputAccumulatorId':
+                'transition-session:zoom-native-1:accumulator:incoming:10000',
+            'edgeMode': 'mirrorTile',
+            'outputScaleX': 4.0,
+            'outputScaleY': 3.5,
+            'mirrorEdges': true,
+            'clipToCanvas': true,
+            'allowBlackBorders': false,
+          },
+        ],
+        'blockedReasons': <String>['native_mirror_edge_tiler_missing'],
+      };
+    });
+
+    final result =
+        await const MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider(
+      channel: channel,
+    ).planMirrorEdgeTiling(
+      timelineTime: TimelineTime.fromMilliseconds(10000),
+      plan: ProfessionalZoomCameraRenderPlan(
+        canvasWidth: 1080,
+        canvasHeight: 1920,
+        request: ProfessionalZoomCameraPlanRequest(
+          transitionId: 'zoom-native-1',
+          timelineTime: TimelineTime.fromMilliseconds(10000),
+          boundaryTime: TimelineTime.fromMilliseconds(10000),
+          leadingDuration: TimelineTime.fromMilliseconds(2000),
+          trailingDuration: TimelineTime.fromMilliseconds(2000),
+          outgoing: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-a',
+            assetId: 'asset-a',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(28000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+          incoming: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-b',
+            assetId: 'asset-b',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(38000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+        ),
+      ).toGenericRenderPlan(),
+    );
+
+    expect(result.canPlan, isTrue);
+    expect(result.canTile, isFalse);
+    expect(result.edgeMode, 'mirrorTile');
+    expect(result.outputScaleX, 4.0);
+    expect(result.outputScaleY, 3.5);
+    expect(result.requiresMirrorEdgeTiling, isTrue);
+    expect(result.requiresTemporalAccumulator, isTrue);
+    expect(result.allowBlackBorders, isFalse);
+    expect(result.allowFlutterOverlay, isFalse);
+    expect(result.allowTimelineOverlay, isFalse);
+    expect(result.tilerImplemented, isFalse);
+    expect(result.tiles.map((tile) => tile.role), <String>[
+      'outgoing',
+      'incoming',
+    ]);
+    expect(result.tiles.first.mirrorEdges, isTrue);
+    expect(result.tiles.first.clipToCanvas, isTrue);
+    expect(result.tiles.first.allowBlackBorders, isFalse);
+    expect(
+      result.blockedReasons,
+      contains('native_mirror_edge_tiler_missing'),
+    );
+  });
+
   test('method channel render pass graph stays planning-only until renderer',
       () async {
     const channel = MethodChannel(

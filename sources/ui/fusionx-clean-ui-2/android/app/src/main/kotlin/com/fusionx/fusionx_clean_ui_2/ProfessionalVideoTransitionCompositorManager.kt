@@ -220,6 +220,46 @@ class ProfessionalVideoTransitionCompositorManager {
         )
     }
 
+    fun planMirrorEdgeTiling(
+        plan: Map<String, Any?>?,
+        timelineTimeMs: Long?,
+    ): Map<String, Any> {
+        val missingFields = requiredRenderPlanFields.filter { field ->
+            !hasRequiredField(plan, field)
+        }
+        if (missingFields.isNotEmpty()) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_required_video_transition_render_plan_fields",
+                "rendererVersion" to "foundation",
+                "missingFields" to missingFields,
+            )
+        }
+        if (timelineTimeMs == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_timeline_time_for_video_transition_mirror_edge_tiling",
+                "rendererVersion" to "foundation",
+            )
+        }
+        val definitionId = plan?.get("definitionId")?.toString() ?: ""
+        val sessionResult = ProfessionalVideoTransitionRenderSession.fromPlan(plan)
+        if (sessionResult.session == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "invalid_video_transition_render_session",
+                "rendererVersion" to "foundation",
+                "definitionId" to definitionId,
+                "issues" to sessionResult.issues,
+            )
+        }
+        return sessionResult.session.planMirrorEdgeTiling(
+            timelineTimeMs = timelineTimeMs,
+            motionBlurPolicy = plan?.get("motionBlurPolicy") as? Map<*, *>,
+            edgePolicy = plan?.get("edgePolicy") as? Map<*, *>,
+        )
+    }
+
     fun planRenderPassGraph(
         plan: Map<String, Any?>?,
         timelineTimeMs: Long?,
@@ -640,11 +680,10 @@ private data class ProfessionalVideoTransitionRenderSession(
             )
     }
 
-    fun planRenderPassGraph(
+    fun planMirrorEdgeTiling(
         timelineTimeMs: Long,
         motionBlurPolicy: Map<*, *>?,
         edgePolicy: Map<*, *>?,
-        parameters: Map<*, *>?,
     ): Map<String, Any> {
         val accumulatorPlan =
             planTemporalSampleAccumulator(
@@ -654,13 +693,80 @@ private data class ProfessionalVideoTransitionRenderSession(
         if (accumulatorPlan["status"] != "planned") {
             return accumulatorPlan
         }
-        val decodeRequests =
-            (accumulatorPlan["decodeRequests"] as? List<*>)?.mapNotNull { request ->
-                request as? Map<*, *>
-            } ?: emptyList()
+        val edgeMode = edgePolicy?.get("mode")?.toString() ?: "none"
+        val requiresMirrorEdgeTiling = edgeMode == "mirrorTile"
+        val outputScaleX = edgePolicy?.doubleValue("outputScaleX", defaultValue = 1.0) ?: 1.0
+        val outputScaleY = edgePolicy?.doubleValue("outputScaleY", defaultValue = 1.0) ?: 1.0
         val accumulators =
             (accumulatorPlan["accumulators"] as? List<*>)?.mapNotNull { accumulator ->
                 accumulator as? Map<*, *>
+            } ?: emptyList()
+        val tiles =
+            accumulators.map { accumulator ->
+                val role = accumulator["role"]?.toString() ?: ""
+                val inputAccumulatorId = accumulator["accumulatorId"]?.toString() ?: ""
+                mapOf(
+                    "tileId" to "$id:mirror-tile:$role:$timelineTimeMs",
+                    "role" to role,
+                    "inputAccumulatorId" to inputAccumulatorId,
+                    "edgeMode" to edgeMode,
+                    "outputScaleX" to outputScaleX,
+                    "outputScaleY" to outputScaleY,
+                    "mirrorEdges" to requiresMirrorEdgeTiling,
+                    "clipToCanvas" to true,
+                    "allowBlackBorders" to false,
+                )
+            }
+        val tilerImplemented = false
+        val blockedReasons =
+            if (!requiresMirrorEdgeTiling || tilerImplemented) {
+                emptyList()
+            } else {
+                listOf("native_mirror_edge_tiler_missing")
+            }
+        return accumulatorPlan +
+            mapOf(
+                "mirrorEdgeTilingSessionId" to "$id:mirror-edge:$timelineTimeMs",
+                "edgeMode" to edgeMode,
+                "outputScaleX" to outputScaleX,
+                "outputScaleY" to outputScaleY,
+                "requiresMirrorEdgeTiling" to requiresMirrorEdgeTiling,
+                "requiresTemporalAccumulator" to true,
+                "allowBlackBorders" to false,
+                "allowFlutterOverlay" to false,
+                "allowTimelineOverlay" to false,
+                "tilerImplemented" to tilerImplemented,
+                "tiles" to tiles,
+                "blockedReasons" to blockedReasons,
+            )
+    }
+
+    fun planRenderPassGraph(
+        timelineTimeMs: Long,
+        motionBlurPolicy: Map<*, *>?,
+        edgePolicy: Map<*, *>?,
+        parameters: Map<*, *>?,
+    ): Map<String, Any> {
+        val tilePlan =
+            planMirrorEdgeTiling(
+                timelineTimeMs = timelineTimeMs,
+                motionBlurPolicy = motionBlurPolicy,
+                edgePolicy = edgePolicy,
+            )
+        if (tilePlan["status"] != "planned") {
+            return tilePlan
+        }
+        val decodeRequests =
+            (tilePlan["decodeRequests"] as? List<*>)?.mapNotNull { request ->
+                request as? Map<*, *>
+            } ?: emptyList()
+        val accumulators =
+            (tilePlan["accumulators"] as? List<*>)?.mapNotNull { accumulator ->
+                accumulator as? Map<*, *>
+            } ?: emptyList()
+        val tiles =
+            (tilePlan["tiles"] as? List<*>)?.mapNotNull { tile ->
+                tile as? Map<*, *>
             } ?: emptyList()
         val outgoingDecodeIds = decodeRequests.idsForRole("outgoing")
         val incomingDecodeIds = decodeRequests.idsForRole("incoming")
@@ -671,12 +777,12 @@ private data class ProfessionalVideoTransitionRenderSession(
         val incomingAccumulatorId =
             accumulators.firstOrNull { accumulator -> accumulator["role"] == "incoming" }
                 ?.get("accumulatorId")?.toString() ?: incomingTemporalPassFallback(timelineTimeMs)
-        val edgeMode = edgePolicy?.get("mode")?.toString() ?: "none"
-        val requiresMirrorEdgeTiling = edgeMode == "mirrorTile"
+        val edgeMode = tilePlan["edgeMode"]?.toString() ?: "none"
+        val requiresMirrorEdgeTiling = tilePlan["requiresMirrorEdgeTiling"] == true
         val shutterSampleCount =
-            (accumulatorPlan["shutterSampleCount"] as? Number)?.toInt()?.coerceAtLeast(1) ?: 1
+            (tilePlan["shutterSampleCount"] as? Number)?.toInt()?.coerceAtLeast(1) ?: 1
         val requiresTemporalAccumulation =
-            accumulatorPlan["motionBlurMode"] == "temporalShutter" && shutterSampleCount > 1
+            tilePlan["motionBlurMode"] == "temporalShutter" && shutterSampleCount > 1
         val outgoingTemporalPass = "$id:pass:temporal:outgoing:$timelineTimeMs"
         val incomingTemporalPass = "$id:pass:temporal:incoming:$timelineTimeMs"
         val edgePass = "$id:pass:edge:$timelineTimeMs"
@@ -707,7 +813,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                 parameters =
                     mapOf(
                         "sampleCount" to outgoingDecodeIds.size,
-                        "motionBlurMode" to (accumulatorPlan["motionBlurMode"] ?: "none"),
+                        "motionBlurMode" to (tilePlan["motionBlurMode"] ?: "none"),
                         "accumulatorId" to outgoingAccumulatorId,
                         "allowGaussianFallback" to false,
                         "allowDecorativeSpeedLines" to false,
@@ -723,7 +829,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                 parameters =
                     mapOf(
                         "sampleCount" to incomingDecodeIds.size,
-                        "motionBlurMode" to (accumulatorPlan["motionBlurMode"] ?: "none"),
+                        "motionBlurMode" to (tilePlan["motionBlurMode"] ?: "none"),
                         "accumulatorId" to incomingAccumulatorId,
                         "allowGaussianFallback" to false,
                         "allowDecorativeSpeedLines" to false,
@@ -740,8 +846,10 @@ private data class ProfessionalVideoTransitionRenderSession(
                     parameters =
                         mapOf(
                             "mode" to edgeMode,
-                            "outputScaleX" to (edgePolicy?.get("outputScaleX") ?: 1.0),
-                            "outputScaleY" to (edgePolicy?.get("outputScaleY") ?: 1.0),
+                            "tileIds" to tiles.mapNotNull { tile -> tile["tileId"]?.toString() },
+                            "outputScaleX" to (tilePlan["outputScaleX"] ?: 1.0),
+                            "outputScaleY" to (tilePlan["outputScaleY"] ?: 1.0),
+                            "allowBlackBorders" to false,
                         ),
                 ),
             )
@@ -760,7 +868,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                 parameters =
                     mapOf(
                         "definitionId" to definitionId,
-                        "progress" to (accumulatorPlan["progress"] ?: 0.0),
+                        "progress" to (tilePlan["progress"] ?: 0.0),
                         "parameters" to (parameters?.stringKeyMap() ?: emptyMap<String, Any?>()),
                     ),
             ),
@@ -778,7 +886,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                     ),
             ),
         )
-        return accumulatorPlan +
+        return tilePlan +
             mapOf(
                 "renderPassGraphId" to "$id:graph:$timelineTimeMs",
                 "requiresExactVideoDecode" to true,
