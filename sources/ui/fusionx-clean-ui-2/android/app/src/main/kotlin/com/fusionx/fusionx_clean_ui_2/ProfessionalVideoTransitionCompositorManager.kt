@@ -1,9 +1,11 @@
 package com.refusion.app
 
 import android.content.Context
+import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
+import kotlin.math.abs
 
 class ProfessionalVideoTransitionCompositorManager(
     private val appContext: Context,
@@ -12,7 +14,7 @@ class ProfessionalVideoTransitionCompositorManager(
 
     fun capabilities(): Map<String, Any> =
         mapOf(
-            "dualVideoSampling" to false,
+            "dualVideoSampling" to true,
             "temporalMotionBlur" to false,
             "mirrorEdgeTiling" to false,
             "previewParity" to false,
@@ -260,6 +262,7 @@ class ProfessionalVideoTransitionCompositorManager(
         return sessionResult.session.planDualVideoDecoderSession(
             timelineTimeMs = timelineTimeMs,
             motionBlurPolicy = plan?.get("motionBlurPolicy") as? Map<*, *>,
+            appContext = appContext,
         )
     }
 
@@ -299,6 +302,7 @@ class ProfessionalVideoTransitionCompositorManager(
         return sessionResult.session.planTemporalSampleAccumulator(
             timelineTimeMs = timelineTimeMs,
             motionBlurPolicy = plan?.get("motionBlurPolicy") as? Map<*, *>,
+            appContext = appContext,
         )
     }
 
@@ -339,6 +343,7 @@ class ProfessionalVideoTransitionCompositorManager(
             timelineTimeMs = timelineTimeMs,
             motionBlurPolicy = plan?.get("motionBlurPolicy") as? Map<*, *>,
             edgePolicy = plan?.get("edgePolicy") as? Map<*, *>,
+            appContext = appContext,
         )
     }
 
@@ -380,6 +385,7 @@ class ProfessionalVideoTransitionCompositorManager(
             motionBlurPolicy = plan?.get("motionBlurPolicy") as? Map<*, *>,
             edgePolicy = plan?.get("edgePolicy") as? Map<*, *>,
             parameters = plan?.get("parameters") as? Map<*, *>,
+            appContext = appContext,
         )
     }
 
@@ -421,6 +427,7 @@ class ProfessionalVideoTransitionCompositorManager(
             motionBlurPolicy = plan?.get("motionBlurPolicy") as? Map<*, *>,
             edgePolicy = plan?.get("edgePolicy") as? Map<*, *>,
             parameters = plan?.get("parameters") as? Map<*, *>,
+            appContext = appContext,
         )
     }
 
@@ -462,6 +469,7 @@ class ProfessionalVideoTransitionCompositorManager(
             motionBlurPolicy = plan?.get("motionBlurPolicy") as? Map<*, *>,
             edgePolicy = plan?.get("edgePolicy") as? Map<*, *>,
             parameters = plan?.get("parameters") as? Map<*, *>,
+            appContext = appContext,
         )
     }
 
@@ -779,6 +787,7 @@ private data class ProfessionalVideoTransitionRenderSession(
     fun planDualVideoDecoderSession(
         timelineTimeMs: Long,
         motionBlurPolicy: Map<*, *>?,
+        appContext: Context,
     ): Map<String, Any> {
         val decodePlan =
             planFrameDecodeRequests(
@@ -792,17 +801,62 @@ private data class ProfessionalVideoTransitionRenderSession(
             (decodePlan["decodeRequests"] as? List<*>)?.mapNotNull { request ->
                 request as? Map<*, *>
             } ?: emptyList()
+        val sourceProbePlan =
+            planVideoSourceProbe(
+                timelineTimeMs = timelineTimeMs,
+                appContext = appContext,
+            )
+        val sourceProbes =
+            (sourceProbePlan["probes"] as? List<*>)?.mapNotNull { probe ->
+                probe as? Map<*, *>
+            } ?: emptyList()
+        val probesByRole = sourceProbes.associateBy { probe ->
+            probe["role"]?.toString() ?: ""
+        }
         val tracks =
             listOf("outgoing", "incoming").map { role ->
                 val roleRequests = decodeRequests.filter { request ->
                     request["role"] == role
                 }
                 val firstRequest = roleRequests.firstOrNull()
+                val centerRequest =
+                    roleRequests.firstOrNull { request -> request["centerSample"] == true }
+                        ?: firstRequest
+                val sourceUri = firstRequest?.get("sourceUri")?.toString() ?: ""
+                val sourceProbe = probesByRole[role]
+                val sourceProbeReady =
+                    sourceProbe != null &&
+                        sourceProbe["sourceUriBound"] == true &&
+                        sourceProbe["canOpenSource"] == true &&
+                        sourceProbe["hasVideoTrack"] == true &&
+                        ((sourceProbe["blockedReasons"] as? List<*>)?.isEmpty() != false)
+                val centerSourceTimeMs =
+                    (centerRequest?.get("sourceTimeMs") as? Number)?.toLong()
+                        ?: centerRequest?.get("sourceTimeMs")?.toString()?.toLongOrNull()
+                        ?: 0L
+                val decodeProbe =
+                    if (sourceProbeReady && sourceUri.isNotBlank()) {
+                        probeExactVideoFrame(
+                            appContext = appContext,
+                            sourceUri = sourceUri,
+                            sourceTimeMs = centerSourceTimeMs,
+                            frameRate = (sourceProbe?.get("videoFrameRate") as? Number)?.toInt(),
+                        )
+                    } else {
+                        ExactVideoFrameProbeResult(
+                            canDecodeFrame = false,
+                            decodedFrameTimeUs = null,
+                            outputFormatMimeType = "",
+                            outputWidth = 0,
+                            outputHeight = 0,
+                            reason = "native_video_source_probe_not_ready",
+                        )
+                    }
                 mapOf(
                     "role" to role,
                     "clipId" to (firstRequest?.get("clipId")?.toString() ?: ""),
                     "assetId" to (firstRequest?.get("assetId")?.toString() ?: ""),
-                    "sourceUri" to (firstRequest?.get("sourceUri")?.toString() ?: ""),
+                    "sourceUri" to sourceUri,
                     "decodeRequestIds" to roleRequests.mapNotNull { request ->
                         request["decodeRequestId"]?.toString()
                     },
@@ -810,20 +864,49 @@ private data class ProfessionalVideoTransitionRenderSession(
                     "requiresExactFrameDecode" to true,
                     "allowThumbnailFallback" to false,
                     "allowBoundaryFreeze" to false,
+                    "sourceProbeReady" to sourceProbeReady,
+                    "videoMimeType" to (sourceProbe?.get("videoMimeType")?.toString() ?: ""),
+                    "videoWidth" to ((sourceProbe?.get("videoWidth") as? Number)?.toInt() ?: 0),
+                    "videoHeight" to ((sourceProbe?.get("videoHeight") as? Number)?.toInt() ?: 0),
+                    "videoDurationUs" to ((sourceProbe?.get("videoDurationUs") as? Number)?.toLong() ?: 0L),
+                    "videoFrameRate" to ((sourceProbe?.get("videoFrameRate") as? Number)?.toInt() ?: 0),
+                    "centerSampleSourceTimeMs" to centerSourceTimeMs,
+                    "exactFrameDecodeProbeImplemented" to true,
+                    "canDecodeCenterFrame" to decodeProbe.canDecodeFrame,
+                    "decodedCenterFrameTimeMs" to ((decodeProbe.decodedFrameTimeUs ?: 0L) / 1000L),
+                    "decodeProbeReason" to (decodeProbe.reason ?: ""),
+                    "decodedOutputMimeType" to decodeProbe.outputFormatMimeType,
+                    "decodedOutputWidth" to decodeProbe.outputWidth,
+                    "decodedOutputHeight" to decodeProbe.outputHeight,
                 )
             }
-        val decoderImplemented = false
+        val decoderImplemented =
+            tracks.size == 2 &&
+                tracks.all { track ->
+                    track["sourceProbeReady"] == true &&
+                        track["canDecodeCenterFrame"] == true
+                }
         val sourceUrisBound =
             tracks.all { track -> track["sourceUri"]?.toString()?.isNotBlank() == true }
+        val allSourcesProbeable = sourceProbePlan["allSourcesProbeable"] == true
         val blockedReasons =
             buildList {
                 if (!sourceUrisBound) {
                     add("native_video_source_uri_missing")
                 }
-                if (!decoderImplemented) {
-                    add("native_dual_video_decoder_missing")
+                if (!allSourcesProbeable) {
+                    add("native_video_source_probe_not_ready")
                 }
-            }
+                if (!decoderImplemented) {
+                    add("native_dual_video_decoder_not_ready")
+                }
+                tracks.forEach { track ->
+                    val reason = track["decodeProbeReason"]?.toString().orEmpty()
+                    if (reason.isNotBlank() && track["canDecodeCenterFrame"] != true) {
+                        add(reason)
+                    }
+                }
+            }.distinct()
         return decodePlan +
             mapOf(
                 "decoderSessionId" to "$id:decoder:$timelineTimeMs",
@@ -833,6 +916,8 @@ private data class ProfessionalVideoTransitionRenderSession(
                 "allowBoundaryFreeze" to false,
                 "decoderImplemented" to decoderImplemented,
                 "sourceUrisBound" to sourceUrisBound,
+                "allSourcesProbeable" to allSourcesProbeable,
+                "sourceProbePlanId" to "$id:source-probe:$timelineTimeMs",
                 "tracks" to tracks,
                 "blockedReasons" to blockedReasons,
             )
@@ -841,11 +926,13 @@ private data class ProfessionalVideoTransitionRenderSession(
     fun planTemporalSampleAccumulator(
         timelineTimeMs: Long,
         motionBlurPolicy: Map<*, *>?,
+        appContext: Context,
     ): Map<String, Any> {
         val decoderPlan =
             planDualVideoDecoderSession(
                 timelineTimeMs = timelineTimeMs,
                 motionBlurPolicy = motionBlurPolicy,
+                appContext = appContext,
             )
         if (decoderPlan["status"] != "planned") {
             return decoderPlan
@@ -903,11 +990,13 @@ private data class ProfessionalVideoTransitionRenderSession(
         timelineTimeMs: Long,
         motionBlurPolicy: Map<*, *>?,
         edgePolicy: Map<*, *>?,
+        appContext: Context,
     ): Map<String, Any> {
         val accumulatorPlan =
             planTemporalSampleAccumulator(
                 timelineTimeMs = timelineTimeMs,
                 motionBlurPolicy = motionBlurPolicy,
+                appContext = appContext,
             )
         if (accumulatorPlan["status"] != "planned") {
             return accumulatorPlan
@@ -965,12 +1054,14 @@ private data class ProfessionalVideoTransitionRenderSession(
         motionBlurPolicy: Map<*, *>?,
         edgePolicy: Map<*, *>?,
         parameters: Map<*, *>?,
+        appContext: Context,
     ): Map<String, Any> {
         val tilePlan =
             planMirrorEdgeTiling(
                 timelineTimeMs = timelineTimeMs,
                 motionBlurPolicy = motionBlurPolicy,
                 edgePolicy = edgePolicy,
+                appContext = appContext,
             )
         if (tilePlan["status"] != "planned") {
             return tilePlan
@@ -1137,6 +1228,7 @@ private data class ProfessionalVideoTransitionRenderSession(
         motionBlurPolicy: Map<*, *>?,
         edgePolicy: Map<*, *>?,
         parameters: Map<*, *>?,
+        appContext: Context,
     ): Map<String, Any> {
         val graphPlan =
             planRenderPassGraph(
@@ -1144,6 +1236,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                 motionBlurPolicy = motionBlurPolicy,
                 edgePolicy = edgePolicy,
                 parameters = parameters,
+                appContext = appContext,
             )
         if (graphPlan["status"] != "planned") {
             return graphPlan
@@ -1177,6 +1270,7 @@ private data class ProfessionalVideoTransitionRenderSession(
         motionBlurPolicy: Map<*, *>?,
         edgePolicy: Map<*, *>?,
         parameters: Map<*, *>?,
+        appContext: Context,
     ): Map<String, Any> {
         val surfacePlan =
             planOutputSurface(
@@ -1184,6 +1278,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                 motionBlurPolicy = motionBlurPolicy,
                 edgePolicy = edgePolicy,
                 parameters = parameters,
+                appContext = appContext,
             )
         if (surfacePlan["status"] != "planned") {
             return surfacePlan
@@ -1553,6 +1648,15 @@ private data class VideoSourceProbeResult(
     val reason: String?,
 )
 
+private data class ExactVideoFrameProbeResult(
+    val canDecodeFrame: Boolean,
+    val decodedFrameTimeUs: Long?,
+    val outputFormatMimeType: String,
+    val outputWidth: Int,
+    val outputHeight: Int,
+    val reason: String?,
+)
+
 private fun probeVideoSource(
     appContext: Context,
     sourceUri: String,
@@ -1661,6 +1765,220 @@ private fun probeVideoSource(
     }
 }
 
+private fun probeExactVideoFrame(
+    appContext: Context,
+    sourceUri: String,
+    sourceTimeMs: Long,
+    frameRate: Int?,
+): ExactVideoFrameProbeResult {
+    val uri =
+        runCatching { Uri.parse(sourceUri) }.getOrElse {
+            return ExactVideoFrameProbeResult(
+                canDecodeFrame = false,
+                decodedFrameTimeUs = null,
+                outputFormatMimeType = "",
+                outputWidth = 0,
+                outputHeight = 0,
+                reason = "native_video_source_uri_parse_failed",
+            )
+        }
+    val extractor = MediaExtractor()
+    var codec: MediaCodec? = null
+    try {
+        when (uri.scheme) {
+            "file" -> {
+                val path = uri.path
+                if (path.isNullOrBlank()) {
+                    return ExactVideoFrameProbeResult(
+                        canDecodeFrame = false,
+                        decodedFrameTimeUs = null,
+                        outputFormatMimeType = "",
+                        outputWidth = 0,
+                        outputHeight = 0,
+                        reason = "native_video_source_file_path_missing",
+                    )
+                }
+                extractor.setDataSource(path)
+            }
+            "content" -> extractor.setDataSource(appContext, uri, null)
+            else -> {
+                return ExactVideoFrameProbeResult(
+                    canDecodeFrame = false,
+                    decodedFrameTimeUs = null,
+                    outputFormatMimeType = "",
+                    outputWidth = 0,
+                    outputHeight = 0,
+                    reason = "native_video_source_uri_scheme_unsupported",
+                )
+            }
+        }
+
+        var videoTrackIndex = -1
+        var videoFormat: MediaFormat? = null
+        var mimeType = ""
+        for (index in 0 until extractor.trackCount) {
+            val format = extractor.getTrackFormat(index)
+            val candidateMimeType =
+                if (format.containsKey(MediaFormat.KEY_MIME)) {
+                    format.getString(MediaFormat.KEY_MIME).orEmpty()
+                } else {
+                    ""
+                }
+            if (candidateMimeType.startsWith("video/")) {
+                videoTrackIndex = index
+                videoFormat = format
+                mimeType = candidateMimeType
+                break
+            }
+        }
+        val format = videoFormat
+            ?: return ExactVideoFrameProbeResult(
+                canDecodeFrame = false,
+                decodedFrameTimeUs = null,
+                outputFormatMimeType = "",
+                outputWidth = 0,
+                outputHeight = 0,
+                reason = "native_video_track_missing",
+            )
+        extractor.selectTrack(videoTrackIndex)
+
+        val effectiveFrameRate =
+            (frameRate ?: format.optionalInt(MediaFormat.KEY_FRAME_RATE) ?: 30).coerceAtLeast(1)
+        val frameDurationUs = 1_000_000L / effectiveFrameRate.toLong()
+        val durationUs = format.optionalLong(MediaFormat.KEY_DURATION)
+        val requestedTargetUs = sourceTimeMs.coerceAtLeast(0L) * 1000L
+        val targetUs =
+            if (durationUs != null && durationUs > frameDurationUs) {
+                requestedTargetUs.coerceIn(0L, durationUs - frameDurationUs)
+            } else {
+                requestedTargetUs
+            }
+        val toleranceUs = maxOf(100_000L, frameDurationUs * 3L)
+        extractor.seekTo(targetUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
+
+        codec = MediaCodec.createDecoderByType(mimeType)
+        codec.configure(format, null, null, 0)
+        codec.start()
+
+        val bufferInfo = MediaCodec.BufferInfo()
+        var inputDone = false
+        var decodedFrames = 0
+        val timeoutAtNanos = System.nanoTime() + 1_500_000_000L
+        while (System.nanoTime() < timeoutAtNanos && decodedFrames < 240) {
+            if (!inputDone) {
+                val inputBufferIndex = codec.dequeueInputBuffer(10_000L)
+                if (inputBufferIndex >= 0) {
+                    val inputBuffer = codec.getInputBuffer(inputBufferIndex)
+                    val sampleSize =
+                        if (inputBuffer == null) {
+                            -1
+                        } else {
+                            extractor.readSampleData(inputBuffer, 0)
+                        }
+                    if (sampleSize < 0) {
+                        codec.queueInputBuffer(
+                            inputBufferIndex,
+                            0,
+                            0,
+                            0L,
+                            MediaCodec.BUFFER_FLAG_END_OF_STREAM,
+                        )
+                        inputDone = true
+                    } else {
+                        codec.queueInputBuffer(
+                            inputBufferIndex,
+                            0,
+                            sampleSize,
+                            extractor.sampleTime,
+                            0,
+                        )
+                        extractor.advance()
+                    }
+                }
+            }
+
+            when (val outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, 10_000L)) {
+                MediaCodec.INFO_TRY_AGAIN_LATER -> Unit
+                MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> Unit
+                else -> {
+                    if (outputBufferIndex >= 0) {
+                        val presentationUs = bufferInfo.presentationTimeUs
+                        val hasFrame = bufferInfo.size > 0
+                        val eos =
+                            bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0
+                        codec.releaseOutputBuffer(outputBufferIndex, false)
+                        if (hasFrame) {
+                            decodedFrames += 1
+                            if (abs(presentationUs - targetUs) <= toleranceUs) {
+                                return ExactVideoFrameProbeResult(
+                                    canDecodeFrame = true,
+                                    decodedFrameTimeUs = presentationUs,
+                                    outputFormatMimeType = mimeType,
+                                    outputWidth = format.optionalInt(MediaFormat.KEY_WIDTH) ?: 0,
+                                    outputHeight = format.optionalInt(MediaFormat.KEY_HEIGHT) ?: 0,
+                                    reason = null,
+                                )
+                            }
+                            if (presentationUs > targetUs + toleranceUs) {
+                                return ExactVideoFrameProbeResult(
+                                    canDecodeFrame = false,
+                                    decodedFrameTimeUs = presentationUs,
+                                    outputFormatMimeType = mimeType,
+                                    outputWidth = format.optionalInt(MediaFormat.KEY_WIDTH) ?: 0,
+                                    outputHeight = format.optionalInt(MediaFormat.KEY_HEIGHT) ?: 0,
+                                    reason = "native_exact_frame_decode_tolerance_miss",
+                                )
+                            }
+                        }
+                        if (eos) {
+                            return ExactVideoFrameProbeResult(
+                                canDecodeFrame = false,
+                                decodedFrameTimeUs = presentationUs.takeIf { hasFrame },
+                                outputFormatMimeType = mimeType,
+                                outputWidth = format.optionalInt(MediaFormat.KEY_WIDTH) ?: 0,
+                                outputHeight = format.optionalInt(MediaFormat.KEY_HEIGHT) ?: 0,
+                                reason = "native_exact_frame_decode_eos_before_target",
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        return ExactVideoFrameProbeResult(
+            canDecodeFrame = false,
+            decodedFrameTimeUs = null,
+            outputFormatMimeType = mimeType,
+            outputWidth = format.optionalInt(MediaFormat.KEY_WIDTH) ?: 0,
+            outputHeight = format.optionalInt(MediaFormat.KEY_HEIGHT) ?: 0,
+            reason = "native_exact_frame_decode_timeout",
+        )
+    } catch (_: SecurityException) {
+        return ExactVideoFrameProbeResult(
+            canDecodeFrame = false,
+            decodedFrameTimeUs = null,
+            outputFormatMimeType = "",
+            outputWidth = 0,
+            outputHeight = 0,
+            reason = "native_video_source_permission_denied",
+        )
+    } catch (_: Throwable) {
+        return ExactVideoFrameProbeResult(
+            canDecodeFrame = false,
+            decodedFrameTimeUs = null,
+            outputFormatMimeType = "",
+            outputWidth = 0,
+            outputHeight = 0,
+            reason = "native_exact_frame_decode_failed",
+        )
+    } finally {
+        runCatching {
+            codec?.stop()
+        }
+        codec?.release()
+        extractor.release()
+    }
+}
+
 private fun MediaFormat.optionalInt(key: String): Int? =
     if (containsKey(key)) {
         getInteger(key)
@@ -1759,7 +2077,7 @@ private class ProfessionalVideoTransitionRendererRegistry(
                 ).associateBy { definition -> definition.definitionId }
             return ProfessionalVideoTransitionRendererRegistry(
                 definitions = definitions,
-                availableCapabilities = emptySet(),
+                availableCapabilities = setOf("dualVideoSampling"),
             )
         }
     }

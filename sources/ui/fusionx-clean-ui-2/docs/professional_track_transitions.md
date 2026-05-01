@@ -801,11 +801,14 @@ Current gate:
   effect.
 - Flutter and Android now also share `planDualVideoDecoderSession`. This groups
   exact outgoing and incoming decode requests into two native decoder tracks,
-  preserves sample ids and source asset identity, and keeps the session blocked
-  with `decoderImplemented=false` until a real dual-video decoder exists. This
-  is the contract that prevents MediaMetadataRetriever thumbnails, boundary
-  stills, or one-sided video playback from masquerading as professional
-  transition decoding.
+  preserves sample ids and source asset identity, and now depends on the real
+  Android source probe before it can advance. The native manager also performs
+  a strict center-sample `MediaCodec` decode probe for each side and reports
+  MIME type, dimensions, duration, frame rate, requested source time, decoded
+  frame time, and any decode blocker. Thumbnail fallback and boundary-frame
+  freezing remain forbidden. This is the first concrete dual-video sampling
+  slice; it still does not render a transition until temporal accumulation,
+  mirror-edge tiling, output surface, and parity renderer are implemented.
 - Flutter and Android now also share `planTemporalSampleAccumulator`. This binds
   the two decoder tracks into outgoing/incoming temporal accumulators with
   deterministic sample weights, exact-frame requirements, and explicit

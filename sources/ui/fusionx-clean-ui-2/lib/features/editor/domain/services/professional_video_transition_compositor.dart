@@ -1385,6 +1385,20 @@ class ProfessionalVideoTransitionDecoderTrack {
     required this.requiresExactFrameDecode,
     required this.allowThumbnailFallback,
     required this.allowBoundaryFreeze,
+    this.sourceProbeReady = true,
+    this.videoMimeType = '',
+    this.videoWidth = 0,
+    this.videoHeight = 0,
+    this.videoDurationUs = 0,
+    this.videoFrameRate = 0,
+    this.centerSampleSourceTimeMs = 0,
+    this.exactFrameDecodeProbeImplemented = true,
+    this.canDecodeCenterFrame = true,
+    this.decodedCenterFrameTimeMs = 0,
+    this.decodeProbeReason = '',
+    this.decodedOutputMimeType = '',
+    this.decodedOutputWidth = 0,
+    this.decodedOutputHeight = 0,
   });
 
   final String role;
@@ -1396,6 +1410,20 @@ class ProfessionalVideoTransitionDecoderTrack {
   final bool requiresExactFrameDecode;
   final bool allowThumbnailFallback;
   final bool allowBoundaryFreeze;
+  final bool sourceProbeReady;
+  final String videoMimeType;
+  final int videoWidth;
+  final int videoHeight;
+  final int videoDurationUs;
+  final int videoFrameRate;
+  final int centerSampleSourceTimeMs;
+  final bool exactFrameDecodeProbeImplemented;
+  final bool canDecodeCenterFrame;
+  final int decodedCenterFrameTimeMs;
+  final String decodeProbeReason;
+  final String decodedOutputMimeType;
+  final int decodedOutputWidth;
+  final int decodedOutputHeight;
 }
 
 @immutable
@@ -1476,6 +1504,11 @@ class ProfessionalVideoTransitionDecoderSessionPlanResult {
       !allowBoundaryFreeze &&
       decoderImplemented &&
       tracks.length == 2 &&
+      tracks.every((track) {
+        return track.sourceProbeReady &&
+            track.exactFrameDecodeProbeImplemented &&
+            track.canDecodeCenterFrame;
+      }) &&
       blockedReasons.isEmpty;
 }
 
@@ -1542,6 +1575,30 @@ class ProfessionalVideoTransitionDecoderSessionPlanResultMapper {
           ),
           allowThumbnailFallback: _readBool(track['allowThumbnailFallback']),
           allowBoundaryFreeze: _readBool(track['allowBoundaryFreeze']),
+          sourceProbeReady: _readBool(
+            track['sourceProbeReady'],
+            defaultValue: true,
+          ),
+          videoMimeType: track['videoMimeType']?.toString() ?? '',
+          videoWidth: _readInt(track['videoWidth']),
+          videoHeight: _readInt(track['videoHeight']),
+          videoDurationUs: _readInt(track['videoDurationUs']),
+          videoFrameRate: _readInt(track['videoFrameRate']),
+          centerSampleSourceTimeMs: _readInt(track['centerSampleSourceTimeMs']),
+          exactFrameDecodeProbeImplemented: _readBool(
+            track['exactFrameDecodeProbeImplemented'],
+            defaultValue: true,
+          ),
+          canDecodeCenterFrame: _readBool(
+            track['canDecodeCenterFrame'],
+            defaultValue: true,
+          ),
+          decodedCenterFrameTimeMs: _readInt(track['decodedCenterFrameTimeMs']),
+          decodeProbeReason: track['decodeProbeReason']?.toString() ?? '',
+          decodedOutputMimeType:
+              track['decodedOutputMimeType']?.toString() ?? '',
+          decodedOutputWidth: _readInt(track['decodedOutputWidth']),
+          decodedOutputHeight: _readInt(track['decodedOutputHeight']),
         );
       }),
     );

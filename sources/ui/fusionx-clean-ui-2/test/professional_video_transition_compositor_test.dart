@@ -1033,6 +1033,19 @@ void main() {
             'requiresExactFrameDecode': true,
             'allowThumbnailFallback': false,
             'allowBoundaryFreeze': false,
+            'sourceProbeReady': true,
+            'videoMimeType': 'video/avc',
+            'videoWidth': 1080,
+            'videoHeight': 1920,
+            'videoDurationUs': 60000000,
+            'videoFrameRate': 30,
+            'centerSampleSourceTimeMs': 30017,
+            'exactFrameDecodeProbeImplemented': true,
+            'canDecodeCenterFrame': true,
+            'decodedCenterFrameTimeMs': 30017,
+            'decodedOutputMimeType': 'video/avc',
+            'decodedOutputWidth': 1080,
+            'decodedOutputHeight': 1920,
           },
           <String, Object?>{
             'role': 'incoming',
@@ -1047,6 +1060,17 @@ void main() {
             'requiresExactFrameDecode': true,
             'allowThumbnailFallback': false,
             'allowBoundaryFreeze': false,
+            'sourceProbeReady': true,
+            'videoMimeType': 'video/hevc',
+            'videoWidth': 1080,
+            'videoHeight': 1920,
+            'videoDurationUs': 60000000,
+            'videoFrameRate': 30,
+            'centerSampleSourceTimeMs': 40017,
+            'exactFrameDecodeProbeImplemented': true,
+            'canDecodeCenterFrame': false,
+            'decodedCenterFrameTimeMs': 0,
+            'decodeProbeReason': 'native_exact_frame_decode_timeout',
           },
         ],
         'blockedReasons': <String>['native_dual_video_decoder_missing'],
@@ -1106,8 +1130,18 @@ void main() {
     ]);
     expect(result.tracks.first.sampleCount, 2);
     expect(result.tracks.first.sourceUri, 'file:///tmp/outgoing.mp4');
+    expect(result.tracks.first.sourceProbeReady, isTrue);
+    expect(result.tracks.first.videoMimeType, 'video/avc');
+    expect(result.tracks.first.canDecodeCenterFrame, isTrue);
+    expect(result.tracks.first.decodedCenterFrameTimeMs, 30017);
     expect(result.tracks.last.assetId, 'asset-b');
     expect(result.tracks.last.sourceUri, 'file:///tmp/incoming.mp4');
+    expect(result.tracks.last.videoMimeType, 'video/hevc');
+    expect(result.tracks.last.canDecodeCenterFrame, isFalse);
+    expect(
+      result.tracks.last.decodeProbeReason,
+      'native_exact_frame_decode_timeout',
+    );
     expect(
       result.blockedReasons,
       contains('native_dual_video_decoder_missing'),
