@@ -772,6 +772,12 @@ Current gate:
   explicitly forbids Flutter overlay drawing, timeline overlay drawing, and
   transformed PlatformView fallback paths, and remains blocked while
   `rendererImplemented=false`.
+- Flutter and Android now also share `planParityOutputs`. This is the parity
+  contract that prevents "works in preview but not in scrub/play/export"
+  drift. Preview, Live Scrub, playback, and export must all point at the same
+  native transition output contract, and all four modes remain blocked until a
+  concrete native renderer reports that it can render them without fallback
+  divergence.
 
 ## 9. Stop Conditions
 

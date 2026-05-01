@@ -938,6 +938,147 @@ void main() {
         contains('native_transition_output_surface_renderer_missing'));
   });
 
+  test('method channel parity outputs lock every playback mode until renderer',
+      () async {
+    const channel = MethodChannel(
+        'com.refusion.app/professional_video_transition_compositor');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(channel, null);
+    });
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'planParityOutputs');
+      final arguments = call.arguments! as Map<Object?, Object?>;
+      expect(arguments['definitionId'], 'zoomInCamera');
+      expect(arguments['timelineTimeMs'], 10000);
+      return <String, Object?>{
+        'status': 'planned',
+        'reason': '',
+        'rendererVersion': 'foundation',
+        'definitionId': 'zoomInCamera',
+        'renderSessionId': 'transition-session:zoom-native-1',
+        'renderPassGraphId': 'transition-session:zoom-native-1:graph:10000',
+        'outputSurfaceId':
+            'transition-session:zoom-native-1:surface:transition-output:10000',
+        'timelineTimeMs': 10000,
+        'transitionStartMs': 8000,
+        'transitionEndMs': 12000,
+        'rendererImplemented': false,
+        'sameOutputContractForAllModes': true,
+        'allModesRenderable': false,
+        'outputs': <Map<String, Object?>>[
+          <String, Object?>{
+            'mode': 'preview',
+            'outputSurfaceId':
+                'transition-session:zoom-native-1:surface:transition-output:10000',
+            'outputTarget': 'nativeTransitionCanvasSurface',
+            'rendererImplemented': false,
+            'canRender': false,
+            'blockedReasons': <String>[
+              'native_transition_preview_renderer_missing',
+            ],
+          },
+          <String, Object?>{
+            'mode': 'liveScrub',
+            'outputSurfaceId':
+                'transition-session:zoom-native-1:surface:transition-output:10000',
+            'outputTarget': 'nativeTransitionCanvasSurface',
+            'rendererImplemented': false,
+            'canRender': false,
+            'blockedReasons': <String>[
+              'native_transition_liveScrub_renderer_missing',
+            ],
+          },
+          <String, Object?>{
+            'mode': 'playback',
+            'outputSurfaceId':
+                'transition-session:zoom-native-1:surface:transition-output:10000',
+            'outputTarget': 'nativeTransitionCanvasSurface',
+            'rendererImplemented': false,
+            'canRender': false,
+            'blockedReasons': <String>[
+              'native_transition_playback_renderer_missing',
+            ],
+          },
+          <String, Object?>{
+            'mode': 'export',
+            'outputSurfaceId':
+                'transition-session:zoom-native-1:surface:transition-output:10000',
+            'outputTarget': 'nativeTransitionCanvasSurface',
+            'rendererImplemented': false,
+            'canRender': false,
+            'blockedReasons': <String>[
+              'native_transition_export_renderer_missing',
+            ],
+          },
+        ],
+        'blockedReasons': <String>[
+          'native_transition_preview_renderer_missing',
+          'native_transition_liveScrub_renderer_missing',
+          'native_transition_playback_renderer_missing',
+          'native_transition_export_renderer_missing',
+        ],
+      };
+    });
+
+    final result =
+        await const MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider(
+      channel: channel,
+    ).planParityOutputs(
+      timelineTime: TimelineTime.fromMilliseconds(10000),
+      plan: ProfessionalZoomCameraRenderPlan(
+        canvasWidth: 1080,
+        canvasHeight: 1920,
+        request: ProfessionalZoomCameraPlanRequest(
+          transitionId: 'zoom-native-1',
+          timelineTime: TimelineTime.fromMilliseconds(10000),
+          boundaryTime: TimelineTime.fromMilliseconds(10000),
+          leadingDuration: TimelineTime.fromMilliseconds(2000),
+          trailingDuration: TimelineTime.fromMilliseconds(2000),
+          outgoing: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-a',
+            assetId: 'asset-a',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(28000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+          incoming: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-b',
+            assetId: 'asset-b',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(38000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+        ),
+      ).toGenericRenderPlan(),
+    );
+
+    expect(result.canPlan, isTrue);
+    expect(result.canRender, isFalse);
+    expect(result.sameOutputContractForAllModes, isTrue);
+    expect(result.allModesRenderable, isFalse);
+    expect(result.outputs.map((output) => output.mode), <String>[
+      'preview',
+      'liveScrub',
+      'playback',
+      'export',
+    ]);
+    expect(result.outputs.every((output) => !output.canRender), isTrue);
+    expect(result.blockedReasons,
+        contains('native_transition_playback_renderer_missing'));
+    expect(
+      result.outputs.map((output) => output.outputSurfaceId).toSet(),
+      hasLength(1),
+    );
+  });
+
   test('zoom camera plan maps to live source times around the seam', () {
     const planner = ProfessionalZoomCameraCompositorPlanner();
     final plan = planner.planFrame(

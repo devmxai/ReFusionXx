@@ -224,6 +224,47 @@ class ProfessionalVideoTransitionCompositorManager {
         )
     }
 
+    fun planParityOutputs(
+        plan: Map<String, Any?>?,
+        timelineTimeMs: Long?,
+    ): Map<String, Any> {
+        val missingFields = requiredRenderPlanFields.filter { field ->
+            !hasRequiredField(plan, field)
+        }
+        if (missingFields.isNotEmpty()) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_required_video_transition_render_plan_fields",
+                "rendererVersion" to "foundation",
+                "missingFields" to missingFields,
+            )
+        }
+        if (timelineTimeMs == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_timeline_time_for_video_transition_parity_outputs",
+                "rendererVersion" to "foundation",
+            )
+        }
+        val definitionId = plan?.get("definitionId")?.toString() ?: ""
+        val sessionResult = ProfessionalVideoTransitionRenderSession.fromPlan(plan)
+        if (sessionResult.session == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "invalid_video_transition_render_session",
+                "rendererVersion" to "foundation",
+                "definitionId" to definitionId,
+                "issues" to sessionResult.issues,
+            )
+        }
+        return sessionResult.session.planParityOutputs(
+            timelineTimeMs = timelineTimeMs,
+            motionBlurPolicy = plan?.get("motionBlurPolicy") as? Map<*, *>,
+            edgePolicy = plan?.get("edgePolicy") as? Map<*, *>,
+            parameters = plan?.get("parameters") as? Map<*, *>,
+        )
+    }
+
     private fun hasRequiredField(plan: Map<String, Any?>?, field: String): Boolean {
         if (plan == null) {
             return false
@@ -575,6 +616,57 @@ private data class ProfessionalVideoTransitionRenderSession(
                 "allowTimelineOverlay" to false,
                 "allowPlatformViewTransform" to false,
                 "rendererImplemented" to rendererImplemented,
+                "blockedReasons" to blockedReasons,
+            )
+    }
+
+    fun planParityOutputs(
+        timelineTimeMs: Long,
+        motionBlurPolicy: Map<*, *>?,
+        edgePolicy: Map<*, *>?,
+        parameters: Map<*, *>?,
+    ): Map<String, Any> {
+        val surfacePlan =
+            planOutputSurface(
+                timelineTimeMs = timelineTimeMs,
+                motionBlurPolicy = motionBlurPolicy,
+                edgePolicy = edgePolicy,
+                parameters = parameters,
+            )
+        if (surfacePlan["status"] != "planned") {
+            return surfacePlan
+        }
+        val rendererImplemented = surfacePlan["rendererImplemented"] == true
+        val outputSurfaceId = surfacePlan["outputSurfaceId"]?.toString() ?: ""
+        val outputTarget = surfacePlan["outputTarget"]?.toString() ?: ""
+        val parityModes = listOf("preview", "liveScrub", "playback", "export")
+        val outputs =
+            parityModes.map { mode ->
+                val blockedReasons =
+                    if (rendererImplemented) {
+                        emptyList()
+                    } else {
+                        listOf("native_transition_${mode}_renderer_missing")
+                    }
+                mapOf(
+                    "mode" to mode,
+                    "outputSurfaceId" to outputSurfaceId,
+                    "outputTarget" to outputTarget,
+                    "rendererImplemented" to rendererImplemented,
+                    "canRender" to (rendererImplemented && blockedReasons.isEmpty()),
+                    "blockedReasons" to blockedReasons,
+                )
+            }
+        val blockedReasons =
+            outputs.flatMap { output ->
+                (output["blockedReasons"] as? List<*>)?.map { reason -> reason.toString() }
+                    ?: emptyList()
+            }.distinct()
+        return surfacePlan +
+            mapOf(
+                "sameOutputContractForAllModes" to true,
+                "allModesRenderable" to (rendererImplemented && blockedReasons.isEmpty()),
+                "outputs" to outputs,
                 "blockedReasons" to blockedReasons,
             )
     }

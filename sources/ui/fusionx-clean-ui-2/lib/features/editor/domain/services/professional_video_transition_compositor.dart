@@ -130,6 +130,11 @@ abstract class ProfessionalVideoTransitionCompositorClient
     required TimelineTime timelineTime,
   });
 
+  Future<ProfessionalVideoTransitionParityPlanResult> planParityOutputs({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  });
+
   Future<ProfessionalVideoTransitionCompositorPrepareResult>
       prepareZoomInCameraRenderPlan(
     ProfessionalZoomCameraRenderPlan plan,
@@ -289,6 +294,32 @@ class MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider
       );
     } on PlatformException catch (error) {
       return ProfessionalVideoTransitionOutputSurfacePlanResult.invalidRequest(
+        reason: error.message ?? error.code,
+      );
+    }
+  }
+
+  @override
+  Future<ProfessionalVideoTransitionParityPlanResult> planParityOutputs({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  }) async {
+    try {
+      final payload = plan.toPlatformMap();
+      payload['timelineTimeMs'] = timelineTime.inMilliseconds;
+      final rawResult = await _channel.invokeMapMethod<String, Object?>(
+        'planParityOutputs',
+        payload,
+      );
+      return ProfessionalVideoTransitionParityPlanResultMapper.fromMap(
+        rawResult,
+      );
+    } on MissingPluginException {
+      return ProfessionalVideoTransitionParityPlanResult.invalidRequest(
+        reason: 'native_compositor_channel_missing',
+      );
+    } on PlatformException catch (error) {
+      return ProfessionalVideoTransitionParityPlanResult.invalidRequest(
         reason: error.message ?? error.code,
       );
     }
@@ -1071,6 +1102,195 @@ class ProfessionalVideoTransitionOutputSurfacePlanResultMapper {
     }
     return defaultValue;
   }
+
+  static List<String> _readStringList(Object? value) {
+    if (value is! List) {
+      return const <String>[];
+    }
+    return List<String>.unmodifiable(value.map((entry) => entry.toString()));
+  }
+
+  static List<Map<String, Object?>> _readIssues(Object? value) {
+    if (value is! List) {
+      return const <Map<String, Object?>>[];
+    }
+    return List<Map<String, Object?>>.unmodifiable(
+      value.whereType<Map>().map((issue) {
+        return <String, Object?>{
+          for (final entry in issue.entries) entry.key.toString(): entry.value,
+        };
+      }),
+    );
+  }
+}
+
+enum ProfessionalVideoTransitionParityPlanStatus {
+  planned,
+  invalidRequest,
+}
+
+@immutable
+class ProfessionalVideoTransitionParityOutput {
+  const ProfessionalVideoTransitionParityOutput({
+    required this.mode,
+    required this.outputSurfaceId,
+    required this.outputTarget,
+    required this.rendererImplemented,
+    required this.canRender,
+    required this.blockedReasons,
+  });
+
+  final String mode;
+  final String outputSurfaceId;
+  final String outputTarget;
+  final bool rendererImplemented;
+  final bool canRender;
+  final List<String> blockedReasons;
+}
+
+@immutable
+class ProfessionalVideoTransitionParityPlanResult {
+  const ProfessionalVideoTransitionParityPlanResult({
+    required this.status,
+    required this.reason,
+    required this.rendererVersion,
+    required this.definitionId,
+    required this.renderSessionId,
+    required this.renderPassGraphId,
+    required this.outputSurfaceId,
+    required this.timelineTime,
+    required this.transitionStartTime,
+    required this.transitionEndTime,
+    required this.rendererImplemented,
+    required this.sameOutputContractForAllModes,
+    required this.allModesRenderable,
+    required this.outputs,
+    required this.blockedReasons,
+    this.issues = const <Map<String, Object?>>[],
+  });
+
+  factory ProfessionalVideoTransitionParityPlanResult.invalidRequest({
+    required String reason,
+    String rendererVersion = 'unknown',
+    List<Map<String, Object?>> issues = const <Map<String, Object?>>[],
+  }) {
+    return ProfessionalVideoTransitionParityPlanResult(
+      status: ProfessionalVideoTransitionParityPlanStatus.invalidRequest,
+      reason: reason,
+      rendererVersion: rendererVersion,
+      definitionId: '',
+      renderSessionId: '',
+      renderPassGraphId: '',
+      outputSurfaceId: '',
+      timelineTime: null,
+      transitionStartTime: null,
+      transitionEndTime: null,
+      rendererImplemented: false,
+      sameOutputContractForAllModes: false,
+      allModesRenderable: false,
+      outputs: const <ProfessionalVideoTransitionParityOutput>[],
+      blockedReasons: const <String>[],
+      issues: issues,
+    );
+  }
+
+  final ProfessionalVideoTransitionParityPlanStatus status;
+  final String reason;
+  final String rendererVersion;
+  final String definitionId;
+  final String renderSessionId;
+  final String renderPassGraphId;
+  final String outputSurfaceId;
+  final TimelineTime? timelineTime;
+  final TimelineTime? transitionStartTime;
+  final TimelineTime? transitionEndTime;
+  final bool rendererImplemented;
+  final bool sameOutputContractForAllModes;
+  final bool allModesRenderable;
+  final List<ProfessionalVideoTransitionParityOutput> outputs;
+  final List<String> blockedReasons;
+  final List<Map<String, Object?>> issues;
+
+  bool get canPlan =>
+      status == ProfessionalVideoTransitionParityPlanStatus.planned;
+
+  bool get canRender =>
+      canPlan &&
+      rendererImplemented &&
+      sameOutputContractForAllModes &&
+      allModesRenderable &&
+      blockedReasons.isEmpty;
+}
+
+class ProfessionalVideoTransitionParityPlanResultMapper {
+  const ProfessionalVideoTransitionParityPlanResultMapper._();
+
+  static ProfessionalVideoTransitionParityPlanResult fromMap(
+    Map<String, Object?>? map,
+  ) {
+    if (map == null) {
+      return ProfessionalVideoTransitionParityPlanResult.invalidRequest(
+        reason: 'native_compositor_empty_parity_response',
+      );
+    }
+    final status = switch (map['status']?.toString()) {
+      'planned' => ProfessionalVideoTransitionParityPlanStatus.planned,
+      _ => ProfessionalVideoTransitionParityPlanStatus.invalidRequest,
+    };
+    return ProfessionalVideoTransitionParityPlanResult(
+      status: status,
+      reason: map['reason']?.toString() ?? '',
+      rendererVersion: map['rendererVersion']?.toString() ?? 'unknown',
+      definitionId: map['definitionId']?.toString() ?? '',
+      renderSessionId: map['renderSessionId']?.toString() ?? '',
+      renderPassGraphId: map['renderPassGraphId']?.toString() ?? '',
+      outputSurfaceId: map['outputSurfaceId']?.toString() ?? '',
+      timelineTime: _readTimelineTime(map['timelineTimeMs']),
+      transitionStartTime: _readTimelineTime(map['transitionStartMs']),
+      transitionEndTime: _readTimelineTime(map['transitionEndMs']),
+      rendererImplemented: _readBool(map['rendererImplemented']),
+      sameOutputContractForAllModes: _readBool(
+        map['sameOutputContractForAllModes'],
+      ),
+      allModesRenderable: _readBool(map['allModesRenderable']),
+      outputs: _readOutputs(map['outputs']),
+      blockedReasons: _readStringList(map['blockedReasons']),
+      issues: _readIssues(map['issues']),
+    );
+  }
+
+  static List<ProfessionalVideoTransitionParityOutput> _readOutputs(
+    Object? value,
+  ) {
+    if (value is! List) {
+      return const <ProfessionalVideoTransitionParityOutput>[];
+    }
+    return List<ProfessionalVideoTransitionParityOutput>.unmodifiable(
+      value.whereType<Map>().map((output) {
+        return ProfessionalVideoTransitionParityOutput(
+          mode: output['mode']?.toString() ?? '',
+          outputSurfaceId: output['outputSurfaceId']?.toString() ?? '',
+          outputTarget: output['outputTarget']?.toString() ?? '',
+          rendererImplemented: _readBool(output['rendererImplemented']),
+          canRender: _readBool(output['canRender']),
+          blockedReasons: _readStringList(output['blockedReasons']),
+        );
+      }),
+    );
+  }
+
+  static TimelineTime? _readTimelineTime(Object? value) {
+    if (value is num) {
+      return TimelineTime.fromMilliseconds(value.round());
+    }
+    final parsed = int.tryParse(value?.toString() ?? '');
+    if (parsed == null) {
+      return null;
+    }
+    return TimelineTime.fromMilliseconds(parsed);
+  }
+
+  static bool _readBool(Object? value) => value is bool && value;
 
   static List<String> _readStringList(Object? value) {
     if (value is! List) {
