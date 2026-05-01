@@ -2249,8 +2249,10 @@ class ProfessionalVideoTransitionRenderPassGraphPlanResult {
     required this.requiresTemporalAccumulation,
     required this.requiresMirrorEdgeTiling,
     required this.requiresGpuComposition,
+    required this.rendererInputsReady,
     required this.rendererImplemented,
     required this.passes,
+    required this.blockedReasons,
     this.issues = const <Map<String, Object?>>[],
   });
 
@@ -2275,8 +2277,10 @@ class ProfessionalVideoTransitionRenderPassGraphPlanResult {
       requiresTemporalAccumulation: false,
       requiresMirrorEdgeTiling: false,
       requiresGpuComposition: true,
+      rendererInputsReady: false,
       rendererImplemented: false,
       passes: const <ProfessionalVideoTransitionRenderPassNode>[],
+      blockedReasons: const <String>[],
       issues: issues,
     );
   }
@@ -2295,14 +2299,20 @@ class ProfessionalVideoTransitionRenderPassGraphPlanResult {
   final bool requiresTemporalAccumulation;
   final bool requiresMirrorEdgeTiling;
   final bool requiresGpuComposition;
+  final bool rendererInputsReady;
   final bool rendererImplemented;
   final List<ProfessionalVideoTransitionRenderPassNode> passes;
+  final List<String> blockedReasons;
   final List<Map<String, Object?>> issues;
 
   bool get canPlan =>
       status == ProfessionalVideoTransitionRenderPassGraphPlanStatus.planned;
 
-  bool get canRender => canPlan && rendererImplemented;
+  bool get canRender =>
+      canPlan &&
+      rendererInputsReady &&
+      rendererImplemented &&
+      blockedReasons.isEmpty;
 }
 
 class ProfessionalVideoTransitionRenderPassGraphPlanResultMapper {
@@ -2343,8 +2353,10 @@ class ProfessionalVideoTransitionRenderPassGraphPlanResultMapper {
         map['requiresGpuComposition'],
         defaultValue: true,
       ),
+      rendererInputsReady: _readBool(map['rendererInputsReady']),
       rendererImplemented: _readBool(map['rendererImplemented']),
       passes: _readPasses(map['passes']),
+      blockedReasons: _readStringList(map['blockedReasons']),
       issues: _readIssues(map['issues']),
     );
   }

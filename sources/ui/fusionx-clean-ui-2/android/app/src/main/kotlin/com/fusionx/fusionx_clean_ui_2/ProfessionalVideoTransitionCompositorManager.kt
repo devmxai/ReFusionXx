@@ -1146,6 +1146,17 @@ private data class ProfessionalVideoTransitionRenderSession(
         val edgePass = "$id:pass:edge:$timelineTimeMs"
         val transitionPass = "$id:pass:transition:$definitionId:$timelineTimeMs"
         val outputPass = "$id:pass:output:$timelineTimeMs"
+        val upstreamBlockedReasons =
+            (tilePlan["blockedReasons"] as? List<*>)?.map { reason -> reason.toString() }
+                ?: emptyList()
+        val rendererImplemented = false
+        val blockedReasons =
+            buildList {
+                addAll(upstreamBlockedReasons)
+                if (!rendererImplemented) {
+                    add("native_transition_renderer_missing")
+                }
+            }.distinct()
         val passes = mutableListOf<Map<String, Any>>()
         passes.add(
             renderPass(
@@ -1251,8 +1262,10 @@ private data class ProfessionalVideoTransitionRenderSession(
                 "requiresTemporalAccumulation" to requiresTemporalAccumulation,
                 "requiresMirrorEdgeTiling" to requiresMirrorEdgeTiling,
                 "requiresGpuComposition" to true,
-                "rendererImplemented" to false,
+                "rendererInputsReady" to upstreamBlockedReasons.isEmpty(),
+                "rendererImplemented" to rendererImplemented,
                 "passes" to passes,
+                "blockedReasons" to blockedReasons,
             )
     }
 
@@ -1291,12 +1304,16 @@ private data class ProfessionalVideoTransitionRenderSession(
         }
         val rendererImplemented = graphPlan["rendererImplemented"] == true
         val outputSurfaceId = "$id:surface:transition-output:$timelineTimeMs"
+        val upstreamBlockedReasons =
+            (graphPlan["blockedReasons"] as? List<*>)?.map { reason -> reason.toString() }
+                ?: emptyList()
         val blockedReasons =
-            if (rendererImplemented) {
-                emptyList()
-            } else {
-                listOf("native_transition_output_surface_renderer_missing")
-            }
+            buildList {
+                addAll(upstreamBlockedReasons)
+                if (!rendererImplemented) {
+                    add("native_transition_output_surface_renderer_missing")
+                }
+            }.distinct()
         return graphPlan +
             mapOf(
                 "outputSurfaceId" to outputSurfaceId,
@@ -1334,6 +1351,9 @@ private data class ProfessionalVideoTransitionRenderSession(
         val rendererImplemented = surfacePlan["rendererImplemented"] == true
         val outputSurfaceId = surfacePlan["outputSurfaceId"]?.toString() ?: ""
         val outputTarget = surfacePlan["outputTarget"]?.toString() ?: ""
+        val upstreamBlockedReasons =
+            (surfacePlan["blockedReasons"] as? List<*>)?.map { reason -> reason.toString() }
+                ?: emptyList()
         val parityModes = listOf("preview", "liveScrub", "playback", "export")
         val outputs =
             parityModes.map { mode ->
@@ -1353,10 +1373,11 @@ private data class ProfessionalVideoTransitionRenderSession(
                 )
             }
         val blockedReasons =
-            outputs.flatMap { output ->
-                (output["blockedReasons"] as? List<*>)?.map { reason -> reason.toString() }
-                    ?: emptyList()
-            }.distinct()
+            (upstreamBlockedReasons +
+                outputs.flatMap { output ->
+                    (output["blockedReasons"] as? List<*>)?.map { reason -> reason.toString() }
+                        ?: emptyList()
+                }).distinct()
         return surfacePlan +
             mapOf(
                 "sameOutputContractForAllModes" to true,

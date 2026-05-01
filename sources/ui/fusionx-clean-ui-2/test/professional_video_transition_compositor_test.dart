@@ -1474,6 +1474,7 @@ void main() {
         'requiresTemporalAccumulation': true,
         'requiresMirrorEdgeTiling': true,
         'requiresGpuComposition': true,
+        'rendererInputsReady': false,
         'rendererImplemented': false,
         'passes': <Map<String, Object?>>[
           <String, Object?>{
@@ -1500,6 +1501,10 @@ void main() {
               'progress': 0.5,
             },
           },
+        ],
+        'blockedReasons': <String>[
+          'native_mirror_edge_tiler_missing',
+          'native_transition_renderer_missing',
         ],
       };
     });
@@ -1550,12 +1555,17 @@ void main() {
     expect(result.requiresTemporalAccumulation, isTrue);
     expect(result.requiresMirrorEdgeTiling, isTrue);
     expect(result.requiresGpuComposition, isTrue);
+    expect(result.rendererInputsReady, isFalse);
     expect(result.rendererImplemented, isFalse);
     expect(result.passes, hasLength(2));
     expect(result.passes.first.type, 'decodeExactVideoFrames');
     expect(result.passes.first.inputs, hasLength(2));
     expect(result.passes.first.parameters['allowThumbnailFallback'], isFalse);
     expect(result.passes.last.type, 'transitionShaderEvaluation');
+    expect(
+      result.blockedReasons,
+      contains('native_transition_renderer_missing'),
+    );
   });
 
   test('method channel output surface forbids overlay fallbacks until renderer',

@@ -833,21 +833,24 @@ Current gate:
   renderer; it is the renderer-agnostic execution graph every concrete native
   transition must satisfy: exact decode, temporal accumulation, optional
   mirror-edge tile, transition shader evaluation, and composition to the output
-  transition surface. Current responses deliberately keep
-  `rendererImplemented=false`, so this foundation cannot unlock presets or
-  playback until a real compositor attaches to the graph.
+  transition surface. The graph now propagates upstream blockers instead of
+  hiding decode/accumulator/tile failures behind a generic renderer failure.
+  Current responses deliberately keep `rendererImplemented=false`, so this
+  foundation cannot unlock presets or playback until a real compositor attaches
+  to the graph.
 - Flutter and Android now also share `planOutputSurface`. This binds the pass
   graph to the only acceptable output target for professional transitions: a
   native transition canvas surface clipped to the preview/export canvas. It
   explicitly forbids Flutter overlay drawing, timeline overlay drawing, and
-  transformed PlatformView fallback paths, and remains blocked while
-  `rendererImplemented=false`.
+  transformed PlatformView fallback paths, inherits upstream render blockers,
+  and remains blocked while `rendererImplemented=false`.
 - Flutter and Android now also share `planParityOutputs`. This is the parity
   contract that prevents "works in preview but not in scrub/play/export"
   drift. Preview, Live Scrub, playback, and export must all point at the same
-  native transition output contract, and all four modes remain blocked until a
-  concrete native renderer reports that it can render them without fallback
-  divergence.
+  native transition output contract. Export remains a later implementation
+  phase per the current product direction, but preview, Live Scrub, and playback
+  still inherit the same output-surface blockers and may not diverge or fall
+  back to overlays.
 
 ## 9. Stop Conditions
 

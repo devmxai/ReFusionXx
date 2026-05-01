@@ -496,6 +496,7 @@ class _FakeProfessionalVideoTransitionCompositorClient
       requiresTemporalAccumulation: true,
       requiresMirrorEdgeTiling: true,
       requiresGpuComposition: true,
+      rendererInputsReady: _rendererReady,
       rendererImplemented: _rendererReady,
       passes: const <ProfessionalVideoTransitionRenderPassNode>[
         ProfessionalVideoTransitionRenderPassNode(
@@ -506,6 +507,9 @@ class _FakeProfessionalVideoTransitionCompositorClient
           parameters: <String, Object?>{},
         ),
       ],
+      blockedReasons: _planningOnly
+          ? const <String>['native_transition_renderer_missing']
+          : const <String>[],
     );
   }
 
