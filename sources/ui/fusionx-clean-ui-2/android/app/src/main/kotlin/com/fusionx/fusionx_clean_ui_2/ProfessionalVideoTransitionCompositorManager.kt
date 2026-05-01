@@ -103,6 +103,45 @@ class ProfessionalVideoTransitionCompositorManager {
         )
     }
 
+    fun planFrameDecodeRequests(
+        plan: Map<String, Any?>?,
+        timelineTimeMs: Long?,
+    ): Map<String, Any> {
+        val missingFields = requiredRenderPlanFields.filter { field ->
+            !hasRequiredField(plan, field)
+        }
+        if (missingFields.isNotEmpty()) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_required_video_transition_render_plan_fields",
+                "rendererVersion" to "foundation",
+                "missingFields" to missingFields,
+            )
+        }
+        if (timelineTimeMs == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_timeline_time_for_video_transition_decode_plan",
+                "rendererVersion" to "foundation",
+            )
+        }
+        val definitionId = plan?.get("definitionId")?.toString() ?: ""
+        val sessionResult = ProfessionalVideoTransitionRenderSession.fromPlan(plan)
+        if (sessionResult.session == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "invalid_video_transition_render_session",
+                "rendererVersion" to "foundation",
+                "definitionId" to definitionId,
+                "issues" to sessionResult.issues,
+            )
+        }
+        return sessionResult.session.planFrameDecodeRequests(
+            timelineTimeMs = timelineTimeMs,
+            motionBlurPolicy = plan?.get("motionBlurPolicy") as? Map<*, *>,
+        )
+    }
+
     private fun hasRequiredField(plan: Map<String, Any?>?, field: String): Boolean {
         if (plan == null) {
             return false
@@ -229,6 +268,87 @@ private data class ProfessionalVideoTransitionRenderSession(
             "frameRate" to frameRate,
             "shutterSampleCount" to sampleCount,
         )
+    }
+
+    fun planFrameDecodeRequests(
+        timelineTimeMs: Long,
+        motionBlurPolicy: Map<*, *>?,
+    ): Map<String, Any> {
+        val framePlan =
+            planFrameSamples(
+                timelineTimeMs = timelineTimeMs,
+                motionBlurPolicy = motionBlurPolicy,
+            )
+        if (framePlan["status"] != "planned") {
+            return framePlan
+        }
+        val timelineSamples =
+            (framePlan["temporalSampleTimelineTimesMs"] as? List<*>)?.mapNotNull { sample ->
+                (sample as? Number)?.toLong()
+            } ?: emptyList()
+        val outgoingSamples =
+            (framePlan["outgoingTemporalSourceTimesMs"] as? List<*>)?.mapNotNull { sample ->
+                (sample as? Number)?.toLong()
+            } ?: emptyList()
+        val incomingSamples =
+            (framePlan["incomingTemporalSourceTimesMs"] as? List<*>)?.mapNotNull { sample ->
+                (sample as? Number)?.toLong()
+            } ?: emptyList()
+        val centerSampleIndex =
+            timelineSamples.indices.minByOrNull { index ->
+                kotlin.math.abs(timelineSamples[index] - timelineTimeMs)
+            } ?: 0
+        val decodeRequests =
+            decodeRequestsForSource(
+                role = "outgoing",
+                source = outgoing,
+                timelineSamples = timelineSamples,
+                sourceSamples = outgoingSamples,
+                centerSampleIndex = centerSampleIndex,
+            ) +
+                decodeRequestsForSource(
+                    role = "incoming",
+                    source = incoming,
+                    timelineSamples = timelineSamples,
+                    sourceSamples = incomingSamples,
+                    centerSampleIndex = centerSampleIndex,
+                )
+        return framePlan +
+            mapOf(
+                "decodeMode" to "exactVideoFrame",
+                "allowThumbnailFallback" to false,
+                "allowBoundaryFreeze" to false,
+                "requiresRealVideoFrame" to true,
+                "decodeRequests" to decodeRequests,
+            )
+    }
+
+    private fun decodeRequestsForSource(
+        role: String,
+        source: ProfessionalVideoTransitionRenderSource,
+        timelineSamples: List<Long>,
+        sourceSamples: List<Long>,
+        centerSampleIndex: Int,
+    ): List<Map<String, Any>> {
+        return timelineSamples.mapIndexed { index, timelineSampleMs ->
+            val sourceSampleMs = sourceSamples.getOrElse(index) {
+                source.sourceTimeForTimelineTime(timelineSampleMs)
+            }
+            mapOf(
+                "decodeRequestId" to "$id:$role:$index:$sourceSampleMs",
+                "role" to role,
+                "clipId" to source.clipId,
+                "assetId" to source.assetId,
+                "sampleIndex" to index,
+                "timelineTimeMs" to timelineSampleMs,
+                "sourceTimeMs" to sourceSampleMs,
+                "decodeMode" to "exactVideoFrame",
+                "temporalSample" to true,
+                "centerSample" to (index == centerSampleIndex),
+                "allowThumbnailFallback" to false,
+                "allowBoundaryFreeze" to false,
+            )
+        }
     }
 
     private fun temporalSampleTimelineTimes(

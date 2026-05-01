@@ -752,6 +752,13 @@ Current gate:
   the transition window and still renders nothing. This contract exists so the
   future renderer samples live A/B video across the window instead of falling
   back to frozen frames or ambiguous thumbnails.
+- Flutter and Android now also share `planFrameDecodeRequests`. This turns the
+  frame-sample plan into explicit exact-video-frame decode requests for both
+  source roles. Every request carries source role, clip id, asset id, timeline
+  sample time, source sample time, sample index, and center-sample metadata.
+  The request contract forbids thumbnail fallback and boundary-frame freeze, so
+  a future decoder cannot silently turn a live transition into a still-image
+  effect.
 
 ## 9. Stop Conditions
 

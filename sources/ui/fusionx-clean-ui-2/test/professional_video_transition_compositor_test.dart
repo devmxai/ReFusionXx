@@ -617,6 +617,122 @@ void main() {
     expect(result.issues.single['path'], 'timelineTimeMs');
   });
 
+  test('method channel frame decode planning forbids thumbnail fallbacks',
+      () async {
+    const channel = MethodChannel(
+        'com.refusion.app/professional_video_transition_compositor');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(channel, null);
+    });
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'planFrameDecodeRequests');
+      final arguments = call.arguments! as Map<Object?, Object?>;
+      expect(arguments['definitionId'], 'zoomInCamera');
+      expect(arguments['timelineTimeMs'], 10000);
+      return <String, Object?>{
+        'status': 'planned',
+        'reason': '',
+        'rendererVersion': 'foundation',
+        'definitionId': 'zoomInCamera',
+        'renderSessionId': 'transition-session:zoom-native-1',
+        'timelineTimeMs': 10000,
+        'transitionStartMs': 8000,
+        'transitionEndMs': 12000,
+        'progress': 0.5,
+        'decodeMode': 'exactVideoFrame',
+        'allowThumbnailFallback': false,
+        'allowBoundaryFreeze': false,
+        'requiresRealVideoFrame': true,
+        'decodeRequests': <Map<String, Object?>>[
+          <String, Object?>{
+            'decodeRequestId':
+                'transition-session:zoom-native-1:outgoing:0:29983',
+            'role': 'outgoing',
+            'clipId': 'clip-a',
+            'assetId': 'asset-a',
+            'sampleIndex': 0,
+            'timelineTimeMs': 9983,
+            'sourceTimeMs': 29983,
+            'decodeMode': 'exactVideoFrame',
+            'temporalSample': true,
+            'centerSample': false,
+            'allowThumbnailFallback': false,
+            'allowBoundaryFreeze': false,
+          },
+          <String, Object?>{
+            'decodeRequestId':
+                'transition-session:zoom-native-1:incoming:1:40017',
+            'role': 'incoming',
+            'clipId': 'clip-b',
+            'assetId': 'asset-b',
+            'sampleIndex': 1,
+            'timelineTimeMs': 10017,
+            'sourceTimeMs': 40017,
+            'decodeMode': 'exactVideoFrame',
+            'temporalSample': true,
+            'centerSample': true,
+            'allowThumbnailFallback': false,
+            'allowBoundaryFreeze': false,
+          },
+        ],
+      };
+    });
+
+    final result =
+        await const MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider(
+      channel: channel,
+    ).planFrameDecodeRequests(
+      timelineTime: TimelineTime.fromMilliseconds(10000),
+      plan: ProfessionalZoomCameraRenderPlan(
+        canvasWidth: 1080,
+        canvasHeight: 1920,
+        request: ProfessionalZoomCameraPlanRequest(
+          transitionId: 'zoom-native-1',
+          timelineTime: TimelineTime.fromMilliseconds(10000),
+          boundaryTime: TimelineTime.fromMilliseconds(10000),
+          leadingDuration: TimelineTime.fromMilliseconds(2000),
+          trailingDuration: TimelineTime.fromMilliseconds(2000),
+          outgoing: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-a',
+            assetId: 'asset-a',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(28000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+          incoming: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-b',
+            assetId: 'asset-b',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(38000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+        ),
+      ).toGenericRenderPlan(),
+    );
+
+    expect(result.canPlan, isTrue);
+    expect(result.decodeMode, 'exactVideoFrame');
+    expect(result.allowThumbnailFallback, isFalse);
+    expect(result.allowBoundaryFreeze, isFalse);
+    expect(result.requiresRealVideoFrame, isTrue);
+    expect(result.decodeRequests, hasLength(2));
+    expect(result.decodeRequests.first.role, 'outgoing');
+    expect(result.decodeRequests.first.assetId, 'asset-a');
+    expect(result.decodeRequests.first.sourceTime.inMilliseconds, 29983);
+    expect(result.decodeRequests.first.allowThumbnailFallback, isFalse);
+    expect(result.decodeRequests.last.role, 'incoming');
+    expect(result.decodeRequests.last.centerSample, isTrue);
+    expect(result.decodeRequests.last.sourceTime.inMilliseconds, 40017);
+  });
+
   test('zoom camera plan maps to live source times around the seam', () {
     const planner = ProfessionalZoomCameraCompositorPlanner();
     final plan = planner.planFrame(

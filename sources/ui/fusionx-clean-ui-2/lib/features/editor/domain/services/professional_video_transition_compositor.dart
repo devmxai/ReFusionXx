@@ -113,6 +113,12 @@ abstract class ProfessionalVideoTransitionCompositorClient
     required TimelineTime timelineTime,
   });
 
+  Future<ProfessionalVideoTransitionFrameDecodePlanResult>
+      planFrameDecodeRequests({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  });
+
   Future<ProfessionalVideoTransitionCompositorPrepareResult>
       prepareZoomInCameraRenderPlan(
     ProfessionalZoomCameraRenderPlan plan,
@@ -190,6 +196,33 @@ class MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider
       );
     } on PlatformException catch (error) {
       return ProfessionalVideoTransitionFrameSamplePlanResult.invalidRequest(
+        reason: error.message ?? error.code,
+      );
+    }
+  }
+
+  @override
+  Future<ProfessionalVideoTransitionFrameDecodePlanResult>
+      planFrameDecodeRequests({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  }) async {
+    try {
+      final payload = plan.toPlatformMap();
+      payload['timelineTimeMs'] = timelineTime.inMilliseconds;
+      final rawResult = await _channel.invokeMapMethod<String, Object?>(
+        'planFrameDecodeRequests',
+        payload,
+      );
+      return ProfessionalVideoTransitionFrameDecodePlanResultMapper.fromMap(
+        rawResult,
+      );
+    } on MissingPluginException {
+      return ProfessionalVideoTransitionFrameDecodePlanResult.invalidRequest(
+        reason: 'native_compositor_channel_missing',
+      );
+    } on PlatformException catch (error) {
+      return ProfessionalVideoTransitionFrameDecodePlanResult.invalidRequest(
         reason: error.message ?? error.code,
       );
     }
@@ -368,6 +401,216 @@ class ProfessionalVideoTransitionFrameSamplePlanResultMapper {
       return null;
     }
     return TimelineTime.fromMilliseconds(parsed);
+  }
+
+  static double _readDouble(Object? value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+    return double.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static int _readInt(Object? value) {
+    if (value is num) {
+      return value.round();
+    }
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+}
+
+enum ProfessionalVideoTransitionFrameDecodePlanStatus {
+  planned,
+  invalidRequest,
+}
+
+@immutable
+class ProfessionalVideoTransitionFrameDecodeRequest {
+  const ProfessionalVideoTransitionFrameDecodeRequest({
+    required this.decodeRequestId,
+    required this.role,
+    required this.clipId,
+    required this.assetId,
+    required this.sampleIndex,
+    required this.timelineTime,
+    required this.sourceTime,
+    required this.decodeMode,
+    required this.temporalSample,
+    required this.centerSample,
+    required this.allowThumbnailFallback,
+    required this.allowBoundaryFreeze,
+  });
+
+  final String decodeRequestId;
+  final String role;
+  final String clipId;
+  final String assetId;
+  final int sampleIndex;
+  final TimelineTime timelineTime;
+  final TimelineTime sourceTime;
+  final String decodeMode;
+  final bool temporalSample;
+  final bool centerSample;
+  final bool allowThumbnailFallback;
+  final bool allowBoundaryFreeze;
+}
+
+@immutable
+class ProfessionalVideoTransitionFrameDecodePlanResult {
+  const ProfessionalVideoTransitionFrameDecodePlanResult({
+    required this.status,
+    required this.reason,
+    required this.rendererVersion,
+    required this.definitionId,
+    required this.renderSessionId,
+    required this.timelineTime,
+    required this.transitionStartTime,
+    required this.transitionEndTime,
+    required this.progress,
+    required this.decodeMode,
+    required this.allowThumbnailFallback,
+    required this.allowBoundaryFreeze,
+    required this.requiresRealVideoFrame,
+    required this.decodeRequests,
+    this.issues = const <Map<String, Object?>>[],
+  });
+
+  factory ProfessionalVideoTransitionFrameDecodePlanResult.invalidRequest({
+    required String reason,
+    String rendererVersion = 'unknown',
+    List<Map<String, Object?>> issues = const <Map<String, Object?>>[],
+  }) {
+    return ProfessionalVideoTransitionFrameDecodePlanResult(
+      status: ProfessionalVideoTransitionFrameDecodePlanStatus.invalidRequest,
+      reason: reason,
+      rendererVersion: rendererVersion,
+      definitionId: '',
+      renderSessionId: '',
+      timelineTime: null,
+      transitionStartTime: null,
+      transitionEndTime: null,
+      progress: 0,
+      decodeMode: '',
+      allowThumbnailFallback: false,
+      allowBoundaryFreeze: false,
+      requiresRealVideoFrame: true,
+      decodeRequests: const <ProfessionalVideoTransitionFrameDecodeRequest>[],
+      issues: issues,
+    );
+  }
+
+  final ProfessionalVideoTransitionFrameDecodePlanStatus status;
+  final String reason;
+  final String rendererVersion;
+  final String definitionId;
+  final String renderSessionId;
+  final TimelineTime? timelineTime;
+  final TimelineTime? transitionStartTime;
+  final TimelineTime? transitionEndTime;
+  final double progress;
+  final String decodeMode;
+  final bool allowThumbnailFallback;
+  final bool allowBoundaryFreeze;
+  final bool requiresRealVideoFrame;
+  final List<ProfessionalVideoTransitionFrameDecodeRequest> decodeRequests;
+  final List<Map<String, Object?>> issues;
+
+  bool get canPlan =>
+      status == ProfessionalVideoTransitionFrameDecodePlanStatus.planned;
+}
+
+class ProfessionalVideoTransitionFrameDecodePlanResultMapper {
+  const ProfessionalVideoTransitionFrameDecodePlanResultMapper._();
+
+  static ProfessionalVideoTransitionFrameDecodePlanResult fromMap(
+    Map<String, Object?>? map,
+  ) {
+    if (map == null) {
+      return ProfessionalVideoTransitionFrameDecodePlanResult.invalidRequest(
+        reason: 'native_compositor_empty_decode_plan_response',
+      );
+    }
+    final status = switch (map['status']?.toString()) {
+      'planned' => ProfessionalVideoTransitionFrameDecodePlanStatus.planned,
+      _ => ProfessionalVideoTransitionFrameDecodePlanStatus.invalidRequest,
+    };
+    return ProfessionalVideoTransitionFrameDecodePlanResult(
+      status: status,
+      reason: map['reason']?.toString() ?? '',
+      rendererVersion: map['rendererVersion']?.toString() ?? 'unknown',
+      definitionId: map['definitionId']?.toString() ?? '',
+      renderSessionId: map['renderSessionId']?.toString() ?? '',
+      timelineTime: _readTimelineTime(map['timelineTimeMs']),
+      transitionStartTime: _readTimelineTime(map['transitionStartMs']),
+      transitionEndTime: _readTimelineTime(map['transitionEndMs']),
+      progress: _readDouble(map['progress']),
+      decodeMode: map['decodeMode']?.toString() ?? '',
+      allowThumbnailFallback: _readBool(map['allowThumbnailFallback']),
+      allowBoundaryFreeze: _readBool(map['allowBoundaryFreeze']),
+      requiresRealVideoFrame: _readBool(
+        map['requiresRealVideoFrame'],
+        defaultValue: true,
+      ),
+      decodeRequests: _readDecodeRequests(map['decodeRequests']),
+      issues: _readIssues(map['issues']),
+    );
+  }
+
+  static List<ProfessionalVideoTransitionFrameDecodeRequest>
+      _readDecodeRequests(Object? value) {
+    if (value is! List) {
+      return const <ProfessionalVideoTransitionFrameDecodeRequest>[];
+    }
+    return List<ProfessionalVideoTransitionFrameDecodeRequest>.unmodifiable(
+      value.whereType<Map>().map((request) {
+        final timelineTime = _readTimelineTime(request['timelineTimeMs']);
+        final sourceTime = _readTimelineTime(request['sourceTimeMs']);
+        return ProfessionalVideoTransitionFrameDecodeRequest(
+          decodeRequestId: request['decodeRequestId']?.toString() ?? '',
+          role: request['role']?.toString() ?? '',
+          clipId: request['clipId']?.toString() ?? '',
+          assetId: request['assetId']?.toString() ?? '',
+          sampleIndex: _readInt(request['sampleIndex']),
+          timelineTime: timelineTime ?? TimelineTime.zero,
+          sourceTime: sourceTime ?? TimelineTime.zero,
+          decodeMode: request['decodeMode']?.toString() ?? '',
+          temporalSample: _readBool(request['temporalSample']),
+          centerSample: _readBool(request['centerSample']),
+          allowThumbnailFallback: _readBool(request['allowThumbnailFallback']),
+          allowBoundaryFreeze: _readBool(request['allowBoundaryFreeze']),
+        );
+      }),
+    );
+  }
+
+  static List<Map<String, Object?>> _readIssues(Object? value) {
+    if (value is! List) {
+      return const <Map<String, Object?>>[];
+    }
+    return List<Map<String, Object?>>.unmodifiable(
+      value.whereType<Map>().map((issue) {
+        return <String, Object?>{
+          for (final entry in issue.entries) entry.key.toString(): entry.value,
+        };
+      }),
+    );
+  }
+
+  static TimelineTime? _readTimelineTime(Object? value) {
+    if (value is num) {
+      return TimelineTime.fromMilliseconds(value.round());
+    }
+    final parsed = int.tryParse(value?.toString() ?? '');
+    if (parsed == null) {
+      return null;
+    }
+    return TimelineTime.fromMilliseconds(parsed);
+  }
+
+  static bool _readBool(Object? value, {bool defaultValue = false}) {
+    if (value is bool) {
+      return value;
+    }
+    return defaultValue;
   }
 
   static double _readDouble(Object? value) {
