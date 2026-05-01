@@ -1162,6 +1162,21 @@ private data class ProfessionalVideoTransitionRenderSession(
                     (track["decodedBufferCount"] as? Number)?.toInt()?.coerceAtLeast(0) ?: 0
                 val inputSamplesDecodable = track["allSamplesDecodable"] == true
                 val inputDecodedBuffersReadable = track["allDecodedBuffersReadable"] == true
+                val liveDecodeWindowReady = track["liveDecodeWindowReady"] == true
+                val liveDecodeStreamProbeImplemented =
+                    track["liveDecodeStreamProbeImplemented"] == true
+                val liveDecodeStreamCoverageReady =
+                    track["liveDecodeStreamCoverageReady"] == true
+                val continuousSampleCoverageReady =
+                    track["continuousSampleCoverageReady"] == true
+                val liveDecodeStreamDecodedFrameCount =
+                    (track["liveDecodeStreamDecodedFrameCount"] as? Number)
+                        ?.toInt()
+                        ?.coerceAtLeast(0) ?: 0
+                val liveDecodeStreamReadableBufferCount =
+                    (track["liveDecodeStreamReadableBufferCount"] as? Number)
+                        ?.toInt()
+                        ?.coerceAtLeast(0) ?: 0
                 val accumulatedBufferByteCount =
                     (track["decodeSampleProbes"] as? List<*>)?.mapNotNull { sample ->
                         (sample as? Map<*, *>)?.get("decodedBufferByteCount") as? Number
@@ -1181,6 +1196,12 @@ private data class ProfessionalVideoTransitionRenderSession(
                     "decodedBufferCount" to decodedBufferCount,
                     "inputSamplesDecodable" to inputSamplesDecodable,
                     "inputDecodedBuffersReadable" to inputDecodedBuffersReadable,
+                    "liveDecodeWindowReady" to liveDecodeWindowReady,
+                    "liveDecodeStreamProbeImplemented" to liveDecodeStreamProbeImplemented,
+                    "liveDecodeStreamDecodedFrameCount" to liveDecodeStreamDecodedFrameCount,
+                    "liveDecodeStreamReadableBufferCount" to liveDecodeStreamReadableBufferCount,
+                    "liveDecodeStreamCoverageReady" to liveDecodeStreamCoverageReady,
+                    "continuousSampleCoverageReady" to continuousSampleCoverageReady,
                     "accumulatedBufferByteCount" to accumulatedBufferByteCount,
                     "accumulatedBufferChecksum" to accumulatedBufferChecksum,
                     "accumulatedFrameReady" to (
@@ -1188,7 +1209,11 @@ private data class ProfessionalVideoTransitionRenderSession(
                             decodedSampleCount == sampleCount &&
                             decodedBufferCount == sampleCount &&
                             inputSamplesDecodable &&
-                            inputDecodedBuffersReadable
+                            inputDecodedBuffersReadable &&
+                            liveDecodeWindowReady &&
+                            liveDecodeStreamProbeImplemented &&
+                            liveDecodeStreamCoverageReady &&
+                            continuousSampleCoverageReady
                     ),
                     "sampleWeights" to normalizedSampleWeights(sampleCount),
                     "normalization" to "weightedAverage",
@@ -1210,6 +1235,9 @@ private data class ProfessionalVideoTransitionRenderSession(
                 }
                 if (accumulators.any { accumulator -> accumulator["inputDecodedBuffersReadable"] != true }) {
                     add("native_temporal_sample_buffer_not_ready")
+                }
+                if (accumulators.any { accumulator -> accumulator["liveDecodeStreamCoverageReady"] != true }) {
+                    add("native_temporal_live_decode_stream_not_ready")
                 }
                 if (!accumulatorImplemented) {
                     add("native_temporal_sample_accumulator_not_ready")

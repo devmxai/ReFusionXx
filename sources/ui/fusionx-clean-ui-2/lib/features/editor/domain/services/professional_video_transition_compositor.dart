@@ -1851,6 +1851,12 @@ class ProfessionalVideoTransitionTemporalAccumulator {
     this.decodedBufferCount = 0,
     this.inputSamplesDecodable = true,
     this.inputDecodedBuffersReadable = true,
+    this.liveDecodeWindowReady = true,
+    this.liveDecodeStreamProbeImplemented = true,
+    this.liveDecodeStreamDecodedFrameCount = 0,
+    this.liveDecodeStreamReadableBufferCount = 0,
+    this.liveDecodeStreamCoverageReady = true,
+    this.continuousSampleCoverageReady = true,
     required this.sampleWeights,
     required this.normalization,
     required this.requiresTemporalShutter,
@@ -1867,6 +1873,12 @@ class ProfessionalVideoTransitionTemporalAccumulator {
   final int decodedBufferCount;
   final bool inputSamplesDecodable;
   final bool inputDecodedBuffersReadable;
+  final bool liveDecodeWindowReady;
+  final bool liveDecodeStreamProbeImplemented;
+  final int liveDecodeStreamDecodedFrameCount;
+  final int liveDecodeStreamReadableBufferCount;
+  final bool liveDecodeStreamCoverageReady;
+  final bool continuousSampleCoverageReady;
   final List<double> sampleWeights;
   final String normalization;
   final bool requiresTemporalShutter;
@@ -1966,6 +1978,10 @@ class ProfessionalVideoTransitionTemporalAccumulatorPlanResult {
         return accumulator.requiresExactFrameDecode &&
             accumulator.inputSamplesDecodable &&
             accumulator.inputDecodedBuffersReadable &&
+            accumulator.liveDecodeWindowReady &&
+            accumulator.liveDecodeStreamProbeImplemented &&
+            accumulator.liveDecodeStreamCoverageReady &&
+            accumulator.continuousSampleCoverageReady &&
             !accumulator.allowGaussianFallback &&
             !accumulator.allowDecorativeSpeedLines;
       }) &&
@@ -2046,6 +2062,26 @@ class ProfessionalVideoTransitionTemporalAccumulatorPlanResultMapper {
               accumulator['inputSamplesDecodable'],
               defaultValue: true,
             ),
+          ),
+          liveDecodeWindowReady: _readBool(
+            accumulator['liveDecodeWindowReady'],
+            defaultValue: true,
+          ),
+          liveDecodeStreamProbeImplemented: _readBool(
+            accumulator['liveDecodeStreamProbeImplemented'],
+            defaultValue: true,
+          ),
+          liveDecodeStreamDecodedFrameCount:
+              _readInt(accumulator['liveDecodeStreamDecodedFrameCount']),
+          liveDecodeStreamReadableBufferCount:
+              _readInt(accumulator['liveDecodeStreamReadableBufferCount']),
+          liveDecodeStreamCoverageReady: _readBool(
+            accumulator['liveDecodeStreamCoverageReady'],
+            defaultValue: true,
+          ),
+          continuousSampleCoverageReady: _readBool(
+            accumulator['continuousSampleCoverageReady'],
+            defaultValue: true,
           ),
           sampleWeights: _readDoubleList(accumulator['sampleWeights']),
           normalization: accumulator['normalization']?.toString() ?? '',

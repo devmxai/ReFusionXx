@@ -853,10 +853,14 @@ Current gate:
   byte counts/checksums, and explicit `allowGaussianFallback=false` /
   `allowDecorativeSpeedLines=false`. The accumulator requires the shutter
   sample decode probes and decoded sample buffers from the decoder stage to be
-  ready for each side before it can report `accumulatorImplemented=true`. This
-  is native decoded-buffer accumulation readiness; it still does not expose a
-  transition preset until mirror-edge tiling, render-pass graph execution,
-  output-surface ownership, and preview/scrub/playback parity are ready.
+  ready for each side, and now inherits live decode stream readiness from the
+  dual decoder before it can report `accumulatorImplemented=true`. If either
+  role cannot prove stream coverage through the live transition window, the
+  accumulator blocks with `native_temporal_live_decode_stream_not_ready`. This
+  is native decoded-buffer and stream accumulation readiness; it still does not
+  expose a transition preset until mirror-edge tiling, render-pass graph
+  execution, output-surface ownership, and preview/scrub/playback parity are
+  ready.
 - Flutter and Android now also share `planMirrorEdgeTiling`. This binds temporal
   accumulator outputs into outgoing/incoming mirror-edge tile plans with
   deterministic overscan, decoded-sample readiness, canvas clipping, and

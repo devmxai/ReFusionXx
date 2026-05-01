@@ -1352,6 +1352,12 @@ void main() {
             'decodedBufferCount': 2,
             'inputSamplesDecodable': true,
             'inputDecodedBuffersReadable': true,
+            'liveDecodeWindowReady': true,
+            'liveDecodeStreamProbeImplemented': true,
+            'liveDecodeStreamDecodedFrameCount': 61,
+            'liveDecodeStreamReadableBufferCount': 61,
+            'liveDecodeStreamCoverageReady': true,
+            'continuousSampleCoverageReady': true,
             'sampleWeights': <double>[0.5, 0.5],
             'normalization': 'weightedAverage',
             'requiresTemporalShutter': true,
@@ -1369,6 +1375,12 @@ void main() {
             'decodedBufferCount': 0,
             'inputSamplesDecodable': false,
             'inputDecodedBuffersReadable': false,
+            'liveDecodeWindowReady': true,
+            'liveDecodeStreamProbeImplemented': true,
+            'liveDecodeStreamDecodedFrameCount': 8,
+            'liveDecodeStreamReadableBufferCount': 7,
+            'liveDecodeStreamCoverageReady': false,
+            'continuousSampleCoverageReady': false,
             'sampleWeights': <double>[0.5, 0.5],
             'normalization': 'weightedAverage',
             'requiresTemporalShutter': true,
@@ -1380,6 +1392,7 @@ void main() {
         'blockedReasons': <String>[
           'native_temporal_sample_decode_not_ready',
           'native_temporal_sample_buffer_not_ready',
+          'native_temporal_live_decode_stream_not_ready',
           'native_temporal_sample_accumulator_missing',
         ],
       };
@@ -1438,12 +1451,18 @@ void main() {
     expect(result.accumulators.first.decodedBufferCount, 2);
     expect(result.accumulators.first.inputSamplesDecodable, isTrue);
     expect(result.accumulators.first.inputDecodedBuffersReadable, isTrue);
+    expect(result.accumulators.first.liveDecodeStreamCoverageReady, isTrue);
+    expect(result.accumulators.first.continuousSampleCoverageReady, isTrue);
     expect(result.accumulators.first.requiresExactFrameDecode, isTrue);
     expect(result.accumulators.first.allowGaussianFallback, isFalse);
     expect(result.accumulators.last.decodedSampleCount, 1);
     expect(result.accumulators.last.decodedBufferCount, 0);
     expect(result.accumulators.last.inputSamplesDecodable, isFalse);
     expect(result.accumulators.last.inputDecodedBuffersReadable, isFalse);
+    expect(result.accumulators.last.liveDecodeStreamDecodedFrameCount, 8);
+    expect(result.accumulators.last.liveDecodeStreamReadableBufferCount, 7);
+    expect(result.accumulators.last.liveDecodeStreamCoverageReady, isFalse);
+    expect(result.accumulators.last.continuousSampleCoverageReady, isFalse);
     expect(result.accumulators.last.allowDecorativeSpeedLines, isFalse);
     expect(
       result.blockedReasons,
@@ -1452,6 +1471,10 @@ void main() {
     expect(
       result.blockedReasons,
       contains('native_temporal_sample_buffer_not_ready'),
+    );
+    expect(
+      result.blockedReasons,
+      contains('native_temporal_live_decode_stream_not_ready'),
     );
     expect(
       result.blockedReasons,
