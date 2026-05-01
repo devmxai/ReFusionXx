@@ -481,6 +481,142 @@ void main() {
     ]);
   });
 
+  test('method channel frame sample planning maps native source samples',
+      () async {
+    const channel = MethodChannel(
+        'com.refusion.app/professional_video_transition_compositor');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(channel, null);
+    });
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'planFrameSamples');
+      final arguments = call.arguments! as Map<Object?, Object?>;
+      expect(arguments['definitionId'], 'zoomInCamera');
+      expect(arguments['timelineTimeMs'], 10000);
+      expect(arguments['motionBlurPolicy'], isA<Map<Object?, Object?>>());
+      return <String, Object?>{
+        'status': 'planned',
+        'reason': '',
+        'rendererVersion': 'foundation',
+        'definitionId': 'zoomInCamera',
+        'renderSessionId': 'transition-session:zoom-native-1',
+        'timelineTimeMs': 10000,
+        'transitionStartMs': 8000,
+        'transitionEndMs': 12000,
+        'progress': 0.5,
+        'sourceRoles': <String>['outgoing', 'incoming'],
+        'outgoingSourceTimeMs': 30000,
+        'incomingSourceTimeMs': 40000,
+        'temporalSampleTimelineTimesMs': <int>[
+          9983,
+          9994,
+          10006,
+          10017,
+        ],
+        'outgoingTemporalSourceTimesMs': <int>[
+          29983,
+          29994,
+          30006,
+          30017,
+        ],
+        'incomingTemporalSourceTimesMs': <int>[
+          39983,
+          39994,
+          40006,
+          40017,
+        ],
+        'motionBlurMode': 'temporalShutter',
+        'shutterAngleDegrees': 360.0,
+        'frameRate': 30.0,
+        'shutterSampleCount': 4,
+      };
+    });
+
+    final result =
+        await const MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider(
+      channel: channel,
+    ).planFrameSamples(
+      timelineTime: TimelineTime.fromMilliseconds(10000),
+      plan: ProfessionalZoomCameraRenderPlan(
+        canvasWidth: 1080,
+        canvasHeight: 1920,
+        request: ProfessionalZoomCameraPlanRequest(
+          transitionId: 'zoom-native-1',
+          timelineTime: TimelineTime.fromMilliseconds(10000),
+          boundaryTime: TimelineTime.fromMilliseconds(10000),
+          leadingDuration: TimelineTime.fromMilliseconds(2000),
+          trailingDuration: TimelineTime.fromMilliseconds(2000),
+          outgoing: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-a',
+            assetId: 'asset-a',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(28000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+          incoming: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-b',
+            assetId: 'asset-b',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(38000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+          shutterSampleCount: 4,
+        ),
+      ).toGenericRenderPlan(),
+    );
+
+    expect(result.canPlan, isTrue);
+    expect(result.renderSessionId, 'transition-session:zoom-native-1');
+    expect(result.transitionStartTime!.inMilliseconds, 8000);
+    expect(result.transitionEndTime!.inMilliseconds, 12000);
+    expect(result.timelineTime!.inMilliseconds, 10000);
+    expect(result.progress, 0.5);
+    expect(result.sourceRoles, <String>['outgoing', 'incoming']);
+    expect(result.outgoingSourceTime!.inMilliseconds, 30000);
+    expect(result.incomingSourceTime!.inMilliseconds, 40000);
+    expect(result.temporalSampleTimelineTimes, hasLength(4));
+    expect(result.outgoingTemporalSourceTimes.first.inMilliseconds, 29983);
+    expect(result.incomingTemporalSourceTimes.last.inMilliseconds, 40017);
+    expect(result.motionBlurMode, 'temporalShutter');
+    expect(result.shutterAngleDegrees, 360);
+    expect(result.frameRate, 30);
+    expect(result.shutterSampleCount, 4);
+  });
+
+  test('frame sample planning mapper preserves invalid native issues', () {
+    final result =
+        ProfessionalVideoTransitionFrameSamplePlanResultMapper.fromMap(
+      <String, Object?>{
+        'status': 'invalidRequest',
+        'reason': 'timeline_time_outside_transition_render_session',
+        'rendererVersion': 'foundation',
+        'definitionId': 'zoomInCamera',
+        'issues': <Map<String, Object?>>[
+          <String, Object?>{
+            'path': 'timelineTimeMs',
+            'message': 'Frame time must be inside the transition window.',
+          },
+        ],
+      },
+    );
+
+    expect(result.canPlan, isFalse);
+    expect(
+      result.status,
+      ProfessionalVideoTransitionFrameSamplePlanStatus.invalidRequest,
+    );
+    expect(result.reason, 'timeline_time_outside_transition_render_session');
+    expect(result.issues.single['path'], 'timelineTimeMs');
+  });
+
   test('zoom camera plan maps to live source times around the seam', () {
     const planner = ProfessionalZoomCameraCompositorPlanner();
     final plan = planner.planFrame(

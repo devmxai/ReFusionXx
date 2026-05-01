@@ -108,6 +108,11 @@ abstract class ProfessionalVideoTransitionCompositorClient
     ProfessionalVideoTransitionRenderPlan plan,
   );
 
+  Future<ProfessionalVideoTransitionFrameSamplePlanResult> planFrameSamples({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  });
+
   Future<ProfessionalVideoTransitionCompositorPrepareResult>
       prepareZoomInCameraRenderPlan(
     ProfessionalZoomCameraRenderPlan plan,
@@ -165,11 +170,218 @@ class MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider
   }
 
   @override
+  Future<ProfessionalVideoTransitionFrameSamplePlanResult> planFrameSamples({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  }) async {
+    try {
+      final payload = plan.toPlatformMap();
+      payload['timelineTimeMs'] = timelineTime.inMilliseconds;
+      final rawResult = await _channel.invokeMapMethod<String, Object?>(
+        'planFrameSamples',
+        payload,
+      );
+      return ProfessionalVideoTransitionFrameSamplePlanResultMapper.fromMap(
+        rawResult,
+      );
+    } on MissingPluginException {
+      return ProfessionalVideoTransitionFrameSamplePlanResult.invalidRequest(
+        reason: 'native_compositor_channel_missing',
+      );
+    } on PlatformException catch (error) {
+      return ProfessionalVideoTransitionFrameSamplePlanResult.invalidRequest(
+        reason: error.message ?? error.code,
+      );
+    }
+  }
+
+  @override
   Future<ProfessionalVideoTransitionCompositorPrepareResult>
       prepareZoomInCameraRenderPlan(
     ProfessionalZoomCameraRenderPlan plan,
   ) {
     return prepareRenderPlan(plan.toGenericRenderPlan());
+  }
+}
+
+enum ProfessionalVideoTransitionFrameSamplePlanStatus {
+  planned,
+  invalidRequest,
+}
+
+@immutable
+class ProfessionalVideoTransitionFrameSamplePlanResult {
+  const ProfessionalVideoTransitionFrameSamplePlanResult({
+    required this.status,
+    required this.reason,
+    required this.rendererVersion,
+    required this.definitionId,
+    required this.renderSessionId,
+    required this.timelineTime,
+    required this.transitionStartTime,
+    required this.transitionEndTime,
+    required this.progress,
+    required this.sourceRoles,
+    required this.outgoingSourceTime,
+    required this.incomingSourceTime,
+    required this.temporalSampleTimelineTimes,
+    required this.outgoingTemporalSourceTimes,
+    required this.incomingTemporalSourceTimes,
+    required this.motionBlurMode,
+    required this.shutterAngleDegrees,
+    required this.frameRate,
+    required this.shutterSampleCount,
+    this.issues = const <Map<String, Object?>>[],
+  });
+
+  factory ProfessionalVideoTransitionFrameSamplePlanResult.invalidRequest({
+    required String reason,
+    String rendererVersion = 'unknown',
+    List<Map<String, Object?>> issues = const <Map<String, Object?>>[],
+  }) {
+    return ProfessionalVideoTransitionFrameSamplePlanResult(
+      status: ProfessionalVideoTransitionFrameSamplePlanStatus.invalidRequest,
+      reason: reason,
+      rendererVersion: rendererVersion,
+      definitionId: '',
+      renderSessionId: '',
+      timelineTime: null,
+      transitionStartTime: null,
+      transitionEndTime: null,
+      progress: 0,
+      sourceRoles: const <String>[],
+      outgoingSourceTime: null,
+      incomingSourceTime: null,
+      temporalSampleTimelineTimes: const <TimelineTime>[],
+      outgoingTemporalSourceTimes: const <TimelineTime>[],
+      incomingTemporalSourceTimes: const <TimelineTime>[],
+      motionBlurMode: '',
+      shutterAngleDegrees: 0,
+      frameRate: 0,
+      shutterSampleCount: 0,
+      issues: issues,
+    );
+  }
+
+  final ProfessionalVideoTransitionFrameSamplePlanStatus status;
+  final String reason;
+  final String rendererVersion;
+  final String definitionId;
+  final String renderSessionId;
+  final TimelineTime? timelineTime;
+  final TimelineTime? transitionStartTime;
+  final TimelineTime? transitionEndTime;
+  final double progress;
+  final List<String> sourceRoles;
+  final TimelineTime? outgoingSourceTime;
+  final TimelineTime? incomingSourceTime;
+  final List<TimelineTime> temporalSampleTimelineTimes;
+  final List<TimelineTime> outgoingTemporalSourceTimes;
+  final List<TimelineTime> incomingTemporalSourceTimes;
+  final String motionBlurMode;
+  final double shutterAngleDegrees;
+  final double frameRate;
+  final int shutterSampleCount;
+  final List<Map<String, Object?>> issues;
+
+  bool get canPlan =>
+      status == ProfessionalVideoTransitionFrameSamplePlanStatus.planned;
+}
+
+class ProfessionalVideoTransitionFrameSamplePlanResultMapper {
+  const ProfessionalVideoTransitionFrameSamplePlanResultMapper._();
+
+  static ProfessionalVideoTransitionFrameSamplePlanResult fromMap(
+    Map<String, Object?>? map,
+  ) {
+    if (map == null) {
+      return ProfessionalVideoTransitionFrameSamplePlanResult.invalidRequest(
+        reason: 'native_compositor_empty_sample_plan_response',
+      );
+    }
+    final status = switch (map['status']?.toString()) {
+      'planned' => ProfessionalVideoTransitionFrameSamplePlanStatus.planned,
+      _ => ProfessionalVideoTransitionFrameSamplePlanStatus.invalidRequest,
+    };
+    return ProfessionalVideoTransitionFrameSamplePlanResult(
+      status: status,
+      reason: map['reason']?.toString() ?? '',
+      rendererVersion: map['rendererVersion']?.toString() ?? 'unknown',
+      definitionId: map['definitionId']?.toString() ?? '',
+      renderSessionId: map['renderSessionId']?.toString() ?? '',
+      timelineTime: _readTimelineTime(map['timelineTimeMs']),
+      transitionStartTime: _readTimelineTime(map['transitionStartMs']),
+      transitionEndTime: _readTimelineTime(map['transitionEndMs']),
+      progress: _readDouble(map['progress']),
+      sourceRoles: _readStringList(map['sourceRoles']),
+      outgoingSourceTime: _readTimelineTime(map['outgoingSourceTimeMs']),
+      incomingSourceTime: _readTimelineTime(map['incomingSourceTimeMs']),
+      temporalSampleTimelineTimes:
+          _readTimelineTimes(map['temporalSampleTimelineTimesMs']),
+      outgoingTemporalSourceTimes:
+          _readTimelineTimes(map['outgoingTemporalSourceTimesMs']),
+      incomingTemporalSourceTimes:
+          _readTimelineTimes(map['incomingTemporalSourceTimesMs']),
+      motionBlurMode: map['motionBlurMode']?.toString() ?? '',
+      shutterAngleDegrees: _readDouble(map['shutterAngleDegrees']),
+      frameRate: _readDouble(map['frameRate']),
+      shutterSampleCount: _readInt(map['shutterSampleCount']),
+      issues: _readIssues(map['issues']),
+    );
+  }
+
+  static List<String> _readStringList(Object? value) {
+    if (value is! List) {
+      return const <String>[];
+    }
+    return List<String>.unmodifiable(value.map((entry) => entry.toString()));
+  }
+
+  static List<Map<String, Object?>> _readIssues(Object? value) {
+    if (value is! List) {
+      return const <Map<String, Object?>>[];
+    }
+    return List<Map<String, Object?>>.unmodifiable(
+      value.whereType<Map>().map((issue) {
+        return <String, Object?>{
+          for (final entry in issue.entries) entry.key.toString(): entry.value,
+        };
+      }),
+    );
+  }
+
+  static List<TimelineTime> _readTimelineTimes(Object? value) {
+    if (value is! List) {
+      return const <TimelineTime>[];
+    }
+    return List<TimelineTime>.unmodifiable(
+      value.map(_readTimelineTime).whereType<TimelineTime>(),
+    );
+  }
+
+  static TimelineTime? _readTimelineTime(Object? value) {
+    if (value is num) {
+      return TimelineTime.fromMilliseconds(value.round());
+    }
+    final parsed = int.tryParse(value?.toString() ?? '');
+    if (parsed == null) {
+      return null;
+    }
+    return TimelineTime.fromMilliseconds(parsed);
+  }
+
+  static double _readDouble(Object? value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+    return double.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static int _readInt(Object? value) {
+    if (value is num) {
+      return value.round();
+    }
+    return int.tryParse(value?.toString() ?? '') ?? 0;
   }
 }
 

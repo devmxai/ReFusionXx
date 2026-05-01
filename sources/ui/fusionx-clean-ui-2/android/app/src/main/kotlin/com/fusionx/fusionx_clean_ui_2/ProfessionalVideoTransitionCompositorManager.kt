@@ -64,6 +64,45 @@ class ProfessionalVideoTransitionCompositorManager {
     fun prepareZoomInCameraRenderPlan(plan: Map<String, Any?>?): Map<String, Any> =
         prepareRenderPlan(plan)
 
+    fun planFrameSamples(
+        plan: Map<String, Any?>?,
+        timelineTimeMs: Long?,
+    ): Map<String, Any> {
+        val missingFields = requiredRenderPlanFields.filter { field ->
+            !hasRequiredField(plan, field)
+        }
+        if (missingFields.isNotEmpty()) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_required_video_transition_render_plan_fields",
+                "rendererVersion" to "foundation",
+                "missingFields" to missingFields,
+            )
+        }
+        if (timelineTimeMs == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_timeline_time_for_video_transition_sample_plan",
+                "rendererVersion" to "foundation",
+            )
+        }
+        val definitionId = plan?.get("definitionId")?.toString() ?: ""
+        val sessionResult = ProfessionalVideoTransitionRenderSession.fromPlan(plan)
+        if (sessionResult.session == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "invalid_video_transition_render_session",
+                "rendererVersion" to "foundation",
+                "definitionId" to definitionId,
+                "issues" to sessionResult.issues,
+            )
+        }
+        return sessionResult.session.planFrameSamples(
+            timelineTimeMs = timelineTimeMs,
+            motionBlurPolicy = plan?.get("motionBlurPolicy") as? Map<*, *>,
+        )
+    }
+
     private fun hasRequiredField(plan: Map<String, Any?>?, field: String): Boolean {
         if (plan == null) {
             return false
@@ -130,6 +169,97 @@ private data class ProfessionalVideoTransitionRenderSession(
             "outgoingSourceTimeAtBoundaryMs" to outgoing.sourceTimeForTimelineTime(boundaryTimeMs),
             "incomingSourceTimeAtBoundaryMs" to incoming.sourceTimeForTimelineTime(boundaryTimeMs),
         )
+
+    fun planFrameSamples(
+        timelineTimeMs: Long,
+        motionBlurPolicy: Map<*, *>?,
+    ): Map<String, Any> {
+        if (timelineTimeMs < transitionStartMs || timelineTimeMs > transitionEndMs) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "timeline_time_outside_transition_render_session",
+                "rendererVersion" to "foundation",
+                "definitionId" to definitionId,
+                "timelineTimeMs" to timelineTimeMs,
+                "transitionStartMs" to transitionStartMs,
+                "transitionEndMs" to transitionEndMs,
+            )
+        }
+        val timelineSamples =
+            temporalSampleTimelineTimes(
+                timelineTimeMs = timelineTimeMs,
+                motionBlurPolicy = motionBlurPolicy,
+            )
+        val transitionDurationMs = (transitionEndMs - transitionStartMs).coerceAtLeast(1L)
+        val progress =
+            ((timelineTimeMs - transitionStartMs).toDouble() / transitionDurationMs.toDouble())
+                .coerceIn(0.0, 1.0)
+        val mode = motionBlurPolicy?.get("mode")?.toString() ?: "none"
+        val shutterAngleDegrees =
+            motionBlurPolicy?.doubleValue("shutterAngleDegrees", defaultValue = 0.0)
+                ?.coerceIn(0.0, 720.0) ?: 0.0
+        val frameRate =
+            motionBlurPolicy?.doubleValue("frameRate", defaultValue = 30.0)
+                ?.takeIf { value -> value.isFinite() && value > 0.0 } ?: 30.0
+        val sampleCount =
+            motionBlurPolicy?.intValue("sampleCount", defaultValue = 1)
+                ?.coerceIn(1, 32) ?: 1
+        return mapOf(
+            "status" to "planned",
+            "reason" to "",
+            "rendererVersion" to "foundation",
+            "definitionId" to definitionId,
+            "renderSessionId" to id,
+            "timelineTimeMs" to timelineTimeMs,
+            "progress" to progress,
+            "transitionStartMs" to transitionStartMs,
+            "transitionEndMs" to transitionEndMs,
+            "sourceRoles" to sourceRoles,
+            "outgoingSourceTimeMs" to outgoing.sourceTimeForTimelineTime(timelineTimeMs),
+            "incomingSourceTimeMs" to incoming.sourceTimeForTimelineTime(timelineTimeMs),
+            "temporalSampleTimelineTimesMs" to timelineSamples,
+            "outgoingTemporalSourceTimesMs" to timelineSamples.map { sampleTime ->
+                outgoing.sourceTimeForTimelineTime(sampleTime)
+            },
+            "incomingTemporalSourceTimesMs" to timelineSamples.map { sampleTime ->
+                incoming.sourceTimeForTimelineTime(sampleTime)
+            },
+            "motionBlurMode" to mode,
+            "shutterAngleDegrees" to shutterAngleDegrees,
+            "frameRate" to frameRate,
+            "shutterSampleCount" to sampleCount,
+        )
+    }
+
+    private fun temporalSampleTimelineTimes(
+        timelineTimeMs: Long,
+        motionBlurPolicy: Map<*, *>?,
+    ): List<Long> {
+        val mode = motionBlurPolicy?.get("mode")?.toString()
+        val shutterAngleDegrees =
+            motionBlurPolicy?.doubleValue("shutterAngleDegrees", defaultValue = 0.0)
+                ?.coerceIn(0.0, 720.0) ?: 0.0
+        val frameRate =
+            motionBlurPolicy?.doubleValue("frameRate", defaultValue = 30.0)
+                ?.takeIf { value -> value.isFinite() && value > 0.0 } ?: 30.0
+        val sampleCount =
+            motionBlurPolicy?.intValue("sampleCount", defaultValue = 1)
+                ?.coerceIn(1, 32) ?: 1
+        val clampedTimelineTimeMs = timelineTimeMs.coerceIn(transitionStartMs, transitionEndMs)
+        if (mode != "temporalShutter" || sampleCount == 1 || shutterAngleDegrees <= 0.0) {
+            return listOf(clampedTimelineTimeMs)
+        }
+        val exposureMs = (shutterAngleDegrees / (360.0 * frameRate)) * 1000.0
+        if (!exposureMs.isFinite() || exposureMs <= 0.0) {
+            return listOf(clampedTimelineTimeMs)
+        }
+        val firstOffsetMs = -exposureMs / 2.0
+        val stepMs = exposureMs / (sampleCount - 1).toDouble()
+        return List(sampleCount) { index ->
+            val sampleTimeMs = timelineTimeMs + firstOffsetMs + (stepMs * index)
+            Math.round(sampleTimeMs).coerceIn(transitionStartMs, transitionEndMs)
+        }
+    }
 
     companion object {
         fun fromPlan(plan: Map<String, Any?>?): ProfessionalVideoTransitionRenderSessionParseResult {
@@ -314,6 +444,26 @@ private fun Map<*, *>.longValue(key: String): Long =
         is Number -> value.toLong()
         is String -> value.toLongOrNull() ?: 0L
         else -> 0L
+    }
+
+private fun Map<*, *>.doubleValue(
+    key: String,
+    defaultValue: Double = 0.0,
+): Double =
+    when (val value = this[key]) {
+        is Number -> value.toDouble()
+        is String -> value.toDoubleOrNull() ?: defaultValue
+        else -> defaultValue
+    }
+
+private fun Map<*, *>.intValue(
+    key: String,
+    defaultValue: Int = 0,
+): Int =
+    when (val value = this[key]) {
+        is Number -> value.toInt()
+        is String -> value.toIntOrNull() ?: defaultValue
+        else -> defaultValue
     }
 
 private fun issue(path: String, message: String): Map<String, Any> =

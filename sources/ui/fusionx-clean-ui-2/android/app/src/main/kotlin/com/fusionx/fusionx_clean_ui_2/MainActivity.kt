@@ -463,6 +463,17 @@ class MainActivity: FlutterActivity() {
                         professionalVideoTransitionCompositorManager.prepareRenderPlan(plan),
                     )
                 }
+                "planFrameSamples" -> {
+                    val request =
+                        (call.arguments as? Map<*, *>)?.mapKeys { (key, _) -> key.toString() }
+                    val timelineTimeMs = (request?.get("timelineTimeMs") as? Number)?.toLong()
+                    result.success(
+                        professionalVideoTransitionCompositorManager.planFrameSamples(
+                            plan = request,
+                            timelineTimeMs = timelineTimeMs,
+                        ),
+                    )
+                }
                 "prepareZoomInCameraRenderPlan" -> {
                     val plan =
                         (call.arguments as? Map<*, *>)?.mapKeys { (key, _) -> key.toString() }

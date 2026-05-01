@@ -744,6 +744,14 @@ Current gate:
   and returns a clear unsupported status instead of rendering. This is
   intentional: the next implementation slice must replace that unsupported
   response with real renderer capabilities, not a Flutter overlay fallback.
+- Flutter and Android now share `planFrameSamples` as the next compositor
+  foundation. A valid render plan is parsed into the same strict native render
+  session, then a requested transition timeline frame is converted into:
+  outgoing source time, incoming source time, normalized progress, and temporal
+  shutter sample times for both sources. The method rejects frame times outside
+  the transition window and still renders nothing. This contract exists so the
+  future renderer samples live A/B video across the window instead of falling
+  back to frozen frames or ambiguous thumbnails.
 
 ## 9. Stop Conditions
 
