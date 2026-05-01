@@ -622,17 +622,21 @@ video streams. It also reports whether both source ranges cover the full
 transition window. A renderer must not treat a cross dissolve as renderable when
 coverage is false, because that would force one side to clamp to a still
 boundary frame. This planner is the primitive math contract only; native
-preview/export parity still requires a connected dual-video compositor.
+preview/export parity still requires a connected dual-video compositor. The
+built-in default duration is two seconds split symmetrically around the seam.
+Short windows below about 600ms should be treated as a stylistic quick fade,
+not the professional default.
 
 Scene Contents video-layer proxies must carry media-source timing, not their
 scene-local timeline placement, into transition preview requests. For a
 transition between layer A and layer B, outgoing boundary warmup samples the
 last visible source frame of A and incoming boundary warmup samples the first
-visible source frame of B. The interim Flutter preview bridge for Cross
-Dissolve is seam-aware: before the seam the live native surface is outgoing A
-and the incoming first boundary frame fades in; after the seam the live native
-surface is incoming B and the outgoing last boundary frame fades out. This keeps
-the visible handoff anchored to A-end/B-start until the full dual-video native
+visible source frame of B at canvas resolution, not low-resolution fallback
+thumbnail size. The interim Flutter preview bridge for Cross Dissolve is
+seam-aware: before the seam the live native surface is outgoing A and the
+incoming first boundary frame fades in; after the seam the live native surface
+is incoming B and the outgoing last boundary frame fades out. This keeps the
+visible handoff anchored to A-end/B-start until the full dual-video native
 compositor renders both moving streams directly.
 
 Zoom In Camera is the first demanding test case for this general compositor. It

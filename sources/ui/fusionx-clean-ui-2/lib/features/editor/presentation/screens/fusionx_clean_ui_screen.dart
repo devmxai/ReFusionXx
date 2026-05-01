@@ -5739,7 +5739,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       durationTime: preset.defaultDurationTime,
       leadingDurationTime: timing.leadingDurationTime,
       trailingDurationTime: timing.trailingDurationTime,
-      curve: preset == TimelineTransitionPreset.zoomInCamera
+      curve: preset == TimelineTransitionPreset.zoomInCamera ||
+              preset == TimelineTransitionPreset.crossDissolve
           ? TimelineTransitionCurve.linear
           : TimelineTransitionCurve.easeInOut,
       parameterValues: preset.defaultParameterValues,
@@ -20408,9 +20409,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         sourceUri.isEmpty) {
       return null;
     }
-    final target = _resolvePreviewFallbackTargetSizeForAspectRatio(
-      asset.aspectRatio,
-    );
+    final target = _resolveTransitionBoundaryFrameTargetSize();
     return _transitionBoundaryFrameRequestResolver.resolve(
       clip: clip,
       sourceUri: sourceUri,
@@ -20419,6 +20418,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       targetWidth: target.width,
       targetHeight: target.height,
     );
+  }
+
+  ({int width, int height}) _resolveTransitionBoundaryFrameTargetSize() {
+    final canvasSize = _motionProjectFormat.canvasSize;
+    final width = canvasSize.width.round().clamp(480, 1920).toInt();
+    final height = canvasSize.height.round().clamp(480, 1920).toInt();
+    return (width: width, height: height);
   }
 
   void _warmTransitionBoundaryFrame({

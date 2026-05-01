@@ -336,6 +336,7 @@ class _CrossDissolveTransitionLayer extends StatelessWidget {
         bytes,
         fit: BoxFit.cover,
         gaplessPlayback: true,
+        filterQuality: FilterQuality.high,
       ),
     );
   }

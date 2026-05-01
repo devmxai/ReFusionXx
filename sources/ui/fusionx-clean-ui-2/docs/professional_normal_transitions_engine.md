@@ -271,7 +271,7 @@ External agents should target this shape:
   "id": "smooth-cross-dissolve",
   "name": "Smooth Cross Dissolve",
   "rendererType": "primitive",
-  "defaultDurationMs": 720,
+  "defaultDurationMs": 2000,
   "requires": ["dual-texture", "opacity", "timeline-overlap"],
   "parameters": [
     {

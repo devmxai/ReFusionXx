@@ -88,11 +88,16 @@ class _TransitionInspectorBottomSheetState
   @override
   Widget build(BuildContext context) {
     final safeBottom = MediaQuery.of(context).padding.bottom;
-    final durationMin =
-        _draft.preset == TimelineTransitionPreset.zoomInCamera ? 1200.0 : 220.0;
-    final durationMax = _draft.preset == TimelineTransitionPreset.zoomInCamera
-        ? 5000.0
-        : 1600.0;
+    final durationMin = switch (_draft.preset) {
+      TimelineTransitionPreset.zoomInCamera => 1200.0,
+      TimelineTransitionPreset.crossDissolve => 600.0,
+      _ => 220.0,
+    };
+    final durationMax = switch (_draft.preset) {
+      TimelineTransitionPreset.zoomInCamera => 5000.0,
+      TimelineTransitionPreset.crossDissolve => 5000.0,
+      _ => 1600.0,
+    };
     return Material(
       color: Colors.transparent,
       child: Align(

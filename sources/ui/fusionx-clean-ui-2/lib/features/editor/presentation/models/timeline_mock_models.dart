@@ -75,7 +75,7 @@ extension TimelineTransitionPresetPresentation on TimelineTransitionPreset {
     return switch (this) {
       TimelineTransitionPreset.manual => TimelineTime.fromMilliseconds(2000),
       TimelineTransitionPreset.crossDissolve =>
-        TimelineTime.fromMilliseconds(720),
+        TimelineTime.fromMilliseconds(2000),
       TimelineTransitionPreset.fadeBlack => TimelineTime.fromMilliseconds(540),
       TimelineTransitionPreset.zoomInCamera =>
         TimelineTime.fromMilliseconds(4000),

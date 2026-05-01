@@ -6,9 +6,9 @@ const String kCrossDissolveTransitionDefinitionJson = '''
   "name": "Cross Dissolve",
   "category": "basic",
   "rendererType": "primitive",
-  "defaultDurationMs": 720,
-  "minDurationMs": 120,
-  "maxDurationMs": 3000,
+  "defaultDurationMs": 2000,
+  "minDurationMs": 600,
+  "maxDurationMs": 5000,
   "requires": ["dual-texture", "opacity", "timeline-overlap"],
   "parameters": [
     {

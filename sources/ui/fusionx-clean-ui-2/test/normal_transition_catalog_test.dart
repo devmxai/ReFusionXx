@@ -23,9 +23,9 @@ void main() {
     expect(definition, isNotNull);
     expect(definition!.category, NormalTransitionCategory.basic);
     expect(definition.rendererTier, NormalTransitionRendererTier.primitive);
-    expect(definition.defaultDuration.inMilliseconds, 720);
-    expect(definition.minDuration.inMilliseconds, 120);
-    expect(definition.maxDuration.inMilliseconds, 3000);
+    expect(definition.defaultDuration.inMilliseconds, 2000);
+    expect(definition.minDuration.inMilliseconds, 600);
+    expect(definition.maxDuration.inMilliseconds, 5000);
     expect(definition.capabilities, contains('dual-texture'));
     expect(definition.defaultParameterValues['softness'], 0.5);
     expect(definition.channels.map((channel) => channel.target), <String>[

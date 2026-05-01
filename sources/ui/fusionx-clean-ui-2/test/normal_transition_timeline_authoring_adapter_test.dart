@@ -20,7 +20,7 @@ void main() {
 
     expect(result.canApply, isTrue);
     expect(result.transition!.preset, TimelineTransitionPreset.crossDissolve);
-    expect(result.transition!.durationTime.inMilliseconds, 720);
+    expect(result.transition!.durationTime.inMilliseconds, 2000);
     expect(result.node!.definitionId, 'cross_dissolve');
     expect(result.instance!.nodeId, result.node!.id);
   });

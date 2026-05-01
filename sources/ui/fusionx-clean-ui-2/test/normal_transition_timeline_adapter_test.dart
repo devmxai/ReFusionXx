@@ -33,9 +33,9 @@ void main() {
 
     expect(transition, isNotNull);
     expect(transition!.preset, TimelineTransitionPreset.crossDissolve);
-    expect(transition.durationTime.inMilliseconds, 720);
-    expect(transition.resolvedLeadingDurationTime.inMilliseconds, 360);
-    expect(transition.resolvedTrailingDurationTime.inMilliseconds, 360);
+    expect(transition.durationTime.inMilliseconds, 2000);
+    expect(transition.resolvedLeadingDurationTime.inMilliseconds, 1000);
+    expect(transition.resolvedTrailingDurationTime.inMilliseconds, 1000);
     expect(transition.parameterValues['softness'], 0.75);
   });
 
