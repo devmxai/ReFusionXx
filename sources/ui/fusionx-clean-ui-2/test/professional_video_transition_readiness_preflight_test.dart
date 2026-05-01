@@ -32,6 +32,7 @@ void main() {
         ProfessionalVideoTransitionReadinessStageId.temporalAccumulator,
         ProfessionalVideoTransitionReadinessStageId.mirrorEdgeTiling,
         ProfessionalVideoTransitionReadinessStageId.renderPassGraph,
+        ProfessionalVideoTransitionReadinessStageId.renderGraphExecution,
         ProfessionalVideoTransitionReadinessStageId.outputSurface,
         ProfessionalVideoTransitionReadinessStageId.parityOutputs,
       ],
@@ -546,6 +547,67 @@ class _FakeProfessionalVideoTransitionCompositorClient
       rendererImplemented: _rendererReady,
       blockedReasons: _planningOnly
           ? const <String>['native_transition_renderer_not_implemented']
+          : const <String>[],
+    );
+  }
+
+  @override
+  Future<ProfessionalVideoTransitionRenderGraphExecutionPlanResult>
+      planRenderGraphExecution({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  }) async {
+    return ProfessionalVideoTransitionRenderGraphExecutionPlanResult(
+      status: ProfessionalVideoTransitionRenderGraphExecutionPlanStatus.planned,
+      reason: '',
+      rendererVersion: 'fake',
+      definitionId: plan.definitionId,
+      renderSessionId: 'transition-session:${plan.transitionId}',
+      renderPassGraphId: 'graph:${plan.transitionId}',
+      renderGraphExecutorId: 'executor:${plan.transitionId}',
+      timelineTime: timelineTime,
+      transitionStartTime: plan.boundaryTime - plan.leadingDuration,
+      transitionEndTime: plan.boundaryTime + plan.trailingDuration,
+      requiredPassTypes: const <String>[
+        'decodeLiveVideoStreams',
+        'decodeExactVideoFrames',
+        'temporalSampleAccumulator',
+        'temporalSampleAccumulator',
+        'mirrorEdgeTile',
+        'transitionShaderEvaluation',
+        'composeToTransitionSurface',
+      ],
+      executionOrder: const <String>[
+        'pass:live',
+        'pass:decode',
+        'pass:temporal:out',
+        'pass:temporal:in',
+        'pass:edge',
+        'pass:transition',
+        'pass:output',
+      ],
+      passExecutionStates: const <ProfessionalVideoTransitionRenderGraphPassExecutionState>[
+        ProfessionalVideoTransitionRenderGraphPassExecutionState(
+          passId: 'pass:output',
+          type: 'composeToTransitionSurface',
+          role: 'output',
+          index: 6,
+          inputs: <String>['pass:transition'],
+          readyForExecutor: true,
+          blockedReasons: <String>[],
+        ),
+      ],
+      graphExecutorImplemented: true,
+      rendererImplemented: _rendererReady,
+      graphOrderValid: true,
+      graphDependenciesValid: true,
+      graphOwnershipReady: true,
+      canExecuteGraph: _rendererReady,
+      drawsPixels: false,
+      blockedReasons: _planningOnly
+          ? const <String>[
+              'native_transition_render_graph_executor_renderer_missing',
+            ]
           : const <String>[],
     );
   }

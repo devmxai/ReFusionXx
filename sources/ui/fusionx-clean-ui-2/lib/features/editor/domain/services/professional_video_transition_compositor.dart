@@ -164,6 +164,12 @@ abstract class ProfessionalVideoTransitionCompositorClient
     required TimelineTime timelineTime,
   });
 
+  Future<ProfessionalVideoTransitionRenderGraphExecutionPlanResult>
+      planRenderGraphExecution({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  });
+
   Future<ProfessionalVideoTransitionOutputSurfacePlanResult> planOutputSurface({
     required ProfessionalVideoTransitionRenderPlan plan,
     required TimelineTime timelineTime,
@@ -470,6 +476,34 @@ class MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider
       );
     } on PlatformException catch (error) {
       return ProfessionalVideoTransitionOutputSurfacePlanResult.invalidRequest(
+        reason: error.message ?? error.code,
+      );
+    }
+  }
+
+  @override
+  Future<ProfessionalVideoTransitionRenderGraphExecutionPlanResult>
+      planRenderGraphExecution({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  }) async {
+    try {
+      final payload = plan.toPlatformMap();
+      payload['timelineTimeMs'] = timelineTime.inMilliseconds;
+      final rawResult = await _channel.invokeMapMethod<String, Object?>(
+        'planRenderGraphExecution',
+        payload,
+      );
+      return ProfessionalVideoTransitionRenderGraphExecutionPlanResultMapper
+          .fromMap(rawResult);
+    } on MissingPluginException {
+      return ProfessionalVideoTransitionRenderGraphExecutionPlanResult
+          .invalidRequest(
+        reason: 'native_compositor_channel_missing',
+      );
+    } on PlatformException catch (error) {
+      return ProfessionalVideoTransitionRenderGraphExecutionPlanResult
+          .invalidRequest(
         reason: error.message ?? error.code,
       );
     }
@@ -2671,6 +2705,240 @@ class ProfessionalVideoTransitionRenderPassGraphPlanResultMapper {
 enum ProfessionalVideoTransitionOutputSurfacePlanStatus {
   planned,
   invalidRequest,
+}
+
+enum ProfessionalVideoTransitionRenderGraphExecutionPlanStatus {
+  planned,
+  invalidRequest,
+}
+
+@immutable
+class ProfessionalVideoTransitionRenderGraphPassExecutionState {
+  const ProfessionalVideoTransitionRenderGraphPassExecutionState({
+    required this.passId,
+    required this.type,
+    required this.role,
+    required this.index,
+    required this.inputs,
+    required this.readyForExecutor,
+    required this.blockedReasons,
+  });
+
+  final String passId;
+  final String type;
+  final String role;
+  final int index;
+  final List<String> inputs;
+  final bool readyForExecutor;
+  final List<String> blockedReasons;
+}
+
+@immutable
+class ProfessionalVideoTransitionRenderGraphExecutionPlanResult {
+  const ProfessionalVideoTransitionRenderGraphExecutionPlanResult({
+    required this.status,
+    required this.reason,
+    required this.rendererVersion,
+    required this.definitionId,
+    required this.renderSessionId,
+    required this.renderPassGraphId,
+    required this.renderGraphExecutorId,
+    required this.timelineTime,
+    required this.transitionStartTime,
+    required this.transitionEndTime,
+    required this.requiredPassTypes,
+    required this.executionOrder,
+    required this.passExecutionStates,
+    required this.graphExecutorImplemented,
+    required this.rendererImplemented,
+    required this.graphOrderValid,
+    required this.graphDependenciesValid,
+    required this.graphOwnershipReady,
+    required this.canExecuteGraph,
+    required this.drawsPixels,
+    required this.blockedReasons,
+    this.issues = const <Map<String, Object?>>[],
+  });
+
+  factory ProfessionalVideoTransitionRenderGraphExecutionPlanResult.invalidRequest({
+    required String reason,
+    String rendererVersion = 'unknown',
+    List<Map<String, Object?>> issues = const <Map<String, Object?>>[],
+  }) {
+    return ProfessionalVideoTransitionRenderGraphExecutionPlanResult(
+      status: ProfessionalVideoTransitionRenderGraphExecutionPlanStatus
+          .invalidRequest,
+      reason: reason,
+      rendererVersion: rendererVersion,
+      definitionId: '',
+      renderSessionId: '',
+      renderPassGraphId: '',
+      renderGraphExecutorId: '',
+      timelineTime: null,
+      transitionStartTime: null,
+      transitionEndTime: null,
+      requiredPassTypes: const <String>[],
+      executionOrder: const <String>[],
+      passExecutionStates: const <ProfessionalVideoTransitionRenderGraphPassExecutionState>[],
+      graphExecutorImplemented: false,
+      rendererImplemented: false,
+      graphOrderValid: false,
+      graphDependenciesValid: false,
+      graphOwnershipReady: false,
+      canExecuteGraph: false,
+      drawsPixels: false,
+      blockedReasons: const <String>[],
+      issues: issues,
+    );
+  }
+
+  final ProfessionalVideoTransitionRenderGraphExecutionPlanStatus status;
+  final String reason;
+  final String rendererVersion;
+  final String definitionId;
+  final String renderSessionId;
+  final String renderPassGraphId;
+  final String renderGraphExecutorId;
+  final TimelineTime? timelineTime;
+  final TimelineTime? transitionStartTime;
+  final TimelineTime? transitionEndTime;
+  final List<String> requiredPassTypes;
+  final List<String> executionOrder;
+  final List<ProfessionalVideoTransitionRenderGraphPassExecutionState>
+      passExecutionStates;
+  final bool graphExecutorImplemented;
+  final bool rendererImplemented;
+  final bool graphOrderValid;
+  final bool graphDependenciesValid;
+  final bool graphOwnershipReady;
+  final bool canExecuteGraph;
+  final bool drawsPixels;
+  final List<String> blockedReasons;
+  final List<Map<String, Object?>> issues;
+
+  bool get canPlan =>
+      status ==
+      ProfessionalVideoTransitionRenderGraphExecutionPlanStatus.planned;
+
+  bool get canOwnGraph =>
+      canPlan &&
+      graphExecutorImplemented &&
+      graphOrderValid &&
+      graphDependenciesValid &&
+      graphOwnershipReady;
+}
+
+class ProfessionalVideoTransitionRenderGraphExecutionPlanResultMapper {
+  const ProfessionalVideoTransitionRenderGraphExecutionPlanResultMapper._();
+
+  static ProfessionalVideoTransitionRenderGraphExecutionPlanResult fromMap(
+    Map<String, Object?>? map,
+  ) {
+    if (map == null) {
+      return ProfessionalVideoTransitionRenderGraphExecutionPlanResult
+          .invalidRequest(
+        reason: 'native_compositor_empty_render_graph_execution_response',
+      );
+    }
+    final status = switch (map['status']?.toString()) {
+      'planned' =>
+        ProfessionalVideoTransitionRenderGraphExecutionPlanStatus.planned,
+      _ => ProfessionalVideoTransitionRenderGraphExecutionPlanStatus
+          .invalidRequest,
+    };
+    return ProfessionalVideoTransitionRenderGraphExecutionPlanResult(
+      status: status,
+      reason: map['reason']?.toString() ?? '',
+      rendererVersion: map['rendererVersion']?.toString() ?? 'unknown',
+      definitionId: map['definitionId']?.toString() ?? '',
+      renderSessionId: map['renderSessionId']?.toString() ?? '',
+      renderPassGraphId: map['renderPassGraphId']?.toString() ?? '',
+      renderGraphExecutorId: map['renderGraphExecutorId']?.toString() ?? '',
+      timelineTime: _readTimelineTime(map['timelineTimeMs']),
+      transitionStartTime: _readTimelineTime(map['transitionStartMs']),
+      transitionEndTime: _readTimelineTime(map['transitionEndMs']),
+      requiredPassTypes: _readStringList(map['requiredPassTypes']),
+      executionOrder: _readStringList(map['executionOrder']),
+      passExecutionStates: _readPassExecutionStates(
+        map['passExecutionStates'],
+      ),
+      graphExecutorImplemented: _readBool(map['graphExecutorImplemented']),
+      rendererImplemented: _readBool(map['rendererImplemented']),
+      graphOrderValid: _readBool(map['graphOrderValid']),
+      graphDependenciesValid: _readBool(map['graphDependenciesValid']),
+      graphOwnershipReady: _readBool(map['graphOwnershipReady']),
+      canExecuteGraph: _readBool(map['canExecuteGraph']),
+      drawsPixels: _readBool(map['drawsPixels']),
+      blockedReasons: _readStringList(map['blockedReasons']),
+      issues: _readIssues(map['issues']),
+    );
+  }
+
+  static List<ProfessionalVideoTransitionRenderGraphPassExecutionState>
+      _readPassExecutionStates(Object? value) {
+    if (value is! List) {
+      return const <ProfessionalVideoTransitionRenderGraphPassExecutionState>[];
+    }
+    return List<
+        ProfessionalVideoTransitionRenderGraphPassExecutionState>.unmodifiable(
+      value.whereType<Map>().map((state) {
+        return ProfessionalVideoTransitionRenderGraphPassExecutionState(
+          passId: state['passId']?.toString() ?? '',
+          type: state['type']?.toString() ?? '',
+          role: state['role']?.toString() ?? '',
+          index: _readInt(state['index']),
+          inputs: _readStringList(state['inputs']),
+          readyForExecutor: _readBool(state['readyForExecutor']),
+          blockedReasons: _readStringList(state['blockedReasons']),
+        );
+      }),
+    );
+  }
+
+  static TimelineTime? _readTimelineTime(Object? value) {
+    if (value is num) {
+      return TimelineTime.fromMilliseconds(value.round());
+    }
+    final parsed = int.tryParse(value?.toString() ?? '');
+    if (parsed == null) {
+      return null;
+    }
+    return TimelineTime.fromMilliseconds(parsed);
+  }
+
+  static int _readInt(Object? value) {
+    if (value is num) {
+      return value.round();
+    }
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static bool _readBool(Object? value, {bool defaultValue = false}) {
+    if (value is bool) {
+      return value;
+    }
+    return defaultValue;
+  }
+
+  static List<String> _readStringList(Object? value) {
+    if (value is! List) {
+      return const <String>[];
+    }
+    return List<String>.unmodifiable(value.map((entry) => entry.toString()));
+  }
+
+  static List<Map<String, Object?>> _readIssues(Object? value) {
+    if (value is! List) {
+      return const <Map<String, Object?>>[];
+    }
+    return List<Map<String, Object?>>.unmodifiable(
+      value.whereType<Map>().map((issue) {
+        return <String, Object?>{
+          for (final entry in issue.entries) entry.key.toString(): entry.value,
+        };
+      }),
+    );
+  }
 }
 
 @immutable

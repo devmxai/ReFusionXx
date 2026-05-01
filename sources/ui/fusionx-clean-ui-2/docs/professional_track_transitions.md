@@ -886,6 +886,14 @@ Current gate:
   generic renderer failure. Current responses deliberately keep
   `rendererImplemented=false`, so this foundation cannot unlock presets or
   playback until a real compositor attaches to the graph.
+- Flutter and Android now also share `planRenderGraphExecution`. This is the
+  first native graph-executor contract, not a pixel renderer. It validates that
+  the pass order is exactly the professional graph sequence, that pass inputs
+  only depend on earlier passes, and that the graph ends in
+  `composeToTransitionSurface`. It returns ordered pass execution states,
+  `graphOwnershipReady`, and `canExecuteGraph`; the latter remains false while
+  `rendererImplemented=false`, so no transition preset can unlock from executor
+  ownership alone.
 - Flutter and Android now also share `planOutputSurface`. This binds the pass
   graph to the only acceptable output target for professional transitions: a
   native transition canvas surface clipped to the preview canvas. It

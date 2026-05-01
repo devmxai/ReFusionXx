@@ -14,6 +14,7 @@ enum ProfessionalVideoTransitionReadinessStageId {
   temporalAccumulator,
   mirrorEdgeTiling,
   renderPassGraph,
+  renderGraphExecution,
   outputSurface,
   parityOutputs,
 }
@@ -137,6 +138,12 @@ class ProfessionalVideoTransitionReadinessPreflight {
       timelineTime: timelineTime,
     );
     stages.add(_renderPassGraphStage(renderPassGraph));
+
+    final renderGraphExecution = await _client.planRenderGraphExecution(
+      plan: plan,
+      timelineTime: timelineTime,
+    );
+    stages.add(_renderGraphExecutionStage(renderGraphExecution));
 
     final outputSurface = await _client.planOutputSurface(
       plan: plan,
@@ -353,6 +360,24 @@ class ProfessionalVideoTransitionReadinessPreflight {
         blockedReasons: result.blockedReasons,
         issues: result.issues,
         includeReason: !result.canRender,
+      ),
+      issues: result.issues,
+    );
+  }
+
+  static ProfessionalVideoTransitionReadinessStage _renderGraphExecutionStage(
+    ProfessionalVideoTransitionRenderGraphExecutionPlanResult result,
+  ) {
+    return ProfessionalVideoTransitionReadinessStage(
+      id: ProfessionalVideoTransitionReadinessStageId.renderGraphExecution,
+      label: 'Render graph executor',
+      canPlan: result.canPlan,
+      canAdvance: result.canExecuteGraph,
+      blockers: _blockers(
+        reason: result.reason,
+        blockedReasons: result.blockedReasons,
+        issues: result.issues,
+        includeReason: !result.canExecuteGraph,
       ),
       issues: result.issues,
     );

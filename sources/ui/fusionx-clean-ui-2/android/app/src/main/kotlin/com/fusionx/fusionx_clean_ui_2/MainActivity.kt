@@ -564,6 +564,18 @@ class MainActivity: FlutterActivity() {
                         ),
                     )
                 }
+                "planRenderGraphExecution" -> {
+                    val request =
+                        (call.arguments as? Map<*, *>)?.mapKeys { (key, _) -> key.toString() }
+                    val timelineTimeMs = (request?.get("timelineTimeMs") as? Number)?.toLong()
+                    result.success(
+                        professionalVideoTransitionCompositorManager
+                            .planRenderGraphExecution(
+                                plan = request,
+                                timelineTimeMs = timelineTimeMs,
+                            ),
+                    )
+                }
                 "planParityOutputs" -> {
                     val request =
                         (call.arguments as? Map<*, *>)?.mapKeys { (key, _) -> key.toString() }

@@ -431,6 +431,48 @@ class ProfessionalVideoTransitionCompositorManager(
         )
     }
 
+    fun planRenderGraphExecution(
+        plan: Map<String, Any?>?,
+        timelineTimeMs: Long?,
+    ): Map<String, Any> {
+        val missingFields = requiredRenderPlanFields.filter { field ->
+            !hasRequiredField(plan, field)
+        }
+        if (missingFields.isNotEmpty()) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_required_video_transition_render_plan_fields",
+                "rendererVersion" to "foundation",
+                "missingFields" to missingFields,
+            )
+        }
+        if (timelineTimeMs == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_timeline_time_for_video_transition_graph_execution",
+                "rendererVersion" to "foundation",
+            )
+        }
+        val definitionId = plan?.get("definitionId")?.toString() ?: ""
+        val sessionResult = ProfessionalVideoTransitionRenderSession.fromPlan(plan)
+        if (sessionResult.session == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "invalid_video_transition_render_session",
+                "rendererVersion" to "foundation",
+                "definitionId" to definitionId,
+                "issues" to sessionResult.issues,
+            )
+        }
+        return sessionResult.session.planRenderGraphExecution(
+            timelineTimeMs = timelineTimeMs,
+            motionBlurPolicy = plan?.get("motionBlurPolicy") as? Map<*, *>,
+            edgePolicy = plan?.get("edgePolicy") as? Map<*, *>,
+            parameters = plan?.get("parameters") as? Map<*, *>,
+            appContext = appContext,
+        )
+    }
+
     fun planParityOutputs(
         plan: Map<String, Any?>?,
         timelineTimeMs: Long?,
@@ -1598,6 +1640,155 @@ private data class ProfessionalVideoTransitionRenderSession(
     private fun incomingTemporalPassFallback(timelineTimeMs: Long): String =
         "$id:accumulator:incoming:$timelineTimeMs"
 
+
+    fun planRenderGraphExecution(
+        timelineTimeMs: Long,
+        motionBlurPolicy: Map<*, *>?,
+        edgePolicy: Map<*, *>?,
+        parameters: Map<*, *>?,
+        appContext: Context,
+    ): Map<String, Any> {
+        val graphPlan =
+            planRenderPassGraph(
+                timelineTimeMs = timelineTimeMs,
+                motionBlurPolicy = motionBlurPolicy,
+                edgePolicy = edgePolicy,
+                parameters = parameters,
+                appContext = appContext,
+            )
+        if (graphPlan["status"] != "planned") {
+            return graphPlan
+        }
+        val passes =
+            (graphPlan["passes"] as? List<*>)?.mapNotNull { pass ->
+                pass as? Map<*, *>
+            } ?: emptyList()
+        val passTypes = passes.map { pass -> pass["type"]?.toString() ?: "" }
+        val requiresMirrorEdgeTiling = graphPlan["requiresMirrorEdgeTiling"] == true
+        val requiredPassTypes =
+            buildList {
+                add("decodeLiveVideoStreams")
+                add("decodeExactVideoFrames")
+                add("temporalSampleAccumulator")
+                add("temporalSampleAccumulator")
+                if (requiresMirrorEdgeTiling) {
+                    add("mirrorEdgeTile")
+                }
+                add("transitionShaderEvaluation")
+                add("composeToTransitionSurface")
+            }
+        val passIndexById =
+            passes.withIndex().mapNotNull { indexedPass ->
+                val passId = indexedPass.value["passId"]?.toString() ?: ""
+                if (passId.isBlank()) {
+                    null
+                } else {
+                    passId to indexedPass.index
+                }
+            }.toMap()
+        val graphOrderValid = passTypes == requiredPassTypes
+        val dependencyViolations =
+            passes.withIndex().flatMap { indexedPass ->
+                val inputs =
+                    (indexedPass.value["inputs"] as? List<*>)?.map { input ->
+                        input.toString()
+                    } ?: emptyList()
+                val passId = indexedPass.value["passId"]?.toString() ?: ""
+                inputs.mapNotNull { input ->
+                    val inputIndex = passIndexById[input] ?: return@mapNotNull null
+                    if (inputIndex < indexedPass.index) {
+                        null
+                    } else {
+                        "$passId:$input"
+                    }
+                }
+            }
+        val graphDependenciesValid = dependencyViolations.isEmpty()
+        val outputPass = passes.lastOrNull()
+        val outputPassBound =
+            outputPass?.get("type")?.toString() == "composeToTransitionSurface" &&
+                outputPass?.get("role")?.toString() == "output" &&
+                ((outputPass?.get("inputs") as? List<*>)?.isNotEmpty() == true)
+        val graphExecutorImplemented = true
+        val rendererImplemented = graphPlan["rendererImplemented"] == true
+        val upstreamBlockedReasons =
+            (graphPlan["blockedReasons"] as? List<*>)?.map { reason -> reason.toString() }
+                ?: emptyList()
+        val graphOwnershipReady =
+            graphExecutorImplemented &&
+                graphOrderValid &&
+                graphDependenciesValid &&
+                outputPassBound
+        val executionStates =
+            passes.withIndex().map { indexedPass ->
+                val passId = indexedPass.value["passId"]?.toString() ?: ""
+                val inputs =
+                    (indexedPass.value["inputs"] as? List<*>)?.map { input ->
+                        input.toString()
+                    } ?: emptyList()
+                val passDependencyViolations =
+                    inputs.mapNotNull { input ->
+                        val inputIndex = passIndexById[input] ?: return@mapNotNull null
+                        if (inputIndex < indexedPass.index) {
+                            null
+                        } else {
+                            input
+                        }
+                    }
+                val passBlockedReasons =
+                    buildList {
+                        if (!graphOrderValid) {
+                            add("native_transition_render_graph_order_invalid")
+                        }
+                        if (passDependencyViolations.isNotEmpty()) {
+                            add("native_transition_render_graph_dependencies_invalid")
+                        }
+                    }.distinct()
+                mapOf(
+                    "passId" to passId,
+                    "type" to (indexedPass.value["type"]?.toString() ?: ""),
+                    "role" to (indexedPass.value["role"]?.toString() ?: ""),
+                    "index" to indexedPass.index,
+                    "inputs" to inputs,
+                    "readyForExecutor" to passBlockedReasons.isEmpty(),
+                    "blockedReasons" to passBlockedReasons,
+                )
+            }
+        val blockedReasons =
+            buildList {
+                addAll(upstreamBlockedReasons)
+                if (!graphOrderValid) {
+                    add("native_transition_render_graph_order_invalid")
+                }
+                if (!graphDependenciesValid) {
+                    add("native_transition_render_graph_dependencies_invalid")
+                }
+                if (!outputPassBound) {
+                    add("native_transition_graph_output_pass_missing")
+                }
+                if (!rendererImplemented) {
+                    add("native_transition_render_graph_executor_renderer_missing")
+                }
+            }.distinct()
+        return graphPlan +
+            mapOf(
+                "renderGraphExecutorId" to "$id:executor:$timelineTimeMs",
+                "graphExecutorImplemented" to graphExecutorImplemented,
+                "rendererImplemented" to rendererImplemented,
+                "graphOrderValid" to graphOrderValid,
+                "graphDependenciesValid" to graphDependenciesValid,
+                "graphOwnershipReady" to graphOwnershipReady,
+                "canExecuteGraph" to
+                    (graphOwnershipReady &&
+                        rendererImplemented &&
+                        upstreamBlockedReasons.isEmpty()),
+                "drawsPixels" to false,
+                "requiredPassTypes" to requiredPassTypes,
+                "executionOrder" to passes.map { pass -> pass["passId"]?.toString() ?: "" },
+                "passExecutionStates" to executionStates,
+                "blockedReasons" to blockedReasons,
+            )
+    }
 
     fun planOutputSurface(
         timelineTimeMs: Long,

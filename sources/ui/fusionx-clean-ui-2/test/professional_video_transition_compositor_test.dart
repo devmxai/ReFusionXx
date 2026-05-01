@@ -1906,6 +1906,130 @@ void main() {
         contains('native_transition_output_surface_renderer_missing'));
   });
 
+  test('method channel render graph execution owns ordered graph only',
+      () async {
+    const channel = MethodChannel(
+        'com.refusion.app/professional_video_transition_compositor');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(channel, null);
+    });
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'planRenderGraphExecution');
+      final arguments = call.arguments! as Map<Object?, Object?>;
+      expect(arguments['definitionId'], 'zoomInCamera');
+      expect(arguments['timelineTimeMs'], 10000);
+      return <String, Object?>{
+        'status': 'planned',
+        'reason': '',
+        'rendererVersion': 'foundation',
+        'definitionId': 'zoomInCamera',
+        'renderSessionId': 'transition-session:zoom-native-1',
+        'renderPassGraphId': 'transition-session:zoom-native-1:graph:10000',
+        'renderGraphExecutorId':
+            'transition-session:zoom-native-1:executor:10000',
+        'timelineTimeMs': 10000,
+        'transitionStartMs': 8000,
+        'transitionEndMs': 12000,
+        'requiredPassTypes': <String>[
+          'decodeLiveVideoStreams',
+          'decodeExactVideoFrames',
+          'temporalSampleAccumulator',
+          'temporalSampleAccumulator',
+          'mirrorEdgeTile',
+          'transitionShaderEvaluation',
+          'composeToTransitionSurface',
+        ],
+        'executionOrder': <String>[
+          'live-stream-pass',
+          'decode-pass',
+          'temporal-out',
+          'temporal-in',
+          'edge-pass',
+          'transition-pass',
+          'output-pass',
+        ],
+        'passExecutionStates': <Map<String, Object?>>[
+          <String, Object?>{
+            'passId': 'output-pass',
+            'type': 'composeToTransitionSurface',
+            'role': 'output',
+            'index': 6,
+            'inputs': <String>['transition-pass'],
+            'readyForExecutor': true,
+            'blockedReasons': <String>[],
+          },
+        ],
+        'graphExecutorImplemented': true,
+        'rendererImplemented': false,
+        'graphOrderValid': true,
+        'graphDependenciesValid': true,
+        'graphOwnershipReady': true,
+        'canExecuteGraph': false,
+        'drawsPixels': false,
+        'blockedReasons': <String>[
+          'native_transition_render_graph_executor_renderer_missing',
+        ],
+      };
+    });
+
+    final result =
+        await const MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider(
+      channel: channel,
+    ).planRenderGraphExecution(
+      timelineTime: TimelineTime.fromMilliseconds(10000),
+      plan: ProfessionalZoomCameraRenderPlan(
+        canvasWidth: 1080,
+        canvasHeight: 1920,
+        request: ProfessionalZoomCameraPlanRequest(
+          transitionId: 'zoom-native-1',
+          timelineTime: TimelineTime.fromMilliseconds(10000),
+          boundaryTime: TimelineTime.fromMilliseconds(10000),
+          leadingDuration: TimelineTime.fromMilliseconds(2000),
+          trailingDuration: TimelineTime.fromMilliseconds(2000),
+          outgoing: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-a',
+            assetId: 'asset-a',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(28000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+          incoming: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-b',
+            assetId: 'asset-b',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(38000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+        ),
+      ).toGenericRenderPlan(),
+    );
+
+    expect(result.canPlan, isTrue);
+    expect(result.canOwnGraph, isTrue);
+    expect(result.canExecuteGraph, isFalse);
+    expect(result.drawsPixels, isFalse);
+    expect(result.graphExecutorImplemented, isTrue);
+    expect(result.rendererImplemented, isFalse);
+    expect(result.graphOrderValid, isTrue);
+    expect(result.graphDependenciesValid, isTrue);
+    expect(result.executionOrder.last, 'output-pass');
+    expect(result.requiredPassTypes.last, 'composeToTransitionSurface');
+    expect(result.passExecutionStates.single.passId, 'output-pass');
+    expect(result.passExecutionStates.single.readyForExecutor, isTrue);
+    expect(
+      result.blockedReasons,
+      contains('native_transition_render_graph_executor_renderer_missing'),
+    );
+  });
+
   test(
       'method channel parity outputs lock every interactive mode until renderer',
       () async {
