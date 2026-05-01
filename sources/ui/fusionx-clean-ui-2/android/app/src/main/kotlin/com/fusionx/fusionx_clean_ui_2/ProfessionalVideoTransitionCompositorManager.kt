@@ -64,6 +64,42 @@ class ProfessionalVideoTransitionCompositorManager {
     fun prepareZoomInCameraRenderPlan(plan: Map<String, Any?>?): Map<String, Any> =
         prepareRenderPlan(plan)
 
+    fun planVideoSourceBindings(
+        plan: Map<String, Any?>?,
+        timelineTimeMs: Long?,
+    ): Map<String, Any> {
+        val missingFields = requiredRenderPlanFields.filter { field ->
+            !hasRequiredField(plan, field)
+        }
+        if (missingFields.isNotEmpty()) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_required_video_transition_render_plan_fields",
+                "rendererVersion" to "foundation",
+                "missingFields" to missingFields,
+            )
+        }
+        if (timelineTimeMs == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_timeline_time_for_video_transition_source_bindings",
+                "rendererVersion" to "foundation",
+            )
+        }
+        val definitionId = plan?.get("definitionId")?.toString() ?: ""
+        val sessionResult = ProfessionalVideoTransitionRenderSession.fromPlan(plan)
+        if (sessionResult.session == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "invalid_video_transition_render_session",
+                "rendererVersion" to "foundation",
+                "definitionId" to definitionId,
+                "issues" to sessionResult.issues,
+            )
+        }
+        return sessionResult.session.planVideoSourceBindings(timelineTimeMs)
+    }
+
     fun planFrameSamples(
         plan: Map<String, Any?>?,
         timelineTimeMs: Long?,
@@ -450,6 +486,39 @@ private data class ProfessionalVideoTransitionRenderSession(
             "incomingSourceTimeAtBoundaryMs" to incoming.sourceTimeForTimelineTime(boundaryTimeMs),
         )
 
+    fun planVideoSourceBindings(timelineTimeMs: Long): Map<String, Any> {
+        val bindings =
+            listOf(
+                sourceBinding(role = "outgoing", source = outgoing),
+                sourceBinding(role = "incoming", source = incoming),
+            )
+        val allSourcesBound = bindings.all { binding ->
+            binding["sourceUriBound"] == true
+        }
+        val blockedReasons =
+            if (allSourcesBound) {
+                emptyList()
+            } else {
+                listOf("native_video_source_uri_missing")
+            }
+        return mapOf(
+            "status" to "planned",
+            "reason" to "",
+            "rendererVersion" to "foundation",
+            "definitionId" to definitionId,
+            "renderSessionId" to id,
+            "timelineTimeMs" to timelineTimeMs,
+            "transitionStartMs" to transitionStartMs,
+            "transitionEndMs" to transitionEndMs,
+            "requiresConcreteSourceUri" to true,
+            "allSourcesBound" to allSourcesBound,
+            "allowAssetIdOnlyDecode" to false,
+            "allowGeneratedProxyDecode" to false,
+            "bindings" to bindings,
+            "blockedReasons" to blockedReasons,
+        )
+    }
+
     fun planFrameSamples(
         timelineTimeMs: Long,
         motionBlurPolicy: Map<*, *>?,
@@ -590,6 +659,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                     "role" to role,
                     "clipId" to (firstRequest?.get("clipId")?.toString() ?: ""),
                     "assetId" to (firstRequest?.get("assetId")?.toString() ?: ""),
+                    "sourceUri" to (firstRequest?.get("sourceUri")?.toString() ?: ""),
                     "decodeRequestIds" to roleRequests.mapNotNull { request ->
                         request["decodeRequestId"]?.toString()
                     },
@@ -600,11 +670,16 @@ private data class ProfessionalVideoTransitionRenderSession(
                 )
             }
         val decoderImplemented = false
+        val sourceUrisBound =
+            tracks.all { track -> track["sourceUri"]?.toString()?.isNotBlank() == true }
         val blockedReasons =
-            if (decoderImplemented) {
-                emptyList()
-            } else {
-                listOf("native_dual_video_decoder_missing")
+            buildList {
+                if (!sourceUrisBound) {
+                    add("native_video_source_uri_missing")
+                }
+                if (!decoderImplemented) {
+                    add("native_dual_video_decoder_missing")
+                }
             }
         return decodePlan +
             mapOf(
@@ -614,6 +689,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                 "allowThumbnailFallback" to false,
                 "allowBoundaryFreeze" to false,
                 "decoderImplemented" to decoderImplemented,
+                "sourceUrisBound" to sourceUrisBound,
                 "tracks" to tracks,
                 "blockedReasons" to blockedReasons,
             )
@@ -1019,6 +1095,25 @@ private data class ProfessionalVideoTransitionRenderSession(
             "parameters" to parameters,
         )
 
+    private fun sourceBinding(
+        role: String,
+        source: ProfessionalVideoTransitionRenderSource,
+    ): Map<String, Any> =
+        mapOf(
+            "role" to role,
+            "clipId" to source.clipId,
+            "assetId" to source.assetId,
+            "sourceUri" to (source.sourceUri ?: ""),
+            "sourceUriBound" to !source.sourceUri.isNullOrBlank(),
+            "timelineStartMs" to source.timelineStartMs,
+            "timelineEndMs" to source.timelineEndMs,
+            "sourceStartMs" to source.sourceStartMs,
+            "sourceDurationMs" to source.sourceDurationMs,
+            "requiresConcreteSourceUri" to true,
+            "allowAssetIdOnlyDecode" to false,
+            "allowGeneratedProxyDecode" to false,
+        )
+
     private fun decodeRequestsForSource(
         role: String,
         source: ProfessionalVideoTransitionRenderSource,
@@ -1035,6 +1130,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                 "role" to role,
                 "clipId" to source.clipId,
                 "assetId" to source.assetId,
+                "sourceUri" to (source.sourceUri ?: ""),
                 "sampleIndex" to index,
                 "timelineTimeMs" to timelineSampleMs,
                 "sourceTimeMs" to sourceSampleMs,
@@ -1192,6 +1288,7 @@ private data class ProfessionalVideoTransitionRenderSession(
 private data class ProfessionalVideoTransitionRenderSource(
     val clipId: String,
     val assetId: String,
+    val sourceUri: String?,
     val timelineStartMs: Long,
     val timelineEndMs: Long,
     val sourceStartMs: Long,
@@ -1211,6 +1308,7 @@ private data class ProfessionalVideoTransitionRenderSource(
         ): ProfessionalVideoTransitionRenderSource? {
             val clipId = map.stringValue("clipId")
             val assetId = map.stringValue("assetId")
+            val sourceUri = map.stringValue("sourceUri").takeIf { it.isNotBlank() }
             val timelineStartMs = map.longValue("timelineStartMs")
             val timelineEndMs = map.longValue("timelineEndMs")
             val sourceStartMs = map.longValue("sourceStartMs")
@@ -1243,6 +1341,7 @@ private data class ProfessionalVideoTransitionRenderSource(
                 ProfessionalVideoTransitionRenderSource(
                     clipId = clipId,
                     assetId = assetId,
+                    sourceUri = sourceUri,
                     timelineStartMs = timelineStartMs,
                     timelineEndMs = timelineEndMs,
                     sourceStartMs = sourceStartMs,

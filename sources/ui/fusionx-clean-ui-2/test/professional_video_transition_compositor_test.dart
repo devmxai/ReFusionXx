@@ -125,6 +125,7 @@ void main() {
         ProfessionalVideoTransitionCompositorSource(
           clipId: 'clip-a',
           assetId: 'asset-a',
+          sourceUri: 'file:///tmp/clip-a.mp4',
           timelineRange: TimelineTimeRange(
             start: TimelineTime.zero,
             endExclusive: TimelineTime.fromMilliseconds(10000),
@@ -135,6 +136,7 @@ void main() {
         ProfessionalVideoTransitionCompositorSource(
           clipId: 'clip-b',
           assetId: 'asset-b',
+          sourceUri: 'file:///tmp/clip-b.mp4',
           timelineRange: TimelineTimeRange(
             start: TimelineTime.fromMilliseconds(10000),
             endExclusive: TimelineTime.fromMilliseconds(18000),
@@ -186,9 +188,11 @@ void main() {
     final outgoing = sources.first! as Map<String, Object?>;
     final incoming = sources.last! as Map<String, Object?>;
     expect(outgoing['clipId'], 'clip-a');
+    expect(outgoing['sourceUri'], 'file:///tmp/clip-a.mp4');
     expect(outgoing['timelineEndMs'], 10000);
     expect(outgoing['sourceStartMs'], 1500);
     expect(incoming['clipId'], 'clip-b');
+    expect(incoming['sourceUri'], 'file:///tmp/clip-b.mp4');
     expect(incoming['timelineStartMs'], 10000);
     expect(incoming['sourceStartMs'], 750);
   });
@@ -591,6 +595,128 @@ void main() {
     expect(result.shutterSampleCount, 4);
   });
 
+  test('method channel source binding planning requires concrete source uris',
+      () async {
+    const channel = MethodChannel(
+        'com.refusion.app/professional_video_transition_compositor');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(channel, null);
+    });
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'planVideoSourceBindings');
+      final arguments = call.arguments! as Map<Object?, Object?>;
+      expect(arguments['definitionId'], 'zoomInCamera');
+      expect(arguments['timelineTimeMs'], 10000);
+      final sources = arguments['sources']! as List<Object?>;
+      final outgoing = sources.first! as Map<Object?, Object?>;
+      final incoming = sources.last! as Map<Object?, Object?>;
+      expect(outgoing['sourceUri'], 'file:///tmp/outgoing.mp4');
+      expect(incoming['sourceUri'], 'file:///tmp/incoming.mp4');
+      return <String, Object?>{
+        'status': 'planned',
+        'reason': '',
+        'rendererVersion': 'foundation',
+        'definitionId': 'zoomInCamera',
+        'renderSessionId': 'transition-session:zoom-native-1',
+        'timelineTimeMs': 10000,
+        'transitionStartMs': 8000,
+        'transitionEndMs': 12000,
+        'requiresConcreteSourceUri': true,
+        'allSourcesBound': true,
+        'allowAssetIdOnlyDecode': false,
+        'allowGeneratedProxyDecode': false,
+        'bindings': <Map<String, Object?>>[
+          <String, Object?>{
+            'role': 'outgoing',
+            'clipId': 'clip-a',
+            'assetId': 'asset-a',
+            'sourceUri': 'file:///tmp/outgoing.mp4',
+            'sourceUriBound': true,
+            'timelineStartMs': 8000,
+            'timelineEndMs': 12000,
+            'sourceStartMs': 28000,
+            'sourceDurationMs': 4000,
+            'requiresConcreteSourceUri': true,
+            'allowAssetIdOnlyDecode': false,
+            'allowGeneratedProxyDecode': false,
+          },
+          <String, Object?>{
+            'role': 'incoming',
+            'clipId': 'clip-b',
+            'assetId': 'asset-b',
+            'sourceUri': 'file:///tmp/incoming.mp4',
+            'sourceUriBound': true,
+            'timelineStartMs': 8000,
+            'timelineEndMs': 12000,
+            'sourceStartMs': 38000,
+            'sourceDurationMs': 4000,
+            'requiresConcreteSourceUri': true,
+            'allowAssetIdOnlyDecode': false,
+            'allowGeneratedProxyDecode': false,
+          },
+        ],
+        'blockedReasons': <String>[],
+      };
+    });
+
+    final result =
+        await const MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider(
+      channel: channel,
+    ).planVideoSourceBindings(
+      timelineTime: TimelineTime.fromMilliseconds(10000),
+      plan: ProfessionalZoomCameraRenderPlan(
+        canvasWidth: 1080,
+        canvasHeight: 1920,
+        request: ProfessionalZoomCameraPlanRequest(
+          transitionId: 'zoom-native-1',
+          timelineTime: TimelineTime.fromMilliseconds(10000),
+          boundaryTime: TimelineTime.fromMilliseconds(10000),
+          leadingDuration: TimelineTime.fromMilliseconds(2000),
+          trailingDuration: TimelineTime.fromMilliseconds(2000),
+          outgoing: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-a',
+            assetId: 'asset-a',
+            sourceUri: 'file:///tmp/outgoing.mp4',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(28000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+          incoming: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-b',
+            assetId: 'asset-b',
+            sourceUri: 'file:///tmp/incoming.mp4',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(38000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+        ),
+      ).toGenericRenderPlan(),
+    );
+
+    expect(result.canPlan, isTrue);
+    expect(result.canBind, isTrue);
+    expect(result.requiresConcreteSourceUri, isTrue);
+    expect(result.allSourcesBound, isTrue);
+    expect(result.allowAssetIdOnlyDecode, isFalse);
+    expect(result.allowGeneratedProxyDecode, isFalse);
+    expect(result.bindings.map((binding) => binding.role), <String>[
+      'outgoing',
+      'incoming',
+    ]);
+    expect(result.bindings.first.sourceUri, 'file:///tmp/outgoing.mp4');
+    expect(result.bindings.last.sourceUri, 'file:///tmp/incoming.mp4');
+    expect(result.bindings.every((binding) => binding.sourceUriBound), isTrue);
+    expect(result.blockedReasons, isEmpty);
+  });
+
   test('frame sample planning mapper preserves invalid native issues', () {
     final result =
         ProfessionalVideoTransitionFrameSamplePlanResultMapper.fromMap(
@@ -652,6 +778,7 @@ void main() {
             'role': 'outgoing',
             'clipId': 'clip-a',
             'assetId': 'asset-a',
+            'sourceUri': 'file:///tmp/outgoing.mp4',
             'sampleIndex': 0,
             'timelineTimeMs': 9983,
             'sourceTimeMs': 29983,
@@ -667,6 +794,7 @@ void main() {
             'role': 'incoming',
             'clipId': 'clip-b',
             'assetId': 'asset-b',
+            'sourceUri': 'file:///tmp/incoming.mp4',
             'sampleIndex': 1,
             'timelineTimeMs': 10017,
             'sourceTimeMs': 40017,
@@ -697,6 +825,7 @@ void main() {
           outgoing: ProfessionalVideoTransitionCompositorSource(
             clipId: 'clip-a',
             assetId: 'asset-a',
+            sourceUri: 'file:///tmp/outgoing.mp4',
             timelineRange: TimelineTimeRange(
               start: TimelineTime.fromMilliseconds(8000),
               endExclusive: TimelineTime.fromMilliseconds(12000),
@@ -707,6 +836,7 @@ void main() {
           incoming: ProfessionalVideoTransitionCompositorSource(
             clipId: 'clip-b',
             assetId: 'asset-b',
+            sourceUri: 'file:///tmp/incoming.mp4',
             timelineRange: TimelineTimeRange(
               start: TimelineTime.fromMilliseconds(8000),
               endExclusive: TimelineTime.fromMilliseconds(12000),
@@ -726,9 +856,11 @@ void main() {
     expect(result.decodeRequests, hasLength(2));
     expect(result.decodeRequests.first.role, 'outgoing');
     expect(result.decodeRequests.first.assetId, 'asset-a');
+    expect(result.decodeRequests.first.sourceUri, 'file:///tmp/outgoing.mp4');
     expect(result.decodeRequests.first.sourceTime.inMilliseconds, 29983);
     expect(result.decodeRequests.first.allowThumbnailFallback, isFalse);
     expect(result.decodeRequests.last.role, 'incoming');
+    expect(result.decodeRequests.last.sourceUri, 'file:///tmp/incoming.mp4');
     expect(result.decodeRequests.last.centerSample, isTrue);
     expect(result.decodeRequests.last.sourceTime.inMilliseconds, 40017);
   });
@@ -767,6 +899,7 @@ void main() {
             'role': 'outgoing',
             'clipId': 'clip-a',
             'assetId': 'asset-a',
+            'sourceUri': 'file:///tmp/outgoing.mp4',
             'decodeRequestIds': <String>[
               'transition-session:zoom-native-1:outgoing:0:29983',
               'transition-session:zoom-native-1:outgoing:1:30017',
@@ -780,6 +913,7 @@ void main() {
             'role': 'incoming',
             'clipId': 'clip-b',
             'assetId': 'asset-b',
+            'sourceUri': 'file:///tmp/incoming.mp4',
             'decodeRequestIds': <String>[
               'transition-session:zoom-native-1:incoming:0:39983',
               'transition-session:zoom-native-1:incoming:1:40017',
@@ -811,6 +945,7 @@ void main() {
           outgoing: ProfessionalVideoTransitionCompositorSource(
             clipId: 'clip-a',
             assetId: 'asset-a',
+            sourceUri: 'file:///tmp/outgoing.mp4',
             timelineRange: TimelineTimeRange(
               start: TimelineTime.fromMilliseconds(8000),
               endExclusive: TimelineTime.fromMilliseconds(12000),
@@ -821,6 +956,7 @@ void main() {
           incoming: ProfessionalVideoTransitionCompositorSource(
             clipId: 'clip-b',
             assetId: 'asset-b',
+            sourceUri: 'file:///tmp/incoming.mp4',
             timelineRange: TimelineTimeRange(
               start: TimelineTime.fromMilliseconds(8000),
               endExclusive: TimelineTime.fromMilliseconds(12000),
@@ -844,7 +980,9 @@ void main() {
       'incoming',
     ]);
     expect(result.tracks.first.sampleCount, 2);
+    expect(result.tracks.first.sourceUri, 'file:///tmp/outgoing.mp4');
     expect(result.tracks.last.assetId, 'asset-b');
+    expect(result.tracks.last.sourceUri, 'file:///tmp/incoming.mp4');
     expect(
       result.blockedReasons,
       contains('native_dual_video_decoder_missing'),

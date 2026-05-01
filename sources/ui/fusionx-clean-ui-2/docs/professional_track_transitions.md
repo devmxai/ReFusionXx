@@ -744,6 +744,13 @@ Current gate:
   and returns a clear unsupported status instead of rendering. This is
   intentional: the next implementation slice must replace that unsupported
   response with real renderer capabilities, not a Flutter overlay fallback.
+- Flutter and Android now also share `planVideoSourceBindings`. Every outgoing
+  and incoming source may carry a concrete `sourceUri`, and the native
+  foundation validates whether both sources are bound before exact decode can
+  advance. `assetId` is identity metadata, not a decode source. If a source URI
+  is missing, the decoder path stays blocked with
+  `native_video_source_uri_missing`; asset-id-only decode and generated proxy
+  decode are explicitly forbidden.
 - Flutter and Android now share `planFrameSamples` as the next compositor
   foundation. A valid render plan is parsed into the same strict native render
   session, then a requested transition timeline frame is converted into:

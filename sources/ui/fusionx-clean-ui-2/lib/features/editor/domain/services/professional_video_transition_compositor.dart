@@ -108,6 +108,12 @@ abstract class ProfessionalVideoTransitionCompositorClient
     ProfessionalVideoTransitionRenderPlan plan,
   );
 
+  Future<ProfessionalVideoTransitionSourceBindingPlanResult>
+      planVideoSourceBindings({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  });
+
   Future<ProfessionalVideoTransitionFrameSamplePlanResult> planFrameSamples({
     required ProfessionalVideoTransitionRenderPlan plan,
     required TimelineTime timelineTime,
@@ -204,6 +210,33 @@ class MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider
       );
     } on PlatformException catch (error) {
       return ProfessionalVideoTransitionCompositorPrepareResult.invalidRequest(
+        reason: error.message ?? error.code,
+      );
+    }
+  }
+
+  @override
+  Future<ProfessionalVideoTransitionSourceBindingPlanResult>
+      planVideoSourceBindings({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  }) async {
+    try {
+      final payload = plan.toPlatformMap();
+      payload['timelineTimeMs'] = timelineTime.inMilliseconds;
+      final rawResult = await _channel.invokeMapMethod<String, Object?>(
+        'planVideoSourceBindings',
+        payload,
+      );
+      return ProfessionalVideoTransitionSourceBindingPlanResultMapper.fromMap(
+        rawResult,
+      );
+    } on MissingPluginException {
+      return ProfessionalVideoTransitionSourceBindingPlanResult.invalidRequest(
+        reason: 'native_compositor_channel_missing',
+      );
+    } on PlatformException catch (error) {
+      return ProfessionalVideoTransitionSourceBindingPlanResult.invalidRequest(
         reason: error.message ?? error.code,
       );
     }
@@ -435,6 +468,231 @@ class MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider
   }
 }
 
+enum ProfessionalVideoTransitionSourceBindingPlanStatus {
+  planned,
+  invalidRequest,
+}
+
+@immutable
+class ProfessionalVideoTransitionSourceBinding {
+  const ProfessionalVideoTransitionSourceBinding({
+    required this.role,
+    required this.clipId,
+    required this.assetId,
+    required this.sourceUri,
+    required this.sourceUriBound,
+    required this.timelineStartTime,
+    required this.timelineEndTime,
+    required this.sourceStartTime,
+    required this.sourceDuration,
+    required this.requiresConcreteSourceUri,
+    required this.allowAssetIdOnlyDecode,
+    required this.allowGeneratedProxyDecode,
+  });
+
+  final String role;
+  final String clipId;
+  final String assetId;
+  final String sourceUri;
+  final bool sourceUriBound;
+  final TimelineTime timelineStartTime;
+  final TimelineTime timelineEndTime;
+  final TimelineTime sourceStartTime;
+  final TimelineTime sourceDuration;
+  final bool requiresConcreteSourceUri;
+  final bool allowAssetIdOnlyDecode;
+  final bool allowGeneratedProxyDecode;
+}
+
+@immutable
+class ProfessionalVideoTransitionSourceBindingPlanResult {
+  const ProfessionalVideoTransitionSourceBindingPlanResult({
+    required this.status,
+    required this.reason,
+    required this.rendererVersion,
+    required this.definitionId,
+    required this.renderSessionId,
+    required this.timelineTime,
+    required this.transitionStartTime,
+    required this.transitionEndTime,
+    required this.requiresConcreteSourceUri,
+    required this.allSourcesBound,
+    required this.allowAssetIdOnlyDecode,
+    required this.allowGeneratedProxyDecode,
+    required this.bindings,
+    required this.blockedReasons,
+    this.issues = const <Map<String, Object?>>[],
+  });
+
+  factory ProfessionalVideoTransitionSourceBindingPlanResult.invalidRequest({
+    required String reason,
+    String rendererVersion = 'unknown',
+    List<Map<String, Object?>> issues = const <Map<String, Object?>>[],
+  }) {
+    return ProfessionalVideoTransitionSourceBindingPlanResult(
+      status: ProfessionalVideoTransitionSourceBindingPlanStatus.invalidRequest,
+      reason: reason,
+      rendererVersion: rendererVersion,
+      definitionId: '',
+      renderSessionId: '',
+      timelineTime: null,
+      transitionStartTime: null,
+      transitionEndTime: null,
+      requiresConcreteSourceUri: true,
+      allSourcesBound: false,
+      allowAssetIdOnlyDecode: false,
+      allowGeneratedProxyDecode: false,
+      bindings: const <ProfessionalVideoTransitionSourceBinding>[],
+      blockedReasons: const <String>[],
+      issues: issues,
+    );
+  }
+
+  final ProfessionalVideoTransitionSourceBindingPlanStatus status;
+  final String reason;
+  final String rendererVersion;
+  final String definitionId;
+  final String renderSessionId;
+  final TimelineTime? timelineTime;
+  final TimelineTime? transitionStartTime;
+  final TimelineTime? transitionEndTime;
+  final bool requiresConcreteSourceUri;
+  final bool allSourcesBound;
+  final bool allowAssetIdOnlyDecode;
+  final bool allowGeneratedProxyDecode;
+  final List<ProfessionalVideoTransitionSourceBinding> bindings;
+  final List<String> blockedReasons;
+  final List<Map<String, Object?>> issues;
+
+  bool get canPlan =>
+      status == ProfessionalVideoTransitionSourceBindingPlanStatus.planned;
+
+  bool get canBind =>
+      canPlan &&
+      requiresConcreteSourceUri &&
+      allSourcesBound &&
+      !allowAssetIdOnlyDecode &&
+      !allowGeneratedProxyDecode &&
+      bindings.length == 2 &&
+      bindings.every((binding) {
+        return binding.sourceUriBound &&
+            binding.requiresConcreteSourceUri &&
+            !binding.allowAssetIdOnlyDecode &&
+            !binding.allowGeneratedProxyDecode;
+      }) &&
+      blockedReasons.isEmpty;
+}
+
+class ProfessionalVideoTransitionSourceBindingPlanResultMapper {
+  const ProfessionalVideoTransitionSourceBindingPlanResultMapper._();
+
+  static ProfessionalVideoTransitionSourceBindingPlanResult fromMap(
+    Map<String, Object?>? map,
+  ) {
+    if (map == null) {
+      return ProfessionalVideoTransitionSourceBindingPlanResult.invalidRequest(
+        reason: 'native_compositor_empty_source_binding_response',
+      );
+    }
+    final status = switch (map['status']?.toString()) {
+      'planned' => ProfessionalVideoTransitionSourceBindingPlanStatus.planned,
+      _ => ProfessionalVideoTransitionSourceBindingPlanStatus.invalidRequest,
+    };
+    return ProfessionalVideoTransitionSourceBindingPlanResult(
+      status: status,
+      reason: map['reason']?.toString() ?? '',
+      rendererVersion: map['rendererVersion']?.toString() ?? 'unknown',
+      definitionId: map['definitionId']?.toString() ?? '',
+      renderSessionId: map['renderSessionId']?.toString() ?? '',
+      timelineTime: _readTimelineTime(map['timelineTimeMs']),
+      transitionStartTime: _readTimelineTime(map['transitionStartMs']),
+      transitionEndTime: _readTimelineTime(map['transitionEndMs']),
+      requiresConcreteSourceUri: _readBool(
+        map['requiresConcreteSourceUri'],
+        defaultValue: true,
+      ),
+      allSourcesBound: _readBool(map['allSourcesBound']),
+      allowAssetIdOnlyDecode: _readBool(map['allowAssetIdOnlyDecode']),
+      allowGeneratedProxyDecode: _readBool(map['allowGeneratedProxyDecode']),
+      bindings: _readBindings(map['bindings']),
+      blockedReasons: _readStringList(map['blockedReasons']),
+      issues: _readIssues(map['issues']),
+    );
+  }
+
+  static List<ProfessionalVideoTransitionSourceBinding> _readBindings(
+    Object? value,
+  ) {
+    if (value is! List) {
+      return const <ProfessionalVideoTransitionSourceBinding>[];
+    }
+    return List<ProfessionalVideoTransitionSourceBinding>.unmodifiable(
+      value.whereType<Map>().map((binding) {
+        return ProfessionalVideoTransitionSourceBinding(
+          role: binding['role']?.toString() ?? '',
+          clipId: binding['clipId']?.toString() ?? '',
+          assetId: binding['assetId']?.toString() ?? '',
+          sourceUri: binding['sourceUri']?.toString() ?? '',
+          sourceUriBound: _readBool(binding['sourceUriBound']),
+          timelineStartTime: _readTimelineTime(binding['timelineStartMs']) ??
+              TimelineTime.zero,
+          timelineEndTime:
+              _readTimelineTime(binding['timelineEndMs']) ?? TimelineTime.zero,
+          sourceStartTime:
+              _readTimelineTime(binding['sourceStartMs']) ?? TimelineTime.zero,
+          sourceDuration: _readTimelineTime(binding['sourceDurationMs']) ??
+              TimelineTime.zero,
+          requiresConcreteSourceUri: _readBool(
+            binding['requiresConcreteSourceUri'],
+            defaultValue: true,
+          ),
+          allowAssetIdOnlyDecode: _readBool(binding['allowAssetIdOnlyDecode']),
+          allowGeneratedProxyDecode:
+              _readBool(binding['allowGeneratedProxyDecode']),
+        );
+      }),
+    );
+  }
+
+  static TimelineTime? _readTimelineTime(Object? value) {
+    if (value is num) {
+      return TimelineTime.fromMilliseconds(value.round());
+    }
+    final parsed = int.tryParse(value?.toString() ?? '');
+    if (parsed == null) {
+      return null;
+    }
+    return TimelineTime.fromMilliseconds(parsed);
+  }
+
+  static bool _readBool(Object? value, {bool defaultValue = false}) {
+    if (value is bool) {
+      return value;
+    }
+    return defaultValue;
+  }
+
+  static List<String> _readStringList(Object? value) {
+    if (value is! List) {
+      return const <String>[];
+    }
+    return List<String>.unmodifiable(value.map((entry) => entry.toString()));
+  }
+
+  static List<Map<String, Object?>> _readIssues(Object? value) {
+    if (value is! List) {
+      return const <Map<String, Object?>>[];
+    }
+    return List<Map<String, Object?>>.unmodifiable(
+      value.whereType<Map>().map((issue) {
+        return <String, Object?>{
+          for (final entry in issue.entries) entry.key.toString(): entry.value,
+        };
+      }),
+    );
+  }
+}
+
 enum ProfessionalVideoTransitionFrameSamplePlanStatus {
   planned,
   invalidRequest,
@@ -628,6 +886,7 @@ class ProfessionalVideoTransitionFrameDecodeRequest {
     required this.role,
     required this.clipId,
     required this.assetId,
+    required this.sourceUri,
     required this.sampleIndex,
     required this.timelineTime,
     required this.sourceTime,
@@ -642,6 +901,7 @@ class ProfessionalVideoTransitionFrameDecodeRequest {
   final String role;
   final String clipId;
   final String assetId;
+  final String sourceUri;
   final int sampleIndex;
   final TimelineTime timelineTime;
   final TimelineTime sourceTime;
@@ -767,6 +1027,7 @@ class ProfessionalVideoTransitionFrameDecodePlanResultMapper {
           role: request['role']?.toString() ?? '',
           clipId: request['clipId']?.toString() ?? '',
           assetId: request['assetId']?.toString() ?? '',
+          sourceUri: request['sourceUri']?.toString() ?? '',
           sampleIndex: _readInt(request['sampleIndex']),
           timelineTime: timelineTime ?? TimelineTime.zero,
           sourceTime: sourceTime ?? TimelineTime.zero,
@@ -837,6 +1098,7 @@ class ProfessionalVideoTransitionDecoderTrack {
     required this.role,
     required this.clipId,
     required this.assetId,
+    required this.sourceUri,
     required this.decodeRequestIds,
     required this.sampleCount,
     required this.requiresExactFrameDecode,
@@ -847,6 +1109,7 @@ class ProfessionalVideoTransitionDecoderTrack {
   final String role;
   final String clipId;
   final String assetId;
+  final String sourceUri;
   final List<String> decodeRequestIds;
   final int sampleCount;
   final bool requiresExactFrameDecode;
@@ -989,6 +1252,7 @@ class ProfessionalVideoTransitionDecoderSessionPlanResultMapper {
           role: track['role']?.toString() ?? '',
           clipId: track['clipId']?.toString() ?? '',
           assetId: track['assetId']?.toString() ?? '',
+          sourceUri: track['sourceUri']?.toString() ?? '',
           decodeRequestIds: _readStringList(track['decodeRequestIds']),
           sampleCount: _readInt(track['sampleCount']),
           requiresExactFrameDecode: _readBool(
@@ -2344,9 +2608,11 @@ class ProfessionalVideoTransitionRenderPlan {
   static Map<String, Object?> _sourceToPlatformMap(
     ProfessionalVideoTransitionCompositorSource source,
   ) {
+    final sourceUri = source.sourceUri?.trim();
     return <String, Object?>{
       'clipId': source.clipId,
       'assetId': source.assetId,
+      if (sourceUri != null && sourceUri.isNotEmpty) 'sourceUri': sourceUri,
       'timelineStartMs': source.timelineRange.start.inMilliseconds,
       'timelineEndMs': source.timelineRange.endExclusive.inMilliseconds,
       'sourceStartMs': source.sourceStartTime.inMilliseconds,
@@ -2363,10 +2629,12 @@ class ProfessionalVideoTransitionCompositorSource {
     required this.timelineRange,
     required this.sourceStartTime,
     required this.sourceDuration,
+    this.sourceUri,
   });
 
   final String clipId;
   final String assetId;
+  final String? sourceUri;
   final TimelineTimeRange timelineRange;
   final TimelineTime sourceStartTime;
   final TimelineTime sourceDuration;
