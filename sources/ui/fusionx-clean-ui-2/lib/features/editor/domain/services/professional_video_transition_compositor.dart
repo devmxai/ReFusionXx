@@ -2694,6 +2694,12 @@ class ProfessionalVideoTransitionOutputSurfacePlanResult {
     required this.allowFlutterOverlay,
     required this.allowTimelineOverlay,
     required this.allowPlatformViewTransform,
+    required this.renderPassCount,
+    required this.outputPassId,
+    required this.outputPassType,
+    required this.outputPassInputs,
+    required this.outputPassBound,
+    required this.renderGraphOutputReady,
     required this.rendererImplemented,
     required this.blockedReasons,
     this.issues = const <Map<String, Object?>>[],
@@ -2723,6 +2729,12 @@ class ProfessionalVideoTransitionOutputSurfacePlanResult {
       allowFlutterOverlay: false,
       allowTimelineOverlay: false,
       allowPlatformViewTransform: false,
+      renderPassCount: 0,
+      outputPassId: '',
+      outputPassType: '',
+      outputPassInputs: const <String>[],
+      outputPassBound: false,
+      renderGraphOutputReady: false,
       rendererImplemented: false,
       blockedReasons: const <String>[],
       issues: issues,
@@ -2747,6 +2759,12 @@ class ProfessionalVideoTransitionOutputSurfacePlanResult {
   final bool allowFlutterOverlay;
   final bool allowTimelineOverlay;
   final bool allowPlatformViewTransform;
+  final int renderPassCount;
+  final String outputPassId;
+  final String outputPassType;
+  final List<String> outputPassInputs;
+  final bool outputPassBound;
+  final bool renderGraphOutputReady;
   final bool rendererImplemented;
   final List<String> blockedReasons;
   final List<Map<String, Object?>> issues;
@@ -2762,6 +2780,8 @@ class ProfessionalVideoTransitionOutputSurfacePlanResult {
       !allowFlutterOverlay &&
       !allowTimelineOverlay &&
       !allowPlatformViewTransform &&
+      outputPassBound &&
+      renderGraphOutputReady &&
       blockedReasons.isEmpty;
 }
 
@@ -2800,6 +2820,12 @@ class ProfessionalVideoTransitionOutputSurfacePlanResultMapper {
       allowFlutterOverlay: _readBool(map['allowFlutterOverlay']),
       allowTimelineOverlay: _readBool(map['allowTimelineOverlay']),
       allowPlatformViewTransform: _readBool(map['allowPlatformViewTransform']),
+      renderPassCount: _readInt(map['renderPassCount']),
+      outputPassId: map['outputPassId']?.toString() ?? '',
+      outputPassType: map['outputPassType']?.toString() ?? '',
+      outputPassInputs: _readStringList(map['outputPassInputs']),
+      outputPassBound: _readBool(map['outputPassBound']),
+      renderGraphOutputReady: _readBool(map['renderGraphOutputReady']),
       rendererImplemented: _readBool(map['rendererImplemented']),
       blockedReasons: _readStringList(map['blockedReasons']),
       issues: _readIssues(map['issues']),

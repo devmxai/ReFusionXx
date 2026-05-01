@@ -1619,12 +1619,34 @@ private data class ProfessionalVideoTransitionRenderSession(
         }
         val rendererImplemented = graphPlan["rendererImplemented"] == true
         val outputSurfaceId = "$id:surface:transition-output:$timelineTimeMs"
+        val passes =
+            (graphPlan["passes"] as? List<*>)?.mapNotNull { pass ->
+                pass as? Map<*, *>
+            } ?: emptyList()
+        val outputPass =
+            passes.lastOrNull { pass ->
+                pass["type"]?.toString() == "composeToTransitionSurface"
+            }
+        val outputPassId = outputPass?.get("passId")?.toString() ?: ""
+        val outputPassType = outputPass?.get("type")?.toString() ?: ""
+        val outputPassInputs =
+            (outputPass?.get("inputs") as? List<*>)?.map { input ->
+                input.toString()
+            } ?: emptyList()
+        val outputPassBound =
+            outputPassId.isNotBlank() &&
+                outputPassType == "composeToTransitionSurface" &&
+                outputPass?.get("role")?.toString() == "output" &&
+                outputPassInputs.isNotEmpty()
         val upstreamBlockedReasons =
             (graphPlan["blockedReasons"] as? List<*>)?.map { reason -> reason.toString() }
                 ?: emptyList()
         val blockedReasons =
             buildList {
                 addAll(upstreamBlockedReasons)
+                if (!outputPassBound) {
+                    add("native_transition_output_pass_missing")
+                }
                 if (!rendererImplemented) {
                     add("native_transition_output_surface_renderer_missing")
                 }
@@ -1640,6 +1662,12 @@ private data class ProfessionalVideoTransitionRenderSession(
                 "allowFlutterOverlay" to false,
                 "allowTimelineOverlay" to false,
                 "allowPlatformViewTransform" to false,
+                "renderPassCount" to passes.size,
+                "outputPassId" to outputPassId,
+                "outputPassType" to outputPassType,
+                "outputPassInputs" to outputPassInputs,
+                "outputPassBound" to outputPassBound,
+                "renderGraphOutputReady" to (outputPassBound && upstreamBlockedReasons.isEmpty()),
                 "rendererImplemented" to rendererImplemented,
                 "blockedReasons" to blockedReasons,
             )

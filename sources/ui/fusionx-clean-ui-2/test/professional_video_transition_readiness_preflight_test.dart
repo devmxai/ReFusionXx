@@ -537,6 +537,12 @@ class _FakeProfessionalVideoTransitionCompositorClient
       allowFlutterOverlay: false,
       allowTimelineOverlay: false,
       allowPlatformViewTransform: false,
+      renderPassCount: 2,
+      outputPassId: 'pass:output:${plan.transitionId}',
+      outputPassType: 'composeToTransitionSurface',
+      outputPassInputs: const <String>['pass:transition'],
+      outputPassBound: true,
+      renderGraphOutputReady: !_planningOnly,
       rendererImplemented: _rendererReady,
       blockedReasons: _planningOnly
           ? const <String>['native_transition_renderer_not_implemented']

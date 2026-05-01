@@ -1836,6 +1836,12 @@ void main() {
         'allowFlutterOverlay': false,
         'allowTimelineOverlay': false,
         'allowPlatformViewTransform': false,
+        'renderPassCount': 6,
+        'outputPassId': 'output-pass',
+        'outputPassType': 'composeToTransitionSurface',
+        'outputPassInputs': <String>['transition-pass'],
+        'outputPassBound': true,
+        'renderGraphOutputReady': false,
         'rendererImplemented': false,
         'blockedReasons': <String>[
           'native_transition_output_surface_renderer_missing',
@@ -1889,6 +1895,12 @@ void main() {
     expect(result.allowFlutterOverlay, isFalse);
     expect(result.allowTimelineOverlay, isFalse);
     expect(result.allowPlatformViewTransform, isFalse);
+    expect(result.renderPassCount, 6);
+    expect(result.outputPassId, 'output-pass');
+    expect(result.outputPassType, 'composeToTransitionSurface');
+    expect(result.outputPassInputs, <String>['transition-pass']);
+    expect(result.outputPassBound, isTrue);
+    expect(result.renderGraphOutputReady, isFalse);
     expect(result.rendererImplemented, isFalse);
     expect(result.blockedReasons,
         contains('native_transition_output_surface_renderer_missing'));

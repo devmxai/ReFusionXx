@@ -891,7 +891,11 @@ Current gate:
   native transition canvas surface clipped to the preview canvas. It
   explicitly forbids Flutter overlay drawing, timeline overlay drawing, and
   transformed PlatformView fallback paths, inherits upstream render blockers,
-  and remains blocked while `rendererImplemented=false`.
+  and now must bind to the final `composeToTransitionSurface` pass in the graph.
+  The plan records render pass count, output pass id/type/inputs,
+  `outputPassBound`, and `renderGraphOutputReady`; if the output pass is absent,
+  it blocks with `native_transition_output_pass_missing`. The stage still
+  remains blocked while `rendererImplemented=false`.
 - Flutter and Android now also share `planParityOutputs`. This is the parity
   contract that prevents "works in preview but not in scrub/playback" drift.
   Preview, Live Scrub, and playback must all point at the same native
