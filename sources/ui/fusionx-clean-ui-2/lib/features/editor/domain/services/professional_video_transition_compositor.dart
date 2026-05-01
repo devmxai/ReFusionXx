@@ -1407,8 +1407,14 @@ class ProfessionalVideoTransitionDecoderTrack {
     this.liveDecodeWindowSourceEndTime,
     this.liveDecodeWindowDuration = TimelineTime.zero,
     this.liveDecodeSourceWindowDuration = TimelineTime.zero,
+    this.liveDecodeCoverageDecodeProbeImplemented = false,
+    this.liveDecodeCoverageSourceTimes = const <TimelineTime>[],
+    this.liveDecodeCoverageRequestedSampleCount = 0,
+    this.liveDecodeCoverageDecodedSampleCount = 0,
+    this.liveDecodeCoverageDecodedBufferCount = 0,
     this.liveDecodeWindowReady = false,
     this.continuousSampleCoverageReady = false,
+    this.liveDecodeCoverageProbeReason = '',
     this.centerSampleSourceTimeMs = 0,
     this.exactFrameDecodeProbeImplemented = true,
     this.sampleDecodeProbeImplemented = true,
@@ -1450,8 +1456,14 @@ class ProfessionalVideoTransitionDecoderTrack {
   final TimelineTime? liveDecodeWindowSourceEndTime;
   final TimelineTime liveDecodeWindowDuration;
   final TimelineTime liveDecodeSourceWindowDuration;
+  final bool liveDecodeCoverageDecodeProbeImplemented;
+  final List<TimelineTime> liveDecodeCoverageSourceTimes;
+  final int liveDecodeCoverageRequestedSampleCount;
+  final int liveDecodeCoverageDecodedSampleCount;
+  final int liveDecodeCoverageDecodedBufferCount;
   final bool liveDecodeWindowReady;
   final bool continuousSampleCoverageReady;
+  final String liveDecodeCoverageProbeReason;
   final int centerSampleSourceTimeMs;
   final bool exactFrameDecodeProbeImplemented;
   final bool sampleDecodeProbeImplemented;
@@ -1556,6 +1568,7 @@ class ProfessionalVideoTransitionDecoderSessionPlanResult {
       tracks.every((track) {
         return track.sourceProbeReady &&
             track.requiresContinuousFrameStream &&
+            track.liveDecodeCoverageDecodeProbeImplemented &&
             track.liveDecodeWindowReady &&
             track.continuousSampleCoverageReady &&
             track.exactFrameDecodeProbeImplemented &&
@@ -1662,9 +1675,21 @@ class ProfessionalVideoTransitionDecoderSessionPlanResultMapper {
           liveDecodeSourceWindowDuration:
               _readTimelineTime(track['liveDecodeSourceWindowDurationMs']) ??
                   TimelineTime.zero,
+          liveDecodeCoverageDecodeProbeImplemented:
+              _readBool(track['liveDecodeCoverageDecodeProbeImplemented']),
+          liveDecodeCoverageSourceTimes:
+              _readTimelineTimeList(track['liveDecodeCoverageSourceTimesMs']),
+          liveDecodeCoverageRequestedSampleCount:
+              _readInt(track['liveDecodeCoverageRequestedSampleCount']),
+          liveDecodeCoverageDecodedSampleCount:
+              _readInt(track['liveDecodeCoverageDecodedSampleCount']),
+          liveDecodeCoverageDecodedBufferCount:
+              _readInt(track['liveDecodeCoverageDecodedBufferCount']),
           liveDecodeWindowReady: _readBool(track['liveDecodeWindowReady']),
           continuousSampleCoverageReady:
               _readBool(track['continuousSampleCoverageReady']),
+          liveDecodeCoverageProbeReason:
+              track['liveDecodeCoverageProbeReason']?.toString() ?? '',
           centerSampleSourceTimeMs: _readInt(track['centerSampleSourceTimeMs']),
           exactFrameDecodeProbeImplemented: _readBool(
             track['exactFrameDecodeProbeImplemented'],
@@ -1723,6 +1748,22 @@ class ProfessionalVideoTransitionDecoderSessionPlanResultMapper {
       return null;
     }
     return TimelineTime.fromMilliseconds(parsed);
+  }
+
+  static List<TimelineTime> _readTimelineTimeList(Object? value) {
+    if (value is! List) {
+      return const <TimelineTime>[];
+    }
+    return List<TimelineTime>.unmodifiable(
+      value.map((entry) {
+        if (entry is num) {
+          return TimelineTime.fromMilliseconds(entry.round());
+        }
+        return TimelineTime.fromMilliseconds(
+          int.tryParse(entry.toString()) ?? 0,
+        );
+      }),
+    );
   }
 
   static bool _readBool(Object? value, {bool defaultValue = false}) {

@@ -865,13 +865,21 @@ private data class ProfessionalVideoTransitionRenderSession(
                     (liveDecodeTimelineEndMs - liveDecodeTimelineStartMs).coerceAtLeast(0L)
                 val sourceWindowDurationMs =
                     abs(liveDecodeSourceEndMs - liveDecodeSourceStartMs)
+                val videoFrameRate =
+                    (sourceProbe?.get("videoFrameRate") as? Number)?.toInt()
+                val liveDecodeCoverageSourceTimesMs =
+                    liveDecodeCoverageSourceTimes(
+                        sourceStartMs = liveDecodeSourceStartMs,
+                        sourceEndMs = liveDecodeSourceEndMs,
+                        frameRate = videoFrameRate,
+                    )
                 val decodeProbe =
                     if (sourceProbeReady && sourceUri.isNotBlank()) {
                         probeExactVideoFrames(
                             appContext = appContext,
                             sourceUri = sourceUri,
                             sourceTimesMs = sourceSampleTimesMs,
-                            frameRate = (sourceProbe?.get("videoFrameRate") as? Number)?.toInt(),
+                            frameRate = videoFrameRate,
                         )
                     } else {
                         ExactVideoFrameBatchProbeResult(
@@ -888,6 +896,36 @@ private data class ProfessionalVideoTransitionRenderSession(
                                 )
                             },
                             reason = "native_video_source_probe_not_ready",
+                        )
+                    }
+                val liveCoverageProbe =
+                    if (
+                        sourceProbeReady &&
+                            sourceUri.isNotBlank() &&
+                            liveDecodeWindowDurationMs > 0L &&
+                            sourceWindowDurationMs > 0L
+                    ) {
+                        probeExactVideoFrames(
+                            appContext = appContext,
+                            sourceUri = sourceUri,
+                            sourceTimesMs = liveDecodeCoverageSourceTimesMs,
+                            frameRate = videoFrameRate,
+                        )
+                    } else {
+                        ExactVideoFrameBatchProbeResult(
+                            canDecodeAllFrames = false,
+                            outputFormatMimeType = "",
+                            outputWidth = 0,
+                            outputHeight = 0,
+                            samples = liveDecodeCoverageSourceTimesMs.map { sourceTime ->
+                                ExactVideoFrameSampleProbeResult(
+                                    sourceTimeMs = sourceTime,
+                                    canDecodeFrame = false,
+                                    decodedFrameTimeUs = null,
+                                    reason = "native_dual_video_live_decode_window_not_ready",
+                                )
+                            },
+                            reason = "native_dual_video_live_decode_window_not_ready",
                         )
                     }
                 val centerSampleProbe =
@@ -919,12 +957,34 @@ private data class ProfessionalVideoTransitionRenderSession(
                     "liveDecodeWindowSourceEndMs" to liveDecodeSourceEndMs,
                     "liveDecodeWindowDurationMs" to liveDecodeWindowDurationMs,
                     "liveDecodeSourceWindowDurationMs" to sourceWindowDurationMs,
+                    "liveDecodeCoverageDecodeProbeImplemented" to true,
+                    "liveDecodeCoverageSourceTimesMs" to liveDecodeCoverageSourceTimesMs,
+                    "liveDecodeCoverageRequestedSampleCount" to liveDecodeCoverageSourceTimesMs.size,
+                    "liveDecodeCoverageDecodedSampleCount" to
+                        liveCoverageProbe.samples.count { sample -> sample.canDecodeFrame },
+                    "liveDecodeCoverageDecodedBufferCount" to
+                        liveCoverageProbe.samples.count { sample -> sample.decodedBufferReadable },
                     "liveDecodeWindowReady" to (
                         sourceProbeReady &&
                             liveDecodeWindowDurationMs > 0L &&
                             sourceWindowDurationMs > 0L
                     ),
-                    "continuousSampleCoverageReady" to false,
+                    "continuousSampleCoverageReady" to (
+                        liveCoverageProbe.canDecodeAllFrames &&
+                            liveCoverageProbe.canReadAllBuffers
+                    ),
+                    "liveDecodeCoverageProbeReason" to (liveCoverageProbe.reason ?: ""),
+                    "liveDecodeCoverageSampleProbes" to liveCoverageProbe.samples.map { sample ->
+                        mapOf(
+                            "sourceTimeMs" to sample.sourceTimeMs,
+                            "canDecodeFrame" to sample.canDecodeFrame,
+                            "decodedFrameTimeMs" to ((sample.decodedFrameTimeUs ?: 0L) / 1000L),
+                            "decodedBufferReadable" to sample.decodedBufferReadable,
+                            "decodedBufferByteCount" to sample.decodedBufferByteCount,
+                            "decodedBufferChecksum" to sample.decodedBufferChecksum,
+                            "reason" to (sample.reason ?: ""),
+                        )
+                    },
                     "centerSampleSourceTimeMs" to centerSourceTimeMs,
                     "exactFrameDecodeProbeImplemented" to true,
                     "sampleDecodeProbeImplemented" to true,
@@ -989,6 +1049,12 @@ private data class ProfessionalVideoTransitionRenderSession(
                     val reason = track["decodeProbeReason"]?.toString().orEmpty()
                     if (reason.isNotBlank() && track["canDecodeCenterFrame"] != true) {
                         add(reason)
+                    }
+                    val liveDecodeReason = track["liveDecodeCoverageProbeReason"]?.toString().orEmpty()
+                    if (liveDecodeReason.isNotBlank() &&
+                        track["continuousSampleCoverageReady"] != true
+                    ) {
+                        add(liveDecodeReason)
                     }
                     if (track["allSamplesDecodable"] == true &&
                         track["allDecodedBuffersReadable"] != true
@@ -1589,6 +1655,26 @@ private data class ProfessionalVideoTransitionRenderSession(
             val sampleTimeMs = timelineTimeMs + firstOffsetMs + (stepMs * index)
             Math.round(sampleTimeMs).coerceIn(transitionStartMs, transitionEndMs)
         }
+    }
+
+    private fun liveDecodeCoverageSourceTimes(
+        sourceStartMs: Long,
+        sourceEndMs: Long,
+        frameRate: Int?,
+    ): List<Long> {
+        val startMs = minOf(sourceStartMs, sourceEndMs).coerceAtLeast(0L)
+        val endExclusiveMs = maxOf(sourceStartMs, sourceEndMs).coerceAtLeast(startMs)
+        val frameDurationMs =
+            (1000L / (frameRate ?: 30).coerceAtLeast(1).toLong()).coerceAtLeast(1L)
+        if (endExclusiveMs <= startMs) {
+            return emptyList()
+        }
+        val lastSampleMs = (endExclusiveMs - frameDurationMs).coerceAtLeast(startMs)
+        if (lastSampleMs == startMs) {
+            return listOf(startMs)
+        }
+        val middleSampleMs = startMs + ((lastSampleMs - startMs) / 2L)
+        return listOf(startMs, middleSampleMs, lastSampleMs).distinct()
     }
 
     companion object {

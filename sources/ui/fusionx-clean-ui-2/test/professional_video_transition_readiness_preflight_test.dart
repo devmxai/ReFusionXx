@@ -678,6 +678,18 @@ class _FakeProfessionalVideoTransitionCompositorClient
       liveDecodeWindowDuration:
           source.timelineRange.endExclusive - source.timelineRange.start,
       liveDecodeSourceWindowDuration: source.sourceDuration,
+      liveDecodeCoverageDecodeProbeImplemented: true,
+      liveDecodeCoverageSourceTimes: <TimelineTime>[
+        source.sourceStartTime,
+        source.sourceStartTime +
+            TimelineTime.fromMilliseconds(
+              source.sourceDuration.inMilliseconds ~/ 2,
+            ),
+        source.sourceStartTime + source.sourceDuration,
+      ],
+      liveDecodeCoverageRequestedSampleCount: 3,
+      liveDecodeCoverageDecodedSampleCount: 3,
+      liveDecodeCoverageDecodedBufferCount: 3,
       liveDecodeWindowReady: true,
       continuousSampleCoverageReady: true,
     );

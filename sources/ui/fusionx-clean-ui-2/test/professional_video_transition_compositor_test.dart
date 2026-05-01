@@ -1081,8 +1081,13 @@ void main() {
             'liveDecodeWindowSourceEndMs': 30000,
             'liveDecodeWindowDurationMs': 2000,
             'liveDecodeSourceWindowDurationMs': 2000,
+            'liveDecodeCoverageDecodeProbeImplemented': true,
+            'liveDecodeCoverageSourceTimesMs': <int>[28000, 28983, 29967],
+            'liveDecodeCoverageRequestedSampleCount': 3,
+            'liveDecodeCoverageDecodedSampleCount': 3,
+            'liveDecodeCoverageDecodedBufferCount': 3,
             'liveDecodeWindowReady': true,
-            'continuousSampleCoverageReady': false,
+            'continuousSampleCoverageReady': true,
             'centerSampleSourceTimeMs': 30017,
             'exactFrameDecodeProbeImplemented': true,
             'sampleDecodeProbeImplemented': true,
@@ -1126,8 +1131,15 @@ void main() {
             'liveDecodeWindowSourceEndMs': 42000,
             'liveDecodeWindowDurationMs': 2000,
             'liveDecodeSourceWindowDurationMs': 2000,
+            'liveDecodeCoverageDecodeProbeImplemented': true,
+            'liveDecodeCoverageSourceTimesMs': <int>[40000, 40983, 41967],
+            'liveDecodeCoverageRequestedSampleCount': 3,
+            'liveDecodeCoverageDecodedSampleCount': 2,
+            'liveDecodeCoverageDecodedBufferCount': 1,
             'liveDecodeWindowReady': true,
             'continuousSampleCoverageReady': false,
+            'liveDecodeCoverageProbeReason':
+                'native_exact_frame_decode_timeout',
             'centerSampleSourceTimeMs': 40017,
             'exactFrameDecodeProbeImplemented': true,
             'sampleDecodeProbeImplemented': true,
@@ -1212,8 +1224,16 @@ void main() {
         TimelineTime.fromMilliseconds(8000));
     expect(result.tracks.first.liveDecodeWindowTimelineEndTime,
         TimelineTime.fromMilliseconds(10000));
+    expect(result.tracks.first.liveDecodeCoverageSourceTimes, <TimelineTime>[
+      TimelineTime.fromMilliseconds(28000),
+      TimelineTime.fromMilliseconds(28983),
+      TimelineTime.fromMilliseconds(29967),
+    ]);
+    expect(result.tracks.first.liveDecodeCoverageRequestedSampleCount, 3);
+    expect(result.tracks.first.liveDecodeCoverageDecodedSampleCount, 3);
+    expect(result.tracks.first.liveDecodeCoverageDecodedBufferCount, 3);
     expect(result.tracks.first.liveDecodeWindowReady, isTrue);
-    expect(result.tracks.first.continuousSampleCoverageReady, isFalse);
+    expect(result.tracks.first.continuousSampleCoverageReady, isTrue);
     expect(result.tracks.first.decodedSampleCount, 2);
     expect(result.tracks.first.decodedBufferProbeImplemented, isTrue);
     expect(result.tracks.first.decodedBufferCount, 2);
@@ -1231,6 +1251,13 @@ void main() {
     expect(result.tracks.last.allSamplesDecodable, isFalse);
     expect(result.tracks.last.allDecodedBuffersReadable, isFalse);
     expect(result.tracks.last.canDecodeCenterFrame, isFalse);
+    expect(result.tracks.last.liveDecodeCoverageDecodedSampleCount, 2);
+    expect(result.tracks.last.liveDecodeCoverageDecodedBufferCount, 1);
+    expect(result.tracks.last.continuousSampleCoverageReady, isFalse);
+    expect(
+      result.tracks.last.liveDecodeCoverageProbeReason,
+      'native_exact_frame_decode_timeout',
+    );
     expect(
       result.tracks.last.decodeProbeReason,
       'native_exact_frame_decode_timeout',
