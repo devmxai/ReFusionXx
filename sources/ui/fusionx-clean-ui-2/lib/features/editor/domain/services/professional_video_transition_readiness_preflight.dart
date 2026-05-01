@@ -19,6 +19,7 @@ enum ProfessionalVideoTransitionReadinessStageId {
   surfaceRenderer,
   frameRenderCommands,
   rendererBackend,
+  rendererDrawLoop,
   parityOutputs,
 }
 
@@ -171,6 +172,12 @@ class ProfessionalVideoTransitionReadinessPreflight {
       timelineTime: timelineTime,
     );
     stages.add(_rendererBackendStage(rendererBackend));
+
+    final rendererDrawLoop = await _client.planRendererDrawLoop(
+      plan: plan,
+      timelineTime: timelineTime,
+    );
+    stages.add(_rendererDrawLoopStage(rendererDrawLoop));
 
     final parityOutputs = await _client.planParityOutputs(
       plan: plan,
@@ -447,7 +454,25 @@ class ProfessionalVideoTransitionReadinessPreflight {
       id: ProfessionalVideoTransitionReadinessStageId.rendererBackend,
       label: 'Native renderer backend',
       canPlan: result.canPlan,
-      canAdvance: result.canRenderFrame,
+      canAdvance: result.backendReady,
+      blockers: _blockers(
+        reason: result.reason,
+        blockedReasons: result.blockedReasons,
+        issues: result.issues,
+        includeReason: !result.backendReady,
+      ),
+      issues: result.issues,
+    );
+  }
+
+  static ProfessionalVideoTransitionReadinessStage _rendererDrawLoopStage(
+    ProfessionalVideoTransitionRendererDrawLoopPlanResult result,
+  ) {
+    return ProfessionalVideoTransitionReadinessStage(
+      id: ProfessionalVideoTransitionReadinessStageId.rendererDrawLoop,
+      label: 'Native renderer draw loop',
+      canPlan: result.canPlan,
+      canAdvance: result.drawLoopReady && result.canRenderFrame,
       blockers: _blockers(
         reason: result.reason,
         blockedReasons: result.blockedReasons,

@@ -600,6 +600,48 @@ class ProfessionalVideoTransitionCompositorManager(
         )
     }
 
+    fun planRendererDrawLoop(
+        plan: Map<String, Any?>?,
+        timelineTimeMs: Long?,
+    ): Map<String, Any> {
+        val missingFields = requiredRenderPlanFields.filter { field ->
+            !hasRequiredField(plan, field)
+        }
+        if (missingFields.isNotEmpty()) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_required_video_transition_render_plan_fields",
+                "rendererVersion" to "foundation",
+                "missingFields" to missingFields,
+            )
+        }
+        if (timelineTimeMs == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_timeline_time_for_video_transition_renderer_draw_loop",
+                "rendererVersion" to "foundation",
+            )
+        }
+        val definitionId = plan?.get("definitionId")?.toString() ?: ""
+        val sessionResult = ProfessionalVideoTransitionRenderSession.fromPlan(plan)
+        if (sessionResult.session == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "invalid_video_transition_render_session",
+                "rendererVersion" to "foundation",
+                "definitionId" to definitionId,
+                "issues" to sessionResult.issues,
+            )
+        }
+        return sessionResult.session.planRendererDrawLoop(
+            timelineTimeMs = timelineTimeMs,
+            motionBlurPolicy = plan?.get("motionBlurPolicy") as? Map<*, *>,
+            edgePolicy = plan?.get("edgePolicy") as? Map<*, *>,
+            parameters = plan?.get("parameters") as? Map<*, *>,
+            appContext = appContext,
+        )
+    }
+
     fun planParityOutputs(
         plan: Map<String, Any?>?,
         timelineTimeMs: Long?,
@@ -2267,6 +2309,12 @@ private data class ProfessionalVideoTransitionRenderSession(
         val upstreamBlockedReasons =
             (commandPlan["blockedReasons"] as? List<*>)?.map { reason -> reason.toString() }
                 ?: emptyList()
+        val backendReady =
+            rendererBackendImplemented &&
+                gpuContextAvailable &&
+                commandBufferReady &&
+                outputSurfaceAttached &&
+                outputTarget == "nativeTransitionCanvasSurface"
         val blockedReasons =
             buildList {
                 addAll(upstreamBlockedReasons)
@@ -2285,12 +2333,6 @@ private data class ProfessionalVideoTransitionRenderSession(
                 if (outputTarget != "nativeTransitionCanvasSurface") {
                     add("native_transition_renderer_output_target_invalid")
                 }
-                if (!drawLoopImplemented) {
-                    add("native_transition_renderer_draw_loop_missing")
-                }
-                if (!rendererImplemented) {
-                    add("native_transition_renderer_pixels_missing")
-                }
             }.distinct()
         return commandPlan +
             mapOf(
@@ -2304,24 +2346,107 @@ private data class ProfessionalVideoTransitionRenderSession(
                 "rendererImplemented" to rendererImplemented,
                 "rendersRealPixels" to false,
                 "drawsPixels" to false,
+                "backendReady" to (backendReady && blockedReasons.isEmpty()),
+                "canSubmitCommands" to (backendReady && blockedReasons.isEmpty()),
+                "canRenderFrame" to false,
+                "blockedReasons" to blockedReasons,
+            )
+    }
+
+    fun planRendererDrawLoop(
+        timelineTimeMs: Long,
+        motionBlurPolicy: Map<*, *>?,
+        edgePolicy: Map<*, *>?,
+        parameters: Map<*, *>?,
+        appContext: Context,
+    ): Map<String, Any> {
+        val backendPlan =
+            planRendererBackend(
+                timelineTimeMs = timelineTimeMs,
+                motionBlurPolicy = motionBlurPolicy,
+                edgePolicy = edgePolicy,
+                parameters = parameters,
+                appContext = appContext,
+            )
+        if (backendPlan["status"] != "planned") {
+            return backendPlan
+        }
+        val rendererBackendReady = backendPlan["backendReady"] == true ||
+            backendPlan["canSubmitCommands"] == true
+        val commands =
+            (backendPlan["commands"] as? List<*>)
+                ?.mapNotNull { command -> command as? Map<*, *> }
+                ?: emptyList()
+        val drawSubmissions =
+            commands.mapIndexed { index, command ->
+                val commandId = command["commandId"]?.toString() ?: "command:$index"
+                val outputTarget = command["outputTarget"]?.toString() ?: ""
+                mapOf(
+                    "submissionId" to "$id:draw-submission:$timelineTimeMs:$index",
+                    "commandId" to commandId,
+                    "passId" to (command["passId"]?.toString() ?: ""),
+                    "passType" to (command["passType"]?.toString() ?: ""),
+                    "index" to index,
+                    "outputTarget" to outputTarget,
+                    "writesToOutputSurface" to (command["writesToOutputSurface"] == true),
+                    "requiresRealPixels" to true,
+                    "submitted" to rendererBackendReady,
+                    "blockedReasons" to
+                        if (rendererBackendReady) {
+                            listOf("native_transition_pixel_renderer_missing")
+                        } else {
+                            listOf("native_transition_renderer_backend_not_ready")
+                        },
+                )
+            }
+        val drawLoopImplemented = true
+        val shaderEvaluatorImplemented = false
+        val pixelRendererImplemented = false
+        val rendererImplemented = false
+        val upstreamBlockedReasons =
+            (backendPlan["blockedReasons"] as? List<*>)
+                ?.map { reason -> reason.toString() }
+                ?: emptyList()
+        val blockedReasons =
+            buildList {
+                addAll(upstreamBlockedReasons)
+                if (!rendererBackendReady) {
+                    add("native_transition_renderer_backend_not_ready")
+                }
+                if (commands.isEmpty()) {
+                    add("native_transition_renderer_command_buffer_empty")
+                }
+                if (!shaderEvaluatorImplemented) {
+                    add("native_transition_shader_evaluator_missing")
+                }
+                if (!pixelRendererImplemented) {
+                    add("native_transition_pixel_renderer_missing")
+                }
+                if (!rendererImplemented) {
+                    add("native_transition_renderer_pixels_missing")
+                }
+            }.distinct()
+        return backendPlan +
+            mapOf(
+                "rendererDrawLoopId" to "$id:draw-loop:$timelineTimeMs",
+                "drawLoopImplemented" to drawLoopImplemented,
+                "shaderEvaluatorImplemented" to shaderEvaluatorImplemented,
+                "pixelRendererImplemented" to pixelRendererImplemented,
+                "rendererImplemented" to rendererImplemented,
+                "drawSubmissionCount" to drawSubmissions.size,
+                "drawSubmissions" to drawSubmissions,
+                "drawLoopReady" to
+                    (drawLoopImplemented &&
+                        rendererBackendReady &&
+                        commands.isNotEmpty() &&
+                        blockedReasons.isEmpty()),
+                "rendersRealPixels" to false,
+                "drawsPixels" to false,
                 "canSubmitCommands" to
-                    (rendererBackendImplemented &&
-                        gpuContextAvailable &&
-                        commandBufferReady &&
-                        outputSurfaceAttached &&
-                        outputTarget == "nativeTransitionCanvasSurface" &&
-                        drawLoopImplemented &&
-                        rendererImplemented &&
-                        blockedReasons.isEmpty()),
-                "canRenderFrame" to
-                    (rendererBackendImplemented &&
-                        gpuContextAvailable &&
-                        commandBufferReady &&
-                        outputSurfaceAttached &&
-                        outputTarget == "nativeTransitionCanvasSurface" &&
-                        drawLoopImplemented &&
-                        rendererImplemented &&
-                        blockedReasons.isEmpty()),
+                    (drawLoopImplemented &&
+                        rendererBackendReady &&
+                        commands.isNotEmpty()),
+                "canRenderFrame" to false,
                 "blockedReasons" to blockedReasons,
             )
     }

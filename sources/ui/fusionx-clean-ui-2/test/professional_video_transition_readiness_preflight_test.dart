@@ -37,6 +37,7 @@ void main() {
         ProfessionalVideoTransitionReadinessStageId.surfaceRenderer,
         ProfessionalVideoTransitionReadinessStageId.frameRenderCommands,
         ProfessionalVideoTransitionReadinessStageId.rendererBackend,
+        ProfessionalVideoTransitionReadinessStageId.rendererDrawLoop,
         ProfessionalVideoTransitionReadinessStageId.parityOutputs,
       ],
     );
@@ -100,12 +101,24 @@ void main() {
     expect(
       report
           .stage(ProfessionalVideoTransitionReadinessStageId.rendererBackend)
-          .blockers,
-      contains('native_transition_renderer_draw_loop_missing'),
+          .canAdvance,
+      isTrue,
     );
     expect(
       report
-          .stage(ProfessionalVideoTransitionReadinessStageId.rendererBackend)
+          .stage(ProfessionalVideoTransitionReadinessStageId.rendererDrawLoop)
+          .blockers,
+      contains('native_transition_shader_evaluator_missing'),
+    );
+    expect(
+      report
+          .stage(ProfessionalVideoTransitionReadinessStageId.rendererDrawLoop)
+          .blockers,
+      contains('native_transition_pixel_renderer_missing'),
+    );
+    expect(
+      report
+          .stage(ProfessionalVideoTransitionReadinessStageId.rendererDrawLoop)
           .blockers,
       contains('native_transition_renderer_pixels_missing'),
     );
@@ -776,15 +789,78 @@ class _FakeProfessionalVideoTransitionCompositorClient
       nativeSurfaceRequired: true,
       commandBufferReady: true,
       outputSurfaceAttached: true,
+      backendReady: true,
       drawLoopImplemented: _rendererReady,
       rendererImplemented: _rendererReady,
       rendersRealPixels: _rendererReady,
       drawsPixels: _rendererReady,
       canSubmitCommands: _rendererReady,
       canRenderFrame: _rendererReady,
+      blockedReasons: const <String>[],
+    );
+  }
+
+  @override
+  Future<ProfessionalVideoTransitionRendererDrawLoopPlanResult>
+      planRendererDrawLoop({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  }) async {
+    return ProfessionalVideoTransitionRendererDrawLoopPlanResult(
+      status: ProfessionalVideoTransitionRendererDrawLoopPlanStatus.planned,
+      reason: '',
+      rendererVersion: 'fake',
+      definitionId: plan.definitionId,
+      renderSessionId: 'transition-session:${plan.transitionId}',
+      renderPassGraphId: 'graph:${plan.transitionId}',
+      renderGraphExecutorId: 'executor:${plan.transitionId}',
+      surfaceRendererId: 'surface-renderer:${plan.transitionId}',
+      frameRenderCommandBufferId: 'frame-command-buffer:${plan.transitionId}',
+      rendererBackendId: 'renderer-backend:${plan.transitionId}',
+      rendererDrawLoopId: 'draw-loop:${plan.transitionId}',
+      outputSurfaceId: 'surface:${plan.transitionId}',
+      outputTarget: 'nativeTransitionCanvasSurface',
+      timelineTime: timelineTime,
+      transitionStartTime: plan.boundaryTime - plan.leadingDuration,
+      transitionEndTime: plan.boundaryTime + plan.trailingDuration,
+      canvasWidth: plan.canvasWidth,
+      canvasHeight: plan.canvasHeight,
+      rendererBackendImplemented: true,
+      gpuContextAvailable: true,
+      nativeSurfaceRequired: true,
+      commandBufferReady: true,
+      outputSurfaceAttached: true,
+      backendReady: true,
+      drawLoopImplemented: true,
+      shaderEvaluatorImplemented: _rendererReady,
+      pixelRendererImplemented: _rendererReady,
+      rendererImplemented: _rendererReady,
+      drawSubmissionCount: 1,
+      drawSubmissions: <ProfessionalVideoTransitionDrawSubmission>[
+        ProfessionalVideoTransitionDrawSubmission(
+          submissionId: 'draw-submission:${plan.transitionId}:0',
+          commandId: 'command:output:${plan.transitionId}',
+          passId: 'pass:output:${plan.transitionId}',
+          passType: 'composeToTransitionSurface',
+          index: 0,
+          outputTarget: 'nativeTransitionCanvasSurface',
+          writesToOutputSurface: true,
+          requiresRealPixels: true,
+          submitted: true,
+          blockedReasons: _planningOnly
+              ? const <String>['native_transition_pixel_renderer_missing']
+              : const <String>[],
+        ),
+      ],
+      drawLoopReady: _rendererReady,
+      rendersRealPixels: _rendererReady,
+      drawsPixels: _rendererReady,
+      canSubmitCommands: true,
+      canRenderFrame: _rendererReady,
       blockedReasons: _planningOnly
           ? const <String>[
-              'native_transition_renderer_draw_loop_missing',
+              'native_transition_shader_evaluator_missing',
+              'native_transition_pixel_renderer_missing',
               'native_transition_renderer_pixels_missing',
             ]
           : const <String>[],

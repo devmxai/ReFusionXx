@@ -926,12 +926,18 @@ Current gate:
 - Flutter and Android now also share `planRendererBackend`. This is the native
   renderer-backend gate between a complete command buffer and the concrete pixel
   draw loop. It proves GPU/OpenGL ES availability, command-buffer readiness,
-  output-surface attachment, and the required `nativeTransitionCanvasSurface`
-  target, but it must still report `drawLoopImplemented=false`,
-  `rendererImplemented=false`, `rendersRealPixels=false`, and
-  `drawsPixels=false` until a native draw loop submits commands and writes real
-  transition pixels. The blockers are
-  `native_transition_renderer_draw_loop_missing` and
+  output-surface attachment, and the required `nativeTransitionCanvasSurface`.
+  Once this gate passes, it reports `backendReady=true` and
+  `canSubmitCommands=true`, but still does not claim frame rendering.
+- Flutter and Android now also share `planRendererDrawLoop`. This is the
+  command-submission contract between the backend and the future pixel renderer.
+  It turns the frame render command buffer into ordered draw submissions for the
+  final native canvas surface. This may report `drawLoopImplemented=true` and
+  `canSubmitCommands=true`, but it must still report `canRenderFrame=false`,
+  `rendersRealPixels=false`, and `drawsPixels=false` until a shader/pixel
+  renderer writes real pixels. The blockers are
+  `native_transition_shader_evaluator_missing`,
+  `native_transition_pixel_renderer_missing`, and
   `native_transition_renderer_pixels_missing`.
 - Flutter and Android now also share `planParityOutputs`. This is the parity
   contract that prevents "works in preview but not in scrub/playback" drift.
