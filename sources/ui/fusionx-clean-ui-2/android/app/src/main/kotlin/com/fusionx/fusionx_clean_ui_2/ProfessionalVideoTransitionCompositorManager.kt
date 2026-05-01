@@ -515,6 +515,48 @@ class ProfessionalVideoTransitionCompositorManager(
         )
     }
 
+    fun planFrameRenderCommands(
+        plan: Map<String, Any?>?,
+        timelineTimeMs: Long?,
+    ): Map<String, Any> {
+        val missingFields = requiredRenderPlanFields.filter { field ->
+            !hasRequiredField(plan, field)
+        }
+        if (missingFields.isNotEmpty()) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_required_video_transition_render_plan_fields",
+                "rendererVersion" to "foundation",
+                "missingFields" to missingFields,
+            )
+        }
+        if (timelineTimeMs == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_timeline_time_for_video_transition_frame_render_commands",
+                "rendererVersion" to "foundation",
+            )
+        }
+        val definitionId = plan?.get("definitionId")?.toString() ?: ""
+        val sessionResult = ProfessionalVideoTransitionRenderSession.fromPlan(plan)
+        if (sessionResult.session == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "invalid_video_transition_render_session",
+                "rendererVersion" to "foundation",
+                "definitionId" to definitionId,
+                "issues" to sessionResult.issues,
+            )
+        }
+        return sessionResult.session.planFrameRenderCommands(
+            timelineTimeMs = timelineTimeMs,
+            motionBlurPolicy = plan?.get("motionBlurPolicy") as? Map<*, *>,
+            edgePolicy = plan?.get("edgePolicy") as? Map<*, *>,
+            parameters = plan?.get("parameters") as? Map<*, *>,
+            appContext = appContext,
+        )
+    }
+
     fun planParityOutputs(
         plan: Map<String, Any?>?,
         timelineTimeMs: Long?,
@@ -1991,6 +2033,154 @@ private data class ProfessionalVideoTransitionRenderSession(
                     (surfaceRendererImplemented &&
                         rendererImplemented &&
                         outputSurfaceAttached &&
+                        renderGraphOutputReady &&
+                        blockedReasons.isEmpty()),
+                "blockedReasons" to blockedReasons,
+            )
+    }
+
+    fun planFrameRenderCommands(
+        timelineTimeMs: Long,
+        motionBlurPolicy: Map<*, *>?,
+        edgePolicy: Map<*, *>?,
+        parameters: Map<*, *>?,
+        appContext: Context,
+    ): Map<String, Any> {
+        val surfacePlan =
+            planSurfaceRenderer(
+                timelineTimeMs = timelineTimeMs,
+                motionBlurPolicy = motionBlurPolicy,
+                edgePolicy = edgePolicy,
+                parameters = parameters,
+                appContext = appContext,
+            )
+        if (surfacePlan["status"] != "planned") {
+            return surfacePlan
+        }
+        val passes =
+            (surfacePlan["passes"] as? List<*>)?.mapNotNull { pass ->
+                pass as? Map<*, *>
+            } ?: emptyList()
+        val surfaceRendererImplemented = surfacePlan["surfaceRendererImplemented"] == true
+        val outputSurfaceAttached = surfacePlan["outputSurfaceAttached"] == true
+        val graphOwnershipReady = surfacePlan["graphOwnershipReady"] == true
+        val outputPassBound = surfacePlan["outputPassBound"] == true
+        val renderGraphOutputReady = surfacePlan["renderGraphOutputReady"] == true
+        val outputSurfaceId = surfacePlan["outputSurfaceId"]?.toString() ?: ""
+        val outputTarget = surfacePlan["outputTarget"]?.toString() ?: ""
+        val rendererCommandBufferImplemented = true
+        val rendererImplemented = false
+        val upstreamBlockedReasons =
+            (surfacePlan["blockedReasons"] as? List<*>)?.map { reason -> reason.toString() }
+                ?: emptyList()
+        val commands =
+            passes.withIndex().map { indexedPass ->
+                val pass = indexedPass.value
+                val passId = pass["passId"]?.toString() ?: ""
+                val passType = pass["type"]?.toString() ?: ""
+                val role = pass["role"]?.toString() ?: ""
+                val inputs =
+                    (pass["inputs"] as? List<*>)?.map { input -> input.toString() }
+                        ?: emptyList()
+                val passOutputTarget =
+                    if (passType == "composeToTransitionSurface") {
+                        outputTarget
+                    } else {
+                        "nativeTransitionIntermediateBuffer"
+                    }
+                val blockedReasons =
+                    buildList {
+                        if (passId.isBlank()) {
+                            add("native_transition_frame_command_pass_id_missing")
+                        }
+                        if (passType.isBlank()) {
+                            add("native_transition_frame_command_pass_type_missing")
+                        }
+                        if (!surfaceRendererImplemented) {
+                            add("native_transition_surface_renderer_missing")
+                        }
+                        if (!outputSurfaceAttached) {
+                            add("native_transition_frame_command_surface_not_attached")
+                        }
+                        if (!rendererImplemented) {
+                            add("native_transition_frame_command_renderer_missing")
+                        }
+                    }.distinct()
+                mapOf(
+                    "commandId" to "$id:command:${indexedPass.index}:$timelineTimeMs",
+                    "passId" to passId,
+                    "passType" to passType,
+                    "role" to role,
+                    "index" to indexedPass.index,
+                    "inputPassIds" to inputs,
+                    "outputTarget" to passOutputTarget,
+                    "writesToOutputSurface" to (passType == "composeToTransitionSurface"),
+                    "requiresRealPixels" to true,
+                    "readyForRenderer" to
+                        (surfaceRendererImplemented &&
+                            outputSurfaceAttached &&
+                            passId.isNotBlank() &&
+                            passType.isNotBlank() &&
+                            blockedReasons.none { reason ->
+                                reason != "native_transition_frame_command_renderer_missing"
+                            }),
+                    "blockedReasons" to blockedReasons,
+                )
+            }
+        val commandGraphComplete =
+            commands.isNotEmpty() &&
+                commands.last()["writesToOutputSurface"] == true &&
+                commands.map { command -> command["passType"] }.containsAll(
+                    listOf(
+                        "decodeLiveVideoStreams",
+                        "decodeExactVideoFrames",
+                        "temporalSampleAccumulator",
+                        "transitionShaderEvaluation",
+                        "composeToTransitionSurface",
+                    ),
+                )
+        val commandBufferReady =
+            rendererCommandBufferImplemented &&
+                surfaceRendererImplemented &&
+                graphOwnershipReady &&
+                outputSurfaceAttached &&
+                outputPassBound &&
+                commandGraphComplete
+        val blockedReasons =
+            buildList {
+                addAll(upstreamBlockedReasons)
+                if (!commandGraphComplete) {
+                    add("native_transition_frame_command_graph_incomplete")
+                }
+                if (!commandBufferReady) {
+                    add("native_transition_frame_command_buffer_not_ready")
+                }
+                if (!renderGraphOutputReady) {
+                    add("native_transition_frame_command_output_not_ready")
+                }
+                if (!rendererImplemented) {
+                    add("native_transition_frame_command_renderer_missing")
+                }
+            }.distinct()
+        return surfacePlan +
+            mapOf(
+                "frameRenderCommandBufferId" to "$id:frame-command-buffer:$timelineTimeMs",
+                "rendererCommandBufferImplemented" to rendererCommandBufferImplemented,
+                "rendererImplemented" to rendererImplemented,
+                "commandGraphComplete" to commandGraphComplete,
+                "commandBufferReady" to commandBufferReady,
+                "commandCount" to commands.size,
+                "commands" to commands,
+                "rendersRealPixels" to false,
+                "drawsPixels" to false,
+                "canSubmitCommands" to
+                    (commandBufferReady &&
+                        rendererImplemented &&
+                        renderGraphOutputReady &&
+                        blockedReasons.isEmpty()),
+                "canRenderFrame" to
+                    (commandBufferReady &&
+                        rendererImplemented &&
                         renderGraphOutputReady &&
                         blockedReasons.isEmpty()),
                 "blockedReasons" to blockedReasons,

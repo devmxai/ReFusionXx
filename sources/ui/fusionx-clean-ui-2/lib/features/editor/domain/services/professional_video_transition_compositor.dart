@@ -176,6 +176,12 @@ abstract class ProfessionalVideoTransitionCompositorClient
     required TimelineTime timelineTime,
   });
 
+  Future<ProfessionalVideoTransitionFrameRenderCommandPlanResult>
+      planFrameRenderCommands({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  });
+
   Future<ProfessionalVideoTransitionOutputSurfacePlanResult> planOutputSurface({
     required ProfessionalVideoTransitionRenderPlan plan,
     required TimelineTime timelineTime,
@@ -537,6 +543,34 @@ class MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider
       );
     } on PlatformException catch (error) {
       return ProfessionalVideoTransitionSurfaceRendererPlanResult
+          .invalidRequest(
+        reason: error.message ?? error.code,
+      );
+    }
+  }
+
+  @override
+  Future<ProfessionalVideoTransitionFrameRenderCommandPlanResult>
+      planFrameRenderCommands({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  }) async {
+    try {
+      final payload = plan.toPlatformMap();
+      payload['timelineTimeMs'] = timelineTime.inMilliseconds;
+      final rawResult = await _channel.invokeMapMethod<String, Object?>(
+        'planFrameRenderCommands',
+        payload,
+      );
+      return ProfessionalVideoTransitionFrameRenderCommandPlanResultMapper
+          .fromMap(rawResult);
+    } on MissingPluginException {
+      return ProfessionalVideoTransitionFrameRenderCommandPlanResult
+          .invalidRequest(
+        reason: 'native_compositor_channel_missing',
+      );
+    } on PlatformException catch (error) {
+      return ProfessionalVideoTransitionFrameRenderCommandPlanResult
           .invalidRequest(
         reason: error.message ?? error.code,
       );
@@ -3359,6 +3393,287 @@ class ProfessionalVideoTransitionSurfaceRendererPlanResultMapper {
       canRenderSurface: _readBool(map['canRenderSurface']),
       blockedReasons: _readStringList(map['blockedReasons']),
       issues: _readIssues(map['issues']),
+    );
+  }
+
+  static TimelineTime? _readTimelineTime(Object? value) {
+    if (value is num) {
+      return TimelineTime.fromMilliseconds(value.round());
+    }
+    final parsed = int.tryParse(value?.toString() ?? '');
+    if (parsed == null) {
+      return null;
+    }
+    return TimelineTime.fromMilliseconds(parsed);
+  }
+
+  static int _readInt(Object? value) {
+    if (value is num) {
+      return value.round();
+    }
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static bool _readBool(Object? value, {bool defaultValue = false}) {
+    if (value is bool) {
+      return value;
+    }
+    return defaultValue;
+  }
+
+  static List<String> _readStringList(Object? value) {
+    if (value is! List) {
+      return const <String>[];
+    }
+    return List<String>.unmodifiable(value.map((entry) => entry.toString()));
+  }
+
+  static List<Map<String, Object?>> _readIssues(Object? value) {
+    if (value is! List) {
+      return const <Map<String, Object?>>[];
+    }
+    return List<Map<String, Object?>>.unmodifiable(
+      value.whereType<Map>().map((issue) {
+        return <String, Object?>{
+          for (final entry in issue.entries) entry.key.toString(): entry.value,
+        };
+      }),
+    );
+  }
+}
+
+enum ProfessionalVideoTransitionFrameRenderCommandPlanStatus {
+  planned,
+  invalidRequest,
+}
+
+@immutable
+class ProfessionalVideoTransitionFrameRenderCommand {
+  const ProfessionalVideoTransitionFrameRenderCommand({
+    required this.commandId,
+    required this.passId,
+    required this.passType,
+    required this.role,
+    required this.index,
+    required this.inputPassIds,
+    required this.outputTarget,
+    required this.writesToOutputSurface,
+    required this.requiresRealPixels,
+    required this.readyForRenderer,
+    required this.blockedReasons,
+  });
+
+  final String commandId;
+  final String passId;
+  final String passType;
+  final String role;
+  final int index;
+  final List<String> inputPassIds;
+  final String outputTarget;
+  final bool writesToOutputSurface;
+  final bool requiresRealPixels;
+  final bool readyForRenderer;
+  final List<String> blockedReasons;
+}
+
+@immutable
+class ProfessionalVideoTransitionFrameRenderCommandPlanResult {
+  const ProfessionalVideoTransitionFrameRenderCommandPlanResult({
+    required this.status,
+    required this.reason,
+    required this.rendererVersion,
+    required this.definitionId,
+    required this.renderSessionId,
+    required this.renderPassGraphId,
+    required this.renderGraphExecutorId,
+    required this.surfaceRendererId,
+    required this.frameRenderCommandBufferId,
+    required this.outputSurfaceId,
+    required this.outputTarget,
+    required this.timelineTime,
+    required this.transitionStartTime,
+    required this.transitionEndTime,
+    required this.canvasWidth,
+    required this.canvasHeight,
+    required this.surfaceRendererImplemented,
+    required this.rendererCommandBufferImplemented,
+    required this.rendererImplemented,
+    required this.graphOwnershipReady,
+    required this.outputSurfaceAttached,
+    required this.outputPassBound,
+    required this.renderGraphOutputReady,
+    required this.commandGraphComplete,
+    required this.commandBufferReady,
+    required this.commandCount,
+    required this.commands,
+    required this.rendersRealPixels,
+    required this.drawsPixels,
+    required this.canSubmitCommands,
+    required this.canRenderFrame,
+    required this.blockedReasons,
+    this.issues = const <Map<String, Object?>>[],
+  });
+
+  factory ProfessionalVideoTransitionFrameRenderCommandPlanResult.invalidRequest({
+    required String reason,
+    String rendererVersion = 'unknown',
+    List<Map<String, Object?>> issues = const <Map<String, Object?>>[],
+  }) {
+    return ProfessionalVideoTransitionFrameRenderCommandPlanResult(
+      status: ProfessionalVideoTransitionFrameRenderCommandPlanStatus
+          .invalidRequest,
+      reason: reason,
+      rendererVersion: rendererVersion,
+      definitionId: '',
+      renderSessionId: '',
+      renderPassGraphId: '',
+      renderGraphExecutorId: '',
+      surfaceRendererId: '',
+      frameRenderCommandBufferId: '',
+      outputSurfaceId: '',
+      outputTarget: '',
+      timelineTime: null,
+      transitionStartTime: null,
+      transitionEndTime: null,
+      canvasWidth: 0,
+      canvasHeight: 0,
+      surfaceRendererImplemented: false,
+      rendererCommandBufferImplemented: false,
+      rendererImplemented: false,
+      graphOwnershipReady: false,
+      outputSurfaceAttached: false,
+      outputPassBound: false,
+      renderGraphOutputReady: false,
+      commandGraphComplete: false,
+      commandBufferReady: false,
+      commandCount: 0,
+      commands: const <ProfessionalVideoTransitionFrameRenderCommand>[],
+      rendersRealPixels: false,
+      drawsPixels: false,
+      canSubmitCommands: false,
+      canRenderFrame: false,
+      blockedReasons: const <String>[],
+      issues: issues,
+    );
+  }
+
+  final ProfessionalVideoTransitionFrameRenderCommandPlanStatus status;
+  final String reason;
+  final String rendererVersion;
+  final String definitionId;
+  final String renderSessionId;
+  final String renderPassGraphId;
+  final String renderGraphExecutorId;
+  final String surfaceRendererId;
+  final String frameRenderCommandBufferId;
+  final String outputSurfaceId;
+  final String outputTarget;
+  final TimelineTime? timelineTime;
+  final TimelineTime? transitionStartTime;
+  final TimelineTime? transitionEndTime;
+  final int canvasWidth;
+  final int canvasHeight;
+  final bool surfaceRendererImplemented;
+  final bool rendererCommandBufferImplemented;
+  final bool rendererImplemented;
+  final bool graphOwnershipReady;
+  final bool outputSurfaceAttached;
+  final bool outputPassBound;
+  final bool renderGraphOutputReady;
+  final bool commandGraphComplete;
+  final bool commandBufferReady;
+  final int commandCount;
+  final List<ProfessionalVideoTransitionFrameRenderCommand> commands;
+  final bool rendersRealPixels;
+  final bool drawsPixels;
+  final bool canSubmitCommands;
+  final bool canRenderFrame;
+  final List<String> blockedReasons;
+  final List<Map<String, Object?>> issues;
+
+  bool get canPlan =>
+      status == ProfessionalVideoTransitionFrameRenderCommandPlanStatus.planned;
+}
+
+class ProfessionalVideoTransitionFrameRenderCommandPlanResultMapper {
+  const ProfessionalVideoTransitionFrameRenderCommandPlanResultMapper._();
+
+  static ProfessionalVideoTransitionFrameRenderCommandPlanResult fromMap(
+    Map<String, Object?>? map,
+  ) {
+    if (map == null) {
+      return ProfessionalVideoTransitionFrameRenderCommandPlanResult
+          .invalidRequest(
+        reason: 'native_compositor_empty_frame_render_command_response',
+      );
+    }
+    final status = switch (map['status']?.toString()) {
+      'planned' =>
+        ProfessionalVideoTransitionFrameRenderCommandPlanStatus.planned,
+      _ =>
+        ProfessionalVideoTransitionFrameRenderCommandPlanStatus.invalidRequest,
+    };
+    return ProfessionalVideoTransitionFrameRenderCommandPlanResult(
+      status: status,
+      reason: map['reason']?.toString() ?? '',
+      rendererVersion: map['rendererVersion']?.toString() ?? 'unknown',
+      definitionId: map['definitionId']?.toString() ?? '',
+      renderSessionId: map['renderSessionId']?.toString() ?? '',
+      renderPassGraphId: map['renderPassGraphId']?.toString() ?? '',
+      renderGraphExecutorId: map['renderGraphExecutorId']?.toString() ?? '',
+      surfaceRendererId: map['surfaceRendererId']?.toString() ?? '',
+      frameRenderCommandBufferId:
+          map['frameRenderCommandBufferId']?.toString() ?? '',
+      outputSurfaceId: map['outputSurfaceId']?.toString() ?? '',
+      outputTarget: map['outputTarget']?.toString() ?? '',
+      timelineTime: _readTimelineTime(map['timelineTimeMs']),
+      transitionStartTime: _readTimelineTime(map['transitionStartMs']),
+      transitionEndTime: _readTimelineTime(map['transitionEndMs']),
+      canvasWidth: _readInt(map['canvasWidth']),
+      canvasHeight: _readInt(map['canvasHeight']),
+      surfaceRendererImplemented: _readBool(map['surfaceRendererImplemented']),
+      rendererCommandBufferImplemented:
+          _readBool(map['rendererCommandBufferImplemented']),
+      rendererImplemented: _readBool(map['rendererImplemented']),
+      graphOwnershipReady: _readBool(map['graphOwnershipReady']),
+      outputSurfaceAttached: _readBool(map['outputSurfaceAttached']),
+      outputPassBound: _readBool(map['outputPassBound']),
+      renderGraphOutputReady: _readBool(map['renderGraphOutputReady']),
+      commandGraphComplete: _readBool(map['commandGraphComplete']),
+      commandBufferReady: _readBool(map['commandBufferReady']),
+      commandCount: _readInt(map['commandCount']),
+      commands: _readCommands(map['commands']),
+      rendersRealPixels: _readBool(map['rendersRealPixels']),
+      drawsPixels: _readBool(map['drawsPixels']),
+      canSubmitCommands: _readBool(map['canSubmitCommands']),
+      canRenderFrame: _readBool(map['canRenderFrame']),
+      blockedReasons: _readStringList(map['blockedReasons']),
+      issues: _readIssues(map['issues']),
+    );
+  }
+
+  static List<ProfessionalVideoTransitionFrameRenderCommand> _readCommands(
+    Object? value,
+  ) {
+    if (value is! List) {
+      return const <ProfessionalVideoTransitionFrameRenderCommand>[];
+    }
+    return List<ProfessionalVideoTransitionFrameRenderCommand>.unmodifiable(
+      value.whereType<Map>().map((command) {
+        return ProfessionalVideoTransitionFrameRenderCommand(
+          commandId: command['commandId']?.toString() ?? '',
+          passId: command['passId']?.toString() ?? '',
+          passType: command['passType']?.toString() ?? '',
+          role: command['role']?.toString() ?? '',
+          index: _readInt(command['index']),
+          inputPassIds: _readStringList(command['inputPassIds']),
+          outputTarget: command['outputTarget']?.toString() ?? '',
+          writesToOutputSurface: _readBool(command['writesToOutputSurface']),
+          requiresRealPixels: _readBool(command['requiresRealPixels']),
+          readyForRenderer: _readBool(command['readyForRenderer']),
+          blockedReasons: _readStringList(command['blockedReasons']),
+        );
+      }),
     );
   }
 

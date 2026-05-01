@@ -17,6 +17,7 @@ enum ProfessionalVideoTransitionReadinessStageId {
   renderGraphExecution,
   outputSurface,
   surfaceRenderer,
+  frameRenderCommands,
   parityOutputs,
 }
 
@@ -157,6 +158,12 @@ class ProfessionalVideoTransitionReadinessPreflight {
       timelineTime: timelineTime,
     );
     stages.add(_surfaceRendererStage(surfaceRenderer));
+
+    final frameRenderCommands = await _client.planFrameRenderCommands(
+      plan: plan,
+      timelineTime: timelineTime,
+    );
+    stages.add(_frameRenderCommandsStage(frameRenderCommands));
 
     final parityOutputs = await _client.planParityOutputs(
       plan: plan,
@@ -403,6 +410,24 @@ class ProfessionalVideoTransitionReadinessPreflight {
         blockedReasons: result.blockedReasons,
         issues: result.issues,
         includeReason: !result.canRenderSurface,
+      ),
+      issues: result.issues,
+    );
+  }
+
+  static ProfessionalVideoTransitionReadinessStage _frameRenderCommandsStage(
+    ProfessionalVideoTransitionFrameRenderCommandPlanResult result,
+  ) {
+    return ProfessionalVideoTransitionReadinessStage(
+      id: ProfessionalVideoTransitionReadinessStageId.frameRenderCommands,
+      label: 'Native frame render commands',
+      canPlan: result.canPlan,
+      canAdvance: result.canRenderFrame,
+      blockers: _blockers(
+        reason: result.reason,
+        blockedReasons: result.blockedReasons,
+        issues: result.issues,
+        includeReason: !result.canRenderFrame,
       ),
       issues: result.issues,
     );

@@ -913,6 +913,16 @@ Current gate:
   `native_transition_surface_renderer_pixels_missing` until a concrete native
   renderer emits real pixels. An attached surface is not enough to expose a
   preset.
+- Flutter and Android now also share `planFrameRenderCommands`. This is the
+  native per-frame command-buffer contract for the future concrete renderer.
+  It lowers the ordered graph into explicit commands, one per pass, preserving
+  pass id/type/role, input pass ids, output target, and whether the command
+  writes to the final canvas surface. The command graph may be complete while
+  rendering still remains locked: it must report
+  `rendererCommandBufferImplemented=true`, `rendererImplemented=false`,
+  `rendersRealPixels=false`, and `drawsPixels=false` until a concrete native
+  renderer can submit those commands and draw real pixels. The blocker is
+  `native_transition_frame_command_renderer_missing`.
 - Flutter and Android now also share `planParityOutputs`. This is the parity
   contract that prevents "works in preview but not in scrub/playback" drift.
   Preview, Live Scrub, and playback must all point at the same native

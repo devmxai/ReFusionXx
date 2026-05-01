@@ -35,6 +35,7 @@ void main() {
         ProfessionalVideoTransitionReadinessStageId.renderGraphExecution,
         ProfessionalVideoTransitionReadinessStageId.outputSurface,
         ProfessionalVideoTransitionReadinessStageId.surfaceRenderer,
+        ProfessionalVideoTransitionReadinessStageId.frameRenderCommands,
         ProfessionalVideoTransitionReadinessStageId.parityOutputs,
       ],
     );
@@ -87,6 +88,13 @@ void main() {
           .stage(ProfessionalVideoTransitionReadinessStageId.surfaceRenderer)
           .blockers,
       contains('native_transition_surface_renderer_pixels_missing'),
+    );
+    expect(
+      report
+          .stage(
+              ProfessionalVideoTransitionReadinessStageId.frameRenderCommands)
+          .blockers,
+      contains('native_transition_frame_command_renderer_missing'),
     );
   });
 
@@ -660,6 +668,68 @@ class _FakeProfessionalVideoTransitionCompositorClient
           ? const <String>[
               'native_transition_surface_renderer_pixels_missing',
             ]
+          : const <String>[],
+    );
+  }
+
+  @override
+  Future<ProfessionalVideoTransitionFrameRenderCommandPlanResult>
+      planFrameRenderCommands({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  }) async {
+    return ProfessionalVideoTransitionFrameRenderCommandPlanResult(
+      status: ProfessionalVideoTransitionFrameRenderCommandPlanStatus.planned,
+      reason: '',
+      rendererVersion: 'fake',
+      definitionId: plan.definitionId,
+      renderSessionId: 'transition-session:${plan.transitionId}',
+      renderPassGraphId: 'graph:${plan.transitionId}',
+      renderGraphExecutorId: 'executor:${plan.transitionId}',
+      surfaceRendererId: 'surface-renderer:${plan.transitionId}',
+      frameRenderCommandBufferId: 'frame-command-buffer:${plan.transitionId}',
+      outputSurfaceId: 'surface:${plan.transitionId}',
+      outputTarget: 'nativeTransitionSurface',
+      timelineTime: timelineTime,
+      transitionStartTime: plan.boundaryTime - plan.leadingDuration,
+      transitionEndTime: plan.boundaryTime + plan.trailingDuration,
+      canvasWidth: plan.canvasWidth,
+      canvasHeight: plan.canvasHeight,
+      surfaceRendererImplemented: true,
+      rendererCommandBufferImplemented: true,
+      rendererImplemented: _rendererReady,
+      graphOwnershipReady: true,
+      outputSurfaceAttached: true,
+      outputPassBound: true,
+      renderGraphOutputReady: !_planningOnly,
+      commandGraphComplete: true,
+      commandBufferReady: true,
+      commandCount: 1,
+      commands: <ProfessionalVideoTransitionFrameRenderCommand>[
+        ProfessionalVideoTransitionFrameRenderCommand(
+          commandId: 'command:output:${plan.transitionId}',
+          passId: 'pass:output:${plan.transitionId}',
+          passType: 'composeToTransitionSurface',
+          role: 'output',
+          index: 0,
+          inputPassIds: const <String>['pass:transition'],
+          outputTarget: 'nativeTransitionSurface',
+          writesToOutputSurface: true,
+          requiresRealPixels: true,
+          readyForRenderer: true,
+          blockedReasons: _planningOnly
+              ? const <String>[
+                  'native_transition_frame_command_renderer_missing'
+                ]
+              : const <String>[],
+        ),
+      ],
+      rendersRealPixels: _rendererReady,
+      drawsPixels: _rendererReady,
+      canSubmitCommands: _rendererReady,
+      canRenderFrame: _rendererReady,
+      blockedReasons: _planningOnly
+          ? const <String>['native_transition_frame_command_renderer_missing']
           : const <String>[],
     );
   }

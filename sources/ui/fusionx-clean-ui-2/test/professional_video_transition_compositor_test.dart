@@ -2140,6 +2140,151 @@ void main() {
     );
   });
 
+  test('method channel frame render commands stay blocked without renderer',
+      () async {
+    const channel = MethodChannel(
+        'com.refusion.app/professional_video_transition_compositor');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(channel, null);
+    });
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'planFrameRenderCommands');
+      final arguments = call.arguments! as Map<Object?, Object?>;
+      expect(arguments['definitionId'], 'zoomInCamera');
+      expect(arguments['timelineTimeMs'], 10000);
+      return <String, Object?>{
+        'status': 'planned',
+        'reason': '',
+        'rendererVersion': 'foundation',
+        'definitionId': 'zoomInCamera',
+        'renderSessionId': 'transition-session:zoom-native-1',
+        'renderPassGraphId': 'transition-session:zoom-native-1:graph:10000',
+        'renderGraphExecutorId':
+            'transition-session:zoom-native-1:executor:10000',
+        'surfaceRendererId':
+            'transition-session:zoom-native-1:surface-renderer:10000',
+        'frameRenderCommandBufferId':
+            'transition-session:zoom-native-1:frame-command-buffer:10000',
+        'outputSurfaceId':
+            'transition-session:zoom-native-1:surface:transition-output:10000',
+        'outputTarget': 'nativeTransitionCanvasSurface',
+        'timelineTimeMs': 10000,
+        'transitionStartMs': 8000,
+        'transitionEndMs': 12000,
+        'canvasWidth': 1080,
+        'canvasHeight': 1920,
+        'surfaceRendererImplemented': true,
+        'rendererCommandBufferImplemented': true,
+        'rendererImplemented': false,
+        'graphOwnershipReady': true,
+        'outputSurfaceAttached': true,
+        'outputPassBound': true,
+        'renderGraphOutputReady': false,
+        'commandGraphComplete': true,
+        'commandBufferReady': true,
+        'commandCount': 2,
+        'commands': <Map<String, Object?>>[
+          <String, Object?>{
+            'commandId': 'command:transition:0',
+            'passId': 'transition-pass',
+            'passType': 'transitionShaderEvaluation',
+            'role': 'both',
+            'index': 0,
+            'inputPassIds': <String>['edge-pass'],
+            'outputTarget': 'nativeTransitionIntermediateBuffer',
+            'writesToOutputSurface': false,
+            'requiresRealPixels': true,
+            'readyForRenderer': true,
+            'blockedReasons': <String>[
+              'native_transition_frame_command_renderer_missing',
+            ],
+          },
+          <String, Object?>{
+            'commandId': 'command:output:1',
+            'passId': 'output-pass',
+            'passType': 'composeToTransitionSurface',
+            'role': 'output',
+            'index': 1,
+            'inputPassIds': <String>['transition-pass'],
+            'outputTarget': 'nativeTransitionCanvasSurface',
+            'writesToOutputSurface': true,
+            'requiresRealPixels': true,
+            'readyForRenderer': true,
+            'blockedReasons': <String>[
+              'native_transition_frame_command_renderer_missing',
+            ],
+          },
+        ],
+        'rendersRealPixels': false,
+        'drawsPixels': false,
+        'canSubmitCommands': false,
+        'canRenderFrame': false,
+        'blockedReasons': <String>[
+          'native_transition_frame_command_renderer_missing',
+        ],
+      };
+    });
+
+    final result =
+        await const MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider(
+      channel: channel,
+    ).planFrameRenderCommands(
+      timelineTime: TimelineTime.fromMilliseconds(10000),
+      plan: ProfessionalZoomCameraRenderPlan(
+        canvasWidth: 1080,
+        canvasHeight: 1920,
+        request: ProfessionalZoomCameraPlanRequest(
+          transitionId: 'zoom-native-1',
+          timelineTime: TimelineTime.fromMilliseconds(10000),
+          boundaryTime: TimelineTime.fromMilliseconds(10000),
+          leadingDuration: TimelineTime.fromMilliseconds(2000),
+          trailingDuration: TimelineTime.fromMilliseconds(2000),
+          outgoing: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-a',
+            assetId: 'asset-a',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(28000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+          incoming: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-b',
+            assetId: 'asset-b',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(38000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+        ),
+      ).toGenericRenderPlan(),
+    );
+
+    expect(result.canPlan, isTrue);
+    expect(result.rendererCommandBufferImplemented, isTrue);
+    expect(result.rendererImplemented, isFalse);
+    expect(result.commandGraphComplete, isTrue);
+    expect(result.commandBufferReady, isTrue);
+    expect(result.canSubmitCommands, isFalse);
+    expect(result.canRenderFrame, isFalse);
+    expect(result.commands, hasLength(2));
+    expect(result.commands.last.passType, 'composeToTransitionSurface');
+    expect(result.commands.last.writesToOutputSurface, isTrue);
+    expect(
+        result.commands.every((command) => command.requiresRealPixels), isTrue);
+    expect(result.rendersRealPixels, isFalse);
+    expect(result.drawsPixels, isFalse);
+    expect(
+      result.blockedReasons,
+      contains('native_transition_frame_command_renderer_missing'),
+    );
+  });
+
   test(
       'method channel parity outputs lock every interactive mode until renderer',
       () async {
