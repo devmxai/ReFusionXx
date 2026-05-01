@@ -2285,6 +2285,122 @@ void main() {
     );
   });
 
+  test('method channel renderer backend stays blocked until pixels draw',
+      () async {
+    const channel = MethodChannel(
+        'com.refusion.app/professional_video_transition_compositor');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(channel, null);
+    });
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'planRendererBackend');
+      final arguments = call.arguments! as Map<Object?, Object?>;
+      expect(arguments['definitionId'], 'zoomInCamera');
+      expect(arguments['timelineTimeMs'], 10000);
+      return <String, Object?>{
+        'status': 'planned',
+        'reason': '',
+        'rendererVersion': 'foundation',
+        'definitionId': 'zoomInCamera',
+        'renderSessionId': 'transition-session:zoom-native-1',
+        'renderPassGraphId': 'transition-session:zoom-native-1:graph:10000',
+        'renderGraphExecutorId':
+            'transition-session:zoom-native-1:executor:10000',
+        'surfaceRendererId':
+            'transition-session:zoom-native-1:surface-renderer:10000',
+        'frameRenderCommandBufferId':
+            'transition-session:zoom-native-1:frame-command-buffer:10000',
+        'rendererBackendId':
+            'transition-session:zoom-native-1:renderer-backend:10000',
+        'outputSurfaceId':
+            'transition-session:zoom-native-1:surface:transition-output:10000',
+        'outputTarget': 'nativeTransitionCanvasSurface',
+        'timelineTimeMs': 10000,
+        'transitionStartMs': 8000,
+        'transitionEndMs': 12000,
+        'canvasWidth': 1080,
+        'canvasHeight': 1920,
+        'rendererBackendImplemented': true,
+        'gpuContextAvailable': true,
+        'nativeSurfaceRequired': true,
+        'commandBufferReady': true,
+        'outputSurfaceAttached': true,
+        'drawLoopImplemented': false,
+        'rendererImplemented': false,
+        'rendersRealPixels': false,
+        'drawsPixels': false,
+        'canSubmitCommands': false,
+        'canRenderFrame': false,
+        'blockedReasons': <String>[
+          'native_transition_renderer_draw_loop_missing',
+          'native_transition_renderer_pixels_missing',
+        ],
+      };
+    });
+
+    final result =
+        await const MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider(
+      channel: channel,
+    ).planRendererBackend(
+      timelineTime: TimelineTime.fromMilliseconds(10000),
+      plan: ProfessionalZoomCameraRenderPlan(
+        canvasWidth: 1080,
+        canvasHeight: 1920,
+        request: ProfessionalZoomCameraPlanRequest(
+          transitionId: 'zoom-native-1',
+          timelineTime: TimelineTime.fromMilliseconds(10000),
+          boundaryTime: TimelineTime.fromMilliseconds(10000),
+          leadingDuration: TimelineTime.fromMilliseconds(2000),
+          trailingDuration: TimelineTime.fromMilliseconds(2000),
+          outgoing: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-a',
+            assetId: 'asset-a',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(28000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+          incoming: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-b',
+            assetId: 'asset-b',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(38000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+        ),
+      ).toGenericRenderPlan(),
+    );
+
+    expect(result.canPlan, isTrue);
+    expect(result.rendererBackendImplemented, isTrue);
+    expect(result.gpuContextAvailable, isTrue);
+    expect(result.nativeSurfaceRequired, isTrue);
+    expect(result.commandBufferReady, isTrue);
+    expect(result.outputSurfaceAttached, isTrue);
+    expect(result.outputTarget, 'nativeTransitionCanvasSurface');
+    expect(result.drawLoopImplemented, isFalse);
+    expect(result.rendererImplemented, isFalse);
+    expect(result.rendersRealPixels, isFalse);
+    expect(result.drawsPixels, isFalse);
+    expect(result.canSubmitCommands, isFalse);
+    expect(result.canRenderFrame, isFalse);
+    expect(
+      result.blockedReasons,
+      contains('native_transition_renderer_draw_loop_missing'),
+    );
+    expect(
+      result.blockedReasons,
+      contains('native_transition_renderer_pixels_missing'),
+    );
+  });
+
   test(
       'method channel parity outputs lock every interactive mode until renderer',
       () async {

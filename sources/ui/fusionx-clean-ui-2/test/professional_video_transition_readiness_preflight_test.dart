@@ -36,6 +36,7 @@ void main() {
         ProfessionalVideoTransitionReadinessStageId.outputSurface,
         ProfessionalVideoTransitionReadinessStageId.surfaceRenderer,
         ProfessionalVideoTransitionReadinessStageId.frameRenderCommands,
+        ProfessionalVideoTransitionReadinessStageId.rendererBackend,
         ProfessionalVideoTransitionReadinessStageId.parityOutputs,
       ],
     );
@@ -95,6 +96,18 @@ void main() {
               ProfessionalVideoTransitionReadinessStageId.frameRenderCommands)
           .blockers,
       contains('native_transition_frame_command_renderer_missing'),
+    );
+    expect(
+      report
+          .stage(ProfessionalVideoTransitionReadinessStageId.rendererBackend)
+          .blockers,
+      contains('native_transition_renderer_draw_loop_missing'),
+    );
+    expect(
+      report
+          .stage(ProfessionalVideoTransitionReadinessStageId.rendererBackend)
+          .blockers,
+      contains('native_transition_renderer_pixels_missing'),
     );
   });
 
@@ -730,6 +743,50 @@ class _FakeProfessionalVideoTransitionCompositorClient
       canRenderFrame: _rendererReady,
       blockedReasons: _planningOnly
           ? const <String>['native_transition_frame_command_renderer_missing']
+          : const <String>[],
+    );
+  }
+
+  @override
+  Future<ProfessionalVideoTransitionRendererBackendPlanResult>
+      planRendererBackend({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  }) async {
+    return ProfessionalVideoTransitionRendererBackendPlanResult(
+      status: ProfessionalVideoTransitionRendererBackendPlanStatus.planned,
+      reason: '',
+      rendererVersion: 'fake',
+      definitionId: plan.definitionId,
+      renderSessionId: 'transition-session:${plan.transitionId}',
+      renderPassGraphId: 'graph:${plan.transitionId}',
+      renderGraphExecutorId: 'executor:${plan.transitionId}',
+      surfaceRendererId: 'surface-renderer:${plan.transitionId}',
+      frameRenderCommandBufferId: 'frame-command-buffer:${plan.transitionId}',
+      rendererBackendId: 'renderer-backend:${plan.transitionId}',
+      outputSurfaceId: 'surface:${plan.transitionId}',
+      outputTarget: 'nativeTransitionCanvasSurface',
+      timelineTime: timelineTime,
+      transitionStartTime: plan.boundaryTime - plan.leadingDuration,
+      transitionEndTime: plan.boundaryTime + plan.trailingDuration,
+      canvasWidth: plan.canvasWidth,
+      canvasHeight: plan.canvasHeight,
+      rendererBackendImplemented: true,
+      gpuContextAvailable: true,
+      nativeSurfaceRequired: true,
+      commandBufferReady: true,
+      outputSurfaceAttached: true,
+      drawLoopImplemented: _rendererReady,
+      rendererImplemented: _rendererReady,
+      rendersRealPixels: _rendererReady,
+      drawsPixels: _rendererReady,
+      canSubmitCommands: _rendererReady,
+      canRenderFrame: _rendererReady,
+      blockedReasons: _planningOnly
+          ? const <String>[
+              'native_transition_renderer_draw_loop_missing',
+              'native_transition_renderer_pixels_missing',
+            ]
           : const <String>[],
     );
   }
