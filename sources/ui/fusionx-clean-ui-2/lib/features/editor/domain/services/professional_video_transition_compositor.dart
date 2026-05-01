@@ -119,6 +119,12 @@ abstract class ProfessionalVideoTransitionCompositorClient
     required TimelineTime timelineTime,
   });
 
+  Future<ProfessionalVideoTransitionDecoderSessionPlanResult>
+      planDualVideoDecoderSession({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  });
+
   Future<ProfessionalVideoTransitionRenderPassGraphPlanResult>
       planRenderPassGraph({
     required ProfessionalVideoTransitionRenderPlan plan,
@@ -239,6 +245,33 @@ class MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider
       );
     } on PlatformException catch (error) {
       return ProfessionalVideoTransitionFrameDecodePlanResult.invalidRequest(
+        reason: error.message ?? error.code,
+      );
+    }
+  }
+
+  @override
+  Future<ProfessionalVideoTransitionDecoderSessionPlanResult>
+      planDualVideoDecoderSession({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  }) async {
+    try {
+      final payload = plan.toPlatformMap();
+      payload['timelineTimeMs'] = timelineTime.inMilliseconds;
+      final rawResult = await _channel.invokeMapMethod<String, Object?>(
+        'planDualVideoDecoderSession',
+        payload,
+      );
+      return ProfessionalVideoTransitionDecoderSessionPlanResultMapper.fromMap(
+        rawResult,
+      );
+    } on MissingPluginException {
+      return ProfessionalVideoTransitionDecoderSessionPlanResult.invalidRequest(
+        reason: 'native_compositor_channel_missing',
+      );
+    } on PlatformException catch (error) {
+      return ProfessionalVideoTransitionDecoderSessionPlanResult.invalidRequest(
         reason: error.message ?? error.code,
       );
     }
@@ -722,6 +755,228 @@ class ProfessionalVideoTransitionFrameDecodePlanResultMapper {
       return value.round();
     }
     return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+}
+
+enum ProfessionalVideoTransitionDecoderSessionPlanStatus {
+  planned,
+  invalidRequest,
+}
+
+@immutable
+class ProfessionalVideoTransitionDecoderTrack {
+  const ProfessionalVideoTransitionDecoderTrack({
+    required this.role,
+    required this.clipId,
+    required this.assetId,
+    required this.decodeRequestIds,
+    required this.sampleCount,
+    required this.requiresExactFrameDecode,
+    required this.allowThumbnailFallback,
+    required this.allowBoundaryFreeze,
+  });
+
+  final String role;
+  final String clipId;
+  final String assetId;
+  final List<String> decodeRequestIds;
+  final int sampleCount;
+  final bool requiresExactFrameDecode;
+  final bool allowThumbnailFallback;
+  final bool allowBoundaryFreeze;
+}
+
+@immutable
+class ProfessionalVideoTransitionDecoderSessionPlanResult {
+  const ProfessionalVideoTransitionDecoderSessionPlanResult({
+    required this.status,
+    required this.reason,
+    required this.rendererVersion,
+    required this.definitionId,
+    required this.renderSessionId,
+    required this.decoderSessionId,
+    required this.timelineTime,
+    required this.transitionStartTime,
+    required this.transitionEndTime,
+    required this.requiresDualVideoDecoder,
+    required this.requiresExactFrameDecode,
+    required this.allowThumbnailFallback,
+    required this.allowBoundaryFreeze,
+    required this.decoderImplemented,
+    required this.tracks,
+    required this.blockedReasons,
+    this.issues = const <Map<String, Object?>>[],
+  });
+
+  factory ProfessionalVideoTransitionDecoderSessionPlanResult.invalidRequest({
+    required String reason,
+    String rendererVersion = 'unknown',
+    List<Map<String, Object?>> issues = const <Map<String, Object?>>[],
+  }) {
+    return ProfessionalVideoTransitionDecoderSessionPlanResult(
+      status:
+          ProfessionalVideoTransitionDecoderSessionPlanStatus.invalidRequest,
+      reason: reason,
+      rendererVersion: rendererVersion,
+      definitionId: '',
+      renderSessionId: '',
+      decoderSessionId: '',
+      timelineTime: null,
+      transitionStartTime: null,
+      transitionEndTime: null,
+      requiresDualVideoDecoder: true,
+      requiresExactFrameDecode: true,
+      allowThumbnailFallback: false,
+      allowBoundaryFreeze: false,
+      decoderImplemented: false,
+      tracks: const <ProfessionalVideoTransitionDecoderTrack>[],
+      blockedReasons: const <String>[],
+      issues: issues,
+    );
+  }
+
+  final ProfessionalVideoTransitionDecoderSessionPlanStatus status;
+  final String reason;
+  final String rendererVersion;
+  final String definitionId;
+  final String renderSessionId;
+  final String decoderSessionId;
+  final TimelineTime? timelineTime;
+  final TimelineTime? transitionStartTime;
+  final TimelineTime? transitionEndTime;
+  final bool requiresDualVideoDecoder;
+  final bool requiresExactFrameDecode;
+  final bool allowThumbnailFallback;
+  final bool allowBoundaryFreeze;
+  final bool decoderImplemented;
+  final List<ProfessionalVideoTransitionDecoderTrack> tracks;
+  final List<String> blockedReasons;
+  final List<Map<String, Object?>> issues;
+
+  bool get canPlan =>
+      status == ProfessionalVideoTransitionDecoderSessionPlanStatus.planned;
+
+  bool get canDecode =>
+      canPlan &&
+      requiresDualVideoDecoder &&
+      requiresExactFrameDecode &&
+      !allowThumbnailFallback &&
+      !allowBoundaryFreeze &&
+      decoderImplemented &&
+      tracks.length == 2 &&
+      blockedReasons.isEmpty;
+}
+
+class ProfessionalVideoTransitionDecoderSessionPlanResultMapper {
+  const ProfessionalVideoTransitionDecoderSessionPlanResultMapper._();
+
+  static ProfessionalVideoTransitionDecoderSessionPlanResult fromMap(
+    Map<String, Object?>? map,
+  ) {
+    if (map == null) {
+      return ProfessionalVideoTransitionDecoderSessionPlanResult.invalidRequest(
+        reason: 'native_compositor_empty_decoder_session_response',
+      );
+    }
+    final status = switch (map['status']?.toString()) {
+      'planned' => ProfessionalVideoTransitionDecoderSessionPlanStatus.planned,
+      _ => ProfessionalVideoTransitionDecoderSessionPlanStatus.invalidRequest,
+    };
+    return ProfessionalVideoTransitionDecoderSessionPlanResult(
+      status: status,
+      reason: map['reason']?.toString() ?? '',
+      rendererVersion: map['rendererVersion']?.toString() ?? 'unknown',
+      definitionId: map['definitionId']?.toString() ?? '',
+      renderSessionId: map['renderSessionId']?.toString() ?? '',
+      decoderSessionId: map['decoderSessionId']?.toString() ?? '',
+      timelineTime: _readTimelineTime(map['timelineTimeMs']),
+      transitionStartTime: _readTimelineTime(map['transitionStartMs']),
+      transitionEndTime: _readTimelineTime(map['transitionEndMs']),
+      requiresDualVideoDecoder: _readBool(
+        map['requiresDualVideoDecoder'],
+        defaultValue: true,
+      ),
+      requiresExactFrameDecode: _readBool(
+        map['requiresExactFrameDecode'],
+        defaultValue: true,
+      ),
+      allowThumbnailFallback: _readBool(map['allowThumbnailFallback']),
+      allowBoundaryFreeze: _readBool(map['allowBoundaryFreeze']),
+      decoderImplemented: _readBool(map['decoderImplemented']),
+      tracks: _readTracks(map['tracks']),
+      blockedReasons: _readStringList(map['blockedReasons']),
+      issues: _readIssues(map['issues']),
+    );
+  }
+
+  static List<ProfessionalVideoTransitionDecoderTrack> _readTracks(
+    Object? value,
+  ) {
+    if (value is! List) {
+      return const <ProfessionalVideoTransitionDecoderTrack>[];
+    }
+    return List<ProfessionalVideoTransitionDecoderTrack>.unmodifiable(
+      value.whereType<Map>().map((track) {
+        return ProfessionalVideoTransitionDecoderTrack(
+          role: track['role']?.toString() ?? '',
+          clipId: track['clipId']?.toString() ?? '',
+          assetId: track['assetId']?.toString() ?? '',
+          decodeRequestIds: _readStringList(track['decodeRequestIds']),
+          sampleCount: _readInt(track['sampleCount']),
+          requiresExactFrameDecode: _readBool(
+            track['requiresExactFrameDecode'],
+            defaultValue: true,
+          ),
+          allowThumbnailFallback: _readBool(track['allowThumbnailFallback']),
+          allowBoundaryFreeze: _readBool(track['allowBoundaryFreeze']),
+        );
+      }),
+    );
+  }
+
+  static TimelineTime? _readTimelineTime(Object? value) {
+    if (value is num) {
+      return TimelineTime.fromMilliseconds(value.round());
+    }
+    final parsed = int.tryParse(value?.toString() ?? '');
+    if (parsed == null) {
+      return null;
+    }
+    return TimelineTime.fromMilliseconds(parsed);
+  }
+
+  static bool _readBool(Object? value, {bool defaultValue = false}) {
+    if (value is bool) {
+      return value;
+    }
+    return defaultValue;
+  }
+
+  static int _readInt(Object? value) {
+    if (value is num) {
+      return value.round();
+    }
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static List<String> _readStringList(Object? value) {
+    if (value is! List) {
+      return const <String>[];
+    }
+    return List<String>.unmodifiable(value.map((entry) => entry.toString()));
+  }
+
+  static List<Map<String, Object?>> _readIssues(Object? value) {
+    if (value is! List) {
+      return const <Map<String, Object?>>[];
+    }
+    return List<Map<String, Object?>>.unmodifiable(
+      value.whereType<Map>().map((issue) {
+        return <String, Object?>{
+          for (final entry in issue.entries) entry.key.toString(): entry.value,
+        };
+      }),
+    );
   }
 }
 

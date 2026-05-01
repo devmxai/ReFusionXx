@@ -759,6 +759,13 @@ Current gate:
   The request contract forbids thumbnail fallback and boundary-frame freeze, so
   a future decoder cannot silently turn a live transition into a still-image
   effect.
+- Flutter and Android now also share `planDualVideoDecoderSession`. This groups
+  exact outgoing and incoming decode requests into two native decoder tracks,
+  preserves sample ids and source asset identity, and keeps the session blocked
+  with `decoderImplemented=false` until a real dual-video decoder exists. This
+  is the contract that prevents MediaMetadataRetriever thumbnails, boundary
+  stills, or one-sided video playback from masquerading as professional
+  transition decoding.
 - Flutter and Android now also share `planRenderPassGraph`. This is not a
   renderer; it is the renderer-agnostic execution graph every concrete native
   transition must satisfy: exact decode, temporal accumulation, optional

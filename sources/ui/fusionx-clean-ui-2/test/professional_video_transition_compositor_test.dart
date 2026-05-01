@@ -733,6 +733,124 @@ void main() {
     expect(result.decodeRequests.last.sourceTime.inMilliseconds, 40017);
   });
 
+  test('method channel decoder session stays blocked until dual decoder',
+      () async {
+    const channel = MethodChannel(
+        'com.refusion.app/professional_video_transition_compositor');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(channel, null);
+    });
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'planDualVideoDecoderSession');
+      final arguments = call.arguments! as Map<Object?, Object?>;
+      expect(arguments['definitionId'], 'zoomInCamera');
+      expect(arguments['timelineTimeMs'], 10000);
+      return <String, Object?>{
+        'status': 'planned',
+        'reason': '',
+        'rendererVersion': 'foundation',
+        'definitionId': 'zoomInCamera',
+        'renderSessionId': 'transition-session:zoom-native-1',
+        'decoderSessionId': 'transition-session:zoom-native-1:decoder:10000',
+        'timelineTimeMs': 10000,
+        'transitionStartMs': 8000,
+        'transitionEndMs': 12000,
+        'requiresDualVideoDecoder': true,
+        'requiresExactFrameDecode': true,
+        'allowThumbnailFallback': false,
+        'allowBoundaryFreeze': false,
+        'decoderImplemented': false,
+        'tracks': <Map<String, Object?>>[
+          <String, Object?>{
+            'role': 'outgoing',
+            'clipId': 'clip-a',
+            'assetId': 'asset-a',
+            'decodeRequestIds': <String>[
+              'transition-session:zoom-native-1:outgoing:0:29983',
+              'transition-session:zoom-native-1:outgoing:1:30017',
+            ],
+            'sampleCount': 2,
+            'requiresExactFrameDecode': true,
+            'allowThumbnailFallback': false,
+            'allowBoundaryFreeze': false,
+          },
+          <String, Object?>{
+            'role': 'incoming',
+            'clipId': 'clip-b',
+            'assetId': 'asset-b',
+            'decodeRequestIds': <String>[
+              'transition-session:zoom-native-1:incoming:0:39983',
+              'transition-session:zoom-native-1:incoming:1:40017',
+            ],
+            'sampleCount': 2,
+            'requiresExactFrameDecode': true,
+            'allowThumbnailFallback': false,
+            'allowBoundaryFreeze': false,
+          },
+        ],
+        'blockedReasons': <String>['native_dual_video_decoder_missing'],
+      };
+    });
+
+    final result =
+        await const MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider(
+      channel: channel,
+    ).planDualVideoDecoderSession(
+      timelineTime: TimelineTime.fromMilliseconds(10000),
+      plan: ProfessionalZoomCameraRenderPlan(
+        canvasWidth: 1080,
+        canvasHeight: 1920,
+        request: ProfessionalZoomCameraPlanRequest(
+          transitionId: 'zoom-native-1',
+          timelineTime: TimelineTime.fromMilliseconds(10000),
+          boundaryTime: TimelineTime.fromMilliseconds(10000),
+          leadingDuration: TimelineTime.fromMilliseconds(2000),
+          trailingDuration: TimelineTime.fromMilliseconds(2000),
+          outgoing: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-a',
+            assetId: 'asset-a',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(28000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+          incoming: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-b',
+            assetId: 'asset-b',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(38000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+        ),
+      ).toGenericRenderPlan(),
+    );
+
+    expect(result.canPlan, isTrue);
+    expect(result.canDecode, isFalse);
+    expect(result.requiresDualVideoDecoder, isTrue);
+    expect(result.requiresExactFrameDecode, isTrue);
+    expect(result.allowThumbnailFallback, isFalse);
+    expect(result.allowBoundaryFreeze, isFalse);
+    expect(result.decoderImplemented, isFalse);
+    expect(result.tracks.map((track) => track.role), <String>[
+      'outgoing',
+      'incoming',
+    ]);
+    expect(result.tracks.first.sampleCount, 2);
+    expect(result.tracks.last.assetId, 'asset-b');
+    expect(
+      result.blockedReasons,
+      contains('native_dual_video_decoder_missing'),
+    );
+  });
+
   test('method channel render pass graph stays planning-only until renderer',
       () async {
     const channel = MethodChannel(

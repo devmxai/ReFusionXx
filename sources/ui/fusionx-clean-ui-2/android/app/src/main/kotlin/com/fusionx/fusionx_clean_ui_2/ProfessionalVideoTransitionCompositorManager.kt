@@ -142,6 +142,45 @@ class ProfessionalVideoTransitionCompositorManager {
         )
     }
 
+    fun planDualVideoDecoderSession(
+        plan: Map<String, Any?>?,
+        timelineTimeMs: Long?,
+    ): Map<String, Any> {
+        val missingFields = requiredRenderPlanFields.filter { field ->
+            !hasRequiredField(plan, field)
+        }
+        if (missingFields.isNotEmpty()) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_required_video_transition_render_plan_fields",
+                "rendererVersion" to "foundation",
+                "missingFields" to missingFields,
+            )
+        }
+        if (timelineTimeMs == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_timeline_time_for_video_transition_decoder_session",
+                "rendererVersion" to "foundation",
+            )
+        }
+        val definitionId = plan?.get("definitionId")?.toString() ?: ""
+        val sessionResult = ProfessionalVideoTransitionRenderSession.fromPlan(plan)
+        if (sessionResult.session == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "invalid_video_transition_render_session",
+                "rendererVersion" to "foundation",
+                "definitionId" to definitionId,
+                "issues" to sessionResult.issues,
+            )
+        }
+        return sessionResult.session.planDualVideoDecoderSession(
+            timelineTimeMs = timelineTimeMs,
+            motionBlurPolicy = plan?.get("motionBlurPolicy") as? Map<*, *>,
+        )
+    }
+
     fun planRenderPassGraph(
         plan: Map<String, Any?>?,
         timelineTimeMs: Long?,
@@ -443,6 +482,61 @@ private data class ProfessionalVideoTransitionRenderSession(
                 "allowBoundaryFreeze" to false,
                 "requiresRealVideoFrame" to true,
                 "decodeRequests" to decodeRequests,
+            )
+    }
+
+    fun planDualVideoDecoderSession(
+        timelineTimeMs: Long,
+        motionBlurPolicy: Map<*, *>?,
+    ): Map<String, Any> {
+        val decodePlan =
+            planFrameDecodeRequests(
+                timelineTimeMs = timelineTimeMs,
+                motionBlurPolicy = motionBlurPolicy,
+            )
+        if (decodePlan["status"] != "planned") {
+            return decodePlan
+        }
+        val decodeRequests =
+            (decodePlan["decodeRequests"] as? List<*>)?.mapNotNull { request ->
+                request as? Map<*, *>
+            } ?: emptyList()
+        val tracks =
+            listOf("outgoing", "incoming").map { role ->
+                val roleRequests = decodeRequests.filter { request ->
+                    request["role"] == role
+                }
+                val firstRequest = roleRequests.firstOrNull()
+                mapOf(
+                    "role" to role,
+                    "clipId" to (firstRequest?.get("clipId")?.toString() ?: ""),
+                    "assetId" to (firstRequest?.get("assetId")?.toString() ?: ""),
+                    "decodeRequestIds" to roleRequests.mapNotNull { request ->
+                        request["decodeRequestId"]?.toString()
+                    },
+                    "sampleCount" to roleRequests.size,
+                    "requiresExactFrameDecode" to true,
+                    "allowThumbnailFallback" to false,
+                    "allowBoundaryFreeze" to false,
+                )
+            }
+        val decoderImplemented = false
+        val blockedReasons =
+            if (decoderImplemented) {
+                emptyList()
+            } else {
+                listOf("native_dual_video_decoder_missing")
+            }
+        return decodePlan +
+            mapOf(
+                "decoderSessionId" to "$id:decoder:$timelineTimeMs",
+                "requiresDualVideoDecoder" to true,
+                "requiresExactFrameDecode" to true,
+                "allowThumbnailFallback" to false,
+                "allowBoundaryFreeze" to false,
+                "decoderImplemented" to decoderImplemented,
+                "tracks" to tracks,
+                "blockedReasons" to blockedReasons,
             )
     }
 
