@@ -1087,6 +1087,13 @@ void main() {
             'liveDecodeCoverageDecodedSampleCount': 3,
             'liveDecodeCoverageDecodedBufferCount': 3,
             'liveDecodeWindowReady': true,
+            'liveDecodeStreamProbeImplemented': true,
+            'liveDecodeStreamDecodedFrameCount': 61,
+            'liveDecodeStreamReadableBufferCount': 61,
+            'liveDecodeStreamFirstFrameTimeMs': 28000,
+            'liveDecodeStreamLastFrameTimeMs': 29967,
+            'liveDecodeStreamMinRequiredFrameCount': 18,
+            'liveDecodeStreamCoverageReady': true,
             'continuousSampleCoverageReady': true,
             'centerSampleSourceTimeMs': 30017,
             'exactFrameDecodeProbeImplemented': true,
@@ -1137,6 +1144,14 @@ void main() {
             'liveDecodeCoverageDecodedSampleCount': 2,
             'liveDecodeCoverageDecodedBufferCount': 1,
             'liveDecodeWindowReady': true,
+            'liveDecodeStreamProbeImplemented': true,
+            'liveDecodeStreamDecodedFrameCount': 8,
+            'liveDecodeStreamReadableBufferCount': 7,
+            'liveDecodeStreamFirstFrameTimeMs': 40000,
+            'liveDecodeStreamLastFrameTimeMs': 40233,
+            'liveDecodeStreamMinRequiredFrameCount': 18,
+            'liveDecodeStreamCoverageReady': false,
+            'liveDecodeStreamProbeReason': 'native_video_decode_stream_end_gap',
             'continuousSampleCoverageReady': false,
             'liveDecodeCoverageProbeReason':
                 'native_exact_frame_decode_timeout',
@@ -1159,6 +1174,7 @@ void main() {
         'blockedReasons': <String>[
           'native_dual_video_decoder_missing',
           'native_dual_video_live_decode_not_ready',
+          'native_dual_video_live_decode_stream_not_ready',
         ],
       };
     });
@@ -1233,6 +1249,15 @@ void main() {
     expect(result.tracks.first.liveDecodeCoverageDecodedSampleCount, 3);
     expect(result.tracks.first.liveDecodeCoverageDecodedBufferCount, 3);
     expect(result.tracks.first.liveDecodeWindowReady, isTrue);
+    expect(result.tracks.first.liveDecodeStreamProbeImplemented, isTrue);
+    expect(result.tracks.first.liveDecodeStreamDecodedFrameCount, 61);
+    expect(result.tracks.first.liveDecodeStreamReadableBufferCount, 61);
+    expect(result.tracks.first.liveDecodeStreamFirstFrameTime,
+        TimelineTime.fromMilliseconds(28000));
+    expect(result.tracks.first.liveDecodeStreamLastFrameTime,
+        TimelineTime.fromMilliseconds(29967));
+    expect(result.tracks.first.liveDecodeStreamMinRequiredFrameCount, 18);
+    expect(result.tracks.first.liveDecodeStreamCoverageReady, isTrue);
     expect(result.tracks.first.continuousSampleCoverageReady, isTrue);
     expect(result.tracks.first.decodedSampleCount, 2);
     expect(result.tracks.first.decodedBufferProbeImplemented, isTrue);
@@ -1253,6 +1278,13 @@ void main() {
     expect(result.tracks.last.canDecodeCenterFrame, isFalse);
     expect(result.tracks.last.liveDecodeCoverageDecodedSampleCount, 2);
     expect(result.tracks.last.liveDecodeCoverageDecodedBufferCount, 1);
+    expect(result.tracks.last.liveDecodeStreamDecodedFrameCount, 8);
+    expect(result.tracks.last.liveDecodeStreamReadableBufferCount, 7);
+    expect(result.tracks.last.liveDecodeStreamCoverageReady, isFalse);
+    expect(
+      result.tracks.last.liveDecodeStreamProbeReason,
+      'native_video_decode_stream_end_gap',
+    );
     expect(result.tracks.last.continuousSampleCoverageReady, isFalse);
     expect(
       result.tracks.last.liveDecodeCoverageProbeReason,
@@ -1269,6 +1301,10 @@ void main() {
     expect(
       result.blockedReasons,
       contains('native_dual_video_live_decode_not_ready'),
+    );
+    expect(
+      result.blockedReasons,
+      contains('native_dual_video_live_decode_stream_not_ready'),
     );
   });
 

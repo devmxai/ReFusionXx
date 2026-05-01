@@ -691,6 +691,15 @@ class _FakeProfessionalVideoTransitionCompositorClient
       liveDecodeCoverageDecodedSampleCount: 3,
       liveDecodeCoverageDecodedBufferCount: 3,
       liveDecodeWindowReady: true,
+      liveDecodeStreamProbeImplemented: true,
+      liveDecodeStreamDecodedFrameCount: 61,
+      liveDecodeStreamReadableBufferCount: 61,
+      liveDecodeStreamFirstFrameTime: source.sourceStartTime,
+      liveDecodeStreamLastFrameTime: source.sourceStartTime +
+          source.sourceDuration -
+          TimelineTime.fromMilliseconds(33),
+      liveDecodeStreamMinRequiredFrameCount: 18,
+      liveDecodeStreamCoverageReady: true,
       continuousSampleCoverageReady: true,
     );
   }

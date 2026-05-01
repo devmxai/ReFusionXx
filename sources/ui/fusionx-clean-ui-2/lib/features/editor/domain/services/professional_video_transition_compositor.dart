@@ -1413,6 +1413,14 @@ class ProfessionalVideoTransitionDecoderTrack {
     this.liveDecodeCoverageDecodedSampleCount = 0,
     this.liveDecodeCoverageDecodedBufferCount = 0,
     this.liveDecodeWindowReady = false,
+    this.liveDecodeStreamProbeImplemented = false,
+    this.liveDecodeStreamDecodedFrameCount = 0,
+    this.liveDecodeStreamReadableBufferCount = 0,
+    this.liveDecodeStreamFirstFrameTime,
+    this.liveDecodeStreamLastFrameTime,
+    this.liveDecodeStreamMinRequiredFrameCount = 0,
+    this.liveDecodeStreamCoverageReady = false,
+    this.liveDecodeStreamProbeReason = '',
     this.continuousSampleCoverageReady = false,
     this.liveDecodeCoverageProbeReason = '',
     this.centerSampleSourceTimeMs = 0,
@@ -1462,6 +1470,14 @@ class ProfessionalVideoTransitionDecoderTrack {
   final int liveDecodeCoverageDecodedSampleCount;
   final int liveDecodeCoverageDecodedBufferCount;
   final bool liveDecodeWindowReady;
+  final bool liveDecodeStreamProbeImplemented;
+  final int liveDecodeStreamDecodedFrameCount;
+  final int liveDecodeStreamReadableBufferCount;
+  final TimelineTime? liveDecodeStreamFirstFrameTime;
+  final TimelineTime? liveDecodeStreamLastFrameTime;
+  final int liveDecodeStreamMinRequiredFrameCount;
+  final bool liveDecodeStreamCoverageReady;
+  final String liveDecodeStreamProbeReason;
   final bool continuousSampleCoverageReady;
   final String liveDecodeCoverageProbeReason;
   final int centerSampleSourceTimeMs;
@@ -1570,6 +1586,8 @@ class ProfessionalVideoTransitionDecoderSessionPlanResult {
             track.requiresContinuousFrameStream &&
             track.liveDecodeCoverageDecodeProbeImplemented &&
             track.liveDecodeWindowReady &&
+            track.liveDecodeStreamProbeImplemented &&
+            track.liveDecodeStreamCoverageReady &&
             track.continuousSampleCoverageReady &&
             track.exactFrameDecodeProbeImplemented &&
             track.sampleDecodeProbeImplemented &&
@@ -1686,6 +1704,22 @@ class ProfessionalVideoTransitionDecoderSessionPlanResultMapper {
           liveDecodeCoverageDecodedBufferCount:
               _readInt(track['liveDecodeCoverageDecodedBufferCount']),
           liveDecodeWindowReady: _readBool(track['liveDecodeWindowReady']),
+          liveDecodeStreamProbeImplemented:
+              _readBool(track['liveDecodeStreamProbeImplemented']),
+          liveDecodeStreamDecodedFrameCount:
+              _readInt(track['liveDecodeStreamDecodedFrameCount']),
+          liveDecodeStreamReadableBufferCount:
+              _readInt(track['liveDecodeStreamReadableBufferCount']),
+          liveDecodeStreamFirstFrameTime:
+              _readTimelineTime(track['liveDecodeStreamFirstFrameTimeMs']),
+          liveDecodeStreamLastFrameTime:
+              _readTimelineTime(track['liveDecodeStreamLastFrameTimeMs']),
+          liveDecodeStreamMinRequiredFrameCount:
+              _readInt(track['liveDecodeStreamMinRequiredFrameCount']),
+          liveDecodeStreamCoverageReady:
+              _readBool(track['liveDecodeStreamCoverageReady']),
+          liveDecodeStreamProbeReason:
+              track['liveDecodeStreamProbeReason']?.toString() ?? '',
           continuousSampleCoverageReady:
               _readBool(track['continuousSampleCoverageReady']),
           liveDecodeCoverageProbeReason:

@@ -928,6 +928,40 @@ private data class ProfessionalVideoTransitionRenderSession(
                             reason = "native_dual_video_live_decode_window_not_ready",
                         )
                     }
+                val liveStreamProbe =
+                    if (
+                        sourceProbeReady &&
+                            sourceUri.isNotBlank() &&
+                            liveDecodeWindowDurationMs > 0L &&
+                            sourceWindowDurationMs > 0L
+                    ) {
+                        probeLiveVideoDecodeStream(
+                            appContext = appContext,
+                            sourceUri = sourceUri,
+                            sourceStartMs = liveDecodeSourceStartMs,
+                            sourceEndMs = liveDecodeSourceEndMs,
+                            frameRate = videoFrameRate,
+                        )
+                    } else {
+                        LiveVideoDecodeStreamProbeResult(
+                            canDecodeStream = false,
+                            allDecodedBuffersReadable = false,
+                            decodedFrameCount = 0,
+                            readableBufferCount = 0,
+                            firstFrameTimeUs = null,
+                            lastFrameTimeUs = null,
+                            minRequiredFrameCount = 0,
+                            outputFormatMimeType = "",
+                            outputWidth = 0,
+                            outputHeight = 0,
+                            reason = "native_dual_video_live_decode_window_not_ready",
+                        )
+                    }
+                val continuousSampleCoverageReady =
+                    liveCoverageProbe.canDecodeAllFrames &&
+                        liveCoverageProbe.canReadAllBuffers &&
+                        liveStreamProbe.canDecodeStream &&
+                        liveStreamProbe.allDecodedBuffersReadable
                 val centerSampleProbe =
                     decodeProbe.samples.minByOrNull { sample ->
                         abs(sample.sourceTimeMs - centerSourceTimeMs)
@@ -969,10 +1003,15 @@ private data class ProfessionalVideoTransitionRenderSession(
                             liveDecodeWindowDurationMs > 0L &&
                             sourceWindowDurationMs > 0L
                     ),
-                    "continuousSampleCoverageReady" to (
-                        liveCoverageProbe.canDecodeAllFrames &&
-                            liveCoverageProbe.canReadAllBuffers
-                    ),
+                    "liveDecodeStreamProbeImplemented" to true,
+                    "liveDecodeStreamDecodedFrameCount" to liveStreamProbe.decodedFrameCount,
+                    "liveDecodeStreamReadableBufferCount" to liveStreamProbe.readableBufferCount,
+                    "liveDecodeStreamFirstFrameTimeMs" to ((liveStreamProbe.firstFrameTimeUs ?: 0L) / 1000L),
+                    "liveDecodeStreamLastFrameTimeMs" to ((liveStreamProbe.lastFrameTimeUs ?: 0L) / 1000L),
+                    "liveDecodeStreamMinRequiredFrameCount" to liveStreamProbe.minRequiredFrameCount,
+                    "liveDecodeStreamCoverageReady" to liveStreamProbe.canDecodeStream,
+                    "liveDecodeStreamProbeReason" to (liveStreamProbe.reason ?: ""),
+                    "continuousSampleCoverageReady" to continuousSampleCoverageReady,
                     "liveDecodeCoverageProbeReason" to (liveCoverageProbe.reason ?: ""),
                     "liveDecodeCoverageSampleProbes" to liveCoverageProbe.samples.map { sample ->
                         mapOf(
@@ -1045,6 +1084,9 @@ private data class ProfessionalVideoTransitionRenderSession(
                 if (tracks.any { track -> track["continuousSampleCoverageReady"] != true }) {
                     add("native_dual_video_live_decode_not_ready")
                 }
+                if (tracks.any { track -> track["liveDecodeStreamCoverageReady"] != true }) {
+                    add("native_dual_video_live_decode_stream_not_ready")
+                }
                 tracks.forEach { track ->
                     val reason = track["decodeProbeReason"]?.toString().orEmpty()
                     if (reason.isNotBlank() && track["canDecodeCenterFrame"] != true) {
@@ -1055,6 +1097,12 @@ private data class ProfessionalVideoTransitionRenderSession(
                         track["continuousSampleCoverageReady"] != true
                     ) {
                         add(liveDecodeReason)
+                    }
+                    val liveStreamReason = track["liveDecodeStreamProbeReason"]?.toString().orEmpty()
+                    if (liveStreamReason.isNotBlank() &&
+                        track["liveDecodeStreamCoverageReady"] != true
+                    ) {
+                        add(liveStreamReason)
                     }
                     if (track["allSamplesDecodable"] == true &&
                         track["allDecodedBuffersReadable"] != true
@@ -1946,6 +1994,20 @@ private data class ExactVideoFrameBatchProbeResult(
     val reason: String?,
 )
 
+private data class LiveVideoDecodeStreamProbeResult(
+    val canDecodeStream: Boolean,
+    val allDecodedBuffersReadable: Boolean = false,
+    val decodedFrameCount: Int,
+    val readableBufferCount: Int,
+    val firstFrameTimeUs: Long?,
+    val lastFrameTimeUs: Long?,
+    val minRequiredFrameCount: Int,
+    val outputFormatMimeType: String,
+    val outputWidth: Int,
+    val outputHeight: Int,
+    val reason: String?,
+)
+
 private data class DecodedVideoBufferSignature(
     val readable: Boolean,
     val byteCount: Int,
@@ -2353,6 +2415,314 @@ private fun probeExactVideoFrames(
         reason = firstFailure?.reason
             ?: firstUnreadableBuffer?.let { "native_exact_frame_output_buffer_not_ready" },
     )
+}
+
+private fun probeLiveVideoDecodeStream(
+    appContext: Context,
+    sourceUri: String,
+    sourceStartMs: Long,
+    sourceEndMs: Long,
+    frameRate: Int?,
+): LiveVideoDecodeStreamProbeResult {
+    val uri =
+        runCatching { Uri.parse(sourceUri) }.getOrElse {
+            return LiveVideoDecodeStreamProbeResult(
+                canDecodeStream = false,
+                decodedFrameCount = 0,
+                readableBufferCount = 0,
+                firstFrameTimeUs = null,
+                lastFrameTimeUs = null,
+                minRequiredFrameCount = 0,
+                outputFormatMimeType = "",
+                outputWidth = 0,
+                outputHeight = 0,
+                reason = "native_video_source_uri_parse_failed",
+            )
+        }
+    val extractor = MediaExtractor()
+    var codec: MediaCodec? = null
+    try {
+        when (uri.scheme) {
+            "file" -> {
+                val path = uri.path
+                if (path.isNullOrBlank()) {
+                    return LiveVideoDecodeStreamProbeResult(
+                        canDecodeStream = false,
+                        decodedFrameCount = 0,
+                        readableBufferCount = 0,
+                        firstFrameTimeUs = null,
+                        lastFrameTimeUs = null,
+                        minRequiredFrameCount = 0,
+                        outputFormatMimeType = "",
+                        outputWidth = 0,
+                        outputHeight = 0,
+                        reason = "native_video_source_file_path_missing",
+                    )
+                }
+                extractor.setDataSource(path)
+            }
+            "content" -> extractor.setDataSource(appContext, uri, null)
+            else -> {
+                return LiveVideoDecodeStreamProbeResult(
+                    canDecodeStream = false,
+                    decodedFrameCount = 0,
+                    readableBufferCount = 0,
+                    firstFrameTimeUs = null,
+                    lastFrameTimeUs = null,
+                    minRequiredFrameCount = 0,
+                    outputFormatMimeType = "",
+                    outputWidth = 0,
+                    outputHeight = 0,
+                    reason = "native_video_source_uri_scheme_unsupported",
+                )
+            }
+        }
+
+        var videoTrackIndex = -1
+        var videoFormat: MediaFormat? = null
+        var mimeType = ""
+        for (index in 0 until extractor.trackCount) {
+            val format = extractor.getTrackFormat(index)
+            val candidateMimeType =
+                if (format.containsKey(MediaFormat.KEY_MIME)) {
+                    format.getString(MediaFormat.KEY_MIME).orEmpty()
+                } else {
+                    ""
+                }
+            if (candidateMimeType.startsWith("video/")) {
+                videoTrackIndex = index
+                videoFormat = format
+                mimeType = candidateMimeType
+                break
+            }
+        }
+        val format = videoFormat
+            ?: return LiveVideoDecodeStreamProbeResult(
+                canDecodeStream = false,
+                decodedFrameCount = 0,
+                readableBufferCount = 0,
+                firstFrameTimeUs = null,
+                lastFrameTimeUs = null,
+                minRequiredFrameCount = 0,
+                outputFormatMimeType = "",
+                outputWidth = 0,
+                outputHeight = 0,
+                reason = "native_video_track_missing",
+            )
+        extractor.selectTrack(videoTrackIndex)
+
+        val effectiveFrameRate =
+            (frameRate ?: format.optionalInt(MediaFormat.KEY_FRAME_RATE) ?: 30).coerceAtLeast(1)
+        val frameDurationUs = (1_000_000L / effectiveFrameRate.toLong()).coerceAtLeast(1L)
+        val requestedStartUs = minOf(sourceStartMs, sourceEndMs).coerceAtLeast(0L) * 1000L
+        val requestedEndExclusiveUs = maxOf(sourceStartMs, sourceEndMs).coerceAtLeast(0L) * 1000L
+        if (requestedEndExclusiveUs <= requestedStartUs) {
+            return LiveVideoDecodeStreamProbeResult(
+                canDecodeStream = false,
+                decodedFrameCount = 0,
+                readableBufferCount = 0,
+                firstFrameTimeUs = null,
+                lastFrameTimeUs = null,
+                minRequiredFrameCount = 0,
+                outputFormatMimeType = mimeType,
+                outputWidth = format.optionalInt(MediaFormat.KEY_WIDTH) ?: 0,
+                outputHeight = format.optionalInt(MediaFormat.KEY_HEIGHT) ?: 0,
+                reason = "native_video_decode_stream_window_empty",
+            )
+        }
+        val durationUs = format.optionalLong(MediaFormat.KEY_DURATION)
+        if (durationUs != null && durationUs > 0L && requestedEndExclusiveUs > durationUs) {
+            return LiveVideoDecodeStreamProbeResult(
+                canDecodeStream = false,
+                decodedFrameCount = 0,
+                readableBufferCount = 0,
+                firstFrameTimeUs = null,
+                lastFrameTimeUs = null,
+                minRequiredFrameCount = 0,
+                outputFormatMimeType = mimeType,
+                outputWidth = format.optionalInt(MediaFormat.KEY_WIDTH) ?: 0,
+                outputHeight = format.optionalInt(MediaFormat.KEY_HEIGHT) ?: 0,
+                reason = "native_video_decode_stream_window_outside_media",
+            )
+        }
+
+        val streamStartUs = requestedStartUs
+        val streamEndSampleUs = (requestedEndExclusiveUs - frameDurationUs).coerceAtLeast(streamStartUs)
+        val estimatedFrameCount =
+            (((streamEndSampleUs - streamStartUs).coerceAtLeast(0L) / frameDurationUs) + 1L)
+                .coerceAtLeast(1L)
+        val minRequiredFrameCount = estimatedFrameCount.coerceIn(3L, 18L).toInt()
+        val toleranceUs = maxOf(100_000L, frameDurationUs * 3L)
+        val feedUntilUs = streamEndSampleUs + toleranceUs
+        extractor.seekTo(streamStartUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
+
+        codec = MediaCodec.createDecoderByType(mimeType)
+        codec.configure(format, null, null, 0)
+        codec.start()
+
+        val bufferInfo = MediaCodec.BufferInfo()
+        var inputDone = false
+        var totalDecodedOutputFrames = 0
+        var decodedFrameCount = 0
+        var readableBufferCount = 0
+        var firstFrameTimeUs: Long? = null
+        var lastFrameTimeUs: Long? = null
+        var unreadableBufferSeen = false
+        val timeoutAtNanos = System.nanoTime() + 3_500_000_000L
+        while (System.nanoTime() < timeoutAtNanos && totalDecodedOutputFrames < 720) {
+            if (!inputDone) {
+                val inputBufferIndex = codec.dequeueInputBuffer(10_000L)
+                if (inputBufferIndex >= 0) {
+                    val inputBuffer = codec.getInputBuffer(inputBufferIndex)
+                    val sampleTimeUs = extractor.sampleTime
+                    val sampleSize =
+                        if (inputBuffer == null || sampleTimeUs < 0L || sampleTimeUs > feedUntilUs) {
+                            -1
+                        } else {
+                            extractor.readSampleData(inputBuffer, 0)
+                        }
+                    if (sampleSize < 0) {
+                        codec.queueInputBuffer(
+                            inputBufferIndex,
+                            0,
+                            0,
+                            0L,
+                            MediaCodec.BUFFER_FLAG_END_OF_STREAM,
+                        )
+                        inputDone = true
+                    } else {
+                        codec.queueInputBuffer(
+                            inputBufferIndex,
+                            0,
+                            sampleSize,
+                            sampleTimeUs,
+                            0,
+                        )
+                        extractor.advance()
+                    }
+                }
+            }
+
+            when (val outputBufferIndex = codec.dequeueOutputBuffer(bufferInfo, 10_000L)) {
+                MediaCodec.INFO_TRY_AGAIN_LATER -> Unit
+                MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> Unit
+                else -> {
+                    if (outputBufferIndex >= 0) {
+                        val presentationUs = bufferInfo.presentationTimeUs
+                        val hasFrame = bufferInfo.size > 0
+                        val eos =
+                            bufferInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0
+                        val inWindow =
+                            hasFrame &&
+                                presentationUs >= streamStartUs - toleranceUs &&
+                                presentationUs <= streamEndSampleUs + toleranceUs
+                        val bufferSignature =
+                            if (inWindow) {
+                                decodedBufferSignature(codec, outputBufferIndex, bufferInfo)
+                            } else {
+                                DecodedVideoBufferSignature(
+                                    readable = false,
+                                    byteCount = 0,
+                                    checksum = 0L,
+                                )
+                            }
+                        codec.releaseOutputBuffer(outputBufferIndex, false)
+                        if (hasFrame) {
+                            totalDecodedOutputFrames += 1
+                        }
+                        if (inWindow) {
+                            decodedFrameCount += 1
+                            if (bufferSignature.readable) {
+                                readableBufferCount += 1
+                            } else {
+                                unreadableBufferSeen = true
+                            }
+                            firstFrameTimeUs = firstFrameTimeUs ?: presentationUs
+                            lastFrameTimeUs = presentationUs
+                            if (
+                                decodedFrameCount >= minRequiredFrameCount &&
+                                    readableBufferCount == decodedFrameCount &&
+                                    presentationUs >= streamEndSampleUs - toleranceUs
+                            ) {
+                                return LiveVideoDecodeStreamProbeResult(
+                                    canDecodeStream = true,
+                                    allDecodedBuffersReadable = true,
+                                    decodedFrameCount = decodedFrameCount,
+                                    readableBufferCount = readableBufferCount,
+                                    firstFrameTimeUs = firstFrameTimeUs,
+                                    lastFrameTimeUs = lastFrameTimeUs,
+                                    minRequiredFrameCount = minRequiredFrameCount,
+                                    outputFormatMimeType = mimeType,
+                                    outputWidth = format.optionalInt(MediaFormat.KEY_WIDTH) ?: 0,
+                                    outputHeight = format.optionalInt(MediaFormat.KEY_HEIGHT) ?: 0,
+                                    reason = null,
+                                )
+                            }
+                        }
+                        if (eos) {
+                            break
+                        }
+                    }
+                }
+            }
+        }
+        val reason =
+            when {
+                decodedFrameCount <= 0 -> "native_video_decode_stream_frames_missing"
+                unreadableBufferSeen || readableBufferCount < decodedFrameCount ->
+                    "native_video_decode_stream_output_buffer_not_ready"
+                decodedFrameCount < minRequiredFrameCount ->
+                    "native_video_decode_stream_sample_coverage_low"
+                (lastFrameTimeUs ?: 0L) < streamEndSampleUs - toleranceUs ->
+                    "native_video_decode_stream_end_gap"
+                else -> "native_video_decode_stream_timeout"
+            }
+        return LiveVideoDecodeStreamProbeResult(
+            canDecodeStream = false,
+            allDecodedBuffersReadable = readableBufferCount == decodedFrameCount && decodedFrameCount > 0,
+            decodedFrameCount = decodedFrameCount,
+            readableBufferCount = readableBufferCount,
+            firstFrameTimeUs = firstFrameTimeUs,
+            lastFrameTimeUs = lastFrameTimeUs,
+            minRequiredFrameCount = minRequiredFrameCount,
+            outputFormatMimeType = mimeType,
+            outputWidth = format.optionalInt(MediaFormat.KEY_WIDTH) ?: 0,
+            outputHeight = format.optionalInt(MediaFormat.KEY_HEIGHT) ?: 0,
+            reason = reason,
+        )
+    } catch (_: SecurityException) {
+        return LiveVideoDecodeStreamProbeResult(
+            canDecodeStream = false,
+            decodedFrameCount = 0,
+            readableBufferCount = 0,
+            firstFrameTimeUs = null,
+            lastFrameTimeUs = null,
+            minRequiredFrameCount = 0,
+            outputFormatMimeType = "",
+            outputWidth = 0,
+            outputHeight = 0,
+            reason = "native_video_source_permission_denied",
+        )
+    } catch (_: Throwable) {
+        return LiveVideoDecodeStreamProbeResult(
+            canDecodeStream = false,
+            decodedFrameCount = 0,
+            readableBufferCount = 0,
+            firstFrameTimeUs = null,
+            lastFrameTimeUs = null,
+            minRequiredFrameCount = 0,
+            outputFormatMimeType = "",
+            outputWidth = 0,
+            outputHeight = 0,
+            reason = "native_video_decode_stream_failed",
+        )
+    } finally {
+        runCatching {
+            codec?.stop()
+        }
+        codec?.release()
+        extractor.release()
+    }
 }
 
 private fun decodedBufferSignature(

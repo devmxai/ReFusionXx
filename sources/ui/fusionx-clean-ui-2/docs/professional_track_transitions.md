@@ -836,12 +836,16 @@ Current gate:
   treat decoded shutter samples as a playing transition until
   `liveDecodeWindowReady=true` and `continuousSampleCoverageReady=true` for both
   roles. Android now plans a strict coverage probe for each live window using
-  start/mid/end source samples and readable decoded buffers. If the continuous
-  stream coverage is absent, the compositor blocks with
-  `native_dual_video_live_decode_not_ready`. This closes the still-frame
+  start/mid/end source samples and readable decoded buffers, then performs a
+  sequential `MediaCodec` live-stream probe across the same source window. If
+  the continuous stream coverage is absent, the compositor blocks with
+  `native_dual_video_live_decode_not_ready` and
+  `native_dual_video_live_decode_stream_not_ready`. This closes the still-frame
   loophole that caused zoom transitions to animate a single ambiguous frame
-  instead of video motion. This is still a decoder-readiness stage; presets stay
-  locked until the downstream renderer/output/parity stages render real pixels.
+  instead of video motion: decoded shutter samples are not enough unless the
+  track can also decode a live sequence through the transition window. This is
+  still a decoder-readiness stage; presets stay locked until the downstream
+  renderer/output/parity stages render real pixels.
 - Flutter and Android now also share `planTemporalSampleAccumulator`. This binds
   the two decoder tracks into outgoing/incoming temporal accumulators with
   deterministic sample weights, exact-frame requirements, decoded-sample counts,
