@@ -615,6 +615,20 @@ classify requests as unknown definitions, missing capabilities, or renderer not
 implemented. The registry is intentionally allowed to reject a known transition
 until its real renderer is present.
 
+Current authoring gate:
+
+- no new video transition preset, manual transition lane, or AI-generated
+  transition draft may be created while the native compositor reports the
+  foundation/unavailable capability set;
+- the browser may show transition categories as locked roadmap entries, but it
+  must not return an apply/manual/AI result until the compositor reports every
+  professional capability: dual video sampling, temporal motion blur,
+  mirror-edge tiling, preview parity, Live Scrub parity, playback parity, and
+  export parity;
+- this strict gate intentionally applies to simpler definitions too. Cross
+  Dissolve, Fade Black, and Zoom In Camera must all wait for the same general
+  compositor readiness instead of each shipping a separate fallback path.
+
 `crossDissolve` now has a first domain-level frame planner. The planner reads
 the shared `ProfessionalVideoTransitionRenderPlan` and computes normalized
 progress, outgoing opacity, incoming opacity, and real source times for both
@@ -700,15 +714,16 @@ Current gate:
   generated from shutter angle and frame rate, and mirror-edge motion tiling is
   required by the render plan.
 - a future `ProfessionalVideoTransitionCompositor` must own preview, scrub,
-  playback, and export parity before Zoom In Camera is exposed again as an
-  engine-backed preset.
+  playback, and export parity before any new video transition authoring path is
+  exposed again as engine-backed.
 - the Android app now exposes
   `com.refusion.app/professional_video_transition_compositor.getCapabilities`
   as the native capability bridge for this compositor. The current native
-  response is deliberately unavailable for every required capability, so Zoom
-  In Camera remains hidden until the real dual-video compositor, temporal
-  motion blur, mirror-edge tiling, preview, scrub, playback, and export parity
-  are all implemented and reported from native code.
+  response is deliberately unavailable for every required capability, so every
+  new video transition authoring path remains locked until the real dual-video
+  compositor, temporal motion blur, mirror-edge tiling, preview, scrub,
+  playback, and export parity are all implemented and reported from native
+  code.
 - Flutter and Android now also share the generic `prepareRenderPlan` contract.
   Zoom In Camera lowers into this general render plan with canvas size, seam
   timing, outgoing/incoming source ranges, shutter settings, and mirror-edge

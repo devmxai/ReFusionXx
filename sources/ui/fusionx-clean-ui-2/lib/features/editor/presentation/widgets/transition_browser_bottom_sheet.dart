@@ -82,6 +82,9 @@ class _TransitionBrowserBottomSheetState
 
   List<TimelineTransitionPreset> get _filteredPresets {
     final normalized = _query.trim().toLowerCase();
+    if (!_transitionEngineReady) {
+      return const <TimelineTransitionPreset>[];
+    }
     final presets = List<TimelineTransitionPreset>.from(
       widget.presets ?? _defaultPresets,
     );
@@ -96,13 +99,18 @@ class _TransitionBrowserBottomSheetState
   }
 
   List<TimelineTransitionPreset> get _defaultPresets {
+    if (!_transitionEngineReady) {
+      return const <TimelineTransitionPreset>[];
+    }
     return <TimelineTransitionPreset>[
       TimelineTransitionPreset.crossDissolve,
       TimelineTransitionPreset.fadeBlack,
-      if (_compositorCapabilities.canExposeProfessionalZoomInCamera)
-        TimelineTransitionPreset.zoomInCamera,
+      TimelineTransitionPreset.zoomInCamera,
     ];
   }
+
+  bool get _transitionEngineReady =>
+      _compositorCapabilities.canExposeProfessionalVideoTransitions;
 
   @override
   Widget build(BuildContext context) {
@@ -175,37 +183,55 @@ class _TransitionBrowserBottomSheetState
                 padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
                 child: _TransitionModeCard(
                   title: 'Preset',
-                  summary:
-                      'Choose an engine-backed transition that keeps playback and scrub on the main timeline.',
+                  summary: _transitionEngineReady
+                      ? 'Choose an engine-backed transition that keeps playback and scrub on the main timeline.'
+                      : 'Locked until the native compositor supports dual video, motion blur, mirror edges, preview, scrub, playback, and export parity.',
                   icon: Icons.video_settings_rounded,
                   emphasized: true,
-                  onTap: () => setState(() {
-                    _page = _TransitionBrowserPage.presets;
-                  }),
+                  enabled: _transitionEngineReady,
+                  onTap: _transitionEngineReady
+                      ? () => setState(() {
+                            _page = _TransitionBrowserPage.presets;
+                          })
+                      : null,
                 ),
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
                 child: _ManualTransitionCard(
-                  onTap: () => Navigator.of(context).pop(
-                    const TransitionBrowserResult(
-                      action: TransitionBrowserAction.openManual,
-                      preset: TimelineTransitionPreset.manual,
-                    ),
-                  ),
+                  enabled: _transitionEngineReady,
+                  onTap: _transitionEngineReady
+                      ? () => Navigator.of(context).pop(
+                            const TransitionBrowserResult(
+                              action: TransitionBrowserAction.openManual,
+                              preset: TimelineTransitionPreset.manual,
+                            ),
+                          )
+                      : null,
                 ),
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
                 child: _AiTransitionCard(
-                  onTap: () => Navigator.of(context).pop(
-                    const TransitionBrowserResult(
-                      action: TransitionBrowserAction.openAi,
-                      preset: TimelineTransitionPreset.aiGenerated,
-                    ),
-                  ),
+                  enabled: _transitionEngineReady,
+                  onTap: _transitionEngineReady
+                      ? () => Navigator.of(context).pop(
+                            const TransitionBrowserResult(
+                              action: TransitionBrowserAction.openAi,
+                              preset: TimelineTransitionPreset.aiGenerated,
+                            ),
+                          )
+                      : null,
                 ),
               ),
+              if (!_transitionEngineReady)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                  child: _CompositorLockedCard(
+                    missingCapabilities: _compositorCapabilities
+                        .missingForProfessionalVideoTransitions,
+                  ),
+                ),
             ],
           ),
         ),
@@ -248,23 +274,33 @@ class _TransitionBrowserBottomSheetState
           child: _buildSearchField(),
         ),
         Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-            itemCount: _filteredPresets.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (context, index) {
-              final preset = _filteredPresets[index];
-              return _TransitionPresetCard(
-                preset: preset,
-                onTap: () => Navigator.of(context).pop(
-                  TransitionBrowserResult(
-                    action: TransitionBrowserAction.applyPreset,
-                    preset: preset,
-                  ),
+          child: _filteredPresets.isEmpty
+              ? ListView(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                  children: [
+                    _CompositorLockedCard(
+                      missingCapabilities: _compositorCapabilities
+                          .missingForProfessionalVideoTransitions,
+                    ),
+                  ],
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                  itemCount: _filteredPresets.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final preset = _filteredPresets[index];
+                    return _TransitionPresetCard(
+                      preset: preset,
+                      onTap: () => Navigator.of(context).pop(
+                        TransitionBrowserResult(
+                          action: TransitionBrowserAction.applyPreset,
+                          preset: preset,
+                        ),
+                      ),
+                    );
+                  },
                 ),
-              );
-            },
-          ),
         ),
       ],
     );
@@ -333,13 +369,15 @@ class _TransitionModeCard extends StatelessWidget {
     required this.summary,
     required this.icon,
     required this.onTap,
+    this.enabled = true,
     this.emphasized = false,
   });
 
   final String title;
   final String summary;
   final IconData icon;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final bool enabled;
   final bool emphasized;
 
   @override
@@ -352,12 +390,14 @@ class _TransitionModeCard extends StatelessWidget {
           color: FxPalette.surfaceRaised,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: emphasized
-                ? FxPalette.accent.withOpacity(0.36)
-                : FxPalette.dividerSoft,
+            color: !enabled
+                ? FxPalette.dividerSoft
+                : emphasized
+                    ? FxPalette.accent.withOpacity(0.36)
+                    : FxPalette.dividerSoft,
             width: 1,
           ),
-          gradient: emphasized
+          gradient: emphasized && enabled
               ? LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -376,16 +416,20 @@ class _TransitionModeCard extends StatelessWidget {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: FxPalette.accent.withOpacity(0.14),
+                  color: enabled
+                      ? FxPalette.accent.withOpacity(0.14)
+                      : Colors.white.withOpacity(0.06),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: FxPalette.accent.withOpacity(0.28),
+                    color: enabled
+                        ? FxPalette.accent.withOpacity(0.28)
+                        : Colors.white.withOpacity(0.08),
                     width: 1,
                   ),
                 ),
                 child: Icon(
                   icon,
-                  color: FxPalette.accent,
+                  color: enabled ? FxPalette.accent : FxPalette.textMuted,
                   size: 20,
                 ),
               ),
@@ -427,9 +471,11 @@ class _TransitionModeCard extends StatelessWidget {
                     width: 1,
                   ),
                 ),
-                child: const Icon(
-                  Icons.chevron_right_rounded,
-                  color: FxPalette.textPrimary,
+                child: Icon(
+                  enabled ? Icons.chevron_right_rounded : Icons.lock_rounded,
+                  color: enabled
+                      ? FxPalette.textPrimary
+                      : FxPalette.textMuted.withOpacity(0.9),
                   size: 20,
                 ),
               ),
@@ -444,9 +490,11 @@ class _TransitionModeCard extends StatelessWidget {
 class _ManualTransitionCard extends StatelessWidget {
   const _ManualTransitionCard({
     required this.onTap,
+    this.enabled = true,
   });
 
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -458,17 +506,21 @@ class _ManualTransitionCard extends StatelessWidget {
           color: FxPalette.surfaceRaised,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: FxPalette.accent.withOpacity(0.32),
+            color: enabled
+                ? FxPalette.accent.withOpacity(0.32)
+                : FxPalette.dividerSoft,
             width: 1,
           ),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              FxPalette.accent.withOpacity(0.10),
-              Colors.white.withOpacity(0.03),
-            ],
-          ),
+          gradient: enabled
+              ? LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    FxPalette.accent.withOpacity(0.10),
+                    Colors.white.withOpacity(0.03),
+                  ],
+                )
+              : null,
         ),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
@@ -478,16 +530,20 @@ class _ManualTransitionCard extends StatelessWidget {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: FxPalette.accent.withOpacity(0.14),
+                  color: enabled
+                      ? FxPalette.accent.withOpacity(0.14)
+                      : Colors.white.withOpacity(0.06),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: FxPalette.accent.withOpacity(0.28),
+                    color: enabled
+                        ? FxPalette.accent.withOpacity(0.28)
+                        : Colors.white.withOpacity(0.08),
                     width: 1,
                   ),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.tune_rounded,
-                  color: FxPalette.accent,
+                  color: enabled ? FxPalette.accent : FxPalette.textMuted,
                   size: 20,
                 ),
               ),
@@ -506,7 +562,9 @@ class _ManualTransitionCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      'Open the focused seam timeline and start editing the transition lanes directly.',
+                      enabled
+                          ? 'Open the focused seam timeline and start editing the transition lanes directly.'
+                          : 'Locked until the professional compositor can render authored transition lanes.',
                       style: TextStyle(
                         color: FxPalette.textMuted.withOpacity(0.92),
                         fontSize: 12,
@@ -529,9 +587,11 @@ class _ManualTransitionCard extends StatelessWidget {
                     width: 1,
                   ),
                 ),
-                child: const Icon(
-                  Icons.chevron_right_rounded,
-                  color: FxPalette.textPrimary,
+                child: Icon(
+                  enabled ? Icons.chevron_right_rounded : Icons.lock_rounded,
+                  color: enabled
+                      ? FxPalette.textPrimary
+                      : FxPalette.textMuted.withOpacity(0.9),
                   size: 20,
                 ),
               ),
@@ -649,12 +709,101 @@ class _TransitionPresetCard extends StatelessWidget {
   }
 }
 
+class _CompositorLockedCard extends StatelessWidget {
+  const _CompositorLockedCard({
+    required this.missingCapabilities,
+  });
+
+  final List<String> missingCapabilities;
+
+  @override
+  Widget build(BuildContext context) {
+    const warningColor = Color(0xFFFFC857);
+    final missingText = missingCapabilities.isEmpty
+        ? 'Native renderer has not reported professional transition readiness.'
+        : missingCapabilities.join(', ');
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: FxPalette.surfaceRaised,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: warningColor.withOpacity(0.32),
+          width: 1,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 13, 14, 13),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: warningColor.withOpacity(0.14),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: warningColor.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: const Icon(
+                Icons.lock_rounded,
+                color: warningColor,
+                size: 19,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Professional compositor required',
+                    style: TextStyle(
+                      color: FxPalette.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Transition authoring is locked until the native compositor can render every transition path with real dual-video sampling, temporal motion blur, mirror edges, preview, scrub, playback, and export parity.',
+                    style: TextStyle(
+                      color: FxPalette.textMuted.withOpacity(0.94),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      height: 1.32,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Missing: $missingText',
+                    style: TextStyle(
+                      color: warningColor.withOpacity(0.95),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      height: 1.25,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _AiTransitionCard extends StatelessWidget {
   const _AiTransitionCard({
     required this.onTap,
+    this.enabled = true,
   });
 
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -666,17 +815,21 @@ class _AiTransitionCard extends StatelessWidget {
           color: FxPalette.surfaceRaised,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: FxPalette.accent.withOpacity(0.28),
+            color: enabled
+                ? FxPalette.accent.withOpacity(0.28)
+                : FxPalette.dividerSoft,
             width: 1,
           ),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              FxPalette.accent.withOpacity(0.09),
-              Colors.white.withOpacity(0.02),
-            ],
-          ),
+          gradient: enabled
+              ? LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    FxPalette.accent.withOpacity(0.09),
+                    Colors.white.withOpacity(0.02),
+                  ],
+                )
+              : null,
         ),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
@@ -686,16 +839,20 @@ class _AiTransitionCard extends StatelessWidget {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: FxPalette.accent.withOpacity(0.14),
+                  color: enabled
+                      ? FxPalette.accent.withOpacity(0.14)
+                      : Colors.white.withOpacity(0.06),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: FxPalette.accent.withOpacity(0.28),
+                    color: enabled
+                        ? FxPalette.accent.withOpacity(0.28)
+                        : Colors.white.withOpacity(0.08),
                     width: 1,
                   ),
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.auto_awesome_rounded,
-                  color: FxPalette.accent,
+                  color: enabled ? FxPalette.accent : FxPalette.textMuted,
                   size: 20,
                 ),
               ),
@@ -714,7 +871,9 @@ class _AiTransitionCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      'Generate a seam draft from clip A last frame to clip B first frame.',
+                      enabled
+                          ? 'Generate a seam draft from clip A last frame to clip B first frame.'
+                          : 'Locked until generated transitions can be rendered by the professional compositor.',
                       style: TextStyle(
                         color: FxPalette.textMuted.withOpacity(0.92),
                         fontSize: 12,
@@ -737,9 +896,11 @@ class _AiTransitionCard extends StatelessWidget {
                     width: 1,
                   ),
                 ),
-                child: const Icon(
-                  Icons.chevron_right_rounded,
-                  color: FxPalette.textPrimary,
+                child: Icon(
+                  enabled ? Icons.chevron_right_rounded : Icons.lock_rounded,
+                  color: enabled
+                      ? FxPalette.textPrimary
+                      : FxPalette.textMuted.withOpacity(0.9),
                   size: 20,
                 ),
               ),

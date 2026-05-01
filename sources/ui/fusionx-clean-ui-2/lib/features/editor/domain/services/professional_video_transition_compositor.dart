@@ -43,6 +43,14 @@ class ProfessionalVideoTransitionCompositorCapabilities {
   final List<String> registeredDefinitions;
 
   bool get canExposeProfessionalZoomInCamera =>
+      canExposeProfessionalVideoTransitions;
+
+  /// Strict gate for creating any new professional video transition.
+  ///
+  /// This intentionally requires the complete compositor stack, even for
+  /// simpler transition definitions, so unsupported presets cannot slip back
+  /// into frozen-frame, Flutter-overlay, or single-surface fallback rendering.
+  bool get canExposeProfessionalVideoTransitions =>
       dualVideoSampling &&
       temporalMotionBlur &&
       mirrorEdgeTiling &&
@@ -52,6 +60,10 @@ class ProfessionalVideoTransitionCompositorCapabilities {
       exportParity;
 
   List<String> get missingForProfessionalZoomInCamera {
+    return missingForProfessionalVideoTransitions;
+  }
+
+  List<String> get missingForProfessionalVideoTransitions {
     final missing = <String>[];
     if (!dualVideoSampling) {
       missing.add('dualVideoSampling');

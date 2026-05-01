@@ -14,6 +14,11 @@ void main() {
     );
     expect(
       kCurrentProfessionalVideoTransitionCompositorCapabilities
+          .canExposeProfessionalVideoTransitions,
+      isFalse,
+    );
+    expect(
+      kCurrentProfessionalVideoTransitionCompositorCapabilities
           .missingForProfessionalZoomInCamera,
       containsAll(<String>[
         'dualVideoSampling',
@@ -42,6 +47,7 @@ void main() {
     );
 
     expect(partial.canExposeProfessionalZoomInCamera, isFalse);
+    expect(partial.canExposeProfessionalVideoTransitions, isFalse);
     expect(partial.missingForProfessionalZoomInCamera, <String>[
       'liveScrubParity',
     ]);
@@ -60,6 +66,7 @@ void main() {
     );
 
     expect(complete.canExposeProfessionalZoomInCamera, isTrue);
+    expect(complete.canExposeProfessionalVideoTransitions, isTrue);
   });
 
   test('method channel capability provider maps native capabilities', () async {

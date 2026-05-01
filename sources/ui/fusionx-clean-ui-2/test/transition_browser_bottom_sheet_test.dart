@@ -4,7 +4,7 @@ import 'package:refusion_app/features/editor/domain/services/professional_video_
 import 'package:refusion_app/features/editor/presentation/widgets/transition_browser_bottom_sheet.dart';
 
 void main() {
-  testWidgets('transition browser opens preset picker before manual and ai',
+  testWidgets('transition browser locks all transition authoring until ready',
       (WidgetTester tester) async {
     await tester.pumpWidget(
       const MaterialApp(
@@ -17,25 +17,20 @@ void main() {
     expect(find.text('Preset'), findsOneWidget);
     expect(find.text('Manual'), findsOneWidget);
     expect(find.text('AI Transition'), findsOneWidget);
+    expect(find.text('Professional compositor required'), findsOneWidget);
     expect(find.text('Cross Dissolve'), findsNothing);
 
     await tester.tap(find.text('Preset'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Preset Transitions'), findsOneWidget);
-    expect(find.text('Cross Dissolve'), findsOneWidget);
-    expect(find.text('Fade Black'), findsOneWidget);
-    expect(find.text('Zoom In Camera'), findsNothing);
-
-    await tester.tap(find.byIcon(Icons.arrow_back_rounded));
-    await tester.pumpAndSettle();
-
     expect(find.text('Transition Bridge'), findsOneWidget);
-    expect(find.text('Manual'), findsOneWidget);
+    expect(find.text('Professional compositor required'), findsOneWidget);
+    expect(find.text('Cross Dissolve'), findsNothing);
+    expect(find.text('Zoom In Camera'), findsNothing);
   });
 
   testWidgets(
-      'transition browser exposes zoom only when native compositor is complete',
+      'transition browser exposes presets only when native compositor is complete',
       (WidgetTester tester) async {
     const capabilities = ProfessionalVideoTransitionCompositorCapabilities(
       dualVideoSampling: true,
@@ -60,6 +55,8 @@ void main() {
     await tester.tap(find.text('Preset'));
     await tester.pumpAndSettle();
 
+    expect(find.text('Cross Dissolve'), findsOneWidget);
+    expect(find.text('Fade Black'), findsOneWidget);
     expect(find.text('Zoom In Camera'), findsOneWidget);
   });
 }
