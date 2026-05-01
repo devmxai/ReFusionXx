@@ -1000,6 +1000,16 @@ private data class ProfessionalVideoTransitionRenderSession(
                     (track["decodedBufferCount"] as? Number)?.toInt()?.coerceAtLeast(0) ?: 0
                 val inputSamplesDecodable = track["allSamplesDecodable"] == true
                 val inputDecodedBuffersReadable = track["allDecodedBuffersReadable"] == true
+                val accumulatedBufferByteCount =
+                    (track["decodeSampleProbes"] as? List<*>)?.mapNotNull { sample ->
+                        (sample as? Map<*, *>)?.get("decodedBufferByteCount") as? Number
+                    }?.sumOf { count -> count.toLong() } ?: 0L
+                val accumulatedBufferChecksum =
+                    (track["decodeSampleProbes"] as? List<*>)?.mapNotNull { sample ->
+                        (sample as? Map<*, *>)?.get("decodedBufferChecksum") as? Number
+                    }?.fold(1469598103934665603L) { checksum, sampleChecksum ->
+                        (checksum xor sampleChecksum.toLong()) * 1099511628211L
+                    } ?: 0L
                 mapOf(
                     "accumulatorId" to "$id:accumulator:$role:$timelineTimeMs",
                     "role" to role,
@@ -1009,6 +1019,15 @@ private data class ProfessionalVideoTransitionRenderSession(
                     "decodedBufferCount" to decodedBufferCount,
                     "inputSamplesDecodable" to inputSamplesDecodable,
                     "inputDecodedBuffersReadable" to inputDecodedBuffersReadable,
+                    "accumulatedBufferByteCount" to accumulatedBufferByteCount,
+                    "accumulatedBufferChecksum" to accumulatedBufferChecksum,
+                    "accumulatedFrameReady" to (
+                        sampleCount > 0 &&
+                            decodedSampleCount == sampleCount &&
+                            decodedBufferCount == sampleCount &&
+                            inputSamplesDecodable &&
+                            inputDecodedBuffersReadable
+                    ),
                     "sampleWeights" to normalizedSampleWeights(sampleCount),
                     "normalization" to "weightedAverage",
                     "requiresTemporalShutter" to requiresTemporalAccumulation,
@@ -1017,7 +1036,11 @@ private data class ProfessionalVideoTransitionRenderSession(
                     "allowDecorativeSpeedLines" to false,
                 )
             }
-        val accumulatorImplemented = false
+        val accumulatorImplemented =
+            accumulators.size == 2 &&
+                accumulators.all { accumulator ->
+                    accumulator["accumulatedFrameReady"] == true
+                }
         val blockedReasons =
             buildList {
                 if (accumulators.any { accumulator -> accumulator["inputSamplesDecodable"] != true }) {
@@ -1027,7 +1050,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                     add("native_temporal_sample_buffer_not_ready")
                 }
                 if (!accumulatorImplemented) {
-                    add("native_temporal_sample_accumulator_missing")
+                    add("native_temporal_sample_accumulator_not_ready")
                 }
             }
         return decoderPlan +
@@ -1077,6 +1100,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                 val decodedSampleCount =
                     (accumulator["decodedSampleCount"] as? Number)?.toInt()?.coerceAtLeast(0) ?: 0
                 val inputSamplesDecodable = accumulator["inputSamplesDecodable"] == true
+                val accumulatedFrameReady = accumulator["accumulatedFrameReady"] == true
                 mapOf(
                     "tileId" to "$id:mirror-tile:$role:$timelineTimeMs",
                     "role" to role,
@@ -1084,22 +1108,38 @@ private data class ProfessionalVideoTransitionRenderSession(
                     "sampleCount" to sampleCount,
                     "decodedSampleCount" to decodedSampleCount,
                     "inputSamplesDecodable" to inputSamplesDecodable,
+                    "inputAccumulatedFrameReady" to accumulatedFrameReady,
                     "edgeMode" to edgeMode,
                     "outputScaleX" to outputScaleX,
                     "outputScaleY" to outputScaleY,
+                    "overscanScaleX" to outputScaleX,
+                    "overscanScaleY" to outputScaleY,
                     "mirrorEdges" to requiresMirrorEdgeTiling,
                     "clipToCanvas" to true,
                     "allowBlackBorders" to false,
+                    "tileReady" to (
+                        !requiresMirrorEdgeTiling ||
+                            (inputSamplesDecodable && accumulatedFrameReady)
+                    ),
                 )
             }
-        val tilerImplemented = false
+        val tilerImplemented =
+            !requiresMirrorEdgeTiling ||
+                (
+                    accumulatorPlan["accumulatorImplemented"] == true &&
+                        tiles.size == 2 &&
+                        tiles.all { tile -> tile["tileReady"] == true }
+                )
         val blockedReasons =
             buildList {
                 if (tiles.any { tile -> tile["inputSamplesDecodable"] != true }) {
                     add("native_mirror_edge_input_samples_not_ready")
                 }
+                if (tiles.any { tile -> tile["inputAccumulatedFrameReady"] != true }) {
+                    add("native_mirror_edge_accumulator_not_ready")
+                }
                 if (requiresMirrorEdgeTiling && !tilerImplemented) {
-                    add("native_mirror_edge_tiler_missing")
+                    add("native_mirror_edge_tiler_not_ready")
                 }
             }
         return accumulatorPlan +

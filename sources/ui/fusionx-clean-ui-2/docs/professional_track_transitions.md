@@ -631,19 +631,12 @@ Current authoring gate:
   Dissolve, Fade Black, and Zoom In Camera must all wait for the same general
   compositor readiness instead of each shipping a separate fallback path.
 
-Temporary diagnostic exception:
-
-- `Zoom In Pro` may be exposed as a product-requested live-surface experiment
-  while the full compositor is still blocked. It is not a professional
-  transition release, not a native compositor renderer, and not proof that Zoom
-  In Camera is supported.
-- `Zoom In Pro` must transform only the currently live native preview surface.
-  It must not use boundary thumbnails, frozen frames, timeline overlays,
-  decorative speed lines, Gaussian transition blur, or a second fake video
-  surface.
-- This exception exists only to let the product team inspect timing and
-  selection flow while the real compositor is still being built. It must not
-  unlock Cross Dissolve, Fade Black, Zoom In Camera, Manual, or AI Transition.
+No diagnostic transition exception is currently active. `Zoom In Pro` was tried
+as a live-surface experiment and is now closed because a transformed single
+native preview surface cannot provide dual-video sampling, temporal shutter
+motion blur, mirror-edge tiling, or stable preview/Live Scrub/playback parity.
+Do not expose Cross Dissolve, Fade Black, Zoom In Camera, Manual, AI Transition,
+or Zoom In Pro until the native compositor completes the shared readiness chain.
 
 Native render-session foundation:
 
@@ -737,11 +730,8 @@ Current gate:
 - the previous Flutter-side Zoom In Camera preview has been removed from the
   preset picker and no longer draws fake speed lines, frozen-frame cards, or
   Gaussian motion blur.
-- `Zoom In Pro` is the only temporary diagnostic preset that may appear before
-  compositor completion. It deliberately stays outside the professional Zoom In
-  Camera support claim: it scales the already live native surface for visual
-  timing inspection and carries no blur, no thumbnail bridge, no fake speed
-  lines, and no production parity promise.
+- the temporary `Zoom In Pro` live-surface experiment has been closed. It must
+  not appear in the preset picker while the real compositor is incomplete.
 - `ProfessionalZoomCameraCompositorPlanner` now defines the canonical timing
   contract for the future native compositor: outgoing and incoming source times
   are resolved from real timeline/source ranges, shutter sample times are
@@ -842,24 +832,25 @@ Current gate:
 - Flutter and Android now also share `planTemporalSampleAccumulator`. This binds
   the two decoder tracks into outgoing/incoming temporal accumulators with
   deterministic sample weights, exact-frame requirements, decoded-sample counts,
-  decoded-buffer counts, decoded-buffer readiness, and explicit
-  `allowGaussianFallback=false` /
-  `allowDecorativeSpeedLines=false`. The accumulator now requires the shutter
+  decoded-buffer counts, decoded-buffer readiness, accumulated decoded-buffer
+  byte counts/checksums, and explicit `allowGaussianFallback=false` /
+  `allowDecorativeSpeedLines=false`. The accumulator requires the shutter
   sample decode probes and decoded sample buffers from the decoder stage to be
-  ready for each side before it can advance. Current responses deliberately keep
-  `accumulatorImplemented=false`, so temporal motion blur remains blocked until
-  the native compositor can accumulate real shutter samples into pixels instead
-  of poster-frame blur or decorative speed-line substitutes.
+  ready for each side before it can report `accumulatorImplemented=true`. This
+  is native decoded-buffer accumulation readiness; it still does not expose a
+  transition preset until mirror-edge tiling, render-pass graph execution,
+  output-surface ownership, and preview/scrub/playback parity are ready.
 - Flutter and Android now also share `planMirrorEdgeTiling`. This binds temporal
   accumulator outputs into outgoing/incoming mirror-edge tile plans with
   deterministic overscan, decoded-sample readiness, canvas clipping, and
   explicit `allowBlackBorders=false`, `allowFlutterOverlay=false`, and
   `allowTimelineOverlay=false`. The tile plan now inherits whether the temporal
-  input samples were actually decodable, and blocks with
-  `native_mirror_edge_input_samples_not_ready` before any mirror-edge work can
-  proceed. Current responses keep `tilerImplemented=false`, so zoom/push/camera
-  transitions cannot hide black borders with stretched thumbnails, Flutter
-  overlays, or timeline-area drawing.
+  input samples were actually decodable and accumulated, records overscan
+  scales, and reports tiler readiness only when both outgoing and incoming
+  accumulated inputs can cover the canvas without black borders. Zoom/push/camera
+  transitions still cannot render until the downstream native renderer and
+  output surface execute the pass graph; stretched thumbnails, Flutter overlays,
+  or timeline-area drawing remain forbidden.
 - Flutter and Android now also share `planRenderPassGraph`. This is not a
   renderer; it is the renderer-agnostic execution graph every concrete native
   transition must satisfy: exact decode, temporal accumulation, optional

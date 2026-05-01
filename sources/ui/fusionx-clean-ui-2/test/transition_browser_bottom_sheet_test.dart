@@ -4,8 +4,7 @@ import 'package:refusion_app/features/editor/domain/services/professional_video_
 import 'package:refusion_app/features/editor/presentation/widgets/transition_browser_bottom_sheet.dart';
 
 void main() {
-  testWidgets(
-      'transition browser opens Zoom In Pro experiment before full gate',
+  testWidgets('transition browser locks presets before full compositor gate',
       (WidgetTester tester) async {
     await tester.pumpWidget(
       const MaterialApp(
@@ -24,8 +23,8 @@ void main() {
     await tester.tap(find.text('Preset'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Preset Transitions'), findsOneWidget);
-    expect(find.text('Zoom In Pro'), findsOneWidget);
+    expect(find.text('Preset Transitions'), findsNothing);
+    expect(find.text('Zoom In Pro'), findsNothing);
     expect(find.text('Cross Dissolve'), findsNothing);
     expect(find.text('Zoom In Camera'), findsNothing);
   });
@@ -59,6 +58,6 @@ void main() {
     expect(find.text('Cross Dissolve'), findsOneWidget);
     expect(find.text('Fade Black'), findsOneWidget);
     expect(find.text('Zoom In Camera'), findsOneWidget);
-    expect(find.text('Zoom In Pro'), findsOneWidget);
+    expect(find.text('Zoom In Pro'), findsNothing);
   });
 }

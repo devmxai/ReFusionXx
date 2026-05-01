@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -20647,47 +20646,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       // Zoom In Camera remains locked to the real dual-video compositor path.
       return null;
     }
-    return _zoomInProPreviewSurfaceTransform(activeTransition);
-  }
-
-  MotionVideoPreviewSurfaceTransform _zoomInProPreviewSurfaceTransform(
-    _ActiveTimelineTransitionPreview state,
-  ) {
-    final transition = state.transition;
-    final seam = _transitionSeamProgress(transition);
-    final progress = state.progress.clamp(0.0, 1.0).toDouble();
-    final outgoingBoostScale =
-        transition.parameterValue('outgoingBoostScale', fallback: 2.4);
-    final incomingStartScale =
-        transition.parameterValue('incomingStartScale', fallback: 0.42);
-    if (progress <= seam) {
-      final phase =
-          seam <= 0 ? 1.0 : (progress / seam).clamp(0.0, 1.0).toDouble();
-      final eased = Curves.easeInCubic.transform(phase);
-      final scale = lerpDouble(1.0, outgoingBoostScale, eased) ?? 1.0;
-      return MotionVideoPreviewSurfaceTransform(
-        scaleX: scale,
-        scaleY: scale,
-      );
-    }
-    final trailingSpan = (1.0 - seam).clamp(0.001, 1.0).toDouble();
-    final phase = ((progress - seam) / trailingSpan).clamp(0.0, 1.0).toDouble();
-    final eased = Curves.easeOutCubic.transform(phase);
-    final scale = lerpDouble(incomingStartScale, 1.0, eased) ?? 1.0;
-    return MotionVideoPreviewSurfaceTransform(
-      scaleX: scale,
-      scaleY: scale,
-    );
-  }
-
-  double _transitionSeamProgress(TimelineTrackTransitionData transition) {
-    final leading = transition.resolvedLeadingDurationTime.inMilliseconds;
-    final trailing = transition.resolvedTrailingDurationTime.inMilliseconds;
-    final total = leading + trailing;
-    if (total <= 0) {
-      return 0.5;
-    }
-    return (leading / total).clamp(0.0, 1.0).toDouble();
+    // Zoom In Pro was an explicit live-surface experiment. It is now gated off
+    // with Zoom In Camera because a transformed single native surface cannot
+    // deliver dual-video sampling, temporal motion blur, or mirror-edge tiling.
+    return null;
   }
 
   Widget _buildNativePreviewSurface({
