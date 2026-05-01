@@ -25,6 +25,7 @@ void main() {
         ProfessionalVideoTransitionReadinessStageId.capabilityGate,
         ProfessionalVideoTransitionReadinessStageId.renderSession,
         ProfessionalVideoTransitionReadinessStageId.sourceBinding,
+        ProfessionalVideoTransitionReadinessStageId.sourceMediaProbe,
         ProfessionalVideoTransitionReadinessStageId.frameSamples,
         ProfessionalVideoTransitionReadinessStageId.frameDecode,
         ProfessionalVideoTransitionReadinessStageId.dualVideoDecoder,
@@ -41,6 +42,18 @@ void main() {
           .stage(ProfessionalVideoTransitionReadinessStageId.sourceBinding)
           .canAdvance,
       isTrue,
+    );
+    expect(
+      report
+          .stage(ProfessionalVideoTransitionReadinessStageId.sourceMediaProbe)
+          .canAdvance,
+      isFalse,
+    );
+    expect(
+      report
+          .stage(ProfessionalVideoTransitionReadinessStageId.sourceMediaProbe)
+          .blockers,
+      contains('native_video_source_probe_not_implemented'),
     );
     expect(
       report
@@ -226,6 +239,35 @@ class _FakeProfessionalVideoTransitionCompositorClient
       allowGeneratedProxyDecode: false,
       bindings: plan.sources.map(_sourceBinding).toList(growable: false),
       blockedReasons: const <String>[],
+    );
+  }
+
+  @override
+  Future<ProfessionalVideoTransitionSourceProbePlanResult>
+      planVideoSourceProbe({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  }) async {
+    return ProfessionalVideoTransitionSourceProbePlanResult(
+      status: ProfessionalVideoTransitionSourceProbePlanStatus.planned,
+      reason: '',
+      rendererVersion: 'fake',
+      definitionId: plan.definitionId,
+      renderSessionId: 'transition-session:${plan.transitionId}',
+      timelineTime: timelineTime,
+      transitionStartTime: plan.boundaryTime - plan.leadingDuration,
+      transitionEndTime: plan.boundaryTime + plan.trailingDuration,
+      requiresRealVideoSource: true,
+      probeImplemented: _rendererReady,
+      allSourcesProbeable: _rendererReady,
+      allowSyntheticSource: false,
+      probes: <ProfessionalVideoTransitionSourceProbe>[
+        _sourceProbe(plan.sources[0], 'outgoing'),
+        _sourceProbe(plan.sources[1], 'incoming'),
+      ],
+      blockedReasons: _planningOnly
+          ? const <String>['native_video_source_probe_not_implemented']
+          : const <String>[],
     );
   }
 
@@ -587,6 +629,26 @@ class _FakeProfessionalVideoTransitionCompositorClient
       centerSample: sampleIndex == 0,
       allowThumbnailFallback: false,
       allowBoundaryFreeze: false,
+    );
+  }
+
+  static ProfessionalVideoTransitionSourceProbe _sourceProbe(
+    ProfessionalVideoTransitionCompositorSource source,
+    String role,
+  ) {
+    return ProfessionalVideoTransitionSourceProbe(
+      role: role,
+      clipId: source.clipId,
+      assetId: source.assetId,
+      sourceUri: source.sourceUri ?? '',
+      uriScheme: 'file',
+      sourceUriBound: true,
+      requiresRealVideoSource: true,
+      probeImplemented: true,
+      canOpenSource: true,
+      hasVideoTrack: true,
+      allowSyntheticSource: false,
+      blockedReasons: const <String>[],
     );
   }
 

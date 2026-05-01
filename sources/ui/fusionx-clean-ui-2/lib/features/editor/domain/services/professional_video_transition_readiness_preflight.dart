@@ -7,6 +7,7 @@ enum ProfessionalVideoTransitionReadinessStageId {
   capabilityGate,
   renderSession,
   sourceBinding,
+  sourceMediaProbe,
   frameSamples,
   frameDecode,
   dualVideoDecoder,
@@ -94,6 +95,12 @@ class ProfessionalVideoTransitionReadinessPreflight {
       timelineTime: timelineTime,
     );
     stages.add(_sourceBindingStage(sourceBinding));
+
+    final sourceProbe = await _client.planVideoSourceProbe(
+      plan: plan,
+      timelineTime: timelineTime,
+    );
+    stages.add(_sourceProbeStage(sourceProbe));
 
     final frameSamples = await _client.planFrameSamples(
       plan: plan,
@@ -195,6 +202,24 @@ class ProfessionalVideoTransitionReadinessPreflight {
         blockedReasons: result.blockedReasons,
         issues: result.issues,
         includeReason: !result.canBind,
+      ),
+      issues: result.issues,
+    );
+  }
+
+  static ProfessionalVideoTransitionReadinessStage _sourceProbeStage(
+    ProfessionalVideoTransitionSourceProbePlanResult result,
+  ) {
+    return ProfessionalVideoTransitionReadinessStage(
+      id: ProfessionalVideoTransitionReadinessStageId.sourceMediaProbe,
+      label: 'Real video source probe',
+      canPlan: result.canPlan,
+      canAdvance: result.canProbe,
+      blockers: _blockers(
+        reason: result.reason,
+        blockedReasons: result.blockedReasons,
+        issues: result.issues,
+        includeReason: !result.canProbe,
       ),
       issues: result.issues,
     );

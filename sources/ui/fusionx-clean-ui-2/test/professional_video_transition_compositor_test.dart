@@ -717,6 +717,121 @@ void main() {
     expect(result.blockedReasons, isEmpty);
   });
 
+  test('method channel source probe blocks decoder readiness until real probe',
+      () async {
+    const channel = MethodChannel(
+        'com.refusion.app/professional_video_transition_compositor');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(channel, null);
+    });
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'planVideoSourceProbe');
+      final arguments = call.arguments! as Map<Object?, Object?>;
+      expect(arguments['definitionId'], 'zoomInCamera');
+      expect(arguments['timelineTimeMs'], 10000);
+      return <String, Object?>{
+        'status': 'planned',
+        'reason': '',
+        'rendererVersion': 'foundation',
+        'definitionId': 'zoomInCamera',
+        'renderSessionId': 'transition-session:zoom-native-1',
+        'timelineTimeMs': 10000,
+        'transitionStartMs': 8000,
+        'transitionEndMs': 12000,
+        'requiresRealVideoSource': true,
+        'probeImplemented': false,
+        'allSourcesProbeable': false,
+        'allowSyntheticSource': false,
+        'probes': <Map<String, Object?>>[
+          <String, Object?>{
+            'role': 'outgoing',
+            'clipId': 'clip-a',
+            'assetId': 'asset-a',
+            'sourceUri': 'file:///tmp/outgoing.mp4',
+            'uriScheme': 'file',
+            'sourceUriBound': true,
+            'requiresRealVideoSource': true,
+            'probeImplemented': false,
+            'canOpenSource': false,
+            'hasVideoTrack': false,
+            'allowSyntheticSource': false,
+            'blockedReasons': <String>['native_video_source_probe_missing'],
+          },
+          <String, Object?>{
+            'role': 'incoming',
+            'clipId': 'clip-b',
+            'assetId': 'asset-b',
+            'sourceUri': 'content://media/incoming.mp4',
+            'uriScheme': 'content',
+            'sourceUriBound': true,
+            'requiresRealVideoSource': true,
+            'probeImplemented': false,
+            'canOpenSource': false,
+            'hasVideoTrack': false,
+            'allowSyntheticSource': false,
+            'blockedReasons': <String>['native_video_source_probe_missing'],
+          },
+        ],
+        'blockedReasons': <String>['native_video_source_probe_missing'],
+      };
+    });
+
+    final result =
+        await const MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider(
+      channel: channel,
+    ).planVideoSourceProbe(
+      timelineTime: TimelineTime.fromMilliseconds(10000),
+      plan: ProfessionalZoomCameraRenderPlan(
+        canvasWidth: 1080,
+        canvasHeight: 1920,
+        request: ProfessionalZoomCameraPlanRequest(
+          transitionId: 'zoom-native-1',
+          timelineTime: TimelineTime.fromMilliseconds(10000),
+          boundaryTime: TimelineTime.fromMilliseconds(10000),
+          leadingDuration: TimelineTime.fromMilliseconds(2000),
+          trailingDuration: TimelineTime.fromMilliseconds(2000),
+          outgoing: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-a',
+            assetId: 'asset-a',
+            sourceUri: 'file:///tmp/outgoing.mp4',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(28000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+          incoming: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-b',
+            assetId: 'asset-b',
+            sourceUri: 'content://media/incoming.mp4',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(38000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+        ),
+      ).toGenericRenderPlan(),
+    );
+
+    expect(result.canPlan, isTrue);
+    expect(result.canProbe, isFalse);
+    expect(result.requiresRealVideoSource, isTrue);
+    expect(result.probeImplemented, isFalse);
+    expect(result.allowSyntheticSource, isFalse);
+    expect(result.probes.map((probe) => probe.uriScheme), <String>[
+      'file',
+      'content',
+    ]);
+    expect(result.blockedReasons, <String>[
+      'native_video_source_probe_missing',
+    ]);
+  });
+
   test('frame sample planning mapper preserves invalid native issues', () {
     final result =
         ProfessionalVideoTransitionFrameSamplePlanResultMapper.fromMap(

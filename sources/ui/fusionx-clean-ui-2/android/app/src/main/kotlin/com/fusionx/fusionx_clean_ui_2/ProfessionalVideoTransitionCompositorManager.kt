@@ -178,6 +178,42 @@ class ProfessionalVideoTransitionCompositorManager {
         )
     }
 
+    fun planVideoSourceProbe(
+        plan: Map<String, Any?>?,
+        timelineTimeMs: Long?,
+    ): Map<String, Any> {
+        val missingFields = requiredRenderPlanFields.filter { field ->
+            !hasRequiredField(plan, field)
+        }
+        if (missingFields.isNotEmpty()) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_required_video_transition_render_plan_fields",
+                "rendererVersion" to "foundation",
+                "missingFields" to missingFields,
+            )
+        }
+        if (timelineTimeMs == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_timeline_time_for_video_transition_source_probe",
+                "rendererVersion" to "foundation",
+            )
+        }
+        val definitionId = plan?.get("definitionId")?.toString() ?: ""
+        val sessionResult = ProfessionalVideoTransitionRenderSession.fromPlan(plan)
+        if (sessionResult.session == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "invalid_video_transition_render_session",
+                "rendererVersion" to "foundation",
+                "definitionId" to definitionId,
+                "issues" to sessionResult.issues,
+            )
+        }
+        return sessionResult.session.planVideoSourceProbe(timelineTimeMs)
+    }
+
     fun planDualVideoDecoderSession(
         plan: Map<String, Any?>?,
         timelineTimeMs: Long?,
@@ -517,6 +553,65 @@ private data class ProfessionalVideoTransitionRenderSession(
             "bindings" to bindings,
             "blockedReasons" to blockedReasons,
         )
+    }
+
+    fun planVideoSourceProbe(timelineTimeMs: Long): Map<String, Any> {
+        val bindingPlan = planVideoSourceBindings(timelineTimeMs)
+        if (bindingPlan["status"] != "planned") {
+            return bindingPlan
+        }
+        val bindings =
+            (bindingPlan["bindings"] as? List<*>)?.mapNotNull { binding ->
+                binding as? Map<*, *>
+            } ?: emptyList()
+        val probeImplemented = false
+        val probes =
+            bindings.map { binding ->
+                val sourceUri = binding["sourceUri"]?.toString() ?: ""
+                val sourceUriBound = binding["sourceUriBound"] == true
+                val uriScheme = sourceUri.substringBefore(":", missingDelimiterValue = "")
+                val supportedScheme = uriScheme == "file" || uriScheme == "content"
+                val blockedReasons =
+                    buildList {
+                        if (!sourceUriBound) {
+                            add("native_video_source_uri_missing")
+                        }
+                        if (sourceUriBound && !supportedScheme) {
+                            add("native_video_source_uri_scheme_unsupported")
+                        }
+                        if (!probeImplemented) {
+                            add("native_video_source_probe_missing")
+                        }
+                    }
+                mapOf(
+                    "role" to (binding["role"]?.toString() ?: ""),
+                    "clipId" to (binding["clipId"]?.toString() ?: ""),
+                    "assetId" to (binding["assetId"]?.toString() ?: ""),
+                    "sourceUri" to sourceUri,
+                    "uriScheme" to uriScheme,
+                    "sourceUriBound" to sourceUriBound,
+                    "requiresRealVideoSource" to true,
+                    "probeImplemented" to probeImplemented,
+                    "canOpenSource" to false,
+                    "hasVideoTrack" to false,
+                    "allowSyntheticSource" to false,
+                    "blockedReasons" to blockedReasons,
+                )
+            }
+        val blockedReasons =
+            probes.flatMap { probe ->
+                (probe["blockedReasons"] as? List<*>)?.map { reason -> reason.toString() }
+                    ?: emptyList()
+            }.distinct()
+        return bindingPlan +
+            mapOf(
+                "requiresRealVideoSource" to true,
+                "probeImplemented" to probeImplemented,
+                "allSourcesProbeable" to false,
+                "allowSyntheticSource" to false,
+                "probes" to probes,
+                "blockedReasons" to blockedReasons,
+            )
     }
 
     fun planFrameSamples(

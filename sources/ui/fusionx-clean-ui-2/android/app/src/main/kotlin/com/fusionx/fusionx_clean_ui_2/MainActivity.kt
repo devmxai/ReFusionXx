@@ -485,6 +485,17 @@ class MainActivity: FlutterActivity() {
                         ),
                     )
                 }
+                "planVideoSourceProbe" -> {
+                    val request =
+                        (call.arguments as? Map<*, *>)?.mapKeys { (key, _) -> key.toString() }
+                    val timelineTimeMs = (request?.get("timelineTimeMs") as? Number)?.toLong()
+                    result.success(
+                        professionalVideoTransitionCompositorManager.planVideoSourceProbe(
+                            plan = request,
+                            timelineTimeMs = timelineTimeMs,
+                        ),
+                    )
+                }
                 "planFrameDecodeRequests" -> {
                     val request =
                         (call.arguments as? Map<*, *>)?.mapKeys { (key, _) -> key.toString() }

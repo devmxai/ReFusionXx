@@ -773,6 +773,14 @@ Current gate:
   Locked UI should name the exact blocked stages so users and agents understand
   why a preset is unavailable without mistaking a partial planning endpoint for
   a renderable transition.
+- Flutter and Android now also share `planVideoSourceProbe`. This stage comes
+  after concrete source URI binding and before exact frame decode. It must prove
+  that both source URIs are real, openable video sources with video tracks
+  before a decoder session can be considered professionally ready. Synthetic
+  sources, asset-id-only decode, generated proxies, thumbnail fallback, and
+  boundary-frame freezing remain forbidden. The current Android foundation
+  returns `probeImplemented=false`, so the preflight reports
+  `sourceMediaProbe` as a blocker until a real native video source probe lands.
 - Flutter and Android now share `planFrameSamples` as the next compositor
   foundation. A valid render plan is parsed into the same strict native render
   session, then a requested transition timeline frame is converted into:

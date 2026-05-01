@@ -114,6 +114,12 @@ abstract class ProfessionalVideoTransitionCompositorClient
     required TimelineTime timelineTime,
   });
 
+  Future<ProfessionalVideoTransitionSourceProbePlanResult>
+      planVideoSourceProbe({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  });
+
   Future<ProfessionalVideoTransitionFrameSamplePlanResult> planFrameSamples({
     required ProfessionalVideoTransitionRenderPlan plan,
     required TimelineTime timelineTime,
@@ -237,6 +243,33 @@ class MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider
       );
     } on PlatformException catch (error) {
       return ProfessionalVideoTransitionSourceBindingPlanResult.invalidRequest(
+        reason: error.message ?? error.code,
+      );
+    }
+  }
+
+  @override
+  Future<ProfessionalVideoTransitionSourceProbePlanResult>
+      planVideoSourceProbe({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  }) async {
+    try {
+      final payload = plan.toPlatformMap();
+      payload['timelineTimeMs'] = timelineTime.inMilliseconds;
+      final rawResult = await _channel.invokeMapMethod<String, Object?>(
+        'planVideoSourceProbe',
+        payload,
+      );
+      return ProfessionalVideoTransitionSourceProbePlanResultMapper.fromMap(
+        rawResult,
+      );
+    } on MissingPluginException {
+      return ProfessionalVideoTransitionSourceProbePlanResult.invalidRequest(
+        reason: 'native_compositor_channel_missing',
+      );
+    } on PlatformException catch (error) {
+      return ProfessionalVideoTransitionSourceProbePlanResult.invalidRequest(
         reason: error.message ?? error.code,
       );
     }
@@ -649,6 +682,230 @@ class ProfessionalVideoTransitionSourceBindingPlanResultMapper {
           allowAssetIdOnlyDecode: _readBool(binding['allowAssetIdOnlyDecode']),
           allowGeneratedProxyDecode:
               _readBool(binding['allowGeneratedProxyDecode']),
+        );
+      }),
+    );
+  }
+
+  static TimelineTime? _readTimelineTime(Object? value) {
+    if (value is num) {
+      return TimelineTime.fromMilliseconds(value.round());
+    }
+    final parsed = int.tryParse(value?.toString() ?? '');
+    if (parsed == null) {
+      return null;
+    }
+    return TimelineTime.fromMilliseconds(parsed);
+  }
+
+  static bool _readBool(Object? value, {bool defaultValue = false}) {
+    if (value is bool) {
+      return value;
+    }
+    return defaultValue;
+  }
+
+  static List<String> _readStringList(Object? value) {
+    if (value is! List) {
+      return const <String>[];
+    }
+    return List<String>.unmodifiable(value.map((entry) => entry.toString()));
+  }
+
+  static List<Map<String, Object?>> _readIssues(Object? value) {
+    if (value is! List) {
+      return const <Map<String, Object?>>[];
+    }
+    return List<Map<String, Object?>>.unmodifiable(
+      value.whereType<Map>().map((issue) {
+        return <String, Object?>{
+          for (final entry in issue.entries) entry.key.toString(): entry.value,
+        };
+      }),
+    );
+  }
+}
+
+enum ProfessionalVideoTransitionSourceProbePlanStatus {
+  planned,
+  invalidRequest,
+}
+
+@immutable
+class ProfessionalVideoTransitionSourceProbe {
+  const ProfessionalVideoTransitionSourceProbe({
+    required this.role,
+    required this.clipId,
+    required this.assetId,
+    required this.sourceUri,
+    required this.uriScheme,
+    required this.sourceUriBound,
+    required this.requiresRealVideoSource,
+    required this.probeImplemented,
+    required this.canOpenSource,
+    required this.hasVideoTrack,
+    required this.allowSyntheticSource,
+    required this.blockedReasons,
+  });
+
+  final String role;
+  final String clipId;
+  final String assetId;
+  final String sourceUri;
+  final String uriScheme;
+  final bool sourceUriBound;
+  final bool requiresRealVideoSource;
+  final bool probeImplemented;
+  final bool canOpenSource;
+  final bool hasVideoTrack;
+  final bool allowSyntheticSource;
+  final List<String> blockedReasons;
+
+  bool get canProbe =>
+      sourceUriBound &&
+      requiresRealVideoSource &&
+      probeImplemented &&
+      canOpenSource &&
+      hasVideoTrack &&
+      !allowSyntheticSource &&
+      blockedReasons.isEmpty;
+}
+
+@immutable
+class ProfessionalVideoTransitionSourceProbePlanResult {
+  const ProfessionalVideoTransitionSourceProbePlanResult({
+    required this.status,
+    required this.reason,
+    required this.rendererVersion,
+    required this.definitionId,
+    required this.renderSessionId,
+    required this.timelineTime,
+    required this.transitionStartTime,
+    required this.transitionEndTime,
+    required this.requiresRealVideoSource,
+    required this.probeImplemented,
+    required this.allSourcesProbeable,
+    required this.allowSyntheticSource,
+    required this.probes,
+    required this.blockedReasons,
+    this.issues = const <Map<String, Object?>>[],
+  });
+
+  factory ProfessionalVideoTransitionSourceProbePlanResult.invalidRequest({
+    required String reason,
+    String rendererVersion = 'unknown',
+    List<Map<String, Object?>> issues = const <Map<String, Object?>>[],
+  }) {
+    return ProfessionalVideoTransitionSourceProbePlanResult(
+      status: ProfessionalVideoTransitionSourceProbePlanStatus.invalidRequest,
+      reason: reason,
+      rendererVersion: rendererVersion,
+      definitionId: '',
+      renderSessionId: '',
+      timelineTime: null,
+      transitionStartTime: null,
+      transitionEndTime: null,
+      requiresRealVideoSource: true,
+      probeImplemented: false,
+      allSourcesProbeable: false,
+      allowSyntheticSource: false,
+      probes: const <ProfessionalVideoTransitionSourceProbe>[],
+      blockedReasons: const <String>[],
+      issues: issues,
+    );
+  }
+
+  final ProfessionalVideoTransitionSourceProbePlanStatus status;
+  final String reason;
+  final String rendererVersion;
+  final String definitionId;
+  final String renderSessionId;
+  final TimelineTime? timelineTime;
+  final TimelineTime? transitionStartTime;
+  final TimelineTime? transitionEndTime;
+  final bool requiresRealVideoSource;
+  final bool probeImplemented;
+  final bool allSourcesProbeable;
+  final bool allowSyntheticSource;
+  final List<ProfessionalVideoTransitionSourceProbe> probes;
+  final List<String> blockedReasons;
+  final List<Map<String, Object?>> issues;
+
+  bool get canPlan =>
+      status == ProfessionalVideoTransitionSourceProbePlanStatus.planned;
+
+  bool get canProbe =>
+      canPlan &&
+      requiresRealVideoSource &&
+      probeImplemented &&
+      allSourcesProbeable &&
+      !allowSyntheticSource &&
+      probes.length == 2 &&
+      probes.every((probe) => probe.canProbe) &&
+      blockedReasons.isEmpty;
+}
+
+class ProfessionalVideoTransitionSourceProbePlanResultMapper {
+  const ProfessionalVideoTransitionSourceProbePlanResultMapper._();
+
+  static ProfessionalVideoTransitionSourceProbePlanResult fromMap(
+    Map<String, Object?>? map,
+  ) {
+    if (map == null) {
+      return ProfessionalVideoTransitionSourceProbePlanResult.invalidRequest(
+        reason: 'native_compositor_empty_source_probe_response',
+      );
+    }
+    final status = switch (map['status']?.toString()) {
+      'planned' => ProfessionalVideoTransitionSourceProbePlanStatus.planned,
+      _ => ProfessionalVideoTransitionSourceProbePlanStatus.invalidRequest,
+    };
+    return ProfessionalVideoTransitionSourceProbePlanResult(
+      status: status,
+      reason: map['reason']?.toString() ?? '',
+      rendererVersion: map['rendererVersion']?.toString() ?? 'unknown',
+      definitionId: map['definitionId']?.toString() ?? '',
+      renderSessionId: map['renderSessionId']?.toString() ?? '',
+      timelineTime: _readTimelineTime(map['timelineTimeMs']),
+      transitionStartTime: _readTimelineTime(map['transitionStartMs']),
+      transitionEndTime: _readTimelineTime(map['transitionEndMs']),
+      requiresRealVideoSource: _readBool(
+        map['requiresRealVideoSource'],
+        defaultValue: true,
+      ),
+      probeImplemented: _readBool(map['probeImplemented']),
+      allSourcesProbeable: _readBool(map['allSourcesProbeable']),
+      allowSyntheticSource: _readBool(map['allowSyntheticSource']),
+      probes: _readProbes(map['probes']),
+      blockedReasons: _readStringList(map['blockedReasons']),
+      issues: _readIssues(map['issues']),
+    );
+  }
+
+  static List<ProfessionalVideoTransitionSourceProbe> _readProbes(
+    Object? value,
+  ) {
+    if (value is! List) {
+      return const <ProfessionalVideoTransitionSourceProbe>[];
+    }
+    return List<ProfessionalVideoTransitionSourceProbe>.unmodifiable(
+      value.whereType<Map>().map((probe) {
+        return ProfessionalVideoTransitionSourceProbe(
+          role: probe['role']?.toString() ?? '',
+          clipId: probe['clipId']?.toString() ?? '',
+          assetId: probe['assetId']?.toString() ?? '',
+          sourceUri: probe['sourceUri']?.toString() ?? '',
+          uriScheme: probe['uriScheme']?.toString() ?? '',
+          sourceUriBound: _readBool(probe['sourceUriBound']),
+          requiresRealVideoSource: _readBool(
+            probe['requiresRealVideoSource'],
+            defaultValue: true,
+          ),
+          probeImplemented: _readBool(probe['probeImplemented']),
+          canOpenSource: _readBool(probe['canOpenSource']),
+          hasVideoTrack: _readBool(probe['hasVideoTrack']),
+          allowSyntheticSource: _readBool(probe['allowSyntheticSource']),
+          blockedReasons: _readStringList(probe['blockedReasons']),
         );
       }),
     );
