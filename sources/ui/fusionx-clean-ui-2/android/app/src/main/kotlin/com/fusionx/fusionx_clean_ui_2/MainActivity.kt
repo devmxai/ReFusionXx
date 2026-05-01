@@ -485,6 +485,17 @@ class MainActivity: FlutterActivity() {
                         ),
                     )
                 }
+                "planRenderPassGraph" -> {
+                    val request =
+                        (call.arguments as? Map<*, *>)?.mapKeys { (key, _) -> key.toString() }
+                    val timelineTimeMs = (request?.get("timelineTimeMs") as? Number)?.toLong()
+                    result.success(
+                        professionalVideoTransitionCompositorManager.planRenderPassGraph(
+                            plan = request,
+                            timelineTimeMs = timelineTimeMs,
+                        ),
+                    )
+                }
                 "prepareZoomInCameraRenderPlan" -> {
                     val plan =
                         (call.arguments as? Map<*, *>)?.mapKeys { (key, _) -> key.toString() }

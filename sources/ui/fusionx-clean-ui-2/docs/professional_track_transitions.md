@@ -759,6 +759,13 @@ Current gate:
   The request contract forbids thumbnail fallback and boundary-frame freeze, so
   a future decoder cannot silently turn a live transition into a still-image
   effect.
+- Flutter and Android now also share `planRenderPassGraph`. This is not a
+  renderer; it is the renderer-agnostic execution graph every concrete native
+  transition must satisfy: exact decode, temporal accumulation, optional
+  mirror-edge tile, transition shader evaluation, and composition to the output
+  transition surface. Current responses deliberately keep
+  `rendererImplemented=false`, so this foundation cannot unlock presets or
+  playback until a real compositor attaches to the graph.
 
 ## 9. Stop Conditions
 

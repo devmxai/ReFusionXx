@@ -142,6 +142,47 @@ class ProfessionalVideoTransitionCompositorManager {
         )
     }
 
+    fun planRenderPassGraph(
+        plan: Map<String, Any?>?,
+        timelineTimeMs: Long?,
+    ): Map<String, Any> {
+        val missingFields = requiredRenderPlanFields.filter { field ->
+            !hasRequiredField(plan, field)
+        }
+        if (missingFields.isNotEmpty()) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_required_video_transition_render_plan_fields",
+                "rendererVersion" to "foundation",
+                "missingFields" to missingFields,
+            )
+        }
+        if (timelineTimeMs == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_timeline_time_for_video_transition_pass_graph",
+                "rendererVersion" to "foundation",
+            )
+        }
+        val definitionId = plan?.get("definitionId")?.toString() ?: ""
+        val sessionResult = ProfessionalVideoTransitionRenderSession.fromPlan(plan)
+        if (sessionResult.session == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "invalid_video_transition_render_session",
+                "rendererVersion" to "foundation",
+                "definitionId" to definitionId,
+                "issues" to sessionResult.issues,
+            )
+        }
+        return sessionResult.session.planRenderPassGraph(
+            timelineTimeMs = timelineTimeMs,
+            motionBlurPolicy = plan?.get("motionBlurPolicy") as? Map<*, *>,
+            edgePolicy = plan?.get("edgePolicy") as? Map<*, *>,
+            parameters = plan?.get("parameters") as? Map<*, *>,
+        )
+    }
+
     private fun hasRequiredField(plan: Map<String, Any?>?, field: String): Boolean {
         if (plan == null) {
             return false
@@ -322,6 +363,155 @@ private data class ProfessionalVideoTransitionRenderSession(
                 "decodeRequests" to decodeRequests,
             )
     }
+
+    fun planRenderPassGraph(
+        timelineTimeMs: Long,
+        motionBlurPolicy: Map<*, *>?,
+        edgePolicy: Map<*, *>?,
+        parameters: Map<*, *>?,
+    ): Map<String, Any> {
+        val decodePlan =
+            planFrameDecodeRequests(
+                timelineTimeMs = timelineTimeMs,
+                motionBlurPolicy = motionBlurPolicy,
+            )
+        if (decodePlan["status"] != "planned") {
+            return decodePlan
+        }
+        val decodeRequests =
+            (decodePlan["decodeRequests"] as? List<*>)?.mapNotNull { request ->
+                request as? Map<*, *>
+            } ?: emptyList()
+        val outgoingDecodeIds = decodeRequests.idsForRole("outgoing")
+        val incomingDecodeIds = decodeRequests.idsForRole("incoming")
+        val allDecodeIds = outgoingDecodeIds + incomingDecodeIds
+        val edgeMode = edgePolicy?.get("mode")?.toString() ?: "none"
+        val requiresMirrorEdgeTiling = edgeMode == "mirrorTile"
+        val shutterSampleCount =
+            (decodePlan["shutterSampleCount"] as? Number)?.toInt()?.coerceAtLeast(1) ?: 1
+        val requiresTemporalAccumulation =
+            decodePlan["motionBlurMode"] == "temporalShutter" && shutterSampleCount > 1
+        val outgoingTemporalPass = "$id:pass:temporal:outgoing:$timelineTimeMs"
+        val incomingTemporalPass = "$id:pass:temporal:incoming:$timelineTimeMs"
+        val edgePass = "$id:pass:edge:$timelineTimeMs"
+        val transitionPass = "$id:pass:transition:$definitionId:$timelineTimeMs"
+        val outputPass = "$id:pass:output:$timelineTimeMs"
+        val passes = mutableListOf<Map<String, Any>>()
+        passes.add(
+            renderPass(
+                passId = "$id:pass:decode:$timelineTimeMs",
+                type = "decodeExactVideoFrames",
+                role = "both",
+                inputs = allDecodeIds,
+                parameters =
+                    mapOf(
+                        "decodeRequestCount" to decodeRequests.size,
+                        "decodeMode" to "exactVideoFrame",
+                        "allowThumbnailFallback" to false,
+                        "allowBoundaryFreeze" to false,
+                    ),
+            ),
+        )
+        passes.add(
+            renderPass(
+                passId = outgoingTemporalPass,
+                type = "temporalSampleAccumulator",
+                role = "outgoing",
+                inputs = outgoingDecodeIds,
+                parameters =
+                    mapOf(
+                        "sampleCount" to outgoingDecodeIds.size,
+                        "motionBlurMode" to (decodePlan["motionBlurMode"] ?: "none"),
+                    ),
+            ),
+        )
+        passes.add(
+            renderPass(
+                passId = incomingTemporalPass,
+                type = "temporalSampleAccumulator",
+                role = "incoming",
+                inputs = incomingDecodeIds,
+                parameters =
+                    mapOf(
+                        "sampleCount" to incomingDecodeIds.size,
+                        "motionBlurMode" to (decodePlan["motionBlurMode"] ?: "none"),
+                    ),
+            ),
+        )
+        if (requiresMirrorEdgeTiling) {
+            passes.add(
+                renderPass(
+                    passId = edgePass,
+                    type = "mirrorEdgeTile",
+                    role = "both",
+                    inputs = listOf(outgoingTemporalPass, incomingTemporalPass),
+                    parameters =
+                        mapOf(
+                            "mode" to edgeMode,
+                            "outputScaleX" to (edgePolicy?.get("outputScaleX") ?: 1.0),
+                            "outputScaleY" to (edgePolicy?.get("outputScaleY") ?: 1.0),
+                        ),
+                ),
+            )
+        }
+        passes.add(
+            renderPass(
+                passId = transitionPass,
+                type = "transitionShaderEvaluation",
+                role = "both",
+                inputs =
+                    if (requiresMirrorEdgeTiling) {
+                        listOf(edgePass)
+                    } else {
+                        listOf(outgoingTemporalPass, incomingTemporalPass)
+                    },
+                parameters =
+                    mapOf(
+                        "definitionId" to definitionId,
+                        "progress" to (decodePlan["progress"] ?: 0.0),
+                        "parameters" to (parameters?.stringKeyMap() ?: emptyMap<String, Any?>()),
+                    ),
+            ),
+        )
+        passes.add(
+            renderPass(
+                passId = outputPass,
+                type = "composeToTransitionSurface",
+                role = "output",
+                inputs = listOf(transitionPass),
+                parameters =
+                    mapOf(
+                        "canvasWidth" to canvasWidth,
+                        "canvasHeight" to canvasHeight,
+                    ),
+            ),
+        )
+        return decodePlan +
+            mapOf(
+                "renderPassGraphId" to "$id:graph:$timelineTimeMs",
+                "requiresExactVideoDecode" to true,
+                "requiresTemporalAccumulation" to requiresTemporalAccumulation,
+                "requiresMirrorEdgeTiling" to requiresMirrorEdgeTiling,
+                "requiresGpuComposition" to true,
+                "rendererImplemented" to false,
+                "passes" to passes,
+            )
+    }
+
+    private fun renderPass(
+        passId: String,
+        type: String,
+        role: String,
+        inputs: List<String>,
+        parameters: Map<String, Any?>,
+    ): Map<String, Any> =
+        mapOf(
+            "passId" to passId,
+            "type" to type,
+            "role" to role,
+            "inputs" to inputs,
+            "parameters" to parameters,
+        )
 
     private fun decodeRequestsForSource(
         role: String,
@@ -584,6 +774,18 @@ private fun Map<*, *>.intValue(
         is Number -> value.toInt()
         is String -> value.toIntOrNull() ?: defaultValue
         else -> defaultValue
+    }
+
+private fun Map<*, *>.stringKeyMap(): Map<String, Any?> =
+    mapKeys { entry -> entry.key.toString() }
+
+private fun List<Map<*, *>>.idsForRole(role: String): List<String> =
+    mapNotNull { request ->
+        if (request["role"] == role) {
+            request["decodeRequestId"]?.toString()
+        } else {
+            null
+        }
     }
 
 private fun issue(path: String, message: String): Map<String, Any> =
