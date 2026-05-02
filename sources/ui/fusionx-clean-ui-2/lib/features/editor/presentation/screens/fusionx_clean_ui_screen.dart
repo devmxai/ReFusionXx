@@ -15537,8 +15537,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _previewAssetId = previewContext.clip.assetId;
       _selectedClipId = draft.clipId;
       _activeTab = EditorMediaTab.speed;
-      _currentTime = previewStartTime;
     });
+    _setCurrentTime(previewStartTime);
     _setPlaybackSampleTime(previewStartTime);
     await _pausePlayback();
     await _syncVideoTimelineTransport(
@@ -15619,8 +15619,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _selectedClipId = updatedClip.id;
       _activeTab = EditorMediaTab.speed;
       _previewAssetId = nextPreviewAssetId;
-      _currentTime = nextCurrentTime;
     });
+    _setCurrentTime(nextCurrentTime);
     _setPlaybackSampleTime(nextCurrentTime);
     _setTimelineDisplayTime(nextCurrentTime);
     await _commitStructuralTimelineEdit(

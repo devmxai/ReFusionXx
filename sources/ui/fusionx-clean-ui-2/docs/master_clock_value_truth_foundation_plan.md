@@ -787,6 +787,9 @@ Implementation note (checkpoint `checkpoint: implement master clock value truth 
   paths (no ad-hoc clip-speed flow writes), and idle-time `_setCurrentTime`
   updates now synchronize paused master-clock time through the bridge before
   publishing derived timeline views.
+- clip-speed preview/apply flows now route timeline-time updates through
+  `_setCurrentTime` instead of direct `_currentTime` assignment, so bridge sync
+  and derived notifier publication remain consistent in all editor paths.
 
 ## 11. First Writer Task
 
