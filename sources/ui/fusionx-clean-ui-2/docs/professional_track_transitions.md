@@ -950,11 +950,17 @@ Current gate:
   `nativeTransitionCanvasSurface`.
 - Flutter and Android now also share `planTransitionPixelRenderer`. This is the
   explicit native pixel-renderer gate after shader evaluation. It binds shader
-  inputs into a pixel workload for the final native transition canvas surface,
-  but still blocks with `native_transition_pixel_renderer_missing` and
+  inputs into a pixel workload for the final native transition canvas surface.
+  This stage can advance once the workload is bound; it still does not claim
+  visual rendering.
+- Flutter and Android now also share `planTransitionPixelRenderExecution`. This
+  is the explicit execution/output gate for the future concrete pixel renderer.
+  It binds the pixel workload to the native output framebuffer and remains
+  blocked with `native_transition_pixel_renderer_missing`,
+  `native_transition_pixel_output_missing`, and
   `native_transition_renderer_pixels_missing` until a concrete renderer writes
-  real pixels. This prevents a shader-ready transition from being exposed as if
-  it were visually renderable.
+  real pixels. This prevents a shader-ready or workload-ready transition from
+  being exposed as visually renderable.
 - Flutter and Android now also share `planParityOutputs`. This is the parity
   contract that prevents "works in preview but not in scrub/playback" drift.
   Preview, Live Scrub, and playback must all point at the same native

@@ -2650,7 +2650,7 @@ void main() {
     expect(result.blockedReasons, isEmpty);
   });
 
-  test('method channel transition pixel renderer blocks until real pixels',
+  test('method channel transition pixel renderer binds pixel workload',
       () async {
     const channel = MethodChannel(
         'com.refusion.app/professional_video_transition_compositor');
@@ -2725,10 +2725,7 @@ void main() {
         'rendersRealPixels': false,
         'drawsPixels': false,
         'canRenderFrame': false,
-        'blockedReasons': <String>[
-          'native_transition_pixel_renderer_missing',
-          'native_transition_renderer_pixels_missing',
-        ],
+        'blockedReasons': <String>[],
       };
     });
 
@@ -2779,13 +2776,119 @@ void main() {
     expect(result.pixelRendererReady, isFalse);
     expect(result.canRenderPixels, isFalse);
     expect(result.canRenderFrame, isFalse);
+    expect(result.blockedReasons, isEmpty);
+  });
+
+  test('method channel transition pixel render execution blocks missing output',
+      () async {
+    const channel = MethodChannel(
+        'com.refusion.app/professional_video_transition_compositor');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(channel, null);
+    });
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'planTransitionPixelRenderExecution');
+      final arguments = call.arguments! as Map<Object?, Object?>;
+      expect(arguments['definitionId'], 'zoomInCamera');
+      expect(arguments['timelineTimeMs'], 10000);
+      return <String, Object?>{
+        'status': 'planned',
+        'reason': '',
+        'rendererVersion': 'foundation',
+        'definitionId': 'zoomInCamera',
+        'renderSessionId': 'transition-session:zoom-native-1',
+        'transitionPixelRendererId':
+            'transition-session:zoom-native-1:pixel-renderer:10000',
+        'transitionPixelRenderExecutionId':
+            'transition-session:zoom-native-1:pixel-render-execution:10000',
+        'pixelOutputFrameId':
+            'transition-session:zoom-native-1:pixel-output-frame:10000',
+        'pixelProgramId':
+            'transition-session:zoom-native-1:pixel-program:zoomInCamera',
+        'outputSurfaceId':
+            'transition-session:zoom-native-1:surface:transition-output:10000',
+        'outputTarget': 'nativeTransitionCanvasSurface',
+        'outputFramebufferTarget': 'nativeTransitionCanvasSurface',
+        'timelineTimeMs': 10000,
+        'transitionStartMs': 8000,
+        'transitionEndMs': 12000,
+        'canvasWidth': 1080,
+        'canvasHeight': 1920,
+        'pixelWorkloadBound': true,
+        'outputFramebufferBound': true,
+        'pixelRendererImplemented': false,
+        'pixelRendererReady': false,
+        'pixelRenderExecutionReady': false,
+        'pixelOutputWritten': false,
+        'pixelOutputReady': false,
+        'rendererImplemented': false,
+        'canRenderPixels': false,
+        'rendersRealPixels': false,
+        'drawsPixels': false,
+        'canRenderFrame': false,
+        'blockedReasons': <String>[
+          'native_transition_pixel_renderer_missing',
+          'native_transition_pixel_output_missing',
+          'native_transition_renderer_pixels_missing',
+        ],
+      };
+    });
+
+    final result =
+        await const MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider(
+      channel: channel,
+    ).planTransitionPixelRenderExecution(
+      timelineTime: TimelineTime.fromMilliseconds(10000),
+      plan: ProfessionalZoomCameraRenderPlan(
+        canvasWidth: 1080,
+        canvasHeight: 1920,
+        request: ProfessionalZoomCameraPlanRequest(
+          transitionId: 'zoom-native-1',
+          timelineTime: TimelineTime.fromMilliseconds(10000),
+          boundaryTime: TimelineTime.fromMilliseconds(10000),
+          leadingDuration: TimelineTime.fromMilliseconds(2000),
+          trailingDuration: TimelineTime.fromMilliseconds(2000),
+          outgoing: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-a',
+            assetId: 'asset-a',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(28000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+          incoming: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-b',
+            assetId: 'asset-b',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(38000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+        ),
+      ).toGenericRenderPlan(),
+    );
+
+    expect(result.canPlan, isTrue);
+    expect(result.pixelWorkloadBound, isTrue);
+    expect(result.outputFramebufferBound, isTrue);
+    expect(result.pixelRendererImplemented, isFalse);
+    expect(result.pixelOutputWritten, isFalse);
+    expect(result.pixelOutputReady, isFalse);
+    expect(result.canRenderPixels, isFalse);
+    expect(result.canRenderFrame, isFalse);
     expect(
       result.blockedReasons,
       contains('native_transition_pixel_renderer_missing'),
     );
     expect(
       result.blockedReasons,
-      contains('native_transition_renderer_pixels_missing'),
+      contains('native_transition_pixel_output_missing'),
     );
   });
 

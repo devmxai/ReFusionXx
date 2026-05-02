@@ -22,6 +22,7 @@ enum ProfessionalVideoTransitionReadinessStageId {
   rendererDrawLoop,
   transitionShaderEvaluation,
   transitionPixelRenderer,
+  transitionPixelRenderExecution,
   parityOutputs,
 }
 
@@ -193,6 +194,15 @@ class ProfessionalVideoTransitionReadinessPreflight {
       timelineTime: timelineTime,
     );
     stages.add(_transitionPixelRendererStage(transitionPixelRenderer));
+
+    final transitionPixelRenderExecution =
+        await _client.planTransitionPixelRenderExecution(
+      plan: plan,
+      timelineTime: timelineTime,
+    );
+    stages.add(
+      _transitionPixelRenderExecutionStage(transitionPixelRenderExecution),
+    );
 
     final parityOutputs = await _client.planParityOutputs(
       plan: plan,
@@ -561,6 +571,26 @@ class ProfessionalVideoTransitionReadinessPreflight {
     return ProfessionalVideoTransitionReadinessStage(
       id: ProfessionalVideoTransitionReadinessStageId.transitionPixelRenderer,
       label: 'Native transition pixel renderer',
+      canPlan: result.canPlan,
+      canAdvance: result.pixelWorkloadBound,
+      blockers: _blockers(
+        reason: result.reason,
+        blockedReasons: result.blockedReasons,
+        issues: result.issues,
+        includeReason: !result.pixelWorkloadBound,
+      ),
+      issues: result.issues,
+    );
+  }
+
+  static ProfessionalVideoTransitionReadinessStage
+      _transitionPixelRenderExecutionStage(
+    ProfessionalVideoTransitionPixelRenderExecutionPlanResult result,
+  ) {
+    return ProfessionalVideoTransitionReadinessStage(
+      id: ProfessionalVideoTransitionReadinessStageId
+          .transitionPixelRenderExecution,
+      label: 'Native transition pixel render execution',
       canPlan: result.canPlan,
       canAdvance: result.canRenderPixels,
       blockers: _blockers(

@@ -726,6 +726,48 @@ class ProfessionalVideoTransitionCompositorManager(
         )
     }
 
+    fun planTransitionPixelRenderExecution(
+        plan: Map<String, Any?>?,
+        timelineTimeMs: Long?,
+    ): Map<String, Any> {
+        val missingFields = requiredRenderPlanFields.filter { field ->
+            !hasRequiredField(plan, field)
+        }
+        if (missingFields.isNotEmpty()) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_required_video_transition_render_plan_fields",
+                "rendererVersion" to "foundation",
+                "missingFields" to missingFields,
+            )
+        }
+        if (timelineTimeMs == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_timeline_time_for_video_transition_pixel_render_execution",
+                "rendererVersion" to "foundation",
+            )
+        }
+        val definitionId = plan?.get("definitionId")?.toString() ?: ""
+        val sessionResult = ProfessionalVideoTransitionRenderSession.fromPlan(plan)
+        if (sessionResult.session == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "invalid_video_transition_render_session",
+                "rendererVersion" to "foundation",
+                "definitionId" to definitionId,
+                "issues" to sessionResult.issues,
+            )
+        }
+        return sessionResult.session.planTransitionPixelRenderExecution(
+            timelineTimeMs = timelineTimeMs,
+            motionBlurPolicy = plan?.get("motionBlurPolicy") as? Map<*, *>,
+            edgePolicy = plan?.get("edgePolicy") as? Map<*, *>,
+            parameters = plan?.get("parameters") as? Map<*, *>,
+            appContext = appContext,
+        )
+    }
+
     fun planParityOutputs(
         plan: Map<String, Any?>?,
         timelineTimeMs: Long?,
@@ -2660,8 +2702,6 @@ private data class ProfessionalVideoTransitionRenderSession(
             shaderReady &&
                 pixelInputs.isNotEmpty() &&
                 pixelInputs.all { input -> input["inputBound"] == true }
-        val pixelRendererImplemented = false
-        val rendererImplemented = false
         val upstreamBlockedReasons =
             (shaderPlan["blockedReasons"] as? List<*>)
                 ?.map { reason -> reason.toString() }
@@ -2675,12 +2715,6 @@ private data class ProfessionalVideoTransitionRenderSession(
                 if (pixelInputs.isEmpty()) {
                     add("native_transition_pixel_inputs_missing")
                 }
-                if (!pixelRendererImplemented) {
-                    add("native_transition_pixel_renderer_missing")
-                }
-                if (!rendererImplemented) {
-                    add("native_transition_renderer_pixels_missing")
-                }
             }.distinct()
         return shaderPlan +
             mapOf(
@@ -2689,8 +2723,83 @@ private data class ProfessionalVideoTransitionRenderSession(
                 "pixelWorkloadBound" to pixelWorkloadBound,
                 "pixelInputCount" to pixelInputs.size,
                 "pixelInputs" to pixelInputs,
+                "pixelRendererImplemented" to false,
+                "pixelRendererReady" to false,
+                "rendererImplemented" to false,
+                "canRenderPixels" to false,
+                "rendersRealPixels" to false,
+                "drawsPixels" to false,
+                "canRenderFrame" to false,
+                "blockedReasons" to blockedReasons,
+            )
+    }
+
+    fun planTransitionPixelRenderExecution(
+        timelineTimeMs: Long,
+        motionBlurPolicy: Map<*, *>?,
+        edgePolicy: Map<*, *>?,
+        parameters: Map<*, *>?,
+        appContext: Context,
+    ): Map<String, Any> {
+        val pixelPlan =
+            planTransitionPixelRenderer(
+                timelineTimeMs = timelineTimeMs,
+                motionBlurPolicy = motionBlurPolicy,
+                edgePolicy = edgePolicy,
+                parameters = parameters,
+                appContext = appContext,
+            )
+        if (pixelPlan["status"] != "planned") {
+            return pixelPlan
+        }
+        val pixelWorkloadBound = pixelPlan["pixelWorkloadBound"] == true
+        val pixelInputs =
+            (pixelPlan["pixelInputs"] as? List<*>)
+                ?.mapNotNull { input -> input as? Map<*, *> }
+                ?: emptyList()
+        val outputTarget = pixelPlan["outputTarget"]?.toString() ?: ""
+        val outputFramebufferBound =
+            pixelWorkloadBound &&
+                outputTarget == "nativeTransitionCanvasSurface" &&
+                pixelInputs.isNotEmpty()
+        val pixelRendererImplemented = false
+        val pixelOutputWritten = false
+        val rendererImplemented = false
+        val upstreamBlockedReasons =
+            (pixelPlan["blockedReasons"] as? List<*>)
+                ?.map { reason -> reason.toString() }
+                ?: emptyList()
+        val blockedReasons =
+            buildList {
+                addAll(upstreamBlockedReasons)
+                if (!pixelWorkloadBound) {
+                    add("native_transition_pixel_workload_not_ready")
+                }
+                if (!outputFramebufferBound) {
+                    add("native_transition_output_framebuffer_not_bound")
+                }
+                if (!pixelRendererImplemented) {
+                    add("native_transition_pixel_renderer_missing")
+                }
+                if (!pixelOutputWritten) {
+                    add("native_transition_pixel_output_missing")
+                }
+                if (!rendererImplemented) {
+                    add("native_transition_renderer_pixels_missing")
+                }
+            }.distinct()
+        return pixelPlan +
+            mapOf(
+                "transitionPixelRenderExecutionId" to "$id:pixel-render-execution:$timelineTimeMs",
+                "pixelOutputFrameId" to "$id:pixel-output-frame:$timelineTimeMs",
+                "outputFramebufferTarget" to "nativeTransitionCanvasSurface",
+                "pixelWorkloadBound" to pixelWorkloadBound,
+                "outputFramebufferBound" to outputFramebufferBound,
                 "pixelRendererImplemented" to pixelRendererImplemented,
                 "pixelRendererReady" to false,
+                "pixelRenderExecutionReady" to false,
+                "pixelOutputWritten" to pixelOutputWritten,
+                "pixelOutputReady" to false,
                 "rendererImplemented" to rendererImplemented,
                 "canRenderPixels" to false,
                 "rendersRealPixels" to false,

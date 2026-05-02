@@ -40,6 +40,8 @@ void main() {
         ProfessionalVideoTransitionReadinessStageId.rendererDrawLoop,
         ProfessionalVideoTransitionReadinessStageId.transitionShaderEvaluation,
         ProfessionalVideoTransitionReadinessStageId.transitionPixelRenderer,
+        ProfessionalVideoTransitionReadinessStageId
+            .transitionPixelRenderExecution,
         ProfessionalVideoTransitionReadinessStageId.parityOutputs,
       ],
     );
@@ -131,19 +133,33 @@ void main() {
           .stage(ProfessionalVideoTransitionReadinessStageId
               .transitionPixelRenderer)
           .canAdvance,
-      isFalse,
+      isTrue,
     );
     expect(
       report
           .stage(ProfessionalVideoTransitionReadinessStageId
               .transitionPixelRenderer)
           .blockers,
+      isEmpty,
+    );
+    expect(
+      report
+          .stage(ProfessionalVideoTransitionReadinessStageId
+              .transitionPixelRenderExecution)
+          .canAdvance,
+      isFalse,
+    );
+    expect(
+      report
+          .stage(ProfessionalVideoTransitionReadinessStageId
+              .transitionPixelRenderExecution)
+          .blockers,
       contains('native_transition_pixel_renderer_missing'),
     );
     expect(
       report
           .stage(ProfessionalVideoTransitionReadinessStageId
-              .transitionPixelRenderer)
+              .transitionPixelRenderExecution)
           .blockers,
       contains('native_transition_renderer_pixels_missing'),
     );
@@ -995,6 +1011,47 @@ class _FakeProfessionalVideoTransitionCompositorClient
       pixelRendererImplemented: _rendererReady,
       pixelRendererReady: _rendererReady,
       rendererImplemented: _rendererReady,
+      canRenderPixels: false,
+      rendersRealPixels: false,
+      drawsPixels: false,
+      canRenderFrame: false,
+      blockedReasons: const <String>[],
+    );
+  }
+
+  @override
+  Future<ProfessionalVideoTransitionPixelRenderExecutionPlanResult>
+      planTransitionPixelRenderExecution({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  }) async {
+    return ProfessionalVideoTransitionPixelRenderExecutionPlanResult(
+      status: ProfessionalVideoTransitionPixelRenderExecutionPlanStatus.planned,
+      reason: '',
+      rendererVersion: 'fake',
+      definitionId: plan.definitionId,
+      renderSessionId: 'transition-session:${plan.transitionId}',
+      transitionPixelRendererId: 'pixel-renderer:${plan.transitionId}',
+      transitionPixelRenderExecutionId:
+          'pixel-render-execution:${plan.transitionId}',
+      pixelOutputFrameId: 'pixel-output-frame:${plan.transitionId}',
+      pixelProgramId: 'pixel-program:${plan.definitionId}',
+      outputSurfaceId: 'surface:${plan.transitionId}',
+      outputTarget: 'nativeTransitionCanvasSurface',
+      outputFramebufferTarget: 'nativeTransitionCanvasSurface',
+      timelineTime: timelineTime,
+      transitionStartTime: plan.boundaryTime - plan.leadingDuration,
+      transitionEndTime: plan.boundaryTime + plan.trailingDuration,
+      canvasWidth: plan.canvasWidth,
+      canvasHeight: plan.canvasHeight,
+      pixelWorkloadBound: true,
+      outputFramebufferBound: true,
+      pixelRendererImplemented: _rendererReady,
+      pixelRendererReady: _rendererReady,
+      pixelRenderExecutionReady: _rendererReady,
+      pixelOutputWritten: _rendererReady,
+      pixelOutputReady: _rendererReady,
+      rendererImplemented: _rendererReady,
       canRenderPixels: _rendererReady,
       rendersRealPixels: _rendererReady,
       drawsPixels: _rendererReady,
@@ -1002,6 +1059,7 @@ class _FakeProfessionalVideoTransitionCompositorClient
       blockedReasons: _planningOnly
           ? const <String>[
               'native_transition_pixel_renderer_missing',
+              'native_transition_pixel_output_missing',
               'native_transition_renderer_pixels_missing',
             ]
           : const <String>[],

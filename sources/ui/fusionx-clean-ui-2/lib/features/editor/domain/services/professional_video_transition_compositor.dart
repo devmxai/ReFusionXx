@@ -206,6 +206,12 @@ abstract class ProfessionalVideoTransitionCompositorClient
     required TimelineTime timelineTime,
   });
 
+  Future<ProfessionalVideoTransitionPixelRenderExecutionPlanResult>
+      planTransitionPixelRenderExecution({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  });
+
   Future<ProfessionalVideoTransitionOutputSurfacePlanResult> planOutputSurface({
     required ProfessionalVideoTransitionRenderPlan plan,
     required TimelineTime timelineTime,
@@ -712,6 +718,36 @@ class MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider
       );
     } on PlatformException catch (error) {
       return ProfessionalVideoTransitionPixelRendererPlanResult.invalidRequest(
+        reason: error.message ?? error.code,
+      );
+    }
+  }
+
+  @override
+  Future<ProfessionalVideoTransitionPixelRenderExecutionPlanResult>
+      planTransitionPixelRenderExecution({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  }) async {
+    try {
+      final payload = plan.toPlatformMap();
+      payload['timelineTimeMs'] = timelineTime.inMilliseconds;
+      final rawResult = await _channel.invokeMapMethod<String, Object?>(
+        'planTransitionPixelRenderExecution',
+        payload,
+      );
+      return ProfessionalVideoTransitionPixelRenderExecutionPlanResultMapper
+          .fromMap(
+        rawResult,
+      );
+    } on MissingPluginException {
+      return ProfessionalVideoTransitionPixelRenderExecutionPlanResult
+          .invalidRequest(
+        reason: 'native_compositor_channel_missing',
+      );
+    } on PlatformException catch (error) {
+      return ProfessionalVideoTransitionPixelRenderExecutionPlanResult
+          .invalidRequest(
         reason: error.message ?? error.code,
       );
     }
@@ -4917,6 +4953,227 @@ class ProfessionalVideoTransitionPixelRendererPlanResultMapper {
           inputBound: _readBool(input['inputBound']),
         );
       }),
+    );
+  }
+
+  static TimelineTime? _readTimelineTime(Object? value) {
+    if (value is num) {
+      return TimelineTime.fromMilliseconds(value.round());
+    }
+    final parsed = int.tryParse(value?.toString() ?? '');
+    if (parsed == null) {
+      return null;
+    }
+    return TimelineTime.fromMilliseconds(parsed);
+  }
+
+  static int _readInt(Object? value) {
+    if (value is num) {
+      return value.round();
+    }
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static bool _readBool(Object? value, {bool defaultValue = false}) {
+    if (value is bool) {
+      return value;
+    }
+    return defaultValue;
+  }
+
+  static List<String> _readStringList(Object? value) {
+    if (value is! List) {
+      return const <String>[];
+    }
+    return List<String>.unmodifiable(value.map((entry) => entry.toString()));
+  }
+
+  static List<Map<String, Object?>> _readIssues(Object? value) {
+    if (value is! List) {
+      return const <Map<String, Object?>>[];
+    }
+    return List<Map<String, Object?>>.unmodifiable(
+      value.whereType<Map>().map((issue) {
+        return <String, Object?>{
+          for (final entry in issue.entries) entry.key.toString(): entry.value,
+        };
+      }),
+    );
+  }
+}
+
+enum ProfessionalVideoTransitionPixelRenderExecutionPlanStatus {
+  planned,
+  invalidRequest,
+}
+
+@immutable
+class ProfessionalVideoTransitionPixelRenderExecutionPlanResult {
+  const ProfessionalVideoTransitionPixelRenderExecutionPlanResult({
+    required this.status,
+    required this.reason,
+    required this.rendererVersion,
+    required this.definitionId,
+    required this.renderSessionId,
+    required this.transitionPixelRendererId,
+    required this.transitionPixelRenderExecutionId,
+    required this.pixelOutputFrameId,
+    required this.pixelProgramId,
+    required this.outputSurfaceId,
+    required this.outputTarget,
+    required this.outputFramebufferTarget,
+    required this.timelineTime,
+    required this.transitionStartTime,
+    required this.transitionEndTime,
+    required this.canvasWidth,
+    required this.canvasHeight,
+    required this.pixelWorkloadBound,
+    required this.outputFramebufferBound,
+    required this.pixelRendererImplemented,
+    required this.pixelRendererReady,
+    required this.pixelRenderExecutionReady,
+    required this.pixelOutputWritten,
+    required this.pixelOutputReady,
+    required this.rendererImplemented,
+    required this.canRenderPixels,
+    required this.rendersRealPixels,
+    required this.drawsPixels,
+    required this.canRenderFrame,
+    required this.blockedReasons,
+    this.issues = const <Map<String, Object?>>[],
+  });
+
+  factory ProfessionalVideoTransitionPixelRenderExecutionPlanResult.invalidRequest({
+    required String reason,
+    String rendererVersion = 'unknown',
+    List<Map<String, Object?>> issues = const <Map<String, Object?>>[],
+  }) {
+    return ProfessionalVideoTransitionPixelRenderExecutionPlanResult(
+      status: ProfessionalVideoTransitionPixelRenderExecutionPlanStatus
+          .invalidRequest,
+      reason: reason,
+      rendererVersion: rendererVersion,
+      definitionId: '',
+      renderSessionId: '',
+      transitionPixelRendererId: '',
+      transitionPixelRenderExecutionId: '',
+      pixelOutputFrameId: '',
+      pixelProgramId: '',
+      outputSurfaceId: '',
+      outputTarget: '',
+      outputFramebufferTarget: '',
+      timelineTime: null,
+      transitionStartTime: null,
+      transitionEndTime: null,
+      canvasWidth: 0,
+      canvasHeight: 0,
+      pixelWorkloadBound: false,
+      outputFramebufferBound: false,
+      pixelRendererImplemented: false,
+      pixelRendererReady: false,
+      pixelRenderExecutionReady: false,
+      pixelOutputWritten: false,
+      pixelOutputReady: false,
+      rendererImplemented: false,
+      canRenderPixels: false,
+      rendersRealPixels: false,
+      drawsPixels: false,
+      canRenderFrame: false,
+      blockedReasons: const <String>[],
+      issues: issues,
+    );
+  }
+
+  final ProfessionalVideoTransitionPixelRenderExecutionPlanStatus status;
+  final String reason;
+  final String rendererVersion;
+  final String definitionId;
+  final String renderSessionId;
+  final String transitionPixelRendererId;
+  final String transitionPixelRenderExecutionId;
+  final String pixelOutputFrameId;
+  final String pixelProgramId;
+  final String outputSurfaceId;
+  final String outputTarget;
+  final String outputFramebufferTarget;
+  final TimelineTime? timelineTime;
+  final TimelineTime? transitionStartTime;
+  final TimelineTime? transitionEndTime;
+  final int canvasWidth;
+  final int canvasHeight;
+  final bool pixelWorkloadBound;
+  final bool outputFramebufferBound;
+  final bool pixelRendererImplemented;
+  final bool pixelRendererReady;
+  final bool pixelRenderExecutionReady;
+  final bool pixelOutputWritten;
+  final bool pixelOutputReady;
+  final bool rendererImplemented;
+  final bool canRenderPixels;
+  final bool rendersRealPixels;
+  final bool drawsPixels;
+  final bool canRenderFrame;
+  final List<String> blockedReasons;
+  final List<Map<String, Object?>> issues;
+
+  bool get canPlan =>
+      status ==
+      ProfessionalVideoTransitionPixelRenderExecutionPlanStatus.planned;
+}
+
+class ProfessionalVideoTransitionPixelRenderExecutionPlanResultMapper {
+  const ProfessionalVideoTransitionPixelRenderExecutionPlanResultMapper._();
+
+  static ProfessionalVideoTransitionPixelRenderExecutionPlanResult fromMap(
+    Map<String, Object?>? map,
+  ) {
+    if (map == null) {
+      return ProfessionalVideoTransitionPixelRenderExecutionPlanResult
+          .invalidRequest(
+        reason:
+            'native_compositor_empty_transition_pixel_render_execution_response',
+      );
+    }
+    final status = switch (map['status']?.toString()) {
+      'planned' =>
+        ProfessionalVideoTransitionPixelRenderExecutionPlanStatus.planned,
+      _ => ProfessionalVideoTransitionPixelRenderExecutionPlanStatus
+          .invalidRequest,
+    };
+    return ProfessionalVideoTransitionPixelRenderExecutionPlanResult(
+      status: status,
+      reason: map['reason']?.toString() ?? '',
+      rendererVersion: map['rendererVersion']?.toString() ?? 'unknown',
+      definitionId: map['definitionId']?.toString() ?? '',
+      renderSessionId: map['renderSessionId']?.toString() ?? '',
+      transitionPixelRendererId:
+          map['transitionPixelRendererId']?.toString() ?? '',
+      transitionPixelRenderExecutionId:
+          map['transitionPixelRenderExecutionId']?.toString() ?? '',
+      pixelOutputFrameId: map['pixelOutputFrameId']?.toString() ?? '',
+      pixelProgramId: map['pixelProgramId']?.toString() ?? '',
+      outputSurfaceId: map['outputSurfaceId']?.toString() ?? '',
+      outputTarget: map['outputTarget']?.toString() ?? '',
+      outputFramebufferTarget: map['outputFramebufferTarget']?.toString() ?? '',
+      timelineTime: _readTimelineTime(map['timelineTimeMs']),
+      transitionStartTime: _readTimelineTime(map['transitionStartMs']),
+      transitionEndTime: _readTimelineTime(map['transitionEndMs']),
+      canvasWidth: _readInt(map['canvasWidth']),
+      canvasHeight: _readInt(map['canvasHeight']),
+      pixelWorkloadBound: _readBool(map['pixelWorkloadBound']),
+      outputFramebufferBound: _readBool(map['outputFramebufferBound']),
+      pixelRendererImplemented: _readBool(map['pixelRendererImplemented']),
+      pixelRendererReady: _readBool(map['pixelRendererReady']),
+      pixelRenderExecutionReady: _readBool(map['pixelRenderExecutionReady']),
+      pixelOutputWritten: _readBool(map['pixelOutputWritten']),
+      pixelOutputReady: _readBool(map['pixelOutputReady']),
+      rendererImplemented: _readBool(map['rendererImplemented']),
+      canRenderPixels: _readBool(map['canRenderPixels']),
+      rendersRealPixels: _readBool(map['rendersRealPixels']),
+      drawsPixels: _readBool(map['drawsPixels']),
+      canRenderFrame: _readBool(map['canRenderFrame']),
+      blockedReasons: _readStringList(map['blockedReasons']),
+      issues: _readIssues(map['issues']),
     );
   }
 
