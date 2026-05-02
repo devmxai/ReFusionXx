@@ -14,6 +14,8 @@ import '../../domain/models/export_motion_text_program_models.dart';
 import '../../domain/models/export_output_profile.dart';
 import '../../domain/models/composition_scene_clip_models.dart';
 import '../../domain/models/composition_workspace_models.dart';
+import '../../domain/models/master_frame_evaluation_models.dart';
+import '../../domain/models/master_time_models.dart';
 import '../../domain/models/professional_canvas_timeline_authoring_models.dart';
 import '../../domain/models/professional_motion_animation_models.dart';
 import '../../domain/models/professional_motion_compilation_models.dart';
@@ -50,6 +52,7 @@ import '../models/timeline_time.dart';
 import '../services/composition_workspace_inspector_adapter.dart';
 import '../services/composition_workspace_outliner_adapter.dart';
 import '../services/composition_media_playback_projection_adapter.dart';
+import '../services/master_frame_evaluation_read_adapter.dart';
 import '../services/normal_transition_timeline_authoring_adapter.dart';
 import '../services/native_preview_identity_resolver.dart';
 import '../services/professional_video_transition_render_plan_adapter.dart';
@@ -519,6 +522,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _transitionUnifiedScopeKeyframeAdapter;
   late final TransitionUnifiedScopeTimelineSessionAdapter
       _transitionUnifiedScopeTimelineSessionAdapter;
+  late final MasterFrameEvaluationReadAdapter _masterFrameEvaluationReadAdapter;
   final Map<String, EditorAssetItem> _importedAssetsById =
       <String, EditorAssetItem>{};
   final Map<String, Uint8List> _previewThumbnailCache = <String, Uint8List>{};
@@ -651,6 +655,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         const TransitionUnifiedScopeKeyframeAdapter();
     _transitionUnifiedScopeTimelineSessionAdapter =
         const TransitionUnifiedScopeTimelineSessionAdapter();
+    _masterFrameEvaluationReadAdapter = MasterFrameEvaluationReadAdapter();
     _assetLibrary =
         ValueNotifier<List<EditorAssetItem>>(const <EditorAssetItem>[]);
     _assetLibraryLoading = ValueNotifier<bool>(false);
@@ -21165,6 +21170,32 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     };
   }
 
+  MasterRenderMode _masterRenderModeForTransitionMode(String mode) {
+    switch (mode) {
+      case 'playback':
+        return MasterRenderMode.playback;
+      case 'liveScrub':
+        return MasterRenderMode.liveScrub;
+      case 'preview':
+      default:
+        return MasterRenderMode.preview;
+    }
+  }
+
+  MasterFrameEvaluation? _masterFrameEvaluationForMode(String mode) {
+    final project = _motionProject;
+    if (project == null) {
+      return null;
+    }
+    return _masterFrameEvaluationReadAdapter.evaluate(
+      clock: _masterClockNativeBridge.snapshot,
+      frameRate: project.frameRate.framesPerSecond,
+      sceneClips: _sceneClips,
+      channels: _manualMotionPropertyChannels,
+      renderMode: _masterRenderModeForTransitionMode(mode),
+    );
+  }
+
   void _debugProfessionalTransitionBuildIssues({
     required TimelineTrackTransitionData transition,
     required List<ProfessionalVideoTransitionRenderPlanBuildIssue> issues,
@@ -21178,10 +21209,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (!_reportedProfessionalTransitionPlanIssueKeys.add(key)) {
       return;
     }
+    final evaluation = _masterFrameEvaluationForMode(mode);
+    final evaluationDiagnostics =
+        evaluation == null ? const <String>[] : evaluation.diagnostics;
     debugPrint(
       'Professional transition render plan blocked: '
       'transition=${transition.id}, preset=${transition.preset.name}, '
-      'mode=$mode, issues=${issues.map((issue) => issue.toMap()).toList()}',
+      'mode=$mode, issues=${issues.map((issue) => issue.toMap()).toList()}, '
+      'masterEvalDiagnostics=${evaluationDiagnostics.take(5).toList()}',
     );
   }
 

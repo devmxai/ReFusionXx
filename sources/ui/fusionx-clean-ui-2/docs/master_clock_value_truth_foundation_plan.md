@@ -779,6 +779,10 @@ Implementation note (checkpoint `checkpoint: implement master clock value truth 
   script (`scripts/master_clock_bridge_guard_check.sh`) with explicit allowlist
   (`docs/master_clock_bridge_guard_allowlist.txt`) so direct mutations cannot
   re-enter silently.
+- transition render-plan diagnostics now include a `MasterFrameEvaluation`
+  sample for the active mode (`preview` / `playback` / `liveScrub`) through
+  `MasterFrameEvaluationReadAdapter`, improving read-path observability while
+  preserving the existing render pipeline boundaries.
 
 ## 11. First Writer Task
 
