@@ -2892,6 +2892,118 @@ void main() {
     );
   });
 
+  test('method channel transition pixel output proof blocks fake surfaces',
+      () async {
+    const channel = MethodChannel(
+        'com.refusion.app/professional_video_transition_compositor');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(channel, null);
+    });
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'planTransitionPixelOutputProof');
+      final arguments = call.arguments! as Map<Object?, Object?>;
+      expect(arguments['definitionId'], 'zoomInCamera');
+      expect(arguments['timelineTimeMs'], 10000);
+      return <String, Object?>{
+        'status': 'planned',
+        'reason': '',
+        'rendererVersion': 'foundation',
+        'definitionId': 'zoomInCamera',
+        'renderSessionId': 'transition-session:zoom-native-1',
+        'transitionPixelRenderExecutionId':
+            'transition-session:zoom-native-1:pixel-render-execution:10000',
+        'transitionPixelOutputProofId':
+            'transition-session:zoom-native-1:pixel-output-proof:10000',
+        'pixelOutputFrameId':
+            'transition-session:zoom-native-1:pixel-output-frame:10000',
+        'outputSurfaceId':
+            'transition-session:zoom-native-1:surface:transition-output:10000',
+        'outputTarget': 'nativeTransitionCanvasSurface',
+        'outputFramebufferTarget': 'nativeTransitionCanvasSurface',
+        'timelineTimeMs': 10000,
+        'transitionStartMs': 8000,
+        'transitionEndMs': 12000,
+        'canvasWidth': 1080,
+        'canvasHeight': 1920,
+        'pixelWorkloadBound': true,
+        'outputFramebufferBound': true,
+        'pixelRenderExecutionReady': false,
+        'pixelOutputWritten': false,
+        'pixelOutputReady': false,
+        'outputSurfaceIsNative': true,
+        'writesOnlyToNativeSurface': true,
+        'forbidsFlutterOverlay': true,
+        'forbidsTimelineOverlay': true,
+        'forbidsPlatformViewTransform': true,
+        'outputProofReady': false,
+        'rendererImplemented': false,
+        'canRenderPixels': false,
+        'rendersRealPixels': false,
+        'drawsPixels': false,
+        'canRenderFrame': false,
+        'blockedReasons': <String>[
+          'native_transition_pixel_render_execution_not_ready',
+          'native_transition_pixel_output_missing',
+          'native_transition_pixel_output_not_ready',
+          'native_transition_pixel_output_proof_missing',
+        ],
+      };
+    });
+
+    final result =
+        await const MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider(
+      channel: channel,
+    ).planTransitionPixelOutputProof(
+      timelineTime: TimelineTime.fromMilliseconds(10000),
+      plan: ProfessionalZoomCameraRenderPlan(
+        canvasWidth: 1080,
+        canvasHeight: 1920,
+        request: ProfessionalZoomCameraPlanRequest(
+          transitionId: 'zoom-native-1',
+          timelineTime: TimelineTime.fromMilliseconds(10000),
+          boundaryTime: TimelineTime.fromMilliseconds(10000),
+          leadingDuration: TimelineTime.fromMilliseconds(2000),
+          trailingDuration: TimelineTime.fromMilliseconds(2000),
+          outgoing: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-a',
+            assetId: 'asset-a',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(28000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+          incoming: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-b',
+            assetId: 'asset-b',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(38000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+        ),
+      ).toGenericRenderPlan(),
+    );
+
+    expect(result.canPlan, isTrue);
+    expect(result.outputSurfaceIsNative, isTrue);
+    expect(result.writesOnlyToNativeSurface, isTrue);
+    expect(result.forbidsFlutterOverlay, isTrue);
+    expect(result.forbidsTimelineOverlay, isTrue);
+    expect(result.forbidsPlatformViewTransform, isTrue);
+    expect(result.outputProofReady, isFalse);
+    expect(result.canRenderPixels, isFalse);
+    expect(
+      result.blockedReasons,
+      contains('native_transition_pixel_output_proof_missing'),
+    );
+  });
+
   test(
       'method channel parity outputs lock every interactive mode until renderer',
       () async {

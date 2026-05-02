@@ -42,6 +42,7 @@ void main() {
         ProfessionalVideoTransitionReadinessStageId.transitionPixelRenderer,
         ProfessionalVideoTransitionReadinessStageId
             .transitionPixelRenderExecution,
+        ProfessionalVideoTransitionReadinessStageId.transitionPixelOutputProof,
         ProfessionalVideoTransitionReadinessStageId.parityOutputs,
       ],
     );
@@ -162,6 +163,20 @@ void main() {
               .transitionPixelRenderExecution)
           .blockers,
       contains('native_transition_renderer_pixels_missing'),
+    );
+    expect(
+      report
+          .stage(ProfessionalVideoTransitionReadinessStageId
+              .transitionPixelOutputProof)
+          .canAdvance,
+      isFalse,
+    );
+    expect(
+      report
+          .stage(ProfessionalVideoTransitionReadinessStageId
+              .transitionPixelOutputProof)
+          .blockers,
+      contains('native_transition_pixel_output_proof_missing'),
     );
   });
 
@@ -1061,6 +1076,57 @@ class _FakeProfessionalVideoTransitionCompositorClient
               'native_transition_pixel_renderer_missing',
               'native_transition_pixel_output_missing',
               'native_transition_renderer_pixels_missing',
+            ]
+          : const <String>[],
+    );
+  }
+
+  @override
+  Future<ProfessionalVideoTransitionPixelOutputProofPlanResult>
+      planTransitionPixelOutputProof({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  }) async {
+    return ProfessionalVideoTransitionPixelOutputProofPlanResult(
+      status: ProfessionalVideoTransitionPixelOutputProofPlanStatus.planned,
+      reason: '',
+      rendererVersion: 'fake',
+      definitionId: plan.definitionId,
+      renderSessionId: 'transition-session:${plan.transitionId}',
+      transitionPixelRenderExecutionId:
+          'pixel-render-execution:${plan.transitionId}',
+      transitionPixelOutputProofId: 'pixel-output-proof:${plan.transitionId}',
+      pixelOutputFrameId: 'pixel-output-frame:${plan.transitionId}',
+      outputSurfaceId: 'surface:${plan.transitionId}',
+      outputTarget: 'nativeTransitionCanvasSurface',
+      outputFramebufferTarget: 'nativeTransitionCanvasSurface',
+      timelineTime: timelineTime,
+      transitionStartTime: plan.boundaryTime - plan.leadingDuration,
+      transitionEndTime: plan.boundaryTime + plan.trailingDuration,
+      canvasWidth: plan.canvasWidth,
+      canvasHeight: plan.canvasHeight,
+      pixelWorkloadBound: true,
+      outputFramebufferBound: true,
+      pixelRenderExecutionReady: _rendererReady,
+      pixelOutputWritten: _rendererReady,
+      pixelOutputReady: _rendererReady,
+      outputSurfaceIsNative: true,
+      writesOnlyToNativeSurface: true,
+      forbidsFlutterOverlay: true,
+      forbidsTimelineOverlay: true,
+      forbidsPlatformViewTransform: true,
+      outputProofReady: _rendererReady,
+      rendererImplemented: _rendererReady,
+      canRenderPixels: _rendererReady,
+      rendersRealPixels: _rendererReady,
+      drawsPixels: _rendererReady,
+      canRenderFrame: _rendererReady,
+      blockedReasons: _planningOnly
+          ? const <String>[
+              'native_transition_pixel_render_execution_not_ready',
+              'native_transition_pixel_output_missing',
+              'native_transition_pixel_output_not_ready',
+              'native_transition_pixel_output_proof_missing',
             ]
           : const <String>[],
     );

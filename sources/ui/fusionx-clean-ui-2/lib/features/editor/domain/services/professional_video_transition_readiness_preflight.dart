@@ -23,6 +23,7 @@ enum ProfessionalVideoTransitionReadinessStageId {
   transitionShaderEvaluation,
   transitionPixelRenderer,
   transitionPixelRenderExecution,
+  transitionPixelOutputProof,
   parityOutputs,
 }
 
@@ -203,6 +204,13 @@ class ProfessionalVideoTransitionReadinessPreflight {
     stages.add(
       _transitionPixelRenderExecutionStage(transitionPixelRenderExecution),
     );
+
+    final transitionPixelOutputProof =
+        await _client.planTransitionPixelOutputProof(
+      plan: plan,
+      timelineTime: timelineTime,
+    );
+    stages.add(_transitionPixelOutputProofStage(transitionPixelOutputProof));
 
     final parityOutputs = await _client.planParityOutputs(
       plan: plan,
@@ -598,6 +606,26 @@ class ProfessionalVideoTransitionReadinessPreflight {
         blockedReasons: result.blockedReasons,
         issues: result.issues,
         includeReason: !result.canRenderPixels,
+      ),
+      issues: result.issues,
+    );
+  }
+
+  static ProfessionalVideoTransitionReadinessStage
+      _transitionPixelOutputProofStage(
+    ProfessionalVideoTransitionPixelOutputProofPlanResult result,
+  ) {
+    return ProfessionalVideoTransitionReadinessStage(
+      id: ProfessionalVideoTransitionReadinessStageId
+          .transitionPixelOutputProof,
+      label: 'Native transition pixel output proof',
+      canPlan: result.canPlan,
+      canAdvance: result.outputProofReady,
+      blockers: _blockers(
+        reason: result.reason,
+        blockedReasons: result.blockedReasons,
+        issues: result.issues,
+        includeReason: !result.outputProofReady,
       ),
       issues: result.issues,
     );

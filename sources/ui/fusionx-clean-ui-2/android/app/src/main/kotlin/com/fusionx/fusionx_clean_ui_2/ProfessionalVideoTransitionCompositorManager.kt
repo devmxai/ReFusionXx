@@ -768,6 +768,48 @@ class ProfessionalVideoTransitionCompositorManager(
         )
     }
 
+    fun planTransitionPixelOutputProof(
+        plan: Map<String, Any?>?,
+        timelineTimeMs: Long?,
+    ): Map<String, Any> {
+        val missingFields = requiredRenderPlanFields.filter { field ->
+            !hasRequiredField(plan, field)
+        }
+        if (missingFields.isNotEmpty()) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_required_video_transition_render_plan_fields",
+                "rendererVersion" to "foundation",
+                "missingFields" to missingFields,
+            )
+        }
+        if (timelineTimeMs == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_timeline_time_for_video_transition_pixel_output_proof",
+                "rendererVersion" to "foundation",
+            )
+        }
+        val definitionId = plan?.get("definitionId")?.toString() ?: ""
+        val sessionResult = ProfessionalVideoTransitionRenderSession.fromPlan(plan)
+        if (sessionResult.session == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "invalid_video_transition_render_session",
+                "rendererVersion" to "foundation",
+                "definitionId" to definitionId,
+                "issues" to sessionResult.issues,
+            )
+        }
+        return sessionResult.session.planTransitionPixelOutputProof(
+            timelineTimeMs = timelineTimeMs,
+            motionBlurPolicy = plan?.get("motionBlurPolicy") as? Map<*, *>,
+            edgePolicy = plan?.get("edgePolicy") as? Map<*, *>,
+            parameters = plan?.get("parameters") as? Map<*, *>,
+            appContext = appContext,
+        )
+    }
+
     fun planParityOutputs(
         plan: Map<String, Any?>?,
         timelineTimeMs: Long?,
@@ -2805,6 +2847,94 @@ private data class ProfessionalVideoTransitionRenderSession(
                 "rendersRealPixels" to false,
                 "drawsPixels" to false,
                 "canRenderFrame" to false,
+                "blockedReasons" to blockedReasons,
+            )
+    }
+
+    fun planTransitionPixelOutputProof(
+        timelineTimeMs: Long,
+        motionBlurPolicy: Map<*, *>?,
+        edgePolicy: Map<*, *>?,
+        parameters: Map<*, *>?,
+        appContext: Context,
+    ): Map<String, Any> {
+        val executionPlan =
+            planTransitionPixelRenderExecution(
+                timelineTimeMs = timelineTimeMs,
+                motionBlurPolicy = motionBlurPolicy,
+                edgePolicy = edgePolicy,
+                parameters = parameters,
+                appContext = appContext,
+            )
+        if (executionPlan["status"] != "planned") {
+            return executionPlan
+        }
+        val outputTarget = executionPlan["outputTarget"]?.toString() ?: ""
+        val outputFramebufferTarget =
+            executionPlan["outputFramebufferTarget"]?.toString() ?: ""
+        val outputSurfaceIsNative =
+            outputTarget == "nativeTransitionCanvasSurface" &&
+                outputFramebufferTarget == "nativeTransitionCanvasSurface"
+        val writesOnlyToNativeSurface = outputSurfaceIsNative
+        val forbidsFlutterOverlay = true
+        val forbidsTimelineOverlay = true
+        val forbidsPlatformViewTransform = true
+        val pixelOutputWritten = executionPlan["pixelOutputWritten"] == true
+        val pixelOutputReady = executionPlan["pixelOutputReady"] == true
+        val pixelRenderExecutionReady =
+            executionPlan["pixelRenderExecutionReady"] == true &&
+                executionPlan["canRenderPixels"] == true &&
+                executionPlan["rendersRealPixels"] == true &&
+                executionPlan["drawsPixels"] == true
+        val outputProofReady =
+            pixelRenderExecutionReady &&
+                pixelOutputWritten &&
+                pixelOutputReady &&
+                outputSurfaceIsNative &&
+                writesOnlyToNativeSurface
+        val upstreamBlockedReasons =
+            (executionPlan["blockedReasons"] as? List<*>)
+                ?.map { reason -> reason.toString() }
+                ?: emptyList()
+        val blockedReasons =
+            buildList {
+                addAll(upstreamBlockedReasons)
+                if (!pixelRenderExecutionReady) {
+                    add("native_transition_pixel_render_execution_not_ready")
+                }
+                if (!pixelOutputWritten) {
+                    add("native_transition_pixel_output_missing")
+                }
+                if (!pixelOutputReady) {
+                    add("native_transition_pixel_output_not_ready")
+                }
+                if (!outputSurfaceIsNative) {
+                    add("native_transition_output_surface_not_native")
+                }
+                if (!writesOnlyToNativeSurface) {
+                    add("native_transition_output_surface_fallback_forbidden")
+                }
+                if (!outputProofReady) {
+                    add("native_transition_pixel_output_proof_missing")
+                }
+            }.distinct()
+        return executionPlan +
+            mapOf(
+                "transitionPixelOutputProofId" to "$id:pixel-output-proof:$timelineTimeMs",
+                "outputSurfaceIsNative" to outputSurfaceIsNative,
+                "writesOnlyToNativeSurface" to writesOnlyToNativeSurface,
+                "forbidsFlutterOverlay" to forbidsFlutterOverlay,
+                "forbidsTimelineOverlay" to forbidsTimelineOverlay,
+                "forbidsPlatformViewTransform" to forbidsPlatformViewTransform,
+                "pixelRenderExecutionReady" to pixelRenderExecutionReady,
+                "pixelOutputWritten" to pixelOutputWritten,
+                "pixelOutputReady" to pixelOutputReady,
+                "outputProofReady" to outputProofReady,
+                "rendererImplemented" to (executionPlan["rendererImplemented"] == true),
+                "canRenderPixels" to outputProofReady,
+                "rendersRealPixels" to outputProofReady,
+                "drawsPixels" to outputProofReady,
+                "canRenderFrame" to outputProofReady,
                 "blockedReasons" to blockedReasons,
             )
     }

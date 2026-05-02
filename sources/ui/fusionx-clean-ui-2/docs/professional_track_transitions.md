@@ -638,6 +638,20 @@ motion blur, mirror-edge tiling, or stable preview/Live Scrub/playback parity.
 Do not expose Cross Dissolve, Fade Black, Zoom In Camera, Manual, AI Transition,
 or Zoom In Pro until the native compositor completes the shared readiness chain.
 
+Pixel output proof gate:
+
+- `planTransitionPixelOutputProof` must pass after pixel render execution and
+  before preview/scrub/playback parity;
+- the proof must confirm that the renderer wrote real pixels into the native
+  transition output target, currently `nativeTransitionCanvasSurface`;
+- the proof must explicitly forbid Flutter overlays, timeline overlays, and
+  transformed platform-view fallbacks;
+- if the renderer has only bound shader inputs, pixel workloads, or framebuffer
+  metadata but has not written a real output frame, the blocker is
+  `native_transition_pixel_output_proof_missing`;
+- this gate exists to prevent returning to frozen-frame zooms, Gaussian-blur
+  stand-ins, decorative speed-line shapes, or video drawn over the timeline.
+
 Native render-session foundation:
 
 - `prepareRenderPlan` must parse the loose platform map into a strict
