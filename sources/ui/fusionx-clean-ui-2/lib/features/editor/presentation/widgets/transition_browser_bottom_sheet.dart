@@ -105,7 +105,7 @@ class _TransitionBrowserBottomSheetState
     }
     return <TimelineTransitionPreset>[
       TimelineTransitionPreset.crossDissolve,
-      TimelineTransitionPreset.distortionZoomInV1,
+      TimelineTransitionPreset.zoomInCamera,
     ];
   }
 

@@ -911,3 +911,35 @@ The interactive transition surface must also retry transient registration and
 presentation failures instead of failing silently. Permanent media/sample
 blockers still fail closed with native diagnostic reasons; they must not be
 repaired with thumbnails, poster frames, or Flutter fake zoom overlays.
+
+Crash/ANR correction:
+
+- `Distortion Zoom Transition In V1` must not render on every playback or Live
+  Scrub tick through the current per-request frame extraction path. Device logs
+  showed repeated codec start/stop/release churn during the transition window,
+  which can stall play, timeline auto-scroll, and eventually the app.
+- Until the transition renderer has a nonblocking cached decoder/frame pipeline,
+  the interactive native surface is limited to stationary preview frames.
+  Playback and Live Scrub must continue through the normal video preview path
+  without invoking the heavy transition renderer.
+
+## 18. Zoom In Camera Rebuild
+
+Status: replacement user-facing transition; no Stage5/Live Scrub protected file
+changes.
+
+The `Distortion Zoom Transition In V1` experiment is no longer exposed. The
+replacement is `Zoom In Camera`, built as a real-video surface transition:
+
+- it transforms the playing video preview surface instead of extracting and
+  freezing source frames;
+- it uses seam-aware scale, soft blur, and edge-safe overscan values;
+- outgoing video zooms into the seam, incoming video settles from a zoomed-in
+  state after the seam;
+- scale remains at or above `1.0` so the transition behaves like a motion-tiled
+  zoom surface without revealing black borders;
+- the heavy native per-frame extraction renderer is not considered implemented
+  for user-facing playback or Live Scrub.
+
+The future fully native version must use cached dual-video decoder surfaces
+rather than repeated codec start/stop/release per rendered frame.

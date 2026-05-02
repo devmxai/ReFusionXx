@@ -20712,19 +20712,78 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     TimelineTime previewTime,
   ) {
     final activeTransition = _activeTimelineTransitionPreviewAt(previewTime);
-    if (activeTransition == null ||
-        !activeTransition.transition.preset.isZoomCameraFamily) {
+    if (activeTransition == null) {
       return null;
     }
-    if (activeTransition.transition.preset ==
+    if (activeTransition.transition.preset !=
         TimelineTransitionPreset.zoomInCamera) {
-      // Zoom In Camera remains locked to the real dual-video compositor path.
       return null;
     }
-    // Zoom In Pro was an explicit live-surface experiment. It is now gated off
-    // with Zoom In Camera because a transformed single native surface cannot
-    // deliver dual-video sampling, temporal motion blur, or mirror-edge tiling.
-    return null;
+    final transition = activeTransition.transition;
+    final seam = _seamProgressForTransition(transition);
+    final progress = activeTransition.progress.clamp(0.0, 1.0).toDouble();
+    final outgoingScale = transition
+        .parameterValue('outgoingBoostScale', fallback: 1.32)
+        .clamp(1.0, 1.65)
+        .toDouble();
+    final incomingStartScale = transition
+        .parameterValue('incomingStartScale', fallback: 1.18)
+        .clamp(1.0, 1.45)
+        .toDouble();
+    final bridgeDarkness = transition
+        .parameterValue('bridgeDarkness', fallback: 0.10)
+        .clamp(0.0, 0.30)
+        .toDouble();
+    final blurPeak = transition
+        .parameterValue('motionBlurAmount', fallback: 3.5)
+        .clamp(0.0, 8.0)
+        .toDouble();
+    final outgoingPhase = progress <= seam
+        ? (progress / seam.clamp(0.001, 1.0)).clamp(0.0, 1.0).toDouble()
+        : 1.0;
+    final incomingPhase = progress <= seam
+        ? 0.0
+        : ((progress - seam) / (1 - seam).clamp(0.001, 1.0))
+            .clamp(0.0, 1.0)
+            .toDouble();
+    final scale = progress <= seam
+        ? _lerpDouble(
+            1.0,
+            outgoingScale,
+            Curves.easeInCubic.transform(
+              outgoingPhase,
+            ))
+        : _lerpDouble(
+            incomingStartScale,
+            1.0,
+            Curves.easeOutCubic.transform(
+              incomingPhase,
+            ));
+    final seamPulse = (1 - ((progress - seam).abs() / seam.clamp(0.001, 0.5)))
+        .clamp(0.0, 1.0)
+        .toDouble();
+    final opacity = (1 - (bridgeDarkness * seamPulse)).clamp(0.0, 1.0);
+    final blurAmount = blurPeak * seamPulse;
+    return MotionVideoPreviewSurfaceTransform(
+      scaleX: scale,
+      scaleY: scale,
+      opacity: opacity,
+      blurAmount: blurAmount,
+    );
+  }
+
+  double _lerpDouble(double start, double end, double progress) {
+    return start + ((end - start) * progress.clamp(0.0, 1.0));
+  }
+
+  double _seamProgressForTransition(TimelineTrackTransitionData transition) {
+    final leading = transition.resolvedLeadingDurationTime.inMilliseconds;
+    final trailing = transition.resolvedTrailingDurationTime.inMilliseconds;
+    final total = leading + trailing;
+    if (total <= 0) {
+      return 0.5;
+    }
+    return (leading / total).clamp(0.0, 1.0).toDouble();
   }
 
   bool _canApplyTimelineTransition(
@@ -20832,13 +20891,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   bool _requiresNativeProfessionalTransition(TimelineTransitionPreset preset) {
-    return preset.isZoomCameraFamily;
+    return preset == TimelineTransitionPreset.distortionZoomInV1;
   }
 
   bool _hasImplementedNativeProfessionalTransitionRenderer(
     TimelineTransitionPreset preset,
   ) {
-    return preset == TimelineTransitionPreset.distortionZoomInV1;
+    return false;
   }
 
   ProfessionalVideoTransitionRenderPlanBuildResult
@@ -20931,6 +20990,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required String mode,
     required String surfaceId,
   }) {
+    if (!_canRenderProfessionalTransitionInteractivelyInMode(mode)) {
+      return null;
+    }
     if (!_hasImplementedNativeProfessionalTransitionRenderer(
       activeTransition.transition.preset,
     )) {
@@ -20952,6 +21014,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       );
     }
     return buildResult.plan;
+  }
+
+  bool _canRenderProfessionalTransitionInteractivelyInMode(String mode) {
+    // The current Distortion Zoom V1 native path decodes source frames and
+    // writes a full transition bitmap per request. Keep it out of playback and
+    // Live Scrub until a nonblocking cached decoder pipeline owns those modes.
+    return mode == 'preview';
   }
 
   String? _professionalTransitionDefinitionId(

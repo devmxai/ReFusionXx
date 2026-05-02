@@ -18,14 +18,30 @@ bool shouldRetryInteractiveRenderResult(
   if (result.canRenderFrame || retryCount >= maxRetryCount) {
     return false;
   }
-  return result.blockedReasons.any(
+  final reasons = result.blockedReasons;
+  if (reasons.any(
     (reason) =>
         reason == 'native_transition_interactive_surface_not_registered' ||
-        reason.endsWith('_production_surface_missing') ||
-        reason.endsWith('_interactive_surface_frame_missing') ||
-        reason.endsWith('_interactive_surface_presentation_missing') ||
-        reason == 'native_transition_surface_upload_failed',
-  );
+        reason.endsWith('_production_surface_missing'),
+  )) {
+    return true;
+  }
+  if (!result.pixelOutputReady || !result.surfaceAttached) {
+    return false;
+  }
+  if (reasons.any(
+    (reason) =>
+        reason == 'native_transition_surface_upload_failed' ||
+        reason.endsWith('_interactive_surface_frame_missing'),
+  )) {
+    return true;
+  }
+  return result.frameDelivered &&
+      reasons.any(
+        (reason) => reason.endsWith(
+          '_interactive_surface_presentation_missing',
+        ),
+      );
 }
 
 @visibleForTesting
@@ -74,7 +90,7 @@ class ProfessionalVideoTransitionSurfaceOverlay extends StatefulWidget {
 
 class _ProfessionalVideoTransitionSurfaceOverlayState
     extends State<ProfessionalVideoTransitionSurfaceOverlay> {
-  static const int _maxRenderRetryCount = 24;
+  static const int _maxRenderRetryCount = 4;
 
   bool _platformViewReady = false;
   bool _renderInFlight = false;

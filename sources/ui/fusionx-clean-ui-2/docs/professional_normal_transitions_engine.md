@@ -790,40 +790,38 @@ The normal transitions system is professional only when:
 - unsupported transitions block honestly
 - every accepted preset passes real-device validation
 
-## 16. Current Slice: Distortion Zoom Transition In V1
+## 16. Current Slice: Zoom In Camera Surface Transition
 
-Status: interactive native preview slice; export parity remains deferred.
+Status: real-video surface-transform transition; native dual-decoder export
+parity remains deferred.
 
-This slice adds the first zoom/distortion preset on top of the professional
-native video transition path. It is intentionally named
-`Distortion Zoom Transition In V1` so it can be tested separately from older
-zoom experiments.
+The previous `Distortion Zoom Transition In V1` experiment is removed from the
+preset browser. Device logs showed repeated codec start/stop/release churn
+because that version extracted source frames and composed bitmaps per render
+request. That is not acceptable for playback or Live Scrub.
+
+The replacement user-facing preset is `Zoom In Camera`. It applies a
+professional zoom directly to the playing video preview surface, so the effect
+is applied to video motion rather than a frozen boundary frame.
 
 Contracts added:
 
-- `distortion_zoom_in_v1` is a built-in graph-backed normal transition
-  definition.
-- The UI exposes the preset only through the normal transition browser.
-- The render plan maps to native `distortionZoomInV1`, not the legacy Flutter
-  thumbnail overlay path.
-- Default duration is `4000ms`, representing a long visible window around the
-  seam instead of a one-frame cut.
-- The preset requires dual video sampling, temporal shutter accumulation,
-  mirror-edge tiling, preview parity, Live Scrub parity, playback parity, and
-  live native surface ownership.
-- The native renderer samples real outgoing and incoming video times across
-  the seam, accumulates temporal samples, applies mirror-edge fill before
-  scale, applies lens-style distortion, and applies optional channel split
-  from source pixels.
+- `Zoom In Camera` is exposed in the preset browser when the transition gate is
+  open.
+- The transition no longer invokes native per-frame source extraction.
+- Playback and Live Scrub remain on the normal video preview path.
+- The preview surface receives seam-aware scale, soft blur, and edge-safe
+  overscan values.
+- The scale never drops below `1.0`, so the video surface does not reveal black
+  borders; this is the practical surface-transform equivalent of motion tile
+  overscan until the real native dual-decoder compositor ships.
+- The outgoing side zooms into the seam, and the incoming side settles from a
+  zoomed-in state after the seam.
+- The old `Distortion Zoom Transition In V1` preset remains hidden and its
+  heavy native renderer is not treated as implemented.
 - Thumbnail zooms, poster frames, decorative speed lines, Gaussian-only blur,
   Flutter overlays, timeline-area drawing, and transformed single-surface
-  previews remain rejected for this preset.
-- Root and Scene Contents transition bridges must run render-plan preflight
-  before staging zoom-family professional presets. If A/B source URI binding,
-  source handles, boundary resolution, or native definition binding fails, the
-  app must block the apply action with a visible diagnostic instead of creating
-  an authored transition that later falls through to an empty preview. This is a
-  strict diagnostic gate, not permission to add a Flutter fallback.
+  previews made from still images remain rejected.
 
 Verification expectation:
 
@@ -831,7 +829,7 @@ Verification expectation:
   transition window;
 - the outgoing side must use the playing tail of video A;
 - the incoming side must use the playing head of video B;
-- the incoming scaled-down phase must not expose black canvas borders;
+- the incoming zoom-settle phase must not expose black canvas borders;
 - unsupported source coverage must fail closed rather than freeze a boundary
   frame.
 
@@ -844,3 +842,13 @@ Interactive preview ownership:
   retried with diagnostics;
 - permanent source pixel blockers remain hard blockers and must not fall back
   to Flutter overlays, thumbnails, or poster frames.
+
+ANR safety gate:
+
+- the current `Distortion Zoom Transition In V1` renderer performs exact source
+  frame extraction and bitmap composition per render request, so it is allowed
+  only for stationary preview frames;
+- playback and Live Scrub must not invoke this renderer until a cached,
+  nonblocking native decoder/frame pipeline is implemented;
+- if a mode cannot be rendered without blocking play or timeline auto-scroll,
+  the transition must fail closed for that mode rather than retrying repeatedly.

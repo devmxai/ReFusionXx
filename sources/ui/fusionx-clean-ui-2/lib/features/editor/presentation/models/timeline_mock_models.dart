@@ -70,7 +70,7 @@ extension TimelineTransitionPresetPresentation on TimelineTransitionPreset {
       TimelineTransitionPreset.fadeBlack =>
         'Dip through black between two clips.',
       TimelineTransitionPreset.zoomInCamera =>
-        'Push into the next clip with a camera-style zoom.',
+        'Push through the seam with a real-video camera zoom, soft motion blur, and edge-safe overscan.',
       TimelineTransitionPreset.zoomInPro =>
         'Experimental live-surface zoom trial for testing the transition engine path.',
       TimelineTransitionPreset.distortionZoomInV1 =>
@@ -87,7 +87,7 @@ extension TimelineTransitionPresetPresentation on TimelineTransitionPreset {
         TimelineTime.fromMilliseconds(2000),
       TimelineTransitionPreset.fadeBlack => TimelineTime.fromMilliseconds(540),
       TimelineTransitionPreset.zoomInCamera =>
-        TimelineTime.fromMilliseconds(4000),
+        TimelineTime.fromMilliseconds(1800),
       TimelineTransitionPreset.zoomInPro => TimelineTime.fromMilliseconds(4000),
       TimelineTransitionPreset.distortionZoomInV1 =>
         TimelineTime.fromMilliseconds(4000),
@@ -106,12 +106,14 @@ extension TimelineTransitionPresetPresentation on TimelineTransitionPreset {
           'blackPeak': 0.94,
         },
       TimelineTransitionPreset.zoomInCamera => <String, double>{
-          'incomingStartScale': 0.28,
-          'outgoingBoostScale': 3.0,
-          'entryDelay': 0.12,
-          'bridgeDarkness': 0.12,
-          'motionBlurAmount': 18.0,
-          'shakeAmount': 5.0,
+          'incomingStartScale': 1.18,
+          'outgoingBoostScale': 1.32,
+          'entryDelay': 0.0,
+          'bridgeDarkness': 0.10,
+          'motionBlurAmount': 3.5,
+          'shakeAmount': 0.0,
+          'motionTileOutputScaleX': 1.32,
+          'motionTileOutputScaleY': 1.32,
         },
       TimelineTransitionPreset.zoomInPro => <String, double>{
           'incomingStartScale': 0.42,
