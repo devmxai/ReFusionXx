@@ -775,6 +775,10 @@ Implementation note (checkpoint `checkpoint: implement master clock value truth 
   the bridge adapter too, leaving the coordinator hidden behind one boundary.
 - screen-level clock snapshot application now references bridge-owned time
   (`MasterClockNativeBridge.time`) instead of reading coordinator time directly.
+- coordinator access in presentation code is now protected by a dedicated guard
+  script (`scripts/master_clock_bridge_guard_check.sh`) with explicit allowlist
+  (`docs/master_clock_bridge_guard_allowlist.txt`) so direct mutations cannot
+  re-enter silently.
 
 ## 11. First Writer Task
 

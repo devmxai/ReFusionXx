@@ -1,0 +1,27 @@
+name: master-clock-guards
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+
+jobs:
+  guard-checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sources/ui/fusionx-clean-ui-2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Flutter pub get
+        run: flutter pub get
+      - name: Master clock source guard
+        run: bash scripts/master_clock_guard_check.sh
+      - name: Master clock bridge guard
+        run: bash scripts/master_clock_bridge_guard_check.sh
+      - name: Guard tests
+        run: flutter test test/master_clock_guard_check_test.dart test/master_clock_bridge_guard_check_test.dart
