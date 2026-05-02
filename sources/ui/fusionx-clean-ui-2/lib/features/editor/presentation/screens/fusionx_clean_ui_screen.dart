@@ -4306,7 +4306,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   TimelineTime _unifiedTransitionScopeVisibleLocalTime(
     TransitionUnifiedScopeTimelineViewModel viewModel,
   ) {
-    return _unifiedTransitionScopeLocalTime(viewModel, _currentTime);
+    return _layerScopeDisplayTimeNotifier.value.clamp(
+      TimelineTime.zero,
+      viewModel.durationTime,
+    );
   }
 
   double _unifiedTransitionScopeCurrentProgress(
@@ -5139,6 +5142,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       context.endTime,
     );
     return (clampedTime - context.startTime).clamp(
+      TimelineTime.zero,
+      context.durationTime,
+    );
+  }
+
+  TimelineTime _layerScopeVisibleLocalTime(_LayerScopeContext context) {
+    return _layerScopeDisplayTimeNotifier.value.clamp(
       TimelineTime.zero,
       context.durationTime,
     );
@@ -7787,7 +7797,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final durationSeconds = context.durationTime.inSecondsDouble;
     final progress = durationSeconds <= 0
         ? 0.0
-        : (_layerScopeLocalTime(context, _currentTime).inSecondsDouble /
+        : (_layerScopeVisibleLocalTime(context).inSecondsDouble /
                 durationSeconds)
             .clamp(0.0, 1.0);
     var nearestIndex = 0;
@@ -9572,7 +9582,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final durationSeconds = context.durationTime.inSecondsDouble;
     final progress = durationSeconds <= 0
         ? 0.0
-        : (_layerScopeLocalTime(context, _currentTime).inSecondsDouble /
+        : (_layerScopeVisibleLocalTime(context).inSecondsDouble /
                 durationSeconds)
             .clamp(0.0, 1.0);
     final selectedKeyframeId = _selectedLayerScopeKeyframeId;
@@ -9736,7 +9746,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final durationSeconds = context.durationTime.inSecondsDouble;
     final progress = durationSeconds <= 0
         ? 0.0
-        : (_layerScopeLocalTime(context, _currentTime).inSecondsDouble /
+        : (_layerScopeVisibleLocalTime(context).inSecondsDouble /
                 durationSeconds)
             .clamp(0.0, 1.0);
     final stops = lane.normalizedKeyframeStops

@@ -30,6 +30,36 @@ void main() {
     expect(find.text('Distortion Zoom Transition In V1'), findsNothing);
   });
 
+  testWidgets('manual transition opens before full compositor gate',
+      (WidgetTester tester) async {
+    TransitionBrowserResult? result;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () async {
+                result = await showModalBottomSheet<TransitionBrowserResult>(
+                  context: context,
+                  builder: (_) => const TransitionBrowserBottomSheet(),
+                );
+              },
+              child: const Text('Open'),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Manual'));
+    await tester.pumpAndSettle();
+
+    expect(result?.action, TransitionBrowserAction.openManual);
+  });
+
   testWidgets(
       'transition browser exposes presets only when native compositor is complete',
       (WidgetTester tester) async {

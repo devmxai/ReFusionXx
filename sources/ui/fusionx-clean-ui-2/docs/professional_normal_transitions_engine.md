@@ -497,15 +497,11 @@ On failure:
 
 ### 9.5 Manual Transition Scope Timeline
 
-This is not the first baseline renderer task.
-
-It should arrive after:
-
-- canonical transition model
-- script import
-- first primitive transition
-- command history
-- preview parity baseline
+Manual Transition Scope is an authoring surface, not proof of renderer parity.
+It may open before the full native compositor is complete, but only to edit the
+transition's focused lanes and keyframes through the existing `TimelinePanel`.
+Preset/AI creation and any claim that Live Scrub/playback/export renders the
+authored transition remain gated by the professional compositor contract.
 
 The scope timeline should expose:
 

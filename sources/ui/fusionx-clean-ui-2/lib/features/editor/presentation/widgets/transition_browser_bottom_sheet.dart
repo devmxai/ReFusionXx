@@ -203,15 +203,12 @@ class _TransitionBrowserBottomSheetState
               Padding(
                 padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
                 child: _ManualTransitionCard(
-                  enabled: _transitionEngineReady,
-                  onTap: _transitionEngineReady
-                      ? () => Navigator.of(context).pop(
-                            const TransitionBrowserResult(
-                              action: TransitionBrowserAction.openManual,
-                              preset: TimelineTransitionPreset.manual,
-                            ),
-                          )
-                      : null,
+                  onTap: () => Navigator.of(context).pop(
+                    const TransitionBrowserResult(
+                      action: TransitionBrowserAction.openManual,
+                      preset: TimelineTransitionPreset.manual,
+                    ),
+                  ),
                 ),
               ),
               Padding(
@@ -492,11 +489,9 @@ class _TransitionModeCard extends StatelessWidget {
 class _ManualTransitionCard extends StatelessWidget {
   const _ManualTransitionCard({
     required this.onTap,
-    this.enabled = true,
   });
 
   final VoidCallback? onTap;
-  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -508,21 +503,17 @@ class _ManualTransitionCard extends StatelessWidget {
           color: FxPalette.surfaceRaised,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: enabled
-                ? FxPalette.accent.withOpacity(0.32)
-                : FxPalette.dividerSoft,
+            color: FxPalette.accent.withOpacity(0.32),
             width: 1,
           ),
-          gradient: enabled
-              ? LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    FxPalette.accent.withOpacity(0.10),
-                    Colors.white.withOpacity(0.03),
-                  ],
-                )
-              : null,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              FxPalette.accent.withOpacity(0.10),
+              Colors.white.withOpacity(0.03),
+            ],
+          ),
         ),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
@@ -532,20 +523,16 @@ class _ManualTransitionCard extends StatelessWidget {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: enabled
-                      ? FxPalette.accent.withOpacity(0.14)
-                      : Colors.white.withOpacity(0.06),
+                  color: FxPalette.accent.withOpacity(0.14),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: enabled
-                        ? FxPalette.accent.withOpacity(0.28)
-                        : Colors.white.withOpacity(0.08),
+                    color: FxPalette.accent.withOpacity(0.28),
                     width: 1,
                   ),
                 ),
-                child: Icon(
+                child: const Icon(
                   Icons.tune_rounded,
-                  color: enabled ? FxPalette.accent : FxPalette.textMuted,
+                  color: FxPalette.accent,
                   size: 20,
                 ),
               ),
@@ -564,9 +551,7 @@ class _ManualTransitionCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      enabled
-                          ? 'Open the focused seam timeline and start editing the transition lanes directly.'
-                          : 'Locked until the professional compositor can render authored transition lanes.',
+                      'Open the focused seam timeline and start editing the transition lanes directly.',
                       style: TextStyle(
                         color: FxPalette.textMuted.withOpacity(0.92),
                         fontSize: 12,
@@ -589,11 +574,9 @@ class _ManualTransitionCard extends StatelessWidget {
                     width: 1,
                   ),
                 ),
-                child: Icon(
-                  enabled ? Icons.chevron_right_rounded : Icons.lock_rounded,
-                  color: enabled
-                      ? FxPalette.textPrimary
-                      : FxPalette.textMuted.withOpacity(0.9),
+                child: const Icon(
+                  Icons.chevron_right_rounded,
+                  color: FxPalette.textPrimary,
                   size: 20,
                 ),
               ),
