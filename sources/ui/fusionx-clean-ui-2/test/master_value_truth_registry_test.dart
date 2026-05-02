@@ -1,0 +1,80 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:refusion_app/features/editor/domain/models/master_value_truth_models.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_models.dart';
+import 'package:refusion_app/features/editor/domain/services/master_value_truth_registry.dart';
+
+void main() {
+  final registry = MasterValueTruthRegistry();
+
+  MasterPropertyDefinition definition(String id) {
+    final result = registry.definitionById(id);
+    expect(result, isNotNull, reason: 'definition `$id` must exist');
+    return result!;
+  }
+
+  group('MasterValueTruthRegistry', () {
+    test('contains baseline required definitions', () {
+      expect(registry.definitionById('opacity'), isNotNull);
+      expect(registry.definitionById('scale'), isNotNull);
+      expect(registry.definitionById('position'), isNotNull);
+      expect(registry.definitionById('rotation'), isNotNull);
+      expect(registry.definitionById('gaussianBlur'), isNotNull);
+      expect(registry.definitionById('motionBlurAmount'), isNotNull);
+      expect(registry.definitionById('tileOutputScale'), isNotNull);
+    });
+
+    test('opacity 100 percent maps to normalized alpha 1.0', () {
+      final mapped = registry.mapValue(
+        definition: definition('opacity'),
+        value: const MotionPropertyValue.scalar(100),
+      );
+      expect(mapped.uiUnit, MasterValueUnit.percentUi);
+      expect(mapped.rendererUnit, MasterValueUnit.normalized01);
+      expect(mapped.renderer.scalar, closeTo(1.0, 0.0001));
+    });
+
+    test('opacity 0 percent maps to normalized alpha 0.0', () {
+      final mapped = registry.mapValue(
+        definition: definition('opacity'),
+        value: const MotionPropertyValue.scalar(0),
+      );
+      expect(mapped.renderer.scalar, 0.0);
+    });
+
+    test('scale signed percent maps to multiplier', () {
+      final normal = registry.mapValue(
+        definition: definition('scale'),
+        value: const MotionPropertyValue.scalar(0),
+      );
+      final doubled = registry.mapValue(
+        definition: definition('scale'),
+        value: const MotionPropertyValue.scalar(100),
+      );
+      final half = registry.mapValue(
+        definition: definition('scale'),
+        value: const MotionPropertyValue.scalar(-50),
+      );
+
+      expect(normal.engine.scalar, closeTo(1.0, 0.0001));
+      expect(doubled.engine.scalar, closeTo(2.0, 0.0001));
+      expect(half.engine.scalar, closeTo(0.5, 0.0001));
+    });
+
+    test('rotation 180 degrees maps to pi radians', () {
+      final mapped = registry.mapValue(
+        definition: definition('rotation'),
+        value: const MotionPropertyValue.scalar(180),
+      );
+      expect(mapped.renderer.scalar, closeTo(3.1415926535, 0.0001));
+    });
+
+    test('gaussian blur clamps negative values', () {
+      final mapped = registry.mapValue(
+        definition: definition('gaussianBlur'),
+        value: const MotionPropertyValue.scalar(-20),
+      );
+      expect(mapped.ui.scalar, 0.0);
+      expect(mapped.renderer.scalar, 0.0);
+    });
+  });
+}

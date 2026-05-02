@@ -1,0 +1,5 @@
+# Allowed preview-time clock-source occurrences.
+# Format: <path>:<token>
+
+lib/features/editor/presentation/widgets/ai_transition_bottom_sheet.dart:DateTime.now(
+lib/features/editor/presentation/widgets/timeline_panel.dart:DateTime.now(

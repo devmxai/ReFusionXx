@@ -20,7 +20,10 @@ void main() {
       expect(clock.phase, TimelineClockPhase.paused);
       expect(clock.time.inMilliseconds, 1200);
       expect(clock.evaluationTime, clock.time);
+      expect(clock.snapshot.presentationTime, clock.time);
       expect(clock.authority, TimelineClockAuthority.none);
+      expect(clock.snapshot.commitFrameNumber, 0);
+      expect(clock.snapshot.monotonicTimeUs, 0);
     });
 
     test('scrub lifecycle settles to a paused authoritative frame', () {
@@ -185,11 +188,49 @@ void main() {
     test('does not emit revisions when duration and time are unchanged', () {
       final clock = newClock(initialMs: 1000);
       final startingRevision = clock.snapshot.revision;
+      final startingCommitFrameNumber = clock.snapshot.commitFrameNumber;
 
       clock.setTimelineDuration(TimelineTime.fromMilliseconds(10000));
 
       expect(clock.snapshot.revision, startingRevision);
+      expect(clock.snapshot.commitFrameNumber, startingCommitFrameNumber);
       expect(clock.time.inMilliseconds, 1000);
+    });
+
+    test('phase transition policy rejects known invalid transition', () {
+      final clock = newClock();
+      expect(
+        clock.isValidPhaseTransitionForTesting(
+          TimelineClockPhase.playing,
+          TimelineClockPhase.structuralEditing,
+        ),
+        isFalse,
+      );
+      expect(
+        clock.isValidPhaseTransitionForTesting(
+          TimelineClockPhase.playing,
+          TimelineClockPhase.scrubbing,
+        ),
+        isTrue,
+      );
+    });
+
+    test('authority policy rejects invalid authority for phase', () {
+      final clock = newClock();
+      expect(
+        clock.isAuthorityAllowedForPhaseForTesting(
+          TimelineClockAuthority.geometry,
+          TimelineClockPhase.playing,
+        ),
+        isFalse,
+      );
+      expect(
+        clock.isAuthorityAllowedForPhaseForTesting(
+          TimelineClockAuthority.nativeTransport,
+          TimelineClockPhase.playing,
+        ),
+        isTrue,
+      );
     });
 
     test('zoom locks the exact frame and ignores native samples', () {

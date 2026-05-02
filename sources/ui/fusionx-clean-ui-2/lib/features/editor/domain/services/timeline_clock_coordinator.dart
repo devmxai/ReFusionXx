@@ -36,10 +36,13 @@ class TimelineClockSnapshot {
   const TimelineClockSnapshot({
     required this.time,
     required this.evaluationTime,
+    required this.presentationTime,
     required this.timelineDuration,
     required this.phase,
     required this.authority,
     required this.revision,
+    required this.commitFrameNumber,
+    required this.monotonicTimeUs,
     this.requestedPlaybackStartTime,
     this.scrubTargetTime,
     this.seekTargetTime,
@@ -56,19 +59,25 @@ class TimelineClockSnapshot {
     return TimelineClockSnapshot(
       time: clampedTime,
       evaluationTime: clampedTime,
+      presentationTime: clampedTime,
       timelineDuration: safeDuration,
       phase: TimelineClockPhase.paused,
       authority: TimelineClockAuthority.none,
       revision: 0,
+      commitFrameNumber: 0,
+      monotonicTimeUs: 0,
     );
   }
 
   final TimelineTime time;
   final TimelineTime evaluationTime;
+  final TimelineTime presentationTime;
   final TimelineTime timelineDuration;
   final TimelineClockPhase phase;
   final TimelineClockAuthority authority;
   final int revision;
+  final int commitFrameNumber;
+  final int monotonicTimeUs;
   final TimelineTime? requestedPlaybackStartTime;
   final TimelineTime? scrubTargetTime;
   final TimelineTime? seekTargetTime;
@@ -86,10 +95,13 @@ class TimelineClockSnapshot {
   TimelineClockSnapshot copyWith({
     TimelineTime? time,
     TimelineTime? evaluationTime,
+    TimelineTime? presentationTime,
     TimelineTime? timelineDuration,
     TimelineClockPhase? phase,
     TimelineClockAuthority? authority,
     int? revision,
+    int? commitFrameNumber,
+    int? monotonicTimeUs,
     Object? requestedPlaybackStartTime = _clockUnset,
     Object? scrubTargetTime = _clockUnset,
     Object? seekTargetTime = _clockUnset,
@@ -99,10 +111,13 @@ class TimelineClockSnapshot {
     return TimelineClockSnapshot(
       time: time ?? this.time,
       evaluationTime: evaluationTime ?? this.evaluationTime,
+      presentationTime: presentationTime ?? this.presentationTime,
       timelineDuration: timelineDuration ?? this.timelineDuration,
       phase: phase ?? this.phase,
       authority: authority ?? this.authority,
       revision: revision ?? this.revision,
+      commitFrameNumber: commitFrameNumber ?? this.commitFrameNumber,
+      monotonicTimeUs: monotonicTimeUs ?? this.monotonicTimeUs,
       requestedPlaybackStartTime:
           identical(requestedPlaybackStartTime, _clockUnset)
               ? this.requestedPlaybackStartTime
@@ -149,10 +164,13 @@ class TimelineClockSnapshot {
         other is TimelineClockSnapshot &&
             other.time == time &&
             other.evaluationTime == evaluationTime &&
+            other.presentationTime == presentationTime &&
             other.timelineDuration == timelineDuration &&
             other.phase == phase &&
             other.authority == authority &&
             other.revision == revision &&
+            other.commitFrameNumber == commitFrameNumber &&
+            other.monotonicTimeUs == monotonicTimeUs &&
             other.requestedPlaybackStartTime == requestedPlaybackStartTime &&
             other.scrubTargetTime == scrubTargetTime &&
             other.seekTargetTime == seekTargetTime &&
@@ -164,10 +182,13 @@ class TimelineClockSnapshot {
   int get hashCode => Object.hash(
         time,
         evaluationTime,
+        presentationTime,
         timelineDuration,
         phase,
         authority,
         revision,
+        commitFrameNumber,
+        monotonicTimeUs,
         requestedPlaybackStartTime,
         scrubTargetTime,
         seekTargetTime,
@@ -190,6 +211,7 @@ class TimelineClockCoordinator extends ChangeNotifier {
 
   TimelineClockSnapshot _snapshot;
   final TimelineTime _playStartSampleTolerance;
+  final Stopwatch _monotonicClock = Stopwatch()..start();
 
   TimelineClockSnapshot get snapshot => _snapshot;
 
@@ -200,6 +222,22 @@ class TimelineClockCoordinator extends ChangeNotifier {
   TimelineClockPhase get phase => _snapshot.phase;
 
   TimelineClockAuthority get authority => _snapshot.authority;
+
+  @visibleForTesting
+  bool isValidPhaseTransitionForTesting(
+    TimelineClockPhase from,
+    TimelineClockPhase to,
+  ) {
+    return _isValidPhaseTransition(from, to);
+  }
+
+  @visibleForTesting
+  bool isAuthorityAllowedForPhaseForTesting(
+    TimelineClockAuthority authority,
+    TimelineClockPhase phase,
+  ) {
+    return _isAuthorityAllowedForPhase(authority, phase);
+  }
 
   void setTimelineDuration(TimelineTime duration) {
     final safeDuration = _sanitizeDuration(duration);
@@ -215,6 +253,7 @@ class TimelineClockCoordinator extends ChangeNotifier {
       _snapshot.copyWith(
         time: clampedTime,
         evaluationTime: clampedTime,
+        presentationTime: clampedTime,
         timelineDuration: safeDuration,
         requestedPlaybackStartTime:
             clampOptional(_snapshot.requestedPlaybackStartTime),
@@ -231,6 +270,7 @@ class TimelineClockCoordinator extends ChangeNotifier {
       _snapshot.copyWith(
         time: clamped,
         evaluationTime: clamped,
+        presentationTime: clamped,
         phase: TimelineClockPhase.scrubbing,
         authority: TimelineClockAuthority.user,
         requestedPlaybackStartTime: null,
@@ -251,6 +291,7 @@ class TimelineClockCoordinator extends ChangeNotifier {
       _snapshot.copyWith(
         time: clamped,
         evaluationTime: clamped,
+        presentationTime: clamped,
         authority: TimelineClockAuthority.user,
         scrubTargetTime: clamped,
       ),
@@ -267,6 +308,7 @@ class TimelineClockCoordinator extends ChangeNotifier {
       _snapshot.copyWith(
         time: clamped,
         evaluationTime: clamped,
+        presentationTime: clamped,
         phase: TimelineClockPhase.scrubSettling,
         authority: TimelineClockAuthority.user,
         scrubTargetTime: clamped,
@@ -290,6 +332,7 @@ class TimelineClockCoordinator extends ChangeNotifier {
       _snapshot.copyWith(
         time: clamped,
         evaluationTime: clamped,
+        presentationTime: clamped,
         phase: TimelineClockPhase.playStarting,
         authority: TimelineClockAuthority.nativeTransport,
         requestedPlaybackStartTime: clamped,
@@ -348,6 +391,7 @@ class TimelineClockCoordinator extends ChangeNotifier {
       _snapshot.copyWith(
         time: clamped,
         evaluationTime: clamped,
+        presentationTime: clamped,
         phase: TimelineClockPhase.seeking,
         authority: TimelineClockAuthority.nativeTransport,
         requestedPlaybackStartTime: null,
@@ -377,6 +421,7 @@ class TimelineClockCoordinator extends ChangeNotifier {
       _snapshot.copyWith(
         time: clamped,
         evaluationTime: clamped,
+        presentationTime: clamped,
         phase: TimelineClockPhase.zooming,
         authority: TimelineClockAuthority.geometry,
         zoomAnchorTime: clamped,
@@ -394,6 +439,7 @@ class TimelineClockCoordinator extends ChangeNotifier {
       _snapshot.copyWith(
         time: locked,
         evaluationTime: locked,
+        presentationTime: locked,
         authority: TimelineClockAuthority.geometry,
       ),
     );
@@ -413,6 +459,7 @@ class TimelineClockCoordinator extends ChangeNotifier {
       _snapshot.copyWith(
         time: locked,
         evaluationTime: locked,
+        presentationTime: locked,
         phase: nextPhase,
         authority: TimelineClockAuthority.geometry,
         zoomAnchorTime: null,
@@ -428,6 +475,7 @@ class TimelineClockCoordinator extends ChangeNotifier {
       _snapshot.copyWith(
         time: clamped,
         evaluationTime: clamped,
+        presentationTime: clamped,
         phase: TimelineClockPhase.structuralEditing,
         authority: TimelineClockAuthority.structuralEdit,
         requestedPlaybackStartTime: null,
@@ -470,6 +518,7 @@ class TimelineClockCoordinator extends ChangeNotifier {
       _snapshot.copyWith(
         time: time,
         evaluationTime: time,
+        presentationTime: time,
         phase: TimelineClockPhase.playing,
         authority: TimelineClockAuthority.nativeTransport,
         requestedPlaybackStartTime: null,
@@ -489,6 +538,7 @@ class TimelineClockCoordinator extends ChangeNotifier {
       _snapshot.copyWith(
         time: time,
         evaluationTime: time,
+        presentationTime: time,
         phase: TimelineClockPhase.paused,
         authority: authority,
         requestedPlaybackStartTime: null,
@@ -501,24 +551,159 @@ class TimelineClockCoordinator extends ChangeNotifier {
   }
 
   void _commit(TimelineClockSnapshot next) {
+    if (!_isValidPhaseTransition(_snapshot.phase, next.phase)) {
+      debugPrint(
+        'TimelineClockCoordinator rejected phase transition '
+        '${_snapshot.phase.name} -> ${next.phase.name}',
+      );
+      return;
+    }
+    if (!_isAuthorityAllowedForPhase(next.authority, next.phase)) {
+      debugPrint(
+        'TimelineClockCoordinator rejected authority ${next.authority.name} '
+        'for phase ${next.phase.name}',
+      );
+      return;
+    }
     final clampedTime = _clampToDuration(next.time, next.timelineDuration);
     final clampedEvaluationTime =
         _clampToDuration(next.evaluationTime, next.timelineDuration);
+    final clampedPresentationTime =
+        _clampToDuration(next.presentationTime, next.timelineDuration);
     final normalizedWithoutRevision = next.copyWith(
       time: clampedTime,
       evaluationTime: clampedEvaluationTime,
+      presentationTime: clampedPresentationTime,
       revision: _snapshot.revision,
+      commitFrameNumber: _snapshot.commitFrameNumber,
+      monotonicTimeUs: _snapshot.monotonicTimeUs,
     );
     if (normalizedWithoutRevision == _snapshot) {
       return;
     }
     final normalized = normalizedWithoutRevision.copyWith(
       revision: _snapshot.revision + 1,
+      commitFrameNumber: _snapshot.commitFrameNumber + 1,
+      monotonicTimeUs: _monotonicClock.elapsedMicroseconds,
     );
     _snapshot = normalized;
     notifyListeners();
   }
 }
+
+bool _isValidPhaseTransition(
+  TimelineClockPhase from,
+  TimelineClockPhase to,
+) {
+  if (from == to) {
+    return true;
+  }
+  final allowed = _allowedPhaseTransitions[from];
+  return allowed != null && allowed.contains(to);
+}
+
+bool _isAuthorityAllowedForPhase(
+  TimelineClockAuthority authority,
+  TimelineClockPhase phase,
+) {
+  final allowed = _allowedAuthoritiesByPhase[phase];
+  return allowed != null && allowed.contains(authority);
+}
+
+const Map<TimelineClockPhase, Set<TimelineClockPhase>>
+    _allowedPhaseTransitions = <TimelineClockPhase, Set<TimelineClockPhase>>{
+  TimelineClockPhase.idle: <TimelineClockPhase>{
+    TimelineClockPhase.paused,
+    TimelineClockPhase.structuralEditing,
+  },
+  TimelineClockPhase.paused: <TimelineClockPhase>{
+    TimelineClockPhase.scrubbing,
+    TimelineClockPhase.playStarting,
+    TimelineClockPhase.seeking,
+    TimelineClockPhase.zooming,
+    TimelineClockPhase.structuralEditing,
+  },
+  TimelineClockPhase.scrubbing: <TimelineClockPhase>{
+    TimelineClockPhase.scrubSettling,
+    TimelineClockPhase.playStarting,
+    TimelineClockPhase.paused,
+  },
+  TimelineClockPhase.scrubSettling: <TimelineClockPhase>{
+    TimelineClockPhase.paused,
+    TimelineClockPhase.playStarting,
+  },
+  TimelineClockPhase.playStarting: <TimelineClockPhase>{
+    TimelineClockPhase.playing,
+    TimelineClockPhase.paused,
+    TimelineClockPhase.scrubbing,
+    TimelineClockPhase.seeking,
+  },
+  TimelineClockPhase.playing: <TimelineClockPhase>{
+    TimelineClockPhase.pausing,
+    TimelineClockPhase.paused,
+    TimelineClockPhase.scrubbing,
+    TimelineClockPhase.seeking,
+    TimelineClockPhase.zooming,
+  },
+  TimelineClockPhase.pausing: <TimelineClockPhase>{
+    TimelineClockPhase.paused,
+    TimelineClockPhase.playStarting,
+    TimelineClockPhase.scrubbing,
+  },
+  TimelineClockPhase.seeking: <TimelineClockPhase>{
+    TimelineClockPhase.paused,
+    TimelineClockPhase.playStarting,
+    TimelineClockPhase.scrubbing,
+  },
+  TimelineClockPhase.zooming: <TimelineClockPhase>{
+    TimelineClockPhase.paused,
+    TimelineClockPhase.scrubbing,
+  },
+  TimelineClockPhase.structuralEditing: <TimelineClockPhase>{
+    TimelineClockPhase.paused,
+    TimelineClockPhase.scrubbing,
+    TimelineClockPhase.seeking,
+  },
+};
+
+const Map<TimelineClockPhase, Set<TimelineClockAuthority>>
+    _allowedAuthoritiesByPhase =
+    <TimelineClockPhase, Set<TimelineClockAuthority>>{
+  TimelineClockPhase.idle: <TimelineClockAuthority>{
+    TimelineClockAuthority.none,
+  },
+  TimelineClockPhase.paused: <TimelineClockAuthority>{
+    TimelineClockAuthority.none,
+    TimelineClockAuthority.user,
+    TimelineClockAuthority.nativeTransport,
+    TimelineClockAuthority.geometry,
+    TimelineClockAuthority.structuralEdit,
+  },
+  TimelineClockPhase.scrubbing: <TimelineClockAuthority>{
+    TimelineClockAuthority.user,
+  },
+  TimelineClockPhase.scrubSettling: <TimelineClockAuthority>{
+    TimelineClockAuthority.user,
+  },
+  TimelineClockPhase.playStarting: <TimelineClockAuthority>{
+    TimelineClockAuthority.nativeTransport,
+  },
+  TimelineClockPhase.playing: <TimelineClockAuthority>{
+    TimelineClockAuthority.nativeTransport,
+  },
+  TimelineClockPhase.pausing: <TimelineClockAuthority>{
+    TimelineClockAuthority.nativeTransport,
+  },
+  TimelineClockPhase.seeking: <TimelineClockAuthority>{
+    TimelineClockAuthority.nativeTransport,
+  },
+  TimelineClockPhase.zooming: <TimelineClockAuthority>{
+    TimelineClockAuthority.geometry,
+  },
+  TimelineClockPhase.structuralEditing: <TimelineClockAuthority>{
+    TimelineClockAuthority.structuralEdit,
+  },
+};
 
 TimelineTime _sanitizeDuration(TimelineTime duration) {
   if (duration < TimelineTime.zero) {
