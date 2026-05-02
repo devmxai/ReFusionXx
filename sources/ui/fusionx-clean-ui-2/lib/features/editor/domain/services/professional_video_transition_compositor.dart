@@ -5414,6 +5414,13 @@ class ProfessionalVideoTransitionPixelFrameBufferWriterPlanResult {
     required this.canWriteTemporalPixels,
     required this.wroteTemporalPixels,
     required this.frameBufferContainsRealPixels,
+    required this.writerTemporalSampleCount,
+    required this.writerExtractedFrameCount,
+    required this.writerFrameBufferWriteByteCount,
+    required this.writerFrameBufferChecksum,
+    required this.writerSourceFrameExtractor,
+    required this.writerCanvasFillMode,
+    required this.writerReason,
     required this.pixelRendererImplemented,
     required this.pixelRendererReady,
     required this.rendererImplemented,
@@ -5471,6 +5478,13 @@ class ProfessionalVideoTransitionPixelFrameBufferWriterPlanResult {
       canWriteTemporalPixels: false,
       wroteTemporalPixels: false,
       frameBufferContainsRealPixels: false,
+      writerTemporalSampleCount: 0,
+      writerExtractedFrameCount: 0,
+      writerFrameBufferWriteByteCount: 0,
+      writerFrameBufferChecksum: 0,
+      writerSourceFrameExtractor: '',
+      writerCanvasFillMode: '',
+      writerReason: '',
       pixelRendererImplemented: false,
       pixelRendererReady: false,
       rendererImplemented: false,
@@ -5522,6 +5536,13 @@ class ProfessionalVideoTransitionPixelFrameBufferWriterPlanResult {
   final bool canWriteTemporalPixels;
   final bool wroteTemporalPixels;
   final bool frameBufferContainsRealPixels;
+  final int writerTemporalSampleCount;
+  final int writerExtractedFrameCount;
+  final int writerFrameBufferWriteByteCount;
+  final int writerFrameBufferChecksum;
+  final String writerSourceFrameExtractor;
+  final String writerCanvasFillMode;
+  final String writerReason;
   final bool pixelRendererImplemented;
   final bool pixelRendererReady;
   final bool rendererImplemented;
@@ -5606,6 +5627,15 @@ class ProfessionalVideoTransitionPixelFrameBufferWriterPlanResultMapper {
       wroteTemporalPixels: _readBool(map['wroteTemporalPixels']),
       frameBufferContainsRealPixels:
           _readBool(map['frameBufferContainsRealPixels']),
+      writerTemporalSampleCount: _readInt(map['writerTemporalSampleCount']),
+      writerExtractedFrameCount: _readInt(map['writerExtractedFrameCount']),
+      writerFrameBufferWriteByteCount:
+          _readInt(map['writerFrameBufferWriteByteCount']),
+      writerFrameBufferChecksum: _readInt(map['writerFrameBufferChecksum']),
+      writerSourceFrameExtractor:
+          map['writerSourceFrameExtractor']?.toString() ?? '',
+      writerCanvasFillMode: map['writerCanvasFillMode']?.toString() ?? '',
+      writerReason: map['writerReason']?.toString() ?? '',
       pixelRendererImplemented: _readBool(map['pixelRendererImplemented']),
       pixelRendererReady: _readBool(map['pixelRendererReady']),
       rendererImplemented: _readBool(map['rendererImplemented']),

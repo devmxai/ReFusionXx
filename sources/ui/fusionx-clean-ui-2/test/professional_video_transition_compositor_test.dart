@@ -2962,6 +2962,13 @@ void main() {
         'canWriteTemporalPixels': false,
         'wroteTemporalPixels': false,
         'frameBufferContainsRealPixels': false,
+        'writerTemporalSampleCount': 4,
+        'writerExtractedFrameCount': 0,
+        'writerFrameBufferWriteByteCount': 0,
+        'writerFrameBufferChecksum': 0,
+        'writerSourceFrameExtractor': 'MediaMetadataRetriever.getFrameAtTime',
+        'writerCanvasFillMode': 'centerCropFill',
+        'writerReason': 'native_transition_pixel_frame_buffer_writer_missing',
         'pixelRendererImplemented': false,
         'pixelRendererReady': false,
         'rendererImplemented': false,
@@ -3028,6 +3035,19 @@ void main() {
     expect(result.canWriteTemporalPixels, isFalse);
     expect(result.wroteTemporalPixels, isFalse);
     expect(result.frameBufferContainsRealPixels, isFalse);
+    expect(result.writerTemporalSampleCount, 4);
+    expect(result.writerExtractedFrameCount, 0);
+    expect(result.writerFrameBufferWriteByteCount, 0);
+    expect(result.writerFrameBufferChecksum, 0);
+    expect(
+      result.writerSourceFrameExtractor,
+      'MediaMetadataRetriever.getFrameAtTime',
+    );
+    expect(result.writerCanvasFillMode, 'centerCropFill');
+    expect(
+      result.writerReason,
+      'native_transition_pixel_frame_buffer_writer_missing',
+    );
     expect(result.canRenderPixels, isFalse);
     expect(
       result.blockedReasons,

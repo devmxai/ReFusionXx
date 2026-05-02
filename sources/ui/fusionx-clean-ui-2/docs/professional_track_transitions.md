@@ -654,11 +654,17 @@ Pixel output proof gate:
   is bound to the allocated buffer, requires temporal dual-source samples, and
   forbids still-frame writes, synthetic pixels, poster frames, thumbnails, and
   boundary freezes;
-- until a concrete native writer copies/mixes real temporal video samples into
-  that buffer, the blockers remain
-  `native_transition_pixel_frame_buffer_writer_missing`,
-  `native_transition_pixel_frame_buffer_temporal_pixels_missing`, and
-  `native_transition_pixel_frame_buffer_pixels_missing`;
+- Android now writes temporal source-frame pixels into that allocated
+  `DirectByteBuffer` by extracting real outgoing/incoming video frames at the
+  requested shutter sample times with `MediaMetadataRetriever.getFrameAtTime`,
+  compositing them into a canvas-sized `rgba8888` center-crop-fill bitmap, and
+  recording write byte count, extracted-frame count, and checksum. This proves
+  the buffer contains real source-derived temporal pixels, not a poster,
+  thumbnail, synthetic shape, boundary freeze, or Flutter overlay;
+- the writer is still not the final transition renderer. Pixel render
+  execution, output proof, and preview/scrub/playback parity remain blocked
+  until a concrete native renderer consumes the buffer and writes the final
+  transition output frame;
 - `planTransitionPixelOutputProof` must pass after pixel render execution and
   before preview/scrub/playback parity;
 - the proof must confirm that the renderer wrote real pixels into the native
@@ -997,8 +1003,11 @@ Current gate:
   This is the native writer gate between allocated frame-buffer memory and pixel
   render execution. It binds the writer to the allocated `DirectByteBuffer`,
   requires temporal dual-source samples, rejects still-frame writes and all fake
-  fallbacks, and remains blocked until a concrete native writer can write real
-  moving video pixels into the buffer.
+  fallbacks, and writes real outgoing/incoming source-frame pixels into the
+  buffer with Android `MediaMetadataRetriever` extraction plus canvas-size
+  center-crop-fill composition. This stage records sample count, extracted-frame
+  count, write byte count, checksum, extractor, and fill mode, but it still does
+  not expose transitions because final pixel execution/output proof is separate.
 - Flutter and Android now also share `planTransitionPixelRenderExecution`. This
   is the explicit execution/output gate for the future concrete pixel renderer.
   It now depends on the writer gate before binding the pixel workload to the

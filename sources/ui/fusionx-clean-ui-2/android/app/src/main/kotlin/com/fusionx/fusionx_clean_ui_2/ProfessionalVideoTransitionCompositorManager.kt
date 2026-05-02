@@ -2,14 +2,22 @@ package com.refusion.app
 
 import android.app.ActivityManager
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Rect
+import android.graphics.RectF
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.LinkedHashMap
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 class ProfessionalVideoTransitionCompositorManager(
     private val appContext: Context,
@@ -2986,14 +2994,38 @@ private data class ProfessionalVideoTransitionRenderSession(
                 frameBufferReady
         val requiresTemporalSamples = true
         val requiresDualSourceSamples = sourceRoles.size >= 2
-        val writerImplemented = false
-        val writerReady = false
-        val canWriteTemporalPixels = false
-        val wroteTemporalPixels = false
-        val frameBufferContainsRealPixels = false
+        val frameBufferId = frameBufferPlan["transitionPixelFrameBufferId"]?.toString() ?: ""
+        val writeResult =
+            if (writerBoundToFrameBuffer && frameBufferId.isNotBlank()) {
+                writeTemporalVideoPixelsToFrameBuffer(
+                    appContext = appContext,
+                    frameBufferStore = frameBufferStore,
+                    frameBufferId = frameBufferId,
+                    timelineTimeMs = timelineTimeMs,
+                    motionBlurPolicy = motionBlurPolicy,
+                )
+            } else {
+                ProfessionalVideoTransitionPixelFrameBufferWriteResult(
+                    wrotePixels = false,
+                    byteCount = 0,
+                    checksum = 0L,
+                    sampleCount = 0,
+                    extractedFrameCount = 0,
+                    reason = "native_transition_pixel_frame_buffer_writer_not_bound",
+                )
+            }
+        val writerImplemented = writerBoundToFrameBuffer
+        val writerReady = writeResult.wrotePixels
+        val canWriteTemporalPixels = writeResult.wrotePixels
+        val wroteTemporalPixels = writeResult.wrotePixels
+        val frameBufferContainsRealPixels = writeResult.wrotePixels
         val upstreamBlockedReasons =
             (frameBufferPlan["blockedReasons"] as? List<*>)
                 ?.map { reason -> reason.toString() }
+                ?.filterNot { reason ->
+                    reason == "native_transition_pixel_frame_buffer_pixels_missing" ||
+                        reason == "native_transition_pixel_frame_buffer_renderer_missing"
+                }
                 ?: emptyList()
         val blockedReasons =
             buildList {
@@ -3009,6 +3041,9 @@ private data class ProfessionalVideoTransitionRenderSession(
                 }
                 if (!frameBufferContainsRealPixels) {
                     add("native_transition_pixel_frame_buffer_pixels_missing")
+                }
+                if (!writeResult.reason.isNullOrBlank()) {
+                    add(writeResult.reason)
                 }
             }.distinct()
         return frameBufferPlan +
@@ -3027,6 +3062,13 @@ private data class ProfessionalVideoTransitionRenderSession(
                 "canWriteTemporalPixels" to canWriteTemporalPixels,
                 "wroteTemporalPixels" to wroteTemporalPixels,
                 "frameBufferContainsRealPixels" to frameBufferContainsRealPixels,
+                "writerTemporalSampleCount" to writeResult.sampleCount,
+                "writerExtractedFrameCount" to writeResult.extractedFrameCount,
+                "writerFrameBufferWriteByteCount" to writeResult.byteCount,
+                "writerFrameBufferChecksum" to writeResult.checksum,
+                "writerSourceFrameExtractor" to "MediaMetadataRetriever.getFrameAtTime",
+                "writerCanvasFillMode" to "centerCropFill",
+                "writerReason" to (writeResult.reason ?: ""),
                 "pixelRendererImplemented" to false,
                 "pixelRendererReady" to false,
                 "rendererImplemented" to false,
@@ -3036,6 +3078,182 @@ private data class ProfessionalVideoTransitionRenderSession(
                 "canRenderFrame" to false,
                 "blockedReasons" to blockedReasons,
             )
+    }
+
+    private fun writeTemporalVideoPixelsToFrameBuffer(
+        appContext: Context,
+        frameBufferStore: ProfessionalVideoTransitionPixelFrameBufferStore,
+        frameBufferId: String,
+        timelineTimeMs: Long,
+        motionBlurPolicy: Map<*, *>?,
+    ): ProfessionalVideoTransitionPixelFrameBufferWriteResult {
+        val width = canvasWidth.toInt()
+        val height = canvasHeight.toInt()
+        if (width <= 0 || height <= 0) {
+            return ProfessionalVideoTransitionPixelFrameBufferWriteResult(
+                wrotePixels = false,
+                byteCount = 0,
+                checksum = 0L,
+                sampleCount = 0,
+                extractedFrameCount = 0,
+                reason = "native_transition_pixel_frame_buffer_invalid_size",
+            )
+        }
+        val timelineSamples = temporalSampleTimelineTimes(timelineTimeMs, motionBlurPolicy)
+        if (timelineSamples.isEmpty()) {
+            return ProfessionalVideoTransitionPixelFrameBufferWriteResult(
+                wrotePixels = false,
+                byteCount = 0,
+                checksum = 0L,
+                sampleCount = 0,
+                extractedFrameCount = 0,
+                reason = "native_transition_temporal_samples_missing",
+            )
+        }
+        val progress =
+            ((timelineTimeMs - transitionStartMs).toDouble() /
+                (transitionEndMs - transitionStartMs).coerceAtLeast(1L).toDouble())
+                .coerceIn(0.0, 1.0)
+        val outgoingAlphaBase = ((1.0 - progress) * 255.0).roundToInt().coerceIn(0, 255)
+        val incomingAlphaBase = (progress * 255.0).roundToInt().coerceIn(0, 255)
+        val canvasBitmap =
+            runCatching {
+                Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            }.getOrNull()
+                ?: return ProfessionalVideoTransitionPixelFrameBufferWriteResult(
+                    wrotePixels = false,
+                    byteCount = 0,
+                    checksum = 0L,
+                    sampleCount = timelineSamples.size,
+                    extractedFrameCount = 0,
+                    reason = "native_transition_pixel_frame_buffer_bitmap_allocation_failed",
+                )
+        var extractedFrameCount = 0
+        var outgoingFrameCount = 0
+        var incomingFrameCount = 0
+        try {
+            val canvas = Canvas(canvasBitmap)
+            canvas.drawColor(Color.BLACK)
+            val sampleCount = timelineSamples.size.coerceAtLeast(1)
+            val outgoingAlpha = temporalSampleAlpha(outgoingAlphaBase, sampleCount)
+            val incomingAlpha = temporalSampleAlpha(incomingAlphaBase, sampleCount)
+            timelineSamples.forEach { sampleTimelineMs ->
+                if (outgoingAlpha > 0 && outgoing.coversTimelineTime(sampleTimelineMs)) {
+                    val sourceTimeMs = outgoing.sourceTimeForTimelineTime(sampleTimelineMs)
+                    val frame = extractVideoFrameBitmap(appContext, outgoing.sourceUri, sourceTimeMs)
+                    if (frame != null) {
+                        drawBitmapCenterCrop(
+                            canvas = canvas,
+                            bitmap = frame,
+                            alpha = outgoingAlpha,
+                            canvasWidth = width,
+                            canvasHeight = height,
+                        )
+                        extractedFrameCount += 1
+                        outgoingFrameCount += 1
+                        frame.recycle()
+                    }
+                }
+                if (incomingAlpha > 0 && incoming.coversTimelineTime(sampleTimelineMs)) {
+                    val sourceTimeMs = incoming.sourceTimeForTimelineTime(sampleTimelineMs)
+                    val frame = extractVideoFrameBitmap(appContext, incoming.sourceUri, sourceTimeMs)
+                    if (frame != null) {
+                        drawBitmapCenterCrop(
+                            canvas = canvas,
+                            bitmap = frame,
+                            alpha = incomingAlpha,
+                            canvasWidth = width,
+                            canvasHeight = height,
+                        )
+                        extractedFrameCount += 1
+                        incomingFrameCount += 1
+                        frame.recycle()
+                    }
+                }
+            }
+            if (outgoingFrameCount <= 0 || incomingFrameCount <= 0) {
+                return ProfessionalVideoTransitionPixelFrameBufferWriteResult(
+                    wrotePixels = false,
+                    byteCount = 0,
+                    checksum = 0L,
+                    sampleCount = timelineSamples.size,
+                    extractedFrameCount = extractedFrameCount,
+                    reason = "native_transition_temporal_dual_source_pixels_missing",
+                )
+            }
+            return frameBufferStore.writeBitmap(
+                frameBufferId = frameBufferId,
+                bitmap = canvasBitmap,
+                sampleCount = timelineSamples.size,
+                extractedFrameCount = extractedFrameCount,
+            )
+        } finally {
+            canvasBitmap.recycle()
+        }
+    }
+
+    private fun temporalSampleAlpha(
+        baseAlpha: Int,
+        sampleCount: Int,
+    ): Int {
+        if (baseAlpha <= 0) {
+            return 0
+        }
+        return (baseAlpha / sampleCount.toDouble()).roundToInt().coerceIn(1, 255)
+    }
+
+    private fun extractVideoFrameBitmap(
+        appContext: Context,
+        sourceUri: String?,
+        sourceTimeMs: Long,
+    ): Bitmap? {
+        if (sourceUri.isNullOrBlank()) {
+            return null
+        }
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(appContext, Uri.parse(sourceUri))
+            retriever.getFrameAtTime(
+                sourceTimeMs.coerceAtLeast(0L) * 1000L,
+                MediaMetadataRetriever.OPTION_CLOSEST,
+            )
+        } catch (_: SecurityException) {
+            null
+        } catch (_: Throwable) {
+            null
+        } finally {
+            retriever.release()
+        }
+    }
+
+    private fun drawBitmapCenterCrop(
+        canvas: Canvas,
+        bitmap: Bitmap,
+        alpha: Int,
+        canvasWidth: Int,
+        canvasHeight: Int,
+    ) {
+        if (alpha <= 0 || bitmap.width <= 0 || bitmap.height <= 0) {
+            return
+        }
+        val bitmapRatio = bitmap.width.toFloat() / bitmap.height.toFloat()
+        val canvasRatio = canvasWidth.toFloat() / canvasHeight.toFloat()
+        val sourceRect =
+            if (bitmapRatio > canvasRatio) {
+                val cropWidth = (bitmap.height * canvasRatio).roundToInt().coerceAtLeast(1)
+                val left = ((bitmap.width - cropWidth) / 2).coerceAtLeast(0)
+                Rect(left, 0, (left + cropWidth).coerceAtMost(bitmap.width), bitmap.height)
+            } else {
+                val cropHeight = (bitmap.width / canvasRatio).roundToInt().coerceAtLeast(1)
+                val top = ((bitmap.height - cropHeight) / 2).coerceAtLeast(0)
+                Rect(0, top, bitmap.width, (top + cropHeight).coerceAtMost(bitmap.height))
+            }
+        val destinationRect = RectF(0f, 0f, canvasWidth.toFloat(), canvasHeight.toFloat())
+        val paint =
+            Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
+                this.alpha = alpha.coerceIn(0, 255)
+            }
+        canvas.drawBitmap(bitmap, sourceRect, destinationRect, paint)
     }
 
     fun planTransitionPixelFrameBuffer(
@@ -3547,6 +3765,9 @@ private data class ProfessionalVideoTransitionRenderSource(
     val sourceStartMs: Long,
     val sourceDurationMs: Long,
 ) {
+    fun coversTimelineTime(timelineTimeMs: Long): Boolean =
+        timelineTimeMs >= timelineStartMs && timelineTimeMs <= timelineEndMs
+
     fun sourceTimeForTimelineTime(timelineTimeMs: Long): Long {
         val localTimeMs = timelineTimeMs - timelineStartMs
         val unclamped = sourceStartMs + localTimeMs
@@ -4529,6 +4750,15 @@ private data class ProfessionalVideoTransitionPixelFrameBufferAllocation(
     val buffer: ByteBuffer,
 )
 
+private data class ProfessionalVideoTransitionPixelFrameBufferWriteResult(
+    val wrotePixels: Boolean,
+    val byteCount: Int,
+    val checksum: Long,
+    val sampleCount: Int,
+    val extractedFrameCount: Int,
+    val reason: String?,
+)
+
 private class ProfessionalVideoTransitionPixelFrameBufferStore(
     private val maxBuffers: Int = 3,
     private val maxFrameBufferBytes: Int = 64 * 1024 * 1024,
@@ -4607,6 +4837,85 @@ private class ProfessionalVideoTransitionPixelFrameBufferStore(
                 reason = "native_transition_pixel_frame_buffer_allocation_failed",
             )
         }
+    }
+
+    @Synchronized
+    fun writeBitmap(
+        frameBufferId: String,
+        bitmap: Bitmap,
+        sampleCount: Int,
+        extractedFrameCount: Int,
+    ): ProfessionalVideoTransitionPixelFrameBufferWriteResult {
+        val allocation =
+            buffers[frameBufferId]
+                ?: return ProfessionalVideoTransitionPixelFrameBufferWriteResult(
+                    wrotePixels = false,
+                    byteCount = 0,
+                    checksum = 0L,
+                    sampleCount = sampleCount,
+                    extractedFrameCount = extractedFrameCount,
+                    reason = "native_transition_pixel_frame_buffer_missing",
+                )
+        if (bitmap.width != allocation.width || bitmap.height != allocation.height) {
+            return ProfessionalVideoTransitionPixelFrameBufferWriteResult(
+                wrotePixels = false,
+                byteCount = 0,
+                checksum = 0L,
+                sampleCount = sampleCount,
+                extractedFrameCount = extractedFrameCount,
+                reason = "native_transition_pixel_frame_buffer_bitmap_size_mismatch",
+            )
+        }
+        val bitmapForWrite =
+            if (bitmap.config == Bitmap.Config.ARGB_8888) {
+                bitmap
+            } else {
+                bitmap.copy(Bitmap.Config.ARGB_8888, false)
+            }
+        return try {
+            allocation.buffer.clear()
+            bitmapForWrite.copyPixelsToBuffer(allocation.buffer)
+            allocation.buffer.rewind()
+            val checksum = checksumFrameBuffer(allocation.buffer, allocation.byteCount)
+            ProfessionalVideoTransitionPixelFrameBufferWriteResult(
+                wrotePixels = true,
+                byteCount = allocation.byteCount,
+                checksum = checksum,
+                sampleCount = sampleCount,
+                extractedFrameCount = extractedFrameCount,
+                reason = null,
+            )
+        } catch (_: Throwable) {
+            ProfessionalVideoTransitionPixelFrameBufferWriteResult(
+                wrotePixels = false,
+                byteCount = 0,
+                checksum = 0L,
+                sampleCount = sampleCount,
+                extractedFrameCount = extractedFrameCount,
+                reason = "native_transition_pixel_frame_buffer_write_failed",
+            )
+        } finally {
+            if (bitmapForWrite !== bitmap) {
+                bitmapForWrite.recycle()
+            }
+        }
+    }
+
+    private fun checksumFrameBuffer(
+        buffer: ByteBuffer,
+        byteCount: Int,
+    ): Long {
+        val duplicate = buffer.duplicate()
+        duplicate.position(0)
+        duplicate.limit(byteCount.coerceAtMost(duplicate.capacity()))
+        var checksum = -3750763034362895579L
+        var remaining = minOf(duplicate.remaining(), 4096)
+        while (remaining > 0) {
+            checksum = (checksum xor (duplicate.get().toLong() and 0xffL)) * 1099511628211L
+            remaining -= 1
+        }
+        buffer.rewind()
+        return checksum
     }
 
     private fun ProfessionalVideoTransitionPixelFrameBufferAllocation.toResult():

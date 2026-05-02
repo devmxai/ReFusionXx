@@ -1169,6 +1169,17 @@ class _FakeProfessionalVideoTransitionCompositorClient
       canWriteTemporalPixels: _rendererReady,
       wroteTemporalPixels: _rendererReady,
       frameBufferContainsRealPixels: _rendererReady,
+      writerTemporalSampleCount: _rendererReady ? 4 : 0,
+      writerExtractedFrameCount: _rendererReady ? 8 : 0,
+      writerFrameBufferWriteByteCount:
+          _rendererReady ? plan.canvasWidth * plan.canvasHeight * 4 : 0,
+      writerFrameBufferChecksum: _rendererReady ? 123456 : 0,
+      writerSourceFrameExtractor:
+          _rendererReady ? 'MediaMetadataRetriever.getFrameAtTime' : '',
+      writerCanvasFillMode: _rendererReady ? 'centerCropFill' : '',
+      writerReason: _rendererReady
+          ? ''
+          : 'native_transition_pixel_frame_buffer_writer_missing',
       pixelRendererImplemented: _rendererReady,
       pixelRendererReady: _rendererReady,
       rendererImplemented: _rendererReady,
