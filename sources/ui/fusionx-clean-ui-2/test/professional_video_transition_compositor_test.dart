@@ -3238,6 +3238,10 @@ void main() {
         'outputSurfaceUploadByteCount': 0,
         'outputSurfaceUploadChecksum': 0,
         'surfaceUploadRendererImplemented': false,
+        'surfaceUploadRendererReady': false,
+        'outputSurfaceEndpointAttached': false,
+        'outputSurfaceEndpointId': '',
+        'outputSurfaceEndpointKind': 'unboundNativeSurface',
         'outputSurfaceUploadReason':
             'native_transition_surface_upload_packet_missing',
         'outputProofReady': false,
@@ -3309,6 +3313,10 @@ void main() {
     expect(result.outputSurfaceUploadByteCount, 0);
     expect(result.outputSurfaceUploadChecksum, 0);
     expect(result.surfaceUploadRendererImplemented, isFalse);
+    expect(result.surfaceUploadRendererReady, isFalse);
+    expect(result.outputSurfaceEndpointAttached, isFalse);
+    expect(result.outputSurfaceEndpointId, isEmpty);
+    expect(result.outputSurfaceEndpointKind, 'unboundNativeSurface');
     expect(
       result.outputSurfaceUploadReason,
       'native_transition_surface_upload_packet_missing',

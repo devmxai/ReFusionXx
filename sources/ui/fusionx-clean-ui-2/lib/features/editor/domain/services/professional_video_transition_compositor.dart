@@ -5976,6 +5976,10 @@ class ProfessionalVideoTransitionPixelOutputProofPlanResult {
     required this.outputSurfaceUploadByteCount,
     required this.outputSurfaceUploadChecksum,
     required this.surfaceUploadRendererImplemented,
+    required this.surfaceUploadRendererReady,
+    required this.outputSurfaceEndpointAttached,
+    required this.outputSurfaceEndpointId,
+    required this.outputSurfaceEndpointKind,
     required this.outputSurfaceUploadReason,
     required this.outputProofReady,
     required this.rendererImplemented,
@@ -6026,6 +6030,10 @@ class ProfessionalVideoTransitionPixelOutputProofPlanResult {
       outputSurfaceUploadByteCount: 0,
       outputSurfaceUploadChecksum: 0,
       surfaceUploadRendererImplemented: false,
+      surfaceUploadRendererReady: false,
+      outputSurfaceEndpointAttached: false,
+      outputSurfaceEndpointId: '',
+      outputSurfaceEndpointKind: '',
       outputSurfaceUploadReason: '',
       outputProofReady: false,
       rendererImplemented: false,
@@ -6070,6 +6078,10 @@ class ProfessionalVideoTransitionPixelOutputProofPlanResult {
   final int outputSurfaceUploadByteCount;
   final int outputSurfaceUploadChecksum;
   final bool surfaceUploadRendererImplemented;
+  final bool surfaceUploadRendererReady;
+  final bool outputSurfaceEndpointAttached;
+  final String outputSurfaceEndpointId;
+  final String outputSurfaceEndpointKind;
   final String outputSurfaceUploadReason;
   final bool outputProofReady;
   final bool rendererImplemented;
@@ -6154,6 +6166,12 @@ class ProfessionalVideoTransitionPixelOutputProofPlanResultMapper {
       ),
       surfaceUploadRendererImplemented:
           _readBool(map['surfaceUploadRendererImplemented']),
+      surfaceUploadRendererReady: _readBool(map['surfaceUploadRendererReady']),
+      outputSurfaceEndpointAttached:
+          _readBool(map['outputSurfaceEndpointAttached']),
+      outputSurfaceEndpointId: map['outputSurfaceEndpointId']?.toString() ?? '',
+      outputSurfaceEndpointKind:
+          map['outputSurfaceEndpointKind']?.toString() ?? '',
       outputSurfaceUploadReason:
           map['outputSurfaceUploadReason']?.toString() ?? '',
       outputProofReady: _readBool(map['outputProofReady']),

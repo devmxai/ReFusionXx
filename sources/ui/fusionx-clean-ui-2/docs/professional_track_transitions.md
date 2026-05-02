@@ -680,6 +680,11 @@ Pixel output proof gate:
   byte count, checksum, and upload reason. This makes the next missing boundary
   explicit: the concrete surface-upload renderer still has to write the packet
   into the final native surface;
+- the surface-upload renderer contract now accepts a ready packet separately
+  from the final surface endpoint. This means the renderer side can be marked
+  structurally ready while the chain remains blocked by
+  `native_transition_surface_endpoint_missing` until a safe native endpoint is
+  attached;
 - the proof must confirm that the renderer wrote real pixels into the native
   transition output target, currently `nativeTransitionCanvasSurface`;
 - the proof must explicitly forbid Flutter overlays, timeline overlays, and

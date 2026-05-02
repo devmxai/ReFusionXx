@@ -3437,13 +3437,19 @@ private data class ProfessionalVideoTransitionRenderSession(
             } else {
                 ""
             }
-        val surfaceUploadRendererImplemented = false
+        val surfaceUploadRendererImplemented = outputSurfaceUploadPacketReady
+        val surfaceUploadRendererReady = surfaceUploadRendererImplemented
+        val outputSurfaceEndpointAttached = false
+        val outputSurfaceEndpointId = ""
+        val outputSurfaceEndpointKind = "unboundNativeSurface"
         val outputSurfaceUploadReason =
             when {
                 !outputSurfaceUploadPacketReady ->
                     "native_transition_surface_upload_packet_missing"
-                !surfaceUploadRendererImplemented ->
-                    "native_transition_surface_upload_renderer_missing"
+                !surfaceUploadRendererReady ->
+                    "native_transition_surface_upload_renderer_not_ready"
+                !outputSurfaceEndpointAttached ->
+                    "native_transition_surface_endpoint_missing"
                 else -> ""
             }
         val pixelRenderExecutionReady =
@@ -3479,6 +3485,12 @@ private data class ProfessionalVideoTransitionRenderSession(
                 if (!surfaceUploadRendererImplemented) {
                     add("native_transition_surface_upload_renderer_missing")
                 }
+                if (!surfaceUploadRendererReady) {
+                    add("native_transition_surface_upload_renderer_not_ready")
+                }
+                if (!outputSurfaceEndpointAttached) {
+                    add("native_transition_surface_endpoint_missing")
+                }
                 if (!outputSurfaceIsNative) {
                     add("native_transition_output_surface_not_native")
                 }
@@ -3503,6 +3515,10 @@ private data class ProfessionalVideoTransitionRenderSession(
                 "outputSurfaceUploadByteCount" to pixelOutputByteCount,
                 "outputSurfaceUploadChecksum" to pixelOutputChecksum,
                 "surfaceUploadRendererImplemented" to surfaceUploadRendererImplemented,
+                "surfaceUploadRendererReady" to surfaceUploadRendererReady,
+                "outputSurfaceEndpointAttached" to outputSurfaceEndpointAttached,
+                "outputSurfaceEndpointId" to outputSurfaceEndpointId,
+                "outputSurfaceEndpointKind" to outputSurfaceEndpointKind,
                 "outputSurfaceUploadReason" to outputSurfaceUploadReason,
                 "pixelRenderExecutionReady" to pixelRenderExecutionReady,
                 "pixelOutputWritten" to pixelOutputWritten,

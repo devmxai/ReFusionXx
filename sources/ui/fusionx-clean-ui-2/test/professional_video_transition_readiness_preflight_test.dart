@@ -1295,6 +1295,13 @@ class _FakeProfessionalVideoTransitionCompositorClient
           _rendererReady ? plan.canvasWidth * plan.canvasHeight * 4 : 0,
       outputSurfaceUploadChecksum: _rendererReady ? 777777 : 0,
       surfaceUploadRendererImplemented: _rendererReady,
+      surfaceUploadRendererReady: _rendererReady,
+      outputSurfaceEndpointAttached: _rendererReady,
+      outputSurfaceEndpointId:
+          _rendererReady ? 'native-surface:${plan.transitionId}' : '',
+      outputSurfaceEndpointKind: _rendererReady
+          ? 'nativeTransitionCanvasSurface'
+          : 'unboundNativeSurface',
       outputSurfaceUploadReason: _rendererReady
           ? ''
           : 'native_transition_surface_upload_packet_missing',
