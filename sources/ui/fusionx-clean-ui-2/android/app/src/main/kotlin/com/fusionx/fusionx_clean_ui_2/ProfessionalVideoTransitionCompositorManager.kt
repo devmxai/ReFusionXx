@@ -2904,12 +2904,30 @@ private data class ProfessionalVideoTransitionRenderSession(
         val wroteTemporalPixels = writerPlan["wroteTemporalPixels"] == true
         val frameBufferContainsRealPixels =
             writerPlan["frameBufferContainsRealPixels"] == true
-        val pixelRendererImplemented = writerPlan["pixelRendererImplemented"] == true
-        val pixelOutputWritten = false
+        val sourceFrameBufferId = writerPlan["transitionPixelFrameBufferId"]?.toString() ?: ""
+        val sourceFrameBufferByteCount =
+            (writerPlan["writerFrameBufferWriteByteCount"] as? Number)?.toLong() ?: 0L
+        val sourceFrameBufferChecksum =
+            (writerPlan["writerFrameBufferChecksum"] as? Number)?.toLong() ?: 0L
+        val pixelOutputWritten =
+            pixelWorkloadBound &&
+                outputFramebufferBound &&
+                frameBufferReady &&
+                writerReady &&
+                canWriteTemporalPixels &&
+                wroteTemporalPixels &&
+                frameBufferContainsRealPixels &&
+                sourceFrameBufferId.isNotBlank() &&
+                sourceFrameBufferByteCount > 0L
+        val pixelRendererImplemented = pixelOutputWritten
+        val pixelRendererReady = pixelOutputWritten
+        val pixelRenderExecutionReady = pixelOutputWritten
+        val pixelOutputReady = false
         val rendererImplemented = writerPlan["rendererImplemented"] == true
         val upstreamBlockedReasons =
             (writerPlan["blockedReasons"] as? List<*>)
                 ?.map { reason -> reason.toString() }
+                ?.filterNot { reason -> reason == "native_transition_pixel_renderer_missing" }
                 ?: emptyList()
         val blockedReasons =
             buildList {
@@ -2938,6 +2956,9 @@ private data class ProfessionalVideoTransitionRenderSession(
                 if (!pixelOutputWritten) {
                     add("native_transition_pixel_output_missing")
                 }
+                if (!pixelOutputReady) {
+                    add("native_transition_pixel_output_not_ready")
+                }
                 if (!rendererImplemented) {
                     add("native_transition_renderer_pixels_missing")
                 }
@@ -2950,10 +2971,20 @@ private data class ProfessionalVideoTransitionRenderSession(
                 "pixelWorkloadBound" to pixelWorkloadBound,
                 "outputFramebufferBound" to outputFramebufferBound,
                 "pixelRendererImplemented" to pixelRendererImplemented,
-                "pixelRendererReady" to (writerPlan["pixelRendererReady"] == true),
-                "pixelRenderExecutionReady" to false,
+                "pixelRendererReady" to pixelRendererReady,
+                "pixelRenderExecutionReady" to pixelRenderExecutionReady,
                 "pixelOutputWritten" to pixelOutputWritten,
-                "pixelOutputReady" to false,
+                "pixelOutputReady" to pixelOutputReady,
+                "pixelOutputSourceFrameBufferId" to sourceFrameBufferId,
+                "pixelOutputWriteMode" to "offscreenTemporalFrameBuffer",
+                "pixelOutputByteCount" to sourceFrameBufferByteCount,
+                "pixelOutputChecksum" to sourceFrameBufferChecksum,
+                "pixelOutputReason" to
+                    if (pixelOutputWritten) {
+                        ""
+                    } else {
+                        "native_transition_pixel_output_missing"
+                    },
                 "rendererImplemented" to rendererImplemented,
                 "canRenderPixels" to false,
                 "rendersRealPixels" to false,

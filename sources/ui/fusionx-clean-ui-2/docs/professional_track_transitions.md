@@ -667,6 +667,14 @@ Pixel output proof gate:
   transition output frame;
 - `planTransitionPixelOutputProof` must pass after pixel render execution and
   before preview/scrub/playback parity;
+- pixel render execution may now consume the temporal frame-buffer writer output
+  into an offscreen native pixel-output frame, carrying
+  `pixelOutputSourceFrameBufferId`, `pixelOutputWriteMode`,
+  `pixelOutputByteCount`, `pixelOutputChecksum`, and `pixelOutputReason`;
+- this offscreen execution only proves that the native pipeline can carry real
+  source-derived pixels forward. It must not be treated as an interactive
+  renderer until output proof confirms the final `nativeTransitionCanvasSurface`
+  received those pixels through the concrete renderer;
 - the proof must confirm that the renderer wrote real pixels into the native
   transition output target, currently `nativeTransitionCanvasSurface`;
 - the proof must explicitly forbid Flutter overlays, timeline overlays, and
@@ -1010,15 +1018,15 @@ Current gate:
   not expose transitions because final pixel execution/output proof is separate.
 - Flutter and Android now also share `planTransitionPixelRenderExecution`. This
   is the explicit execution/output gate for the future concrete pixel renderer.
-  It now depends on the writer gate before binding the pixel workload to the
-  native output framebuffer and remains blocked with
-  `native_transition_pixel_frame_buffer_writer_missing`,
-  `native_transition_pixel_frame_buffer_temporal_pixels_missing`,
-  `native_transition_pixel_renderer_missing`,
-  `native_transition_pixel_output_missing`, and
+  It now depends on the writer gate before binding the pixel workload to an
+  offscreen native pixel-output frame. When temporal pixels exist, it records
+  output source frame-buffer id, write mode, byte count, checksum, and reason.
+  The stage can remove the `native_transition_pixel_output_missing` blocker for
+  the offscreen frame, but it remains blocked by
+  `native_transition_pixel_output_not_ready` and
   `native_transition_renderer_pixels_missing` until a concrete renderer writes
-  real pixels. This prevents a shader-ready or workload-ready transition from
-  being exposed as visually renderable.
+  the final native surface. This prevents a shader-ready, workload-ready, or
+  offscreen-pixel-ready transition from being exposed as visually renderable.
 - Flutter and Android now also share `planParityOutputs`. This is the parity
   contract that prevents "works in preview but not in scrub/playback" drift.
   Preview, Live Scrub, and playback must all point at the same native

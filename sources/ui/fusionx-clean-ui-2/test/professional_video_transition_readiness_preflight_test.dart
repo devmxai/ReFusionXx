@@ -1229,6 +1229,14 @@ class _FakeProfessionalVideoTransitionCompositorClient
       pixelRenderExecutionReady: _rendererReady,
       pixelOutputWritten: _rendererReady,
       pixelOutputReady: _rendererReady,
+      pixelOutputSourceFrameBufferId: 'pixel-frame-buffer:${plan.transitionId}',
+      pixelOutputWriteMode:
+          _rendererReady ? 'offscreenTemporalFrameBuffer' : '',
+      pixelOutputByteCount:
+          _rendererReady ? plan.canvasWidth * plan.canvasHeight * 4 : 0,
+      pixelOutputChecksum: _rendererReady ? 654321 : 0,
+      pixelOutputReason:
+          _rendererReady ? '' : 'native_transition_pixel_output_missing',
       rendererImplemented: _rendererReady,
       canRenderPixels: _rendererReady,
       rendersRealPixels: _rendererReady,

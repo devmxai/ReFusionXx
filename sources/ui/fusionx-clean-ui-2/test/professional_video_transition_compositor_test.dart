@@ -3103,6 +3103,12 @@ void main() {
         'pixelRenderExecutionReady': false,
         'pixelOutputWritten': false,
         'pixelOutputReady': false,
+        'pixelOutputSourceFrameBufferId':
+            'transition-session:zoom-native-1:pixel-frame-buffer:10000',
+        'pixelOutputWriteMode': 'offscreenTemporalFrameBuffer',
+        'pixelOutputByteCount': 0,
+        'pixelOutputChecksum': 0,
+        'pixelOutputReason': 'native_transition_pixel_output_missing',
         'rendererImplemented': false,
         'canRenderPixels': false,
         'rendersRealPixels': false,
@@ -3160,6 +3166,14 @@ void main() {
     expect(result.pixelRendererImplemented, isFalse);
     expect(result.pixelOutputWritten, isFalse);
     expect(result.pixelOutputReady, isFalse);
+    expect(
+      result.pixelOutputSourceFrameBufferId,
+      'transition-session:zoom-native-1:pixel-frame-buffer:10000',
+    );
+    expect(result.pixelOutputWriteMode, 'offscreenTemporalFrameBuffer');
+    expect(result.pixelOutputByteCount, 0);
+    expect(result.pixelOutputChecksum, 0);
+    expect(result.pixelOutputReason, 'native_transition_pixel_output_missing');
     expect(result.canRenderPixels, isFalse);
     expect(result.canRenderFrame, isFalse);
     expect(

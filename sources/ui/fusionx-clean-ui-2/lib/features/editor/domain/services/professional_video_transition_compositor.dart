@@ -5726,6 +5726,11 @@ class ProfessionalVideoTransitionPixelRenderExecutionPlanResult {
     required this.pixelRenderExecutionReady,
     required this.pixelOutputWritten,
     required this.pixelOutputReady,
+    required this.pixelOutputSourceFrameBufferId,
+    required this.pixelOutputWriteMode,
+    required this.pixelOutputByteCount,
+    required this.pixelOutputChecksum,
+    required this.pixelOutputReason,
     required this.rendererImplemented,
     required this.canRenderPixels,
     required this.rendersRealPixels,
@@ -5766,6 +5771,11 @@ class ProfessionalVideoTransitionPixelRenderExecutionPlanResult {
       pixelRenderExecutionReady: false,
       pixelOutputWritten: false,
       pixelOutputReady: false,
+      pixelOutputSourceFrameBufferId: '',
+      pixelOutputWriteMode: '',
+      pixelOutputByteCount: 0,
+      pixelOutputChecksum: 0,
+      pixelOutputReason: '',
       rendererImplemented: false,
       canRenderPixels: false,
       rendersRealPixels: false,
@@ -5800,6 +5810,11 @@ class ProfessionalVideoTransitionPixelRenderExecutionPlanResult {
   final bool pixelRenderExecutionReady;
   final bool pixelOutputWritten;
   final bool pixelOutputReady;
+  final String pixelOutputSourceFrameBufferId;
+  final String pixelOutputWriteMode;
+  final int pixelOutputByteCount;
+  final int pixelOutputChecksum;
+  final String pixelOutputReason;
   final bool rendererImplemented;
   final bool canRenderPixels;
   final bool rendersRealPixels;
@@ -5859,6 +5874,12 @@ class ProfessionalVideoTransitionPixelRenderExecutionPlanResultMapper {
       pixelRenderExecutionReady: _readBool(map['pixelRenderExecutionReady']),
       pixelOutputWritten: _readBool(map['pixelOutputWritten']),
       pixelOutputReady: _readBool(map['pixelOutputReady']),
+      pixelOutputSourceFrameBufferId:
+          map['pixelOutputSourceFrameBufferId']?.toString() ?? '',
+      pixelOutputWriteMode: map['pixelOutputWriteMode']?.toString() ?? '',
+      pixelOutputByteCount: _readInt(map['pixelOutputByteCount']),
+      pixelOutputChecksum: _readInt(map['pixelOutputChecksum']),
+      pixelOutputReason: map['pixelOutputReason']?.toString() ?? '',
       rendererImplemented: _readBool(map['rendererImplemented']),
       canRenderPixels: _readBool(map['canRenderPixels']),
       rendersRealPixels: _readBool(map['rendersRealPixels']),
