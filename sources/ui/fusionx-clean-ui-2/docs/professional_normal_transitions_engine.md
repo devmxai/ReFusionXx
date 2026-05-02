@@ -818,6 +818,12 @@ Contracts added:
 - Thumbnail zooms, poster frames, decorative speed lines, Gaussian-only blur,
   Flutter overlays, timeline-area drawing, and transformed single-surface
   previews remain rejected for this preset.
+- Root and Scene Contents transition bridges must run render-plan preflight
+  before staging zoom-family professional presets. If A/B source URI binding,
+  source handles, boundary resolution, or native definition binding fails, the
+  app must block the apply action with a visible diagnostic instead of creating
+  an authored transition that later falls through to an empty preview. This is a
+  strict diagnostic gate, not permission to add a Flutter fallback.
 
 Verification expectation:
 

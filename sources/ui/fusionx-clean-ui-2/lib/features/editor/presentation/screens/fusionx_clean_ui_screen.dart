@@ -146,6 +146,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   static const String _motionProjectId = 'motion-project';
   static const String _motionSceneId = 'scene-main';
   static const String _defaultCompositionSceneClipId = 'scene-clip-01';
+  static const String _professionalTransitionBoundaryMissingSentinel =
+      '__professional_transition_boundary_missing__';
   static const String _defaultCompositionSourceSceneId = 'scene-01-source';
   static const String _exportContractVersion = 'v1alpha1';
   static const String _normalTransitionVideoTrackId = 'video-main';
@@ -559,6 +561,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       <String, Uint8List>{};
   final Set<String> _motionImagePreviewRequestsInFlight = <String>{};
   final Set<String> _transitionBoundaryFrameRequestsInFlight = <String>{};
+  final Set<String> _reportedProfessionalTransitionPlanIssueKeys = <String>{};
   final TransitionBoundaryFrameRequestResolver
       _transitionBoundaryFrameRequestResolver =
       const TransitionBoundaryFrameRequestResolver();
@@ -5798,6 +5801,22 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     });
   }
 
+  bool _canApplySceneScopeTransition({
+    required TimelineTrackData track,
+    required TimelineTrackTransitionData transition,
+  }) {
+    final blocker = _professionalTransitionPresetBlockerForTrack(
+      track: track,
+      transition: transition,
+      surfaceId: 'professional-transition-preflight-scene-${transition.id}',
+    );
+    if (blocker == null) {
+      return true;
+    }
+    _showStageMessage(blocker);
+    return false;
+  }
+
   void _deleteSceneScopeTransition(
     SceneScopeSession session,
     String transitionId,
@@ -5839,6 +5858,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
     switch (result.action) {
       case TransitionInspectorAction.apply:
+        if (!_canApplySceneScopeTransition(
+          track: track,
+          transition: result.transition,
+        )) {
+          return;
+        }
         _upsertSceneScopeTransition(session, track, result.transition);
         break;
       case TransitionInspectorAction.delete:
@@ -5924,6 +5949,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       rightClip: rightClip,
       preset: browserResult.preset,
     );
+    if (!_canApplySceneScopeTransition(
+      track: track,
+      transition: transition,
+    )) {
+      return;
+    }
     _upsertSceneScopeTransition(session, track, transition);
     if (browserResult.action == TransitionBrowserAction.openManual) {
       _showStageMessage(
@@ -19687,6 +19718,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (transition == null) {
       return;
     }
+    if (!_canApplyTimelineTransition(transition, track: track)) {
+      return;
+    }
     _upsertVideoTrackTransition(transition);
     if (_tryOpenUnifiedTransitionScopeBridge(
       track: track,
@@ -20242,6 +20276,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
     switch (result.action) {
       case TransitionInspectorAction.apply:
+        if (!_canApplyTimelineTransition(result.transition)) {
+          return;
+        }
         _upsertVideoTrackTransition(result.transition);
       case TransitionInspectorAction.openManual:
         _upsertVideoTrackTransition(result.transition);
@@ -20690,33 +20727,157 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return null;
   }
 
-  ProfessionalVideoTransitionRenderPlan? _professionalTransitionRenderPlanFor({
-    required _ActiveTimelineTransitionPreview activeTransition,
+  bool _canApplyTimelineTransition(
+    TimelineTrackTransitionData transition, {
+    TimelineTrackData? track,
+  }) {
+    final blocker = _professionalTransitionPresetBlocker(
+      transition: transition,
+      track: track,
+      tracks: _tracks,
+      surfaceId: 'professional-transition-preflight-root-${transition.id}',
+    );
+    if (blocker == null) {
+      return true;
+    }
+    _showStageMessage(blocker);
+    return false;
+  }
+
+  String? _professionalTransitionPresetBlocker({
+    required TimelineTrackTransitionData transition,
+    required List<TimelineTrackData> tracks,
+    required String surfaceId,
+    TimelineTrackData? track,
+  }) {
+    if (!_requiresNativeProfessionalTransition(transition.preset)) {
+      return null;
+    }
+    if (track != null) {
+      return _professionalTransitionPresetBlockerForTrack(
+        track: track,
+        transition: transition,
+        surfaceId: surfaceId,
+      );
+    }
+    for (final candidateTrack in tracks) {
+      final blocker = _professionalTransitionPresetBlockerForTrack(
+        track: candidateTrack,
+        transition: transition,
+        surfaceId: surfaceId,
+        silentWhenBoundaryMissing: true,
+      );
+      if (blocker != _professionalTransitionBoundaryMissingSentinel) {
+        return blocker;
+      }
+    }
+    return 'Unable to resolve ${transition.preset.label} boundary for native transition preflight.';
+  }
+
+  String? _professionalTransitionPresetBlockerForTrack({
+    required TimelineTrackData track,
+    required TimelineTrackTransitionData transition,
+    required String surfaceId,
+    bool silentWhenBoundaryMissing = false,
+  }) {
+    if (!_requiresNativeProfessionalTransition(transition.preset)) {
+      return null;
+    }
+    final definitionId = _professionalTransitionDefinitionId(transition.preset);
+    if (definitionId == null) {
+      return '${transition.preset.label} is not bound to a native transition renderer.';
+    }
+    if (!_hasImplementedNativeProfessionalTransitionRenderer(
+      transition.preset,
+    )) {
+      return '${transition.preset.label} is blocked: native renderer is not implemented yet.';
+    }
+    final positionedClips = _positionedTransitionClipsForTrack(track);
+    _PositionedTimelineTrackClip? positionedLeftClip;
+    _PositionedTimelineTrackClip? positionedRightClip;
+    for (final positionedClip in positionedClips) {
+      if (positionedClip.clip.id == transition.leftClipId) {
+        positionedLeftClip = positionedClip;
+      } else if (positionedClip.clip.id == transition.rightClipId) {
+        positionedRightClip = positionedClip;
+      }
+    }
+    if (positionedLeftClip == null || positionedRightClip == null) {
+      if (silentWhenBoundaryMissing) {
+        return _professionalTransitionBoundaryMissingSentinel;
+      }
+      return 'Unable to resolve ${transition.preset.label} boundary for native transition preflight.';
+    }
+    final buildResult = _professionalTransitionRenderPlanBuildResultFor(
+      transition: transition,
+      outgoingClip: positionedLeftClip.clip,
+      incomingClip: positionedRightClip.clip,
+      boundaryTime: positionedLeftClip.endTime,
+      mode: 'preview',
+      surfaceId: surfaceId,
+    );
+    if (buildResult.canBuild) {
+      return null;
+    }
+    _debugProfessionalTransitionBuildIssues(
+      transition: transition,
+      issues: buildResult.issues,
+      mode: 'preview',
+    );
+    final issue = buildResult.issues.isEmpty ? null : buildResult.issues.first;
+    if (issue == null) {
+      return '${transition.preset.label} cannot build a native render plan yet.';
+    }
+    return '${transition.preset.label} is blocked: ${issue.message}';
+  }
+
+  bool _requiresNativeProfessionalTransition(TimelineTransitionPreset preset) {
+    return preset.isZoomCameraFamily;
+  }
+
+  bool _hasImplementedNativeProfessionalTransitionRenderer(
+    TimelineTransitionPreset preset,
+  ) {
+    return preset == TimelineTransitionPreset.distortionZoomInV1;
+  }
+
+  ProfessionalVideoTransitionRenderPlanBuildResult
+      _professionalTransitionRenderPlanBuildResultFor({
+    required TimelineTrackTransitionData transition,
+    required TimelineClipData outgoingClip,
+    required TimelineClipData incomingClip,
+    required TimelineTime boundaryTime,
     required String mode,
     required String surfaceId,
   }) {
-    final definitionId =
-        _professionalTransitionDefinitionId(activeTransition.transition.preset);
+    final definitionId = _professionalTransitionDefinitionId(transition.preset);
     if (definitionId == null) {
-      return null;
+      return ProfessionalVideoTransitionRenderPlanBuildResult.failure(
+        const <ProfessionalVideoTransitionRenderPlanBuildIssue>[
+          ProfessionalVideoTransitionRenderPlanBuildIssue(
+            code: 'definition_id_missing',
+            path: 'preset',
+            message: 'Transition preset is not bound to a native definition.',
+          ),
+        ],
+      );
     }
     final canvasSize = _motionProjectFormat.canvasSize;
     final canvasWidth = canvasSize.width.round().clamp(1, 4096).toInt();
     final canvasHeight = canvasSize.height.round().clamp(1, 4096).toInt();
-    final isDistortionZoom = activeTransition.transition.preset ==
-        TimelineTransitionPreset.distortionZoomInV1;
+    final isDistortionZoom =
+        transition.preset == TimelineTransitionPreset.distortionZoomInV1;
     final parameters = <String, Object?>{
-      ...activeTransition.transition.preset.defaultParameterValues,
-      ...activeTransition.transition.parameterValues,
+      ...transition.preset.defaultParameterValues,
+      ...transition.parameterValues,
     };
-    final buildResult =
-        const ProfessionalVideoTransitionRenderPlanAdapter().build(
+    return const ProfessionalVideoTransitionRenderPlanAdapter().build(
       ProfessionalVideoTransitionRenderPlanRequest(
-        transition: activeTransition.transition,
+        transition: transition,
         definitionId: definitionId,
-        outgoingClip: activeTransition.leftClip.clip,
-        incomingClip: activeTransition.rightClip.clip,
-        boundaryTime: activeTransition.leftClip.endTime,
+        outgoingClip: outgoingClip,
+        incomingClip: incomingClip,
+        boundaryTime: boundaryTime,
         canvasWidth: canvasWidth,
         canvasHeight: canvasHeight,
         sourceUriForAsset: (assetId) => _assetForId(assetId)?.sourceUri,
@@ -20743,6 +20904,53 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         ],
       ),
     );
+  }
+
+  void _debugProfessionalTransitionBuildIssues({
+    required TimelineTrackTransitionData transition,
+    required List<ProfessionalVideoTransitionRenderPlanBuildIssue> issues,
+    required String mode,
+  }) {
+    if (issues.isEmpty) {
+      return;
+    }
+    final issueCodes = issues.map((issue) => issue.code).join(',');
+    final key = '${transition.id}:$mode:$issueCodes';
+    if (!_reportedProfessionalTransitionPlanIssueKeys.add(key)) {
+      return;
+    }
+    debugPrint(
+      'Professional transition render plan blocked: '
+      'transition=${transition.id}, preset=${transition.preset.name}, '
+      'mode=$mode, issues=${issues.map((issue) => issue.toMap()).toList()}',
+    );
+  }
+
+  ProfessionalVideoTransitionRenderPlan? _professionalTransitionRenderPlanFor({
+    required _ActiveTimelineTransitionPreview activeTransition,
+    required String mode,
+    required String surfaceId,
+  }) {
+    if (!_hasImplementedNativeProfessionalTransitionRenderer(
+      activeTransition.transition.preset,
+    )) {
+      return null;
+    }
+    final buildResult = _professionalTransitionRenderPlanBuildResultFor(
+      transition: activeTransition.transition,
+      outgoingClip: activeTransition.leftClip.clip,
+      incomingClip: activeTransition.rightClip.clip,
+      boundaryTime: activeTransition.leftClip.endTime,
+      mode: mode,
+      surfaceId: surfaceId,
+    );
+    if (!buildResult.canBuild) {
+      _debugProfessionalTransitionBuildIssues(
+        transition: activeTransition.transition,
+        issues: buildResult.issues,
+        mode: mode,
+      );
+    }
     return buildResult.plan;
   }
 
