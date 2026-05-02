@@ -32,6 +32,7 @@ import '../../domain/models/refusion_motion_patch_models.dart';
 import '../../domain/services/ai_transition/kie_ai_transition_service.dart';
 import '../../domain/services/normal_transition_command_history.dart';
 import '../../domain/services/layer_scope_composition_adapter.dart';
+import '../../domain/services/master_clock_native_bridge.dart';
 import '../../domain/services/professional_video_transition_compositor.dart';
 import '../../domain/services/refusion_motion_patch_applicator.dart';
 import '../../domain/services/refusion_motion_patch_import_service.dart';
@@ -501,6 +502,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   late final ValueNotifier<TimelineTime> _timelineDisplayTimeNotifier;
   late final ValueNotifier<TimelineTime> _playbackSampleTimeNotifier;
   late final TimelineClockCoordinator _timelineClockCoordinator;
+  late final MasterClockNativeBridge _masterClockNativeBridge;
   late final ValueNotifier<TimelineTime> _transitionFocusDisplayTimeNotifier;
   late final ValueNotifier<TimelineTime>
       _transitionFocusPlaybackSampleTimeNotifier;
@@ -675,6 +677,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _timelineClockCoordinator = TimelineClockCoordinator(
       timelineDuration: _timelineDurationTime,
       initialTime: _currentTime,
+    );
+    _masterClockNativeBridge = MasterClockNativeBridge(
+      clock: _timelineClockCoordinator,
     );
     unawaited(_transportController.initialize());
     unawaited(_exportController.ensureInitialized());
@@ -3060,7 +3065,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   void _syncTimelineClockDuration() {
-    _timelineClockCoordinator.setTimelineDuration(_timelineDurationTime);
+    _masterClockNativeBridge.syncTimelineDuration(_timelineDurationTime);
   }
 
   void _applyTimelineClockSnapshotToUi({
@@ -3078,21 +3083,21 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   void _requestTimelineClockPlaybackStart(TimelineTime time) {
-    _syncTimelineClockDuration();
-    _timelineClockCoordinator.playFrom(time);
+    _masterClockNativeBridge.requestPlaybackStart(
+      startTime: time,
+      timelineDurationTime: _timelineDurationTime,
+    );
     _applyTimelineClockSnapshotToUi();
   }
 
   TimelineClockSampleDecision _applyNativePlaybackSampleToTimelineClock(
     TimelineTime reportedTransportTime,
   ) {
-    _syncTimelineClockDuration();
-    if (_timelineClockCoordinator.phase != TimelineClockPhase.playStarting &&
-        _timelineClockCoordinator.phase != TimelineClockPhase.playing) {
-      _timelineClockCoordinator.playFrom(_currentTime);
-    }
-    final decision =
-        _timelineClockCoordinator.applyNativeSample(reportedTransportTime);
+    final decision = _masterClockNativeBridge.applyNativePlaybackSample(
+      sampleTime: reportedTransportTime,
+      fallbackStartTime: _currentTime,
+      timelineDurationTime: _timelineDurationTime,
+    );
     if (decision == TimelineClockSampleDecision.accepted) {
       _applyTimelineClockSnapshotToUi();
     }

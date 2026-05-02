@@ -758,6 +758,14 @@ Forbidden:
 - no global runtime kill switches;
 - no broad lint hacks unless scoped and tested.
 
+Implementation note (checkpoint `checkpoint: implement master clock value truth foundation` and later slices):
+
+- guard scripts now block new preview-time `DateTime.now()` / `Stopwatch`
+  sources unless allowlisted;
+- native transport handoff to `TimelineClockCoordinator` now has a dedicated
+  adapter path (`MasterClockNativeBridge`) so screen-level playback sample
+  application no longer hardcodes coordinator phase bootstrapping in UI code.
+
 ## 11. First Writer Task
 
 The first writer task must be exactly:
