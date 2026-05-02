@@ -3660,6 +3660,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                     }
                 val interactiveSurfaceBound = interactiveUpload.endpointAttached
                 val interactiveSurfaceFrameDelivered = interactiveUpload.uploaded
+                val interactiveSurfaceFramePresented = interactiveUpload.presented
                 val blockedReasons =
                     buildList {
                         if (!outputPassBound) {
@@ -3679,6 +3680,9 @@ private data class ProfessionalVideoTransitionRenderSession(
                         }
                         if (!interactiveSurfaceFrameDelivered) {
                             add("native_transition_${mode}_interactive_surface_frame_missing")
+                        }
+                        if (!interactiveSurfaceFramePresented) {
+                            add("native_transition_${mode}_interactive_surface_presentation_missing")
                         }
                         if (!interactiveUpload.reason.isNullOrBlank()) {
                             add(interactiveUpload.reason)
@@ -3707,6 +3711,11 @@ private data class ProfessionalVideoTransitionRenderSession(
                     "interactiveSurfaceFrameByteCount" to interactiveUpload.byteCount,
                     "interactiveSurfaceFrameChecksum" to interactiveUpload.checksum,
                     "interactiveSurfaceFrameReason" to (interactiveUpload.reason ?: ""),
+                    "interactiveSurfaceFramePresented" to interactiveSurfaceFramePresented,
+                    "interactiveSurfacePresentedImageCount" to interactiveUpload.presentedImageCount,
+                    "interactiveSurfacePresentedByteCount" to interactiveUpload.presentedByteCount,
+                    "interactiveSurfacePresentedChecksum" to interactiveUpload.presentedChecksum,
+                    "interactiveSurfacePresentationReason" to (interactiveUpload.presentationReason ?: ""),
                     "rendererImplemented" to rendererImplemented,
                     "canRender" to
                         (rendererImplemented &&
@@ -3716,6 +3725,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                             outputSurfaceEndpointAttached &&
                             interactiveSurfaceBound &&
                             interactiveSurfaceFrameDelivered &&
+                            interactiveSurfaceFramePresented &&
                             blockedReasons.isEmpty()),
                     "blockedReasons" to blockedReasons,
                 )
@@ -3724,6 +3734,7 @@ private data class ProfessionalVideoTransitionRenderSession(
             outputs.isNotEmpty() &&
                 outputs.all { output -> output["interactiveSurfaceBound"] == true } &&
                 outputs.all { output -> output["interactiveSurfaceFrameDelivered"] == true } &&
+                outputs.all { output -> output["interactiveSurfaceFramePresented"] == true } &&
                 outputs.map { output -> output["interactiveSurfaceId"] }.distinct().size ==
                     outputs.size &&
                 outputs.all { output ->
@@ -3734,6 +3745,12 @@ private data class ProfessionalVideoTransitionRenderSession(
                 outputs.all { output -> output["interactiveSurfaceFrameDelivered"] == true } &&
                 outputs.all { output ->
                     ((output["interactiveSurfaceFrameByteCount"] as? Number)?.toLong() ?: 0L) > 0L
+                }
+        val interactiveSurfacePresentationReady =
+            outputs.isNotEmpty() &&
+                outputs.all { output -> output["interactiveSurfaceFramePresented"] == true } &&
+                outputs.all { output ->
+                    ((output["interactiveSurfacePresentedByteCount"] as? Number)?.toLong() ?: 0L) > 0L
                 }
         val blockedReasons =
             (upstreamBlockedReasons +
@@ -3754,6 +3771,9 @@ private data class ProfessionalVideoTransitionRenderSession(
                 "interactiveSurfaceFrameDeliveryReady" to interactiveSurfaceFrameDeliveryReady,
                 "interactiveSurfaceFrameDeliveryCount" to
                     outputs.count { output -> output["interactiveSurfaceFrameDelivered"] == true },
+                "interactiveSurfacePresentationReady" to interactiveSurfacePresentationReady,
+                "interactiveSurfacePresentationCount" to
+                    outputs.count { output -> output["interactiveSurfaceFramePresented"] == true },
                 "sameOutputContractForAllModes" to
                     (outputSurfaceId.isNotBlank() &&
                         outputPassBound &&
@@ -3768,6 +3788,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                         outputSurfaceEndpointAttached &&
                         interactiveSurfaceContractReady &&
                         interactiveSurfaceFrameDeliveryReady &&
+                        interactiveSurfacePresentationReady &&
                         blockedReasons.isEmpty()),
                 "outputs" to outputs,
                 "blockedReasons" to blockedReasons,
@@ -5008,6 +5029,11 @@ private data class ProfessionalVideoTransitionNativeSurfaceEndpointUploadResult(
     val uploaded: Boolean,
     val byteCount: Int,
     val checksum: Long,
+    val presented: Boolean,
+    val presentedImageCount: Int,
+    val presentedByteCount: Int,
+    val presentedChecksum: Long,
+    val presentationReason: String?,
     val reason: String?,
 ) {
     companion object {
@@ -5021,10 +5047,23 @@ private data class ProfessionalVideoTransitionNativeSurfaceEndpointUploadResult(
                 uploaded = false,
                 byteCount = 0,
                 checksum = 0L,
+                presented = false,
+                presentedImageCount = 0,
+                presentedByteCount = 0,
+                presentedChecksum = 0L,
+                presentationReason = reason,
                 reason = reason,
             )
     }
 }
+
+private data class ProfessionalVideoTransitionNativeSurfaceEndpointPresentationResult(
+    val presented: Boolean,
+    val imageCount: Int,
+    val byteCount: Int,
+    val checksum: Long,
+    val reason: String?,
+)
 
 private data class ProfessionalVideoTransitionNativeSurfaceEndpoint(
     val id: String,
@@ -5153,13 +5192,18 @@ private class ProfessionalVideoTransitionNativeSurfaceEndpointStore(
             } finally {
                 endpoint.surface.unlockCanvasAndPost(canvas)
             }
-            drainEndpoint(endpoint)
+            val presentation = drainEndpoint(endpoint)
             ProfessionalVideoTransitionNativeSurfaceEndpointUploadResult(
                 endpointId = endpoint.id,
                 endpointAttached = endpoint.surface.isValid,
                 uploaded = endpoint.surface.isValid,
                 byteCount = bitmap.byteCount,
                 checksum = checksum,
+                presented = endpoint.surface.isValid && presentation.presented,
+                presentedImageCount = presentation.imageCount,
+                presentedByteCount = presentation.byteCount,
+                presentedChecksum = presentation.checksum,
+                presentationReason = presentation.reason,
                 reason = null,
             )
         } catch (_: Throwable) {
@@ -5202,12 +5246,39 @@ private class ProfessionalVideoTransitionNativeSurfaceEndpointStore(
         }.getOrNull()
     }
 
-    private fun drainEndpoint(endpoint: ProfessionalVideoTransitionNativeSurfaceEndpoint) {
+    private fun drainEndpoint(
+        endpoint: ProfessionalVideoTransitionNativeSurfaceEndpoint,
+    ): ProfessionalVideoTransitionNativeSurfaceEndpointPresentationResult {
+        var imageCount = 0
+        var byteCount = 0
+        var checksum = 1469598103934665603L
         while (true) {
             val image = runCatching { endpoint.imageReader.acquireLatestImage() }.getOrNull()
                 ?: break
-            image.close()
+            try {
+                imageCount += 1
+                image.planes.forEach { plane ->
+                    val buffer = plane.buffer.duplicate()
+                    while (buffer.hasRemaining()) {
+                        checksum = (checksum xor (buffer.get().toLong() and 0xffL)) * 1099511628211L
+                        byteCount += 1
+                    }
+                }
+            } finally {
+                image.close()
+            }
         }
+        return ProfessionalVideoTransitionNativeSurfaceEndpointPresentationResult(
+            presented = imageCount > 0 && byteCount > 0,
+            imageCount = imageCount,
+            byteCount = byteCount,
+            checksum = if (byteCount > 0) checksum else 0L,
+            reason = if (imageCount > 0 && byteCount > 0) {
+                null
+            } else {
+                "native_transition_surface_presentation_missing"
+            },
+        )
     }
 }
 

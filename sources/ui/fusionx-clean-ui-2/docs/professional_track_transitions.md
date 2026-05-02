@@ -717,6 +717,13 @@ Pixel output proof gate:
   `native_transition_preview_interactive_surface_frame_missing`,
   `native_transition_liveScrub_interactive_surface_frame_missing`, or
   `native_transition_playback_interactive_surface_frame_missing`;
+- accepted delivery is not enough. Each interactive endpoint must also present
+  an acquired native frame. The readiness result must record presented image
+  count, byte count, checksum, and reason per mode. Missing presentation is a
+  mode-specific blocker such as
+  `native_transition_preview_interactive_surface_presentation_missing`,
+  `native_transition_liveScrub_interactive_surface_presentation_missing`, or
+  `native_transition_playback_interactive_surface_presentation_missing`;
 - this gate exists to prevent returning to frozen-frame zooms, Gaussian-blur
   stand-ins, decorative speed-line shapes, or video drawn over the timeline.
 

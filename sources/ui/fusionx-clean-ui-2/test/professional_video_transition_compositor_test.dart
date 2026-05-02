@@ -3369,6 +3369,8 @@ void main() {
         'interactiveSurfaceContractReady': false,
         'interactiveSurfaceFrameDeliveryReady': false,
         'interactiveSurfaceFrameDeliveryCount': 0,
+        'interactiveSurfacePresentationReady': false,
+        'interactiveSurfacePresentationCount': 0,
         'timelineTimeMs': 10000,
         'transitionStartMs': 8000,
         'transitionEndMs': 12000,
@@ -3401,6 +3403,12 @@ void main() {
             'interactiveSurfaceFrameChecksum': 0,
             'interactiveSurfaceFrameReason':
                 'native_transition_preview_interactive_surface_frame_missing',
+            'interactiveSurfaceFramePresented': false,
+            'interactiveSurfacePresentedImageCount': 0,
+            'interactiveSurfacePresentedByteCount': 0,
+            'interactiveSurfacePresentedChecksum': 0,
+            'interactiveSurfacePresentationReason':
+                'native_transition_preview_interactive_surface_presentation_missing',
             'rendererImplemented': false,
             'canRender': false,
             'blockedReasons': <String>[
@@ -3409,6 +3417,7 @@ void main() {
               'native_transition_preview_surface_endpoint_missing',
               'native_transition_preview_interactive_surface_missing',
               'native_transition_preview_interactive_surface_frame_missing',
+              'native_transition_preview_interactive_surface_presentation_missing',
             ],
           },
           <String, Object?>{
@@ -3436,6 +3445,12 @@ void main() {
             'interactiveSurfaceFrameChecksum': 0,
             'interactiveSurfaceFrameReason':
                 'native_transition_liveScrub_interactive_surface_frame_missing',
+            'interactiveSurfaceFramePresented': false,
+            'interactiveSurfacePresentedImageCount': 0,
+            'interactiveSurfacePresentedByteCount': 0,
+            'interactiveSurfacePresentedChecksum': 0,
+            'interactiveSurfacePresentationReason':
+                'native_transition_liveScrub_interactive_surface_presentation_missing',
             'rendererImplemented': false,
             'canRender': false,
             'blockedReasons': <String>[
@@ -3444,6 +3459,7 @@ void main() {
               'native_transition_liveScrub_surface_endpoint_missing',
               'native_transition_liveScrub_interactive_surface_missing',
               'native_transition_liveScrub_interactive_surface_frame_missing',
+              'native_transition_liveScrub_interactive_surface_presentation_missing',
             ],
           },
           <String, Object?>{
@@ -3471,6 +3487,12 @@ void main() {
             'interactiveSurfaceFrameChecksum': 0,
             'interactiveSurfaceFrameReason':
                 'native_transition_playback_interactive_surface_frame_missing',
+            'interactiveSurfaceFramePresented': false,
+            'interactiveSurfacePresentedImageCount': 0,
+            'interactiveSurfacePresentedByteCount': 0,
+            'interactiveSurfacePresentedChecksum': 0,
+            'interactiveSurfacePresentationReason':
+                'native_transition_playback_interactive_surface_presentation_missing',
             'rendererImplemented': false,
             'canRender': false,
             'blockedReasons': <String>[
@@ -3479,6 +3501,7 @@ void main() {
               'native_transition_playback_surface_endpoint_missing',
               'native_transition_playback_interactive_surface_missing',
               'native_transition_playback_interactive_surface_frame_missing',
+              'native_transition_playback_interactive_surface_presentation_missing',
             ],
           },
         ],
@@ -3488,16 +3511,19 @@ void main() {
           'native_transition_preview_surface_endpoint_missing',
           'native_transition_preview_interactive_surface_missing',
           'native_transition_preview_interactive_surface_frame_missing',
+          'native_transition_preview_interactive_surface_presentation_missing',
           'native_transition_liveScrub_renderer_missing',
           'native_transition_liveScrub_pixel_output_proof_missing',
           'native_transition_liveScrub_surface_endpoint_missing',
           'native_transition_liveScrub_interactive_surface_missing',
           'native_transition_liveScrub_interactive_surface_frame_missing',
+          'native_transition_liveScrub_interactive_surface_presentation_missing',
           'native_transition_playback_renderer_missing',
           'native_transition_playback_pixel_output_proof_missing',
           'native_transition_playback_surface_endpoint_missing',
           'native_transition_playback_interactive_surface_missing',
           'native_transition_playback_interactive_surface_frame_missing',
+          'native_transition_playback_interactive_surface_presentation_missing',
         ],
       };
     });
@@ -3557,6 +3583,8 @@ void main() {
     expect(result.interactiveSurfaceContractReady, isFalse);
     expect(result.interactiveSurfaceFrameDeliveryReady, isFalse);
     expect(result.interactiveSurfaceFrameDeliveryCount, 0);
+    expect(result.interactiveSurfacePresentationReady, isFalse);
+    expect(result.interactiveSurfacePresentationCount, 0);
     expect(result.sameOutputContractForAllModes, isTrue);
     expect(result.allModesRenderable, isFalse);
     expect(result.outputs.map((output) => output.mode), <String>[
@@ -3595,6 +3623,11 @@ void main() {
       isTrue,
     );
     expect(
+      result.outputs
+          .every((output) => !output.interactiveSurfaceFramePresented),
+      isTrue,
+    );
+    expect(
       result.outputs.map((output) => output.interactiveSurfaceKind).toSet(),
       <String>{'unboundInteractiveSurface'},
     );
@@ -3608,6 +3641,10 @@ void main() {
         result.blockedReasons,
         contains(
             'native_transition_playback_interactive_surface_frame_missing'));
+    expect(
+        result.blockedReasons,
+        contains(
+            'native_transition_playback_interactive_surface_presentation_missing'));
     expect(
       result.outputs.map((output) => output.outputSurfaceId).toSet(),
       hasLength(1),
@@ -3640,6 +3677,8 @@ void main() {
       interactiveSurfaceContractReady: false,
       interactiveSurfaceFrameDeliveryReady: false,
       interactiveSurfaceFrameDeliveryCount: 0,
+      interactiveSurfacePresentationReady: false,
+      interactiveSurfacePresentationCount: 0,
       timelineTime: TimelineTime.fromMilliseconds(10000),
       transitionStartTime: TimelineTime.fromMilliseconds(8000),
       transitionEndTime: TimelineTime.fromMilliseconds(12000),
@@ -3673,21 +3712,31 @@ void main() {
             interactiveSurfaceFrameChecksum: 0,
             interactiveSurfaceFrameReason:
                 'native_transition_${mode}_interactive_surface_frame_missing',
+            interactiveSurfaceFramePresented: false,
+            interactiveSurfacePresentedImageCount: 0,
+            interactiveSurfacePresentedByteCount: 0,
+            interactiveSurfacePresentedChecksum: 0,
+            interactiveSurfacePresentationReason:
+                'native_transition_${mode}_interactive_surface_presentation_missing',
             rendererImplemented: true,
             canRender: false,
             blockedReasons: <String>[
               'native_transition_${mode}_interactive_surface_missing',
               'native_transition_${mode}_interactive_surface_frame_missing',
+              'native_transition_${mode}_interactive_surface_presentation_missing',
             ],
           ),
       ],
       blockedReasons: const <String>[
         'native_transition_preview_interactive_surface_missing',
         'native_transition_preview_interactive_surface_frame_missing',
+        'native_transition_preview_interactive_surface_presentation_missing',
         'native_transition_liveScrub_interactive_surface_missing',
         'native_transition_liveScrub_interactive_surface_frame_missing',
+        'native_transition_liveScrub_interactive_surface_presentation_missing',
         'native_transition_playback_interactive_surface_missing',
         'native_transition_playback_interactive_surface_frame_missing',
+        'native_transition_playback_interactive_surface_presentation_missing',
       ],
     );
 
@@ -3697,6 +3746,7 @@ void main() {
     expect(result.rendererImplemented, isTrue);
     expect(result.interactiveSurfaceContractReady, isFalse);
     expect(result.interactiveSurfaceFrameDeliveryReady, isFalse);
+    expect(result.interactiveSurfacePresentationReady, isFalse);
     expect(result.canRender, isFalse);
     expect(
       result.outputs.map((output) => output.interactiveSurfaceKind).toSet(),
@@ -3704,7 +3754,8 @@ void main() {
     );
   });
 
-  test('parity renders only when every interactive surface receives a frame',
+  test(
+      'parity renders only when every interactive surface presents a delivered frame',
       () {
     final outputs = <ProfessionalVideoTransitionParityOutput>[
       for (final mode in <String>['preview', 'liveScrub', 'playback'])
@@ -3732,6 +3783,11 @@ void main() {
           interactiveSurfaceFrameByteCount: 8294400,
           interactiveSurfaceFrameChecksum: 777777,
           interactiveSurfaceFrameReason: '',
+          interactiveSurfaceFramePresented: true,
+          interactiveSurfacePresentedImageCount: 1,
+          interactiveSurfacePresentedByteCount: 8294400,
+          interactiveSurfacePresentedChecksum: 888888,
+          interactiveSurfacePresentationReason: '',
           rendererImplemented: true,
           canRender: true,
           blockedReasons: const <String>[],
@@ -3763,6 +3819,8 @@ void main() {
       interactiveSurfaceContractReady: true,
       interactiveSurfaceFrameDeliveryReady: true,
       interactiveSurfaceFrameDeliveryCount: 3,
+      interactiveSurfacePresentationReady: true,
+      interactiveSurfacePresentationCount: 3,
       timelineTime: TimelineTime.fromMilliseconds(10000),
       transitionStartTime: TimelineTime.fromMilliseconds(8000),
       transitionEndTime: TimelineTime.fromMilliseconds(12000),
@@ -3775,6 +3833,10 @@ void main() {
 
     expect(result.canRender, isTrue);
     expect(result.outputs.every((output) => output.canRender), isTrue);
+    expect(
+      result.outputs.every((output) => output.interactiveSurfaceFramePresented),
+      isTrue,
+    );
     expect(
       result.outputs.map((output) => output.interactiveSurfaceId).toSet(),
       hasLength(3),
