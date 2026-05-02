@@ -211,11 +211,30 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
   String get _currentRenderKey {
     return [
       widget.plan.transitionId,
-      widget.timelineTime.inMilliseconds,
+      _timelineFrameKey,
       widget.mode,
       widget.surfaceId,
       widget.plan.parameters,
     ].join(':');
+  }
+
+  int get _timelineFrameKey {
+    final frameRate = _doubleFromPolicy(
+      widget.plan.motionBlurPolicy['frameRate'],
+      fallback: 30.0,
+    ).clamp(1.0, 120.0);
+    final frameDurationMs = 1000.0 / frameRate;
+    return (widget.timelineTime.inMilliseconds / frameDurationMs).round();
+  }
+
+  double _doubleFromPolicy(Object? value, {required double fallback}) {
+    if (value is num) {
+      return value.toDouble();
+    }
+    if (value is String) {
+      return double.tryParse(value) ?? fallback;
+    }
+    return fallback;
   }
 
   @override

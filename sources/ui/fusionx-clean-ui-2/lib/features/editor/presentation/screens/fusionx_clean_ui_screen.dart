@@ -21078,10 +21078,17 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           },
         },
         motionBlurPolicy: <String, Object?>{
-          'mode': 'temporalShutter',
-          'shutterAngleDegrees': 360.0,
+          'mode': transition.preset == TimelineTransitionPreset.manual
+              ? 'singleFrame'
+              : 'temporalShutter',
+          'shutterAngleDegrees':
+              transition.preset == TimelineTransitionPreset.manual
+                  ? 0.0
+                  : 360.0,
           'frameRate': _timelineFps,
-          'sampleCount': isDistortionZoom ? 9 : 7,
+          'sampleCount': transition.preset == TimelineTransitionPreset.manual
+              ? 1
+              : (isDistortionZoom ? 9 : 7),
         },
         interactiveSurfaceBindings: <ProfessionalVideoTransitionInteractiveSurfaceBinding>[
           ProfessionalVideoTransitionInteractiveSurfaceBinding(

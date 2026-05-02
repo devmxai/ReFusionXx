@@ -865,3 +865,7 @@ Rules for this slice:
 - the authored lane values are still timeline data. The native renderer receives
   evaluated parameters for the current transition frame and applies them to real
   source video pixels.
+- Manual transform `Scale` uses a single real source-frame sample per timeline
+  frame. It must not inherit the 7/9-sample temporal shutter policy used by
+  heavy zoom/distortion presets, because that restarts source extraction too
+  often during scrub/play and freezes the visual surface.
