@@ -834,3 +834,13 @@ Verification expectation:
 - the incoming scaled-down phase must not expose black canvas borders;
 - unsupported source coverage must fail closed rather than freeze a boundary
   frame.
+
+Interactive preview ownership:
+
+- while a professional native transition render plan is active, the normal
+  single-video preview surface is suppressed so the transition surface is the
+  authoritative canvas for A/B sampling;
+- transient interactive surface registration or presentation failures are
+  retried with diagnostics;
+- permanent source pixel blockers remain hard blockers and must not fall back
+  to Flutter overlays, thumbnails, or poster frames.

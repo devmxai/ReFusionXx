@@ -9,6 +9,42 @@ import 'package:flutter/services.dart';
 import '../../domain/services/professional_video_transition_compositor.dart';
 import '../models/timeline_time.dart';
 
+@visibleForTesting
+bool shouldRetryInteractiveRenderResult(
+  ProfessionalVideoTransitionInteractiveFrameRenderResult result, {
+  required int retryCount,
+  required int maxRetryCount,
+}) {
+  if (result.canRenderFrame || retryCount >= maxRetryCount) {
+    return false;
+  }
+  return result.blockedReasons.any(
+    (reason) =>
+        reason == 'native_transition_interactive_surface_not_registered' ||
+        reason.endsWith('_production_surface_missing') ||
+        reason.endsWith('_interactive_surface_frame_missing') ||
+        reason.endsWith('_interactive_surface_presentation_missing') ||
+        reason == 'native_transition_surface_upload_failed',
+  );
+}
+
+@visibleForTesting
+String interactiveRenderDiagnosticKey(
+  ProfessionalVideoTransitionInteractiveFrameRenderResult result,
+) {
+  return [
+    result.definitionId,
+    result.mode,
+    result.surfaceId,
+    result.pixelOutputReady,
+    result.frameDelivered,
+    result.framePresented,
+    result.surfaceAttached,
+    result.blockedReasons.join(','),
+    result.reason,
+  ].join('|');
+}
+
 class ProfessionalVideoTransitionSurfaceOverlay extends StatefulWidget {
   const ProfessionalVideoTransitionSurfaceOverlay({
     super.key,
@@ -38,12 +74,15 @@ class ProfessionalVideoTransitionSurfaceOverlay extends StatefulWidget {
 
 class _ProfessionalVideoTransitionSurfaceOverlayState
     extends State<ProfessionalVideoTransitionSurfaceOverlay> {
+  static const int _maxRenderRetryCount = 24;
+
   bool _platformViewReady = false;
   bool _renderInFlight = false;
   bool _pendingRenderAfterCurrent = false;
   int _renderSequence = 0;
   int _registrationRetryCount = 0;
   String? _lastRenderedKey;
+  String? _lastReportedRenderIssueKey;
   Timer? _renderTimer;
 
   @override
@@ -55,6 +94,7 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
       _platformViewReady = false;
       _registrationRetryCount = 0;
       _lastRenderedKey = null;
+      _lastReportedRenderIssueKey = null;
       _renderTimer?.cancel();
       return;
     }
@@ -71,6 +111,7 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
     _platformViewReady = true;
     _registrationRetryCount = 0;
     _scheduleRender(const Duration(milliseconds: 48));
+    _scheduleRender(const Duration(milliseconds: 160));
   }
 
   void _scheduleRender([Duration delay = Duration.zero]) {
@@ -115,15 +156,40 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
       _registrationRetryCount = 0;
       return;
     }
-    final surfaceNotRegistered = result.blockedReasons.any(
-      (reason) =>
-          reason == 'native_transition_interactive_surface_not_registered' ||
-          reason.endsWith('_production_surface_missing'),
-    );
-    if (surfaceNotRegistered && _registrationRetryCount < 4) {
+    _debugRenderIssue(result);
+    if (shouldRetryInteractiveRenderResult(
+      result,
+      retryCount: _registrationRetryCount,
+      maxRetryCount: _maxRenderRetryCount,
+    )) {
       _registrationRetryCount += 1;
-      _scheduleRender(const Duration(milliseconds: 72));
+      _scheduleRender(_retryDelayForAttempt(_registrationRetryCount));
     }
+  }
+
+  void _debugRenderIssue(
+    ProfessionalVideoTransitionInteractiveFrameRenderResult result,
+  ) {
+    final issueKey = interactiveRenderDiagnosticKey(result);
+    if (_lastReportedRenderIssueKey == issueKey) {
+      return;
+    }
+    _lastReportedRenderIssueKey = issueKey;
+    debugPrint(
+      'Professional transition interactive render blocked: '
+      'definition=${result.definitionId}, mode=${result.mode}, '
+      'surface=${result.surfaceId}, time=${result.timelineTime?.inMilliseconds}, '
+      'pixelOutputReady=${result.pixelOutputReady}, '
+      'frameDelivered=${result.frameDelivered}, '
+      'framePresented=${result.framePresented}, '
+      'surfaceAttached=${result.surfaceAttached}, '
+      'blockedReasons=${result.blockedReasons}, reason=${result.reason}',
+    );
+  }
+
+  Duration _retryDelayForAttempt(int attempt) {
+    final delayMs = 72 + (attempt.clamp(0, 8) * 36);
+    return Duration(milliseconds: delayMs);
   }
 
   String get _currentRenderKey {

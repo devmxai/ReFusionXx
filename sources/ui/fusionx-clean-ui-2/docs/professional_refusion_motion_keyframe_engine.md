@@ -896,3 +896,18 @@ Acceptance rule:
   when the native renderer owns the transition frame;
 - export parity is not claimed until the export renderer consumes the same
   transition graph.
+
+## 17. Transition Surface Ownership Fix
+
+Status: interactive preview correction; no Live Scrub protected files touched.
+
+During a native professional transition window, the native transition surface
+must own the preview canvas. The normal single-video native preview surface is
+a competing production surface and must be suppressed while the professional
+transition render plan is active, otherwise the user can see the untransitioned
+video even when the transition plan exists.
+
+The interactive transition surface must also retry transient registration and
+presentation failures instead of failing silently. Permanent media/sample
+blockers still fail closed with native diagnostic reasons; they must not be
+repaired with thumbnails, poster frames, or Flutter fake zoom overlays.

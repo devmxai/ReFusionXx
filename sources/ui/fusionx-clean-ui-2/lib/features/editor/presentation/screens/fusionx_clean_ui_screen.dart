@@ -21009,13 +21009,32 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return ValueListenableBuilder<TimelineTime>(
       valueListenable: previewTimeListenable,
       builder: (context, previewTime, _) {
+        final activeTransition =
+            _activeTimelineTransitionPreviewAt(previewTime);
+        final professionalTransitionMode = _professionalVideoTransitionMode(
+          effectiveIsPlaying: effectiveIsPlaying,
+        );
+        final professionalTransitionSurfaceId = activeTransition == null
+            ? null
+            : _professionalTransitionSurfaceId(activeTransition);
+        final shouldSuppressNativePreviewForProfessionalTransition =
+            activeTransition != null &&
+                professionalTransitionSurfaceId != null &&
+                _professionalTransitionRenderPlanFor(
+                      activeTransition: activeTransition,
+                      mode: professionalTransitionMode,
+                      surfaceId: professionalTransitionSurfaceId,
+                    ) !=
+                    null;
         return MotionVideoPreviewTransformSurface(
           transform: _motionVideoPreviewTransformForTime(previewTime),
           surfaceTransform: _transitionVideoSurfaceTransformForTime(
             previewTime,
           ),
           canvasSize: _motionProjectFormat.canvasSize,
-          child: surface,
+          child: shouldSuppressNativePreviewForProfessionalTransition
+              ? fallback
+              : surface,
         );
       },
     );
