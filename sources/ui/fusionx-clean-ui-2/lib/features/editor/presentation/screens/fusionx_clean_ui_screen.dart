@@ -3310,9 +3310,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
   void _syncTransitionFocusTimeNotifiers() {
     final session = _transitionFocusSession;
-    final context = session == null
-        ? null
-        : _transitionFocusContextById(session.transitionId);
+    final context =
+        session == null ? null : _transitionFocusContextForSession(session);
     if (context == null) {
       if (_transitionFocusDisplayTimeNotifier.value != TimelineTime.zero) {
         _transitionFocusDisplayTimeNotifier.value = TimelineTime.zero;
@@ -3698,7 +3697,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final transitionFocusSession = _transitionFocusSession;
     final transitionFocusContext = transitionFocusSession == null
         ? null
-        : _transitionFocusContextById(transitionFocusSession.transitionId);
+        : _transitionFocusContextForSession(transitionFocusSession);
     if (transitionFocusContext != null &&
         !_isStoppingTransitionFocusPlayback &&
         transportState.isPlaying &&
@@ -5880,18 +5879,20 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         _deleteSceneScopeTransition(session, result.transition.id);
         break;
       case TransitionInspectorAction.openManual:
+        final manualTransition = result.transition.copyWith(
+          preset: TimelineTransitionPreset.manual,
+          durationTime: TimelineTransitionPreset.manual.defaultDurationTime,
+          parameterValues:
+              TimelineTransitionPreset.manual.defaultParameterValues,
+        );
         _upsertSceneScopeTransition(
           session,
           track,
-          result.transition.copyWith(
-            preset: TimelineTransitionPreset.manual,
-            durationTime: TimelineTransitionPreset.manual.defaultDurationTime,
-            parameterValues:
-                TimelineTransitionPreset.manual.defaultParameterValues,
-          ),
+          manualTransition,
         );
-        _showStageMessage(
-          'Manual Scene transition timeline is staged for the next focused transition-scope slice.',
+        _enterTransitionFocusMode(
+          manualTransition.id,
+          sourceSceneId: session.sourceSceneId,
         );
         break;
     }
@@ -5924,6 +5925,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
     });
     if (existingTransition != null) {
+      if (existingTransition.preset == TimelineTransitionPreset.manual) {
+        _enterTransitionFocusMode(
+          existingTransition.id,
+          sourceSceneId: session.sourceSceneId,
+        );
+        return;
+      }
       await _openSceneScopeTransitionInspector(
         session,
         track,
@@ -5967,8 +5975,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
     _upsertSceneScopeTransition(session, track, transition);
     if (browserResult.action == TransitionBrowserAction.openManual) {
-      _showStageMessage(
-        'Manual Scene transition timeline is staged for the next focused transition-scope slice.',
+      _enterTransitionFocusMode(
+        transition.id,
+        sourceSceneId: session.sourceSceneId,
       );
       return;
     }
@@ -17056,7 +17065,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final transitionFocusSession = _transitionFocusSession;
     final transitionFocusContext = transitionFocusSession == null
         ? null
-        : _transitionFocusContextById(transitionFocusSession.transitionId);
+        : _transitionFocusContextForSession(transitionFocusSession);
     if (transitionFocusContext != null) {
       unawaited(_toggleTransitionFocusPlayback(transitionFocusContext));
       return;
@@ -18020,14 +18029,48 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     });
   }
 
-  _TransitionFocusContext? _transitionFocusContextById(String transitionId) {
-    final videoTrack = _tracks.where(
-      (track) => track.kind == TimelineTrackKind.video,
+  _TransitionFocusContext? _transitionFocusContextForSession(
+    _TransitionFocusSession session,
+  ) {
+    return _transitionFocusContextById(
+      session.transitionId,
+      sourceSceneId: session.sourceSceneId,
     );
-    if (videoTrack.isEmpty) {
+  }
+
+  _TransitionFocusContext? _transitionFocusContextById(
+    String transitionId, {
+    String? sourceSceneId,
+  }) {
+    final sceneScope = sourceSceneId == null ? null : _sceneScopeSession;
+    final TimelineTrackData? track;
+    final TimelineTime scopeDurationTime;
+    if (sceneScope != null && sceneScope.sourceSceneId == sourceSceneId) {
+      final sceneTracks = _buildSceneScopeTracks(sceneScope);
+      TimelineTrackData? sceneVideoTrack;
+      for (final candidate in sceneTracks) {
+        if (candidate.kind == TimelineTrackKind.video) {
+          sceneVideoTrack = candidate;
+          break;
+        }
+      }
+      track = sceneVideoTrack;
+      scopeDurationTime = sceneScope.localRange.duration;
+    } else if (sourceSceneId != null) {
+      return null;
+    } else {
+      final videoTrack = _tracks.where(
+        (candidate) => candidate.kind == TimelineTrackKind.video,
+      );
+      if (videoTrack.isEmpty) {
+        return null;
+      }
+      track = videoTrack.first;
+      scopeDurationTime = _timelineDurationTime;
+    }
+    if (track == null) {
       return null;
     }
-    final track = videoTrack.first;
     TimelineTrackTransitionData? transition;
     for (final candidate in _sanitizeTransitionsForTrack(track)) {
       if (candidate.id == transitionId) {
@@ -18038,7 +18081,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (transition == null) {
       return null;
     }
-    final positionedClips = _positionedMediaClipsForTrack(track);
+    final positionedClips = _positionedTransitionClipsForTrack(track);
     final clipById = <String, _PositionedTimelineTrackClip>{
       for (final positionedClip in positionedClips)
         positionedClip.clip.id: positionedClip,
@@ -18071,11 +18114,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
     final startTime = (seamTime - editorLeading).clamp(
       TimelineTime.zero,
-      _timelineDurationTime,
+      scopeDurationTime,
     );
     final endTime = (seamTime + editorTrailing).clamp(
       TimelineTime.zero,
-      _timelineDurationTime,
+      scopeDurationTime,
     );
     if (endTime <= startTime) {
       return null;
@@ -18093,16 +18136,67 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (activeEndTime <= activeStartTime) {
       return null;
     }
+    final contextSeamTime =
+        sceneScope == null ? seamTime : sceneScope.localToRoot(seamTime);
+    final contextActiveStartTime = sceneScope == null
+        ? activeStartTime
+        : sceneScope.localToRoot(activeStartTime);
+    final contextActiveEndTime = sceneScope == null
+        ? activeEndTime
+        : sceneScope.localToRoot(activeEndTime);
+    final contextStartTime =
+        sceneScope == null ? startTime : sceneScope.localToRoot(startTime);
+    final contextEndTime =
+        sceneScope == null ? endTime : sceneScope.localToRoot(endTime);
     return _TransitionFocusContext(
       transition: transition,
       leftClip: leftClip.clip,
       rightClip: rightClip.clip,
-      seamTime: seamTime,
-      activeStartTime: activeStartTime,
-      activeEndTime: activeEndTime,
-      startTime: startTime,
-      endTime: endTime,
+      seamTime: contextSeamTime,
+      activeStartTime: contextActiveStartTime,
+      activeEndTime: contextActiveEndTime,
+      startTime: contextStartTime,
+      endTime: contextEndTime,
     );
+  }
+
+  TimelineTrackTransitionData? _transitionFocusTransitionById(
+    String transitionId, {
+    String? sourceSceneId,
+  }) {
+    if (sourceSceneId == null) {
+      return _videoTrackTransitionById(transitionId);
+    }
+    return _transitionFocusContextById(
+      transitionId,
+      sourceSceneId: sourceSceneId,
+    )?.transition;
+  }
+
+  void _upsertTransitionFocusTransition(
+    TimelineTrackTransitionData transition, {
+    String? sourceSceneId,
+  }) {
+    if (sourceSceneId == null) {
+      _upsertVideoTrackTransition(transition);
+      return;
+    }
+    final sceneScope = _sceneScopeSession;
+    if (sceneScope == null || sceneScope.sourceSceneId != sourceSceneId) {
+      return;
+    }
+    final sceneTracks = _buildSceneScopeTracks(sceneScope);
+    TimelineTrackData? videoTrack;
+    for (final candidate in sceneTracks) {
+      if (candidate.kind == TimelineTrackKind.video) {
+        videoTrack = candidate;
+        break;
+      }
+    }
+    if (videoTrack == null) {
+      return;
+    }
+    _upsertSceneScopeTransition(sceneScope, videoTrack, transition);
   }
 
   String _clipPresentationLabel(
@@ -18886,8 +18980,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   void _enterTransitionFocusMode(
     String transitionId, {
     String? preferredLaneId,
+    String? sourceSceneId,
   }) {
-    var context = _transitionFocusContextById(transitionId);
+    var context = _transitionFocusContextById(
+      transitionId,
+      sourceSceneId: sourceSceneId,
+    );
     if (context == null) {
       return;
     }
@@ -18897,8 +18995,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         context,
       );
       if (normalizedTransition != context.transition) {
-        _upsertVideoTrackTransition(normalizedTransition);
-        context = _transitionFocusContextById(transitionId);
+        _upsertTransitionFocusTransition(
+          normalizedTransition,
+          sourceSceneId: sourceSceneId,
+        );
+        context = _transitionFocusContextById(
+          transitionId,
+          sourceSceneId: sourceSceneId,
+        );
         if (context == null) {
           return;
         }
@@ -18911,12 +19015,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           scopeContext: context,
         );
         if (seededLanes.isNotEmpty) {
-          _upsertVideoTrackTransition(
+          _upsertTransitionFocusTransition(
             context.transition.copyWith(
               manualAnimationLanes: seededLanes,
             ),
+            sourceSceneId: sourceSceneId,
           );
-          context = _transitionFocusContextById(transitionId);
+          context = _transitionFocusContextById(
+            transitionId,
+            sourceSceneId: sourceSceneId,
+          );
           if (context == null) {
             return;
           }
@@ -18933,6 +19041,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _clearUnifiedTransitionScopeSession();
       _transitionFocusSession = _TransitionFocusSession(
         transitionId: transitionId,
+        sourceSceneId: sourceSceneId,
         selectedLaneId: resolvedLaneId,
       );
       _selectedClipId = null;
@@ -18962,7 +19071,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (session == null) {
       return;
     }
-    final context = _transitionFocusContextById(session.transitionId);
+    final context = _transitionFocusContextForSession(session);
     setState(() {
       _transitionFocusSession = null;
       _selectedClipId = null;
@@ -19127,7 +19236,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     String transitionId,
     AnimateBrowserItem item,
   ) {
-    final transition = _videoTrackTransitionById(transitionId);
+    final sourceSceneId = _transitionFocusSession?.transitionId == transitionId
+        ? _transitionFocusSession?.sourceSceneId
+        : null;
+    final transition = _transitionFocusTransitionById(
+      transitionId,
+      sourceSceneId: sourceSceneId,
+    );
     if (transition == null) {
       return;
     }
@@ -19140,7 +19255,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (baseSpec == null) {
       return;
     }
-    final focusContext = _transitionFocusContextById(transitionId);
+    final focusContext = _transitionFocusContextById(
+      transitionId,
+      sourceSceneId: sourceSceneId,
+    );
     if (focusContext != null) {
       _warmTransitionFocusPreviewAssets(focusContext);
     }
@@ -19178,18 +19296,34 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     ) update,
     bool preserveProgress = false,
   }) {
-    final current = _videoTrackTransitionById(transitionId);
+    final sourceSceneId = _transitionFocusSession?.transitionId == transitionId
+        ? _transitionFocusSession?.sourceSceneId
+        : null;
+    final current = _transitionFocusTransitionById(
+      transitionId,
+      sourceSceneId: sourceSceneId,
+    );
     if (current == null) {
       return;
     }
-    final existingContext =
-        preserveProgress ? _transitionFocusContextById(transitionId) : null;
+    final existingContext = preserveProgress
+        ? _transitionFocusContextById(
+            transitionId,
+            sourceSceneId: sourceSceneId,
+          )
+        : null;
     final preservedProgress = existingContext == null
         ? null
         : _transitionFocusProgressForTime(existingContext, _currentTime);
-    _upsertVideoTrackTransition(update(current));
+    _upsertTransitionFocusTransition(
+      update(current),
+      sourceSceneId: sourceSceneId,
+    );
     if (preservedProgress != null) {
-      final nextContext = _transitionFocusContextById(transitionId);
+      final nextContext = _transitionFocusContextById(
+        transitionId,
+        sourceSceneId: sourceSceneId,
+      );
       if (nextContext != null) {
         _seekTransitionFocusProgress(nextContext, preservedProgress);
       }
@@ -19334,7 +19468,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (session == null) {
       return;
     }
-    final context = _transitionFocusContextById(session.transitionId);
+    final context = _transitionFocusContextForSession(session);
     if (context == null) {
       return;
     }
@@ -19364,7 +19498,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (session == null) {
       return;
     }
-    final context = _transitionFocusContextById(session.transitionId);
+    final context = _transitionFocusContextForSession(session);
     if (context == null) {
       return;
     }
@@ -19476,7 +19610,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (session == null) {
       return;
     }
-    final focusContext = _transitionFocusContextById(session.transitionId);
+    final focusContext = _transitionFocusContextForSession(session);
     if (focusContext == null) {
       return;
     }
@@ -21279,7 +21413,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final transitionFocusSession = _transitionFocusSession;
     final transitionFocusContext = transitionFocusSession == null
         ? null
-        : _transitionFocusContextById(transitionFocusSession.transitionId);
+        : _transitionFocusContextForSession(transitionFocusSession);
     final transitionFocusLaneSpecs = transitionFocusContext == null
         ? const <_TransitionFocusLaneSpec>[]
         : _transitionFocusLaneSpecs(transitionFocusContext.transition);
@@ -23152,18 +23286,22 @@ class _TransitionFocusSession {
   const _TransitionFocusSession({
     required this.transitionId,
     required this.selectedLaneId,
+    this.sourceSceneId,
   });
 
   final String transitionId;
   final String selectedLaneId;
+  final String? sourceSceneId;
 
   _TransitionFocusSession copyWith({
     String? transitionId,
     String? selectedLaneId,
+    String? sourceSceneId,
   }) {
     return _TransitionFocusSession(
       transitionId: transitionId ?? this.transitionId,
       selectedLaneId: selectedLaneId ?? this.selectedLaneId,
+      sourceSceneId: sourceSceneId ?? this.sourceSceneId,
     );
   }
 }
