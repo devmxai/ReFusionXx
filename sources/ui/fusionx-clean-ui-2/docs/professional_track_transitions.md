@@ -710,6 +710,13 @@ Pixel output proof gate:
   output contract through their real interactive surfaces. The endpoint proof
   must not be used as a hidden preview surface, timeline overlay, or
   single-frame transition fallback;
+- each interactive parity mode must receive its own source-derived frame-buffer
+  packet through its `interactiveNativeTransitionSurface`. The readiness result
+  must record delivered frame state, byte count, checksum, and reason per mode.
+  Missing delivery is a mode-specific blocker such as
+  `native_transition_preview_interactive_surface_frame_missing`,
+  `native_transition_liveScrub_interactive_surface_frame_missing`, or
+  `native_transition_playback_interactive_surface_frame_missing`;
 - this gate exists to prevent returning to frozen-frame zooms, Gaussian-blur
   stand-ins, decorative speed-line shapes, or video drawn over the timeline.
 
