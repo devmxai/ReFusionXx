@@ -934,11 +934,18 @@ Current gate:
   It turns the frame render command buffer into ordered draw submissions for the
   final native canvas surface. This may report `drawLoopImplemented=true` and
   `canSubmitCommands=true`, but it must still report `canRenderFrame=false`,
-  `rendersRealPixels=false`, and `drawsPixels=false` until a shader/pixel
-  renderer writes real pixels. The blockers are
-  `native_transition_shader_evaluator_missing`,
-  `native_transition_pixel_renderer_missing`, and
-  `native_transition_renderer_pixels_missing`.
+  `rendersRealPixels=false`, and `drawsPixels=false`. This stage only proves
+  command submission order; shader evaluation and pixel rendering are separate
+  downstream gates.
+- Flutter and Android now also share `planTransitionShaderEvaluation`. This is
+  the native shader/effect evaluation gate between command submission and the
+  future pixel renderer. It converts ordered draw submissions into shader inputs,
+  records whether the transition requires temporal shutter samples and
+  mirror-edge tiling, and reports `canEvaluateShader=true` only when the draw
+  loop and shader inputs are bound. It still reports `canRenderFrame=false`,
+  `rendersRealPixels=false`, and `drawsPixels=false`; the next missing stage is
+  the concrete pixel renderer that writes real transition pixels to
+  `nativeTransitionCanvasSurface`.
 - Flutter and Android now also share `planParityOutputs`. This is the parity
   contract that prevents "works in preview but not in scrub/playback" drift.
   Preview, Live Scrub, and playback must all point at the same native

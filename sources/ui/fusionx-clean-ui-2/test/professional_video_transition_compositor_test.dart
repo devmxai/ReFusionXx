@@ -2394,7 +2394,8 @@ void main() {
     expect(result.blockedReasons, isEmpty);
   });
 
-  test('method channel renderer draw loop stays blocked until pixel renderer',
+  test(
+      'method channel renderer draw loop submits ordered commands before shader',
       () async {
     const channel = MethodChannel(
         'com.refusion.app/professional_video_transition_compositor');
@@ -2455,21 +2456,15 @@ void main() {
             'writesToOutputSurface': true,
             'requiresRealPixels': true,
             'submitted': true,
-            'blockedReasons': <String>[
-              'native_transition_pixel_renderer_missing',
-            ],
+            'blockedReasons': <String>[],
           },
         ],
-        'drawLoopReady': false,
+        'drawLoopReady': true,
         'rendersRealPixels': false,
         'drawsPixels': false,
         'canSubmitCommands': true,
         'canRenderFrame': false,
-        'blockedReasons': <String>[
-          'native_transition_shader_evaluator_missing',
-          'native_transition_pixel_renderer_missing',
-          'native_transition_renderer_pixels_missing',
-        ],
+        'blockedReasons': <String>[],
       };
     });
 
@@ -2518,22 +2513,141 @@ void main() {
     expect(result.pixelRendererImplemented, isFalse);
     expect(result.rendererImplemented, isFalse);
     expect(result.drawSubmissionCount, 1);
+    expect(result.drawLoopReady, isTrue);
     expect(result.drawSubmissions.single.submitted, isTrue);
     expect(result.drawSubmissions.single.writesToOutputSurface, isTrue);
+    expect(result.drawSubmissions.single.blockedReasons, isEmpty);
     expect(result.canSubmitCommands, isTrue);
     expect(result.canRenderFrame, isFalse);
-    expect(
-      result.blockedReasons,
-      contains('native_transition_shader_evaluator_missing'),
+    expect(result.blockedReasons, isEmpty);
+  });
+
+  test('method channel transition shader evaluation binds draw inputs',
+      () async {
+    const channel = MethodChannel(
+        'com.refusion.app/professional_video_transition_compositor');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(channel, null);
+    });
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'planTransitionShaderEvaluation');
+      final arguments = call.arguments! as Map<Object?, Object?>;
+      expect(arguments['definitionId'], 'zoomInCamera');
+      expect(arguments['timelineTimeMs'], 10000);
+      return <String, Object?>{
+        'status': 'planned',
+        'reason': '',
+        'rendererVersion': 'foundation',
+        'definitionId': 'zoomInCamera',
+        'renderSessionId': 'transition-session:zoom-native-1',
+        'renderPassGraphId': 'transition-session:zoom-native-1:graph:10000',
+        'renderGraphExecutorId':
+            'transition-session:zoom-native-1:executor:10000',
+        'surfaceRendererId':
+            'transition-session:zoom-native-1:surface-renderer:10000',
+        'frameRenderCommandBufferId':
+            'transition-session:zoom-native-1:frame-command-buffer:10000',
+        'rendererBackendId':
+            'transition-session:zoom-native-1:renderer-backend:10000',
+        'rendererDrawLoopId':
+            'transition-session:zoom-native-1:draw-loop:10000',
+        'transitionShaderEvaluationId':
+            'transition-session:zoom-native-1:shader-evaluation:10000',
+        'transitionShaderProgramId':
+            'transition-session:zoom-native-1:shader-program:zoomInCamera',
+        'shaderFamily': 'zoomInCamera',
+        'outputSurfaceId':
+            'transition-session:zoom-native-1:surface:transition-output:10000',
+        'outputTarget': 'nativeTransitionCanvasSurface',
+        'timelineTimeMs': 10000,
+        'transitionStartMs': 8000,
+        'transitionEndMs': 12000,
+        'canvasWidth': 1080,
+        'canvasHeight': 1920,
+        'drawLoopImplemented': true,
+        'drawLoopReady': true,
+        'shaderEvaluatorImplemented': true,
+        'shaderProgramReady': true,
+        'shaderInputsBound': true,
+        'shaderInputCount': 1,
+        'shaderInputs': <Map<String, Object?>>[
+          <String, Object?>{
+            'shaderInputId': 'shader-input:0',
+            'submissionId': 'draw-submission:0',
+            'commandId': 'command:output:0',
+            'passId': 'output-pass',
+            'passType': 'composeToTransitionSurface',
+            'outputTarget': 'nativeTransitionCanvasSurface',
+            'requiresRealPixels': true,
+            'inputBound': true,
+          },
+        ],
+        'requiresTemporalSamples': true,
+        'requiresMirrorEdgeTiling': true,
+        'pixelRendererImplemented': false,
+        'rendererImplemented': false,
+        'canEvaluateShader': true,
+        'rendersRealPixels': false,
+        'drawsPixels': false,
+        'canRenderFrame': false,
+        'blockedReasons': <String>[],
+      };
+    });
+
+    final result =
+        await const MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider(
+      channel: channel,
+    ).planTransitionShaderEvaluation(
+      timelineTime: TimelineTime.fromMilliseconds(10000),
+      plan: ProfessionalZoomCameraRenderPlan(
+        canvasWidth: 1080,
+        canvasHeight: 1920,
+        request: ProfessionalZoomCameraPlanRequest(
+          transitionId: 'zoom-native-1',
+          timelineTime: TimelineTime.fromMilliseconds(10000),
+          boundaryTime: TimelineTime.fromMilliseconds(10000),
+          leadingDuration: TimelineTime.fromMilliseconds(2000),
+          trailingDuration: TimelineTime.fromMilliseconds(2000),
+          outgoing: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-a',
+            assetId: 'asset-a',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(28000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+          incoming: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-b',
+            assetId: 'asset-b',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(38000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+        ),
+      ).toGenericRenderPlan(),
     );
-    expect(
-      result.blockedReasons,
-      contains('native_transition_pixel_renderer_missing'),
-    );
-    expect(
-      result.blockedReasons,
-      contains('native_transition_renderer_pixels_missing'),
-    );
+
+    expect(result.canPlan, isTrue);
+    expect(result.drawLoopReady, isTrue);
+    expect(result.shaderEvaluatorImplemented, isTrue);
+    expect(result.shaderProgramReady, isTrue);
+    expect(result.shaderInputsBound, isTrue);
+    expect(result.shaderInputCount, 1);
+    expect(result.shaderInputs.single.inputBound, isTrue);
+    expect(result.requiresTemporalSamples, isTrue);
+    expect(result.requiresMirrorEdgeTiling, isTrue);
+    expect(result.pixelRendererImplemented, isFalse);
+    expect(result.rendererImplemented, isFalse);
+    expect(result.canEvaluateShader, isTrue);
+    expect(result.canRenderFrame, isFalse);
+    expect(result.blockedReasons, isEmpty);
   });
 
   test(

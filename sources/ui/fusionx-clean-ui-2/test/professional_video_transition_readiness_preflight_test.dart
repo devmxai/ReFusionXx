@@ -38,6 +38,7 @@ void main() {
         ProfessionalVideoTransitionReadinessStageId.frameRenderCommands,
         ProfessionalVideoTransitionReadinessStageId.rendererBackend,
         ProfessionalVideoTransitionReadinessStageId.rendererDrawLoop,
+        ProfessionalVideoTransitionReadinessStageId.transitionShaderEvaluation,
         ProfessionalVideoTransitionReadinessStageId.parityOutputs,
       ],
     );
@@ -107,20 +108,28 @@ void main() {
     expect(
       report
           .stage(ProfessionalVideoTransitionReadinessStageId.rendererDrawLoop)
-          .blockers,
-      contains('native_transition_shader_evaluator_missing'),
+          .canAdvance,
+      isTrue,
     );
     expect(
       report
-          .stage(ProfessionalVideoTransitionReadinessStageId.rendererDrawLoop)
-          .blockers,
-      contains('native_transition_pixel_renderer_missing'),
+          .stage(ProfessionalVideoTransitionReadinessStageId
+              .transitionShaderEvaluation)
+          .canAdvance,
+      isTrue,
     );
     expect(
       report
-          .stage(ProfessionalVideoTransitionReadinessStageId.rendererDrawLoop)
+          .stage(ProfessionalVideoTransitionReadinessStageId
+              .transitionShaderEvaluation)
           .blockers,
-      contains('native_transition_renderer_pixels_missing'),
+      isEmpty,
+    );
+    expect(
+      report
+          .stage(ProfessionalVideoTransitionReadinessStageId.parityOutputs)
+          .blockers,
+      contains('native_transition_renderer_not_implemented'),
     );
   });
 
@@ -832,8 +841,6 @@ class _FakeProfessionalVideoTransitionCompositorClient
       outputSurfaceAttached: true,
       backendReady: true,
       drawLoopImplemented: true,
-      shaderEvaluatorImplemented: _rendererReady,
-      pixelRendererImplemented: _rendererReady,
       rendererImplemented: _rendererReady,
       drawSubmissionCount: 1,
       drawSubmissions: <ProfessionalVideoTransitionDrawSubmission>[
@@ -847,23 +854,75 @@ class _FakeProfessionalVideoTransitionCompositorClient
           writesToOutputSurface: true,
           requiresRealPixels: true,
           submitted: true,
-          blockedReasons: _planningOnly
-              ? const <String>['native_transition_pixel_renderer_missing']
-              : const <String>[],
+          blockedReasons: const <String>[],
         ),
       ],
-      drawLoopReady: _rendererReady,
+      shaderEvaluatorImplemented: false,
+      pixelRendererImplemented: false,
+      drawLoopReady: true,
       rendersRealPixels: _rendererReady,
       drawsPixels: _rendererReady,
       canSubmitCommands: true,
       canRenderFrame: _rendererReady,
-      blockedReasons: _planningOnly
-          ? const <String>[
-              'native_transition_shader_evaluator_missing',
-              'native_transition_pixel_renderer_missing',
-              'native_transition_renderer_pixels_missing',
-            ]
-          : const <String>[],
+      blockedReasons: const <String>[],
+    );
+  }
+
+  @override
+  Future<ProfessionalVideoTransitionShaderEvaluationPlanResult>
+      planTransitionShaderEvaluation({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  }) async {
+    return ProfessionalVideoTransitionShaderEvaluationPlanResult(
+      status: ProfessionalVideoTransitionShaderEvaluationPlanStatus.planned,
+      reason: '',
+      rendererVersion: 'fake',
+      definitionId: plan.definitionId,
+      renderSessionId: 'transition-session:${plan.transitionId}',
+      renderPassGraphId: 'graph:${plan.transitionId}',
+      renderGraphExecutorId: 'executor:${plan.transitionId}',
+      surfaceRendererId: 'surface-renderer:${plan.transitionId}',
+      frameRenderCommandBufferId: 'frame-command-buffer:${plan.transitionId}',
+      rendererBackendId: 'renderer-backend:${plan.transitionId}',
+      rendererDrawLoopId: 'draw-loop:${plan.transitionId}',
+      transitionShaderEvaluationId: 'shader-evaluation:${plan.transitionId}',
+      transitionShaderProgramId: 'shader-program:${plan.definitionId}',
+      shaderFamily: plan.definitionId,
+      outputSurfaceId: 'surface:${plan.transitionId}',
+      outputTarget: 'nativeTransitionCanvasSurface',
+      timelineTime: timelineTime,
+      transitionStartTime: plan.boundaryTime - plan.leadingDuration,
+      transitionEndTime: plan.boundaryTime + plan.trailingDuration,
+      canvasWidth: plan.canvasWidth,
+      canvasHeight: plan.canvasHeight,
+      drawLoopImplemented: true,
+      drawLoopReady: true,
+      shaderEvaluatorImplemented: true,
+      shaderProgramReady: true,
+      shaderInputsBound: true,
+      shaderInputCount: 1,
+      shaderInputs: <ProfessionalVideoTransitionShaderInput>[
+        ProfessionalVideoTransitionShaderInput(
+          shaderInputId: 'shader-input:${plan.transitionId}:0',
+          submissionId: 'draw-submission:${plan.transitionId}:0',
+          commandId: 'command:output:${plan.transitionId}',
+          passId: 'pass:output:${plan.transitionId}',
+          passType: 'composeToTransitionSurface',
+          outputTarget: 'nativeTransitionCanvasSurface',
+          requiresRealPixels: true,
+          inputBound: true,
+        ),
+      ],
+      requiresTemporalSamples: true,
+      requiresMirrorEdgeTiling: true,
+      pixelRendererImplemented: _rendererReady,
+      rendererImplemented: _rendererReady,
+      canEvaluateShader: true,
+      rendersRealPixels: _rendererReady,
+      drawsPixels: _rendererReady,
+      canRenderFrame: _rendererReady,
+      blockedReasons: const <String>[],
     );
   }
 

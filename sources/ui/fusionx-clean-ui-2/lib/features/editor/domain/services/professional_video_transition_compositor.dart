@@ -194,6 +194,12 @@ abstract class ProfessionalVideoTransitionCompositorClient
     required TimelineTime timelineTime,
   });
 
+  Future<ProfessionalVideoTransitionShaderEvaluationPlanResult>
+      planTransitionShaderEvaluation({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  });
+
   Future<ProfessionalVideoTransitionOutputSurfacePlanResult> planOutputSurface({
     required ProfessionalVideoTransitionRenderPlan plan,
     required TimelineTime timelineTime,
@@ -642,6 +648,36 @@ class MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider
       );
     } on PlatformException catch (error) {
       return ProfessionalVideoTransitionRendererDrawLoopPlanResult
+          .invalidRequest(
+        reason: error.message ?? error.code,
+      );
+    }
+  }
+
+  @override
+  Future<ProfessionalVideoTransitionShaderEvaluationPlanResult>
+      planTransitionShaderEvaluation({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  }) async {
+    try {
+      final payload = plan.toPlatformMap();
+      payload['timelineTimeMs'] = timelineTime.inMilliseconds;
+      final rawResult = await _channel.invokeMapMethod<String, Object?>(
+        'planTransitionShaderEvaluation',
+        payload,
+      );
+      return ProfessionalVideoTransitionShaderEvaluationPlanResultMapper
+          .fromMap(
+        rawResult,
+      );
+    } on MissingPluginException {
+      return ProfessionalVideoTransitionShaderEvaluationPlanResult
+          .invalidRequest(
+        reason: 'native_compositor_channel_missing',
+      );
+    } on PlatformException catch (error) {
+      return ProfessionalVideoTransitionShaderEvaluationPlanResult
           .invalidRequest(
         reason: error.message ?? error.code,
       );
@@ -4253,6 +4289,298 @@ class ProfessionalVideoTransitionRendererDrawLoopPlanResultMapper {
           requiresRealPixels: _readBool(submission['requiresRealPixels']),
           submitted: _readBool(submission['submitted']),
           blockedReasons: _readStringList(submission['blockedReasons']),
+        );
+      }),
+    );
+  }
+
+  static TimelineTime? _readTimelineTime(Object? value) {
+    if (value is num) {
+      return TimelineTime.fromMilliseconds(value.round());
+    }
+    final parsed = int.tryParse(value?.toString() ?? '');
+    if (parsed == null) {
+      return null;
+    }
+    return TimelineTime.fromMilliseconds(parsed);
+  }
+
+  static int _readInt(Object? value) {
+    if (value is num) {
+      return value.round();
+    }
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static bool _readBool(Object? value, {bool defaultValue = false}) {
+    if (value is bool) {
+      return value;
+    }
+    return defaultValue;
+  }
+
+  static List<String> _readStringList(Object? value) {
+    if (value is! List) {
+      return const <String>[];
+    }
+    return List<String>.unmodifiable(value.map((entry) => entry.toString()));
+  }
+
+  static List<Map<String, Object?>> _readIssues(Object? value) {
+    if (value is! List) {
+      return const <Map<String, Object?>>[];
+    }
+    return List<Map<String, Object?>>.unmodifiable(
+      value.whereType<Map>().map((issue) {
+        return <String, Object?>{
+          for (final entry in issue.entries) entry.key.toString(): entry.value,
+        };
+      }),
+    );
+  }
+}
+
+enum ProfessionalVideoTransitionShaderEvaluationPlanStatus {
+  planned,
+  invalidRequest,
+}
+
+@immutable
+class ProfessionalVideoTransitionShaderInput {
+  const ProfessionalVideoTransitionShaderInput({
+    required this.shaderInputId,
+    required this.submissionId,
+    required this.commandId,
+    required this.passId,
+    required this.passType,
+    required this.outputTarget,
+    required this.requiresRealPixels,
+    required this.inputBound,
+  });
+
+  final String shaderInputId;
+  final String submissionId;
+  final String commandId;
+  final String passId;
+  final String passType;
+  final String outputTarget;
+  final bool requiresRealPixels;
+  final bool inputBound;
+}
+
+@immutable
+class ProfessionalVideoTransitionShaderEvaluationPlanResult {
+  const ProfessionalVideoTransitionShaderEvaluationPlanResult({
+    required this.status,
+    required this.reason,
+    required this.rendererVersion,
+    required this.definitionId,
+    required this.renderSessionId,
+    required this.renderPassGraphId,
+    required this.renderGraphExecutorId,
+    required this.surfaceRendererId,
+    required this.frameRenderCommandBufferId,
+    required this.rendererBackendId,
+    required this.rendererDrawLoopId,
+    required this.transitionShaderEvaluationId,
+    required this.transitionShaderProgramId,
+    required this.shaderFamily,
+    required this.outputSurfaceId,
+    required this.outputTarget,
+    required this.timelineTime,
+    required this.transitionStartTime,
+    required this.transitionEndTime,
+    required this.canvasWidth,
+    required this.canvasHeight,
+    required this.drawLoopImplemented,
+    required this.drawLoopReady,
+    required this.shaderEvaluatorImplemented,
+    required this.shaderProgramReady,
+    required this.shaderInputsBound,
+    required this.shaderInputCount,
+    required this.shaderInputs,
+    required this.requiresTemporalSamples,
+    required this.requiresMirrorEdgeTiling,
+    required this.pixelRendererImplemented,
+    required this.rendererImplemented,
+    required this.canEvaluateShader,
+    required this.rendersRealPixels,
+    required this.drawsPixels,
+    required this.canRenderFrame,
+    required this.blockedReasons,
+    this.issues = const <Map<String, Object?>>[],
+  });
+
+  factory ProfessionalVideoTransitionShaderEvaluationPlanResult.invalidRequest({
+    required String reason,
+    String rendererVersion = 'unknown',
+    List<Map<String, Object?>> issues = const <Map<String, Object?>>[],
+  }) {
+    return ProfessionalVideoTransitionShaderEvaluationPlanResult(
+      status:
+          ProfessionalVideoTransitionShaderEvaluationPlanStatus.invalidRequest,
+      reason: reason,
+      rendererVersion: rendererVersion,
+      definitionId: '',
+      renderSessionId: '',
+      renderPassGraphId: '',
+      renderGraphExecutorId: '',
+      surfaceRendererId: '',
+      frameRenderCommandBufferId: '',
+      rendererBackendId: '',
+      rendererDrawLoopId: '',
+      transitionShaderEvaluationId: '',
+      transitionShaderProgramId: '',
+      shaderFamily: '',
+      outputSurfaceId: '',
+      outputTarget: '',
+      timelineTime: null,
+      transitionStartTime: null,
+      transitionEndTime: null,
+      canvasWidth: 0,
+      canvasHeight: 0,
+      drawLoopImplemented: false,
+      drawLoopReady: false,
+      shaderEvaluatorImplemented: false,
+      shaderProgramReady: false,
+      shaderInputsBound: false,
+      shaderInputCount: 0,
+      shaderInputs: const <ProfessionalVideoTransitionShaderInput>[],
+      requiresTemporalSamples: false,
+      requiresMirrorEdgeTiling: false,
+      pixelRendererImplemented: false,
+      rendererImplemented: false,
+      canEvaluateShader: false,
+      rendersRealPixels: false,
+      drawsPixels: false,
+      canRenderFrame: false,
+      blockedReasons: const <String>[],
+      issues: issues,
+    );
+  }
+
+  final ProfessionalVideoTransitionShaderEvaluationPlanStatus status;
+  final String reason;
+  final String rendererVersion;
+  final String definitionId;
+  final String renderSessionId;
+  final String renderPassGraphId;
+  final String renderGraphExecutorId;
+  final String surfaceRendererId;
+  final String frameRenderCommandBufferId;
+  final String rendererBackendId;
+  final String rendererDrawLoopId;
+  final String transitionShaderEvaluationId;
+  final String transitionShaderProgramId;
+  final String shaderFamily;
+  final String outputSurfaceId;
+  final String outputTarget;
+  final TimelineTime? timelineTime;
+  final TimelineTime? transitionStartTime;
+  final TimelineTime? transitionEndTime;
+  final int canvasWidth;
+  final int canvasHeight;
+  final bool drawLoopImplemented;
+  final bool drawLoopReady;
+  final bool shaderEvaluatorImplemented;
+  final bool shaderProgramReady;
+  final bool shaderInputsBound;
+  final int shaderInputCount;
+  final List<ProfessionalVideoTransitionShaderInput> shaderInputs;
+  final bool requiresTemporalSamples;
+  final bool requiresMirrorEdgeTiling;
+  final bool pixelRendererImplemented;
+  final bool rendererImplemented;
+  final bool canEvaluateShader;
+  final bool rendersRealPixels;
+  final bool drawsPixels;
+  final bool canRenderFrame;
+  final List<String> blockedReasons;
+  final List<Map<String, Object?>> issues;
+
+  bool get canPlan =>
+      status == ProfessionalVideoTransitionShaderEvaluationPlanStatus.planned;
+}
+
+class ProfessionalVideoTransitionShaderEvaluationPlanResultMapper {
+  const ProfessionalVideoTransitionShaderEvaluationPlanResultMapper._();
+
+  static ProfessionalVideoTransitionShaderEvaluationPlanResult fromMap(
+    Map<String, Object?>? map,
+  ) {
+    if (map == null) {
+      return ProfessionalVideoTransitionShaderEvaluationPlanResult
+          .invalidRequest(
+        reason: 'native_compositor_empty_transition_shader_response',
+      );
+    }
+    final status = switch (map['status']?.toString()) {
+      'planned' =>
+        ProfessionalVideoTransitionShaderEvaluationPlanStatus.planned,
+      _ => ProfessionalVideoTransitionShaderEvaluationPlanStatus.invalidRequest,
+    };
+    return ProfessionalVideoTransitionShaderEvaluationPlanResult(
+      status: status,
+      reason: map['reason']?.toString() ?? '',
+      rendererVersion: map['rendererVersion']?.toString() ?? 'unknown',
+      definitionId: map['definitionId']?.toString() ?? '',
+      renderSessionId: map['renderSessionId']?.toString() ?? '',
+      renderPassGraphId: map['renderPassGraphId']?.toString() ?? '',
+      renderGraphExecutorId: map['renderGraphExecutorId']?.toString() ?? '',
+      surfaceRendererId: map['surfaceRendererId']?.toString() ?? '',
+      frameRenderCommandBufferId:
+          map['frameRenderCommandBufferId']?.toString() ?? '',
+      rendererBackendId: map['rendererBackendId']?.toString() ?? '',
+      rendererDrawLoopId: map['rendererDrawLoopId']?.toString() ?? '',
+      transitionShaderEvaluationId:
+          map['transitionShaderEvaluationId']?.toString() ?? '',
+      transitionShaderProgramId:
+          map['transitionShaderProgramId']?.toString() ?? '',
+      shaderFamily: map['shaderFamily']?.toString() ?? '',
+      outputSurfaceId: map['outputSurfaceId']?.toString() ?? '',
+      outputTarget: map['outputTarget']?.toString() ?? '',
+      timelineTime: _readTimelineTime(map['timelineTimeMs']),
+      transitionStartTime: _readTimelineTime(map['transitionStartMs']),
+      transitionEndTime: _readTimelineTime(map['transitionEndMs']),
+      canvasWidth: _readInt(map['canvasWidth']),
+      canvasHeight: _readInt(map['canvasHeight']),
+      drawLoopImplemented: _readBool(map['drawLoopImplemented']),
+      drawLoopReady: _readBool(map['drawLoopReady']),
+      shaderEvaluatorImplemented: _readBool(map['shaderEvaluatorImplemented']),
+      shaderProgramReady: _readBool(map['shaderProgramReady']),
+      shaderInputsBound: _readBool(map['shaderInputsBound']),
+      shaderInputCount: _readInt(map['shaderInputCount']),
+      shaderInputs: _readShaderInputs(map['shaderInputs']),
+      requiresTemporalSamples: _readBool(map['requiresTemporalSamples']),
+      requiresMirrorEdgeTiling: _readBool(map['requiresMirrorEdgeTiling']),
+      pixelRendererImplemented: _readBool(map['pixelRendererImplemented']),
+      rendererImplemented: _readBool(map['rendererImplemented']),
+      canEvaluateShader: _readBool(map['canEvaluateShader']),
+      rendersRealPixels: _readBool(map['rendersRealPixels']),
+      drawsPixels: _readBool(map['drawsPixels']),
+      canRenderFrame: _readBool(map['canRenderFrame']),
+      blockedReasons: _readStringList(map['blockedReasons']),
+      issues: _readIssues(map['issues']),
+    );
+  }
+
+  static List<ProfessionalVideoTransitionShaderInput> _readShaderInputs(
+    Object? value,
+  ) {
+    if (value is! List) {
+      return const <ProfessionalVideoTransitionShaderInput>[];
+    }
+    return List<ProfessionalVideoTransitionShaderInput>.unmodifiable(
+      value.whereType<Map>().map((input) {
+        return ProfessionalVideoTransitionShaderInput(
+          shaderInputId: input['shaderInputId']?.toString() ?? '',
+          submissionId: input['submissionId']?.toString() ?? '',
+          commandId: input['commandId']?.toString() ?? '',
+          passId: input['passId']?.toString() ?? '',
+          passType: input['passType']?.toString() ?? '',
+          outputTarget: input['outputTarget']?.toString() ?? '',
+          requiresRealPixels: _readBool(input['requiresRealPixels']),
+          inputBound: _readBool(input['inputBound']),
         );
       }),
     );

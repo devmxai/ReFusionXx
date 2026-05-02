@@ -20,6 +20,7 @@ enum ProfessionalVideoTransitionReadinessStageId {
   frameRenderCommands,
   rendererBackend,
   rendererDrawLoop,
+  transitionShaderEvaluation,
   parityOutputs,
 }
 
@@ -178,6 +179,13 @@ class ProfessionalVideoTransitionReadinessPreflight {
       timelineTime: timelineTime,
     );
     stages.add(_rendererDrawLoopStage(rendererDrawLoop));
+
+    final transitionShaderEvaluation =
+        await _client.planTransitionShaderEvaluation(
+      plan: plan,
+      timelineTime: timelineTime,
+    );
+    stages.add(_transitionShaderEvaluationStage(transitionShaderEvaluation));
 
     final parityOutputs = await _client.planParityOutputs(
       plan: plan,
@@ -472,12 +480,33 @@ class ProfessionalVideoTransitionReadinessPreflight {
       id: ProfessionalVideoTransitionReadinessStageId.rendererDrawLoop,
       label: 'Native renderer draw loop',
       canPlan: result.canPlan,
-      canAdvance: result.drawLoopReady && result.canRenderFrame,
+      canAdvance: result.drawLoopImplemented && result.canSubmitCommands,
       blockers: _blockers(
         reason: result.reason,
         blockedReasons: result.blockedReasons,
         issues: result.issues,
-        includeReason: !result.canRenderFrame,
+        includeReason:
+            !(result.drawLoopImplemented && result.canSubmitCommands),
+      ),
+      issues: result.issues,
+    );
+  }
+
+  static ProfessionalVideoTransitionReadinessStage
+      _transitionShaderEvaluationStage(
+    ProfessionalVideoTransitionShaderEvaluationPlanResult result,
+  ) {
+    return ProfessionalVideoTransitionReadinessStage(
+      id: ProfessionalVideoTransitionReadinessStageId
+          .transitionShaderEvaluation,
+      label: 'Transition shader evaluation',
+      canPlan: result.canPlan,
+      canAdvance: result.canEvaluateShader,
+      blockers: _blockers(
+        reason: result.reason,
+        blockedReasons: result.blockedReasons,
+        issues: result.issues,
+        includeReason: !result.canEvaluateShader,
       ),
       issues: result.issues,
     );

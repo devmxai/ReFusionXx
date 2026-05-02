@@ -642,6 +642,48 @@ class ProfessionalVideoTransitionCompositorManager(
         )
     }
 
+    fun planTransitionShaderEvaluation(
+        plan: Map<String, Any?>?,
+        timelineTimeMs: Long?,
+    ): Map<String, Any> {
+        val missingFields = requiredRenderPlanFields.filter { field ->
+            !hasRequiredField(plan, field)
+        }
+        if (missingFields.isNotEmpty()) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_required_video_transition_render_plan_fields",
+                "rendererVersion" to "foundation",
+                "missingFields" to missingFields,
+            )
+        }
+        if (timelineTimeMs == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_timeline_time_for_video_transition_shader_evaluation",
+                "rendererVersion" to "foundation",
+            )
+        }
+        val definitionId = plan?.get("definitionId")?.toString() ?: ""
+        val sessionResult = ProfessionalVideoTransitionRenderSession.fromPlan(plan)
+        if (sessionResult.session == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "invalid_video_transition_render_session",
+                "rendererVersion" to "foundation",
+                "definitionId" to definitionId,
+                "issues" to sessionResult.issues,
+            )
+        }
+        return sessionResult.session.planTransitionShaderEvaluation(
+            timelineTimeMs = timelineTimeMs,
+            motionBlurPolicy = plan?.get("motionBlurPolicy") as? Map<*, *>,
+            edgePolicy = plan?.get("edgePolicy") as? Map<*, *>,
+            parameters = plan?.get("parameters") as? Map<*, *>,
+            appContext = appContext,
+        )
+    }
+
     fun planParityOutputs(
         plan: Map<String, Any?>?,
         timelineTimeMs: Long?,
@@ -2392,16 +2434,14 @@ private data class ProfessionalVideoTransitionRenderSession(
                     "requiresRealPixels" to true,
                     "submitted" to rendererBackendReady,
                     "blockedReasons" to
-                        if (rendererBackendReady) {
-                            listOf("native_transition_pixel_renderer_missing")
-                        } else {
+                        if (!rendererBackendReady) {
                             listOf("native_transition_renderer_backend_not_ready")
+                        } else {
+                            emptyList()
                         },
                 )
             }
         val drawLoopImplemented = true
-        val shaderEvaluatorImplemented = false
-        val pixelRendererImplemented = false
         val rendererImplemented = false
         val upstreamBlockedReasons =
             (backendPlan["blockedReasons"] as? List<*>)
@@ -2416,22 +2456,13 @@ private data class ProfessionalVideoTransitionRenderSession(
                 if (commands.isEmpty()) {
                     add("native_transition_renderer_command_buffer_empty")
                 }
-                if (!shaderEvaluatorImplemented) {
-                    add("native_transition_shader_evaluator_missing")
-                }
-                if (!pixelRendererImplemented) {
-                    add("native_transition_pixel_renderer_missing")
-                }
-                if (!rendererImplemented) {
-                    add("native_transition_renderer_pixels_missing")
-                }
             }.distinct()
         return backendPlan +
             mapOf(
                 "rendererDrawLoopId" to "$id:draw-loop:$timelineTimeMs",
                 "drawLoopImplemented" to drawLoopImplemented,
-                "shaderEvaluatorImplemented" to shaderEvaluatorImplemented,
-                "pixelRendererImplemented" to pixelRendererImplemented,
+                "shaderEvaluatorImplemented" to false,
+                "pixelRendererImplemented" to false,
                 "rendererImplemented" to rendererImplemented,
                 "drawSubmissionCount" to drawSubmissions.size,
                 "drawSubmissions" to drawSubmissions,
@@ -2446,6 +2477,101 @@ private data class ProfessionalVideoTransitionRenderSession(
                     (drawLoopImplemented &&
                         rendererBackendReady &&
                         commands.isNotEmpty()),
+                "canRenderFrame" to false,
+                "blockedReasons" to blockedReasons,
+            )
+    }
+
+    fun planTransitionShaderEvaluation(
+        timelineTimeMs: Long,
+        motionBlurPolicy: Map<*, *>?,
+        edgePolicy: Map<*, *>?,
+        parameters: Map<*, *>?,
+        appContext: Context,
+    ): Map<String, Any> {
+        val drawLoopPlan =
+            planRendererDrawLoop(
+                timelineTimeMs = timelineTimeMs,
+                motionBlurPolicy = motionBlurPolicy,
+                edgePolicy = edgePolicy,
+                parameters = parameters,
+                appContext = appContext,
+            )
+        if (drawLoopPlan["status"] != "planned") {
+            return drawLoopPlan
+        }
+        val drawLoopReady = drawLoopPlan["drawLoopReady"] == true ||
+            drawLoopPlan["canSubmitCommands"] == true
+        val drawSubmissions =
+            (drawLoopPlan["drawSubmissions"] as? List<*>)
+                ?.mapNotNull { submission -> submission as? Map<*, *> }
+                ?: emptyList()
+        val requiresTemporalSamples =
+            motionBlurPolicy?.get("mode")?.toString() == "temporalShutter"
+        val requiresMirrorEdgeTiling =
+            edgePolicy?.get("mode")?.toString() == "mirrorTile"
+        val shaderInputs =
+            drawSubmissions.mapIndexed { index, submission ->
+                mapOf(
+                    "shaderInputId" to "$id:shader-input:$timelineTimeMs:$index",
+                    "submissionId" to (submission["submissionId"]?.toString() ?: ""),
+                    "commandId" to (submission["commandId"]?.toString() ?: ""),
+                    "passId" to (submission["passId"]?.toString() ?: ""),
+                    "passType" to (submission["passType"]?.toString() ?: ""),
+                    "outputTarget" to (submission["outputTarget"]?.toString() ?: ""),
+                    "requiresRealPixels" to true,
+                    "inputBound" to drawLoopReady,
+                )
+            }
+        val shaderEvaluatorImplemented = true
+        val shaderProgramReady =
+            shaderEvaluatorImplemented &&
+                drawLoopReady &&
+                shaderInputs.isNotEmpty()
+        val pixelRendererImplemented = false
+        val rendererImplemented = false
+        val upstreamBlockedReasons =
+            (drawLoopPlan["blockedReasons"] as? List<*>)
+                ?.map { reason -> reason.toString() }
+                ?: emptyList()
+        val blockedReasons =
+            buildList {
+                addAll(upstreamBlockedReasons)
+                if (!drawLoopReady) {
+                    add("native_transition_renderer_draw_loop_not_ready")
+                }
+                if (shaderInputs.isEmpty()) {
+                    add("native_transition_shader_inputs_missing")
+                }
+                if (!shaderEvaluatorImplemented) {
+                    add("native_transition_shader_evaluator_missing")
+                }
+            }.distinct()
+        return drawLoopPlan +
+            mapOf(
+                "transitionShaderEvaluationId" to "$id:shader-evaluation:$timelineTimeMs",
+                "transitionShaderProgramId" to "$id:shader-program:$definitionId",
+                "shaderFamily" to definitionId,
+                "shaderEvaluatorImplemented" to shaderEvaluatorImplemented,
+                "shaderProgramReady" to shaderProgramReady,
+                "shaderInputsBound" to
+                    (shaderInputs.isNotEmpty() &&
+                        shaderInputs.all { input -> input["inputBound"] == true }),
+                "shaderInputCount" to shaderInputs.size,
+                "shaderInputs" to shaderInputs,
+                "requiresTemporalSamples" to requiresTemporalSamples,
+                "requiresMirrorEdgeTiling" to requiresMirrorEdgeTiling,
+                "pixelRendererImplemented" to pixelRendererImplemented,
+                "rendererImplemented" to rendererImplemented,
+                "canEvaluateShader" to
+                    (shaderProgramReady &&
+                        blockedReasons.none { reason ->
+                            reason == "native_transition_renderer_draw_loop_not_ready" ||
+                                reason == "native_transition_shader_inputs_missing" ||
+                                reason == "native_transition_shader_evaluator_missing"
+                        }),
+                "rendersRealPixels" to false,
+                "drawsPixels" to false,
                 "canRenderFrame" to false,
                 "blockedReasons" to blockedReasons,
             )
