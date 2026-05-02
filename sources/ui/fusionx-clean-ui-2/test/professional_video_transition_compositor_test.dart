@@ -3366,6 +3366,7 @@ void main() {
         'outputSurfaceEndpointAttached': false,
         'outputSurfaceEndpointId': '',
         'outputSurfaceEndpointKind': 'unboundNativeSurface',
+        'interactiveSurfaceContractReady': false,
         'timelineTimeMs': 10000,
         'transitionStartMs': 8000,
         'transitionEndMs': 12000,
@@ -3390,12 +3391,16 @@ void main() {
             'outputSurfaceEndpointAttached': false,
             'outputSurfaceEndpointId': '',
             'outputSurfaceEndpointKind': 'unboundNativeSurface',
+            'interactiveSurfaceId': '',
+            'interactiveSurfaceKind': 'unboundInteractiveSurface',
+            'interactiveSurfaceBound': false,
             'rendererImplemented': false,
             'canRender': false,
             'blockedReasons': <String>[
               'native_transition_preview_renderer_missing',
               'native_transition_preview_pixel_output_proof_missing',
               'native_transition_preview_surface_endpoint_missing',
+              'native_transition_preview_interactive_surface_missing',
             ],
           },
           <String, Object?>{
@@ -3415,12 +3420,16 @@ void main() {
             'outputSurfaceEndpointAttached': false,
             'outputSurfaceEndpointId': '',
             'outputSurfaceEndpointKind': 'unboundNativeSurface',
+            'interactiveSurfaceId': '',
+            'interactiveSurfaceKind': 'unboundInteractiveSurface',
+            'interactiveSurfaceBound': false,
             'rendererImplemented': false,
             'canRender': false,
             'blockedReasons': <String>[
               'native_transition_liveScrub_renderer_missing',
               'native_transition_liveScrub_pixel_output_proof_missing',
               'native_transition_liveScrub_surface_endpoint_missing',
+              'native_transition_liveScrub_interactive_surface_missing',
             ],
           },
           <String, Object?>{
@@ -3440,12 +3449,16 @@ void main() {
             'outputSurfaceEndpointAttached': false,
             'outputSurfaceEndpointId': '',
             'outputSurfaceEndpointKind': 'unboundNativeSurface',
+            'interactiveSurfaceId': '',
+            'interactiveSurfaceKind': 'unboundInteractiveSurface',
+            'interactiveSurfaceBound': false,
             'rendererImplemented': false,
             'canRender': false,
             'blockedReasons': <String>[
               'native_transition_playback_renderer_missing',
               'native_transition_playback_pixel_output_proof_missing',
               'native_transition_playback_surface_endpoint_missing',
+              'native_transition_playback_interactive_surface_missing',
             ],
           },
         ],
@@ -3453,12 +3466,15 @@ void main() {
           'native_transition_preview_renderer_missing',
           'native_transition_preview_pixel_output_proof_missing',
           'native_transition_preview_surface_endpoint_missing',
+          'native_transition_preview_interactive_surface_missing',
           'native_transition_liveScrub_renderer_missing',
           'native_transition_liveScrub_pixel_output_proof_missing',
           'native_transition_liveScrub_surface_endpoint_missing',
+          'native_transition_liveScrub_interactive_surface_missing',
           'native_transition_playback_renderer_missing',
           'native_transition_playback_pixel_output_proof_missing',
           'native_transition_playback_surface_endpoint_missing',
+          'native_transition_playback_interactive_surface_missing',
         ],
       };
     });
@@ -3515,6 +3531,7 @@ void main() {
     expect(result.surfaceUploadRendererReady, isTrue);
     expect(result.outputSurfaceEndpointAttached, isFalse);
     expect(result.outputSurfaceEndpointKind, 'unboundNativeSurface');
+    expect(result.interactiveSurfaceContractReady, isFalse);
     expect(result.sameOutputContractForAllModes, isTrue);
     expect(result.allModesRenderable, isFalse);
     expect(result.outputs.map((output) => output.mode), <String>[
@@ -3543,13 +3560,101 @@ void main() {
       result.outputs.every((output) => !output.outputSurfaceEndpointAttached),
       isTrue,
     );
+    expect(
+      result.outputs.every((output) => !output.interactiveSurfaceBound),
+      isTrue,
+    );
+    expect(
+      result.outputs.map((output) => output.interactiveSurfaceKind).toSet(),
+      <String>{'unboundInteractiveSurface'},
+    );
     expect(result.blockedReasons,
         contains('native_transition_playback_renderer_missing'));
     expect(result.blockedReasons,
         contains('native_transition_playback_surface_endpoint_missing'));
+    expect(result.blockedReasons,
+        contains('native_transition_playback_interactive_surface_missing'));
     expect(
       result.outputs.map((output) => output.outputSurfaceId).toSet(),
       hasLength(1),
+    );
+  });
+
+  test('parity refuses offscreen proof without interactive surfaces', () {
+    final result = ProfessionalVideoTransitionParityPlanResult(
+      status: ProfessionalVideoTransitionParityPlanStatus.planned,
+      reason: '',
+      rendererVersion: 'foundation',
+      definitionId: 'zoomInCamera',
+      renderSessionId: 'transition-session:zoom-native-1',
+      renderPassGraphId: 'transition-session:zoom-native-1:graph:10000',
+      outputSurfaceId:
+          'transition-session:zoom-native-1:surface:transition-output:10000',
+      renderPassCount: 6,
+      outputPassId: 'output-pass',
+      outputPassType: 'composeToTransitionSurface',
+      outputPassInputs: const <String>['transition-pass'],
+      outputPassBound: true,
+      renderGraphOutputReady: true,
+      transitionPixelOutputProofId: 'pixel-output-proof',
+      outputProofReady: true,
+      outputSurfaceUploadPacketReady: true,
+      surfaceUploadRendererReady: true,
+      outputSurfaceEndpointAttached: true,
+      outputSurfaceEndpointId: 'offscreen-proof-surface',
+      outputSurfaceEndpointKind: 'offscreenNativeProofSurface',
+      interactiveSurfaceContractReady: false,
+      timelineTime: TimelineTime.fromMilliseconds(10000),
+      transitionStartTime: TimelineTime.fromMilliseconds(8000),
+      transitionEndTime: TimelineTime.fromMilliseconds(12000),
+      rendererImplemented: true,
+      sameOutputContractForAllModes: true,
+      allModesRenderable: false,
+      outputs: <ProfessionalVideoTransitionParityOutput>[
+        for (final mode in <String>['preview', 'liveScrub', 'playback'])
+          ProfessionalVideoTransitionParityOutput(
+            mode: mode,
+            outputSurfaceId:
+                'transition-session:zoom-native-1:surface:transition-output:10000',
+            outputTarget: 'nativeTransitionCanvasSurface',
+            outputPassId: 'output-pass',
+            outputPassType: 'composeToTransitionSurface',
+            outputPassInputs: const <String>['transition-pass'],
+            outputPassBound: true,
+            renderGraphOutputReady: true,
+            transitionPixelOutputProofId: 'pixel-output-proof',
+            outputProofReady: true,
+            outputSurfaceUploadPacketReady: true,
+            surfaceUploadRendererReady: true,
+            outputSurfaceEndpointAttached: true,
+            outputSurfaceEndpointId: 'offscreen-proof-surface',
+            outputSurfaceEndpointKind: 'offscreenNativeProofSurface',
+            interactiveSurfaceId: '',
+            interactiveSurfaceKind: 'unboundInteractiveSurface',
+            interactiveSurfaceBound: false,
+            rendererImplemented: true,
+            canRender: false,
+            blockedReasons: <String>[
+              'native_transition_${mode}_interactive_surface_missing',
+            ],
+          ),
+      ],
+      blockedReasons: const <String>[
+        'native_transition_preview_interactive_surface_missing',
+        'native_transition_liveScrub_interactive_surface_missing',
+        'native_transition_playback_interactive_surface_missing',
+      ],
+    );
+
+    expect(result.outputSurfaceEndpointAttached, isTrue);
+    expect(result.outputSurfaceEndpointKind, 'offscreenNativeProofSurface');
+    expect(result.outputProofReady, isTrue);
+    expect(result.rendererImplemented, isTrue);
+    expect(result.interactiveSurfaceContractReady, isFalse);
+    expect(result.canRender, isFalse);
+    expect(
+      result.outputs.map((output) => output.interactiveSurfaceKind).toSet(),
+      <String>{'unboundInteractiveSurface'},
     );
   });
 

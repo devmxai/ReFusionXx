@@ -3469,7 +3469,7 @@ private data class ProfessionalVideoTransitionRenderSession(
         val outputSurfaceEndpointId = endpointUpload.endpointId
         val outputSurfaceEndpointKind =
             if (outputSurfaceEndpointAttached) {
-                "nativeTransitionCanvasSurface"
+                "offscreenNativeProofSurface"
             } else {
                 "unboundNativeSurface"
             }
@@ -3632,6 +3632,9 @@ private data class ProfessionalVideoTransitionRenderSession(
         val parityModes = listOf("preview", "liveScrub", "playback")
         val outputs =
             parityModes.map { mode ->
+                val interactiveSurfaceId = ""
+                val interactiveSurfaceKind = "unboundInteractiveSurface"
+                val interactiveSurfaceBound = false
                 val blockedReasons =
                     buildList {
                         if (!outputPassBound) {
@@ -3645,6 +3648,9 @@ private data class ProfessionalVideoTransitionRenderSession(
                         }
                         if (!outputSurfaceEndpointAttached) {
                             add("native_transition_${mode}_surface_endpoint_missing")
+                        }
+                        if (!interactiveSurfaceBound) {
+                            add("native_transition_${mode}_interactive_surface_missing")
                         }
                     }.distinct()
                 mapOf(
@@ -3663,6 +3669,9 @@ private data class ProfessionalVideoTransitionRenderSession(
                     "outputSurfaceEndpointAttached" to outputSurfaceEndpointAttached,
                     "outputSurfaceEndpointId" to outputSurfaceEndpointId,
                     "outputSurfaceEndpointKind" to outputSurfaceEndpointKind,
+                    "interactiveSurfaceId" to interactiveSurfaceId,
+                    "interactiveSurfaceKind" to interactiveSurfaceKind,
+                    "interactiveSurfaceBound" to interactiveSurfaceBound,
                     "rendererImplemented" to rendererImplemented,
                     "canRender" to
                         (rendererImplemented &&
@@ -3670,10 +3679,19 @@ private data class ProfessionalVideoTransitionRenderSession(
                             renderGraphOutputReady &&
                             outputProofReady &&
                             outputSurfaceEndpointAttached &&
+                            interactiveSurfaceBound &&
                             blockedReasons.isEmpty()),
                     "blockedReasons" to blockedReasons,
                 )
             }
+        val interactiveSurfaceContractReady =
+            outputs.isNotEmpty() &&
+                outputs.all { output -> output["interactiveSurfaceBound"] == true } &&
+                outputs.map { output -> output["interactiveSurfaceId"] }.distinct().size ==
+                    outputs.size &&
+                outputs.all { output ->
+                    output["interactiveSurfaceKind"] == "interactiveNativeTransitionSurface"
+                }
         val blockedReasons =
             (upstreamBlockedReasons +
                 outputs.flatMap { output ->
@@ -3689,6 +3707,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                 "outputSurfaceEndpointAttached" to outputSurfaceEndpointAttached,
                 "outputSurfaceEndpointId" to outputSurfaceEndpointId,
                 "outputSurfaceEndpointKind" to outputSurfaceEndpointKind,
+                "interactiveSurfaceContractReady" to interactiveSurfaceContractReady,
                 "sameOutputContractForAllModes" to
                     (outputSurfaceId.isNotBlank() &&
                         outputPassBound &&
@@ -3701,6 +3720,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                         renderGraphOutputReady &&
                         outputProofReady &&
                         outputSurfaceEndpointAttached &&
+                        interactiveSurfaceContractReady &&
                         blockedReasons.isEmpty()),
                 "outputs" to outputs,
                 "blockedReasons" to blockedReasons,

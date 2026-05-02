@@ -1368,6 +1368,7 @@ class _FakeProfessionalVideoTransitionCompositorClient
       outputSurfaceEndpointKind: _rendererReady
           ? 'nativeTransitionCanvasSurface'
           : 'unboundNativeSurface',
+      interactiveSurfaceContractReady: _rendererReady,
       timelineTime: timelineTime,
       transitionStartTime: plan.boundaryTime - plan.leadingDuration,
       transitionEndTime: plan.boundaryTime + plan.trailingDuration,
@@ -1396,6 +1397,12 @@ class _FakeProfessionalVideoTransitionCompositorClient
             outputSurfaceEndpointKind: _rendererReady
                 ? 'nativeTransitionCanvasSurface'
                 : 'unboundNativeSurface',
+            interactiveSurfaceId:
+                _rendererReady ? 'interactive-$mode:${plan.transitionId}' : '',
+            interactiveSurfaceKind: _rendererReady
+                ? 'interactiveNativeTransitionSurface'
+                : 'unboundInteractiveSurface',
+            interactiveSurfaceBound: _rendererReady,
             rendererImplemented: _rendererReady,
             canRender: _rendererReady && !_planningOnly,
             blockedReasons: _planningOnly

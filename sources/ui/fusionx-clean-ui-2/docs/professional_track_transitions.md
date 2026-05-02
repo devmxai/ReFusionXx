@@ -689,6 +689,15 @@ Pixel output proof gate:
   upload byte count/checksum, and marks the endpoint attached only when the
   native surface accepts the posted frame. This proves native endpoint binding
   for the proof path, not interactive preview parity;
+- the offscreen proof endpoint must identify itself as
+  `offscreenNativeProofSurface`. It is not allowed to masquerade as the
+  interactive transition surface used by preview, Live Scrub, or playback;
+- every interactive parity mode must carry its own
+  `interactiveNativeTransitionSurface` binding before it can render. Missing
+  bindings must produce mode-specific blockers such as
+  `native_transition_preview_interactive_surface_missing`,
+  `native_transition_liveScrub_interactive_surface_missing`, and
+  `native_transition_playback_interactive_surface_missing`;
 - the proof must confirm that the renderer wrote real pixels into the native
   transition output target, currently `nativeTransitionCanvasSurface`;
 - the proof must explicitly forbid Flutter overlays, timeline overlays, and

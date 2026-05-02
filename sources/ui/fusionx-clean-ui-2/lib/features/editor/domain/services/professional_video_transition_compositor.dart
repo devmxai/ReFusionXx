@@ -6254,6 +6254,9 @@ class ProfessionalVideoTransitionParityOutput {
     required this.outputSurfaceEndpointAttached,
     required this.outputSurfaceEndpointId,
     required this.outputSurfaceEndpointKind,
+    required this.interactiveSurfaceId,
+    required this.interactiveSurfaceKind,
+    required this.interactiveSurfaceBound,
     required this.rendererImplemented,
     required this.canRender,
     required this.blockedReasons,
@@ -6274,6 +6277,9 @@ class ProfessionalVideoTransitionParityOutput {
   final bool outputSurfaceEndpointAttached;
   final String outputSurfaceEndpointId;
   final String outputSurfaceEndpointKind;
+  final String interactiveSurfaceId;
+  final String interactiveSurfaceKind;
+  final bool interactiveSurfaceBound;
   final bool rendererImplemented;
   final bool canRender;
   final List<String> blockedReasons;
@@ -6302,6 +6308,7 @@ class ProfessionalVideoTransitionParityPlanResult {
     required this.outputSurfaceEndpointAttached,
     required this.outputSurfaceEndpointId,
     required this.outputSurfaceEndpointKind,
+    required this.interactiveSurfaceContractReady,
     required this.timelineTime,
     required this.transitionStartTime,
     required this.transitionEndTime,
@@ -6339,6 +6346,7 @@ class ProfessionalVideoTransitionParityPlanResult {
       outputSurfaceEndpointAttached: false,
       outputSurfaceEndpointId: '',
       outputSurfaceEndpointKind: '',
+      interactiveSurfaceContractReady: false,
       timelineTime: null,
       transitionStartTime: null,
       transitionEndTime: null,
@@ -6371,6 +6379,7 @@ class ProfessionalVideoTransitionParityPlanResult {
   final bool outputSurfaceEndpointAttached;
   final String outputSurfaceEndpointId;
   final String outputSurfaceEndpointKind;
+  final bool interactiveSurfaceContractReady;
   final TimelineTime? timelineTime;
   final TimelineTime? transitionStartTime;
   final TimelineTime? transitionEndTime;
@@ -6393,6 +6402,7 @@ class ProfessionalVideoTransitionParityPlanResult {
       renderGraphOutputReady &&
       outputProofReady &&
       outputSurfaceEndpointAttached &&
+      interactiveSurfaceContractReady &&
       blockedReasons.isEmpty;
 }
 
@@ -6436,6 +6446,9 @@ class ProfessionalVideoTransitionParityPlanResultMapper {
       outputSurfaceEndpointId: map['outputSurfaceEndpointId']?.toString() ?? '',
       outputSurfaceEndpointKind:
           map['outputSurfaceEndpointKind']?.toString() ?? '',
+      interactiveSurfaceContractReady: _readBool(
+        map['interactiveSurfaceContractReady'],
+      ),
       timelineTime: _readTimelineTime(map['timelineTimeMs']),
       transitionStartTime: _readTimelineTime(map['transitionStartMs']),
       transitionEndTime: _readTimelineTime(map['transitionEndMs']),
@@ -6480,6 +6493,11 @@ class ProfessionalVideoTransitionParityPlanResultMapper {
               output['outputSurfaceEndpointId']?.toString() ?? '',
           outputSurfaceEndpointKind:
               output['outputSurfaceEndpointKind']?.toString() ?? '',
+          interactiveSurfaceId:
+              output['interactiveSurfaceId']?.toString() ?? '',
+          interactiveSurfaceKind:
+              output['interactiveSurfaceKind']?.toString() ?? '',
+          interactiveSurfaceBound: _readBool(output['interactiveSurfaceBound']),
           rendererImplemented: _readBool(output['rendererImplemented']),
           canRender: _readBool(output['canRender']),
           blockedReasons: _readStringList(output['blockedReasons']),
