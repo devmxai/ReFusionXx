@@ -730,6 +730,12 @@ Pixel output proof gate:
   `native_transition_<mode>_production_surface_missing`. Only a real
   per-mode `interactiveNativeTransitionSurface` can satisfy preview,
   Live Scrub, and playback parity;
+- production interactive surfaces must be bound explicitly in the
+  `ProfessionalVideoTransitionRenderPlan` through `interactiveSurfaceBindings`.
+  The binding must name the mode (`preview`, `liveScrub`, or `playback`), carry
+  a stable surface id, be marked attached, and identify itself as
+  `interactiveNativeTransitionSurface`. The native compositor must ignore
+  missing, unknown, or proof-surface bindings for production parity;
 - this gate exists to prevent returning to frozen-frame zooms, Gaussian-blur
   stand-ins, decorative speed-line shapes, or video drawn over the timeline.
 

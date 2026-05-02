@@ -48,6 +48,20 @@ void main() {
           'mode': 'temporalShutter',
           'sampleCount': 8,
         },
+        interactiveSurfaceBindings: const <ProfessionalVideoTransitionInteractiveSurfaceBinding>[
+          ProfessionalVideoTransitionInteractiveSurfaceBinding(
+            mode: 'preview',
+            surfaceId: 'surface-preview',
+          ),
+          ProfessionalVideoTransitionInteractiveSurfaceBinding(
+            mode: 'liveScrub',
+            surfaceId: 'surface-live-scrub',
+          ),
+          ProfessionalVideoTransitionInteractiveSurfaceBinding(
+            mode: 'playback',
+            surfaceId: 'surface-playback',
+          ),
+        ],
       ),
     );
 
@@ -66,6 +80,13 @@ void main() {
     ]);
     expect(plan.edgePolicy['mode'], 'mirrorTile');
     expect(plan.motionBlurPolicy['mode'], 'temporalShutter');
+    expect(
+        plan.interactiveSurfaceBindings.map((binding) => binding.mode),
+        <String>[
+          'preview',
+          'liveScrub',
+          'playback',
+        ]);
 
     final outgoing = plan.sources[0];
     final incoming = plan.sources[1];

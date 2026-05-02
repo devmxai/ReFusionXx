@@ -957,6 +957,8 @@ class ProfessionalVideoTransitionCompositorManager(
             appContext = appContext,
             frameBufferStore = pixelFrameBufferStore,
             endpointStore = nativeSurfaceEndpointStore,
+            interactiveSurfaceBindings =
+                ProfessionalVideoTransitionInteractiveSurfaceBinding.fromPlan(plan),
         )
     }
 
@@ -1006,6 +1008,47 @@ private data class ProfessionalVideoTransitionRenderSessionParseResult(
     val session: ProfessionalVideoTransitionRenderSession?,
     val issues: List<Map<String, Any>>,
 )
+
+private data class ProfessionalVideoTransitionInteractiveSurfaceBinding(
+    val mode: String,
+    val surfaceId: String,
+    val surfaceKind: String,
+    val attached: Boolean,
+) {
+    val isProductionTransitionSurface: Boolean
+        get() =
+            attached &&
+                mode in parityModes &&
+                surfaceId.isNotBlank() &&
+                surfaceKind == "interactiveNativeTransitionSurface"
+
+    companion object {
+        private val parityModes = setOf("preview", "liveScrub", "playback")
+
+        fun fromPlan(
+            plan: Map<String, Any?>?,
+        ): Map<String, ProfessionalVideoTransitionInteractiveSurfaceBinding> {
+            val rawBindings = plan?.get("interactiveSurfaceBindings") as? List<*> ?: return emptyMap()
+            return rawBindings
+                .mapNotNull { rawBinding ->
+                    val binding = rawBinding as? Map<*, *> ?: return@mapNotNull null
+                    val mode = binding.stringValue("mode")
+                    if (mode !in parityModes) {
+                        return@mapNotNull null
+                    }
+                    ProfessionalVideoTransitionInteractiveSurfaceBinding(
+                        mode = mode,
+                        surfaceId = binding.stringValue("surfaceId"),
+                        surfaceKind =
+                            binding.stringValue("surfaceKind")
+                                .ifBlank { "interactiveNativeTransitionSurface" },
+                        attached = binding.booleanValue("attached", defaultValue = false),
+                    )
+                }
+                .associateBy { binding -> binding.mode }
+        }
+    }
+}
 
 private data class ProfessionalVideoTransitionRenderSession(
     val id: String,
@@ -3588,6 +3631,7 @@ private data class ProfessionalVideoTransitionRenderSession(
         appContext: Context,
         frameBufferStore: ProfessionalVideoTransitionPixelFrameBufferStore,
         endpointStore: ProfessionalVideoTransitionNativeSurfaceEndpointStore,
+        interactiveSurfaceBindings: Map<String, ProfessionalVideoTransitionInteractiveSurfaceBinding>,
     ): Map<String, Any> {
         val outputProofPlan =
             planTransitionPixelOutputProof(
@@ -3634,8 +3678,23 @@ private data class ProfessionalVideoTransitionRenderSession(
         val parityModes = listOf("preview", "liveScrub", "playback")
         val outputs =
             parityModes.map { mode ->
+                val interactiveBinding = interactiveSurfaceBindings[mode]
+                val productionBindingReady =
+                    interactiveBinding?.isProductionTransitionSurface == true
                 val interactiveUpload =
-                    if (outputProofReady && outputSurfaceUploadSourceFrameBufferId.isNotBlank()) {
+                    if (
+                        outputProofReady &&
+                        outputSurfaceUploadSourceFrameBufferId.isNotBlank() &&
+                        productionBindingReady
+                    ) {
+                        endpointStore.uploadBoundInteractiveFrameBuffer(
+                            endpointId = requireNotNull(interactiveBinding).surfaceId,
+                            width = canvasWidth.toInt(),
+                            height = canvasHeight.toInt(),
+                            sourceFrameBufferId = outputSurfaceUploadSourceFrameBufferId,
+                            frameBufferStore = frameBufferStore,
+                        )
+                    } else if (outputProofReady && outputSurfaceUploadSourceFrameBufferId.isNotBlank()) {
                         endpointStore.uploadInteractiveFrameBuffer(
                             renderSessionId = id,
                             mode = mode,
@@ -3653,7 +3712,9 @@ private data class ProfessionalVideoTransitionRenderSession(
                     }
                 val interactiveSurfaceId = interactiveUpload.endpointId
                 val interactiveSurfaceKind =
-                    if (interactiveUpload.endpointAttached) {
+                    if (interactiveUpload.endpointAttached && productionBindingReady) {
+                        "interactiveNativeTransitionSurface"
+                    } else if (interactiveUpload.endpointAttached) {
                         "interactiveNativePresentationProofSurface"
                     } else {
                         "unboundInteractiveSurface"
@@ -3662,7 +3723,8 @@ private data class ProfessionalVideoTransitionRenderSession(
                 val interactiveSurfaceFrameDelivered = interactiveUpload.uploaded
                 val interactiveSurfaceFramePresented = interactiveUpload.presented
                 val interactiveSurfaceProductionBound =
-                    interactiveSurfaceKind == "interactiveNativeTransitionSurface"
+                    productionBindingReady &&
+                        interactiveSurfaceKind == "interactiveNativeTransitionSurface"
                 val interactiveSurfaceProductionReady =
                     interactiveSurfaceProductionBound &&
                         interactiveSurfaceFrameDelivered &&
@@ -4143,6 +4205,17 @@ private fun Map<*, *>.intValue(
     when (val value = this[key]) {
         is Number -> value.toInt()
         is String -> value.toIntOrNull() ?: defaultValue
+        else -> defaultValue
+    }
+
+private fun Map<*, *>.booleanValue(
+    key: String,
+    defaultValue: Boolean = false,
+): Boolean =
+    when (val value = this[key]) {
+        is Boolean -> value
+        is String -> value.equals("true", ignoreCase = true)
+        is Number -> value.toInt() != 0
         else -> defaultValue
     }
 
@@ -5160,6 +5233,30 @@ private class ProfessionalVideoTransitionNativeSurfaceEndpointStore(
         val endpointId = "$renderSessionId:interactive-transition-$safeMode:$timelineTimeMs"
         return uploadFrameBufferToEndpoint(
             endpointId = endpointId,
+            width = width,
+            height = height,
+            sourceFrameBufferId = sourceFrameBufferId,
+            frameBufferStore = frameBufferStore,
+        )
+    }
+
+    @Synchronized
+    fun uploadBoundInteractiveFrameBuffer(
+        endpointId: String,
+        width: Int,
+        height: Int,
+        sourceFrameBufferId: String,
+        frameBufferStore: ProfessionalVideoTransitionPixelFrameBufferStore,
+    ): ProfessionalVideoTransitionNativeSurfaceEndpointUploadResult {
+        val safeEndpointId = endpointId.trim()
+        if (safeEndpointId.isBlank()) {
+            return ProfessionalVideoTransitionNativeSurfaceEndpointUploadResult.invalid(
+                endpointId = "",
+                reason = "native_transition_interactive_surface_id_missing",
+            )
+        }
+        return uploadFrameBufferToEndpoint(
+            endpointId = safeEndpointId,
             width = width,
             height = height,
             sourceFrameBufferId = sourceFrameBufferId,

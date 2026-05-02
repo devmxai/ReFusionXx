@@ -24,6 +24,8 @@ class ProfessionalVideoTransitionRenderPlanRequest {
     this.samplingPolicy = const <String, Object?>{},
     this.edgePolicy = const <String, Object?>{},
     this.motionBlurPolicy = const <String, Object?>{},
+    this.interactiveSurfaceBindings =
+        const <ProfessionalVideoTransitionInteractiveSurfaceBinding>[],
   });
 
   final TimelineTrackTransitionData transition;
@@ -39,6 +41,8 @@ class ProfessionalVideoTransitionRenderPlanRequest {
   final Map<String, Object?> samplingPolicy;
   final Map<String, Object?> edgePolicy;
   final Map<String, Object?> motionBlurPolicy;
+  final List<ProfessionalVideoTransitionInteractiveSurfaceBinding>
+      interactiveSurfaceBindings;
 }
 
 @immutable
@@ -210,6 +214,9 @@ class ProfessionalVideoTransitionRenderPlanAdapter {
         motionBlurPolicy: Map<String, Object?>.unmodifiable(
           request.motionBlurPolicy,
         ),
+        interactiveSurfaceBindings: List<
+                ProfessionalVideoTransitionInteractiveSurfaceBinding>.unmodifiable(
+            request.interactiveSurfaceBindings),
       ),
     );
   }

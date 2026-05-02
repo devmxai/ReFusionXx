@@ -219,6 +219,7 @@ void main() {
     expect(payload['edgePolicy'], containsPair('mode', 'mirrorTile'));
     expect(
         payload['motionBlurPolicy'], containsPair('mode', 'temporalShutter'));
+    expect(payload['interactiveSurfaceBindings'], isEmpty);
 
     final sources = payload['sources']! as List<Object?>;
     final outgoing = sources.first! as Map<String, Object?>;
@@ -231,6 +232,73 @@ void main() {
     expect(incoming['sourceUri'], 'file:///tmp/clip-b.mp4');
     expect(incoming['timelineStartMs'], 10000);
     expect(incoming['sourceStartMs'], 750);
+  });
+
+  test('generic render plan serializes explicit interactive surface bindings',
+      () {
+    final plan = ProfessionalVideoTransitionRenderPlan(
+      definitionId: 'zoom_in_camera',
+      transitionId: 'transition-1',
+      canvasWidth: 1080,
+      canvasHeight: 1920,
+      boundaryTime: TimelineTime.fromMilliseconds(10000),
+      leadingDuration: TimelineTime.fromMilliseconds(1200),
+      trailingDuration: TimelineTime.fromMilliseconds(1200),
+      sources: <ProfessionalVideoTransitionCompositorSource>[
+        ProfessionalVideoTransitionCompositorSource(
+          clipId: 'clip-a',
+          assetId: 'asset-a',
+          sourceUri: 'file:///tmp/clip-a.mp4',
+          timelineRange: TimelineTimeRange(
+            start: TimelineTime.zero,
+            endExclusive: TimelineTime.fromMilliseconds(10000),
+          ),
+          sourceStartTime: TimelineTime.zero,
+          sourceDuration: TimelineTime.fromMilliseconds(10000),
+        ),
+        ProfessionalVideoTransitionCompositorSource(
+          clipId: 'clip-b',
+          assetId: 'asset-b',
+          sourceUri: 'file:///tmp/clip-b.mp4',
+          timelineRange: TimelineTimeRange(
+            start: TimelineTime.fromMilliseconds(10000),
+            endExclusive: TimelineTime.fromMilliseconds(18000),
+          ),
+          sourceStartTime: TimelineTime.zero,
+          sourceDuration: TimelineTime.fromMilliseconds(8000),
+        ),
+      ],
+      requiredCapabilities: const <String>[
+        'dualVideoSampling',
+        'temporalMotionBlur',
+        'mirrorEdgeTiling',
+      ],
+      interactiveSurfaceBindings: const <ProfessionalVideoTransitionInteractiveSurfaceBinding>[
+        ProfessionalVideoTransitionInteractiveSurfaceBinding(
+          mode: 'preview',
+          surfaceId: 'surface-preview',
+        ),
+        ProfessionalVideoTransitionInteractiveSurfaceBinding(
+          mode: 'liveScrub',
+          surfaceId: 'surface-live-scrub',
+        ),
+        ProfessionalVideoTransitionInteractiveSurfaceBinding(
+          mode: 'playback',
+          surfaceId: 'surface-playback',
+        ),
+      ],
+    );
+
+    final payload = plan.toPlatformMap();
+    final bindings = payload['interactiveSurfaceBindings']! as List<Object?>;
+
+    expect(bindings, hasLength(3));
+    expect(bindings.first, <String, Object?>{
+      'mode': 'preview',
+      'surfaceId': 'surface-preview',
+      'surfaceKind': 'interactiveNativeTransitionSurface',
+      'attached': true,
+    });
   });
 
   test('cross dissolve planner blends live sources across covered window', () {

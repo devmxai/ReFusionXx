@@ -6795,6 +6795,8 @@ class ProfessionalVideoTransitionRenderPlan {
     this.samplingPolicy = const <String, Object?>{},
     this.edgePolicy = const <String, Object?>{},
     this.motionBlurPolicy = const <String, Object?>{},
+    this.interactiveSurfaceBindings =
+        const <ProfessionalVideoTransitionInteractiveSurfaceBinding>[],
   });
 
   final String definitionId;
@@ -6810,6 +6812,8 @@ class ProfessionalVideoTransitionRenderPlan {
   final Map<String, Object?> samplingPolicy;
   final Map<String, Object?> edgePolicy;
   final Map<String, Object?> motionBlurPolicy;
+  final List<ProfessionalVideoTransitionInteractiveSurfaceBinding>
+      interactiveSurfaceBindings;
 
   Map<String, Object?> toPlatformMap() {
     return <String, Object?>{
@@ -6826,6 +6830,9 @@ class ProfessionalVideoTransitionRenderPlan {
       'samplingPolicy': Map<String, Object?>.unmodifiable(samplingPolicy),
       'edgePolicy': Map<String, Object?>.unmodifiable(edgePolicy),
       'motionBlurPolicy': Map<String, Object?>.unmodifiable(motionBlurPolicy),
+      'interactiveSurfaceBindings': interactiveSurfaceBindings
+          .map((binding) => binding.toPlatformMap())
+          .toList(growable: false),
     };
   }
 
@@ -6841,6 +6848,30 @@ class ProfessionalVideoTransitionRenderPlan {
       'timelineEndMs': source.timelineRange.endExclusive.inMilliseconds,
       'sourceStartMs': source.sourceStartTime.inMilliseconds,
       'sourceDurationMs': source.sourceDuration.inMilliseconds,
+    };
+  }
+}
+
+@immutable
+class ProfessionalVideoTransitionInteractiveSurfaceBinding {
+  const ProfessionalVideoTransitionInteractiveSurfaceBinding({
+    required this.mode,
+    required this.surfaceId,
+    this.surfaceKind = 'interactiveNativeTransitionSurface',
+    this.attached = true,
+  });
+
+  final String mode;
+  final String surfaceId;
+  final String surfaceKind;
+  final bool attached;
+
+  Map<String, Object?> toPlatformMap() {
+    return <String, Object?>{
+      'mode': mode,
+      'surfaceId': surfaceId,
+      'surfaceKind': surfaceKind,
+      'attached': attached,
     };
   }
 }
