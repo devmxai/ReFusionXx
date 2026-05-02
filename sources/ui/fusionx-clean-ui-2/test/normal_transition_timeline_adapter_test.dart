@@ -65,6 +65,8 @@ void main() {
   test('maps graph-backed fade and zoom timeline presets', () {
     final fadeDefinition = catalogResult.definitionById('fade_black')!;
     final zoomDefinition = catalogResult.definitionById('zoom_in_camera')!;
+    final distortionDefinition =
+        catalogResult.definitionById('distortion_zoom_in_v1')!;
     final fadeTransition = TimelineTrackTransitionData(
       id: 'transition-fade',
       leftClipId: 'clip-a',
@@ -81,6 +83,14 @@ void main() {
       durationTime: TimelineTime.fromMilliseconds(4000),
       parameterValues: const <String, double>{'outgoingBoostScale': 2.1},
     );
+    final distortionTransition = TimelineTrackTransitionData(
+      id: 'transition-distortion-zoom',
+      leftClipId: 'clip-a',
+      rightClipId: 'clip-b',
+      preset: TimelineTransitionPreset.distortionZoomInV1,
+      durationTime: TimelineTime.fromMilliseconds(4000),
+      parameterValues: const <String, double>{'lensDistortionPeak': 0.4},
+    );
 
     final fade = adapter.fromTimelineTransition(
       transition: fadeTransition,
@@ -92,6 +102,11 @@ void main() {
       trackId: 'video-main',
       definition: zoomDefinition,
     );
+    final distortion = adapter.fromTimelineTransition(
+      transition: distortionTransition,
+      trackId: 'video-main',
+      definition: distortionDefinition,
+    );
 
     expect(fade.canAdapt, isTrue);
     expect(fade.node!.definitionId, 'fade_black');
@@ -101,6 +116,10 @@ void main() {
     expect(zoom.node!.definitionId, 'zoom_in_camera');
     expect(zoom.node!.parameterValues['outgoingBoostScale'], 2.1);
     expect(zoom.instance!.channels, hasLength(6));
+    expect(distortion.canAdapt, isTrue);
+    expect(distortion.node!.definitionId, 'distortion_zoom_in_v1');
+    expect(distortion.node!.parameterValues['lensDistortionPeak'], 0.4);
+    expect(distortion.instance!.channels, hasLength(6));
   });
 
   test('rejects non-normal timeline presets', () {

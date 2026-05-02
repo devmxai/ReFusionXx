@@ -60,6 +60,28 @@ void main() {
     expect(result.transition!.parameterValues['outgoingBoostScale'], 3.0);
   });
 
+  test('creates distortion zoom v1 with a real two-sided transition window',
+      () {
+    final result = adapter.createBuiltInPresetTransition(
+      preset: TimelineTransitionPreset.distortionZoomInV1,
+      trackId: 'video-main',
+      leftClipId: 'clip-a',
+      rightClipId: 'clip-b',
+      boundaryTime: TimelineTime.fromMilliseconds(8000),
+      leftAvailableTail: TimelineTime.fromMilliseconds(4000),
+      rightAvailableHead: TimelineTime.fromMilliseconds(4000),
+    );
+
+    expect(result.canApply, isTrue);
+    expect(result.transition!.durationTime.inMilliseconds, 4000);
+    expect(result.transition!.resolvedLeadingDurationTime.inMilliseconds, 2000);
+    expect(
+        result.transition!.resolvedTrailingDurationTime.inMilliseconds, 2000);
+    expect(result.transition!.parameterValues['incomingStartScale'], 0.25);
+    expect(result.transition!.parameterValues['outgoingBoostScale'], 3.0);
+    expect(result.transition!.parameterValues['lensDistortionPeak'], 0.32);
+  });
+
   test('rehydrates timeline cross dissolve edits back to normal state', () {
     final transition = TimelineTrackTransitionData(
       id: 'transition.video-main.clip-a.clip-b.cross-dissolve',

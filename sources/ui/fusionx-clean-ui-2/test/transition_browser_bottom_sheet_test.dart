@@ -27,6 +27,7 @@ void main() {
     expect(find.text('Zoom In Pro'), findsNothing);
     expect(find.text('Cross Dissolve'), findsNothing);
     expect(find.text('Zoom In Camera'), findsNothing);
+    expect(find.text('Distortion Zoom Transition In V1'), findsNothing);
   });
 
   testWidgets(
@@ -56,6 +57,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Cross Dissolve'), findsOneWidget);
+    expect(find.text('Distortion Zoom Transition In V1'), findsOneWidget);
     expect(find.text('Fade Black'), findsNothing);
     expect(find.text('Zoom In Camera'), findsNothing);
     expect(find.text('Zoom In Pro'), findsNothing);

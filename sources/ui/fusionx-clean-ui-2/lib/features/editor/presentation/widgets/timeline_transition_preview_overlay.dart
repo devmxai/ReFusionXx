@@ -112,6 +112,8 @@ class TimelineTransitionPreviewOverlay extends StatelessWidget {
             const SizedBox.shrink(),
           if (transition.preset == TimelineTransitionPreset.zoomInPro)
             const SizedBox.shrink(),
+          if (transition.preset == TimelineTransitionPreset.distortionZoomInV1)
+            const SizedBox.shrink(),
         ],
       ),
     );

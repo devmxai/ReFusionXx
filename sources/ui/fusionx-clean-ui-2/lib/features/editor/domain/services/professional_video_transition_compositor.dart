@@ -7,6 +7,7 @@ enum ProfessionalVideoTransitionCompositorKind {
   crossDissolve,
   fadeBlack,
   zoomInCamera,
+  distortionZoomInV1,
 }
 
 @immutable

@@ -858,3 +858,40 @@ The final target is a 2026-grade ReFusion motion engine:
 - no preview/timeline divergence.
 
 This plan is the foundation for professional transitions, scoped layer animation, direct effects, scriptable motion graphics, future AI-generated scenes, and reliable export.
+
+## 16. Transition Engine Checkpoint: Distortion Zoom Transition In V1
+
+Status: interactive native transition checkpoint; export remains a later phase.
+
+The current transition slice adds `Distortion Zoom Transition In V1` as a
+strict native-video preset. It is part of the professional transition engine,
+not a Layer Scope or Live Scrub rewrite.
+
+What changed:
+
+- the preset is graph-backed as `distortion_zoom_in_v1`;
+- the UI maps it to native `distortionZoomInV1`;
+- the render plan carries a long visible transition window, temporal shutter
+  sample count, mirror-edge overscan, lens-distortion peak, and chromatic split
+  parameters;
+- the legacy still-frame Flutter transition overlay is disabled for this
+  preset;
+- Android renders from real outgoing/incoming source frame samples and writes
+  into the native transition compositor path;
+- mirror-edge tiling is used before scale/distortion so a small incoming frame
+  does not reveal black borders;
+- decorative speed lines, frozen poster frames, thumbnail zooms, and
+  Gaussian-only fake motion blur remain forbidden.
+
+Protected boundary:
+
+- no protected Stage5 Live Scrub files are touched by this slice;
+- Live Scrub remains governed by the existing Stage5/native scrub path outside
+  the transition compositor window.
+
+Acceptance rule:
+
+- this preset is accepted for interactive preview/scrub/playback testing only
+  when the native renderer owns the transition frame;
+- export parity is not claimed until the export renderer consumes the same
+  transition graph.

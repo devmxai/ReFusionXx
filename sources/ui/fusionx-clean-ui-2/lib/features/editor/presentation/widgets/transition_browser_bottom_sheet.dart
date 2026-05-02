@@ -105,6 +105,7 @@ class _TransitionBrowserBottomSheetState
     }
     return <TimelineTransitionPreset>[
       TimelineTransitionPreset.crossDissolve,
+      TimelineTransitionPreset.distortionZoomInV1,
     ];
   }
 
@@ -654,6 +655,8 @@ class _TransitionPresetCard extends StatelessWidget {
                       Icons.center_focus_strong_rounded,
                     TimelineTransitionPreset.zoomInPro =>
                       Icons.center_focus_strong_rounded,
+                    TimelineTransitionPreset.distortionZoomInV1 =>
+                      Icons.filter_center_focus_rounded,
                     TimelineTransitionPreset.aiGenerated =>
                       Icons.auto_awesome_rounded,
                   },

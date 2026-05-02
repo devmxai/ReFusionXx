@@ -789,3 +789,42 @@ The normal transitions system is professional only when:
 - export path uses the same transition graph
 - unsupported transitions block honestly
 - every accepted preset passes real-device validation
+
+## 16. Current Slice: Distortion Zoom Transition In V1
+
+Status: interactive native preview slice; export parity remains deferred.
+
+This slice adds the first zoom/distortion preset on top of the professional
+native video transition path. It is intentionally named
+`Distortion Zoom Transition In V1` so it can be tested separately from older
+zoom experiments.
+
+Contracts added:
+
+- `distortion_zoom_in_v1` is a built-in graph-backed normal transition
+  definition.
+- The UI exposes the preset only through the normal transition browser.
+- The render plan maps to native `distortionZoomInV1`, not the legacy Flutter
+  thumbnail overlay path.
+- Default duration is `4000ms`, representing a long visible window around the
+  seam instead of a one-frame cut.
+- The preset requires dual video sampling, temporal shutter accumulation,
+  mirror-edge tiling, preview parity, Live Scrub parity, playback parity, and
+  live native surface ownership.
+- The native renderer samples real outgoing and incoming video times across
+  the seam, accumulates temporal samples, applies mirror-edge fill before
+  scale, applies lens-style distortion, and applies optional channel split
+  from source pixels.
+- Thumbnail zooms, poster frames, decorative speed lines, Gaussian-only blur,
+  Flutter overlays, timeline-area drawing, and transformed single-surface
+  previews remain rejected for this preset.
+
+Verification expectation:
+
+- adding the preset must not break normal playback or Live Scrub outside the
+  transition window;
+- the outgoing side must use the playing tail of video A;
+- the incoming side must use the playing head of video B;
+- the incoming scaled-down phase must not expose black canvas borders;
+- unsupported source coverage must fail closed rather than freeze a boundary
+  frame.

@@ -14,6 +14,7 @@ void main() {
       result.definitions.map((definition) => definition.definitionId),
       <String>[
         'cross_dissolve',
+        'distortion_zoom_in_v1',
         'fade_black',
         'zoom_in_camera',
       ],
@@ -58,6 +59,27 @@ void main() {
         'scaleX',
         'scaleY',
         'opacity',
+      ],
+    );
+
+    final distortionZoom = result.definitionById('distortion_zoom_in_v1');
+    expect(distortionZoom, isNotNull);
+    expect(distortionZoom!.category, NormalTransitionCategory.motion);
+    expect(distortionZoom.defaultDuration.inMilliseconds, 4000);
+    expect(distortionZoom.defaultParameterValues['outgoingBoostScale'], 3.0);
+    expect(distortionZoom.defaultParameterValues['incomingStartScale'], 0.25);
+    expect(distortionZoom.defaultParameterValues['lensDistortionPeak'], 0.32);
+    expect(distortionZoom.capabilities, contains('temporal-motion-blur'));
+    expect(distortionZoom.capabilities, contains('mirror-tile'));
+    expect(
+      distortionZoom.channels.map((channel) => channel.property),
+      <String>[
+        'scaleX',
+        'scaleY',
+        'scaleX',
+        'scaleY',
+        'lensDistortion',
+        'chromaticAberration',
       ],
     );
   });

@@ -91,12 +91,14 @@ class _TransitionInspectorBottomSheetState
     final durationMin = switch (_draft.preset) {
       TimelineTransitionPreset.zoomInCamera => 1200.0,
       TimelineTransitionPreset.zoomInPro => 1200.0,
+      TimelineTransitionPreset.distortionZoomInV1 => 1800.0,
       TimelineTransitionPreset.crossDissolve => 600.0,
       _ => 220.0,
     };
     final durationMax = switch (_draft.preset) {
       TimelineTransitionPreset.zoomInCamera => 5000.0,
       TimelineTransitionPreset.zoomInPro => 5000.0,
+      TimelineTransitionPreset.distortionZoomInV1 => 6000.0,
       TimelineTransitionPreset.crossDissolve => 5000.0,
       _ => 1600.0,
     };

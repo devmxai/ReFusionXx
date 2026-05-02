@@ -199,9 +199,129 @@ const String kZoomInCameraTransitionDefinitionJson = '''
 }
 ''';
 
+const String kDistortionZoomInV1TransitionDefinitionJson = '''
+{
+  "kind": "refusion.transition",
+  "schemaVersion": "1.0.0",
+  "id": "distortion_zoom_in_v1",
+  "name": "Distortion Zoom Transition In V1",
+  "category": "motion",
+  "rendererType": "multiPassDeferred",
+  "defaultDurationMs": 4000,
+  "minDurationMs": 1800,
+  "maxDurationMs": 6000,
+  "requires": [
+    "dual-texture",
+    "transform",
+    "timeline-overlap",
+    "live-video-surface",
+    "temporal-motion-blur",
+    "mirror-tile",
+    "lens-distortion"
+  ],
+  "parameters": [
+    {
+      "name": "outgoingBoostScale",
+      "type": "number",
+      "default": 3.0,
+      "range": [1.2, 4.0],
+      "ui": "slider"
+    },
+    {
+      "name": "incomingStartScale",
+      "type": "number",
+      "default": 0.25,
+      "range": [0.18, 1.0],
+      "ui": "slider"
+    },
+    {
+      "name": "lensDistortionPeak",
+      "type": "number",
+      "default": 0.32,
+      "range": [0.0, 0.75],
+      "ui": "slider"
+    },
+    {
+      "name": "chromaticAberrationPeak",
+      "type": "number",
+      "default": 0.08,
+      "range": [0.0, 0.18],
+      "ui": "slider"
+    },
+    {
+      "name": "motionTileOutputScaleX",
+      "type": "number",
+      "default": 4.0,
+      "range": [1.0, 6.0],
+      "ui": "slider"
+    },
+    {
+      "name": "motionTileOutputScaleY",
+      "type": "number",
+      "default": 4.0,
+      "range": [1.0, 6.0],
+      "ui": "slider"
+    }
+  ],
+  "channels": [
+    {
+      "target": "from",
+      "property": "scaleX",
+      "keyframes": [
+        { "t": 0.0, "value": 1.0, "easing": "easeInCubic" },
+        { "t": 0.5, "value": "\$outgoingBoostScale", "easing": "easeInCubic" }
+      ]
+    },
+    {
+      "target": "from",
+      "property": "scaleY",
+      "keyframes": [
+        { "t": 0.0, "value": 1.0, "easing": "easeInCubic" },
+        { "t": 0.5, "value": "\$outgoingBoostScale", "easing": "easeInCubic" }
+      ]
+    },
+    {
+      "target": "to",
+      "property": "scaleX",
+      "keyframes": [
+        { "t": 0.5, "value": "\$incomingStartScale", "easing": "easeOutCubic" },
+        { "t": 1.0, "value": 1.0, "easing": "easeOutCubic" }
+      ]
+    },
+    {
+      "target": "to",
+      "property": "scaleY",
+      "keyframes": [
+        { "t": 0.5, "value": "\$incomingStartScale", "easing": "easeOutCubic" },
+        { "t": 1.0, "value": 1.0, "easing": "easeOutCubic" }
+      ]
+    },
+    {
+      "target": "transition",
+      "property": "lensDistortion",
+      "keyframes": [
+        { "t": 0.0, "value": 0.0, "easing": "easeInOut" },
+        { "t": 0.5, "value": "\$lensDistortionPeak", "easing": "easeInOut" },
+        { "t": 1.0, "value": 0.0, "easing": "easeInOut" }
+      ]
+    },
+    {
+      "target": "transition",
+      "property": "chromaticAberration",
+      "keyframes": [
+        { "t": 0.0, "value": 0.0, "easing": "easeInOut" },
+        { "t": 0.5, "value": "\$chromaticAberrationPeak", "easing": "easeInOut" },
+        { "t": 1.0, "value": 0.0, "easing": "easeInOut" }
+      ]
+    }
+  ]
+}
+''';
+
 const Map<String, String> kBuiltInNormalTransitionDefinitionJsonById =
     <String, String>{
   'cross_dissolve': kCrossDissolveTransitionDefinitionJson,
   'fade_black': kFadeBlackTransitionDefinitionJson,
   'zoom_in_camera': kZoomInCameraTransitionDefinitionJson,
+  'distortion_zoom_in_v1': kDistortionZoomInV1TransitionDefinitionJson,
 };

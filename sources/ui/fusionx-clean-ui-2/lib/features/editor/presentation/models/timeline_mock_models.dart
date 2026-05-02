@@ -36,6 +36,7 @@ enum TimelineTransitionPreset {
   fadeBlack,
   zoomInCamera,
   zoomInPro,
+  distortionZoomInV1,
   aiGenerated,
 }
 
@@ -54,6 +55,8 @@ extension TimelineTransitionPresetPresentation on TimelineTransitionPreset {
       TimelineTransitionPreset.fadeBlack => 'Fade Black',
       TimelineTransitionPreset.zoomInCamera => 'Zoom In Camera',
       TimelineTransitionPreset.zoomInPro => 'Zoom In Pro',
+      TimelineTransitionPreset.distortionZoomInV1 =>
+        'Distortion Zoom Transition In V1',
       TimelineTransitionPreset.aiGenerated => 'AI Transition',
     };
   }
@@ -70,6 +73,8 @@ extension TimelineTransitionPresetPresentation on TimelineTransitionPreset {
         'Push into the next clip with a camera-style zoom.',
       TimelineTransitionPreset.zoomInPro =>
         'Experimental live-surface zoom trial for testing the transition engine path.',
+      TimelineTransitionPreset.distortionZoomInV1 =>
+        'Push through the seam with real dual-video zoom, temporal shutter blur, mirror-edge fill, and lens distortion.',
       TimelineTransitionPreset.aiGenerated =>
         'Generate a seam bridge from the last frame of A to the first frame of B.',
     };
@@ -84,6 +89,8 @@ extension TimelineTransitionPresetPresentation on TimelineTransitionPreset {
       TimelineTransitionPreset.zoomInCamera =>
         TimelineTime.fromMilliseconds(4000),
       TimelineTransitionPreset.zoomInPro => TimelineTime.fromMilliseconds(4000),
+      TimelineTransitionPreset.distortionZoomInV1 =>
+        TimelineTime.fromMilliseconds(4000),
       TimelineTransitionPreset.aiGenerated =>
         TimelineTime.fromMilliseconds(3000),
     };
@@ -114,13 +121,22 @@ extension TimelineTransitionPresetPresentation on TimelineTransitionPreset {
           'motionBlurAmount': 0.0,
           'shakeAmount': 0.0,
         },
+      TimelineTransitionPreset.distortionZoomInV1 => <String, double>{
+          'incomingStartScale': 0.25,
+          'outgoingBoostScale': 3.0,
+          'lensDistortionPeak': 0.32,
+          'chromaticAberrationPeak': 0.08,
+          'motionTileOutputScaleX': 4.0,
+          'motionTileOutputScaleY': 4.0,
+        },
       TimelineTransitionPreset.aiGenerated => const <String, double>{},
     };
   }
 
   bool get isZoomCameraFamily {
     return this == TimelineTransitionPreset.zoomInCamera ||
-        this == TimelineTransitionPreset.zoomInPro;
+        this == TimelineTransitionPreset.zoomInPro ||
+        this == TimelineTransitionPreset.distortionZoomInV1;
   }
 }
 

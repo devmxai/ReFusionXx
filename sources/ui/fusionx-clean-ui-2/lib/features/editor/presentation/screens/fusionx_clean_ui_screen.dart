@@ -2231,6 +2231,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       TimelineTransitionPreset.fadeBlack => MotionTransitionKind.fade,
       TimelineTransitionPreset.zoomInCamera => MotionTransitionKind.cameraPush,
       TimelineTransitionPreset.zoomInPro => MotionTransitionKind.cameraPush,
+      TimelineTransitionPreset.distortionZoomInV1 =>
+        MotionTransitionKind.cameraPush,
       TimelineTransitionPreset.aiGenerated => MotionTransitionKind.fade,
     };
   }
@@ -18648,6 +18650,32 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       keyframeStops: <double>[0.0, 0.5, 1.0],
       valueFormatter: _formatTransitionPercent,
     ),
+    'lensDistortionPeak': _TransitionFocusLaneSpec(
+      id: 'lensDistortionPeak',
+      groupLabel: 'Distortion',
+      label: 'Lens Distortion',
+      editorDescription:
+          'Bends the bridge around the seam like an optics compensation push.',
+      min: 0.0,
+      max: 75.0,
+      fallback: 32.0,
+      tint: Color(0xFFB79CFF),
+      keyframeStops: <double>[0.0, 0.5, 1.0],
+      valueFormatter: _formatTransitionPercent,
+    ),
+    'chromaticAberrationPeak': _TransitionFocusLaneSpec(
+      id: 'chromaticAberrationPeak',
+      groupLabel: 'Distortion',
+      label: 'RGB Split',
+      editorDescription:
+          'Adds a restrained seam color split driven by the distortion peak.',
+      min: 0.0,
+      max: 18.0,
+      fallback: 8.0,
+      tint: Color(0xFFFF7C8A),
+      keyframeStops: <double>[0.0, 0.5, 1.0],
+      valueFormatter: _formatTransitionPercent,
+    ),
     'blackPeak': _TransitionFocusLaneSpec(
       id: 'blackPeak',
       groupLabel: 'Visual',
@@ -18684,6 +18712,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           TimelineTransitionPreset.zoomInPro => const <String>[
               'outgoingBoostScale',
               'incomingStartScale',
+            ],
+          TimelineTransitionPreset.distortionZoomInV1 => const <String>[
+              'outgoingBoostScale',
+              'incomingStartScale',
+              'lensDistortionPeak',
+              'chromaticAberrationPeak',
             ],
           TimelineTransitionPreset.aiGenerated => const <String>[],
           TimelineTransitionPreset.manual => const <String>[],
@@ -20669,6 +20703,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final canvasSize = _motionProjectFormat.canvasSize;
     final canvasWidth = canvasSize.width.round().clamp(1, 4096).toInt();
     final canvasHeight = canvasSize.height.round().clamp(1, 4096).toInt();
+    final isDistortionZoom = activeTransition.transition.preset ==
+        TimelineTransitionPreset.distortionZoomInV1;
+    final parameters = <String, Object?>{
+      ...activeTransition.transition.preset.defaultParameterValues,
+      ...activeTransition.transition.parameterValues,
+    };
     final buildResult =
         const ProfessionalVideoTransitionRenderPlanAdapter().build(
       ProfessionalVideoTransitionRenderPlanRequest(
@@ -20680,19 +20720,20 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         canvasWidth: canvasWidth,
         canvasHeight: canvasHeight,
         sourceUriForAsset: (assetId) => _assetForId(assetId)?.sourceUri,
-        parameters: <String, Object?>{
-          ...activeTransition.transition.preset.defaultParameterValues,
-          ...activeTransition.transition.parameterValues,
-        },
-        edgePolicy: const <String, Object?>{
+        parameters: parameters,
+        edgePolicy: <String, Object?>{
           'mode': 'mirrorTile',
           'fillMode': 'centerCrop',
+          if (isDistortionZoom) ...<String, Object?>{
+            'outputScaleX': parameters['motionTileOutputScaleX'] ?? 4.0,
+            'outputScaleY': parameters['motionTileOutputScaleY'] ?? 4.0,
+          },
         },
         motionBlurPolicy: <String, Object?>{
           'mode': 'temporalShutter',
           'shutterAngleDegrees': 360.0,
           'frameRate': _timelineFps,
-          'sampleCount': 7,
+          'sampleCount': isDistortionZoom ? 9 : 7,
         },
         interactiveSurfaceBindings: <ProfessionalVideoTransitionInteractiveSurfaceBinding>[
           ProfessionalVideoTransitionInteractiveSurfaceBinding(
@@ -20711,6 +20752,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return switch (preset) {
       TimelineTransitionPreset.zoomInCamera => 'zoomInCamera',
       TimelineTransitionPreset.zoomInPro => 'zoomInCamera',
+      TimelineTransitionPreset.distortionZoomInV1 => 'distortionZoomInV1',
       _ => null,
     };
   }

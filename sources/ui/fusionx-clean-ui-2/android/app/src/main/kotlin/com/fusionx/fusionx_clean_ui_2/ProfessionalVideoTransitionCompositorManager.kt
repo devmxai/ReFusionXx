@@ -5,6 +5,8 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
 import android.graphics.PixelFormat
 import android.graphics.Rect
@@ -20,6 +22,9 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.LinkedHashMap
 import kotlin.math.abs
+import kotlin.math.ceil
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 class ProfessionalVideoTransitionCompositorManager(
@@ -3318,6 +3323,8 @@ private data class ProfessionalVideoTransitionRenderSession(
                     frameBufferId = frameBufferId,
                     timelineTimeMs = timelineTimeMs,
                     motionBlurPolicy = motionBlurPolicy,
+                    edgePolicy = edgePolicy,
+                    parameters = parameters,
                 )
             } else {
                 ProfessionalVideoTransitionPixelFrameBufferWriteResult(
@@ -3401,7 +3408,20 @@ private data class ProfessionalVideoTransitionRenderSession(
         frameBufferId: String,
         timelineTimeMs: Long,
         motionBlurPolicy: Map<*, *>?,
+        edgePolicy: Map<*, *>?,
+        parameters: Map<*, *>?,
     ): ProfessionalVideoTransitionPixelFrameBufferWriteResult {
+        if (definitionId == "distortionZoomInV1") {
+            return writeDistortionZoomInV1PixelsToFrameBuffer(
+                appContext = appContext,
+                frameBufferStore = frameBufferStore,
+                frameBufferId = frameBufferId,
+                timelineTimeMs = timelineTimeMs,
+                motionBlurPolicy = motionBlurPolicy,
+                edgePolicy = edgePolicy,
+                parameters = parameters,
+            )
+        }
         val width = canvasWidth.toInt()
         val height = canvasHeight.toInt()
         if (width <= 0 || height <= 0) {
@@ -3506,6 +3526,460 @@ private data class ProfessionalVideoTransitionRenderSession(
             canvasBitmap.recycle()
         }
     }
+
+    private fun writeDistortionZoomInV1PixelsToFrameBuffer(
+        appContext: Context,
+        frameBufferStore: ProfessionalVideoTransitionPixelFrameBufferStore,
+        frameBufferId: String,
+        timelineTimeMs: Long,
+        motionBlurPolicy: Map<*, *>?,
+        edgePolicy: Map<*, *>?,
+        parameters: Map<*, *>?,
+    ): ProfessionalVideoTransitionPixelFrameBufferWriteResult {
+        val width = canvasWidth.toInt()
+        val height = canvasHeight.toInt()
+        if (width <= 0 || height <= 0) {
+            return ProfessionalVideoTransitionPixelFrameBufferWriteResult(
+                wrotePixels = false,
+                byteCount = 0,
+                checksum = 0L,
+                sampleCount = 0,
+                extractedFrameCount = 0,
+                reason = "native_transition_pixel_frame_buffer_invalid_size",
+            )
+        }
+        val timelineSamples = temporalSampleTimelineTimes(timelineTimeMs, motionBlurPolicy)
+        if (timelineSamples.isEmpty()) {
+            return ProfessionalVideoTransitionPixelFrameBufferWriteResult(
+                wrotePixels = false,
+                byteCount = 0,
+                checksum = 0L,
+                sampleCount = 0,
+                extractedFrameCount = 0,
+                reason = "native_transition_temporal_samples_missing",
+            )
+        }
+        val outgoingBoostScale =
+            parameters
+                ?.doubleValue("outgoingBoostScale", defaultValue = 3.0)
+                ?.coerceIn(1.0, 4.0) ?: 3.0
+        val incomingStartScale =
+            parameters
+                ?.doubleValue("incomingStartScale", defaultValue = 0.25)
+                ?.coerceIn(0.12, 1.0) ?: 0.25
+        val lensDistortionPeak =
+            parameters
+                ?.doubleValue("lensDistortionPeak", defaultValue = 0.32)
+                ?.coerceIn(0.0, 0.85) ?: 0.32
+        val chromaticAberrationPeak =
+            parameters
+                ?.doubleValue("chromaticAberrationPeak", defaultValue = 0.08)
+                ?.coerceIn(0.0, 0.22) ?: 0.08
+        val tileOutputScaleX =
+            (edgePolicy?.doubleValue("outputScaleX", defaultValue = 4.0)
+                ?: parameters?.doubleValue("motionTileOutputScaleX", defaultValue = 4.0)
+                ?: 4.0).coerceIn(1.0, 6.0)
+        val tileOutputScaleY =
+            (edgePolicy?.doubleValue("outputScaleY", defaultValue = 4.0)
+                ?: parameters?.doubleValue("motionTileOutputScaleY", defaultValue = 4.0)
+                ?: 4.0).coerceIn(1.0, 6.0)
+        val canvasBitmap =
+            runCatching {
+                Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            }.getOrNull()
+                ?: return ProfessionalVideoTransitionPixelFrameBufferWriteResult(
+                    wrotePixels = false,
+                    byteCount = 0,
+                    checksum = 0L,
+                    sampleCount = timelineSamples.size,
+                    extractedFrameCount = 0,
+                    reason = "native_transition_pixel_frame_buffer_bitmap_allocation_failed",
+                )
+        var extractedFrameCount = 0
+        var outgoingFrameCount = 0
+        var incomingFrameCount = 0
+        try {
+            val canvas = Canvas(canvasBitmap)
+            canvas.drawColor(Color.BLACK)
+            val sampleAlpha = temporalSampleAlpha(255, timelineSamples.size.coerceAtLeast(1))
+            timelineSamples.forEach { sampleTimelineMs ->
+                val sampleProgress = transitionProgressAt(sampleTimelineMs)
+                val seamPeak = seamPeakProgress(sampleTimelineMs)
+                if (sampleTimelineMs <= boundaryTimeMs && outgoing.coversTimelineTime(sampleTimelineMs)) {
+                    val phase =
+                        phaseProgress(
+                            timeMs = sampleTimelineMs,
+                            startMs = transitionStartMs,
+                            endMs = boundaryTimeMs,
+                        )
+                    val scale = lerp(1.0, outgoingBoostScale, easeInCubic(phase))
+                    val frame =
+                        extractVideoFrameBitmap(
+                            appContext,
+                            outgoing.sourceUri,
+                            outgoing.sourceTimeForTimelineTime(sampleTimelineMs),
+                        )
+                    if (frame != null) {
+                        drawDistortionZoomFrame(
+                            canvas = canvas,
+                            bitmap = frame,
+                            alpha = sampleAlpha,
+                            canvasWidth = width,
+                            canvasHeight = height,
+                            scale = scale,
+                            lensDistortion = lensDistortionPeak * seamPeak,
+                            chromaticAberration = chromaticAberrationPeak * seamPeak,
+                            tileOutputScaleX = tileOutputScaleX,
+                            tileOutputScaleY = tileOutputScaleY,
+                        )
+                        extractedFrameCount += 1
+                        outgoingFrameCount += 1
+                        frame.recycle()
+                    }
+                }
+                if (sampleTimelineMs >= boundaryTimeMs && incoming.coversTimelineTime(sampleTimelineMs)) {
+                    val phase =
+                        phaseProgress(
+                            timeMs = sampleTimelineMs,
+                            startMs = boundaryTimeMs,
+                            endMs = transitionEndMs,
+                        )
+                    val scale = lerp(incomingStartScale, 1.0, easeOutCubic(phase))
+                    val frame =
+                        extractVideoFrameBitmap(
+                            appContext,
+                            incoming.sourceUri,
+                            incoming.sourceTimeForTimelineTime(sampleTimelineMs),
+                        )
+                    if (frame != null) {
+                        drawDistortionZoomFrame(
+                            canvas = canvas,
+                            bitmap = frame,
+                            alpha = sampleAlpha,
+                            canvasWidth = width,
+                            canvasHeight = height,
+                            scale = scale,
+                            lensDistortion = lensDistortionPeak * seamPeak,
+                            chromaticAberration = chromaticAberrationPeak * seamPeak,
+                            tileOutputScaleX = tileOutputScaleX,
+                            tileOutputScaleY = tileOutputScaleY,
+                        )
+                        extractedFrameCount += 1
+                        incomingFrameCount += 1
+                        frame.recycle()
+                    }
+                }
+            }
+            if (outgoingFrameCount <= 0 && timelineTimeMs < boundaryTimeMs) {
+                return ProfessionalVideoTransitionPixelFrameBufferWriteResult(
+                    wrotePixels = false,
+                    byteCount = 0,
+                    checksum = 0L,
+                    sampleCount = timelineSamples.size,
+                    extractedFrameCount = extractedFrameCount,
+                    reason = "native_transition_outgoing_video_pixels_missing",
+                )
+            }
+            if (incomingFrameCount <= 0 && timelineTimeMs > boundaryTimeMs) {
+                return ProfessionalVideoTransitionPixelFrameBufferWriteResult(
+                    wrotePixels = false,
+                    byteCount = 0,
+                    checksum = 0L,
+                    sampleCount = timelineSamples.size,
+                    extractedFrameCount = extractedFrameCount,
+                    reason = "native_transition_incoming_video_pixels_missing",
+                )
+            }
+            if (extractedFrameCount <= 0) {
+                return ProfessionalVideoTransitionPixelFrameBufferWriteResult(
+                    wrotePixels = false,
+                    byteCount = 0,
+                    checksum = 0L,
+                    sampleCount = timelineSamples.size,
+                    extractedFrameCount = 0,
+                    reason = "native_transition_temporal_video_pixels_missing",
+                )
+            }
+            return frameBufferStore.writeBitmap(
+                frameBufferId = frameBufferId,
+                bitmap = canvasBitmap,
+                sampleCount = timelineSamples.size,
+                extractedFrameCount = extractedFrameCount,
+            )
+        } finally {
+            canvasBitmap.recycle()
+        }
+    }
+
+    private fun transitionProgressAt(timeMs: Long): Double =
+        ((timeMs - transitionStartMs).toDouble() /
+            (transitionEndMs - transitionStartMs).coerceAtLeast(1L).toDouble())
+            .coerceIn(0.0, 1.0)
+
+    private fun phaseProgress(
+        timeMs: Long,
+        startMs: Long,
+        endMs: Long,
+    ): Double =
+        ((timeMs - startMs).toDouble() / (endMs - startMs).coerceAtLeast(1L).toDouble())
+            .coerceIn(0.0, 1.0)
+
+    private fun seamPeakProgress(timeMs: Long): Double {
+        val leading = leadingDurationMs.coerceAtLeast(1L).toDouble()
+        val trailing = trailingDurationMs.coerceAtLeast(1L).toDouble()
+        return if (timeMs <= boundaryTimeMs) {
+            (1.0 - ((boundaryTimeMs - timeMs).toDouble() / leading)).coerceIn(0.0, 1.0)
+        } else {
+            (1.0 - ((timeMs - boundaryTimeMs).toDouble() / trailing)).coerceIn(0.0, 1.0)
+        }
+    }
+
+    private fun easeInCubic(t: Double): Double = t.coerceIn(0.0, 1.0).let { it * it * it }
+
+    private fun easeOutCubic(t: Double): Double =
+        t.coerceIn(0.0, 1.0).let { 1.0 - ((1.0 - it) * (1.0 - it) * (1.0 - it)) }
+
+    private fun lerp(start: Double, end: Double, progress: Double): Double =
+        start + ((end - start) * progress.coerceIn(0.0, 1.0))
+
+    private fun drawDistortionZoomFrame(
+        canvas: Canvas,
+        bitmap: Bitmap,
+        alpha: Int,
+        canvasWidth: Int,
+        canvasHeight: Int,
+        scale: Double,
+        lensDistortion: Double,
+        chromaticAberration: Double,
+        tileOutputScaleX: Double,
+        tileOutputScaleY: Double,
+    ) {
+        if (alpha <= 0 || bitmap.width <= 0 || bitmap.height <= 0) {
+            return
+        }
+        val baseTile =
+            runCatching {
+                Bitmap.createBitmap(canvasWidth, canvasHeight, Bitmap.Config.ARGB_8888)
+            }.getOrNull() ?: return
+        val layer =
+            runCatching {
+                Bitmap.createBitmap(canvasWidth, canvasHeight, Bitmap.Config.ARGB_8888)
+            }.getOrNull()
+        if (layer == null) {
+            baseTile.recycle()
+            return
+        }
+        try {
+            drawBitmapCenterCrop(
+                canvas = Canvas(baseTile),
+                bitmap = bitmap,
+                alpha = 255,
+                canvasWidth = canvasWidth,
+                canvasHeight = canvasHeight,
+            )
+            val layerCanvas = Canvas(layer)
+            drawMirroredScaledTile(
+                canvas = layerCanvas,
+                tile = baseTile,
+                alpha = 255,
+                canvasWidth = canvasWidth,
+                canvasHeight = canvasHeight,
+                scale = scale,
+                outputScaleX = tileOutputScaleX,
+                outputScaleY = tileOutputScaleY,
+            )
+            drawLayerWithLensDistortion(
+                canvas = canvas,
+                layer = layer,
+                alpha = alpha,
+                lensDistortion = lensDistortion,
+                chromaticAberration = chromaticAberration,
+            )
+        } finally {
+            baseTile.recycle()
+            layer.recycle()
+        }
+    }
+
+    private fun drawMirroredScaledTile(
+        canvas: Canvas,
+        tile: Bitmap,
+        alpha: Int,
+        canvasWidth: Int,
+        canvasHeight: Int,
+        scale: Double,
+        outputScaleX: Double,
+        outputScaleY: Double,
+    ) {
+        val safeScale = scale.coerceIn(0.05, 8.0).toFloat()
+        val tileWidth = canvasWidth * safeScale
+        val tileHeight = canvasHeight * safeScale
+        val repeatX =
+            max(
+                1,
+                ceil((canvasWidth * outputScaleX) / max(1.0, tileWidth.toDouble())).toInt(),
+            )
+        val repeatY =
+            max(
+                1,
+                ceil((canvasHeight * outputScaleY) / max(1.0, tileHeight.toDouble())).toInt(),
+            )
+        val paint =
+            Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
+                this.alpha = alpha.coerceIn(0, 255)
+            }
+        val centerX = canvasWidth / 2f
+        val centerY = canvasHeight / 2f
+        for (xIndex in -repeatX..repeatX) {
+            for (yIndex in -repeatY..repeatY) {
+                val tileCenterX = centerX + (xIndex * tileWidth)
+                val tileCenterY = centerY + (yIndex * tileHeight)
+                canvas.save()
+                canvas.translate(tileCenterX, tileCenterY)
+                canvas.scale(
+                    if (abs(xIndex) % 2 == 0) 1f else -1f,
+                    if (abs(yIndex) % 2 == 0) 1f else -1f,
+                )
+                canvas.drawBitmap(
+                    tile,
+                    Rect(0, 0, tile.width, tile.height),
+                    RectF(-tileWidth / 2f, -tileHeight / 2f, tileWidth / 2f, tileHeight / 2f),
+                    paint,
+                )
+                canvas.restore()
+            }
+        }
+    }
+
+    private fun drawLayerWithLensDistortion(
+        canvas: Canvas,
+        layer: Bitmap,
+        alpha: Int,
+        lensDistortion: Double,
+        chromaticAberration: Double,
+    ) {
+        val meshWidth = 24
+        val meshHeight = 24
+        val baseVerts =
+            distortionMeshVertices(
+                bitmapWidth = layer.width,
+                bitmapHeight = layer.height,
+                meshWidth = meshWidth,
+                meshHeight = meshHeight,
+                lensDistortion = lensDistortion,
+                xOffset = 0f,
+                yOffset = 0f,
+            )
+        val paint =
+            Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
+                this.alpha = alpha.coerceIn(0, 255)
+            }
+        val chromaticShift =
+            (min(layer.width, layer.height) * chromaticAberration.coerceIn(0.0, 0.25) * 0.018)
+                .toFloat()
+        if (chromaticShift > 0.25f) {
+            canvas.drawBitmapMesh(
+                layer,
+                meshWidth,
+                meshHeight,
+                distortionMeshVertices(
+                    bitmapWidth = layer.width,
+                    bitmapHeight = layer.height,
+                    meshWidth = meshWidth,
+                    meshHeight = meshHeight,
+                    lensDistortion = lensDistortion,
+                    xOffset = -chromaticShift,
+                    yOffset = 0f,
+                ),
+                0,
+                null,
+                0,
+                redChannelPaint(alpha),
+            )
+            canvas.drawBitmapMesh(
+                layer,
+                meshWidth,
+                meshHeight,
+                distortionMeshVertices(
+                    bitmapWidth = layer.width,
+                    bitmapHeight = layer.height,
+                    meshWidth = meshWidth,
+                    meshHeight = meshHeight,
+                    lensDistortion = lensDistortion,
+                    xOffset = chromaticShift,
+                    yOffset = 0f,
+                ),
+                0,
+                null,
+                0,
+                blueChannelPaint(alpha),
+            )
+        }
+        canvas.drawBitmapMesh(layer, meshWidth, meshHeight, baseVerts, 0, null, 0, paint)
+    }
+
+    private fun distortionMeshVertices(
+        bitmapWidth: Int,
+        bitmapHeight: Int,
+        meshWidth: Int,
+        meshHeight: Int,
+        lensDistortion: Double,
+        xOffset: Float,
+        yOffset: Float,
+    ): FloatArray {
+        val verts = FloatArray((meshWidth + 1) * (meshHeight + 1) * 2)
+        val centerX = bitmapWidth / 2f
+        val centerY = bitmapHeight / 2f
+        val distortion = lensDistortion.coerceIn(0.0, 0.85).toFloat()
+        var index = 0
+        for (y in 0..meshHeight) {
+            val fy = y / meshHeight.toFloat()
+            val sourceY = fy * bitmapHeight
+            for (x in 0..meshWidth) {
+                val fx = x / meshWidth.toFloat()
+                val sourceX = fx * bitmapWidth
+                val nx = ((sourceX - centerX) / centerX).coerceIn(-1f, 1f)
+                val ny = ((sourceY - centerY) / centerY).coerceIn(-1f, 1f)
+                val radiusSquared = ((nx * nx) + (ny * ny)).coerceIn(0f, 2f)
+                val factor = 1f + (distortion * radiusSquared * 0.22f)
+                verts[index++] = centerX + ((sourceX - centerX) * factor) + xOffset
+                verts[index++] = centerY + ((sourceY - centerY) * factor) + yOffset
+            }
+        }
+        return verts
+    }
+
+    private fun redChannelPaint(alpha: Int): Paint =
+        Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
+            this.alpha = (alpha * 0.45).roundToInt().coerceIn(0, 255)
+            colorFilter =
+                ColorMatrixColorFilter(
+                    ColorMatrix(
+                        floatArrayOf(
+                            1f, 0f, 0f, 0f, 0f,
+                            0f, 0f, 0f, 0f, 0f,
+                            0f, 0f, 0f, 0f, 0f,
+                            0f, 0f, 0f, 1f, 0f,
+                        ),
+                    ),
+                )
+        }
+
+    private fun blueChannelPaint(alpha: Int): Paint =
+        Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
+            this.alpha = (alpha * 0.45).roundToInt().coerceIn(0, 255)
+            colorFilter =
+                ColorMatrixColorFilter(
+                    ColorMatrix(
+                        floatArrayOf(
+                            0f, 0f, 0f, 0f, 0f,
+                            0f, 0f, 0f, 0f, 0f,
+                            0f, 0f, 1f, 0f, 0f,
+                            0f, 0f, 0f, 1f, 0f,
+                        ),
+                    ),
+                )
+        }
 
     private fun temporalSampleAlpha(
         baseAlpha: Int,
@@ -5988,6 +6462,19 @@ private class ProfessionalVideoTransitionRendererRegistry(
                                 "liveScrubParity",
                                 "playbackParity",
                             ),
+                    ),
+                    ProfessionalVideoTransitionRendererDefinition(
+                        definitionId = "distortionZoomInV1",
+                        requiredCapabilities =
+                            setOf(
+                                "dualVideoSampling",
+                                "temporalMotionBlur",
+                                "mirrorEdgeTiling",
+                                "previewParity",
+                                "liveScrubParity",
+                                "playbackParity",
+                            ),
+                        implemented = true,
                     ),
                 ).associateBy { definition -> definition.definitionId }
             return ProfessionalVideoTransitionRendererRegistry(

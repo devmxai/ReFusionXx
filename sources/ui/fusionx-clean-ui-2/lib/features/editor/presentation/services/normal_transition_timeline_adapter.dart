@@ -7,12 +7,15 @@ class NormalTransitionTimelineAdapter {
   static const String crossDissolveDefinitionId = 'cross_dissolve';
   static const String fadeBlackDefinitionId = 'fade_black';
   static const String zoomInCameraDefinitionId = 'zoom_in_camera';
+  static const String distortionZoomInV1DefinitionId = 'distortion_zoom_in_v1';
 
   TimelineTransitionPreset? presetForDefinitionId(String definitionId) {
     return switch (definitionId) {
       crossDissolveDefinitionId => TimelineTransitionPreset.crossDissolve,
       fadeBlackDefinitionId => TimelineTransitionPreset.fadeBlack,
       zoomInCameraDefinitionId => TimelineTransitionPreset.zoomInCamera,
+      distortionZoomInV1DefinitionId =>
+        TimelineTransitionPreset.distortionZoomInV1,
       _ => null,
     };
   }
@@ -23,6 +26,8 @@ class NormalTransitionTimelineAdapter {
       TimelineTransitionPreset.fadeBlack => fadeBlackDefinitionId,
       TimelineTransitionPreset.zoomInCamera => zoomInCameraDefinitionId,
       TimelineTransitionPreset.zoomInPro => zoomInCameraDefinitionId,
+      TimelineTransitionPreset.distortionZoomInV1 =>
+        distortionZoomInV1DefinitionId,
       TimelineTransitionPreset.manual ||
       TimelineTransitionPreset.aiGenerated =>
         null,
