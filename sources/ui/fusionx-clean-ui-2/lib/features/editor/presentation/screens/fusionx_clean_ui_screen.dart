@@ -247,47 +247,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   );
   static final TimelineTime _defaultTextPresetDurationTime =
       TimelineTime.fromSecondsDouble(3);
-  static const List<AnimateBrowserItem> _manualTransitionAnimateItems =
-      <AnimateBrowserItem>[
-    AnimateBrowserItem(
-      id: 'outgoingBoostScale',
-      label: 'Outgoing Scale',
-      category: 'Animate',
-      summary: 'Push the outgoing clip forward before the handoff.',
-      keywords: <String>['zoom out', 'scale', 'push'],
-    ),
-    AnimateBrowserItem(
-      id: 'incomingStartScale',
-      label: 'Incoming Scale',
-      category: 'Animate',
-      summary: 'Start the incoming clip close, then relax to full frame.',
-      keywords: <String>['zoom in', 'scale', 'size'],
-    ),
-    AnimateBrowserItem(
-      id: 'entryDelay',
-      label: 'Entry Delay',
-      category: 'Animate',
-      summary: 'Delay when the incoming clip starts taking over.',
-      keywords: <String>['timing', 'delay', 'handoff'],
-    ),
-  ];
-  static const List<AnimateBrowserItem> _manualTransitionFxItems =
-      <AnimateBrowserItem>[
-    AnimateBrowserItem(
-      id: 'blackPeak',
-      label: 'Black Mix',
-      category: 'FX',
-      summary: 'Dip through black around the seam midpoint.',
-      keywords: <String>['fade', 'opacity', 'black'],
-    ),
-    AnimateBrowserItem(
-      id: 'bridgeDarkness',
-      label: 'Bridge Darkness',
-      category: 'FX',
-      summary: 'Add a dark cinematic bridge between the two clips.',
-      keywords: <String>['dark', 'bridge', 'shade'],
-    ),
-  ];
   static const List<AnimateBrowserItem> _scopedLayerCoreAnimateItems =
       <AnimateBrowserItem>[
     AnimateBrowserItem(
@@ -508,6 +467,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       ],
     ),
   ];
+  static const List<AnimateBrowserItem> _manualTransitionAnimateItems =
+      _scopedVideoAnimateItems;
+  static const List<AnimateBrowserItem> _manualTransitionFxItems =
+      _scopedVideoFxItems;
   static const List<AnimateBrowserItem> _scopedShapeFxItems =
       <AnimateBrowserItem>[
     AnimateBrowserItem(
@@ -18733,6 +18696,71 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
   static const Map<String, _TransitionFocusLaneSpec> _transitionLaneLibrary =
       <String, _TransitionFocusLaneSpec>{
+    'opacity': _TransitionFocusLaneSpec(
+      id: 'opacity',
+      groupLabel: 'Animate',
+      label: 'Opacity',
+      editorDescription:
+          'Animates the selected transition clip transparency with the same core opacity control used by layer scopes.',
+      min: 0.0,
+      max: 100.0,
+      fallback: 100.0,
+      tint: Color(0xFF82E6FF),
+      keyframeStops: <double>[],
+      valueFormatter: _formatTransitionPercent,
+    ),
+    'position': _TransitionFocusLaneSpec(
+      id: 'position',
+      groupLabel: 'Animate',
+      label: 'Position',
+      editorDescription:
+          'Animates clip movement across the transition window using the shared core Position control.',
+      min: -100.0,
+      max: 100.0,
+      fallback: 0.0,
+      tint: Color(0xFFFFD98A),
+      keyframeStops: <double>[],
+      valueFormatter: _formatTransitionPosition,
+    ),
+    'scale': _TransitionFocusLaneSpec(
+      id: 'scale',
+      groupLabel: 'Animate',
+      label: 'Scale',
+      editorDescription:
+          'Animates clip size with the same core Scale control used by video layer scopes.',
+      min: 0.0,
+      max: 300.0,
+      fallback: 100.0,
+      tint: Color(0xFF8DFFAE),
+      keyframeStops: <double>[],
+      valueFormatter: _formatTransitionScale,
+    ),
+    'rotation': _TransitionFocusLaneSpec(
+      id: 'rotation',
+      groupLabel: 'Animate',
+      label: 'Rotation',
+      editorDescription:
+          'Animates clip angle with the shared core Rotation control.',
+      min: -360.0,
+      max: 360.0,
+      fallback: 0.0,
+      tint: Color(0xFFB79CFF),
+      keyframeStops: <double>[],
+      valueFormatter: _formatTransitionDegrees,
+    ),
+    'gaussian_blur': _TransitionFocusLaneSpec(
+      id: 'gaussian_blur',
+      groupLabel: 'FX',
+      label: 'Gaussian Blur',
+      editorDescription:
+          'Animates soft focus with the existing video-layer Gaussian Blur FX control.',
+      min: 0.0,
+      max: 80.0,
+      fallback: 0.0,
+      tint: Color(0xFFFFA7C9),
+      keyframeStops: <double>[],
+      valueFormatter: _formatTransitionPixels,
+    ),
     'outgoingBoostScale': _TransitionFocusLaneSpec(
       id: 'outgoingBoostScale',
       groupLabel: 'Outgoing',
@@ -19713,6 +19741,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   static String _formatTransitionPercent(double value) => '${value.round()}%';
 
   static String _formatTransitionScale(double value) => '${value.round()}%';
+
+  static String _formatTransitionPosition(double value) =>
+      value == 0 ? '0 px' : '${value.round()} px';
+
+  static String _formatTransitionDegrees(double value) =>
+      '${value.round()} deg';
+
+  static String _formatTransitionPixels(double value) => '${value.round()} px';
 
   bool _tryOpenUnifiedTransitionScopeBridge({
     required TimelineTrackData track,
