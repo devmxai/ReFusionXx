@@ -42,6 +42,8 @@ void main() {
         ProfessionalVideoTransitionReadinessStageId.transitionPixelRenderer,
         ProfessionalVideoTransitionReadinessStageId.transitionPixelFrameBuffer,
         ProfessionalVideoTransitionReadinessStageId
+            .transitionPixelFrameBufferWriter,
+        ProfessionalVideoTransitionReadinessStageId
             .transitionPixelRenderExecution,
         ProfessionalVideoTransitionReadinessStageId.transitionPixelOutputProof,
         ProfessionalVideoTransitionReadinessStageId.parityOutputs,
@@ -157,6 +159,20 @@ void main() {
               .transitionPixelFrameBuffer)
           .blockers,
       contains('native_transition_pixel_frame_buffer_missing'),
+    );
+    expect(
+      report
+          .stage(ProfessionalVideoTransitionReadinessStageId
+              .transitionPixelFrameBufferWriter)
+          .canAdvance,
+      isFalse,
+    );
+    expect(
+      report
+          .stage(ProfessionalVideoTransitionReadinessStageId
+              .transitionPixelFrameBufferWriter)
+          .blockers,
+      contains('native_transition_pixel_frame_buffer_writer_missing'),
     );
     expect(
       report
@@ -1100,6 +1116,71 @@ class _FakeProfessionalVideoTransitionCompositorClient
               'native_transition_pixel_frame_buffer_missing',
               'native_transition_pixel_frame_buffer_pixels_missing',
               'native_transition_pixel_frame_buffer_renderer_missing',
+            ]
+          : const <String>[],
+    );
+  }
+
+  @override
+  Future<ProfessionalVideoTransitionPixelFrameBufferWriterPlanResult>
+      planTransitionPixelFrameBufferWriter({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  }) async {
+    return ProfessionalVideoTransitionPixelFrameBufferWriterPlanResult(
+      status:
+          ProfessionalVideoTransitionPixelFrameBufferWriterPlanStatus.planned,
+      reason: '',
+      rendererVersion: 'fake',
+      definitionId: plan.definitionId,
+      renderSessionId: 'transition-session:${plan.transitionId}',
+      transitionPixelRendererId: 'pixel-renderer:${plan.transitionId}',
+      transitionPixelFrameBufferId: 'pixel-frame-buffer:${plan.transitionId}',
+      transitionPixelFrameBufferWriterId:
+          'pixel-frame-buffer-writer:${plan.transitionId}',
+      pixelProgramId: 'pixel-program:${plan.definitionId}',
+      outputSurfaceId: 'surface:${plan.transitionId}',
+      outputTarget: 'nativeTransitionCanvasSurface',
+      outputFramebufferTarget: 'nativeTransitionCanvasSurface',
+      timelineTime: timelineTime,
+      transitionStartTime: plan.boundaryTime - plan.leadingDuration,
+      transitionEndTime: plan.boundaryTime + plan.trailingDuration,
+      canvasWidth: plan.canvasWidth,
+      canvasHeight: plan.canvasHeight,
+      frameBufferWidth: plan.canvasWidth,
+      frameBufferHeight: plan.canvasHeight,
+      frameBufferFormat: 'rgba8888',
+      frameBufferByteCount: plan.canvasWidth * plan.canvasHeight * 4,
+      frameBufferMemoryClass: _rendererReady ? 'directByteBuffer' : 'none',
+      pixelWorkloadBound: true,
+      outputFramebufferBound: true,
+      frameBufferAllocated: _rendererReady,
+      frameBufferReady: _rendererReady,
+      writerBoundToFrameBuffer: _rendererReady,
+      requiresTemporalSamples: true,
+      requiresDualSourceSamples: true,
+      allowsStillFrameWrite: false,
+      allowsSyntheticPixels: false,
+      allowsPosterFrame: false,
+      allowsThumbnailFallback: false,
+      allowsBoundaryFreeze: false,
+      writerImplemented: _rendererReady,
+      writerReady: _rendererReady,
+      canWriteTemporalPixels: _rendererReady,
+      wroteTemporalPixels: _rendererReady,
+      frameBufferContainsRealPixels: _rendererReady,
+      pixelRendererImplemented: _rendererReady,
+      pixelRendererReady: _rendererReady,
+      rendererImplemented: _rendererReady,
+      canRenderPixels: _rendererReady,
+      rendersRealPixels: _rendererReady,
+      drawsPixels: _rendererReady,
+      canRenderFrame: _rendererReady,
+      blockedReasons: _planningOnly
+          ? const <String>[
+              'native_transition_pixel_frame_buffer_writer_missing',
+              'native_transition_pixel_frame_buffer_temporal_pixels_missing',
+              'native_transition_pixel_frame_buffer_pixels_missing',
             ]
           : const <String>[],
     );

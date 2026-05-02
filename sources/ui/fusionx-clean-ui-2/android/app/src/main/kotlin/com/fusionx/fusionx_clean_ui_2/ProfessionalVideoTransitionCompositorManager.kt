@@ -773,6 +773,49 @@ class ProfessionalVideoTransitionCompositorManager(
         )
     }
 
+    fun planTransitionPixelFrameBufferWriter(
+        plan: Map<String, Any?>?,
+        timelineTimeMs: Long?,
+    ): Map<String, Any> {
+        val missingFields = requiredRenderPlanFields.filter { field ->
+            !hasRequiredField(plan, field)
+        }
+        if (missingFields.isNotEmpty()) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_required_video_transition_render_plan_fields",
+                "rendererVersion" to "foundation",
+                "missingFields" to missingFields,
+            )
+        }
+        if (timelineTimeMs == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_timeline_time_for_video_transition_pixel_frame_buffer_writer",
+                "rendererVersion" to "foundation",
+            )
+        }
+        val definitionId = plan?.get("definitionId")?.toString() ?: ""
+        val sessionResult = ProfessionalVideoTransitionRenderSession.fromPlan(plan)
+        if (sessionResult.session == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "invalid_video_transition_render_session",
+                "rendererVersion" to "foundation",
+                "definitionId" to definitionId,
+                "issues" to sessionResult.issues,
+            )
+        }
+        return sessionResult.session.planTransitionPixelFrameBufferWriter(
+            timelineTimeMs = timelineTimeMs,
+            motionBlurPolicy = plan?.get("motionBlurPolicy") as? Map<*, *>,
+            edgePolicy = plan?.get("edgePolicy") as? Map<*, *>,
+            parameters = plan?.get("parameters") as? Map<*, *>,
+            appContext = appContext,
+            frameBufferStore = pixelFrameBufferStore,
+        )
+    }
+
     fun planTransitionPixelFrameBuffer(
         plan: Map<String, Any?>?,
         timelineTimeMs: Long?,
@@ -2833,8 +2876,8 @@ private data class ProfessionalVideoTransitionRenderSession(
         appContext: Context,
         frameBufferStore: ProfessionalVideoTransitionPixelFrameBufferStore,
     ): Map<String, Any> {
-        val frameBufferPlan =
-            planTransitionPixelFrameBuffer(
+        val writerPlan =
+            planTransitionPixelFrameBufferWriter(
                 timelineTimeMs = timelineTimeMs,
                 motionBlurPolicy = motionBlurPolicy,
                 edgePolicy = edgePolicy,
@@ -2842,19 +2885,22 @@ private data class ProfessionalVideoTransitionRenderSession(
                 appContext = appContext,
                 frameBufferStore = frameBufferStore,
             )
-        if (frameBufferPlan["status"] != "planned") {
-            return frameBufferPlan
+        if (writerPlan["status"] != "planned") {
+            return writerPlan
         }
-        val pixelWorkloadBound = frameBufferPlan["pixelWorkloadBound"] == true
-        val outputFramebufferBound = frameBufferPlan["outputFramebufferBound"] == true
-        val frameBufferReady = frameBufferPlan["frameBufferReady"] == true
+        val pixelWorkloadBound = writerPlan["pixelWorkloadBound"] == true
+        val outputFramebufferBound = writerPlan["outputFramebufferBound"] == true
+        val frameBufferReady = writerPlan["frameBufferReady"] == true
+        val writerReady = writerPlan["writerReady"] == true
+        val canWriteTemporalPixels = writerPlan["canWriteTemporalPixels"] == true
+        val wroteTemporalPixels = writerPlan["wroteTemporalPixels"] == true
         val frameBufferContainsRealPixels =
-            frameBufferPlan["frameBufferContainsRealPixels"] == true
-        val pixelRendererImplemented = frameBufferPlan["pixelRendererImplemented"] == true
+            writerPlan["frameBufferContainsRealPixels"] == true
+        val pixelRendererImplemented = writerPlan["pixelRendererImplemented"] == true
         val pixelOutputWritten = false
-        val rendererImplemented = frameBufferPlan["rendererImplemented"] == true
+        val rendererImplemented = writerPlan["rendererImplemented"] == true
         val upstreamBlockedReasons =
-            (frameBufferPlan["blockedReasons"] as? List<*>)
+            (writerPlan["blockedReasons"] as? List<*>)
                 ?.map { reason -> reason.toString() }
                 ?: emptyList()
         val blockedReasons =
@@ -2869,6 +2915,12 @@ private data class ProfessionalVideoTransitionRenderSession(
                 if (!frameBufferReady) {
                     add("native_transition_pixel_frame_buffer_not_ready")
                 }
+                if (!writerReady || !canWriteTemporalPixels) {
+                    add("native_transition_pixel_frame_buffer_writer_missing")
+                }
+                if (!wroteTemporalPixels) {
+                    add("native_transition_pixel_frame_buffer_temporal_pixels_missing")
+                }
                 if (!frameBufferContainsRealPixels) {
                     add("native_transition_pixel_frame_buffer_pixels_missing")
                 }
@@ -2882,7 +2934,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                     add("native_transition_renderer_pixels_missing")
                 }
             }.distinct()
-        return frameBufferPlan +
+        return writerPlan +
             mapOf(
                 "transitionPixelRenderExecutionId" to "$id:pixel-render-execution:$timelineTimeMs",
                 "pixelOutputFrameId" to "$id:pixel-output-frame:$timelineTimeMs",
@@ -2890,11 +2942,94 @@ private data class ProfessionalVideoTransitionRenderSession(
                 "pixelWorkloadBound" to pixelWorkloadBound,
                 "outputFramebufferBound" to outputFramebufferBound,
                 "pixelRendererImplemented" to pixelRendererImplemented,
-                "pixelRendererReady" to (frameBufferPlan["pixelRendererReady"] == true),
+                "pixelRendererReady" to (writerPlan["pixelRendererReady"] == true),
                 "pixelRenderExecutionReady" to false,
                 "pixelOutputWritten" to pixelOutputWritten,
                 "pixelOutputReady" to false,
                 "rendererImplemented" to rendererImplemented,
+                "canRenderPixels" to false,
+                "rendersRealPixels" to false,
+                "drawsPixels" to false,
+                "canRenderFrame" to false,
+                "blockedReasons" to blockedReasons,
+            )
+    }
+
+    fun planTransitionPixelFrameBufferWriter(
+        timelineTimeMs: Long,
+        motionBlurPolicy: Map<*, *>?,
+        edgePolicy: Map<*, *>?,
+        parameters: Map<*, *>?,
+        appContext: Context,
+        frameBufferStore: ProfessionalVideoTransitionPixelFrameBufferStore,
+    ): Map<String, Any> {
+        val frameBufferPlan =
+            planTransitionPixelFrameBuffer(
+                timelineTimeMs = timelineTimeMs,
+                motionBlurPolicy = motionBlurPolicy,
+                edgePolicy = edgePolicy,
+                parameters = parameters,
+                appContext = appContext,
+                frameBufferStore = frameBufferStore,
+            )
+        if (frameBufferPlan["status"] != "planned") {
+            return frameBufferPlan
+        }
+        val pixelWorkloadBound = frameBufferPlan["pixelWorkloadBound"] == true
+        val outputFramebufferBound = frameBufferPlan["outputFramebufferBound"] == true
+        val frameBufferAllocated = frameBufferPlan["frameBufferAllocated"] == true
+        val frameBufferReady = frameBufferPlan["frameBufferReady"] == true
+        val writerBoundToFrameBuffer =
+            pixelWorkloadBound &&
+                outputFramebufferBound &&
+                frameBufferAllocated &&
+                frameBufferReady
+        val requiresTemporalSamples = true
+        val requiresDualSourceSamples = sourceRoles.size >= 2
+        val writerImplemented = false
+        val writerReady = false
+        val canWriteTemporalPixels = false
+        val wroteTemporalPixels = false
+        val frameBufferContainsRealPixels = false
+        val upstreamBlockedReasons =
+            (frameBufferPlan["blockedReasons"] as? List<*>)
+                ?.map { reason -> reason.toString() }
+                ?: emptyList()
+        val blockedReasons =
+            buildList {
+                addAll(upstreamBlockedReasons)
+                if (!writerBoundToFrameBuffer) {
+                    add("native_transition_pixel_frame_buffer_writer_not_bound")
+                }
+                if (requiresTemporalSamples && !canWriteTemporalPixels) {
+                    add("native_transition_pixel_frame_buffer_writer_missing")
+                }
+                if (requiresDualSourceSamples && !wroteTemporalPixels) {
+                    add("native_transition_pixel_frame_buffer_temporal_pixels_missing")
+                }
+                if (!frameBufferContainsRealPixels) {
+                    add("native_transition_pixel_frame_buffer_pixels_missing")
+                }
+            }.distinct()
+        return frameBufferPlan +
+            mapOf(
+                "transitionPixelFrameBufferWriterId" to "$id:pixel-frame-buffer-writer:$timelineTimeMs",
+                "writerBoundToFrameBuffer" to writerBoundToFrameBuffer,
+                "requiresTemporalSamples" to requiresTemporalSamples,
+                "requiresDualSourceSamples" to requiresDualSourceSamples,
+                "allowsStillFrameWrite" to false,
+                "allowsSyntheticPixels" to false,
+                "allowsPosterFrame" to false,
+                "allowsThumbnailFallback" to false,
+                "allowsBoundaryFreeze" to false,
+                "writerImplemented" to writerImplemented,
+                "writerReady" to writerReady,
+                "canWriteTemporalPixels" to canWriteTemporalPixels,
+                "wroteTemporalPixels" to wroteTemporalPixels,
+                "frameBufferContainsRealPixels" to frameBufferContainsRealPixels,
+                "pixelRendererImplemented" to false,
+                "pixelRendererReady" to false,
+                "rendererImplemented" to false,
                 "canRenderPixels" to false,
                 "rendersRealPixels" to false,
                 "drawsPixels" to false,

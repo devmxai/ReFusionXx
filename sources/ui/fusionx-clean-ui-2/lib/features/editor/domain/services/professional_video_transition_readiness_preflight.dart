@@ -23,6 +23,7 @@ enum ProfessionalVideoTransitionReadinessStageId {
   transitionShaderEvaluation,
   transitionPixelRenderer,
   transitionPixelFrameBuffer,
+  transitionPixelFrameBufferWriter,
   transitionPixelRenderExecution,
   transitionPixelOutputProof,
   parityOutputs,
@@ -203,6 +204,17 @@ class ProfessionalVideoTransitionReadinessPreflight {
       timelineTime: timelineTime,
     );
     stages.add(_transitionPixelFrameBufferStage(transitionPixelFrameBuffer));
+
+    final transitionPixelFrameBufferWriter =
+        await _client.planTransitionPixelFrameBufferWriter(
+      plan: plan,
+      timelineTime: timelineTime,
+    );
+    stages.add(
+      _transitionPixelFrameBufferWriterStage(
+        transitionPixelFrameBufferWriter,
+      ),
+    );
 
     final transitionPixelRenderExecution =
         await _client.planTransitionPixelRenderExecution(
@@ -603,8 +615,9 @@ class ProfessionalVideoTransitionReadinessPreflight {
       _transitionPixelFrameBufferStage(
     ProfessionalVideoTransitionPixelFrameBufferPlanResult result,
   ) {
-    final canAdvance =
-        result.frameBufferReady && result.frameBufferContainsRealPixels;
+    final canAdvance = result.outputFramebufferBound &&
+        result.frameBufferAllocated &&
+        result.frameBufferReady;
     return ProfessionalVideoTransitionReadinessStage(
       id: ProfessionalVideoTransitionReadinessStageId
           .transitionPixelFrameBuffer,
@@ -616,6 +629,32 @@ class ProfessionalVideoTransitionReadinessPreflight {
         blockedReasons: result.blockedReasons,
         issues: result.issues,
         includeReason: !canAdvance,
+      ),
+      issues: result.issues,
+    );
+  }
+
+  static ProfessionalVideoTransitionReadinessStage
+      _transitionPixelFrameBufferWriterStage(
+    ProfessionalVideoTransitionPixelFrameBufferWriterPlanResult result,
+  ) {
+    return ProfessionalVideoTransitionReadinessStage(
+      id: ProfessionalVideoTransitionReadinessStageId
+          .transitionPixelFrameBufferWriter,
+      label: 'Native transition pixel frame buffer writer',
+      canPlan: result.canPlan,
+      canAdvance: result.writerReady &&
+          result.canWriteTemporalPixels &&
+          result.wroteTemporalPixels &&
+          result.frameBufferContainsRealPixels,
+      blockers: _blockers(
+        reason: result.reason,
+        blockedReasons: result.blockedReasons,
+        issues: result.issues,
+        includeReason: !(result.writerReady &&
+            result.canWriteTemporalPixels &&
+            result.wroteTemporalPixels &&
+            result.frameBufferContainsRealPixels),
       ),
       issues: result.issues,
     );

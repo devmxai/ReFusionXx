@@ -212,6 +212,12 @@ abstract class ProfessionalVideoTransitionCompositorClient
     required TimelineTime timelineTime,
   });
 
+  Future<ProfessionalVideoTransitionPixelFrameBufferWriterPlanResult>
+      planTransitionPixelFrameBufferWriter({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  });
+
   Future<ProfessionalVideoTransitionPixelRenderExecutionPlanResult>
       planTransitionPixelRenderExecution({
     required ProfessionalVideoTransitionRenderPlan plan,
@@ -789,6 +795,36 @@ class MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider
       );
     } on PlatformException catch (error) {
       return ProfessionalVideoTransitionPixelFrameBufferPlanResult
+          .invalidRequest(
+        reason: error.message ?? error.code,
+      );
+    }
+  }
+
+  @override
+  Future<ProfessionalVideoTransitionPixelFrameBufferWriterPlanResult>
+      planTransitionPixelFrameBufferWriter({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  }) async {
+    try {
+      final payload = plan.toPlatformMap();
+      payload['timelineTimeMs'] = timelineTime.inMilliseconds;
+      final rawResult = await _channel.invokeMapMethod<String, Object?>(
+        'planTransitionPixelFrameBufferWriter',
+        payload,
+      );
+      return ProfessionalVideoTransitionPixelFrameBufferWriterPlanResultMapper
+          .fromMap(
+        rawResult,
+      );
+    } on MissingPluginException {
+      return ProfessionalVideoTransitionPixelFrameBufferWriterPlanResult
+          .invalidRequest(
+        reason: 'native_compositor_channel_missing',
+      );
+    } on PlatformException catch (error) {
+      return ProfessionalVideoTransitionPixelFrameBufferWriterPlanResult
           .invalidRequest(
         reason: error.message ?? error.code,
       );
@@ -5275,6 +5311,303 @@ class ProfessionalVideoTransitionPixelFrameBufferPlanResultMapper {
       allowsPosterFrame: _readBool(map['allowsPosterFrame']),
       allowsThumbnailFallback: _readBool(map['allowsThumbnailFallback']),
       allowsBoundaryFreeze: _readBool(map['allowsBoundaryFreeze']),
+      rendererImplemented: _readBool(map['rendererImplemented']),
+      canRenderPixels: _readBool(map['canRenderPixels']),
+      rendersRealPixels: _readBool(map['rendersRealPixels']),
+      drawsPixels: _readBool(map['drawsPixels']),
+      canRenderFrame: _readBool(map['canRenderFrame']),
+      blockedReasons: _readStringList(map['blockedReasons']),
+      issues: _readIssues(map['issues']),
+    );
+  }
+
+  static TimelineTime? _readTimelineTime(Object? value) {
+    if (value is num) {
+      return TimelineTime.fromMilliseconds(value.round());
+    }
+    final parsed = int.tryParse(value?.toString() ?? '');
+    if (parsed == null) {
+      return null;
+    }
+    return TimelineTime.fromMilliseconds(parsed);
+  }
+
+  static int _readInt(Object? value) {
+    if (value is num) {
+      return value.round();
+    }
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static bool _readBool(Object? value, {bool defaultValue = false}) {
+    if (value is bool) {
+      return value;
+    }
+    return defaultValue;
+  }
+
+  static List<String> _readStringList(Object? value) {
+    if (value is! List) {
+      return const <String>[];
+    }
+    return List<String>.unmodifiable(value.map((entry) => entry.toString()));
+  }
+
+  static List<Map<String, Object?>> _readIssues(Object? value) {
+    if (value is! List) {
+      return const <Map<String, Object?>>[];
+    }
+    return List<Map<String, Object?>>.unmodifiable(
+      value.whereType<Map>().map((issue) {
+        return <String, Object?>{
+          for (final entry in issue.entries) entry.key.toString(): entry.value,
+        };
+      }),
+    );
+  }
+}
+
+enum ProfessionalVideoTransitionPixelFrameBufferWriterPlanStatus {
+  planned,
+  invalidRequest,
+}
+
+@immutable
+class ProfessionalVideoTransitionPixelFrameBufferWriterPlanResult {
+  const ProfessionalVideoTransitionPixelFrameBufferWriterPlanResult({
+    required this.status,
+    required this.reason,
+    required this.rendererVersion,
+    required this.definitionId,
+    required this.renderSessionId,
+    required this.transitionPixelRendererId,
+    required this.transitionPixelFrameBufferId,
+    required this.transitionPixelFrameBufferWriterId,
+    required this.pixelProgramId,
+    required this.outputSurfaceId,
+    required this.outputTarget,
+    required this.outputFramebufferTarget,
+    required this.timelineTime,
+    required this.transitionStartTime,
+    required this.transitionEndTime,
+    required this.canvasWidth,
+    required this.canvasHeight,
+    required this.frameBufferWidth,
+    required this.frameBufferHeight,
+    required this.frameBufferFormat,
+    required this.frameBufferByteCount,
+    required this.frameBufferMemoryClass,
+    required this.pixelWorkloadBound,
+    required this.outputFramebufferBound,
+    required this.frameBufferAllocated,
+    required this.frameBufferReady,
+    required this.writerBoundToFrameBuffer,
+    required this.requiresTemporalSamples,
+    required this.requiresDualSourceSamples,
+    required this.allowsStillFrameWrite,
+    required this.allowsSyntheticPixels,
+    required this.allowsPosterFrame,
+    required this.allowsThumbnailFallback,
+    required this.allowsBoundaryFreeze,
+    required this.writerImplemented,
+    required this.writerReady,
+    required this.canWriteTemporalPixels,
+    required this.wroteTemporalPixels,
+    required this.frameBufferContainsRealPixels,
+    required this.pixelRendererImplemented,
+    required this.pixelRendererReady,
+    required this.rendererImplemented,
+    required this.canRenderPixels,
+    required this.rendersRealPixels,
+    required this.drawsPixels,
+    required this.canRenderFrame,
+    required this.blockedReasons,
+    this.issues = const <Map<String, Object?>>[],
+  });
+
+  factory ProfessionalVideoTransitionPixelFrameBufferWriterPlanResult.invalidRequest({
+    required String reason,
+    String rendererVersion = 'unknown',
+    List<Map<String, Object?>> issues = const <Map<String, Object?>>[],
+  }) {
+    return ProfessionalVideoTransitionPixelFrameBufferWriterPlanResult(
+      status: ProfessionalVideoTransitionPixelFrameBufferWriterPlanStatus
+          .invalidRequest,
+      reason: reason,
+      rendererVersion: rendererVersion,
+      definitionId: '',
+      renderSessionId: '',
+      transitionPixelRendererId: '',
+      transitionPixelFrameBufferId: '',
+      transitionPixelFrameBufferWriterId: '',
+      pixelProgramId: '',
+      outputSurfaceId: '',
+      outputTarget: '',
+      outputFramebufferTarget: '',
+      timelineTime: null,
+      transitionStartTime: null,
+      transitionEndTime: null,
+      canvasWidth: 0,
+      canvasHeight: 0,
+      frameBufferWidth: 0,
+      frameBufferHeight: 0,
+      frameBufferFormat: '',
+      frameBufferByteCount: 0,
+      frameBufferMemoryClass: '',
+      pixelWorkloadBound: false,
+      outputFramebufferBound: false,
+      frameBufferAllocated: false,
+      frameBufferReady: false,
+      writerBoundToFrameBuffer: false,
+      requiresTemporalSamples: true,
+      requiresDualSourceSamples: true,
+      allowsStillFrameWrite: false,
+      allowsSyntheticPixels: false,
+      allowsPosterFrame: false,
+      allowsThumbnailFallback: false,
+      allowsBoundaryFreeze: false,
+      writerImplemented: false,
+      writerReady: false,
+      canWriteTemporalPixels: false,
+      wroteTemporalPixels: false,
+      frameBufferContainsRealPixels: false,
+      pixelRendererImplemented: false,
+      pixelRendererReady: false,
+      rendererImplemented: false,
+      canRenderPixels: false,
+      rendersRealPixels: false,
+      drawsPixels: false,
+      canRenderFrame: false,
+      blockedReasons: const <String>[],
+      issues: issues,
+    );
+  }
+
+  final ProfessionalVideoTransitionPixelFrameBufferWriterPlanStatus status;
+  final String reason;
+  final String rendererVersion;
+  final String definitionId;
+  final String renderSessionId;
+  final String transitionPixelRendererId;
+  final String transitionPixelFrameBufferId;
+  final String transitionPixelFrameBufferWriterId;
+  final String pixelProgramId;
+  final String outputSurfaceId;
+  final String outputTarget;
+  final String outputFramebufferTarget;
+  final TimelineTime? timelineTime;
+  final TimelineTime? transitionStartTime;
+  final TimelineTime? transitionEndTime;
+  final int canvasWidth;
+  final int canvasHeight;
+  final int frameBufferWidth;
+  final int frameBufferHeight;
+  final String frameBufferFormat;
+  final int frameBufferByteCount;
+  final String frameBufferMemoryClass;
+  final bool pixelWorkloadBound;
+  final bool outputFramebufferBound;
+  final bool frameBufferAllocated;
+  final bool frameBufferReady;
+  final bool writerBoundToFrameBuffer;
+  final bool requiresTemporalSamples;
+  final bool requiresDualSourceSamples;
+  final bool allowsStillFrameWrite;
+  final bool allowsSyntheticPixels;
+  final bool allowsPosterFrame;
+  final bool allowsThumbnailFallback;
+  final bool allowsBoundaryFreeze;
+  final bool writerImplemented;
+  final bool writerReady;
+  final bool canWriteTemporalPixels;
+  final bool wroteTemporalPixels;
+  final bool frameBufferContainsRealPixels;
+  final bool pixelRendererImplemented;
+  final bool pixelRendererReady;
+  final bool rendererImplemented;
+  final bool canRenderPixels;
+  final bool rendersRealPixels;
+  final bool drawsPixels;
+  final bool canRenderFrame;
+  final List<String> blockedReasons;
+  final List<Map<String, Object?>> issues;
+
+  bool get canPlan =>
+      status ==
+      ProfessionalVideoTransitionPixelFrameBufferWriterPlanStatus.planned;
+}
+
+class ProfessionalVideoTransitionPixelFrameBufferWriterPlanResultMapper {
+  const ProfessionalVideoTransitionPixelFrameBufferWriterPlanResultMapper._();
+
+  static ProfessionalVideoTransitionPixelFrameBufferWriterPlanResult fromMap(
+    Map<String, Object?>? map,
+  ) {
+    if (map == null) {
+      return ProfessionalVideoTransitionPixelFrameBufferWriterPlanResult
+          .invalidRequest(
+        reason:
+            'native_compositor_empty_transition_pixel_frame_buffer_writer_response',
+      );
+    }
+    final status = switch (map['status']?.toString()) {
+      'planned' =>
+        ProfessionalVideoTransitionPixelFrameBufferWriterPlanStatus.planned,
+      _ => ProfessionalVideoTransitionPixelFrameBufferWriterPlanStatus
+          .invalidRequest,
+    };
+    return ProfessionalVideoTransitionPixelFrameBufferWriterPlanResult(
+      status: status,
+      reason: map['reason']?.toString() ?? '',
+      rendererVersion: map['rendererVersion']?.toString() ?? 'unknown',
+      definitionId: map['definitionId']?.toString() ?? '',
+      renderSessionId: map['renderSessionId']?.toString() ?? '',
+      transitionPixelRendererId:
+          map['transitionPixelRendererId']?.toString() ?? '',
+      transitionPixelFrameBufferId:
+          map['transitionPixelFrameBufferId']?.toString() ?? '',
+      transitionPixelFrameBufferWriterId:
+          map['transitionPixelFrameBufferWriterId']?.toString() ?? '',
+      pixelProgramId: map['pixelProgramId']?.toString() ?? '',
+      outputSurfaceId: map['outputSurfaceId']?.toString() ?? '',
+      outputTarget: map['outputTarget']?.toString() ?? '',
+      outputFramebufferTarget: map['outputFramebufferTarget']?.toString() ?? '',
+      timelineTime: _readTimelineTime(map['timelineTimeMs']),
+      transitionStartTime: _readTimelineTime(map['transitionStartMs']),
+      transitionEndTime: _readTimelineTime(map['transitionEndMs']),
+      canvasWidth: _readInt(map['canvasWidth']),
+      canvasHeight: _readInt(map['canvasHeight']),
+      frameBufferWidth: _readInt(map['frameBufferWidth']),
+      frameBufferHeight: _readInt(map['frameBufferHeight']),
+      frameBufferFormat: map['frameBufferFormat']?.toString() ?? '',
+      frameBufferByteCount: _readInt(map['frameBufferByteCount']),
+      frameBufferMemoryClass: map['frameBufferMemoryClass']?.toString() ?? '',
+      pixelWorkloadBound: _readBool(map['pixelWorkloadBound']),
+      outputFramebufferBound: _readBool(map['outputFramebufferBound']),
+      frameBufferAllocated: _readBool(map['frameBufferAllocated']),
+      frameBufferReady: _readBool(map['frameBufferReady']),
+      writerBoundToFrameBuffer: _readBool(map['writerBoundToFrameBuffer']),
+      requiresTemporalSamples: _readBool(
+        map['requiresTemporalSamples'],
+        defaultValue: true,
+      ),
+      requiresDualSourceSamples: _readBool(
+        map['requiresDualSourceSamples'],
+        defaultValue: true,
+      ),
+      allowsStillFrameWrite: _readBool(map['allowsStillFrameWrite']),
+      allowsSyntheticPixels: _readBool(map['allowsSyntheticPixels']),
+      allowsPosterFrame: _readBool(map['allowsPosterFrame']),
+      allowsThumbnailFallback: _readBool(map['allowsThumbnailFallback']),
+      allowsBoundaryFreeze: _readBool(map['allowsBoundaryFreeze']),
+      writerImplemented: _readBool(map['writerImplemented']),
+      writerReady: _readBool(map['writerReady']),
+      canWriteTemporalPixels: _readBool(map['canWriteTemporalPixels']),
+      wroteTemporalPixels: _readBool(map['wroteTemporalPixels']),
+      frameBufferContainsRealPixels:
+          _readBool(map['frameBufferContainsRealPixels']),
+      pixelRendererImplemented: _readBool(map['pixelRendererImplemented']),
+      pixelRendererReady: _readBool(map['pixelRendererReady']),
       rendererImplemented: _readBool(map['rendererImplemented']),
       canRenderPixels: _readBool(map['canRenderPixels']),
       rendersRealPixels: _readBool(map['rendersRealPixels']),

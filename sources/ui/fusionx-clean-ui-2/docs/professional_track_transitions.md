@@ -641,7 +641,7 @@ or Zoom In Pro until the native compositor completes the shared readiness chain.
 Pixel output proof gate:
 
 - `planTransitionPixelFrameBuffer` must pass after pixel workload binding and
-  before pixel render execution;
+  before frame-buffer writing;
 - the frame-buffer gate must prove a native `rgba8888` buffer matching the
   composition canvas is allocated for `nativeTransitionCanvasSurface`;
 - Android now owns a bounded `DirectByteBuffer` allocation store for this gate.
@@ -649,8 +649,15 @@ Pixel output proof gate:
   visual rendering or temporal video pixels;
 - it must explicitly reject synthetic pixels, poster frames, thumbnail
   fallbacks, and boundary-frame freezes;
-- until the concrete native renderer fills that buffer with real temporal video
-  pixels, the blocker remains
+- `planTransitionPixelFrameBufferWriter` must pass after frame-buffer allocation
+  and before pixel render execution. This writer gate must prove a native writer
+  is bound to the allocated buffer, requires temporal dual-source samples, and
+  forbids still-frame writes, synthetic pixels, poster frames, thumbnails, and
+  boundary freezes;
+- until a concrete native writer copies/mixes real temporal video samples into
+  that buffer, the blockers remain
+  `native_transition_pixel_frame_buffer_writer_missing`,
+  `native_transition_pixel_frame_buffer_temporal_pixels_missing`, and
   `native_transition_pixel_frame_buffer_pixels_missing`;
 - `planTransitionPixelOutputProof` must pass after pixel render execution and
   before preview/scrub/playback parity;
@@ -984,12 +991,21 @@ Current gate:
   records the required canvas-size `rgba8888` buffer for
   `nativeTransitionCanvasSurface`, allocates bounded native direct-buffer
   storage, forbids synthetic pixels, poster frames, thumbnail fallbacks, and
-  boundary freezes, and remains blocked until a concrete renderer fills that
-  buffer with real temporal video pixels.
+  boundary freezes. Allocation only proves native memory ownership; temporal
+  pixel writes are handled by the next gate.
+- Flutter and Android now also share `planTransitionPixelFrameBufferWriter`.
+  This is the native writer gate between allocated frame-buffer memory and pixel
+  render execution. It binds the writer to the allocated `DirectByteBuffer`,
+  requires temporal dual-source samples, rejects still-frame writes and all fake
+  fallbacks, and remains blocked until a concrete native writer can write real
+  moving video pixels into the buffer.
 - Flutter and Android now also share `planTransitionPixelRenderExecution`. This
   is the explicit execution/output gate for the future concrete pixel renderer.
-  It binds the pixel workload to the native output framebuffer and remains
-  blocked with `native_transition_pixel_renderer_missing`,
+  It now depends on the writer gate before binding the pixel workload to the
+  native output framebuffer and remains blocked with
+  `native_transition_pixel_frame_buffer_writer_missing`,
+  `native_transition_pixel_frame_buffer_temporal_pixels_missing`,
+  `native_transition_pixel_renderer_missing`,
   `native_transition_pixel_output_missing`, and
   `native_transition_renderer_pixels_missing` until a concrete renderer writes
   real pixels. This prevents a shader-ready or workload-ready transition from
