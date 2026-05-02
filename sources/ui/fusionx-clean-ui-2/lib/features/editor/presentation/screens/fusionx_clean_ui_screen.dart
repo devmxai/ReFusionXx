@@ -18728,9 +18728,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       label: 'Scale',
       editorDescription:
           'Animates clip size with the same core Scale control used by video layer scopes.',
-      min: 0.0,
-      max: 300.0,
-      fallback: 100.0,
+      min: -100.0,
+      max: 100.0,
+      fallback: 0.0,
       tint: Color(0xFF8DFFAE),
       keyframeStops: <double>[],
       valueFormatter: _formatTransitionScale,
@@ -21009,7 +21009,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   bool _hasImplementedNativeProfessionalTransitionRenderer(
     TimelineTransitionPreset preset,
   ) {
-    return false;
+    return preset == TimelineTransitionPreset.manual ||
+        preset == TimelineTransitionPreset.distortionZoomInV1;
+  }
+
+  bool _mustRenderTransitionOnNativeSurface(
+    TimelineTrackTransitionData transition,
+  ) {
+    return transition.preset == TimelineTransitionPreset.manual &&
+        transition.manualEffectIds.isNotEmpty;
   }
 
   ProfessionalVideoTransitionRenderPlanBuildResult
@@ -21020,6 +21028,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required TimelineTime boundaryTime,
     required String mode,
     required String surfaceId,
+    double? manualLaneProgress,
   }) {
     final definitionId = _professionalTransitionDefinitionId(transition.preset);
     if (definitionId == null) {
@@ -21041,6 +21050,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final parameters = <String, Object?>{
       ...transition.preset.defaultParameterValues,
       ...transition.parameterValues,
+      if (transition.preset == TimelineTransitionPreset.manual)
+        ..._manualTransitionNativeParameters(
+          transition,
+          progress: manualLaneProgress ?? 0.0,
+        ),
     };
     return const ProfessionalVideoTransitionRenderPlanAdapter().build(
       ProfessionalVideoTransitionRenderPlanRequest(
@@ -21056,7 +21070,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         edgePolicy: <String, Object?>{
           'mode': 'mirrorTile',
           'fillMode': 'centerCrop',
-          if (isDistortionZoom) ...<String, Object?>{
+          if (isDistortionZoom ||
+              transition.preset ==
+                  TimelineTransitionPreset.manual) ...<String, Object?>{
             'outputScaleX': parameters['motionTileOutputScaleX'] ?? 4.0,
             'outputScaleY': parameters['motionTileOutputScaleY'] ?? 4.0,
           },
@@ -21075,6 +21091,31 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         ],
       ),
     );
+  }
+
+  Map<String, Object?> _manualTransitionNativeParameters(
+    TimelineTrackTransitionData transition, {
+    required double progress,
+  }) {
+    final laneProgress = progress.clamp(0.0, 1.0).toDouble();
+    final scalePercent = transition.manualLaneValueAtProgress(
+      'scale',
+      laneProgress,
+      fallbackValue: 0.0,
+    );
+    final opacityPercent = transition.manualLaneValueAtProgress(
+      'opacity',
+      laneProgress,
+      fallbackValue: 100.0,
+    );
+    return <String, Object?>{
+      'manualTransform': true,
+      'manualScalePercent': scalePercent.clamp(-90.0, 300.0).toDouble(),
+      'manualScale': (1.0 + (scalePercent / 100.0)).clamp(0.1, 4.0).toDouble(),
+      'manualOpacity': (opacityPercent / 100.0).clamp(0.0, 1.0).toDouble(),
+      'motionTileOutputScaleX': 4.0,
+      'motionTileOutputScaleY': 4.0,
+    };
   }
 
   void _debugProfessionalTransitionBuildIssues({
@@ -21117,6 +21158,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       boundaryTime: activeTransition.leftClip.endTime,
       mode: mode,
       surfaceId: surfaceId,
+      manualLaneProgress: activeTransition.manualLaneProgress,
     );
     if (!buildResult.canBuild) {
       _debugProfessionalTransitionBuildIssues(
@@ -21139,6 +21181,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     TimelineTransitionPreset preset,
   ) {
     return switch (preset) {
+      TimelineTransitionPreset.manual => 'manualTransform',
       TimelineTransitionPreset.zoomInCamera => 'zoomInCamera',
       TimelineTransitionPreset.zoomInPro => 'zoomInCamera',
       TimelineTransitionPreset.distortionZoomInV1 => 'distortionZoomInV1',
@@ -21340,7 +21383,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                         ),
                       ),
                     if (activeTransition != null &&
-                        professionalTransitionPlan == null)
+                        professionalTransitionPlan == null &&
+                        !_mustRenderTransitionOnNativeSurface(
+                          activeTransition.transition,
+                        ))
                       TimelineTransitionPreviewOverlay(
                         transition: activeTransition.transition,
                         progress: activeTransition.progress,

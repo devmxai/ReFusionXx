@@ -214,6 +214,7 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
       widget.timelineTime.inMilliseconds,
       widget.mode,
       widget.surfaceId,
+      widget.plan.parameters,
     ].join(':');
   }
 

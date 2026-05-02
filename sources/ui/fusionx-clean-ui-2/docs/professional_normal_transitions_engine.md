@@ -840,3 +840,26 @@ ANR safety gate:
   nonblocking native decoder/frame pipeline is implemented;
 - if a mode cannot be rendered without blocking play or timeline auto-scroll,
   the transition must fail closed for that mode rather than retrying repeatedly.
+
+## 17. Current Slice: Manual Transform Native Preview
+
+Manual Transition Scope now has a first native preview renderer for transform
+authoring. When a Manual transition has authored lanes, Flutter builds a
+`manualTransform` `ProfessionalVideoTransitionRenderPlan` instead of using
+`TimelineTransitionPreviewOverlay`. Android then samples real outgoing/incoming
+video frames at the transition timeline time and writes the transformed result
+to the bound `ProfessionalVideoTransitionSurface`.
+
+Rules for this slice:
+
+- `Scale` in Manual Transition is signed-percent authoring: `0%` means normal
+  video scale, `+100%` means 2x zoom, and negative values shrink the live video
+  surface with a native clamp above zero;
+- current preview support is native-surface preview only. Playback and Live
+  Scrub remain protected and must fail closed until the nonblocking compositor
+  path is expanded;
+- Manual transition preview must not fall back to thumbnails, poster frames,
+  cached boundary stills, Flutter transforms, or timeline overlay drawing;
+- the authored lane values are still timeline data. The native renderer receives
+  evaluated parameters for the current transition frame and applies them to real
+  source video pixels.

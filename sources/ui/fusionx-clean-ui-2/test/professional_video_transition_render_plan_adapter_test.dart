@@ -153,6 +153,42 @@ void main() {
     );
   });
 
+  test('builds manual transform native render plan with signed scale params',
+      () {
+    final result = adapter.build(
+      ProfessionalVideoTransitionRenderPlanRequest(
+        transition: TimelineTrackTransitionData(
+          id: 'manual-transform-a-b',
+          leftClipId: 'clip-a',
+          rightClipId: 'clip-b',
+          preset: TimelineTransitionPreset.manual,
+          durationTime: TimelineTime.fromMilliseconds(2000),
+          manualEffectIds: const <String>['scale'],
+        ),
+        definitionId: 'manualTransform',
+        outgoingClip: _clip('clip-a', 'asset-a'),
+        incomingClip: _clip('clip-b', 'asset-b'),
+        boundaryTime: TimelineTime.fromMilliseconds(10000),
+        canvasWidth: 1080,
+        canvasHeight: 1920,
+        sourceUriForAsset: (assetId) => 'file:///$assetId.mp4',
+        parameters: const <String, Object?>{
+          'manualTransform': true,
+          'manualScalePercent': 100.0,
+          'manualScale': 2.0,
+          'manualOpacity': 1.0,
+        },
+      ),
+    );
+
+    expect(result.canBuild, isTrue);
+    final plan = result.plan!;
+    expect(plan.definitionId, 'manualTransform');
+    expect(plan.parameters['manualTransform'], isTrue);
+    expect(plan.parameters['manualScalePercent'], 100.0);
+    expect(plan.parameters['manualScale'], 2.0);
+  });
+
   test('fails when the requested transition window exceeds real handles', () {
     final result = adapter.build(
       ProfessionalVideoTransitionRenderPlanRequest(

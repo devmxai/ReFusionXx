@@ -3422,6 +3422,16 @@ private data class ProfessionalVideoTransitionRenderSession(
                 parameters = parameters,
             )
         }
+        if (definitionId == "manualTransform") {
+            return writeManualTransformPixelsToFrameBuffer(
+                appContext = appContext,
+                frameBufferStore = frameBufferStore,
+                frameBufferId = frameBufferId,
+                timelineTimeMs = timelineTimeMs,
+                motionBlurPolicy = motionBlurPolicy,
+                parameters = parameters,
+            )
+        }
         val width = canvasWidth.toInt()
         val height = canvasHeight.toInt()
         if (width <= 0 || height <= 0) {
@@ -3514,6 +3524,113 @@ private data class ProfessionalVideoTransitionRenderSession(
                     sampleCount = timelineSamples.size,
                     extractedFrameCount = extractedFrameCount,
                     reason = "native_transition_temporal_dual_source_pixels_missing",
+                )
+            }
+            return frameBufferStore.writeBitmap(
+                frameBufferId = frameBufferId,
+                bitmap = canvasBitmap,
+                sampleCount = timelineSamples.size,
+                extractedFrameCount = extractedFrameCount,
+            )
+        } finally {
+            canvasBitmap.recycle()
+        }
+    }
+
+    private fun writeManualTransformPixelsToFrameBuffer(
+        appContext: Context,
+        frameBufferStore: ProfessionalVideoTransitionPixelFrameBufferStore,
+        frameBufferId: String,
+        timelineTimeMs: Long,
+        motionBlurPolicy: Map<*, *>?,
+        parameters: Map<*, *>?,
+    ): ProfessionalVideoTransitionPixelFrameBufferWriteResult {
+        val width = canvasWidth.toInt()
+        val height = canvasHeight.toInt()
+        if (width <= 0 || height <= 0) {
+            return ProfessionalVideoTransitionPixelFrameBufferWriteResult(
+                wrotePixels = false,
+                byteCount = 0,
+                checksum = 0L,
+                sampleCount = 0,
+                extractedFrameCount = 0,
+                reason = "native_transition_pixel_frame_buffer_invalid_size",
+            )
+        }
+        val timelineSamples = temporalSampleTimelineTimes(timelineTimeMs, motionBlurPolicy)
+        if (timelineSamples.isEmpty()) {
+            return ProfessionalVideoTransitionPixelFrameBufferWriteResult(
+                wrotePixels = false,
+                byteCount = 0,
+                checksum = 0L,
+                sampleCount = 0,
+                extractedFrameCount = 0,
+                reason = "native_transition_temporal_samples_missing",
+            )
+        }
+        val scale =
+            parameters
+                ?.doubleValue("manualScale", defaultValue = 1.0)
+                ?.coerceIn(0.1, 4.0) ?: 1.0
+        val opacity =
+            parameters
+                ?.doubleValue("manualOpacity", defaultValue = 1.0)
+                ?.coerceIn(0.0, 1.0) ?: 1.0
+        val canvasBitmap =
+            runCatching {
+                Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            }.getOrNull()
+                ?: return ProfessionalVideoTransitionPixelFrameBufferWriteResult(
+                    wrotePixels = false,
+                    byteCount = 0,
+                    checksum = 0L,
+                    sampleCount = timelineSamples.size,
+                    extractedFrameCount = 0,
+                    reason = "native_transition_pixel_frame_buffer_bitmap_allocation_failed",
+                )
+        var extractedFrameCount = 0
+        try {
+            val canvas = Canvas(canvasBitmap)
+            canvas.drawColor(Color.BLACK)
+            val sampleAlpha =
+                temporalSampleAlpha((opacity * 255.0).roundToInt(), timelineSamples.size)
+            timelineSamples.forEach { sampleTimelineMs ->
+                val source =
+                    if (sampleTimelineMs < boundaryTimeMs) {
+                        outgoing
+                    } else {
+                        incoming
+                    }
+                if (!source.coversTimelineTime(sampleTimelineMs)) {
+                    return@forEach
+                }
+                val frame =
+                    extractVideoFrameBitmap(
+                        appContext,
+                        source.sourceUri,
+                        source.sourceTimeForTimelineTime(sampleTimelineMs),
+                    )
+                if (frame != null) {
+                    drawBitmapCenterCropTransform(
+                        canvas = canvas,
+                        bitmap = frame,
+                        alpha = sampleAlpha,
+                        canvasWidth = width,
+                        canvasHeight = height,
+                        scale = scale,
+                    )
+                    extractedFrameCount += 1
+                    frame.recycle()
+                }
+            }
+            if (extractedFrameCount <= 0) {
+                return ProfessionalVideoTransitionPixelFrameBufferWriteResult(
+                    wrotePixels = false,
+                    byteCount = 0,
+                    checksum = 0L,
+                    sampleCount = timelineSamples.size,
+                    extractedFrameCount = 0,
+                    reason = "native_transition_manual_video_pixels_missing",
                 )
             }
             return frameBufferStore.writeBitmap(
@@ -4038,6 +4155,42 @@ private data class ProfessionalVideoTransitionRenderSession(
                 Rect(0, top, bitmap.width, (top + cropHeight).coerceAtMost(bitmap.height))
             }
         val destinationRect = RectF(0f, 0f, canvasWidth.toFloat(), canvasHeight.toFloat())
+        val paint =
+            Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
+                this.alpha = alpha.coerceIn(0, 255)
+        }
+        canvas.drawBitmap(bitmap, sourceRect, destinationRect, paint)
+    }
+
+    private fun drawBitmapCenterCropTransform(
+        canvas: Canvas,
+        bitmap: Bitmap,
+        alpha: Int,
+        canvasWidth: Int,
+        canvasHeight: Int,
+        scale: Double,
+    ) {
+        if (alpha <= 0 || bitmap.width <= 0 || bitmap.height <= 0) {
+            return
+        }
+        val bitmapRatio = bitmap.width.toFloat() / bitmap.height.toFloat()
+        val canvasRatio = canvasWidth.toFloat() / canvasHeight.toFloat()
+        val sourceRect =
+            if (bitmapRatio > canvasRatio) {
+                val cropWidth = (bitmap.height * canvasRatio).roundToInt().coerceAtLeast(1)
+                val left = ((bitmap.width - cropWidth) / 2).coerceAtLeast(0)
+                Rect(left, 0, (left + cropWidth).coerceAtMost(bitmap.width), bitmap.height)
+            } else {
+                val cropHeight = (bitmap.width / canvasRatio).roundToInt().coerceAtLeast(1)
+                val top = ((bitmap.height - cropHeight) / 2).coerceAtLeast(0)
+                Rect(0, top, bitmap.width, (top + cropHeight).coerceAtMost(bitmap.height))
+            }
+        val safeScale = scale.coerceIn(0.1, 4.0).toFloat()
+        val scaledWidth = canvasWidth * safeScale
+        val scaledHeight = canvasHeight * safeScale
+        val left = (canvasWidth - scaledWidth) / 2f
+        val top = (canvasHeight - scaledHeight) / 2f
+        val destinationRect = RectF(left, top, left + scaledWidth, top + scaledHeight)
         val paint =
             Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
                 this.alpha = alpha.coerceIn(0, 255)
@@ -6450,6 +6603,17 @@ private class ProfessionalVideoTransitionRendererRegistry(
                     ProfessionalVideoTransitionRendererDefinition(
                         definitionId = "fadeBlack",
                         requiredCapabilities = setOf("dualVideoSampling", "previewParity", "playbackParity"),
+                    ),
+                    ProfessionalVideoTransitionRendererDefinition(
+                        definitionId = "manualTransform",
+                        requiredCapabilities =
+                            setOf(
+                                "dualVideoSampling",
+                                "temporalMotionBlur",
+                                "mirrorEdgeTiling",
+                                "previewParity",
+                            ),
+                        implemented = true,
                     ),
                     ProfessionalVideoTransitionRendererDefinition(
                         definitionId = "zoomInCamera",
