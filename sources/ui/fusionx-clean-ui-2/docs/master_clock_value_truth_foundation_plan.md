@@ -771,6 +771,10 @@ Implementation note (checkpoint `checkpoint: implement master clock value truth 
 - scrub lifecycle writes (`scrubStart`, `scrubUpdate`, `scrubEnd`,
   `confirmScrubSettled`) are now routed through the bridge adapter as well, so
   screen code no longer mutates coordinator scrub state directly.
+- timeline-clock time reads that drive UI snapshot application now read through
+  the bridge adapter too, leaving the coordinator hidden behind one boundary.
+- screen-level clock snapshot application now references bridge-owned time
+  (`MasterClockNativeBridge.time`) instead of reading coordinator time directly.
 
 ## 11. First Writer Task
 

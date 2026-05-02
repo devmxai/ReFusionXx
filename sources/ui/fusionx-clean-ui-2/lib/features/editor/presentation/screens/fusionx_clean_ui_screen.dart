@@ -3071,7 +3071,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   void _applyTimelineClockSnapshotToUi({
     bool updatePlaybackSample = true,
   }) {
-    final clockTime = _timelineClockCoordinator.time.clamp(
+    final clockTime = _masterClockNativeBridge.time.clamp(
       TimelineTime.zero,
       _timelineDurationTime,
     );
