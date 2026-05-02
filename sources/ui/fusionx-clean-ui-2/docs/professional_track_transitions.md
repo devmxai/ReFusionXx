@@ -644,11 +644,13 @@ Pixel output proof gate:
   before pixel render execution;
 - the frame-buffer gate must prove a native `rgba8888` buffer matching the
   composition canvas is allocated for `nativeTransitionCanvasSurface`;
+- Android now owns a bounded `DirectByteBuffer` allocation store for this gate.
+  Allocation success only proves native memory ownership; it does not prove
+  visual rendering or temporal video pixels;
 - it must explicitly reject synthetic pixels, poster frames, thumbnail
   fallbacks, and boundary-frame freezes;
 - until the concrete native renderer fills that buffer with real temporal video
-  pixels, the blockers are
-  `native_transition_pixel_frame_buffer_missing` and
+  pixels, the blocker remains
   `native_transition_pixel_frame_buffer_pixels_missing`;
 - `planTransitionPixelOutputProof` must pass after pixel render execution and
   before preview/scrub/playback parity;
@@ -980,9 +982,10 @@ Current gate:
 - Flutter and Android now also share `planTransitionPixelFrameBuffer`. This is
   the native frame-buffer gate between a pixel workload and pixel execution. It
   records the required canvas-size `rgba8888` buffer for
-  `nativeTransitionCanvasSurface`, forbids synthetic pixels, poster frames,
-  thumbnail fallbacks, and boundary freezes, and remains blocked until a
-  concrete renderer allocates and fills that buffer with real pixels.
+  `nativeTransitionCanvasSurface`, allocates bounded native direct-buffer
+  storage, forbids synthetic pixels, poster frames, thumbnail fallbacks, and
+  boundary freezes, and remains blocked until a concrete renderer fills that
+  buffer with real temporal video pixels.
 - Flutter and Android now also share `planTransitionPixelRenderExecution`. This
   is the explicit execution/output gate for the future concrete pixel renderer.
   It binds the pixel workload to the native output framebuffer and remains

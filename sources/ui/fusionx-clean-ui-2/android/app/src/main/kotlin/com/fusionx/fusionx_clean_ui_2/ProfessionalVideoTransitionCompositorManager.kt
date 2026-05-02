@@ -6,12 +6,16 @@ import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.util.LinkedHashMap
 import kotlin.math.abs
 
 class ProfessionalVideoTransitionCompositorManager(
     private val appContext: Context,
 ) {
     private val rendererRegistry = ProfessionalVideoTransitionRendererRegistry.foundation()
+    private val pixelFrameBufferStore = ProfessionalVideoTransitionPixelFrameBufferStore()
 
     fun capabilities(): Map<String, Any> =
         mapOf(
@@ -765,6 +769,7 @@ class ProfessionalVideoTransitionCompositorManager(
             edgePolicy = plan?.get("edgePolicy") as? Map<*, *>,
             parameters = plan?.get("parameters") as? Map<*, *>,
             appContext = appContext,
+            frameBufferStore = pixelFrameBufferStore,
         )
     }
 
@@ -807,6 +812,7 @@ class ProfessionalVideoTransitionCompositorManager(
             edgePolicy = plan?.get("edgePolicy") as? Map<*, *>,
             parameters = plan?.get("parameters") as? Map<*, *>,
             appContext = appContext,
+            frameBufferStore = pixelFrameBufferStore,
         )
     }
 
@@ -849,6 +855,7 @@ class ProfessionalVideoTransitionCompositorManager(
             edgePolicy = plan?.get("edgePolicy") as? Map<*, *>,
             parameters = plan?.get("parameters") as? Map<*, *>,
             appContext = appContext,
+            frameBufferStore = pixelFrameBufferStore,
         )
     }
 
@@ -2824,6 +2831,7 @@ private data class ProfessionalVideoTransitionRenderSession(
         edgePolicy: Map<*, *>?,
         parameters: Map<*, *>?,
         appContext: Context,
+        frameBufferStore: ProfessionalVideoTransitionPixelFrameBufferStore,
     ): Map<String, Any> {
         val frameBufferPlan =
             planTransitionPixelFrameBuffer(
@@ -2832,6 +2840,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                 edgePolicy = edgePolicy,
                 parameters = parameters,
                 appContext = appContext,
+                frameBufferStore = frameBufferStore,
             )
         if (frameBufferPlan["status"] != "planned") {
             return frameBufferPlan
@@ -2900,6 +2909,7 @@ private data class ProfessionalVideoTransitionRenderSession(
         edgePolicy: Map<*, *>?,
         parameters: Map<*, *>?,
         appContext: Context,
+        frameBufferStore: ProfessionalVideoTransitionPixelFrameBufferStore,
     ): Map<String, Any> {
         val pixelPlan =
             planTransitionPixelRenderer(
@@ -2920,9 +2930,23 @@ private data class ProfessionalVideoTransitionRenderSession(
                 canvasWidth > 0 &&
                 canvasHeight > 0
         val frameBufferFormat = "rgba8888"
-        val frameBufferByteCount =
-            if (outputFramebufferBound) canvasWidth * canvasHeight * 4 else 0
-        val frameBufferAllocated = false
+        val allocation =
+            if (outputFramebufferBound) {
+                frameBufferStore.allocate(
+                    renderSessionId = id,
+                    timelineTimeMs = timelineTimeMs,
+                    width = canvasWidth.toInt(),
+                    height = canvasHeight.toInt(),
+                    format = frameBufferFormat,
+                )
+            } else {
+                ProfessionalVideoTransitionPixelFrameBufferAllocationResult.invalid(
+                    frameBufferId = "$id:pixel-frame-buffer:$timelineTimeMs",
+                    reason = "native_transition_output_framebuffer_not_bound",
+                )
+            }
+        val frameBufferByteCount = allocation.byteCount
+        val frameBufferAllocated = allocation.allocated
         val frameBufferContainsRealPixels = false
         val pixelRendererImplemented = false
         val rendererImplemented = false
@@ -2940,7 +2964,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                     add("native_transition_output_framebuffer_not_bound")
                 }
                 if (!frameBufferAllocated) {
-                    add("native_transition_pixel_frame_buffer_missing")
+                    add(allocation.reason ?: "native_transition_pixel_frame_buffer_missing")
                 }
                 if (!frameBufferContainsRealPixels) {
                     add("native_transition_pixel_frame_buffer_pixels_missing")
@@ -2951,10 +2975,10 @@ private data class ProfessionalVideoTransitionRenderSession(
             }.distinct()
         return pixelPlan +
             mapOf(
-                "transitionPixelFrameBufferId" to "$id:pixel-frame-buffer:$timelineTimeMs",
+                "transitionPixelFrameBufferId" to allocation.frameBufferId,
                 "outputFramebufferTarget" to "nativeTransitionCanvasSurface",
-                "frameBufferWidth" to if (outputFramebufferBound) canvasWidth else 0,
-                "frameBufferHeight" to if (outputFramebufferBound) canvasHeight else 0,
+                "frameBufferWidth" to allocation.width,
+                "frameBufferHeight" to allocation.height,
                 "frameBufferFormat" to frameBufferFormat,
                 "frameBufferByteCount" to frameBufferByteCount,
                 "pixelWorkloadBound" to pixelWorkloadBound,
@@ -2962,8 +2986,10 @@ private data class ProfessionalVideoTransitionRenderSession(
                 "pixelRendererImplemented" to pixelRendererImplemented,
                 "pixelRendererReady" to false,
                 "frameBufferAllocated" to frameBufferAllocated,
-                "frameBufferReady" to false,
+                "frameBufferReady" to frameBufferAllocated,
                 "frameBufferContainsRealPixels" to frameBufferContainsRealPixels,
+                "frameBufferMemoryClass" to allocation.memoryClass,
+                "frameBufferAllocationReason" to (allocation.reason ?: ""),
                 "allowsSyntheticPixels" to false,
                 "allowsPosterFrame" to false,
                 "allowsThumbnailFallback" to false,
@@ -2983,6 +3009,7 @@ private data class ProfessionalVideoTransitionRenderSession(
         edgePolicy: Map<*, *>?,
         parameters: Map<*, *>?,
         appContext: Context,
+        frameBufferStore: ProfessionalVideoTransitionPixelFrameBufferStore,
     ): Map<String, Any> {
         val executionPlan =
             planTransitionPixelRenderExecution(
@@ -2991,6 +3018,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                 edgePolicy = edgePolicy,
                 parameters = parameters,
                 appContext = appContext,
+                frameBufferStore = frameBufferStore,
             )
         if (executionPlan["status"] != "planned") {
             return executionPlan
@@ -4328,6 +4356,137 @@ private data class ProfessionalVideoTransitionRendererDefinition(
     val requiredCapabilities: Set<String>,
     val implemented: Boolean = false,
 )
+
+private data class ProfessionalVideoTransitionPixelFrameBufferAllocationResult(
+    val frameBufferId: String,
+    val width: Int,
+    val height: Int,
+    val format: String,
+    val byteCount: Int,
+    val allocated: Boolean,
+    val memoryClass: String,
+    val reason: String?,
+) {
+    companion object {
+        fun invalid(
+            frameBufferId: String,
+            reason: String,
+        ): ProfessionalVideoTransitionPixelFrameBufferAllocationResult =
+            ProfessionalVideoTransitionPixelFrameBufferAllocationResult(
+                frameBufferId = frameBufferId,
+                width = 0,
+                height = 0,
+                format = "rgba8888",
+                byteCount = 0,
+                allocated = false,
+                memoryClass = "none",
+                reason = reason,
+            )
+    }
+}
+
+private data class ProfessionalVideoTransitionPixelFrameBufferAllocation(
+    val id: String,
+    val width: Int,
+    val height: Int,
+    val format: String,
+    val byteCount: Int,
+    val buffer: ByteBuffer,
+)
+
+private class ProfessionalVideoTransitionPixelFrameBufferStore(
+    private val maxBuffers: Int = 3,
+    private val maxFrameBufferBytes: Int = 64 * 1024 * 1024,
+) {
+    private val buffers =
+        object : LinkedHashMap<String, ProfessionalVideoTransitionPixelFrameBufferAllocation>(
+            maxBuffers,
+            0.75f,
+            true,
+        ) {
+            override fun removeEldestEntry(
+                eldest: MutableMap.MutableEntry<String, ProfessionalVideoTransitionPixelFrameBufferAllocation>?,
+            ): Boolean = size > maxBuffers
+        }
+
+    @Synchronized
+    fun allocate(
+        renderSessionId: String,
+        timelineTimeMs: Long,
+        width: Int,
+        height: Int,
+        format: String,
+    ): ProfessionalVideoTransitionPixelFrameBufferAllocationResult {
+        val frameBufferId = "$renderSessionId:pixel-frame-buffer:$timelineTimeMs"
+        if (width <= 0 || height <= 0) {
+            return ProfessionalVideoTransitionPixelFrameBufferAllocationResult.invalid(
+                frameBufferId = frameBufferId,
+                reason = "native_transition_pixel_frame_buffer_invalid_size",
+            )
+        }
+        if (format != "rgba8888") {
+            return ProfessionalVideoTransitionPixelFrameBufferAllocationResult.invalid(
+                frameBufferId = frameBufferId,
+                reason = "native_transition_pixel_frame_buffer_format_unsupported",
+            )
+        }
+        val byteCountLong = width.toLong() * height.toLong() * 4L
+        if (byteCountLong <= 0L || byteCountLong > maxFrameBufferBytes.toLong()) {
+            return ProfessionalVideoTransitionPixelFrameBufferAllocationResult.invalid(
+                frameBufferId = frameBufferId,
+                reason = "native_transition_pixel_frame_buffer_too_large",
+            )
+        }
+        val byteCount = byteCountLong.toInt()
+        val existing = buffers[frameBufferId]
+        if (
+            existing != null &&
+                existing.width == width &&
+                existing.height == height &&
+                existing.format == format &&
+                existing.byteCount == byteCount
+        ) {
+            return existing.toResult()
+        }
+        return try {
+            val buffer = ByteBuffer.allocateDirect(byteCount).order(ByteOrder.nativeOrder())
+            val allocation =
+                ProfessionalVideoTransitionPixelFrameBufferAllocation(
+                    id = frameBufferId,
+                    width = width,
+                    height = height,
+                    format = format,
+                    byteCount = byteCount,
+                    buffer = buffer,
+                )
+            buffers[frameBufferId] = allocation
+            allocation.toResult()
+        } catch (_: OutOfMemoryError) {
+            ProfessionalVideoTransitionPixelFrameBufferAllocationResult.invalid(
+                frameBufferId = frameBufferId,
+                reason = "native_transition_pixel_frame_buffer_allocation_failed",
+            )
+        } catch (_: Throwable) {
+            ProfessionalVideoTransitionPixelFrameBufferAllocationResult.invalid(
+                frameBufferId = frameBufferId,
+                reason = "native_transition_pixel_frame_buffer_allocation_failed",
+            )
+        }
+    }
+
+    private fun ProfessionalVideoTransitionPixelFrameBufferAllocation.toResult():
+        ProfessionalVideoTransitionPixelFrameBufferAllocationResult =
+        ProfessionalVideoTransitionPixelFrameBufferAllocationResult(
+            frameBufferId = id,
+            width = width,
+            height = height,
+            format = format,
+            byteCount = byteCount,
+            allocated = true,
+            memoryClass = "directByteBuffer",
+            reason = null,
+        )
+}
 
 private class ProfessionalVideoTransitionRendererRegistry(
     private val definitions: Map<String, ProfessionalVideoTransitionRendererDefinition>,

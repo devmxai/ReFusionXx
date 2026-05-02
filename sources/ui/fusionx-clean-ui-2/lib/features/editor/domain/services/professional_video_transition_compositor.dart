@@ -5102,6 +5102,8 @@ class ProfessionalVideoTransitionPixelFrameBufferPlanResult {
     required this.frameBufferHeight,
     required this.frameBufferFormat,
     required this.frameBufferByteCount,
+    required this.frameBufferMemoryClass,
+    required this.frameBufferAllocationReason,
     required this.pixelWorkloadBound,
     required this.outputFramebufferBound,
     required this.pixelRendererImplemented,
@@ -5149,6 +5151,8 @@ class ProfessionalVideoTransitionPixelFrameBufferPlanResult {
       frameBufferHeight: 0,
       frameBufferFormat: '',
       frameBufferByteCount: 0,
+      frameBufferMemoryClass: '',
+      frameBufferAllocationReason: '',
       pixelWorkloadBound: false,
       outputFramebufferBound: false,
       pixelRendererImplemented: false,
@@ -5190,6 +5194,8 @@ class ProfessionalVideoTransitionPixelFrameBufferPlanResult {
   final int frameBufferHeight;
   final String frameBufferFormat;
   final int frameBufferByteCount;
+  final String frameBufferMemoryClass;
+  final String frameBufferAllocationReason;
   final bool pixelWorkloadBound;
   final bool outputFramebufferBound;
   final bool pixelRendererImplemented;
@@ -5254,6 +5260,9 @@ class ProfessionalVideoTransitionPixelFrameBufferPlanResultMapper {
       frameBufferHeight: _readInt(map['frameBufferHeight']),
       frameBufferFormat: map['frameBufferFormat']?.toString() ?? '',
       frameBufferByteCount: _readInt(map['frameBufferByteCount']),
+      frameBufferMemoryClass: map['frameBufferMemoryClass']?.toString() ?? '',
+      frameBufferAllocationReason:
+          map['frameBufferAllocationReason']?.toString() ?? '',
       pixelWorkloadBound: _readBool(map['pixelWorkloadBound']),
       outputFramebufferBound: _readBool(map['outputFramebufferBound']),
       pixelRendererImplemented: _readBool(map['pixelRendererImplemented']),

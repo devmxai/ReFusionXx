@@ -2818,12 +2818,14 @@ void main() {
         'frameBufferHeight': 1920,
         'frameBufferFormat': 'rgba8888',
         'frameBufferByteCount': 1080 * 1920 * 4,
+        'frameBufferMemoryClass': 'directByteBuffer',
+        'frameBufferAllocationReason': '',
         'pixelWorkloadBound': true,
         'outputFramebufferBound': true,
         'pixelRendererImplemented': false,
         'pixelRendererReady': false,
-        'frameBufferAllocated': false,
-        'frameBufferReady': false,
+        'frameBufferAllocated': true,
+        'frameBufferReady': true,
         'frameBufferContainsRealPixels': false,
         'allowsSyntheticPixels': false,
         'allowsPosterFrame': false,
@@ -2835,7 +2837,6 @@ void main() {
         'drawsPixels': false,
         'canRenderFrame': false,
         'blockedReasons': <String>[
-          'native_transition_pixel_frame_buffer_missing',
           'native_transition_pixel_frame_buffer_pixels_missing',
           'native_transition_pixel_frame_buffer_renderer_missing',
         ],
@@ -2885,17 +2886,16 @@ void main() {
     expect(result.outputFramebufferBound, isTrue);
     expect(result.frameBufferFormat, 'rgba8888');
     expect(result.frameBufferByteCount, 1080 * 1920 * 4);
-    expect(result.frameBufferAllocated, isFalse);
+    expect(result.frameBufferMemoryClass, 'directByteBuffer');
+    expect(result.frameBufferAllocationReason, isEmpty);
+    expect(result.frameBufferAllocated, isTrue);
+    expect(result.frameBufferReady, isTrue);
     expect(result.frameBufferContainsRealPixels, isFalse);
     expect(result.allowsSyntheticPixels, isFalse);
     expect(result.allowsPosterFrame, isFalse);
     expect(result.allowsThumbnailFallback, isFalse);
     expect(result.allowsBoundaryFreeze, isFalse);
     expect(result.canRenderPixels, isFalse);
-    expect(
-      result.blockedReasons,
-      contains('native_transition_pixel_frame_buffer_missing'),
-    );
     expect(
       result.blockedReasons,
       contains('native_transition_pixel_frame_buffer_pixels_missing'),

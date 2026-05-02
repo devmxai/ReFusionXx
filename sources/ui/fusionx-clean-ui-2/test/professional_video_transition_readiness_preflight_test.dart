@@ -1076,6 +1076,9 @@ class _FakeProfessionalVideoTransitionCompositorClient
       frameBufferHeight: plan.canvasHeight,
       frameBufferFormat: 'rgba8888',
       frameBufferByteCount: plan.canvasWidth * plan.canvasHeight * 4,
+      frameBufferMemoryClass: _rendererReady ? 'directByteBuffer' : 'none',
+      frameBufferAllocationReason:
+          _rendererReady ? '' : 'native_transition_pixel_frame_buffer_missing',
       pixelWorkloadBound: true,
       outputFramebufferBound: true,
       pixelRendererImplemented: _rendererReady,
