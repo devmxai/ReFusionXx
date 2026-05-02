@@ -675,6 +675,11 @@ Pixel output proof gate:
   source-derived pixels forward. It must not be treated as an interactive
   renderer until output proof confirms the final `nativeTransitionCanvasSurface`
   received those pixels through the concrete renderer;
+- pixel output proof now also builds a native surface-upload packet contract
+  from the offscreen frame, carrying upload packet id, source frame-buffer id,
+  byte count, checksum, and upload reason. This makes the next missing boundary
+  explicit: the concrete surface-upload renderer still has to write the packet
+  into the final native surface;
 - the proof must confirm that the renderer wrote real pixels into the native
   transition output target, currently `nativeTransitionCanvasSurface`;
 - the proof must explicitly forbid Flutter overlays, timeline overlays, and

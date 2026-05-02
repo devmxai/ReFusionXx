@@ -3231,6 +3231,15 @@ void main() {
         'forbidsFlutterOverlay': true,
         'forbidsTimelineOverlay': true,
         'forbidsPlatformViewTransform': true,
+        'outputSurfaceUploadPacketId': '',
+        'outputSurfaceUploadPacketReady': false,
+        'outputSurfaceUploadSourceFrameBufferId':
+            'transition-session:zoom-native-1:pixel-frame-buffer:10000',
+        'outputSurfaceUploadByteCount': 0,
+        'outputSurfaceUploadChecksum': 0,
+        'surfaceUploadRendererImplemented': false,
+        'outputSurfaceUploadReason':
+            'native_transition_surface_upload_packet_missing',
         'outputProofReady': false,
         'rendererImplemented': false,
         'canRenderPixels': false,
@@ -3241,6 +3250,8 @@ void main() {
           'native_transition_pixel_render_execution_not_ready',
           'native_transition_pixel_output_missing',
           'native_transition_pixel_output_not_ready',
+          'native_transition_surface_upload_packet_missing',
+          'native_transition_surface_upload_renderer_missing',
           'native_transition_pixel_output_proof_missing',
         ],
       };
@@ -3290,6 +3301,18 @@ void main() {
     expect(result.forbidsFlutterOverlay, isTrue);
     expect(result.forbidsTimelineOverlay, isTrue);
     expect(result.forbidsPlatformViewTransform, isTrue);
+    expect(result.outputSurfaceUploadPacketReady, isFalse);
+    expect(
+      result.outputSurfaceUploadSourceFrameBufferId,
+      'transition-session:zoom-native-1:pixel-frame-buffer:10000',
+    );
+    expect(result.outputSurfaceUploadByteCount, 0);
+    expect(result.outputSurfaceUploadChecksum, 0);
+    expect(result.surfaceUploadRendererImplemented, isFalse);
+    expect(
+      result.outputSurfaceUploadReason,
+      'native_transition_surface_upload_packet_missing',
+    );
     expect(result.outputProofReady, isFalse);
     expect(result.canRenderPixels, isFalse);
     expect(

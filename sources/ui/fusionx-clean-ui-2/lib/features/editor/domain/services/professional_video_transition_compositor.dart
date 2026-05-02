@@ -5970,6 +5970,13 @@ class ProfessionalVideoTransitionPixelOutputProofPlanResult {
     required this.forbidsFlutterOverlay,
     required this.forbidsTimelineOverlay,
     required this.forbidsPlatformViewTransform,
+    required this.outputSurfaceUploadPacketId,
+    required this.outputSurfaceUploadPacketReady,
+    required this.outputSurfaceUploadSourceFrameBufferId,
+    required this.outputSurfaceUploadByteCount,
+    required this.outputSurfaceUploadChecksum,
+    required this.surfaceUploadRendererImplemented,
+    required this.outputSurfaceUploadReason,
     required this.outputProofReady,
     required this.rendererImplemented,
     required this.canRenderPixels,
@@ -6013,6 +6020,13 @@ class ProfessionalVideoTransitionPixelOutputProofPlanResult {
       forbidsFlutterOverlay: true,
       forbidsTimelineOverlay: true,
       forbidsPlatformViewTransform: true,
+      outputSurfaceUploadPacketId: '',
+      outputSurfaceUploadPacketReady: false,
+      outputSurfaceUploadSourceFrameBufferId: '',
+      outputSurfaceUploadByteCount: 0,
+      outputSurfaceUploadChecksum: 0,
+      surfaceUploadRendererImplemented: false,
+      outputSurfaceUploadReason: '',
       outputProofReady: false,
       rendererImplemented: false,
       canRenderPixels: false,
@@ -6050,6 +6064,13 @@ class ProfessionalVideoTransitionPixelOutputProofPlanResult {
   final bool forbidsFlutterOverlay;
   final bool forbidsTimelineOverlay;
   final bool forbidsPlatformViewTransform;
+  final String outputSurfaceUploadPacketId;
+  final bool outputSurfaceUploadPacketReady;
+  final String outputSurfaceUploadSourceFrameBufferId;
+  final int outputSurfaceUploadByteCount;
+  final int outputSurfaceUploadChecksum;
+  final bool surfaceUploadRendererImplemented;
+  final String outputSurfaceUploadReason;
   final bool outputProofReady;
   final bool rendererImplemented;
   final bool canRenderPixels;
@@ -6119,6 +6140,22 @@ class ProfessionalVideoTransitionPixelOutputProofPlanResultMapper {
         map['forbidsPlatformViewTransform'],
         defaultValue: true,
       ),
+      outputSurfaceUploadPacketId:
+          map['outputSurfaceUploadPacketId']?.toString() ?? '',
+      outputSurfaceUploadPacketReady:
+          _readBool(map['outputSurfaceUploadPacketReady']),
+      outputSurfaceUploadSourceFrameBufferId:
+          map['outputSurfaceUploadSourceFrameBufferId']?.toString() ?? '',
+      outputSurfaceUploadByteCount: _readInt(
+        map['outputSurfaceUploadByteCount'],
+      ),
+      outputSurfaceUploadChecksum: _readInt(
+        map['outputSurfaceUploadChecksum'],
+      ),
+      surfaceUploadRendererImplemented:
+          _readBool(map['surfaceUploadRendererImplemented']),
+      outputSurfaceUploadReason:
+          map['outputSurfaceUploadReason']?.toString() ?? '',
       outputProofReady: _readBool(map['outputProofReady']),
       rendererImplemented: _readBool(map['rendererImplemented']),
       canRenderPixels: _readBool(map['canRenderPixels']),

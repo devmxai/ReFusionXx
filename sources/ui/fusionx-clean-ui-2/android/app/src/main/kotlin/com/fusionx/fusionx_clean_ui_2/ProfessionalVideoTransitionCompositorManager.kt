@@ -3419,6 +3419,33 @@ private data class ProfessionalVideoTransitionRenderSession(
         val forbidsPlatformViewTransform = true
         val pixelOutputWritten = executionPlan["pixelOutputWritten"] == true
         val pixelOutputReady = executionPlan["pixelOutputReady"] == true
+        val pixelOutputSourceFrameBufferId =
+            executionPlan["pixelOutputSourceFrameBufferId"]?.toString() ?: ""
+        val pixelOutputByteCount =
+            (executionPlan["pixelOutputByteCount"] as? Number)?.toLong() ?: 0L
+        val pixelOutputChecksum =
+            (executionPlan["pixelOutputChecksum"] as? Number)?.toLong() ?: 0L
+        val outputSurfaceUploadPacketReady =
+            pixelOutputWritten &&
+                outputSurfaceIsNative &&
+                writesOnlyToNativeSurface &&
+                pixelOutputSourceFrameBufferId.isNotBlank() &&
+                pixelOutputByteCount > 0L
+        val outputSurfaceUploadPacketId =
+            if (outputSurfaceUploadPacketReady) {
+                "$id:surface-upload-packet:$timelineTimeMs"
+            } else {
+                ""
+            }
+        val surfaceUploadRendererImplemented = false
+        val outputSurfaceUploadReason =
+            when {
+                !outputSurfaceUploadPacketReady ->
+                    "native_transition_surface_upload_packet_missing"
+                !surfaceUploadRendererImplemented ->
+                    "native_transition_surface_upload_renderer_missing"
+                else -> ""
+            }
         val pixelRenderExecutionReady =
             executionPlan["pixelRenderExecutionReady"] == true &&
                 executionPlan["canRenderPixels"] == true &&
@@ -3446,6 +3473,12 @@ private data class ProfessionalVideoTransitionRenderSession(
                 if (!pixelOutputReady) {
                     add("native_transition_pixel_output_not_ready")
                 }
+                if (!outputSurfaceUploadPacketReady) {
+                    add("native_transition_surface_upload_packet_missing")
+                }
+                if (!surfaceUploadRendererImplemented) {
+                    add("native_transition_surface_upload_renderer_missing")
+                }
                 if (!outputSurfaceIsNative) {
                     add("native_transition_output_surface_not_native")
                 }
@@ -3464,6 +3497,13 @@ private data class ProfessionalVideoTransitionRenderSession(
                 "forbidsFlutterOverlay" to forbidsFlutterOverlay,
                 "forbidsTimelineOverlay" to forbidsTimelineOverlay,
                 "forbidsPlatformViewTransform" to forbidsPlatformViewTransform,
+                "outputSurfaceUploadPacketId" to outputSurfaceUploadPacketId,
+                "outputSurfaceUploadPacketReady" to outputSurfaceUploadPacketReady,
+                "outputSurfaceUploadSourceFrameBufferId" to pixelOutputSourceFrameBufferId,
+                "outputSurfaceUploadByteCount" to pixelOutputByteCount,
+                "outputSurfaceUploadChecksum" to pixelOutputChecksum,
+                "surfaceUploadRendererImplemented" to surfaceUploadRendererImplemented,
+                "outputSurfaceUploadReason" to outputSurfaceUploadReason,
                 "pixelRenderExecutionReady" to pixelRenderExecutionReady,
                 "pixelOutputWritten" to pixelOutputWritten,
                 "pixelOutputReady" to pixelOutputReady,

@@ -1286,6 +1286,18 @@ class _FakeProfessionalVideoTransitionCompositorClient
       forbidsFlutterOverlay: true,
       forbidsTimelineOverlay: true,
       forbidsPlatformViewTransform: true,
+      outputSurfaceUploadPacketId:
+          _rendererReady ? 'surface-upload-packet:${plan.transitionId}' : '',
+      outputSurfaceUploadPacketReady: _rendererReady,
+      outputSurfaceUploadSourceFrameBufferId:
+          'pixel-frame-buffer:${plan.transitionId}',
+      outputSurfaceUploadByteCount:
+          _rendererReady ? plan.canvasWidth * plan.canvasHeight * 4 : 0,
+      outputSurfaceUploadChecksum: _rendererReady ? 777777 : 0,
+      surfaceUploadRendererImplemented: _rendererReady,
+      outputSurfaceUploadReason: _rendererReady
+          ? ''
+          : 'native_transition_surface_upload_packet_missing',
       outputProofReady: _rendererReady,
       rendererImplemented: _rendererReady,
       canRenderPixels: _rendererReady,
@@ -1297,6 +1309,8 @@ class _FakeProfessionalVideoTransitionCompositorClient
               'native_transition_pixel_render_execution_not_ready',
               'native_transition_pixel_output_missing',
               'native_transition_pixel_output_not_ready',
+              'native_transition_surface_upload_packet_missing',
+              'native_transition_surface_upload_renderer_missing',
               'native_transition_pixel_output_proof_missing',
             ]
           : const <String>[],
