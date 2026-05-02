@@ -21,7 +21,9 @@ jobs:
         run: flutter pub get
       - name: Master clock source guard
         run: bash scripts/master_clock_guard_check.sh
+      - name: Master clock current-time guard
+        run: bash scripts/master_clock_current_time_guard_check.sh
       - name: Master clock bridge guard
         run: bash scripts/master_clock_bridge_guard_check.sh
       - name: Guard tests
-        run: flutter test test/master_clock_guard_check_test.dart test/master_clock_bridge_guard_check_test.dart
+        run: flutter test test/master_clock_guard_check_test.dart test/master_clock_current_time_guard_check_test.dart test/master_clock_bridge_guard_check_test.dart

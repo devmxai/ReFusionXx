@@ -790,6 +790,10 @@ Implementation note (checkpoint `checkpoint: implement master clock value truth 
 - clip-speed preview/apply flows now route timeline-time updates through
   `_setCurrentTime` instead of direct `_currentTime` assignment, so bridge sync
   and derived notifier publication remain consistent in all editor paths.
+- a dedicated guard (`scripts/master_clock_current_time_guard_check.sh`) now
+  protects `_currentTime` assignment anchors in screen code, with explicit
+  allowlist policy (`docs/master_clock_current_time_guard_allowlist.txt`) and
+  CI/test coverage.
 
 ## 11. First Writer Task
 

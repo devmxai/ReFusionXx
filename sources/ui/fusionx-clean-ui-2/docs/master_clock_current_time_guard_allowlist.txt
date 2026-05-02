@@ -1,0 +1,6 @@
+# Allowed _currentTime assignment anchors.
+# Format: <path>:<token>
+
+lib/features/editor/presentation/screens/fusionx_clean_ui_screen.dart:_currentTime.init
+lib/features/editor/presentation/screens/fusionx_clean_ui_screen.dart:_currentTime.setter
+lib/features/editor/presentation/screens/fusionx_clean_ui_screen.dart:_currentTime.clock_snapshot
