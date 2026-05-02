@@ -1051,6 +1051,13 @@ Current gate:
   `native_transition_surface_endpoint_missing`. Export remains a later
   implementation phase per the current product direction and must be added to
   this same contract when the export renderer is built.
+- `ProfessionalVideoTransitionReadinessPreflight` exposes the same endpoint as
+  its own stage: `transitionSurfaceEndpoint`. This stage sits between
+  `transitionPixelOutputProof` and `parityOutputs`, and it advances only when
+  the upload packet exists, the surface-upload renderer is ready, and the final
+  native endpoint is attached. This keeps the final missing interactive stage
+  visible to UI, agents, and tests instead of hiding it inside a generic parity
+  failure.
 
 ## 9. Stop Conditions
 

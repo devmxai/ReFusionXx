@@ -46,6 +46,7 @@ void main() {
         ProfessionalVideoTransitionReadinessStageId
             .transitionPixelRenderExecution,
         ProfessionalVideoTransitionReadinessStageId.transitionPixelOutputProof,
+        ProfessionalVideoTransitionReadinessStageId.transitionSurfaceEndpoint,
         ProfessionalVideoTransitionReadinessStageId.parityOutputs,
       ],
     );
@@ -208,6 +209,20 @@ void main() {
               .transitionPixelOutputProof)
           .blockers,
       contains('native_transition_pixel_output_proof_missing'),
+    );
+    expect(
+      report
+          .stage(ProfessionalVideoTransitionReadinessStageId
+              .transitionSurfaceEndpoint)
+          .canAdvance,
+      isFalse,
+    );
+    expect(
+      report
+          .stage(ProfessionalVideoTransitionReadinessStageId
+              .transitionSurfaceEndpoint)
+          .blockers,
+      contains('native_transition_surface_endpoint_missing'),
     );
   });
 

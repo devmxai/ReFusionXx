@@ -26,6 +26,7 @@ enum ProfessionalVideoTransitionReadinessStageId {
   transitionPixelFrameBufferWriter,
   transitionPixelRenderExecution,
   transitionPixelOutputProof,
+  transitionSurfaceEndpoint,
   parityOutputs,
 }
 
@@ -231,6 +232,7 @@ class ProfessionalVideoTransitionReadinessPreflight {
       timelineTime: timelineTime,
     );
     stages.add(_transitionPixelOutputProofStage(transitionPixelOutputProof));
+    stages.add(_transitionSurfaceEndpointStage(transitionPixelOutputProof));
 
     final parityOutputs = await _client.planParityOutputs(
       plan: plan,
@@ -570,6 +572,43 @@ class ProfessionalVideoTransitionReadinessPreflight {
         blockedReasons: result.blockedReasons,
         issues: result.issues,
         includeReason: !result.canRender,
+      ),
+      issues: result.issues,
+    );
+  }
+
+  static ProfessionalVideoTransitionReadinessStage
+      _transitionSurfaceEndpointStage(
+    ProfessionalVideoTransitionPixelOutputProofPlanResult result,
+  ) {
+    final endpointBlockers = <String>{
+      if (!result.outputSurfaceUploadPacketReady)
+        result.outputSurfaceUploadReason.trim().isEmpty
+            ? 'native_transition_surface_upload_packet_missing'
+            : result.outputSurfaceUploadReason.trim(),
+      if (!result.surfaceUploadRendererReady)
+        'native_transition_surface_upload_renderer_not_ready',
+      if (!result.outputSurfaceEndpointAttached)
+        'native_transition_surface_endpoint_missing',
+      ...result.blockedReasons.where((reason) {
+        return reason.contains('surface_upload') ||
+            reason.contains('surface_endpoint');
+      }),
+    }.where((reason) => reason.trim().isNotEmpty).toList(growable: false);
+    final canAdvance = result.outputSurfaceUploadPacketReady &&
+        result.surfaceUploadRendererReady &&
+        result.outputSurfaceEndpointAttached &&
+        endpointBlockers.isEmpty;
+    return ProfessionalVideoTransitionReadinessStage(
+      id: ProfessionalVideoTransitionReadinessStageId.transitionSurfaceEndpoint,
+      label: 'Native transition surface endpoint',
+      canPlan: result.canPlan,
+      canAdvance: canAdvance,
+      blockers: _blockers(
+        reason: result.reason,
+        blockedReasons: endpointBlockers,
+        issues: result.issues,
+        includeReason: !result.canPlan,
       ),
       issues: result.issues,
     );
