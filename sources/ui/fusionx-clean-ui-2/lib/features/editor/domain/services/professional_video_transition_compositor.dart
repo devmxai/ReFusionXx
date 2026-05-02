@@ -206,6 +206,12 @@ abstract class ProfessionalVideoTransitionCompositorClient
     required TimelineTime timelineTime,
   });
 
+  Future<ProfessionalVideoTransitionPixelFrameBufferPlanResult>
+      planTransitionPixelFrameBuffer({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  });
+
   Future<ProfessionalVideoTransitionPixelRenderExecutionPlanResult>
       planTransitionPixelRenderExecution({
     required ProfessionalVideoTransitionRenderPlan plan,
@@ -753,6 +759,36 @@ class MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider
       );
     } on PlatformException catch (error) {
       return ProfessionalVideoTransitionPixelRenderExecutionPlanResult
+          .invalidRequest(
+        reason: error.message ?? error.code,
+      );
+    }
+  }
+
+  @override
+  Future<ProfessionalVideoTransitionPixelFrameBufferPlanResult>
+      planTransitionPixelFrameBuffer({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  }) async {
+    try {
+      final payload = plan.toPlatformMap();
+      payload['timelineTimeMs'] = timelineTime.inMilliseconds;
+      final rawResult = await _channel.invokeMapMethod<String, Object?>(
+        'planTransitionPixelFrameBuffer',
+        payload,
+      );
+      return ProfessionalVideoTransitionPixelFrameBufferPlanResultMapper
+          .fromMap(
+        rawResult,
+      );
+    } on MissingPluginException {
+      return ProfessionalVideoTransitionPixelFrameBufferPlanResult
+          .invalidRequest(
+        reason: 'native_compositor_channel_missing',
+      );
+    } on PlatformException catch (error) {
+      return ProfessionalVideoTransitionPixelFrameBufferPlanResult
           .invalidRequest(
         reason: error.message ?? error.code,
       );
@@ -4989,6 +5025,254 @@ class ProfessionalVideoTransitionPixelRendererPlanResultMapper {
           inputBound: _readBool(input['inputBound']),
         );
       }),
+    );
+  }
+
+  static TimelineTime? _readTimelineTime(Object? value) {
+    if (value is num) {
+      return TimelineTime.fromMilliseconds(value.round());
+    }
+    final parsed = int.tryParse(value?.toString() ?? '');
+    if (parsed == null) {
+      return null;
+    }
+    return TimelineTime.fromMilliseconds(parsed);
+  }
+
+  static int _readInt(Object? value) {
+    if (value is num) {
+      return value.round();
+    }
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static bool _readBool(Object? value, {bool defaultValue = false}) {
+    if (value is bool) {
+      return value;
+    }
+    return defaultValue;
+  }
+
+  static List<String> _readStringList(Object? value) {
+    if (value is! List) {
+      return const <String>[];
+    }
+    return List<String>.unmodifiable(value.map((entry) => entry.toString()));
+  }
+
+  static List<Map<String, Object?>> _readIssues(Object? value) {
+    if (value is! List) {
+      return const <Map<String, Object?>>[];
+    }
+    return List<Map<String, Object?>>.unmodifiable(
+      value.whereType<Map>().map((issue) {
+        return <String, Object?>{
+          for (final entry in issue.entries) entry.key.toString(): entry.value,
+        };
+      }),
+    );
+  }
+}
+
+enum ProfessionalVideoTransitionPixelFrameBufferPlanStatus {
+  planned,
+  invalidRequest,
+}
+
+@immutable
+class ProfessionalVideoTransitionPixelFrameBufferPlanResult {
+  const ProfessionalVideoTransitionPixelFrameBufferPlanResult({
+    required this.status,
+    required this.reason,
+    required this.rendererVersion,
+    required this.definitionId,
+    required this.renderSessionId,
+    required this.transitionPixelRendererId,
+    required this.transitionPixelFrameBufferId,
+    required this.pixelProgramId,
+    required this.outputSurfaceId,
+    required this.outputTarget,
+    required this.outputFramebufferTarget,
+    required this.timelineTime,
+    required this.transitionStartTime,
+    required this.transitionEndTime,
+    required this.canvasWidth,
+    required this.canvasHeight,
+    required this.frameBufferWidth,
+    required this.frameBufferHeight,
+    required this.frameBufferFormat,
+    required this.frameBufferByteCount,
+    required this.pixelWorkloadBound,
+    required this.outputFramebufferBound,
+    required this.pixelRendererImplemented,
+    required this.pixelRendererReady,
+    required this.frameBufferAllocated,
+    required this.frameBufferReady,
+    required this.frameBufferContainsRealPixels,
+    required this.allowsSyntheticPixels,
+    required this.allowsPosterFrame,
+    required this.allowsThumbnailFallback,
+    required this.allowsBoundaryFreeze,
+    required this.rendererImplemented,
+    required this.canRenderPixels,
+    required this.rendersRealPixels,
+    required this.drawsPixels,
+    required this.canRenderFrame,
+    required this.blockedReasons,
+    this.issues = const <Map<String, Object?>>[],
+  });
+
+  factory ProfessionalVideoTransitionPixelFrameBufferPlanResult.invalidRequest({
+    required String reason,
+    String rendererVersion = 'unknown',
+    List<Map<String, Object?>> issues = const <Map<String, Object?>>[],
+  }) {
+    return ProfessionalVideoTransitionPixelFrameBufferPlanResult(
+      status:
+          ProfessionalVideoTransitionPixelFrameBufferPlanStatus.invalidRequest,
+      reason: reason,
+      rendererVersion: rendererVersion,
+      definitionId: '',
+      renderSessionId: '',
+      transitionPixelRendererId: '',
+      transitionPixelFrameBufferId: '',
+      pixelProgramId: '',
+      outputSurfaceId: '',
+      outputTarget: '',
+      outputFramebufferTarget: '',
+      timelineTime: null,
+      transitionStartTime: null,
+      transitionEndTime: null,
+      canvasWidth: 0,
+      canvasHeight: 0,
+      frameBufferWidth: 0,
+      frameBufferHeight: 0,
+      frameBufferFormat: '',
+      frameBufferByteCount: 0,
+      pixelWorkloadBound: false,
+      outputFramebufferBound: false,
+      pixelRendererImplemented: false,
+      pixelRendererReady: false,
+      frameBufferAllocated: false,
+      frameBufferReady: false,
+      frameBufferContainsRealPixels: false,
+      allowsSyntheticPixels: false,
+      allowsPosterFrame: false,
+      allowsThumbnailFallback: false,
+      allowsBoundaryFreeze: false,
+      rendererImplemented: false,
+      canRenderPixels: false,
+      rendersRealPixels: false,
+      drawsPixels: false,
+      canRenderFrame: false,
+      blockedReasons: const <String>[],
+      issues: issues,
+    );
+  }
+
+  final ProfessionalVideoTransitionPixelFrameBufferPlanStatus status;
+  final String reason;
+  final String rendererVersion;
+  final String definitionId;
+  final String renderSessionId;
+  final String transitionPixelRendererId;
+  final String transitionPixelFrameBufferId;
+  final String pixelProgramId;
+  final String outputSurfaceId;
+  final String outputTarget;
+  final String outputFramebufferTarget;
+  final TimelineTime? timelineTime;
+  final TimelineTime? transitionStartTime;
+  final TimelineTime? transitionEndTime;
+  final int canvasWidth;
+  final int canvasHeight;
+  final int frameBufferWidth;
+  final int frameBufferHeight;
+  final String frameBufferFormat;
+  final int frameBufferByteCount;
+  final bool pixelWorkloadBound;
+  final bool outputFramebufferBound;
+  final bool pixelRendererImplemented;
+  final bool pixelRendererReady;
+  final bool frameBufferAllocated;
+  final bool frameBufferReady;
+  final bool frameBufferContainsRealPixels;
+  final bool allowsSyntheticPixels;
+  final bool allowsPosterFrame;
+  final bool allowsThumbnailFallback;
+  final bool allowsBoundaryFreeze;
+  final bool rendererImplemented;
+  final bool canRenderPixels;
+  final bool rendersRealPixels;
+  final bool drawsPixels;
+  final bool canRenderFrame;
+  final List<String> blockedReasons;
+  final List<Map<String, Object?>> issues;
+
+  bool get canPlan =>
+      status == ProfessionalVideoTransitionPixelFrameBufferPlanStatus.planned;
+}
+
+class ProfessionalVideoTransitionPixelFrameBufferPlanResultMapper {
+  const ProfessionalVideoTransitionPixelFrameBufferPlanResultMapper._();
+
+  static ProfessionalVideoTransitionPixelFrameBufferPlanResult fromMap(
+    Map<String, Object?>? map,
+  ) {
+    if (map == null) {
+      return ProfessionalVideoTransitionPixelFrameBufferPlanResult
+          .invalidRequest(
+        reason:
+            'native_compositor_empty_transition_pixel_frame_buffer_response',
+      );
+    }
+    final status = switch (map['status']?.toString()) {
+      'planned' =>
+        ProfessionalVideoTransitionPixelFrameBufferPlanStatus.planned,
+      _ => ProfessionalVideoTransitionPixelFrameBufferPlanStatus.invalidRequest,
+    };
+    return ProfessionalVideoTransitionPixelFrameBufferPlanResult(
+      status: status,
+      reason: map['reason']?.toString() ?? '',
+      rendererVersion: map['rendererVersion']?.toString() ?? 'unknown',
+      definitionId: map['definitionId']?.toString() ?? '',
+      renderSessionId: map['renderSessionId']?.toString() ?? '',
+      transitionPixelRendererId:
+          map['transitionPixelRendererId']?.toString() ?? '',
+      transitionPixelFrameBufferId:
+          map['transitionPixelFrameBufferId']?.toString() ?? '',
+      pixelProgramId: map['pixelProgramId']?.toString() ?? '',
+      outputSurfaceId: map['outputSurfaceId']?.toString() ?? '',
+      outputTarget: map['outputTarget']?.toString() ?? '',
+      outputFramebufferTarget: map['outputFramebufferTarget']?.toString() ?? '',
+      timelineTime: _readTimelineTime(map['timelineTimeMs']),
+      transitionStartTime: _readTimelineTime(map['transitionStartMs']),
+      transitionEndTime: _readTimelineTime(map['transitionEndMs']),
+      canvasWidth: _readInt(map['canvasWidth']),
+      canvasHeight: _readInt(map['canvasHeight']),
+      frameBufferWidth: _readInt(map['frameBufferWidth']),
+      frameBufferHeight: _readInt(map['frameBufferHeight']),
+      frameBufferFormat: map['frameBufferFormat']?.toString() ?? '',
+      frameBufferByteCount: _readInt(map['frameBufferByteCount']),
+      pixelWorkloadBound: _readBool(map['pixelWorkloadBound']),
+      outputFramebufferBound: _readBool(map['outputFramebufferBound']),
+      pixelRendererImplemented: _readBool(map['pixelRendererImplemented']),
+      pixelRendererReady: _readBool(map['pixelRendererReady']),
+      frameBufferAllocated: _readBool(map['frameBufferAllocated']),
+      frameBufferReady: _readBool(map['frameBufferReady']),
+      frameBufferContainsRealPixels:
+          _readBool(map['frameBufferContainsRealPixels']),
+      allowsSyntheticPixels: _readBool(map['allowsSyntheticPixels']),
+      allowsPosterFrame: _readBool(map['allowsPosterFrame']),
+      allowsThumbnailFallback: _readBool(map['allowsThumbnailFallback']),
+      allowsBoundaryFreeze: _readBool(map['allowsBoundaryFreeze']),
+      rendererImplemented: _readBool(map['rendererImplemented']),
+      canRenderPixels: _readBool(map['canRenderPixels']),
+      rendersRealPixels: _readBool(map['rendersRealPixels']),
+      drawsPixels: _readBool(map['drawsPixels']),
+      canRenderFrame: _readBool(map['canRenderFrame']),
+      blockedReasons: _readStringList(map['blockedReasons']),
+      issues: _readIssues(map['issues']),
     );
   }
 

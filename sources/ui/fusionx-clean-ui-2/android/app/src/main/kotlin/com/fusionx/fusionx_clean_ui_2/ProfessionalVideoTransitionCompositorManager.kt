@@ -768,6 +768,48 @@ class ProfessionalVideoTransitionCompositorManager(
         )
     }
 
+    fun planTransitionPixelFrameBuffer(
+        plan: Map<String, Any?>?,
+        timelineTimeMs: Long?,
+    ): Map<String, Any> {
+        val missingFields = requiredRenderPlanFields.filter { field ->
+            !hasRequiredField(plan, field)
+        }
+        if (missingFields.isNotEmpty()) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_required_video_transition_render_plan_fields",
+                "rendererVersion" to "foundation",
+                "missingFields" to missingFields,
+            )
+        }
+        if (timelineTimeMs == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_timeline_time_for_video_transition_pixel_frame_buffer",
+                "rendererVersion" to "foundation",
+            )
+        }
+        val definitionId = plan?.get("definitionId")?.toString() ?: ""
+        val sessionResult = ProfessionalVideoTransitionRenderSession.fromPlan(plan)
+        if (sessionResult.session == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "invalid_video_transition_render_session",
+                "rendererVersion" to "foundation",
+                "definitionId" to definitionId,
+                "issues" to sessionResult.issues,
+            )
+        }
+        return sessionResult.session.planTransitionPixelFrameBuffer(
+            timelineTimeMs = timelineTimeMs,
+            motionBlurPolicy = plan?.get("motionBlurPolicy") as? Map<*, *>,
+            edgePolicy = plan?.get("edgePolicy") as? Map<*, *>,
+            parameters = plan?.get("parameters") as? Map<*, *>,
+            appContext = appContext,
+        )
+    }
+
     fun planTransitionPixelOutputProof(
         plan: Map<String, Any?>?,
         timelineTimeMs: Long?,
@@ -2783,6 +2825,82 @@ private data class ProfessionalVideoTransitionRenderSession(
         parameters: Map<*, *>?,
         appContext: Context,
     ): Map<String, Any> {
+        val frameBufferPlan =
+            planTransitionPixelFrameBuffer(
+                timelineTimeMs = timelineTimeMs,
+                motionBlurPolicy = motionBlurPolicy,
+                edgePolicy = edgePolicy,
+                parameters = parameters,
+                appContext = appContext,
+            )
+        if (frameBufferPlan["status"] != "planned") {
+            return frameBufferPlan
+        }
+        val pixelWorkloadBound = frameBufferPlan["pixelWorkloadBound"] == true
+        val outputFramebufferBound = frameBufferPlan["outputFramebufferBound"] == true
+        val frameBufferReady = frameBufferPlan["frameBufferReady"] == true
+        val frameBufferContainsRealPixels =
+            frameBufferPlan["frameBufferContainsRealPixels"] == true
+        val pixelRendererImplemented = frameBufferPlan["pixelRendererImplemented"] == true
+        val pixelOutputWritten = false
+        val rendererImplemented = frameBufferPlan["rendererImplemented"] == true
+        val upstreamBlockedReasons =
+            (frameBufferPlan["blockedReasons"] as? List<*>)
+                ?.map { reason -> reason.toString() }
+                ?: emptyList()
+        val blockedReasons =
+            buildList {
+                addAll(upstreamBlockedReasons)
+                if (!pixelWorkloadBound) {
+                    add("native_transition_pixel_workload_not_ready")
+                }
+                if (!outputFramebufferBound) {
+                    add("native_transition_output_framebuffer_not_bound")
+                }
+                if (!frameBufferReady) {
+                    add("native_transition_pixel_frame_buffer_not_ready")
+                }
+                if (!frameBufferContainsRealPixels) {
+                    add("native_transition_pixel_frame_buffer_pixels_missing")
+                }
+                if (!pixelRendererImplemented) {
+                    add("native_transition_pixel_renderer_missing")
+                }
+                if (!pixelOutputWritten) {
+                    add("native_transition_pixel_output_missing")
+                }
+                if (!rendererImplemented) {
+                    add("native_transition_renderer_pixels_missing")
+                }
+            }.distinct()
+        return frameBufferPlan +
+            mapOf(
+                "transitionPixelRenderExecutionId" to "$id:pixel-render-execution:$timelineTimeMs",
+                "pixelOutputFrameId" to "$id:pixel-output-frame:$timelineTimeMs",
+                "outputFramebufferTarget" to "nativeTransitionCanvasSurface",
+                "pixelWorkloadBound" to pixelWorkloadBound,
+                "outputFramebufferBound" to outputFramebufferBound,
+                "pixelRendererImplemented" to pixelRendererImplemented,
+                "pixelRendererReady" to (frameBufferPlan["pixelRendererReady"] == true),
+                "pixelRenderExecutionReady" to false,
+                "pixelOutputWritten" to pixelOutputWritten,
+                "pixelOutputReady" to false,
+                "rendererImplemented" to rendererImplemented,
+                "canRenderPixels" to false,
+                "rendersRealPixels" to false,
+                "drawsPixels" to false,
+                "canRenderFrame" to false,
+                "blockedReasons" to blockedReasons,
+            )
+    }
+
+    fun planTransitionPixelFrameBuffer(
+        timelineTimeMs: Long,
+        motionBlurPolicy: Map<*, *>?,
+        edgePolicy: Map<*, *>?,
+        parameters: Map<*, *>?,
+        appContext: Context,
+    ): Map<String, Any> {
         val pixelPlan =
             planTransitionPixelRenderer(
                 timelineTimeMs = timelineTimeMs,
@@ -2795,17 +2913,18 @@ private data class ProfessionalVideoTransitionRenderSession(
             return pixelPlan
         }
         val pixelWorkloadBound = pixelPlan["pixelWorkloadBound"] == true
-        val pixelInputs =
-            (pixelPlan["pixelInputs"] as? List<*>)
-                ?.mapNotNull { input -> input as? Map<*, *> }
-                ?: emptyList()
         val outputTarget = pixelPlan["outputTarget"]?.toString() ?: ""
         val outputFramebufferBound =
             pixelWorkloadBound &&
                 outputTarget == "nativeTransitionCanvasSurface" &&
-                pixelInputs.isNotEmpty()
+                canvasWidth > 0 &&
+                canvasHeight > 0
+        val frameBufferFormat = "rgba8888"
+        val frameBufferByteCount =
+            if (outputFramebufferBound) canvasWidth * canvasHeight * 4 else 0
+        val frameBufferAllocated = false
+        val frameBufferContainsRealPixels = false
         val pixelRendererImplemented = false
-        val pixelOutputWritten = false
         val rendererImplemented = false
         val upstreamBlockedReasons =
             (pixelPlan["blockedReasons"] as? List<*>)
@@ -2820,28 +2939,35 @@ private data class ProfessionalVideoTransitionRenderSession(
                 if (!outputFramebufferBound) {
                     add("native_transition_output_framebuffer_not_bound")
                 }
+                if (!frameBufferAllocated) {
+                    add("native_transition_pixel_frame_buffer_missing")
+                }
+                if (!frameBufferContainsRealPixels) {
+                    add("native_transition_pixel_frame_buffer_pixels_missing")
+                }
                 if (!pixelRendererImplemented) {
-                    add("native_transition_pixel_renderer_missing")
-                }
-                if (!pixelOutputWritten) {
-                    add("native_transition_pixel_output_missing")
-                }
-                if (!rendererImplemented) {
-                    add("native_transition_renderer_pixels_missing")
+                    add("native_transition_pixel_frame_buffer_renderer_missing")
                 }
             }.distinct()
         return pixelPlan +
             mapOf(
-                "transitionPixelRenderExecutionId" to "$id:pixel-render-execution:$timelineTimeMs",
-                "pixelOutputFrameId" to "$id:pixel-output-frame:$timelineTimeMs",
+                "transitionPixelFrameBufferId" to "$id:pixel-frame-buffer:$timelineTimeMs",
                 "outputFramebufferTarget" to "nativeTransitionCanvasSurface",
+                "frameBufferWidth" to if (outputFramebufferBound) canvasWidth else 0,
+                "frameBufferHeight" to if (outputFramebufferBound) canvasHeight else 0,
+                "frameBufferFormat" to frameBufferFormat,
+                "frameBufferByteCount" to frameBufferByteCount,
                 "pixelWorkloadBound" to pixelWorkloadBound,
                 "outputFramebufferBound" to outputFramebufferBound,
                 "pixelRendererImplemented" to pixelRendererImplemented,
                 "pixelRendererReady" to false,
-                "pixelRenderExecutionReady" to false,
-                "pixelOutputWritten" to pixelOutputWritten,
-                "pixelOutputReady" to false,
+                "frameBufferAllocated" to frameBufferAllocated,
+                "frameBufferReady" to false,
+                "frameBufferContainsRealPixels" to frameBufferContainsRealPixels,
+                "allowsSyntheticPixels" to false,
+                "allowsPosterFrame" to false,
+                "allowsThumbnailFallback" to false,
+                "allowsBoundaryFreeze" to false,
                 "rendererImplemented" to rendererImplemented,
                 "canRenderPixels" to false,
                 "rendersRealPixels" to false,

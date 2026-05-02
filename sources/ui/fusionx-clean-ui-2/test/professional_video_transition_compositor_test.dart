@@ -2779,6 +2779,129 @@ void main() {
     expect(result.blockedReasons, isEmpty);
   });
 
+  test('method channel transition pixel frame buffer rejects frozen fallbacks',
+      () async {
+    const channel = MethodChannel(
+        'com.refusion.app/professional_video_transition_compositor');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(channel, null);
+    });
+    messenger.setMockMethodCallHandler(channel, (call) async {
+      expect(call.method, 'planTransitionPixelFrameBuffer');
+      final arguments = call.arguments! as Map<Object?, Object?>;
+      expect(arguments['definitionId'], 'zoomInCamera');
+      expect(arguments['timelineTimeMs'], 10000);
+      return <String, Object?>{
+        'status': 'planned',
+        'reason': '',
+        'rendererVersion': 'foundation',
+        'definitionId': 'zoomInCamera',
+        'renderSessionId': 'transition-session:zoom-native-1',
+        'transitionPixelRendererId':
+            'transition-session:zoom-native-1:pixel-renderer:10000',
+        'transitionPixelFrameBufferId':
+            'transition-session:zoom-native-1:pixel-frame-buffer:10000',
+        'pixelProgramId':
+            'transition-session:zoom-native-1:pixel-program:zoomInCamera',
+        'outputSurfaceId':
+            'transition-session:zoom-native-1:surface:transition-output:10000',
+        'outputTarget': 'nativeTransitionCanvasSurface',
+        'outputFramebufferTarget': 'nativeTransitionCanvasSurface',
+        'timelineTimeMs': 10000,
+        'transitionStartMs': 8000,
+        'transitionEndMs': 12000,
+        'canvasWidth': 1080,
+        'canvasHeight': 1920,
+        'frameBufferWidth': 1080,
+        'frameBufferHeight': 1920,
+        'frameBufferFormat': 'rgba8888',
+        'frameBufferByteCount': 1080 * 1920 * 4,
+        'pixelWorkloadBound': true,
+        'outputFramebufferBound': true,
+        'pixelRendererImplemented': false,
+        'pixelRendererReady': false,
+        'frameBufferAllocated': false,
+        'frameBufferReady': false,
+        'frameBufferContainsRealPixels': false,
+        'allowsSyntheticPixels': false,
+        'allowsPosterFrame': false,
+        'allowsThumbnailFallback': false,
+        'allowsBoundaryFreeze': false,
+        'rendererImplemented': false,
+        'canRenderPixels': false,
+        'rendersRealPixels': false,
+        'drawsPixels': false,
+        'canRenderFrame': false,
+        'blockedReasons': <String>[
+          'native_transition_pixel_frame_buffer_missing',
+          'native_transition_pixel_frame_buffer_pixels_missing',
+          'native_transition_pixel_frame_buffer_renderer_missing',
+        ],
+      };
+    });
+
+    final result =
+        await const MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider(
+      channel: channel,
+    ).planTransitionPixelFrameBuffer(
+      timelineTime: TimelineTime.fromMilliseconds(10000),
+      plan: ProfessionalZoomCameraRenderPlan(
+        canvasWidth: 1080,
+        canvasHeight: 1920,
+        request: ProfessionalZoomCameraPlanRequest(
+          transitionId: 'zoom-native-1',
+          timelineTime: TimelineTime.fromMilliseconds(10000),
+          boundaryTime: TimelineTime.fromMilliseconds(10000),
+          leadingDuration: TimelineTime.fromMilliseconds(2000),
+          trailingDuration: TimelineTime.fromMilliseconds(2000),
+          outgoing: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-a',
+            assetId: 'asset-a',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(28000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+          incoming: ProfessionalVideoTransitionCompositorSource(
+            clipId: 'clip-b',
+            assetId: 'asset-b',
+            timelineRange: TimelineTimeRange(
+              start: TimelineTime.fromMilliseconds(8000),
+              endExclusive: TimelineTime.fromMilliseconds(12000),
+            ),
+            sourceStartTime: TimelineTime.fromMilliseconds(38000),
+            sourceDuration: TimelineTime.fromMilliseconds(4000),
+          ),
+        ),
+      ).toGenericRenderPlan(),
+    );
+
+    expect(result.canPlan, isTrue);
+    expect(result.pixelWorkloadBound, isTrue);
+    expect(result.outputFramebufferBound, isTrue);
+    expect(result.frameBufferFormat, 'rgba8888');
+    expect(result.frameBufferByteCount, 1080 * 1920 * 4);
+    expect(result.frameBufferAllocated, isFalse);
+    expect(result.frameBufferContainsRealPixels, isFalse);
+    expect(result.allowsSyntheticPixels, isFalse);
+    expect(result.allowsPosterFrame, isFalse);
+    expect(result.allowsThumbnailFallback, isFalse);
+    expect(result.allowsBoundaryFreeze, isFalse);
+    expect(result.canRenderPixels, isFalse);
+    expect(
+      result.blockedReasons,
+      contains('native_transition_pixel_frame_buffer_missing'),
+    );
+    expect(
+      result.blockedReasons,
+      contains('native_transition_pixel_frame_buffer_pixels_missing'),
+    );
+  });
+
   test('method channel transition pixel render execution blocks missing output',
       () async {
     const channel = MethodChannel(

@@ -40,6 +40,7 @@ void main() {
         ProfessionalVideoTransitionReadinessStageId.rendererDrawLoop,
         ProfessionalVideoTransitionReadinessStageId.transitionShaderEvaluation,
         ProfessionalVideoTransitionReadinessStageId.transitionPixelRenderer,
+        ProfessionalVideoTransitionReadinessStageId.transitionPixelFrameBuffer,
         ProfessionalVideoTransitionReadinessStageId
             .transitionPixelRenderExecution,
         ProfessionalVideoTransitionReadinessStageId.transitionPixelOutputProof,
@@ -142,6 +143,20 @@ void main() {
               .transitionPixelRenderer)
           .blockers,
       isEmpty,
+    );
+    expect(
+      report
+          .stage(ProfessionalVideoTransitionReadinessStageId
+              .transitionPixelFrameBuffer)
+          .canAdvance,
+      isFalse,
+    );
+    expect(
+      report
+          .stage(ProfessionalVideoTransitionReadinessStageId
+              .transitionPixelFrameBuffer)
+          .blockers,
+      contains('native_transition_pixel_frame_buffer_missing'),
     );
     expect(
       report
@@ -1031,6 +1046,59 @@ class _FakeProfessionalVideoTransitionCompositorClient
       drawsPixels: false,
       canRenderFrame: false,
       blockedReasons: const <String>[],
+    );
+  }
+
+  @override
+  Future<ProfessionalVideoTransitionPixelFrameBufferPlanResult>
+      planTransitionPixelFrameBuffer({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+  }) async {
+    return ProfessionalVideoTransitionPixelFrameBufferPlanResult(
+      status: ProfessionalVideoTransitionPixelFrameBufferPlanStatus.planned,
+      reason: '',
+      rendererVersion: 'fake',
+      definitionId: plan.definitionId,
+      renderSessionId: 'transition-session:${plan.transitionId}',
+      transitionPixelRendererId: 'pixel-renderer:${plan.transitionId}',
+      transitionPixelFrameBufferId: 'pixel-frame-buffer:${plan.transitionId}',
+      pixelProgramId: 'pixel-program:${plan.definitionId}',
+      outputSurfaceId: 'surface:${plan.transitionId}',
+      outputTarget: 'nativeTransitionCanvasSurface',
+      outputFramebufferTarget: 'nativeTransitionCanvasSurface',
+      timelineTime: timelineTime,
+      transitionStartTime: plan.boundaryTime - plan.leadingDuration,
+      transitionEndTime: plan.boundaryTime + plan.trailingDuration,
+      canvasWidth: plan.canvasWidth,
+      canvasHeight: plan.canvasHeight,
+      frameBufferWidth: plan.canvasWidth,
+      frameBufferHeight: plan.canvasHeight,
+      frameBufferFormat: 'rgba8888',
+      frameBufferByteCount: plan.canvasWidth * plan.canvasHeight * 4,
+      pixelWorkloadBound: true,
+      outputFramebufferBound: true,
+      pixelRendererImplemented: _rendererReady,
+      pixelRendererReady: _rendererReady,
+      frameBufferAllocated: _rendererReady,
+      frameBufferReady: _rendererReady,
+      frameBufferContainsRealPixels: _rendererReady,
+      allowsSyntheticPixels: false,
+      allowsPosterFrame: false,
+      allowsThumbnailFallback: false,
+      allowsBoundaryFreeze: false,
+      rendererImplemented: _rendererReady,
+      canRenderPixels: _rendererReady,
+      rendersRealPixels: _rendererReady,
+      drawsPixels: _rendererReady,
+      canRenderFrame: _rendererReady,
+      blockedReasons: _planningOnly
+          ? const <String>[
+              'native_transition_pixel_frame_buffer_missing',
+              'native_transition_pixel_frame_buffer_pixels_missing',
+              'native_transition_pixel_frame_buffer_renderer_missing',
+            ]
+          : const <String>[],
     );
   }
 

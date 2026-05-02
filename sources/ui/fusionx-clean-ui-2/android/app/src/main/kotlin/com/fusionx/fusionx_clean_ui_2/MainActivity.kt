@@ -644,6 +644,18 @@ class MainActivity: FlutterActivity() {
                             ),
                     )
                 }
+                "planTransitionPixelFrameBuffer" -> {
+                    val request =
+                        (call.arguments as? Map<*, *>)?.mapKeys { (key, _) -> key.toString() }
+                    val timelineTimeMs = (request?.get("timelineTimeMs") as? Number)?.toLong()
+                    result.success(
+                        professionalVideoTransitionCompositorManager
+                            .planTransitionPixelFrameBuffer(
+                                plan = request,
+                                timelineTimeMs = timelineTimeMs,
+                            ),
+                    )
+                }
                 "planTransitionPixelRenderExecution" -> {
                     val request =
                         (call.arguments as? Map<*, *>)?.mapKeys { (key, _) -> key.toString() }

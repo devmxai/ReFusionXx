@@ -22,6 +22,7 @@ enum ProfessionalVideoTransitionReadinessStageId {
   rendererDrawLoop,
   transitionShaderEvaluation,
   transitionPixelRenderer,
+  transitionPixelFrameBuffer,
   transitionPixelRenderExecution,
   transitionPixelOutputProof,
   parityOutputs,
@@ -195,6 +196,13 @@ class ProfessionalVideoTransitionReadinessPreflight {
       timelineTime: timelineTime,
     );
     stages.add(_transitionPixelRendererStage(transitionPixelRenderer));
+
+    final transitionPixelFrameBuffer =
+        await _client.planTransitionPixelFrameBuffer(
+      plan: plan,
+      timelineTime: timelineTime,
+    );
+    stages.add(_transitionPixelFrameBufferStage(transitionPixelFrameBuffer));
 
     final transitionPixelRenderExecution =
         await _client.planTransitionPixelRenderExecution(
@@ -586,6 +594,28 @@ class ProfessionalVideoTransitionReadinessPreflight {
         blockedReasons: result.blockedReasons,
         issues: result.issues,
         includeReason: !result.pixelWorkloadBound,
+      ),
+      issues: result.issues,
+    );
+  }
+
+  static ProfessionalVideoTransitionReadinessStage
+      _transitionPixelFrameBufferStage(
+    ProfessionalVideoTransitionPixelFrameBufferPlanResult result,
+  ) {
+    final canAdvance =
+        result.frameBufferReady && result.frameBufferContainsRealPixels;
+    return ProfessionalVideoTransitionReadinessStage(
+      id: ProfessionalVideoTransitionReadinessStageId
+          .transitionPixelFrameBuffer,
+      label: 'Native transition pixel frame buffer',
+      canPlan: result.canPlan,
+      canAdvance: canAdvance,
+      blockers: _blockers(
+        reason: result.reason,
+        blockedReasons: result.blockedReasons,
+        issues: result.issues,
+        includeReason: !canAdvance,
       ),
       issues: result.issues,
     );
