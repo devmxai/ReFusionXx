@@ -923,23 +923,23 @@ Crash/ANR correction:
   Playback and Live Scrub must continue through the normal video preview path
   without invoking the heavy transition renderer.
 
-## 18. Zoom In Camera Rebuild
+## 18. Zoom In Camera Safety Reversal
 
-Status: replacement user-facing transition; no Stage5/Live Scrub protected file
-changes.
+Status: user-facing zoom transition hidden again; no Stage5/Live Scrub
+protected file changes.
 
-The `Distortion Zoom Transition In V1` experiment is no longer exposed. The
-replacement is `Zoom In Camera`, built as a real-video surface transition:
+The attempted Flutter-side `Zoom In Camera` surface transform is not safe for
+the current Android preview stack. The preview is a native PlatformView, and
+Flutter transforms/blur can leak that surface into the timeline overlay and
+confuse native timeline scrub hit-testing. The result is a preview appearing in
+the timeline and Live Scroll feeling constrained to the transition bridge.
 
-- it transforms the playing video preview surface instead of extracting and
-  freezing source frames;
-- it uses seam-aware scale, soft blur, and edge-safe overscan values;
-- outgoing video zooms into the seam, incoming video settles from a zoomed-in
-  state after the seam;
-- scale remains at or above `1.0` so the transition behaves like a motion-tiled
-  zoom surface without revealing black borders;
-- the heavy native per-frame extraction renderer is not considered implemented
-  for user-facing playback or Live Scrub.
+Therefore:
 
-The future fully native version must use cached dual-video decoder surfaces
-rather than repeated codec start/stop/release per rendered frame.
+- `Zoom In Camera` is removed from the preset browser again;
+- Flutter no longer applies transition transforms to the native preview
+  PlatformView;
+- `Distortion Zoom Transition In V1` remains hidden because its temporary
+  renderer caused codec churn;
+- zoom-family transitions must return through a real native compositor surface
+  that owns clipping, transform, effects, and output ordering inside Android.

@@ -790,35 +790,27 @@ The normal transitions system is professional only when:
 - unsupported transitions block honestly
 - every accepted preset passes real-device validation
 
-## 16. Current Slice: Zoom In Camera Surface Transition
-
-Status: real-video surface-transform transition; native dual-decoder export
-parity remains deferred.
+## 16. Current Slice: Transition Preview Safety
 
 The previous `Distortion Zoom Transition In V1` experiment is removed from the
 preset browser. Device logs showed repeated codec start/stop/release churn
 because that version extracted source frames and composed bitmaps per render
 request. That is not acceptable for playback or Live Scrub.
 
-The replacement user-facing preset is `Zoom In Camera`. It applies a
-professional zoom directly to the playing video preview surface, so the effect
-is applied to video motion rather than a frozen boundary frame.
+The attempted Flutter-side `Zoom In Camera` surface transform is also removed
+from the preset browser. Android native preview is a PlatformView, and applying
+Flutter transforms or blur to that surface can leak the preview into the
+timeline overlay and break native timeline scrub hit-testing. Zoom-family
+transitions must return only through a native compositor surface that owns its
+own clipping, transform, and output ordering.
 
 Contracts added:
 
-- `Zoom In Camera` is exposed in the preset browser when the transition gate is
-  open.
 - The transition no longer invokes native per-frame source extraction.
 - Playback and Live Scrub remain on the normal video preview path.
-- The preview surface receives seam-aware scale, soft blur, and edge-safe
-  overscan values.
-- The scale never drops below `1.0`, so the video surface does not reveal black
-  borders; this is the practical surface-transform equivalent of motion tile
-  overscan until the real native dual-decoder compositor ships.
-- The outgoing side zooms into the seam, and the incoming side settles from a
-  zoomed-in state after the seam.
-- The old `Distortion Zoom Transition In V1` preset remains hidden and its
-  heavy native renderer is not treated as implemented.
+- `Zoom In Camera` and `Distortion Zoom Transition In V1` remain hidden until
+  the native compositor path can transform video without PlatformView leakage
+  or codec churn.
 - Thumbnail zooms, poster frames, decorative speed lines, Gaussian-only blur,
   Flutter overlays, timeline-area drawing, and transformed single-surface
   previews made from still images remain rejected.

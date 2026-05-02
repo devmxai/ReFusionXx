@@ -20711,79 +20711,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   MotionVideoPreviewSurfaceTransform? _transitionVideoSurfaceTransformForTime(
     TimelineTime previewTime,
   ) {
-    final activeTransition = _activeTimelineTransitionPreviewAt(previewTime);
-    if (activeTransition == null) {
-      return null;
-    }
-    if (activeTransition.transition.preset !=
-        TimelineTransitionPreset.zoomInCamera) {
-      return null;
-    }
-    final transition = activeTransition.transition;
-    final seam = _seamProgressForTransition(transition);
-    final progress = activeTransition.progress.clamp(0.0, 1.0).toDouble();
-    final outgoingScale = transition
-        .parameterValue('outgoingBoostScale', fallback: 1.32)
-        .clamp(1.0, 1.65)
-        .toDouble();
-    final incomingStartScale = transition
-        .parameterValue('incomingStartScale', fallback: 1.18)
-        .clamp(1.0, 1.45)
-        .toDouble();
-    final bridgeDarkness = transition
-        .parameterValue('bridgeDarkness', fallback: 0.10)
-        .clamp(0.0, 0.30)
-        .toDouble();
-    final blurPeak = transition
-        .parameterValue('motionBlurAmount', fallback: 3.5)
-        .clamp(0.0, 8.0)
-        .toDouble();
-    final outgoingPhase = progress <= seam
-        ? (progress / seam.clamp(0.001, 1.0)).clamp(0.0, 1.0).toDouble()
-        : 1.0;
-    final incomingPhase = progress <= seam
-        ? 0.0
-        : ((progress - seam) / (1 - seam).clamp(0.001, 1.0))
-            .clamp(0.0, 1.0)
-            .toDouble();
-    final scale = progress <= seam
-        ? _lerpDouble(
-            1.0,
-            outgoingScale,
-            Curves.easeInCubic.transform(
-              outgoingPhase,
-            ))
-        : _lerpDouble(
-            incomingStartScale,
-            1.0,
-            Curves.easeOutCubic.transform(
-              incomingPhase,
-            ));
-    final seamPulse = (1 - ((progress - seam).abs() / seam.clamp(0.001, 0.5)))
-        .clamp(0.0, 1.0)
-        .toDouble();
-    final opacity = (1 - (bridgeDarkness * seamPulse)).clamp(0.0, 1.0);
-    final blurAmount = blurPeak * seamPulse;
-    return MotionVideoPreviewSurfaceTransform(
-      scaleX: scale,
-      scaleY: scale,
-      opacity: opacity,
-      blurAmount: blurAmount,
-    );
-  }
-
-  double _lerpDouble(double start, double end, double progress) {
-    return start + ((end - start) * progress.clamp(0.0, 1.0));
-  }
-
-  double _seamProgressForTransition(TimelineTrackTransitionData transition) {
-    final leading = transition.resolvedLeadingDurationTime.inMilliseconds;
-    final trailing = transition.resolvedTrailingDurationTime.inMilliseconds;
-    final total = leading + trailing;
-    if (total <= 0) {
-      return 0.5;
-    }
-    return (leading / total).clamp(0.0, 1.0).toDouble();
+    // Native preview is an Android PlatformView. Transforming it from Flutter
+    // can leak the surface into the timeline overlay and break Live Scrub
+    // hit-testing. Zoom-family transitions must wait for a native compositor
+    // surface that owns clipping/transform inside Android.
+    return null;
   }
 
   bool _canApplyTimelineTransition(
