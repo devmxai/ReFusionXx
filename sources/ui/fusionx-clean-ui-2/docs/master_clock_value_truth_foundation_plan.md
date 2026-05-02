@@ -765,6 +765,9 @@ Implementation note (checkpoint `checkpoint: implement master clock value truth 
 - native transport handoff to `TimelineClockCoordinator` now has a dedicated
   adapter path (`MasterClockNativeBridge`) so screen-level playback sample
   application no longer hardcodes coordinator phase bootstrapping in UI code.
+- pause-time writes from editor playback toggles and transport callbacks are now
+  routed through the same bridge adapter instead of direct coordinator writes in
+  screen code.
 
 ## 11. First Writer Task
 

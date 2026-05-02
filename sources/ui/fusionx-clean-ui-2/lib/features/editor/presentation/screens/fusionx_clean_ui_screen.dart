@@ -3104,6 +3104,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return decision;
   }
 
+  void _pauseTimelineClockAt(TimelineTime time) {
+    _masterClockNativeBridge.pauseAt(
+      time: time,
+      timelineDurationTime: _timelineDurationTime,
+    );
+  }
+
   bool get _shouldDriveDisplayTimeFromPlaybackSample =>
       _useNativePreview &&
       _isPlaying &&
@@ -3574,7 +3581,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (nativeSettled) {
       _timelineClockCoordinator.confirmScrubSettled(handoffTarget);
     }
-    _timelineClockCoordinator.pauseAt(resolvedPlaybackTime);
+    _pauseTimelineClockAt(resolvedPlaybackTime);
     _applyTimelineClockSnapshotToUi();
     _clearTimelineScrubHandoff();
     return true;
@@ -3760,7 +3767,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     } else if (!transportState.isPlaying &&
         shouldAdoptTransportTime &&
         _timelineClockCoordinator.snapshot.isPlaybackActive) {
-      _timelineClockCoordinator.pauseAt(reportedTransportTime);
+      _pauseTimelineClockAt(reportedTransportTime);
       acceptedTransportTime = _timelineClockCoordinator.time;
     }
     final isTransientPlaybackRegression = transportState.isPlaying &&
@@ -17068,7 +17075,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         TimelineTime.zero,
         duration,
       );
-      _timelineClockCoordinator.pauseAt(stopTime);
+      _pauseTimelineClockAt(stopTime);
       _stopMotionPreviewFrameClock(resetTo: stopTime);
       setState(() {
         _isPlaying = false;
@@ -17121,7 +17128,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
   void _stopFlutterTimelinePlaybackAt(TimelineTime time) {
     final clampedTime = time.clamp(TimelineTime.zero, _timelineDurationTime);
-    _timelineClockCoordinator.pauseAt(clampedTime);
+    _pauseTimelineClockAt(clampedTime);
     _stopMotionPreviewFrameClock(resetTo: clampedTime);
     if (_isPlaying && mounted) {
       setState(() {
@@ -17184,7 +17191,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   Future<void> _toggleTimelinePlaybackFromVisibleTime() async {
     final playbackTime = _authoritativeTimelinePlaybackTime();
     if (_transportController.isPlaying) {
-      _timelineClockCoordinator.pauseAt(playbackTime);
+      _pauseTimelineClockAt(playbackTime);
       _activatePlaybackStopTimeLock(playbackTime);
       await _pausePlayback();
       if (mounted) {
@@ -17216,7 +17223,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return;
     }
     if (_transportController.isPlaying) {
-      _timelineClockCoordinator.pauseAt(
+      _pauseTimelineClockAt(
         _authoritativeTimelinePlaybackTime(
           minTime: context.startTime,
           maxTime: context.endTime,
@@ -17654,7 +17661,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
     final playbackTime = _authoritativeTimelinePlaybackTime();
     if (_transportController.isPlaying) {
-      _timelineClockCoordinator.pauseAt(playbackTime);
+      _pauseTimelineClockAt(playbackTime);
       _activatePlaybackStopTimeLock(playbackTime);
       await _pausePlayback();
       if (mounted) {
