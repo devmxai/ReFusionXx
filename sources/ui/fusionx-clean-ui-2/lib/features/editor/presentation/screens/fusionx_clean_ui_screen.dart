@@ -3062,11 +3062,29 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _applyTimelineDisplayTime(zoomLockedTime);
       return;
     }
+    _syncMasterClockPausedTimeIfNeeded(clamped);
     _currentTime = clamped;
     _setTimelineDisplayTime(clamped);
     if (!_isTimelineScrubbing && (!_isPlaying || !_useNativePreview)) {
       _setPlaybackSampleTime(clamped);
     }
+  }
+
+  void _syncMasterClockPausedTimeIfNeeded(TimelineTime clampedTime) {
+    if (_isPlaying ||
+        _isTimelineScrubbing ||
+        _isTimelineScrubHandoffInFlight ||
+        _isApplyingStructuralEdit) {
+      return;
+    }
+    final currentClockTime = _masterClockNativeBridge.time.clamp(
+      TimelineTime.zero,
+      _timelineDurationTime,
+    );
+    if (currentClockTime == clampedTime) {
+      return;
+    }
+    _pauseTimelineClockAt(clampedTime);
   }
 
   void _syncTimelineClockDuration() {
@@ -15520,8 +15538,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _selectedClipId = draft.clipId;
       _activeTab = EditorMediaTab.speed;
       _currentTime = previewStartTime;
-      _playbackSampleTimeNotifier.value = previewStartTime;
     });
+    _setPlaybackSampleTime(previewStartTime);
     await _pausePlayback();
     await _syncVideoTimelineTransport(
       tracks: nextTracks,
@@ -15602,8 +15620,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _activeTab = EditorMediaTab.speed;
       _previewAssetId = nextPreviewAssetId;
       _currentTime = nextCurrentTime;
-      _playbackSampleTimeNotifier.value = nextCurrentTime;
     });
+    _setPlaybackSampleTime(nextCurrentTime);
     _setTimelineDisplayTime(nextCurrentTime);
     await _commitStructuralTimelineEdit(
       tracks: nextTracks,

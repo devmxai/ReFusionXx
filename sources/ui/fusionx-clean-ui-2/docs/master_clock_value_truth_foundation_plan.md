@@ -783,6 +783,10 @@ Implementation note (checkpoint `checkpoint: implement master clock value truth 
   sample for the active mode (`preview` / `playback` / `liveScrub`) through
   `MasterFrameEvaluationReadAdapter`, improving read-path observability while
   preserving the existing render pipeline boundaries.
+- display/sample timeline notifier writes are now centralized to their setter
+  paths (no ad-hoc clip-speed flow writes), and idle-time `_setCurrentTime`
+  updates now synchronize paused master-clock time through the bridge before
+  publishing derived timeline views.
 
 ## 11. First Writer Task
 
