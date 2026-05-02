@@ -682,9 +682,13 @@ Pixel output proof gate:
   into the final native surface;
 - the surface-upload renderer contract now accepts a ready packet separately
   from the final surface endpoint. This means the renderer side can be marked
-  structurally ready while the chain remains blocked by
-  `native_transition_surface_endpoint_missing` until a safe native endpoint is
-  attached;
+  structurally ready while the final endpoint remains an explicit gate;
+- Android now owns a bounded native transition endpoint store for this proof
+  stage. It allocates offscreen `ImageReader`/`Surface` endpoints, copies the
+  canvas-sized `rgba8888` pixel-output frame into that native surface, records
+  upload byte count/checksum, and marks the endpoint attached only when the
+  native surface accepts the posted frame. This proves native endpoint binding
+  for the proof path, not interactive preview parity;
 - the proof must confirm that the renderer wrote real pixels into the native
   transition output target, currently `nativeTransitionCanvasSurface`;
 - the proof must explicitly forbid Flutter overlays, timeline overlays, and
@@ -692,6 +696,11 @@ Pixel output proof gate:
 - if the renderer has only bound shader inputs, pixel workloads, or framebuffer
   metadata but has not written a real output frame, the blocker is
   `native_transition_pixel_output_proof_missing`;
+- even after the offscreen endpoint upload succeeds, presets remain locked
+  until preview, Live Scrub, and playback parity consume the same compositor
+  output contract through their real interactive surfaces. The endpoint proof
+  must not be used as a hidden preview surface, timeline overlay, or
+  single-frame transition fallback;
 - this gate exists to prevent returning to frozen-frame zooms, Gaussian-blur
   stand-ins, decorative speed-line shapes, or video drawn over the timeline.
 
