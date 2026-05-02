@@ -1441,6 +1441,42 @@ class _FakeProfessionalVideoTransitionCompositorClient
   }
 
   @override
+  Future<ProfessionalVideoTransitionInteractiveFrameRenderResult>
+      renderInteractiveFrame({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+    required String mode,
+    required String surfaceId,
+  }) async {
+    return ProfessionalVideoTransitionInteractiveFrameRenderResult(
+      status: _rendererReady
+          ? ProfessionalVideoTransitionInteractiveFrameRenderStatus.planned
+          : ProfessionalVideoTransitionInteractiveFrameRenderStatus
+              .invalidRequest,
+      reason: _rendererReady ? '' : 'native_transition_renderer_not_ready',
+      rendererVersion: 'fake',
+      definitionId: plan.definitionId,
+      renderSessionId: 'transition-session:${plan.transitionId}',
+      mode: mode,
+      surfaceId: surfaceId,
+      timelineTime: timelineTime,
+      transitionStartTime: plan.boundaryTime - plan.leadingDuration,
+      transitionEndTime: plan.boundaryTime + plan.trailingDuration,
+      pixelOutputReady: _rendererReady,
+      frameDelivered: _rendererReady,
+      framePresented: _rendererReady,
+      frameByteCount: _rendererReady ? 4096 : 0,
+      frameChecksum: _rendererReady ? 7 : 0,
+      surfaceAttached: _rendererReady,
+      surfaceKind: _rendererReady ? 'interactiveNativeTransitionSurface' : '',
+      canRenderFrame: _rendererReady,
+      blockedReasons: _rendererReady
+          ? const <String>[]
+          : const <String>['native_transition_renderer_not_ready'],
+    );
+  }
+
+  @override
   Future<ProfessionalVideoTransitionCompositorPrepareResult>
       prepareZoomInCameraRenderPlan(
     ProfessionalZoomCameraRenderPlan plan,

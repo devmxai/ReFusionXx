@@ -105,8 +105,6 @@ class _TransitionBrowserBottomSheetState
     }
     return <TimelineTransitionPreset>[
       TimelineTransitionPreset.crossDissolve,
-      TimelineTransitionPreset.fadeBlack,
-      TimelineTransitionPreset.zoomInCamera,
     ];
   }
 

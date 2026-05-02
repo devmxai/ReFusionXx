@@ -240,6 +240,14 @@ abstract class ProfessionalVideoTransitionCompositorClient
     required TimelineTime timelineTime,
   });
 
+  Future<ProfessionalVideoTransitionInteractiveFrameRenderResult>
+      renderInteractiveFrame({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+    required String mode,
+    required String surfaceId,
+  });
+
   Future<ProfessionalVideoTransitionCompositorPrepareResult>
       prepareZoomInCameraRenderPlan(
     ProfessionalZoomCameraRenderPlan plan,
@@ -882,6 +890,38 @@ class MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider
       );
     } on PlatformException catch (error) {
       return ProfessionalVideoTransitionParityPlanResult.invalidRequest(
+        reason: error.message ?? error.code,
+      );
+    }
+  }
+
+  @override
+  Future<ProfessionalVideoTransitionInteractiveFrameRenderResult>
+      renderInteractiveFrame({
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required TimelineTime timelineTime,
+    required String mode,
+    required String surfaceId,
+  }) async {
+    try {
+      final payload = plan.toPlatformMap();
+      payload['timelineTimeMs'] = timelineTime.inMilliseconds;
+      payload['mode'] = mode;
+      payload['surfaceId'] = surfaceId;
+      final rawResult = await _channel.invokeMapMethod<String, Object?>(
+        'renderInteractiveFrame',
+        payload,
+      );
+      return ProfessionalVideoTransitionInteractiveFrameRenderResultMapper
+          .fromMap(rawResult);
+    } on MissingPluginException {
+      return ProfessionalVideoTransitionInteractiveFrameRenderResult
+          .invalidRequest(
+        reason: 'native_compositor_channel_missing',
+      );
+    } on PlatformException catch (error) {
+      return ProfessionalVideoTransitionInteractiveFrameRenderResult
+          .invalidRequest(
         reason: error.message ?? error.code,
       );
     }
@@ -6628,6 +6668,153 @@ class ProfessionalVideoTransitionParityPlanResultMapper {
         };
       }),
     );
+  }
+}
+
+enum ProfessionalVideoTransitionInteractiveFrameRenderStatus {
+  planned,
+  invalidRequest,
+}
+
+@immutable
+class ProfessionalVideoTransitionInteractiveFrameRenderResult {
+  const ProfessionalVideoTransitionInteractiveFrameRenderResult({
+    required this.status,
+    required this.reason,
+    required this.rendererVersion,
+    required this.definitionId,
+    required this.renderSessionId,
+    required this.mode,
+    required this.surfaceId,
+    required this.timelineTime,
+    required this.transitionStartTime,
+    required this.transitionEndTime,
+    required this.pixelOutputReady,
+    required this.frameDelivered,
+    required this.framePresented,
+    required this.frameByteCount,
+    required this.frameChecksum,
+    required this.surfaceAttached,
+    required this.surfaceKind,
+    required this.canRenderFrame,
+    required this.blockedReasons,
+  });
+
+  factory ProfessionalVideoTransitionInteractiveFrameRenderResult.invalidRequest({
+    required String reason,
+    String rendererVersion = 'unknown',
+  }) {
+    return ProfessionalVideoTransitionInteractiveFrameRenderResult(
+      status: ProfessionalVideoTransitionInteractiveFrameRenderStatus
+          .invalidRequest,
+      reason: reason,
+      rendererVersion: rendererVersion,
+      definitionId: '',
+      renderSessionId: '',
+      mode: '',
+      surfaceId: '',
+      timelineTime: null,
+      transitionStartTime: null,
+      transitionEndTime: null,
+      pixelOutputReady: false,
+      frameDelivered: false,
+      framePresented: false,
+      frameByteCount: 0,
+      frameChecksum: 0,
+      surfaceAttached: false,
+      surfaceKind: '',
+      canRenderFrame: false,
+      blockedReasons: const <String>[],
+    );
+  }
+
+  final ProfessionalVideoTransitionInteractiveFrameRenderStatus status;
+  final String reason;
+  final String rendererVersion;
+  final String definitionId;
+  final String renderSessionId;
+  final String mode;
+  final String surfaceId;
+  final TimelineTime? timelineTime;
+  final TimelineTime? transitionStartTime;
+  final TimelineTime? transitionEndTime;
+  final bool pixelOutputReady;
+  final bool frameDelivered;
+  final bool framePresented;
+  final int frameByteCount;
+  final int frameChecksum;
+  final bool surfaceAttached;
+  final String surfaceKind;
+  final bool canRenderFrame;
+  final List<String> blockedReasons;
+}
+
+class ProfessionalVideoTransitionInteractiveFrameRenderResultMapper {
+  const ProfessionalVideoTransitionInteractiveFrameRenderResultMapper._();
+
+  static ProfessionalVideoTransitionInteractiveFrameRenderResult fromMap(
+    Map<String, Object?>? map,
+  ) {
+    if (map == null) {
+      return ProfessionalVideoTransitionInteractiveFrameRenderResult
+          .invalidRequest(
+        reason: 'native_compositor_empty_interactive_frame_response',
+      );
+    }
+    final status = switch (map['status']?.toString()) {
+      'planned' =>
+        ProfessionalVideoTransitionInteractiveFrameRenderStatus.planned,
+      _ =>
+        ProfessionalVideoTransitionInteractiveFrameRenderStatus.invalidRequest,
+    };
+    return ProfessionalVideoTransitionInteractiveFrameRenderResult(
+      status: status,
+      reason: map['reason']?.toString() ?? '',
+      rendererVersion: map['rendererVersion']?.toString() ?? 'unknown',
+      definitionId: map['definitionId']?.toString() ?? '',
+      renderSessionId: map['renderSessionId']?.toString() ?? '',
+      mode: map['mode']?.toString() ?? '',
+      surfaceId: map['surfaceId']?.toString() ?? '',
+      timelineTime: _readTimelineTime(map['timelineTimeMs']),
+      transitionStartTime: _readTimelineTime(map['transitionStartMs']),
+      transitionEndTime: _readTimelineTime(map['transitionEndMs']),
+      pixelOutputReady: _readBool(map['pixelOutputReady']),
+      frameDelivered: _readBool(map['frameDelivered']),
+      framePresented: _readBool(map['framePresented']),
+      frameByteCount: _readInt(map['frameByteCount']),
+      frameChecksum: _readInt(map['frameChecksum']),
+      surfaceAttached: _readBool(map['surfaceAttached']),
+      surfaceKind: map['surfaceKind']?.toString() ?? '',
+      canRenderFrame: _readBool(map['canRenderFrame']),
+      blockedReasons: _readStringList(map['blockedReasons']),
+    );
+  }
+
+  static TimelineTime? _readTimelineTime(Object? value) {
+    if (value is num) {
+      return TimelineTime.fromMilliseconds(value.round());
+    }
+    final parsed = int.tryParse(value?.toString() ?? '');
+    if (parsed == null) {
+      return null;
+    }
+    return TimelineTime.fromMilliseconds(parsed);
+  }
+
+  static bool _readBool(Object? value) => value is bool && value;
+
+  static int _readInt(Object? value) {
+    if (value is num) {
+      return value.round();
+    }
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static List<String> _readStringList(Object? value) {
+    if (value is! List) {
+      return const <String>[];
+    }
+    return List<String>.unmodifiable(value.map((entry) => entry.toString()));
   }
 }
 

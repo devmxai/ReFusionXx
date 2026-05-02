@@ -1102,6 +1102,21 @@ Current gate:
   native endpoint is attached. This keeps the final missing interactive stage
   visible to UI, agents, and tests instead of hiding it inside a generic parity
   failure.
+- Flutter and Android now share the first real interactive transition surface
+  binding. Flutter creates a dedicated Android PlatformView for professional
+  transition output, passes its stable surface id into the render plan, and asks
+  Android to `renderInteractiveFrame` for the current preview, Live Scrub, or
+  playback time. Android registers only the actual PlatformView `Surface` as an
+  `interactiveNativeTransitionSurface`; bound interactive uploads no longer
+  allocate offscreen proof endpoints. If the visible surface is missing,
+  rendering fails with a surface-registration blocker instead of silently
+  falling back to thumbnails, timeline overlays, or proof surfaces. Export
+  remains deferred and must later bind to the same compositor contract.
+- The first selectable preset on this path is intentionally limited to
+  `Cross Dissolve`, because that is the only definition currently backed by the
+  source-derived dual-frame pixel writer. `Fade Black`, `Zoom In Camera`, and
+  future presets must remain hidden until their own renderer definitions produce
+  real pixels through the same registered surface path.
 
 ## 9. Stop Conditions
 

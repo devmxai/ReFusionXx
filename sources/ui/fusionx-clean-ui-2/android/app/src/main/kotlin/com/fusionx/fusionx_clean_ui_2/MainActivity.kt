@@ -20,6 +20,8 @@ class MainActivity: FlutterActivity() {
         private const val RUNTIME_CONFIG_CHANNEL = "com.refusion.app/runtime_config"
         private const val PROFESSIONAL_VIDEO_TRANSITION_COMPOSITOR_CHANNEL =
             "com.refusion.app/professional_video_transition_compositor"
+        private const val PROFESSIONAL_VIDEO_TRANSITION_SURFACE_VIEW_TYPE =
+            "com.refusion.app/professional_video_transition_surface"
     }
 
     private lateinit var stage5TransportManager: Stage5TransportManager
@@ -32,6 +34,8 @@ class MainActivity: FlutterActivity() {
     private val mediaQueryExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val mediaThumbnailExecutor: ExecutorService = Executors.newFixedThreadPool(4)
     private val scrubReadinessExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val transitionRenderExecutor: ExecutorService =
+        Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
     private var pendingMediaTab: String? = null
     private var pendingMediaResult: MethodChannel.Result? = null
@@ -68,6 +72,12 @@ class MainActivity: FlutterActivity() {
             Stage5TimelineScrubPlatformViewFactory(
                 binaryMessenger = flutterEngine.dartExecutor.binaryMessenger,
                 nativeScrubEngine = stage5NativeScrubEngine,
+            ),
+        )
+        flutterEngine.platformViewsController.registry.registerViewFactory(
+            PROFESSIONAL_VIDEO_TRANSITION_SURFACE_VIEW_TYPE,
+            ProfessionalVideoTransitionSurfacePlatformViewFactory(
+                professionalVideoTransitionCompositorManager,
             ),
         )
 
@@ -703,6 +713,25 @@ class MainActivity: FlutterActivity() {
                         ),
                     )
                 }
+                "renderInteractiveFrame" -> {
+                    val request =
+                        (call.arguments as? Map<*, *>)?.mapKeys { (key, _) -> key.toString() }
+                    val timelineTimeMs = (request?.get("timelineTimeMs") as? Number)?.toLong()
+                    val mode = request?.get("mode")?.toString()
+                    val surfaceId = request?.get("surfaceId")?.toString()
+                    transitionRenderExecutor.execute {
+                        val renderResult =
+                            professionalVideoTransitionCompositorManager.renderInteractiveFrame(
+                                plan = request,
+                                timelineTimeMs = timelineTimeMs,
+                                mode = mode,
+                                surfaceId = surfaceId,
+                            )
+                        mainHandler.post {
+                            result.success(renderResult)
+                        }
+                    }
+                }
                 "prepareZoomInCameraRenderPlan" -> {
                     val plan =
                         (call.arguments as? Map<*, *>)?.mapKeys { (key, _) -> key.toString() }
@@ -856,6 +885,7 @@ class MainActivity: FlutterActivity() {
         mediaQueryExecutor.shutdownNow()
         mediaThumbnailExecutor.shutdownNow()
         scrubReadinessExecutor.shutdownNow()
+        transitionRenderExecutor.shutdownNow()
         super.onDestroy()
     }
 

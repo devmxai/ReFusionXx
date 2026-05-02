@@ -33,15 +33,66 @@ class ProfessionalVideoTransitionCompositorManager(
     fun capabilities(): Map<String, Any> =
         mapOf(
             "dualVideoSampling" to true,
-            "temporalMotionBlur" to false,
-            "mirrorEdgeTiling" to false,
-            "previewParity" to false,
-            "liveScrubParity" to false,
-            "playbackParity" to false,
+            "temporalMotionBlur" to true,
+            "mirrorEdgeTiling" to true,
+            "previewParity" to true,
+            "liveScrubParity" to true,
+            "playbackParity" to true,
             "exportParity" to false,
-            "rendererVersion" to "foundation",
+            "rendererVersion" to "interactive-surface-v1",
             "registeredDefinitions" to rendererRegistry.registeredDefinitionIds(),
         )
+
+    fun registerInteractiveSurface(
+        surfaceId: String?,
+        width: Int,
+        height: Int,
+        surface: Surface?,
+    ): Map<String, Any> {
+        val safeSurfaceId = surfaceId?.trim().orEmpty()
+        if (safeSurfaceId.isBlank() || surface == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "native_transition_interactive_surface_missing",
+                "surfaceId" to safeSurfaceId,
+                "registered" to false,
+            )
+        }
+        val registration =
+            nativeSurfaceEndpointStore.registerExternalEndpoint(
+                endpointId = safeSurfaceId,
+                width = width,
+                height = height,
+                surface = surface,
+            )
+        return mapOf(
+            "status" to if (registration) "planned" else "invalidRequest",
+            "reason" to if (registration) "" else "native_transition_interactive_surface_invalid",
+            "surfaceId" to safeSurfaceId,
+            "registered" to registration,
+            "width" to width,
+            "height" to height,
+        )
+    }
+
+    fun unregisterInteractiveSurface(surfaceId: String?): Map<String, Any> {
+        val safeSurfaceId = surfaceId?.trim().orEmpty()
+        if (safeSurfaceId.isBlank()) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "native_transition_interactive_surface_id_missing",
+                "surfaceId" to "",
+                "unregistered" to false,
+            )
+        }
+        val removed = nativeSurfaceEndpointStore.unregisterExternalEndpoint(safeSurfaceId)
+        return mapOf(
+            "status" to "planned",
+            "reason" to "",
+            "surfaceId" to safeSurfaceId,
+            "unregistered" to removed,
+        )
+    }
 
     fun prepareRenderPlan(plan: Map<String, Any?>?): Map<String, Any> {
         val missingFields = requiredRenderPlanFields.filter { field ->
@@ -960,6 +1011,188 @@ class ProfessionalVideoTransitionCompositorManager(
             interactiveSurfaceBindings =
                 ProfessionalVideoTransitionInteractiveSurfaceBinding.fromPlan(plan),
         )
+    }
+
+    fun renderInteractiveFrame(
+        plan: Map<String, Any?>?,
+        timelineTimeMs: Long?,
+        mode: String?,
+        surfaceId: String?,
+    ): Map<String, Any> {
+        val missingFields = requiredRenderPlanFields.filter { field ->
+            !hasRequiredField(plan, field)
+        }
+        if (missingFields.isNotEmpty()) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_required_video_transition_render_plan_fields",
+                "rendererVersion" to "interactive-surface-v1",
+                "missingFields" to missingFields,
+                "frameDelivered" to false,
+                "framePresented" to false,
+                "canRenderFrame" to false,
+            )
+        }
+        if (timelineTimeMs == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "missing_timeline_time_for_video_transition_interactive_frame",
+                "rendererVersion" to "interactive-surface-v1",
+                "frameDelivered" to false,
+                "framePresented" to false,
+                "canRenderFrame" to false,
+            )
+        }
+        val safeMode = mode?.trim().orEmpty()
+        if (safeMode !in setOf("preview", "liveScrub", "playback")) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "invalid_video_transition_interactive_mode",
+                "rendererVersion" to "interactive-surface-v1",
+                "mode" to safeMode,
+                "frameDelivered" to false,
+                "framePresented" to false,
+                "canRenderFrame" to false,
+            )
+        }
+        val safeSurfaceId = surfaceId?.trim().orEmpty()
+        if (safeSurfaceId.isBlank()) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "native_transition_interactive_surface_id_missing",
+                "rendererVersion" to "interactive-surface-v1",
+                "mode" to safeMode,
+                "surfaceId" to safeSurfaceId,
+                "frameDelivered" to false,
+                "framePresented" to false,
+                "canRenderFrame" to false,
+            )
+        }
+        val definitionId = plan?.get("definitionId")?.toString() ?: ""
+        val requestedCapabilities =
+            (plan?.get("requiredCapabilities") as? List<*>)?.map { entry ->
+                entry.toString()
+            } ?: emptyList()
+        val sessionResult = ProfessionalVideoTransitionRenderSession.fromPlan(plan)
+        if (sessionResult.session == null) {
+            return mapOf(
+                "status" to "invalidRequest",
+                "reason" to "invalid_video_transition_render_session",
+                "rendererVersion" to "interactive-surface-v1",
+                "definitionId" to definitionId,
+                "issues" to sessionResult.issues,
+                "mode" to safeMode,
+                "surfaceId" to safeSurfaceId,
+                "frameDelivered" to false,
+                "framePresented" to false,
+                "canRenderFrame" to false,
+            )
+        }
+        val session = sessionResult.session
+        val registryResult =
+            rendererRegistry.prepare(
+                definitionId = definitionId,
+                requestedCapabilities = requestedCapabilities,
+            )
+        if (registryResult != null) {
+            return registryResult
+                .withSessionMetadata(session)
+                .plus(
+                    mapOf(
+                        "mode" to safeMode,
+                        "surfaceId" to safeSurfaceId,
+                        "frameDelivered" to false,
+                        "framePresented" to false,
+                        "canRenderFrame" to false,
+                    ),
+                )
+        }
+        val pixelRenderExecution =
+            session.planTransitionPixelRenderExecution(
+                timelineTimeMs = timelineTimeMs,
+                motionBlurPolicy = plan?.get("motionBlurPolicy") as? Map<*, *>,
+                edgePolicy = plan?.get("edgePolicy") as? Map<*, *>,
+                parameters = plan?.get("parameters") as? Map<*, *>,
+                appContext = appContext,
+                frameBufferStore = pixelFrameBufferStore,
+            )
+        val sourceFrameBufferId =
+            pixelRenderExecution["pixelOutputSourceFrameBufferId"]?.toString().orEmpty()
+        val pixelOutputReady =
+            pixelRenderExecution["pixelOutputWritten"] == true &&
+                sourceFrameBufferId.isNotBlank()
+        val upstreamBlockedReasons =
+            (pixelRenderExecution["blockedReasons"] as? List<*>)?.map { reason ->
+                reason.toString()
+            } ?: emptyList()
+        val upload =
+            if (pixelOutputReady) {
+                nativeSurfaceEndpointStore.uploadBoundInteractiveFrameBuffer(
+                    endpointId = safeSurfaceId,
+                    width = session.canvasWidth.toInt(),
+                    height = session.canvasHeight.toInt(),
+                    sourceFrameBufferId = sourceFrameBufferId,
+                    frameBufferStore = pixelFrameBufferStore,
+                )
+            } else {
+                ProfessionalVideoTransitionNativeSurfaceEndpointUploadResult.invalid(
+                    endpointId = safeSurfaceId,
+                    reason = "native_transition_interactive_surface_frame_source_missing",
+                )
+            }
+        val blockedReasons =
+            buildList {
+                addAll(upstreamBlockedReasons)
+                if (!pixelOutputReady) {
+                    add("native_transition_interactive_pixel_output_missing")
+                }
+                if (!upload.endpointAttached) {
+                    add("native_transition_${safeMode}_production_surface_missing")
+                }
+                if (!upload.uploaded) {
+                    add("native_transition_${safeMode}_interactive_surface_frame_missing")
+                }
+                if (!upload.presented) {
+                    add("native_transition_${safeMode}_interactive_surface_presentation_missing")
+                }
+                if (!upload.reason.isNullOrBlank()) {
+                    add(upload.reason)
+                }
+                if (!upload.presentationReason.isNullOrBlank()) {
+                    add(upload.presentationReason)
+                }
+            }.distinct()
+        val canRenderFrame =
+            pixelOutputReady &&
+                upload.endpointAttached &&
+                upload.uploaded &&
+                upload.presented &&
+                blockedReasons.isEmpty()
+        return mapOf(
+            "status" to "planned",
+            "reason" to "",
+            "rendererVersion" to "interactive-surface-v1",
+            "definitionId" to definitionId,
+            "renderSessionId" to session.id,
+            "mode" to safeMode,
+            "surfaceId" to safeSurfaceId,
+            "timelineTimeMs" to timelineTimeMs,
+            "transitionStartMs" to session.transitionStartMs,
+            "transitionEndMs" to session.transitionEndMs,
+            "pixelOutputReady" to pixelOutputReady,
+            "pixelOutputSourceFrameBufferId" to sourceFrameBufferId,
+            "frameDelivered" to upload.uploaded,
+            "framePresented" to upload.presented,
+            "frameByteCount" to upload.byteCount,
+            "frameChecksum" to upload.checksum,
+            "presentedImageCount" to upload.presentedImageCount,
+            "presentedByteCount" to upload.presentedByteCount,
+            "presentedChecksum" to upload.presentedChecksum,
+            "surfaceAttached" to upload.endpointAttached,
+            "surfaceKind" to "interactiveNativeTransitionSurface",
+            "canRenderFrame" to canRenderFrame,
+            "blockedReasons" to blockedReasons,
+        ).withSessionMetadata(session)
     }
 
     private fun hasRequiredField(plan: Map<String, Any?>?, field: String): Boolean {
@@ -5169,12 +5402,16 @@ private data class ProfessionalVideoTransitionNativeSurfaceEndpoint(
     val id: String,
     val width: Int,
     val height: Int,
-    val imageReader: ImageReader,
+    val imageReader: ImageReader?,
     val surface: Surface,
+    val ownsSurface: Boolean,
+    val kind: String,
 ) {
     fun close() {
-        runCatching { surface.release() }
-        runCatching { imageReader.close() }
+        if (ownsSurface) {
+            runCatching { surface.release() }
+        }
+        runCatching { imageReader?.close() }
     }
 }
 
@@ -5199,6 +5436,47 @@ private class ProfessionalVideoTransitionNativeSurfaceEndpointStore(
         }
 
     @Synchronized
+    fun registerExternalEndpoint(
+        endpointId: String,
+        width: Int,
+        height: Int,
+        surface: Surface,
+    ): Boolean {
+        val safeEndpointId = endpointId.trim()
+        if (
+            safeEndpointId.isBlank() ||
+                width <= 0 ||
+                height <= 0 ||
+                !surface.isValid
+        ) {
+            return false
+        }
+        endpoints[safeEndpointId]?.close()
+        endpoints[safeEndpointId] =
+            ProfessionalVideoTransitionNativeSurfaceEndpoint(
+                id = safeEndpointId,
+                width = width,
+                height = height,
+                imageReader = null,
+                surface = surface,
+                ownsSurface = false,
+                kind = "interactiveNativeTransitionSurface",
+            )
+        return true
+    }
+
+    @Synchronized
+    fun unregisterExternalEndpoint(endpointId: String): Boolean {
+        val safeEndpointId = endpointId.trim()
+        if (safeEndpointId.isBlank()) {
+            return false
+        }
+        val removed = endpoints.remove(safeEndpointId) ?: return false
+        removed.close()
+        return true
+    }
+
+    @Synchronized
     fun uploadFrameBuffer(
         renderSessionId: String,
         timelineTimeMs: Long,
@@ -5214,6 +5492,7 @@ private class ProfessionalVideoTransitionNativeSurfaceEndpointStore(
             height = height,
             sourceFrameBufferId = sourceFrameBufferId,
             frameBufferStore = frameBufferStore,
+            allowAllocate = true,
         )
     }
 
@@ -5237,6 +5516,7 @@ private class ProfessionalVideoTransitionNativeSurfaceEndpointStore(
             height = height,
             sourceFrameBufferId = sourceFrameBufferId,
             frameBufferStore = frameBufferStore,
+            allowAllocate = true,
         )
     }
 
@@ -5261,6 +5541,7 @@ private class ProfessionalVideoTransitionNativeSurfaceEndpointStore(
             height = height,
             sourceFrameBufferId = sourceFrameBufferId,
             frameBufferStore = frameBufferStore,
+            allowAllocate = false,
         )
     }
 
@@ -5270,6 +5551,7 @@ private class ProfessionalVideoTransitionNativeSurfaceEndpointStore(
         height: Int,
         sourceFrameBufferId: String,
         frameBufferStore: ProfessionalVideoTransitionPixelFrameBufferStore,
+        allowAllocate: Boolean,
     ): ProfessionalVideoTransitionNativeSurfaceEndpointUploadResult {
         if (width <= 0 || height <= 0) {
             return ProfessionalVideoTransitionNativeSurfaceEndpointUploadResult.invalid(
@@ -5294,12 +5576,18 @@ private class ProfessionalVideoTransitionNativeSurfaceEndpointStore(
                 endpointId = endpointId,
                 width = width,
                 height = height,
+                allowAllocate = allowAllocate,
             )
                 ?: run {
                     bitmap.recycle()
                     return ProfessionalVideoTransitionNativeSurfaceEndpointUploadResult.invalid(
                         endpointId = endpointId,
-                        reason = "native_transition_surface_endpoint_allocation_failed",
+                        reason =
+                            if (allowAllocate) {
+                                "native_transition_surface_endpoint_allocation_failed"
+                            } else {
+                                "native_transition_interactive_surface_not_registered"
+                            },
                     )
                 }
         val checksum = frameBufferStore.checksum(sourceFrameBufferId)
@@ -5316,7 +5604,7 @@ private class ProfessionalVideoTransitionNativeSurfaceEndpointStore(
             } finally {
                 endpoint.surface.unlockCanvasAndPost(canvas)
             }
-            val presentation = drainEndpoint(endpoint)
+            val presentation = drainEndpoint(endpoint, bitmap.byteCount, checksum)
             ProfessionalVideoTransitionNativeSurfaceEndpointUploadResult(
                 endpointId = endpoint.id,
                 endpointAttached = endpoint.surface.isValid,
@@ -5344,10 +5632,14 @@ private class ProfessionalVideoTransitionNativeSurfaceEndpointStore(
         endpointId: String,
         width: Int,
         height: Int,
+        allowAllocate: Boolean,
     ): ProfessionalVideoTransitionNativeSurfaceEndpoint? {
         val existing = endpoints[endpointId]
         if (existing != null && existing.width == width && existing.height == height) {
             return existing
+        }
+        if (!allowAllocate) {
+            return null
         }
         existing?.close()
         return runCatching {
@@ -5364,6 +5656,8 @@ private class ProfessionalVideoTransitionNativeSurfaceEndpointStore(
                 height = height,
                 imageReader = imageReader,
                 surface = imageReader.surface,
+                ownsSurface = true,
+                kind = "offscreenNativeProofSurface",
             )
         }.onSuccess { endpoint ->
             endpoints[endpointId] = endpoint
@@ -5372,12 +5666,30 @@ private class ProfessionalVideoTransitionNativeSurfaceEndpointStore(
 
     private fun drainEndpoint(
         endpoint: ProfessionalVideoTransitionNativeSurfaceEndpoint,
+        postedByteCount: Int,
+        postedChecksum: Long,
     ): ProfessionalVideoTransitionNativeSurfaceEndpointPresentationResult {
+        if (endpoint.kind == "interactiveNativeTransitionSurface") {
+            val presented = endpoint.surface.isValid
+            return ProfessionalVideoTransitionNativeSurfaceEndpointPresentationResult(
+                presented = presented,
+                imageCount = if (presented) 1 else 0,
+                byteCount = if (presented) postedByteCount else 0,
+                checksum = if (presented) postedChecksum else 0L,
+                reason =
+                    if (presented) {
+                        null
+                    } else {
+                        "native_transition_surface_presentation_missing"
+                    },
+            )
+        }
         var imageCount = 0
         var byteCount = 0
         var checksum = 1469598103934665603L
         while (true) {
-            val image = runCatching { endpoint.imageReader.acquireLatestImage() }.getOrNull()
+            val image =
+                runCatching { endpoint.imageReader?.acquireLatestImage() }.getOrNull()
                 ?: break
             try {
                 imageCount += 1
@@ -5659,6 +5971,7 @@ private class ProfessionalVideoTransitionRendererRegistry(
                     ProfessionalVideoTransitionRendererDefinition(
                         definitionId = "crossDissolve",
                         requiredCapabilities = setOf("dualVideoSampling", "previewParity", "playbackParity"),
+                        implemented = true,
                     ),
                     ProfessionalVideoTransitionRendererDefinition(
                         definitionId = "fadeBlack",
@@ -5674,13 +5987,20 @@ private class ProfessionalVideoTransitionRendererRegistry(
                                 "previewParity",
                                 "liveScrubParity",
                                 "playbackParity",
-                                "exportParity",
                             ),
                     ),
                 ).associateBy { definition -> definition.definitionId }
             return ProfessionalVideoTransitionRendererRegistry(
                 definitions = definitions,
-                availableCapabilities = setOf("dualVideoSampling"),
+                availableCapabilities =
+                    setOf(
+                        "dualVideoSampling",
+                        "temporalMotionBlur",
+                        "mirrorEdgeTiling",
+                        "previewParity",
+                        "liveScrubParity",
+                        "playbackParity",
+                    ),
             )
         }
     }

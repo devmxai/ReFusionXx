@@ -32,6 +32,7 @@ import '../../domain/models/refusion_motion_patch_models.dart';
 import '../../domain/services/ai_transition/kie_ai_transition_service.dart';
 import '../../domain/services/normal_transition_command_history.dart';
 import '../../domain/services/layer_scope_composition_adapter.dart';
+import '../../domain/services/professional_video_transition_compositor.dart';
 import '../../domain/services/refusion_motion_patch_applicator.dart';
 import '../../domain/services/refusion_motion_patch_import_service.dart';
 import '../../domain/services/scene_export_parity_gate.dart';
@@ -50,6 +51,7 @@ import '../services/composition_workspace_outliner_adapter.dart';
 import '../services/composition_media_playback_projection_adapter.dart';
 import '../services/normal_transition_timeline_authoring_adapter.dart';
 import '../services/native_preview_identity_resolver.dart';
+import '../services/professional_video_transition_render_plan_adapter.dart';
 import '../services/root_scene_clip_projection_adapter.dart';
 import '../services/scene_layer_scope_timeline_adapter.dart';
 import '../services/scene_scope_transition_preview_resolver.dart';
@@ -81,6 +83,7 @@ import '../widgets/motion_video_preview_transform.dart';
 import '../widgets/native_timeline_scrub_surface.dart';
 import '../widgets/native_preview_surface.dart';
 import '../widgets/preview_stage.dart';
+import '../widgets/professional_video_transition_surface.dart';
 import '../widgets/remotion_prompt_bottom_sheet.dart';
 import '../widgets/scene_program_import_bottom_sheet.dart';
 import '../widgets/scoped_text_motion_script_bottom_sheet.dart';
@@ -20357,6 +20360,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         transition: transition,
         leftClip: leftClip,
         rightClip: rightClip,
+        timelineTime: timelineTime,
         progress: progress,
         manualLaneProgress: manualLaneProgress,
         manualSeamProgress: manualSeamProgress,
@@ -20652,6 +20656,92 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return null;
   }
 
+  ProfessionalVideoTransitionRenderPlan? _professionalTransitionRenderPlanFor({
+    required _ActiveTimelineTransitionPreview activeTransition,
+    required String mode,
+    required String surfaceId,
+  }) {
+    final definitionId =
+        _professionalTransitionDefinitionId(activeTransition.transition.preset);
+    if (definitionId == null) {
+      return null;
+    }
+    final canvasSize = _motionProjectFormat.canvasSize;
+    final canvasWidth = canvasSize.width.round().clamp(1, 4096).toInt();
+    final canvasHeight = canvasSize.height.round().clamp(1, 4096).toInt();
+    final buildResult =
+        const ProfessionalVideoTransitionRenderPlanAdapter().build(
+      ProfessionalVideoTransitionRenderPlanRequest(
+        transition: activeTransition.transition,
+        definitionId: definitionId,
+        outgoingClip: activeTransition.leftClip.clip,
+        incomingClip: activeTransition.rightClip.clip,
+        boundaryTime: activeTransition.leftClip.endTime,
+        canvasWidth: canvasWidth,
+        canvasHeight: canvasHeight,
+        sourceUriForAsset: (assetId) => _assetForId(assetId)?.sourceUri,
+        parameters: <String, Object?>{
+          ...activeTransition.transition.preset.defaultParameterValues,
+          ...activeTransition.transition.parameterValues,
+        },
+        edgePolicy: const <String, Object?>{
+          'mode': 'mirrorTile',
+          'fillMode': 'centerCrop',
+        },
+        motionBlurPolicy: <String, Object?>{
+          'mode': 'temporalShutter',
+          'shutterAngleDegrees': 360.0,
+          'frameRate': _timelineFps,
+          'sampleCount': 7,
+        },
+        interactiveSurfaceBindings: <ProfessionalVideoTransitionInteractiveSurfaceBinding>[
+          ProfessionalVideoTransitionInteractiveSurfaceBinding(
+            mode: mode,
+            surfaceId: surfaceId,
+          ),
+        ],
+      ),
+    );
+    return buildResult.plan;
+  }
+
+  String? _professionalTransitionDefinitionId(
+    TimelineTransitionPreset preset,
+  ) {
+    return switch (preset) {
+      TimelineTransitionPreset.zoomInCamera => 'zoomInCamera',
+      TimelineTransitionPreset.zoomInPro => 'zoomInCamera',
+      _ => null,
+    };
+  }
+
+  String _professionalVideoTransitionMode({
+    required bool effectiveIsPlaying,
+  }) {
+    if (_isTimelineScrubbing) {
+      return 'liveScrub';
+    }
+    if (effectiveIsPlaying) {
+      return 'playback';
+    }
+    return 'preview';
+  }
+
+  String _professionalTransitionSurfaceId(
+    _ActiveTimelineTransitionPreview activeTransition,
+  ) {
+    final raw = [
+      activeTransition.transition.id,
+      activeTransition.leftClip.clip.id,
+      activeTransition.rightClip.clip.id,
+    ].join('-');
+    final safe = raw
+        .replaceAll(RegExp(r'[^A-Za-z0-9_-]+'), '-')
+        .replaceAll(RegExp(r'-+'), '-')
+        .replaceAll(RegExp(r'^-|-$'), '');
+    return 'professional-transition-${safe.isEmpty ? 'surface' : safe}';
+  }
+
   Widget _buildNativePreviewSurface({
     required Widget fallback,
     required String? previewIdentity,
@@ -20758,6 +20848,21 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                         clip: activeTransition.rightClip.clip,
                         role: TransitionBoundaryFrameRole.incoming,
                       );
+                final professionalTransitionMode =
+                    _professionalVideoTransitionMode(
+                  effectiveIsPlaying: effectiveIsPlaying,
+                );
+                final professionalTransitionSurfaceId = activeTransition == null
+                    ? null
+                    : _professionalTransitionSurfaceId(activeTransition);
+                final professionalTransitionPlan = activeTransition == null ||
+                        professionalTransitionSurfaceId == null
+                    ? null
+                    : _professionalTransitionRenderPlanFor(
+                        activeTransition: activeTransition,
+                        mode: professionalTransitionMode,
+                        surfaceId: professionalTransitionSurfaceId,
+                      );
                 return Stack(
                   fit: StackFit.expand,
                   children: [
@@ -20774,7 +20879,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                           ),
                         ),
                       ),
-                    if (activeTransition != null)
+                    if (professionalTransitionPlan != null &&
+                        professionalTransitionSurfaceId != null)
+                      Positioned.fill(
+                        child: ProfessionalVideoTransitionSurfaceOverlay(
+                          plan: professionalTransitionPlan,
+                          timelineTime: activeTransition!.timelineTime,
+                          mode: professionalTransitionMode,
+                          surfaceId: professionalTransitionSurfaceId,
+                        ),
+                      ),
+                    if (activeTransition != null &&
+                        professionalTransitionPlan == null)
                       TimelineTransitionPreviewOverlay(
                         transition: activeTransition.transition,
                         progress: activeTransition.progress,
@@ -22737,6 +22853,7 @@ class _ActiveTimelineTransitionPreview {
     required this.transition,
     required this.leftClip,
     required this.rightClip,
+    required this.timelineTime,
     required this.progress,
     required this.manualLaneProgress,
     required this.manualSeamProgress,
@@ -22745,6 +22862,7 @@ class _ActiveTimelineTransitionPreview {
   final TimelineTrackTransitionData transition;
   final _PositionedTimelineTrackClip leftClip;
   final _PositionedTimelineTrackClip rightClip;
+  final TimelineTime timelineTime;
   final double progress;
   final double manualLaneProgress;
   final double manualSeamProgress;

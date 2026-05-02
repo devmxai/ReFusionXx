@@ -56,8 +56,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Cross Dissolve'), findsOneWidget);
-    expect(find.text('Fade Black'), findsOneWidget);
-    expect(find.text('Zoom In Camera'), findsOneWidget);
+    expect(find.text('Fade Black'), findsNothing);
+    expect(find.text('Zoom In Camera'), findsNothing);
     expect(find.text('Zoom In Pro'), findsNothing);
   });
 }
