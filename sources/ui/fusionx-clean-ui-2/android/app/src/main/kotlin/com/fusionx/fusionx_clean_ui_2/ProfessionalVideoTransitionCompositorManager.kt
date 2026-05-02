@@ -3654,13 +3654,25 @@ private data class ProfessionalVideoTransitionRenderSession(
                 val interactiveSurfaceId = interactiveUpload.endpointId
                 val interactiveSurfaceKind =
                     if (interactiveUpload.endpointAttached) {
-                        "interactiveNativeTransitionSurface"
+                        "interactiveNativePresentationProofSurface"
                     } else {
                         "unboundInteractiveSurface"
                     }
                 val interactiveSurfaceBound = interactiveUpload.endpointAttached
                 val interactiveSurfaceFrameDelivered = interactiveUpload.uploaded
                 val interactiveSurfaceFramePresented = interactiveUpload.presented
+                val interactiveSurfaceProductionBound =
+                    interactiveSurfaceKind == "interactiveNativeTransitionSurface"
+                val interactiveSurfaceProductionReady =
+                    interactiveSurfaceProductionBound &&
+                        interactiveSurfaceFrameDelivered &&
+                        interactiveSurfaceFramePresented
+                val interactiveSurfaceProductionReason =
+                    if (interactiveSurfaceProductionReady) {
+                        ""
+                    } else {
+                        "native_transition_${mode}_production_surface_missing"
+                    }
                 val blockedReasons =
                     buildList {
                         if (!outputPassBound) {
@@ -3683,6 +3695,9 @@ private data class ProfessionalVideoTransitionRenderSession(
                         }
                         if (!interactiveSurfaceFramePresented) {
                             add("native_transition_${mode}_interactive_surface_presentation_missing")
+                        }
+                        if (!interactiveSurfaceProductionReady) {
+                            add(interactiveSurfaceProductionReason)
                         }
                         if (!interactiveUpload.reason.isNullOrBlank()) {
                             add(interactiveUpload.reason)
@@ -3716,6 +3731,9 @@ private data class ProfessionalVideoTransitionRenderSession(
                     "interactiveSurfacePresentedByteCount" to interactiveUpload.presentedByteCount,
                     "interactiveSurfacePresentedChecksum" to interactiveUpload.presentedChecksum,
                     "interactiveSurfacePresentationReason" to (interactiveUpload.presentationReason ?: ""),
+                    "interactiveSurfaceProductionBound" to interactiveSurfaceProductionBound,
+                    "interactiveSurfaceProductionReady" to interactiveSurfaceProductionReady,
+                    "interactiveSurfaceProductionReason" to interactiveSurfaceProductionReason,
                     "rendererImplemented" to rendererImplemented,
                     "canRender" to
                         (rendererImplemented &&
@@ -3726,6 +3744,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                             interactiveSurfaceBound &&
                             interactiveSurfaceFrameDelivered &&
                             interactiveSurfaceFramePresented &&
+                            interactiveSurfaceProductionReady &&
                             blockedReasons.isEmpty()),
                     "blockedReasons" to blockedReasons,
                 )
@@ -3735,6 +3754,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                 outputs.all { output -> output["interactiveSurfaceBound"] == true } &&
                 outputs.all { output -> output["interactiveSurfaceFrameDelivered"] == true } &&
                 outputs.all { output -> output["interactiveSurfaceFramePresented"] == true } &&
+                outputs.all { output -> output["interactiveSurfaceProductionReady"] == true } &&
                 outputs.map { output -> output["interactiveSurfaceId"] }.distinct().size ==
                     outputs.size &&
                 outputs.all { output ->
@@ -3752,6 +3772,9 @@ private data class ProfessionalVideoTransitionRenderSession(
                 outputs.all { output ->
                     ((output["interactiveSurfacePresentedByteCount"] as? Number)?.toLong() ?: 0L) > 0L
                 }
+        val interactiveProductionSurfaceReady =
+            outputs.isNotEmpty() &&
+                outputs.all { output -> output["interactiveSurfaceProductionReady"] == true }
         val blockedReasons =
             (upstreamBlockedReasons +
                 outputs.flatMap { output ->
@@ -3774,6 +3797,9 @@ private data class ProfessionalVideoTransitionRenderSession(
                 "interactiveSurfacePresentationReady" to interactiveSurfacePresentationReady,
                 "interactiveSurfacePresentationCount" to
                     outputs.count { output -> output["interactiveSurfaceFramePresented"] == true },
+                "interactiveProductionSurfaceReady" to interactiveProductionSurfaceReady,
+                "interactiveProductionSurfaceCount" to
+                    outputs.count { output -> output["interactiveSurfaceProductionReady"] == true },
                 "sameOutputContractForAllModes" to
                     (outputSurfaceId.isNotBlank() &&
                         outputPassBound &&
@@ -3789,6 +3815,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                         interactiveSurfaceContractReady &&
                         interactiveSurfaceFrameDeliveryReady &&
                         interactiveSurfacePresentationReady &&
+                        interactiveProductionSurfaceReady &&
                         blockedReasons.isEmpty()),
                 "outputs" to outputs,
                 "blockedReasons" to blockedReasons,

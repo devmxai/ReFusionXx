@@ -3371,6 +3371,8 @@ void main() {
         'interactiveSurfaceFrameDeliveryCount': 0,
         'interactiveSurfacePresentationReady': false,
         'interactiveSurfacePresentationCount': 0,
+        'interactiveProductionSurfaceReady': false,
+        'interactiveProductionSurfaceCount': 0,
         'timelineTimeMs': 10000,
         'transitionStartMs': 8000,
         'transitionEndMs': 12000,
@@ -3409,6 +3411,10 @@ void main() {
             'interactiveSurfacePresentedChecksum': 0,
             'interactiveSurfacePresentationReason':
                 'native_transition_preview_interactive_surface_presentation_missing',
+            'interactiveSurfaceProductionBound': false,
+            'interactiveSurfaceProductionReady': false,
+            'interactiveSurfaceProductionReason':
+                'native_transition_preview_production_surface_missing',
             'rendererImplemented': false,
             'canRender': false,
             'blockedReasons': <String>[
@@ -3418,6 +3424,7 @@ void main() {
               'native_transition_preview_interactive_surface_missing',
               'native_transition_preview_interactive_surface_frame_missing',
               'native_transition_preview_interactive_surface_presentation_missing',
+              'native_transition_preview_production_surface_missing',
             ],
           },
           <String, Object?>{
@@ -3451,6 +3458,10 @@ void main() {
             'interactiveSurfacePresentedChecksum': 0,
             'interactiveSurfacePresentationReason':
                 'native_transition_liveScrub_interactive_surface_presentation_missing',
+            'interactiveSurfaceProductionBound': false,
+            'interactiveSurfaceProductionReady': false,
+            'interactiveSurfaceProductionReason':
+                'native_transition_liveScrub_production_surface_missing',
             'rendererImplemented': false,
             'canRender': false,
             'blockedReasons': <String>[
@@ -3460,6 +3471,7 @@ void main() {
               'native_transition_liveScrub_interactive_surface_missing',
               'native_transition_liveScrub_interactive_surface_frame_missing',
               'native_transition_liveScrub_interactive_surface_presentation_missing',
+              'native_transition_liveScrub_production_surface_missing',
             ],
           },
           <String, Object?>{
@@ -3493,6 +3505,10 @@ void main() {
             'interactiveSurfacePresentedChecksum': 0,
             'interactiveSurfacePresentationReason':
                 'native_transition_playback_interactive_surface_presentation_missing',
+            'interactiveSurfaceProductionBound': false,
+            'interactiveSurfaceProductionReady': false,
+            'interactiveSurfaceProductionReason':
+                'native_transition_playback_production_surface_missing',
             'rendererImplemented': false,
             'canRender': false,
             'blockedReasons': <String>[
@@ -3502,6 +3518,7 @@ void main() {
               'native_transition_playback_interactive_surface_missing',
               'native_transition_playback_interactive_surface_frame_missing',
               'native_transition_playback_interactive_surface_presentation_missing',
+              'native_transition_playback_production_surface_missing',
             ],
           },
         ],
@@ -3512,18 +3529,21 @@ void main() {
           'native_transition_preview_interactive_surface_missing',
           'native_transition_preview_interactive_surface_frame_missing',
           'native_transition_preview_interactive_surface_presentation_missing',
+          'native_transition_preview_production_surface_missing',
           'native_transition_liveScrub_renderer_missing',
           'native_transition_liveScrub_pixel_output_proof_missing',
           'native_transition_liveScrub_surface_endpoint_missing',
           'native_transition_liveScrub_interactive_surface_missing',
           'native_transition_liveScrub_interactive_surface_frame_missing',
           'native_transition_liveScrub_interactive_surface_presentation_missing',
+          'native_transition_liveScrub_production_surface_missing',
           'native_transition_playback_renderer_missing',
           'native_transition_playback_pixel_output_proof_missing',
           'native_transition_playback_surface_endpoint_missing',
           'native_transition_playback_interactive_surface_missing',
           'native_transition_playback_interactive_surface_frame_missing',
           'native_transition_playback_interactive_surface_presentation_missing',
+          'native_transition_playback_production_surface_missing',
         ],
       };
     });
@@ -3585,6 +3605,8 @@ void main() {
     expect(result.interactiveSurfaceFrameDeliveryCount, 0);
     expect(result.interactiveSurfacePresentationReady, isFalse);
     expect(result.interactiveSurfacePresentationCount, 0);
+    expect(result.interactiveProductionSurfaceReady, isFalse);
+    expect(result.interactiveProductionSurfaceCount, 0);
     expect(result.sameOutputContractForAllModes, isTrue);
     expect(result.allModesRenderable, isFalse);
     expect(result.outputs.map((output) => output.mode), <String>[
@@ -3628,6 +3650,11 @@ void main() {
       isTrue,
     );
     expect(
+      result.outputs
+          .every((output) => !output.interactiveSurfaceProductionReady),
+      isTrue,
+    );
+    expect(
       result.outputs.map((output) => output.interactiveSurfaceKind).toSet(),
       <String>{'unboundInteractiveSurface'},
     );
@@ -3645,6 +3672,8 @@ void main() {
         result.blockedReasons,
         contains(
             'native_transition_playback_interactive_surface_presentation_missing'));
+    expect(result.blockedReasons,
+        contains('native_transition_playback_production_surface_missing'));
     expect(
       result.outputs.map((output) => output.outputSurfaceId).toSet(),
       hasLength(1),
@@ -3679,6 +3708,8 @@ void main() {
       interactiveSurfaceFrameDeliveryCount: 0,
       interactiveSurfacePresentationReady: false,
       interactiveSurfacePresentationCount: 0,
+      interactiveProductionSurfaceReady: false,
+      interactiveProductionSurfaceCount: 0,
       timelineTime: TimelineTime.fromMilliseconds(10000),
       transitionStartTime: TimelineTime.fromMilliseconds(8000),
       transitionEndTime: TimelineTime.fromMilliseconds(12000),
@@ -3718,12 +3749,17 @@ void main() {
             interactiveSurfacePresentedChecksum: 0,
             interactiveSurfacePresentationReason:
                 'native_transition_${mode}_interactive_surface_presentation_missing',
+            interactiveSurfaceProductionBound: false,
+            interactiveSurfaceProductionReady: false,
+            interactiveSurfaceProductionReason:
+                'native_transition_${mode}_production_surface_missing',
             rendererImplemented: true,
             canRender: false,
             blockedReasons: <String>[
               'native_transition_${mode}_interactive_surface_missing',
               'native_transition_${mode}_interactive_surface_frame_missing',
               'native_transition_${mode}_interactive_surface_presentation_missing',
+              'native_transition_${mode}_production_surface_missing',
             ],
           ),
       ],
@@ -3731,12 +3767,15 @@ void main() {
         'native_transition_preview_interactive_surface_missing',
         'native_transition_preview_interactive_surface_frame_missing',
         'native_transition_preview_interactive_surface_presentation_missing',
+        'native_transition_preview_production_surface_missing',
         'native_transition_liveScrub_interactive_surface_missing',
         'native_transition_liveScrub_interactive_surface_frame_missing',
         'native_transition_liveScrub_interactive_surface_presentation_missing',
+        'native_transition_liveScrub_production_surface_missing',
         'native_transition_playback_interactive_surface_missing',
         'native_transition_playback_interactive_surface_frame_missing',
         'native_transition_playback_interactive_surface_presentation_missing',
+        'native_transition_playback_production_surface_missing',
       ],
     );
 
@@ -3747,6 +3786,7 @@ void main() {
     expect(result.interactiveSurfaceContractReady, isFalse);
     expect(result.interactiveSurfaceFrameDeliveryReady, isFalse);
     expect(result.interactiveSurfacePresentationReady, isFalse);
+    expect(result.interactiveProductionSurfaceReady, isFalse);
     expect(result.canRender, isFalse);
     expect(
       result.outputs.map((output) => output.interactiveSurfaceKind).toSet(),
@@ -3788,6 +3828,9 @@ void main() {
           interactiveSurfacePresentedByteCount: 8294400,
           interactiveSurfacePresentedChecksum: 888888,
           interactiveSurfacePresentationReason: '',
+          interactiveSurfaceProductionBound: true,
+          interactiveSurfaceProductionReady: true,
+          interactiveSurfaceProductionReason: '',
           rendererImplemented: true,
           canRender: true,
           blockedReasons: const <String>[],
@@ -3821,6 +3864,8 @@ void main() {
       interactiveSurfaceFrameDeliveryCount: 3,
       interactiveSurfacePresentationReady: true,
       interactiveSurfacePresentationCount: 3,
+      interactiveProductionSurfaceReady: true,
+      interactiveProductionSurfaceCount: 3,
       timelineTime: TimelineTime.fromMilliseconds(10000),
       transitionStartTime: TimelineTime.fromMilliseconds(8000),
       transitionEndTime: TimelineTime.fromMilliseconds(12000),
@@ -3838,8 +3883,115 @@ void main() {
       isTrue,
     );
     expect(
+      result.outputs
+          .every((output) => output.interactiveSurfaceProductionReady),
+      isTrue,
+    );
+    expect(
       result.outputs.map((output) => output.interactiveSurfaceId).toSet(),
       hasLength(3),
+    );
+  });
+
+  test('parity blocks presented proof surfaces until production surfaces bind',
+      () {
+    final outputs = <ProfessionalVideoTransitionParityOutput>[
+      for (final mode in <String>['preview', 'liveScrub', 'playback'])
+        ProfessionalVideoTransitionParityOutput(
+          mode: mode,
+          outputSurfaceId:
+              'transition-session:zoom-native-1:surface:transition-output:10000',
+          outputTarget: 'nativeTransitionCanvasSurface',
+          outputPassId: 'output-pass',
+          outputPassType: 'composeToTransitionSurface',
+          outputPassInputs: const <String>['transition-pass'],
+          outputPassBound: true,
+          renderGraphOutputReady: true,
+          transitionPixelOutputProofId: 'pixel-output-proof',
+          outputProofReady: true,
+          outputSurfaceUploadPacketReady: true,
+          surfaceUploadRendererReady: true,
+          outputSurfaceEndpointAttached: true,
+          outputSurfaceEndpointId: 'offscreen-proof-surface',
+          outputSurfaceEndpointKind: 'offscreenNativeProofSurface',
+          interactiveSurfaceId: 'proof-interactive-$mode',
+          interactiveSurfaceKind: 'interactiveNativePresentationProofSurface',
+          interactiveSurfaceBound: true,
+          interactiveSurfaceFrameDelivered: true,
+          interactiveSurfaceFrameByteCount: 8294400,
+          interactiveSurfaceFrameChecksum: 777777,
+          interactiveSurfaceFrameReason: '',
+          interactiveSurfaceFramePresented: true,
+          interactiveSurfacePresentedImageCount: 1,
+          interactiveSurfacePresentedByteCount: 8294400,
+          interactiveSurfacePresentedChecksum: 888888,
+          interactiveSurfacePresentationReason: '',
+          interactiveSurfaceProductionBound: false,
+          interactiveSurfaceProductionReady: false,
+          interactiveSurfaceProductionReason:
+              'native_transition_${mode}_production_surface_missing',
+          rendererImplemented: true,
+          canRender: false,
+          blockedReasons: <String>[
+            'native_transition_${mode}_production_surface_missing',
+          ],
+        ),
+    ];
+
+    final result = ProfessionalVideoTransitionParityPlanResult(
+      status: ProfessionalVideoTransitionParityPlanStatus.planned,
+      reason: '',
+      rendererVersion: 'foundation',
+      definitionId: 'zoomInCamera',
+      renderSessionId: 'transition-session:zoom-native-1',
+      renderPassGraphId: 'transition-session:zoom-native-1:graph:10000',
+      outputSurfaceId:
+          'transition-session:zoom-native-1:surface:transition-output:10000',
+      renderPassCount: 6,
+      outputPassId: 'output-pass',
+      outputPassType: 'composeToTransitionSurface',
+      outputPassInputs: const <String>['transition-pass'],
+      outputPassBound: true,
+      renderGraphOutputReady: true,
+      transitionPixelOutputProofId: 'pixel-output-proof',
+      outputProofReady: true,
+      outputSurfaceUploadPacketReady: true,
+      surfaceUploadRendererReady: true,
+      outputSurfaceEndpointAttached: true,
+      outputSurfaceEndpointId: 'offscreen-proof-surface',
+      outputSurfaceEndpointKind: 'offscreenNativeProofSurface',
+      interactiveSurfaceContractReady: false,
+      interactiveSurfaceFrameDeliveryReady: true,
+      interactiveSurfaceFrameDeliveryCount: 3,
+      interactiveSurfacePresentationReady: true,
+      interactiveSurfacePresentationCount: 3,
+      interactiveProductionSurfaceReady: false,
+      interactiveProductionSurfaceCount: 0,
+      timelineTime: TimelineTime.fromMilliseconds(10000),
+      transitionStartTime: TimelineTime.fromMilliseconds(8000),
+      transitionEndTime: TimelineTime.fromMilliseconds(12000),
+      rendererImplemented: true,
+      sameOutputContractForAllModes: true,
+      allModesRenderable: false,
+      outputs: outputs,
+      blockedReasons: const <String>[
+        'native_transition_preview_production_surface_missing',
+        'native_transition_liveScrub_production_surface_missing',
+        'native_transition_playback_production_surface_missing',
+      ],
+    );
+
+    expect(result.interactiveSurfaceFrameDeliveryReady, isTrue);
+    expect(result.interactiveSurfacePresentationReady, isTrue);
+    expect(result.interactiveProductionSurfaceReady, isFalse);
+    expect(result.canRender, isFalse);
+    expect(
+      result.outputs.map((output) => output.interactiveSurfaceKind).toSet(),
+      <String>{'interactiveNativePresentationProofSurface'},
+    );
+    expect(
+      result.blockedReasons,
+      contains('native_transition_playback_production_surface_missing'),
     );
   });
 

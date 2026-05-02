@@ -1373,6 +1373,8 @@ class _FakeProfessionalVideoTransitionCompositorClient
       interactiveSurfaceFrameDeliveryCount: _rendererReady ? 3 : 0,
       interactiveSurfacePresentationReady: _rendererReady,
       interactiveSurfacePresentationCount: _rendererReady ? 3 : 0,
+      interactiveProductionSurfaceReady: _rendererReady,
+      interactiveProductionSurfaceCount: _rendererReady ? 3 : 0,
       timelineTime: timelineTime,
       transitionStartTime: plan.boundaryTime - plan.leadingDuration,
       transitionEndTime: plan.boundaryTime + plan.trailingDuration,
@@ -1420,6 +1422,11 @@ class _FakeProfessionalVideoTransitionCompositorClient
             interactiveSurfacePresentationReason: _rendererReady
                 ? ''
                 : 'native_transition_${mode}_interactive_surface_presentation_missing',
+            interactiveSurfaceProductionBound: _rendererReady,
+            interactiveSurfaceProductionReady: _rendererReady,
+            interactiveSurfaceProductionReason: _rendererReady
+                ? ''
+                : 'native_transition_${mode}_production_surface_missing',
             rendererImplemented: _rendererReady,
             canRender: _rendererReady && !_planningOnly,
             blockedReasons: _planningOnly

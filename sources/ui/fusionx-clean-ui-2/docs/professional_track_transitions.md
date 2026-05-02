@@ -724,6 +724,12 @@ Pixel output proof gate:
   `native_transition_preview_interactive_surface_presentation_missing`,
   `native_transition_liveScrub_interactive_surface_presentation_missing`, or
   `native_transition_playback_interactive_surface_presentation_missing`;
+- accepted presentation on a proof endpoint is still not production parity.
+  A temporary `ImageReader` proof endpoint must report
+  `interactiveNativePresentationProofSurface` and remain blocked with
+  `native_transition_<mode>_production_surface_missing`. Only a real
+  per-mode `interactiveNativeTransitionSurface` can satisfy preview,
+  Live Scrub, and playback parity;
 - this gate exists to prevent returning to frozen-frame zooms, Gaussian-blur
   stand-ins, decorative speed-line shapes, or video drawn over the timeline.
 
