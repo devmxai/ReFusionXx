@@ -21143,7 +21143,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required String mode,
     required String surfaceId,
   }) {
-    if (!_canRenderProfessionalTransitionInteractivelyInMode(mode)) {
+    if (!_canRenderProfessionalTransitionInteractivelyInMode(
+      preset: activeTransition.transition.preset,
+      mode: mode,
+    )) {
       return null;
     }
     if (!_hasImplementedNativeProfessionalTransitionRenderer(
@@ -21170,7 +21173,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return buildResult.plan;
   }
 
-  bool _canRenderProfessionalTransitionInteractivelyInMode(String mode) {
+  bool _canRenderProfessionalTransitionInteractivelyInMode({
+    required TimelineTransitionPreset preset,
+    required String mode,
+  }) {
+    if (preset == TimelineTransitionPreset.manual) {
+      return mode == 'preview' || mode == 'liveScrub' || mode == 'playback';
+    }
     // The current Distortion Zoom V1 native path decodes source frames and
     // writes a full transition bitmap per request. Keep it out of playback and
     // Live Scrub until a nonblocking cached decoder pipeline owns those modes.

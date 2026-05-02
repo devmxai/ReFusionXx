@@ -855,9 +855,11 @@ Rules for this slice:
 - `Scale` in Manual Transition is signed-percent authoring: `0%` means normal
   video scale, `+100%` means 2x zoom, and negative values shrink the live video
   surface with a native clamp above zero;
-- current preview support is native-surface preview only. Playback and Live
-  Scrub remain protected and must fail closed until the nonblocking compositor
-  path is expanded;
+- current Manual transform support may render through the native transition
+  surface in preview, Live Scrub, and playback because `renderInteractiveFrame`
+  is dispatched through the transition render executor instead of the UI thread;
+- heavier zoom/distortion presets remain preview-only until their own cached,
+  nonblocking decode pipeline is proven;
 - Manual transition preview must not fall back to thumbnails, poster frames,
   cached boundary stills, Flutter transforms, or timeline overlay drawing;
 - the authored lane values are still timeline data. The native renderer receives
