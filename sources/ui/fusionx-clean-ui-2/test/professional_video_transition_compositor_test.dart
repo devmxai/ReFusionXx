@@ -3359,6 +3359,13 @@ void main() {
         'outputPassInputs': <String>['transition-pass'],
         'outputPassBound': true,
         'renderGraphOutputReady': false,
+        'transitionPixelOutputProofId': 'pixel-output-proof',
+        'outputProofReady': false,
+        'outputSurfaceUploadPacketReady': true,
+        'surfaceUploadRendererReady': true,
+        'outputSurfaceEndpointAttached': false,
+        'outputSurfaceEndpointId': '',
+        'outputSurfaceEndpointKind': 'unboundNativeSurface',
         'timelineTimeMs': 10000,
         'transitionStartMs': 8000,
         'transitionEndMs': 12000,
@@ -3376,10 +3383,19 @@ void main() {
             'outputPassInputs': <String>['transition-pass'],
             'outputPassBound': true,
             'renderGraphOutputReady': false,
+            'transitionPixelOutputProofId': 'pixel-output-proof',
+            'outputProofReady': false,
+            'outputSurfaceUploadPacketReady': true,
+            'surfaceUploadRendererReady': true,
+            'outputSurfaceEndpointAttached': false,
+            'outputSurfaceEndpointId': '',
+            'outputSurfaceEndpointKind': 'unboundNativeSurface',
             'rendererImplemented': false,
             'canRender': false,
             'blockedReasons': <String>[
               'native_transition_preview_renderer_missing',
+              'native_transition_preview_pixel_output_proof_missing',
+              'native_transition_preview_surface_endpoint_missing',
             ],
           },
           <String, Object?>{
@@ -3392,10 +3408,19 @@ void main() {
             'outputPassInputs': <String>['transition-pass'],
             'outputPassBound': true,
             'renderGraphOutputReady': false,
+            'transitionPixelOutputProofId': 'pixel-output-proof',
+            'outputProofReady': false,
+            'outputSurfaceUploadPacketReady': true,
+            'surfaceUploadRendererReady': true,
+            'outputSurfaceEndpointAttached': false,
+            'outputSurfaceEndpointId': '',
+            'outputSurfaceEndpointKind': 'unboundNativeSurface',
             'rendererImplemented': false,
             'canRender': false,
             'blockedReasons': <String>[
               'native_transition_liveScrub_renderer_missing',
+              'native_transition_liveScrub_pixel_output_proof_missing',
+              'native_transition_liveScrub_surface_endpoint_missing',
             ],
           },
           <String, Object?>{
@@ -3408,17 +3433,32 @@ void main() {
             'outputPassInputs': <String>['transition-pass'],
             'outputPassBound': true,
             'renderGraphOutputReady': false,
+            'transitionPixelOutputProofId': 'pixel-output-proof',
+            'outputProofReady': false,
+            'outputSurfaceUploadPacketReady': true,
+            'surfaceUploadRendererReady': true,
+            'outputSurfaceEndpointAttached': false,
+            'outputSurfaceEndpointId': '',
+            'outputSurfaceEndpointKind': 'unboundNativeSurface',
             'rendererImplemented': false,
             'canRender': false,
             'blockedReasons': <String>[
               'native_transition_playback_renderer_missing',
+              'native_transition_playback_pixel_output_proof_missing',
+              'native_transition_playback_surface_endpoint_missing',
             ],
           },
         ],
         'blockedReasons': <String>[
           'native_transition_preview_renderer_missing',
+          'native_transition_preview_pixel_output_proof_missing',
+          'native_transition_preview_surface_endpoint_missing',
           'native_transition_liveScrub_renderer_missing',
+          'native_transition_liveScrub_pixel_output_proof_missing',
+          'native_transition_liveScrub_surface_endpoint_missing',
           'native_transition_playback_renderer_missing',
+          'native_transition_playback_pixel_output_proof_missing',
+          'native_transition_playback_surface_endpoint_missing',
         ],
       };
     });
@@ -3469,6 +3509,12 @@ void main() {
     expect(result.outputPassInputs, <String>['transition-pass']);
     expect(result.outputPassBound, isTrue);
     expect(result.renderGraphOutputReady, isFalse);
+    expect(result.transitionPixelOutputProofId, 'pixel-output-proof');
+    expect(result.outputProofReady, isFalse);
+    expect(result.outputSurfaceUploadPacketReady, isTrue);
+    expect(result.surfaceUploadRendererReady, isTrue);
+    expect(result.outputSurfaceEndpointAttached, isFalse);
+    expect(result.outputSurfaceEndpointKind, 'unboundNativeSurface');
     expect(result.sameOutputContractForAllModes, isTrue);
     expect(result.allModesRenderable, isFalse);
     expect(result.outputs.map((output) => output.mode), <String>[
@@ -3489,8 +3535,18 @@ void main() {
       result.outputs.every((output) => !output.renderGraphOutputReady),
       isTrue,
     );
+    expect(
+      result.outputs.every((output) => !output.outputProofReady),
+      isTrue,
+    );
+    expect(
+      result.outputs.every((output) => !output.outputSurfaceEndpointAttached),
+      isTrue,
+    );
     expect(result.blockedReasons,
         contains('native_transition_playback_renderer_missing'));
+    expect(result.blockedReasons,
+        contains('native_transition_playback_surface_endpoint_missing'));
     expect(
       result.outputs.map((output) => output.outputSurfaceId).toSet(),
       hasLength(1),

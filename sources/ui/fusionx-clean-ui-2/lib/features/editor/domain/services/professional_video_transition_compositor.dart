@@ -6247,6 +6247,13 @@ class ProfessionalVideoTransitionParityOutput {
     required this.outputPassInputs,
     required this.outputPassBound,
     required this.renderGraphOutputReady,
+    required this.transitionPixelOutputProofId,
+    required this.outputProofReady,
+    required this.outputSurfaceUploadPacketReady,
+    required this.surfaceUploadRendererReady,
+    required this.outputSurfaceEndpointAttached,
+    required this.outputSurfaceEndpointId,
+    required this.outputSurfaceEndpointKind,
     required this.rendererImplemented,
     required this.canRender,
     required this.blockedReasons,
@@ -6260,6 +6267,13 @@ class ProfessionalVideoTransitionParityOutput {
   final List<String> outputPassInputs;
   final bool outputPassBound;
   final bool renderGraphOutputReady;
+  final String transitionPixelOutputProofId;
+  final bool outputProofReady;
+  final bool outputSurfaceUploadPacketReady;
+  final bool surfaceUploadRendererReady;
+  final bool outputSurfaceEndpointAttached;
+  final String outputSurfaceEndpointId;
+  final String outputSurfaceEndpointKind;
   final bool rendererImplemented;
   final bool canRender;
   final List<String> blockedReasons;
@@ -6281,6 +6295,13 @@ class ProfessionalVideoTransitionParityPlanResult {
     required this.outputPassInputs,
     required this.outputPassBound,
     required this.renderGraphOutputReady,
+    required this.transitionPixelOutputProofId,
+    required this.outputProofReady,
+    required this.outputSurfaceUploadPacketReady,
+    required this.surfaceUploadRendererReady,
+    required this.outputSurfaceEndpointAttached,
+    required this.outputSurfaceEndpointId,
+    required this.outputSurfaceEndpointKind,
     required this.timelineTime,
     required this.transitionStartTime,
     required this.transitionEndTime,
@@ -6311,6 +6332,13 @@ class ProfessionalVideoTransitionParityPlanResult {
       outputPassInputs: const <String>[],
       outputPassBound: false,
       renderGraphOutputReady: false,
+      transitionPixelOutputProofId: '',
+      outputProofReady: false,
+      outputSurfaceUploadPacketReady: false,
+      surfaceUploadRendererReady: false,
+      outputSurfaceEndpointAttached: false,
+      outputSurfaceEndpointId: '',
+      outputSurfaceEndpointKind: '',
       timelineTime: null,
       transitionStartTime: null,
       transitionEndTime: null,
@@ -6336,6 +6364,13 @@ class ProfessionalVideoTransitionParityPlanResult {
   final List<String> outputPassInputs;
   final bool outputPassBound;
   final bool renderGraphOutputReady;
+  final String transitionPixelOutputProofId;
+  final bool outputProofReady;
+  final bool outputSurfaceUploadPacketReady;
+  final bool surfaceUploadRendererReady;
+  final bool outputSurfaceEndpointAttached;
+  final String outputSurfaceEndpointId;
+  final String outputSurfaceEndpointKind;
   final TimelineTime? timelineTime;
   final TimelineTime? transitionStartTime;
   final TimelineTime? transitionEndTime;
@@ -6356,6 +6391,8 @@ class ProfessionalVideoTransitionParityPlanResult {
       allModesRenderable &&
       outputPassBound &&
       renderGraphOutputReady &&
+      outputProofReady &&
+      outputSurfaceEndpointAttached &&
       blockedReasons.isEmpty;
 }
 
@@ -6388,6 +6425,17 @@ class ProfessionalVideoTransitionParityPlanResultMapper {
       outputPassInputs: _readStringList(map['outputPassInputs']),
       outputPassBound: _readBool(map['outputPassBound']),
       renderGraphOutputReady: _readBool(map['renderGraphOutputReady']),
+      transitionPixelOutputProofId:
+          map['transitionPixelOutputProofId']?.toString() ?? '',
+      outputProofReady: _readBool(map['outputProofReady']),
+      outputSurfaceUploadPacketReady:
+          _readBool(map['outputSurfaceUploadPacketReady']),
+      surfaceUploadRendererReady: _readBool(map['surfaceUploadRendererReady']),
+      outputSurfaceEndpointAttached:
+          _readBool(map['outputSurfaceEndpointAttached']),
+      outputSurfaceEndpointId: map['outputSurfaceEndpointId']?.toString() ?? '',
+      outputSurfaceEndpointKind:
+          map['outputSurfaceEndpointKind']?.toString() ?? '',
       timelineTime: _readTimelineTime(map['timelineTimeMs']),
       transitionStartTime: _readTimelineTime(map['transitionStartMs']),
       transitionEndTime: _readTimelineTime(map['transitionEndMs']),
@@ -6419,6 +6467,19 @@ class ProfessionalVideoTransitionParityPlanResultMapper {
           outputPassInputs: _readStringList(output['outputPassInputs']),
           outputPassBound: _readBool(output['outputPassBound']),
           renderGraphOutputReady: _readBool(output['renderGraphOutputReady']),
+          transitionPixelOutputProofId:
+              output['transitionPixelOutputProofId']?.toString() ?? '',
+          outputProofReady: _readBool(output['outputProofReady']),
+          outputSurfaceUploadPacketReady:
+              _readBool(output['outputSurfaceUploadPacketReady']),
+          surfaceUploadRendererReady:
+              _readBool(output['surfaceUploadRendererReady']),
+          outputSurfaceEndpointAttached:
+              _readBool(output['outputSurfaceEndpointAttached']),
+          outputSurfaceEndpointId:
+              output['outputSurfaceEndpointId']?.toString() ?? '',
+          outputSurfaceEndpointKind:
+              output['outputSurfaceEndpointKind']?.toString() ?? '',
           rendererImplemented: _readBool(output['rendererImplemented']),
           canRender: _readBool(output['canRender']),
           blockedReasons: _readStringList(output['blockedReasons']),

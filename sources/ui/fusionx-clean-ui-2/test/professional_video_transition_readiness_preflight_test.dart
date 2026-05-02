@@ -1343,6 +1343,16 @@ class _FakeProfessionalVideoTransitionCompositorClient
       outputPassInputs: const <String>['pass:transition'],
       outputPassBound: true,
       renderGraphOutputReady: !_planningOnly,
+      transitionPixelOutputProofId: 'pixel-output-proof:${plan.transitionId}',
+      outputProofReady: _rendererReady,
+      outputSurfaceUploadPacketReady: _rendererReady,
+      surfaceUploadRendererReady: _rendererReady,
+      outputSurfaceEndpointAttached: _rendererReady,
+      outputSurfaceEndpointId:
+          _rendererReady ? 'native-surface:${plan.transitionId}' : '',
+      outputSurfaceEndpointKind: _rendererReady
+          ? 'nativeTransitionCanvasSurface'
+          : 'unboundNativeSurface',
       timelineTime: timelineTime,
       transitionStartTime: plan.boundaryTime - plan.leadingDuration,
       transitionEndTime: plan.boundaryTime + plan.trailingDuration,
@@ -1360,6 +1370,17 @@ class _FakeProfessionalVideoTransitionCompositorClient
             outputPassInputs: const <String>['pass:transition'],
             outputPassBound: true,
             renderGraphOutputReady: !_planningOnly,
+            transitionPixelOutputProofId:
+                'pixel-output-proof:${plan.transitionId}',
+            outputProofReady: _rendererReady,
+            outputSurfaceUploadPacketReady: _rendererReady,
+            surfaceUploadRendererReady: _rendererReady,
+            outputSurfaceEndpointAttached: _rendererReady,
+            outputSurfaceEndpointId:
+                _rendererReady ? 'native-surface:${plan.transitionId}' : '',
+            outputSurfaceEndpointKind: _rendererReady
+                ? 'nativeTransitionCanvasSurface'
+                : 'unboundNativeSurface',
             rendererImplemented: _rendererReady,
             canRender: _rendererReady && !_planningOnly,
             blockedReasons: _planningOnly

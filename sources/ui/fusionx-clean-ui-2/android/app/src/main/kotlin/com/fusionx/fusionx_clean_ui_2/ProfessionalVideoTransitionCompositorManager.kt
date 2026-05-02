@@ -949,6 +949,7 @@ class ProfessionalVideoTransitionCompositorManager(
             edgePolicy = plan?.get("edgePolicy") as? Map<*, *>,
             parameters = plan?.get("parameters") as? Map<*, *>,
             appContext = appContext,
+            frameBufferStore = pixelFrameBufferStore,
         )
     }
 
@@ -3539,31 +3540,46 @@ private data class ProfessionalVideoTransitionRenderSession(
         edgePolicy: Map<*, *>?,
         parameters: Map<*, *>?,
         appContext: Context,
+        frameBufferStore: ProfessionalVideoTransitionPixelFrameBufferStore,
     ): Map<String, Any> {
-        val surfacePlan =
-            planOutputSurface(
+        val outputProofPlan =
+            planTransitionPixelOutputProof(
                 timelineTimeMs = timelineTimeMs,
                 motionBlurPolicy = motionBlurPolicy,
                 edgePolicy = edgePolicy,
                 parameters = parameters,
                 appContext = appContext,
+                frameBufferStore = frameBufferStore,
             )
-        if (surfacePlan["status"] != "planned") {
-            return surfacePlan
+        if (outputProofPlan["status"] != "planned") {
+            return outputProofPlan
         }
-        val rendererImplemented = surfacePlan["rendererImplemented"] == true
-        val outputSurfaceId = surfacePlan["outputSurfaceId"]?.toString() ?: ""
-        val outputTarget = surfacePlan["outputTarget"]?.toString() ?: ""
-        val outputPassId = surfacePlan["outputPassId"]?.toString() ?: ""
-        val outputPassType = surfacePlan["outputPassType"]?.toString() ?: ""
+        val rendererImplemented = outputProofPlan["rendererImplemented"] == true
+        val outputSurfaceId = outputProofPlan["outputSurfaceId"]?.toString() ?: ""
+        val outputTarget = outputProofPlan["outputTarget"]?.toString() ?: ""
+        val outputPassId = outputProofPlan["outputPassId"]?.toString() ?: ""
+        val outputPassType = outputProofPlan["outputPassType"]?.toString() ?: ""
         val outputPassInputs =
-            (surfacePlan["outputPassInputs"] as? List<*>)?.map { input ->
+            (outputProofPlan["outputPassInputs"] as? List<*>)?.map { input ->
                 input.toString()
             } ?: emptyList()
-        val outputPassBound = surfacePlan["outputPassBound"] == true
-        val renderGraphOutputReady = surfacePlan["renderGraphOutputReady"] == true
+        val outputPassBound = outputProofPlan["outputPassBound"] == true
+        val renderGraphOutputReady = outputProofPlan["renderGraphOutputReady"] == true
+        val transitionPixelOutputProofId =
+            outputProofPlan["transitionPixelOutputProofId"]?.toString() ?: ""
+        val outputProofReady = outputProofPlan["outputProofReady"] == true
+        val outputSurfaceUploadPacketReady =
+            outputProofPlan["outputSurfaceUploadPacketReady"] == true
+        val surfaceUploadRendererReady =
+            outputProofPlan["surfaceUploadRendererReady"] == true
+        val outputSurfaceEndpointAttached =
+            outputProofPlan["outputSurfaceEndpointAttached"] == true
+        val outputSurfaceEndpointId =
+            outputProofPlan["outputSurfaceEndpointId"]?.toString() ?: ""
+        val outputSurfaceEndpointKind =
+            outputProofPlan["outputSurfaceEndpointKind"]?.toString() ?: ""
         val upstreamBlockedReasons =
-            (surfacePlan["blockedReasons"] as? List<*>)?.map { reason -> reason.toString() }
+            (outputProofPlan["blockedReasons"] as? List<*>)?.map { reason -> reason.toString() }
                 ?: emptyList()
         val parityModes = listOf("preview", "liveScrub", "playback")
         val outputs =
@@ -3576,6 +3592,12 @@ private data class ProfessionalVideoTransitionRenderSession(
                         if (!rendererImplemented) {
                             add("native_transition_${mode}_renderer_missing")
                         }
+                        if (!outputProofReady) {
+                            add("native_transition_${mode}_pixel_output_proof_missing")
+                        }
+                        if (!outputSurfaceEndpointAttached) {
+                            add("native_transition_${mode}_surface_endpoint_missing")
+                        }
                     }.distinct()
                 mapOf(
                     "mode" to mode,
@@ -3586,11 +3608,20 @@ private data class ProfessionalVideoTransitionRenderSession(
                     "outputPassInputs" to outputPassInputs,
                     "outputPassBound" to outputPassBound,
                     "renderGraphOutputReady" to renderGraphOutputReady,
+                    "transitionPixelOutputProofId" to transitionPixelOutputProofId,
+                    "outputProofReady" to outputProofReady,
+                    "outputSurfaceUploadPacketReady" to outputSurfaceUploadPacketReady,
+                    "surfaceUploadRendererReady" to surfaceUploadRendererReady,
+                    "outputSurfaceEndpointAttached" to outputSurfaceEndpointAttached,
+                    "outputSurfaceEndpointId" to outputSurfaceEndpointId,
+                    "outputSurfaceEndpointKind" to outputSurfaceEndpointKind,
                     "rendererImplemented" to rendererImplemented,
                     "canRender" to
                         (rendererImplemented &&
                             outputPassBound &&
                             renderGraphOutputReady &&
+                            outputProofReady &&
+                            outputSurfaceEndpointAttached &&
                             blockedReasons.isEmpty()),
                     "blockedReasons" to blockedReasons,
                 )
@@ -3601,17 +3632,27 @@ private data class ProfessionalVideoTransitionRenderSession(
                     (output["blockedReasons"] as? List<*>)?.map { reason -> reason.toString() }
                         ?: emptyList()
                 }).distinct()
-        return surfacePlan +
+        return outputProofPlan +
             mapOf(
+                "transitionPixelOutputProofId" to transitionPixelOutputProofId,
+                "outputProofReady" to outputProofReady,
+                "outputSurfaceUploadPacketReady" to outputSurfaceUploadPacketReady,
+                "surfaceUploadRendererReady" to surfaceUploadRendererReady,
+                "outputSurfaceEndpointAttached" to outputSurfaceEndpointAttached,
+                "outputSurfaceEndpointId" to outputSurfaceEndpointId,
+                "outputSurfaceEndpointKind" to outputSurfaceEndpointKind,
                 "sameOutputContractForAllModes" to
                     (outputSurfaceId.isNotBlank() &&
                         outputPassBound &&
+                        outputSurfaceEndpointAttached &&
                         outputs.map { output -> output["outputPassId"] }.distinct().size == 1),
                 "exportDeferred" to true,
                 "allModesRenderable" to
                     (rendererImplemented &&
                         outputPassBound &&
                         renderGraphOutputReady &&
+                        outputProofReady &&
+                        outputSurfaceEndpointAttached &&
                         blockedReasons.isEmpty()),
                 "outputs" to outputs,
                 "blockedReasons" to blockedReasons,

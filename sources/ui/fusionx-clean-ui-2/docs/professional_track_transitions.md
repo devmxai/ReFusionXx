@@ -1043,7 +1043,12 @@ Current gate:
   transition output contract and the same final `composeToTransitionSurface`
   output pass. Each mode carries output pass id/type/inputs,
   `outputPassBound`, and `renderGraphOutputReady`, and mode-level rendering is
-  blocked if that pass binding is missing. Export remains a later
+  blocked if that pass binding is missing. Parity now consumes
+  `planTransitionPixelOutputProof` directly, so every mode also carries the
+  pixel-output-proof id, `outputProofReady`, upload-packet readiness, and final
+  surface endpoint state. Preview, Live Scrub, and playback cannot claim
+  readiness while the remaining endpoint blocker is
+  `native_transition_surface_endpoint_missing`. Export remains a later
   implementation phase per the current product direction and must be added to
   this same contract when the export renderer is built.
 
