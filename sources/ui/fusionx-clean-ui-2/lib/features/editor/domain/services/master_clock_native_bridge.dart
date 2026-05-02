@@ -10,6 +10,8 @@ class MasterClockNativeBridge {
 
   TimelineClockSnapshot get snapshot => _clock.snapshot;
 
+  TimelineTime get time => _clock.time;
+
   void syncTimelineDuration(TimelineTime durationTime) {
     _clock.setTimelineDuration(durationTime);
   }
@@ -20,6 +22,38 @@ class MasterClockNativeBridge {
   }) {
     syncTimelineDuration(timelineDurationTime);
     _clock.playFrom(startTime);
+  }
+
+  void scrubStart({
+    required TimelineTime anchorTime,
+    required TimelineTime timelineDurationTime,
+  }) {
+    syncTimelineDuration(timelineDurationTime);
+    _clock.scrubStart(anchorTime);
+  }
+
+  bool scrubUpdate({
+    required TimelineTime targetTime,
+    required TimelineTime timelineDurationTime,
+  }) {
+    syncTimelineDuration(timelineDurationTime);
+    return _clock.scrubUpdate(targetTime);
+  }
+
+  bool scrubEnd({
+    required TimelineTime finalTime,
+    required TimelineTime timelineDurationTime,
+  }) {
+    syncTimelineDuration(timelineDurationTime);
+    return _clock.scrubEnd(finalTime);
+  }
+
+  bool confirmScrubSettled({
+    required TimelineTime settledTime,
+    required TimelineTime timelineDurationTime,
+  }) {
+    syncTimelineDuration(timelineDurationTime);
+    return _clock.confirmScrubSettled(settledTime);
   }
 
   TimelineClockSampleDecision applyNativePlaybackSample({

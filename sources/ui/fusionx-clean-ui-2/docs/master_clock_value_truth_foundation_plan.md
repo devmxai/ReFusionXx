@@ -768,6 +768,9 @@ Implementation note (checkpoint `checkpoint: implement master clock value truth 
 - pause-time writes from editor playback toggles and transport callbacks are now
   routed through the same bridge adapter instead of direct coordinator writes in
   screen code.
+- scrub lifecycle writes (`scrubStart`, `scrubUpdate`, `scrubEnd`,
+  `confirmScrubSettled`) are now routed through the bridge adapter as well, so
+  screen code no longer mutates coordinator scrub state directly.
 
 ## 11. First Writer Task
 

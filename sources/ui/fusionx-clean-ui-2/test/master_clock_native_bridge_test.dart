@@ -83,5 +83,46 @@ void main() {
       );
       expect(clock.phase, TimelineClockPhase.paused);
     });
+
+    test('scrub lifecycle routes through clock with duration sync', () {
+      final clock = newClock(durationMs: 9000, initialMs: 1000);
+      final bridge = MasterClockNativeBridge(clock: clock);
+
+      bridge.scrubStart(
+        anchorTime: ms(1500),
+        timelineDurationTime: ms(9200),
+      );
+      expect(clock.phase, TimelineClockPhase.scrubbing);
+      expect(clock.time.inMilliseconds, 1500);
+      expect(clock.snapshot.timelineDuration.inMilliseconds, 9200);
+
+      expect(
+        bridge.scrubUpdate(
+          targetTime: ms(1700),
+          timelineDurationTime: ms(9200),
+        ),
+        isTrue,
+      );
+      expect(clock.time.inMilliseconds, 1700);
+
+      expect(
+        bridge.scrubEnd(
+          finalTime: ms(1800),
+          timelineDurationTime: ms(9200),
+        ),
+        isTrue,
+      );
+      expect(clock.phase, TimelineClockPhase.scrubSettling);
+
+      expect(
+        bridge.confirmScrubSettled(
+          settledTime: ms(1800),
+          timelineDurationTime: ms(9200),
+        ),
+        isTrue,
+      );
+      expect(clock.phase, TimelineClockPhase.paused);
+      expect(clock.time.inMilliseconds, 1800);
+    });
   });
 }

@@ -3111,6 +3111,34 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
   }
 
+  void _scrubStartTimelineClockAt(TimelineTime anchorTime) {
+    _masterClockNativeBridge.scrubStart(
+      anchorTime: anchorTime,
+      timelineDurationTime: _timelineDurationTime,
+    );
+  }
+
+  bool _scrubUpdateTimelineClockAt(TimelineTime targetTime) {
+    return _masterClockNativeBridge.scrubUpdate(
+      targetTime: targetTime,
+      timelineDurationTime: _timelineDurationTime,
+    );
+  }
+
+  bool _scrubEndTimelineClockAt(TimelineTime finalTime) {
+    return _masterClockNativeBridge.scrubEnd(
+      finalTime: finalTime,
+      timelineDurationTime: _timelineDurationTime,
+    );
+  }
+
+  bool _confirmScrubSettledTimelineClockAt(TimelineTime settledTime) {
+    return _masterClockNativeBridge.confirmScrubSettled(
+      settledTime: settledTime,
+      timelineDurationTime: _timelineDurationTime,
+    );
+  }
+
   bool get _shouldDriveDisplayTimeFromPlaybackSample =>
       _useNativePreview &&
       _isPlaying &&
@@ -3538,7 +3566,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         _playbackStartPositionToleranceMs) {
       return;
     }
-    _timelineClockCoordinator.confirmScrubSettled(target);
+    _confirmScrubSettledTimelineClockAt(target);
     _applyTimelineClockSnapshotToUi();
     _clearTimelineScrubHandoff();
   }
@@ -3579,7 +3607,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
 
     if (nativeSettled) {
-      _timelineClockCoordinator.confirmScrubSettled(handoffTarget);
+      _confirmScrubSettledTimelineClockAt(handoffTarget);
     }
     _pauseTimelineClockAt(resolvedPlaybackTime);
     _applyTimelineClockSnapshotToUi();
@@ -3760,15 +3788,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       final clockDecision =
           _applyNativePlaybackSampleToTimelineClock(reportedTransportTime);
       if (clockDecision == TimelineClockSampleDecision.accepted) {
-        acceptedTransportTime = _timelineClockCoordinator.time;
+        acceptedTransportTime = _masterClockNativeBridge.time;
       } else if (clockDecision == TimelineClockSampleDecision.rejectedStale) {
         shouldAdoptClockTime = false;
       }
     } else if (!transportState.isPlaying &&
         shouldAdoptTransportTime &&
-        _timelineClockCoordinator.snapshot.isPlaybackActive) {
+        _masterClockNativeBridge.snapshot.isPlaybackActive) {
       _pauseTimelineClockAt(reportedTransportTime);
-      acceptedTransportTime = _timelineClockCoordinator.time;
+      acceptedTransportTime = _masterClockNativeBridge.time;
     }
     final isTransientPlaybackRegression = transportState.isPlaying &&
         shouldAdoptClockTime &&
@@ -3828,7 +3856,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final clampedTime = time.clamp(TimelineTime.zero, _timelineDurationTime);
     if (_isTimelineScrubbing) {
       _timelineScrubFinalTime = clampedTime;
-      _timelineClockCoordinator.scrubUpdate(clampedTime);
+      _scrubUpdateTimelineClockAt(clampedTime);
       _applyTimelineClockSnapshotToUi();
       return;
     }
@@ -17423,7 +17451,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         _timelineScrubFinalTime = scrubAnchorTime;
         _stopMotionPreviewFrameClock(resetTo: scrubAnchorTime);
         _syncTimelineClockDuration();
-        _timelineClockCoordinator.scrubStart(scrubAnchorTime);
+        _scrubStartTimelineClockAt(scrubAnchorTime);
         _applyTimelineClockSnapshotToUi();
         return;
       }
@@ -17432,8 +17460,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
               .clamp(TimelineTime.zero, _timelineDurationTime);
       _timelineScrubFinalTime = null;
       _syncTimelineClockDuration();
-      _timelineClockCoordinator.scrubEnd(resolvedFinalTime);
-      _timelineClockCoordinator.confirmScrubSettled(resolvedFinalTime);
+      _scrubEndTimelineClockAt(resolvedFinalTime);
+      _confirmScrubSettledTimelineClockAt(resolvedFinalTime);
       _stopMotionPreviewFrameClock(resetTo: resolvedFinalTime);
       _setCurrentTime(resolvedFinalTime);
       return;
@@ -17454,7 +17482,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           .clamp(TimelineTime.zero, _timelineDurationTime);
       _timelineScrubFinalTime = scrubAnchorTime;
       _syncTimelineClockDuration();
-      _timelineClockCoordinator.scrubStart(scrubAnchorTime);
+      _scrubStartTimelineClockAt(scrubAnchorTime);
       _applyTimelineClockSnapshotToUi();
       unawaited(_pausePlayback());
       return;
@@ -17469,7 +17497,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final handoffRevision = _timelineScrubHandoffRevision;
     _timelineScrubFinalTime = null;
     _syncTimelineClockDuration();
-    _timelineClockCoordinator.scrubEnd(resolvedFinalTime);
+    _scrubEndTimelineClockAt(resolvedFinalTime);
     _applyTimelineClockSnapshotToUi();
     final nativeSettleTime = _nativeTransportTimeForTimelineTime(
       resolvedFinalTime,
@@ -17492,7 +17520,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           transportState,
           resolvedFinalTime,
         )) {
-          _timelineClockCoordinator.confirmScrubSettled(resolvedFinalTime);
+          _confirmScrubSettledTimelineClockAt(resolvedFinalTime);
           _applyTimelineClockSnapshotToUi();
           _clearTimelineScrubHandoff();
         }
@@ -17508,7 +17536,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _timelineScrubFinalTime = clampedTime;
     if (_isTimelineScrubbing) {
       _syncTimelineClockDuration();
-      _timelineClockCoordinator.scrubUpdate(clampedTime);
+      _scrubUpdateTimelineClockAt(clampedTime);
     }
     _setCurrentTime(clampedTime);
   }
@@ -17521,7 +17549,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _timelineScrubFinalTime = clampedTime;
     if (_isTimelineScrubbing) {
       _syncTimelineClockDuration();
-      _timelineClockCoordinator.scrubUpdate(clampedTime);
+      _scrubUpdateTimelineClockAt(clampedTime);
     }
     _setCurrentTime(clampedTime);
   }
@@ -17547,7 +17575,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _timelineScrubFinalTime = scrubAnchorTime;
       _stopMotionPreviewFrameClock(resetTo: scrubAnchorTime);
       _syncTimelineClockDuration();
-      _timelineClockCoordinator.scrubStart(scrubAnchorTime);
+      _scrubStartTimelineClockAt(scrubAnchorTime);
       _applyTimelineClockSnapshotToUi();
       return;
     }
@@ -17558,8 +17586,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
     _timelineScrubFinalTime = null;
     _syncTimelineClockDuration();
-    _timelineClockCoordinator.scrubEnd(resolvedFinalTime);
-    _timelineClockCoordinator.confirmScrubSettled(resolvedFinalTime);
+    _scrubEndTimelineClockAt(resolvedFinalTime);
+    _confirmScrubSettledTimelineClockAt(resolvedFinalTime);
     _stopMotionPreviewFrameClock(resetTo: resolvedFinalTime);
     _setCurrentTime(resolvedFinalTime);
   }
@@ -17586,7 +17614,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
     _timelineScrubFinalTime = clampedTime;
     if (_isTimelineScrubbing) {
-      _timelineClockCoordinator.scrubUpdate(clampedTime);
+      _scrubUpdateTimelineClockAt(clampedTime);
       _applyTimelineClockSnapshotToUi();
       return;
     }
