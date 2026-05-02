@@ -774,7 +774,9 @@ Current gate:
   the full readiness chain against a render plan: native capabilities, strict
   render-session preparation, source binding, frame sampling, exact decode
   requests, dual decoder session, temporal accumulator, mirror-edge tiler,
-  render-pass graph, output surface, and preview/scrub/playback parity.
+  render-pass graph, graph execution, output surface, surface renderer, frame
+  render commands, renderer backend, renderer draw loop, shader evaluation,
+  pixel renderer, and preview/scrub/playback parity.
   A transition authoring UI may only expose a preset when this report has no
   blocking stage; a single successful planning endpoint is not enough.
 - Flutter now also has
@@ -946,6 +948,13 @@ Current gate:
   `rendersRealPixels=false`, and `drawsPixels=false`; the next missing stage is
   the concrete pixel renderer that writes real transition pixels to
   `nativeTransitionCanvasSurface`.
+- Flutter and Android now also share `planTransitionPixelRenderer`. This is the
+  explicit native pixel-renderer gate after shader evaluation. It binds shader
+  inputs into a pixel workload for the final native transition canvas surface,
+  but still blocks with `native_transition_pixel_renderer_missing` and
+  `native_transition_renderer_pixels_missing` until a concrete renderer writes
+  real pixels. This prevents a shader-ready transition from being exposed as if
+  it were visually renderable.
 - Flutter and Android now also share `planParityOutputs`. This is the parity
   contract that prevents "works in preview but not in scrub/playback" drift.
   Preview, Live Scrub, and playback must all point at the same native

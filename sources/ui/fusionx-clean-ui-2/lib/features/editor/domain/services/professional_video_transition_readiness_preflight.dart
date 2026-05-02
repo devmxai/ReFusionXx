@@ -21,6 +21,7 @@ enum ProfessionalVideoTransitionReadinessStageId {
   rendererBackend,
   rendererDrawLoop,
   transitionShaderEvaluation,
+  transitionPixelRenderer,
   parityOutputs,
 }
 
@@ -186,6 +187,12 @@ class ProfessionalVideoTransitionReadinessPreflight {
       timelineTime: timelineTime,
     );
     stages.add(_transitionShaderEvaluationStage(transitionShaderEvaluation));
+
+    final transitionPixelRenderer = await _client.planTransitionPixelRenderer(
+      plan: plan,
+      timelineTime: timelineTime,
+    );
+    stages.add(_transitionPixelRendererStage(transitionPixelRenderer));
 
     final parityOutputs = await _client.planParityOutputs(
       plan: plan,
@@ -545,5 +552,24 @@ class ProfessionalVideoTransitionReadinessPreflight {
         return path == null || path.isEmpty ? message : '$path: $message';
       }),
     });
+  }
+
+  static ProfessionalVideoTransitionReadinessStage
+      _transitionPixelRendererStage(
+    ProfessionalVideoTransitionPixelRendererPlanResult result,
+  ) {
+    return ProfessionalVideoTransitionReadinessStage(
+      id: ProfessionalVideoTransitionReadinessStageId.transitionPixelRenderer,
+      label: 'Native transition pixel renderer',
+      canPlan: result.canPlan,
+      canAdvance: result.canRenderPixels,
+      blockers: _blockers(
+        reason: result.reason,
+        blockedReasons: result.blockedReasons,
+        issues: result.issues,
+        includeReason: !result.canRenderPixels,
+      ),
+      issues: result.issues,
+    );
   }
 }
