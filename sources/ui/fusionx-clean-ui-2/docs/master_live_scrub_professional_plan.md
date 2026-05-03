@@ -554,6 +554,19 @@ Acceptance:
   can draw the transition truthfully;
 - no audio-only/video-frozen state is accepted.
 
+Implementation note (checkpoint `checkpoint: add live scrub transition window preflight parity`):
+
+- added explicit transition-window contract:
+  `LiveScrubTransitionTimelineWindow`.
+- `LiveScrubSurfaceDescriptor` now carries `transitionId`,
+  transition timeline bounds, and normalized transition progress.
+- descriptor projection now enforces real-window gating for transition roles:
+  - missing window binding -> `missing_transition_window:<targetId>`
+  - playhead outside real window ->
+    `transition_timeline_outside_window:<targetId>`
+- this slice remains domain/preflight only and does not alter Stage5 hot scrub
+  rendering behavior.
+
 ### Phase 7 - Performance And Latency Budget
 
 Goal: prove the professional path is fast enough for real editing.

@@ -23,6 +23,21 @@ class LiveScrubTimelineSourceWindow {
 }
 
 @immutable
+class LiveScrubTransitionTimelineWindow {
+  const LiveScrubTransitionTimelineWindow({
+    required this.targetId,
+    required this.transitionId,
+    required this.timelineStartMs,
+    required this.timelineEndMs,
+  });
+
+  final String targetId;
+  final String transitionId;
+  final int timelineStartMs;
+  final int timelineEndMs;
+}
+
+@immutable
 class LiveScrubDescriptorCapabilities {
   const LiveScrubDescriptorCapabilities({
     this.supportsSourceDimensions = false,
@@ -63,6 +78,10 @@ class LiveScrubSurfaceDescriptor {
     required this.timelinePositionMs,
     required this.timelineStartMs,
     required this.timelineEndMs,
+    this.transitionId,
+    this.transitionTimelineStartMs,
+    this.transitionTimelineEndMs,
+    this.transitionProgress,
     required this.transformMatrix3x3,
     required this.opacity,
     required this.effectProgramIds,
@@ -83,6 +102,10 @@ class LiveScrubSurfaceDescriptor {
   final int timelinePositionMs;
   final int timelineStartMs;
   final int timelineEndMs;
+  final String? transitionId;
+  final int? transitionTimelineStartMs;
+  final int? transitionTimelineEndMs;
+  final double? transitionProgress;
   final List<double> transformMatrix3x3;
   final double opacity;
   final List<String> effectProgramIds;
@@ -104,6 +127,10 @@ class LiveScrubSurfaceDescriptor {
       'timelinePositionMs': timelinePositionMs,
       'timelineStartMs': timelineStartMs,
       'timelineEndMs': timelineEndMs,
+      'transitionId': transitionId,
+      'transitionTimelineStartMs': transitionTimelineStartMs,
+      'transitionTimelineEndMs': transitionTimelineEndMs,
+      'transitionProgress': transitionProgress,
       'transformMatrix3x3': transformMatrix3x3,
       'opacity': opacity,
       'effectProgramIds': effectProgramIds,

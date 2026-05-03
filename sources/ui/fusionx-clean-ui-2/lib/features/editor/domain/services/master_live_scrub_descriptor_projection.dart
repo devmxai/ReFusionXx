@@ -10,6 +10,8 @@ class MasterLiveScrubDescriptorProjection {
     required LiveScrubVisualProgram program,
     Map<String, LiveScrubTimelineSourceWindow> sourceWindowsByTargetId =
         const <String, LiveScrubTimelineSourceWindow>{},
+    Map<String, LiveScrubTransitionTimelineWindow> transitionWindowsByTargetId =
+        const <String, LiveScrubTransitionTimelineWindow>{},
     LiveScrubDescriptorCapabilities capabilities =
         const LiveScrubDescriptorCapabilities(),
   }) {
@@ -21,6 +23,7 @@ class MasterLiveScrubDescriptorProjection {
     for (final surface in program.surfaces) {
       final surfaceBlockers = <String>[...surface.blockers];
       final window = sourceWindowsByTargetId[surface.targetId];
+      final transitionWindow = transitionWindowsByTargetId[surface.targetId];
       final source = surface.source;
       if (source == null || source.sourceUri.isEmpty) {
         surfaceBlockers.add('missing_source_binding:${surface.targetId}');
@@ -96,6 +99,33 @@ class MasterLiveScrubDescriptorProjection {
           'native_missing_dual_source_transition_window_capability',
         );
       }
+      String? transitionId;
+      int? transitionTimelineStartMs;
+      int? transitionTimelineEndMs;
+      double? transitionProgress;
+      if (requiresTransitionWindow) {
+        if (transitionWindow == null) {
+          surfaceBlockers.add('missing_transition_window:${surface.targetId}');
+        } else {
+          transitionId = transitionWindow.transitionId;
+          transitionTimelineStartMs = transitionWindow.timelineStartMs;
+          transitionTimelineEndMs = transitionWindow.timelineEndMs;
+          final transitionDurationMs = math.max(
+            1,
+            transitionWindow.timelineEndMs - transitionWindow.timelineStartMs,
+          );
+          final rawProgress = (timelinePositionMs -
+                  transitionWindow.timelineStartMs) /
+              transitionDurationMs;
+          transitionProgress = rawProgress.clamp(0.0, 1.0);
+          if (timelinePositionMs < transitionWindow.timelineStartMs ||
+              timelinePositionMs > transitionWindow.timelineEndMs) {
+            surfaceBlockers.add(
+              'transition_timeline_outside_window:${surface.targetId}',
+            );
+          }
+        }
+      }
 
       final descriptor = LiveScrubSurfaceDescriptor(
         id: _stableDescriptorId(
@@ -113,6 +143,10 @@ class MasterLiveScrubDescriptorProjection {
         timelinePositionMs: timelinePositionMs,
         timelineStartMs: timelineStartMs,
         timelineEndMs: timelineEndMs,
+        transitionId: transitionId,
+        transitionTimelineStartMs: transitionTimelineStartMs,
+        transitionTimelineEndMs: transitionTimelineEndMs,
+        transitionProgress: transitionProgress,
         transformMatrix3x3: _transformMatrix3x3(surface.transform),
         opacity: surface.opacity.clamp(0.0, 1.0).toDouble(),
         effectProgramIds: surface.effects.map((effect) => effect.id).toList(
@@ -125,6 +159,10 @@ class MasterLiveScrubDescriptorProjection {
           if (window != null)
             'source_time_mapped:${window.sourceStartMs}->$sourcePositionMs@${window.playbackRate}',
           if (window == null) 'source_time_unmapped',
+          if (transitionWindow != null)
+            'transition_window:${transitionWindow.transitionId}:${transitionWindow.timelineStartMs}-${transitionWindow.timelineEndMs}',
+          if (transitionProgress != null)
+            'transition_progress:${transitionProgress.toStringAsFixed(4)}',
           'native_capabilities:${capabilities.source}',
         ],
       );

@@ -342,4 +342,162 @@ void main() {
     expect(result.canProject, isFalse);
     expect(result.blockers, contains('unsupported_effect_program:motionBlur'));
   });
+
+  test('projects transition window progress inside real window', () {
+    final clock = TimelineClockCoordinator(
+      timelineDuration: ms(8000),
+      initialTime: ms(2500),
+    );
+    final time = MasterTimeSnapshot.fromClockSnapshot(
+      clock: clock.snapshot,
+      frameRate: 30,
+      renderMode: MasterRenderMode.liveScrub,
+      sourceScope: MasterTimeScope.rootComposition,
+    );
+    final program = LiveScrubVisualProgram(
+      time: time,
+      surfaces: <LiveScrubVisualSurface>[
+        LiveScrubVisualSurface(
+          targetId: 'layer-4',
+          sourceKind: LiveScrubSourceKind.video,
+          source: const LiveScrubSurfaceSource(
+            targetId: 'layer-4',
+            kind: LiveScrubSourceKind.video,
+            sourceUri: '/media/video-e.mp4',
+          ),
+          transitionRole: LiveScrubTransitionRole.outgoing,
+          blockers: const <String>[],
+        ),
+      ],
+      blockers: const <String>[],
+      diagnostics: const <String>[],
+      transitionState: LiveScrubTransitionState(
+        activeTransitionIds: const <String>['tr-4'],
+        hasRenderableTransitionPixels: false,
+        reason: 'phase6_transition_window_preflight',
+      ),
+    );
+    const projection = MasterLiveScrubDescriptorProjection();
+    const sourceWindow = LiveScrubTimelineSourceWindow(
+      targetId: 'layer-4',
+      timelineStartMs: 1000,
+      timelineEndMs: 7000,
+      sourceStartMs: 0,
+      sourceDurationMs: 6000,
+      playbackRate: 1.0,
+    );
+    const transitionWindow = LiveScrubTransitionTimelineWindow(
+      targetId: 'layer-4',
+      transitionId: 'tr-4',
+      timelineStartMs: 2000,
+      timelineEndMs: 3000,
+    );
+    const capabilities = LiveScrubDescriptorCapabilities(
+      supportsSourceDimensions: true,
+      supportsCanvasPlacement: true,
+      supportsCrop: true,
+      supportsTransformMatrix: true,
+      supportsOpacity: true,
+      supportsEffectProgramIds: true,
+      supportedEffectProgramIds: <String>[],
+      supportsDualSourceTransitionWindow: true,
+      source: 'native-transition-window',
+    );
+
+    final result = projection.project(
+      program: program,
+      sourceWindowsByTargetId: <String, LiveScrubTimelineSourceWindow>{
+        'layer-4': sourceWindow,
+      },
+      transitionWindowsByTargetId: <String, LiveScrubTransitionTimelineWindow>{
+        'layer-4': transitionWindow,
+      },
+      capabilities: capabilities,
+    );
+
+    expect(result.canProject, isTrue);
+    final descriptor = result.descriptors.single;
+    expect(descriptor.transitionId, 'tr-4');
+    expect(descriptor.transitionTimelineStartMs, 2000);
+    expect(descriptor.transitionTimelineEndMs, 3000);
+    expect(descriptor.transitionProgress, closeTo(0.5, 0.0001));
+  });
+
+  test('blocks transition rendering when timeline is outside real transition window', () {
+    final clock = TimelineClockCoordinator(
+      timelineDuration: ms(8000),
+      initialTime: ms(3500),
+    );
+    final time = MasterTimeSnapshot.fromClockSnapshot(
+      clock: clock.snapshot,
+      frameRate: 30,
+      renderMode: MasterRenderMode.liveScrub,
+      sourceScope: MasterTimeScope.rootComposition,
+    );
+    final program = LiveScrubVisualProgram(
+      time: time,
+      surfaces: <LiveScrubVisualSurface>[
+        LiveScrubVisualSurface(
+          targetId: 'layer-5',
+          sourceKind: LiveScrubSourceKind.video,
+          source: const LiveScrubSurfaceSource(
+            targetId: 'layer-5',
+            kind: LiveScrubSourceKind.video,
+            sourceUri: '/media/video-f.mp4',
+          ),
+          transitionRole: LiveScrubTransitionRole.incoming,
+          blockers: const <String>[],
+        ),
+      ],
+      blockers: const <String>[],
+      diagnostics: const <String>[],
+      transitionState: LiveScrubTransitionState(
+        activeTransitionIds: const <String>['tr-5'],
+        hasRenderableTransitionPixels: false,
+        reason: 'phase6_transition_window_preflight',
+      ),
+    );
+    const projection = MasterLiveScrubDescriptorProjection();
+    const sourceWindow = LiveScrubTimelineSourceWindow(
+      targetId: 'layer-5',
+      timelineStartMs: 1000,
+      timelineEndMs: 7000,
+      sourceStartMs: 0,
+      sourceDurationMs: 6000,
+      playbackRate: 1.0,
+    );
+    const transitionWindow = LiveScrubTransitionTimelineWindow(
+      targetId: 'layer-5',
+      transitionId: 'tr-5',
+      timelineStartMs: 2000,
+      timelineEndMs: 3000,
+    );
+    const capabilities = LiveScrubDescriptorCapabilities(
+      supportsSourceDimensions: true,
+      supportsCanvasPlacement: true,
+      supportsCrop: true,
+      supportsTransformMatrix: true,
+      supportsOpacity: true,
+      supportsEffectProgramIds: false,
+      supportsDualSourceTransitionWindow: true,
+      source: 'native-transition-window',
+    );
+
+    final result = projection.project(
+      program: program,
+      sourceWindowsByTargetId: <String, LiveScrubTimelineSourceWindow>{
+        'layer-5': sourceWindow,
+      },
+      transitionWindowsByTargetId: <String, LiveScrubTransitionTimelineWindow>{
+        'layer-5': transitionWindow,
+      },
+      capabilities: capabilities,
+    );
+
+    expect(result.canProject, isFalse);
+    expect(
+      result.blockers,
+      contains('transition_timeline_outside_window:layer-5'),
+    );
+  });
 }
