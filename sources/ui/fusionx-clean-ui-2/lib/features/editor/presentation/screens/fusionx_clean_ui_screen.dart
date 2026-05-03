@@ -21530,10 +21530,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required String mode,
   }) {
     if (preset == TimelineTransitionPreset.manual) {
-      // Manual transition authoring still writes real graph data, but its
-      // legacy native compositor path is kept out of playback/liveScrub until
-      // the Stage5 master runtime consumes manual transition values directly.
-      return mode == 'preview';
+      // Manual transition authoring is data-only until its values are consumed
+      // by the Stage5 master runtime path. Keep the legacy compositor disabled
+      // for every interactive mode to avoid surface suppression and frozen
+      // preview/audio-only regressions while keyframes are edited.
+      return false;
     }
     // The current Distortion Zoom V1 native path decodes source frames and
     // writes a full transition bitmap per request. Keep it out of playback and

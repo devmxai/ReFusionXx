@@ -277,6 +277,14 @@ Checkpoint:
 checkpoint: block manual transition legacy renderer
 ```
 
+Implementation note:
+
+- `TimelineTransitionPreset.manual` no longer permits legacy interactive
+  professional rendering in `preview`, `liveScrub`, or `playback`.
+- this keeps manual transition authoring data-only for the current stage and
+  prevents preview surface suppression caused by manual legacy render-plan
+  activation.
+
 ## 8. Phase 2 - Data-Only Authoring Guard
 
 Goal: adding Animate/FX/keyframes must be a pure data mutation until the master
