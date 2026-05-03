@@ -683,6 +683,21 @@ Implementation note (checkpoint `checkpoint: wire live scrub runtime descriptor 
 - protected Stage5 native scrub classes are unchanged in this slice; this is a
   reversible Flutter-side runtime config linkage step.
 
+Implementation note (checkpoint `checkpoint: wire live scrub native performance snapshot telemetry`):
+
+- Android `Stage5NativeScrubEngine` now reports runtime scrub telemetry in
+  `diagnosticsSnapshot()`, including estimated frame request rate, average
+  decoder configure latency, average/max frame render latency, dropped-frame
+  estimate, and cross-source warmup readiness.
+- `MainActivity` now exposes `getLiveScrubPerformanceSnapshot` over the Stage5
+  method channel as a read-only diagnostics endpoint.
+- Flutter `Stage5NativeTransportController` now parses this payload into
+  `LiveScrubPerformanceSnapshot`.
+- transition preflight projection submission now injects native telemetry into
+  `MasterLiveScrubDescriptorProjection.project(...)`, so
+  `LiveScrubParityReport.latencyBudgetState` can evaluate against real native
+  metrics instead of remaining pending by default.
+
 ## 9. Verification Matrix
 
 Every implementation slice must name which rows it affects:

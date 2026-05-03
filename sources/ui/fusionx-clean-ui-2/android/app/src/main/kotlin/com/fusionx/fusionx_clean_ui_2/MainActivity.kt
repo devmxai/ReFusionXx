@@ -342,6 +342,9 @@ class MainActivity: FlutterActivity() {
                         ),
                     )
                 }
+                "getLiveScrubPerformanceSnapshot" -> {
+                    result.success(stage5NativeScrubEngine.diagnosticsSnapshot())
+                }
                 "submitLiveScrubDescriptorPreflight" -> {
                     val payload =
                         (call.arguments as? Map<*, *>)?.mapKeys { (key, _) -> key.toString() }

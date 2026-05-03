@@ -68,6 +68,11 @@ class Stage5NativeScrubEngine(
         var noSurfaceCount: Long = 0L,
         var decoderConfigureFailureCount: Long = 0L,
         var renderFailureCount: Long = 0L,
+        var decoderConfigureLatencyTotalMs: Long = 0L,
+        var decoderConfigureLatencySampleCount: Long = 0L,
+        var frameRenderLatencyTotalMs: Long = 0L,
+        var frameRenderLatencySampleCount: Long = 0L,
+        var frameRenderLatencyMaxMs: Long = 0L,
     ) {
         fun toMap(): Map<String, Any> =
             mapOf(
@@ -81,6 +86,11 @@ class Stage5NativeScrubEngine(
                 "noSurfaceCount" to noSurfaceCount,
                 "decoderConfigureFailureCount" to decoderConfigureFailureCount,
                 "renderFailureCount" to renderFailureCount,
+                "decoderConfigureLatencyTotalMs" to decoderConfigureLatencyTotalMs,
+                "decoderConfigureLatencySampleCount" to decoderConfigureLatencySampleCount,
+                "frameRenderLatencyTotalMs" to frameRenderLatencyTotalMs,
+                "frameRenderLatencySampleCount" to frameRenderLatencySampleCount,
+                "frameRenderLatencyMaxMs" to frameRenderLatencyMaxMs,
             )
 
         fun reset() {
@@ -94,6 +104,11 @@ class Stage5NativeScrubEngine(
             noSurfaceCount = 0L
             decoderConfigureFailureCount = 0L
             renderFailureCount = 0L
+            decoderConfigureLatencyTotalMs = 0L
+            decoderConfigureLatencySampleCount = 0L
+            frameRenderLatencyTotalMs = 0L
+            frameRenderLatencySampleCount = 0L
+            frameRenderLatencyMaxMs = 0L
         }
     }
 
@@ -121,6 +136,7 @@ class Stage5NativeScrubEngine(
     private val renderExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val warmupExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val diagnostics = Diagnostics()
+    private var diagnosticsStartedAtMs = SystemClock.elapsedRealtime()
     private val proxyReadyListener =
         object : Stage5ScrubPreviewProxyListener {
             override fun onProxyReady(sourceUri: String) {
@@ -505,17 +521,48 @@ class Stage5NativeScrubEngine(
 
     @Synchronized
     fun diagnosticsSnapshot(): Map<String, Any?> =
-        mapOf(
-            "nativeEngine" to diagnostics.toMap(),
-            "activeStoreKey" to activeDescriptor?.scrubStoreKey,
-            "latestTargetPositionMs" to latestTargetSourcePositionMs,
-            "configuredPreviewSourceCount" to configuredPreviewSources.size,
-            "hasRenderHost" to renderHosts.isNotEmpty(),
-        )
+        run {
+            val elapsedMs = (SystemClock.elapsedRealtime() - diagnosticsStartedAtMs).coerceAtLeast(0L)
+            val frameRateFps =
+                if (elapsedMs > 0L) {
+                    (diagnostics.renderedFrameCount.toDouble() * 1000.0) / elapsedMs.toDouble()
+                } else {
+                    0.0
+                }
+            val avgDecoderConfigureLatencyMs =
+                if (diagnostics.decoderConfigureLatencySampleCount > 0L) {
+                    diagnostics.decoderConfigureLatencyTotalMs.toDouble() /
+                        diagnostics.decoderConfigureLatencySampleCount.toDouble()
+                } else {
+                    null
+                }
+            val avgFrameRenderLatencyMs =
+                if (diagnostics.frameRenderLatencySampleCount > 0L) {
+                    diagnostics.frameRenderLatencyTotalMs.toDouble() /
+                        diagnostics.frameRenderLatencySampleCount.toDouble()
+                } else {
+                    null
+                }
+            mapOf(
+                "nativeEngine" to diagnostics.toMap(),
+                "activeStoreKey" to activeDescriptor?.scrubStoreKey,
+                "latestTargetPositionMs" to latestTargetSourcePositionMs,
+                "configuredPreviewSourceCount" to configuredPreviewSources.size,
+                "hasRenderHost" to renderHosts.isNotEmpty(),
+                "elapsedMs" to elapsedMs,
+                "estimatedFrameRequestRateFps" to frameRateFps,
+                "avgDecoderConfigureLatencyMs" to avgDecoderConfigureLatencyMs,
+                "avgFrameRenderLatencyMs" to avgFrameRenderLatencyMs,
+                "maxFrameRenderLatencyMs" to diagnostics.frameRenderLatencyMaxMs,
+                "droppedFrameCountEstimate" to diagnostics.renderFailureCount,
+                "crossSourceWarmupReady" to (configuredPreviewSources.isNotEmpty() && renderHosts.isNotEmpty()),
+            )
+        }
 
     @Synchronized
     fun resetDiagnostics() {
         diagnostics.reset()
+        diagnosticsStartedAtMs = SystemClock.elapsedRealtime()
     }
 
     @Synchronized
@@ -605,6 +652,7 @@ class Stage5NativeScrubEngine(
 
     private fun renderSnapshot(snapshot: RenderSnapshot): Boolean {
         diagnostics.renderRequestCount += 1
+        val renderStartMs = SystemClock.elapsedRealtime()
         val outputTarget =
             synchronized(this) {
                 if (
@@ -631,15 +679,22 @@ class Stage5NativeScrubEngine(
         } else {
             diagnostics.sourceFallbackRenderCount += 1
         }
+        val decoderConfigureStartMs = SystemClock.elapsedRealtime()
         if (
             !surfaceScrubDecoder.ensureConfigured(
                 playbackUri = playbackUri.playbackUri,
                 outputSurface = outputTarget.surface,
             )
         ) {
+            val configureDurationMs = (SystemClock.elapsedRealtime() - decoderConfigureStartMs).coerceAtLeast(0L)
+            diagnostics.decoderConfigureLatencyTotalMs += configureDurationMs
+            diagnostics.decoderConfigureLatencySampleCount += 1L
             diagnostics.decoderConfigureFailureCount += 1
             return false
         }
+        val configureDurationMs = (SystemClock.elapsedRealtime() - decoderConfigureStartMs).coerceAtLeast(0L)
+        diagnostics.decoderConfigureLatencyTotalMs += configureDurationMs
+        diagnostics.decoderConfigureLatencySampleCount += 1L
         outputTarget.host.setScrubContentAspectRatio(
             resolveDescriptorAspectRatio(snapshot.descriptor),
         )
@@ -657,9 +712,19 @@ class Stage5NativeScrubEngine(
                 },
             )
         if (!rendered) {
+            val renderDurationMs = (SystemClock.elapsedRealtime() - renderStartMs).coerceAtLeast(0L)
+            diagnostics.frameRenderLatencyTotalMs += renderDurationMs
+            diagnostics.frameRenderLatencySampleCount += 1L
+            diagnostics.frameRenderLatencyMaxMs =
+                maxOf(diagnostics.frameRenderLatencyMaxMs, renderDurationMs)
             diagnostics.renderFailureCount += 1
             return false
         }
+        val renderDurationMs = (SystemClock.elapsedRealtime() - renderStartMs).coerceAtLeast(0L)
+        diagnostics.frameRenderLatencyTotalMs += renderDurationMs
+        diagnostics.frameRenderLatencySampleCount += 1L
+        diagnostics.frameRenderLatencyMaxMs =
+            maxOf(diagnostics.frameRenderLatencyMaxMs, renderDurationMs)
         diagnostics.renderedFrameCount += 1
         synchronized(this) {
             if (

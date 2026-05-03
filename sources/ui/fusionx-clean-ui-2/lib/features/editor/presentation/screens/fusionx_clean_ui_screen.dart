@@ -21431,6 +21431,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         try {
           final capabilities =
               await _transportController.getLiveScrubCapabilities();
+          final performanceSnapshot =
+              await _transportController.getLiveScrubPerformanceSnapshot();
           final evaluation = _masterFrameEvaluationForMode(mode);
           if (evaluation == null) {
             return;
@@ -21452,6 +21454,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
               activeTransition: activeTransition,
             ),
             capabilities: capabilities.toDescriptorCapabilities(),
+            performanceSnapshot: performanceSnapshot,
           );
           await _transportController.submitLiveScrubDescriptorPreflight(
             projection,

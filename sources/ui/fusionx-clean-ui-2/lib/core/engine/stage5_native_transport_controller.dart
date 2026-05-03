@@ -495,6 +495,20 @@ class Stage5NativeTransportController extends ChangeNotifier {
     }
   }
 
+  Future<LiveScrubPerformanceSnapshot> getLiveScrubPerformanceSnapshot() async {
+    if (!isPlatformSupported) {
+      return const LiveScrubPerformanceSnapshot();
+    }
+    try {
+      final result = await _methodChannel.invokeMethod<dynamic>(
+        'getLiveScrubPerformanceSnapshot',
+      );
+      return parseStage5LiveScrubPerformanceSnapshot(result);
+    } catch (_) {
+      return const LiveScrubPerformanceSnapshot();
+    }
+  }
+
   Future<bool> submitLiveScrubDescriptorPreflight(
     LiveScrubDescriptorProjectionResult projectionResult,
   ) async {
@@ -702,6 +716,7 @@ Stage5LiveScrubCapabilities parseStage5LiveScrubCapabilities(dynamic result) {
     }
     return const <String>[];
   }
+
   final source = map['source']?.toString() ?? 'unknown';
   return Stage5LiveScrubCapabilities(
     supportsSourceDimensions: readBool('supportsSourceDimensions'),
@@ -724,6 +739,40 @@ Map<String, Object?> buildLiveScrubDescriptorPreflightPayload(
   LiveScrubDescriptorProjectionResult projectionResult,
 ) {
   return projectionResult.toPreflightNativeMap();
+}
+
+@visibleForTesting
+LiveScrubPerformanceSnapshot parseStage5LiveScrubPerformanceSnapshot(
+  dynamic result,
+) {
+  final map = _normalizeLiveScrubCapabilitiesMap(result);
+  double? readDouble(String key) {
+    final value = map[key];
+    if (value is num) {
+      return value.toDouble();
+    }
+    return null;
+  }
+
+  int? readInt(String key) {
+    final value = map[key];
+    if (value is int) {
+      return value;
+    }
+    if (value is double) {
+      return value.round();
+    }
+    return null;
+  }
+
+  return LiveScrubPerformanceSnapshot(
+    frameRequestRateFps: readDouble('estimatedFrameRequestRateFps'),
+    nativeDecodeRebindLatencyMs: readDouble('avgDecoderConfigureLatencyMs'),
+    framePresentationLatencyMs: readDouble('avgFrameRenderLatencyMs'),
+    droppedFrameCount: readInt('droppedFrameCountEstimate'),
+    crossSourceWarmupReady: map['crossSourceWarmupReady'] == true,
+    memoryPressureLevel: null,
+  );
 }
 
 Map<String, dynamic> _normalizeLiveScrubCapabilitiesMap(dynamic value) {
