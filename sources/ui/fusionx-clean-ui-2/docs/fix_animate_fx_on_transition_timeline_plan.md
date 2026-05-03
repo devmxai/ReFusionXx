@@ -408,6 +408,15 @@ Checkpoint:
 checkpoint: adapt manual transition lanes to motion channels
 ```
 
+Implementation note:
+
+- added `ManualTransitionLaneToMotionChannelAdapter` to lower manual lanes into
+  `MotionPropertyChannelModel` instances on the real transition window.
+- supported lane mappings in this slice:
+  `scale`, `opacity`, `position`, `rotation`, `gaussian_blur`.
+- unsupported lane ids now return explicit projection issues instead of silent
+  fallback.
+
 ## 10. Phase 4 - Manual Transition Master Frame Evaluation
 
 Goal: manual transition values must appear as `MasterEvaluatedPropertyValue`
