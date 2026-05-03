@@ -698,6 +698,17 @@ Implementation note (checkpoint `checkpoint: wire live scrub native performance 
   `LiveScrubParityReport.latencyBudgetState` can evaluate against real native
   metrics instead of remaining pending by default.
 
+Implementation note (checkpoint `checkpoint: promote live scrub runtime bridge naming and source merge`):
+
+- `FusionXCleanUiScreen` now treats transition descriptor projection as a
+  runtime bridge path instead of preflight-only naming:
+  `transition_runtime_bridge_mode:*`, `runtime_descriptor_bridge_v1`.
+- transition-scoped projected source descriptors can now merge over baseline
+  Stage5 scrub source config whenever a transition runtime projection exists,
+  not only during active finger scrub sessions.
+- runtime bridge submission throttling keys/state were renamed from preflight
+  semantics to runtime bridge semantics to reduce legacy linkage ambiguity.
+
 ## 9. Verification Matrix
 
 Every implementation slice must name which rows it affects:

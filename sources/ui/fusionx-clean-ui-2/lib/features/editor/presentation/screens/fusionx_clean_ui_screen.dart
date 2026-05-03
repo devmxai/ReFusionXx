@@ -640,8 +640,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   Size? _lastPreviewStageSize;
   int _nativePreviewRecoveryRevision = 0;
   bool _isNativePreviewRecoveryScheduled = false;
-  String? _lastSubmittedLiveScrubPreflightKey;
-  bool _liveScrubPreflightSubmissionInFlight = false;
+  String? _lastSubmittedLiveScrubRuntimeBridgeKey;
+  bool _liveScrubRuntimeBridgeSubmissionInFlight = false;
 
   @override
   void initState() {
@@ -1860,9 +1860,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
   List<LiveScrubPreviewSourceDescriptor> _allLiveScrubPreviewSources() {
     final baseline = _liveScrubPreviewSourceCatalog.descriptors;
-    if (!_isTimelineScrubbing) {
-      return baseline;
-    }
     final runtimeProjection = _liveScrubRuntimeProjectionForActiveTransition();
     if (runtimeProjection == null) {
       return baseline;
@@ -1900,7 +1897,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (evaluation == null) {
       return null;
     }
-    final program = _liveScrubVisualProgramForTransitionPreflight(
+    final program = _liveScrubVisualProgramForTransitionRuntimeBridge(
       evaluation: evaluation,
       activeTransition: activeTransition,
       plan: plan,
@@ -21297,7 +21294,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
   }
 
-  String _liveScrubPreflightSubmissionKey({
+  String _liveScrubRuntimeBridgeSubmissionKey({
     required _ActiveTimelineTransitionPreview activeTransition,
     required String mode,
     required ProfessionalVideoTransitionRenderPlan plan,
@@ -21306,7 +21303,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return '${activeTransition.transition.id}:$mode:${plan.definitionId}:$bucket';
   }
 
-  LiveScrubVisualProgram _liveScrubVisualProgramForTransitionPreflight({
+  LiveScrubVisualProgram _liveScrubVisualProgramForTransitionRuntimeBridge({
     required MasterFrameEvaluation evaluation,
     required _ActiveTimelineTransitionPreview activeTransition,
     required ProfessionalVideoTransitionRenderPlan plan,
@@ -21341,7 +21338,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         effectParameters: const <String, MasterPropertyValueMapping>{},
         diagnostics: <String>[
           ...evaluation.diagnostics,
-          'transition_preflight_mode:$mode',
+          'transition_runtime_bridge_mode:$mode',
         ],
       ),
       sourcesByTargetId: sourcesByTargetId,
@@ -21356,7 +21353,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       transitionState: LiveScrubTransitionState(
         activeTransitionIds: <String>[activeTransition.transition.id],
         hasRenderableTransitionPixels: false,
-        reason: 'bridge_preflight_only',
+        reason: 'runtime_descriptor_bridge_v1',
       ),
     );
   }
@@ -21410,22 +21407,22 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     };
   }
 
-  void _scheduleLiveScrubPreflightSubmission({
+  void _scheduleLiveScrubRuntimeBridgeSubmission({
     required _ActiveTimelineTransitionPreview activeTransition,
     required String mode,
     required ProfessionalVideoTransitionRenderPlan plan,
   }) {
-    final key = _liveScrubPreflightSubmissionKey(
+    final key = _liveScrubRuntimeBridgeSubmissionKey(
       activeTransition: activeTransition,
       mode: mode,
       plan: plan,
     );
-    if (_liveScrubPreflightSubmissionInFlight ||
-        _lastSubmittedLiveScrubPreflightKey == key) {
+    if (_liveScrubRuntimeBridgeSubmissionInFlight ||
+        _lastSubmittedLiveScrubRuntimeBridgeKey == key) {
       return;
     }
-    _liveScrubPreflightSubmissionInFlight = true;
-    _lastSubmittedLiveScrubPreflightKey = key;
+    _liveScrubRuntimeBridgeSubmissionInFlight = true;
+    _lastSubmittedLiveScrubRuntimeBridgeKey = key;
     unawaited(
       Future<void>(() async {
         try {
@@ -21437,7 +21434,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           if (evaluation == null) {
             return;
           }
-          final program = _liveScrubVisualProgramForTransitionPreflight(
+          final program = _liveScrubVisualProgramForTransitionRuntimeBridge(
             evaluation: evaluation,
             activeTransition: activeTransition,
             plan: plan,
@@ -21462,7 +21459,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         } catch (_) {
           // Keep preflight bridge submission nonblocking for the editor path.
         } finally {
-          _liveScrubPreflightSubmissionInFlight = false;
+          _liveScrubRuntimeBridgeSubmissionInFlight = false;
         }
       }),
     );
@@ -21721,7 +21718,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                       );
                 if (activeTransition != null &&
                     professionalTransitionPlan != null) {
-                  _scheduleLiveScrubPreflightSubmission(
+                  _scheduleLiveScrubRuntimeBridgeSubmission(
                     activeTransition: activeTransition,
                     mode: professionalTransitionMode,
                     plan: professionalTransitionPlan,
