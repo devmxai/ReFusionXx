@@ -1,0 +1,5 @@
+# Allowed Master Live Scrub guard occurrences.
+# Format: <path>:<token>
+
+android/app/src/main/kotlin/com/fusionx/fusionx_clean_ui_2/Stage5SurfaceScrubDecoder.kt:extractor.seekTo.allowed
+lib/features/editor/domain/services/master_live_scrub_descriptor_projection.dart:Stopwatch(

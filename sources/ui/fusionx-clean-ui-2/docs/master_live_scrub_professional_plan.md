@@ -624,6 +624,19 @@ Deletion gates:
 - never delete a working Stage5 safety path in the same commit that introduces
   a new renderer.
 
+Implementation note (checkpoint `checkpoint: add master live scrub guardrails gate`):
+
+- added executable guard script: `scripts/master_live_scrub_guard_check.sh`.
+- added allowlist policy: `docs/master_live_scrub_guard_allowlist.txt`.
+- the guard now blocks:
+  - unapproved `seekTo` / `setMediaItem` paths in protected Stage5 scrub files;
+  - thumbnail/poster/fallback tokens in protected Stage5 scrub files;
+  - direct transition compositor coupling inside Master Live Scrub domain
+    contracts;
+  - scrub clock sources in Live Scrub domain files unless explicitly allowlisted.
+- this slice is enforcement-only and does not alter Stage5 scrub rendering
+  behavior.
+
 ## 9. Verification Matrix
 
 Every implementation slice must name which rows it affects:
