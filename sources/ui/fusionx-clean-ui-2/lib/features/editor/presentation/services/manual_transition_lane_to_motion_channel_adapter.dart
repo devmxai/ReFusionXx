@@ -306,10 +306,13 @@ class ManualTransitionLaneToMotionChannelAdapter {
     required TimelineAnimationLaneData lane,
     required String fallbackTargetId,
   }) {
-    final laneTargetId =
-        lane.targetClipId.trim().isEmpty
-            ? fallbackTargetId
-            : lane.targetClipId.trim();
+    final laneTargetId = _canonicalManualLaneTargetId(
+      transition: transition,
+      laneTargetId: lane.targetClipId.trim().isEmpty
+          ? fallbackTargetId
+          : lane.targetClipId.trim(),
+      fallbackTargetId: fallbackTargetId,
+    );
     // Preserve strict lane targeting: authored keyframes must only affect
     // the clip targeted by the lane, not both transition sides.
     final rightClipId = transition.rightClipId.trim();
@@ -317,6 +320,37 @@ class ManualTransitionLaneToMotionChannelAdapter {
       return <String>[laneTargetId];
     }
     return <String>[laneTargetId];
+  }
+
+  String _canonicalManualLaneTargetId({
+    required TimelineTrackTransitionData transition,
+    required String laneTargetId,
+    required String fallbackTargetId,
+  }) {
+    final trimmed = laneTargetId.trim();
+    if (trimmed.isEmpty) {
+      return fallbackTargetId;
+    }
+    if (trimmed == transition.leftClipId || trimmed == transition.rightClipId) {
+      return trimmed;
+    }
+    final transitionPrefix = '${transition.id}::focus-';
+    if (trimmed.startsWith(transitionPrefix)) {
+      final side = trimmed.substring(transitionPrefix.length);
+      if (side == 'left') {
+        return transition.leftClipId;
+      }
+      if (side == 'right') {
+        return transition.rightClipId;
+      }
+    }
+    if (trimmed.endsWith('::focus-left')) {
+      return transition.leftClipId;
+    }
+    if (trimmed.endsWith('::focus-right')) {
+      return transition.rightClipId;
+    }
+    return trimmed;
   }
 
   List<MotionKeyframeModel> _mapKeyframes(

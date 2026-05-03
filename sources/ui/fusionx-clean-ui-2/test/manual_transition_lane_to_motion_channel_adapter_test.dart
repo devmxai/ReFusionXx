@@ -136,6 +136,43 @@ void main() {
     expect(opacity.keyframes.last.value.rawValue, 0.0);
   });
 
+  test('maps focus scoped lane target ids back to real clip ids', () {
+    final transition = TimelineTrackTransitionData(
+      id: 'transition-1',
+      leftClipId: 'clip-a',
+      rightClipId: 'clip-b',
+      preset: TimelineTransitionPreset.manual,
+      durationTime: TimelineTime.fromMilliseconds(2000),
+      manualEffectIds: const <String>['rotation'],
+      manualAnimationLanes: const <TimelineAnimationLaneData>[
+        TimelineAnimationLaneData(
+          id: 'rotation',
+          label: 'Rotation',
+          targetClipId: 'transition-1::focus-left',
+          normalizedKeyframeStops: <double>[0.0, 1.0],
+          keyframeIds: <String>['k0', 'k1'],
+          keyframeValues: <double>[0.0, 90.0],
+        ),
+      ],
+    );
+
+    final result = adapter.projectChannels(
+      request: ManualTransitionLaneChannelProjectionRequest(
+        transition: transition,
+        seamTime: TimelineTime.fromMilliseconds(5000),
+        projectId: 'project-1',
+      ),
+    );
+
+    expect(result.issues, isEmpty);
+    expect(result.channels.length, 1);
+    final rotation = result.channels.single;
+    expect(rotation.definition.id, 'transform.rotation.degrees');
+    expect(rotation.target.targetId, 'clip-a');
+    expect(rotation.keyframes.first.value.rawValue, 0.0);
+    expect(rotation.keyframes.last.value.rawValue, 90.0);
+  });
+
   test('reports unsupported lane ids as issues', () {
     final transition = TimelineTrackTransitionData(
       id: 'transition-1',
