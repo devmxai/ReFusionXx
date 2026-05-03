@@ -7,6 +7,11 @@ interface Stage5ScrubRenderHost {
 
     fun setScrubContentAspectRatio(aspectRatio: Float?) = Unit
 
+    fun setScrubVisualState(
+        transformMatrix3x3: List<Double>?,
+        opacity: Double?,
+    ) = Unit
+
     fun hasScrubOutputSurface(): Boolean = false
 
     fun acquireScrubOutputSurface(): Surface? = null

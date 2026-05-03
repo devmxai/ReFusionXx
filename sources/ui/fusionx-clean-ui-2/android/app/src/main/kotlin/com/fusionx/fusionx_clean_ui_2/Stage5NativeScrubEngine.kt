@@ -23,6 +23,15 @@ data class Stage5NativeScrubSourceDescriptor(
     val playbackRate: Double,
     val sourceWidth: Int? = null,
     val sourceHeight: Int? = null,
+    val transformMatrix3x3: List<Double> = listOf(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+    val opacity: Double = 1.0,
+    val effectProgramIds: List<String> = emptyList(),
+    val transitionRole: String = "none",
+    val transitionId: String? = null,
+    val transitionProgress: Double? = null,
+    val transitionTimelineStartMs: Long? = null,
+    val transitionTimelineEndMs: Long? = null,
+    val runtimeBlockers: List<String> = emptyList(),
 ) {
     fun containsPosition(positionMs: Long): Boolean =
         positionMs >= timelineStartMs && positionMs < timelineEndMs
@@ -698,6 +707,10 @@ class Stage5NativeScrubEngine(
         outputTarget.host.setScrubContentAspectRatio(
             resolveDescriptorAspectRatio(snapshot.descriptor),
         )
+        outputTarget.host.setScrubVisualState(
+            transformMatrix3x3 = snapshot.descriptor.transformMatrix3x3,
+            opacity = snapshot.descriptor.opacity,
+        )
         if (snapshot.forceSeekBeforeRender) {
             surfaceScrubDecoder.forceSeekOnNextRender()
         }
@@ -778,6 +791,10 @@ class Stage5NativeScrubEngine(
             }
             outputTarget.host.setScrubContentAspectRatio(
                 resolveDescriptorAspectRatio(target.descriptor),
+            )
+            outputTarget.host.setScrubVisualState(
+                transformMatrix3x3 = target.descriptor.transformMatrix3x3,
+                opacity = target.descriptor.opacity,
             )
             surfaceScrubDecoder.forceSeekOnNextRender()
             val rendered =

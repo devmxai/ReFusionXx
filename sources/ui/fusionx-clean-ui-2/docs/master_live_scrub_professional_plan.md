@@ -15,12 +15,16 @@ activating the legacy professional transition compositor during `liveScrub` and
 - Manual Transition remains an authoring scope and keyframe graph write-back
   path.
 - Legacy native manual transition rendering (`manualTransform` via
-  `renderInteractiveFrame`) is preview-only.
+  `renderInteractiveFrame`) is disabled for manual authoring in
+  `preview`/`liveScrub`/`playback`.
 - `liveScrub` and `playback` must keep native preview ownership on the Stage5
   path while manual lanes are authored.
 - Transition-active evaluation for manual focus must use the real seam window
   (`activeStartTime`/`activeEndTime`) for visual activation, not the broad
   editor scope.
+- Stage5 scrub descriptor intake now carries runtime transform/opacity metadata,
+  and scrub host application can consume that metadata directly on the scrub
+  overlay path without activating the legacy compositor.
 
 This gate is mandatory until manual transition values are consumed directly by
 the Stage5 master runtime path.

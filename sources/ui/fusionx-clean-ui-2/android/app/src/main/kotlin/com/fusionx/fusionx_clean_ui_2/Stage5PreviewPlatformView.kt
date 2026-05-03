@@ -126,7 +126,7 @@ class Stage5PreviewPlatformView(
     override fun setScrubSurfaceVisible(visible: Boolean) {
         isScrubSurfaceVisible = visible
         runOnUiThreadIfActive {
-            scrubOverlayView.alpha = if (visible) 1f else 0f
+            scrubOverlayView.setSurfaceVisibilityAlpha(if (visible) 1f else 0f)
             syncPlayerVisibility()
         }
     }
@@ -139,6 +139,18 @@ class Stage5PreviewPlatformView(
         appliedScrubAspectRatio = normalizedAspectRatio
         runOnUiThreadIfActive(waitForCompletion = true) {
             scrubOverlayView.setContentAspectRatio(normalizedAspectRatio)
+        }
+    }
+
+    override fun setScrubVisualState(
+        transformMatrix3x3: List<Double>?,
+        opacity: Double?,
+    ) {
+        runOnUiThreadIfActive(waitForCompletion = true) {
+            scrubOverlayView.setRuntimeVisualState(
+                transformMatrix3x3 = transformMatrix3x3,
+                opacity = opacity,
+            )
         }
     }
 

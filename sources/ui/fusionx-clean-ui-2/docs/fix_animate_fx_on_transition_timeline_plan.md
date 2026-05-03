@@ -669,6 +669,14 @@ Checkpoint:
 checkpoint: accept manual transition visual bundle in stage5
 ```
 
+Implementation note:
+
+- Stage5 scrub descriptor intake now parses and stores runtime visual metadata
+  from Flutter preview-source config: transform matrix, opacity, effect ids,
+  transition metadata, and blockers.
+- this is data-contract intake only; no FX pixel shader path was enabled in this
+  slice.
+
 ## 15. Phase 8b - Stage5 Scrub Transform And Opacity
 
 Requires explicit user approval for protected Live Scrub files.
@@ -726,6 +734,17 @@ Checkpoint:
 ```text
 checkpoint: apply manual transition transform in stage5 scrub
 ```
+
+Implementation note:
+
+- `Stage5NativeScrubEngine` now forwards descriptor transform/opacity to the
+  scrub render host before each rendered scrub frame.
+- `Stage5PreviewPlatformView` now applies that runtime visual state to
+  `Stage5ScrubOverlayTextureView`, and the overlay now composes aspect-fit +
+  runtime transform while preserving runtime opacity.
+- `getLiveScrubCapabilities` now advertises scrub transform/opacity support so
+  descriptor projection can emit the runtime matrix/opacity path without legacy
+  compositor fallback.
 
 ## 16. Phase 8c - Stage5 Scrub FX Programs
 

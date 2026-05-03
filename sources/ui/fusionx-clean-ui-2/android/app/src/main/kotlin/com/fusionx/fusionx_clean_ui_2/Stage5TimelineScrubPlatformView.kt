@@ -451,6 +451,25 @@ class Stage5TimelineScrubPlatformView(
                     playbackRate = (map["playbackRate"] as? Number)?.toDouble() ?: 1.0,
                     sourceWidth = (map["sourceWidth"] as? Number)?.toInt(),
                     sourceHeight = (map["sourceHeight"] as? Number)?.toInt(),
+                    transformMatrix3x3 =
+                        (map["transformMatrix3x3"] as? List<*>)?.mapNotNull { value ->
+                            (value as? Number)?.toDouble()
+                        }?.takeIf { values -> values.size == 9 }
+                            ?: listOf(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                    opacity = (map["opacity"] as? Number)?.toDouble() ?: 1.0,
+                    effectProgramIds =
+                        (map["effectProgramIds"] as? List<*>)?.mapNotNull { value ->
+                            value?.toString()
+                        } ?: emptyList(),
+                    transitionRole = map["transitionRole"]?.toString() ?: "none",
+                    transitionId = map["transitionId"]?.toString(),
+                    transitionProgress = (map["transitionProgress"] as? Number)?.toDouble(),
+                    transitionTimelineStartMs = (map["transitionTimelineStartMs"] as? Number)?.toLong(),
+                    transitionTimelineEndMs = (map["transitionTimelineEndMs"] as? Number)?.toLong(),
+                    runtimeBlockers =
+                        (map["runtimeBlockers"] as? List<*>)?.mapNotNull { value ->
+                            value?.toString()
+                        } ?: emptyList(),
                 )
             } ?: emptyList()
         val regions =

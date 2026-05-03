@@ -332,13 +332,13 @@ class MainActivity: FlutterActivity() {
                             "supportsSourceDimensions" to true,
                             "supportsCanvasPlacement" to false,
                             "supportsCrop" to false,
-                            "supportsTransformMatrix" to false,
-                            "supportsOpacity" to false,
+                            "supportsTransformMatrix" to true,
+                            "supportsOpacity" to true,
                             "supportsEffectProgramIds" to false,
                             "supportsDualSourceTransitionWindow" to false,
                             "supportsLatencyMetrics" to true,
                             "supportedEffectProgramIds" to listOf<String>(),
-                            "source" to "stage5_read_only_capability_handshake_v1",
+                            "source" to "stage5_transform_opacity_scrub_v1",
                         ),
                     )
                 }
