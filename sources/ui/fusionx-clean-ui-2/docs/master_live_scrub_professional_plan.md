@@ -354,6 +354,17 @@ Acceptance:
 - transition-local time is explicit but does not claim pixels;
 - unsupported effects produce blockers instead of silent fallback.
 
+Implementation note (checkpoint `checkpoint: add master live scrub program adapter`):
+
+- `MasterLiveScrubProgramAdapter` now lowers `MasterFrameEvaluation` into a
+  domain-only `LiveScrubVisualProgram` contract.
+- `LiveScrubVisualProgram` includes explicit transition window state, and
+  transition pixel readiness remains false by contract in this phase.
+- unsupported effect ids now produce explicit blockers (for example
+  `unsupported_effect:<id>`) instead of silent fallback.
+- this slice does not touch Stage5/native scrub files and does not alter
+  runtime Live Scrub behavior.
+
 ### Phase 2 - Descriptor Projection Preflight
 
 Goal: convert `LiveScrubVisualProgram` into native-safe
