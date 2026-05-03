@@ -738,7 +738,7 @@ Stage5LiveScrubCapabilities parseStage5LiveScrubCapabilities(dynamic result) {
 Map<String, Object?> buildLiveScrubRuntimeBridgePayload(
   LiveScrubDescriptorProjectionResult projectionResult,
 ) {
-  return projectionResult.toPreflightNativeMap();
+  return projectionResult.toRuntimeBridgeNativeMap();
 }
 
 @visibleForTesting

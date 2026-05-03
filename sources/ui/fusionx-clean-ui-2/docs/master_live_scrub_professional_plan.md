@@ -710,6 +710,22 @@ Implementation note (checkpoint `checkpoint: promote live scrub runtime bridge n
 - runtime bridge submission throttling keys/state were renamed from preflight
   semantics to runtime bridge semantics to reduce legacy linkage ambiguity.
 
+Implementation note (checkpoint `checkpoint: finalize runtime bridge legacy naming removal`):
+
+- legacy live-scrub bridge method names were removed from code:
+  - `submitLiveScrubDescriptorPreflight` -> removed
+  - `getLiveScrubDescriptorPreflightSnapshot` -> removed
+  - `buildLiveScrubDescriptorPreflightPayload` -> removed
+- canonical runtime bridge names are now required:
+  - `submitLiveScrubRuntimeBridgeSnapshot`
+  - `getLiveScrubRuntimeBridgeSnapshot`
+  - `buildLiveScrubRuntimeBridgePayload`
+- descriptor projection payload serialization now uses
+  `toRuntimeBridgeNativeMap()` to avoid legacy preflight naming in runtime
+  scrub linkage.
+- transition blocker/runtime surface ids in `FusionXCleanUiScreen` were
+  migrated from `preflight-*` to `runtime-bridge-*`.
+
 ## 9. Verification Matrix
 
 Every implementation slice must name which rows it affects:

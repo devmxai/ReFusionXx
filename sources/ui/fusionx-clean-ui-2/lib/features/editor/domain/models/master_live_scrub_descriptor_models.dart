@@ -296,7 +296,7 @@ class LiveScrubDescriptorProjectionResult {
   final bool canProject;
   final LiveScrubParityReport parityReport;
 
-  Map<String, Object?> toPreflightNativeMap() {
+  Map<String, Object?> toRuntimeBridgeNativeMap() {
     return <String, Object?>{
       'timelinePositionMs': timelinePositionMs,
       'descriptors': descriptors.map((entry) => entry.toNativeMap()).toList(

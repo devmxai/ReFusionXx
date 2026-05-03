@@ -5923,7 +5923,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final blocker = _professionalTransitionPresetBlockerForTrack(
       track: track,
       transition: transition,
-      surfaceId: 'professional-transition-preflight-scene-${transition.id}',
+      surfaceId:
+          'professional-transition-runtime-bridge-scene-${transition.id}',
     );
     if (blocker == null) {
       return true;
@@ -21049,7 +21050,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       transition: transition,
       track: track,
       tracks: _tracks,
-      surfaceId: 'professional-transition-preflight-root-${transition.id}',
+      surfaceId: 'professional-transition-runtime-bridge-root-${transition.id}',
     );
     if (blocker == null) {
       return true;
@@ -21085,7 +21086,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         return blocker;
       }
     }
-    return 'Unable to resolve ${transition.preset.label} boundary for native transition preflight.';
+    return 'Unable to resolve ${transition.preset.label} boundary for native transition runtime bridge.';
   }
 
   String? _professionalTransitionPresetBlockerForTrack({
@@ -21120,7 +21121,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       if (silentWhenBoundaryMissing) {
         return _professionalTransitionBoundaryMissingSentinel;
       }
-      return 'Unable to resolve ${transition.preset.label} boundary for native transition preflight.';
+      return 'Unable to resolve ${transition.preset.label} boundary for native transition runtime bridge.';
     }
     final buildResult = _professionalTransitionRenderPlanBuildResultFor(
       transition: transition,
