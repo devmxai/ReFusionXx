@@ -6,6 +6,7 @@ import android.graphics.Matrix
 import android.os.Handler
 import android.os.Looper
 import android.os.Build
+import android.view.LayoutInflater
 import android.view.Surface
 import android.view.View
 import android.widget.FrameLayout
@@ -69,7 +70,11 @@ class Stage5PreviewPlatformView(
     }
 
     private val playerView =
-        PlayerView(context).apply {
+        (LayoutInflater.from(context).inflate(
+            R.layout.stage5_preview_player_view,
+            null,
+            false,
+        ) as PlayerView).apply {
             useController = false
             resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             setShutterBackgroundColor(Color.TRANSPARENT)
