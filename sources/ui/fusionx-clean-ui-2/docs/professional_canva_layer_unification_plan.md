@@ -37,6 +37,15 @@ It consolidates the open work from:
     inside Manual Transition Timeline.
   - Scope: keyframe authoring time-domain consistency. Full video-layer visual
     parity remains open.
+- 2026-05-03 transition-focus UX hardening slice:
+  - Manual Transition Focus now allows zero-padding leading/trailing editor
+    bounds for manual transitions, so authoring scope matches the real active
+    transition window instead of forcing a synthetic minimum expansion.
+  - Timeline placeholder clips now render ultra-compact widths without
+    `RenderFlex` overflow banners (`RIGHT OVERFLOWED BY`) in narrow transition
+    windows.
+  - Scope: keyframe-time truth and compact-timeline stability only; final
+    Stage5 visual parity for Manual Animate remains active.
 
 ## 0. Purpose
 

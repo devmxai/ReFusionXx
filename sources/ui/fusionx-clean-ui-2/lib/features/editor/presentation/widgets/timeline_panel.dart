@@ -8079,6 +8079,10 @@ class _TimelinePlaceholderClip extends StatelessWidget {
   Widget build(BuildContext context) {
     final isCompact = width < 126;
     final hideLabel = width < 108;
+    final ultraCompact = width < 44;
+    final iconSize = ultraCompact
+        ? (width * 0.44).clamp(10.0, 16.0).toDouble()
+        : 18.0;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -8124,31 +8128,41 @@ class _TimelinePlaceholderClip extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             Padding(
-              padding: EdgeInsets.symmetric(horizontal: isCompact ? 8 : 12),
-              child: Row(
-                children: [
-                  Icon(
-                    icon,
-                    size: 18,
-                    color: FxPalette.textMuted,
-                  ),
-                  if (!hideLabel) ...[
-                    SizedBox(width: isCompact ? 4 : 6),
-                    Expanded(
-                      child: Text(
-                        label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: FxPalette.textMuted,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
+              padding: EdgeInsets.symmetric(
+                horizontal: ultraCompact ? 0 : (isCompact ? 8 : 12),
               ),
+              child: ultraCompact
+                  ? Center(
+                      child: Icon(
+                        icon,
+                        size: iconSize,
+                        color: FxPalette.textMuted,
+                      ),
+                    )
+                  : Row(
+                      children: [
+                        Icon(
+                          icon,
+                          size: iconSize,
+                          color: FxPalette.textMuted,
+                        ),
+                        if (!hideLabel) ...[
+                          SizedBox(width: isCompact ? 4 : 6),
+                          Expanded(
+                            child: Text(
+                              label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: FxPalette.textMuted,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
             ),
             if (isSelected)
               Positioned.fill(

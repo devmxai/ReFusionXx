@@ -40,6 +40,14 @@ claimed.
     the focused timeline scope.
   - This removes the window-mismatch authoring path; final Stage5 visual parity
     for Animate values remains an active follow-up.
+- 2026-05-03 transition-focus compact window slice:
+  - Manual Transition Focus manual editor bounds now permit zero-padding
+    leading/trailing limits, preventing synthetic scope expansion that can
+    place playhead/keyframe authoring outside the real transition window.
+  - Ultra-compact placeholder clips in transition scope now render without
+    `RenderFlex` overflow banners while preserving timeline truth.
+  - This slice improves authoring reliability/clarity; it does not claim final
+    Stage5 visual parity for Manual Animate values yet.
 
 ## 0. Purpose
 

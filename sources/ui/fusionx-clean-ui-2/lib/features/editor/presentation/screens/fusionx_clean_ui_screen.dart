@@ -18237,16 +18237,22 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     // accepts scrub/preview but rejects Add Key with a hidden window mismatch.
     final desiredEditorLeading = transition.resolvedLeadingDurationTime;
     final desiredEditorTrailing = transition.resolvedTrailingDurationTime;
+    final manualTransition =
+        transition.preset == TimelineTransitionPreset.manual;
     final editorLeading = desiredEditorLeading.clamp(
-      leftClip.clip.durationTime < _minEditableClipDurationTime
+      manualTransition
           ? TimelineTime.zero
-          : _minEditableClipDurationTime,
+          : (leftClip.clip.durationTime < _minEditableClipDurationTime
+              ? TimelineTime.zero
+              : _minEditableClipDurationTime),
       leftClip.clip.durationTime,
     );
     final editorTrailing = desiredEditorTrailing.clamp(
-      rightClip.clip.durationTime < _minEditableClipDurationTime
+      manualTransition
           ? TimelineTime.zero
-          : _minEditableClipDurationTime,
+          : (rightClip.clip.durationTime < _minEditableClipDurationTime
+              ? TimelineTime.zero
+              : _minEditableClipDurationTime),
       rightClip.clip.durationTime,
     );
     final startTime = (seamTime - editorLeading).clamp(
