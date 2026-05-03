@@ -5,11 +5,21 @@ Package: `com.refusion.app`
 Branch: `codex/unified-keyframe-ops-foundation-20260426`  
 Baseline at planning time: `9c799e0` (`checkpoint: gate manual transition legacy renderer to preview`)  
 Depends on:
+- `docs/professional_canva_layer_unification_plan.md`
 - `docs/master_clock_value_truth_foundation_plan.md`
 - `docs/master_live_scrub_professional_plan.md`
 - `docs/live_scrub_migration_mandate.md`
 - `docs/professional_refusion_motion_keyframe_engine.md`
 - `docs/professional_checkpoint_policy.md`
+
+Superseding execution note:
+
+`docs/professional_canva_layer_unification_plan.md` is now the higher-level
+execution plan for this work. This file remains the detailed Manual Transition
+Animate/FX failure plan, but writer agents must execute it through the
+Professional Canva layer-unification contract: video must resolve to the same
+composition-layer truth as image/text/shape before renderer parity can be
+claimed.
 
 ## 0. Purpose
 
