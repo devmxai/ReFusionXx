@@ -57,6 +57,7 @@ import '../models/timeline_time.dart';
 import '../services/composition_workspace_inspector_adapter.dart';
 import '../services/composition_workspace_outliner_adapter.dart';
 import '../services/composition_media_playback_projection_adapter.dart';
+import '../services/live_scrub_runtime_surface_config_adapter.dart';
 import '../services/master_frame_evaluation_read_adapter.dart';
 import '../services/normal_transition_timeline_authoring_adapter.dart';
 import '../services/native_preview_identity_resolver.dart';
@@ -185,6 +186,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   static const CompositionMediaPlaybackProjectionAdapter
       _compositionMediaPlaybackProjectionAdapter =
       CompositionMediaPlaybackProjectionAdapter();
+  static const LiveScrubRuntimeSurfaceConfigAdapter
+      _liveScrubRuntimeSurfaceConfigAdapter =
+      LiveScrubRuntimeSurfaceConfigAdapter();
   static const TimelineMediaProgramTimeMapper _mediaProgramTimeMapper =
       TimelineMediaProgramTimeMapper();
   static const NativePreviewIdentityResolver _nativePreviewIdentityResolver =
@@ -1855,7 +1859,73 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   List<LiveScrubPreviewSourceDescriptor> _allLiveScrubPreviewSources() {
-    return _liveScrubPreviewSourceCatalog.descriptors;
+    final baseline = _liveScrubPreviewSourceCatalog.descriptors;
+    if (!_isTimelineScrubbing) {
+      return baseline;
+    }
+    final runtimeProjection = _liveScrubRuntimeProjectionForActiveTransition();
+    if (runtimeProjection == null) {
+      return baseline;
+    }
+    return _liveScrubRuntimeSurfaceConfigAdapter.mergeProjectedSources(
+      baselineSources: baseline,
+      projection: runtimeProjection.projection,
+      sourceWindowsByTargetId: runtimeProjection.sourceWindowsByTargetId,
+    );
+  }
+
+  ({
+    LiveScrubDescriptorProjectionResult projection,
+    Map<String, LiveScrubTimelineSourceWindow> sourceWindowsByTargetId,
+  })? _liveScrubRuntimeProjectionForActiveTransition() {
+    final activeTransition =
+        _activeTimelineTransitionPreviewAt(_timelineDisplayTimeNotifier.value);
+    if (activeTransition == null) {
+      return null;
+    }
+    final mode = _professionalVideoTransitionMode(
+      effectiveIsPlaying:
+          _isPlaying && (_useNativePreview || _canUseFlutterTimelinePlayback),
+    );
+    final surfaceId = _professionalTransitionSurfaceId(activeTransition);
+    final plan = _professionalTransitionRenderPlanFor(
+      activeTransition: activeTransition,
+      mode: mode,
+      surfaceId: surfaceId,
+    );
+    if (plan == null) {
+      return null;
+    }
+    final evaluation = _masterFrameEvaluationForMode(mode);
+    if (evaluation == null) {
+      return null;
+    }
+    final program = _liveScrubVisualProgramForTransitionPreflight(
+      evaluation: evaluation,
+      activeTransition: activeTransition,
+      plan: plan,
+      mode: mode,
+    );
+    final sourceWindows = _liveScrubSourceWindowsForTransitionPlan(
+      activeTransition: activeTransition,
+      plan: plan,
+    );
+    final projection = _masterLiveScrubDescriptorProjection.project(
+      program: program,
+      sourceWindowsByTargetId: sourceWindows,
+      transitionWindowsByTargetId: _liveScrubTransitionWindowsForTransition(
+        activeTransition: activeTransition,
+      ),
+      capabilities: const LiveScrubDescriptorCapabilities(
+        supportsSourceDimensions: true,
+        supportsDualSourceTransitionWindow: true,
+        source: 'stage5_runtime_surface_config_v1',
+      ),
+    );
+    return (
+      projection: projection,
+      sourceWindowsByTargetId: sourceWindows,
+    );
   }
 
   void _schedulePreviewThumbnailWarmup(EditorAssetItem? asset) {

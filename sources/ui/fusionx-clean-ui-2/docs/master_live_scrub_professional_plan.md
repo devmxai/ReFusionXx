@@ -668,6 +668,21 @@ Implementation note (checkpoint `checkpoint: wire live scrub preflight bridge su
 - bridge submission remains read-only diagnostics (`submit...`/`snapshot...`)
   and does not transfer scrub render ownership away from Stage5.
 
+Implementation note (checkpoint `checkpoint: wire live scrub runtime descriptor surface config`):
+
+- added `LiveScrubRuntimeSurfaceConfigAdapter` to convert
+  `LiveScrubDescriptorProjectionResult` into Stage5-native
+  `LiveScrubPreviewSourceDescriptor` entries.
+- `FusionXCleanUiScreen` now attempts runtime transition-scoped descriptor
+  projection during active timeline scrubbing and merges projected descriptors
+  over baseline scrub preview sources.
+- this creates a real runtime handoff path from
+  `MasterFrameEvaluation -> LiveScrubVisualProgram -> LiveScrubSurfaceDescriptor`
+  into the existing Stage5 scrub `previewSources` config channel (no separate
+  renderer ownership transfer).
+- protected Stage5 native scrub classes are unchanged in this slice; this is a
+  reversible Flutter-side runtime config linkage step.
+
 ## 9. Verification Matrix
 
 Every implementation slice must name which rows it affects:
