@@ -23,6 +23,17 @@ claimed.
 
 ## Execution Update
 
+- 2026-05-03 transition-scope value-write + focus-width slice:
+  - Transition Focus keyframe value edits now resolve/update the active
+    transition through scoped lookup (`transitionId + sourceSceneId`) instead
+    of root-only transition lookup, preventing no-op writes in scene-scoped
+    manual sessions.
+  - Manual lane keyframe value writes now route through a dedicated
+    `TransitionFocusValueWriteAdapter` and trigger immediate Stage5 visual
+    runtime submission after value change.
+  - Transition Focus timeline clips now support minimum visual width rendering
+    (without changing transition time truth), preventing aggressive
+    ultra-compact/icon-only collapse for narrow transition windows.
 - 2026-05-03 runtime mapping slice:
   - Manual runtime seam-time evaluation now resolves through root seam mapping
     for Transition Focus and Scene Scope paths.

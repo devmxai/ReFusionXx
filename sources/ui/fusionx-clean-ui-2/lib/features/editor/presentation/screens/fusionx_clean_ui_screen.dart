@@ -70,6 +70,7 @@ import '../services/root_scene_clip_projection_adapter.dart';
 import '../services/scene_layer_scope_timeline_adapter.dart';
 import '../services/scene_scope_transition_preview_resolver.dart';
 import '../services/timeline_media_program_time_mapper.dart';
+import '../services/transition_focus_value_write_adapter.dart';
 import '../services/transition_boundary_frame_request.dart';
 import '../services/transition_unified_scope_bridge_entry_adapter.dart';
 import '../services/transition_unified_scope_entry_gate.dart';
@@ -539,6 +540,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _masterLiveScrubDescriptorProjection;
   late final ManualTransitionMasterFrameEvaluationAdapter
       _manualTransitionMasterFrameEvaluationAdapter;
+  static const TransitionFocusValueWriteAdapter
+      _transitionFocusValueWriteAdapter = TransitionFocusValueWriteAdapter();
   final Map<String, EditorAssetItem> _importedAssetsById =
       <String, EditorAssetItem>{};
   final Map<String, Uint8List> _previewThumbnailCache = <String, Uint8List>{};
@@ -19632,13 +19635,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       TimelineTrackTransitionData current,
     ) update,
     bool preserveProgress = false,
+    String? sourceSceneId,
   }) {
-    final sourceSceneId = _transitionFocusSession?.transitionId == transitionId
-        ? _transitionFocusSession?.sourceSceneId
-        : null;
+    final effectiveSourceSceneId = sourceSceneId ??
+        (_transitionFocusSession?.transitionId == transitionId
+            ? _transitionFocusSession?.sourceSceneId
+            : null);
     final current = _transitionFocusTransitionById(
       transitionId,
-      sourceSceneId: sourceSceneId,
+      sourceSceneId: effectiveSourceSceneId,
     );
     if (current == null) {
       return;
@@ -19646,7 +19651,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final existingContext = preserveProgress
         ? _transitionFocusContextById(
             transitionId,
-            sourceSceneId: sourceSceneId,
+            sourceSceneId: effectiveSourceSceneId,
           )
         : null;
     final preservedProgress = existingContext == null
@@ -19654,12 +19659,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         : _transitionFocusProgressForTime(existingContext, _currentTime);
     _upsertTransitionFocusTransition(
       update(current),
-      sourceSceneId: sourceSceneId,
+      sourceSceneId: effectiveSourceSceneId,
     );
     if (preservedProgress != null) {
       final nextContext = _transitionFocusContextById(
         transitionId,
-        sourceSceneId: sourceSceneId,
+        sourceSceneId: effectiveSourceSceneId,
       );
       if (nextContext != null) {
         _seekTransitionFocusProgress(nextContext, preservedProgress);
@@ -19670,11 +19675,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   void _updateTransitionFocusManualLane(
     String transitionId,
     String laneId,
-    TimelineAnimationLaneData Function(TimelineAnimationLaneData lane) update,
-  ) {
+    TimelineAnimationLaneData Function(TimelineAnimationLaneData lane) update, {
+    String? sourceSceneId,
+  }) {
     _updateTransitionFocusTransition(
       transitionId,
       preserveProgress: true,
+      sourceSceneId: sourceSceneId,
       update: (current) {
         final lanes = List<TimelineAnimationLaneData>.from(
           current.manualAnimationLanes,
@@ -19735,7 +19742,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return;
     }
     final transitionId = session.transitionId;
-    final transition = _videoTrackTransitionById(transitionId);
+    final transition = _transitionFocusTransitionById(
+      transitionId,
+      sourceSceneId: session.sourceSceneId,
+    );
     if (transition == null) {
       return;
     }
@@ -19798,6 +19808,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           <double>[for (final entry in movedEntries) entry.value],
         ),
       ),
+      sourceSceneId: session.sourceSceneId,
     );
     setState(() {
       _transitionFocusSession = session.copyWith(selectedLaneId: laneId);
@@ -19916,6 +19927,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         keyframeIds: List<String>.unmodifiable(keyframeIds),
         keyframeValues: List<double>.unmodifiable(values),
       ),
+      sourceSceneId: session.sourceSceneId,
     );
     setState(() {
       _selectedTransitionFocusKeyframeIndex = insertIndex;
@@ -20031,7 +20043,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (session == null || keyframeIndex == null) {
       return;
     }
-    final transition = _videoTrackTransitionById(session.transitionId);
+    final focusContext = _transitionFocusContextForSession(session);
+    final transition = _transitionFocusTransitionById(
+      session.transitionId,
+      sourceSceneId: session.sourceSceneId,
+    );
     if (transition == null) {
       return;
     }
@@ -20039,25 +20055,37 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (lane == null) {
       return;
     }
-    final values = lane
-        .alignedKeyframeValues(
-          fallbackValue: _defaultTransitionFocusLaneValues(lane.id).isEmpty
-              ? 0
-              : _defaultTransitionFocusLaneValues(lane.id).first,
-          clampToPercent: false,
-        )
-        .toList();
-    if (keyframeIndex < 0 || keyframeIndex >= values.length) {
+    final fallbackValue = _defaultTransitionFocusLaneValues(lane.id).isEmpty
+        ? 0.0
+        : _defaultTransitionFocusLaneValues(lane.id).first;
+    final alignedValues = lane.alignedKeyframeValues(
+      fallbackValue: fallbackValue,
+      clampToPercent: false,
+    );
+    if (keyframeIndex < 0 || keyframeIndex >= alignedValues.length) {
       return;
     }
-    values[keyframeIndex] = value;
-    _updateTransitionFocusManualLane(
+    _updateTransitionFocusTransition(
       session.transitionId,
-      lane.id,
-      (currentLane) => currentLane.copyWith(
-        keyframeValues: List<double>.unmodifiable(values),
+      sourceSceneId: session.sourceSceneId,
+      preserveProgress: true,
+      update: (current) =>
+          _transitionFocusValueWriteAdapter.writeLaneKeyframeValue(
+        transition: current,
+        laneId: lane.id,
+        keyframeIndex: keyframeIndex,
+        value: value.toDouble(),
+        fallbackValue: fallbackValue,
       ),
     );
+    if (focusContext != null) {
+      _scheduleStage5VisualRuntimeSubmission(
+        previewTime: _transitionFocusVisibleGlobalTime(focusContext),
+        mode: _professionalVideoTransitionMode(
+          effectiveIsPlaying: _transportController.state.isPlaying,
+        ),
+      );
+    }
   }
 
   void _handleTransitionFrameToolsTap() {
@@ -22887,6 +22915,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                       fxTrackKinds: const <TimelineTrackKind>{
                                         TimelineTrackKind.video,
                                       },
+                                      minimumClipVisualWidth: 112,
                                     )
                                   : unifiedTransitionScopeViewModel != null
                                       ? TimelinePanel(

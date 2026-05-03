@@ -563,6 +563,7 @@ class TimelinePanel extends StatefulWidget {
     },
     this.fxTrackKinds = const <TimelineTrackKind>{},
     this.enableSceneClipTimeShift = false,
+    this.minimumClipVisualWidth = 0,
     this.scrubSurfaceBuilder,
   });
 
@@ -604,6 +605,7 @@ class TimelinePanel extends StatefulWidget {
   final Set<TimelineTrackKind> animateTrackKinds;
   final Set<TimelineTrackKind> fxTrackKinds;
   final bool enableSceneClipTimeShift;
+  final double minimumClipVisualWidth;
   final TimelineScrubSurfaceBuilder? scrubSurfaceBuilder;
 
   @override
@@ -3058,6 +3060,18 @@ class _TimelinePanelState extends State<TimelinePanel>
     return regions;
   }
 
+  double _resolvedClipVisualWidth(
+    TimelineClipData clip,
+    double secondsWidth,
+  ) {
+    final visualWidth = clip.visualWidth(secondsWidth);
+    final minWidth = widget.minimumClipVisualWidth;
+    if (minWidth <= 0) {
+      return visualWidth;
+    }
+    return math.max(visualWidth, minWidth);
+  }
+
   void _appendNativeTrackViewportRegionsForTrack(
     List<TimelineScrubViewportRegion> regions, {
     required TimelineTrackData track,
@@ -3091,7 +3105,7 @@ class _TimelinePanelState extends State<TimelinePanel>
 
     for (var index = 0; index < track.clips.length; index++) {
       final clip = track.clips[index];
-      final clipWidth = clip.visualWidth(_secondsWidth);
+      final clipWidth = _resolvedClipVisualWidth(clip, _secondsWidth);
       final isGapPlaceholder = _nativeScrubIsGapPlaceholderClip(clip);
       final showsTrimChrome = _nativeScrubSupportsTrimChrome(track, clip);
       final activeTrimSession = _trimDragSession?.selection.clipId == clip.id
@@ -3385,7 +3399,7 @@ class _TimelinePanelState extends State<TimelinePanel>
 
     for (var i = 0; i < track.clips.length; i++) {
       final clip = track.clips[i];
-      final clipWidth = clip.visualWidth(_secondsWidth);
+      final clipWidth = _resolvedClipVisualWidth(clip, _secondsWidth);
       leftByClipId[clip.id] = cursor;
       widthByClipId[clip.id] = clipWidth;
       cursor += clipWidth;
@@ -4072,7 +4086,7 @@ class _TimelinePanelState extends State<TimelinePanel>
         var clipsWidth = 0.0;
         for (var i = 0; i < track.clips.length; i++) {
           final clip = track.clips[i];
-          clipsWidth += clip.visualWidth(resolvedSecondsWidth);
+          clipsWidth += _resolvedClipVisualWidth(clip, resolvedSecondsWidth);
           if (i == track.clips.length - 1) {
             continue;
           }
@@ -4713,6 +4727,9 @@ class _TimelinePanelState extends State<TimelinePanel>
                                                                               i
                                                                       ? _resolvedBaseTimelineOpacity()
                                                                       : 1,
+                                                              minimumClipVisualWidth:
+                                                                  widget
+                                                                      .minimumClipVisualWidth,
                                                             );
                                                           },
                                                         ),
@@ -4848,6 +4865,7 @@ class _TimelineTrackRow extends StatelessWidget {
     this.timeShiftPreviewClipId,
     this.timeShiftPreviewStartTime,
     this.baseClipOpacity = 1,
+    this.minimumClipVisualWidth = 0,
   });
 
   final double contentWidth;
@@ -4900,6 +4918,7 @@ class _TimelineTrackRow extends StatelessWidget {
   final String? timeShiftPreviewClipId;
   final TimelineTime? timeShiftPreviewStartTime;
   final double baseClipOpacity;
+  final double minimumClipVisualWidth;
 
   IconData get _trackIcon {
     return _timelineVisualIcon(track.visualKind);
@@ -4988,6 +5007,14 @@ class _TimelineTrackRow extends StatelessWidget {
       _isJoinableVideoClip(right) &&
       left.aiTransition == null &&
       right.aiTransition == null;
+
+  double _resolvedClipVisualWidth(TimelineClipData clip) {
+    final visualWidth = clip.visualWidth(secondsWidth);
+    if (minimumClipVisualWidth <= 0) {
+      return visualWidth;
+    }
+    return math.max(visualWidth, minimumClipVisualWidth);
+  }
 
   double _gapAfterClip(TimelineClipData clip, TimelineClipData next) {
     if (_isGapPlaceholderClip(clip) || _isGapPlaceholderClip(next)) {
@@ -5086,7 +5113,7 @@ class _TimelineTrackRow extends StatelessWidget {
       final joinRight = nextClip != null && _shouldJoinWith(clip, nextClip);
       final assetPath =
           clip.assetId == null ? null : assetPathResolver?.call(clip.assetId!);
-      final clipWidth = clip.visualWidth(secondsWidth);
+      final clipWidth = _resolvedClipVisualWidth(clip);
       final showsTrimChrome = _supportsTrimChrome(clip);
       final activeTrimSession =
           trimDragSession?.selection.clipId == clip.id ? trimDragSession : null;
@@ -8080,9 +8107,8 @@ class _TimelinePlaceholderClip extends StatelessWidget {
     final isCompact = width < 126;
     final hideLabel = width < 108;
     final ultraCompact = width < 44;
-    final iconSize = ultraCompact
-        ? (width * 0.44).clamp(10.0, 16.0).toDouble()
-        : 18.0;
+    final iconSize =
+        ultraCompact ? (width * 0.44).clamp(10.0, 16.0).toDouble() : 18.0;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
