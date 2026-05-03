@@ -20,7 +20,7 @@ Before editing code, read:
 1. `/Users/mx/.codex/skills/refusion-development-guardrails/SKILL.md`
 2. `docs/professional_checkpoint_policy.md`
 3. `docs/professional_refusion_motion_keyframe_engine.md`
-4. `docs/master_live_scrub_engine_plan.md`
+4. `docs/master_live_scrub_professional_plan.md`
 5. this file, `docs/master_clock_value_truth_foundation_plan.md`
 
 Then run:
@@ -840,7 +840,7 @@ Mandatory reading:
 1. /Users/mx/.codex/skills/refusion-development-guardrails/SKILL.md
 2. docs/professional_checkpoint_policy.md
 3. docs/professional_refusion_motion_keyframe_engine.md
-4. docs/master_live_scrub_engine_plan.md
+4. docs/master_live_scrub_professional_plan.md
 5. docs/master_clock_value_truth_foundation_plan.md
 
 Start with:
