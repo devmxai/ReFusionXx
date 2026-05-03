@@ -132,16 +132,16 @@ class _NativeTimelineScrubSurfaceState
     if (!_isScrubSessionActive && oldWidget.currentTime != widget.currentTime) {
       _lastNativeTimelineTime = widget.currentTime;
     }
-    if (_viewId != null &&
-        !_isScrubSessionActive &&
-        oldWidget.configRevision != widget.configRevision) {
-      unawaited(_pushConfig());
+    if (_viewId != null && oldWidget.configRevision != widget.configRevision) {
+      if (_isScrubSessionActive) {
+        _scheduleConfigPush(allowDuringScrub: true);
+      } else {
+        unawaited(_pushConfig());
+      }
       return;
     }
-    if (_viewId != null &&
-        !_isScrubSessionActive &&
-        _shouldPushConfigForWidgetUpdate(oldWidget)) {
-      _scheduleConfigPush();
+    if (_viewId != null && _shouldPushConfigForWidgetUpdate(oldWidget)) {
+      _scheduleConfigPush(allowDuringScrub: _isScrubSessionActive);
     }
   }
 
@@ -183,14 +183,18 @@ class _NativeTimelineScrubSurfaceState
         !listEquals(oldWidget.previewSources, widget.previewSources);
   }
 
-  void _scheduleConfigPush() {
+  void _scheduleConfigPush({
+    bool allowDuringScrub = false,
+  }) {
     if (_configPushScheduled) {
       return;
     }
     _configPushScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _configPushScheduled = false;
-      if (!mounted || _viewId == null || _isScrubSessionActive) {
+      if (!mounted ||
+          _viewId == null ||
+          (_isScrubSessionActive && !allowDuringScrub)) {
         return;
       }
       unawaited(_pushConfig());

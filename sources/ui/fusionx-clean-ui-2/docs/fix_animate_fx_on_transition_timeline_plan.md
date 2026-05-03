@@ -956,6 +956,20 @@ the legacy professional transition overlay.
 Scrub parity and playback parity are separate implementation slices and must be
 validated separately.
 
+## 22A. Latest Runtime Note
+
+Latest implementation slice tightened three runtime contracts:
+
+- Manual Transition Stage5 runtime evaluation now uses the effective project and
+  the current preview/play/scrub timeline time override, so transform sampling
+  no longer depends on a stale clock snapshot when keyframe values change.
+- Manual transition keyframe add no longer silently clamps to transition bounds.
+  Add-key now requires the playhead to be inside the real active transition
+  window and reports an explicit message when outside.
+- Native timeline scrub surface config pushes can now propagate runtime visual
+  source updates during active scrub sessions (instead of waiting for scrub end),
+  so transform updates can reach Stage5 while the user is scrubbing.
+
 ## 23. Verification Commands
 
 Use the smallest relevant commands per slice. Common gates:

@@ -1900,7 +1900,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       effectiveIsPlaying:
           _isPlaying && (_useNativePreview || _canUseFlutterTimelinePlayback),
     );
-    final evaluation = _masterFrameEvaluationForMode(mode);
+    final evaluation = _masterFrameEvaluationForMode(
+      mode,
+      previewTimeOverride: _timelineDisplayTimeNotifier.value,
+    );
     if (evaluation == null) {
       return null;
     }
@@ -19191,6 +19194,24 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     ];
   }
 
+  double? _transitionFocusTryActiveStopForScopeStop(
+    _TransitionFocusContext context,
+    double scopeStop, {
+    double epsilon = 0.0005,
+  }) {
+    final span = _transitionFocusActiveSpanProgress(context);
+    final clampedScopeStop = scopeStop.clamp(0.0, 1.0).toDouble();
+    if (clampedScopeStop < (span.start - epsilon) ||
+        clampedScopeStop > (span.end + epsilon)) {
+      return null;
+    }
+    final width = span.end - span.start;
+    if (width <= 0) {
+      return clampedScopeStop;
+    }
+    return ((clampedScopeStop - span.start) / width).clamp(0.0, 1.0).toDouble();
+  }
+
   void _seekTransitionFocusProgress(
     _TransitionFocusContext context,
     double progress,
@@ -19745,10 +19766,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       context,
       _transitionFocusVisibleGlobalTime(context),
     );
-    final progress = _transitionFocusActiveStopsForScopeStops(
+    final progress = _transitionFocusTryActiveStopForScopeStop(
       context,
-      <double>[scopeProgress],
-    ).first;
+      scopeProgress,
+    );
+    if (progress == null) {
+      _showStageMessage(
+        'Move the playhead inside the transition window before adding a keyframe.',
+      );
+      return;
+    }
     final stops = List<double>.from(lane.normalizedKeyframeStops);
     final values = List<double>.from(
       lane.alignedKeyframeValues(
@@ -21347,13 +21374,25 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
   }
 
-  MasterFrameEvaluation? _masterFrameEvaluationForMode(String mode) {
-    final project = _motionProject;
-    if (project == null) {
-      return null;
-    }
+  MasterFrameEvaluation? _masterFrameEvaluationForMode(
+    String mode, {
+    TimelineTime? previewTimeOverride,
+  }) {
+    final project = _effectiveMotionProject;
+    final clockSnapshot = _masterClockNativeBridge.snapshot;
+    final effectivePreviewTime = previewTimeOverride?.clamp(
+      TimelineTime.zero,
+      _timelineDurationTime,
+    );
+    final evaluationClock = effectivePreviewTime == null
+        ? clockSnapshot
+        : clockSnapshot.copyWith(
+            time: effectivePreviewTime,
+            evaluationTime: effectivePreviewTime,
+            presentationTime: effectivePreviewTime,
+          );
     return _masterFrameEvaluationReadAdapter.evaluate(
-      clock: _masterClockNativeBridge.snapshot,
+      clock: evaluationClock,
       frameRate: project.frameRate.framesPerSecond,
       sceneClips: _sceneClips,
       channels: _manualMotionPropertyChannels,
@@ -21493,7 +21532,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required String mode,
   }) {
     final activeTransition = _activeTimelineTransitionPreviewAt(previewTime);
-    final evaluation = _masterFrameEvaluationForMode(mode);
+    final evaluation = _masterFrameEvaluationForMode(
+      mode,
+      previewTimeOverride: previewTime,
+    );
     if (activeTransition == null || evaluation == null) {
       return Stage5VisualRuntimeState(
         revision: ++_stage5VisualRuntimeRevision,
@@ -21541,10 +21583,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             effectProgramIds: surface.effects.map((effect) => effect.id).toList(
                   growable: false,
                 ),
-            blockers: <String>[
-              ...surface.blockers,
-              ...program.blockers,
-            ],
+            blockers: <String>[...surface.blockers],
           ),
     ];
     return Stage5VisualRuntimeState(
@@ -21765,7 +21804,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
               await _transportController.getLiveScrubCapabilities();
           final performanceSnapshot =
               await _transportController.getLiveScrubPerformanceSnapshot();
-          final evaluation = _masterFrameEvaluationForMode(mode);
+          final evaluation = _masterFrameEvaluationForMode(
+            mode,
+            previewTimeOverride: activeTransition.timelineTime,
+          );
           if (evaluation == null) {
             return;
           }
@@ -21813,7 +21855,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (!_reportedProfessionalTransitionPlanIssueKeys.add(key)) {
       return;
     }
-    final evaluation = _masterFrameEvaluationForMode(mode);
+    final evaluation = _masterFrameEvaluationForMode(
+      mode,
+      previewTimeOverride: _timelineDisplayTimeNotifier.value,
+    );
     final evaluationDiagnostics =
         evaluation == null ? const <String>[] : evaluation.diagnostics;
     debugPrint(
