@@ -21824,16 +21824,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final bucket = (state.timelineTimeMs / 16).floor();
     final primary = state.primaryTargetClipId ?? 'none';
     final transitionId = state.transitionId ?? 'none';
-    final firstSurface = state.surfaces.isEmpty ? null : state.surfaces.first;
-    final matrixDigest = firstSurface == null
-        ? 'identity'
-        : firstSurface.transformMatrix3x3
-            .take(6)
-            .map((value) => value.toStringAsFixed(4))
-            .join(',');
-    final opacityDigest =
-        firstSurface == null ? '1.0' : firstSurface.opacity.toStringAsFixed(4);
-    return '$transitionId:${state.mode}:$primary:$bucket:$matrixDigest:$opacityDigest:${state.surfaces.length}';
+    final surfacesDigest = state.surfaces
+        .map((surface) {
+          final matrix = surface.transformMatrix3x3
+              .take(6)
+              .map((value) => value.toStringAsFixed(4))
+              .join(',');
+          return '${surface.targetClipId}:${surface.role}:$matrix:${surface.opacity.toStringAsFixed(4)}';
+        })
+        .join('|');
+    return '$transitionId:${state.mode}:$primary:$bucket:$surfacesDigest:${state.surfaces.length}';
   }
 
   void _scheduleStage5VisualRuntimeSubmission({
