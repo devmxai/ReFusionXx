@@ -656,6 +656,18 @@ Implementation note (checkpoint `checkpoint: add live scrub descriptor preflight
   and targeted tests verify payload shape.
 - this slice does not change Stage5 hot-path scrub rendering behavior.
 
+Implementation note (checkpoint `checkpoint: wire live scrub preflight bridge submission`):
+
+- `FusionXCleanUiScreen` now schedules nonblocking descriptor preflight
+  submissions during active professional transition overlay rendering.
+- submissions are key-throttled and include:
+  - bridge-time master frame snapshot context,
+  - source timeline windows from transition render-plan sources,
+  - real transition window/progress contract for outgoing/incoming roles,
+  - native capability-gated descriptor projection payload.
+- bridge submission remains read-only diagnostics (`submit...`/`snapshot...`)
+  and does not transfer scrub render ownership away from Stage5.
+
 ## 9. Verification Matrix
 
 Every implementation slice must name which rows it affects:

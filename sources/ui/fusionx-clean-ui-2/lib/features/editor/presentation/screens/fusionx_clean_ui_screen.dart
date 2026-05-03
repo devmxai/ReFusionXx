@@ -15,7 +15,10 @@ import '../../domain/models/export_output_profile.dart';
 import '../../domain/models/composition_scene_clip_models.dart';
 import '../../domain/models/composition_workspace_models.dart';
 import '../../domain/models/master_frame_evaluation_models.dart';
+import '../../domain/models/master_live_scrub_descriptor_models.dart';
+import '../../domain/models/master_live_scrub_visual_program_models.dart';
 import '../../domain/models/master_time_models.dart';
+import '../../domain/models/master_value_truth_models.dart';
 import '../../domain/models/professional_canvas_timeline_authoring_models.dart';
 import '../../domain/models/professional_motion_animation_models.dart';
 import '../../domain/models/professional_motion_compilation_models.dart';
@@ -34,6 +37,8 @@ import '../../domain/models/refusion_motion_patch_models.dart';
 import '../../domain/services/ai_transition/kie_ai_transition_service.dart';
 import '../../domain/services/normal_transition_command_history.dart';
 import '../../domain/services/layer_scope_composition_adapter.dart';
+import '../../domain/services/master_live_scrub_descriptor_projection.dart';
+import '../../domain/services/master_live_scrub_program_adapter.dart';
 import '../../domain/services/master_clock_native_bridge.dart';
 import '../../domain/services/professional_video_transition_compositor.dart';
 import '../../domain/services/refusion_motion_patch_applicator.dart';
@@ -523,6 +528,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   late final TransitionUnifiedScopeTimelineSessionAdapter
       _transitionUnifiedScopeTimelineSessionAdapter;
   late final MasterFrameEvaluationReadAdapter _masterFrameEvaluationReadAdapter;
+  late final MasterLiveScrubProgramAdapter _masterLiveScrubProgramAdapter;
+  late final MasterLiveScrubDescriptorProjection
+      _masterLiveScrubDescriptorProjection;
   final Map<String, EditorAssetItem> _importedAssetsById =
       <String, EditorAssetItem>{};
   final Map<String, Uint8List> _previewThumbnailCache = <String, Uint8List>{};
@@ -628,6 +636,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   Size? _lastPreviewStageSize;
   int _nativePreviewRecoveryRevision = 0;
   bool _isNativePreviewRecoveryScheduled = false;
+  String? _lastSubmittedLiveScrubPreflightKey;
+  bool _liveScrubPreflightSubmissionInFlight = false;
 
   @override
   void initState() {
@@ -656,6 +666,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _transitionUnifiedScopeTimelineSessionAdapter =
         const TransitionUnifiedScopeTimelineSessionAdapter();
     _masterFrameEvaluationReadAdapter = MasterFrameEvaluationReadAdapter();
+    _masterLiveScrubProgramAdapter = const MasterLiveScrubProgramAdapter();
+    _masterLiveScrubDescriptorProjection =
+        const MasterLiveScrubDescriptorProjection();
     _assetLibrary =
         ValueNotifier<List<EditorAssetItem>>(const <EditorAssetItem>[]);
     _assetLibraryLoading = ValueNotifier<bool>(false);
@@ -21214,6 +21227,174 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
   }
 
+  String _liveScrubPreflightSubmissionKey({
+    required _ActiveTimelineTransitionPreview activeTransition,
+    required String mode,
+    required ProfessionalVideoTransitionRenderPlan plan,
+  }) {
+    final bucket = (activeTransition.timelineTime.inMilliseconds / 33).floor();
+    return '${activeTransition.transition.id}:$mode:${plan.definitionId}:$bucket';
+  }
+
+  LiveScrubVisualProgram _liveScrubVisualProgramForTransitionPreflight({
+    required MasterFrameEvaluation evaluation,
+    required _ActiveTimelineTransitionPreview activeTransition,
+    required ProfessionalVideoTransitionRenderPlan plan,
+    required String mode,
+  }) {
+    final transitionRoles = <String, LiveScrubTransitionRole>{};
+    final sourcesByTargetId = <String, LiveScrubSurfaceSource>{};
+    for (var index = 0; index < plan.sources.length; index++) {
+      final source = plan.sources[index];
+      transitionRoles[source.clipId] = switch (index) {
+        0 => LiveScrubTransitionRole.outgoing,
+        1 => LiveScrubTransitionRole.incoming,
+        _ => LiveScrubTransitionRole.overlay,
+      };
+      final sourceUri = source.sourceUri?.trim();
+      sourcesByTargetId[source.clipId] = LiveScrubSurfaceSource(
+        targetId: source.clipId,
+        kind: LiveScrubSourceKind.video,
+        sourceUri: sourceUri == null || sourceUri.isEmpty ? '' : sourceUri,
+        scrubStoreKey: source.assetId,
+      );
+    }
+    final program = _masterLiveScrubProgramAdapter.build(
+      frame: MasterFrameEvaluation(
+        time: evaluation.time,
+        projections: evaluation.projections,
+        visibleLayerIds: plan.sources.map((entry) => entry.clipId).toList(
+              growable: false,
+            ),
+        activeTransitionIds: <String>[activeTransition.transition.id],
+        evaluatedChannels: const <MasterEvaluatedPropertyValue>[],
+        effectParameters: const <String, MasterPropertyValueMapping>{},
+        diagnostics: <String>[
+          ...evaluation.diagnostics,
+          'transition_preflight_mode:$mode',
+        ],
+      ),
+      sourcesByTargetId: sourcesByTargetId,
+      transitionRolesByTargetId: transitionRoles,
+      channels: const <MotionPropertyChannelModel>[],
+    );
+    return LiveScrubVisualProgram(
+      time: program.time,
+      surfaces: program.surfaces,
+      blockers: const <String>[],
+      diagnostics: program.diagnostics,
+      transitionState: LiveScrubTransitionState(
+        activeTransitionIds: <String>[activeTransition.transition.id],
+        hasRenderableTransitionPixels: false,
+        reason: 'bridge_preflight_only',
+      ),
+    );
+  }
+
+  Map<String, LiveScrubTimelineSourceWindow>
+      _liveScrubSourceWindowsForTransitionPlan({
+    required _ActiveTimelineTransitionPreview activeTransition,
+    required ProfessionalVideoTransitionRenderPlan plan,
+  }) {
+    final windows = <String, LiveScrubTimelineSourceWindow>{};
+    for (final source in plan.sources) {
+      final playbackRate = source.clipId == activeTransition.leftClip.clip.id
+          ? activeTransition.leftClip.clip.playbackRate
+          : source.clipId == activeTransition.rightClip.clip.id
+              ? activeTransition.rightClip.clip.playbackRate
+              : 1.0;
+      windows[source.clipId] = LiveScrubTimelineSourceWindow(
+        targetId: source.clipId,
+        timelineStartMs: source.timelineRange.start.inMilliseconds,
+        timelineEndMs: source.timelineRange.endExclusive.inMilliseconds,
+        sourceStartMs: source.sourceStartTime.inMilliseconds,
+        sourceDurationMs: source.sourceDuration.inMilliseconds,
+        playbackRate: playbackRate <= 0 ? 1.0 : playbackRate,
+      );
+    }
+    return windows;
+  }
+
+  Map<String, LiveScrubTransitionTimelineWindow>
+      _liveScrubTransitionWindowsForTransition({
+    required _ActiveTimelineTransitionPreview activeTransition,
+  }) {
+    final transition = activeTransition.transition;
+    final seamTime = activeTransition.leftClip.endTime;
+    final windowStart = seamTime - transition.resolvedLeadingDurationTime;
+    final windowEnd = seamTime + transition.resolvedTrailingDurationTime;
+    final transitionWindow = LiveScrubTransitionTimelineWindow(
+      targetId: activeTransition.leftClip.clip.id,
+      transitionId: transition.id,
+      timelineStartMs: windowStart.inMilliseconds,
+      timelineEndMs: windowEnd.inMilliseconds,
+    );
+    return <String, LiveScrubTransitionTimelineWindow>{
+      activeTransition.leftClip.clip.id: transitionWindow,
+      activeTransition.rightClip.clip.id: LiveScrubTransitionTimelineWindow(
+        targetId: activeTransition.rightClip.clip.id,
+        transitionId: transition.id,
+        timelineStartMs: windowStart.inMilliseconds,
+        timelineEndMs: windowEnd.inMilliseconds,
+      ),
+    };
+  }
+
+  void _scheduleLiveScrubPreflightSubmission({
+    required _ActiveTimelineTransitionPreview activeTransition,
+    required String mode,
+    required ProfessionalVideoTransitionRenderPlan plan,
+  }) {
+    final key = _liveScrubPreflightSubmissionKey(
+      activeTransition: activeTransition,
+      mode: mode,
+      plan: plan,
+    );
+    if (_liveScrubPreflightSubmissionInFlight ||
+        _lastSubmittedLiveScrubPreflightKey == key) {
+      return;
+    }
+    _liveScrubPreflightSubmissionInFlight = true;
+    _lastSubmittedLiveScrubPreflightKey = key;
+    unawaited(
+      Future<void>(() async {
+        try {
+          final capabilities =
+              await _transportController.getLiveScrubCapabilities();
+          final evaluation = _masterFrameEvaluationForMode(mode);
+          if (evaluation == null) {
+            return;
+          }
+          final program = _liveScrubVisualProgramForTransitionPreflight(
+            evaluation: evaluation,
+            activeTransition: activeTransition,
+            plan: plan,
+            mode: mode,
+          );
+          final projection = _masterLiveScrubDescriptorProjection.project(
+            program: program,
+            sourceWindowsByTargetId: _liveScrubSourceWindowsForTransitionPlan(
+              activeTransition: activeTransition,
+              plan: plan,
+            ),
+            transitionWindowsByTargetId:
+                _liveScrubTransitionWindowsForTransition(
+              activeTransition: activeTransition,
+            ),
+            capabilities: capabilities.toDescriptorCapabilities(),
+          );
+          await _transportController.submitLiveScrubDescriptorPreflight(
+            projection,
+          );
+        } catch (_) {
+          // Keep preflight bridge submission nonblocking for the editor path.
+        } finally {
+          _liveScrubPreflightSubmissionInFlight = false;
+        }
+      }),
+    );
+  }
+
   void _debugProfessionalTransitionBuildIssues({
     required TimelineTrackTransitionData transition,
     required List<ProfessionalVideoTransitionRenderPlanBuildIssue> issues,
@@ -21465,6 +21646,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                         mode: professionalTransitionMode,
                         surfaceId: professionalTransitionSurfaceId,
                       );
+                if (activeTransition != null &&
+                    professionalTransitionPlan != null) {
+                  _scheduleLiveScrubPreflightSubmission(
+                    activeTransition: activeTransition,
+                    mode: professionalTransitionMode,
+                    plan: professionalTransitionPlan,
+                  );
+                }
                 return Stack(
                   fit: StackFit.expand,
                   children: [
