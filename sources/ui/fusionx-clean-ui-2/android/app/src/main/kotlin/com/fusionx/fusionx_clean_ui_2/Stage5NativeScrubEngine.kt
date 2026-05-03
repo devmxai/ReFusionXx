@@ -38,14 +38,22 @@ data class Stage5NativeScrubSourceDescriptor(
 
     fun resolveSourcePositionMs(timelinePositionMs: Long): Long {
         return (sourceStartMs + resolveSourceOffsetMs(timelinePositionMs))
-            .coerceIn(sourceStartMs, sourceStartMs + sourceDurationMs)
+            .coerceIn(sourceStartMs.coerceAtLeast(0L), lastSourcePositionMs())
     }
 
     fun resolveSourceOffsetMs(timelinePositionMs: Long): Long {
         val localTimelineOffsetMs =
             (timelinePositionMs - timelineStartMs).coerceIn(0L, durationMs)
+        val lastSourceOffsetMs =
+            (lastSourcePositionMs() - sourceStartMs.coerceAtLeast(0L)).coerceAtLeast(0L)
         return (localTimelineOffsetMs * playbackRate).toLong()
-            .coerceIn(0L, sourceDurationMs)
+            .coerceIn(0L, lastSourceOffsetMs)
+    }
+
+    fun lastSourcePositionMs(): Long {
+        val normalizedSourceStartMs = sourceStartMs.coerceAtLeast(0L)
+        val normalizedDurationMs = sourceDurationMs.coerceAtLeast(1L)
+        return normalizedSourceStartMs + normalizedDurationMs - 1L
     }
 
     fun sourceAspectRatio(): Float? {
@@ -925,8 +933,7 @@ class Stage5NativeScrubEngine(
         positionMs: Long,
     ): Long {
         val sourceStartMs = descriptor.sourceStartMs.coerceAtLeast(0L)
-        val sourceEndMs = (descriptor.sourceStartMs + descriptor.sourceDurationMs).coerceAtLeast(sourceStartMs)
-        return positionMs.coerceIn(sourceStartMs, sourceEndMs)
+        return positionMs.coerceIn(sourceStartMs, descriptor.lastSourcePositionMs())
     }
 
     private fun resolveDescriptorForPosition(
@@ -939,13 +946,9 @@ class Stage5NativeScrubEngine(
         previewSources.firstOrNull { descriptor ->
             descriptor.containsPosition(positionMs)
         }?.let { return it }
-        return previewSources.minByOrNull { descriptor ->
-            when {
-                positionMs < descriptor.timelineStartMs ->
-                    descriptor.timelineStartMs - positionMs
-                else -> positionMs - descriptor.timelineEndMs
-            }
-        }
+        return previewSources.lastOrNull { descriptor ->
+            descriptor.timelineStartMs <= positionMs
+        } ?: previewSources.firstOrNull()
     }
 
     private fun resolveDescriptorForStoreKey(

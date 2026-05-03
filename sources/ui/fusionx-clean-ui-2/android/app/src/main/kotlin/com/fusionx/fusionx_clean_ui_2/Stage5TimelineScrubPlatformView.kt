@@ -326,10 +326,6 @@ private class Stage5TimelineScrubInputView(
                 val wasScrubbing = scrubbing
                 val tapped = !wasScrubbing && config.tapEnabled
                 if (wasScrubbing) {
-                    val activeIndex = event.findPointerIndex(pointerId)
-                    if (activeIndex >= 0) {
-                        gesturePositionMs = resolveGesturePositionMs(event, activeIndex)
-                    }
                     nativeScrubEngine.commitFinalTimelinePosition(gesturePositionMs)
                     channel.invokeMethod(
                         "scrubEnd",
@@ -351,10 +347,6 @@ private class Stage5TimelineScrubInputView(
                     return true
                 }
                 if (scrubbing) {
-                    val activeIndex = event.findPointerIndex(pointerId)
-                    if (activeIndex >= 0) {
-                        gesturePositionMs = resolveGesturePositionMs(event, activeIndex)
-                    }
                     nativeScrubEngine.commitFinalTimelinePosition(gesturePositionMs)
                     channel.invokeMethod(
                         "scrubEnd",
