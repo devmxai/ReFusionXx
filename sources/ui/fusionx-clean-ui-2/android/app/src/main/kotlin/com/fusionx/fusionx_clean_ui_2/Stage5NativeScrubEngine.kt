@@ -55,6 +55,45 @@ data class Stage5NativeScrubSourceDescriptor(
     }
 }
 
+data class Stage5VisualRuntimeSurfaceState(
+    val targetClipId: String,
+    val role: String,
+    val transformMatrix3x3: List<Double>,
+    val opacity: Double,
+    val transitionProgress: Double? = null,
+    val effectProgramIds: List<String> = emptyList(),
+    val blockers: List<String> = emptyList(),
+)
+
+data class Stage5VisualRuntimeState(
+    val revision: Long,
+    val timelineTimeMs: Long,
+    val mode: String,
+    val transitionId: String? = null,
+    val primaryTargetClipId: String? = null,
+    val transitionProgress: Double? = null,
+    val surfaces: List<Stage5VisualRuntimeSurfaceState> = emptyList(),
+    val blockers: List<String> = emptyList(),
+    val diagnostics: List<String> = emptyList(),
+) {
+    fun resolveSurfaceForClipId(clipId: String?): Stage5VisualRuntimeSurfaceState? {
+        if (surfaces.isEmpty()) {
+            return null
+        }
+        if (!clipId.isNullOrBlank()) {
+            surfaces.firstOrNull { surface ->
+                surface.targetClipId == clipId
+            }?.let { return it }
+        }
+        if (!primaryTargetClipId.isNullOrBlank()) {
+            surfaces.firstOrNull { surface ->
+                surface.targetClipId == primaryTargetClipId
+            }?.let { return it }
+        }
+        return surfaces.firstOrNull()
+    }
+}
+
 @UnstableApi
 class Stage5NativeScrubEngine(
     context: Context,
@@ -171,6 +210,7 @@ class Stage5NativeScrubEngine(
     private val resolvedAspectRatioBySourceUri = HashMap<String, Float>()
     @Volatile
     private var lastRenderAwaitingProxy = false
+    private var latestVisualRuntimeState: Stage5VisualRuntimeState? = null
 
     init {
         scrubPreviewProxyManager.addListener(proxyReadyListener)
@@ -289,6 +329,7 @@ class Stage5NativeScrubEngine(
     fun registerRenderHost(host: Stage5ScrubRenderHost) {
         renderHosts.add(host)
         host.setScrubSurfaceVisible(false)
+        applyVisualRuntimeStateLocked()
         if (activeDescriptor != null && latestTargetSourcePositionMs != null && !sessionFrozen) {
             targetGeneration += 1
             scheduleRenderLoopLocked()
@@ -356,6 +397,14 @@ class Stage5NativeScrubEngine(
                 primeTimelinePosition(primePositionMs)
             }
         }
+        applyVisualRuntimeStateLocked()
+    }
+
+    @Synchronized
+    fun submitVisualRuntimeState(state: Stage5VisualRuntimeState): Boolean {
+        latestVisualRuntimeState = state
+        applyVisualRuntimeStateLocked()
+        return true
     }
 
     @Synchronized
@@ -515,6 +564,7 @@ class Stage5NativeScrubEngine(
         renderHosts.forEach { host ->
             host.setScrubSurfaceVisible(false)
         }
+        applyVisualRuntimeStateLocked()
     }
 
     @Synchronized
@@ -556,6 +606,10 @@ class Stage5NativeScrubEngine(
                 "nativeEngine" to diagnostics.toMap(),
                 "activeStoreKey" to activeDescriptor?.scrubStoreKey,
                 "latestTargetPositionMs" to latestTargetSourcePositionMs,
+                "latestVisualRuntimeRevision" to latestVisualRuntimeState?.revision,
+                "latestVisualRuntimeMode" to latestVisualRuntimeState?.mode,
+                "latestVisualRuntimeSurfaceCount" to (latestVisualRuntimeState?.surfaces?.size ?: 0),
+                "latestVisualRuntimePrimaryTarget" to latestVisualRuntimeState?.primaryTargetClipId,
                 "configuredPreviewSourceCount" to configuredPreviewSources.size,
                 "hasRenderHost" to renderHosts.isNotEmpty(),
                 "elapsedMs" to elapsedMs,
@@ -707,9 +761,10 @@ class Stage5NativeScrubEngine(
         outputTarget.host.setScrubContentAspectRatio(
             resolveDescriptorAspectRatio(snapshot.descriptor),
         )
+        val visualState = resolveVisualStateForDescriptor(snapshot.descriptor)
         outputTarget.host.setScrubVisualState(
-            transformMatrix3x3 = snapshot.descriptor.transformMatrix3x3,
-            opacity = snapshot.descriptor.opacity,
+            transformMatrix3x3 = visualState.transformMatrix3x3,
+            opacity = visualState.opacity,
         )
         if (snapshot.forceSeekBeforeRender) {
             surfaceScrubDecoder.forceSeekOnNextRender()
@@ -792,9 +847,10 @@ class Stage5NativeScrubEngine(
             outputTarget.host.setScrubContentAspectRatio(
                 resolveDescriptorAspectRatio(target.descriptor),
             )
+            val visualState = resolveVisualStateForDescriptor(target.descriptor)
             outputTarget.host.setScrubVisualState(
-                transformMatrix3x3 = target.descriptor.transformMatrix3x3,
-                opacity = target.descriptor.opacity,
+                transformMatrix3x3 = visualState.transformMatrix3x3,
+                opacity = visualState.opacity,
             )
             surfaceScrubDecoder.forceSeekOnNextRender()
             val rendered =
@@ -898,6 +954,71 @@ class Stage5NativeScrubEngine(
         configuredPreviewSources.firstOrNull { descriptor ->
             descriptor.scrubStoreKey == scrubStoreKey
         }
+
+    private fun resolveVisualStateForDescriptor(
+        descriptor: Stage5NativeScrubSourceDescriptor,
+    ): Stage5VisualRuntimeSurfaceState {
+        val runtimeState =
+            synchronized(this) {
+                latestVisualRuntimeState
+            }
+        if (runtimeState == null || runtimeState.surfaces.isEmpty()) {
+            return Stage5VisualRuntimeSurfaceState(
+                targetClipId = descriptor.clipId,
+                role = descriptor.transitionRole,
+                transformMatrix3x3 = descriptor.transformMatrix3x3,
+                opacity = descriptor.opacity,
+                transitionProgress = descriptor.transitionProgress,
+                effectProgramIds = descriptor.effectProgramIds,
+                blockers = descriptor.runtimeBlockers,
+            )
+        }
+        val runtimeSurface = runtimeState.resolveSurfaceForClipId(descriptor.clipId)
+        if (runtimeSurface == null || runtimeSurface.blockers.isNotEmpty()) {
+            return Stage5VisualRuntimeSurfaceState(
+                targetClipId = descriptor.clipId,
+                role = descriptor.transitionRole,
+                transformMatrix3x3 = listOf(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+                opacity = 1.0,
+                transitionProgress = descriptor.transitionProgress,
+                effectProgramIds = emptyList(),
+                blockers = runtimeSurface?.blockers ?: emptyList(),
+            )
+        }
+        return runtimeSurface
+    }
+
+    @Synchronized
+    private fun applyVisualRuntimeStateLocked() {
+        val runtimeState = latestVisualRuntimeState ?: return
+        if (renderHosts.isEmpty()) {
+            return
+        }
+        val timelinePositionMs =
+            runtimeState.timelineTimeMs.coerceAtLeast(0L)
+        val descriptor = resolveDescriptorForPosition(timelinePositionMs)
+        val surface =
+            runtimeState.resolveSurfaceForClipId(descriptor?.clipId)
+                ?: runtimeState.resolveSurfaceForClipId(null)
+        val transformMatrix =
+            if (surface == null || surface.blockers.isNotEmpty()) {
+                null
+            } else {
+                surface.transformMatrix3x3
+            }
+        val opacity =
+            if (surface == null || surface.blockers.isNotEmpty()) {
+                null
+            } else {
+                surface.opacity
+            }
+        renderHosts.forEach { host ->
+            host.setScrubVisualState(
+                transformMatrix3x3 = transformMatrix,
+                opacity = opacity,
+            )
+        }
+    }
 
     private fun handleProxyReady(sourceUri: String) {
         val primePositionMs =

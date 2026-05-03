@@ -139,123 +139,181 @@ class ManualTransitionLaneToMotionChannelAdapter {
       windowStart: windowStart,
       windowEnd: windowEnd,
     );
-    final laneTargetId =
-        lane.targetClipId.trim().isEmpty ? targetId : lane.targetClipId.trim();
-    final target = MotionPropertyTarget(
-      kind: MotionTargetKind.element,
-      targetId: laneTargetId,
-      projectId: projectId,
-      elementId: laneTargetId,
+    final laneTargetIds = _resolvedLaneTargetIds(
+      transition: transition,
+      lane: lane,
+      fallbackTargetId: targetId,
     );
     switch (lane.id) {
       case 'scale':
         return <MotionPropertyChannelModel>[
-          MotionPropertyChannelModel(
-            id: 'manual-transition-${transition.id}-${lane.id}-scale-x',
-            target: target,
-            definition: MotionPropertyCatalog.scaleX,
-            activeRange: activeRange,
-            baseValue: MotionPropertyValue.scalar(
-              _scaleValueFromPercent(_defaultFallbackValueForLane(lane.id)),
+          for (final laneTargetId in laneTargetIds) ...[
+            MotionPropertyChannelModel(
+              id:
+                  'manual-transition-${transition.id}-${lane.id}-$laneTargetId-scale-x',
+              target: _elementTargetFor(
+                projectId: projectId,
+                targetId: laneTargetId,
+              ),
+              definition: MotionPropertyCatalog.scaleX,
+              activeRange: activeRange,
+              baseValue: MotionPropertyValue.scalar(
+                _scaleValueFromPercent(_defaultFallbackValueForLane(lane.id)),
+              ),
+              keyframes: _mapKeyframes(
+                keyframes,
+                valueResolver: _scaleValueFromPercent,
+                channelId:
+                    'manual-transition-${transition.id}-${lane.id}-$laneTargetId-scale-x',
+              ),
             ),
-            keyframes: _mapKeyframes(
-              keyframes,
-              valueResolver: _scaleValueFromPercent,
-              channelId:
-                  'manual-transition-${transition.id}-${lane.id}-scale-x',
+            MotionPropertyChannelModel(
+              id:
+                  'manual-transition-${transition.id}-${lane.id}-$laneTargetId-scale-y',
+              target: _elementTargetFor(
+                projectId: projectId,
+                targetId: laneTargetId,
+              ),
+              definition: MotionPropertyCatalog.scaleY,
+              activeRange: activeRange,
+              baseValue: MotionPropertyValue.scalar(
+                _scaleValueFromPercent(_defaultFallbackValueForLane(lane.id)),
+              ),
+              keyframes: _mapKeyframes(
+                keyframes,
+                valueResolver: _scaleValueFromPercent,
+                channelId:
+                    'manual-transition-${transition.id}-${lane.id}-$laneTargetId-scale-y',
+              ),
             ),
-          ),
-          MotionPropertyChannelModel(
-            id: 'manual-transition-${transition.id}-${lane.id}-scale-y',
-            target: target,
-            definition: MotionPropertyCatalog.scaleY,
-            activeRange: activeRange,
-            baseValue: MotionPropertyValue.scalar(
-              _scaleValueFromPercent(_defaultFallbackValueForLane(lane.id)),
-            ),
-            keyframes: _mapKeyframes(
-              keyframes,
-              valueResolver: _scaleValueFromPercent,
-              channelId:
-                  'manual-transition-${transition.id}-${lane.id}-scale-y',
-            ),
-          ),
+          ],
         ];
       case 'opacity':
         return <MotionPropertyChannelModel>[
-          MotionPropertyChannelModel(
-            id: 'manual-transition-${transition.id}-${lane.id}-opacity',
-            target: target.copyWith(kind: MotionTargetKind.layer),
-            definition: MotionPropertyCatalog.opacity,
-            activeRange: activeRange,
-            baseValue: MotionPropertyValue.scalar(
-              _opacityValueFromPercent(_defaultFallbackValueForLane(lane.id)),
+          for (final laneTargetId in laneTargetIds)
+            MotionPropertyChannelModel(
+              id:
+                  'manual-transition-${transition.id}-${lane.id}-$laneTargetId-opacity',
+              target: _elementTargetFor(
+                projectId: projectId,
+                targetId: laneTargetId,
+              ).copyWith(kind: MotionTargetKind.layer),
+              definition: MotionPropertyCatalog.opacity,
+              activeRange: activeRange,
+              baseValue: MotionPropertyValue.scalar(
+                _opacityValueFromPercent(_defaultFallbackValueForLane(lane.id)),
+              ),
+              keyframes: _mapKeyframes(
+                keyframes,
+                valueResolver: _opacityValueFromPercent,
+                channelId:
+                    'manual-transition-${transition.id}-${lane.id}-$laneTargetId-opacity',
+              ),
             ),
-            keyframes: _mapKeyframes(
-              keyframes,
-              valueResolver: _opacityValueFromPercent,
-              channelId:
-                  'manual-transition-${transition.id}-${lane.id}-opacity',
-            ),
-          ),
         ];
       case 'position':
         return <MotionPropertyChannelModel>[
-          MotionPropertyChannelModel(
-            id: 'manual-transition-${transition.id}-${lane.id}-position-x',
-            target: target,
-            definition: MotionPropertyCatalog.positionX,
-            activeRange: activeRange,
-            baseValue: MotionPropertyValue.scalar(
-              _defaultFallbackValueForLane(lane.id),
+          for (final laneTargetId in laneTargetIds)
+            MotionPropertyChannelModel(
+              id:
+                  'manual-transition-${transition.id}-${lane.id}-$laneTargetId-position-x',
+              target: _elementTargetFor(
+                projectId: projectId,
+                targetId: laneTargetId,
+              ),
+              definition: MotionPropertyCatalog.positionX,
+              activeRange: activeRange,
+              baseValue: MotionPropertyValue.scalar(
+                _defaultFallbackValueForLane(lane.id),
+              ),
+              keyframes: _mapKeyframes(
+                keyframes,
+                valueResolver: (value) => value,
+                channelId:
+                    'manual-transition-${transition.id}-${lane.id}-$laneTargetId-position-x',
+              ),
             ),
-            keyframes: _mapKeyframes(
-              keyframes,
-              valueResolver: (value) => value,
-              channelId:
-                  'manual-transition-${transition.id}-${lane.id}-position-x',
-            ),
-          ),
         ];
       case 'rotation':
         return <MotionPropertyChannelModel>[
-          MotionPropertyChannelModel(
-            id: 'manual-transition-${transition.id}-${lane.id}-rotation-deg',
-            target: target,
-            definition: MotionPropertyCatalog.rotationDegrees,
-            activeRange: activeRange,
-            baseValue: MotionPropertyValue.scalar(
-              _defaultFallbackValueForLane(lane.id),
+          for (final laneTargetId in laneTargetIds)
+            MotionPropertyChannelModel(
+              id:
+                  'manual-transition-${transition.id}-${lane.id}-$laneTargetId-rotation-deg',
+              target: _elementTargetFor(
+                projectId: projectId,
+                targetId: laneTargetId,
+              ),
+              definition: MotionPropertyCatalog.rotationDegrees,
+              activeRange: activeRange,
+              baseValue: MotionPropertyValue.scalar(
+                _defaultFallbackValueForLane(lane.id),
+              ),
+              keyframes: _mapKeyframes(
+                keyframes,
+                valueResolver: (value) => value,
+                channelId:
+                    'manual-transition-${transition.id}-${lane.id}-$laneTargetId-rotation-deg',
+              ),
             ),
-            keyframes: _mapKeyframes(
-              keyframes,
-              valueResolver: (value) => value,
-              channelId:
-                  'manual-transition-${transition.id}-${lane.id}-rotation-deg',
-            ),
-          ),
         ];
       case 'gaussian_blur':
         return <MotionPropertyChannelModel>[
-          MotionPropertyChannelModel(
-            id: 'manual-transition-${transition.id}-${lane.id}-blur-amount',
-            target: target,
-            definition: MotionPropertyCatalog.blurAmount,
-            activeRange: activeRange,
-            baseValue: MotionPropertyValue.scalar(
-              _defaultFallbackValueForLane(lane.id).clamp(0.0, 400.0),
+          for (final laneTargetId in laneTargetIds)
+            MotionPropertyChannelModel(
+              id:
+                  'manual-transition-${transition.id}-${lane.id}-$laneTargetId-blur-amount',
+              target: _elementTargetFor(
+                projectId: projectId,
+                targetId: laneTargetId,
+              ),
+              definition: MotionPropertyCatalog.blurAmount,
+              activeRange: activeRange,
+              baseValue: MotionPropertyValue.scalar(
+                _defaultFallbackValueForLane(lane.id).clamp(0.0, 400.0),
+              ),
+              keyframes: _mapKeyframes(
+                keyframes,
+                valueResolver: (value) => value.clamp(0.0, 400.0).toDouble(),
+                channelId:
+                    'manual-transition-${transition.id}-${lane.id}-$laneTargetId-blur-amount',
+              ),
             ),
-            keyframes: _mapKeyframes(
-              keyframes,
-              valueResolver: (value) => value.clamp(0.0, 400.0).toDouble(),
-              channelId:
-                  'manual-transition-${transition.id}-${lane.id}-blur-amount',
-            ),
-          ),
         ];
       default:
         return null;
     }
+  }
+
+  MotionPropertyTarget _elementTargetFor({
+    required String projectId,
+    required String targetId,
+  }) {
+    return MotionPropertyTarget(
+      kind: MotionTargetKind.element,
+      targetId: targetId,
+      projectId: projectId,
+      elementId: targetId,
+    );
+  }
+
+  List<String> _resolvedLaneTargetIds({
+    required TimelineTrackTransitionData transition,
+    required TimelineAnimationLaneData lane,
+    required String fallbackTargetId,
+  }) {
+    final laneTargetId =
+        lane.targetClipId.trim().isEmpty ? fallbackTargetId : lane.targetClipId.trim();
+    final rightClipId = transition.rightClipId.trim();
+    if (rightClipId.isEmpty || rightClipId == laneTargetId) {
+      return <String>[laneTargetId];
+    }
+    // Manual transition lanes authored without an explicit target should
+    // animate both outgoing and incoming clips to keep visual continuity.
+    if (laneTargetId == transition.leftClipId) {
+      return <String>[laneTargetId, rightClipId];
+    }
+    return <String>[laneTargetId];
   }
 
   List<MotionKeyframeModel> _mapKeyframes(

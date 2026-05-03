@@ -856,8 +856,19 @@ Rules for this slice:
   video scale, `+100%` means 2x zoom, and negative values shrink the live video
   surface with a native clamp above zero;
 - current Manual transform support may render through the native transition
-  surface in preview, Live Scrub, and playback because `renderInteractiveFrame`
-  is dispatched through the transition render executor instead of the UI thread;
+  surface in preview, Live Scrub, and playback through the dedicated
+  interactive transition surface;
+- Manual Transition Focus has an editor scope and a render-active scope. The
+  editor scope may extend around the seam for keyframe authoring, but the native
+  render plan may be active only inside the real transition window
+  `[seamTime - resolvedLeadingDuration, seamTime + resolvedTrailingDuration]`;
+- the surrounding focus/editor context must keep the normal native video preview
+  path visible and must not suppress it as if the whole editor scope were a
+  transition render window;
+- manual transition authoring in Preview/Play/Live Scrub must flow through the
+  Stage5 visual runtime bridge (`Stage5VisualRuntimeState`) so transform/opacity
+  keyframes target the real visible Stage5 surfaces instead of a parallel legacy
+  compositor path;
 - heavier zoom/distortion presets remain preview-only until their own cached,
   nonblocking decode pipeline is proven;
 - Manual transition preview must not fall back to thumbnails, poster frames,

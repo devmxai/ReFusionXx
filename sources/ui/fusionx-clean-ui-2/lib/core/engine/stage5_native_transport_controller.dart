@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:refusion_app/features/editor/domain/models/master_live_scrub_descriptor_models.dart';
+import 'package:refusion_app/core/engine/stage5_visual_runtime_state.dart';
 
 class Stage5TransportState {
   const Stage5TransportState({
@@ -519,6 +520,24 @@ class Stage5NativeTransportController extends ChangeNotifier {
       final result = await _methodChannel.invokeMethod<dynamic>(
         'submitLiveScrubRuntimeBridgeSnapshot',
         buildLiveScrubRuntimeBridgePayload(projectionResult),
+      );
+      final normalized = _normalizeMap(result);
+      return normalized['accepted'] == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> submitStage5VisualRuntimeState(
+    Stage5VisualRuntimeState runtimeState,
+  ) async {
+    if (!isPlatformSupported) {
+      return false;
+    }
+    try {
+      final result = await _methodChannel.invokeMethod<dynamic>(
+        'submitStage5VisualRuntimeState',
+        runtimeState.toMap(),
       );
       final normalized = _normalizeMap(result);
       return normalized['accepted'] == true;

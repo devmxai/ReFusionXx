@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:flutter/scheduler.dart';
 
 import '../../../../core/engine/live_scrub_preview_sources.dart';
 import '../../../../core/engine/stage5_native_transport_controller.dart';
+import '../../../../core/engine/stage5_visual_runtime_state.dart';
 import '../../../../core/engine/stage6_export_controller.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../domain/models/export_composition_builder.dart';
@@ -646,6 +648,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   bool _isNativePreviewRecoveryScheduled = false;
   String? _lastSubmittedLiveScrubRuntimeBridgeKey;
   bool _liveScrubRuntimeBridgeSubmissionInFlight = false;
+  String? _lastSubmittedStage5VisualRuntimeKey;
+  bool _stage5VisualRuntimeSubmissionInFlight = false;
+  int _stage5VisualRuntimeRevision = 0;
 
   @override
   void initState() {
@@ -18817,7 +18822,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                 context.transition,
                 targetClipId: leftScopedClipId,
                 scopeContext: context,
-              )
+              ).map((lane) {
+                final scopeStops = _transitionFocusScopeStopsForActiveStops(
+                  context,
+                  lane.normalizedKeyframeStops,
+                );
+                return lane.copyWith(
+                  normalizedKeyframeStops: List<double>.unmodifiable(scopeStops),
+                );
+              }).toList(growable: false)
             : laneSpecs.map(
                 (lane) {
                   final stops = _transitionFocusScopeStopsForActiveStops(
@@ -19160,6 +19173,21 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         (span.start + (width * stop.clamp(0.0, 1.0)))
             .clamp(0.0, 1.0)
             .toDouble(),
+    ];
+  }
+
+  List<double> _transitionFocusActiveStopsForScopeStops(
+    _TransitionFocusContext context,
+    List<double> scopeStops,
+  ) {
+    final span = _transitionFocusActiveSpanProgress(context);
+    final width = span.end - span.start;
+    if (width <= 0) {
+      return <double>[for (final stop in scopeStops) stop.clamp(0.0, 1.0)];
+    }
+    return <double>[
+      for (final stop in scopeStops)
+        ((stop.clamp(0.0, 1.0) - span.start) / width).clamp(0.0, 1.0),
     ];
   }
 
@@ -19591,6 +19619,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (session == null) {
       return;
     }
+    final context = _transitionFocusContextForSession(session);
+    if (context == null) {
+      return;
+    }
     final transitionId = session.transitionId;
     final transition = _videoTrackTransitionById(transitionId);
     if (transition == null) {
@@ -19605,6 +19637,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (lane == null) {
       return;
     }
+    final activeStop = _transitionFocusActiveStopsForScopeStops(
+      context,
+      <double>[normalizedStop],
+    ).first;
     final effectiveKeyframeId =
         _selectedTransitionFocusKeyframeId ?? keyframeId;
     final stops = List<double>.from(lane.normalizedKeyframeStops);
@@ -19629,7 +19665,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       for (var index = 0; index < stops.length; index++)
         (
           stop: index == movedKeyframeIndex
-              ? normalizedStop.clamp(0.0, 1.0)
+              ? activeStop.clamp(0.0, 1.0)
               : stops[index],
           keyframeId: keyframeIds[index],
           value: values[index],
@@ -19705,10 +19741,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _showStageMessage('Select an animation or FX row before adding a key.');
       return;
     }
-    final progress = _transitionFocusProgressForTime(
+    final scopeProgress = _transitionFocusProgressForTime(
       context,
       _transitionFocusVisibleGlobalTime(context),
     );
+    final progress = _transitionFocusActiveStopsForScopeStops(
+      context,
+      <double>[scopeProgress],
+    ).first;
     final stops = List<double>.from(lane.normalizedKeyframeStops);
     final values = List<double>.from(
       lane.alignedKeyframeValues(
@@ -19723,7 +19763,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       keyframeIds.add('${lane.id}#${keyframeIds.length}');
     }
     final scopeDurationMs =
-        (context.endTime - context.startTime).inMilliseconds;
+        (context.activeEndTime - context.activeStartTime).inMilliseconds;
     final frameMs = 1000.0 / (_timelineFps <= 0 ? 30.0 : _timelineFps);
     final snapEpsilon = scopeDurationMs <= 0
         ? 0.0001
@@ -21448,6 +21488,163 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
   }
 
+  Stage5VisualRuntimeState _buildStage5VisualRuntimeStateForPreviewTime({
+    required TimelineTime previewTime,
+    required String mode,
+  }) {
+    final activeTransition = _activeTimelineTransitionPreviewAt(previewTime);
+    final evaluation = _masterFrameEvaluationForMode(mode);
+    if (activeTransition == null || evaluation == null) {
+      return Stage5VisualRuntimeState(
+        revision: ++_stage5VisualRuntimeRevision,
+        timelineTimeMs: previewTime.inMilliseconds,
+        mode: mode,
+      );
+    }
+    final transition = activeTransition.transition;
+    final isManual = transition.preset == TimelineTransitionPreset.manual;
+    final program = isManual
+        ? _manualTransitionLiveScrubProgram(
+            evaluation: evaluation,
+            activeTransition: activeTransition,
+            mode: mode,
+          )
+        : null;
+    if (program == null) {
+      return Stage5VisualRuntimeState(
+        revision: ++_stage5VisualRuntimeRevision,
+        timelineTimeMs: previewTime.inMilliseconds,
+        mode: mode,
+        transitionId: transition.id,
+        transitionProgress: activeTransition.progress,
+      );
+    }
+    final sourceWindows =
+        _liveScrubSourceWindowsForActiveTransition(activeTransition);
+    final primaryTargetClipId = _resolveStage5VisualRuntimePrimaryTargetClipId(
+      previewTime: previewTime,
+      sourceWindowsByTargetId: sourceWindows,
+      activeTransition: activeTransition,
+    );
+    final surfaces = <Stage5VisualRuntimeSurfaceState>[
+      for (final surface in program.surfaces)
+        if (surface.sourceKind == LiveScrubSourceKind.video ||
+            surface.sourceKind == LiveScrubSourceKind.image)
+          Stage5VisualRuntimeSurfaceState(
+            targetClipId: surface.targetId,
+            role: surface.transitionRole.name,
+            transformMatrix3x3: _stage5VisualTransformMatrix3x3(
+              surface.transform,
+            ),
+            opacity: surface.opacity.clamp(0.0, 1.0).toDouble(),
+            transitionProgress: activeTransition.progress,
+            effectProgramIds: surface.effects.map((effect) => effect.id).toList(
+                  growable: false,
+                ),
+            blockers: <String>[
+              ...surface.blockers,
+              ...program.blockers,
+            ],
+          ),
+    ];
+    return Stage5VisualRuntimeState(
+      revision: ++_stage5VisualRuntimeRevision,
+      timelineTimeMs: previewTime.inMilliseconds,
+      mode: mode,
+      transitionId: transition.id,
+      primaryTargetClipId: primaryTargetClipId,
+      transitionProgress: activeTransition.progress,
+      surfaces: surfaces,
+      blockers: program.blockers,
+      diagnostics: program.diagnostics,
+    );
+  }
+
+  String _stage5VisualRuntimeSubmissionKey(Stage5VisualRuntimeState state) {
+    final bucket = (state.timelineTimeMs / 16).floor();
+    final primary = state.primaryTargetClipId ?? 'none';
+    final transitionId = state.transitionId ?? 'none';
+    final firstSurface = state.surfaces.isEmpty ? null : state.surfaces.first;
+    final matrixDigest = firstSurface == null
+        ? 'identity'
+        : firstSurface.transformMatrix3x3
+            .take(6)
+            .map((value) => value.toStringAsFixed(4))
+            .join(',');
+    final opacityDigest = firstSurface == null
+        ? '1.0'
+        : firstSurface.opacity.toStringAsFixed(4);
+    return '$transitionId:${state.mode}:$primary:$bucket:$matrixDigest:$opacityDigest:${state.surfaces.length}';
+  }
+
+  void _scheduleStage5VisualRuntimeSubmission({
+    required TimelineTime previewTime,
+    required String mode,
+  }) {
+    final runtimeState = _buildStage5VisualRuntimeStateForPreviewTime(
+      previewTime: previewTime,
+      mode: mode,
+    );
+    final key = _stage5VisualRuntimeSubmissionKey(runtimeState);
+    if (_stage5VisualRuntimeSubmissionInFlight ||
+        _lastSubmittedStage5VisualRuntimeKey == key) {
+      return;
+    }
+    _stage5VisualRuntimeSubmissionInFlight = true;
+    _lastSubmittedStage5VisualRuntimeKey = key;
+    unawaited(
+      Future<void>(() async {
+        try {
+          await _transportController.submitStage5VisualRuntimeState(
+            runtimeState,
+          );
+        } catch (_) {
+          // Keep runtime visual state submission nonblocking for UI updates.
+        } finally {
+          _stage5VisualRuntimeSubmissionInFlight = false;
+        }
+      }),
+    );
+  }
+
+  String _resolveStage5VisualRuntimePrimaryTargetClipId({
+    required TimelineTime previewTime,
+    required Map<String, LiveScrubTimelineSourceWindow> sourceWindowsByTargetId,
+    required _ActiveTimelineTransitionPreview activeTransition,
+  }) {
+    final previewTimeMs = previewTime.inMilliseconds;
+    for (final entry in sourceWindowsByTargetId.entries) {
+      final window = entry.value;
+      if (previewTimeMs >= window.timelineStartMs &&
+          previewTimeMs < window.timelineEndMs) {
+        return entry.key;
+      }
+    }
+    return activeTransition.leftClip.clip.id;
+  }
+
+  List<double> _stage5VisualTransformMatrix3x3(
+    LiveScrubSurfaceTransform transform,
+  ) {
+    final cosTheta = math.cos(transform.rotationRadians);
+    final sinTheta = math.sin(transform.rotationRadians);
+    final m00 = transform.scaleX * cosTheta;
+    final m01 = -transform.scaleY * sinTheta;
+    final m10 = transform.scaleX * sinTheta;
+    final m11 = transform.scaleY * cosTheta;
+    return <double>[
+      m00,
+      m01,
+      transform.positionX,
+      m10,
+      m11,
+      transform.positionY,
+      0.0,
+      0.0,
+      1.0,
+    ];
+  }
+
   Map<String, LiveScrubSurfaceSource>
       _liveScrubSourcesByTargetIdForActiveTransition(
     _ActiveTimelineTransitionPreview activeTransition,
@@ -21846,6 +22043,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                 final professionalTransitionMode =
                     _professionalVideoTransitionMode(
                   effectiveIsPlaying: effectiveIsPlaying,
+                );
+                _scheduleStage5VisualRuntimeSubmission(
+                  previewTime: previewTime,
+                  mode: professionalTransitionMode,
                 );
                 final professionalTransitionSurfaceId = activeTransition == null
                     ? null

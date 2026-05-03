@@ -35,15 +35,25 @@ void main() {
     );
 
     expect(result.issues, isEmpty);
-    expect(result.channels.length, 2);
+    expect(result.channels.length, 4);
     final scaleX = result.channels.firstWhere(
-      (channel) => channel.definition.id == 'transform.scale.x',
+      (channel) =>
+          channel.definition.id == 'transform.scale.x' &&
+          channel.target.targetId == 'clip-a',
     );
     final scaleY = result.channels.firstWhere(
-      (channel) => channel.definition.id == 'transform.scale.y',
+      (channel) =>
+          channel.definition.id == 'transform.scale.y' &&
+          channel.target.targetId == 'clip-a',
+    );
+    final incomingScaleX = result.channels.firstWhere(
+      (channel) =>
+          channel.definition.id == 'transform.scale.x' &&
+          channel.target.targetId == 'clip-b',
     );
     expect(scaleX.keyframes.length, 2);
     expect(scaleY.keyframes.length, 2);
+    expect(incomingScaleX.keyframes.length, 2);
     expect(scaleX.keyframes.first.time, TimelineTime.fromMilliseconds(4000));
     expect(scaleX.keyframes.last.time, TimelineTime.fromMilliseconds(6000));
     expect(scaleX.keyframes.first.value.rawValue, 1.0);
@@ -78,8 +88,10 @@ void main() {
     );
 
     expect(result.issues, isEmpty);
-    expect(result.channels.length, 1);
-    final opacity = result.channels.single;
+    expect(result.channels.length, 2);
+    final opacity = result.channels.firstWhere(
+      (channel) => channel.target.targetId == 'clip-a',
+    );
     expect(opacity.definition.id, 'visual.opacity');
     expect(opacity.keyframes.length, 2);
     expect(opacity.keyframes.first.value.rawValue, 1.0);

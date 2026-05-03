@@ -2,8 +2,10 @@ package com.refusion.app
 
 import android.content.Context
 import android.graphics.Color
+import android.graphics.Matrix
 import android.os.Handler
 import android.os.Looper
+import android.os.Build
 import android.view.Surface
 import android.view.View
 import android.widget.FrameLayout
@@ -13,6 +15,8 @@ import androidx.media3.ui.PlayerView
 import io.flutter.plugin.platform.PlatformView
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import kotlin.math.atan2
+import kotlin.math.sqrt
 
 class Stage5PreviewPlatformView(
     context: Context,
@@ -24,6 +28,8 @@ class Stage5PreviewPlatformView(
     private var isPreviewOutputSuppressed = false
     private var isScrubSurfaceVisible = false
     private var isPlayerContentSized = false
+    private var runtimeTransformMatrix3x3: List<Double>? = null
+    private var runtimeOpacity = 1.0
     @Volatile
     private var appliedScrubAspectRatio: Float? = null
     @Volatile
@@ -146,11 +152,15 @@ class Stage5PreviewPlatformView(
         transformMatrix3x3: List<Double>?,
         opacity: Double?,
     ) {
+        runtimeTransformMatrix3x3 = transformMatrix3x3
+        runtimeOpacity = ((opacity ?: 1.0).coerceIn(0.0, 1.0))
         runOnUiThreadIfActive(waitForCompletion = true) {
             scrubOverlayView.setRuntimeVisualState(
                 transformMatrix3x3 = transformMatrix3x3,
                 opacity = opacity,
             )
+            applyRuntimeStateToPlayerView()
+            syncPlayerVisibility()
         }
     }
 
@@ -216,12 +226,81 @@ class Stage5PreviewPlatformView(
     private fun syncPlayerVisibility() {
         val shouldAttachPlayerSurface = !isPreviewOutputSuppressed
         playerView.visibility = if (shouldAttachPlayerSurface) View.VISIBLE else View.INVISIBLE
-        playerView.alpha =
+        val baseAlpha =
             if (shouldAttachPlayerSurface && !isScrubSurfaceVisible && isPlayerContentSized) {
                 1f
             } else {
                 0f
             }
+        playerView.alpha =
+            (baseAlpha * runtimeOpacity.toFloat().coerceIn(0f, 1f)).coerceIn(0f, 1f)
+    }
+
+    private fun applyRuntimeStateToPlayerView() {
+        val matrixValues = runtimeTransformMatrix3x3
+        if (matrixValues == null || matrixValues.size != 9) {
+            if (Build.VERSION.SDK_INT >= 29) {
+                playerView.animationMatrix = null
+            } else {
+                playerView.translationX = 0f
+                playerView.translationY = 0f
+                playerView.scaleX = 1f
+                playerView.scaleY = 1f
+                playerView.rotation = 0f
+            }
+            return
+        }
+        val m00 = matrixValues[0].toFloat()
+        val m01 = matrixValues[1].toFloat()
+        val tx = matrixValues[2].toFloat()
+        val m10 = matrixValues[3].toFloat()
+        val m11 = matrixValues[4].toFloat()
+        val ty = matrixValues[5].toFloat()
+        if (!m00.isFinite() || !m01.isFinite() || !tx.isFinite() ||
+            !m10.isFinite() || !m11.isFinite() || !ty.isFinite()
+        ) {
+            return
+        }
+        val viewWidth = playerView.width.toFloat().coerceAtLeast(1f)
+        val viewHeight = playerView.height.toFloat().coerceAtLeast(1f)
+        val centerX = viewWidth / 2f
+        val centerY = viewHeight / 2f
+        val matrix =
+            Matrix().apply {
+                setValues(
+                    floatArrayOf(
+                        m00,
+                        m01,
+                        tx,
+                        m10,
+                        m11,
+                        ty,
+                        0f,
+                        0f,
+                        1f,
+                    ),
+                )
+                postTranslate(
+                    centerX - (m00 * centerX + m01 * centerY),
+                    centerY - (m10 * centerX + m11 * centerY),
+                )
+            }
+        if (Build.VERSION.SDK_INT >= 29) {
+            playerView.animationMatrix = matrix
+            return
+        }
+        val values = FloatArray(9)
+        matrix.getValues(values)
+        val sx = sqrt((values[0] * values[0]) + (values[3] * values[3]))
+        val sy = sqrt((values[1] * values[1]) + (values[4] * values[4]))
+        val rotationDegrees = Math.toDegrees(atan2(values[3], values[0]).toDouble()).toFloat()
+        playerView.pivotX = centerX
+        playerView.pivotY = centerY
+        playerView.translationX = values[2]
+        playerView.translationY = values[5]
+        playerView.scaleX = if (sx.isFinite()) sx else 1f
+        playerView.scaleY = if (sy.isFinite()) sy else 1f
+        playerView.rotation = if (rotationDegrees.isFinite()) rotationDegrees else 0f
     }
 
     private fun runOnUiThread(action: () -> Unit) {

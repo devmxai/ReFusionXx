@@ -368,6 +368,25 @@ class MainActivity: FlutterActivity() {
                 "getLiveScrubRuntimeBridgeSnapshot" -> {
                     result.success(latestLiveScrubRuntimeBridgeSnapshot ?: emptyMap<String, Any?>())
                 }
+                "submitStage5VisualRuntimeState" -> {
+                    val payload =
+                        (call.arguments as? Map<*, *>)?.mapKeys { (key, _) -> key.toString() }
+                            ?: emptyMap()
+                    val state = parseStage5VisualRuntimeState(payload)
+                    val accepted =
+                        if (state == null) {
+                            false
+                        } else {
+                            stage5NativeScrubEngine.submitVisualRuntimeState(state)
+                        }
+                    result.success(
+                        mapOf(
+                            "accepted" to accepted,
+                            "revision" to (state?.revision ?: -1L),
+                            "surfaceCount" to (state?.surfaces?.size ?: 0),
+                        ),
+                    )
+                }
                 else -> result.notImplemented()
             }
         }
@@ -930,6 +949,70 @@ class MainActivity: FlutterActivity() {
         scrubReadinessExecutor.shutdownNow()
         transitionRenderExecutor.shutdownNow()
         super.onDestroy()
+    }
+
+    private fun parseStage5VisualRuntimeState(
+        map: Map<String, Any?>,
+    ): Stage5VisualRuntimeState? {
+        val revision = (map["revision"] as? Number)?.toLong() ?: return null
+        val timelineTimeMs = (map["timelineTimeMs"] as? Number)?.toLong() ?: 0L
+        val mode = map["mode"]?.toString().orEmpty().ifBlank { "preview" }
+        val transitionId = map["transitionId"]?.toString()
+        val primaryTargetClipId = map["primaryTargetClipId"]?.toString()
+        val transitionProgress = (map["transitionProgress"] as? Number)?.toDouble()
+        val blockers =
+            (map["blockers"] as? List<*>)?.mapNotNull { value ->
+                value?.toString()
+            } ?: emptyList()
+        val diagnostics =
+            (map["diagnostics"] as? List<*>)?.mapNotNull { value ->
+                value?.toString()
+            } ?: emptyList()
+        val surfaces =
+            (map["surfaces"] as? List<*>)?.mapNotNull { entry ->
+                val surfaceMap =
+                    (entry as? Map<*, *>)?.mapKeys { (key, _) -> key.toString() }
+                        ?: return@mapNotNull null
+                val targetClipId = surfaceMap["targetClipId"]?.toString().orEmpty()
+                if (targetClipId.isBlank()) {
+                    return@mapNotNull null
+                }
+                val role = surfaceMap["role"]?.toString().orEmpty().ifBlank { "none" }
+                val matrix =
+                    (surfaceMap["transformMatrix3x3"] as? List<*>)?.mapNotNull { value ->
+                        (value as? Number)?.toDouble()
+                    }?.takeIf { values -> values.size == 9 }
+                        ?: listOf(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+                val opacity = (surfaceMap["opacity"] as? Number)?.toDouble() ?: 1.0
+                val effectProgramIds =
+                    (surfaceMap["effectProgramIds"] as? List<*>)?.mapNotNull { value ->
+                        value?.toString()
+                    } ?: emptyList()
+                val surfaceBlockers =
+                    (surfaceMap["blockers"] as? List<*>)?.mapNotNull { value ->
+                        value?.toString()
+                    } ?: emptyList()
+                Stage5VisualRuntimeSurfaceState(
+                    targetClipId = targetClipId,
+                    role = role,
+                    transformMatrix3x3 = matrix,
+                    opacity = opacity,
+                    transitionProgress = (surfaceMap["transitionProgress"] as? Number)?.toDouble(),
+                    effectProgramIds = effectProgramIds,
+                    blockers = surfaceBlockers,
+                )
+            } ?: emptyList()
+        return Stage5VisualRuntimeState(
+            revision = revision,
+            timelineTimeMs = timelineTimeMs.coerceAtLeast(0L),
+            mode = mode,
+            transitionId = transitionId,
+            primaryTargetClipId = primaryTargetClipId,
+            transitionProgress = transitionProgress,
+            surfaces = surfaces,
+            blockers = blockers,
+            diagnostics = diagnostics,
+        )
     }
 
     private fun loadDeviceMediaAsync(
