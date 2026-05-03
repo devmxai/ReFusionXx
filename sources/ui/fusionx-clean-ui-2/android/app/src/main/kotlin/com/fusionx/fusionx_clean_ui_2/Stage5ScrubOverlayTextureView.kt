@@ -175,13 +175,11 @@ class Stage5ScrubOverlayTextureView(
             rotation = 0f
             return
         }
-        val translatedX = tx + (centerX - (m00 * centerX + m01 * centerY))
-        val translatedY = ty + (centerY - (m10 * centerX + m11 * centerY))
         val derivedScaleX = sqrt((m00 * m00) + (m10 * m10))
         val derivedScaleY = sqrt((m01 * m01) + (m11 * m11))
         val derivedRotationDegrees = Math.toDegrees(atan2(m10, m00).toDouble()).toFloat()
-        translationX = if (translatedX.isFinite()) translatedX else 0f
-        translationY = if (translatedY.isFinite()) translatedY else 0f
+        translationX = tx
+        translationY = ty
         scaleX = if (derivedScaleX.isFinite()) derivedScaleX else 1f
         scaleY = if (derivedScaleY.isFinite()) derivedScaleY else 1f
         rotation = if (derivedRotationDegrees.isFinite()) derivedRotationDegrees else 0f
