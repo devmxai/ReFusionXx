@@ -33,6 +33,7 @@ class LiveScrubDescriptorCapabilities {
     this.supportsEffectProgramIds = false,
     this.supportsDualSourceTransitionWindow = false,
     this.supportsLatencyMetrics = false,
+    this.supportedEffectProgramIds = const <String>[],
     this.source = 'unknown',
   });
 
@@ -44,6 +45,7 @@ class LiveScrubDescriptorCapabilities {
   final bool supportsEffectProgramIds;
   final bool supportsDualSourceTransitionWindow;
   final bool supportsLatencyMetrics;
+  final List<String> supportedEffectProgramIds;
   final String source;
 }
 

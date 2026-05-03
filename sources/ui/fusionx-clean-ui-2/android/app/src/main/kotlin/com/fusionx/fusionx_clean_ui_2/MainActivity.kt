@@ -336,6 +336,7 @@ class MainActivity: FlutterActivity() {
                             "supportsEffectProgramIds" to false,
                             "supportsDualSourceTransitionWindow" to false,
                             "supportsLatencyMetrics" to true,
+                            "supportedEffectProgramIds" to listOf<String>(),
                             "source" to "stage5_read_only_capability_handshake_v1",
                         ),
                     )

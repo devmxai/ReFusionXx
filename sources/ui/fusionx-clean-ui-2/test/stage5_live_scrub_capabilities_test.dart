@@ -13,6 +13,7 @@ void main() {
         'supportsEffectProgramIds': false,
         'supportsDualSourceTransitionWindow': false,
         'supportsLatencyMetrics': true,
+        'supportedEffectProgramIds': <String>['opacity', 'transform'],
         'source': 'native-test',
       },
     );
@@ -25,6 +26,10 @@ void main() {
     expect(capabilities.supportsEffectProgramIds, isFalse);
     expect(capabilities.supportsDualSourceTransitionWindow, isFalse);
     expect(capabilities.supportsLatencyMetrics, isTrue);
+    expect(
+      capabilities.supportedEffectProgramIds,
+      const <String>['opacity', 'transform'],
+    );
     expect(capabilities.source, 'native-test');
   });
 
@@ -38,6 +43,7 @@ void main() {
     expect(capabilities.supportsEffectProgramIds, isFalse);
     expect(capabilities.supportsDualSourceTransitionWindow, isFalse);
     expect(capabilities.supportsLatencyMetrics, isFalse);
+    expect(capabilities.supportedEffectProgramIds, isEmpty);
     expect(capabilities.source, 'unknown');
   });
 
@@ -51,6 +57,7 @@ void main() {
       supportsEffectProgramIds: false,
       supportsDualSourceTransitionWindow: false,
       supportsLatencyMetrics: true,
+      supportedEffectProgramIds: <String>['opacity'],
       source: 'stage5_read_only_capability_handshake_v1',
     );
 
@@ -63,6 +70,10 @@ void main() {
     expect(descriptorCapabilities.supportsEffectProgramIds, isFalse);
     expect(descriptorCapabilities.supportsDualSourceTransitionWindow, isFalse);
     expect(descriptorCapabilities.supportsLatencyMetrics, isTrue);
+    expect(
+      descriptorCapabilities.supportedEffectProgramIds,
+      const <String>['opacity'],
+    );
     expect(
       descriptorCapabilities.source,
       'stage5_read_only_capability_handshake_v1',

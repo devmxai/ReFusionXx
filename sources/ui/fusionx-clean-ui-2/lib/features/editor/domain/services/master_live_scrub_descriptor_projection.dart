@@ -74,6 +74,20 @@ class MasterLiveScrubDescriptorProjection {
       if (surface.effects.isNotEmpty && !capabilities.supportsEffectProgramIds) {
         surfaceBlockers.add('native_missing_effect_programs_capability');
       }
+      if (surface.effects.isNotEmpty &&
+          capabilities.supportsEffectProgramIds &&
+          capabilities.supportedEffectProgramIds.isEmpty) {
+        surfaceBlockers.add('native_effect_program_catalog_missing');
+      }
+      if (surface.effects.isNotEmpty &&
+          capabilities.supportsEffectProgramIds &&
+          capabilities.supportedEffectProgramIds.isNotEmpty) {
+        for (final effect in surface.effects) {
+          if (!capabilities.supportedEffectProgramIds.contains(effect.id)) {
+            surfaceBlockers.add('unsupported_effect_program:${effect.id}');
+          }
+        }
+      }
       final requiresTransitionWindow =
           surface.transitionRole != LiveScrubTransitionRole.none;
       if (requiresTransitionWindow &&

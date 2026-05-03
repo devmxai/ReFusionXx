@@ -518,6 +518,19 @@ Acceptance:
   keyframes;
 - fast scrub does not become slower outside effect windows.
 
+Implementation note (checkpoint `checkpoint: add live scrub effect catalog preflight parity`):
+
+- expanded native capability handshake payload with
+  `supportedEffectProgramIds`.
+- descriptor capability model now carries a strict effect catalog set.
+- descriptor projection now blocks with
+  `native_effect_program_catalog_missing` when effect capability is enabled
+  without an explicit catalog.
+- descriptor projection now blocks each non-whitelisted effect with
+  `unsupported_effect_program:<id>`.
+- this slice remains preflight/domain-safe and does not change active Stage5
+  scrub drawing or decoder ownership.
+
 ### Phase 6 - Transition Window Parity
 
 Goal: Live Scrub displays transition windows from the same graph-backed

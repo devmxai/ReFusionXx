@@ -625,6 +625,7 @@ class Stage5LiveScrubCapabilities {
     this.supportsEffectProgramIds = false,
     this.supportsDualSourceTransitionWindow = false,
     this.supportsLatencyMetrics = false,
+    this.supportedEffectProgramIds = const <String>[],
     this.source = 'unknown',
   });
 
@@ -636,6 +637,7 @@ class Stage5LiveScrubCapabilities {
   final bool supportsEffectProgramIds;
   final bool supportsDualSourceTransitionWindow;
   final bool supportsLatencyMetrics;
+  final List<String> supportedEffectProgramIds;
   final String source;
 
   LiveScrubDescriptorCapabilities toDescriptorCapabilities() {
@@ -648,6 +650,7 @@ class Stage5LiveScrubCapabilities {
       supportsEffectProgramIds: supportsEffectProgramIds,
       supportsDualSourceTransitionWindow: supportsDualSourceTransitionWindow,
       supportsLatencyMetrics: supportsLatencyMetrics,
+      supportedEffectProgramIds: supportedEffectProgramIds,
       source: source,
     );
   }
@@ -657,6 +660,16 @@ class Stage5LiveScrubCapabilities {
 Stage5LiveScrubCapabilities parseStage5LiveScrubCapabilities(dynamic result) {
   final map = _normalizeLiveScrubCapabilitiesMap(result);
   bool readBool(String key) => map[key] == true;
+  List<String> readStringList(String key) {
+    final value = map[key];
+    if (value is List) {
+      return value
+          .map((entry) => entry?.toString() ?? '')
+          .where((entry) => entry.isNotEmpty)
+          .toList(growable: false);
+    }
+    return const <String>[];
+  }
   final source = map['source']?.toString() ?? 'unknown';
   return Stage5LiveScrubCapabilities(
     supportsSourceDimensions: readBool('supportsSourceDimensions'),
@@ -669,6 +682,7 @@ Stage5LiveScrubCapabilities parseStage5LiveScrubCapabilities(dynamic result) {
       'supportsDualSourceTransitionWindow',
     ),
     supportsLatencyMetrics: readBool('supportsLatencyMetrics'),
+    supportedEffectProgramIds: readStringList('supportedEffectProgramIds'),
     source: source,
   );
 }

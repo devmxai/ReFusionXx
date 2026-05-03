@@ -85,6 +85,7 @@ void main() {
         supportsTransformMatrix: true,
         supportsOpacity: true,
         supportsEffectProgramIds: true,
+        supportedEffectProgramIds: <String>['gaussianBlur'],
         supportsDualSourceTransitionWindow: true,
         source: 'test-full-capabilities',
       ),
@@ -101,6 +102,7 @@ void main() {
         supportsTransformMatrix: true,
         supportsOpacity: true,
         supportsEffectProgramIds: true,
+        supportedEffectProgramIds: <String>['gaussianBlur'],
         supportsDualSourceTransitionWindow: true,
         source: 'test-full-capabilities',
       ),
@@ -266,5 +268,78 @@ void main() {
       result.descriptors.single.debugReasons,
       contains('native_capabilities:native-capability-test'),
     );
+  });
+
+  test('blocks unsupported effect programs when capability catalog rejects id', () {
+    final clock = TimelineClockCoordinator(
+      timelineDuration: ms(5000),
+      initialTime: ms(1500),
+    );
+    final time = MasterTimeSnapshot.fromClockSnapshot(
+      clock: clock.snapshot,
+      frameRate: 30,
+      renderMode: MasterRenderMode.liveScrub,
+      sourceScope: MasterTimeScope.rootComposition,
+    );
+    final program = LiveScrubVisualProgram(
+      time: time,
+      surfaces: <LiveScrubVisualSurface>[
+        LiveScrubVisualSurface(
+          targetId: 'layer-3',
+          sourceKind: LiveScrubSourceKind.video,
+          source: const LiveScrubSurfaceSource(
+            targetId: 'layer-3',
+            kind: LiveScrubSourceKind.video,
+            sourceUri: '/media/video-d.mp4',
+          ),
+          effects: const <LiveScrubEffectBinding>[
+            LiveScrubEffectBinding(
+              id: 'motionBlur',
+              rendererValue: 8.0,
+              rendererUnit: MasterValueUnit.shaderSigmaPx,
+            ),
+          ],
+          blockers: const <String>[],
+        ),
+      ],
+      blockers: const <String>[],
+      diagnostics: const <String>[],
+      transitionState: LiveScrubTransitionState(
+        activeTransitionIds: const <String>[],
+        hasRenderableTransitionPixels: false,
+        reason: 'phase5_effect_catalog_preflight',
+      ),
+    );
+    const projection = MasterLiveScrubDescriptorProjection();
+    const sourceWindow = LiveScrubTimelineSourceWindow(
+      targetId: 'layer-3',
+      timelineStartMs: 1000,
+      timelineEndMs: 3000,
+      sourceStartMs: 0,
+      sourceDurationMs: 2000,
+      playbackRate: 1.0,
+    );
+    const capabilities = LiveScrubDescriptorCapabilities(
+      supportsSourceDimensions: true,
+      supportsCanvasPlacement: true,
+      supportsCrop: true,
+      supportsTransformMatrix: true,
+      supportsOpacity: true,
+      supportsEffectProgramIds: true,
+      supportedEffectProgramIds: <String>['opacity', 'gaussianBlur'],
+      supportsDualSourceTransitionWindow: false,
+      source: 'native-effect-catalog',
+    );
+
+    final result = projection.project(
+      program: program,
+      sourceWindowsByTargetId: <String, LiveScrubTimelineSourceWindow>{
+        'layer-3': sourceWindow,
+      },
+      capabilities: capabilities,
+    );
+
+    expect(result.canProject, isFalse);
+    expect(result.blockers, contains('unsupported_effect_program:motionBlur'));
   });
 }
