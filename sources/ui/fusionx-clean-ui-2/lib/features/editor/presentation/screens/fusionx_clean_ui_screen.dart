@@ -21453,11 +21453,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             capabilities: capabilities.toDescriptorCapabilities(),
             performanceSnapshot: performanceSnapshot,
           );
-          await _transportController.submitLiveScrubDescriptorPreflight(
+          await _transportController.submitLiveScrubRuntimeBridgeSnapshot(
             projection,
           );
         } catch (_) {
-          // Keep preflight bridge submission nonblocking for the editor path.
+          // Keep runtime bridge submission nonblocking for the editor path.
         } finally {
           _liveScrubRuntimeBridgeSubmissionInFlight = false;
         }

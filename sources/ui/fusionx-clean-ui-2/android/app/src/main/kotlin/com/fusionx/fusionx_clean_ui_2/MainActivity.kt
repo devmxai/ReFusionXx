@@ -40,7 +40,7 @@ class MainActivity: FlutterActivity() {
     private var pendingMediaTab: String? = null
     private var pendingMediaResult: MethodChannel.Result? = null
     private var pendingMediaHadVisualPermission = false
-    private var latestLiveScrubDescriptorPreflight: Map<String, Any?>? = null
+    private var latestLiveScrubRuntimeBridgeSnapshot: Map<String, Any?>? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -345,7 +345,7 @@ class MainActivity: FlutterActivity() {
                 "getLiveScrubPerformanceSnapshot" -> {
                     result.success(stage5NativeScrubEngine.diagnosticsSnapshot())
                 }
-                "submitLiveScrubDescriptorPreflight" -> {
+                "submitLiveScrubRuntimeBridgeSnapshot" -> {
                     val payload =
                         (call.arguments as? Map<*, *>)?.mapKeys { (key, _) -> key.toString() }
                             ?.toMutableMap() ?: mutableMapOf()
@@ -356,7 +356,7 @@ class MainActivity: FlutterActivity() {
                     payload["nativeReceivedAtMs"] = System.currentTimeMillis()
                     payload["descriptorCount"] = descriptors.size
                     payload["blockerCount"] = blockers.size
-                    latestLiveScrubDescriptorPreflight = payload
+                    latestLiveScrubRuntimeBridgeSnapshot = payload
                     result.success(
                         mapOf(
                             "accepted" to true,
@@ -365,8 +365,8 @@ class MainActivity: FlutterActivity() {
                         ),
                     )
                 }
-                "getLiveScrubDescriptorPreflightSnapshot" -> {
-                    result.success(latestLiveScrubDescriptorPreflight ?: emptyMap<String, Any?>())
+                "getLiveScrubRuntimeBridgeSnapshot" -> {
+                    result.success(latestLiveScrubRuntimeBridgeSnapshot ?: emptyMap<String, Any?>())
                 }
                 else -> result.notImplemented()
             }

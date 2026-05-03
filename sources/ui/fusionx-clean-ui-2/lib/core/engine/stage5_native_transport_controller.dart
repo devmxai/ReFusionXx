@@ -509,7 +509,7 @@ class Stage5NativeTransportController extends ChangeNotifier {
     }
   }
 
-  Future<bool> submitLiveScrubDescriptorPreflight(
+  Future<bool> submitLiveScrubRuntimeBridgeSnapshot(
     LiveScrubDescriptorProjectionResult projectionResult,
   ) async {
     if (!isPlatformSupported) {
@@ -517,8 +517,8 @@ class Stage5NativeTransportController extends ChangeNotifier {
     }
     try {
       final result = await _methodChannel.invokeMethod<dynamic>(
-        'submitLiveScrubDescriptorPreflight',
-        buildLiveScrubDescriptorPreflightPayload(projectionResult),
+        'submitLiveScrubRuntimeBridgeSnapshot',
+        buildLiveScrubRuntimeBridgePayload(projectionResult),
       );
       final normalized = _normalizeMap(result);
       return normalized['accepted'] == true;
@@ -527,13 +527,13 @@ class Stage5NativeTransportController extends ChangeNotifier {
     }
   }
 
-  Future<Map<String, dynamic>> getLiveScrubDescriptorPreflightSnapshot() async {
+  Future<Map<String, dynamic>> getLiveScrubRuntimeBridgeSnapshot() async {
     if (!isPlatformSupported) {
       return const <String, dynamic>{};
     }
     try {
       final result = await _methodChannel.invokeMethod<dynamic>(
-        'getLiveScrubDescriptorPreflightSnapshot',
+        'getLiveScrubRuntimeBridgeSnapshot',
       );
       return _normalizeMap(result);
     } catch (_) {
@@ -735,7 +735,7 @@ Stage5LiveScrubCapabilities parseStage5LiveScrubCapabilities(dynamic result) {
 }
 
 @visibleForTesting
-Map<String, Object?> buildLiveScrubDescriptorPreflightPayload(
+Map<String, Object?> buildLiveScrubRuntimeBridgePayload(
   LiveScrubDescriptorProjectionResult projectionResult,
 ) {
   return projectionResult.toPreflightNativeMap();

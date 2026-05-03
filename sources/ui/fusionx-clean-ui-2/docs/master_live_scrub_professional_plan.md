@@ -645,20 +645,21 @@ Implementation note (checkpoint `checkpoint: add master live scrub preflight ver
   in one command for repeatable checkpoint validation.
 - this slice is tooling-only and does not alter Stage5 scrub rendering behavior.
 
-Implementation note (checkpoint `checkpoint: add live scrub descriptor preflight bridge snapshot`):
+Implementation note (checkpoint `checkpoint: add live scrub descriptor runtime bridge snapshot`):
 
 - added read-only Stage5 transport bridge methods:
-  - `submitLiveScrubDescriptorPreflight`
-  - `getLiveScrubDescriptorPreflightSnapshot`
-- native now accepts and stores the latest preflight descriptor/parity payload
-  for diagnostics and bridge validation without changing active scrub rendering.
+  - `submitLiveScrubRuntimeBridgeSnapshot`
+  - `getLiveScrubRuntimeBridgeSnapshot`
+- native now accepts and stores the latest runtime-bridge descriptor/parity
+  payload for diagnostics and bridge validation without changing active scrub
+  rendering.
 - descriptor/parity models now expose stable map serialization for bridge payloads
   and targeted tests verify payload shape.
 - this slice does not change Stage5 hot-path scrub rendering behavior.
 
-Implementation note (checkpoint `checkpoint: wire live scrub preflight bridge submission`):
+Implementation note (checkpoint `checkpoint: wire live scrub runtime bridge submission`):
 
-- `FusionXCleanUiScreen` now schedules nonblocking descriptor preflight
+- `FusionXCleanUiScreen` now schedules nonblocking descriptor runtime bridge
   submissions during active professional transition overlay rendering.
 - submissions are key-throttled and include:
   - bridge-time master frame snapshot context,
@@ -693,7 +694,7 @@ Implementation note (checkpoint `checkpoint: wire live scrub native performance 
   method channel as a read-only diagnostics endpoint.
 - Flutter `Stage5NativeTransportController` now parses this payload into
   `LiveScrubPerformanceSnapshot`.
-- transition preflight projection submission now injects native telemetry into
+- transition runtime bridge projection submission now injects native telemetry into
   `MasterLiveScrubDescriptorProjection.project(...)`, so
   `LiveScrubParityReport.latencyBudgetState` can evaluate against real native
   metrics instead of remaining pending by default.
