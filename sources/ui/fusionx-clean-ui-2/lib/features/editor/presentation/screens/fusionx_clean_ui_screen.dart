@@ -169,8 +169,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   static const NormalTransitionTimelineAuthoringAdapter
       _normalTransitionAuthoringAdapter =
       NormalTransitionTimelineAuthoringAdapter();
-  static final TimelineTime _manualTransitionScopeSideTime =
-      TimelineTime.fromSecondsDouble(10);
   static const bool _textPresetPickerEnabled = false;
   static const bool _unifiedTransitionScopeBridgeEnabled = false;
   static const String _defaultInsertedTextValue = 'Text';
@@ -18233,14 +18231,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return null;
     }
     final seamTime = leftClip.endTime;
-    final isManualTransition =
-        transition.preset == TimelineTransitionPreset.manual;
-    final desiredEditorLeading = isManualTransition
-        ? _manualTransitionScopeSideTime
-        : transition.resolvedLeadingDurationTime;
-    final desiredEditorTrailing = isManualTransition
-        ? _manualTransitionScopeSideTime
-        : transition.resolvedTrailingDurationTime;
+    // Professional Canva keyframe-time truth:
+    // Manual Transition timeline editing must live in the same visible domain
+    // as its active transition window. This avoids a broad editor range that
+    // accepts scrub/preview but rejects Add Key with a hidden window mismatch.
+    final desiredEditorLeading = transition.resolvedLeadingDurationTime;
+    final desiredEditorTrailing = transition.resolvedTrailingDurationTime;
     final editorLeading = desiredEditorLeading.clamp(
       leftClip.clip.durationTime < _minEditableClipDurationTime
           ? TimelineTime.zero

@@ -30,6 +30,13 @@ It consolidates the open work from:
     root when needed before runtime projection.
   - Scope: runtime time/source truth alignment only. This slice does not claim
     full video-layer parity or final Animate visual parity.
+- 2026-05-03 keyframe-time truth slice (post `fc107db`):
+  - Manual Transition Focus editor window is now aligned to the active
+    transition window (no hidden broad scope during keyframe authoring).
+  - Add Key now operates in the same visible time domain shown to the user
+    inside Manual Transition Timeline.
+  - Scope: keyframe authoring time-domain consistency. Full video-layer visual
+    parity remains open.
 
 ## 0. Purpose
 

@@ -32,6 +32,14 @@ claimed.
     ranges before runtime descriptor projection.
   - This slice reduces time-domain drift risk but does not close final Animate
     visual parity by itself.
+- 2026-05-03 keyframe-time truth slice:
+  - Manual Transition Focus no longer exposes a broad editor-side timeline for
+    keyframe authoring while validating against a narrower hidden transition
+    window.
+  - Add Key now validates against the same visible transition-local domain in
+    the focused timeline scope.
+  - This removes the window-mismatch authoring path; final Stage5 visual parity
+    for Animate values remains an active follow-up.
 
 ## 0. Purpose
 
