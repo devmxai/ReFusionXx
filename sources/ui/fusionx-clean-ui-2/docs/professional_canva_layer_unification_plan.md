@@ -46,6 +46,14 @@ It consolidates the open work from:
     windows.
   - Scope: keyframe-time truth and compact-timeline stability only; final
     Stage5 visual parity for Manual Animate remains active.
+- 2026-05-03 scene-scope video-layer truth slice:
+  - Scene Scope video entries are now emitted as real `TimelineClipType.media`
+    clips instead of placeholder shells.
+  - Transition Focus source-window preview descriptors can now bind to scoped
+    outgoing/incoming media sources directly (no fallback to global root
+    preview-source catalog for scene-scoped manual transitions).
+  - Scope: source-binding truth for scoped transition runtime. This slice is a
+    prerequisite for visible Animate parity in scoped manual transitions.
 
 ## 0. Purpose
 

@@ -5396,7 +5396,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         videoClips.add(
           TimelineClipData(
             id: layer.id,
-            type: TimelineClipType.placeholder,
+            type: TimelineClipType.media,
             tone: TimelineClipTone.aiGenerated,
             assetId: _sceneScopeLayerAssetId(layer),
             durationTime: duration,
