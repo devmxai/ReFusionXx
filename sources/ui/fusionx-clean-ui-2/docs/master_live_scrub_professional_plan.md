@@ -637,6 +637,14 @@ Implementation note (checkpoint `checkpoint: add master live scrub guardrails ga
 - this slice is enforcement-only and does not alter Stage5 scrub rendering
   behavior.
 
+Implementation note (checkpoint `checkpoint: add master live scrub preflight verify script`):
+
+- added executable verification bundle:
+  `scripts/master_live_scrub_preflight_verify.sh`.
+- the bundle runs guardrails + targeted Master Live Scrub tests + `flutter analyze`
+  in one command for repeatable checkpoint validation.
+- this slice is tooling-only and does not alter Stage5 scrub rendering behavior.
+
 ## 9. Verification Matrix
 
 Every implementation slice must name which rows it affects:
