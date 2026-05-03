@@ -18,6 +18,19 @@ It consolidates the open work from:
 - `docs/master_live_scrub_professional_plan.md`
 - `docs/professional_refusion_motion_keyframe_engine.md`
 
+## Execution Update
+
+- 2026-05-03 checkpoint slice (post `1869656`):
+  - Manual Transition runtime seam mapping now resolves to root timeline time in
+    Transition Focus and Scene Scope paths.
+  - Transition Focus scrub preview sources now publish outgoing/incoming windows
+    with source-range mapping tied to the active transition context, not the
+    broad root catalog fallback.
+  - Active transition source windows now map scene-local seam windows back to
+    root when needed before runtime projection.
+  - Scope: runtime time/source truth alignment only. This slice does not claim
+    full video-layer parity or final Animate visual parity.
+
 ## 0. Purpose
 
 ReFusionXx must treat video, image, text, shape, masks, and future generated

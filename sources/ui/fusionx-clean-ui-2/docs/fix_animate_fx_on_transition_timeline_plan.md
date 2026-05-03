@@ -21,6 +21,18 @@ Professional Canva layer-unification contract: video must resolve to the same
 composition-layer truth as image/text/shape before renderer parity can be
 claimed.
 
+## Execution Update
+
+- 2026-05-03 runtime mapping slice:
+  - Manual runtime seam-time evaluation now resolves through root seam mapping
+    for Transition Focus and Scene Scope paths.
+  - Transition Focus scrub descriptors now emit transition-scoped outgoing and
+    incoming source windows with explicit source offsets.
+  - Scene-scope transition source windows are mapped back to root timeline
+    ranges before runtime descriptor projection.
+  - This slice reduces time-domain drift risk but does not close final Animate
+    visual parity by itself.
+
 ## 0. Purpose
 
 This plan fixes the current Manual Transition Timeline failure:

@@ -18404,6 +18404,94 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return sourceEndTime - TimelineTime.fromMilliseconds(sourceWindowMs);
   }
 
+  _TransitionFocusContext? _activeTransitionFocusContextForTransition(
+    String transitionId,
+  ) {
+    final session = _transitionFocusSession;
+    if (session == null || session.transitionId != transitionId) {
+      return null;
+    }
+    return _transitionFocusContextForSession(session);
+  }
+
+  List<LiveScrubPreviewSourceDescriptor>
+      _liveScrubPreviewSourcesForTransitionFocusContext(
+    _TransitionFocusContext context,
+  ) {
+    LiveScrubPreviewSourceDescriptor? buildDescriptor({
+      required _TransitionFocusClipSide side,
+      required TimelineClipData clip,
+      required TimelineTime timelineStart,
+      required TimelineTime timelineEnd,
+    }) {
+      if (timelineEnd <= timelineStart || clip.type != TimelineClipType.media) {
+        return null;
+      }
+      final assetId = clip.assetId;
+      if (assetId == null || assetId.isEmpty) {
+        return null;
+      }
+      final asset = _assetForId(assetId);
+      final sourceUri = asset?.sourceUri?.trim();
+      if (asset == null || sourceUri == null || sourceUri.isEmpty) {
+        return null;
+      }
+      final sourceStart = _transitionFocusScopedSourceStartTime(context, side);
+      final timelineDuration = timelineEnd - timelineStart;
+      final rawSourceDurationMs =
+          (timelineDuration.inMilliseconds * clip.playbackRate).round();
+      final sourceDurationMs = rawSourceDurationMs.clamp(
+        1,
+        clip.sourceDurationTime.inMilliseconds.clamp(1, 1 << 30),
+      );
+      return LiveScrubPreviewSourceDescriptor(
+        clipId: clip.id,
+        assetId: assetId,
+        sourceUri: sourceUri,
+        scrubStoreKey: clip.id,
+        previewUri: asset.previewUri,
+        label: _clipPresentationLabel(
+          clip,
+          fallback: side == _TransitionFocusClipSide.left
+              ? 'Transition Outgoing'
+              : 'Transition Incoming',
+        ),
+        timelineStartMs: timelineStart.inMilliseconds,
+        timelineEndMs: timelineEnd.inMilliseconds,
+        durationMs: timelineDuration.inMilliseconds,
+        sourceStartMs: sourceStart.inMilliseconds,
+        sourceDurationMs: sourceDurationMs,
+        playbackRate: clip.playbackRate <= 0 ? 1.0 : clip.playbackRate,
+        sourceWidth: asset.width,
+        sourceHeight: asset.height,
+        status: LiveScrubPreviewSourceStatus.ready,
+      );
+    }
+
+    final leftDescriptor = buildDescriptor(
+      side: _TransitionFocusClipSide.left,
+      clip: context.leftClip,
+      timelineStart: context.startTime,
+      timelineEnd: context.seamTime,
+    );
+    final rightDescriptor = buildDescriptor(
+      side: _TransitionFocusClipSide.right,
+      clip: context.rightClip,
+      timelineStart: context.seamTime,
+      timelineEnd: context.endTime,
+    );
+    final descriptors = <LiveScrubPreviewSourceDescriptor>[
+      if (leftDescriptor != null) leftDescriptor,
+      if (rightDescriptor != null) rightDescriptor,
+    ]..sort(
+        (left, right) => left.timelineStartMs.compareTo(right.timelineStartMs),
+      );
+    if (descriptors.isNotEmpty) {
+      return List<LiveScrubPreviewSourceDescriptor>.unmodifiable(descriptors);
+    }
+    return _allLiveScrubPreviewSources();
+  }
+
   _TransitionFocusClipSide? _transitionFocusClipSideForScopedId(
     _TransitionFocusContext context,
     String clipId,
@@ -18819,46 +18907,46 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         _TransitionFocusClipSide.right,
       ),
     );
-    final animationLanes =
-        context.transition.preset == TimelineTransitionPreset.manual
-            ? _resolvedTransitionFocusManualLanes(
-                context.transition,
+    final animationLanes = context.transition.preset ==
+            TimelineTransitionPreset.manual
+        ? _resolvedTransitionFocusManualLanes(
+            context.transition,
+            targetClipId: leftScopedClipId,
+            scopeContext: context,
+          ).map((lane) {
+            final scopeStops = _transitionFocusScopeStopsForActiveStops(
+              context,
+              lane.normalizedKeyframeStops,
+            );
+            return lane.copyWith(
+              normalizedKeyframeStops: List<double>.unmodifiable(scopeStops),
+            );
+          }).toList(growable: false)
+        : laneSpecs.map(
+            (lane) {
+              final stops = _transitionFocusScopeStopsForActiveStops(
+                context,
+                lane.keyframeStops,
+              );
+              return TimelineAnimationLaneData(
+                id: lane.id,
+                label: lane.label,
                 targetClipId: leftScopedClipId,
-                scopeContext: context,
-              ).map((lane) {
-                final scopeStops = _transitionFocusScopeStopsForActiveStops(
-                  context,
-                  lane.normalizedKeyframeStops,
-                );
-                return lane.copyWith(
-                  normalizedKeyframeStops: List<double>.unmodifiable(scopeStops),
-                );
-              }).toList(growable: false)
-            : laneSpecs.map(
-                (lane) {
-                  final stops = _transitionFocusScopeStopsForActiveStops(
-                    context,
-                    lane.keyframeStops,
-                  );
-                  return TimelineAnimationLaneData(
-                    id: lane.id,
-                    label: lane.label,
-                    targetClipId: leftScopedClipId,
-                    normalizedKeyframeStops: List<double>.unmodifiable(stops),
-                    keyframeIds: List<String>.unmodifiable(
-                      <String>[
-                        for (var index = 0; index < stops.length; index++)
-                          '${lane.id}@${(stops[index] * 1000).round()}#$index',
-                      ],
-                    ),
-                    keyframeValues: List<double>.unmodifiable(
-                      _defaultTransitionFocusLaneValues(lane.id),
-                    ),
-                    trackSpanStartProgress: 0,
-                    trackSpanEndProgress: 1,
-                  );
-                },
-              ).toList(growable: false);
+                normalizedKeyframeStops: List<double>.unmodifiable(stops),
+                keyframeIds: List<String>.unmodifiable(
+                  <String>[
+                    for (var index = 0; index < stops.length; index++)
+                      '${lane.id}@${(stops[index] * 1000).round()}#$index',
+                  ],
+                ),
+                keyframeValues: List<double>.unmodifiable(
+                  _defaultTransitionFocusLaneValues(lane.id),
+                ),
+                trackSpanStartProgress: 0,
+                trackSpanEndProgress: 1,
+              );
+            },
+          ).toList(growable: false);
     final scopedAnimationLanes = animationLanes
         .map(
           (lane) => lane.copyWith(
@@ -21474,7 +21562,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         transition.manualAnimationLanes.isEmpty) {
       return null;
     }
-    final seamTime = activeTransition.leftClip.endTime;
+    final seamTime =
+        _manualTransitionRootSeamTimeForActiveTransition(activeTransition);
     final evaluationResult =
         _manualTransitionMasterFrameEvaluationAdapter.evaluate(
       request: ManualTransitionMasterFrameEvaluationRequest(
@@ -21610,9 +21699,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             .take(6)
             .map((value) => value.toStringAsFixed(4))
             .join(',');
-    final opacityDigest = firstSurface == null
-        ? '1.0'
-        : firstSurface.opacity.toStringAsFixed(4);
+    final opacityDigest =
+        firstSurface == null ? '1.0' : firstSurface.opacity.toStringAsFixed(4);
     return '$transitionId:${state.mode}:$primary:$bucket:$matrixDigest:$opacityDigest:${state.surfaces.length}';
   }
 
@@ -21714,22 +21802,95 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _liveScrubSourceWindowsForActiveTransition(
     _ActiveTimelineTransitionPreview activeTransition,
   ) {
+    final transitionFocusContext = _activeTransitionFocusContextForTransition(
+        activeTransition.transition.id);
+    if (transitionFocusContext != null) {
+      return _liveScrubSourceWindowsForTransitionFocusContext(
+        transitionFocusContext,
+      );
+    }
+    final sceneScope = _sceneScopeSession;
+    final shouldMapSceneScopeToRoot = sceneScope != null &&
+        (_sceneScopeTransitionsBySourceSceneId[sceneScope.sourceSceneId]
+                ?.any((entry) => entry.id == activeTransition.transition.id) ??
+            false);
+    final mappedSceneScope = shouldMapSceneScopeToRoot ? sceneScope : null;
     final windows = <String, LiveScrubTimelineSourceWindow>{};
     for (final positionedClip in <_PositionedTimelineTrackClip>[
       activeTransition.leftClip,
       activeTransition.rightClip,
     ]) {
       final clip = positionedClip.clip;
+      final timelineStart = mappedSceneScope != null
+          ? mappedSceneScope.localToRoot(positionedClip.startTime)
+          : positionedClip.startTime;
+      final timelineEnd = mappedSceneScope != null
+          ? mappedSceneScope.localToRoot(positionedClip.endTime)
+          : positionedClip.endTime;
       windows[clip.id] = LiveScrubTimelineSourceWindow(
         targetId: clip.id,
-        timelineStartMs: positionedClip.startTime.inMilliseconds,
-        timelineEndMs: positionedClip.endTime.inMilliseconds,
+        timelineStartMs: timelineStart.inMilliseconds,
+        timelineEndMs: timelineEnd.inMilliseconds,
         sourceStartMs: clip.sourceStartTime.inMilliseconds,
         sourceDurationMs: clip.sourceDurationTime.inMilliseconds,
         playbackRate: clip.playbackRate <= 0 ? 1.0 : clip.playbackRate,
       );
     }
     return windows;
+  }
+
+  Map<String, LiveScrubTimelineSourceWindow>
+      _liveScrubSourceWindowsForTransitionFocusContext(
+    _TransitionFocusContext context,
+  ) {
+    final leftStart = context.startTime;
+    final leftEnd = context.seamTime;
+    final rightStart = context.seamTime;
+    final rightEnd = context.endTime;
+    final leftDurationMs = (leftEnd - leftStart).inMilliseconds;
+    final rightDurationMs = (rightEnd - rightStart).inMilliseconds;
+    return <String, LiveScrubTimelineSourceWindow>{
+      context.leftClip.id: LiveScrubTimelineSourceWindow(
+        targetId: context.leftClip.id,
+        timelineStartMs: leftStart.inMilliseconds,
+        timelineEndMs: leftEnd.inMilliseconds,
+        sourceStartMs: _transitionFocusScopedSourceStartTime(
+          context,
+          _TransitionFocusClipSide.left,
+        ).inMilliseconds,
+        sourceDurationMs:
+            (leftDurationMs * context.leftClip.playbackRate).round().clamp(
+                  1,
+                  context.leftClip.sourceDurationTime.inMilliseconds.clamp(
+                    1,
+                    1 << 30,
+                  ),
+                ),
+        playbackRate: context.leftClip.playbackRate <= 0
+            ? 1.0
+            : context.leftClip.playbackRate,
+      ),
+      context.rightClip.id: LiveScrubTimelineSourceWindow(
+        targetId: context.rightClip.id,
+        timelineStartMs: rightStart.inMilliseconds,
+        timelineEndMs: rightEnd.inMilliseconds,
+        sourceStartMs: _transitionFocusScopedSourceStartTime(
+          context,
+          _TransitionFocusClipSide.right,
+        ).inMilliseconds,
+        sourceDurationMs:
+            (rightDurationMs * context.rightClip.playbackRate).round().clamp(
+                  1,
+                  context.rightClip.sourceDurationTime.inMilliseconds.clamp(
+                    1,
+                    1 << 30,
+                  ),
+                ),
+        playbackRate: context.rightClip.playbackRate <= 0
+            ? 1.0
+            : context.rightClip.playbackRate,
+      ),
+    };
   }
 
   Map<String, LiveScrubTimelineSourceWindow>
@@ -21761,7 +21922,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required _ActiveTimelineTransitionPreview activeTransition,
   }) {
     final transition = activeTransition.transition;
-    final seamTime = activeTransition.leftClip.endTime;
+    final seamTime =
+        _manualTransitionRootSeamTimeForActiveTransition(activeTransition);
     final windowStart = seamTime - transition.resolvedLeadingDurationTime;
     final windowEnd = seamTime + transition.resolvedTrailingDurationTime;
     final transitionWindow = LiveScrubTransitionTimelineWindow(
@@ -21779,6 +21941,26 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         timelineEndMs: windowEnd.inMilliseconds,
       ),
     };
+  }
+
+  TimelineTime _manualTransitionRootSeamTimeForActiveTransition(
+    _ActiveTimelineTransitionPreview activeTransition,
+  ) {
+    final focusContext = _activeTransitionFocusContextForTransition(
+        activeTransition.transition.id);
+    if (focusContext != null) {
+      return focusContext.seamTime;
+    }
+    final sceneScope = _sceneScopeSession;
+    final isScopedSceneTransition = sceneScope != null &&
+        (_sceneScopeTransitionsBySourceSceneId[sceneScope.sourceSceneId]
+                ?.any((entry) => entry.id == activeTransition.transition.id) ??
+            false);
+    final mappedSceneScope = isScopedSceneTransition ? sceneScope : null;
+    if (mappedSceneScope != null) {
+      return mappedSceneScope.localToRoot(activeTransition.leftClip.endTime);
+    }
+    return activeTransition.leftClip.endTime;
   }
 
   void _scheduleLiveScrubRuntimeBridgeSubmission({
@@ -22680,7 +22862,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                     regions:
                                                         surfaceConfig.regions,
                                                     previewSources:
-                                                        _allLiveScrubPreviewSources(),
+                                                        _liveScrubPreviewSourcesForTransitionFocusContext(
+                                                      transitionFocusContext,
+                                                    ),
                                                     onTap: surfaceConfig.onTap,
                                                     onScrubStart: surfaceConfig
                                                         .onScrubStart,
