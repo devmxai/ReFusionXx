@@ -436,6 +436,17 @@ flutter analyze
 This is the first phase that may touch protected Stage5-adjacent bridge code,
 and it requires explicit user approval before implementation.
 
+Implementation note (checkpoint `checkpoint: add live scrub capability handshake`):
+
+- added a read-only native capability handshake method:
+  `getLiveScrubCapabilities`.
+- Android now reports explicit capability flags without changing scrub render
+  ownership or runtime scrub behavior.
+- Flutter transport now has `Stage5LiveScrubCapabilities` parsing with safe
+  defaults.
+- this slice does not alter active scrub drawing, decoder ownership, or
+  playback/scrub handoff behavior.
+
 ### Phase 4 - Placement And Transform Parity
 
 Goal: Stage5 Live Scrub displays source video with the same canvas placement,

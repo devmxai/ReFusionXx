@@ -480,6 +480,20 @@ class Stage5NativeTransportController extends ChangeNotifier {
     }
   }
 
+  Future<Stage5LiveScrubCapabilities> getLiveScrubCapabilities() async {
+    if (!isPlatformSupported) {
+      return const Stage5LiveScrubCapabilities();
+    }
+    try {
+      final result = await _methodChannel.invokeMethod<dynamic>(
+        'getLiveScrubCapabilities',
+      );
+      return parseStage5LiveScrubCapabilities(result);
+    } catch (_) {
+      return const Stage5LiveScrubCapabilities();
+    }
+  }
+
   @override
   void dispose() {
     _eventsSubscription?.cancel();
@@ -597,6 +611,60 @@ class Stage5NativeTransportController extends ChangeNotifier {
     }
     return const <String, dynamic>{};
   }
+}
+
+@immutable
+class Stage5LiveScrubCapabilities {
+  const Stage5LiveScrubCapabilities({
+    this.supportsSourceDimensions = false,
+    this.supportsCanvasPlacement = false,
+    this.supportsCrop = false,
+    this.supportsTransformMatrix = false,
+    this.supportsOpacity = false,
+    this.supportsEffectProgramIds = false,
+    this.supportsDualSourceTransitionWindow = false,
+    this.supportsLatencyMetrics = false,
+    this.source = 'unknown',
+  });
+
+  final bool supportsSourceDimensions;
+  final bool supportsCanvasPlacement;
+  final bool supportsCrop;
+  final bool supportsTransformMatrix;
+  final bool supportsOpacity;
+  final bool supportsEffectProgramIds;
+  final bool supportsDualSourceTransitionWindow;
+  final bool supportsLatencyMetrics;
+  final String source;
+}
+
+@visibleForTesting
+Stage5LiveScrubCapabilities parseStage5LiveScrubCapabilities(dynamic result) {
+  final map = _normalizeLiveScrubCapabilitiesMap(result);
+  bool readBool(String key) => map[key] == true;
+  final source = map['source']?.toString() ?? 'unknown';
+  return Stage5LiveScrubCapabilities(
+    supportsSourceDimensions: readBool('supportsSourceDimensions'),
+    supportsCanvasPlacement: readBool('supportsCanvasPlacement'),
+    supportsCrop: readBool('supportsCrop'),
+    supportsTransformMatrix: readBool('supportsTransformMatrix'),
+    supportsOpacity: readBool('supportsOpacity'),
+    supportsEffectProgramIds: readBool('supportsEffectProgramIds'),
+    supportsDualSourceTransitionWindow: readBool(
+      'supportsDualSourceTransitionWindow',
+    ),
+    supportsLatencyMetrics: readBool('supportsLatencyMetrics'),
+    source: source,
+  );
+}
+
+Map<String, dynamic> _normalizeLiveScrubCapabilitiesMap(dynamic value) {
+  if (value is Map) {
+    return value.map(
+      (key, mapValue) => MapEntry(key.toString(), mapValue),
+    );
+  }
+  return const <String, dynamic>{};
 }
 
 int? _asInt(Object? value) {

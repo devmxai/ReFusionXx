@@ -325,6 +325,21 @@ class MainActivity: FlutterActivity() {
                         }
                     }
                 }
+                "getLiveScrubCapabilities" -> {
+                    result.success(
+                        mapOf(
+                            "supportsSourceDimensions" to true,
+                            "supportsCanvasPlacement" to false,
+                            "supportsCrop" to false,
+                            "supportsTransformMatrix" to false,
+                            "supportsOpacity" to false,
+                            "supportsEffectProgramIds" to false,
+                            "supportsDualSourceTransitionWindow" to false,
+                            "supportsLatencyMetrics" to true,
+                            "source" to "stage5_read_only_capability_handshake_v1",
+                        ),
+                    )
+                }
                 else -> result.notImplemented()
             }
         }
