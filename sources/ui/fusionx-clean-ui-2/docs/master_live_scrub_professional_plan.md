@@ -591,6 +591,19 @@ Acceptance:
 - no black frames;
 - no final-snap-only behavior.
 
+Implementation note (checkpoint `checkpoint: add live scrub latency parity preflight report`):
+
+- added `LiveScrubParityReport` to descriptor projection results with required
+  parity fields (`canScrubFrame`, missing descriptors/effects, transition parity
+  state, and latency budget state).
+- added `LiveScrubPerformanceSnapshot` + latency thresholds and mapped
+  `descriptorProjectionLatencyUs` from measured projection runtime.
+- latency budget state is now explicit:
+  `nativeMetricsUnavailable`, `nativeMetricsPending`, `withinBudget`,
+  `overBudget`.
+- this slice is still domain/preflight only and does not change Stage5 active
+  scrub rendering behavior.
+
 ### Phase 8 - Guardrails And Deletion Gates
 
 Goal: prevent future code from bypassing Master Live Scrub.

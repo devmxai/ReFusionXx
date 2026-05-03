@@ -64,6 +64,111 @@ class LiveScrubDescriptorCapabilities {
   final String source;
 }
 
+enum LiveScrubTransitionParityState {
+  notRequired,
+  blocked,
+  windowReadyNoPixels,
+  ready,
+}
+
+enum LiveScrubLatencyBudgetState {
+  nativeMetricsUnavailable,
+  nativeMetricsPending,
+  withinBudget,
+  overBudget,
+}
+
+@immutable
+class LiveScrubPerformanceSnapshot {
+  const LiveScrubPerformanceSnapshot({
+    this.frameRequestRateFps,
+    this.nativeDecodeRebindLatencyMs,
+    this.descriptorProjectionLatencyUs,
+    this.framePresentationLatencyMs,
+    this.droppedFrameCount,
+    this.crossSourceWarmupReady,
+    this.memoryPressureLevel,
+  });
+
+  final double? frameRequestRateFps;
+  final double? nativeDecodeRebindLatencyMs;
+  final int? descriptorProjectionLatencyUs;
+  final double? framePresentationLatencyMs;
+  final int? droppedFrameCount;
+  final bool? crossSourceWarmupReady;
+  final String? memoryPressureLevel;
+
+  LiveScrubPerformanceSnapshot copyWith({
+    double? frameRequestRateFps,
+    double? nativeDecodeRebindLatencyMs,
+    int? descriptorProjectionLatencyUs,
+    double? framePresentationLatencyMs,
+    int? droppedFrameCount,
+    bool? crossSourceWarmupReady,
+    String? memoryPressureLevel,
+  }) {
+    return LiveScrubPerformanceSnapshot(
+      frameRequestRateFps: frameRequestRateFps ?? this.frameRequestRateFps,
+      nativeDecodeRebindLatencyMs:
+          nativeDecodeRebindLatencyMs ?? this.nativeDecodeRebindLatencyMs,
+      descriptorProjectionLatencyUs:
+          descriptorProjectionLatencyUs ?? this.descriptorProjectionLatencyUs,
+      framePresentationLatencyMs:
+          framePresentationLatencyMs ?? this.framePresentationLatencyMs,
+      droppedFrameCount: droppedFrameCount ?? this.droppedFrameCount,
+      crossSourceWarmupReady:
+          crossSourceWarmupReady ?? this.crossSourceWarmupReady,
+      memoryPressureLevel: memoryPressureLevel ?? this.memoryPressureLevel,
+    );
+  }
+}
+
+@immutable
+class LiveScrubLatencyBudgetThresholds {
+  const LiveScrubLatencyBudgetThresholds({
+    this.minFrameRequestRateFps = 24.0,
+    this.maxNativeDecodeRebindLatencyMs = 50.0,
+    this.maxDescriptorProjectionLatencyUs = 3000,
+    this.maxFramePresentationLatencyMs = 33.0,
+    this.maxDroppedFrameCount = 1,
+  });
+
+  final double minFrameRequestRateFps;
+  final double maxNativeDecodeRebindLatencyMs;
+  final int maxDescriptorProjectionLatencyUs;
+  final double maxFramePresentationLatencyMs;
+  final int maxDroppedFrameCount;
+}
+
+@immutable
+class LiveScrubParityReport {
+  const LiveScrubParityReport({
+    required this.canScrubFrame,
+    required this.usesMasterClock,
+    required this.usesMasterFrameEvaluation,
+    required this.usesNativeScrubSurface,
+    required this.usesExoPlayerDuringActiveScrub,
+    required this.usesStillFallback,
+    required this.missingDescriptors,
+    required this.unsupportedEffects,
+    required this.transitionParityState,
+    required this.latencyBudgetState,
+    required this.performanceSnapshot,
+  });
+
+  final bool canScrubFrame;
+  final bool usesMasterClock;
+  final bool usesMasterFrameEvaluation;
+  final bool usesNativeScrubSurface;
+  final bool usesExoPlayerDuringActiveScrub;
+  final bool usesStillFallback;
+  final List<String> missingDescriptors;
+  final List<String> unsupportedEffects;
+  final LiveScrubTransitionParityState transitionParityState;
+  final LiveScrubLatencyBudgetState latencyBudgetState;
+  final LiveScrubPerformanceSnapshot performanceSnapshot;
+}
+
 @immutable
 class LiveScrubSurfaceDescriptor {
   const LiveScrubSurfaceDescriptor({
@@ -151,6 +256,7 @@ class LiveScrubDescriptorProjectionResult {
     List<String> blockers = const <String>[],
     List<String> diagnostics = const <String>[],
     required this.canProject,
+    required this.parityReport,
   })  : descriptors = List.unmodifiable(descriptors),
         blockers = List.unmodifiable(blockers),
         diagnostics = List.unmodifiable(diagnostics);
@@ -160,6 +266,7 @@ class LiveScrubDescriptorProjectionResult {
   final List<String> blockers;
   final List<String> diagnostics;
   final bool canProject;
+  final LiveScrubParityReport parityReport;
 }
 
 @immutable

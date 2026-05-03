@@ -121,6 +121,10 @@ void main() {
     expect(descriptor.effectProgramIds, contains('gaussianBlur'));
     expect(descriptor.transformMatrix3x3.length, 9);
     expect(descriptor.isValid, isTrue);
+    expect(
+      first.parityReport.latencyBudgetState,
+      LiveScrubLatencyBudgetState.nativeMetricsUnavailable,
+    );
   });
 
   test('reports blockers when source window is missing', () {
@@ -498,6 +502,92 @@ void main() {
     expect(
       result.blockers,
       contains('transition_timeline_outside_window:layer-5'),
+    );
+    expect(
+      result.parityReport.transitionParityState,
+      LiveScrubTransitionParityState.blocked,
+    );
+  });
+
+  test('reports latency budget within limits when native metrics are healthy', () {
+    final clock = TimelineClockCoordinator(
+      timelineDuration: ms(8000),
+      initialTime: ms(2400),
+    );
+    final time = MasterTimeSnapshot.fromClockSnapshot(
+      clock: clock.snapshot,
+      frameRate: 30,
+      renderMode: MasterRenderMode.liveScrub,
+      sourceScope: MasterTimeScope.rootComposition,
+    );
+    final program = LiveScrubVisualProgram(
+      time: time,
+      surfaces: <LiveScrubVisualSurface>[
+        LiveScrubVisualSurface(
+          targetId: 'layer-6',
+          sourceKind: LiveScrubSourceKind.video,
+          source: const LiveScrubSurfaceSource(
+            targetId: 'layer-6',
+            kind: LiveScrubSourceKind.video,
+            sourceUri: '/media/video-g.mp4',
+          ),
+          blockers: const <String>[],
+        ),
+      ],
+      blockers: const <String>[],
+      diagnostics: const <String>[],
+      transitionState: LiveScrubTransitionState(
+        activeTransitionIds: const <String>[],
+        hasRenderableTransitionPixels: false,
+        reason: 'phase7_latency_preflight',
+      ),
+    );
+    const projection = MasterLiveScrubDescriptorProjection();
+    const sourceWindow = LiveScrubTimelineSourceWindow(
+      targetId: 'layer-6',
+      timelineStartMs: 1000,
+      timelineEndMs: 7000,
+      sourceStartMs: 0,
+      sourceDurationMs: 6000,
+      playbackRate: 1.0,
+    );
+    const capabilities = LiveScrubDescriptorCapabilities(
+      supportsSourceDimensions: true,
+      supportsCanvasPlacement: true,
+      supportsCrop: true,
+      supportsTransformMatrix: true,
+      supportsOpacity: true,
+      supportsEffectProgramIds: false,
+      supportsDualSourceTransitionWindow: false,
+      supportsLatencyMetrics: true,
+      source: 'native-latency-test',
+    );
+    const performance = LiveScrubPerformanceSnapshot(
+      frameRequestRateFps: 45,
+      nativeDecodeRebindLatencyMs: 18,
+      framePresentationLatencyMs: 12,
+      droppedFrameCount: 0,
+      crossSourceWarmupReady: true,
+      memoryPressureLevel: 'normal',
+    );
+
+    final result = projection.project(
+      program: program,
+      sourceWindowsByTargetId: <String, LiveScrubTimelineSourceWindow>{
+        'layer-6': sourceWindow,
+      },
+      capabilities: capabilities,
+      performanceSnapshot: performance,
+    );
+
+    expect(result.canProject, isTrue);
+    expect(
+      result.parityReport.latencyBudgetState,
+      LiveScrubLatencyBudgetState.withinBudget,
+    );
+    expect(
+      result.parityReport.performanceSnapshot.descriptorProjectionLatencyUs,
+      isNotNull,
     );
   });
 }

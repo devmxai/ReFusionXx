@@ -14,7 +14,12 @@ class MasterLiveScrubDescriptorProjection {
         const <String, LiveScrubTransitionTimelineWindow>{},
     LiveScrubDescriptorCapabilities capabilities =
         const LiveScrubDescriptorCapabilities(),
+    LiveScrubPerformanceSnapshot performanceSnapshot =
+        const LiveScrubPerformanceSnapshot(),
+    LiveScrubLatencyBudgetThresholds latencyThresholds =
+        const LiveScrubLatencyBudgetThresholds(),
   }) {
+    final stopwatch = Stopwatch()..start();
     final timelinePositionMs = program.time.rootTime.inMilliseconds;
     final descriptors = <LiveScrubSurfaceDescriptor>[];
     final blockers = <String>[...program.blockers];
@@ -170,12 +175,79 @@ class MasterLiveScrubDescriptorProjection {
       blockers.addAll(surfaceBlockers);
     }
 
+    stopwatch.stop();
+    final effectivePerformanceSnapshot = performanceSnapshot.copyWith(
+      descriptorProjectionLatencyUs: stopwatch.elapsedMicroseconds,
+    );
+    final missingDescriptors = <String>[
+      for (final descriptor in descriptors)
+        if (descriptor.blockers.any((blocker) => blocker.startsWith('missing_')))
+          descriptor.targetId,
+    ];
+    final unsupportedEffects = <String>[
+      for (final blocker in blockers)
+        if (blocker.startsWith('unsupported_effect_program:'))
+          blocker.substring('unsupported_effect_program:'.length),
+    ];
+    final hasTransitionBlockers = blockers.any(
+      (blocker) =>
+          blocker.startsWith('missing_transition_window:') ||
+          blocker.startsWith('transition_timeline_outside_window:'),
+    );
+    final transitionParityState = !program.transitionState.hasTransitionWindow
+        ? LiveScrubTransitionParityState.notRequired
+        : hasTransitionBlockers
+            ? LiveScrubTransitionParityState.blocked
+            : program.transitionState.hasRenderableTransitionPixels
+                ? LiveScrubTransitionParityState.ready
+                : LiveScrubTransitionParityState.windowReadyNoPixels;
+
+    LiveScrubLatencyBudgetState latencyBudgetState;
+    if (!capabilities.supportsLatencyMetrics) {
+      latencyBudgetState = LiveScrubLatencyBudgetState.nativeMetricsUnavailable;
+    } else if (effectivePerformanceSnapshot.frameRequestRateFps == null ||
+        effectivePerformanceSnapshot.nativeDecodeRebindLatencyMs == null ||
+        effectivePerformanceSnapshot.framePresentationLatencyMs == null ||
+        effectivePerformanceSnapshot.droppedFrameCount == null ||
+        effectivePerformanceSnapshot.crossSourceWarmupReady == null) {
+      latencyBudgetState = LiveScrubLatencyBudgetState.nativeMetricsPending;
+    } else {
+      final isWithinBudget =
+          (effectivePerformanceSnapshot.frameRequestRateFps! >=
+                  latencyThresholds.minFrameRequestRateFps) &&
+              (effectivePerformanceSnapshot.nativeDecodeRebindLatencyMs! <=
+                  latencyThresholds.maxNativeDecodeRebindLatencyMs) &&
+              (effectivePerformanceSnapshot.descriptorProjectionLatencyUs ?? 0) <=
+                  latencyThresholds.maxDescriptorProjectionLatencyUs &&
+              (effectivePerformanceSnapshot.framePresentationLatencyMs! <=
+                  latencyThresholds.maxFramePresentationLatencyMs) &&
+              (effectivePerformanceSnapshot.droppedFrameCount! <=
+                  latencyThresholds.maxDroppedFrameCount) &&
+              effectivePerformanceSnapshot.crossSourceWarmupReady!;
+      latencyBudgetState = isWithinBudget
+          ? LiveScrubLatencyBudgetState.withinBudget
+          : LiveScrubLatencyBudgetState.overBudget;
+    }
+
     return LiveScrubDescriptorProjectionResult(
       timelinePositionMs: timelinePositionMs,
       descriptors: descriptors,
       blockers: blockers,
       diagnostics: diagnostics,
       canProject: blockers.isEmpty,
+      parityReport: LiveScrubParityReport(
+        canScrubFrame: blockers.isEmpty,
+        usesMasterClock: true,
+        usesMasterFrameEvaluation: true,
+        usesNativeScrubSurface: true,
+        usesExoPlayerDuringActiveScrub: false,
+        usesStillFallback: false,
+        missingDescriptors: missingDescriptors,
+        unsupportedEffects: unsupportedEffects,
+        transitionParityState: transitionParityState,
+        latencyBudgetState: latencyBudgetState,
+        performanceSnapshot: effectivePerformanceSnapshot,
+      ),
     );
   }
 
