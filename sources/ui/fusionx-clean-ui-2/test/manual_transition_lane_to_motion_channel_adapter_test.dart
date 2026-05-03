@@ -35,7 +35,7 @@ void main() {
     );
 
     expect(result.issues, isEmpty);
-    expect(result.channels.length, 4);
+    expect(result.channels.length, 2);
     final scaleX = result.channels.firstWhere(
       (channel) =>
           channel.definition.id == 'transform.scale.x' &&
@@ -46,18 +46,56 @@ void main() {
           channel.definition.id == 'transform.scale.y' &&
           channel.target.targetId == 'clip-a',
     );
-    final incomingScaleX = result.channels.firstWhere(
-      (channel) =>
-          channel.definition.id == 'transform.scale.x' &&
-          channel.target.targetId == 'clip-b',
-    );
     expect(scaleX.keyframes.length, 2);
     expect(scaleY.keyframes.length, 2);
-    expect(incomingScaleX.keyframes.length, 2);
     expect(scaleX.keyframes.first.time, TimelineTime.fromMilliseconds(4000));
     expect(scaleX.keyframes.last.time, TimelineTime.fromMilliseconds(6000));
     expect(scaleX.keyframes.first.value.rawValue, 1.0);
     expect(scaleX.keyframes.last.value.rawValue, 2.0);
+    expect(
+      result.channels.any((channel) => channel.target.targetId == 'clip-b'),
+      isFalse,
+    );
+  });
+
+  test('maps manual keyframes across the explicit transition focus window', () {
+    final transition = TimelineTrackTransitionData(
+      id: 'transition-1',
+      leftClipId: 'clip-a',
+      rightClipId: 'clip-b',
+      preset: TimelineTransitionPreset.manual,
+      durationTime: TimelineTime.fromMilliseconds(2000),
+      manualEffectIds: const <String>['scale'],
+      manualAnimationLanes: const <TimelineAnimationLaneData>[
+        TimelineAnimationLaneData(
+          id: 'scale',
+          label: 'Scale',
+          targetClipId: 'clip-a',
+          normalizedKeyframeStops: <double>[0.125, 0.5],
+          keyframeIds: <String>['k0', 'k1'],
+          keyframeValues: <double>[0.0, 70.0],
+        ),
+      ],
+    );
+
+    final result = adapter.projectChannels(
+      request: ManualTransitionLaneChannelProjectionRequest(
+        transition: transition,
+        seamTime: TimelineTime.fromMilliseconds(4000),
+        projectId: 'project-1',
+        windowStartTime: TimelineTime.zero,
+        windowEndTime: TimelineTime.fromMilliseconds(8000),
+      ),
+    );
+
+    expect(result.issues, isEmpty);
+    final scaleX = result.channels.firstWhere(
+      (channel) => channel.definition.id == 'transform.scale.x',
+    );
+    expect(scaleX.keyframes.first.time, TimelineTime.fromMilliseconds(1000));
+    expect(scaleX.keyframes.last.time, TimelineTime.fromMilliseconds(4000));
+    expect(scaleX.keyframes.first.value.rawValue, 1.0);
+    expect(scaleX.keyframes.last.value.rawValue, 1.7);
   });
 
   test('maps opacity lane from percent to renderer scalar', () {
@@ -88,7 +126,7 @@ void main() {
     );
 
     expect(result.issues, isEmpty);
-    expect(result.channels.length, 2);
+    expect(result.channels.length, 1);
     final opacity = result.channels.firstWhere(
       (channel) => channel.target.targetId == 'clip-a',
     );

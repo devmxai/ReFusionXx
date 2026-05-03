@@ -15,6 +15,8 @@ class ManualTransitionMasterFrameEvaluationRequest {
     required this.seamTime,
     required this.projectId,
     this.transitionTargetId,
+    this.windowStartTime,
+    this.windowEndTime,
   });
 
   final MasterTimeSnapshot time;
@@ -22,6 +24,8 @@ class ManualTransitionMasterFrameEvaluationRequest {
   final TimelineTime seamTime;
   final String projectId;
   final String? transitionTargetId;
+  final TimelineTime? windowStartTime;
+  final TimelineTime? windowEndTime;
 }
 
 class ManualTransitionMasterFrameEvaluationResult {
@@ -69,10 +73,13 @@ class ManualTransitionMasterFrameEvaluationAdapter {
   ManualTransitionMasterFrameEvaluationResult evaluate({
     required ManualTransitionMasterFrameEvaluationRequest request,
   }) {
-    final seamStart =
-        request.seamTime - request.transition.resolvedLeadingDurationTime;
-    final seamDuration = request.transition.resolvedLeadingDurationTime +
-        request.transition.resolvedTrailingDurationTime;
+    final seamStart = request.windowStartTime ??
+        (request.seamTime - request.transition.resolvedLeadingDurationTime);
+    final seamEnd = request.windowEndTime ??
+        (request.seamTime + request.transition.resolvedTrailingDurationTime);
+    final seamDuration = (seamEnd - seamStart) <= TimelineTime.zero
+        ? TimelineTime.fromMilliseconds(1)
+        : (seamEnd - seamStart);
     final transitionProjection = timeMapper.rootToTransitionProgress(
       rootTime: request.time.rootTime,
       transitionId: request.transition.id,
@@ -85,6 +92,8 @@ class ManualTransitionMasterFrameEvaluationAdapter {
         seamTime: request.seamTime,
         projectId: request.projectId,
         transitionTargetId: request.transitionTargetId,
+        windowStartTime: request.windowStartTime,
+        windowEndTime: request.windowEndTime,
       ),
     );
     final blockers = <String>[
@@ -103,7 +112,7 @@ class ManualTransitionMasterFrameEvaluationAdapter {
           channel: channel,
           time: request.time,
           domainProjection: transitionProjection.projection,
-          transitionProgress: transitionProjection.progress,
+          transitionProgress: null,
         ),
       );
       if (result.mapping == null) {

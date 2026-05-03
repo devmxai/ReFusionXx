@@ -40,12 +40,16 @@ class ManualTransitionLaneChannelProjectionRequest {
     required this.seamTime,
     required this.projectId,
     this.transitionTargetId,
+    this.windowStartTime,
+    this.windowEndTime,
   });
 
   final TimelineTrackTransitionData transition;
   final TimelineTime seamTime;
   final String projectId;
   final String? transitionTargetId;
+  final TimelineTime? windowStartTime;
+  final TimelineTime? windowEndTime;
 }
 
 class ManualTransitionLaneToMotionChannelAdapter {
@@ -59,10 +63,10 @@ class ManualTransitionLaneToMotionChannelAdapter {
             request.transitionTargetId!.trim().isEmpty)
         ? transition.leftClipId
         : request.transitionTargetId!.trim();
-    final windowStart =
-        request.seamTime - transition.resolvedLeadingDurationTime;
-    final windowEnd =
-        request.seamTime + transition.resolvedTrailingDurationTime;
+    final windowStart = request.windowStartTime ??
+        (request.seamTime - transition.resolvedLeadingDurationTime);
+    final windowEnd = request.windowEndTime ??
+        (request.seamTime + transition.resolvedTrailingDurationTime);
     if (windowEnd <= windowStart) {
       return ManualTransitionLaneChannelProjection(
         channels: const <MotionPropertyChannelModel>[],
@@ -303,15 +307,14 @@ class ManualTransitionLaneToMotionChannelAdapter {
     required String fallbackTargetId,
   }) {
     final laneTargetId =
-        lane.targetClipId.trim().isEmpty ? fallbackTargetId : lane.targetClipId.trim();
+        lane.targetClipId.trim().isEmpty
+            ? fallbackTargetId
+            : lane.targetClipId.trim();
+    // Preserve strict lane targeting: authored keyframes must only affect
+    // the clip targeted by the lane, not both transition sides.
     final rightClipId = transition.rightClipId.trim();
     if (rightClipId.isEmpty || rightClipId == laneTargetId) {
       return <String>[laneTargetId];
-    }
-    // Manual transition lanes authored without an explicit target should
-    // animate both outgoing and incoming clips to keep visual continuity.
-    if (laneTargetId == transition.leftClipId) {
-      return <String>[laneTargetId, rightClipId];
     }
     return <String>[laneTargetId];
   }

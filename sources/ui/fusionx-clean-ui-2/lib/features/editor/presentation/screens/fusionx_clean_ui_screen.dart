@@ -18234,51 +18234,24 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return null;
     }
     final seamTime = leftClip.endTime;
-    // Professional Canva keyframe-time truth:
-    // Manual Transition timeline editing must live in the same visible domain
-    // as its active transition window. This avoids a broad editor range that
-    // accepts scrub/preview but rejects Add Key with a hidden window mismatch.
-    final desiredEditorLeading = transition.resolvedLeadingDurationTime;
-    final desiredEditorTrailing = transition.resolvedTrailingDurationTime;
-    final manualTransition =
-        transition.preset == TimelineTransitionPreset.manual;
-    final editorLeading = desiredEditorLeading.clamp(
-      manualTransition
-          ? TimelineTime.zero
-          : (leftClip.clip.durationTime < _minEditableClipDurationTime
-              ? TimelineTime.zero
-              : _minEditableClipDurationTime),
-      leftClip.clip.durationTime,
-    );
-    final editorTrailing = desiredEditorTrailing.clamp(
-      manualTransition
-          ? TimelineTime.zero
-          : (rightClip.clip.durationTime < _minEditableClipDurationTime
-              ? TimelineTime.zero
-              : _minEditableClipDurationTime),
-      rightClip.clip.durationTime,
-    );
-    final startTime = (seamTime - editorLeading).clamp(
+    // Keep transition focus tracks in real clip-time (A full duration + B full
+    // duration). The active transition window is still represented separately
+    // by activeStartTime/activeEndTime.
+    final startTime = leftClip.startTime.clamp(
       TimelineTime.zero,
       scopeDurationTime,
     );
-    final endTime = (seamTime + editorTrailing).clamp(
+    final endTime = rightClip.endTime.clamp(
       TimelineTime.zero,
       scopeDurationTime,
     );
     if (endTime <= startTime) {
       return null;
     }
-    final activeStartTime =
-        (seamTime - transition.resolvedLeadingDurationTime).clamp(
-      startTime,
-      seamTime,
-    );
-    final activeEndTime =
-        (seamTime + transition.resolvedTrailingDurationTime).clamp(
-      seamTime,
-      endTime,
-    );
+    // In Transition Focus, keyframe authoring should follow the full visible
+    // scoped timeline (A + B) instead of a hidden seam-only window.
+    final activeStartTime = startTime;
+    final activeEndTime = endTime;
     if (activeEndTime <= activeStartTime) {
       return null;
     }
@@ -19836,7 +19809,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
     final progress = _transitionFocusProgressForTime(
       context,
-      _transitionFocusVisibleGlobalTime(context),
+      _currentTime,
     );
     final keyframeId = keyframeIndex < lane.keyframeIds.length
         ? lane.keyframeIds[keyframeIndex]
@@ -19865,7 +19838,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
     final scopeProgress = _transitionFocusProgressForTime(
       context,
-      _transitionFocusVisibleGlobalTime(context),
+      _currentTime,
     );
     final progress = _transitionFocusTryActiveStopForScopeStop(
       context,
@@ -20898,7 +20871,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       track: projection.track,
       timelineTime: projection.localTime,
       timelineDurationTime: projection.localDuration,
-      useTransitionFocusContext: false,
+      useTransitionFocusContext: true,
+      rootTimelineTime: rootTime,
+      transitionFocusSourceSceneId: session.sourceSceneId,
     );
   }
 
@@ -20907,6 +20882,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required TimelineTime timelineTime,
     required TimelineTime timelineDurationTime,
     required bool useTransitionFocusContext,
+    TimelineTime? rootTimelineTime,
+    String? transitionFocusSourceSceneId,
   }) {
     if (track.transitions.isEmpty) {
       return null;
@@ -20934,8 +20911,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
       final focusContext = useTransitionFocusContext &&
               transition.preset == TimelineTransitionPreset.manual
-          ? _transitionFocusContextById(transition.id)
+          ? _transitionFocusContextById(
+              transition.id,
+              sourceSceneId: transitionFocusSourceSceneId,
+            )
           : null;
+      final evaluationTimelineTime = focusContext == null
+          ? timelineTime
+          : (rootTimelineTime ?? timelineTime);
       final seamTime = leftClip.startTime + leftClip.clip.durationTime;
       final start = focusContext?.activeStartTime ??
           (seamTime - transition.resolvedLeadingDurationTime).clamp(
@@ -20947,17 +20930,22 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             TimelineTime.zero,
             timelineDurationTime,
           );
-      if (end <= start || timelineTime < start || timelineTime > end) {
+      if (end <= start ||
+          evaluationTimelineTime < start ||
+          evaluationTimelineTime > end) {
         continue;
       }
       final totalSpan = (end - start).inMilliseconds;
-      final elapsed = (timelineTime - start).inMilliseconds;
+      final elapsed = (evaluationTimelineTime - start).inMilliseconds;
       final progress = totalSpan <= 0
           ? 0.0
           : (elapsed / totalSpan).clamp(0.0, 1.0).toDouble();
       final manualLaneProgress = focusContext == null
           ? progress
-          : _transitionFocusProgressForTime(focusContext, timelineTime);
+          : _transitionFocusProgressForTime(
+              focusContext,
+              evaluationTimelineTime,
+            );
       final manualSeamProgress = focusContext == null
           ? progress
           : _transitionFocusProgressForTime(
@@ -20966,7 +20954,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         transition: transition,
         leftClip: leftClip,
         rightClip: rightClip,
-        timelineTime: timelineTime,
+        timelineTime: evaluationTimelineTime,
         progress: progress,
         manualLaneProgress: manualLaneProgress,
         manualSeamProgress: manualSeamProgress,
@@ -21594,12 +21582,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
     final seamTime =
         _manualTransitionRootSeamTimeForActiveTransition(activeTransition);
+    final rootWindow =
+        _manualTransitionRootWindowForActiveTransition(activeTransition);
     final evaluationResult =
         _manualTransitionMasterFrameEvaluationAdapter.evaluate(
       request: ManualTransitionMasterFrameEvaluationRequest(
         time: evaluation.time,
         transition: transition,
         seamTime: seamTime,
+        windowStartTime: rootWindow.start,
+        windowEndTime: rootWindow.endExclusive,
         projectId: _effectiveMotionProject.id,
       ),
     );
@@ -21607,28 +21599,43 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       activeTransition.leftClip.clip.id: LiveScrubTransitionRole.outgoing,
       activeTransition.rightClip.clip.id: LiveScrubTransitionRole.incoming,
     };
-    final sourcesByTargetId =
+    final allSourcesByTargetId =
         _liveScrubSourcesByTargetIdForActiveTransition(activeTransition);
-    final visibleLayerIds = <String>[
-      activeTransition.leftClip.clip.id,
-      activeTransition.rightClip.clip.id,
-    ];
+    final sourceWindows =
+        _liveScrubSourceWindowsForActiveTransition(activeTransition);
+    final activeSourceIds = _activeManualTransitionSourceIdsForTime(
+      rootTime: evaluation.time.rootTime,
+      sourceWindowsByTargetId: sourceWindows,
+      activeTransition: activeTransition,
+    );
+    final sourcesByTargetId = <String, LiveScrubSurfaceSource>{
+      for (final entry in allSourcesByTargetId.entries)
+        if (activeSourceIds.contains(entry.key)) entry.key: entry.value,
+    };
+    final visibleLayerIds = activeSourceIds.toList(growable: false);
+    final activeEvaluatedChannels = evaluationResult.evaluatedChannels
+        .where((channel) => activeSourceIds.contains(channel.targetId))
+        .toList(growable: false);
+    final activeChannels = evaluationResult.channels
+        .where((channel) => activeSourceIds.contains(channel.target.targetId))
+        .toList(growable: false);
     final baseProgram = _masterLiveScrubProgramAdapter.build(
       frame: MasterFrameEvaluation(
         time: evaluation.time,
         projections: evaluation.projections,
         visibleLayerIds: visibleLayerIds,
         activeTransitionIds: <String>[transition.id],
-        evaluatedChannels: evaluationResult.evaluatedChannels,
+        evaluatedChannels: activeEvaluatedChannels,
         diagnostics: <String>[
           ...evaluation.diagnostics,
           ...evaluationResult.diagnostics,
           'manual_transition_runtime_mode:$mode',
+          'manual_transition_active_sources:${activeSourceIds.join(',')}',
         ],
       ),
       sourcesByTargetId: sourcesByTargetId,
       transitionRolesByTargetId: transitionRoles,
-      channels: evaluationResult.channels,
+      channels: activeChannels,
     );
     return LiveScrubVisualProgram(
       time: baseProgram.time,
@@ -21644,6 +21651,30 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         reason: 'manual_transition_master_runtime_projection',
       ),
     );
+  }
+
+  Set<String> _activeManualTransitionSourceIdsForTime({
+    required TimelineTime rootTime,
+    required Map<String, LiveScrubTimelineSourceWindow> sourceWindowsByTargetId,
+    required _ActiveTimelineTransitionPreview activeTransition,
+  }) {
+    final rootTimeMs = rootTime.inMilliseconds;
+    final activeIds = <String>{
+      for (final entry in sourceWindowsByTargetId.entries)
+        if (rootTimeMs >= entry.value.timelineStartMs &&
+            rootTimeMs < entry.value.timelineEndMs)
+          entry.key,
+    };
+    if (activeIds.isNotEmpty) {
+      return activeIds;
+    }
+    return <String>{
+      _resolveStage5VisualRuntimePrimaryTargetClipId(
+        previewTime: rootTime,
+        sourceWindowsByTargetId: sourceWindowsByTargetId,
+        activeTransition: activeTransition,
+      ),
+    };
   }
 
   Stage5VisualRuntimeState _buildStage5VisualRuntimeStateForPreviewTime({
@@ -21991,6 +22022,37 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return mappedSceneScope.localToRoot(activeTransition.leftClip.endTime);
     }
     return activeTransition.leftClip.endTime;
+  }
+
+  TimelineTimeRange _manualTransitionRootWindowForActiveTransition(
+    _ActiveTimelineTransitionPreview activeTransition,
+  ) {
+    final focusContext = _activeTransitionFocusContextForTransition(
+      activeTransition.transition.id,
+    );
+    if (focusContext != null) {
+      return TimelineTimeRange(
+        start: focusContext.startTime,
+        endExclusive: focusContext.endTime,
+      );
+    }
+    final sceneScope = _sceneScopeSession;
+    final isScopedSceneTransition = sceneScope != null &&
+        (_sceneScopeTransitionsBySourceSceneId[sceneScope.sourceSceneId]
+                ?.any((entry) => entry.id == activeTransition.transition.id) ??
+            false);
+    if (isScopedSceneTransition) {
+      final scopedScene = sceneScope;
+      return TimelineTimeRange(
+        start: scopedScene.localToRoot(activeTransition.leftClip.startTime),
+        endExclusive:
+            scopedScene.localToRoot(activeTransition.rightClip.endTime),
+      );
+    }
+    return TimelineTimeRange(
+      start: activeTransition.leftClip.startTime,
+      endExclusive: activeTransition.rightClip.endTime,
+    );
   }
 
   void _scheduleLiveScrubRuntimeBridgeSubmission({

@@ -64,6 +64,44 @@ void main() {
     expect(scaleX.domain, const MasterTimeDomain.transition('transition-1'));
   });
 
+  test('interpolates manual scale from authored keyframe time and value', () {
+    final transition = TimelineTrackTransitionData(
+      id: 'transition-1',
+      leftClipId: 'clip-a',
+      rightClipId: 'clip-b',
+      preset: TimelineTransitionPreset.manual,
+      durationTime: TimelineTime.fromMilliseconds(2000),
+      manualEffectIds: const <String>['scale'],
+      manualAnimationLanes: const <TimelineAnimationLaneData>[
+        TimelineAnimationLaneData(
+          id: 'scale',
+          label: 'Scale',
+          targetClipId: 'clip-a',
+          normalizedKeyframeStops: <double>[0.125, 0.5],
+          keyframeIds: <String>['kf-1s', 'kf-4s'],
+          keyframeValues: <double>[0.0, 70.0],
+        ),
+      ],
+    );
+    final result = adapter.evaluate(
+      request: ManualTransitionMasterFrameEvaluationRequest(
+        time: buildTime(timeMs: 2500),
+        transition: transition,
+        seamTime: TimelineTime.fromMilliseconds(4000),
+        windowStartTime: TimelineTime.zero,
+        windowEndTime: TimelineTime.fromMilliseconds(8000),
+        projectId: 'project-1',
+      ),
+    );
+
+    expect(result.blockers, isEmpty);
+    final scaleX = result.evaluatedChannels.firstWhere(
+      (value) => value.propertyDefinitionId == 'scale',
+    );
+    expect(scaleX.targetId, 'clip-a');
+    expect(scaleX.mapping.renderer.scalar, closeTo(1.35, 0.0001));
+  });
+
   test('reports blockers for unsupported manual lanes', () {
     final transition = TimelineTrackTransitionData(
       id: 'transition-2',

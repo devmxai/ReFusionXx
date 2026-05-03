@@ -20,6 +20,18 @@ It consolidates the open work from:
 
 ## Execution Update
 
+- 2026-05-03 manual transition AE-time/visibility correction:
+  - Scene Scope transition preview now resolves Manual Transition Focus with
+    the source-scene context and root evaluation time, preventing scene-scoped
+    keyframes from falling back to the legacy seam-only active window.
+  - Manual Transition runtime programs now filter sources, evaluated channels,
+    and motion channels to the clip whose timeline window owns the current
+    frame. This prevents Track B from being visible behind Track A while A is
+    being rotated or scaled, and keeps authored keyframe values attached to the
+    real target clip only.
+  - Targeted tests now prove explicit Transition Focus windows map keyframes at
+    their authored seconds and interpolate Scale from first keyframe value to
+    second keyframe value.
 - 2026-05-03 checkpoint slice (post `1869656`):
   - Manual Transition runtime seam mapping now resolves to root timeline time in
     Transition Focus and Scene Scope paths.
