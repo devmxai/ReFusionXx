@@ -389,6 +389,19 @@ flutter test test/master_live_scrub_descriptor_projection_test.dart
 flutter analyze
 ```
 
+Implementation note (checkpoint `checkpoint: add live scrub descriptor projection preflight`):
+
+- added a domain-only descriptor contract:
+  `LiveScrubTimelineSourceWindow`, `LiveScrubSurfaceDescriptor`, and
+  `LiveScrubDescriptorProjectionResult`.
+- added `MasterLiveScrubDescriptorProjection` to project
+  `LiveScrubVisualProgram` into deterministic descriptor payloads with stable
+  descriptor ids and explicit blockers.
+- source-time mapping is now explicit per descriptor through timeline-window to
+  source-window projection (`sourcePositionMs`) and is verified by tests.
+- this slice does not touch Stage5/native scrub behavior and does not change
+  active renderer ownership.
+
 ### Phase 3 - Native Capability Handshake
 
 Goal: let Flutter ask native Stage5 what Live Scrub capabilities are available
