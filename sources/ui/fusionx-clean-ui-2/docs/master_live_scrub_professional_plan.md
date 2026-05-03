@@ -6,6 +6,25 @@ Date: 2026-05-03
 Depends on: `docs/master_clock_value_truth_foundation_plan.md`  
 Binding safety mandate: `docs/live_scrub_migration_mandate.md`
 
+## Runtime Safety Gate (2026-05-03)
+
+A production ANR was traced to Manual Transition lanes (`manualEffectIds`)
+activating the legacy professional transition compositor during `liveScrub` and
+`playback`. The immediate runtime contract is now:
+
+- Manual Transition remains an authoring scope and keyframe graph write-back
+  path.
+- Legacy native manual transition rendering (`manualTransform` via
+  `renderInteractiveFrame`) is preview-only.
+- `liveScrub` and `playback` must keep native preview ownership on the Stage5
+  path while manual lanes are authored.
+- Transition-active evaluation for manual focus must use the real seam window
+  (`activeStartTime`/`activeEndTime`) for visual activation, not the broad
+  editor scope.
+
+This gate is mandatory until manual transition values are consumed directly by
+the Stage5 master runtime path.
+
 ## 0. Purpose
 
 This plan defines the professional Master Live Scrub path for ReFusion.

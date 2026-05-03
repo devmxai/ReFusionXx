@@ -20726,12 +20726,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           ? _transitionFocusContextById(transition.id)
           : null;
       final seamTime = leftClip.startTime + leftClip.clip.durationTime;
-      final start = focusContext?.startTime ??
+      final start = focusContext?.activeStartTime ??
           (seamTime - transition.resolvedLeadingDurationTime).clamp(
             TimelineTime.zero,
             timelineDurationTime,
           );
-      final end = focusContext?.endTime ??
+      final end = focusContext?.activeEndTime ??
           (seamTime + transition.resolvedTrailingDurationTime).clamp(
             TimelineTime.zero,
             timelineDurationTime,
@@ -21530,7 +21530,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required String mode,
   }) {
     if (preset == TimelineTransitionPreset.manual) {
-      return mode == 'preview' || mode == 'liveScrub' || mode == 'playback';
+      // Manual transition authoring still writes real graph data, but its
+      // legacy native compositor path is kept out of playback/liveScrub until
+      // the Stage5 master runtime consumes manual transition values directly.
+      return mode == 'preview';
     }
     // The current Distortion Zoom V1 native path decodes source frames and
     // writes a full transition bitmap per request. Keep it out of playback and
