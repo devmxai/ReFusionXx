@@ -10,6 +10,8 @@ class MasterLiveScrubDescriptorProjection {
     required LiveScrubVisualProgram program,
     Map<String, LiveScrubTimelineSourceWindow> sourceWindowsByTargetId =
         const <String, LiveScrubTimelineSourceWindow>{},
+    LiveScrubDescriptorCapabilities capabilities =
+        const LiveScrubDescriptorCapabilities(),
   }) {
     final timelinePositionMs = program.time.rootTime.inMilliseconds;
     final descriptors = <LiveScrubSurfaceDescriptor>[];
@@ -22,6 +24,10 @@ class MasterLiveScrubDescriptorProjection {
       final source = surface.source;
       if (source == null || source.sourceUri.isEmpty) {
         surfaceBlockers.add('missing_source_binding:${surface.targetId}');
+      }
+      if (!capabilities.supportsSourceDimensions &&
+          (source?.sourceWidth != null || source?.sourceHeight != null)) {
+        surfaceBlockers.add('native_missing_source_dimensions_capability');
       }
       if (window == null) {
         surfaceBlockers.add('missing_source_window:${surface.targetId}');
@@ -50,6 +56,31 @@ class MasterLiveScrubDescriptorProjection {
             'timeline_position_outside_window:${surface.targetId}',
           );
         }
+      }
+      final requiresPlacement = surface.transform.positionX != 0.0 ||
+          surface.transform.positionY != 0.0;
+      if (requiresPlacement && !capabilities.supportsCanvasPlacement) {
+        surfaceBlockers.add('native_missing_canvas_placement_capability');
+      }
+      final requiresTransform = surface.transform.scaleX != 1.0 ||
+          surface.transform.scaleY != 1.0 ||
+          surface.transform.rotationRadians != 0.0;
+      if (requiresTransform && !capabilities.supportsTransformMatrix) {
+        surfaceBlockers.add('native_missing_transform_matrix_capability');
+      }
+      if (surface.opacity < 1.0 && !capabilities.supportsOpacity) {
+        surfaceBlockers.add('native_missing_opacity_capability');
+      }
+      if (surface.effects.isNotEmpty && !capabilities.supportsEffectProgramIds) {
+        surfaceBlockers.add('native_missing_effect_programs_capability');
+      }
+      final requiresTransitionWindow =
+          surface.transitionRole != LiveScrubTransitionRole.none;
+      if (requiresTransitionWindow &&
+          !capabilities.supportsDualSourceTransitionWindow) {
+        surfaceBlockers.add(
+          'native_missing_dual_source_transition_window_capability',
+        );
       }
 
       final descriptor = LiveScrubSurfaceDescriptor(
@@ -80,6 +111,7 @@ class MasterLiveScrubDescriptorProjection {
           if (window != null)
             'source_time_mapped:${window.sourceStartMs}->$sourcePositionMs@${window.playbackRate}',
           if (window == null) 'source_time_unmapped',
+          'native_capabilities:${capabilities.source}',
         ],
       );
       descriptors.add(descriptor);

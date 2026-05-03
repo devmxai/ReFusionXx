@@ -78,12 +78,32 @@ void main() {
       sourceWindowsByTargetId: <String, LiveScrubTimelineSourceWindow>{
         'element-1': sourceWindow,
       },
+      capabilities: const LiveScrubDescriptorCapabilities(
+        supportsSourceDimensions: true,
+        supportsCanvasPlacement: true,
+        supportsCrop: true,
+        supportsTransformMatrix: true,
+        supportsOpacity: true,
+        supportsEffectProgramIds: true,
+        supportsDualSourceTransitionWindow: true,
+        source: 'test-full-capabilities',
+      ),
     );
     final second = projection.project(
       program: program,
       sourceWindowsByTargetId: <String, LiveScrubTimelineSourceWindow>{
         'element-1': sourceWindow,
       },
+      capabilities: const LiveScrubDescriptorCapabilities(
+        supportsSourceDimensions: true,
+        supportsCanvasPlacement: true,
+        supportsCrop: true,
+        supportsTransformMatrix: true,
+        supportsOpacity: true,
+        supportsEffectProgramIds: true,
+        supportsDualSourceTransitionWindow: true,
+        source: 'test-full-capabilities',
+      ),
     );
 
     expect(first.canProject, isTrue);
@@ -139,5 +159,112 @@ void main() {
     expect(result.canProject, isFalse);
     expect(result.blockers, contains('missing_source_window:layer-1'));
     expect(result.descriptors.single.isValid, isFalse);
+  });
+
+  test('blocks unsupported placement and transform capabilities', () {
+    final clock = TimelineClockCoordinator(
+      timelineDuration: ms(5000),
+      initialTime: ms(1500),
+    );
+    final time = MasterTimeSnapshot.fromClockSnapshot(
+      clock: clock.snapshot,
+      frameRate: 30,
+      renderMode: MasterRenderMode.liveScrub,
+      sourceScope: MasterTimeScope.rootComposition,
+    );
+    final program = LiveScrubVisualProgram(
+      time: time,
+      surfaces: <LiveScrubVisualSurface>[
+        LiveScrubVisualSurface(
+          targetId: 'layer-2',
+          sourceKind: LiveScrubSourceKind.video,
+          source: const LiveScrubSurfaceSource(
+            targetId: 'layer-2',
+            kind: LiveScrubSourceKind.video,
+            sourceUri: '/media/video-c.mp4',
+            sourceWidth: 1280,
+            sourceHeight: 720,
+          ),
+          transform: const LiveScrubSurfaceTransform(
+            positionX: 60,
+            positionY: 25,
+            scaleX: 1.2,
+            scaleY: 0.8,
+            rotationRadians: 0.2,
+          ),
+          opacity: 0.7,
+          effects: const <LiveScrubEffectBinding>[
+            LiveScrubEffectBinding(
+              id: 'gaussianBlur',
+              rendererValue: 4.0,
+              rendererUnit: MasterValueUnit.shaderSigmaPx,
+            ),
+          ],
+          transitionRole: LiveScrubTransitionRole.outgoing,
+          blockers: const <String>[],
+        ),
+      ],
+      blockers: const <String>[],
+      diagnostics: const <String>[],
+      transitionState: LiveScrubTransitionState(
+        activeTransitionIds: const <String>['t-1'],
+        hasRenderableTransitionPixels: false,
+        reason: 'phase4_capability_preflight',
+      ),
+    );
+    const projection = MasterLiveScrubDescriptorProjection();
+    const sourceWindow = LiveScrubTimelineSourceWindow(
+      targetId: 'layer-2',
+      timelineStartMs: 1000,
+      timelineEndMs: 3000,
+      sourceStartMs: 0,
+      sourceDurationMs: 2000,
+      playbackRate: 1.0,
+    );
+    const capabilities = LiveScrubDescriptorCapabilities(
+      supportsSourceDimensions: false,
+      supportsCanvasPlacement: false,
+      supportsCrop: false,
+      supportsTransformMatrix: false,
+      supportsOpacity: false,
+      supportsEffectProgramIds: false,
+      supportsDualSourceTransitionWindow: false,
+      source: 'native-capability-test',
+    );
+
+    final result = projection.project(
+      program: program,
+      sourceWindowsByTargetId: <String, LiveScrubTimelineSourceWindow>{
+        'layer-2': sourceWindow,
+      },
+      capabilities: capabilities,
+    );
+
+    expect(result.canProject, isFalse);
+    expect(
+      result.blockers,
+      contains('native_missing_source_dimensions_capability'),
+    );
+    expect(
+      result.blockers,
+      contains('native_missing_canvas_placement_capability'),
+    );
+    expect(
+      result.blockers,
+      contains('native_missing_transform_matrix_capability'),
+    );
+    expect(result.blockers, contains('native_missing_opacity_capability'));
+    expect(
+      result.blockers,
+      contains('native_missing_effect_programs_capability'),
+    );
+    expect(
+      result.blockers,
+      contains('native_missing_dual_source_transition_window_capability'),
+    );
+    expect(
+      result.descriptors.single.debugReasons,
+      contains('native_capabilities:native-capability-test'),
+    );
   });
 }

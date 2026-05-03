@@ -40,4 +40,32 @@ void main() {
     expect(capabilities.supportsLatencyMetrics, isFalse);
     expect(capabilities.source, 'unknown');
   });
+
+  test('maps transport capabilities into descriptor capabilities', () {
+    const capabilities = Stage5LiveScrubCapabilities(
+      supportsSourceDimensions: true,
+      supportsCanvasPlacement: true,
+      supportsCrop: false,
+      supportsTransformMatrix: true,
+      supportsOpacity: true,
+      supportsEffectProgramIds: false,
+      supportsDualSourceTransitionWindow: false,
+      supportsLatencyMetrics: true,
+      source: 'stage5_read_only_capability_handshake_v1',
+    );
+
+    final descriptorCapabilities = capabilities.toDescriptorCapabilities();
+    expect(descriptorCapabilities.supportsSourceDimensions, isTrue);
+    expect(descriptorCapabilities.supportsCanvasPlacement, isTrue);
+    expect(descriptorCapabilities.supportsCrop, isFalse);
+    expect(descriptorCapabilities.supportsTransformMatrix, isTrue);
+    expect(descriptorCapabilities.supportsOpacity, isTrue);
+    expect(descriptorCapabilities.supportsEffectProgramIds, isFalse);
+    expect(descriptorCapabilities.supportsDualSourceTransitionWindow, isFalse);
+    expect(descriptorCapabilities.supportsLatencyMetrics, isTrue);
+    expect(
+      descriptorCapabilities.source,
+      'stage5_read_only_capability_handshake_v1',
+    );
+  });
 }

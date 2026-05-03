@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:refusion_app/features/editor/domain/models/master_live_scrub_descriptor_models.dart';
 
 class Stage5TransportState {
   const Stage5TransportState({
@@ -636,6 +637,20 @@ class Stage5LiveScrubCapabilities {
   final bool supportsDualSourceTransitionWindow;
   final bool supportsLatencyMetrics;
   final String source;
+
+  LiveScrubDescriptorCapabilities toDescriptorCapabilities() {
+    return LiveScrubDescriptorCapabilities(
+      supportsSourceDimensions: supportsSourceDimensions,
+      supportsCanvasPlacement: supportsCanvasPlacement,
+      supportsCrop: supportsCrop,
+      supportsTransformMatrix: supportsTransformMatrix,
+      supportsOpacity: supportsOpacity,
+      supportsEffectProgramIds: supportsEffectProgramIds,
+      supportsDualSourceTransitionWindow: supportsDualSourceTransitionWindow,
+      supportsLatencyMetrics: supportsLatencyMetrics,
+      source: source,
+    );
+  }
 }
 
 @visibleForTesting

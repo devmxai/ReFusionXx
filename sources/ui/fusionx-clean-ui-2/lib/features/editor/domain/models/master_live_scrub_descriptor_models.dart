@@ -23,6 +23,31 @@ class LiveScrubTimelineSourceWindow {
 }
 
 @immutable
+class LiveScrubDescriptorCapabilities {
+  const LiveScrubDescriptorCapabilities({
+    this.supportsSourceDimensions = false,
+    this.supportsCanvasPlacement = false,
+    this.supportsCrop = false,
+    this.supportsTransformMatrix = false,
+    this.supportsOpacity = false,
+    this.supportsEffectProgramIds = false,
+    this.supportsDualSourceTransitionWindow = false,
+    this.supportsLatencyMetrics = false,
+    this.source = 'unknown',
+  });
+
+  final bool supportsSourceDimensions;
+  final bool supportsCanvasPlacement;
+  final bool supportsCrop;
+  final bool supportsTransformMatrix;
+  final bool supportsOpacity;
+  final bool supportsEffectProgramIds;
+  final bool supportsDualSourceTransitionWindow;
+  final bool supportsLatencyMetrics;
+  final String source;
+}
+
+@immutable
 class LiveScrubSurfaceDescriptor {
   const LiveScrubSurfaceDescriptor({
     required this.id,

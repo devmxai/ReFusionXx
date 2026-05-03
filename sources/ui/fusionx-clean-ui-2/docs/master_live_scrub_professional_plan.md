@@ -479,6 +479,18 @@ Device checks:
 - cross-source boundary scrub;
 - pause after scrub and play from the exact settled frame.
 
+Implementation note (checkpoint `checkpoint: add live scrub capability-gated descriptor parity`):
+
+- added `LiveScrubDescriptorCapabilities` so descriptor projection can evaluate
+  native Stage5 capability support before claiming placement/transform parity.
+- descriptor projection now emits explicit blockers when native capability is
+  missing for source dimensions, canvas placement, transform matrix, opacity,
+  effect program ids, or dual-source transition windows.
+- Stage5 capability handshake is now mappable into descriptor capabilities via
+  `Stage5LiveScrubCapabilities.toDescriptorCapabilities()`.
+- this slice is still preflight/domain-safe: it does not change active scrub
+  drawing ownership or Stage5 hot-path behavior.
+
 ### Phase 5 - Effects Program Parity
 
 Goal: Live Scrub applies supported graph effects through native scrub output
