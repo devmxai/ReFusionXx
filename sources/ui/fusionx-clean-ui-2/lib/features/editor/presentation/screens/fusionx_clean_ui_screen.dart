@@ -8202,6 +8202,31 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return ((degrees - angle) / 360.0).round();
   }
 
+  double _transitionFocusRotationAngleForDegrees(double degrees) {
+    if (!degrees.isFinite || degrees <= 0) {
+      return 0.0;
+    }
+    final loops = _transitionFocusRotationLoopsForDegrees(degrees);
+    return (degrees - ((loops - 1) * 360.0)).clamp(0.0, 360.0).toDouble();
+  }
+
+  int _transitionFocusRotationLoopsForDegrees(double degrees) {
+    if (!degrees.isFinite || degrees <= 0) {
+      return 1;
+    }
+    final normalized = ((degrees - 0.000001) / 360.0).floor() + 1;
+    return normalized.clamp(1, 12);
+  }
+
+  double _transitionFocusRotationDegreesForControls({
+    required double angle,
+    required int loops,
+  }) {
+    final safeLoops = loops.clamp(1, 12);
+    final safeAngle = angle.clamp(0.0, 360.0).toDouble();
+    return ((safeLoops - 1) * 360.0) + safeAngle;
+  }
+
   bool _motionInterpolationMatchesEasyEase(MotionInterpolationSpec spec) {
     if (spec.kind != MotionInterpolationKind.cubicBezier ||
         spec.bezier == null) {
@@ -19930,6 +19955,31 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
     final resolvedValue =
         keyframeIndex < values.length ? values[keyframeIndex] : spec.fallback;
+    if (lane.id == 'rotation') {
+      final angle = _transitionFocusRotationAngleForDegrees(resolvedValue);
+      final loops =
+          _transitionFocusRotationLoopsForDegrees(resolvedValue).toDouble();
+      return <LayerScopeValueControlSpec>[
+        LayerScopeValueControlSpec(
+          id: 'rotationAngle',
+          label: 'Rotation',
+          value: angle,
+          min: 0.0,
+          max: 360.0,
+          divisions: 360,
+          formatValue: (value) => '${value.round()} deg',
+        ),
+        LayerScopeValueControlSpec(
+          id: 'rotationLoops',
+          label: 'Loops',
+          value: loops,
+          min: 1.0,
+          max: 12.0,
+          divisions: 11,
+          formatValue: (value) => '${value.round()}x',
+        ),
+      ];
+    }
     return <LayerScopeValueControlSpec>[
       LayerScopeValueControlSpec(
         id: lane.id,
@@ -20024,7 +20074,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (transition == null) {
       return;
     }
-    final lane = transition.manualAnimationLaneById(controlId);
+    final resolvedLaneId =
+        controlId == 'rotationAngle' || controlId == 'rotationLoops'
+            ? 'rotation'
+            : controlId;
+    final lane = transition.manualAnimationLaneById(resolvedLaneId);
     if (lane == null) {
       return;
     }
@@ -20038,6 +20092,23 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (keyframeIndex < 0 || keyframeIndex >= alignedValues.length) {
       return;
     }
+    var nextValue = value.toDouble();
+    if (controlId == 'rotationAngle' || controlId == 'rotationLoops') {
+      final currentDegrees = alignedValues[keyframeIndex];
+      final currentAngle = _transitionFocusRotationAngleForDegrees(
+        currentDegrees,
+      );
+      final currentLoops = _transitionFocusRotationLoopsForDegrees(
+        currentDegrees,
+      );
+      final nextAngle = controlId == 'rotationAngle' ? value : currentAngle;
+      final nextLoops =
+          controlId == 'rotationLoops' ? value.round() : currentLoops;
+      nextValue = _transitionFocusRotationDegreesForControls(
+        angle: nextAngle,
+        loops: nextLoops,
+      );
+    }
     _updateTransitionFocusTransition(
       session.transitionId,
       sourceSceneId: session.sourceSceneId,
@@ -20047,7 +20118,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         transition: current,
         laneId: lane.id,
         keyframeIndex: keyframeIndex,
-        value: value.toDouble(),
+        value: nextValue,
         fallbackValue: fallbackValue,
       ),
     );

@@ -5,6 +5,8 @@ import android.graphics.Matrix
 import android.graphics.SurfaceTexture
 import android.view.Surface
 import android.view.TextureView
+import kotlin.math.atan2
+import kotlin.math.sqrt
 
 class Stage5ScrubOverlayTextureView(
     context: Context,
@@ -124,25 +126,38 @@ class Stage5ScrubOverlayTextureView(
                     )
                 }
             }
-        val runtimeMatrix = runtimeMatrixForView(viewWidth, viewHeight)
-        val finalMatrix =
-            when {
-                aspectMatrix == null && runtimeMatrix == null -> null
-                aspectMatrix == null -> runtimeMatrix
-                runtimeMatrix == null -> aspectMatrix
-                else -> Matrix(aspectMatrix).apply { postConcat(runtimeMatrix) }
-            }
-        setTransform(finalMatrix)
+        // Keep aspect fitting in TextureView's texture matrix, and apply runtime
+        // motion (scale/rotation/position) as a view transform. Mixing both in
+        // one texture matrix can produce anisotropic stretch artifacts.
+        setTransform(aspectMatrix)
+        applyRuntimeViewTransform(viewWidth, viewHeight)
         alpha = (runtimeOpacity * visibilityAlpha).coerceIn(0f, 1f)
     }
 
-    private fun runtimeMatrixForView(
+    private fun applyRuntimeViewTransform(
         viewWidth: Float,
         viewHeight: Float,
-    ): Matrix? {
-        val values = runtimeTransformMatrix3x3 ?: return null
+    ) {
+        val centerX = viewWidth / 2f
+        val centerY = viewHeight / 2f
+        pivotX = centerX
+        pivotY = centerY
+        val values = runtimeTransformMatrix3x3
+        if (values == null) {
+            translationX = 0f
+            translationY = 0f
+            scaleX = 1f
+            scaleY = 1f
+            rotation = 0f
+            return
+        }
         if (values.size != 9) {
-            return null
+            translationX = 0f
+            translationY = 0f
+            scaleX = 1f
+            scaleY = 1f
+            rotation = 0f
+            return
         }
         val m00 = values[0].toFloat()
         val m01 = values[1].toFloat()
@@ -153,24 +168,22 @@ class Stage5ScrubOverlayTextureView(
         if (!m00.isFinite() || !m01.isFinite() || !tx.isFinite() ||
             !m10.isFinite() || !m11.isFinite() || !ty.isFinite()
         ) {
-            return null
+            translationX = 0f
+            translationY = 0f
+            scaleX = 1f
+            scaleY = 1f
+            rotation = 0f
+            return
         }
-        val matrix = Matrix()
-        val mappedValues = floatArrayOf(
-            m00,
-            m01,
-            tx,
-            m10,
-            m11,
-            ty,
-            0f,
-            0f,
-            1f,
-        )
-        matrix.setValues(mappedValues)
-        val centerX = viewWidth / 2f
-        val centerY = viewHeight / 2f
-        matrix.postTranslate(centerX - (m00 * centerX + m01 * centerY), centerY - (m10 * centerX + m11 * centerY))
-        return matrix
+        val translatedX = tx + (centerX - (m00 * centerX + m01 * centerY))
+        val translatedY = ty + (centerY - (m10 * centerX + m11 * centerY))
+        val derivedScaleX = sqrt((m00 * m00) + (m10 * m10))
+        val derivedScaleY = sqrt((m01 * m01) + (m11 * m11))
+        val derivedRotationDegrees = Math.toDegrees(atan2(m10, m00).toDouble()).toFloat()
+        translationX = if (translatedX.isFinite()) translatedX else 0f
+        translationY = if (translatedY.isFinite()) translatedY else 0f
+        scaleX = if (derivedScaleX.isFinite()) derivedScaleX else 1f
+        scaleY = if (derivedScaleY.isFinite()) derivedScaleY else 1f
+        rotation = if (derivedRotationDegrees.isFinite()) derivedRotationDegrees else 0f
     }
 }
