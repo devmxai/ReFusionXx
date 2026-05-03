@@ -59,8 +59,10 @@ class ManualTransitionLaneToMotionChannelAdapter {
             request.transitionTargetId!.trim().isEmpty)
         ? transition.leftClipId
         : request.transitionTargetId!.trim();
-    final windowStart = request.seamTime - transition.resolvedLeadingDurationTime;
-    final windowEnd = request.seamTime + transition.resolvedTrailingDurationTime;
+    final windowStart =
+        request.seamTime - transition.resolvedLeadingDurationTime;
+    final windowEnd =
+        request.seamTime + transition.resolvedTrailingDurationTime;
     if (windowEnd <= windowStart) {
       return ManualTransitionLaneChannelProjection(
         channels: const <MotionPropertyChannelModel>[],
@@ -137,11 +139,13 @@ class ManualTransitionLaneToMotionChannelAdapter {
       windowStart: windowStart,
       windowEnd: windowEnd,
     );
+    final laneTargetId =
+        lane.targetClipId.trim().isEmpty ? targetId : lane.targetClipId.trim();
     final target = MotionPropertyTarget(
       kind: MotionTargetKind.element,
-      targetId: targetId,
+      targetId: laneTargetId,
       projectId: projectId,
-      elementId: targetId,
+      elementId: laneTargetId,
     );
     switch (lane.id) {
       case 'scale':

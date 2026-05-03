@@ -58,6 +58,8 @@ import '../services/composition_workspace_inspector_adapter.dart';
 import '../services/composition_workspace_outliner_adapter.dart';
 import '../services/composition_media_playback_projection_adapter.dart';
 import '../services/live_scrub_runtime_surface_config_adapter.dart';
+import '../services/manual_transition_master_frame_evaluation_adapter.dart';
+import '../services/manual_transition_lane_to_motion_channel_adapter.dart';
 import '../services/master_frame_evaluation_read_adapter.dart';
 import '../services/normal_transition_timeline_authoring_adapter.dart';
 import '../services/native_preview_identity_resolver.dart';
@@ -535,6 +537,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   late final MasterLiveScrubProgramAdapter _masterLiveScrubProgramAdapter;
   late final MasterLiveScrubDescriptorProjection
       _masterLiveScrubDescriptorProjection;
+  late final ManualTransitionMasterFrameEvaluationAdapter
+      _manualTransitionMasterFrameEvaluationAdapter;
   final Map<String, EditorAssetItem> _importedAssetsById =
       <String, EditorAssetItem>{};
   final Map<String, Uint8List> _previewThumbnailCache = <String, Uint8List>{};
@@ -673,6 +677,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _masterLiveScrubProgramAdapter = const MasterLiveScrubProgramAdapter();
     _masterLiveScrubDescriptorProjection =
         const MasterLiveScrubDescriptorProjection();
+    _manualTransitionMasterFrameEvaluationAdapter =
+        ManualTransitionMasterFrameEvaluationAdapter(
+      laneAdapter: const ManualTransitionLaneToMotionChannelAdapter(),
+      keyframeEvaluator: _masterFrameEvaluationReadAdapter.keyframeEvaluator,
+      timeMapper: _masterFrameEvaluationReadAdapter.timeMapper,
+      valueRegistry: _masterFrameEvaluationReadAdapter.valueRegistry,
+    );
     _assetLibrary =
         ValueNotifier<List<EditorAssetItem>>(const <EditorAssetItem>[]);
     _assetLibraryLoading = ValueNotifier<bool>(false);
@@ -1884,29 +1895,44 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       effectiveIsPlaying:
           _isPlaying && (_useNativePreview || _canUseFlutterTimelinePlayback),
     );
-    final surfaceId = _professionalTransitionSurfaceId(activeTransition);
-    final plan = _professionalTransitionRenderPlanFor(
-      activeTransition: activeTransition,
-      mode: mode,
-      surfaceId: surfaceId,
-    );
-    if (plan == null) {
-      return null;
-    }
     final evaluation = _masterFrameEvaluationForMode(mode);
     if (evaluation == null) {
       return null;
     }
-    final program = _liveScrubVisualProgramForTransitionRuntimeBridge(
-      evaluation: evaluation,
-      activeTransition: activeTransition,
-      plan: plan,
-      mode: mode,
-    );
-    final sourceWindows = _liveScrubSourceWindowsForTransitionPlan(
-      activeTransition: activeTransition,
-      plan: plan,
-    );
+    final sourceWindows =
+        _liveScrubSourceWindowsForActiveTransition(activeTransition);
+    if (sourceWindows.isEmpty) {
+      return null;
+    }
+    final isManual =
+        activeTransition.transition.preset == TimelineTransitionPreset.manual;
+    final program = isManual
+        ? _manualTransitionLiveScrubProgram(
+            evaluation: evaluation,
+            activeTransition: activeTransition,
+            mode: mode,
+          )
+        : () {
+            final surfaceId =
+                _professionalTransitionSurfaceId(activeTransition);
+            final plan = _professionalTransitionRenderPlanFor(
+              activeTransition: activeTransition,
+              mode: mode,
+              surfaceId: surfaceId,
+            );
+            if (plan == null) {
+              return null;
+            }
+            return _liveScrubVisualProgramForTransitionRuntimeBridge(
+              evaluation: evaluation,
+              activeTransition: activeTransition,
+              plan: plan,
+              mode: mode,
+            );
+          }();
+    if (program == null) {
+      return null;
+    }
     final projection = _masterLiveScrubDescriptorProjection.project(
       program: program,
       sourceWindowsByTargetId: sourceWindows,
@@ -21357,6 +21383,117 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         reason: 'runtime_descriptor_bridge_v1',
       ),
     );
+  }
+
+  LiveScrubVisualProgram? _manualTransitionLiveScrubProgram({
+    required MasterFrameEvaluation evaluation,
+    required _ActiveTimelineTransitionPreview activeTransition,
+    required String mode,
+  }) {
+    final transition = activeTransition.transition;
+    if (transition.manualEffectIds.isEmpty ||
+        transition.manualAnimationLanes.isEmpty) {
+      return null;
+    }
+    final seamTime = activeTransition.leftClip.endTime;
+    final evaluationResult =
+        _manualTransitionMasterFrameEvaluationAdapter.evaluate(
+      request: ManualTransitionMasterFrameEvaluationRequest(
+        time: evaluation.time,
+        transition: transition,
+        seamTime: seamTime,
+        projectId: _effectiveMotionProject.id,
+      ),
+    );
+    final transitionRoles = <String, LiveScrubTransitionRole>{
+      activeTransition.leftClip.clip.id: LiveScrubTransitionRole.outgoing,
+      activeTransition.rightClip.clip.id: LiveScrubTransitionRole.incoming,
+    };
+    final sourcesByTargetId =
+        _liveScrubSourcesByTargetIdForActiveTransition(activeTransition);
+    final visibleLayerIds = <String>[
+      activeTransition.leftClip.clip.id,
+      activeTransition.rightClip.clip.id,
+    ];
+    final baseProgram = _masterLiveScrubProgramAdapter.build(
+      frame: MasterFrameEvaluation(
+        time: evaluation.time,
+        projections: evaluation.projections,
+        visibleLayerIds: visibleLayerIds,
+        activeTransitionIds: <String>[transition.id],
+        evaluatedChannels: evaluationResult.evaluatedChannels,
+        diagnostics: <String>[
+          ...evaluation.diagnostics,
+          ...evaluationResult.diagnostics,
+          'manual_transition_runtime_mode:$mode',
+        ],
+      ),
+      sourcesByTargetId: sourcesByTargetId,
+      transitionRolesByTargetId: transitionRoles,
+      channels: evaluationResult.channels,
+    );
+    return LiveScrubVisualProgram(
+      time: baseProgram.time,
+      surfaces: baseProgram.surfaces,
+      blockers: <String>[
+        ...baseProgram.blockers,
+        ...evaluationResult.blockers,
+      ],
+      diagnostics: baseProgram.diagnostics,
+      transitionState: LiveScrubTransitionState(
+        activeTransitionIds: <String>[transition.id],
+        hasRenderableTransitionPixels: false,
+        reason: 'manual_transition_master_runtime_projection',
+      ),
+    );
+  }
+
+  Map<String, LiveScrubSurfaceSource>
+      _liveScrubSourcesByTargetIdForActiveTransition(
+    _ActiveTimelineTransitionPreview activeTransition,
+  ) {
+    final sources = <String, LiveScrubSurfaceSource>{};
+    for (final positionedClip in <_PositionedTimelineTrackClip>[
+      activeTransition.leftClip,
+      activeTransition.rightClip,
+    ]) {
+      final clip = positionedClip.clip;
+      final asset = _assetForId(clip.assetId);
+      final sourceUri = asset?.sourceUri?.trim() ?? '';
+      sources[clip.id] = LiveScrubSurfaceSource(
+        targetId: clip.id,
+        kind: clip.visualKind == TimelineVisualKind.image
+            ? LiveScrubSourceKind.image
+            : LiveScrubSourceKind.video,
+        sourceUri: sourceUri,
+        scrubStoreKey: clip.assetId,
+        sourceWidth: asset?.width,
+        sourceHeight: asset?.height,
+      );
+    }
+    return sources;
+  }
+
+  Map<String, LiveScrubTimelineSourceWindow>
+      _liveScrubSourceWindowsForActiveTransition(
+    _ActiveTimelineTransitionPreview activeTransition,
+  ) {
+    final windows = <String, LiveScrubTimelineSourceWindow>{};
+    for (final positionedClip in <_PositionedTimelineTrackClip>[
+      activeTransition.leftClip,
+      activeTransition.rightClip,
+    ]) {
+      final clip = positionedClip.clip;
+      windows[clip.id] = LiveScrubTimelineSourceWindow(
+        targetId: clip.id,
+        timelineStartMs: positionedClip.startTime.inMilliseconds,
+        timelineEndMs: positionedClip.endTime.inMilliseconds,
+        sourceStartMs: clip.sourceStartTime.inMilliseconds,
+        sourceDurationMs: clip.sourceDurationTime.inMilliseconds,
+        playbackRate: clip.playbackRate <= 0 ? 1.0 : clip.playbackRate,
+      );
+    }
+    return windows;
   }
 
   Map<String, LiveScrubTimelineSourceWindow>

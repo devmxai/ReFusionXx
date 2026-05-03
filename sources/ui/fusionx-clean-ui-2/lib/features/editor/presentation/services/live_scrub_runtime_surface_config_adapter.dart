@@ -51,6 +51,15 @@ class LiveScrubRuntimeSurfaceConfigAdapter {
         sourceWidth: descriptor.sourceWidth,
         sourceHeight: descriptor.sourceHeight,
         status: LiveScrubPreviewSourceStatus.ready,
+        transformMatrix3x3: descriptor.transformMatrix3x3,
+        opacity: descriptor.opacity,
+        effectProgramIds: descriptor.effectProgramIds,
+        transitionRole: descriptor.transitionRole.name,
+        transitionId: descriptor.transitionId,
+        transitionProgress: descriptor.transitionProgress,
+        transitionTimelineStartMs: descriptor.transitionTimelineStartMs,
+        transitionTimelineEndMs: descriptor.transitionTimelineEndMs,
+        runtimeBlockers: descriptor.blockers,
       );
     }
     if (replacements.isEmpty) {

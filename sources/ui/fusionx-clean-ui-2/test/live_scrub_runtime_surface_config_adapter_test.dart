@@ -46,6 +46,10 @@ void main() {
           sourceKind: LiveScrubSourceKind.video,
           sourceUri: 'file:///projected-b.mp4',
           scrubStoreKey: 'clip-b-store',
+          transitionId: 'transition-a',
+          transitionTimelineStartMs: 2000,
+          transitionTimelineEndMs: 2600,
+          transitionProgress: 0.25,
           sourcePositionMs: 120,
           timelinePositionMs: 2100,
           timelineStartMs: 2000,
@@ -62,7 +66,7 @@ void main() {
             1,
           ],
           opacity: 1.0,
-          effectProgramIds: <String>[],
+          effectProgramIds: <String>['gaussianBlur'],
           transitionRole: LiveScrubTransitionRole.incoming,
           isValid: true,
           blockers: <String>[],
@@ -109,6 +113,11 @@ void main() {
     expect(merged[1].sourceStartMs, 300);
     expect(merged[1].sourceDurationMs, 2500);
     expect(merged[1].playbackRate, 1.25);
+    expect(merged[1].transitionId, 'transition-a');
+    expect(merged[1].transitionProgress, 0.25);
+    expect(merged[1].transitionRole, 'incoming');
+    expect(merged[1].effectProgramIds, <String>['gaussianBlur']);
+    expect(merged[1].transformMatrix3x3, hasLength(9));
   });
 
   test('ignores descriptors that cannot map to timeline source windows', () {

@@ -462,6 +462,17 @@ Checkpoint:
 checkpoint: evaluate manual transition animate values
 ```
 
+Implementation note:
+
+- added `ManualTransitionMasterFrameEvaluationAdapter` as a dedicated
+  lane-to-master evaluation bridge for Manual Transition runtime.
+- the adapter reuses `ManualTransitionLaneToMotionChannelAdapter`,
+  `MasterTimeDomainMapper`, `MasterKeyframeValueEvaluator`, and
+  `MasterValueTruthRegistry` to emit deterministic
+  `MasterEvaluatedPropertyValue` entries in transition domain time.
+- unsupported lanes now surface explicit blockers/diagnostics instead of
+  silently resolving to identity values.
+
 ## 11. Phase 5 - LiveScrub Visual Program Projection For Manual Transitions
 
 Goal: convert evaluated manual transition values into `LiveScrubVisualProgram`
@@ -504,6 +515,15 @@ Checkpoint:
 ```text
 checkpoint: project manual transition visual program
 ```
+
+Implementation note:
+
+- `_liveScrubRuntimeProjectionForActiveTransition()` now has a manual-specific
+  branch that does not depend on `_professionalTransitionRenderPlanFor`.
+- manual projection now builds A/B source bindings from active transition clips,
+  evaluates manual keyframes through the master evaluation bridge, and emits a
+  `LiveScrubVisualProgram` with outgoing/incoming transition roles.
+- non-manual professional presets keep the existing render-plan-based path.
 
 ## 12. Phase 6 - Descriptor Contract Extension With Safe Defaults
 
@@ -556,6 +576,15 @@ Checkpoint:
 ```text
 checkpoint: preserve manual transition visual descriptors
 ```
+
+Implementation note:
+
+- `LiveScrubPreviewSourceDescriptor` now preserves runtime visual metadata with
+  safe defaults: transform matrix, opacity, effect ids, transition role/id,
+  transition progress/window, and runtime blockers.
+- `LiveScrubRuntimeSurfaceConfigAdapter` now forwards descriptor projection
+  metadata into scrub descriptors instead of dropping it.
+- baseline non-transition scrub behavior remains identity by default.
 
 ## 13. Phase 7 - Runtime Bridge Design Decision
 
