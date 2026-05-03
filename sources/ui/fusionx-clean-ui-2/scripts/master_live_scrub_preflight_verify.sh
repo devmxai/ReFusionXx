@@ -10,6 +10,7 @@ scripts/master_live_scrub_guard_check.sh
 echo "[master-live-scrub] targeted tests"
 flutter test \
   test/master_live_scrub_descriptor_projection_test.dart \
+  test/master_live_scrub_preflight_payload_test.dart \
   test/stage5_live_scrub_capabilities_test.dart \
   test/master_live_scrub_program_adapter_test.dart \
   test/master_frame_evaluation_read_adapter_test.dart

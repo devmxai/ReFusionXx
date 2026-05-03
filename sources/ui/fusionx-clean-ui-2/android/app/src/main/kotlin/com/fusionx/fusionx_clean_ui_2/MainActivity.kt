@@ -40,6 +40,7 @@ class MainActivity: FlutterActivity() {
     private var pendingMediaTab: String? = null
     private var pendingMediaResult: MethodChannel.Result? = null
     private var pendingMediaHadVisualPermission = false
+    private var latestLiveScrubDescriptorPreflight: Map<String, Any?>? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -340,6 +341,29 @@ class MainActivity: FlutterActivity() {
                             "source" to "stage5_read_only_capability_handshake_v1",
                         ),
                     )
+                }
+                "submitLiveScrubDescriptorPreflight" -> {
+                    val payload =
+                        (call.arguments as? Map<*, *>)?.mapKeys { (key, _) -> key.toString() }
+                            ?.toMutableMap() ?: mutableMapOf()
+                    val descriptors =
+                        (payload["descriptors"] as? List<*>)?.filterIsInstance<Map<*, *>>()
+                            ?: emptyList()
+                    val blockers = (payload["blockers"] as? List<*>) ?: emptyList<Any?>()
+                    payload["nativeReceivedAtMs"] = System.currentTimeMillis()
+                    payload["descriptorCount"] = descriptors.size
+                    payload["blockerCount"] = blockers.size
+                    latestLiveScrubDescriptorPreflight = payload
+                    result.success(
+                        mapOf(
+                            "accepted" to true,
+                            "descriptorCount" to descriptors.size,
+                            "blockerCount" to blockers.size,
+                        ),
+                    )
+                }
+                "getLiveScrubDescriptorPreflightSnapshot" -> {
+                    result.success(latestLiveScrubDescriptorPreflight ?: emptyMap<String, Any?>())
                 }
                 else -> result.notImplemented()
             }

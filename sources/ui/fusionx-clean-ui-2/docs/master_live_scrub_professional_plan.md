@@ -645,6 +645,17 @@ Implementation note (checkpoint `checkpoint: add master live scrub preflight ver
   in one command for repeatable checkpoint validation.
 - this slice is tooling-only and does not alter Stage5 scrub rendering behavior.
 
+Implementation note (checkpoint `checkpoint: add live scrub descriptor preflight bridge snapshot`):
+
+- added read-only Stage5 transport bridge methods:
+  - `submitLiveScrubDescriptorPreflight`
+  - `getLiveScrubDescriptorPreflightSnapshot`
+- native now accepts and stores the latest preflight descriptor/parity payload
+  for diagnostics and bridge validation without changing active scrub rendering.
+- descriptor/parity models now expose stable map serialization for bridge payloads
+  and targeted tests verify payload shape.
+- this slice does not change Stage5 hot-path scrub rendering behavior.
+
 ## 9. Verification Matrix
 
 Every implementation slice must name which rows it affects:

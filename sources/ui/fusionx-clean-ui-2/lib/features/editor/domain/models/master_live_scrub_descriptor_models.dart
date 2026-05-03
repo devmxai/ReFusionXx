@@ -121,6 +121,18 @@ class LiveScrubPerformanceSnapshot {
       memoryPressureLevel: memoryPressureLevel ?? this.memoryPressureLevel,
     );
   }
+
+  Map<String, Object?> toMap() {
+    return <String, Object?>{
+      'frameRequestRateFps': frameRequestRateFps,
+      'nativeDecodeRebindLatencyMs': nativeDecodeRebindLatencyMs,
+      'descriptorProjectionLatencyUs': descriptorProjectionLatencyUs,
+      'framePresentationLatencyMs': framePresentationLatencyMs,
+      'droppedFrameCount': droppedFrameCount,
+      'crossSourceWarmupReady': crossSourceWarmupReady,
+      'memoryPressureLevel': memoryPressureLevel,
+    };
+  }
 }
 
 @immutable
@@ -167,6 +179,22 @@ class LiveScrubParityReport {
   final LiveScrubTransitionParityState transitionParityState;
   final LiveScrubLatencyBudgetState latencyBudgetState;
   final LiveScrubPerformanceSnapshot performanceSnapshot;
+
+  Map<String, Object?> toMap() {
+    return <String, Object?>{
+      'canScrubFrame': canScrubFrame,
+      'usesMasterClock': usesMasterClock,
+      'usesMasterFrameEvaluation': usesMasterFrameEvaluation,
+      'usesNativeScrubSurface': usesNativeScrubSurface,
+      'usesExoPlayerDuringActiveScrub': usesExoPlayerDuringActiveScrub,
+      'usesStillFallback': usesStillFallback,
+      'missingDescriptors': missingDescriptors,
+      'unsupportedEffects': unsupportedEffects,
+      'transitionParityState': transitionParityState.name,
+      'latencyBudgetState': latencyBudgetState.name,
+      'performanceSnapshot': performanceSnapshot.toMap(),
+    };
+  }
 }
 
 @immutable
@@ -267,6 +295,19 @@ class LiveScrubDescriptorProjectionResult {
   final List<String> diagnostics;
   final bool canProject;
   final LiveScrubParityReport parityReport;
+
+  Map<String, Object?> toPreflightNativeMap() {
+    return <String, Object?>{
+      'timelinePositionMs': timelinePositionMs,
+      'descriptors': descriptors.map((entry) => entry.toNativeMap()).toList(
+            growable: false,
+          ),
+      'blockers': blockers,
+      'diagnostics': diagnostics,
+      'canProject': canProject,
+      'parityReport': parityReport.toMap(),
+    };
+  }
 }
 
 @immutable

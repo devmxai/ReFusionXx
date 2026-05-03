@@ -495,6 +495,38 @@ class Stage5NativeTransportController extends ChangeNotifier {
     }
   }
 
+  Future<bool> submitLiveScrubDescriptorPreflight(
+    LiveScrubDescriptorProjectionResult projectionResult,
+  ) async {
+    if (!isPlatformSupported) {
+      return false;
+    }
+    try {
+      final result = await _methodChannel.invokeMethod<dynamic>(
+        'submitLiveScrubDescriptorPreflight',
+        buildLiveScrubDescriptorPreflightPayload(projectionResult),
+      );
+      final normalized = _normalizeMap(result);
+      return normalized['accepted'] == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<Map<String, dynamic>> getLiveScrubDescriptorPreflightSnapshot() async {
+    if (!isPlatformSupported) {
+      return const <String, dynamic>{};
+    }
+    try {
+      final result = await _methodChannel.invokeMethod<dynamic>(
+        'getLiveScrubDescriptorPreflightSnapshot',
+      );
+      return _normalizeMap(result);
+    } catch (_) {
+      return const <String, dynamic>{};
+    }
+  }
+
   @override
   void dispose() {
     _eventsSubscription?.cancel();
@@ -685,6 +717,13 @@ Stage5LiveScrubCapabilities parseStage5LiveScrubCapabilities(dynamic result) {
     supportedEffectProgramIds: readStringList('supportedEffectProgramIds'),
     source: source,
   );
+}
+
+@visibleForTesting
+Map<String, Object?> buildLiveScrubDescriptorPreflightPayload(
+  LiveScrubDescriptorProjectionResult projectionResult,
+) {
+  return projectionResult.toPreflightNativeMap();
 }
 
 Map<String, dynamic> _normalizeLiveScrubCapabilitiesMap(dynamic value) {
