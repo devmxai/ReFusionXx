@@ -222,7 +222,6 @@ class Stage5TransportManager(context: Context) {
     private val playerListener =
         object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
-                maybeCompletePlaybackAlignmentFromPlayer()
                 maybeFinishScrubSettle()
                 updateTimelinePlaybackWindow()
                 emitPreviewRetentionPolicy()
@@ -233,7 +232,6 @@ class Stage5TransportManager(context: Context) {
                 mediaItem: MediaItem?,
                 reason: Int,
             ) {
-                maybeCompletePlaybackAlignmentFromPlayer()
                 maybeFinishScrubSettle()
                 syncRunTimelinePlaybackFromActiveItem()
                 updateTimelinePlaybackWindow()
@@ -251,7 +249,6 @@ class Stage5TransportManager(context: Context) {
                 newPosition: Player.PositionInfo,
                 reason: Int,
             ) {
-                maybeCompletePlaybackAlignmentFromPlayer()
                 maybeFinishScrubSettle()
                 updateTimelinePlaybackWindow()
                 emitPreviewRetentionPolicy()
@@ -1430,32 +1427,6 @@ class Stage5TransportManager(context: Context) {
         emitState()
     }
 
-    private fun maybeCompletePlaybackAlignmentFromPlayer() {
-        val targetPositionMs = playbackAlignmentTargetPositionMs ?: return
-        if (playbackAlignmentReady) {
-            return
-        }
-        val activePlayer = activePlayer ?: exoPlayer ?: compositionPlayer ?: return
-        if (activePlayer.playbackState == Player.STATE_IDLE) {
-            return
-        }
-        val currentPositionMs =
-            if (timelineSegments.isNotEmpty()) {
-                currentTimelinePositionMs()
-            } else {
-                activePlayer.currentPosition.coerceAtLeast(0L)
-            }
-        if (
-            kotlin.math.abs(currentPositionMs - targetPositionMs) >
-                PLAY_FROM_POSITION_SEEK_TOLERANCE_MS
-        ) {
-            return
-        }
-        playbackAlignmentReady = true
-        lastRequestedPositionMs = targetPositionMs
-        emitState()
-    }
-
     private fun notifyPlaybackFrameObserversIfNeeded(renderedPositionMs: Long?) {
         val activePlayer = activePlayer ?: exoPlayer ?: compositionPlayer ?: return
         if (!activePlayer.playWhenReady && !activePlayer.isPlaying) {
@@ -1480,17 +1451,7 @@ class Stage5TransportManager(context: Context) {
         renderedPositionMs: Long?,
     ): Boolean {
         val targetPositionMs = observer.targetPositionMs ?: return true
-        val activePlayer = activePlayer ?: exoPlayer ?: compositionPlayer ?: return false
-        val currentPositionMs =
-            if (timelineSegments.isNotEmpty()) {
-                currentTimelinePositionMs()
-            } else {
-                activePlayer.currentPosition.coerceAtLeast(0L)
-            }
-        if (
-            kotlin.math.abs(currentPositionMs - targetPositionMs) <=
-                PLAY_FROM_POSITION_RENDERED_FRAME_TOLERANCE_MS
-        ) {
+        if (isPlaybackAlignmentReadyForImmediateHandoff(targetPositionMs)) {
             return true
         }
         if (renderedPositionMs == null) {
