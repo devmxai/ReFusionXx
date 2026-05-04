@@ -48,5 +48,6 @@ void main() {
     );
     expect(body.contains('evaluatedChannels: evaluation.evaluatedChannels'),
         isTrue);
+    expect(body.contains('_evaluateUniversalMasterFrameForMode('), isFalse);
   });
 }

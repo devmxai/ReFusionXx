@@ -1912,13 +1912,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       effectiveIsPlaying:
           _isPlaying && (_useNativePreview || _canUseFlutterTimelinePlayback),
     );
-    final evaluation = _masterFrameEvaluationForMode(
+    final universalEvaluation = _evaluateUniversalMasterFrameForMode(
       mode,
       previewTimeOverride: _timelineDisplayTimeNotifier.value,
     );
-    if (evaluation == null) {
-      return null;
-    }
+    final evaluation = universalEvaluation.frame;
     final sourceWindows =
         _liveScrubSourceWindowsForActiveTransition(activeTransition);
     if (sourceWindows.isEmpty) {
@@ -1945,6 +1943,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             }
             return _liveScrubVisualProgramForTransitionRuntimeBridge(
               evaluation: evaluation,
+              universalEvaluation: universalEvaluation,
               activeTransition: activeTransition,
               plan: plan,
               mode: mode,
@@ -21659,6 +21658,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
   LiveScrubVisualProgram _liveScrubVisualProgramForTransitionRuntimeBridge({
     required MasterFrameEvaluation evaluation,
+    required UniversalMasterFrameEvaluationResult universalEvaluation,
     required _ActiveTimelineTransitionPreview activeTransition,
     required ProfessionalVideoTransitionRenderPlan plan,
     required String mode,
@@ -21680,10 +21680,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         scrubStoreKey: source.assetId,
       );
     }
-    final universalEvaluation = _evaluateUniversalMasterFrameForMode(
-      mode,
-      previewTimeOverride: evaluation.time.rootTime,
-    );
     final program = _masterLiveScrubProgramAdapter.build(
       frame: MasterFrameEvaluation(
         time: evaluation.time,
@@ -22225,15 +22221,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
               await _transportController.getLiveScrubCapabilities();
           final performanceSnapshot =
               await _transportController.getLiveScrubPerformanceSnapshot();
-          final evaluation = _masterFrameEvaluationForMode(
+          final universalEvaluation = _evaluateUniversalMasterFrameForMode(
             mode,
             previewTimeOverride: activeTransition.timelineTime,
           );
-          if (evaluation == null) {
-            return;
-          }
+          final evaluation = universalEvaluation.frame;
           final program = _liveScrubVisualProgramForTransitionRuntimeBridge(
             evaluation: evaluation,
+            universalEvaluation: universalEvaluation,
             activeTransition: activeTransition,
             plan: plan,
             mode: mode,
