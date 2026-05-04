@@ -184,6 +184,14 @@ void main() {
     );
   });
 
+  test('transition unified scope gate uses blocked decision naming', () async {
+    final gateSource = await File(
+      'lib/features/editor/presentation/services/transition_unified_scope_entry_gate.dart',
+    ).readAsString();
+    expect(gateSource.contains('legacyTransitionScope'), isFalse);
+    expect(gateSource.contains('blockedUnifiedScope'), isTrue);
+  });
+
   test('live scrub program is projected from master visual program', () async {
     final source = await liveScrubProgramAdapterFile.readAsString();
     expect(source.contains('MasterVisualProgramAdapter'), isTrue);

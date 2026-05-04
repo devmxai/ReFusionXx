@@ -10,7 +10,7 @@ typedef TransitionScopeGraphAuthoringDelegate
 
 enum TransitionUnifiedScopeEntryDecision {
   unifiedScope,
-  legacyTransitionScope,
+  blockedUnifiedScope,
 }
 
 enum TransitionUnifiedScopeEntryFallbackReason {
@@ -60,7 +60,7 @@ class TransitionUnifiedScopeEntryGate {
     final result = _applyPresetToUnifiedScope(request);
     if (!result.graph.canApply) {
       return TransitionUnifiedScopeEntryResult(
-        decision: TransitionUnifiedScopeEntryDecision.legacyTransitionScope,
+        decision: TransitionUnifiedScopeEntryDecision.blockedUnifiedScope,
         fallbackReason:
             TransitionUnifiedScopeEntryFallbackReason.graphApplyBlocked,
         unifiedScope: result,
@@ -70,7 +70,7 @@ class TransitionUnifiedScopeEntryGate {
 
     if (result.scope == null || result.projectionIssues.isNotEmpty) {
       return TransitionUnifiedScopeEntryResult(
-        decision: TransitionUnifiedScopeEntryDecision.legacyTransitionScope,
+        decision: TransitionUnifiedScopeEntryDecision.blockedUnifiedScope,
         fallbackReason:
             TransitionUnifiedScopeEntryFallbackReason.projectionBlocked,
         unifiedScope: result,
@@ -81,7 +81,7 @@ class TransitionUnifiedScopeEntryGate {
 
     if (result.lanes == null || result.lanes!.hasIssues) {
       return TransitionUnifiedScopeEntryResult(
-        decision: TransitionUnifiedScopeEntryDecision.legacyTransitionScope,
+        decision: TransitionUnifiedScopeEntryDecision.blockedUnifiedScope,
         fallbackReason:
             TransitionUnifiedScopeEntryFallbackReason.laneProjectionBlocked,
         unifiedScope: result,

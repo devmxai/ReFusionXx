@@ -160,7 +160,7 @@ class TransitionUnifiedScopeBridgeEntryAdapter {
     final definitionId = timelineAdapter.definitionIdForPreset(request.preset);
     if (definitionId == null) {
       return TransitionUnifiedScopeBridgeEntryResult(
-        decision: TransitionUnifiedScopeEntryDecision.legacyTransitionScope,
+        decision: TransitionUnifiedScopeEntryDecision.blockedUnifiedScope,
         fallbackReason:
             TransitionUnifiedScopeBridgeFallbackReason.unsupportedPreset,
         issues: <NormalTransitionIssue>[
@@ -177,7 +177,7 @@ class TransitionUnifiedScopeBridgeEntryAdapter {
     final catalogResult = catalog.loadBuiltIns();
     if (!catalogResult.isValid) {
       return TransitionUnifiedScopeBridgeEntryResult(
-        decision: TransitionUnifiedScopeEntryDecision.legacyTransitionScope,
+        decision: TransitionUnifiedScopeEntryDecision.blockedUnifiedScope,
         fallbackReason:
             TransitionUnifiedScopeBridgeFallbackReason.catalogBlocked,
         issues: catalogResult.issues,
@@ -187,7 +187,7 @@ class TransitionUnifiedScopeBridgeEntryAdapter {
     final definition = catalogResult.definitionById(definitionId);
     if (definition == null) {
       return TransitionUnifiedScopeBridgeEntryResult(
-        decision: TransitionUnifiedScopeEntryDecision.legacyTransitionScope,
+        decision: TransitionUnifiedScopeEntryDecision.blockedUnifiedScope,
         fallbackReason:
             TransitionUnifiedScopeBridgeFallbackReason.unsupportedPreset,
         issues: <NormalTransitionIssue>[
@@ -216,7 +216,7 @@ class TransitionUnifiedScopeBridgeEntryAdapter {
     final unifiedRequest = factoryResult.request;
     if (!factoryResult.canBuild || unifiedRequest == null) {
       return TransitionUnifiedScopeBridgeEntryResult(
-        decision: TransitionUnifiedScopeEntryDecision.legacyTransitionScope,
+        decision: TransitionUnifiedScopeEntryDecision.blockedUnifiedScope,
         fallbackReason:
             TransitionUnifiedScopeBridgeFallbackReason.requestBlocked,
         definition: definition,
@@ -239,7 +239,7 @@ class TransitionUnifiedScopeBridgeEntryAdapter {
         issues.add(laneIssue);
       }
       return TransitionUnifiedScopeBridgeEntryResult(
-        decision: TransitionUnifiedScopeEntryDecision.legacyTransitionScope,
+        decision: TransitionUnifiedScopeEntryDecision.blockedUnifiedScope,
         fallbackReason:
             TransitionUnifiedScopeBridgeFallbackReason.entryGateBlocked,
         definition: definition,
