@@ -85,7 +85,8 @@ class UniversalMotionChannelCollector {
       }
     }
     return UniversalMotionChannelCollectionResult(
-      channels: byChannelId.values.toList(growable: false),
+      channels: (byChannelId.values.toList(growable: false)
+        ..sort((left, right) => left.id.compareTo(right.id))),
       diagnostics: diagnostics,
       blockers: blockers,
     );

@@ -329,4 +329,42 @@ void main() {
       contains('conflicting_channel_definition:channel.scale.x:scene_scope'),
     );
   });
+
+  test('returns deterministic channel ordering by channel id', () {
+    const collector = UniversalMotionChannelCollector();
+    final lateChannel = buildChannel(
+      id: 'z.channel',
+      target: const MotionPropertyTarget(
+        kind: MotionTargetKind.element,
+        targetId: 'element-1',
+        projectId: 'project-1',
+      ),
+      definition: MotionPropertyCatalog.scaleY,
+    );
+    final earlyChannel = buildChannel(
+      id: 'a.channel',
+      target: const MotionPropertyTarget(
+        kind: MotionTargetKind.element,
+        targetId: 'element-1',
+        projectId: 'project-1',
+      ),
+      definition: MotionPropertyCatalog.scaleX,
+    );
+
+    final result = collector.collect(
+      project: buildProject(),
+      sceneClips: buildSceneClips(),
+      sources: <UniversalMotionChannelCollectionSource>[
+        UniversalMotionChannelCollectionSource(
+          id: 'manual',
+          channels: <MotionPropertyChannelModel>[lateChannel, earlyChannel],
+        ),
+      ],
+    );
+
+    expect(
+      result.channels.map((channel) => channel.id).toList(growable: false),
+      <String>['a.channel', 'z.channel'],
+    );
+  });
 }
