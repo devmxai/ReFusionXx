@@ -21729,6 +21729,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         visibleLayerIds: visibleLayerIds,
         activeTransitionIds: <String>[transition.id],
         evaluatedChannels: activeEvaluatedChannels,
+        effectParameters: evaluation.effectParameters,
         diagnostics: <String>[
           ...evaluation.diagnostics,
           ...evaluationResult.diagnostics,

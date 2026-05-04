@@ -55,4 +55,22 @@ void main() {
         isTrue);
     expect(body.contains('_evaluateUniversalMasterFrameForMode('), isFalse);
   });
+
+  test('manual transition runtime bridge preserves effect parameters',
+      () async {
+    final source = await screenFile.readAsString();
+    final methodStart = source.indexOf(
+      'LiveScrubVisualProgram? _manualTransitionLiveScrubProgram({',
+    );
+    expect(methodStart, isNonNegative);
+    final methodEnd = source.indexOf(
+      'Set<String> _activeManualTransitionSourceIdsForTime({',
+      methodStart,
+    );
+    expect(methodEnd, greaterThan(methodStart));
+    final body = source.substring(methodStart, methodEnd);
+
+    expect(
+        body.contains('effectParameters: evaluation.effectParameters'), isTrue);
+  });
 }
