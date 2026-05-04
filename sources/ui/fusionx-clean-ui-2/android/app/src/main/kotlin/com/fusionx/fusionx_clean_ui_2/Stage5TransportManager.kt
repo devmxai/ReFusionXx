@@ -55,6 +55,7 @@ class Stage5TransportManager(context: Context) {
         private const val SCRUB_SETTLE_RENDERED_FRAME_TOLERANCE_MS = 90L
         private const val DISPLAYABLE_END_EPSILON_MS = 1L
         private const val FULL_SOURCE_DURATION_TOLERANCE_MS = 150L
+        private const val PLAY_FROM_POSITION_SEEK_TOLERANCE_MS = 24L
         // Composition-based multi-clip preview remains future-gated until it can preserve
         // live scrub parity with the accepted Exo baseline.
         private const val ENABLE_COMPOSITION_TIMELINE_PREVIEW = false
@@ -751,6 +752,16 @@ class Stage5TransportManager(context: Context) {
         latestError = null
         cancelPendingPlayAfterSettledSeek()
         clearScrubSettleForPlaybackStart()
+        if (isPlaybackAlreadyAtTimelinePosition(currentPlayer, safePositionMs)) {
+            lastRequestedPositionMs = safePositionMs
+            if (timelineSegments.isNotEmpty()) {
+                applyPlaybackRateForSegmentIndex(activeTimelineSegmentIndex)
+            }
+            currentPlayer.play()
+            emitPreviewRetentionPolicy()
+            emitState()
+            return
+        }
         lastRequestedPositionMs = safePositionMs
         (currentPlayer as? ExoPlayer)?.setSeekParameters(SeekParameters.EXACT)
         performResolvedSeek(safePositionMs)
@@ -760,6 +771,23 @@ class Stage5TransportManager(context: Context) {
         currentPlayer.play()
         emitPreviewRetentionPolicy()
         emitState()
+    }
+
+    private fun isPlaybackAlreadyAtTimelinePosition(
+        player: Player,
+        positionMs: Long,
+    ): Boolean {
+        if (player.playbackState == Player.STATE_ENDED) {
+            return false
+        }
+        val currentPositionMs =
+            if (timelineSegments.isNotEmpty()) {
+                currentTimelinePositionMs()
+            } else {
+                player.currentPosition.coerceAtLeast(0L)
+            }
+        return kotlin.math.abs(currentPositionMs - positionMs) <=
+            PLAY_FROM_POSITION_SEEK_TOLERANCE_MS
     }
 
     fun pause() {

@@ -3780,6 +3780,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (!_useNativePreview || !_transportController.isPlatformSupported) {
       return _playPlayback();
     }
+    if (_currentTransportMatchesTimelineTime(
+      time,
+      toleranceMs: _playbackStartPositionToleranceMs,
+      requireSettled: false,
+    )) {
+      return _playPlayback();
+    }
     final clampedTime = _nativeTransportTimeForTimelineTime(time).clamp(
       TimelineTime.zero,
       _nativeTransportDurationForCurrentScope(),
