@@ -8,19 +8,19 @@ import '../models/master_visual_program_models.dart';
 import '../models/professional_motion_animation_models.dart';
 import '../models/professional_motion_models.dart';
 import 'master_render_graph_adapter.dart';
-import 'master_renderer_mode_adapter.dart';
+import 'master_renderer_frame_adapters.dart';
 import 'master_visual_program_adapter.dart';
 
 class MasterLiveScrubProgramAdapter {
   const MasterLiveScrubProgramAdapter({
     this.masterVisualProgramAdapter = const MasterVisualProgramAdapter(),
     this.masterRenderGraphAdapter = const MasterRenderGraphAdapter(),
-    this.masterRendererModeAdapter = const MasterRendererModeAdapter(),
+    this.masterRendererFrameAdapters = const MasterRendererFrameAdapters(),
   });
 
   final MasterVisualProgramAdapter masterVisualProgramAdapter;
   final MasterRenderGraphAdapter masterRenderGraphAdapter;
-  final MasterRendererModeAdapter masterRendererModeAdapter;
+  final MasterRendererFrameAdapters masterRendererFrameAdapters;
 
   LiveScrubVisualProgram build({
     required MasterFrameEvaluation frame,
@@ -38,8 +38,7 @@ class MasterLiveScrubProgramAdapter {
       channels: channels,
     );
     final renderGraph = masterRenderGraphAdapter.build(program: masterProgram);
-    final rendererFrameResult = masterRendererModeAdapter.project(
-      mode: _rendererModeFromMasterRenderMode(frame.time.renderMode),
+    final rendererFrameResult = masterRendererFrameAdapters.projectLiveScrub(
       program: masterProgram,
       renderGraph: renderGraph,
       requestId: MasterRendererContracts.liveScrubProgramRequestId(frame.time),
@@ -165,23 +164,6 @@ class MasterLiveScrubProgramAdapter {
     ];
     final hash = Object.hashAll(signature).toUnsigned(32).toRadixString(16);
     return 'msr:$hash';
-  }
-
-  MasterRendererAdapterMode _rendererModeFromMasterRenderMode(
-    MasterRenderMode mode,
-  ) {
-    switch (mode) {
-      case MasterRenderMode.preview:
-        return MasterRendererAdapterMode.preview;
-      case MasterRenderMode.playback:
-        return MasterRendererAdapterMode.playback;
-      case MasterRenderMode.liveScrub:
-      case MasterRenderMode.settle:
-      case MasterRenderMode.test:
-        return MasterRendererAdapterMode.liveScrub;
-      case MasterRenderMode.export:
-        return MasterRendererAdapterMode.export;
-    }
   }
 
   MasterVisualSourceKind _sourceKindToMaster(LiveScrubSourceKind kind) {

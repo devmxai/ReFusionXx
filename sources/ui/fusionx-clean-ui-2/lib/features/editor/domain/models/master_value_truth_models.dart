@@ -40,6 +40,8 @@ enum MasterPropertyCategory {
   visual,
   effect,
   crop,
+  mask,
+  color,
   shape,
   text,
 }

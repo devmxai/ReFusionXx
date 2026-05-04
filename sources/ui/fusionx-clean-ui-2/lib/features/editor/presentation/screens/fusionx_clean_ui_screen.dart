@@ -18689,27 +18689,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
   }
 
-  bool _isLegacyTriangularBlackMixLane(TimelineAnimationLaneData lane) {
-    if (lane.id != 'blackPeak' || lane.normalizedKeyframeStops.length != 3) {
-      return false;
-    }
-    final stops = lane.normalizedKeyframeStops;
-    final values = lane.alignedKeyframeValues(
-      fallbackValue: 0.0,
-      clampToPercent: false,
-    );
-    if (values.length != 3) {
-      return false;
-    }
-    bool close(double left, double right) => (left - right).abs() <= 0.0005;
-    return close(stops[0], 0.0) &&
-        close(stops[1], 0.5) &&
-        close(stops[2], 1.0) &&
-        close(values[0], 0.0) &&
-        close(values[1], 100.0) &&
-        close(values[2], 0.0);
-  }
-
   bool _isDefaultTransitionFocusLane(TimelineAnimationLaneData lane) {
     final spec = _transitionLaneLibrary[lane.id];
     if (spec == null ||
@@ -18760,8 +18739,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   ) {
     final isAutoSeeded = _isAutoSeededTransitionFocusLane(lane);
     if (isAutoSeeded &&
-        (_isLegacyTriangularBlackMixLane(lane) ||
-            (scopeContext != null && _isDefaultTransitionFocusLane(lane)))) {
+        (scopeContext != null && _isDefaultTransitionFocusLane(lane))) {
       final normalizedLane = _emptyTransitionFocusManualLane(
         laneId: lane.id,
         targetClipId: lane.targetClipId,
@@ -21434,8 +21412,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   bool _hasImplementedNativeProfessionalTransitionRenderer(
     TimelineTransitionPreset preset,
   ) {
-    return preset == TimelineTransitionPreset.manual ||
-        preset == TimelineTransitionPreset.distortionZoomInV1;
+    return preset == TimelineTransitionPreset.distortionZoomInV1;
   }
 
   bool _mustRenderTransitionOnNativeSurface(
@@ -21453,7 +21430,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required TimelineTime boundaryTime,
     required String mode,
     required String surfaceId,
-    double? manualLaneProgress,
   }) {
     final definitionId = _professionalTransitionDefinitionId(transition.preset);
     if (definitionId == null) {
@@ -21475,11 +21451,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final parameters = <String, Object?>{
       ...transition.preset.defaultParameterValues,
       ...transition.parameterValues,
-      if (transition.preset == TimelineTransitionPreset.manual)
-        ..._manualTransitionNativeParameters(
-          transition,
-          progress: manualLaneProgress ?? 0.0,
-        ),
     };
     return const ProfessionalVideoTransitionRenderPlanAdapter().build(
       ProfessionalVideoTransitionRenderPlanRequest(
@@ -21495,25 +21466,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         edgePolicy: <String, Object?>{
           'mode': 'mirrorTile',
           'fillMode': 'centerCrop',
-          if (isDistortionZoom ||
-              transition.preset ==
-                  TimelineTransitionPreset.manual) ...<String, Object?>{
+          if (isDistortionZoom) ...<String, Object?>{
             'outputScaleX': parameters['motionTileOutputScaleX'] ?? 4.0,
             'outputScaleY': parameters['motionTileOutputScaleY'] ?? 4.0,
           },
         },
         motionBlurPolicy: <String, Object?>{
-          'mode': transition.preset == TimelineTransitionPreset.manual
-              ? 'singleFrame'
-              : 'temporalShutter',
-          'shutterAngleDegrees':
-              transition.preset == TimelineTransitionPreset.manual
-                  ? 0.0
-                  : 360.0,
+          'mode': 'temporalShutter',
+          'shutterAngleDegrees': 360.0,
           'frameRate': _timelineFps,
-          'sampleCount': transition.preset == TimelineTransitionPreset.manual
-              ? 1
-              : (isDistortionZoom ? 9 : 7),
+          'sampleCount': isDistortionZoom ? 9 : 7,
         },
         interactiveSurfaceBindings: <ProfessionalVideoTransitionInteractiveSurfaceBinding>[
           ProfessionalVideoTransitionInteractiveSurfaceBinding(
@@ -21523,31 +21485,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         ],
       ),
     );
-  }
-
-  Map<String, Object?> _manualTransitionNativeParameters(
-    TimelineTrackTransitionData transition, {
-    required double progress,
-  }) {
-    final laneProgress = progress.clamp(0.0, 1.0).toDouble();
-    final scalePercent = transition.manualLaneValueAtProgress(
-      'scale',
-      laneProgress,
-      fallbackValue: 0.0,
-    );
-    final opacityPercent = transition.manualLaneValueAtProgress(
-      'opacity',
-      laneProgress,
-      fallbackValue: 100.0,
-    );
-    return <String, Object?>{
-      'manualTransform': true,
-      'manualScalePercent': scalePercent.clamp(-90.0, 300.0).toDouble(),
-      'manualScale': (1.0 + (scalePercent / 100.0)).clamp(0.1, 4.0).toDouble(),
-      'manualOpacity': (opacityPercent / 100.0).clamp(0.0, 1.0).toDouble(),
-      'motionTileOutputScaleX': 4.0,
-      'motionTileOutputScaleY': 4.0,
-    };
   }
 
   MasterRenderMode _masterRenderModeForTransitionMode(String mode) {
@@ -22347,7 +22284,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       boundaryTime: activeTransition.leftClip.endTime,
       mode: mode,
       surfaceId: surfaceId,
-      manualLaneProgress: activeTransition.manualLaneProgress,
     );
     if (!buildResult.canBuild) {
       _debugProfessionalTransitionBuildIssues(
@@ -22380,7 +22316,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     TimelineTransitionPreset preset,
   ) {
     return switch (preset) {
-      TimelineTransitionPreset.manual => 'manualTransform',
+      TimelineTransitionPreset.manual => null,
       TimelineTransitionPreset.zoomInCamera => 'zoomInCamera',
       TimelineTransitionPreset.zoomInPro => 'zoomInCamera',
       TimelineTransitionPreset.distortionZoomInV1 => 'distortionZoomInV1',

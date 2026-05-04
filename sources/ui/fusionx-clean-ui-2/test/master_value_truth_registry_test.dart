@@ -27,6 +27,9 @@ void main() {
       expect(registry.definitionById('shapeCornerRadius'), isNotNull);
       expect(registry.definitionById('textFontSize'), isNotNull);
       expect(registry.definitionById('textFontFamily'), isNotNull);
+      expect(registry.definitionById('shadowColor'), isNotNull);
+      expect(registry.definitionById('visualColor'), isNotNull);
+      expect(registry.definitionById('maskRevealProgress'), isNotNull);
     });
 
     test('opacity 100 percent maps to normalized alpha 1.0', () {
@@ -96,6 +99,12 @@ void main() {
             ?.id,
         'trimStart',
       );
+      expect(
+        registry
+            .definitionForMotionProperty(MotionPropertyCatalog.shadowColor)
+            ?.id,
+        'shadowColor',
+      );
       final trimOffset = registry.mapValue(
         definition: definition('trimOffset'),
         value: const MotionPropertyValue.scalar(50),
@@ -141,6 +150,18 @@ void main() {
         value: const MotionPropertyValue.stringValue('Inter'),
       );
       expect(fontFamily.renderer.token, 'Inter');
+
+      final visualColor = registry.mapValue(
+        definition: definition('visualColor'),
+        value: const MotionPropertyValue.colorArgb(0xFF102030),
+      );
+      expect(visualColor.renderer.colorArgb, 0xFF102030);
+
+      final maskReveal = registry.mapValue(
+        definition: definition('maskRevealProgress'),
+        value: const MotionPropertyValue.scalar(65),
+      );
+      expect(maskReveal.renderer.scalar, closeTo(0.65, 0.0001));
     });
   });
 }

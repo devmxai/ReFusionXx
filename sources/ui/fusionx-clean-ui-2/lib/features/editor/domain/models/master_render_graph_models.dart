@@ -7,6 +7,9 @@ import 'master_visual_program_models.dart';
 enum MasterRenderGraphNodeFamily {
   sourceSample,
   layerTransform,
+  crop,
+  mask,
+  style,
   effect,
   transition,
   composite,
@@ -45,9 +48,13 @@ class MasterRenderSurfaceBinding {
     required this.targetId,
     required this.sourceNodeId,
     required this.transformNodeId,
+    this.cropNodeId,
+    this.maskNodeId,
+    this.styleNodeId,
     required List<String> effectNodeIds,
     this.transitionNodeId,
     required this.compositeNodeId,
+    this.drawOrder = 0,
     required this.transitionRole,
     List<String> blockers = const <String>[],
   })  : effectNodeIds = List.unmodifiable(effectNodeIds),
@@ -56,9 +63,13 @@ class MasterRenderSurfaceBinding {
   final String targetId;
   final String? sourceNodeId;
   final String transformNodeId;
+  final String? cropNodeId;
+  final String? maskNodeId;
+  final String? styleNodeId;
   final List<String> effectNodeIds;
   final String? transitionNodeId;
   final String compositeNodeId;
+  final int drawOrder;
   final MasterVisualTransitionRole transitionRole;
   final List<String> blockers;
 }

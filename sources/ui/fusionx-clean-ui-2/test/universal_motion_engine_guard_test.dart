@@ -201,6 +201,17 @@ void main() {
     expect(source.contains('TransitionUnifiedScopeEntryConfig'), isFalse);
   });
 
+  test('screen detaches legacy manual transform transition hooks', () async {
+    final source = await screenFile.readAsString();
+    expect(source.contains("'manualTransform'"), isFalse);
+    expect(source.contains('_manualTransitionNativeParameters('), isFalse);
+    expect(source.contains('_isLegacyTriangularBlackMixLane('), isFalse);
+    expect(
+      source.contains('TimelineTransitionPreset.manual => null'),
+      isTrue,
+    );
+  });
+
   test('scene layer scope enables track animate/fx controls including shape',
       () async {
     final source = await screenFile.readAsString();
@@ -275,25 +286,37 @@ void main() {
     final source = await liveScrubProgramAdapterFile.readAsString();
     expect(source.contains('MasterVisualProgramAdapter'), isTrue);
     expect(source.contains('MasterRenderGraphAdapter'), isTrue);
-    expect(source.contains('MasterRendererModeAdapter'), isTrue);
+    expect(source.contains('MasterRendererFrameAdapters'), isTrue);
     expect(source.contains('_projectFromMasterVisualProgram('), isTrue);
     expect(source.contains('masterRenderGraphAdapter.build('), isTrue);
-    expect(source.contains('masterRendererModeAdapter.project('), isTrue);
+    expect(source.contains('masterRendererFrameAdapters.projectLiveScrub('),
+        isTrue);
   });
 
   test('master visual program carries crop text and shape contracts', () async {
     final modelsSource = await masterVisualProgramModelsFile.readAsString();
     final adapterSource = await masterVisualProgramAdapterFile.readAsString();
+    final renderGraphAdapterSource =
+        await masterRenderGraphAdapterFile.readAsString();
 
     expect(modelsSource.contains('class MasterVisualCrop'), isTrue);
+    expect(modelsSource.contains('class MasterVisualMask'), isTrue);
+    expect(modelsSource.contains('class MasterVisualColorStyle'), isTrue);
     expect(modelsSource.contains('class MasterVisualTextStyle'), isTrue);
     expect(modelsSource.contains('class MasterVisualShapeStyle'), isTrue);
     expect(modelsSource.contains('final MasterVisualCrop crop;'), isTrue);
+    expect(modelsSource.contains('final MasterVisualMask mask;'), isTrue);
+    expect(
+        modelsSource.contains('final MasterVisualColorStyle colors;'), isTrue);
+    expect(modelsSource.contains('final int drawOrder;'), isTrue);
     expect(modelsSource.contains('final MasterVisualTextStyle textStyle;'),
         isTrue);
     expect(modelsSource.contains('final MasterVisualShapeStyle shapeStyle;'),
         isTrue);
     expect(adapterSource.contains("case 'cropRect':"), isTrue);
+    expect(adapterSource.contains("case 'maskRevealProgress':"), isTrue);
+    expect(adapterSource.contains("case 'shadowColor':"), isTrue);
+    expect(adapterSource.contains("case 'visualColor':"), isTrue);
     expect(adapterSource.contains("case 'textFontSize':"), isTrue);
     expect(adapterSource.contains("case 'shapeWidth':"), isTrue);
     expect(adapterSource.contains("case 'trimStart':"), isTrue);
@@ -301,6 +324,17 @@ void main() {
         adapterSource.contains("case 'trimStart':\n"
             "          case 'trimEnd':"),
         isFalse);
+    expect(
+        renderGraphAdapterSource.contains('MasterRenderGraphNodeFamily.crop'),
+        isTrue);
+    expect(
+        renderGraphAdapterSource.contains('MasterRenderGraphNodeFamily.mask'),
+        isTrue);
+    expect(
+        renderGraphAdapterSource.contains('MasterRenderGraphNodeFamily.style'),
+        isTrue);
+    expect(renderGraphAdapterSource.contains("'drawOrder': surface.drawOrder"),
+        isTrue);
   });
 
   test('runtime bridge submission gates on reconciled native proof', () async {

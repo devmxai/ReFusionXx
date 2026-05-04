@@ -25,6 +25,16 @@ class MasterRendererModeAdapter {
     int? presentationTimestampUs,
   }) {
     final blockerSet = blockers.toSet();
+    final sourceIdsMatch = _sourceIdsMatch(
+      requestedSourceIds: requestedSourceIds,
+      presentedSourceIds: presentedSourceIds,
+    );
+    final rootTimeMatches = presentedRootTimeMs != null &&
+        presentedRootTimeMs == requestedRootTimeMs;
+    final frameIndexMatches = presentedFrameIndex != null &&
+        presentedFrameIndex == requestedFrameIndex;
+    final commitFrameMatches = presentedCommitFrameNumber != null &&
+        presentedCommitFrameNumber == requestedCommitFrameNumber;
     return RendererPresentationProof(
       requestedRootTimeMs: requestedRootTimeMs,
       requestedFrameIndex: requestedFrameIndex,
@@ -45,11 +55,19 @@ class MasterRendererModeAdapter {
       matchState: _resolveMatchState(
         blockers: blockerSet,
         nativePresentationAck: nativePresentationAck,
+        rootTimeMatches: rootTimeMatches,
+        frameIndexMatches: frameIndexMatches,
+        commitFrameMatches: commitFrameMatches,
+        sourceIdsMatch: sourceIdsMatch,
       ),
       matchReason: _resolveMatchReason(
         mode: mode,
         blockers: blockerSet,
         nativePresentationAck: nativePresentationAck,
+        rootTimeMatches: rootTimeMatches,
+        frameIndexMatches: frameIndexMatches,
+        commitFrameMatches: commitFrameMatches,
+        sourceIdsMatch: sourceIdsMatch,
       ),
     );
   }
@@ -115,27 +133,70 @@ class MasterRendererModeAdapter {
   RendererPresentationMatchState _resolveMatchState({
     required Set<String> blockers,
     required bool nativePresentationAck,
+    required bool rootTimeMatches,
+    required bool frameIndexMatches,
+    required bool commitFrameMatches,
+    required bool sourceIdsMatch,
   }) {
     if (blockers.isNotEmpty) {
       return RendererPresentationMatchState.blocked;
     }
-    if (nativePresentationAck) {
-      return RendererPresentationMatchState.matched;
+    if (!nativePresentationAck) {
+      return RendererPresentationMatchState.pendingNativeAck;
     }
-    return RendererPresentationMatchState.pendingNativeAck;
+    if (!rootTimeMatches ||
+        !frameIndexMatches ||
+        !commitFrameMatches ||
+        !sourceIdsMatch) {
+      return RendererPresentationMatchState.mismatched;
+    }
+    return RendererPresentationMatchState.matched;
   }
 
   String _resolveMatchReason({
     required MasterRendererAdapterMode mode,
     required Set<String> blockers,
     required bool nativePresentationAck,
+    required bool rootTimeMatches,
+    required bool frameIndexMatches,
+    required bool commitFrameMatches,
+    required bool sourceIdsMatch,
   }) {
     if (blockers.isNotEmpty) {
       return 'renderer_blocked_by_master_chain';
     }
-    if (nativePresentationAck) {
-      return 'renderer_acknowledged';
+    if (!nativePresentationAck) {
+      return 'awaiting_${mode.name}_native_ack';
     }
-    return 'awaiting_${mode.name}_native_ack';
+    if (!commitFrameMatches) {
+      return 'presented_commit_frame_mismatch';
+    }
+    if (!frameIndexMatches) {
+      return 'presented_frame_index_mismatch';
+    }
+    if (!rootTimeMatches) {
+      return 'presented_root_time_mismatch';
+    }
+    if (!sourceIdsMatch) {
+      return 'presented_source_ids_mismatch';
+    }
+    return 'renderer_acknowledged';
+  }
+
+  bool _sourceIdsMatch({
+    required List<String> requestedSourceIds,
+    required List<String> presentedSourceIds,
+  }) {
+    if (requestedSourceIds.length != presentedSourceIds.length) {
+      return false;
+    }
+    final left = [...requestedSourceIds]..sort();
+    final right = [...presentedSourceIds]..sort();
+    for (var index = 0; index < left.length; index++) {
+      if (left[index] != right[index]) {
+        return false;
+      }
+    }
+    return true;
   }
 }

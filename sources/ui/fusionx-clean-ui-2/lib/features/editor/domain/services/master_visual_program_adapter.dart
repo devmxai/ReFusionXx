@@ -48,11 +48,19 @@ class MasterVisualProgramAdapter {
       ...sourcesByTargetId.keys,
       ...frame.visibleLayerIds,
     };
+    final orderedTargetIds = _orderedTargetIds(
+      targetIds: targetIds,
+      visibleLayerIds: frame.visibleLayerIds,
+    );
+    final drawOrderByTargetId = <String, int>{
+      for (var index = 0; index < orderedTargetIds.length; index++)
+        orderedTargetIds[index]: index,
+    };
     final globalBlockers = <String>[];
     final globalDiagnostics = <String>[...frame.diagnostics];
     final surfaces = <MasterVisualSurface>[];
 
-    for (final targetId in targetIds) {
+    for (final targetId in orderedTargetIds) {
       final source = sourcesByTargetId[targetId];
       final values =
           grouped[targetId] ?? const <MasterEvaluatedPropertyValue>[];
@@ -60,6 +68,8 @@ class MasterVisualProgramAdapter {
       final effectsById = <String, MasterVisualEffectBinding>{};
       var transform = const MasterVisualTransform();
       var crop = const MasterVisualCrop();
+      var mask = const MasterVisualMask();
+      var colors = const MasterVisualColorStyle();
       var textStyle = const MasterVisualTextStyle();
       var shapeStyle = const MasterVisualShapeStyle();
       var opacity = 1.0;
@@ -118,6 +128,28 @@ class MasterVisualProgramAdapter {
               blockers.add('invalid_crop_value:${value.sourceChannelId}');
             } else {
               crop = crop.copyWith(rect: rect);
+            }
+          case 'maskRevealProgress':
+            if (rendererScalar == null || !rendererScalar.isFinite) {
+              blockers.add('invalid_mask_value:${value.sourceChannelId}');
+            } else {
+              mask = mask.copyWith(
+                revealProgress: rendererScalar.clamp(0.0, 1.0).toDouble(),
+              );
+            }
+          case 'shadowColor':
+            final colorArgb = value.mapping.renderer.colorArgb;
+            if (colorArgb == null) {
+              blockers.add('invalid_color_value:${value.sourceChannelId}');
+            } else {
+              colors = colors.copyWith(shadowColorArgb: colorArgb);
+            }
+          case 'visualColor':
+            final colorArgb = value.mapping.renderer.colorArgb;
+            if (colorArgb == null) {
+              blockers.add('invalid_color_value:${value.sourceChannelId}');
+            } else {
+              colors = colors.copyWith(visualColorArgb: colorArgb);
             }
           case 'shapeWidth':
             if (rendererScalar == null || !rendererScalar.isFinite) {
@@ -258,10 +290,13 @@ class MasterVisualProgramAdapter {
           targetId: targetId,
           sourceKind: sourceKind,
           source: source,
+          drawOrder: drawOrderByTargetId[targetId] ?? 0,
           transitionRole: transitionRolesByTargetId[targetId] ??
               MasterVisualTransitionRole.none,
           transform: transform,
           crop: crop,
+          mask: mask,
+          colors: colors,
           textStyle: textStyle,
           shapeStyle: shapeStyle,
           opacity: opacity,
@@ -291,5 +326,25 @@ class MasterVisualProgramAdapter {
       diagnostics: globalDiagnostics,
       transitionState: transitionState,
     );
+  }
+
+  List<String> _orderedTargetIds({
+    required Set<String> targetIds,
+    required List<String> visibleLayerIds,
+  }) {
+    final ordered = <String>[];
+    final seen = <String>{};
+    for (final targetId in visibleLayerIds) {
+      if (!targetIds.contains(targetId)) {
+        continue;
+      }
+      if (seen.add(targetId)) {
+        ordered.add(targetId);
+      }
+    }
+    final leftovers = targetIds.where((id) => !seen.contains(id)).toList()
+      ..sort();
+    ordered.addAll(leftovers);
+    return ordered;
   }
 }

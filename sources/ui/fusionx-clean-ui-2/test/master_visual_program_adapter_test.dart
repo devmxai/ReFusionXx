@@ -205,10 +205,68 @@ void main() {
         definition: MotionPropertyCatalog.shadowOpacity,
         keyframes: const <MotionKeyframeModel>[],
       ),
+      MotionPropertyChannelModel(
+        id: 'ch.shadow.color',
+        target: const MotionPropertyTarget(
+          kind: MotionTargetKind.element,
+          targetId: 'element-1',
+          projectId: 'project-1',
+          sceneId: 'scene-1',
+          layerId: 'layer-1',
+          elementId: 'element-1',
+        ),
+        definition: MotionPropertyCatalog.shadowColor,
+        keyframes: const <MotionKeyframeModel>[],
+      ),
+      MotionPropertyChannelModel(
+        id: 'ch.visual.color',
+        target: const MotionPropertyTarget(
+          kind: MotionTargetKind.element,
+          targetId: 'element-1',
+          projectId: 'project-1',
+          sceneId: 'scene-1',
+          layerId: 'layer-1',
+          elementId: 'element-1',
+        ),
+        definition: MotionPropertyDefinition(
+          id: 'visual.color',
+          path: const MotionPropertyPath(
+            group: MotionPropertyGroup.visual,
+            name: 'color',
+          ),
+          valueKind: MotionPropertyValueKind.colorArgb,
+          supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
+          defaultValue: const MotionPropertyValue.colorArgb(0xFFFFFFFF),
+        ),
+        keyframes: const <MotionKeyframeModel>[],
+      ),
+      MotionPropertyChannelModel(
+        id: 'ch.mask.reveal',
+        target: const MotionPropertyTarget(
+          kind: MotionTargetKind.element,
+          targetId: 'element-1',
+          projectId: 'project-1',
+          sceneId: 'scene-1',
+          layerId: 'layer-1',
+          elementId: 'element-1',
+        ),
+        definition: MotionPropertyDefinition(
+          id: 'mask.revealProgress',
+          path: const MotionPropertyPath(
+            group: MotionPropertyGroup.shape,
+            name: 'maskRevealProgress',
+          ),
+          valueKind: MotionPropertyValueKind.scalar,
+          supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
+          defaultValue: const MotionPropertyValue.scalar(0),
+        ),
+        keyframes: const <MotionKeyframeModel>[],
+      ),
     ];
 
     final frame = MasterFrameEvaluation(
       time: time,
+      visibleLayerIds: const <String>['element-2', 'element-1'],
       activeTransitionIds: const <String>['transition-1'],
       evaluatedChannels: <MasterEvaluatedPropertyValue>[
         MasterEvaluatedPropertyValue(
@@ -326,6 +384,39 @@ void main() {
           sourceChannelId: 'ch.shadow.opacity',
           status: 'resolved',
         ),
+        MasterEvaluatedPropertyValue(
+          targetId: 'element-1',
+          propertyDefinitionId: 'shadowColor',
+          domain: const MasterTimeDomain.scene('scene-1'),
+          mapping: mapping(
+            'shadowColor',
+            const MotionPropertyValue.colorArgb(0xFF112233),
+          ),
+          sourceChannelId: 'ch.shadow.color',
+          status: 'resolved',
+        ),
+        MasterEvaluatedPropertyValue(
+          targetId: 'element-1',
+          propertyDefinitionId: 'visualColor',
+          domain: const MasterTimeDomain.scene('scene-1'),
+          mapping: mapping(
+            'visualColor',
+            const MotionPropertyValue.colorArgb(0xFFABCDEF),
+          ),
+          sourceChannelId: 'ch.visual.color',
+          status: 'resolved',
+        ),
+        MasterEvaluatedPropertyValue(
+          targetId: 'element-1',
+          propertyDefinitionId: 'maskRevealProgress',
+          domain: const MasterTimeDomain.scene('scene-1'),
+          mapping: mapping(
+            'maskRevealProgress',
+            const MotionPropertyValue.scalar(65),
+          ),
+          sourceChannelId: 'ch.mask.reveal',
+          status: 'resolved',
+        ),
       ],
       effectParameters: <String, MasterPropertyValueMapping>{
         'tileOutputScale':
@@ -337,6 +428,14 @@ void main() {
       frame: frame,
       channels: channels,
       sourcesByTargetId: const <String, MasterVisualSourceBinding>{
+        'element-2': MasterVisualSourceBinding(
+          targetId: 'element-2',
+          kind: MasterVisualSourceKind.image,
+          sourceUri: '/media/image-b.png',
+          scrubStoreKey: 'clip-2',
+          sourceWidth: 1080,
+          sourceHeight: 1080,
+        ),
         'element-1': MasterVisualSourceBinding(
           targetId: 'element-1',
           kind: MasterVisualSourceKind.video,
@@ -351,8 +450,12 @@ void main() {
       },
     );
 
-    expect(program.surfaces.length, 1);
-    final surface = program.surfaces.single;
+    expect(program.surfaces.length, 2);
+    expect(program.surfaces.first.targetId, 'element-2');
+    expect(program.surfaces.first.drawOrder, 0);
+    final surface = program.surfaces
+        .firstWhere((candidate) => candidate.targetId == 'element-1');
+    expect(surface.drawOrder, 1);
     expect(surface.sourceKind, MasterVisualSourceKind.video);
     expect(surface.source?.sourceUri, '/media/video-a.mp4');
     expect(surface.opacity, closeTo(0.75, 0.0001));
@@ -365,6 +468,11 @@ void main() {
     expect(surface.crop.rect?.top, closeTo(0.2, 0.0001));
     expect(surface.crop.rect?.width, closeTo(0.7, 0.0001));
     expect(surface.crop.rect?.height, closeTo(0.6, 0.0001));
+    expect(surface.mask.revealProgress, closeTo(0.65, 0.0001));
+    expect(surface.mask.hasMask, isTrue);
+    expect(surface.colors.visualColorArgb, 0xFFABCDEF);
+    expect(surface.colors.shadowColorArgb, 0xFF112233);
+    expect(surface.colors.hasColorStyle, isTrue);
     expect(surface.textStyle.fontSize, closeTo(48.0, 0.0001));
     expect(surface.textStyle.fontFamily, 'Inter');
     expect(surface.textStyle.hasTextStyle, isTrue);

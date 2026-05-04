@@ -3,6 +3,7 @@ import 'package:refusion_app/features/editor/domain/models/master_render_graph_m
 import 'package:refusion_app/features/editor/domain/models/master_time_models.dart';
 import 'package:refusion_app/features/editor/domain/models/master_value_truth_models.dart';
 import 'package:refusion_app/features/editor/domain/models/master_visual_program_models.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_models.dart';
 import 'package:refusion_app/features/editor/domain/services/master_render_graph_adapter.dart';
 import 'package:refusion_app/features/editor/domain/services/timeline_clock_coordinator.dart';
 import 'package:refusion_app/features/editor/presentation/models/timeline_time.dart';
@@ -25,8 +26,40 @@ void main() {
       time: time,
       surfaces: <MasterVisualSurface>[
         MasterVisualSurface(
+          targetId: 'layer-b',
+          sourceKind: MasterVisualSourceKind.image,
+          drawOrder: 0,
+          source: const MasterVisualSourceBinding(
+            targetId: 'layer-b',
+            kind: MasterVisualSourceKind.image,
+            sourceUri: '/media/b.png',
+            scrubStoreKey: 'clip-b',
+            sourceWidth: 1200,
+            sourceHeight: 1200,
+          ),
+          crop: const MasterVisualCrop(
+            rect: MotionRect(left: 0.1, top: 0.2, width: 0.7, height: 0.6),
+          ),
+          mask: const MasterVisualMask(revealProgress: 0.4),
+          colors: const MasterVisualColorStyle(
+            visualColorArgb: 0xFF112233,
+            shadowColorArgb: 0xFF445566,
+          ),
+          textStyle: const MasterVisualTextStyle(
+            fontSize: 42,
+            fontFamily: 'Inter',
+          ),
+          shapeStyle: const MasterVisualShapeStyle(
+            width: 640,
+            height: 360,
+            trimStart: 0.1,
+            trimEnd: 0.9,
+          ),
+        ),
+        MasterVisualSurface(
           targetId: 'layer-a',
           sourceKind: MasterVisualSourceKind.video,
+          drawOrder: 1,
           source: const MasterVisualSourceBinding(
             targetId: 'layer-a',
             kind: MasterVisualSourceKind.video,
@@ -82,6 +115,18 @@ void main() {
         isTrue);
     expect(
         first.nodes
+            .any((node) => node.family == MasterRenderGraphNodeFamily.crop),
+        isTrue);
+    expect(
+        first.nodes
+            .any((node) => node.family == MasterRenderGraphNodeFamily.mask),
+        isTrue);
+    expect(
+        first.nodes
+            .any((node) => node.family == MasterRenderGraphNodeFamily.style),
+        isTrue);
+    expect(
+        first.nodes
             .any((node) => node.family == MasterRenderGraphNodeFamily.effect),
         isTrue);
     expect(
@@ -93,10 +138,19 @@ void main() {
             (node) => node.family == MasterRenderGraphNodeFamily.composite),
         isTrue);
     expect(first.nodes.last.family, MasterRenderGraphNodeFamily.outputSurface);
-    final binding = first.bindingForTarget('layer-a');
-    expect(binding, isNotNull);
-    expect(binding!.effectNodeIds.length, 2);
-    expect(binding.transitionNodeId, isNotNull);
+    final layerABinding = first.bindingForTarget('layer-a');
+    final layerBBinding = first.bindingForTarget('layer-b');
+    expect(layerABinding, isNotNull);
+    expect(layerBBinding, isNotNull);
+    expect(layerABinding!.effectNodeIds.length, 2);
+    expect(layerABinding.transitionNodeId, isNotNull);
+    expect(layerBBinding!.cropNodeId, isNotNull);
+    expect(layerBBinding.maskNodeId, isNotNull);
+    expect(layerBBinding.styleNodeId, isNotNull);
+    final outputNode =
+        first.nodes.firstWhere((node) => node.id == first.outputNodeId);
+    expect(outputNode.inputNodeIds.first, layerBBinding.compositeNodeId);
+    expect(outputNode.inputNodeIds.last, layerABinding.compositeNodeId);
     expect(first.canRenderTruthfully, isTrue);
   });
 

@@ -14,11 +14,21 @@ class MasterRenderGraphAdapter {
     final diagnostics = <String>[...program.diagnostics];
     final blockers = <String>[...program.blockers];
     final bindings = <MasterRenderSurfaceBinding>[];
+    final orderedSurfaces = [...program.surfaces]..sort((left, right) {
+        final orderCompare = left.drawOrder.compareTo(right.drawOrder);
+        if (orderCompare != 0) {
+          return orderCompare;
+        }
+        return left.targetId.compareTo(right.targetId);
+      });
 
-    for (final surface in program.surfaces) {
+    for (final surface in orderedSurfaces) {
       final surfaceBlockers = <String>[...surface.blockers];
       final surfaceDiagnostics = <String>[];
       String? sourceNodeId;
+      String? cropNodeId;
+      String? maskNodeId;
+      String? styleNodeId;
       String previousNodeId;
 
       final source = surface.source;
@@ -83,6 +93,116 @@ class MasterRenderGraphAdapter {
         ),
       );
       previousNodeId = transformNodeId;
+
+      if (surface.crop.hasCrop) {
+        cropNodeId = 'crop:${surface.targetId}';
+        final rect = surface.crop.rect!;
+        nodes.add(
+          MasterRenderGraphNode(
+            id: cropNodeId,
+            family: MasterRenderGraphNodeFamily.crop,
+            targetId: surface.targetId,
+            inputNodeIds: <String>[previousNodeId],
+            cacheKey: _cacheKey(
+              'crop',
+              surface.targetId,
+              rect.left,
+              rect.top,
+              rect.width,
+              rect.height,
+            ),
+            attributes: <String, Object?>{
+              'left': rect.left,
+              'top': rect.top,
+              'width': rect.width,
+              'height': rect.height,
+            },
+            blockers: surfaceBlockers,
+            diagnostics: surfaceDiagnostics,
+          ),
+        );
+        previousNodeId = cropNodeId;
+      }
+
+      if (surface.mask.hasMask) {
+        maskNodeId = 'mask:${surface.targetId}';
+        nodes.add(
+          MasterRenderGraphNode(
+            id: maskNodeId,
+            family: MasterRenderGraphNodeFamily.mask,
+            targetId: surface.targetId,
+            inputNodeIds: <String>[previousNodeId],
+            cacheKey: _cacheKey(
+              'mask',
+              surface.targetId,
+              surface.mask.revealProgress,
+            ),
+            attributes: <String, Object?>{
+              'revealProgress': surface.mask.revealProgress,
+            },
+            blockers: surfaceBlockers,
+            diagnostics: surfaceDiagnostics,
+          ),
+        );
+        previousNodeId = maskNodeId;
+      }
+
+      if (surface.textStyle.hasTextStyle ||
+          surface.shapeStyle.hasShapeStyle ||
+          surface.colors.hasColorStyle) {
+        styleNodeId = 'style:${surface.targetId}';
+        nodes.add(
+          MasterRenderGraphNode(
+            id: styleNodeId,
+            family: MasterRenderGraphNodeFamily.style,
+            targetId: surface.targetId,
+            inputNodeIds: <String>[previousNodeId],
+            cacheKey: _cacheKey(
+              'style',
+              surface.targetId,
+              Object.hashAll(<Object?>[
+                surface.textStyle.fontSize,
+                surface.textStyle.fontWeight,
+                surface.textStyle.fontFamily,
+                surface.textStyle.fontStyle,
+                surface.textStyle.lineHeight,
+                surface.textStyle.alignment,
+                surface.textStyle.letterSpacing,
+                surface.textStyle.revealProgress,
+                surface.shapeStyle.width,
+                surface.shapeStyle.height,
+                surface.shapeStyle.cornerRadius,
+                surface.shapeStyle.trimStart,
+                surface.shapeStyle.trimEnd,
+                surface.shapeStyle.trimOffset,
+                surface.colors.visualColorArgb,
+                surface.colors.shadowColorArgb,
+              ]),
+            ),
+            attributes: <String, Object?>{
+              'text.fontSize': surface.textStyle.fontSize,
+              'text.fontWeight': surface.textStyle.fontWeight,
+              'text.fontFamily': surface.textStyle.fontFamily,
+              'text.fontStyle': surface.textStyle.fontStyle,
+              'text.lineHeight': surface.textStyle.lineHeight,
+              'text.alignment': surface.textStyle.alignment,
+              'text.letterSpacing': surface.textStyle.letterSpacing,
+              'text.revealProgress': surface.textStyle.revealProgress,
+              'shape.width': surface.shapeStyle.width,
+              'shape.height': surface.shapeStyle.height,
+              'shape.cornerRadius': surface.shapeStyle.cornerRadius,
+              'shape.trimStart': surface.shapeStyle.trimStart,
+              'shape.trimEnd': surface.shapeStyle.trimEnd,
+              'shape.trimOffset': surface.shapeStyle.trimOffset,
+              'visual.color': surface.colors.visualColorArgb,
+              'effect.shadow.color': surface.colors.shadowColorArgb,
+            },
+            blockers: surfaceBlockers,
+            diagnostics: surfaceDiagnostics,
+          ),
+        );
+        previousNodeId = styleNodeId;
+      }
 
       final effectNodeIds = <String>[];
       final sortedEffects = [...surface.effects]
@@ -155,8 +275,14 @@ class MasterRenderGraphAdapter {
           inputNodeIds: <String>[previousNodeId],
           cacheKey: _cacheKey('composite', surface.targetId, previousNodeId),
           attributes: <String, Object?>{
+            'drawOrder': surface.drawOrder,
             'transitionRole': surface.transitionRole.name,
             'sourceKind': surface.sourceKind.name,
+            'hasCrop': surface.crop.hasCrop,
+            'hasMask': surface.mask.hasMask,
+            'hasTextStyle': surface.textStyle.hasTextStyle,
+            'hasShapeStyle': surface.shapeStyle.hasShapeStyle,
+            'hasColorStyle': surface.colors.hasColorStyle,
           },
           blockers: surfaceBlockers,
           diagnostics: surfaceDiagnostics,
@@ -170,9 +296,13 @@ class MasterRenderGraphAdapter {
           targetId: surface.targetId,
           sourceNodeId: sourceNodeId,
           transformNodeId: transformNodeId,
+          cropNodeId: cropNodeId,
+          maskNodeId: maskNodeId,
+          styleNodeId: styleNodeId,
           effectNodeIds: effectNodeIds,
           transitionNodeId: transitionNodeId,
           compositeNodeId: compositeNodeId,
+          drawOrder: surface.drawOrder,
           transitionRole: surface.transitionRole,
           blockers: surfaceBlockers,
         ),
@@ -180,16 +310,21 @@ class MasterRenderGraphAdapter {
     }
 
     final outputNodeId = 'output:${program.time.renderMode.name}';
-    final orderedComposites =
-        bindings.map((entry) => entry.compositeNodeId).toList(
-              growable: false,
-            );
+    final orderedComposites = [...bindings]..sort((left, right) {
+        final orderCompare = left.drawOrder.compareTo(right.drawOrder);
+        if (orderCompare != 0) {
+          return orderCompare;
+        }
+        return left.targetId.compareTo(right.targetId);
+      });
     nodes.add(
       MasterRenderGraphNode(
         id: outputNodeId,
         family: MasterRenderGraphNodeFamily.outputSurface,
         targetId: outputNodeId,
-        inputNodeIds: orderedComposites,
+        inputNodeIds: orderedComposites
+            .map((entry) => entry.compositeNodeId)
+            .toList(growable: false),
         cacheKey: _cacheKey(
           'output',
           program.time.renderMode.name,

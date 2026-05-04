@@ -104,6 +104,54 @@ class MasterVisualCrop {
 }
 
 @immutable
+class MasterVisualMask {
+  const MasterVisualMask({
+    this.revealProgress,
+  });
+
+  final double? revealProgress;
+
+  bool get hasMask => revealProgress != null;
+
+  MasterVisualMask copyWith({
+    double? revealProgress,
+    bool clearRevealProgress = false,
+  }) {
+    return MasterVisualMask(
+      revealProgress:
+          clearRevealProgress ? null : revealProgress ?? this.revealProgress,
+    );
+  }
+}
+
+@immutable
+class MasterVisualColorStyle {
+  const MasterVisualColorStyle({
+    this.visualColorArgb,
+    this.shadowColorArgb,
+  });
+
+  final int? visualColorArgb;
+  final int? shadowColorArgb;
+
+  bool get hasColorStyle => visualColorArgb != null || shadowColorArgb != null;
+
+  MasterVisualColorStyle copyWith({
+    int? visualColorArgb,
+    int? shadowColorArgb,
+    bool clearVisualColor = false,
+    bool clearShadowColor = false,
+  }) {
+    return MasterVisualColorStyle(
+      visualColorArgb:
+          clearVisualColor ? null : visualColorArgb ?? this.visualColorArgb,
+      shadowColorArgb:
+          clearShadowColor ? null : shadowColorArgb ?? this.shadowColorArgb,
+    );
+  }
+}
+
+@immutable
 class MasterVisualTextStyle {
   const MasterVisualTextStyle({
     this.fontSize,
@@ -209,9 +257,12 @@ class MasterVisualSurface {
     required this.targetId,
     required this.sourceKind,
     this.source,
+    this.drawOrder = 0,
     this.transitionRole = MasterVisualTransitionRole.none,
     this.transform = const MasterVisualTransform(),
     this.crop = const MasterVisualCrop(),
+    this.mask = const MasterVisualMask(),
+    this.colors = const MasterVisualColorStyle(),
     this.textStyle = const MasterVisualTextStyle(),
     this.shapeStyle = const MasterVisualShapeStyle(),
     this.opacity = 1.0,
@@ -224,9 +275,12 @@ class MasterVisualSurface {
   final String targetId;
   final MasterVisualSourceKind sourceKind;
   final MasterVisualSourceBinding? source;
+  final int drawOrder;
   final MasterVisualTransitionRole transitionRole;
   final MasterVisualTransform transform;
   final MasterVisualCrop crop;
+  final MasterVisualMask mask;
+  final MasterVisualColorStyle colors;
   final MasterVisualTextStyle textStyle;
   final MasterVisualShapeStyle shapeStyle;
   final double opacity;

@@ -65,6 +65,15 @@ class MasterValueTruthRegistry {
     if (key == 'effect.shadow.spread') {
       return _definitions['shadowSpread'];
     }
+    if (key == 'effect.shadow.color') {
+      return _definitions['shadowColor'];
+    }
+    if (key == 'visual.color') {
+      return _definitions['visualColor'];
+    }
+    if (key == 'shape.maskRevealProgress') {
+      return _definitions['maskRevealProgress'];
+    }
     if (key == 'shape.trim.start') {
       return _definitions['trimStart'];
     }
@@ -432,6 +441,69 @@ class MasterValueTruthRegistry {
         minValue: -100000,
         maxValue: 100000,
         mapper: _mapPosition,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'shadowColor': const MasterPropertyDefinition(
+        id: 'shadowColor',
+        category: MasterPropertyCategory.color,
+        valueType: MasterValueType.color,
+        uiUnit: MasterValueUnit.colorArgb,
+        engineUnit: MasterValueUnit.colorArgb,
+        rendererUnit: MasterValueUnit.colorArgb,
+        defaultValue: MotionPropertyValue.colorArgb(0xFF000000),
+        minValue: 0,
+        maxValue: 4294967295,
+        mapper: _mapColorArgb,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'visualColor': const MasterPropertyDefinition(
+        id: 'visualColor',
+        category: MasterPropertyCategory.color,
+        valueType: MasterValueType.color,
+        uiUnit: MasterValueUnit.colorArgb,
+        engineUnit: MasterValueUnit.colorArgb,
+        rendererUnit: MasterValueUnit.colorArgb,
+        defaultValue: MotionPropertyValue.colorArgb(0xFFFFFFFF),
+        minValue: 0,
+        maxValue: 4294967295,
+        mapper: _mapColorArgb,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'maskRevealProgress': const MasterPropertyDefinition(
+        id: 'maskRevealProgress',
+        category: MasterPropertyCategory.mask,
+        valueType: MasterValueType.percent,
+        uiUnit: MasterValueUnit.percentUi,
+        engineUnit: MasterValueUnit.normalized01,
+        rendererUnit: MasterValueUnit.normalized01,
+        defaultValue: MotionPropertyValue.scalar(0),
+        minValue: 0,
+        maxValue: 100,
+        mapper: _mapPercent01,
         supportedTargets: <MotionTargetKind>[
           MotionTargetKind.element,
         ],
@@ -1010,6 +1082,21 @@ class MasterValueTruthRegistry {
       uiUnit: MasterValueUnit.normalized01,
       engineUnit: MasterValueUnit.normalized01,
       rendererUnit: MasterValueUnit.normalized01,
+    );
+  }
+
+  static MasterPropertyValueMapping _mapColorArgb(MotionPropertyValue value) {
+    final color =
+        value.kind == MotionPropertyValueKind.colorArgb && value.rawValue is int
+            ? (value.rawValue as int)
+            : 0xFF000000;
+    return MasterPropertyValueMapping(
+      ui: MasterValueLayer(colorArgb: color),
+      engine: MasterValueLayer(colorArgb: color),
+      renderer: MasterValueLayer(colorArgb: color),
+      uiUnit: MasterValueUnit.colorArgb,
+      engineUnit: MasterValueUnit.colorArgb,
+      rendererUnit: MasterValueUnit.colorArgb,
     );
   }
 
