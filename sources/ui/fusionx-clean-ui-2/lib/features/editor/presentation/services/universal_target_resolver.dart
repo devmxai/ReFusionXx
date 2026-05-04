@@ -166,6 +166,21 @@ class UniversalTargetResolver {
       }
     }
 
+    final canonicalTargetId = _canonicalTargetIdForKind(
+      kind: source.kind,
+      targetId: targetId,
+      projectId: projectId,
+      sceneId: sceneId,
+      layerId: layerId,
+      elementId: elementId,
+    );
+    if (canonicalTargetId.isNotEmpty && canonicalTargetId != targetId) {
+      diagnostics.add(
+        'canonical_target_id:${channel.id}:$targetId->$canonicalTargetId',
+      );
+      targetId = canonicalTargetId;
+    }
+
     final blocker = _validateResolvedTarget(
       kind: source.kind,
       targetId: targetId,
@@ -231,5 +246,25 @@ class UniversalTargetResolver {
       return null;
     }
     return value;
+  }
+
+  static String _canonicalTargetIdForKind({
+    required MotionTargetKind kind,
+    required String targetId,
+    required String? projectId,
+    required String? sceneId,
+    required String? layerId,
+    required String? elementId,
+  }) {
+    switch (kind) {
+      case MotionTargetKind.project:
+        return (projectId == null || projectId.isEmpty) ? targetId : projectId;
+      case MotionTargetKind.scene:
+        return (sceneId == null || sceneId.isEmpty) ? targetId : sceneId;
+      case MotionTargetKind.layer:
+        return (layerId == null || layerId.isEmpty) ? targetId : layerId;
+      case MotionTargetKind.element:
+        return (elementId == null || elementId.isEmpty) ? targetId : elementId;
+    }
   }
 }

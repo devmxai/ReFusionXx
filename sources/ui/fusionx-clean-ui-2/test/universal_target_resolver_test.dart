@@ -74,7 +74,7 @@ void main() {
   }
 
   test('infers scene and layer ownership for element target', () {
-    final resolver = UniversalTargetResolver();
+    const resolver = UniversalTargetResolver();
     final context = resolver.buildContext(
       project: buildProject(),
       sceneClips: buildSceneClips(),
@@ -106,7 +106,7 @@ void main() {
   });
 
   test('reports blocker when target ownership cannot be resolved', () {
-    final resolver = UniversalTargetResolver();
+    const resolver = UniversalTargetResolver();
     final context = resolver.buildContext(
       project: buildProject(),
       sceneClips: buildSceneClips(),
@@ -125,5 +125,66 @@ void main() {
     expect(result.isResolved, isFalse);
     expect(result.channel, isNull);
     expect(result.blocker, 'missing_scene_id');
+  });
+
+  test('canonicalizes targetId to explicit element identity', () {
+    const resolver = UniversalTargetResolver();
+    final context = resolver.buildContext(
+      project: buildProject(),
+      sceneClips: buildSceneClips(),
+    );
+    final result = resolver.resolveChannel(
+      channel: buildChannel(
+        const MotionPropertyTarget(
+          kind: MotionTargetKind.element,
+          targetId: 'legacy-clip-id',
+          projectId: 'project-1',
+          sceneId: 'scene-1',
+          layerId: 'layer-1',
+          elementId: 'element-1',
+        ),
+      ),
+      context: context,
+    );
+
+    expect(result.isResolved, isTrue);
+    expect(result.channel, isNotNull);
+    expect(result.channel!.target.targetId, 'element-1');
+    expect(
+      result.diagnostics,
+      contains(
+        'canonical_target_id:channel-1:legacy-clip-id->element-1',
+      ),
+    );
+  });
+
+  test('canonicalizes targetId to explicit layer identity', () {
+    const resolver = UniversalTargetResolver();
+    final context = resolver.buildContext(
+      project: buildProject(),
+      sceneClips: buildSceneClips(),
+    );
+    final result = resolver.resolveChannel(
+      channel: buildChannel(
+        const MotionPropertyTarget(
+          kind: MotionTargetKind.layer,
+          targetId: 'legacy-layer-id',
+          projectId: 'project-1',
+          sceneId: 'scene-1',
+          layerId: 'layer-1',
+        ),
+      ),
+      context: context,
+    );
+
+    expect(result.isResolved, isTrue);
+    expect(result.channel, isNotNull);
+    expect(result.channel!.target.targetId, 'layer-1');
+    expect(
+      result.diagnostics,
+      contains(
+        'canonical_target_id:channel-1:legacy-layer-id->layer-1',
+      ),
+    );
   });
 }
