@@ -129,6 +129,8 @@ void main() {
     expect(source.contains("id: 'manual_motion_property_channels'"), isFalse);
     expect(source.contains("id: 'universal_authored_channels'"), isTrue);
     expect(source.contains("id: 'scene_scope_projection_channels'"), isTrue);
+    expect(source.contains('_manualMotionPropertyChannels'), isFalse);
+    expect(source.contains('_universalMotionPropertyChannels'), isTrue);
   });
 
   test('screen enables unified transition scope bridge in production',

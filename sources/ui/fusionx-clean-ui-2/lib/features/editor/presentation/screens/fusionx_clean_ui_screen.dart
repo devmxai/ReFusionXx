@@ -606,7 +606,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       const <CompositionSceneClipModel>[];
   List<MotionTextAnimationBindingModel> _motionTextAnimationBindings =
       const <MotionTextAnimationBindingModel>[];
-  List<MotionPropertyChannelModel> _manualMotionPropertyChannels =
+  List<MotionPropertyChannelModel> _universalMotionPropertyChannels =
       const <MotionPropertyChannelModel>[];
   List<MotionTextPresetDefinition> _customTextPresets =
       const <MotionTextPresetDefinition>[];
@@ -954,7 +954,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
     }
 
-    for (final channel in _manualMotionPropertyChannels) {
+    for (final channel in _universalMotionPropertyChannels) {
       final activeRange = channel.activeRange;
       if (activeRange != null) {
         includeTime(activeRange.endExclusive);
@@ -1059,7 +1059,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
     }
     return _motionTextAnimationBindings.isNotEmpty ||
-        _manualMotionPropertyChannels.isNotEmpty;
+        _universalMotionPropertyChannels.isNotEmpty;
   }
 
   bool get _hasFlutterTimelinePlaybackContent {
@@ -1071,7 +1071,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         _hasAuthoredMotionContent ||
         _hasMotionTextContent ||
         _motionTextAnimationBindings.isNotEmpty ||
-        _manualMotionPropertyChannels.isNotEmpty;
+        _universalMotionPropertyChannels.isNotEmpty;
   }
 
   bool get _canUseFlutterTimelinePlayback =>
@@ -1083,7 +1083,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (!_hasAuthoredMotionContent &&
         !_hasMotionTextContent &&
         _motionTextAnimationBindings.isEmpty &&
-        _manualMotionPropertyChannels.isEmpty) {
+        _universalMotionPropertyChannels.isEmpty) {
       _cachedMotionComposition = null;
       _cachedMotionRevision = _motionRevision;
       _cachedMotionTimelineDurationTicks = _timelineDurationTime.inProjectTicks;
@@ -1108,7 +1108,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final compileResult = _buildMotionCompiler().compile(
       MotionCompileRequest(
         project: _effectiveMotionProject,
-        propertyChannels: _manualMotionPropertyChannels,
+        propertyChannels: _universalMotionPropertyChannels,
         transitionBindings:
             _motionTransitionBindingsForTracks(_timelineTruthTracks),
         textAnimationBindings: _motionTextAnimationBindings,
@@ -3050,7 +3050,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }) {
     return _buildTextMotionKeyframeAuthoringService().setScalarKeyframes(
       TextMotionScalarKeyframeAuthoringRequest(
-        channels: _manualMotionPropertyChannels,
+        channels: _universalMotionPropertyChannels,
         target: context.elementTarget,
         activeRange: _motionTextTimingRangeForElement(
           scene: context.scene,
@@ -4167,7 +4167,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         rootTime: entryRootTime,
         sceneClipId: clipId,
         sceneClips: _sceneClips,
-        channels: _manualMotionPropertyChannels,
+        channels: _universalMotionPropertyChannels,
       ),
     );
     final session = result.session;
@@ -4251,7 +4251,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           project: _effectiveMotionProject,
           sceneSession: session,
           layerId: layerId,
-          channels: _manualMotionPropertyChannels,
+          channels: _universalMotionPropertyChannels,
         )
         .viewModel;
   }
@@ -4269,7 +4269,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       project: _effectiveMotionProject,
       sceneSession: session,
       layerId: layerId,
-      channels: _manualMotionPropertyChannels,
+      channels: _universalMotionPropertyChannels,
     );
     final viewModel = result.viewModel;
     if (viewModel == null) {
@@ -5687,7 +5687,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final shiftedElementIds = <String>{
       for (final element in layer.elements) element.id,
     };
-    final nextChannels = _manualMotionPropertyChannels
+    final nextChannels = _universalMotionPropertyChannels
         .map(
           (channel) => _channelTargetsLayerOrElements(
             channel,
@@ -5722,7 +5722,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _motionProject = nextProject;
       _sceneClips = nextSceneClips;
       _tracks = nextTracks;
-      _manualMotionPropertyChannels =
+      _universalMotionPropertyChannels =
           List<MotionPropertyChannelModel>.unmodifiable(nextChannels);
       _sceneScopeSession = nextSceneScope;
       _sceneLayerScopeLayerId = null;
@@ -6371,7 +6371,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
 
     setState(() {
-      _manualMotionPropertyChannels = _mergeSceneLayerScopeChannels(
+      _universalMotionPropertyChannels = _mergeSceneLayerScopeChannels(
         viewModel,
         nextChannels,
       );
@@ -6815,7 +6815,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         ? null
         : nextChannel.keyframes[nextSelectedIndex];
     setState(() {
-      _manualMotionPropertyChannels = _mergeSceneLayerScopeChannels(
+      _universalMotionPropertyChannels = _mergeSceneLayerScopeChannels(
         viewModel,
         nextChannels,
       );
@@ -7183,7 +7183,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             (keyframe) => keyframe.id == selectedKeyframeId,
           );
     setState(() {
-      _manualMotionPropertyChannels = _mergeSceneLayerScopeChannels(
+      _universalMotionPropertyChannels = _mergeSceneLayerScopeChannels(
         viewModel,
         result.channels,
       );
@@ -7436,7 +7436,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       (keyframe) => keyframe.id == keyframeId,
     );
     setState(() {
-      _manualMotionPropertyChannels = _mergeSceneLayerScopeChannels(
+      _universalMotionPropertyChannels = _mergeSceneLayerScopeChannels(
         viewModel,
         nextChannels,
       );
@@ -7542,7 +7542,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             ? null
             : editedChannel.keyframes[nextSelectedIndex];
     setState(() {
-      _manualMotionPropertyChannels = _mergeSceneLayerScopeChannels(
+      _universalMotionPropertyChannels = _mergeSceneLayerScopeChannels(
         viewModel,
         nextChannels,
       );
@@ -7688,7 +7688,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return;
     }
     setState(() {
-      _manualMotionPropertyChannels = _mergeSceneLayerScopeChannels(
+      _universalMotionPropertyChannels = _mergeSceneLayerScopeChannels(
         viewModel,
         nextChannels,
       );
@@ -7798,7 +7798,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     };
     final nextChannels = <MotionPropertyChannelModel>[];
     final replacedIds = <String>{};
-    for (final channel in _manualMotionPropertyChannels) {
+    for (final channel in _universalMotionPropertyChannels) {
       final replacement = replacements[channel.id];
       if (replacement == null) {
         nextChannels.add(channel);
@@ -8299,7 +8299,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         _layerScopeTimeForProgress(context, stops[keyframeIndex]);
     for (final definition in definitions) {
       final channel = _propertyChannelForElementInChannels(
-        _manualMotionPropertyChannels,
+        _universalMotionPropertyChannels,
         context.clip.id,
         definition,
       );
@@ -8628,7 +8628,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   MotionPropertyChannelModel? _manualOpacityChannelForElement(
     String elementId,
   ) {
-    for (final channel in _manualMotionPropertyChannels) {
+    for (final channel in _universalMotionPropertyChannels) {
       if (channel.target.targetId == elementId &&
           channel.definition.id == MotionPropertyCatalog.opacity.id &&
           (channel.baseValue != null || channel.keyframes.isNotEmpty)) {
@@ -8647,7 +8647,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     MotionPropertyDefinition definition,
   ) {
     return _propertyChannelForElementInChannels(
-      _manualMotionPropertyChannels,
+      _universalMotionPropertyChannels,
       elementId,
       definition,
     );
@@ -9058,7 +9058,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final keyframeTime = _layerScopeTimeForProgress(context, progress);
     final result = _buildCanvasTimelineAuthoringService().addKeyframe(
       CanvasTimelineKeyframeRequest(
-        channels: _manualMotionPropertyChannels,
+        channels: _universalMotionPropertyChannels,
         target: textContext.elementTarget,
         activeRange: _motionTextTimingRangeForElement(
           scene: textContext.scene,
@@ -9108,7 +9108,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final service = _buildCanvasTimelineAuthoringService();
     final xResult = service.addKeyframe(
       CanvasTimelineKeyframeRequest(
-        channels: _manualMotionPropertyChannels,
+        channels: _universalMotionPropertyChannels,
         target: textContext.elementTarget,
         activeRange: activeRange,
         definition: MotionPropertyCatalog.positionX,
@@ -9181,7 +9181,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       element: textContext.element,
     );
     final service = _buildCanvasTimelineAuthoringService();
-    var nextChannels = _manualMotionPropertyChannels;
+    var nextChannels = _universalMotionPropertyChannels;
     for (final definition in definitions) {
       final result = service.addKeyframe(
         CanvasTimelineKeyframeRequest(
@@ -9347,7 +9347,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final keyframeTime = _layerScopeTimeForProgress(context, progress);
     final result = _buildCanvasTimelineAuthoringService().addKeyframe(
       CanvasTimelineKeyframeRequest(
-        channels: _manualMotionPropertyChannels,
+        channels: _universalMotionPropertyChannels,
         target: textContext.elementTarget,
         activeRange: _motionTextTimingRangeForElement(
           scene: textContext.scene,
@@ -9537,7 +9537,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       element: textContext.element,
     );
     final service = _buildCanvasTimelineAuthoringService();
-    var nextChannels = _manualMotionPropertyChannels;
+    var nextChannels = _universalMotionPropertyChannels;
     var movedAny = false;
     for (final definition in definitions) {
       final channel = _propertyChannelForElementInChannels(
@@ -9601,7 +9601,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final keyframeTime =
         _layerScopeTimeForProgress(context, stops[keyframeIndex]);
     final service = _buildCanvasTimelineAuthoringService();
-    var nextChannels = _manualMotionPropertyChannels;
+    var nextChannels = _universalMotionPropertyChannels;
     var changedAny = false;
     for (final definition in definitions) {
       var channel = _propertyChannelForElementInChannels(
@@ -9887,7 +9887,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       ),
     );
     setState(() {
-      _manualMotionPropertyChannels = syncedChannels;
+      _universalMotionPropertyChannels = syncedChannels;
       _markMotionAuthoringChanged();
       _selectedLayerScopeAnimationLaneId = lane.id;
       _selectedLayerScopeKeyframeIndex = nextSelectedIndex;
@@ -10049,7 +10049,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
     setState(() {
       if (syncedChannels != null) {
-        _manualMotionPropertyChannels = syncedChannels;
+        _universalMotionPropertyChannels = syncedChannels;
         _markMotionAuthoringChanged();
       }
       _selectedLayerScopeAnimationLaneId = laneId;
@@ -10304,7 +10304,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return;
     }
     setState(() {
-      _manualMotionPropertyChannels = syncedChannels!;
+      _universalMotionPropertyChannels = syncedChannels!;
       _markMotionAuthoringChanged();
     });
   }
@@ -10331,7 +10331,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return;
     }
     setState(() {
-      _manualMotionPropertyChannels = syncedChannels;
+      _universalMotionPropertyChannels = syncedChannels;
       _markMotionAuthoringChanged();
     });
   }
@@ -10399,7 +10399,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return;
     }
     final nextChannels = <MotionPropertyChannelModel>[
-      for (final channel in _manualMotionPropertyChannels)
+      for (final channel in _universalMotionPropertyChannels)
         if (channel.target.targetId != textContext.element.id ||
             !imported.definitionIds.contains(channel.definition.id))
           channel,
@@ -10414,7 +10414,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final nextTracks = _tracksAfterScopedTextScriptImport(scopeContext);
     setState(() {
       _tracks = nextTracks;
-      _manualMotionPropertyChannels =
+      _universalMotionPropertyChannels =
           List<MotionPropertyChannelModel>.unmodifiable(nextChannels);
       _motionTextAnimationBindings =
           List<MotionTextAnimationBindingModel>.unmodifiable(nextBindings);
@@ -11184,7 +11184,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       },
     );
     setState(() {
-      _manualMotionPropertyChannels = nextChannels;
+      _universalMotionPropertyChannels = nextChannels;
       _markMotionAuthoringChanged();
       _selectedClipId = elementId;
       _activeTab = EditorMediaTab.text;
@@ -11218,7 +11218,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       },
     );
     setState(() {
-      _manualMotionPropertyChannels = nextChannels;
+      _universalMotionPropertyChannels = nextChannels;
       _markMotionAuthoringChanged();
       _selectedClipId = elementId;
       _activeTab = EditorMediaTab.text;
@@ -11249,7 +11249,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       },
     );
     setState(() {
-      _manualMotionPropertyChannels = nextChannels;
+      _universalMotionPropertyChannels = nextChannels;
       _markMotionAuthoringChanged();
       _selectedClipId = elementId;
       _activeTab = EditorMediaTab.text;
@@ -11313,7 +11313,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         .toList(growable: false);
     final nextManualChannels =
         _buildTextMotionKeyframeAuthoringService().removeChannelsForTarget(
-      channels: _manualMotionPropertyChannels,
+      channels: _universalMotionPropertyChannels,
       targetId: elementId,
     );
     final resolvedState = _resolveMotionTextTimelineStateForProject(
@@ -11325,7 +11325,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     setState(() {
       _motionProject = nextProject;
       _motionTextAnimationBindings = nextBindings;
-      _manualMotionPropertyChannels = nextManualChannels;
+      _universalMotionPropertyChannels = nextManualChannels;
       _markMotionAuthoringChanged();
       if (_textEditSession?.elementId == elementId) {
         _textEditSession = null;
@@ -11453,7 +11453,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final nextManualChannels =
         _buildTextMotionKeyframeAuthoringService().duplicateChannelsForTarget(
       TextMotionChannelDuplicationRequest(
-        channels: _manualMotionPropertyChannels,
+        channels: _universalMotionPropertyChannels,
         sourceTargetId: elementId,
         nextTarget: duplicatedTarget,
         sourceRange: effectiveRange,
@@ -11470,7 +11470,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     setState(() {
       _motionProject = nextProject;
       _motionTextAnimationBindings = nextBindings;
-      _manualMotionPropertyChannels = nextManualChannels;
+      _universalMotionPropertyChannels = nextManualChannels;
       _markMotionAuthoringChanged();
       if (_textEditSession?.elementId == elementId) {
         _textEditSession = null;
@@ -11898,7 +11898,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final nextManualChannels =
         _buildTextMotionKeyframeAuthoringService().retimeChannelsForTarget(
       TextMotionChannelRetimingRequest(
-        channels: _manualMotionPropertyChannels,
+        channels: _universalMotionPropertyChannels,
         targetId: clipId,
         previousRange: previousProjectRange,
         nextRange: nextProjectRange,
@@ -11914,7 +11914,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     setState(() {
       _motionProject = nextProject;
       _motionTextAnimationBindings = nextBindings;
-      _manualMotionPropertyChannels = nextManualChannels;
+      _universalMotionPropertyChannels = nextManualChannels;
       _markMotionAuthoringChanged();
       _selectedClipId = resolvedState.selectedClipId;
       _activeTab = EditorMediaTab.text;
@@ -12094,7 +12094,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final nextManualChannels =
         _buildTextMotionKeyframeAuthoringService().retimeChannelsForTarget(
       TextMotionChannelRetimingRequest(
-        channels: _manualMotionPropertyChannels,
+        channels: _universalMotionPropertyChannels,
         targetId: context.clip.id,
         previousRange: previousProjectRange,
         nextRange: nextProjectRange,
@@ -12121,7 +12121,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     setState(() {
       _motionProject = nextProject;
       _motionTextAnimationBindings = nextBindings;
-      _manualMotionPropertyChannels = nextManualChannels;
+      _universalMotionPropertyChannels = nextManualChannels;
       _markMotionAuthoringChanged();
       if (shouldClearPreviewRange) {
         _textEditPreviewRange = null;
@@ -12779,7 +12779,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                 rootTime: sceneScope.rootTime,
                 sceneClipId: sceneScope.sceneClipId,
                 sceneClips: _sceneClips,
-                channels: _manualMotionPropertyChannels,
+                channels: _universalMotionPropertyChannels,
               ),
             )
             .session ??
@@ -14008,7 +14008,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                 rootTime: sceneScope.rootTime,
                 sceneClipId: sceneScope.sceneClipId,
                 sceneClips: nextSceneClips,
-                channels: _manualMotionPropertyChannels,
+                channels: _universalMotionPropertyChannels,
               ),
             )
             .session ??
@@ -14058,7 +14058,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final workspace = _compositionWorkspaceForOutliner();
     final result = _compositionWorkspaceOutlinerAdapter.build(
       workspace: workspace,
-      channels: _manualMotionPropertyChannels,
+      channels: _universalMotionPropertyChannels,
     );
     final selectedNode =
         await showModalBottomSheet<CompositionWorkspaceOutlinerNode>(
@@ -14079,7 +14079,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final workspace = _compositionWorkspaceForOutliner();
     final result = _compositionWorkspaceInspectorAdapter.inspect(
       workspace: workspace,
-      channels: _manualMotionPropertyChannels,
+      channels: _universalMotionPropertyChannels,
     );
     final selectedProperty =
         await showModalBottomSheet<CompositionWorkspaceInspectorProperty>(
@@ -14286,7 +14286,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _showStageMessage('Selected keyframe has no graph channel.');
       return;
     }
-    final channel = _channelById(_manualMotionPropertyChannels, channelId);
+    final channel = _channelById(_universalMotionPropertyChannels, channelId);
     if (channel == null) {
       _showStageMessage('Selected keyframe channel was not found.');
       return;
@@ -14641,14 +14641,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required String propertyId,
     required Object value,
   }) {
-    final channelIndex = _manualMotionPropertyChannels.indexWhere(
+    final channelIndex = _universalMotionPropertyChannels.indexWhere(
       (channel) => channel.id == channelId,
     );
     if (channelIndex < 0) {
       _showStageMessage('Selected keyframe channel was not found.');
       return false;
     }
-    final channel = _manualMotionPropertyChannels[channelIndex];
+    final channel = _universalMotionPropertyChannels[channelIndex];
     final keyframeIndex = channel.keyframes.indexWhere(
       (keyframe) => keyframe.id == keyframeId,
     );
@@ -14706,10 +14706,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       ..sort((left, right) => left.time.compareTo(right.time));
     final nextChannel = channel.copyWith(keyframes: nextKeyframes);
     final nextChannels =
-        List<MotionPropertyChannelModel>.from(_manualMotionPropertyChannels)
+        List<MotionPropertyChannelModel>.from(_universalMotionPropertyChannels)
           ..[channelIndex] = nextChannel;
     setState(() {
-      _manualMotionPropertyChannels =
+      _universalMotionPropertyChannels =
           List<MotionPropertyChannelModel>.unmodifiable(nextChannels);
       _selectedLayerScopeAnimationLaneId ??= channel.id;
       _selectedLayerScopeKeyframeId = keyframeId;
@@ -15156,7 +15156,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         rootTime: entryRootTime,
         sceneClipId: sceneClip.id,
         sceneClips: _sceneClips,
-        channels: _manualMotionPropertyChannels,
+        channels: _universalMotionPropertyChannels,
       ),
     );
     final session = result.session;
@@ -15313,7 +15313,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _sceneClips = List<CompositionSceneClipModel>.unmodifiable(sceneClips);
       _sceneScopeSession = null;
       _motionTextAnimationBindings = const <MotionTextAnimationBindingModel>[];
-      _manualMotionPropertyChannels = const <MotionPropertyChannelModel>[];
+      _universalMotionPropertyChannels = const <MotionPropertyChannelModel>[];
       _tracks = nextTracks;
       _selectedClipId = sceneClip.id;
       _selectedTransitionId = null;
@@ -15367,7 +15367,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         rootSceneId: _motionSceneId,
         startTime: TimelineTime.zero,
         existingSceneClips: _sceneClips,
-        existingChannels: _manualMotionPropertyChannels,
+        existingChannels: _universalMotionPropertyChannels,
         existingTextAnimationBindings: _motionTextAnimationBindings,
         clipName: result.name,
       ),
@@ -15388,7 +15388,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _tracks = nextTracks;
       _motionProject = transaction.project;
       _sceneClips = nextSceneClips;
-      _manualMotionPropertyChannels = transaction.channels;
+      _universalMotionPropertyChannels = transaction.channels;
       _motionTextAnimationBindings = transaction.textAnimationBindings;
       _markMotionAuthoringChanged();
       _selectedClipId = transaction.sceneClip.id;
@@ -15477,7 +15477,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             applied.channels,
           );
     setState(() {
-      _manualMotionPropertyChannels =
+      _universalMotionPropertyChannels =
           List<MotionPropertyChannelModel>.unmodifiable(nextChannels);
       _markMotionAuthoringChanged();
       _selectedLayerScopeAnimationLaneId = null;
@@ -15496,11 +15496,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     SceneScopeSession? sceneScope,
   ) {
     if (sceneScope == null) {
-      return _manualMotionPropertyChannels;
+      return _universalMotionPropertyChannels;
     }
     return List<MotionPropertyChannelModel>.unmodifiable(
       <MotionPropertyChannelModel>[
-        for (final channel in _manualMotionPropertyChannels)
+        for (final channel in _universalMotionPropertyChannels)
           if (channel.target.sceneId == sceneScope.sourceSceneId)
             _sceneScopeChannelTimeMapper.channelToLocalTime(
                 sceneScope, channel),
@@ -15519,7 +15519,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     };
     final nextChannels = <MotionPropertyChannelModel>[];
     final replacedIds = <String>{};
-    for (final channel in _manualMotionPropertyChannels) {
+    for (final channel in _universalMotionPropertyChannels) {
       if (channel.target.sceneId != sceneScope.sourceSceneId) {
         nextChannels.add(channel);
         continue;
@@ -16056,7 +16056,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                 rootTime: activeSceneScope.rootTime,
                 sceneClipId: activeSceneScope.sceneClipId,
                 sceneClips: _sceneClips,
-                channels: _manualMotionPropertyChannels,
+                channels: _universalMotionPropertyChannels,
               ),
             )
             .session;
@@ -20924,7 +20924,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         project: _effectiveMotionProject,
         rootTime: rootTime,
         sceneClips: _sceneClips,
-        channels: _manualMotionPropertyChannels,
+        channels: _universalMotionPropertyChannels,
       ),
     );
     final session = result.session;
@@ -21567,7 +21567,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final sources = <UniversalMotionChannelCollectionSource>[
       UniversalMotionChannelCollectionSource(
         id: 'universal_authored_channels',
-        channels: _manualMotionPropertyChannels,
+        channels: _universalMotionPropertyChannels,
       ),
     ];
     final sceneScopeSession = _sceneScopeSession;
