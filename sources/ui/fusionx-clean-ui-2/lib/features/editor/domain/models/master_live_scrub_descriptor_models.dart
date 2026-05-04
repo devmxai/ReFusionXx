@@ -127,6 +127,62 @@ class RendererPresentationProof {
   final RendererPresentationMatchState matchState;
   final String matchReason;
 
+  RendererPresentationProof copyWith({
+    int? requestedRootTimeMs,
+    int? requestedFrameIndex,
+    int? requestedCommitFrameNumber,
+    List<String>? requestedSourceIds,
+    String? requestId,
+    String? sourceRevision,
+    String? renderGraphRevision,
+    String? rendererMode,
+    List<String>? blockers,
+    int? presentedRootTimeMs,
+    bool clearPresentedRootTimeMs = false,
+    int? presentedFrameIndex,
+    bool clearPresentedFrameIndex = false,
+    int? presentedCommitFrameNumber,
+    bool clearPresentedCommitFrameNumber = false,
+    List<String>? presentedSourceIds,
+    String? surfaceId,
+    bool clearSurfaceId = false,
+    int? presentationTimestampUs,
+    bool clearPresentationTimestampUs = false,
+    bool? nativePresentationAck,
+    RendererPresentationMatchState? matchState,
+    String? matchReason,
+  }) {
+    return RendererPresentationProof(
+      requestedRootTimeMs: requestedRootTimeMs ?? this.requestedRootTimeMs,
+      requestedFrameIndex: requestedFrameIndex ?? this.requestedFrameIndex,
+      requestedCommitFrameNumber:
+          requestedCommitFrameNumber ?? this.requestedCommitFrameNumber,
+      requestedSourceIds: requestedSourceIds ?? this.requestedSourceIds,
+      requestId: requestId ?? this.requestId,
+      sourceRevision: sourceRevision ?? this.sourceRevision,
+      renderGraphRevision: renderGraphRevision ?? this.renderGraphRevision,
+      rendererMode: rendererMode ?? this.rendererMode,
+      blockers: blockers ?? this.blockers,
+      presentedRootTimeMs: clearPresentedRootTimeMs
+          ? null
+          : (presentedRootTimeMs ?? this.presentedRootTimeMs),
+      presentedFrameIndex: clearPresentedFrameIndex
+          ? null
+          : (presentedFrameIndex ?? this.presentedFrameIndex),
+      presentedCommitFrameNumber: clearPresentedCommitFrameNumber
+          ? null
+          : (presentedCommitFrameNumber ?? this.presentedCommitFrameNumber),
+      presentedSourceIds: presentedSourceIds ?? this.presentedSourceIds,
+      surfaceId: clearSurfaceId ? null : (surfaceId ?? this.surfaceId),
+      presentationTimestampUs: clearPresentationTimestampUs
+          ? null
+          : (presentationTimestampUs ?? this.presentationTimestampUs),
+      nativePresentationAck: nativePresentationAck ?? this.nativePresentationAck,
+      matchState: matchState ?? this.matchState,
+      matchReason: matchReason ?? this.matchReason,
+    );
+  }
+
   Map<String, Object?> toMap() {
     return <String, Object?>{
       'requestedRootTimeMs': requestedRootTimeMs,

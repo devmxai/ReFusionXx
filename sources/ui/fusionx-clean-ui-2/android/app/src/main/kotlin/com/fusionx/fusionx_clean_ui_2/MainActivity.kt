@@ -368,14 +368,30 @@ class MainActivity: FlutterActivity() {
                             ?: emptyList()
                     val blockers = (payload["blockers"] as? List<*>) ?: emptyList<Any?>()
                     payload["nativeReceivedAtMs"] = System.currentTimeMillis()
+                    val nativeReceivedAtMs = payload["nativeReceivedAtMs"] as Long
                     payload["descriptorCount"] = descriptors.size
                     payload["blockerCount"] = blockers.size
+                    val rendererPresentationProof =
+                        (payload["rendererPresentationProof"] as? Map<*, *>)
+                            ?.mapKeys { (key, _) -> key.toString() }
+                            ?: emptyMap<String, Any?>()
+                    val requestId =
+                        rendererPresentationProof["requestId"]?.toString()
+                            ?: payload["requestId"]?.toString()
+                    val requestedRootTimeMs =
+                        (rendererPresentationProof["requestedRootTimeMs"] as? Number)?.toLong()
+                            ?: (payload["timelinePositionMs"] as? Number)?.toLong()
+                    val surfaceId = payload["surfaceId"]?.toString()
                     latestLiveScrubRuntimeBridgeSnapshot = payload
                     result.success(
                         mapOf(
                             "accepted" to true,
                             "descriptorCount" to descriptors.size,
                             "blockerCount" to blockers.size,
+                            "requestId" to requestId,
+                            "nativeReceivedAtMs" to nativeReceivedAtMs,
+                            "requestedRootTimeMs" to requestedRootTimeMs,
+                            "surfaceId" to surfaceId,
                         ),
                     )
                 }

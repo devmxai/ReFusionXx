@@ -103,7 +103,11 @@ class Stage5NativeTransportController extends ChangeNotifier {
   Stage5TransportState _state = const Stage5TransportState();
   StreamSubscription<dynamic>? _eventsSubscription;
   bool _isInitializing = false;
+  RendererPresentationProof _lastRuntimeBridgePresentationProof =
+      const RendererPresentationProof();
   Stage5TransportState get state => _state;
+  RendererPresentationProof get lastRuntimeBridgePresentationProof =>
+      _lastRuntimeBridgePresentationProof;
 
   bool get isPlatformSupported => !kIsWeb && Platform.isAndroid;
 
@@ -524,7 +528,12 @@ class Stage5NativeTransportController extends ChangeNotifier {
         buildLiveScrubRuntimeBridgePayload(projectionResult),
       );
       final normalized = _normalizeMap(result);
-      return normalized['accepted'] == true;
+      final submission = parseLiveScrubRuntimeBridgeSubmission(
+        baseProof: projectionResult.rendererPresentationProof,
+        response: normalized,
+      );
+      _lastRuntimeBridgePresentationProof = submission.proof;
+      return submission.accepted;
     } catch (_) {
       return false;
     }
@@ -682,6 +691,17 @@ class Stage5NativeTransportController extends ChangeNotifier {
 }
 
 @immutable
+class LiveScrubRuntimeBridgeSubmission {
+  const LiveScrubRuntimeBridgeSubmission({
+    required this.accepted,
+    required this.proof,
+  });
+
+  final bool accepted;
+  final RendererPresentationProof proof;
+}
+
+@immutable
 class Stage5LiveScrubCapabilities {
   const Stage5LiveScrubCapabilities({
     this.supportsSourceDimensions = false,
@@ -760,6 +780,51 @@ Map<String, Object?> buildLiveScrubRuntimeBridgePayload(
   LiveScrubDescriptorProjectionResult projectionResult,
 ) {
   return projectionResult.toRuntimeBridgeNativeMap();
+}
+
+@visibleForTesting
+LiveScrubRuntimeBridgeSubmission parseLiveScrubRuntimeBridgeSubmission({
+  required RendererPresentationProof baseProof,
+  required Map<String, dynamic> response,
+}) {
+  final accepted = response['accepted'] == true;
+  final hasBlockers = baseProof.blockers.isNotEmpty;
+  final nativeReceivedAtMs = _asInt(response['nativeReceivedAtMs']);
+  final nativeReceivedAtUs =
+      nativeReceivedAtMs == null ? null : nativeReceivedAtMs * 1000;
+  final reportedSurfaceId = response['surfaceId']?.toString();
+  final matchState = !accepted
+      ? RendererPresentationMatchState.blocked
+      : hasBlockers
+          ? RendererPresentationMatchState.blocked
+          : RendererPresentationMatchState.matched;
+  final matchReason = !accepted
+      ? 'native_rejected_runtime_bridge_snapshot'
+      : hasBlockers
+          ? 'runtime_bridge_snapshot_contains_blockers'
+          : 'native_runtime_bridge_snapshot_acknowledged';
+  final proof = baseProof.copyWith(
+    nativePresentationAck: accepted,
+    presentedRootTimeMs: accepted ? baseProof.requestedRootTimeMs : null,
+    clearPresentedRootTimeMs: !accepted,
+    presentedFrameIndex: accepted ? baseProof.requestedFrameIndex : null,
+    clearPresentedFrameIndex: !accepted,
+    presentedCommitFrameNumber:
+        accepted ? baseProof.requestedCommitFrameNumber : null,
+    clearPresentedCommitFrameNumber: !accepted,
+    presentedSourceIds:
+        accepted ? baseProof.requestedSourceIds : const <String>[],
+    surfaceId: reportedSurfaceId,
+    clearSurfaceId: !accepted && reportedSurfaceId == null,
+    presentationTimestampUs: nativeReceivedAtUs,
+    clearPresentationTimestampUs: !accepted && nativeReceivedAtUs == null,
+    matchState: matchState,
+    matchReason: matchReason,
+  );
+  return LiveScrubRuntimeBridgeSubmission(
+    accepted: accepted,
+    proof: proof,
+  );
 }
 
 @visibleForTesting
