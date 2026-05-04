@@ -154,4 +154,66 @@ void main() {
     );
     clock.dispose();
   });
+
+  test('promotes missing master definition diagnostics to blockers', () {
+    final clock = TimelineClockCoordinator(
+      timelineDuration: ms(6000),
+      initialTime: ms(3000),
+    );
+    final service = UniversalMasterFrameEvaluationService(
+      readAdapter: MasterFrameEvaluationReadAdapter(),
+      channelCollector: const UniversalMotionChannelCollector(),
+    );
+    final channel = MotionPropertyChannelModel(
+      id: 'channel.text.fontSize',
+      target: const MotionPropertyTarget(
+        kind: MotionTargetKind.element,
+        targetId: 'element-1',
+        projectId: 'project-1',
+        sceneId: 'scene-1',
+        layerId: 'layer-1',
+        elementId: 'element-1',
+      ),
+      definition: MotionPropertyCatalog.fontSize,
+      keyframes: <MotionKeyframeModel>[
+        const MotionKeyframeModel(
+          id: 'k0',
+          channelId: 'channel.text.fontSize',
+          time: TimelineTime.zero,
+          value: MotionPropertyValue.scalar(24),
+          interpolationToNext: MotionInterpolationSpec.linear(),
+        ),
+      ],
+    );
+    final result = service.evaluate(
+      UniversalMasterFrameEvaluationRequest(
+        clock: clock.snapshot,
+        frameRate: 30,
+        project: buildProject(),
+        sceneClips: buildSceneClips(),
+        channelSources: <UniversalMotionChannelCollectionSource>[
+          UniversalMotionChannelCollectionSource(
+            id: 'text',
+            channels: <MotionPropertyChannelModel>[channel],
+          ),
+        ],
+        renderMode: MasterRenderMode.preview,
+      ),
+    );
+
+    expect(result.frame.evaluatedChannels, isEmpty);
+    expect(
+      result.blockers,
+      contains(
+        'master_evaluation_blocked:unevaluated_channel:channel.text.fontSize:missing_property_definition',
+      ),
+    );
+    expect(
+      result.frame.diagnostics,
+      contains(
+        'master_evaluation_blocked:unevaluated_channel:channel.text.fontSize:missing_property_definition',
+      ),
+    );
+    clock.dispose();
+  });
 }

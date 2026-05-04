@@ -65,8 +65,16 @@ class UniversalMasterFrameEvaluationService {
       channels: channelCollection.channels,
       renderMode: request.renderMode,
     );
-    if (channelCollection.diagnostics.isEmpty &&
-        channelCollection.blockers.isEmpty) {
+    final evaluationBlockers = _evaluationBlockers(frame);
+    final blockers = <String>[
+      ...channelCollection.blockers,
+      ...evaluationBlockers,
+    ];
+    final diagnostics = <String>[
+      ...channelCollection.diagnostics,
+      ...evaluationBlockers,
+    ];
+    if (diagnostics.isEmpty && blockers.isEmpty) {
       return UniversalMasterFrameEvaluationResult(
         frame: frame,
         channels: channelCollection.channels,
@@ -82,13 +90,25 @@ class UniversalMasterFrameEvaluationService {
         effectParameters: frame.effectParameters,
         diagnostics: <String>[
           ...frame.diagnostics,
-          ...channelCollection.diagnostics,
-          ...channelCollection.blockers,
+          ...diagnostics,
+          ...blockers,
         ],
       ),
       channels: channelCollection.channels,
-      diagnostics: channelCollection.diagnostics,
-      blockers: channelCollection.blockers,
+      diagnostics: diagnostics,
+      blockers: blockers,
     );
+  }
+
+  List<String> _evaluationBlockers(MasterFrameEvaluation frame) {
+    final blockers = <String>[];
+    for (final diagnostic in frame.diagnostics) {
+      if (diagnostic.startsWith('missing_definition:')) {
+        blockers.add('master_evaluation_blocked:$diagnostic');
+      } else if (diagnostic.startsWith('unevaluated_channel:')) {
+        blockers.add('master_evaluation_blocked:$diagnostic');
+      }
+    }
+    return blockers;
   }
 }
