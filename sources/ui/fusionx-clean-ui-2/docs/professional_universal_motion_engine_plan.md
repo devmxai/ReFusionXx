@@ -5,6 +5,15 @@ Package: `com.refusion.app`
 Date: 2026-05-04  
 Scope: Master Clock, Master Live Scrub, Master Timeline, all scoped timelines, text/image/shape/video layers, transitions, preview, playback, and export parity
 
+Reference alignment:
+
+- Adobe After Effects composition/layer/property/keyframe model
+- Adobe After Effects keyframe interpolation and expression model
+- Adobe After Effects SmartFX pre-render/render separation
+- OpenTimelineIO timeline/time schema concepts
+- Android Media3 playlist/preload/seek/effects/export concepts
+- Remotion deterministic frame-based rendering concepts
+
 ## 0. Purpose
 
 This plan defines the connected path for turning the current ReFusion motion
@@ -23,6 +32,7 @@ TimelineClockCoordinator
 -> MasterValueTruthRegistry
 -> MasterFrameEvaluation
 -> MasterVisualProgram
+-> MasterRenderGraph
 -> Renderer Adapter
 -> Presentation Proof
 ```
@@ -119,9 +129,49 @@ User input / playback transport / export sampler
 -> MasterValueTruthRegistry unit mapping
 -> MasterFrameEvaluation
 -> MasterVisualProgram
+-> MasterRenderGraph
 -> Preview / Live Scrub / Playback / Export adapter
 -> RendererPresentationProof
 ```
+
+### 4.1.1 Clock And Native Boundary Contract
+
+The universal engine must carry forward the official Master Clock contract.
+
+Required upstream owner:
+
+```text
+TimelineClockCoordinator
+-> MasterClockNativeBridge
+-> immutable clock snapshot
+-> MasterTimeSnapshot
+```
+
+Required fields:
+
+- `MasterClockPhase`
+- `MasterClockAuthority`
+- `MasterRenderMode`
+- `MasterTimeScope`
+- root time
+- presentation time
+- frame index
+- commit frame number
+- monotonic measurement metadata
+- source revision
+
+Rules:
+
+- `TimelineClockCoordinator` is the only mutable editor time authority.
+- `MasterClockNativeBridge` is the only approved screen/native clock boundary.
+- native player sample time may update master time only through approved
+  authority arbitration.
+- raw native `currentPosition`, raw `seekTo`, or renderer-local sample clocks
+  must not be used as evaluation truth.
+- every clock write must declare phase, authority, and render mode.
+- invalid phase/authority transitions must be rejected, not silently accepted.
+- Live Scrub release and play-start handoff must use the last committed master
+  time and matching source revision.
 
 ### 4.2 Timeline Surfaces Are Scopes
 
@@ -217,6 +267,39 @@ Required identity fields:
 
 Unused identity fields must be null, not guessed.
 
+### 5.2.1 Universal Target Resolver Contract
+
+The target resolver must run before universal channel collection.
+
+Purpose: prevent raw clips, transition bridge ids, or UI track ids from becoming
+permanent animation targets.
+
+Canonical video/image/text/shape target path:
+
+```text
+MotionLayerModel
+-> MotionElementModel
+-> MotionElementSourceBinding
+-> MotionPropertyTarget
+-> MotionPropertyChannelModel
+```
+
+Transition target policy:
+
+- outgoing source must resolve to a stable layer/element/source target;
+- incoming source must resolve to a stable layer/element/source target;
+- transition-wide controls must resolve to a transition target;
+- both-source controls must write explicit outgoing and incoming channels, not a
+  hidden shared value.
+
+Rules:
+
+- raw timeline clip ids may be adapter inputs, not graph targets.
+- ambiguous targets must produce blockers.
+- missing layer/element/source ownership must produce blockers.
+- target ids must survive rename, trim, scrub, playback, export, and import.
+- target resolution must not create renderer-only targets.
+
 ### 5.3 UniversalTimelineScope
 
 Purpose: one model for every timeline surface.
@@ -250,6 +333,140 @@ Required fields:
 - `editableChannelIds`
 - `diagnostics`
 
+### 5.3.1 TimeDomain And TimeProjection Contract
+
+Every scope must use explicit domain projection. A renderer or keyframe
+operation may not infer local time by subtracting offsets inline.
+
+Required time domains:
+
+- rootComposition
+- sceneClipInstance
+- sourceScene
+- layer
+- element
+- transition
+- sourceMedia
+- exportSample
+
+Required projection fields:
+
+- source domain
+- target domain
+- root time
+- local time
+- valid range
+- source in/out
+- playback rate
+- transition progress when applicable
+- projection policy
+- diagnostics
+
+Required policies:
+
+- `rejectOutsideRange`
+- `allowGapAsBlank`
+- `clampForDisplayOnly`
+- `transitionWindowOnly`
+- `sourceMediaExact`
+
+Rules:
+
+- keyframe evaluation uses projected domain time.
+- source media sampling uses source-media time.
+- transition progress is derived from projected transition time.
+- timeline gaps are blank visual regions, not stale frames.
+- export sampling uses the same projection as preview/playback.
+- a projection outside valid range must block or blank according to policy; it
+  must not silently clamp into a visible stale frame.
+
+### 5.3.2 Property Schema And Value Truth Contract
+
+Every property must have a formal schema before renderer wiring.
+
+Required schema fields:
+
+- stable property id
+- display path
+- owner target kinds
+- value kind
+- dimensionality
+- UI unit
+- engine unit
+- renderer unit
+- default value
+- static value policy
+- interpolation support
+- expression support
+- coordinate space
+- render-affecting flag
+- supported render modes
+- unsupported-mode blocker
+
+Rules:
+
+- UI values are never renderer values.
+- renderer adapters must consume mapped renderer units from
+  `MasterValueTruthRegistry`.
+- unsupported properties must become blockers or diagnostics.
+- compound properties such as position and scale must preserve component
+  identity while supporting grouped editing.
+- text style, text layout, shape geometry, crop, mask, image/video visual
+  metadata, effects, and transition controls must be schema entries, not custom
+  renderer fields.
+
+### 5.3.3 Unified Keyframe Operation Contract
+
+All keyframe authoring must go through shared identity-based operations.
+
+Required operations:
+
+- add keyframe
+- move keyframe
+- set keyframe value
+- delete keyframe
+- set interpolation
+- apply Easy Ease
+- grouped compound add/move/delete
+- script/import lower into keyframes
+- transition preset lower into keyframes
+
+Rules:
+
+- every keyframe has a stable id.
+- operations target keyframe ids, not visual indexes.
+- collisions at the same time are resolved deterministically.
+- moving a grouped position/scale keyframe preserves sibling channels when the
+  edit is semantically grouped.
+- Layer Scope, Transition Scope, Scene Scope, scripts, imports, prompt patches,
+  and inspector edits must share the same operation service.
+- renderer adapters may not mutate keyframes.
+
+### 5.3.4 Transaction And Undo Contract
+
+Every authoring mutation must be a reversible transaction.
+
+Required transaction coverage:
+
+- add/move/delete keyframe
+- value edit
+- interpolation edit
+- apply transition preset
+- import scene program
+- apply motion patch
+- add/remove layer
+- target resolver migration
+- scope projection migration
+
+Rules:
+
+- each transaction records before/after graph revision.
+- each transaction records affected targets and channels.
+- undo/redo must restore graph, selection, and scope-local time where
+  applicable.
+- renderer state is derived after transaction commit; it is not transaction
+  truth.
+
 ### 5.4 MasterVisualProgram
 
 Purpose: one renderer-neutral visual instruction set for the evaluated frame.
@@ -276,9 +493,83 @@ Required frame data:
 Rule:
 
 ```text
-LiveScrubVisualProgram must become either a mode-specific projection of
-MasterVisualProgram or be replaced by MasterVisualProgram adapters.
+MasterVisualProgram is the canonical renderer-neutral visual program.
+VisualLayerProgram and LiveScrubVisualProgram are compatibility projections
+until they are replaced or formally aliased.
 ```
+
+Required surface node fields:
+
+- target id
+- layer id
+- element id
+- source binding
+- root timeline range
+- local timeline range
+- source media range
+- transform
+- anchor/origin
+- opacity
+- crop
+- mask
+- text style/layout
+- shape geometry/style
+- effects
+- transition role
+- blend mode
+- draw order
+- blockers
+- diagnostics
+
+Rules:
+
+- rotation origin and transform order must be explicit.
+- text/image/shape/video surfaces must share the same transform contract.
+- source media identity must travel with the visual surface.
+- renderer-specific projections may drop capabilities only by reporting
+  blockers; they may not silently ignore evaluated values.
+
+### 5.4.1 MasterRenderGraph Contract
+
+`MasterRenderGraph` is the renderer-facing dependency graph produced from
+`MasterVisualProgram`.
+
+Purpose: separate deterministic frame evaluation from render execution.
+
+Required node families:
+
+- source media sample
+- nested scene/precomposition
+- layer transform
+- mask
+- crop
+- effect
+- transition
+- blend/composite
+- color conversion
+- output surface
+
+Required fields:
+
+- graph revision
+- root time
+- frame index
+- render mode
+- resolution
+- color settings
+- source dependencies
+- cache keys
+- blockers
+- diagnostics
+
+Rules:
+
+- render graph construction must be deterministic for the same graph revision
+  and time.
+- render graph nodes declare needed inputs before render execution.
+- nested composition caches are optimizations over editable truth, not separate
+  scene state.
+- preview, Live Scrub, playback, and export lower from the same graph.
 
 ### 5.5 RendererPresentationProof
 
@@ -290,17 +581,93 @@ Required proof fields:
 - requested frame index
 - requested commit frame number
 - requested media item id/source id
+- request id
+- source revision
+- graph revision
+- renderer capability state
+- blocker list
 - presented root time
 - presented frame index
 - presented commit frame number
 - presented media item id/source id
 - surface id
 - presentation timestamp
+- native presentation ack
+- pixel/checksum proof when available
+- Live Scrub parity state
+- playback parity state
+- export parity state
+- latency budget state
 - match/mismatch reason
 - renderer mode
 
 Playback, Live Scrub, preview, and export may not claim parity unless they can
 prove the presented frame matches the requested master frame.
+
+Rules:
+
+- `currentPosition` is not presentation proof.
+- accepting an upload is not presentation proof.
+- a proof surface is not a production surface.
+- stale commit frame number or stale media item id blocks parity.
+- proof logs must make source flashes and delayed frames diagnosable.
+
+### 5.6 Expression And Deterministic Evaluation Contract
+
+Expression support must be deterministic before it becomes production renderer
+truth.
+
+Required model:
+
+```text
+Expression DAG
+-> dependency ordering
+-> cycle detection
+-> deterministic evaluation
+-> property value snapshot
+```
+
+Rules:
+
+- expressions are pure functions of scene snapshot, property path, time, and
+  seed.
+- expressions may sample `valueAtTime` only through the same evaluator.
+- randomness must be seeded by graph revision/target/property/time policy.
+- expressions must declare dependencies or be sandboxed into explicit blockers.
+- wall-clock time must not drive preview, scrub, playback, or export motion.
+
+### 5.7 Cache And Revision Contract
+
+Caching is mandatory for performance, but cache must never become truth.
+
+Required revisions:
+
+- motion graph revision
+- channel collection revision
+- scope projection revision
+- source media revision
+- render graph revision
+- renderer capability revision
+
+Required cache keys:
+
+- graph revision
+- source asset id
+- source media time
+- seek tolerance
+- root time/frame index
+- render mode
+- resolution
+- color settings
+- effect settings
+
+Rules:
+
+- hot Live Scrub must not rebuild the full graph per pointer pixel.
+- cache invalidation must follow graph/source revision changes.
+- active scrub may coalesce requests and chase the latest target.
+- release/play/export exactness must evaluate the requested master frame, not
+  the nearest cached frame unless policy explicitly allows it and reports it.
 
 ## 6. Millisecond Accuracy Contract
 
@@ -361,6 +728,8 @@ Exit gate:
 
 - every old path is labeled as canonical, adapter, compatibility, or removal
   candidate.
+- no implementation of Phase 1 may begin unless this inventory exists and is
+  linked from this plan.
 
 ### Phase 1 - Universal Channel Collection
 
@@ -370,6 +739,13 @@ Add a domain/presentation adapter such as:
 
 ```text
 UniversalMotionChannelCollector
+```
+
+Prerequisite:
+
+```text
+UniversalTargetResolver
+-> UniversalMotionChannelCollector
 ```
 
 It must collect channels from:
@@ -388,6 +764,7 @@ It must collect channels from:
 
 Rules:
 
+- collection must accept only canonical resolved targets;
 - collection must preserve channel identity;
 - collection must not duplicate same channel id;
 - collection must not mutate channel data;
@@ -476,6 +853,8 @@ visual program.
 Tasks:
 
 - introduce `MasterVisualProgram` in domain or presentation services;
+- reconcile `MasterVisualProgram` with the existing `VisualLayerProgram`
+  contract before adding another renderer-facing model;
 - map every evaluated target to a visual surface/program node;
 - include source media binding, transform, opacity, crop, mask, text, shape,
   image, video, effects, transition roles, and draw order;
@@ -509,6 +888,8 @@ Renderer adapters:
 Each adapter must:
 
 - accept a `MasterVisualProgram`;
+- lower through `MasterRenderGraph` where rendering requires dependency
+  planning;
 - bind source media by stable asset/source id;
 - bind transform/effect values in renderer units;
 - render or block explicitly;
@@ -587,6 +968,9 @@ Required workflows:
 - scrub, release, then play;
 - play, pause, scrub, play again;
 - export sample at the same frame.
+- expression-driven property at a fixed frame.
+- nested scene/precomposition sample at a fixed frame.
+- crop/mask/effect sample at a fixed frame.
 
 Each workflow must compare:
 
@@ -595,6 +979,7 @@ Each workflow must compare:
 - active source id;
 - evaluated keyframe values;
 - visual program values;
+- render graph node values;
 - renderer proof frame;
 - output surface identity.
 
@@ -610,13 +995,17 @@ The universal engine must be accurate and fast.
 Rules:
 
 - hot scrub must not rebuild the full project graph per pointer pixel;
-- channel collection should be revision-cached;
-- scope projections should be immutable and cacheable;
+- channel collection must be revision-cached;
+- scope projections must be immutable and cacheable;
 - keyframe evaluation should be bounded by active/visible channels;
 - renderer adapters should receive compact frame programs;
 - diagnostics must be rate-limited in hot paths;
 - native/media source rebinding must be avoided during active scrub unless the
   source truly changes.
+- graph revision, source revision, and render graph revision must be part of
+  cache invalidation.
+- active scrub may use chase/coalescing behavior, but release/play/export must
+  evaluate the exact requested master frame.
 
 Targets:
 
@@ -670,7 +1059,28 @@ This plan is complete only when:
 
 ## 11. First Recommended Implementation Slice
 
-Start with Phase 1.
+Start with Phase 0 unless a current universal inventory document already exists
+and is linked from this plan.
+
+Expected first checkpoint:
+
+```text
+checkpoint: inventory universal motion engine paths
+```
+
+Minimum Phase 0 output:
+
+- inventory of all time writers and native clock boundaries;
+- inventory of all channel sources and graph buckets;
+- inventory of all target id forms and raw clip id uses;
+- inventory of all keyframe operation entry points;
+- inventory of all renderer/effect/value consumers;
+- inventory of all Live Scrub, playback, preview, and export presentation proof
+  paths;
+- classification of every path as canonical, adapter, compatibility, or
+  removal candidate.
+
+Only after Phase 0 passes, continue with Phase 1.
 
 Build `UniversalMotionChannelCollector` and route
 `_masterFrameEvaluationForMode(...)` through it. This is the smallest slice that
