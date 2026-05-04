@@ -35,6 +35,45 @@ class MasterValueTruthRegistry {
     if (key == 'visual.blur.amount') {
       return _definitions['gaussianBlur'];
     }
+    if (key == 'visual.blur.horizontal') {
+      return _definitions['blurHorizontal'];
+    }
+    if (key == 'visual.blur.vertical') {
+      return _definitions['blurVertical'];
+    }
+    if (key == 'visual.blur.mix') {
+      return _definitions['blurMix'];
+    }
+    if (key == 'visual.blur.edgeMode') {
+      return _definitions['blurEdgeMode'];
+    }
+    if (key == 'visual.blur.crop') {
+      return _definitions['blurCrop'];
+    }
+    if (key == 'effect.shadow.opacity') {
+      return _definitions['shadowOpacity'];
+    }
+    if (key == 'effect.shadow.blur') {
+      return _definitions['shadowBlur'];
+    }
+    if (key == 'effect.shadowOffset.x') {
+      return _definitions['shadowOffsetX'];
+    }
+    if (key == 'effect.shadowOffset.y') {
+      return _definitions['shadowOffsetY'];
+    }
+    if (key == 'effect.shadow.spread') {
+      return _definitions['shadowSpread'];
+    }
+    if (key == 'shape.trim.start') {
+      return _definitions['trimStart'];
+    }
+    if (key == 'shape.trim.end') {
+      return _definitions['trimEnd'];
+    }
+    if (key == 'shape.trim.offset') {
+      return _definitions['trimOffset'];
+    }
     return null;
   }
 
@@ -148,6 +187,279 @@ class MasterValueTruthRegistry {
         mapper: _mapGaussianBlur,
         supportedTargets: <MotionTargetKind>[
           MotionTargetKind.layer,
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'blurHorizontal': const MasterPropertyDefinition(
+        id: 'blurHorizontal',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.percent,
+        uiUnit: MasterValueUnit.percentUi,
+        engineUnit: MasterValueUnit.normalized01,
+        rendererUnit: MasterValueUnit.normalized01,
+        defaultValue: MotionPropertyValue.scalar(100),
+        minValue: 0,
+        maxValue: 100,
+        mapper: _mapPercent01,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'blurVertical': const MasterPropertyDefinition(
+        id: 'blurVertical',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.percent,
+        uiUnit: MasterValueUnit.percentUi,
+        engineUnit: MasterValueUnit.normalized01,
+        rendererUnit: MasterValueUnit.normalized01,
+        defaultValue: MotionPropertyValue.scalar(100),
+        minValue: 0,
+        maxValue: 100,
+        mapper: _mapPercent01,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'blurMix': const MasterPropertyDefinition(
+        id: 'blurMix',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.percent,
+        uiUnit: MasterValueUnit.percentUi,
+        engineUnit: MasterValueUnit.normalized01,
+        rendererUnit: MasterValueUnit.normalized01,
+        defaultValue: MotionPropertyValue.scalar(100),
+        minValue: 0,
+        maxValue: 100,
+        mapper: _mapPercent01,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'blurEdgeMode': const MasterPropertyDefinition(
+        id: 'blurEdgeMode',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.scalar,
+        uiUnit: MasterValueUnit.enumToken,
+        engineUnit: MasterValueUnit.enumToken,
+        rendererUnit: MasterValueUnit.enumToken,
+        defaultValue: MotionPropertyValue.scalar(0),
+        minValue: 0,
+        maxValue: 8,
+        mapper: _mapScalar,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'blurCrop': const MasterPropertyDefinition(
+        id: 'blurCrop',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.percent,
+        uiUnit: MasterValueUnit.percentUi,
+        engineUnit: MasterValueUnit.normalized01,
+        rendererUnit: MasterValueUnit.normalized01,
+        defaultValue: MotionPropertyValue.scalar(0),
+        minValue: 0,
+        maxValue: 100,
+        mapper: _mapPercent01,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'shadowOpacity': const MasterPropertyDefinition(
+        id: 'shadowOpacity',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.percent,
+        uiUnit: MasterValueUnit.percentUi,
+        engineUnit: MasterValueUnit.normalized01,
+        rendererUnit: MasterValueUnit.normalized01,
+        defaultValue: MotionPropertyValue.scalar(0),
+        minValue: 0,
+        maxValue: 100,
+        mapper: _mapPercent01,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'shadowBlur': const MasterPropertyDefinition(
+        id: 'shadowBlur',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.dimension,
+        uiUnit: MasterValueUnit.canvasPx,
+        engineUnit: MasterValueUnit.canvasPx,
+        rendererUnit: MasterValueUnit.shaderSigmaPx,
+        defaultValue: MotionPropertyValue.scalar(0),
+        minValue: 0,
+        maxValue: 512,
+        mapper: _mapGaussianBlur,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'shadowOffsetX': const MasterPropertyDefinition(
+        id: 'shadowOffsetX',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.dimension,
+        uiUnit: MasterValueUnit.canvasPx,
+        engineUnit: MasterValueUnit.canvasPx,
+        rendererUnit: MasterValueUnit.devicePx,
+        defaultValue: MotionPropertyValue.scalar(0),
+        minValue: -100000,
+        maxValue: 100000,
+        mapper: _mapPosition,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'shadowOffsetY': const MasterPropertyDefinition(
+        id: 'shadowOffsetY',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.dimension,
+        uiUnit: MasterValueUnit.canvasPx,
+        engineUnit: MasterValueUnit.canvasPx,
+        rendererUnit: MasterValueUnit.devicePx,
+        defaultValue: MotionPropertyValue.scalar(0),
+        minValue: -100000,
+        maxValue: 100000,
+        mapper: _mapPosition,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'shadowSpread': const MasterPropertyDefinition(
+        id: 'shadowSpread',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.dimension,
+        uiUnit: MasterValueUnit.canvasPx,
+        engineUnit: MasterValueUnit.canvasPx,
+        rendererUnit: MasterValueUnit.devicePx,
+        defaultValue: MotionPropertyValue.scalar(0),
+        minValue: -100000,
+        maxValue: 100000,
+        mapper: _mapPosition,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'trimStart': const MasterPropertyDefinition(
+        id: 'trimStart',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.percent,
+        uiUnit: MasterValueUnit.percentUi,
+        engineUnit: MasterValueUnit.normalized01,
+        rendererUnit: MasterValueUnit.normalized01,
+        defaultValue: MotionPropertyValue.scalar(0),
+        minValue: 0,
+        maxValue: 100,
+        mapper: _mapPercent01,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'trimEnd': const MasterPropertyDefinition(
+        id: 'trimEnd',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.percent,
+        uiUnit: MasterValueUnit.percentUi,
+        engineUnit: MasterValueUnit.normalized01,
+        rendererUnit: MasterValueUnit.normalized01,
+        defaultValue: MotionPropertyValue.scalar(100),
+        minValue: 0,
+        maxValue: 100,
+        mapper: _mapPercent01,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'trimOffset': const MasterPropertyDefinition(
+        id: 'trimOffset',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.signedPercent,
+        uiUnit: MasterValueUnit.signedPercentUi,
+        engineUnit: MasterValueUnit.normalized01,
+        rendererUnit: MasterValueUnit.normalized01,
+        defaultValue: MotionPropertyValue.scalar(0),
+        minValue: -100,
+        maxValue: 100,
+        mapper: _mapSignedPercent01,
+        supportedTargets: <MotionTargetKind>[
           MotionTargetKind.element,
         ],
         supportedRenderModes: <MasterRenderCapability>[
@@ -301,6 +613,50 @@ class MasterValueTruthRegistry {
       uiUnit: MasterValueUnit.multiplier,
       engineUnit: MasterValueUnit.multiplier,
       rendererUnit: MasterValueUnit.multiplier,
+    );
+  }
+
+  static MasterPropertyValueMapping _mapPercent01(MotionPropertyValue value) {
+    final raw = _readScalar(value, fallback: 0);
+    final percent = raw <= 1.0 ? raw * 100.0 : raw;
+    final clampedPercent = percent.clamp(0.0, 100.0).toDouble();
+    final normalized = (clampedPercent / 100.0).clamp(0.0, 1.0).toDouble();
+    return MasterPropertyValueMapping(
+      ui: MasterValueLayer(scalar: clampedPercent),
+      engine: MasterValueLayer(scalar: normalized),
+      renderer: MasterValueLayer(scalar: normalized),
+      uiUnit: MasterValueUnit.percentUi,
+      engineUnit: MasterValueUnit.normalized01,
+      rendererUnit: MasterValueUnit.normalized01,
+    );
+  }
+
+  static MasterPropertyValueMapping _mapSignedPercent01(
+    MotionPropertyValue value,
+  ) {
+    final raw = _readScalar(value, fallback: 0);
+    final percent = raw.abs() <= 1.0 ? raw * 100.0 : raw;
+    final clampedPercent = percent.clamp(-100.0, 100.0).toDouble();
+    final normalized = (clampedPercent / 100.0).clamp(-1.0, 1.0).toDouble();
+    return MasterPropertyValueMapping(
+      ui: MasterValueLayer(scalar: clampedPercent),
+      engine: MasterValueLayer(scalar: normalized),
+      renderer: MasterValueLayer(scalar: normalized),
+      uiUnit: MasterValueUnit.signedPercentUi,
+      engineUnit: MasterValueUnit.normalized01,
+      rendererUnit: MasterValueUnit.normalized01,
+    );
+  }
+
+  static MasterPropertyValueMapping _mapScalar(MotionPropertyValue value) {
+    final scalar = _readScalar(value, fallback: 0);
+    return MasterPropertyValueMapping(
+      ui: MasterValueLayer(scalar: scalar),
+      engine: MasterValueLayer(scalar: scalar),
+      renderer: MasterValueLayer(scalar: scalar),
+      uiUnit: MasterValueUnit.enumToken,
+      engineUnit: MasterValueUnit.enumToken,
+      rendererUnit: MasterValueUnit.enumToken,
     );
   }
 

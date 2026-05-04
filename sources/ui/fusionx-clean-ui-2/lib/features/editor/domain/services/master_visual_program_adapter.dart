@@ -8,6 +8,19 @@ class MasterVisualProgramAdapter {
 
   static const Set<String> _supportedEffectIds = <String>{
     'gaussianBlur',
+    'blurHorizontal',
+    'blurVertical',
+    'blurMix',
+    'blurEdgeMode',
+    'blurCrop',
+    'shadowOpacity',
+    'shadowBlur',
+    'shadowOffsetX',
+    'shadowOffsetY',
+    'shadowSpread',
+    'trimStart',
+    'trimEnd',
+    'trimOffset',
     'motionBlurAmount',
     'tileOutputScale',
   };
@@ -26,7 +39,8 @@ class MasterVisualProgramAdapter {
     };
     final grouped = <String, List<MasterEvaluatedPropertyValue>>{};
     for (final value in frame.evaluatedChannels) {
-      grouped.putIfAbsent(value.targetId, () => <MasterEvaluatedPropertyValue>[])
+      grouped
+          .putIfAbsent(value.targetId, () => <MasterEvaluatedPropertyValue>[])
           .add(value);
     }
     final targetIds = <String>{
@@ -40,7 +54,8 @@ class MasterVisualProgramAdapter {
 
     for (final targetId in targetIds) {
       final source = sourcesByTargetId[targetId];
-      final values = grouped[targetId] ?? const <MasterEvaluatedPropertyValue>[];
+      final values =
+          grouped[targetId] ?? const <MasterEvaluatedPropertyValue>[];
       final blockers = <String>[];
       final effectsById = <String, MasterVisualEffectBinding>{};
       var transform = const MasterVisualTransform();
@@ -64,7 +79,8 @@ class MasterVisualProgramAdapter {
             }
             if (sourceDefinitionId == MotionPropertyCatalog.positionY.id) {
               transform = transform.copyWith(positionY: rendererScalar);
-            } else if (sourceDefinitionId == MotionPropertyCatalog.positionX.id) {
+            } else if (sourceDefinitionId ==
+                MotionPropertyCatalog.positionX.id) {
               transform = transform.copyWith(positionX: rendererScalar);
             } else {
               transform = transform.copyWith(
@@ -94,10 +110,24 @@ class MasterVisualProgramAdapter {
               transform = transform.copyWith(rotationRadians: rendererScalar);
             }
           case 'gaussianBlur':
+          case 'blurHorizontal':
+          case 'blurVertical':
+          case 'blurMix':
+          case 'blurEdgeMode':
+          case 'blurCrop':
+          case 'shadowOpacity':
+          case 'shadowBlur':
+          case 'shadowOffsetX':
+          case 'shadowOffsetY':
+          case 'shadowSpread':
+          case 'trimStart':
+          case 'trimEnd':
+          case 'trimOffset':
           case 'motionBlurAmount':
           case 'tileOutputScale':
             if (rendererScalar == null || !rendererScalar.isFinite) {
-              blockers.add('invalid_effect_value:${value.propertyDefinitionId}');
+              blockers
+                  .add('invalid_effect_value:${value.propertyDefinitionId}');
               continue;
             }
             effectsById[value.propertyDefinitionId] = MasterVisualEffectBinding(
@@ -143,8 +173,8 @@ class MasterVisualProgramAdapter {
           targetId: targetId,
           sourceKind: sourceKind,
           source: source,
-          transitionRole:
-              transitionRolesByTargetId[targetId] ?? MasterVisualTransitionRole.none,
+          transitionRole: transitionRolesByTargetId[targetId] ??
+              MasterVisualTransitionRole.none,
           transform: transform,
           opacity: opacity,
           effects: effectsById.values.toList(growable: false),

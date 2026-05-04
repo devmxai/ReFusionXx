@@ -127,6 +127,32 @@ void main() {
         definition: MotionPropertyCatalog.blurAmount,
         keyframes: const <MotionKeyframeModel>[],
       ),
+      MotionPropertyChannelModel(
+        id: 'ch.trim.start',
+        target: const MotionPropertyTarget(
+          kind: MotionTargetKind.element,
+          targetId: 'element-1',
+          projectId: 'project-1',
+          sceneId: 'scene-1',
+          layerId: 'layer-1',
+          elementId: 'element-1',
+        ),
+        definition: MotionPropertyCatalog.trimStart,
+        keyframes: const <MotionKeyframeModel>[],
+      ),
+      MotionPropertyChannelModel(
+        id: 'ch.shadow.opacity',
+        target: const MotionPropertyTarget(
+          kind: MotionTargetKind.element,
+          targetId: 'element-1',
+          projectId: 'project-1',
+          sceneId: 'scene-1',
+          layerId: 'layer-1',
+          elementId: 'element-1',
+        ),
+        definition: MotionPropertyCatalog.shadowOpacity,
+        keyframes: const <MotionKeyframeModel>[],
+      ),
     ];
 
     final frame = MasterFrameEvaluation(
@@ -185,8 +211,26 @@ void main() {
           targetId: 'element-1',
           propertyDefinitionId: 'gaussianBlur',
           domain: const MasterTimeDomain.scene('scene-1'),
-          mapping: mapping('gaussianBlur', const MotionPropertyValue.scalar(10)),
+          mapping:
+              mapping('gaussianBlur', const MotionPropertyValue.scalar(10)),
           sourceChannelId: 'ch.blur',
+          status: 'resolved',
+        ),
+        MasterEvaluatedPropertyValue(
+          targetId: 'element-1',
+          propertyDefinitionId: 'trimStart',
+          domain: const MasterTimeDomain.scene('scene-1'),
+          mapping: mapping('trimStart', const MotionPropertyValue.scalar(25)),
+          sourceChannelId: 'ch.trim.start',
+          status: 'resolved',
+        ),
+        MasterEvaluatedPropertyValue(
+          targetId: 'element-1',
+          propertyDefinitionId: 'shadowOpacity',
+          domain: const MasterTimeDomain.scene('scene-1'),
+          mapping:
+              mapping('shadowOpacity', const MotionPropertyValue.scalar(40)),
+          sourceChannelId: 'ch.shadow.opacity',
           status: 'resolved',
         ),
       ],
@@ -225,8 +269,13 @@ void main() {
     expect(surface.transform.scaleY, closeTo(0.8, 0.0001));
     expect(surface.transform.rotationRadians, closeTo(math.pi / 2.0, 0.0001));
     expect(surface.transitionRole, MasterVisualTransitionRole.outgoing);
-    expect(surface.effects.any((effect) => effect.id == 'gaussianBlur'), isTrue);
-    expect(surface.effects.any((effect) => effect.id == 'tileOutputScale'), isTrue);
+    expect(
+        surface.effects.any((effect) => effect.id == 'gaussianBlur'), isTrue);
+    expect(surface.effects.any((effect) => effect.id == 'trimStart'), isTrue);
+    expect(
+        surface.effects.any((effect) => effect.id == 'shadowOpacity'), isTrue);
+    expect(surface.effects.any((effect) => effect.id == 'tileOutputScale'),
+        isTrue);
     expect(program.transitionState.hasTransitionWindow, isTrue);
     expect(program.transitionState.reason, 'phase1_domain_contract_only');
     expect(program.canRenderTruthfully, isTrue);
