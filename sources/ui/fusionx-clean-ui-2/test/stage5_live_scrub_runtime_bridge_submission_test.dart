@@ -20,6 +20,8 @@ void main() {
         'accepted': true,
         'nativeReceivedAtMs': 2000,
         'surfaceId': 'stage5-surface',
+        'requestId': 'req-1',
+        'requestedRootTimeMs': 1200,
       },
     );
     expect(submission.accepted, isTrue);
@@ -85,5 +87,60 @@ void main() {
       submission.proof.matchReason,
       'native_rejected_runtime_bridge_snapshot',
     );
+  });
+
+  test('marks proof mismatched when native echoes different request id', () {
+    const baseProof = RendererPresentationProof(
+      requestedRootTimeMs: 1400,
+      requestedFrameIndex: 42,
+      requestedCommitFrameNumber: 100,
+      requestId: 'req-4',
+    );
+    final submission = parseLiveScrubRuntimeBridgeSubmission(
+      baseProof: baseProof,
+      response: <String, dynamic>{
+        'accepted': true,
+        'requestId': 'req-other',
+        'requestedRootTimeMs': 1400,
+      },
+    );
+    expect(submission.accepted, isTrue);
+    expect(
+      submission.proof.matchState,
+      RendererPresentationMatchState.mismatched,
+    );
+    expect(
+      submission.proof.matchReason,
+      'native_ack_request_id_mismatch',
+    );
+  });
+
+  test(
+      'marks proof mismatched when native echoes different requested root time',
+      () {
+    const baseProof = RendererPresentationProof(
+      requestedRootTimeMs: 1600,
+      requestedFrameIndex: 48,
+      requestedCommitFrameNumber: 101,
+      requestId: 'req-5',
+    );
+    final submission = parseLiveScrubRuntimeBridgeSubmission(
+      baseProof: baseProof,
+      response: <String, dynamic>{
+        'accepted': true,
+        'requestId': 'req-5',
+        'requestedRootTimeMs': 1700,
+      },
+    );
+    expect(submission.accepted, isTrue);
+    expect(
+      submission.proof.matchState,
+      RendererPresentationMatchState.mismatched,
+    );
+    expect(
+      submission.proof.matchReason,
+      'native_ack_requested_root_time_mismatch',
+    );
+    expect(submission.proof.presentedRootTimeMs, 1700);
   });
 }

@@ -793,19 +793,35 @@ LiveScrubRuntimeBridgeSubmission parseLiveScrubRuntimeBridgeSubmission({
   final nativeReceivedAtUs =
       nativeReceivedAtMs == null ? null : nativeReceivedAtMs * 1000;
   final reportedSurfaceId = response['surfaceId']?.toString();
+  final reportedRequestId = response['requestId']?.toString();
+  final reportedRequestedRootTimeMs = _asInt(response['requestedRootTimeMs']);
+  final requestIdMismatch = reportedRequestId != null &&
+      reportedRequestId.isNotEmpty &&
+      reportedRequestId != baseProof.requestId;
+  final requestedRootTimeMismatch = reportedRequestedRootTimeMs != null &&
+      reportedRequestedRootTimeMs != baseProof.requestedRootTimeMs;
+  final hasMismatch = requestIdMismatch || requestedRootTimeMismatch;
   final matchState = !accepted
       ? RendererPresentationMatchState.blocked
-      : hasBlockers
-          ? RendererPresentationMatchState.blocked
-          : RendererPresentationMatchState.matched;
+      : hasMismatch
+          ? RendererPresentationMatchState.mismatched
+          : hasBlockers
+              ? RendererPresentationMatchState.blocked
+              : RendererPresentationMatchState.matched;
   final matchReason = !accepted
       ? 'native_rejected_runtime_bridge_snapshot'
-      : hasBlockers
-          ? 'runtime_bridge_snapshot_contains_blockers'
-          : 'native_runtime_bridge_snapshot_acknowledged';
+      : hasMismatch
+          ? requestIdMismatch
+              ? 'native_ack_request_id_mismatch'
+              : 'native_ack_requested_root_time_mismatch'
+          : hasBlockers
+              ? 'runtime_bridge_snapshot_contains_blockers'
+              : 'native_runtime_bridge_snapshot_acknowledged';
   final proof = baseProof.copyWith(
     nativePresentationAck: accepted,
-    presentedRootTimeMs: accepted ? baseProof.requestedRootTimeMs : null,
+    presentedRootTimeMs: accepted
+        ? (reportedRequestedRootTimeMs ?? baseProof.requestedRootTimeMs)
+        : null,
     clearPresentedRootTimeMs: !accepted,
     presentedFrameIndex: accepted ? baseProof.requestedFrameIndex : null,
     clearPresentedFrameIndex: !accepted,
@@ -814,6 +830,9 @@ LiveScrubRuntimeBridgeSubmission parseLiveScrubRuntimeBridgeSubmission({
     clearPresentedCommitFrameNumber: !accepted,
     presentedSourceIds:
         accepted ? baseProof.requestedSourceIds : const <String>[],
+    requestId: (reportedRequestId != null && reportedRequestId.isNotEmpty)
+        ? reportedRequestId
+        : baseProof.requestId,
     surfaceId: reportedSurfaceId,
     clearSurfaceId: !accepted && reportedSurfaceId == null,
     presentationTimestampUs: nativeReceivedAtUs,
