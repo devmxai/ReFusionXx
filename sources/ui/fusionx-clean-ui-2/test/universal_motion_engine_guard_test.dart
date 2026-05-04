@@ -18,6 +18,9 @@ void main() {
   final liveScrubProgramModelsFile = File(
     'lib/features/editor/domain/models/master_live_scrub_visual_program_models.dart',
   );
+  final masterRenderGraphAdapterFile = File(
+    'lib/features/editor/domain/services/master_render_graph_adapter.dart',
+  );
   final liveScrubDescriptorModelsFile = File(
     'lib/features/editor/domain/models/master_live_scrub_descriptor_models.dart',
   );
@@ -254,5 +257,11 @@ void main() {
     final source = await stage5TransportControllerFile.readAsString();
     expect(source.contains('RendererPresentationProof.uninitialized('), isTrue);
     expect(source.contains('const RendererPresentationProof();'), isFalse);
+  });
+
+  test('master render graph does not emit legacy revision diagnostics',
+      () async {
+    final source = await masterRenderGraphAdapterFile.readAsString();
+    expect(source.contains('master_render_graph_revision:'), isFalse);
   });
 }

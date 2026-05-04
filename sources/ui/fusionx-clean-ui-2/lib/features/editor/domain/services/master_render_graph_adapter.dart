@@ -215,7 +215,6 @@ class MasterRenderGraphAdapter {
       outputHeight: outputHeight,
       colorProfile: colorProfile,
     );
-    diagnostics.add('master_render_graph_revision:$revision');
     diagnostics.add('master_render_graph_nodes:${nodes.length}');
 
     return MasterRenderGraph(

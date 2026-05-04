@@ -268,7 +268,7 @@ void main() {
       program.diagnostics.any(
         (entry) => entry.startsWith('master_render_graph_revision:'),
       ),
-      isTrue,
+      isFalse,
     );
     expect(
       program.diagnostics.any(
