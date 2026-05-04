@@ -267,11 +267,16 @@ class MainActivity: FlutterActivity() {
                 }
                 "playFromPosition" -> {
                     val positionMs = call.argument<Number>("positionMs")?.toLong() ?: 0L
+                    var completed = false
                     stage5TransportManager.runOnNextPlaybackFrameAt(positionMs) {
+                        if (completed) {
+                            return@runOnNextPlaybackFrameAt
+                        }
+                        completed = true
                         stage5NativeScrubEngine.endSession()
+                        result.success(null)
                     }
                     stage5TransportManager.playFromPosition(positionMs)
-                    result.success(null)
                 }
                 "pause" -> {
                     stage5TransportManager.pause()

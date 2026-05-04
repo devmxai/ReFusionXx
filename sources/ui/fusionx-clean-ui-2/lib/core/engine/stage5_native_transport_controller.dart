@@ -374,17 +374,11 @@ class Stage5NativeTransportController extends ChangeNotifier {
   }
 
   Future<void> play() async {
-    _applyOptimisticPlaybackState(true, isScrubSettling: false);
     await _invokeWithoutResult('play');
   }
 
   Future<void> playFromPositionMs(int positionMs) async {
     final clampedPositionMs = positionMs < 0 ? 0 : positionMs;
-    _applyOptimisticPlaybackState(
-      true,
-      positionMs: clampedPositionMs,
-      isScrubSettling: false,
-    );
     await _invokeWithoutResult(
       'playFromPosition',
       <String, dynamic>{'positionMs': clampedPositionMs},

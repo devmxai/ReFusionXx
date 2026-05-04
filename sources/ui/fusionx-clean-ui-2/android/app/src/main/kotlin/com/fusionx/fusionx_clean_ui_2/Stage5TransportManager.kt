@@ -1212,7 +1212,14 @@ class Stage5TransportManager(context: Context) {
                 activePlayer?.currentPosition ?: 0L
             }
         val playbackState = activePlayer?.playbackState ?: Player.STATE_IDLE
-        val isPlaying = if (isScrubSettling) false else activePlayer?.playWhenReady ?: false
+        val isTargetedPlaybackHandoffPending =
+            playbackFrameObservers.any { observer -> observer.targetPositionMs != null }
+        val isPlaying =
+            if (isScrubSettling || isTargetedPlaybackHandoffPending) {
+                false
+            } else {
+                activePlayer?.playWhenReady ?: false
+            }
         return mapOf(
             "isReady" to (playbackState == Player.STATE_READY),
             "isPlaying" to isPlaying,
@@ -1444,6 +1451,8 @@ class Stage5TransportManager(context: Context) {
         }
         playbackFrameObservers.removeAll(readyObservers)
         readyObservers.forEach { observer -> observer.callback() }
+        emitPreviewRetentionPolicy()
+        emitState()
     }
 
     private fun isPlaybackFrameObserverReady(

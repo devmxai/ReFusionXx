@@ -17425,9 +17425,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _setPlaybackSampleTime(playbackTime);
       return;
     }
+    await _playPlaybackFrom(playbackTime);
+    if (!mounted) {
+      return;
+    }
     _requestTimelineClockPlaybackStart(playbackTime);
     _prepareMotionPreviewForPlaybackStart(time: playbackTime);
-    await _playPlaybackFrom(playbackTime);
   }
 
   Future<void> _toggleTransitionFocusPlayback(
@@ -17483,9 +17486,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _setPlaybackSampleTime(effectiveStartTime);
       return;
     }
+    await _playPlaybackFrom(effectiveStartTime);
+    if (!mounted) {
+      return;
+    }
     _requestTimelineClockPlaybackStart(effectiveStartTime);
     _prepareMotionPreviewForPlaybackStart(time: effectiveStartTime);
-    await _playPlaybackFrom(effectiveStartTime);
   }
 
   Future<void> _stopTransitionFocusPlayback(
@@ -17934,9 +17940,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (!mounted) {
       return;
     }
+    await _playPlaybackFrom(playbackTime);
+    if (!mounted) {
+      return;
+    }
     _requestTimelineClockPlaybackStart(playbackTime);
     _prepareMotionPreviewForPlaybackStart(time: playbackTime);
-    await _playPlaybackFrom(playbackTime);
   }
 
   void _showStageMessage(String message) {
