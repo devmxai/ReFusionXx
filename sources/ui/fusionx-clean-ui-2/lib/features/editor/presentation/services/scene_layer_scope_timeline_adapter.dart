@@ -313,10 +313,9 @@ class SceneLayerScopeTimelineAdapter {
       MotionLayerKind.image => TimelineTrackKind.image,
       MotionLayerKind.video => TimelineTrackKind.video,
       MotionLayerKind.audio => TimelineTrackKind.audio,
-      MotionLayerKind.text ||
-      MotionLayerKind.shape ||
-      MotionLayerKind.camera ||
-      MotionLayerKind.effectControl =>
+      MotionLayerKind.text => TimelineTrackKind.text,
+      MotionLayerKind.shape => TimelineTrackKind.shape,
+      MotionLayerKind.camera || MotionLayerKind.effectControl =>
         TimelineTrackKind.text,
     };
   }
@@ -326,10 +325,9 @@ class SceneLayerScopeTimelineAdapter {
       MotionLayerKind.image => TimelineTrackContentKind.image,
       MotionLayerKind.video => TimelineTrackContentKind.video,
       MotionLayerKind.audio => TimelineTrackContentKind.audio,
-      MotionLayerKind.text ||
-      MotionLayerKind.shape ||
-      MotionLayerKind.camera ||
-      MotionLayerKind.effectControl =>
+      MotionLayerKind.text => TimelineTrackContentKind.text,
+      MotionLayerKind.shape => TimelineTrackContentKind.shape,
+      MotionLayerKind.camera || MotionLayerKind.effectControl =>
         TimelineTrackContentKind.text,
     };
   }

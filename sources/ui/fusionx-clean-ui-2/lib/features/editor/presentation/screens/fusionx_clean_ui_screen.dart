@@ -1485,6 +1485,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       TimelineTrackKind.image => ExportTrackKind.image,
       TimelineTrackKind.audio => ExportTrackKind.audio,
       TimelineTrackKind.text => ExportTrackKind.text,
+      TimelineTrackKind.shape => ExportTrackKind.text,
       TimelineTrackKind.lipSync => ExportTrackKind.lipSync,
     };
   }
@@ -5154,6 +5155,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       TimelineTrackKind.text => _isMotionTextElementId(context.clip.id),
       TimelineTrackKind.image => context.asset?.tab == EditorMediaTab.image &&
           context.asset?.isVisual == true,
+      TimelineTrackKind.shape ||
       TimelineTrackKind.video ||
       TimelineTrackKind.audio ||
       TimelineTrackKind.lipSync =>
@@ -5172,6 +5174,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         'Audio scope comes later. Phase 1 supports text and image layers only.',
       TimelineTrackKind.lipSync =>
         'Lip sync scope comes later. Phase 1 supports text and image layers only.',
+      TimelineTrackKind.shape =>
+        'Shape scope is available inside Scene Scope timelines.',
       TimelineTrackKind.text ||
       TimelineTrackKind.image =>
         'This layer is not currently eligible for scoped timeline.',
@@ -5816,10 +5820,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       MotionLayerKind.video => TimelineTrackKind.video,
       MotionLayerKind.image => TimelineTrackKind.image,
       MotionLayerKind.audio => TimelineTrackKind.audio,
-      MotionLayerKind.text ||
-      MotionLayerKind.shape ||
-      MotionLayerKind.camera ||
-      MotionLayerKind.effectControl =>
+      MotionLayerKind.text => TimelineTrackKind.text,
+      MotionLayerKind.shape => TimelineTrackKind.shape,
+      MotionLayerKind.camera || MotionLayerKind.effectControl =>
         TimelineTrackKind.text,
     };
   }
@@ -13166,6 +13169,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   ) {
     return switch (context.track.kind) {
       TimelineTrackKind.text => _scopedTextAnimateItems,
+      TimelineTrackKind.shape => _scopedShapeAnimateItems,
       TimelineTrackKind.image => _scopedImageAnimateItems,
       TimelineTrackKind.video => _scopedVideoAnimateItems,
       TimelineTrackKind.audio ||
@@ -13179,6 +13183,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   ) {
     return switch (context.track.kind) {
       TimelineTrackKind.text => _scopedTextFxItems,
+      TimelineTrackKind.shape => _scopedShapeFxItems,
       TimelineTrackKind.image => _scopedImageFxItems,
       TimelineTrackKind.video => _scopedVideoFxItems,
       TimelineTrackKind.audio ||

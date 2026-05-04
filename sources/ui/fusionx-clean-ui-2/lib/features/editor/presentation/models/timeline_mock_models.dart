@@ -6,6 +6,7 @@ enum TimelineTrackKind {
   image,
   audio,
   text,
+  shape,
   lipSync,
 }
 
@@ -14,6 +15,7 @@ enum TimelineTrackContentKind {
   image,
   audio,
   text,
+  shape,
   lipSync,
   scene,
 }
@@ -527,6 +529,7 @@ TimelineTrackContentKind _defaultTrackContentKindFor(TimelineTrackKind kind) {
     TimelineTrackKind.image => TimelineTrackContentKind.image,
     TimelineTrackKind.audio => TimelineTrackContentKind.audio,
     TimelineTrackKind.text => TimelineTrackContentKind.text,
+    TimelineTrackKind.shape => TimelineTrackContentKind.shape,
     TimelineTrackKind.lipSync => TimelineTrackContentKind.lipSync,
   };
 }
@@ -543,6 +546,7 @@ TimelineVisualKind _defaultTrackVisualKindFor(
     TimelineTrackKind.image => TimelineVisualKind.image,
     TimelineTrackKind.audio => TimelineVisualKind.audio,
     TimelineTrackKind.text => TimelineVisualKind.text,
+    TimelineTrackKind.shape => TimelineVisualKind.shape,
     TimelineTrackKind.lipSync => TimelineVisualKind.lipSync,
   };
 }

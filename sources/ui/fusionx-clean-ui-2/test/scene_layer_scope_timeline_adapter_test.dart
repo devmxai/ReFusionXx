@@ -204,7 +204,8 @@ void main() {
     );
 
     final viewModel = result.viewModel!;
-    expect(viewModel.track.kind, TimelineTrackKind.text);
+    expect(viewModel.track.kind, TimelineTrackKind.shape);
+    expect(viewModel.track.contentKind, TimelineTrackContentKind.shape);
     expect(viewModel.track.placeholderLabel, 'Shape');
     expect(viewModel.localToRoot(ms(1000)).inMilliseconds, 3000);
     expect(viewModel.rootToLocal(ms(3000)).inMilliseconds, 1000);

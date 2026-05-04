@@ -363,6 +363,18 @@ class _TimelineTrackLaneProfile {
     insertionSlotTopInset: 8,
   );
 
+  static const _TimelineTrackLaneProfile shape = _TimelineTrackLaneProfile(
+    shortLabel: 'SHP',
+    accentColor: Color(0xFF6E9F8A),
+    rowHeight: 42,
+    controlHitSize: 42,
+    headerTopInset: 1,
+    clipTopInset: 2,
+    clipHeight: 38,
+    reorderCardTopInset: 1,
+    insertionSlotTopInset: 8,
+  );
+
   static const _TimelineTrackLaneProfile lipSync = _TimelineTrackLaneProfile(
     shortLabel: 'LIP',
     accentColor: Color(0xFF6DA7A1),
@@ -385,6 +397,8 @@ class _TimelineTrackLaneProfile {
         return audio;
       case TimelineTrackKind.text:
         return text;
+      case TimelineTrackKind.shape:
+        return shape;
       case TimelineTrackKind.lipSync:
         return lipSync;
     }
