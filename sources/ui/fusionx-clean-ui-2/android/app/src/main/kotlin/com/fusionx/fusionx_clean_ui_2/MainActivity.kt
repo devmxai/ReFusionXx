@@ -267,7 +267,7 @@ class MainActivity: FlutterActivity() {
                 }
                 "playFromPosition" -> {
                     val positionMs = call.argument<Number>("positionMs")?.toLong() ?: 0L
-                    stage5TransportManager.runOnNextPlaybackFrame {
+                    stage5TransportManager.runOnNextPlaybackFrameAt(positionMs) {
                         stage5NativeScrubEngine.endSession()
                     }
                     stage5TransportManager.playFromPosition(positionMs)

@@ -56,6 +56,7 @@ class Stage5TransportManager(context: Context) {
         private const val DISPLAYABLE_END_EPSILON_MS = 1L
         private const val FULL_SOURCE_DURATION_TOLERANCE_MS = 150L
         private const val PLAY_FROM_POSITION_SEEK_TOLERANCE_MS = 24L
+        private const val PLAY_FROM_POSITION_RENDERED_FRAME_TOLERANCE_MS = 120L
         // Composition-based multi-clip preview remains future-gated until it can preserve
         // live scrub parity with the accepted Exo baseline.
         private const val ENABLE_COMPOSITION_TIMELINE_PREVIEW = false
@@ -98,7 +99,7 @@ class Stage5TransportManager(context: Context) {
     private val previewRetentionObservers = LinkedHashSet<(Boolean) -> Unit>()
     private val previewOutputSuppressionObservers = LinkedHashSet<(Boolean) -> Unit>()
     private val scrubSettlingObservers = LinkedHashSet<(Boolean) -> Unit>()
-    private val playbackFrameObservers = LinkedHashSet<() -> Unit>()
+    private val playbackFrameObservers = mutableListOf<PlaybackFrameObserver>()
     private val audioSignatureCache = HashMap<String, AudioSignature?>()
     private val sourceDurationCache = HashMap<String, Long?>()
     private val mediaDisplayGeometryResolver = MediaDisplayGeometryResolver(appContext)
@@ -132,6 +133,11 @@ class Stage5TransportManager(context: Context) {
         val sampleRate: Int?,
         val channelCount: Int?,
         val codecString: String?,
+    )
+
+    private data class PlaybackFrameObserver(
+        val targetPositionMs: Long?,
+        val callback: () -> Unit,
     )
 
     private data class TimelineRun(
@@ -889,7 +895,19 @@ class Stage5TransportManager(context: Context) {
     }
 
     fun runOnNextPlaybackFrame(observer: () -> Unit) {
-        playbackFrameObservers.add(observer)
+        runOnNextPlaybackFrameAt(targetPositionMs = null, observer = observer)
+    }
+
+    fun runOnNextPlaybackFrameAt(
+        targetPositionMs: Long?,
+        observer: () -> Unit,
+    ) {
+        playbackFrameObservers.add(
+            PlaybackFrameObserver(
+                targetPositionMs = targetPositionMs?.coerceAtLeast(0L),
+                callback = observer,
+            ),
+        )
     }
 
     fun suspendPreviewOutputForExport() {
@@ -1275,7 +1293,13 @@ class Stage5TransportManager(context: Context) {
             return
         }
         if (!isScrubSettling || presentationTimeUs < 0L) {
-            notifyPlaybackFrameObserversIfNeeded()
+            val renderedPositionMs =
+                if (presentationTimeUs >= 0L) {
+                    (presentationTimeUs / 1_000L).coerceAtLeast(0L)
+                } else {
+                    null
+                }
+            notifyPlaybackFrameObserversIfNeeded(renderedPositionMs)
             return
         }
         val renderedPositionMs = (presentationTimeUs / 1_000L).coerceAtLeast(0L)
@@ -1288,7 +1312,7 @@ class Stage5TransportManager(context: Context) {
         emitState()
     }
 
-    private fun notifyPlaybackFrameObserversIfNeeded() {
+    private fun notifyPlaybackFrameObserversIfNeeded(renderedPositionMs: Long?) {
         val activePlayer = activePlayer ?: exoPlayer ?: compositionPlayer ?: return
         if (!activePlayer.playWhenReady && !activePlayer.isPlaying) {
             return
@@ -1296,9 +1320,43 @@ class Stage5TransportManager(context: Context) {
         if (playbackFrameObservers.isEmpty()) {
             return
         }
-        val observers = playbackFrameObservers.toList()
-        playbackFrameObservers.clear()
-        observers.forEach { observer -> observer() }
+        val readyObservers =
+            playbackFrameObservers.filter { observer ->
+                isPlaybackFrameObserverReady(observer, renderedPositionMs)
+            }
+        if (readyObservers.isEmpty()) {
+            return
+        }
+        playbackFrameObservers.removeAll(readyObservers)
+        readyObservers.forEach { observer -> observer.callback() }
+    }
+
+    private fun isPlaybackFrameObserverReady(
+        observer: PlaybackFrameObserver,
+        renderedPositionMs: Long?,
+    ): Boolean {
+        val targetPositionMs = observer.targetPositionMs ?: return true
+        val activePlayer = activePlayer ?: exoPlayer ?: compositionPlayer ?: return false
+        val currentPositionMs =
+            if (timelineSegments.isNotEmpty()) {
+                currentTimelinePositionMs()
+            } else {
+                activePlayer.currentPosition.coerceAtLeast(0L)
+            }
+        if (
+            kotlin.math.abs(currentPositionMs - targetPositionMs) <=
+                PLAY_FROM_POSITION_RENDERED_FRAME_TOLERANCE_MS
+        ) {
+            return true
+        }
+        if (renderedPositionMs == null) {
+            return false
+        }
+        val candidates = resolveScrubSettleRenderedFrameCandidates(targetPositionMs)
+        return candidates.any { candidateMs ->
+            kotlin.math.abs(renderedPositionMs - candidateMs) <=
+                PLAY_FROM_POSITION_RENDERED_FRAME_TOLERANCE_MS
+        }
     }
 
     private fun isScrubSettleTargetPositionSatisfied(): Boolean {
