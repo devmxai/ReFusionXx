@@ -331,14 +331,7 @@ private class Stage5TimelineScrubInputView(
                 val wasScrubbing = scrubbing
                 val tapped = !wasScrubbing && config.tapEnabled
                 if (wasScrubbing) {
-                    val activeIndex = event.findPointerIndex(pointerId)
-                    if (activeIndex >= 0) {
-                        gesturePositionMs = resolveGesturePositionMs(event, activeIndex)
-                    }
-                    pendingFinalPositionMs = gesturePositionMs
-                    if (!nativeScrubEngine.commitFinalTimelinePosition(gesturePositionMs)) {
-                        deliverScrubEnd(gesturePositionMs)
-                    }
+                    settleAtLastRenderedPosition()
                 } else if (tapped) {
                     channel.invokeMethod(
                         "tap",
@@ -355,14 +348,7 @@ private class Stage5TimelineScrubInputView(
                     return true
                 }
                 if (scrubbing) {
-                    val activeIndex = event.findPointerIndex(pointerId)
-                    if (activeIndex >= 0) {
-                        gesturePositionMs = resolveGesturePositionMs(event, activeIndex)
-                    }
-                    pendingFinalPositionMs = gesturePositionMs
-                    if (!nativeScrubEngine.commitFinalTimelinePosition(gesturePositionMs)) {
-                        deliverScrubEnd(gesturePositionMs)
-                    }
+                    settleAtLastRenderedPosition()
                 }
                 resetGesture()
                 return true
@@ -407,6 +393,18 @@ private class Stage5TimelineScrubInputView(
         }
         if (pendingFinal != null && timelinePositionMs == pendingFinal) {
             deliverScrubEnd(pendingFinal)
+        }
+    }
+
+    private fun settleAtLastRenderedPosition() {
+        val finalPositionMs = lastDeliveredRenderedPositionMs ?: gesturePositionMs
+        pendingFinalPositionMs = finalPositionMs
+        if (!nativeScrubEngine.commitFinalTimelinePosition(finalPositionMs)) {
+            deliverScrubEnd(finalPositionMs)
+            return
+        }
+        if (lastDeliveredRenderedPositionMs == finalPositionMs) {
+            deliverScrubEnd(finalPositionMs)
         }
     }
 
