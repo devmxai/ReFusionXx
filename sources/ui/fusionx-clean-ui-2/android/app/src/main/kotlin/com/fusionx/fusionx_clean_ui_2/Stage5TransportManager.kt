@@ -98,6 +98,7 @@ class Stage5TransportManager(context: Context) {
     private var playbackAlignmentExpectedItemIndex: Int? = null
     private var playbackAlignmentRenderedFrameCandidatesMs = LongArray(0)
     private var playbackAlignmentReady = false
+    private var playbackAlignmentSurfaceReady = false
     private var timelinePlaybackBackend = TimelinePlaybackBackend.NONE
     private var isPreviewOutputSuppressed = false
     private val playerObservers = LinkedHashSet<(Player) -> Unit>()
@@ -875,6 +876,7 @@ class Stage5TransportManager(context: Context) {
         playbackAlignmentRenderedFrameCandidatesMs =
             resolveScrubSettleRenderedFrameCandidates(safePositionMs)
         playbackAlignmentReady = false
+        playbackAlignmentSurfaceReady = false
         currentPlayer.pause()
         (currentPlayer as? ExoPlayer)?.setSeekParameters(SeekParameters.EXACT)
         performResolvedSeek(safePositionMs)
@@ -1102,6 +1104,7 @@ class Stage5TransportManager(context: Context) {
         playbackAlignmentExpectedItemIndex = null
         playbackAlignmentRenderedFrameCandidatesMs = LongArray(0)
         playbackAlignmentReady = false
+        playbackAlignmentSurfaceReady = false
         scheduledPlaybackFrameObservers.clear()
     }
 
@@ -1112,7 +1115,11 @@ class Stage5TransportManager(context: Context) {
     }
 
     private fun isPlaybackAlignmentReadyForImmediateHandoff(positionMs: Long): Boolean {
-        if (!playbackAlignmentReady || !isPlaybackAlignmentForPosition(positionMs)) {
+        if (
+            !playbackAlignmentReady ||
+            !playbackAlignmentSurfaceReady ||
+            !isPlaybackAlignmentForPosition(positionMs)
+        ) {
             return false
         }
         if (!doesCurrentPlaybackItemMatch(playbackAlignmentExpectedItemIndex)) {
@@ -1412,7 +1419,7 @@ class Stage5TransportManager(context: Context) {
             } else {
                 null
             }
-        maybeCompletePlaybackAlignment(renderedPositionMs)
+        maybeCompletePlaybackAlignment(renderedPositionMs, releaseTimeNs)
         notifyPlaybackFrameObserversIfNeeded(renderedPositionMs, releaseTimeNs)
         if (!isScrubSettling || presentationTimeUs < 0L) {
             return
@@ -1427,7 +1434,10 @@ class Stage5TransportManager(context: Context) {
         emitState()
     }
 
-    private fun maybeCompletePlaybackAlignment(renderedPositionMs: Long?) {
+    private fun maybeCompletePlaybackAlignment(
+        renderedPositionMs: Long?,
+        releaseTimeNs: Long,
+    ) {
         val targetPositionMs = playbackAlignmentTargetPositionMs ?: return
         if (playbackAlignmentReady || renderedPositionMs == null) {
             return
@@ -1450,7 +1460,17 @@ class Stage5TransportManager(context: Context) {
             return
         }
         playbackAlignmentReady = true
+        playbackAlignmentSurfaceReady = false
         lastRequestedPositionMs = targetPositionMs
+        mainHandler.postDelayed(
+            {
+                if (playbackAlignmentTargetPositionMs == targetPositionMs) {
+                    playbackAlignmentSurfaceReady = true
+                    emitState()
+                }
+            },
+            playbackSurfaceHandoffDelayMs(releaseTimeNs),
+        )
         emitState()
     }
 
