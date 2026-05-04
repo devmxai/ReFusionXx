@@ -59,6 +59,9 @@ class MasterVisualProgramAdapter {
       final blockers = <String>[];
       final effectsById = <String, MasterVisualEffectBinding>{};
       var transform = const MasterVisualTransform();
+      var crop = const MasterVisualCrop();
+      var textStyle = const MasterVisualTextStyle();
+      var shapeStyle = const MasterVisualShapeStyle();
       var opacity = 1.0;
 
       for (final value in values) {
@@ -109,6 +112,91 @@ class MasterVisualProgramAdapter {
             } else {
               transform = transform.copyWith(rotationRadians: rendererScalar);
             }
+          case 'cropRect':
+            final rect = value.mapping.renderer.rect;
+            if (rect == null) {
+              blockers.add('invalid_crop_value:${value.sourceChannelId}');
+            } else {
+              crop = crop.copyWith(rect: rect);
+            }
+          case 'shapeWidth':
+            if (rendererScalar == null || !rendererScalar.isFinite) {
+              blockers.add('invalid_shape_value:${value.sourceChannelId}');
+            } else {
+              shapeStyle = shapeStyle.copyWith(width: rendererScalar);
+            }
+          case 'shapeHeight':
+            if (rendererScalar == null || !rendererScalar.isFinite) {
+              blockers.add('invalid_shape_value:${value.sourceChannelId}');
+            } else {
+              shapeStyle = shapeStyle.copyWith(height: rendererScalar);
+            }
+          case 'shapeCornerRadius':
+            if (rendererScalar == null || !rendererScalar.isFinite) {
+              blockers.add('invalid_shape_value:${value.sourceChannelId}');
+            } else {
+              shapeStyle = shapeStyle.copyWith(cornerRadius: rendererScalar);
+            }
+          case 'trimStart':
+            if (rendererScalar == null || !rendererScalar.isFinite) {
+              blockers.add('invalid_shape_value:${value.sourceChannelId}');
+            } else {
+              shapeStyle = shapeStyle.copyWith(trimStart: rendererScalar);
+            }
+          case 'trimEnd':
+            if (rendererScalar == null || !rendererScalar.isFinite) {
+              blockers.add('invalid_shape_value:${value.sourceChannelId}');
+            } else {
+              shapeStyle = shapeStyle.copyWith(trimEnd: rendererScalar);
+            }
+          case 'trimOffset':
+            if (rendererScalar == null || !rendererScalar.isFinite) {
+              blockers.add('invalid_shape_value:${value.sourceChannelId}');
+            } else {
+              shapeStyle = shapeStyle.copyWith(trimOffset: rendererScalar);
+            }
+          case 'textFontSize':
+            if (rendererScalar == null || !rendererScalar.isFinite) {
+              blockers.add('invalid_text_value:${value.sourceChannelId}');
+            } else {
+              textStyle = textStyle.copyWith(fontSize: rendererScalar);
+            }
+          case 'textFontWeight':
+            if (rendererScalar == null || !rendererScalar.isFinite) {
+              blockers.add('invalid_text_value:${value.sourceChannelId}');
+            } else {
+              textStyle = textStyle.copyWith(fontWeight: rendererScalar);
+            }
+          case 'textFontFamily':
+            textStyle = textStyle.copyWith(
+              fontFamily: value.mapping.renderer.token,
+            );
+          case 'textFontStyle':
+            textStyle = textStyle.copyWith(
+              fontStyle: value.mapping.renderer.token,
+            );
+          case 'textLineHeight':
+            if (rendererScalar == null || !rendererScalar.isFinite) {
+              blockers.add('invalid_text_value:${value.sourceChannelId}');
+            } else {
+              textStyle = textStyle.copyWith(lineHeight: rendererScalar);
+            }
+          case 'textAlignment':
+            textStyle = textStyle.copyWith(
+              alignment: value.mapping.renderer.token,
+            );
+          case 'textLetterSpacing':
+            if (rendererScalar == null || !rendererScalar.isFinite) {
+              blockers.add('invalid_text_value:${value.sourceChannelId}');
+            } else {
+              textStyle = textStyle.copyWith(letterSpacing: rendererScalar);
+            }
+          case 'textRevealProgress':
+            if (rendererScalar == null || !rendererScalar.isFinite) {
+              blockers.add('invalid_text_value:${value.sourceChannelId}');
+            } else {
+              textStyle = textStyle.copyWith(revealProgress: rendererScalar);
+            }
           case 'gaussianBlur':
           case 'blurHorizontal':
           case 'blurVertical':
@@ -120,9 +208,6 @@ class MasterVisualProgramAdapter {
           case 'shadowOffsetX':
           case 'shadowOffsetY':
           case 'shadowSpread':
-          case 'trimStart':
-          case 'trimEnd':
-          case 'trimOffset':
           case 'motionBlurAmount':
           case 'tileOutputScale':
             if (rendererScalar == null || !rendererScalar.isFinite) {
@@ -176,6 +261,9 @@ class MasterVisualProgramAdapter {
           transitionRole: transitionRolesByTargetId[targetId] ??
               MasterVisualTransitionRole.none,
           transform: transform,
+          crop: crop,
+          textStyle: textStyle,
+          shapeStyle: shapeStyle,
           opacity: opacity,
           effects: effectsById.values.toList(growable: false),
           blockers: blockers,

@@ -21,6 +21,12 @@ void main() {
       expect(registry.definitionById('gaussianBlur'), isNotNull);
       expect(registry.definitionById('motionBlurAmount'), isNotNull);
       expect(registry.definitionById('tileOutputScale'), isNotNull);
+      expect(registry.definitionById('cropRect'), isNotNull);
+      expect(registry.definitionById('shapeWidth'), isNotNull);
+      expect(registry.definitionById('shapeHeight'), isNotNull);
+      expect(registry.definitionById('shapeCornerRadius'), isNotNull);
+      expect(registry.definitionById('textFontSize'), isNotNull);
+      expect(registry.definitionById('textFontFamily'), isNotNull);
     });
 
     test('opacity 100 percent maps to normalized alpha 1.0', () {
@@ -95,6 +101,46 @@ void main() {
         value: const MotionPropertyValue.scalar(50),
       );
       expect(trimOffset.renderer.scalar, closeTo(0.5, 0.0001));
+    });
+
+    test('maps crop, shape, and text motion properties', () {
+      expect(
+        registry
+            .definitionForMotionProperty(MotionPropertyCatalog.cropRect)
+            ?.id,
+        'cropRect',
+      );
+      expect(
+        registry.definitionForMotionProperty(MotionPropertyCatalog.width)?.id,
+        'shapeWidth',
+      );
+      expect(
+        registry
+            .definitionForMotionProperty(MotionPropertyCatalog.fontSize)
+            ?.id,
+        'textFontSize',
+      );
+      expect(
+        registry
+            .definitionForMotionProperty(MotionPropertyCatalog.fontFamily)
+            ?.id,
+        'textFontFamily',
+      );
+
+      final crop = registry.mapValue(
+        definition: definition('cropRect'),
+        value: const MotionPropertyValue.rect(
+          MotionRect(left: -0.2, top: 0.1, width: 1.4, height: 0.5),
+        ),
+      );
+      expect(crop.renderer.rect?.left, closeTo(0.0, 0.0001));
+      expect(crop.renderer.rect?.width, closeTo(1.0, 0.0001));
+
+      final fontFamily = registry.mapValue(
+        definition: definition('textFontFamily'),
+        value: const MotionPropertyValue.stringValue('Inter'),
+      );
+      expect(fontFamily.renderer.token, 'Inter');
     });
   });
 }

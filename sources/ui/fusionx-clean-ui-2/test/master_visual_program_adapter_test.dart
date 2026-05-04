@@ -141,6 +141,58 @@ void main() {
         keyframes: const <MotionKeyframeModel>[],
       ),
       MotionPropertyChannelModel(
+        id: 'ch.shape.width',
+        target: const MotionPropertyTarget(
+          kind: MotionTargetKind.element,
+          targetId: 'element-1',
+          projectId: 'project-1',
+          sceneId: 'scene-1',
+          layerId: 'layer-1',
+          elementId: 'element-1',
+        ),
+        definition: MotionPropertyCatalog.width,
+        keyframes: const <MotionKeyframeModel>[],
+      ),
+      MotionPropertyChannelModel(
+        id: 'ch.text.fontSize',
+        target: const MotionPropertyTarget(
+          kind: MotionTargetKind.element,
+          targetId: 'element-1',
+          projectId: 'project-1',
+          sceneId: 'scene-1',
+          layerId: 'layer-1',
+          elementId: 'element-1',
+        ),
+        definition: MotionPropertyCatalog.fontSize,
+        keyframes: const <MotionKeyframeModel>[],
+      ),
+      MotionPropertyChannelModel(
+        id: 'ch.text.fontFamily',
+        target: const MotionPropertyTarget(
+          kind: MotionTargetKind.element,
+          targetId: 'element-1',
+          projectId: 'project-1',
+          sceneId: 'scene-1',
+          layerId: 'layer-1',
+          elementId: 'element-1',
+        ),
+        definition: MotionPropertyCatalog.fontFamily,
+        keyframes: const <MotionKeyframeModel>[],
+      ),
+      MotionPropertyChannelModel(
+        id: 'ch.crop.rect',
+        target: const MotionPropertyTarget(
+          kind: MotionTargetKind.element,
+          targetId: 'element-1',
+          projectId: 'project-1',
+          sceneId: 'scene-1',
+          layerId: 'layer-1',
+          elementId: 'element-1',
+        ),
+        definition: MotionPropertyCatalog.cropRect,
+        keyframes: const <MotionKeyframeModel>[],
+      ),
+      MotionPropertyChannelModel(
         id: 'ch.shadow.opacity',
         target: const MotionPropertyTarget(
           kind: MotionTargetKind.element,
@@ -226,6 +278,47 @@ void main() {
         ),
         MasterEvaluatedPropertyValue(
           targetId: 'element-1',
+          propertyDefinitionId: 'shapeWidth',
+          domain: const MasterTimeDomain.scene('scene-1'),
+          mapping: mapping('shapeWidth', const MotionPropertyValue.scalar(640)),
+          sourceChannelId: 'ch.shape.width',
+          status: 'resolved',
+        ),
+        MasterEvaluatedPropertyValue(
+          targetId: 'element-1',
+          propertyDefinitionId: 'textFontSize',
+          domain: const MasterTimeDomain.scene('scene-1'),
+          mapping:
+              mapping('textFontSize', const MotionPropertyValue.scalar(48)),
+          sourceChannelId: 'ch.text.fontSize',
+          status: 'resolved',
+        ),
+        MasterEvaluatedPropertyValue(
+          targetId: 'element-1',
+          propertyDefinitionId: 'textFontFamily',
+          domain: const MasterTimeDomain.scene('scene-1'),
+          mapping: mapping(
+            'textFontFamily',
+            const MotionPropertyValue.stringValue('Inter'),
+          ),
+          sourceChannelId: 'ch.text.fontFamily',
+          status: 'resolved',
+        ),
+        MasterEvaluatedPropertyValue(
+          targetId: 'element-1',
+          propertyDefinitionId: 'cropRect',
+          domain: const MasterTimeDomain.scene('scene-1'),
+          mapping: mapping(
+            'cropRect',
+            const MotionPropertyValue.rect(
+              MotionRect(left: 0.1, top: 0.2, width: 0.7, height: 0.6),
+            ),
+          ),
+          sourceChannelId: 'ch.crop.rect',
+          status: 'resolved',
+        ),
+        MasterEvaluatedPropertyValue(
+          targetId: 'element-1',
           propertyDefinitionId: 'shadowOpacity',
           domain: const MasterTimeDomain.scene('scene-1'),
           mapping:
@@ -268,10 +361,19 @@ void main() {
     expect(surface.transform.scaleX, closeTo(1.25, 0.0001));
     expect(surface.transform.scaleY, closeTo(0.8, 0.0001));
     expect(surface.transform.rotationRadians, closeTo(math.pi / 2.0, 0.0001));
+    expect(surface.crop.rect?.left, closeTo(0.1, 0.0001));
+    expect(surface.crop.rect?.top, closeTo(0.2, 0.0001));
+    expect(surface.crop.rect?.width, closeTo(0.7, 0.0001));
+    expect(surface.crop.rect?.height, closeTo(0.6, 0.0001));
+    expect(surface.textStyle.fontSize, closeTo(48.0, 0.0001));
+    expect(surface.textStyle.fontFamily, 'Inter');
+    expect(surface.textStyle.hasTextStyle, isTrue);
+    expect(surface.shapeStyle.width, closeTo(640.0, 0.0001));
+    expect(surface.shapeStyle.trimStart, closeTo(0.25, 0.0001));
+    expect(surface.shapeStyle.hasShapeStyle, isTrue);
     expect(surface.transitionRole, MasterVisualTransitionRole.outgoing);
     expect(
         surface.effects.any((effect) => effect.id == 'gaussianBlur'), isTrue);
-    expect(surface.effects.any((effect) => effect.id == 'trimStart'), isTrue);
     expect(
         surface.effects.any((effect) => effect.id == 'shadowOpacity'), isTrue);
     expect(surface.effects.any((effect) => effect.id == 'tileOutputScale'),

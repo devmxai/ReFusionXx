@@ -74,6 +74,42 @@ class MasterValueTruthRegistry {
     if (key == 'shape.trim.offset') {
       return _definitions['trimOffset'];
     }
+    if (key == 'crop.rect') {
+      return _definitions['cropRect'];
+    }
+    if (key == 'shape.width') {
+      return _definitions['shapeWidth'];
+    }
+    if (key == 'shape.height') {
+      return _definitions['shapeHeight'];
+    }
+    if (key == 'shape.cornerRadius') {
+      return _definitions['shapeCornerRadius'];
+    }
+    if (key == 'text.fontSize') {
+      return _definitions['textFontSize'];
+    }
+    if (key == 'text.fontWeight') {
+      return _definitions['textFontWeight'];
+    }
+    if (key == 'text.fontFamily') {
+      return _definitions['textFontFamily'];
+    }
+    if (key == 'text.fontStyle') {
+      return _definitions['textFontStyle'];
+    }
+    if (key == 'text.lineHeight') {
+      return _definitions['textLineHeight'];
+    }
+    if (key == 'text.alignment') {
+      return _definitions['textAlignment'];
+    }
+    if (key == 'text.letterSpacing') {
+      return _definitions['textLetterSpacing'];
+    }
+    if (key == 'text.revealProgress') {
+      return _definitions['textRevealProgress'];
+    }
     return null;
   }
 
@@ -469,6 +505,260 @@ class MasterValueTruthRegistry {
           MasterRenderCapability.export,
         ],
       ),
+      'cropRect': const MasterPropertyDefinition(
+        id: 'cropRect',
+        category: MasterPropertyCategory.crop,
+        valueType: MasterValueType.scalar,
+        uiUnit: MasterValueUnit.normalized01,
+        engineUnit: MasterValueUnit.normalized01,
+        rendererUnit: MasterValueUnit.normalized01,
+        defaultValue: MotionPropertyValue.rect(
+          MotionRect(left: 0, top: 0, width: 1, height: 1),
+        ),
+        minValue: 0,
+        maxValue: 1,
+        mapper: _mapCropRect,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'shapeWidth': const MasterPropertyDefinition(
+        id: 'shapeWidth',
+        category: MasterPropertyCategory.shape,
+        valueType: MasterValueType.dimension,
+        uiUnit: MasterValueUnit.canvasPx,
+        engineUnit: MasterValueUnit.canvasPx,
+        rendererUnit: MasterValueUnit.devicePx,
+        defaultValue: MotionPropertyValue.scalar(0),
+        minValue: 0,
+        maxValue: 100000,
+        mapper: _mapPositiveDimension,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'shapeHeight': const MasterPropertyDefinition(
+        id: 'shapeHeight',
+        category: MasterPropertyCategory.shape,
+        valueType: MasterValueType.dimension,
+        uiUnit: MasterValueUnit.canvasPx,
+        engineUnit: MasterValueUnit.canvasPx,
+        rendererUnit: MasterValueUnit.devicePx,
+        defaultValue: MotionPropertyValue.scalar(0),
+        minValue: 0,
+        maxValue: 100000,
+        mapper: _mapPositiveDimension,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'shapeCornerRadius': const MasterPropertyDefinition(
+        id: 'shapeCornerRadius',
+        category: MasterPropertyCategory.shape,
+        valueType: MasterValueType.dimension,
+        uiUnit: MasterValueUnit.canvasPx,
+        engineUnit: MasterValueUnit.canvasPx,
+        rendererUnit: MasterValueUnit.devicePx,
+        defaultValue: MotionPropertyValue.scalar(0),
+        minValue: 0,
+        maxValue: 100000,
+        mapper: _mapPositiveDimension,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'textFontSize': const MasterPropertyDefinition(
+        id: 'textFontSize',
+        category: MasterPropertyCategory.text,
+        valueType: MasterValueType.dimension,
+        uiUnit: MasterValueUnit.canvasPx,
+        engineUnit: MasterValueUnit.canvasPx,
+        rendererUnit: MasterValueUnit.devicePx,
+        defaultValue: MotionPropertyValue.scalar(16),
+        minValue: 1,
+        maxValue: 1000,
+        mapper: _mapPositiveDimension,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'textFontWeight': const MasterPropertyDefinition(
+        id: 'textFontWeight',
+        category: MasterPropertyCategory.text,
+        valueType: MasterValueType.scalar,
+        uiUnit: MasterValueUnit.enumToken,
+        engineUnit: MasterValueUnit.enumToken,
+        rendererUnit: MasterValueUnit.enumToken,
+        defaultValue: MotionPropertyValue.integer(700),
+        minValue: 100,
+        maxValue: 900,
+        mapper: _mapScalar,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'textFontFamily': const MasterPropertyDefinition(
+        id: 'textFontFamily',
+        category: MasterPropertyCategory.text,
+        valueType: MasterValueType.stringValue,
+        uiUnit: MasterValueUnit.stringToken,
+        engineUnit: MasterValueUnit.stringToken,
+        rendererUnit: MasterValueUnit.stringToken,
+        defaultValue: MotionPropertyValue.stringValue(''),
+        minValue: 0,
+        maxValue: 0,
+        mapper: _mapString,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'textFontStyle': const MasterPropertyDefinition(
+        id: 'textFontStyle',
+        category: MasterPropertyCategory.text,
+        valueType: MasterValueType.stringValue,
+        uiUnit: MasterValueUnit.stringToken,
+        engineUnit: MasterValueUnit.stringToken,
+        rendererUnit: MasterValueUnit.stringToken,
+        defaultValue: MotionPropertyValue.stringValue('normal'),
+        minValue: 0,
+        maxValue: 0,
+        mapper: _mapString,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'textLineHeight': const MasterPropertyDefinition(
+        id: 'textLineHeight',
+        category: MasterPropertyCategory.text,
+        valueType: MasterValueType.scalar,
+        uiUnit: MasterValueUnit.multiplier,
+        engineUnit: MasterValueUnit.multiplier,
+        rendererUnit: MasterValueUnit.multiplier,
+        defaultValue: MotionPropertyValue.scalar(1),
+        minValue: 0,
+        maxValue: 10,
+        mapper: _mapPositiveScalar,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'textAlignment': const MasterPropertyDefinition(
+        id: 'textAlignment',
+        category: MasterPropertyCategory.text,
+        valueType: MasterValueType.stringValue,
+        uiUnit: MasterValueUnit.stringToken,
+        engineUnit: MasterValueUnit.stringToken,
+        rendererUnit: MasterValueUnit.stringToken,
+        defaultValue: MotionPropertyValue.stringValue('center'),
+        minValue: 0,
+        maxValue: 0,
+        mapper: _mapString,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'textLetterSpacing': const MasterPropertyDefinition(
+        id: 'textLetterSpacing',
+        category: MasterPropertyCategory.text,
+        valueType: MasterValueType.dimension,
+        uiUnit: MasterValueUnit.canvasPx,
+        engineUnit: MasterValueUnit.canvasPx,
+        rendererUnit: MasterValueUnit.devicePx,
+        defaultValue: MotionPropertyValue.scalar(0),
+        minValue: -100000,
+        maxValue: 100000,
+        mapper: _mapPosition,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'textRevealProgress': const MasterPropertyDefinition(
+        id: 'textRevealProgress',
+        category: MasterPropertyCategory.text,
+        valueType: MasterValueType.percent,
+        uiUnit: MasterValueUnit.percentUi,
+        engineUnit: MasterValueUnit.normalized01,
+        rendererUnit: MasterValueUnit.normalized01,
+        defaultValue: MotionPropertyValue.scalar(100),
+        minValue: 0,
+        maxValue: 100,
+        mapper: _mapPercent01,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
       'motionBlurAmount': const MasterPropertyDefinition(
         id: 'motionBlurAmount',
         category: MasterPropertyCategory.effect,
@@ -660,15 +950,79 @@ class MasterValueTruthRegistry {
     );
   }
 
+  static MasterPropertyValueMapping _mapPositiveScalar(
+    MotionPropertyValue value,
+  ) {
+    final scalar = math.max(0.0, _readScalar(value, fallback: 0));
+    return MasterPropertyValueMapping(
+      ui: MasterValueLayer(scalar: scalar),
+      engine: MasterValueLayer(scalar: scalar),
+      renderer: MasterValueLayer(scalar: scalar),
+      uiUnit: MasterValueUnit.multiplier,
+      engineUnit: MasterValueUnit.multiplier,
+      rendererUnit: MasterValueUnit.multiplier,
+    );
+  }
+
+  static MasterPropertyValueMapping _mapPositiveDimension(
+    MotionPropertyValue value,
+  ) {
+    final pixels = math.max(0.0, _readScalar(value, fallback: 0));
+    return MasterPropertyValueMapping(
+      ui: MasterValueLayer(scalar: pixels),
+      engine: MasterValueLayer(scalar: pixels),
+      renderer: MasterValueLayer(scalar: pixels),
+      uiUnit: MasterValueUnit.canvasPx,
+      engineUnit: MasterValueUnit.canvasPx,
+      rendererUnit: MasterValueUnit.devicePx,
+    );
+  }
+
+  static MasterPropertyValueMapping _mapString(MotionPropertyValue value) {
+    final token =
+        value.kind == MotionPropertyValueKind.stringValue ? value.rawValue : '';
+    final stringValue = token is String ? token : '';
+    return MasterPropertyValueMapping(
+      ui: MasterValueLayer(token: stringValue),
+      engine: MasterValueLayer(token: stringValue),
+      renderer: MasterValueLayer(token: stringValue),
+      uiUnit: MasterValueUnit.stringToken,
+      engineUnit: MasterValueUnit.stringToken,
+      rendererUnit: MasterValueUnit.stringToken,
+    );
+  }
+
+  static MasterPropertyValueMapping _mapCropRect(MotionPropertyValue value) {
+    final rect = value.kind == MotionPropertyValueKind.rect &&
+            value.rawValue is MotionRect
+        ? value.rawValue as MotionRect
+        : const MotionRect(left: 0, top: 0, width: 1, height: 1);
+    final normalized = MotionRect(
+      left: rect.left.clamp(0.0, 1.0).toDouble(),
+      top: rect.top.clamp(0.0, 1.0).toDouble(),
+      width: rect.width.clamp(0.0, 1.0).toDouble(),
+      height: rect.height.clamp(0.0, 1.0).toDouble(),
+    );
+    return MasterPropertyValueMapping(
+      ui: MasterValueLayer(rect: normalized),
+      engine: MasterValueLayer(rect: normalized),
+      renderer: MasterValueLayer(rect: normalized),
+      uiUnit: MasterValueUnit.normalized01,
+      engineUnit: MasterValueUnit.normalized01,
+      rendererUnit: MasterValueUnit.normalized01,
+    );
+  }
+
   static double _readScalar(MotionPropertyValue value,
       {required double fallback}) {
-    if (value.kind != MotionPropertyValueKind.scalar) {
+    if (value.kind != MotionPropertyValueKind.scalar &&
+        value.kind != MotionPropertyValueKind.integer) {
       return fallback;
     }
     final raw = value.rawValue;
-    if (raw is! double || !raw.isFinite) {
+    if (raw is! num || !raw.toDouble().isFinite) {
       return fallback;
     }
-    return raw;
+    return raw.toDouble();
   }
 }

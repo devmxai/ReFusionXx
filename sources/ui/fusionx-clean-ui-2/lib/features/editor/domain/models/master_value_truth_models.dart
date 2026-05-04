@@ -39,6 +39,9 @@ enum MasterPropertyCategory {
   transform,
   visual,
   effect,
+  crop,
+  shape,
+  text,
 }
 
 enum MasterRenderCapability {
@@ -54,6 +57,7 @@ class MasterValueLayer {
   const MasterValueLayer({
     this.scalar,
     this.point,
+    this.rect,
     this.colorArgb,
     this.booleanValue,
     this.token,
@@ -61,6 +65,7 @@ class MasterValueLayer {
 
   final double? scalar;
   final MotionPoint2D? point;
+  final MotionRect? rect;
   final int? colorArgb;
   final bool? booleanValue;
   final String? token;

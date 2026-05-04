@@ -21,6 +21,12 @@ void main() {
   final masterRenderGraphAdapterFile = File(
     'lib/features/editor/domain/services/master_render_graph_adapter.dart',
   );
+  final masterVisualProgramModelsFile = File(
+    'lib/features/editor/domain/models/master_visual_program_models.dart',
+  );
+  final masterVisualProgramAdapterFile = File(
+    'lib/features/editor/domain/services/master_visual_program_adapter.dart',
+  );
   final liveScrubDescriptorModelsFile = File(
     'lib/features/editor/domain/models/master_live_scrub_descriptor_models.dart',
   );
@@ -273,6 +279,28 @@ void main() {
     expect(source.contains('_projectFromMasterVisualProgram('), isTrue);
     expect(source.contains('masterRenderGraphAdapter.build('), isTrue);
     expect(source.contains('masterRendererModeAdapter.project('), isTrue);
+  });
+
+  test('master visual program carries crop text and shape contracts', () async {
+    final modelsSource = await masterVisualProgramModelsFile.readAsString();
+    final adapterSource = await masterVisualProgramAdapterFile.readAsString();
+
+    expect(modelsSource.contains('class MasterVisualCrop'), isTrue);
+    expect(modelsSource.contains('class MasterVisualTextStyle'), isTrue);
+    expect(modelsSource.contains('class MasterVisualShapeStyle'), isTrue);
+    expect(modelsSource.contains('final MasterVisualCrop crop;'), isTrue);
+    expect(modelsSource.contains('final MasterVisualTextStyle textStyle;'),
+        isTrue);
+    expect(modelsSource.contains('final MasterVisualShapeStyle shapeStyle;'),
+        isTrue);
+    expect(adapterSource.contains("case 'cropRect':"), isTrue);
+    expect(adapterSource.contains("case 'textFontSize':"), isTrue);
+    expect(adapterSource.contains("case 'shapeWidth':"), isTrue);
+    expect(adapterSource.contains("case 'trimStart':"), isTrue);
+    expect(
+        adapterSource.contains("case 'trimStart':\n"
+            "          case 'trimEnd':"),
+        isFalse);
   });
 
   test('runtime bridge submission gates on reconciled native proof', () async {
