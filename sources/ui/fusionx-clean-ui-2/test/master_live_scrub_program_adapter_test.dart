@@ -15,7 +15,8 @@ import 'package:refusion_app/features/editor/presentation/models/timeline_time.d
 void main() {
   TimelineTime ms(int value) => TimelineTime.fromMilliseconds(value);
 
-  test('builds video-backed live scrub program with renderer-unit transforms', () {
+  test('builds video-backed live scrub program with renderer-unit transforms',
+      () {
     final registry = MasterValueTruthRegistry();
     const adapter = MasterLiveScrubProgramAdapter();
     final clock = TimelineClockCoordinator(
@@ -197,7 +198,8 @@ void main() {
           targetId: 'element-1',
           propertyDefinitionId: 'gaussianBlur',
           domain: const MasterTimeDomain.scene('scene-1'),
-          mapping: mapping('gaussianBlur', const MotionPropertyValue.scalar(10)),
+          mapping:
+              mapping('gaussianBlur', const MotionPropertyValue.scalar(10)),
           sourceChannelId: 'ch.blur',
           status: 'resolved',
         ),
@@ -246,7 +248,8 @@ void main() {
     expect(surface.transform.scaleY, closeTo(0.8, 0.0001));
     expect(surface.transform.rotationRadians, closeTo(math.pi / 2.0, 0.0001));
     expect(surface.transitionRole, LiveScrubTransitionRole.outgoing);
-    expect(surface.effects.any((effect) => effect.id == 'gaussianBlur'), isTrue);
+    expect(
+        surface.effects.any((effect) => effect.id == 'gaussianBlur'), isTrue);
     expect(
       surface.effects.any((effect) => effect.id == 'motionBlurAmount'),
       isTrue,
@@ -259,9 +262,22 @@ void main() {
     expect(program.transitionState.hasTransitionWindow, isTrue);
     expect(program.transitionState.hasRenderableTransitionPixels, isFalse);
     expect(program.transitionState.reason, 'phase1_domain_contract_only');
+    expect(
+      program.diagnostics.any(
+        (entry) => entry.startsWith('master_render_graph_revision:'),
+      ),
+      isTrue,
+    );
+    expect(
+      program.diagnostics.any(
+        (entry) => entry.startsWith('master_render_graph_nodes:'),
+      ),
+      isTrue,
+    );
 
     expect(
-      program.blockers.where((blocker) => blocker.contains('unsupported_effect')),
+      program.blockers
+          .where((blocker) => blocker.contains('unsupported_effect')),
       isEmpty,
     );
     expect(program.canRenderTruthfully, isTrue);

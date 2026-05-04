@@ -1,16 +1,20 @@
 import '../models/master_frame_evaluation_models.dart';
 import '../models/master_live_scrub_visual_program_models.dart';
+import '../models/master_render_graph_models.dart';
 import '../models/master_visual_program_models.dart';
 import '../models/professional_motion_animation_models.dart';
 import '../models/professional_motion_models.dart';
+import 'master_render_graph_adapter.dart';
 import 'master_visual_program_adapter.dart';
 
 class MasterLiveScrubProgramAdapter {
   const MasterLiveScrubProgramAdapter({
     this.masterVisualProgramAdapter = const MasterVisualProgramAdapter(),
+    this.masterRenderGraphAdapter = const MasterRenderGraphAdapter(),
   });
 
   final MasterVisualProgramAdapter masterVisualProgramAdapter;
+  final MasterRenderGraphAdapter masterRenderGraphAdapter;
 
   LiveScrubVisualProgram build({
     required MasterFrameEvaluation frame,
@@ -27,7 +31,8 @@ class MasterLiveScrubProgramAdapter {
       transitionRolesByTargetId: _mapRoles(transitionRolesByTargetId),
       channels: channels,
     );
-    return _projectFromMasterVisualProgram(masterProgram);
+    final renderGraph = masterRenderGraphAdapter.build(program: masterProgram);
+    return _projectFromMasterVisualProgram(masterProgram, renderGraph);
   }
 
   Map<String, MasterVisualSourceBinding> _mapSources(
@@ -57,7 +62,17 @@ class MasterLiveScrubProgramAdapter {
 
   LiveScrubVisualProgram _projectFromMasterVisualProgram(
     MasterVisualProgram masterProgram,
+    MasterRenderGraph renderGraph,
   ) {
+    final blockers = <String>{
+      ...masterProgram.blockers,
+      ...renderGraph.blockers,
+    };
+    final diagnostics = <String>[
+      ...masterProgram.diagnostics,
+      ...renderGraph.diagnostics,
+      'master_render_graph_output:${renderGraph.outputNodeId}',
+    ];
     return LiveScrubVisualProgram(
       time: masterProgram.time,
       surfaces: <LiveScrubVisualSurface>[
@@ -95,8 +110,8 @@ class MasterLiveScrubProgramAdapter {
             blockers: surface.blockers,
           ),
       ],
-      blockers: masterProgram.blockers,
-      diagnostics: masterProgram.diagnostics,
+      blockers: blockers.toList(growable: false),
+      diagnostics: diagnostics,
       transitionState: LiveScrubTransitionState(
         activeTransitionIds: masterProgram.transitionState.activeTransitionIds,
         hasRenderableTransitionPixels:

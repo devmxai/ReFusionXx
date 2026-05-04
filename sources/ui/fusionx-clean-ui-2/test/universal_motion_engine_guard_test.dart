@@ -83,7 +83,8 @@ void main() {
   test('screen state does not keep legacy master frame read adapter field',
       () async {
     final source = await screenFile.readAsString();
-    expect(source.contains('late final MasterFrameEvaluationReadAdapter'), isFalse);
+    expect(source.contains('late final MasterFrameEvaluationReadAdapter'),
+        isFalse);
     expect(source.contains('_masterFrameEvaluationReadAdapter'), isFalse);
   });
 
@@ -95,7 +96,8 @@ void main() {
       isTrue,
     );
     expect(
-      source.contains('MotionLayerKind.shape => TimelineTrackContentKind.shape'),
+      source
+          .contains('MotionLayerKind.shape => TimelineTrackContentKind.shape'),
       isTrue,
     );
   });
@@ -126,6 +128,8 @@ void main() {
   test('live scrub program is projected from master visual program', () async {
     final source = await liveScrubProgramAdapterFile.readAsString();
     expect(source.contains('MasterVisualProgramAdapter'), isTrue);
+    expect(source.contains('MasterRenderGraphAdapter'), isTrue);
     expect(source.contains('_projectFromMasterVisualProgram('), isTrue);
+    expect(source.contains('masterRenderGraphAdapter.build('), isTrue);
   });
 }
