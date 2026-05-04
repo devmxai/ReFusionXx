@@ -17672,13 +17672,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _syncTimelineClockDuration();
     _scrubEndTimelineClockAt(resolvedFinalTime);
     _applyTimelineClockSnapshotToUi();
-    if (_useNativeTimelineScrubInput) {
-      _confirmScrubSettledTimelineClockAt(resolvedFinalTime);
-      _stopMotionPreviewFrameClock(resetTo: resolvedFinalTime);
-      _setCurrentTime(resolvedFinalTime);
-      _clearTimelineScrubHandoff();
-      return;
-    }
     final nativeSettleTime = _nativeTransportTimeForTimelineTime(
       resolvedFinalTime,
     ).clamp(
