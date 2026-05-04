@@ -94,6 +94,7 @@ void main() {
       requestedRootTimeMs: 1400,
       requestedFrameIndex: 42,
       requestedCommitFrameNumber: 100,
+      requestedSourceIds: <String>['clip-a'],
       requestId: 'req-4',
     );
     final submission = parseLiveScrubRuntimeBridgeSubmission(
@@ -122,6 +123,7 @@ void main() {
       requestedRootTimeMs: 1600,
       requestedFrameIndex: 48,
       requestedCommitFrameNumber: 101,
+      requestedSourceIds: <String>['clip-a', 'clip-b'],
       requestId: 'req-5',
     );
     final submission = parseLiveScrubRuntimeBridgeSubmission(
@@ -142,6 +144,64 @@ void main() {
       'native_ack_requested_root_time_mismatch',
     );
     expect(submission.proof.presentedRootTimeMs, 1700);
+  });
+
+  test('marks proof mismatched when native reports descriptor count mismatch',
+      () {
+    const baseProof = RendererPresentationProof(
+      requestedRootTimeMs: 1800,
+      requestedFrameIndex: 54,
+      requestedCommitFrameNumber: 103,
+      requestedSourceIds: <String>['clip-a', 'clip-b'],
+      requestId: 'req-6',
+    );
+    final submission = parseLiveScrubRuntimeBridgeSubmission(
+      baseProof: baseProof,
+      response: <String, dynamic>{
+        'accepted': true,
+        'requestId': 'req-6',
+        'requestedRootTimeMs': 1800,
+        'descriptorCount': 1,
+      },
+    );
+    expect(submission.accepted, isTrue);
+    expect(
+      submission.proof.matchState,
+      RendererPresentationMatchState.mismatched,
+    );
+    expect(
+      submission.proof.matchReason,
+      'native_ack_descriptor_count_mismatch',
+    );
+  });
+
+  test('marks proof mismatched when native reports blocker count mismatch', () {
+    const baseProof = RendererPresentationProof(
+      requestedRootTimeMs: 1900,
+      requestedFrameIndex: 57,
+      requestedCommitFrameNumber: 104,
+      requestedSourceIds: <String>['clip-a'],
+      blockers: <String>['missing_source_window:clip-a'],
+      requestId: 'req-7',
+    );
+    final submission = parseLiveScrubRuntimeBridgeSubmission(
+      baseProof: baseProof,
+      response: <String, dynamic>{
+        'accepted': true,
+        'requestId': 'req-7',
+        'requestedRootTimeMs': 1900,
+        'blockerCount': 0,
+      },
+    );
+    expect(submission.accepted, isTrue);
+    expect(
+      submission.proof.matchState,
+      RendererPresentationMatchState.mismatched,
+    );
+    expect(
+      submission.proof.matchReason,
+      'native_ack_blocker_count_mismatch',
+    );
   });
 
   test('reconciles proof with native snapshot as verified match', () {

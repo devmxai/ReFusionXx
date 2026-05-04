@@ -835,12 +835,23 @@ LiveScrubRuntimeBridgeSubmission parseLiveScrubRuntimeBridgeSubmission({
   final reportedSurfaceId = response['surfaceId']?.toString();
   final reportedRequestId = response['requestId']?.toString();
   final reportedRequestedRootTimeMs = _asInt(response['requestedRootTimeMs']);
+  final reportedDescriptorCount = _asInt(response['descriptorCount']);
+  final reportedBlockerCount = _asInt(response['blockerCount']);
+  final expectedDescriptorCount = baseProof.requestedSourceIds.length;
+  final expectedBlockerCount = baseProof.blockers.length;
   final requestIdMismatch = reportedRequestId != null &&
       reportedRequestId.isNotEmpty &&
       reportedRequestId != baseProof.requestId;
   final requestedRootTimeMismatch = reportedRequestedRootTimeMs != null &&
       reportedRequestedRootTimeMs != baseProof.requestedRootTimeMs;
-  final hasMismatch = requestIdMismatch || requestedRootTimeMismatch;
+  final descriptorCountMismatch = reportedDescriptorCount != null &&
+      reportedDescriptorCount != expectedDescriptorCount;
+  final blockerCountMismatch = reportedBlockerCount != null &&
+      reportedBlockerCount != expectedBlockerCount;
+  final hasMismatch = requestIdMismatch ||
+      requestedRootTimeMismatch ||
+      descriptorCountMismatch ||
+      blockerCountMismatch;
   final matchState = !accepted
       ? RendererPresentationMatchState.blocked
       : hasMismatch
@@ -853,7 +864,11 @@ LiveScrubRuntimeBridgeSubmission parseLiveScrubRuntimeBridgeSubmission({
       : hasMismatch
           ? requestIdMismatch
               ? 'native_ack_request_id_mismatch'
-              : 'native_ack_requested_root_time_mismatch'
+              : requestedRootTimeMismatch
+                  ? 'native_ack_requested_root_time_mismatch'
+                  : descriptorCountMismatch
+                      ? 'native_ack_descriptor_count_mismatch'
+                      : 'native_ack_blocker_count_mismatch'
           : hasBlockers
               ? 'runtime_bridge_snapshot_contains_blockers'
               : 'native_runtime_bridge_snapshot_acknowledged';
