@@ -15,6 +15,9 @@ void main() {
   final liveScrubDescriptorProjectionFile = File(
     'lib/features/editor/domain/services/master_live_scrub_descriptor_projection.dart',
   );
+  final liveScrubProgramModelsFile = File(
+    'lib/features/editor/domain/models/master_live_scrub_visual_program_models.dart',
+  );
 
   test('master evaluation path uses universal evaluation service', () async {
     final source = await screenFile.readAsString();
@@ -224,5 +227,13 @@ void main() {
           .contains('renderGraphRevision: baseProgram.renderGraphRevision'),
       isTrue,
     );
+  });
+
+  test('live scrub program requires explicit revision contract', () async {
+    final source = await liveScrubProgramModelsFile.readAsString();
+    expect(source.contains('required this.sourceRevision'), isTrue);
+    expect(source.contains('required this.renderGraphRevision'), isTrue);
+    expect(source.contains("this.sourceRevision = 'unknown'"), isFalse);
+    expect(source.contains("this.renderGraphRevision = 'unknown'"), isFalse);
   });
 }

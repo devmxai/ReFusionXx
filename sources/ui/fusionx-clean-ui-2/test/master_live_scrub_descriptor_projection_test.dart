@@ -183,6 +183,8 @@ void main() {
       ],
       blockers: const <String>[],
       diagnostics: const <String>[],
+      sourceRevision: 'msr:test-missing-window',
+      renderGraphRevision: 'mrg:test-missing-window',
       transitionState: LiveScrubTransitionState(
         activeTransitionIds: const <String>[],
         hasRenderableTransitionPixels: false,
@@ -249,6 +251,8 @@ void main() {
       ],
       blockers: const <String>[],
       diagnostics: const <String>[],
+      sourceRevision: 'msr:test-capabilities',
+      renderGraphRevision: 'mrg:test-capabilities',
       transitionState: LiveScrubTransitionState(
         activeTransitionIds: const <String>['t-1'],
         hasRenderableTransitionPixels: false,
@@ -346,6 +350,8 @@ void main() {
       ],
       blockers: const <String>[],
       diagnostics: const <String>[],
+      sourceRevision: 'msr:test-effect-catalog',
+      renderGraphRevision: 'mrg:test-effect-catalog',
       transitionState: LiveScrubTransitionState(
         activeTransitionIds: const <String>[],
         hasRenderableTransitionPixels: false,
@@ -413,6 +419,8 @@ void main() {
       ],
       blockers: const <String>[],
       diagnostics: const <String>[],
+      sourceRevision: 'msr:test-transition-progress',
+      renderGraphRevision: 'mrg:test-transition-progress',
       transitionState: LiveScrubTransitionState(
         activeTransitionIds: const <String>['tr-4'],
         hasRenderableTransitionPixels: false,
@@ -495,6 +503,8 @@ void main() {
       ],
       blockers: const <String>[],
       diagnostics: const <String>[],
+      sourceRevision: 'msr:test-transition-outside-window',
+      renderGraphRevision: 'mrg:test-transition-outside-window',
       transitionState: LiveScrubTransitionState(
         activeTransitionIds: const <String>['tr-5'],
         hasRenderableTransitionPixels: false,
@@ -577,6 +587,8 @@ void main() {
       ],
       blockers: const <String>[],
       diagnostics: const <String>[],
+      sourceRevision: 'msr:test-latency',
+      renderGraphRevision: 'mrg:test-latency',
       transitionState: LiveScrubTransitionState(
         activeTransitionIds: const <String>[],
         hasRenderableTransitionPixels: false,
