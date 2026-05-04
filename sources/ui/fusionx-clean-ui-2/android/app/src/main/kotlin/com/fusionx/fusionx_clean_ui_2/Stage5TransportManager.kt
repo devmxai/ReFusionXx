@@ -94,6 +94,7 @@ class Stage5TransportManager(context: Context) {
     private var scrubSettleWatchdogAttempts = 0
     private var pendingPlayAfterSettledSeekTargetMs: Long? = null
     private var playbackAlignmentTargetPositionMs: Long? = null
+    private var playbackAlignmentExpectedItemIndex: Int? = null
     private var playbackAlignmentRenderedFrameCandidatesMs = LongArray(0)
     private var playbackAlignmentReady = false
     private var timelinePlaybackBackend = TimelinePlaybackBackend.NONE
@@ -140,6 +141,7 @@ class Stage5TransportManager(context: Context) {
 
     private data class PlaybackFrameObserver(
         val targetPositionMs: Long?,
+        val expectedItemIndex: Int?,
         val callback: () -> Unit,
     )
 
@@ -866,6 +868,8 @@ class Stage5TransportManager(context: Context) {
         clearScrubSettleForPlaybackStart()
         lastRequestedPositionMs = safePositionMs
         playbackAlignmentTargetPositionMs = safePositionMs
+        playbackAlignmentExpectedItemIndex =
+            resolvePlaybackFrameExpectedItemIndex(safePositionMs)
         playbackAlignmentRenderedFrameCandidatesMs =
             resolveScrubSettleRenderedFrameCandidates(safePositionMs)
         playbackAlignmentReady = false
@@ -967,6 +971,9 @@ class Stage5TransportManager(context: Context) {
         playbackFrameObservers.add(
             PlaybackFrameObserver(
                 targetPositionMs = safeTargetPositionMs,
+                expectedItemIndex = safeTargetPositionMs?.let {
+                    resolvePlaybackFrameExpectedItemIndex(it)
+                },
                 callback = observer,
             ),
         )
@@ -1090,6 +1097,7 @@ class Stage5TransportManager(context: Context) {
 
     private fun clearPlaybackAlignment() {
         playbackAlignmentTargetPositionMs = null
+        playbackAlignmentExpectedItemIndex = null
         playbackAlignmentRenderedFrameCandidatesMs = LongArray(0)
         playbackAlignmentReady = false
     }
@@ -1102,6 +1110,9 @@ class Stage5TransportManager(context: Context) {
 
     private fun isPlaybackAlignmentReadyForImmediateHandoff(positionMs: Long): Boolean {
         if (!playbackAlignmentReady || !isPlaybackAlignmentForPosition(positionMs)) {
+            return false
+        }
+        if (!doesCurrentPlaybackItemMatch(playbackAlignmentExpectedItemIndex)) {
             return false
         }
         val activePlayer = activePlayer ?: exoPlayer ?: compositionPlayer ?: return false
@@ -1415,6 +1426,9 @@ class Stage5TransportManager(context: Context) {
         if (playbackAlignmentReady || renderedPositionMs == null) {
             return
         }
+        if (!doesCurrentPlaybackItemMatch(playbackAlignmentExpectedItemIndex)) {
+            return
+        }
         val candidates = playbackAlignmentRenderedFrameCandidatesMs
         val renderedMatchesTarget =
             if (candidates.isEmpty()) {
@@ -1460,6 +1474,9 @@ class Stage5TransportManager(context: Context) {
         renderedPositionMs: Long?,
     ): Boolean {
         val targetPositionMs = observer.targetPositionMs ?: return true
+        if (!doesCurrentPlaybackItemMatch(observer.expectedItemIndex)) {
+            return false
+        }
         if (isPlaybackAlignmentReadyForImmediateHandoff(targetPositionMs)) {
             return true
         }
@@ -1471,6 +1488,32 @@ class Stage5TransportManager(context: Context) {
             kotlin.math.abs(renderedPositionMs - candidateMs) <=
                 PLAY_FROM_POSITION_RENDERED_FRAME_TOLERANCE_MS
         }
+    }
+
+    private fun doesCurrentPlaybackItemMatch(expectedItemIndex: Int?): Boolean {
+        if (expectedItemIndex == null) {
+            return true
+        }
+        val activePlayer = activePlayer ?: exoPlayer ?: compositionPlayer ?: return false
+        val currentItemIndex = activePlayer.currentMediaItemIndex
+        return currentItemIndex == expectedItemIndex
+    }
+
+    private fun resolvePlaybackFrameExpectedItemIndex(positionMs: Long): Int? {
+        if (timelineSegments.isEmpty() || isCompositionTimelineMode()) {
+            return null
+        }
+        if (isSingleSourceTimelineMode()) {
+            return 0
+        }
+        val safePositionMs = positionMs.coerceAtLeast(0L)
+        val seekPoint =
+            if (isRunTimelineMode()) {
+                resolveTimelineRunSeekPoint(globalPositionMs = safePositionMs)
+            } else {
+                resolveTimelineSeekPoint(globalPositionMs = safePositionMs)
+            }
+        return seekPoint.itemIndex
     }
 
     private fun isScrubSettleTargetPositionSatisfied(): Boolean {
