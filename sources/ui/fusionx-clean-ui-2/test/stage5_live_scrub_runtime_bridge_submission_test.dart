@@ -281,6 +281,41 @@ void main() {
     );
   });
 
+  test(
+      'marks proof mismatched when native nested proof reports renderer mode mismatch',
+      () {
+    const baseProof = RendererPresentationProof(
+      requestedRootTimeMs: 1951,
+      requestedFrameIndex: 58,
+      requestedCommitFrameNumber: 105,
+      requestedSourceIds: <String>['clip-a'],
+      requestId: 'req-7b-nested',
+      sourceRevision: 'msr:req-7b-nested',
+      renderGraphRevision: 'mrg:req-7b-nested',
+      rendererMode: 'playback',
+    );
+    final submission = parseLiveScrubRuntimeBridgeSubmission(
+      baseProof: baseProof,
+      response: <String, dynamic>{
+        'accepted': true,
+        'requestId': 'req-7b-nested',
+        'requestedRootTimeMs': 1951,
+        'rendererPresentationProof': <String, dynamic>{
+          'rendererMode': 'preview',
+        },
+      },
+    );
+    expect(submission.accepted, isTrue);
+    expect(
+      submission.proof.matchState,
+      RendererPresentationMatchState.mismatched,
+    );
+    expect(
+      submission.proof.matchReason,
+      'native_ack_renderer_mode_mismatch',
+    );
+  });
+
   test('marks proof mismatched when native reports surface id mismatch', () {
     const baseProof = RendererPresentationProof(
       requestedRootTimeMs: 1960,
@@ -300,6 +335,42 @@ void main() {
         'requestId': 'req-7c',
         'requestedRootTimeMs': 1960,
         'surfaceId': 'stage5-surface-b',
+      },
+    );
+    expect(submission.accepted, isTrue);
+    expect(
+      submission.proof.matchState,
+      RendererPresentationMatchState.mismatched,
+    );
+    expect(
+      submission.proof.matchReason,
+      'native_ack_surface_id_mismatch',
+    );
+  });
+
+  test(
+      'marks proof mismatched when native nested proof reports surface id mismatch',
+      () {
+    const baseProof = RendererPresentationProof(
+      requestedRootTimeMs: 1961,
+      requestedFrameIndex: 59,
+      requestedCommitFrameNumber: 106,
+      requestedSourceIds: <String>['clip-a'],
+      requestId: 'req-7c-nested',
+      sourceRevision: 'msr:req-7c-nested',
+      renderGraphRevision: 'mrg:req-7c-nested',
+      rendererMode: 'liveScrub',
+      surfaceId: 'stage5-surface-a',
+    );
+    final submission = parseLiveScrubRuntimeBridgeSubmission(
+      baseProof: baseProof,
+      response: <String, dynamic>{
+        'accepted': true,
+        'requestId': 'req-7c-nested',
+        'requestedRootTimeMs': 1961,
+        'rendererPresentationProof': <String, dynamic>{
+          'surfaceId': 'stage5-surface-b',
+        },
       },
     );
     expect(submission.accepted, isTrue);
@@ -389,6 +460,67 @@ void main() {
         'requestId': 'req-snapshot-mode-mismatch',
         'timelinePositionMs': 3050,
         'rendererMode': 'preview',
+        'blockerCount': 0,
+      },
+    );
+    expect(reconciled.matchState, RendererPresentationMatchState.mismatched);
+    expect(
+      reconciled.matchReason,
+      'native_snapshot_renderer_mode_mismatch',
+    );
+  });
+
+  test('reconcile marks mismatch when snapshot surface id differs', () {
+    const proof = RendererPresentationProof(
+      requestedRootTimeMs: 3051,
+      requestedFrameIndex: 91,
+      requestedCommitFrameNumber: 121,
+      requestedSourceIds: <String>[],
+      requestId: 'req-snapshot-surface-mismatch',
+      sourceRevision: 'msr:req-snapshot-surface-mismatch',
+      renderGraphRevision: 'mrg:req-snapshot-surface-mismatch',
+      rendererMode: 'liveScrub',
+      surfaceId: 'stage5-surface-a',
+      nativePresentationAck: true,
+    );
+    final reconciled = reconcileRuntimeBridgeProofWithNativeSnapshot(
+      proof: proof,
+      snapshot: <String, dynamic>{
+        'requestId': 'req-snapshot-surface-mismatch',
+        'timelinePositionMs': 3051,
+        'surfaceId': 'stage5-surface-b',
+        'blockerCount': 0,
+      },
+    );
+    expect(reconciled.matchState, RendererPresentationMatchState.mismatched);
+    expect(
+      reconciled.matchReason,
+      'native_snapshot_surface_id_mismatch',
+    );
+  });
+
+  test(
+      'reconcile marks mismatch when nested snapshot proof reports renderer mode mismatch',
+      () {
+    const proof = RendererPresentationProof(
+      requestedRootTimeMs: 3052,
+      requestedFrameIndex: 91,
+      requestedCommitFrameNumber: 121,
+      requestedSourceIds: <String>[],
+      requestId: 'req-snapshot-mode-mismatch-nested',
+      sourceRevision: 'msr:req-snapshot-mode-mismatch-nested',
+      renderGraphRevision: 'mrg:req-snapshot-mode-mismatch-nested',
+      rendererMode: 'playback',
+      nativePresentationAck: true,
+    );
+    final reconciled = reconcileRuntimeBridgeProofWithNativeSnapshot(
+      proof: proof,
+      snapshot: <String, dynamic>{
+        'requestId': 'req-snapshot-mode-mismatch-nested',
+        'timelinePositionMs': 3052,
+        'rendererPresentationProof': <String, dynamic>{
+          'rendererMode': 'preview',
+        },
         'blockerCount': 0,
       },
     );

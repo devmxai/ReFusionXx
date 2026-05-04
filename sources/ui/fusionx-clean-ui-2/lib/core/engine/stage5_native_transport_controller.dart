@@ -819,6 +819,20 @@ LiveScrubRuntimeBridgeSubmission parseLiveScrubRuntimeBridgeSubmission({
   required RendererPresentationProof baseProof,
   required Map<String, dynamic> response,
 }) {
+  String? readReportedSurfaceId() {
+    final root = response['surfaceId']?.toString();
+    if (root != null && root.isNotEmpty) {
+      return root;
+    }
+    final nested = (response['rendererPresentationProof'] as Map?)
+        ?.cast<Object?, Object?>();
+    final nestedSurfaceId = nested?['surfaceId']?.toString();
+    if (nestedSurfaceId != null && nestedSurfaceId.isNotEmpty) {
+      return nestedSurfaceId;
+    }
+    return null;
+  }
+
   String? readReportedRendererMode() {
     final root = response['rendererMode']?.toString();
     if (root != null && root.isNotEmpty) {
@@ -839,7 +853,7 @@ LiveScrubRuntimeBridgeSubmission parseLiveScrubRuntimeBridgeSubmission({
   final nativeReceivedAtMs = _asInt(response['nativeReceivedAtMs']);
   final nativeReceivedAtUs =
       nativeReceivedAtMs == null ? null : nativeReceivedAtMs * 1000;
-  final reportedSurfaceId = response['surfaceId']?.toString();
+  final reportedSurfaceId = readReportedSurfaceId();
   final reportedRendererMode = readReportedRendererMode();
   final reportedRequestId = response['requestId']?.toString();
   final reportedRequestedRootTimeMs = _asInt(response['requestedRootTimeMs']);
@@ -985,6 +999,20 @@ RendererPresentationProof reconcileRuntimeBridgeProofWithNativeSnapshot({
     return 0;
   }
 
+  String? readSnapshotSurfaceId() {
+    final root = snapshot['surfaceId']?.toString();
+    if (root != null && root.isNotEmpty) {
+      return root;
+    }
+    final nested = (snapshot['rendererPresentationProof'] as Map?)
+        ?.cast<Object?, Object?>();
+    final nestedSurfaceId = nested?['surfaceId']?.toString();
+    if (nestedSurfaceId != null && nestedSurfaceId.isNotEmpty) {
+      return nestedSurfaceId;
+    }
+    return null;
+  }
+
   String? readSnapshotRendererMode() {
     final root = snapshot['rendererMode']?.toString();
     if (root != null && root.isNotEmpty) {
@@ -1002,7 +1030,7 @@ RendererPresentationProof reconcileRuntimeBridgeProofWithNativeSnapshot({
   final snapshotRequestId = readSnapshotRequestId();
   final snapshotTimelinePositionMs = readSnapshotTimelinePositionMs();
   final snapshotBlockerCount = readSnapshotBlockerCount();
-  final snapshotSurfaceId = snapshot['surfaceId']?.toString();
+  final snapshotSurfaceId = readSnapshotSurfaceId();
   final snapshotRendererMode = readSnapshotRendererMode();
   final nativeReceivedAtMs = _asInt(snapshot['nativeReceivedAtMs']);
   final nativeReceivedAtUs =
