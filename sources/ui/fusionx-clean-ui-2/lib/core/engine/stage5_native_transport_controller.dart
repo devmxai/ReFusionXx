@@ -819,6 +819,20 @@ LiveScrubRuntimeBridgeSubmission parseLiveScrubRuntimeBridgeSubmission({
   required RendererPresentationProof baseProof,
   required Map<String, dynamic> response,
 }) {
+  String? readReportedRendererMode() {
+    final root = response['rendererMode']?.toString();
+    if (root != null && root.isNotEmpty) {
+      return root;
+    }
+    final nested = (response['rendererPresentationProof'] as Map?)
+        ?.cast<Object?, Object?>();
+    final nestedMode = nested?['rendererMode']?.toString();
+    if (nestedMode != null && nestedMode.isNotEmpty) {
+      return nestedMode;
+    }
+    return null;
+  }
+
   final accepted = response['accepted'] == true;
   final rejectionReason = response['rejectionReason']?.toString();
   final hasBlockers = baseProof.blockers.isNotEmpty;
@@ -826,6 +840,7 @@ LiveScrubRuntimeBridgeSubmission parseLiveScrubRuntimeBridgeSubmission({
   final nativeReceivedAtUs =
       nativeReceivedAtMs == null ? null : nativeReceivedAtMs * 1000;
   final reportedSurfaceId = response['surfaceId']?.toString();
+  final reportedRendererMode = readReportedRendererMode();
   final reportedRequestId = response['requestId']?.toString();
   final reportedRequestedRootTimeMs = _asInt(response['requestedRootTimeMs']);
   final reportedDescriptorCount = _asInt(response['descriptorCount']);
@@ -841,10 +856,20 @@ LiveScrubRuntimeBridgeSubmission parseLiveScrubRuntimeBridgeSubmission({
       reportedDescriptorCount != expectedDescriptorCount;
   final blockerCountMismatch = reportedBlockerCount != null &&
       reportedBlockerCount != expectedBlockerCount;
+  final rendererModeMismatch = reportedRendererMode != null &&
+      reportedRendererMode.isNotEmpty &&
+      reportedRendererMode != baseProof.rendererMode;
+  final surfaceIdMismatch = reportedSurfaceId != null &&
+      reportedSurfaceId.isNotEmpty &&
+      baseProof.surfaceId != null &&
+      baseProof.surfaceId!.isNotEmpty &&
+      reportedSurfaceId != baseProof.surfaceId;
   final hasMismatch = requestIdMismatch ||
       requestedRootTimeMismatch ||
       descriptorCountMismatch ||
-      blockerCountMismatch;
+      blockerCountMismatch ||
+      rendererModeMismatch ||
+      surfaceIdMismatch;
   final matchState = !accepted
       ? RendererPresentationMatchState.blocked
       : hasMismatch
@@ -863,7 +888,11 @@ LiveScrubRuntimeBridgeSubmission parseLiveScrubRuntimeBridgeSubmission({
                   ? 'native_ack_requested_root_time_mismatch'
                   : descriptorCountMismatch
                       ? 'native_ack_descriptor_count_mismatch'
-                      : 'native_ack_blocker_count_mismatch'
+                      : blockerCountMismatch
+                          ? 'native_ack_blocker_count_mismatch'
+                          : rendererModeMismatch
+                              ? 'native_ack_renderer_mode_mismatch'
+                              : 'native_ack_surface_id_mismatch'
           : hasBlockers
               ? 'runtime_bridge_snapshot_contains_blockers'
               : 'native_runtime_bridge_snapshot_acknowledged';
@@ -883,6 +912,10 @@ LiveScrubRuntimeBridgeSubmission parseLiveScrubRuntimeBridgeSubmission({
     requestId: (reportedRequestId != null && reportedRequestId.isNotEmpty)
         ? reportedRequestId
         : baseProof.requestId,
+    rendererMode:
+        (reportedRendererMode != null && reportedRendererMode.isNotEmpty)
+            ? reportedRendererMode
+            : baseProof.rendererMode,
     surfaceId: reportedSurfaceId,
     clearSurfaceId: !accepted && reportedSurfaceId == null,
     presentationTimestampUs: nativeReceivedAtUs,
@@ -952,10 +985,25 @@ RendererPresentationProof reconcileRuntimeBridgeProofWithNativeSnapshot({
     return 0;
   }
 
+  String? readSnapshotRendererMode() {
+    final root = snapshot['rendererMode']?.toString();
+    if (root != null && root.isNotEmpty) {
+      return root;
+    }
+    final nested = (snapshot['rendererPresentationProof'] as Map?)
+        ?.cast<Object?, Object?>();
+    final nestedMode = nested?['rendererMode']?.toString();
+    if (nestedMode != null && nestedMode.isNotEmpty) {
+      return nestedMode;
+    }
+    return null;
+  }
+
   final snapshotRequestId = readSnapshotRequestId();
   final snapshotTimelinePositionMs = readSnapshotTimelinePositionMs();
   final snapshotBlockerCount = readSnapshotBlockerCount();
   final snapshotSurfaceId = snapshot['surfaceId']?.toString();
+  final snapshotRendererMode = readSnapshotRendererMode();
   final nativeReceivedAtMs = _asInt(snapshot['nativeReceivedAtMs']);
   final nativeReceivedAtUs =
       nativeReceivedAtMs == null ? null : nativeReceivedAtMs * 1000;
@@ -964,8 +1012,19 @@ RendererPresentationProof reconcileRuntimeBridgeProofWithNativeSnapshot({
       snapshotRequestId != null && snapshotRequestId != proof.requestId;
   final timelinePositionMismatch = snapshotTimelinePositionMs != null &&
       snapshotTimelinePositionMs != proof.requestedRootTimeMs;
+  final rendererModeMismatch = snapshotRendererMode != null &&
+      snapshotRendererMode.isNotEmpty &&
+      snapshotRendererMode != proof.rendererMode;
+  final surfaceIdMismatch = snapshotSurfaceId != null &&
+      snapshotSurfaceId.isNotEmpty &&
+      proof.surfaceId != null &&
+      proof.surfaceId!.isNotEmpty &&
+      snapshotSurfaceId != proof.surfaceId;
 
-  final hasMismatch = requestIdMismatch || timelinePositionMismatch;
+  final hasMismatch = requestIdMismatch ||
+      timelinePositionMismatch ||
+      rendererModeMismatch ||
+      surfaceIdMismatch;
   final hasSnapshotBlockers = snapshotBlockerCount > 0;
 
   final matchState = hasMismatch
@@ -978,7 +1037,11 @@ RendererPresentationProof reconcileRuntimeBridgeProofWithNativeSnapshot({
   final matchReason = hasMismatch
       ? requestIdMismatch
           ? 'native_snapshot_request_id_mismatch'
-          : 'native_snapshot_timeline_position_mismatch'
+          : timelinePositionMismatch
+              ? 'native_snapshot_timeline_position_mismatch'
+              : rendererModeMismatch
+                  ? 'native_snapshot_renderer_mode_mismatch'
+                  : 'native_snapshot_surface_id_mismatch'
       : hasSnapshotBlockers
           ? 'native_snapshot_reports_blockers'
           : proof.nativePresentationAck
@@ -987,6 +1050,10 @@ RendererPresentationProof reconcileRuntimeBridgeProofWithNativeSnapshot({
 
   return proof.copyWith(
     requestId: snapshotRequestId ?? proof.requestId,
+    rendererMode:
+        (snapshotRendererMode != null && snapshotRendererMode.isNotEmpty)
+            ? snapshotRendererMode
+            : proof.rendererMode,
     presentedRootTimeMs: snapshotTimelinePositionMs,
     clearPresentedRootTimeMs: snapshotTimelinePositionMs == null,
     surfaceId: snapshotSurfaceId,
