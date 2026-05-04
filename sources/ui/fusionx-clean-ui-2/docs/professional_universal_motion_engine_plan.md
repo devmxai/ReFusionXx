@@ -110,9 +110,37 @@ rendered through local feature paths instead of one universal engine path.
   `MasterFrameEvaluation`.
 - Do not touch protected Stage5 / Live Scrub files unless the user explicitly
   approves that exact Live Scrub implementation slice.
+- Do not ship hybrid execution where old and new engines both drive the same
+  frame path.
+- Do not leave dead code or dormant fallbacks connected to production routing.
 
 If a feature cannot be represented in the universal chain, the feature is not
 production-ready.
+
+### 3.1 Legacy Decommissioning Mandate
+
+This is a mandatory migration rule:
+
+```text
+Universal path adoption requires legacy path decommissioning.
+```
+
+Meaning:
+
+- once a workflow is migrated to the universal engine, old execution links for
+  that same workflow must be removed or hard-blocked in production;
+- keeping both paths active as a silent fallback is not accepted;
+- every migration slice must include explicit `legacy detach` evidence;
+- every migration slice must include an `rg`-based check that old entry points
+  are either deleted, blocked, or test-only.
+
+Required migration evidence per slice:
+
+- old entry points list
+- action per entry point: `deleted`, `blocked`, or `kept for compatibility`
+- reason for any compatibility keep
+- tests proving the universal path is the active production owner
+- rollback command for the slice
 
 ## 4. Architecture Target
 
@@ -730,6 +758,7 @@ Exit gate:
   candidate.
 - no implementation of Phase 1 may begin unless this inventory exists and is
   linked from this plan.
+- migration cannot proceed until each workflow has a legacy-detach plan.
 
 ### Phase 1 - Universal Channel Collection
 
@@ -938,6 +967,9 @@ Rules:
 - do not delete protected Live Scrub internals casually;
 - if a compatibility path must remain, it must emit a blocker/diagnostic when
   used in production.
+- compatibility keep is temporary and must include a removal trigger in docs.
+- no Phase 7 parity claim is valid while duplicated active routing exists for
+  the same workflow.
 
 Verification:
 
@@ -947,6 +979,8 @@ Verification:
 Exit gate:
 
 - no production visible frame can bypass `MasterFrameEvaluation`.
+- no production workflow can execute through both old and universal engines for
+  the same frame request.
 
 ### Phase 7 - Professional Parity Matrix
 
@@ -1052,6 +1086,7 @@ This plan is complete only when:
 - preview, Live Scrub, playback, and export agree on the same source frame and
   same evaluated property values;
 - legacy bypass paths are deleted or blocked;
+- legacy links are detached workflow-by-workflow with documented evidence;
 - all unsupported properties are visible diagnostics, not silent omissions;
 - A/B playback, scrub, transition, and export behave as one continuous timeline
   with no stale frame, no source flash, no lag from clock handoff, and no hidden

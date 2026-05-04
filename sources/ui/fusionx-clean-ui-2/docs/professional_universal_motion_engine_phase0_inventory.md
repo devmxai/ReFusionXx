@@ -231,3 +231,16 @@ and must include targeted tests proving:
 1. all layer kinds route to master evaluation through canonical targets
 2. non-manual transition runtime bridge preserves evaluated channels/effects
 3. unsupported properties are explicit blockers, not silent drops
+
+## 10. Legacy Detach Checklist (Mandatory)
+
+For each workflow migrated in Phase 1+:
+
+1. list old entry points and file locations
+2. mark each one as `deleted`, `blocked`, or `temporary compatibility`
+3. if compatibility is temporary, define exact removal trigger
+4. prove universal path is production owner with targeted tests
+5. run `rg` checks proving no active dual-routing for the same workflow
+
+No workflow is considered migrated while old and universal paths can both
+execute the same frame request in production.
