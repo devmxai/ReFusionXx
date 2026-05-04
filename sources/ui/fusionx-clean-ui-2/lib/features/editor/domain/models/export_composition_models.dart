@@ -1359,24 +1359,28 @@ class ExportComposition {
 
   List<ExportParityLimitationCode> get currentParityLimitationCodes {
     final limitations = <ExportParityLimitationCode>[];
+    final hasUnsupportedCompositorWindows =
+        visualCompositorGraph.compositorRequiredWindows.isNotEmpty;
     if (motionTextElementCount > 0) {
-      limitations.add(ExportParityLimitationCode.textMotionRendererParity);
+      if (motionTextProgram == null) {
+        limitations.add(ExportParityLimitationCode.textMotionRendererParity);
+      }
       limitations.add(ExportParityLimitationCode.typographyParity);
       limitations.add(ExportParityLimitationCode.interpolationParity);
     }
-    if (motionNonTextElementCount > 0) {
+    if (motionNonTextElementCount > 0 && hasUnsupportedCompositorWindows) {
       limitations.add(ExportParityLimitationCode.nonTextMotionParity);
     }
     if (motionCameraCount > 0) {
       limitations.add(ExportParityLimitationCode.motionCameraParity);
     }
-    if (motionEffectCount > 0) {
+    if (motionEffectCount > 0 && hasUnsupportedCompositorWindows) {
       limitations.add(ExportParityLimitationCode.motionEffectParity);
     }
-    if (motionTransitionCount > 0) {
+    if (motionTransitionCount > 0 && hasUnsupportedCompositorWindows) {
       limitations.add(ExportParityLimitationCode.motionTransitionParity);
     }
-    if (nonEmptyVisualTrackCount > 1) {
+    if (nonEmptyVisualTrackCount > 1 && hasUnsupportedCompositorWindows) {
       limitations.add(ExportParityLimitationCode.multiVisualCompositingParity);
     }
     if (nonEmptyAudioTrackCount > 1) {
@@ -3448,21 +3452,21 @@ String _baselineBlockerMessage(ExportBaselineBlockerCode code) {
 String _parityLimitationMessage(ExportParityLimitationCode code) {
   switch (code) {
     case ExportParityLimitationCode.textMotionRendererParity:
-      return 'text motion export now uses a first deterministic program path and still needs renderer parity hardening';
+      return 'text motion export requires deterministic motion-text program ownership before parity can be asserted';
     case ExportParityLimitationCode.typographyParity:
       return 'text typography export parity is not fully implemented';
     case ExportParityLimitationCode.interpolationParity:
       return 'interpolation export parity is not fully implemented';
     case ExportParityLimitationCode.nonTextMotionParity:
-      return 'non-text motion element export parity is not implemented';
+      return 'non-text motion export parity is blocked by compositor windows without production proof';
     case ExportParityLimitationCode.motionCameraParity:
       return 'motion camera export parity is not implemented';
     case ExportParityLimitationCode.motionEffectParity:
-      return 'motion effect export parity is not implemented';
+      return 'motion effect export parity is blocked by compositor/effect windows without production proof';
     case ExportParityLimitationCode.motionTransitionParity:
-      return 'motion transition export parity is not implemented';
+      return 'motion transition export parity is blocked by transition windows without production proof';
     case ExportParityLimitationCode.multiVisualCompositingParity:
-      return 'multi-visual compositing parity is not implemented';
+      return 'multi-visual compositing parity is blocked by unsupported compositor windows';
     case ExportParityLimitationCode.multiAudioParity:
       return 'multi-audio export parity is not implemented';
     case ExportParityLimitationCode.textTrackParity:

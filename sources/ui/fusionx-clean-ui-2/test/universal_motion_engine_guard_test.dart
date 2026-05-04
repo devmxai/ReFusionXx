@@ -36,6 +36,12 @@ void main() {
   final compositionMediaPlaybackProjectionAdapterFile = File(
     'lib/features/editor/presentation/services/composition_media_playback_projection_adapter.dart',
   );
+  final nativeTimelineScrubSurfaceFile = File(
+    'lib/features/editor/presentation/widgets/native_timeline_scrub_surface.dart',
+  );
+  final phase7ProductionPathParityTestFile = File(
+    'test/phase7_production_path_parity_test.dart',
+  );
 
   test('master evaluation path uses universal evaluation service', () async {
     final source = await screenFile.readAsString();
@@ -480,5 +486,34 @@ void main() {
       () async {
     final source = await masterRenderGraphAdapterFile.readAsString();
     expect(source.contains('master_render_graph_revision:'), isFalse);
+  });
+
+  test(
+      'native timeline scrub compatibility time payload is derived from master time',
+      () async {
+    final source = await nativeTimelineScrubSurfaceFile.readAsString();
+    expect(
+        source.contains(
+            "'currentPositionMs': effectiveCurrentTime.inMilliseconds +"),
+        isTrue);
+    expect(
+      source.contains("widget.timelineOffsetTime.inMilliseconds"),
+      isTrue,
+    );
+    expect(source.contains("'masterRootTimeMs':"), isFalse);
+  });
+
+  test('phase7 production-path parity test uses universal evaluation service',
+      () async {
+    final source = await phase7ProductionPathParityTestFile.readAsString();
+    expect(source.contains('UniversalMasterFrameEvaluationService('), isTrue);
+    expect(
+      source.contains('UniversalMasterFrameEvaluationRequest('),
+      isTrue,
+    );
+    expect(source.contains('MasterFrameEvaluation('), isFalse);
+    expect(source.contains('MasterVisualProgramAdapter'), isTrue);
+    expect(source.contains('MasterRenderGraphAdapter'), isTrue);
+    expect(source.contains('MasterRendererFrameAdapters'), isTrue);
   });
 }

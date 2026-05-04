@@ -150,8 +150,6 @@ class MasterLiveScrubProgramAdapter {
 
   String _buildSourceRevision(MasterVisualProgram program) {
     final signature = <Object?>[
-      program.time.commitFrameNumber,
-      program.time.frameIndex,
       for (final surface in [...program.surfaces]..sort((left, right) =>
           left.targetId.compareTo(right.targetId))) ...<Object?>[
         surface.targetId,

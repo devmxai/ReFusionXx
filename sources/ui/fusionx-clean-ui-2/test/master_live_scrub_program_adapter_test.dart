@@ -309,4 +309,60 @@ void main() {
     );
     expect(program.canRenderTruthfully, isTrue);
   });
+
+  test('keeps source revision stable across time-only frame changes', () {
+    const adapter = MasterLiveScrubProgramAdapter();
+
+    MasterFrameEvaluation buildFrame({
+      required int timeMs,
+    }) {
+      final clock = TimelineClockCoordinator(
+        timelineDuration: ms(8000),
+        initialTime: ms(timeMs),
+      );
+      final time = MasterTimeSnapshot.fromClockSnapshot(
+        clock: clock.snapshot,
+        frameRate: 30,
+        renderMode: MasterRenderMode.liveScrub,
+        sourceScope: MasterTimeScope.rootComposition,
+      );
+      clock.dispose();
+      return MasterFrameEvaluation(
+        time: time,
+        evaluatedChannels: const <MasterEvaluatedPropertyValue>[],
+      );
+    }
+
+    LiveScrubVisualProgram buildProgram(MasterFrameEvaluation frame) {
+      return adapter.build(
+        frame: frame.copyWith(
+          visibleLayerIds: const <String>['element-1'],
+        ),
+        sourcesByTargetId: const <String, LiveScrubSurfaceSource>{
+          'element-1': LiveScrubSurfaceSource(
+            targetId: 'element-1',
+            kind: LiveScrubSourceKind.video,
+            sourceUri: '/media/video-a.mp4',
+            scrubStoreKey: 'clip-1',
+            sourceWidth: 1080,
+            sourceHeight: 1920,
+          ),
+        },
+      );
+    }
+
+    final first = buildProgram(
+      buildFrame(
+        timeMs: 1000,
+      ),
+    );
+    final second = buildProgram(
+      buildFrame(
+        timeMs: 1333,
+      ),
+    );
+
+    expect(first.sourceRevision, second.sourceRevision);
+    expect(first.renderGraphRevision, isNot(second.renderGraphRevision));
+  });
 }
