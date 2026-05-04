@@ -50,7 +50,7 @@ void main() {
     );
   }
 
-  test('unsupported preset falls back with a clear issue when enabled', () {
+  test('unsupported preset is blocked with a clear issue when enabled', () {
     final adapter = TransitionUnifiedScopeBridgeEntryAdapter();
 
     final result = adapter.resolveBridgeEntry(
@@ -59,7 +59,7 @@ void main() {
 
     expect(result.opensUnifiedScope, isFalse);
     expect(
-      result.fallbackReason,
+      result.blockReason,
       TransitionUnifiedScopeBridgeFallbackReason.unsupportedPreset,
     );
     expect(result.issues.single.path, 'preset');
@@ -71,7 +71,7 @@ void main() {
     final result = adapter.resolveBridgeEntry(request());
 
     expect(result.opensUnifiedScope, isTrue);
-    expect(result.fallbackReason, isNull);
+    expect(result.blockReason, isNull);
     expect(result.definition!.definitionId, 'cross_dissolve');
     expect(result.factoryResult!.canBuild, isTrue);
     expect(
@@ -145,7 +145,7 @@ void main() {
     );
   });
 
-  test('invalid boundary falls back before opening unified scope', () {
+  test('invalid boundary is blocked before opening unified scope', () {
     final adapter = TransitionUnifiedScopeBridgeEntryAdapter();
 
     final result = adapter.resolveBridgeEntry(
@@ -154,14 +154,14 @@ void main() {
 
     expect(result.opensUnifiedScope, isFalse);
     expect(
-      result.fallbackReason,
+      result.blockReason,
       TransitionUnifiedScopeBridgeFallbackReason.requestBlocked,
     );
     expect(result.factoryResult!.canBuild, isFalse);
     expect(result.issues.single.path, 'boundary');
   });
 
-  test('insufficient handles fall back through the entry gate', () {
+  test('insufficient handles is blocked through the entry gate', () {
     final adapter = TransitionUnifiedScopeBridgeEntryAdapter();
 
     final result = adapter.resolveBridgeEntry(
@@ -173,11 +173,11 @@ void main() {
 
     expect(result.opensUnifiedScope, isFalse);
     expect(
-      result.fallbackReason,
+      result.blockReason,
       TransitionUnifiedScopeBridgeFallbackReason.entryGateBlocked,
     );
     expect(
-      result.entryResult!.fallbackReason,
+      result.entryResult!.blockReason,
       TransitionUnifiedScopeEntryFallbackReason.graphApplyBlocked,
     );
     expect(result.issues.map((issue) => issue.path), contains('leftClipId'));

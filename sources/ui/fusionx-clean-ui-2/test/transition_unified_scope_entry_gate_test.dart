@@ -130,7 +130,7 @@ void main() {
     final result = gate.resolveEntry(request());
 
     expect(result.opensUnifiedScope, isTrue);
-    expect(result.fallbackReason, isNull);
+    expect(result.blockReason, isNull);
     expect(result.unifiedScope!.canOpenUnifiedScope, isTrue);
     expect(result.unifiedScope!.scope!.mode, CompositionScopeMode.transition);
     expect(
@@ -139,7 +139,7 @@ void main() {
     );
   });
 
-  test('blocked graph apply falls back with graph issues', () {
+  test('blocked graph apply is blocked with graph issues', () {
     final gate = TransitionUnifiedScopeEntryGate();
 
     final result = gate.resolveEntry(
@@ -148,7 +148,7 @@ void main() {
 
     expect(result.opensUnifiedScope, isFalse);
     expect(
-      result.fallbackReason,
+      result.blockReason,
       TransitionUnifiedScopeEntryFallbackReason.graphApplyBlocked,
     );
     expect(result.unifiedScope!.graph.canApply, isFalse);
@@ -156,7 +156,7 @@ void main() {
         result.graphIssues.map((issue) => issue.path), contains('leftClipId'));
   });
 
-  test('invalid transition scope falls back with projection issues', () {
+  test('invalid transition scope is blocked with projection issues', () {
     final gate = TransitionUnifiedScopeEntryGate();
 
     final result = gate.resolveEntry(
@@ -165,7 +165,7 @@ void main() {
 
     expect(result.opensUnifiedScope, isFalse);
     expect(
-      result.fallbackReason,
+      result.blockReason,
       TransitionUnifiedScopeEntryFallbackReason.projectionBlocked,
     );
     expect(

@@ -47,7 +47,7 @@ class TransitionUnifiedScopeBridgeEntryRequest {
 
 class TransitionUnifiedScopeBridgeEntryResult {
   TransitionUnifiedScopeBridgeEntryResult._({
-    this.fallbackReason,
+    this.blockReason,
     this.definition,
     this.factoryResult,
     this.entryResult,
@@ -56,14 +56,14 @@ class TransitionUnifiedScopeBridgeEntryResult {
   }) : issues = List.unmodifiable(issues);
 
   factory TransitionUnifiedScopeBridgeEntryResult.blocked({
-    required TransitionUnifiedScopeBridgeFallbackReason fallbackReason,
+    required TransitionUnifiedScopeBridgeFallbackReason blockReason,
     NormalTransitionDefinition? definition,
     TransitionUnifiedScopeRequestFactoryResult? factoryResult,
     TransitionUnifiedScopeEntryResult? entryResult,
     List<NormalTransitionIssue> issues = const <NormalTransitionIssue>[],
   }) {
     return TransitionUnifiedScopeBridgeEntryResult._(
-      fallbackReason: fallbackReason,
+      blockReason: blockReason,
       definition: definition,
       factoryResult: factoryResult,
       entryResult: entryResult,
@@ -87,7 +87,7 @@ class TransitionUnifiedScopeBridgeEntryResult {
     );
   }
 
-  final TransitionUnifiedScopeBridgeFallbackReason? fallbackReason;
+  final TransitionUnifiedScopeBridgeFallbackReason? blockReason;
   final NormalTransitionDefinition? definition;
   final TransitionUnifiedScopeRequestFactoryResult? factoryResult;
   final TransitionUnifiedScopeEntryResult? entryResult;
@@ -95,7 +95,7 @@ class TransitionUnifiedScopeBridgeEntryResult {
   final List<NormalTransitionIssue> issues;
 
   bool get opensUnifiedScope =>
-      fallbackReason == null &&
+      blockReason == null &&
       entryResult?.opensUnifiedScope == true &&
       session != null;
 }
@@ -190,7 +190,7 @@ class TransitionUnifiedScopeBridgeEntryAdapter {
     final definitionId = timelineAdapter.definitionIdForPreset(request.preset);
     if (definitionId == null) {
       return TransitionUnifiedScopeBridgeEntryResult.blocked(
-        fallbackReason:
+        blockReason:
             TransitionUnifiedScopeBridgeFallbackReason.unsupportedPreset,
         issues: <NormalTransitionIssue>[
           NormalTransitionIssue(
@@ -206,8 +206,7 @@ class TransitionUnifiedScopeBridgeEntryAdapter {
     final catalogResult = catalog.loadBuiltIns();
     if (!catalogResult.isValid) {
       return TransitionUnifiedScopeBridgeEntryResult.blocked(
-        fallbackReason:
-            TransitionUnifiedScopeBridgeFallbackReason.catalogBlocked,
+        blockReason: TransitionUnifiedScopeBridgeFallbackReason.catalogBlocked,
         issues: catalogResult.issues,
       );
     }
@@ -215,7 +214,7 @@ class TransitionUnifiedScopeBridgeEntryAdapter {
     final definition = catalogResult.definitionById(definitionId);
     if (definition == null) {
       return TransitionUnifiedScopeBridgeEntryResult.blocked(
-        fallbackReason:
+        blockReason:
             TransitionUnifiedScopeBridgeFallbackReason.unsupportedPreset,
         issues: <NormalTransitionIssue>[
           NormalTransitionIssue(
@@ -243,8 +242,7 @@ class TransitionUnifiedScopeBridgeEntryAdapter {
     final unifiedRequest = factoryResult.request;
     if (!factoryResult.canBuild || unifiedRequest == null) {
       return TransitionUnifiedScopeBridgeEntryResult.blocked(
-        fallbackReason:
-            TransitionUnifiedScopeBridgeFallbackReason.requestBlocked,
+        blockReason: TransitionUnifiedScopeBridgeFallbackReason.requestBlocked,
         definition: definition,
         factoryResult: factoryResult,
         issues: factoryResult.issues,
@@ -265,7 +263,7 @@ class TransitionUnifiedScopeBridgeEntryAdapter {
         issues.add(laneIssue);
       }
       return TransitionUnifiedScopeBridgeEntryResult.blocked(
-        fallbackReason:
+        blockReason:
             TransitionUnifiedScopeBridgeFallbackReason.entryGateBlocked,
         definition: definition,
         factoryResult: factoryResult,

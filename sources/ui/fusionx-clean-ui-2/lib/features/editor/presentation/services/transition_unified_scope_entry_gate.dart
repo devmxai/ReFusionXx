@@ -16,7 +16,7 @@ enum TransitionUnifiedScopeEntryFallbackReason {
 
 class TransitionUnifiedScopeEntryResult {
   TransitionUnifiedScopeEntryResult._({
-    this.fallbackReason,
+    this.blockReason,
     this.unifiedScope,
     List<NormalTransitionIssue> graphIssues = const <NormalTransitionIssue>[],
     List<CompositionProjectionIssue> projectionIssues =
@@ -28,7 +28,7 @@ class TransitionUnifiedScopeEntryResult {
         laneIssues = List.unmodifiable(laneIssues);
 
   factory TransitionUnifiedScopeEntryResult.blocked({
-    required TransitionUnifiedScopeEntryFallbackReason fallbackReason,
+    required TransitionUnifiedScopeEntryFallbackReason blockReason,
     TransitionScopeGraphAuthoringResult? unifiedScope,
     List<NormalTransitionIssue> graphIssues = const <NormalTransitionIssue>[],
     List<CompositionProjectionIssue> projectionIssues =
@@ -37,7 +37,7 @@ class TransitionUnifiedScopeEntryResult {
         const <TransitionScopeGraphLaneIssue>[],
   }) {
     return TransitionUnifiedScopeEntryResult._(
-      fallbackReason: fallbackReason,
+      blockReason: blockReason,
       unifiedScope: unifiedScope,
       graphIssues: graphIssues,
       projectionIssues: projectionIssues,
@@ -61,13 +61,13 @@ class TransitionUnifiedScopeEntryResult {
     );
   }
 
-  final TransitionUnifiedScopeEntryFallbackReason? fallbackReason;
+  final TransitionUnifiedScopeEntryFallbackReason? blockReason;
   final TransitionScopeGraphAuthoringResult? unifiedScope;
   final List<NormalTransitionIssue> graphIssues;
   final List<CompositionProjectionIssue> projectionIssues;
   final List<TransitionScopeGraphLaneIssue> laneIssues;
 
-  bool get opensUnifiedScope => fallbackReason == null && unifiedScope != null;
+  bool get opensUnifiedScope => blockReason == null && unifiedScope != null;
 }
 
 class TransitionUnifiedScopeEntryGate {
@@ -86,7 +86,7 @@ class TransitionUnifiedScopeEntryGate {
     final result = _applyPresetToUnifiedScope(request);
     if (!result.graph.canApply) {
       return TransitionUnifiedScopeEntryResult.blocked(
-        fallbackReason:
+        blockReason:
             TransitionUnifiedScopeEntryFallbackReason.graphApplyBlocked,
         unifiedScope: result,
         graphIssues: result.graph.issues,
@@ -95,7 +95,7 @@ class TransitionUnifiedScopeEntryGate {
 
     if (result.scope == null || result.projectionIssues.isNotEmpty) {
       return TransitionUnifiedScopeEntryResult.blocked(
-        fallbackReason:
+        blockReason:
             TransitionUnifiedScopeEntryFallbackReason.projectionBlocked,
         unifiedScope: result,
         graphIssues: result.graph.issues,
@@ -105,7 +105,7 @@ class TransitionUnifiedScopeEntryGate {
 
     if (result.lanes == null || result.lanes!.hasIssues) {
       return TransitionUnifiedScopeEntryResult.blocked(
-        fallbackReason:
+        blockReason:
             TransitionUnifiedScopeEntryFallbackReason.laneProjectionBlocked,
         unifiedScope: result,
         graphIssues: result.graph.issues,

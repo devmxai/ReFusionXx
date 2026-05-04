@@ -206,6 +206,20 @@ void main() {
         isTrue);
   });
 
+  test('unified transition contracts do not use fallbackReason naming',
+      () async {
+    final gateSource = await File(
+      'lib/features/editor/presentation/services/transition_unified_scope_entry_gate.dart',
+    ).readAsString();
+    final bridgeSource = await File(
+      'lib/features/editor/presentation/services/transition_unified_scope_bridge_entry_adapter.dart',
+    ).readAsString();
+    expect(gateSource.contains('fallbackReason'), isFalse);
+    expect(bridgeSource.contains('fallbackReason'), isFalse);
+    expect(gateSource.contains('blockReason'), isTrue);
+    expect(bridgeSource.contains('blockReason'), isTrue);
+  });
+
   test('live scrub program is projected from master visual program', () async {
     final source = await liveScrubProgramAdapterFile.readAsString();
     expect(source.contains('MasterVisualProgramAdapter'), isTrue);
