@@ -6274,6 +6274,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _addSceneLayerScopePropertyChannels(viewModel, item);
   }
 
+  void _handleSceneLayerScopeTrackAnimateTap(TimelineTrackData track) {
+    unawaited(_handleSceneLayerScopeAnimateTap());
+  }
+
+  void _handleSceneLayerScopeTrackFxTap(TimelineTrackData track) {
+    unawaited(_handleSceneLayerScopeFxTap());
+  }
+
   Future<AnimateBrowserItem?> _openSceneLayerScopePropertyBrowser(
     List<AnimateBrowserItem> items,
   ) async {
@@ -23403,6 +23411,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                     keyframeId,
                                                     progress,
                                                   ),
+                                                  onTrackAnimateTap:
+                                                      _handleSceneLayerScopeTrackAnimateTap,
+                                                  onTrackFxTap:
+                                                      _handleSceneLayerScopeTrackFxTap,
                                                   onBackgroundTap: () {
                                                     setState(() {
                                                       _selectedLayerScopeAnimationLaneId =
@@ -23422,8 +23434,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                   ),
                                                   assetPathResolver:
                                                       _resolveAssetPath,
-                                                  animateTrackKinds: const <TimelineTrackKind>{},
-                                                  fxTrackKinds: const <TimelineTrackKind>{},
+                                                  animateTrackKinds: const <TimelineTrackKind>{
+                                                    TimelineTrackKind.text,
+                                                    TimelineTrackKind.image,
+                                                    TimelineTrackKind.video,
+                                                    TimelineTrackKind.shape,
+                                                  },
+                                                  fxTrackKinds: const <TimelineTrackKind>{
+                                                    TimelineTrackKind.text,
+                                                    TimelineTrackKind.image,
+                                                    TimelineTrackKind.video,
+                                                    TimelineTrackKind.shape,
+                                                  },
                                                 )
                                               : sceneScopeSession != null
                                                   ? TimelinePanel(
