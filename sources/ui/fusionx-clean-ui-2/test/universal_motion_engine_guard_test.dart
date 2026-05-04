@@ -253,6 +253,27 @@ void main() {
     expect(source.contains('this.rendererPresentationProof = const'), isFalse);
   });
 
+  test('renderer proof constructor has no silent defaults', () async {
+    final source = await liveScrubDescriptorModelsFile.readAsString();
+    final ctorStart = source.indexOf('const RendererPresentationProof({');
+    expect(ctorStart, isNonNegative);
+    final ctorEnd = source.indexOf(
+      'const RendererPresentationProof.uninitialized({',
+      ctorStart,
+    );
+    expect(ctorEnd, greaterThan(ctorStart));
+    final ctorBody = source.substring(ctorStart, ctorEnd);
+    expect(ctorBody.contains('required this.requestedRootTimeMs'), isTrue);
+    expect(ctorBody.contains('required this.requestedFrameIndex'), isTrue);
+    expect(ctorBody.contains('required this.requestId'), isTrue);
+    expect(ctorBody.contains('required this.sourceRevision'), isTrue);
+    expect(ctorBody.contains('required this.renderGraphRevision'), isTrue);
+    expect(ctorBody.contains('required this.rendererMode'), isTrue);
+    expect(ctorBody.contains('this.requestedRootTimeMs = 0'), isFalse);
+    expect(ctorBody.contains('this.requestId = \'uninitialized\''), isFalse);
+    expect(ctorBody.contains('this.rendererMode = \'unknown\''), isFalse);
+  });
+
   test('stage5 controller starts from explicit uninitialized proof', () async {
     final source = await stage5TransportControllerFile.readAsString();
     expect(source.contains('RendererPresentationProof.uninitialized('), isTrue);

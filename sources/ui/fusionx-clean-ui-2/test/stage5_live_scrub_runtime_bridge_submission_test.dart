@@ -46,6 +46,9 @@ void main() {
       requestedCommitFrameNumber: 77,
       requestedSourceIds: <String>['clip-a'],
       requestId: 'req-2',
+      sourceRevision: 'msr:req-2',
+      renderGraphRevision: 'mrg:req-2',
+      rendererMode: 'liveScrub',
       blockers: <String>['missing_source_window:clip-a'],
     );
     final submission = parseLiveScrubRuntimeBridgeSubmission(
@@ -70,7 +73,11 @@ void main() {
       requestedRootTimeMs: 500,
       requestedFrameIndex: 15,
       requestedCommitFrameNumber: 41,
+      requestedSourceIds: <String>[],
       requestId: 'req-3',
+      sourceRevision: 'msr:req-3',
+      renderGraphRevision: 'mrg:req-3',
+      rendererMode: 'liveScrub',
     );
     final submission = parseLiveScrubRuntimeBridgeSubmission(
       baseProof: baseProof,
@@ -95,7 +102,11 @@ void main() {
       requestedRootTimeMs: 510,
       requestedFrameIndex: 16,
       requestedCommitFrameNumber: 42,
+      requestedSourceIds: <String>[],
       requestId: 'req-3b',
+      sourceRevision: 'msr:req-3b',
+      renderGraphRevision: 'mrg:req-3b',
+      rendererMode: 'liveScrub',
     );
     final submission = parseLiveScrubRuntimeBridgeSubmission(
       baseProof: baseProof,
@@ -118,6 +129,9 @@ void main() {
       requestedCommitFrameNumber: 100,
       requestedSourceIds: <String>['clip-a'],
       requestId: 'req-4',
+      sourceRevision: 'msr:req-4',
+      renderGraphRevision: 'mrg:req-4',
+      rendererMode: 'liveScrub',
     );
     final submission = parseLiveScrubRuntimeBridgeSubmission(
       baseProof: baseProof,
@@ -148,6 +162,9 @@ void main() {
       requestedCommitFrameNumber: 101,
       requestedSourceIds: <String>['clip-a', 'clip-b'],
       requestId: 'req-5',
+      sourceRevision: 'msr:req-5',
+      renderGraphRevision: 'mrg:req-5',
+      rendererMode: 'liveScrub',
     );
     final submission = parseLiveScrubRuntimeBridgeSubmission(
       baseProof: baseProof,
@@ -177,6 +194,9 @@ void main() {
       requestedCommitFrameNumber: 103,
       requestedSourceIds: <String>['clip-a', 'clip-b'],
       requestId: 'req-6',
+      sourceRevision: 'msr:req-6',
+      renderGraphRevision: 'mrg:req-6',
+      rendererMode: 'liveScrub',
     );
     final submission = parseLiveScrubRuntimeBridgeSubmission(
       baseProof: baseProof,
@@ -206,6 +226,9 @@ void main() {
       requestedSourceIds: <String>['clip-a'],
       blockers: <String>['missing_source_window:clip-a'],
       requestId: 'req-7',
+      sourceRevision: 'msr:req-7',
+      renderGraphRevision: 'mrg:req-7',
+      rendererMode: 'liveScrub',
     );
     final submission = parseLiveScrubRuntimeBridgeSubmission(
       baseProof: baseProof,
@@ -234,6 +257,9 @@ void main() {
       requestedCommitFrameNumber: 110,
       requestedSourceIds: <String>['clip-a', 'clip-b'],
       requestId: 'req-snapshot-ok',
+      sourceRevision: 'msr:req-snapshot-ok',
+      renderGraphRevision: 'mrg:req-snapshot-ok',
+      rendererMode: 'liveScrub',
       nativePresentationAck: true,
       matchState: RendererPresentationMatchState.matched,
       matchReason: 'native_runtime_bridge_snapshot_acknowledged',
@@ -260,7 +286,11 @@ void main() {
       requestedRootTimeMs: 3000,
       requestedFrameIndex: 90,
       requestedCommitFrameNumber: 120,
+      requestedSourceIds: <String>[],
       requestId: 'req-snapshot-mismatch',
+      sourceRevision: 'msr:req-snapshot-mismatch',
+      renderGraphRevision: 'mrg:req-snapshot-mismatch',
+      rendererMode: 'liveScrub',
       nativePresentationAck: true,
     );
     final reconciled = reconcileRuntimeBridgeProofWithNativeSnapshot(

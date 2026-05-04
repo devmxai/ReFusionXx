@@ -88,14 +88,14 @@ enum RendererPresentationMatchState {
 @immutable
 class RendererPresentationProof {
   const RendererPresentationProof({
-    this.requestedRootTimeMs = 0,
-    this.requestedFrameIndex = 0,
-    this.requestedCommitFrameNumber = 0,
-    this.requestedSourceIds = const <String>[],
-    this.requestId = 'uninitialized',
-    this.sourceRevision = 'unknown',
-    this.renderGraphRevision = 'unknown',
-    this.rendererMode = 'unknown',
+    required this.requestedRootTimeMs,
+    required this.requestedFrameIndex,
+    required this.requestedCommitFrameNumber,
+    required this.requestedSourceIds,
+    required this.requestId,
+    required this.sourceRevision,
+    required this.renderGraphRevision,
+    required this.rendererMode,
     this.blockers = const <String>[],
     this.presentedRootTimeMs,
     this.presentedFrameIndex,
