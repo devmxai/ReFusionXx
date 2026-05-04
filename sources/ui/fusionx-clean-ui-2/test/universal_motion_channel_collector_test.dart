@@ -74,8 +74,8 @@ void main() {
       id: id,
       target: target,
       definition: definition,
-      keyframes: <MotionKeyframeModel>[
-        const MotionKeyframeModel(
+      keyframes: const <MotionKeyframeModel>[
+        MotionKeyframeModel(
           id: 'k0',
           channelId: 'unused',
           time: TimelineTime.zero,
@@ -87,7 +87,7 @@ void main() {
   }
 
   test('collects unique channels and preserves first source on duplicates', () {
-    final collector = UniversalMotionChannelCollector();
+    const collector = UniversalMotionChannelCollector();
     final first = buildChannel(
       id: 'channel.scale.x',
       target: const MotionPropertyTarget(
@@ -141,6 +141,65 @@ void main() {
       contains(
         'unresolved_target:transition:channel.opacity.bad:missing_scene_id',
       ),
+    );
+  });
+
+  test('flags conflicting duplicate channel ids instead of silently merging',
+      () {
+    const collector = UniversalMotionChannelCollector();
+    final first = buildChannel(
+      id: 'channel.scale.x',
+      target: const MotionPropertyTarget(
+        kind: MotionTargetKind.element,
+        targetId: 'element-1',
+        projectId: 'project-1',
+      ),
+      definition: MotionPropertyCatalog.scaleX,
+    );
+    final conflicting = MotionPropertyChannelModel(
+      id: 'channel.scale.x',
+      target: const MotionPropertyTarget(
+        kind: MotionTargetKind.element,
+        targetId: 'element-1',
+        projectId: 'project-1',
+      ),
+      definition: MotionPropertyCatalog.scaleX,
+      keyframes: <MotionKeyframeModel>[
+        MotionKeyframeModel(
+          id: 'k1',
+          channelId: 'channel.scale.x',
+          time: ms(1000),
+          value: const MotionPropertyValue.scalar(3),
+          interpolationToNext: const MotionInterpolationSpec.linear(),
+        ),
+      ],
+    );
+
+    final result = collector.collect(
+      project: buildProject(),
+      sceneClips: buildSceneClips(),
+      sources: <UniversalMotionChannelCollectionSource>[
+        UniversalMotionChannelCollectionSource(
+          id: 'manual',
+          channels: <MotionPropertyChannelModel>[first],
+        ),
+        UniversalMotionChannelCollectionSource(
+          id: 'transition',
+          channels: <MotionPropertyChannelModel>[conflicting],
+        ),
+      ],
+    );
+
+    expect(result.channels, hasLength(1));
+    expect(
+      result.blockers,
+      contains(
+        'conflicting_channel_definition:channel.scale.x:transition',
+      ),
+    );
+    expect(
+      result.diagnostics,
+      contains('duplicate_channel_conflict:transition:channel.scale.x'),
     );
   });
 }

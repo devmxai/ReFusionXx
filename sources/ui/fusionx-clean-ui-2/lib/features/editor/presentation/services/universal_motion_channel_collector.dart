@@ -66,6 +66,15 @@ class UniversalMotionChannelCollector {
         }
         final existing = byChannelId[resolvedChannel.id];
         if (existing != null) {
+          if (!_isEquivalentChannel(existing, resolvedChannel)) {
+            blockers.add(
+              'conflicting_channel_definition:${resolvedChannel.id}:${source.id}',
+            );
+            diagnostics.add(
+              'duplicate_channel_conflict:${source.id}:${resolvedChannel.id}',
+            );
+            continue;
+          }
           diagnostics.add(
             'duplicate_channel_ignored:${source.id}:${resolvedChannel.id}',
           );
@@ -79,5 +88,37 @@ class UniversalMotionChannelCollector {
       diagnostics: diagnostics,
       blockers: blockers,
     );
+  }
+
+  bool _isEquivalentChannel(
+    MotionPropertyChannelModel left,
+    MotionPropertyChannelModel right,
+  ) {
+    if (left.definition.id != right.definition.id) {
+      return false;
+    }
+    final leftTarget = left.target;
+    final rightTarget = right.target;
+    if (leftTarget.kind != rightTarget.kind ||
+        leftTarget.targetId != rightTarget.targetId ||
+        leftTarget.projectId != rightTarget.projectId ||
+        leftTarget.sceneId != rightTarget.sceneId ||
+        leftTarget.layerId != rightTarget.layerId ||
+        leftTarget.elementId != rightTarget.elementId) {
+      return false;
+    }
+    if (left.keyframes.length != right.keyframes.length) {
+      return false;
+    }
+    for (var index = 0; index < left.keyframes.length; index += 1) {
+      final leftKeyframe = left.keyframes[index];
+      final rightKeyframe = right.keyframes[index];
+      if (leftKeyframe.time != rightKeyframe.time ||
+          leftKeyframe.value.rawValue != rightKeyframe.value.rawValue ||
+          leftKeyframe.value.kind != rightKeyframe.value.kind) {
+        return false;
+      }
+    }
+    return true;
   }
 }
