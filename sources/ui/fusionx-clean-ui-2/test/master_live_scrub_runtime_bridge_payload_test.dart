@@ -60,6 +60,11 @@ void main() {
             memoryPressureLevel: 'normal',
           ),
         ),
+        rendererPresentationProof:
+            const RendererPresentationProof.uninitialized(
+          rendererMode: 'liveScrub',
+          matchReason: 'payload_test_uninitialized',
+        ),
       );
 
       final payload = buildLiveScrubRuntimeBridgePayload(result);
@@ -81,7 +86,8 @@ void main() {
           payload['rendererPresentationProof'] as Map<String, Object?>;
       expect(proof['requestedRootTimeMs'], 0);
       expect(proof['nativePresentationAck'], isFalse);
-      expect(proof['matchState'], 'pendingNativeAck');
+      expect(proof['matchState'], 'blocked');
+      expect(proof['matchReason'], 'payload_test_uninitialized');
     },
   );
 }

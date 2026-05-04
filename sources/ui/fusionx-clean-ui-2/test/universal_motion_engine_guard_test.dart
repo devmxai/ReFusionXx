@@ -18,6 +18,12 @@ void main() {
   final liveScrubProgramModelsFile = File(
     'lib/features/editor/domain/models/master_live_scrub_visual_program_models.dart',
   );
+  final liveScrubDescriptorModelsFile = File(
+    'lib/features/editor/domain/models/master_live_scrub_descriptor_models.dart',
+  );
+  final stage5TransportControllerFile = File(
+    'lib/core/engine/stage5_native_transport_controller.dart',
+  );
 
   test('master evaluation path uses universal evaluation service', () async {
     final source = await screenFile.readAsString();
@@ -235,5 +241,17 @@ void main() {
     expect(source.contains('required this.renderGraphRevision'), isTrue);
     expect(source.contains("this.sourceRevision = 'unknown'"), isFalse);
     expect(source.contains("this.renderGraphRevision = 'unknown'"), isFalse);
+  });
+
+  test('descriptor projection result requires explicit proof', () async {
+    final source = await liveScrubDescriptorModelsFile.readAsString();
+    expect(source.contains('required this.rendererPresentationProof'), isTrue);
+    expect(source.contains('this.rendererPresentationProof = const'), isFalse);
+  });
+
+  test('stage5 controller starts from explicit uninitialized proof', () async {
+    final source = await stage5TransportControllerFile.readAsString();
+    expect(source.contains('RendererPresentationProof.uninitialized('), isTrue);
+    expect(source.contains('const RendererPresentationProof();'), isFalse);
   });
 }

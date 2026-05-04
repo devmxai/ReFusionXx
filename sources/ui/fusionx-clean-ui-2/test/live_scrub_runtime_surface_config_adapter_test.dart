@@ -87,6 +87,10 @@ void main() {
         latencyBudgetState: LiveScrubLatencyBudgetState.nativeMetricsPending,
         performanceSnapshot: LiveScrubPerformanceSnapshot(),
       ),
+      rendererPresentationProof: const RendererPresentationProof.uninitialized(
+        rendererMode: 'liveScrub',
+        matchReason: 'surface_config_merge_test',
+      ),
     );
 
     final merged = adapter.mergeProjectedSources(
@@ -181,6 +185,10 @@ void main() {
         transitionParityState: LiveScrubTransitionParityState.blocked,
         latencyBudgetState: LiveScrubLatencyBudgetState.nativeMetricsPending,
         performanceSnapshot: LiveScrubPerformanceSnapshot(),
+      ),
+      rendererPresentationProof: const RendererPresentationProof.uninitialized(
+        rendererMode: 'liveScrub',
+        matchReason: 'surface_config_ignore_test',
       ),
     );
 

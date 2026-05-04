@@ -104,7 +104,10 @@ class Stage5NativeTransportController extends ChangeNotifier {
   StreamSubscription<dynamic>? _eventsSubscription;
   bool _isInitializing = false;
   RendererPresentationProof _lastRuntimeBridgePresentationProof =
-      const RendererPresentationProof();
+      const RendererPresentationProof.uninitialized(
+    rendererMode: 'liveScrub',
+    matchReason: 'runtime_bridge_not_submitted',
+  );
   Stage5TransportState get state => _state;
   RendererPresentationProof get lastRuntimeBridgePresentationProof =>
       _lastRuntimeBridgePresentationProof;

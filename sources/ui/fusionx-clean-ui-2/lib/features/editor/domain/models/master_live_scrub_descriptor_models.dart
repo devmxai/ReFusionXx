@@ -108,6 +108,27 @@ class RendererPresentationProof {
     this.matchReason = 'awaiting_native_ack',
   });
 
+  const RendererPresentationProof.uninitialized({
+    this.requestedRootTimeMs = 0,
+    this.requestedFrameIndex = 0,
+    this.requestedCommitFrameNumber = 0,
+    this.requestedSourceIds = const <String>[],
+    this.requestId = 'uninitialized',
+    this.sourceRevision = 'unknown',
+    this.renderGraphRevision = 'unknown',
+    this.rendererMode = 'unknown',
+    this.blockers = const <String>[],
+    this.presentedRootTimeMs,
+    this.presentedFrameIndex,
+    this.presentedCommitFrameNumber,
+    this.presentedSourceIds = const <String>[],
+    this.surfaceId,
+    this.presentationTimestampUs,
+    this.nativePresentationAck = false,
+    this.matchState = RendererPresentationMatchState.blocked,
+    this.matchReason = 'proof_uninitialized',
+  });
+
   final int requestedRootTimeMs;
   final int requestedFrameIndex;
   final int requestedCommitFrameNumber;
@@ -177,7 +198,8 @@ class RendererPresentationProof {
       presentationTimestampUs: clearPresentationTimestampUs
           ? null
           : (presentationTimestampUs ?? this.presentationTimestampUs),
-      nativePresentationAck: nativePresentationAck ?? this.nativePresentationAck,
+      nativePresentationAck:
+          nativePresentationAck ?? this.nativePresentationAck,
       matchState: matchState ?? this.matchState,
       matchReason: matchReason ?? this.matchReason,
     );
@@ -414,7 +436,7 @@ class LiveScrubDescriptorProjectionResult {
     List<String> diagnostics = const <String>[],
     required this.canProject,
     required this.parityReport,
-    this.rendererPresentationProof = const RendererPresentationProof(),
+    required this.rendererPresentationProof,
   })  : descriptors = List.unmodifiable(descriptors),
         blockers = List.unmodifiable(blockers),
         diagnostics = List.unmodifiable(diagnostics);
