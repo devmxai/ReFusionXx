@@ -54,6 +54,7 @@ class Stage5TransportManager(context: Context) {
         private const val SCRUB_SETTLE_TOLERANCE_MS = 12L
         private const val SCRUB_SETTLE_RENDERED_FRAME_TOLERANCE_MS = 90L
         private const val DISPLAYABLE_END_EPSILON_MS = 1L
+        private const val FULL_SOURCE_DURATION_TOLERANCE_MS = 150L
         // Composition-based multi-clip preview remains future-gated until it can preserve
         // live scrub parity with the accepted Exo baseline.
         private const val ENABLE_COMPOSITION_TIMELINE_PREVIEW = false
@@ -97,6 +98,7 @@ class Stage5TransportManager(context: Context) {
     private val previewOutputSuppressionObservers = LinkedHashSet<(Boolean) -> Unit>()
     private val scrubSettlingObservers = LinkedHashSet<(Boolean) -> Unit>()
     private val audioSignatureCache = HashMap<String, AudioSignature?>()
+    private val sourceDurationCache = HashMap<String, Long?>()
     private val mediaDisplayGeometryResolver = MediaDisplayGeometryResolver(appContext)
     private val thumbnailCache =
         object : LruCache<String, ByteArray>(12 * 1024 * 1024) {
@@ -1519,7 +1521,7 @@ class Stage5TransportManager(context: Context) {
                                 .setMediaMetadata(
                                     MediaMetadata.Builder().setTitle(segment.sourceLabel).build(),
                                 ).apply {
-                                    if (!segment.isFullSource) {
+                                    if (!isEffectivelyFullSource(segment)) {
                                         setClippingConfiguration(
                                             MediaItem.ClippingConfiguration.Builder()
                                                 .setStartPositionMs(segment.startMs)
@@ -1578,7 +1580,7 @@ class Stage5TransportManager(context: Context) {
                 .setMediaMetadata(
                     MediaMetadata.Builder().setTitle(segment.sourceLabel).build(),
                 ).apply {
-                    if (!segment.isFullSource) {
+                    if (!isEffectivelyFullSource(segment)) {
                         setClippingConfiguration(
                             MediaItem.ClippingConfiguration.Builder()
                                 .setStartPositionMs(segment.startMs)
@@ -1592,7 +1594,8 @@ class Stage5TransportManager(context: Context) {
     private fun buildTimelineRunMediaItems(runs: List<TimelineRun>): List<MediaItem> =
         runs.mapIndexed { index, run ->
             val runSegments = run.segments
-            val isSingleFullSource = runSegments.size == 1 && runSegments.first().isFullSource
+            val isSingleFullSource =
+                runSegments.size == 1 && isEffectivelyFullSource(runSegments.first())
             MediaItem.Builder()
                 .setUri(run.sourceUri)
                 .setMediaId("run-${index}-${runSegments.first().clipId}")
@@ -1647,6 +1650,39 @@ class Stage5TransportManager(context: Context) {
             index = lastIndex + 1
         }
         return runs
+    }
+
+    private fun isEffectivelyFullSource(segment: TimelineSegment): Boolean {
+        if (segment.isFullSource) {
+            return true
+        }
+        if (segment.startMs > SOURCE_CONTIGUITY_TOLERANCE_MS) {
+            return false
+        }
+        val sourceDurationMs = resolveSourceDurationMs(segment.sourceUri) ?: return false
+        return kotlin.math.abs(segment.endMs - sourceDurationMs) <=
+            FULL_SOURCE_DURATION_TOLERANCE_MS
+    }
+
+    private fun resolveSourceDurationMs(sourceUri: Uri): Long? {
+        val cacheKey = sourceUri.toString()
+        if (sourceDurationCache.containsKey(cacheKey)) {
+            return sourceDurationCache[cacheKey]
+        }
+        val durationMs =
+            runCatching {
+                val retriever = MediaMetadataRetriever()
+                try {
+                    retriever.setDataSource(appContext, sourceUri)
+                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                        ?.toLongOrNull()
+                        ?.takeIf { it > 0L }
+                } finally {
+                    retriever.release()
+                }
+            }.getOrNull()
+        sourceDurationCache[cacheKey] = durationMs
+        return durationMs
     }
 
     private fun areSourceAdjacent(

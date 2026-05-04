@@ -16503,7 +16503,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           : TimelineTime.fromSecondsDouble(assetDurationSeconds);
       final isFullSource = clip.sourceStartTime <= TimelineTime.zero &&
           assetDurationTime != null &&
-          clip.durationTime == assetDurationTime;
+          (clip.sourceEndTime - assetDurationTime).inMilliseconds.abs() <=
+              150 &&
+          (clip.durationTime - assetDurationTime).inMilliseconds.abs() <= 150;
       segments.add(<String, dynamic>{
         'clipId': clip.id,
         'sourceUri': sourceUri,
