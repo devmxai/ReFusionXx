@@ -784,7 +784,8 @@ class Stage5NativeScrubEngine(
                     synchronized(this) {
                         !sessionFrozen &&
                             activeDescriptor?.scrubStoreKey == snapshot.descriptor.scrubStoreKey &&
-                            targetGeneration == snapshot.generation
+                            (!freezeAfterNextRenderedTarget ||
+                                targetGeneration == snapshot.generation)
                     }
                 },
             )
