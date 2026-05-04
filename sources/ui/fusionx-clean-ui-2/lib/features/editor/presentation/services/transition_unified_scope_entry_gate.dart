@@ -8,11 +8,6 @@ typedef TransitionScopeGraphAuthoringDelegate
   TransitionScopeGraphAuthoringRequest request,
 );
 
-enum TransitionUnifiedScopeEntryDecision {
-  unifiedScope,
-  blockedUnifiedScope,
-}
-
 enum TransitionUnifiedScopeEntryFallbackReason {
   graphApplyBlocked,
   projectionBlocked,
@@ -20,8 +15,7 @@ enum TransitionUnifiedScopeEntryFallbackReason {
 }
 
 class TransitionUnifiedScopeEntryResult {
-  TransitionUnifiedScopeEntryResult({
-    required this.decision,
+  TransitionUnifiedScopeEntryResult._({
     this.fallbackReason,
     this.unifiedScope,
     List<NormalTransitionIssue> graphIssues = const <NormalTransitionIssue>[],
@@ -33,15 +27,47 @@ class TransitionUnifiedScopeEntryResult {
         projectionIssues = List.unmodifiable(projectionIssues),
         laneIssues = List.unmodifiable(laneIssues);
 
-  final TransitionUnifiedScopeEntryDecision decision;
+  factory TransitionUnifiedScopeEntryResult.blocked({
+    required TransitionUnifiedScopeEntryFallbackReason fallbackReason,
+    TransitionScopeGraphAuthoringResult? unifiedScope,
+    List<NormalTransitionIssue> graphIssues = const <NormalTransitionIssue>[],
+    List<CompositionProjectionIssue> projectionIssues =
+        const <CompositionProjectionIssue>[],
+    List<TransitionScopeGraphLaneIssue> laneIssues =
+        const <TransitionScopeGraphLaneIssue>[],
+  }) {
+    return TransitionUnifiedScopeEntryResult._(
+      fallbackReason: fallbackReason,
+      unifiedScope: unifiedScope,
+      graphIssues: graphIssues,
+      projectionIssues: projectionIssues,
+      laneIssues: laneIssues,
+    );
+  }
+
+  factory TransitionUnifiedScopeEntryResult.opened({
+    required TransitionScopeGraphAuthoringResult unifiedScope,
+    List<NormalTransitionIssue> graphIssues = const <NormalTransitionIssue>[],
+    List<CompositionProjectionIssue> projectionIssues =
+        const <CompositionProjectionIssue>[],
+    List<TransitionScopeGraphLaneIssue> laneIssues =
+        const <TransitionScopeGraphLaneIssue>[],
+  }) {
+    return TransitionUnifiedScopeEntryResult._(
+      unifiedScope: unifiedScope,
+      graphIssues: graphIssues,
+      projectionIssues: projectionIssues,
+      laneIssues: laneIssues,
+    );
+  }
+
   final TransitionUnifiedScopeEntryFallbackReason? fallbackReason;
   final TransitionScopeGraphAuthoringResult? unifiedScope;
   final List<NormalTransitionIssue> graphIssues;
   final List<CompositionProjectionIssue> projectionIssues;
   final List<TransitionScopeGraphLaneIssue> laneIssues;
 
-  bool get opensUnifiedScope =>
-      decision == TransitionUnifiedScopeEntryDecision.unifiedScope;
+  bool get opensUnifiedScope => fallbackReason == null && unifiedScope != null;
 }
 
 class TransitionUnifiedScopeEntryGate {
@@ -59,8 +85,7 @@ class TransitionUnifiedScopeEntryGate {
   ) {
     final result = _applyPresetToUnifiedScope(request);
     if (!result.graph.canApply) {
-      return TransitionUnifiedScopeEntryResult(
-        decision: TransitionUnifiedScopeEntryDecision.blockedUnifiedScope,
+      return TransitionUnifiedScopeEntryResult.blocked(
         fallbackReason:
             TransitionUnifiedScopeEntryFallbackReason.graphApplyBlocked,
         unifiedScope: result,
@@ -69,8 +94,7 @@ class TransitionUnifiedScopeEntryGate {
     }
 
     if (result.scope == null || result.projectionIssues.isNotEmpty) {
-      return TransitionUnifiedScopeEntryResult(
-        decision: TransitionUnifiedScopeEntryDecision.blockedUnifiedScope,
+      return TransitionUnifiedScopeEntryResult.blocked(
         fallbackReason:
             TransitionUnifiedScopeEntryFallbackReason.projectionBlocked,
         unifiedScope: result,
@@ -80,8 +104,7 @@ class TransitionUnifiedScopeEntryGate {
     }
 
     if (result.lanes == null || result.lanes!.hasIssues) {
-      return TransitionUnifiedScopeEntryResult(
-        decision: TransitionUnifiedScopeEntryDecision.blockedUnifiedScope,
+      return TransitionUnifiedScopeEntryResult.blocked(
         fallbackReason:
             TransitionUnifiedScopeEntryFallbackReason.laneProjectionBlocked,
         unifiedScope: result,
@@ -92,8 +115,7 @@ class TransitionUnifiedScopeEntryGate {
       );
     }
 
-    return TransitionUnifiedScopeEntryResult(
-      decision: TransitionUnifiedScopeEntryDecision.unifiedScope,
+    return TransitionUnifiedScopeEntryResult.opened(
       unifiedScope: result,
       graphIssues: result.graph.issues,
       projectionIssues: result.projectionIssues,

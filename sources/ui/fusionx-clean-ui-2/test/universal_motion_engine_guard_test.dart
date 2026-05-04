@@ -191,12 +191,17 @@ void main() {
     );
   });
 
-  test('transition unified scope gate uses blocked decision naming', () async {
+  test('transition unified scope gate uses opened/blocked result factories',
+      () async {
     final gateSource = await File(
       'lib/features/editor/presentation/services/transition_unified_scope_entry_gate.dart',
     ).readAsString();
     expect(gateSource.contains('legacyTransitionScope'), isFalse);
-    expect(gateSource.contains('blockedUnifiedScope'), isTrue);
+    expect(gateSource.contains('TransitionUnifiedScopeEntryDecision'), isFalse);
+    expect(gateSource.contains('TransitionUnifiedScopeEntryResult.opened('),
+        isTrue);
+    expect(gateSource.contains('TransitionUnifiedScopeEntryResult.blocked('),
+        isTrue);
   });
 
   test('live scrub program is projected from master visual program', () async {
