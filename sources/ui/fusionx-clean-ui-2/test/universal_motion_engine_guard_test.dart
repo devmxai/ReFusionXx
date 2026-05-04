@@ -218,6 +218,10 @@ void main() {
     expect(bridgeSource.contains('fallbackReason'), isFalse);
     expect(gateSource.contains('blockReason'), isTrue);
     expect(bridgeSource.contains('blockReason'), isTrue);
+    expect(gateSource.contains('bool get isBlocked => !opensUnifiedScope;'),
+        isTrue);
+    expect(bridgeSource.contains('bool get isBlocked => !opensUnifiedScope;'),
+        isTrue);
   });
 
   test('live scrub program is projected from master visual program', () async {

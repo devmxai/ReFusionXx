@@ -23,13 +23,18 @@ class TransitionUnifiedScopeEntryResult {
         const <CompositionProjectionIssue>[],
     List<TransitionScopeGraphLaneIssue> laneIssues =
         const <TransitionScopeGraphLaneIssue>[],
-  })  : graphIssues = List.unmodifiable(graphIssues),
+  })  : assert(
+          (blockReason == null && unifiedScope != null) ||
+              (blockReason != null && unifiedScope != null),
+          'Entry result must always carry a unified scope graph payload.',
+        ),
+        graphIssues = List.unmodifiable(graphIssues),
         projectionIssues = List.unmodifiable(projectionIssues),
         laneIssues = List.unmodifiable(laneIssues);
 
   factory TransitionUnifiedScopeEntryResult.blocked({
     required TransitionUnifiedScopeEntryBlockReason blockReason,
-    TransitionScopeGraphAuthoringResult? unifiedScope,
+    required TransitionScopeGraphAuthoringResult unifiedScope,
     List<NormalTransitionIssue> graphIssues = const <NormalTransitionIssue>[],
     List<CompositionProjectionIssue> projectionIssues =
         const <CompositionProjectionIssue>[],
@@ -68,6 +73,7 @@ class TransitionUnifiedScopeEntryResult {
   final List<TransitionScopeGraphLaneIssue> laneIssues;
 
   bool get opensUnifiedScope => blockReason == null && unifiedScope != null;
+  bool get isBlocked => !opensUnifiedScope;
 }
 
 class TransitionUnifiedScopeEntryGate {

@@ -130,6 +130,7 @@ void main() {
     final result = gate.resolveEntry(request());
 
     expect(result.opensUnifiedScope, isTrue);
+    expect(result.isBlocked, isFalse);
     expect(result.blockReason, isNull);
     expect(result.unifiedScope!.canOpenUnifiedScope, isTrue);
     expect(result.unifiedScope!.scope!.mode, CompositionScopeMode.transition);
@@ -147,6 +148,7 @@ void main() {
     );
 
     expect(result.opensUnifiedScope, isFalse);
+    expect(result.isBlocked, isTrue);
     expect(
       result.blockReason,
       TransitionUnifiedScopeEntryBlockReason.graphApplyBlocked,
@@ -164,6 +166,7 @@ void main() {
     );
 
     expect(result.opensUnifiedScope, isFalse);
+    expect(result.isBlocked, isTrue);
     expect(
       result.blockReason,
       TransitionUnifiedScopeEntryBlockReason.projectionBlocked,

@@ -53,7 +53,16 @@ class TransitionUnifiedScopeBridgeEntryResult {
     this.entryResult,
     this.session,
     List<NormalTransitionIssue> issues = const <NormalTransitionIssue>[],
-  }) : issues = List.unmodifiable(issues);
+  })  : assert(
+          (blockReason == null &&
+                  definition != null &&
+                  factoryResult != null &&
+                  entryResult != null &&
+                  session != null) ||
+              (blockReason != null && session == null),
+          'Bridge result must be either fully opened or blocked without a session.',
+        ),
+        issues = List.unmodifiable(issues);
 
   factory TransitionUnifiedScopeBridgeEntryResult.blocked({
     required TransitionUnifiedScopeBridgeBlockReason blockReason,
@@ -98,6 +107,7 @@ class TransitionUnifiedScopeBridgeEntryResult {
       blockReason == null &&
       entryResult?.opensUnifiedScope == true &&
       session != null;
+  bool get isBlocked => !opensUnifiedScope;
 }
 
 class TransitionUnifiedScopeBridgeSession {

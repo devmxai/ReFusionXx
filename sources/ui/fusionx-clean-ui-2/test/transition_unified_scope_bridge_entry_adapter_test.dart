@@ -58,6 +58,7 @@ void main() {
     );
 
     expect(result.opensUnifiedScope, isFalse);
+    expect(result.isBlocked, isTrue);
     expect(
       result.blockReason,
       TransitionUnifiedScopeBridgeBlockReason.unsupportedPreset,
@@ -71,6 +72,7 @@ void main() {
     final result = adapter.resolveBridgeEntry(request());
 
     expect(result.opensUnifiedScope, isTrue);
+    expect(result.isBlocked, isFalse);
     expect(result.blockReason, isNull);
     expect(result.definition!.definitionId, 'cross_dissolve');
     expect(result.factoryResult!.canBuild, isTrue);
@@ -153,6 +155,7 @@ void main() {
     );
 
     expect(result.opensUnifiedScope, isFalse);
+    expect(result.isBlocked, isTrue);
     expect(
       result.blockReason,
       TransitionUnifiedScopeBridgeBlockReason.requestBlocked,
@@ -172,6 +175,7 @@ void main() {
     );
 
     expect(result.opensUnifiedScope, isFalse);
+    expect(result.isBlocked, isTrue);
     expect(
       result.blockReason,
       TransitionUnifiedScopeBridgeBlockReason.entryGateBlocked,
