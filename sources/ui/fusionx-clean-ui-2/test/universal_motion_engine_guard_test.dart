@@ -158,10 +158,27 @@ void main() {
       () async {
     final source = await liveScrubDescriptorProjectionFile.readAsString();
     expect(source.contains('MasterRendererModeAdapter'), isTrue);
+    expect(source.contains('MasterRendererContracts'), isTrue);
     expect(source.contains('masterRendererModeAdapter.buildProof('), isTrue);
     expect(source.contains("'projection_blocked'"), isFalse);
     expect(source.contains("'awaiting_native_ack'"), isFalse);
     expect(source.contains('_extractDiagnosticValue('), isFalse);
     expect(source.contains('RendererPresentationProof('), isFalse);
+    expect(source.contains("'stage5-scrub-surface'"), isFalse);
+  });
+
+  test('live scrub program adapter uses renderer contract ids', () async {
+    final source = await liveScrubProgramAdapterFile.readAsString();
+    expect(source.contains('MasterRendererContracts'), isTrue);
+    expect(
+      source.contains('MasterRendererContracts.liveScrubProgramRequestId('),
+      isTrue,
+    );
+    expect(
+      source
+          .contains('MasterRendererContracts.liveScrubRuntimeBridgeSurfaceId'),
+      isTrue,
+    );
+    expect(source.contains("'stage5-runtime-bridge'"), isFalse);
   });
 }

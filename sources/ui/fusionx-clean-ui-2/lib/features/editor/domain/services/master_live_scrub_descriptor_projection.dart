@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import '../models/master_live_scrub_descriptor_models.dart';
 import '../models/master_renderer_adapter_models.dart';
+import '../models/master_renderer_contract_models.dart';
 import '../models/master_live_scrub_visual_program_models.dart';
 import 'master_renderer_mode_adapter.dart';
 
@@ -247,12 +248,13 @@ class MasterLiveScrubDescriptorProjection {
         for (final descriptor in descriptors)
           if (descriptor.sourceUri.trim().isNotEmpty) descriptor.targetId,
       ],
-      requestId:
-          'liveScrub:${program.time.commitFrameNumber}:${program.time.frameIndex}:$timelinePositionMs',
+      requestId: MasterRendererContracts.liveScrubDescriptorRequestId(
+        program.time,
+      ),
       sourceRevision: program.sourceRevision,
       renderGraphRevision: program.renderGraphRevision,
       blockers: blockers,
-      surfaceId: 'stage5-scrub-surface',
+      surfaceId: MasterRendererContracts.liveScrubDescriptorSurfaceId,
       nativePresentationAck: false,
     );
 

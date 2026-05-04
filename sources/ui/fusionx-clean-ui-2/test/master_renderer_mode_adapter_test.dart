@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:refusion_app/features/editor/domain/models/master_live_scrub_descriptor_models.dart';
 import 'package:refusion_app/features/editor/domain/models/master_render_graph_models.dart';
 import 'package:refusion_app/features/editor/domain/models/master_renderer_adapter_models.dart';
+import 'package:refusion_app/features/editor/domain/models/master_renderer_contract_models.dart';
 import 'package:refusion_app/features/editor/domain/models/master_time_models.dart';
 import 'package:refusion_app/features/editor/domain/models/master_visual_program_models.dart';
 import 'package:refusion_app/features/editor/domain/services/master_renderer_mode_adapter.dart';
@@ -117,7 +118,7 @@ void main() {
       sourceRevision: 'msr:live-1',
       renderGraphRevision: 'mrg:live-1',
       blockers: const <String>[],
-      surfaceId: 'stage5-scrub-surface',
+      surfaceId: MasterRendererContracts.liveScrubDescriptorSurfaceId,
       nativePresentationAck: false,
     );
 
@@ -137,7 +138,7 @@ void main() {
       sourceRevision: 'msr:live-2',
       renderGraphRevision: 'mrg:live-2',
       blockers: const <String>['missing_source_window:layer-a'],
-      surfaceId: 'stage5-scrub-surface',
+      surfaceId: MasterRendererContracts.liveScrubDescriptorSurfaceId,
       nativePresentationAck: false,
     );
 

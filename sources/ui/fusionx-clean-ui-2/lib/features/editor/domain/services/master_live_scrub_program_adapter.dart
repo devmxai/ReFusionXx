@@ -2,6 +2,7 @@ import '../models/master_frame_evaluation_models.dart';
 import '../models/master_live_scrub_visual_program_models.dart';
 import '../models/master_render_graph_models.dart';
 import '../models/master_renderer_adapter_models.dart';
+import '../models/master_renderer_contract_models.dart';
 import '../models/master_time_models.dart';
 import '../models/master_visual_program_models.dart';
 import '../models/professional_motion_animation_models.dart';
@@ -41,10 +42,9 @@ class MasterLiveScrubProgramAdapter {
       mode: _rendererModeFromMasterRenderMode(frame.time.renderMode),
       program: masterProgram,
       renderGraph: renderGraph,
-      requestId:
-          'mlsp:${frame.time.commitFrameNumber}:${frame.time.frameIndex}:${frame.time.renderMode.name}',
+      requestId: MasterRendererContracts.liveScrubProgramRequestId(frame.time),
       sourceRevision: _buildSourceRevision(masterProgram),
-      surfaceId: 'stage5-runtime-bridge',
+      surfaceId: MasterRendererContracts.liveScrubRuntimeBridgeSurfaceId,
       nativePresentationAck: false,
     );
     return _projectFromMasterVisualProgram(
