@@ -9,8 +9,12 @@ void main() {
 
   test('master evaluation path uses universal evaluation service', () async {
     final source = await screenFile.readAsString();
+    expect(
+      source.contains('MasterFrameEvaluation? _masterFrameEvaluationForMode('),
+      isFalse,
+    );
     final methodStart =
-        source.indexOf('MasterFrameEvaluation? _masterFrameEvaluationForMode(');
+        source.indexOf('MasterFrameEvaluation _masterFrameEvaluationForMode(');
     expect(methodStart, isNonNegative);
     final methodEnd = source.indexOf(
       'String _liveScrubRuntimeBridgeSubmissionKey({',

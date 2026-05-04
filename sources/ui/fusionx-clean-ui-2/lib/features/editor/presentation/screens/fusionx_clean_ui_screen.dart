@@ -21591,7 +21591,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
   }
 
-  MasterFrameEvaluation? _masterFrameEvaluationForMode(
+  MasterFrameEvaluation _masterFrameEvaluationForMode(
     String mode, {
     TimelineTime? previewTimeOverride,
   }) {
@@ -21786,7 +21786,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       mode,
       previewTimeOverride: previewTime,
     );
-    if (activeTransition == null || evaluation == null) {
+    if (activeTransition == null) {
       return Stage5VisualRuntimeState(
         revision: ++_stage5VisualRuntimeRevision,
         timelineTimeMs: previewTime.inMilliseconds,
@@ -22230,8 +22230,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       mode,
       previewTimeOverride: _timelineDisplayTimeNotifier.value,
     );
-    final evaluationDiagnostics =
-        evaluation == null ? const <String>[] : evaluation.diagnostics;
+    final evaluationDiagnostics = evaluation.diagnostics;
     debugPrint(
       'Professional transition render plan blocked: '
       'transition=${transition.id}, preset=${transition.preset.name}, '
