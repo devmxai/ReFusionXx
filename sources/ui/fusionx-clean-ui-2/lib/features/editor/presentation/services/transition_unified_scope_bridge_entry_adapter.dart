@@ -10,7 +10,7 @@ import 'transition_scope_graph_lane_adapter.dart';
 import 'transition_unified_scope_entry_gate.dart';
 import 'transition_unified_scope_request_factory.dart';
 
-enum TransitionUnifiedScopeBridgeFallbackReason {
+enum TransitionUnifiedScopeBridgeBlockReason {
   unsupportedPreset,
   catalogBlocked,
   requestBlocked,
@@ -56,7 +56,7 @@ class TransitionUnifiedScopeBridgeEntryResult {
   }) : issues = List.unmodifiable(issues);
 
   factory TransitionUnifiedScopeBridgeEntryResult.blocked({
-    required TransitionUnifiedScopeBridgeFallbackReason blockReason,
+    required TransitionUnifiedScopeBridgeBlockReason blockReason,
     NormalTransitionDefinition? definition,
     TransitionUnifiedScopeRequestFactoryResult? factoryResult,
     TransitionUnifiedScopeEntryResult? entryResult,
@@ -87,7 +87,7 @@ class TransitionUnifiedScopeBridgeEntryResult {
     );
   }
 
-  final TransitionUnifiedScopeBridgeFallbackReason? blockReason;
+  final TransitionUnifiedScopeBridgeBlockReason? blockReason;
   final NormalTransitionDefinition? definition;
   final TransitionUnifiedScopeRequestFactoryResult? factoryResult;
   final TransitionUnifiedScopeEntryResult? entryResult;
@@ -190,8 +190,7 @@ class TransitionUnifiedScopeBridgeEntryAdapter {
     final definitionId = timelineAdapter.definitionIdForPreset(request.preset);
     if (definitionId == null) {
       return TransitionUnifiedScopeBridgeEntryResult.blocked(
-        blockReason:
-            TransitionUnifiedScopeBridgeFallbackReason.unsupportedPreset,
+        blockReason: TransitionUnifiedScopeBridgeBlockReason.unsupportedPreset,
         issues: <NormalTransitionIssue>[
           NormalTransitionIssue(
             severity: NormalTransitionIssueSeverity.error,
@@ -206,7 +205,7 @@ class TransitionUnifiedScopeBridgeEntryAdapter {
     final catalogResult = catalog.loadBuiltIns();
     if (!catalogResult.isValid) {
       return TransitionUnifiedScopeBridgeEntryResult.blocked(
-        blockReason: TransitionUnifiedScopeBridgeFallbackReason.catalogBlocked,
+        blockReason: TransitionUnifiedScopeBridgeBlockReason.catalogBlocked,
         issues: catalogResult.issues,
       );
     }
@@ -214,8 +213,7 @@ class TransitionUnifiedScopeBridgeEntryAdapter {
     final definition = catalogResult.definitionById(definitionId);
     if (definition == null) {
       return TransitionUnifiedScopeBridgeEntryResult.blocked(
-        blockReason:
-            TransitionUnifiedScopeBridgeFallbackReason.unsupportedPreset,
+        blockReason: TransitionUnifiedScopeBridgeBlockReason.unsupportedPreset,
         issues: <NormalTransitionIssue>[
           NormalTransitionIssue(
             severity: NormalTransitionIssueSeverity.error,
@@ -242,7 +240,7 @@ class TransitionUnifiedScopeBridgeEntryAdapter {
     final unifiedRequest = factoryResult.request;
     if (!factoryResult.canBuild || unifiedRequest == null) {
       return TransitionUnifiedScopeBridgeEntryResult.blocked(
-        blockReason: TransitionUnifiedScopeBridgeFallbackReason.requestBlocked,
+        blockReason: TransitionUnifiedScopeBridgeBlockReason.requestBlocked,
         definition: definition,
         factoryResult: factoryResult,
         issues: factoryResult.issues,
@@ -263,8 +261,7 @@ class TransitionUnifiedScopeBridgeEntryAdapter {
         issues.add(laneIssue);
       }
       return TransitionUnifiedScopeBridgeEntryResult.blocked(
-        blockReason:
-            TransitionUnifiedScopeBridgeFallbackReason.entryGateBlocked,
+        blockReason: TransitionUnifiedScopeBridgeBlockReason.entryGateBlocked,
         definition: definition,
         factoryResult: factoryResult,
         entryResult: entryResult,

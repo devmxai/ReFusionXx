@@ -147,7 +147,7 @@ void main() {
     );
     expect(
       source.contains(
-        'TransitionUnifiedScopeBridgeFallbackReason.featureDisabled',
+        'TransitionUnifiedScopeBridgeBlockReason.featureDisabled',
       ),
       isFalse,
     );

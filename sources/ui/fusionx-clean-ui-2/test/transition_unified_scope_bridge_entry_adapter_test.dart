@@ -60,7 +60,7 @@ void main() {
     expect(result.opensUnifiedScope, isFalse);
     expect(
       result.blockReason,
-      TransitionUnifiedScopeBridgeFallbackReason.unsupportedPreset,
+      TransitionUnifiedScopeBridgeBlockReason.unsupportedPreset,
     );
     expect(result.issues.single.path, 'preset');
   });
@@ -155,7 +155,7 @@ void main() {
     expect(result.opensUnifiedScope, isFalse);
     expect(
       result.blockReason,
-      TransitionUnifiedScopeBridgeFallbackReason.requestBlocked,
+      TransitionUnifiedScopeBridgeBlockReason.requestBlocked,
     );
     expect(result.factoryResult!.canBuild, isFalse);
     expect(result.issues.single.path, 'boundary');
@@ -174,11 +174,11 @@ void main() {
     expect(result.opensUnifiedScope, isFalse);
     expect(
       result.blockReason,
-      TransitionUnifiedScopeBridgeFallbackReason.entryGateBlocked,
+      TransitionUnifiedScopeBridgeBlockReason.entryGateBlocked,
     );
     expect(
       result.entryResult!.blockReason,
-      TransitionUnifiedScopeEntryFallbackReason.graphApplyBlocked,
+      TransitionUnifiedScopeEntryBlockReason.graphApplyBlocked,
     );
     expect(result.issues.map((issue) => issue.path), contains('leftClipId'));
   });

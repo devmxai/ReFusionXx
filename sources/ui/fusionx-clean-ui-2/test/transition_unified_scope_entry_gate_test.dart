@@ -149,7 +149,7 @@ void main() {
     expect(result.opensUnifiedScope, isFalse);
     expect(
       result.blockReason,
-      TransitionUnifiedScopeEntryFallbackReason.graphApplyBlocked,
+      TransitionUnifiedScopeEntryBlockReason.graphApplyBlocked,
     );
     expect(result.unifiedScope!.graph.canApply, isFalse);
     expect(
@@ -166,7 +166,7 @@ void main() {
     expect(result.opensUnifiedScope, isFalse);
     expect(
       result.blockReason,
-      TransitionUnifiedScopeEntryFallbackReason.projectionBlocked,
+      TransitionUnifiedScopeEntryBlockReason.projectionBlocked,
     );
     expect(
       result.projectionIssues.single.code,

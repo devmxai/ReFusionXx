@@ -20175,7 +20175,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
     if (!result.opensUnifiedScope) {
       final shouldReportIssue = result.blockReason !=
-              TransitionUnifiedScopeBridgeFallbackReason.unsupportedPreset &&
+              TransitionUnifiedScopeBridgeBlockReason.unsupportedPreset &&
           result.issues.isNotEmpty;
       if (shouldReportIssue) {
         _showNormalTransitionIssues(result.issues);
