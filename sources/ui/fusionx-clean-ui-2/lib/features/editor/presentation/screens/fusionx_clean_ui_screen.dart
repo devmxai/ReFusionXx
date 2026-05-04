@@ -20245,6 +20245,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       )) {
         return;
       }
+      if (_normalTransitionAuthoringAdapter
+          .isNormalPreset(existingTransition.preset)) {
+        _showStageMessage(
+          'Unified Transition Scope blocked for this boundary. Resolve reported issues before reopening.',
+        );
+        return;
+      }
       if (existingTransition.preset == TimelineTransitionPreset.manual) {
         _enterTransitionFocusMode(existingTransition.id);
         return;
@@ -20310,6 +20317,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       preset: preset,
       transition: transition,
     )) {
+      return;
+    }
+    if (_normalTransitionAuthoringAdapter.isNormalPreset(preset)) {
+      _showStageMessage(
+        'Unified Transition Scope blocked for this boundary. Resolve reported issues before reopening.',
+      );
       return;
     }
     if (browserResult.action == TransitionBrowserAction.openManual) {

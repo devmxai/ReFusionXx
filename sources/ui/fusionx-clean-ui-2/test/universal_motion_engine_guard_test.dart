@@ -159,6 +159,29 @@ void main() {
     expect(source.contains('TimelineTrackKind.shape,'), isTrue);
   });
 
+  test('normal transitions do not fall back to legacy inspector flow',
+      () async {
+    final source = await screenFile.readAsString();
+    expect(
+      source.contains(
+        'if (_normalTransitionAuthoringAdapter\n'
+        '          .isNormalPreset(existingTransition.preset)) {',
+      ),
+      isTrue,
+    );
+    expect(
+      source.contains(
+          'if (_normalTransitionAuthoringAdapter.isNormalPreset(preset)) {'),
+      isTrue,
+    );
+    expect(
+      source.contains(
+        'Unified Transition Scope blocked for this boundary. Resolve reported issues before reopening.',
+      ),
+      isTrue,
+    );
+  });
+
   test('live scrub program is projected from master visual program', () async {
     final source = await liveScrubProgramAdapterFile.readAsString();
     expect(source.contains('MasterVisualProgramAdapter'), isTrue);
