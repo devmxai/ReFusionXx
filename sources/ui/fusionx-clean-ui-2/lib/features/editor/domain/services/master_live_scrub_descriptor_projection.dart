@@ -51,7 +51,8 @@ class MasterLiveScrubDescriptorProjection {
             ? window.playbackRate
             : 1.0;
         final timelineOffsetMs = (timelinePositionMs - window.timelineStartMs)
-            .clamp(0, math.max(0, window.timelineEndMs - window.timelineStartMs))
+            .clamp(
+                0, math.max(0, window.timelineEndMs - window.timelineStartMs))
             .toInt();
         final sourceOffsetMs = (timelineOffsetMs * rate).round();
         sourcePositionMs = (window.sourceStartMs + sourceOffsetMs).clamp(
@@ -79,7 +80,8 @@ class MasterLiveScrubDescriptorProjection {
       if (surface.opacity < 1.0 && !capabilities.supportsOpacity) {
         surfaceBlockers.add('native_missing_opacity_capability');
       }
-      if (surface.effects.isNotEmpty && !capabilities.supportsEffectProgramIds) {
+      if (surface.effects.isNotEmpty &&
+          !capabilities.supportsEffectProgramIds) {
         surfaceBlockers.add('native_missing_effect_programs_capability');
       }
       if (surface.effects.isNotEmpty &&
@@ -119,9 +121,9 @@ class MasterLiveScrubDescriptorProjection {
             1,
             transitionWindow.timelineEndMs - transitionWindow.timelineStartMs,
           );
-          final rawProgress = (timelinePositionMs -
-                  transitionWindow.timelineStartMs) /
-              transitionDurationMs;
+          final rawProgress =
+              (timelinePositionMs - transitionWindow.timelineStartMs) /
+                  transitionDurationMs;
           transitionProgress = rawProgress.clamp(0.0, 1.0);
           if (timelinePositionMs < transitionWindow.timelineStartMs ||
               timelinePositionMs > transitionWindow.timelineEndMs) {
@@ -181,7 +183,8 @@ class MasterLiveScrubDescriptorProjection {
     );
     final missingDescriptors = <String>[
       for (final descriptor in descriptors)
-        if (descriptor.blockers.any((blocker) => blocker.startsWith('missing_')))
+        if (descriptor.blockers
+            .any((blocker) => blocker.startsWith('missing_')))
           descriptor.targetId,
     ];
     final unsupportedEffects = <String>[
@@ -212,18 +215,18 @@ class MasterLiveScrubDescriptorProjection {
         effectivePerformanceSnapshot.crossSourceWarmupReady == null) {
       latencyBudgetState = LiveScrubLatencyBudgetState.nativeMetricsPending;
     } else {
-      final isWithinBudget =
-          (effectivePerformanceSnapshot.frameRequestRateFps! >=
-                  latencyThresholds.minFrameRequestRateFps) &&
-              (effectivePerformanceSnapshot.nativeDecodeRebindLatencyMs! <=
-                  latencyThresholds.maxNativeDecodeRebindLatencyMs) &&
-              (effectivePerformanceSnapshot.descriptorProjectionLatencyUs ?? 0) <=
-                  latencyThresholds.maxDescriptorProjectionLatencyUs &&
-              (effectivePerformanceSnapshot.framePresentationLatencyMs! <=
-                  latencyThresholds.maxFramePresentationLatencyMs) &&
-              (effectivePerformanceSnapshot.droppedFrameCount! <=
-                  latencyThresholds.maxDroppedFrameCount) &&
-              effectivePerformanceSnapshot.crossSourceWarmupReady!;
+      final isWithinBudget = (effectivePerformanceSnapshot
+                  .frameRequestRateFps! >=
+              latencyThresholds.minFrameRequestRateFps) &&
+          (effectivePerformanceSnapshot.nativeDecodeRebindLatencyMs! <=
+              latencyThresholds.maxNativeDecodeRebindLatencyMs) &&
+          (effectivePerformanceSnapshot.descriptorProjectionLatencyUs ?? 0) <=
+              latencyThresholds.maxDescriptorProjectionLatencyUs &&
+          (effectivePerformanceSnapshot.framePresentationLatencyMs! <=
+              latencyThresholds.maxFramePresentationLatencyMs) &&
+          (effectivePerformanceSnapshot.droppedFrameCount! <=
+              latencyThresholds.maxDroppedFrameCount) &&
+          effectivePerformanceSnapshot.crossSourceWarmupReady!;
       latencyBudgetState = isWithinBudget
           ? LiveScrubLatencyBudgetState.withinBudget
           : LiveScrubLatencyBudgetState.overBudget;
@@ -248,7 +251,46 @@ class MasterLiveScrubDescriptorProjection {
         latencyBudgetState: latencyBudgetState,
         performanceSnapshot: effectivePerformanceSnapshot,
       ),
+      rendererPresentationProof: RendererPresentationProof(
+        requestedRootTimeMs: timelinePositionMs,
+        requestedFrameIndex: program.time.frameIndex,
+        requestedCommitFrameNumber: program.time.commitFrameNumber,
+        requestedSourceIds: <String>[
+          for (final descriptor in descriptors)
+            if (descriptor.sourceUri.trim().isNotEmpty) descriptor.targetId,
+        ],
+        requestId:
+            'liveScrub:${program.time.commitFrameNumber}:${program.time.frameIndex}:$timelinePositionMs',
+        sourceRevision: _extractDiagnosticValue(
+          diagnostics,
+          'master_source_revision:',
+        ),
+        renderGraphRevision: _extractDiagnosticValue(
+          diagnostics,
+          'master_render_graph_revision:',
+        ),
+        rendererMode: program.time.renderMode.name,
+        blockers: blockers,
+        nativePresentationAck: false,
+        matchState: blockers.isEmpty
+            ? RendererPresentationMatchState.pendingNativeAck
+            : RendererPresentationMatchState.blocked,
+        matchReason:
+            blockers.isEmpty ? 'awaiting_native_ack' : 'projection_blocked',
+      ),
     );
+  }
+
+  String _extractDiagnosticValue(List<String> diagnostics, String prefix) {
+    for (final entry in diagnostics) {
+      if (entry.startsWith(prefix)) {
+        final value = entry.substring(prefix.length).trim();
+        if (value.isNotEmpty) {
+          return value;
+        }
+      }
+    }
+    return 'unknown';
   }
 
   String _stableDescriptorId({

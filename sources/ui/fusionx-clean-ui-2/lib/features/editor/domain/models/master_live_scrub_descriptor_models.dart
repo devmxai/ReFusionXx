@@ -78,6 +78,79 @@ enum LiveScrubLatencyBudgetState {
   overBudget,
 }
 
+enum RendererPresentationMatchState {
+  pendingNativeAck,
+  matched,
+  mismatched,
+  blocked,
+}
+
+@immutable
+class RendererPresentationProof {
+  const RendererPresentationProof({
+    this.requestedRootTimeMs = 0,
+    this.requestedFrameIndex = 0,
+    this.requestedCommitFrameNumber = 0,
+    this.requestedSourceIds = const <String>[],
+    this.requestId = 'uninitialized',
+    this.sourceRevision = 'unknown',
+    this.renderGraphRevision = 'unknown',
+    this.rendererMode = 'unknown',
+    this.blockers = const <String>[],
+    this.presentedRootTimeMs,
+    this.presentedFrameIndex,
+    this.presentedCommitFrameNumber,
+    this.presentedSourceIds = const <String>[],
+    this.surfaceId,
+    this.presentationTimestampUs,
+    this.nativePresentationAck = false,
+    this.matchState = RendererPresentationMatchState.pendingNativeAck,
+    this.matchReason = 'awaiting_native_ack',
+  });
+
+  final int requestedRootTimeMs;
+  final int requestedFrameIndex;
+  final int requestedCommitFrameNumber;
+  final List<String> requestedSourceIds;
+  final String requestId;
+  final String sourceRevision;
+  final String renderGraphRevision;
+  final String rendererMode;
+  final List<String> blockers;
+  final int? presentedRootTimeMs;
+  final int? presentedFrameIndex;
+  final int? presentedCommitFrameNumber;
+  final List<String> presentedSourceIds;
+  final String? surfaceId;
+  final int? presentationTimestampUs;
+  final bool nativePresentationAck;
+  final RendererPresentationMatchState matchState;
+  final String matchReason;
+
+  Map<String, Object?> toMap() {
+    return <String, Object?>{
+      'requestedRootTimeMs': requestedRootTimeMs,
+      'requestedFrameIndex': requestedFrameIndex,
+      'requestedCommitFrameNumber': requestedCommitFrameNumber,
+      'requestedSourceIds': requestedSourceIds,
+      'requestId': requestId,
+      'sourceRevision': sourceRevision,
+      'renderGraphRevision': renderGraphRevision,
+      'rendererMode': rendererMode,
+      'blockers': blockers,
+      'presentedRootTimeMs': presentedRootTimeMs,
+      'presentedFrameIndex': presentedFrameIndex,
+      'presentedCommitFrameNumber': presentedCommitFrameNumber,
+      'presentedSourceIds': presentedSourceIds,
+      'surfaceId': surfaceId,
+      'presentationTimestampUs': presentationTimestampUs,
+      'nativePresentationAck': nativePresentationAck,
+      'matchState': matchState.name,
+      'matchReason': matchReason,
+    };
+  }
+}
+
 @immutable
 class LiveScrubPerformanceSnapshot {
   const LiveScrubPerformanceSnapshot({
@@ -285,6 +358,7 @@ class LiveScrubDescriptorProjectionResult {
     List<String> diagnostics = const <String>[],
     required this.canProject,
     required this.parityReport,
+    this.rendererPresentationProof = const RendererPresentationProof(),
   })  : descriptors = List.unmodifiable(descriptors),
         blockers = List.unmodifiable(blockers),
         diagnostics = List.unmodifiable(diagnostics);
@@ -295,6 +369,7 @@ class LiveScrubDescriptorProjectionResult {
   final List<String> diagnostics;
   final bool canProject;
   final LiveScrubParityReport parityReport;
+  final RendererPresentationProof rendererPresentationProof;
 
   Map<String, Object?> toRuntimeBridgeNativeMap() {
     return <String, Object?>{
@@ -306,6 +381,7 @@ class LiveScrubDescriptorProjectionResult {
       'diagnostics': diagnostics,
       'canProject': canProject,
       'parityReport': parityReport.toMap(),
+      'rendererPresentationProof': rendererPresentationProof.toMap(),
     };
   }
 }

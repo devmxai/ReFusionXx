@@ -76,6 +76,12 @@ void main() {
       expect(parity['latencyBudgetState'], 'nativeMetricsPending');
       final performance = parity['performanceSnapshot'] as Map<String, Object?>;
       expect(performance['descriptorProjectionLatencyUs'], 1200);
+
+      final proof =
+          payload['rendererPresentationProof'] as Map<String, Object?>;
+      expect(proof['requestedRootTimeMs'], 0);
+      expect(proof['nativePresentationAck'], isFalse);
+      expect(proof['matchState'], 'pendingNativeAck');
     },
   );
 }

@@ -125,6 +125,14 @@ void main() {
       first.parityReport.latencyBudgetState,
       LiveScrubLatencyBudgetState.nativeMetricsUnavailable,
     );
+    expect(first.rendererPresentationProof.requestedRootTimeMs, 2500);
+    expect(
+        first.rendererPresentationProof.requestedFrameIndex, time.frameIndex);
+    expect(first.rendererPresentationProof.nativePresentationAck, isFalse);
+    expect(
+      first.rendererPresentationProof.matchState,
+      RendererPresentationMatchState.pendingNativeAck,
+    );
   });
 
   test('reports blockers when source window is missing', () {
@@ -165,6 +173,10 @@ void main() {
     expect(result.canProject, isFalse);
     expect(result.blockers, contains('missing_source_window:layer-1'));
     expect(result.descriptors.single.isValid, isFalse);
+    expect(
+      result.rendererPresentationProof.matchState,
+      RendererPresentationMatchState.blocked,
+    );
   });
 
   test('blocks unsupported placement and transform capabilities', () {
@@ -274,7 +286,8 @@ void main() {
     );
   });
 
-  test('blocks unsupported effect programs when capability catalog rejects id', () {
+  test('blocks unsupported effect programs when capability catalog rejects id',
+      () {
     final clock = TimelineClockCoordinator(
       timelineDuration: ms(5000),
       initialTime: ms(1500),
@@ -427,7 +440,9 @@ void main() {
     expect(descriptor.transitionProgress, closeTo(0.5, 0.0001));
   });
 
-  test('blocks transition rendering when timeline is outside real transition window', () {
+  test(
+      'blocks transition rendering when timeline is outside real transition window',
+      () {
     final clock = TimelineClockCoordinator(
       timelineDuration: ms(8000),
       initialTime: ms(3500),
@@ -509,7 +524,8 @@ void main() {
     );
   });
 
-  test('reports latency budget within limits when native metrics are healthy', () {
+  test('reports latency budget within limits when native metrics are healthy',
+      () {
     final clock = TimelineClockCoordinator(
       timelineDuration: ms(8000),
       initialTime: ms(2400),
