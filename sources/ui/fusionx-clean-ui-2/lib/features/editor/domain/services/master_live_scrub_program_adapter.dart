@@ -6,7 +6,11 @@ import '../models/professional_motion_models.dart';
 class MasterLiveScrubProgramAdapter {
   const MasterLiveScrubProgramAdapter();
 
-  static const Set<String> _supportedEffectIds = <String>{'gaussianBlur'};
+  static const Set<String> _supportedEffectIds = <String>{
+    'gaussianBlur',
+    'motionBlurAmount',
+    'tileOutputScale',
+  };
 
   LiveScrubVisualProgram build({
     required MasterFrameEvaluation frame,
@@ -38,7 +42,7 @@ class MasterLiveScrubProgramAdapter {
       final source = sourcesByTargetId[targetId];
       final values = grouped[targetId] ?? const <MasterEvaluatedPropertyValue>[];
       final blockers = <String>[];
-      final effects = <LiveScrubEffectBinding>[];
+      final effectsById = <String, LiveScrubEffectBinding>{};
       var transform = const LiveScrubSurfaceTransform();
       var opacity = 1.0;
 
@@ -92,16 +96,16 @@ class MasterLiveScrubProgramAdapter {
               transform = transform.copyWith(rotationRadians: rendererScalar);
             }
           case 'gaussianBlur':
+          case 'motionBlurAmount':
+          case 'tileOutputScale':
             if (rendererScalar == null || !rendererScalar.isFinite) {
               blockers.add('invalid_effect_value:${value.propertyDefinitionId}');
               continue;
             }
-            effects.add(
-              LiveScrubEffectBinding(
-                id: value.propertyDefinitionId,
-                rendererValue: rendererScalar,
-                rendererUnit: value.mapping.rendererUnit,
-              ),
+            effectsById[value.propertyDefinitionId] = LiveScrubEffectBinding(
+              id: value.propertyDefinitionId,
+              rendererValue: rendererScalar,
+              rendererUnit: value.mapping.rendererUnit,
             );
           default:
             blockers.add(
@@ -118,12 +122,10 @@ class MasterLiveScrubProgramAdapter {
           if (mapping != null &&
               rendererScalar != null &&
               rendererScalar.isFinite) {
-            effects.add(
-              LiveScrubEffectBinding(
-                id: effectId,
-                rendererValue: rendererScalar,
-                rendererUnit: mapping.rendererUnit,
-              ),
+            effectsById[effectId] = LiveScrubEffectBinding(
+              id: effectId,
+              rendererValue: rendererScalar,
+              rendererUnit: mapping.rendererUnit,
             );
           } else {
             blockers.add('invalid_effect_value:$effectId');
@@ -147,7 +149,7 @@ class MasterLiveScrubProgramAdapter {
               LiveScrubTransitionRole.none,
           transform: transform,
           opacity: opacity,
-          effects: effects,
+          effects: effectsById.values.toList(growable: false),
           blockers: blockers,
         ),
       );

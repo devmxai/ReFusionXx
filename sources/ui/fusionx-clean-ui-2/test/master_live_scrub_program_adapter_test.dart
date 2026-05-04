@@ -126,6 +126,19 @@ void main() {
         definition: MotionPropertyCatalog.blurAmount,
         keyframes: const <MotionKeyframeModel>[],
       ),
+      MotionPropertyChannelModel(
+        id: 'ch.motion.blur',
+        target: const MotionPropertyTarget(
+          kind: MotionTargetKind.element,
+          targetId: 'element-1',
+          projectId: 'project-1',
+          sceneId: 'scene-1',
+          layerId: 'layer-1',
+          elementId: 'element-1',
+        ),
+        definition: MotionPropertyCatalog.blurAmount,
+        keyframes: const <MotionKeyframeModel>[],
+      ),
     ];
 
     final frame = MasterFrameEvaluation(
@@ -188,6 +201,15 @@ void main() {
           sourceChannelId: 'ch.blur',
           status: 'resolved',
         ),
+        MasterEvaluatedPropertyValue(
+          targetId: 'element-1',
+          propertyDefinitionId: 'motionBlurAmount',
+          domain: const MasterTimeDomain.scene('scene-1'),
+          mapping:
+              mapping('motionBlurAmount', const MotionPropertyValue.scalar(35)),
+          sourceChannelId: 'ch.motion.blur',
+          status: 'resolved',
+        ),
       ],
       effectParameters: <String, MasterPropertyValueMapping>{
         'tileOutputScale':
@@ -225,12 +247,23 @@ void main() {
     expect(surface.transform.rotationRadians, closeTo(math.pi / 2.0, 0.0001));
     expect(surface.transitionRole, LiveScrubTransitionRole.outgoing);
     expect(surface.effects.any((effect) => effect.id == 'gaussianBlur'), isTrue);
+    expect(
+      surface.effects.any((effect) => effect.id == 'motionBlurAmount'),
+      isTrue,
+    );
+    expect(
+      surface.effects.any((effect) => effect.id == 'tileOutputScale'),
+      isTrue,
+    );
 
     expect(program.transitionState.hasTransitionWindow, isTrue);
     expect(program.transitionState.hasRenderableTransitionPixels, isFalse);
     expect(program.transitionState.reason, 'phase1_domain_contract_only');
 
-    expect(program.blockers, contains('unsupported_effect:tileOutputScale'));
-    expect(program.canRenderTruthfully, isFalse);
+    expect(
+      program.blockers.where((blocker) => blocker.contains('unsupported_effect')),
+      isEmpty,
+    );
+    expect(program.canRenderTruthfully, isTrue);
   });
 }
