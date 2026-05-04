@@ -202,4 +202,131 @@ void main() {
       contains('duplicate_channel_conflict:transition:channel.scale.x'),
     );
   });
+
+  test('flags duplicate channels with different active range as conflict', () {
+    const collector = UniversalMotionChannelCollector();
+    final first = MotionPropertyChannelModel(
+      id: 'channel.scale.x',
+      target: const MotionPropertyTarget(
+        kind: MotionTargetKind.element,
+        targetId: 'element-1',
+        projectId: 'project-1',
+      ),
+      definition: MotionPropertyCatalog.scaleX,
+      activeRange: TimelineTimeRange(
+        start: TimelineTime.zero,
+        endExclusive: ms(3000),
+      ),
+      keyframes: const <MotionKeyframeModel>[
+        MotionKeyframeModel(
+          id: 'k0',
+          channelId: 'channel.scale.x',
+          time: TimelineTime.zero,
+          value: MotionPropertyValue.scalar(1),
+          interpolationToNext: MotionInterpolationSpec.linear(),
+        ),
+      ],
+    );
+    final conflicting = first.copyWith(
+      activeRange: TimelineTimeRange(
+        start: TimelineTime.zero,
+        endExclusive: ms(2500),
+      ),
+    );
+
+    final result = collector.collect(
+      project: buildProject(),
+      sceneClips: buildSceneClips(),
+      sources: <UniversalMotionChannelCollectionSource>[
+        UniversalMotionChannelCollectionSource(
+          id: 'manual',
+          channels: <MotionPropertyChannelModel>[first],
+        ),
+        UniversalMotionChannelCollectionSource(
+          id: 'scene_scope',
+          channels: <MotionPropertyChannelModel>[conflicting],
+        ),
+      ],
+    );
+
+    expect(
+      result.blockers,
+      contains('conflicting_channel_definition:channel.scale.x:scene_scope'),
+    );
+  });
+
+  test(
+      'flags duplicate channels with different interpolation as conflict', () {
+    const collector = UniversalMotionChannelCollector();
+    final first = MotionPropertyChannelModel(
+      id: 'channel.scale.x',
+      target: const MotionPropertyTarget(
+        kind: MotionTargetKind.element,
+        targetId: 'element-1',
+        projectId: 'project-1',
+      ),
+      definition: MotionPropertyCatalog.scaleX,
+      keyframes: <MotionKeyframeModel>[
+        const MotionKeyframeModel(
+          id: 'k0',
+          channelId: 'channel.scale.x',
+          time: TimelineTime.zero,
+          value: MotionPropertyValue.scalar(1),
+          interpolationToNext: MotionInterpolationSpec.linear(),
+        ),
+        MotionKeyframeModel(
+          id: 'k1',
+          channelId: 'channel.scale.x',
+          time: TimelineTime.fromMilliseconds(1200),
+          value: MotionPropertyValue.scalar(2),
+          interpolationToNext: MotionInterpolationSpec.linear(),
+        ),
+      ],
+    );
+    final conflicting = MotionPropertyChannelModel(
+      id: 'channel.scale.x',
+      target: const MotionPropertyTarget(
+        kind: MotionTargetKind.element,
+        targetId: 'element-1',
+        projectId: 'project-1',
+      ),
+      definition: MotionPropertyCatalog.scaleX,
+      keyframes: <MotionKeyframeModel>[
+        const MotionKeyframeModel(
+          id: 'k0',
+          channelId: 'channel.scale.x',
+          time: TimelineTime.zero,
+          value: MotionPropertyValue.scalar(1),
+          interpolationToNext: MotionInterpolationSpec.easeInOut(),
+        ),
+        MotionKeyframeModel(
+          id: 'k1',
+          channelId: 'channel.scale.x',
+          time: TimelineTime.fromMilliseconds(1200),
+          value: MotionPropertyValue.scalar(2),
+          interpolationToNext: MotionInterpolationSpec.linear(),
+        ),
+      ],
+    );
+
+    final result = collector.collect(
+      project: buildProject(),
+      sceneClips: buildSceneClips(),
+      sources: <UniversalMotionChannelCollectionSource>[
+        UniversalMotionChannelCollectionSource(
+          id: 'manual',
+          channels: <MotionPropertyChannelModel>[first],
+        ),
+        UniversalMotionChannelCollectionSource(
+          id: 'scene_scope',
+          channels: <MotionPropertyChannelModel>[conflicting],
+        ),
+      ],
+    );
+
+    expect(
+      result.blockers,
+      contains('conflicting_channel_definition:channel.scale.x:scene_scope'),
+    );
+  });
 }

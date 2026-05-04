@@ -1,6 +1,7 @@
 import '../../domain/models/composition_scene_clip_models.dart';
 import '../../domain/models/professional_motion_animation_models.dart';
 import '../../domain/models/professional_motion_models.dart';
+import '../models/timeline_time.dart';
 import 'universal_target_resolver.dart';
 
 class UniversalMotionChannelCollectionSource {
@@ -107,6 +108,16 @@ class UniversalMotionChannelCollector {
         leftTarget.elementId != rightTarget.elementId) {
       return false;
     }
+    if (!_isEquivalentRange(left.activeRange, right.activeRange)) {
+      return false;
+    }
+    if (!_isEquivalentPropertyValue(left.baseValue, right.baseValue)) {
+      return false;
+    }
+    if (left.beforeStart != right.beforeStart ||
+        left.afterEnd != right.afterEnd) {
+      return false;
+    }
     if (left.keyframes.length != right.keyframes.length) {
       return false;
     }
@@ -115,10 +126,83 @@ class UniversalMotionChannelCollector {
       final rightKeyframe = right.keyframes[index];
       if (leftKeyframe.time != rightKeyframe.time ||
           leftKeyframe.value.rawValue != rightKeyframe.value.rawValue ||
-          leftKeyframe.value.kind != rightKeyframe.value.kind) {
+          leftKeyframe.value.kind != rightKeyframe.value.kind ||
+          !_isEquivalentInterpolation(
+            leftKeyframe.interpolationToNext,
+            rightKeyframe.interpolationToNext,
+          )) {
         return false;
       }
     }
     return true;
+  }
+
+  bool _isEquivalentRange(TimelineTimeRange? left, TimelineTimeRange? right) {
+    if (left == null || right == null) {
+      return left == null && right == null;
+    }
+    return left.start == right.start && left.endExclusive == right.endExclusive;
+  }
+
+  bool _isEquivalentPropertyValue(
+    MotionPropertyValue? left,
+    MotionPropertyValue? right,
+  ) {
+    if (left == null || right == null) {
+      return left == null && right == null;
+    }
+    return left.kind == right.kind && left.rawValue == right.rawValue;
+  }
+
+  bool _isEquivalentInterpolation(
+    MotionInterpolationSpec left,
+    MotionInterpolationSpec right,
+  ) {
+    return left.kind == right.kind &&
+        _isEquivalentBezier(left.bezier, right.bezier) &&
+        _isEquivalentSpring(left.spring, right.spring) &&
+        _isEquivalentBounce(left.bounce, right.bounce) &&
+        _isEquivalentElastic(left.elastic, right.elastic);
+  }
+
+  bool _isEquivalentBezier(
+    MotionBezierControlPoints? left,
+    MotionBezierControlPoints? right,
+  ) {
+    if (left == null || right == null) {
+      return left == null && right == null;
+    }
+    return left.x1 == right.x1 &&
+        left.y1 == right.y1 &&
+        left.x2 == right.x2 &&
+        left.y2 == right.y2;
+  }
+
+  bool _isEquivalentSpring(MotionSpringSpec? left, MotionSpringSpec? right) {
+    if (left == null || right == null) {
+      return left == null && right == null;
+    }
+    return left.stiffness == right.stiffness &&
+        left.damping == right.damping &&
+        left.mass == right.mass &&
+        left.initialVelocity == right.initialVelocity;
+  }
+
+  bool _isEquivalentBounce(MotionBounceSpec? left, MotionBounceSpec? right) {
+    if (left == null || right == null) {
+      return left == null && right == null;
+    }
+    return left.amplitude == right.amplitude &&
+        left.bounces == right.bounces &&
+        left.decay == right.decay;
+  }
+
+  bool _isEquivalentElastic(MotionElasticSpec? left, MotionElasticSpec? right) {
+    if (left == null || right == null) {
+      return left == null && right == null;
+    }
+    return left.amplitude == right.amplitude &&
+        left.period == right.period &&
+        left.decay == right.decay;
   }
 }
