@@ -21665,16 +21665,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       );
     }
     final program = _masterLiveScrubProgramAdapter.build(
-      frame: MasterFrameEvaluation(
-        time: evaluation.time,
-        projections: evaluation.projections,
+      frame: evaluation.copyWith(
         visibleLayerIds: <String>[
           ...plan.sources.map((entry) => entry.clipId),
           ...evaluation.visibleLayerIds,
         ],
         activeTransitionIds: <String>[activeTransition.transition.id],
-        evaluatedChannels: evaluation.evaluatedChannels,
-        effectParameters: evaluation.effectParameters,
         diagnostics: <String>[
           ...evaluation.diagnostics,
           ...universalEvaluation.diagnostics,
@@ -21754,13 +21750,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         .where((channel) => activeSourceIds.contains(channel.target.targetId))
         .toList(growable: false);
     final baseProgram = _masterLiveScrubProgramAdapter.build(
-      frame: MasterFrameEvaluation(
-        time: evaluation.time,
-        projections: evaluation.projections,
+      frame: evaluation.copyWith(
         visibleLayerIds: visibleLayerIds,
         activeTransitionIds: <String>[transition.id],
         evaluatedChannels: activeEvaluatedChannels,
-        effectParameters: evaluation.effectParameters,
         diagnostics: <String>[
           ...evaluation.diagnostics,
           ...evaluationResult.diagnostics,

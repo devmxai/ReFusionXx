@@ -48,4 +48,24 @@ class MasterFrameEvaluation {
   final List<MasterEvaluatedPropertyValue> evaluatedChannels;
   final Map<String, MasterPropertyValueMapping> effectParameters;
   final List<String> diagnostics;
+
+  MasterFrameEvaluation copyWith({
+    MasterTimeSnapshot? time,
+    List<MasterTimeProjection>? projections,
+    List<String>? visibleLayerIds,
+    List<String>? activeTransitionIds,
+    List<MasterEvaluatedPropertyValue>? evaluatedChannels,
+    Map<String, MasterPropertyValueMapping>? effectParameters,
+    List<String>? diagnostics,
+  }) {
+    return MasterFrameEvaluation(
+      time: time ?? this.time,
+      projections: projections ?? this.projections,
+      visibleLayerIds: visibleLayerIds ?? this.visibleLayerIds,
+      activeTransitionIds: activeTransitionIds ?? this.activeTransitionIds,
+      evaluatedChannels: evaluatedChannels ?? this.evaluatedChannels,
+      effectParameters: effectParameters ?? this.effectParameters,
+      diagnostics: diagnostics ?? this.diagnostics,
+    );
+  }
 }

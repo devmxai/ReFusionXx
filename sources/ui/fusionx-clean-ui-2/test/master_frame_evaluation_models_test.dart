@@ -5,66 +5,55 @@ import 'package:refusion_app/features/editor/domain/models/master_value_truth_mo
 import 'package:refusion_app/features/editor/presentation/models/timeline_time.dart';
 
 void main() {
-  TimelineTime ms(int value) => TimelineTime.fromMilliseconds(value);
-
-  MasterTimeSnapshot timeSnapshot() {
+  MasterTimeSnapshot snapshot({
+    required int frameIndex,
+    required int commitFrameNumber,
+  }) {
     return MasterTimeSnapshot(
-      rootTime: ms(1000),
-      presentationTime: ms(1000),
-      frameIndex: 30,
-      frameRate: 30,
-      commitFrameNumber: 7,
-      monotonicTimeUs: 2000,
+      rootTime: TimelineTime.fromMilliseconds(frameIndex * 10),
+      presentationTime: TimelineTime.fromMilliseconds(frameIndex * 10),
+      frameIndex: frameIndex,
+      frameRate: 60,
+      commitFrameNumber: commitFrameNumber,
+      monotonicTimeUs: frameIndex * 1000,
       phase: MasterClockPhase.playing,
-      authority: MasterClockAuthority.nativeTransport,
-      renderMode: MasterRenderMode.playback,
+      authority: MasterClockAuthority.user,
+      renderMode: MasterRenderMode.preview,
       sourceScope: MasterTimeScope.rootComposition,
     );
   }
 
-  test('stores immutable projection and evaluated values snapshot', () {
-    const mapping = MasterPropertyValueMapping(
-      ui: MasterValueLayer(scalar: 100),
-      engine: MasterValueLayer(scalar: 1),
-      renderer: MasterValueLayer(scalar: 1),
-      uiUnit: MasterValueUnit.percentUi,
-      engineUnit: MasterValueUnit.normalized01,
-      rendererUnit: MasterValueUnit.normalized01,
-    );
-    final frame = MasterFrameEvaluation(
-      time: timeSnapshot(),
-      projections: <MasterTimeProjection>[
-        MasterTimeProjection(
-          fromDomain: const MasterTimeDomain.root(),
-          toDomain: const MasterTimeDomain.scene('scene-1'),
-          inputTime: ms(1000),
-          outputTime: ms(500),
-          validRange: TimelineTimeRange(start: ms(500), endExclusive: ms(2500)),
-          policy: MasterTimeProjectionPolicy.clamp,
-          reason: 'root_to_scene',
-        ),
-      ],
-      visibleLayerIds: const <String>['layer-1'],
-      activeTransitionIds: const <String>['transition-1'],
-      evaluatedChannels: const <MasterEvaluatedPropertyValue>[
-        MasterEvaluatedPropertyValue(
-          targetId: 'element-1',
-          propertyDefinitionId: 'opacity',
-          domain: MasterTimeDomain.scene('scene-1'),
-          mapping: mapping,
-          sourceChannelId: 'channel-1',
-          status: 'resolved',
-        ),
-      ],
-      diagnostics: const <String>['ok'],
+  const mapping = MasterPropertyValueMapping(
+    ui: MasterValueLayer(scalar: 1),
+    engine: MasterValueLayer(scalar: 1),
+    renderer: MasterValueLayer(scalar: 1),
+    uiUnit: MasterValueUnit.percentUi,
+    engineUnit: MasterValueUnit.normalized01,
+    rendererUnit: MasterValueUnit.normalized01,
+  );
+
+  test('copyWith updates selected fields and preserves unmodified values', () {
+    final initial = MasterFrameEvaluation(
+      time: snapshot(frameIndex: 5, commitFrameNumber: 10),
+      visibleLayerIds: const <String>['layer-a'],
+      activeTransitionIds: const <String>['transition-a'],
+      effectParameters: const <String, MasterPropertyValueMapping>{
+        'opacity': mapping,
+      },
+      diagnostics: const <String>['initial'],
     );
 
-    expect(frame.time.frameIndex, 30);
-    expect(frame.projections, hasLength(1));
-    expect(frame.visibleLayerIds, <String>['layer-1']);
-    expect(frame.activeTransitionIds, <String>['transition-1']);
-    expect(frame.evaluatedChannels.single.propertyDefinitionId, 'opacity');
-    expect(frame.evaluatedChannels.single.mapping.renderer.scalar, 1);
-    expect(frame.diagnostics.single, 'ok');
+    final updated = initial.copyWith(
+      time: snapshot(frameIndex: 7, commitFrameNumber: 11),
+      visibleLayerIds: const <String>['layer-b', 'layer-c'],
+      diagnostics: const <String>['updated'],
+    );
+
+    expect(updated.time.frameIndex, 7);
+    expect(updated.time.commitFrameNumber, 11);
+    expect(updated.visibleLayerIds, <String>['layer-b', 'layer-c']);
+    expect(updated.diagnostics, <String>['updated']);
+    expect(updated.activeTransitionIds, <String>['transition-a']);
+    expect(updated.effectParameters, initial.effectParameters);
   });
 }

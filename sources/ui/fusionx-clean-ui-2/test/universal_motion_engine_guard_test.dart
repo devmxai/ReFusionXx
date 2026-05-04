@@ -71,9 +71,11 @@ void main() {
       body.contains('channels: const <MotionPropertyChannelModel>[]'),
       isFalse,
     );
+    expect(body.contains('frame: MasterFrameEvaluation('), isFalse);
+    expect(body.contains('frame: evaluation.copyWith('), isTrue);
     expect(body.contains('blockers: const <String>[]'), isFalse);
     expect(body.contains('evaluatedChannels: evaluation.evaluatedChannels'),
-        isTrue);
+        isFalse);
     expect(body.contains('_evaluateUniversalMasterFrameForMode('), isFalse);
   });
 
@@ -91,8 +93,8 @@ void main() {
     expect(methodEnd, greaterThan(methodStart));
     final body = source.substring(methodStart, methodEnd);
 
-    expect(
-        body.contains('effectParameters: evaluation.effectParameters'), isTrue);
+    expect(body.contains('frame: MasterFrameEvaluation('), isFalse);
+    expect(body.contains('frame: evaluation.copyWith('), isTrue);
   });
 
   test('screen state does not keep legacy master frame read adapter field',
