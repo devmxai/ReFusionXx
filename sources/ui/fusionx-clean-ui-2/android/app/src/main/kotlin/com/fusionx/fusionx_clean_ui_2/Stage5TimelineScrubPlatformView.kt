@@ -1,6 +1,8 @@
 package com.refusion.app
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
@@ -62,7 +64,8 @@ private class Stage5TimelineScrubInputView(
     context: Context,
     private val channel: MethodChannel,
     private val nativeScrubEngine: Stage5NativeScrubEngine,
-) : View(context) {
+) : View(context), Stage5ScrubFrameRenderListener {
+    private val mainHandler = Handler(Looper.getMainLooper())
     private val displayDensity = context.resources.displayMetrics.density.coerceAtLeast(1f)
     private val touchSlop =
         ViewConfiguration.get(context).scaledTouchSlop.toFloat() / displayDensity
@@ -90,6 +93,12 @@ private class Stage5TimelineScrubInputView(
     private var configuredPreviewSources: List<Stage5NativeScrubSourceDescriptor> = emptyList()
     private var configuredTargetWidth: Int = 0
     private var configuredTargetHeight: Int = 0
+    private var lastDeliveredRenderedPositionMs: Long? = null
+    private var pendingFinalPositionMs: Long? = null
+
+    init {
+        nativeScrubEngine.addFrameRenderListener(this)
+    }
 
     private fun resolvePointerRawX(
         event: MotionEvent,
@@ -311,10 +320,6 @@ private class Stage5TimelineScrubInputView(
                 }
                 gesturePositionMs = nextPositionMs
                 nativeScrubEngine.scrubTimelinePosition(gesturePositionMs)
-                channel.invokeMethod(
-                    "scrubTimeChanged",
-                    mapOf("positionMs" to gesturePositionMs),
-                )
                 return true
             }
 
@@ -330,11 +335,10 @@ private class Stage5TimelineScrubInputView(
                     if (activeIndex >= 0) {
                         gesturePositionMs = resolveGesturePositionMs(event, activeIndex)
                     }
-                    nativeScrubEngine.commitFinalTimelinePosition(gesturePositionMs)
-                    channel.invokeMethod(
-                        "scrubEnd",
-                        mapOf("positionMs" to gesturePositionMs),
-                    )
+                    pendingFinalPositionMs = gesturePositionMs
+                    if (!nativeScrubEngine.commitFinalTimelinePosition(gesturePositionMs)) {
+                        deliverScrubEnd(gesturePositionMs)
+                    }
                 } else if (tapped) {
                     channel.invokeMethod(
                         "tap",
@@ -355,11 +359,10 @@ private class Stage5TimelineScrubInputView(
                     if (activeIndex >= 0) {
                         gesturePositionMs = resolveGesturePositionMs(event, activeIndex)
                     }
-                    nativeScrubEngine.commitFinalTimelinePosition(gesturePositionMs)
-                    channel.invokeMethod(
-                        "scrubEnd",
-                        mapOf("positionMs" to gesturePositionMs),
-                    )
+                    pendingFinalPositionMs = gesturePositionMs
+                    if (!nativeScrubEngine.commitFinalTimelinePosition(gesturePositionMs)) {
+                        deliverScrubEnd(gesturePositionMs)
+                    }
                 }
                 resetGesture()
                 return true
@@ -378,6 +381,42 @@ private class Stage5TimelineScrubInputView(
         stableGestureFrameIndex = null
         multiTouchSuppressed = false
         parent?.requestDisallowInterceptTouchEvent(false)
+    }
+
+    override fun onFrameRendered(timelinePositionMs: Long) {
+        mainHandler.post {
+            deliverRenderedTimelinePosition(timelinePositionMs)
+        }
+    }
+
+    fun release() {
+        nativeScrubEngine.removeFrameRenderListener(this)
+    }
+
+    private fun deliverRenderedTimelinePosition(timelinePositionMs: Long) {
+        val pendingFinal = pendingFinalPositionMs
+        if (pendingFinal == null && !scrubbing) {
+            return
+        }
+        if (lastDeliveredRenderedPositionMs != timelinePositionMs) {
+            lastDeliveredRenderedPositionMs = timelinePositionMs
+            channel.invokeMethod(
+                "scrubTimeChanged",
+                mapOf("positionMs" to timelinePositionMs),
+            )
+        }
+        if (pendingFinal != null && timelinePositionMs == pendingFinal) {
+            deliverScrubEnd(pendingFinal)
+        }
+    }
+
+    private fun deliverScrubEnd(positionMs: Long) {
+        pendingFinalPositionMs = null
+        lastDeliveredRenderedPositionMs = positionMs
+        channel.invokeMethod(
+            "scrubEnd",
+            mapOf("positionMs" to positionMs),
+        )
     }
 }
 
@@ -409,6 +448,7 @@ class Stage5TimelineScrubPlatformView(
 
     override fun dispose() {
         channel.setMethodCallHandler(null)
+        inputView.release()
     }
 
     override fun onMethodCall(

@@ -102,6 +102,10 @@ data class Stage5VisualRuntimeState(
     }
 }
 
+fun interface Stage5ScrubFrameRenderListener {
+    fun onFrameRendered(timelinePositionMs: Long)
+}
+
 @UnstableApi
 class Stage5NativeScrubEngine(
     context: Context,
@@ -170,6 +174,7 @@ class Stage5NativeScrubEngine(
 
     private data class RenderSnapshot(
         val descriptor: Stage5NativeScrubSourceDescriptor,
+        val timelinePositionMs: Long?,
         val sourcePositionMs: Long,
         val generation: Long,
         val forceSeekBeforeRender: Boolean,
@@ -192,6 +197,7 @@ class Stage5NativeScrubEngine(
     private val renderExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val warmupExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val diagnostics = Diagnostics()
+    private val frameRenderListeners = LinkedHashSet<Stage5ScrubFrameRenderListener>()
     private var diagnosticsStartedAtMs = SystemClock.elapsedRealtime()
     private val proxyReadyListener =
         object : Stage5ScrubPreviewProxyListener {
@@ -202,6 +208,7 @@ class Stage5NativeScrubEngine(
 
     private var activeDescriptor: Stage5NativeScrubSourceDescriptor? = null
     private var latestTargetSourcePositionMs: Long? = null
+    private var latestTargetTimelinePositionMs: Long? = null
     private var latestKnownTimelinePositionMs: Long? = null
     private var targetGeneration: Long = 0L
     private var renderLoopRunning = false
@@ -239,6 +246,16 @@ class Stage5NativeScrubEngine(
         }
     }
 
+    @Synchronized
+    fun addFrameRenderListener(listener: Stage5ScrubFrameRenderListener) {
+        frameRenderListeners.add(listener)
+    }
+
+    @Synchronized
+    fun removeFrameRenderListener(listener: Stage5ScrubFrameRenderListener) {
+        frameRenderListeners.remove(listener)
+    }
+
     fun awaitTimelineScrubReady(
         timelinePositionMs: Long,
         timeoutMs: Long = 1_200L,
@@ -252,6 +269,7 @@ class Stage5NativeScrubEngine(
                 sessionFrozen = false
                 activeDescriptor = null
                 latestTargetSourcePositionMs = null
+                latestTargetTimelinePositionMs = null
                 pendingDecoderForceSeekStoreKey = null
                 lastBoundaryWarmupKey = null
                 targetGeneration += 1
@@ -301,11 +319,13 @@ class Stage5NativeScrubEngine(
             if (isReady) {
                 activeDescriptor = primaryTarget.descriptor
                 latestTargetSourcePositionMs = primaryTarget.sourcePositionMs
+                latestTargetTimelinePositionMs = normalizedTimelinePositionMs
                 pendingDecoderForceSeekStoreKey = null
                 sessionFrozen = true
             } else {
                 activeDescriptor = null
                 latestTargetSourcePositionMs = null
+                latestTargetTimelinePositionMs = null
                 pendingDecoderForceSeekStoreKey = null
                 sessionFrozen = false
             }
@@ -458,6 +478,7 @@ class Stage5NativeScrubEngine(
         return updateTarget(
             descriptor = descriptor,
             positionMs = sourcePositionMs,
+            timelinePositionMs = positionMs.coerceAtLeast(0L),
             targetWidth = configuredTargetWidth,
             targetHeight = configuredTargetHeight,
         )
@@ -476,6 +497,7 @@ class Stage5NativeScrubEngine(
             updateTarget(
                 descriptor = descriptor,
                 positionMs = sourcePositionMs,
+                timelinePositionMs = positionMs.coerceAtLeast(0L),
                 targetWidth = configuredTargetWidth,
                 targetHeight = configuredTargetHeight,
             )
@@ -497,6 +519,7 @@ class Stage5NativeScrubEngine(
         return updateTarget(
             descriptor = descriptor,
             positionMs = positionMs,
+            timelinePositionMs = null,
             targetWidth = targetWidth,
             targetHeight = targetHeight,
         )
@@ -513,6 +536,7 @@ class Stage5NativeScrubEngine(
         return updateTarget(
             descriptor = descriptor,
             positionMs = positionMs,
+            timelinePositionMs = null,
             targetWidth = targetWidth,
             targetHeight = targetHeight,
         )
@@ -522,6 +546,7 @@ class Stage5NativeScrubEngine(
     private fun updateTarget(
         descriptor: Stage5NativeScrubSourceDescriptor,
         positionMs: Long,
+        timelinePositionMs: Long?,
         targetWidth: Int,
         targetHeight: Int,
     ): Boolean {
@@ -534,6 +559,7 @@ class Stage5NativeScrubEngine(
             activeDescriptor?.scrubStoreKey != descriptor.scrubStoreKey
         activeDescriptor = descriptor
         latestTargetSourcePositionMs = normalizeDescriptorPositionMs(descriptor, positionMs)
+        latestTargetTimelinePositionMs = timelinePositionMs
         targetGeneration += 1
         if (descriptorChanged) {
             pendingDecoderForceSeekStoreKey = descriptor.scrubStoreKey
@@ -567,6 +593,7 @@ class Stage5NativeScrubEngine(
         freezeAfterNextRenderedTarget = false
         activeDescriptor = null
         latestTargetSourcePositionMs = null
+        latestTargetTimelinePositionMs = null
         pendingDecoderForceSeekStoreKey = null
         targetGeneration += 1
         renderHosts.forEach { host ->
@@ -672,12 +699,14 @@ class Stage5NativeScrubEngine(
                 synchronized(this) {
                     val descriptor = activeDescriptor
                     val sourcePositionMs = latestTargetSourcePositionMs
+                    val timelinePositionMs = latestTargetTimelinePositionMs
                     if (sessionFrozen || descriptor == null || sourcePositionMs == null) {
                         renderLoopRunning = false
                         return
                     }
                     RenderSnapshot(
                         descriptor = descriptor,
+                        timelinePositionMs = timelinePositionMs,
                         sourcePositionMs = sourcePositionMs,
                         generation = targetGeneration,
                         forceSeekBeforeRender =
@@ -818,7 +847,22 @@ class Stage5NativeScrubEngine(
                 pendingDecoderForceSeekStoreKey = null
             }
         }
+        snapshot.timelinePositionMs?.let(::notifyFrameRendered)
         return true
+    }
+
+    private fun notifyFrameRendered(timelinePositionMs: Long) {
+        val listeners =
+            synchronized(this) {
+                if (frameRenderListeners.isEmpty()) {
+                    emptyList()
+                } else {
+                    frameRenderListeners.toList()
+                }
+            }
+        listeners.forEach { listener ->
+            listener.onFrameRendered(timelinePositionMs)
+        }
     }
 
     private fun renderHiddenReadinessTargets(
