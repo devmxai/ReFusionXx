@@ -259,11 +259,17 @@ class MainActivity: FlutterActivity() {
                     }
                 }
                 "play" -> {
+                    stage5TransportManager.runOnNextPlaybackFrame {
+                        stage5NativeScrubEngine.endSession()
+                    }
                     stage5TransportManager.play()
                     result.success(null)
                 }
                 "playFromPosition" -> {
                     val positionMs = call.argument<Number>("positionMs")?.toLong() ?: 0L
+                    stage5TransportManager.runOnNextPlaybackFrame {
+                        stage5NativeScrubEngine.endSession()
+                    }
                     stage5TransportManager.playFromPosition(positionMs)
                     result.success(null)
                 }

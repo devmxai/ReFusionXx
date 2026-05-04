@@ -98,6 +98,7 @@ class Stage5TransportManager(context: Context) {
     private val previewRetentionObservers = LinkedHashSet<(Boolean) -> Unit>()
     private val previewOutputSuppressionObservers = LinkedHashSet<(Boolean) -> Unit>()
     private val scrubSettlingObservers = LinkedHashSet<(Boolean) -> Unit>()
+    private val playbackFrameObservers = LinkedHashSet<() -> Unit>()
     private val audioSignatureCache = HashMap<String, AudioSignature?>()
     private val sourceDurationCache = HashMap<String, Long?>()
     private val mediaDisplayGeometryResolver = MediaDisplayGeometryResolver(appContext)
@@ -887,6 +888,10 @@ class Stage5TransportManager(context: Context) {
         scrubSettlingObservers.remove(observer)
     }
 
+    fun runOnNextPlaybackFrame(observer: () -> Unit) {
+        playbackFrameObservers.add(observer)
+    }
+
     fun suspendPreviewOutputForExport() {
         if (isPreviewOutputSuppressed) {
             return
@@ -1270,6 +1275,7 @@ class Stage5TransportManager(context: Context) {
             return
         }
         if (!isScrubSettling || presentationTimeUs < 0L) {
+            notifyPlaybackFrameObserversIfNeeded()
             return
         }
         val renderedPositionMs = (presentationTimeUs / 1_000L).coerceAtLeast(0L)
@@ -1280,6 +1286,19 @@ class Stage5TransportManager(context: Context) {
         maybeFinishScrubSettle()
         emitPreviewRetentionPolicy()
         emitState()
+    }
+
+    private fun notifyPlaybackFrameObserversIfNeeded() {
+        val activePlayer = activePlayer ?: exoPlayer ?: compositionPlayer ?: return
+        if (!activePlayer.playWhenReady && !activePlayer.isPlaying) {
+            return
+        }
+        if (playbackFrameObservers.isEmpty()) {
+            return
+        }
+        val observers = playbackFrameObservers.toList()
+        playbackFrameObservers.clear()
+        observers.forEach { observer -> observer() }
     }
 
     private fun isScrubSettleTargetPositionSatisfied(): Boolean {
