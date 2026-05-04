@@ -90,6 +90,7 @@ class _NativeTimelineScrubSurfaceState
   int? _viewId;
   bool _isScrubSessionActive = false;
   TimelineTime? _lastNativeTimelineTime;
+  TimelineTime? _settledNativeTimelineTime;
   VoidCallback? _currentTimeListener;
   bool _configPushScheduled = false;
   int? _lastPushedTargetWidth;
@@ -130,6 +131,7 @@ class _NativeTimelineScrubSurfaceState
       _attachCurrentTimeListener(widget.currentTimeListenable);
     }
     if (!_isScrubSessionActive && oldWidget.currentTime != widget.currentTime) {
+      _settledNativeTimelineTime = null;
       _lastNativeTimelineTime = widget.currentTime;
     }
     if (_viewId != null && oldWidget.configRevision != widget.configRevision) {
@@ -147,10 +149,14 @@ class _NativeTimelineScrubSurfaceState
 
   void _attachCurrentTimeListener(ValueListenable<TimelineTime> listenable) {
     _currentTimeListener = () {
-      _lastNativeTimelineTime = listenable.value.clamp(
+      final nextTime = listenable.value.clamp(
         TimelineTime.zero,
         widget.timelineDurationTime,
       );
+      if (!_isScrubSessionActive) {
+        _settledNativeTimelineTime = null;
+      }
+      _lastNativeTimelineTime = nextTime;
       if (_viewId != null &&
           !_isScrubSessionActive &&
           widget.interactionEnabled) {
@@ -231,9 +237,10 @@ class _NativeTimelineScrubSurfaceState
     }
     if (call.method == 'scrubEnd') {
       _lastNativeTimelineTime = timelineTime;
+      _settledNativeTimelineTime = timelineTime;
       widget.onScrubEnd(timelineTime);
       _isScrubSessionActive = false;
-      await _pushConfig();
+      await _pushConfig(currentTimeOverride: timelineTime);
       return;
     }
     if (call.method == 'tap') {
@@ -241,12 +248,18 @@ class _NativeTimelineScrubSurfaceState
     }
   }
 
-  Future<void> _pushConfig() async {
+  Future<void> _pushConfig({
+    TimelineTime? currentTimeOverride,
+  }) async {
     final channel = _channel;
     if (channel == null) {
       return;
     }
-    final effectiveCurrentTime = _effectiveCurrentTime();
+    final effectiveCurrentTime =
+        (currentTimeOverride ?? _effectiveCurrentTime()).clamp(
+      TimelineTime.zero,
+      widget.timelineDurationTime,
+    );
     final resolvedTargetWidth = _resolvedTargetWidth(context);
     final resolvedTargetHeight =
         _resolvedTargetHeight(context, resolvedTargetWidth);
@@ -363,6 +376,13 @@ class _NativeTimelineScrubSurfaceState
       widget.timelineDurationTime,
     );
     if (!_isScrubSessionActive) {
+      final settledNativeTimelineTime = _settledNativeTimelineTime;
+      if (settledNativeTimelineTime != null) {
+        return settledNativeTimelineTime.clamp(
+          TimelineTime.zero,
+          widget.timelineDurationTime,
+        );
+      }
       return canonicalCurrentTime;
     }
     return (_lastNativeTimelineTime ?? canonicalCurrentTime).clamp(
