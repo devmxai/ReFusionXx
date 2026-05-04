@@ -76,5 +76,25 @@ void main() {
       expect(mapped.ui.scalar, 0.0);
       expect(mapped.renderer.scalar, 0.0);
     });
+
+    test('maps extended effect and trim motion properties', () {
+      expect(
+        registry
+            .definitionForMotionProperty(MotionPropertyCatalog.shadowOpacity)
+            ?.id,
+        'shadowOpacity',
+      );
+      expect(
+        registry
+            .definitionForMotionProperty(MotionPropertyCatalog.trimStart)
+            ?.id,
+        'trimStart',
+      );
+      final trimOffset = registry.mapValue(
+        definition: definition('trimOffset'),
+        value: const MotionPropertyValue.scalar(50),
+      );
+      expect(trimOffset.renderer.scalar, closeTo(0.5, 0.0001));
+    });
   });
 }
