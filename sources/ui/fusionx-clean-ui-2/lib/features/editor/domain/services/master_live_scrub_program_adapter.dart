@@ -1,16 +1,16 @@
 import '../models/master_frame_evaluation_models.dart';
 import '../models/master_live_scrub_visual_program_models.dart';
+import '../models/master_visual_program_models.dart';
 import '../models/professional_motion_animation_models.dart';
 import '../models/professional_motion_models.dart';
+import 'master_visual_program_adapter.dart';
 
 class MasterLiveScrubProgramAdapter {
-  const MasterLiveScrubProgramAdapter();
+  const MasterLiveScrubProgramAdapter({
+    this.masterVisualProgramAdapter = const MasterVisualProgramAdapter(),
+  });
 
-  static const Set<String> _supportedEffectIds = <String>{
-    'gaussianBlur',
-    'motionBlurAmount',
-    'tileOutputScale',
-  };
+  final MasterVisualProgramAdapter masterVisualProgramAdapter;
 
   LiveScrubVisualProgram build({
     required MasterFrameEvaluation frame,
@@ -21,159 +21,140 @@ class MasterLiveScrubProgramAdapter {
     Iterable<MotionPropertyChannelModel> channels =
         const <MotionPropertyChannelModel>[],
   }) {
-    final channelById = <String, MotionPropertyChannelModel>{
-      for (final channel in channels) channel.id: channel,
-    };
-    final grouped = <String, List<MasterEvaluatedPropertyValue>>{};
-    for (final value in frame.evaluatedChannels) {
-      grouped.putIfAbsent(value.targetId, () => <MasterEvaluatedPropertyValue>[])
-          .add(value);
-    }
-    final targetIds = <String>{
-      ...grouped.keys,
-      ...sourcesByTargetId.keys,
-      ...frame.visibleLayerIds,
-    };
-    final globalBlockers = <String>[];
-    final globalDiagnostics = <String>[...frame.diagnostics];
-    final surfaces = <LiveScrubVisualSurface>[];
+    final masterProgram = masterVisualProgramAdapter.build(
+      frame: frame,
+      sourcesByTargetId: _mapSources(sourcesByTargetId),
+      transitionRolesByTargetId: _mapRoles(transitionRolesByTargetId),
+      channels: channels,
+    );
+    return _projectFromMasterVisualProgram(masterProgram);
+  }
 
-    for (final targetId in targetIds) {
-      final source = sourcesByTargetId[targetId];
-      final values = grouped[targetId] ?? const <MasterEvaluatedPropertyValue>[];
-      final blockers = <String>[];
-      final effectsById = <String, LiveScrubEffectBinding>{};
-      var transform = const LiveScrubSurfaceTransform();
-      var opacity = 1.0;
-
-      for (final value in values) {
-        final rendererScalar = value.mapping.renderer.scalar;
-        final channel = channelById[value.sourceChannelId];
-        final sourceDefinitionId = channel?.definition.id;
-        switch (value.propertyDefinitionId) {
-          case 'opacity':
-            if (rendererScalar == null || !rendererScalar.isFinite) {
-              blockers.add('invalid_opacity_value:${value.sourceChannelId}');
-            } else {
-              opacity = rendererScalar.clamp(0.0, 1.0).toDouble();
-            }
-          case 'position':
-            if (rendererScalar == null || !rendererScalar.isFinite) {
-              blockers.add('invalid_position_value:${value.sourceChannelId}');
-              continue;
-            }
-            if (sourceDefinitionId == MotionPropertyCatalog.positionY.id) {
-              transform = transform.copyWith(positionY: rendererScalar);
-            } else if (sourceDefinitionId == MotionPropertyCatalog.positionX.id) {
-              transform = transform.copyWith(positionX: rendererScalar);
-            } else {
-              // Fallback for grouped/legacy position channels.
-              transform = transform.copyWith(
-                positionX: rendererScalar,
-                positionY: rendererScalar,
-              );
-            }
-          case 'scale':
-            if (rendererScalar == null || !rendererScalar.isFinite) {
-              blockers.add('invalid_scale_value:${value.sourceChannelId}');
-              continue;
-            }
-            if (sourceDefinitionId == MotionPropertyCatalog.scaleY.id) {
-              transform = transform.copyWith(scaleY: rendererScalar);
-            } else if (sourceDefinitionId == MotionPropertyCatalog.scaleX.id) {
-              transform = transform.copyWith(scaleX: rendererScalar);
-            } else {
-              // Fallback for grouped/legacy scale channels.
-              transform = transform.copyWith(
-                scaleX: rendererScalar,
-                scaleY: rendererScalar,
-              );
-            }
-          case 'rotation':
-            if (rendererScalar == null || !rendererScalar.isFinite) {
-              blockers.add('invalid_rotation_value:${value.sourceChannelId}');
-            } else {
-              transform = transform.copyWith(rotationRadians: rendererScalar);
-            }
-          case 'gaussianBlur':
-          case 'motionBlurAmount':
-          case 'tileOutputScale':
-            if (rendererScalar == null || !rendererScalar.isFinite) {
-              blockers.add('invalid_effect_value:${value.propertyDefinitionId}');
-              continue;
-            }
-            effectsById[value.propertyDefinitionId] = LiveScrubEffectBinding(
-              id: value.propertyDefinitionId,
-              rendererValue: rendererScalar,
-              rendererUnit: value.mapping.rendererUnit,
-            );
-          default:
-            blockers.add(
-              'unsupported_property:${value.propertyDefinitionId}:${value.sourceChannelId}',
-            );
-        }
-      }
-
-      final explicitEffectIds = frame.effectParameters.keys;
-      for (final effectId in explicitEffectIds) {
-        if (_supportedEffectIds.contains(effectId)) {
-          final mapping = frame.effectParameters[effectId];
-          final rendererScalar = mapping?.renderer.scalar;
-          if (mapping != null &&
-              rendererScalar != null &&
-              rendererScalar.isFinite) {
-            effectsById[effectId] = LiveScrubEffectBinding(
-              id: effectId,
-              rendererValue: rendererScalar,
-              rendererUnit: mapping.rendererUnit,
-            );
-          } else {
-            blockers.add('invalid_effect_value:$effectId');
-          }
-          continue;
-        }
-        blockers.add('unsupported_effect:$effectId');
-      }
-
-      final sourceKind = source?.kind ?? LiveScrubSourceKind.unknown;
-      if (source == null) {
-        blockers.add('missing_source_binding:$targetId');
-      }
-
-      surfaces.add(
-        LiveScrubVisualSurface(
-          targetId: targetId,
-          sourceKind: sourceKind,
-          source: source,
-          transitionRole: transitionRolesByTargetId[targetId] ??
-              LiveScrubTransitionRole.none,
-          transform: transform,
-          opacity: opacity,
-          effects: effectsById.values.toList(growable: false),
-          blockers: blockers,
+  Map<String, MasterVisualSourceBinding> _mapSources(
+    Map<String, LiveScrubSurfaceSource> sourcesByTargetId,
+  ) {
+    return <String, MasterVisualSourceBinding>{
+      for (final entry in sourcesByTargetId.entries)
+        entry.key: MasterVisualSourceBinding(
+          targetId: entry.value.targetId,
+          kind: _sourceKindToMaster(entry.value.kind),
+          sourceUri: entry.value.sourceUri,
+          scrubStoreKey: entry.value.scrubStoreKey,
+          sourceWidth: entry.value.sourceWidth,
+          sourceHeight: entry.value.sourceHeight,
         ),
-      );
-      globalBlockers.addAll(blockers);
-    }
+    };
+  }
 
-    final transitionState = LiveScrubTransitionState(
-      activeTransitionIds: frame.activeTransitionIds,
-      hasRenderableTransitionPixels: false,
-      reason: frame.activeTransitionIds.isEmpty
-          ? 'no_active_transition'
-          : 'phase1_domain_contract_only',
-    );
-    if (transitionState.hasTransitionWindow) {
-      globalDiagnostics.add(
-        'transition_window_present_without_pixels:${transitionState.reason}',
-      );
-    }
+  Map<String, MasterVisualTransitionRole> _mapRoles(
+    Map<String, LiveScrubTransitionRole> transitionRolesByTargetId,
+  ) {
+    return <String, MasterVisualTransitionRole>{
+      for (final entry in transitionRolesByTargetId.entries)
+        entry.key: _roleToMaster(entry.value),
+    };
+  }
+
+  LiveScrubVisualProgram _projectFromMasterVisualProgram(
+    MasterVisualProgram masterProgram,
+  ) {
     return LiveScrubVisualProgram(
-      time: frame.time,
-      surfaces: surfaces,
-      blockers: globalBlockers,
-      diagnostics: globalDiagnostics,
-      transitionState: transitionState,
+      time: masterProgram.time,
+      surfaces: <LiveScrubVisualSurface>[
+        for (final surface in masterProgram.surfaces)
+          LiveScrubVisualSurface(
+            targetId: surface.targetId,
+            sourceKind: _sourceKindFromMaster(surface.sourceKind),
+            source: surface.source == null
+                ? null
+                : LiveScrubSurfaceSource(
+                    targetId: surface.source!.targetId,
+                    kind: _sourceKindFromMaster(surface.source!.kind),
+                    sourceUri: surface.source!.sourceUri,
+                    scrubStoreKey: surface.source!.scrubStoreKey,
+                    sourceWidth: surface.source!.sourceWidth,
+                    sourceHeight: surface.source!.sourceHeight,
+                  ),
+            transitionRole: _roleFromMaster(surface.transitionRole),
+            transform: LiveScrubSurfaceTransform(
+              positionX: surface.transform.positionX,
+              positionY: surface.transform.positionY,
+              scaleX: surface.transform.scaleX,
+              scaleY: surface.transform.scaleY,
+              rotationRadians: surface.transform.rotationRadians,
+            ),
+            opacity: surface.opacity,
+            effects: <LiveScrubEffectBinding>[
+              for (final effect in surface.effects)
+                LiveScrubEffectBinding(
+                  id: effect.id,
+                  rendererValue: effect.rendererValue,
+                  rendererUnit: effect.rendererUnit,
+                ),
+            ],
+            blockers: surface.blockers,
+          ),
+      ],
+      blockers: masterProgram.blockers,
+      diagnostics: masterProgram.diagnostics,
+      transitionState: LiveScrubTransitionState(
+        activeTransitionIds: masterProgram.transitionState.activeTransitionIds,
+        hasRenderableTransitionPixels:
+            masterProgram.transitionState.hasRenderableTransitionPixels,
+        reason: masterProgram.transitionState.reason,
+      ),
     );
+  }
+
+  MasterVisualSourceKind _sourceKindToMaster(LiveScrubSourceKind kind) {
+    switch (kind) {
+      case LiveScrubSourceKind.video:
+        return MasterVisualSourceKind.video;
+      case LiveScrubSourceKind.image:
+        return MasterVisualSourceKind.image;
+      case LiveScrubSourceKind.unknown:
+        return MasterVisualSourceKind.unknown;
+    }
+  }
+
+  LiveScrubSourceKind _sourceKindFromMaster(MasterVisualSourceKind kind) {
+    switch (kind) {
+      case MasterVisualSourceKind.video:
+        return LiveScrubSourceKind.video;
+      case MasterVisualSourceKind.image:
+        return LiveScrubSourceKind.image;
+      case MasterVisualSourceKind.unknown:
+        return LiveScrubSourceKind.unknown;
+    }
+  }
+
+  MasterVisualTransitionRole _roleToMaster(LiveScrubTransitionRole role) {
+    switch (role) {
+      case LiveScrubTransitionRole.none:
+        return MasterVisualTransitionRole.none;
+      case LiveScrubTransitionRole.outgoing:
+        return MasterVisualTransitionRole.outgoing;
+      case LiveScrubTransitionRole.incoming:
+        return MasterVisualTransitionRole.incoming;
+      case LiveScrubTransitionRole.overlay:
+        return MasterVisualTransitionRole.overlay;
+      case LiveScrubTransitionRole.matte:
+        return MasterVisualTransitionRole.matte;
+    }
+  }
+
+  LiveScrubTransitionRole _roleFromMaster(MasterVisualTransitionRole role) {
+    switch (role) {
+      case MasterVisualTransitionRole.none:
+        return LiveScrubTransitionRole.none;
+      case MasterVisualTransitionRole.outgoing:
+        return LiveScrubTransitionRole.outgoing;
+      case MasterVisualTransitionRole.incoming:
+        return LiveScrubTransitionRole.incoming;
+      case MasterVisualTransitionRole.overlay:
+        return LiveScrubTransitionRole.overlay;
+      case MasterVisualTransitionRole.matte:
+        return LiveScrubTransitionRole.matte;
+    }
   }
 }

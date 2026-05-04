@@ -6,6 +6,9 @@ void main() {
   final screenFile = File(
     'lib/features/editor/presentation/screens/fusionx_clean_ui_screen.dart',
   );
+  final liveScrubProgramAdapterFile = File(
+    'lib/features/editor/domain/services/master_live_scrub_program_adapter.dart',
+  );
   final sceneLayerScopeAdapterFile = File(
     'lib/features/editor/presentation/services/scene_layer_scope_timeline_adapter.dart',
   );
@@ -118,5 +121,11 @@ void main() {
       isTrue,
     );
     expect(source.contains('TimelineTrackKind.shape,'), isTrue);
+  });
+
+  test('live scrub program is projected from master visual program', () async {
+    final source = await liveScrubProgramAdapterFile.readAsString();
+    expect(source.contains('MasterVisualProgramAdapter'), isTrue);
+    expect(source.contains('_projectFromMasterVisualProgram('), isTrue);
   });
 }
