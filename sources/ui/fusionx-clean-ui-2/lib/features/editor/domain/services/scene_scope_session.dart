@@ -90,6 +90,14 @@ class SceneScopeSession {
   TimelineTime sourceToRoot(TimelineTime time) {
     return sceneClip.sourceToRootTime(time);
   }
+
+  TimelineTime sourceToLocal(TimelineTime time) {
+    return rootToLocal(sourceToRoot(time));
+  }
+
+  TimelineTime localToSource(TimelineTime time) {
+    return rootToSource(localToRoot(time));
+  }
 }
 
 @immutable

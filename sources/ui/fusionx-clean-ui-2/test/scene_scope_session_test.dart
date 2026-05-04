@@ -125,6 +125,8 @@ void main() {
     expect(session.channels.single.id, 'title.opacity');
     expect(session.localToRoot(ms(1000)).inMilliseconds, 3000);
     expect(session.rootToLocal(ms(3000)).inMilliseconds, 1000);
+    expect(session.sourceToLocal(ms(1500)).inMilliseconds, 1000);
+    expect(session.localToSource(ms(1000)).inMilliseconds, 1500);
   });
 
   test('can open the scene clip that contains the current root time', () {

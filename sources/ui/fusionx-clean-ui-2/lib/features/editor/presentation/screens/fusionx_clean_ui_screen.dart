@@ -15532,11 +15532,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final localActiveRange = activeRange == null
         ? null
         : TimelineTimeRange(
-            start: _sceneScopeSourceToLocalTime(sceneScope, activeRange.start),
-            endExclusive: _sceneScopeSourceToLocalTime(
-              sceneScope,
-              activeRange.endExclusive,
-            ),
+            start: sceneScope.sourceToLocal(activeRange.start),
+            endExclusive: sceneScope.sourceToLocal(activeRange.endExclusive),
           );
     return channel.copyWith(
       activeRange: localActiveRange,
@@ -15545,7 +15542,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         <MotionKeyframeModel>[
           for (final keyframe in channel.keyframes)
             keyframe.copyWith(
-              time: _sceneScopeSourceToLocalTime(sceneScope, keyframe.time),
+              time: sceneScope.sourceToLocal(keyframe.time),
             ),
         ]..sort((left, right) => left.time.compareTo(right.time)),
       ),
@@ -15560,11 +15557,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final sourceActiveRange = activeRange == null
         ? null
         : TimelineTimeRange(
-            start: _sceneScopeLocalToSourceTime(sceneScope, activeRange.start),
-            endExclusive: _sceneScopeLocalToSourceTime(
-              sceneScope,
-              activeRange.endExclusive,
-            ),
+            start: sceneScope.localToSource(activeRange.start),
+            endExclusive: sceneScope.localToSource(activeRange.endExclusive),
           );
     return channel.copyWith(
       activeRange: sourceActiveRange,
@@ -15573,30 +15567,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         <MotionKeyframeModel>[
           for (final keyframe in channel.keyframes)
             keyframe.copyWith(
-              time: _sceneScopeLocalToSourceTime(sceneScope, keyframe.time),
+              time: sceneScope.localToSource(keyframe.time),
             ),
         ]..sort((left, right) => left.time.compareTo(right.time)),
       ),
     );
-  }
-
-  TimelineTime _sceneScopeSourceToLocalTime(
-    SceneScopeSession sceneScope,
-    TimelineTime sourceTime,
-  ) {
-    return (sourceTime - sceneScope.sourceRange.start).clamp(
-      TimelineTime.zero,
-      sceneScope.localRange.duration,
-    );
-  }
-
-  TimelineTime _sceneScopeLocalToSourceTime(
-    SceneScopeSession sceneScope,
-    TimelineTime localTime,
-  ) {
-    final local =
-        localTime.clamp(TimelineTime.zero, sceneScope.localRange.duration);
-    return sceneScope.sourceRange.start + local;
   }
 
   List<SceneMentionEntity> _sceneMentionEntitiesForCurrentScope() {
