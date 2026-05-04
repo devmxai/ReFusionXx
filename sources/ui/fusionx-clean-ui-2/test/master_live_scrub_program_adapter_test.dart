@@ -274,6 +274,12 @@ void main() {
       ),
       isTrue,
     );
+    expect(
+      program.diagnostics.any(
+        (entry) => entry.startsWith('master_source_revision:msr:'),
+      ),
+      isTrue,
+    );
 
     expect(
       program.blockers

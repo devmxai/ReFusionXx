@@ -56,7 +56,10 @@ void main() {
         ),
       ],
       blockers: const <String>[],
-      diagnostics: const <String>[],
+      diagnostics: const <String>[
+        'master_source_revision:msr:test-source',
+        'master_render_graph_revision:mrg:test-graph',
+      ],
       transitionState: LiveScrubTransitionState(
         activeTransitionIds: const <String>[],
         hasRenderableTransitionPixels: false,
@@ -132,6 +135,14 @@ void main() {
     expect(
       first.rendererPresentationProof.matchState,
       RendererPresentationMatchState.pendingNativeAck,
+    );
+    expect(
+      first.rendererPresentationProof.sourceRevision,
+      'msr:test-source',
+    );
+    expect(
+      first.rendererPresentationProof.renderGraphRevision,
+      'mrg:test-graph',
     );
   });
 

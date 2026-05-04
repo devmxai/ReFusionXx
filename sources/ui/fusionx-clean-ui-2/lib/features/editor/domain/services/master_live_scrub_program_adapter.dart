@@ -64,6 +64,7 @@ class MasterLiveScrubProgramAdapter {
     MasterVisualProgram masterProgram,
     MasterRenderGraph renderGraph,
   ) {
+    final sourceRevision = _buildSourceRevision(masterProgram);
     final blockers = <String>{
       ...masterProgram.blockers,
       ...renderGraph.blockers,
@@ -71,6 +72,7 @@ class MasterLiveScrubProgramAdapter {
     final diagnostics = <String>[
       ...masterProgram.diagnostics,
       ...renderGraph.diagnostics,
+      'master_source_revision:$sourceRevision',
       'master_render_graph_output:${renderGraph.outputNodeId}',
     ];
     return LiveScrubVisualProgram(
@@ -119,6 +121,24 @@ class MasterLiveScrubProgramAdapter {
         reason: masterProgram.transitionState.reason,
       ),
     );
+  }
+
+  String _buildSourceRevision(MasterVisualProgram program) {
+    final signature = <Object?>[
+      program.time.commitFrameNumber,
+      program.time.frameIndex,
+      for (final surface in [...program.surfaces]..sort((left, right) =>
+          left.targetId.compareTo(right.targetId))) ...<Object?>[
+        surface.targetId,
+        surface.sourceKind.name,
+        surface.source?.sourceUri,
+        surface.source?.scrubStoreKey,
+        surface.source?.sourceWidth,
+        surface.source?.sourceHeight,
+      ],
+    ];
+    final hash = Object.hashAll(signature).toUnsigned(32).toRadixString(16);
+    return 'msr:$hash';
   }
 
   MasterVisualSourceKind _sourceKindToMaster(LiveScrubSourceKind kind) {
