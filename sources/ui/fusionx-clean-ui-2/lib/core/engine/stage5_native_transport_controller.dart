@@ -516,11 +516,18 @@ class Stage5NativeTransportController extends ChangeNotifier {
     }
   }
 
-  Future<bool> submitLiveScrubRuntimeBridgeSnapshot(
+  Future<LiveScrubRuntimeBridgeSubmission> submitLiveScrubRuntimeBridgeSnapshot(
     LiveScrubDescriptorProjectionResult projectionResult,
   ) async {
     if (!isPlatformSupported) {
-      return false;
+      return LiveScrubRuntimeBridgeSubmission(
+        accepted: false,
+        proof: projectionResult.rendererPresentationProof.copyWith(
+          nativePresentationAck: false,
+          matchState: RendererPresentationMatchState.blocked,
+          matchReason: 'platform_not_supported',
+        ),
+      );
     }
     try {
       final result = await _methodChannel.invokeMethod<dynamic>(
@@ -532,10 +539,29 @@ class Stage5NativeTransportController extends ChangeNotifier {
         baseProof: projectionResult.rendererPresentationProof,
         response: normalized,
       );
-      _lastRuntimeBridgePresentationProof = submission.proof;
-      return submission.accepted;
+      final proof = submission.accepted
+          ? reconcileRuntimeBridgeProofWithNativeSnapshot(
+              proof: submission.proof,
+              snapshot: await getLiveScrubRuntimeBridgeSnapshot(),
+            )
+          : submission.proof;
+      final resolvedSubmission = LiveScrubRuntimeBridgeSubmission(
+        accepted: submission.accepted,
+        proof: proof,
+      );
+      _lastRuntimeBridgePresentationProof = resolvedSubmission.proof;
+      return resolvedSubmission;
     } catch (_) {
-      return false;
+      final failed = LiveScrubRuntimeBridgeSubmission(
+        accepted: false,
+        proof: projectionResult.rendererPresentationProof.copyWith(
+          nativePresentationAck: false,
+          matchState: RendererPresentationMatchState.blocked,
+          matchReason: 'native_submit_exception',
+        ),
+      );
+      _lastRuntimeBridgePresentationProof = failed.proof;
+      return failed;
     }
   }
 
@@ -710,6 +736,9 @@ class LiveScrubRuntimeBridgeSubmission {
 
   final bool accepted;
   final RendererPresentationProof proof;
+
+  bool get isRenderableMatch =>
+      accepted && proof.matchState == RendererPresentationMatchState.matched;
 }
 
 @immutable

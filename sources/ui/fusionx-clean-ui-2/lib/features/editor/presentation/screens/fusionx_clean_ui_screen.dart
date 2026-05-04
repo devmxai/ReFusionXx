@@ -657,6 +657,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   bool _isNativePreviewRecoveryScheduled = false;
   String? _lastSubmittedLiveScrubRuntimeBridgeKey;
   bool _liveScrubRuntimeBridgeSubmissionInFlight = false;
+  final Map<String, int> _liveScrubRuntimeBridgeRetryCountByKey =
+      <String, int>{};
+  static const int _maxLiveScrubRuntimeBridgeRetriesPerKey = 2;
   String? _lastSubmittedStage5VisualRuntimeKey;
   bool _stage5VisualRuntimeSubmissionInFlight = false;
   int _stage5VisualRuntimeRevision = 0;
@@ -22198,6 +22201,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _lastSubmittedLiveScrubRuntimeBridgeKey = key;
     unawaited(
       Future<void>(() async {
+        var retryRequested = false;
         try {
           final capabilities =
               await _transportController.getLiveScrubCapabilities();
@@ -22228,23 +22232,40 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             capabilities: capabilities.toDescriptorCapabilities(),
             performanceSnapshot: performanceSnapshot,
           );
-          final accepted =
+          final submission =
               await _transportController.submitLiveScrubRuntimeBridgeSnapshot(
             projection,
           );
-          final proof = accepted
-              ? await _transportController
-                  .refreshRuntimeBridgePresentationProofFromNativeSnapshot()
-              : _transportController.lastRuntimeBridgePresentationProof;
+          final proof = submission.proof;
           _debugLiveScrubRuntimeBridgeProof(
             proof: proof,
             transitionId: activeTransition.transition.id,
             mode: mode,
           );
+          if (submission.isRenderableMatch) {
+            _liveScrubRuntimeBridgeRetryCountByKey.remove(key);
+            return;
+          }
+          final retries = _liveScrubRuntimeBridgeRetryCountByKey[key] ?? 0;
+          if (retries < _maxLiveScrubRuntimeBridgeRetriesPerKey) {
+            if (_liveScrubRuntimeBridgeRetryCountByKey.length > 512) {
+              _liveScrubRuntimeBridgeRetryCountByKey.clear();
+            }
+            _liveScrubRuntimeBridgeRetryCountByKey[key] = retries + 1;
+            _lastSubmittedLiveScrubRuntimeBridgeKey = null;
+            retryRequested = true;
+          }
         } catch (_) {
           // Keep runtime bridge submission nonblocking for the editor path.
         } finally {
           _liveScrubRuntimeBridgeSubmissionInFlight = false;
+          if (retryRequested) {
+            _scheduleLiveScrubRuntimeBridgeSubmission(
+              activeTransition: activeTransition,
+              mode: mode,
+              plan: plan,
+            );
+          }
         }
       }),
     );

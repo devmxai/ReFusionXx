@@ -133,13 +133,18 @@ void main() {
     expect(source.contains('masterRenderGraphAdapter.build('), isTrue);
   });
 
-  test('runtime bridge submission refreshes native presentation proof',
-      () async {
+  test('runtime bridge submission gates on reconciled native proof', () async {
     final source = await screenFile.readAsString();
     expect(
-      source.contains(
-        'refreshRuntimeBridgePresentationProofFromNativeSnapshot()',
-      ),
+      source.contains('submitLiveScrubRuntimeBridgeSnapshot('),
+      isTrue,
+    );
+    expect(
+      source.contains('final proof = submission.proof;'),
+      isTrue,
+    );
+    expect(
+      source.contains('if (submission.isRenderableMatch) {'),
       isTrue,
     );
   });
