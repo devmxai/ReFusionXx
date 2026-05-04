@@ -6,6 +6,9 @@ void main() {
   final screenFile = File(
     'lib/features/editor/presentation/screens/fusionx_clean_ui_screen.dart',
   );
+  final sceneLayerScopeAdapterFile = File(
+    'lib/features/editor/presentation/services/scene_layer_scope_timeline_adapter.dart',
+  );
 
   test('master evaluation path uses universal evaluation service', () async {
     final source = await screenFile.readAsString();
@@ -72,5 +75,18 @@ void main() {
 
     expect(
         body.contains('effectParameters: evaluation.effectParameters'), isTrue);
+  });
+
+  test('scene layer scope maps shape layers to dedicated shape track kind',
+      () async {
+    final source = await sceneLayerScopeAdapterFile.readAsString();
+    expect(
+      source.contains('MotionLayerKind.shape => TimelineTrackKind.shape'),
+      isTrue,
+    );
+    expect(
+      source.contains('MotionLayerKind.shape => TimelineTrackContentKind.shape'),
+      isTrue,
+    );
   });
 }
