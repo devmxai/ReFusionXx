@@ -57,6 +57,7 @@ class Stage5TransportManager(context: Context) {
         private const val FULL_SOURCE_DURATION_TOLERANCE_MS = 150L
         private const val PLAY_FROM_POSITION_SEEK_TOLERANCE_MS = 24L
         private const val PLAY_FROM_POSITION_RENDERED_FRAME_TOLERANCE_MS = 120L
+        private const val PLAYBACK_SURFACE_HANDOFF_AFTER_RELEASE_MS = 34L
         // Composition-based multi-clip preview remains future-gated until it can preserve
         // live scrub parity with the accepted Exo baseline.
         private const val ENABLE_COMPOSITION_TIMELINE_PREVIEW = false
@@ -104,6 +105,7 @@ class Stage5TransportManager(context: Context) {
     private val previewOutputSuppressionObservers = LinkedHashSet<(Boolean) -> Unit>()
     private val scrubSettlingObservers = LinkedHashSet<(Boolean) -> Unit>()
     private val playbackFrameObservers = mutableListOf<PlaybackFrameObserver>()
+    private val scheduledPlaybackFrameObservers = mutableSetOf<PlaybackFrameObserver>()
     private val audioSignatureCache = HashMap<String, AudioSignature?>()
     private val sourceDurationCache = HashMap<String, Long?>()
     private val mediaDisplayGeometryResolver = MediaDisplayGeometryResolver(appContext)
@@ -292,7 +294,7 @@ class Stage5TransportManager(context: Context) {
                 format: Format,
                 mediaFormat: MediaFormat?,
             ) {
-                handleVideoFrameAboutToBeRendered(presentationTimeUs)
+                handleVideoFrameAboutToBeRendered(presentationTimeUs, releaseTimeNs)
             }
         }
 
@@ -1100,6 +1102,7 @@ class Stage5TransportManager(context: Context) {
         playbackAlignmentExpectedItemIndex = null
         playbackAlignmentRenderedFrameCandidatesMs = LongArray(0)
         playbackAlignmentReady = false
+        scheduledPlaybackFrameObservers.clear()
     }
 
     private fun isPlaybackAlignmentForPosition(positionMs: Long): Boolean {
@@ -1393,10 +1396,13 @@ class Stage5TransportManager(context: Context) {
         finishScrubSettle(forcePositionUpdate = false)
     }
 
-    private fun handleVideoFrameAboutToBeRendered(presentationTimeUs: Long) {
+    private fun handleVideoFrameAboutToBeRendered(
+        presentationTimeUs: Long,
+        releaseTimeNs: Long,
+    ) {
         if (Looper.myLooper() != Looper.getMainLooper()) {
             mainHandler.post {
-                handleVideoFrameAboutToBeRendered(presentationTimeUs)
+                handleVideoFrameAboutToBeRendered(presentationTimeUs, releaseTimeNs)
             }
             return
         }
@@ -1407,7 +1413,7 @@ class Stage5TransportManager(context: Context) {
                 null
             }
         maybeCompletePlaybackAlignment(renderedPositionMs)
-        notifyPlaybackFrameObserversIfNeeded(renderedPositionMs)
+        notifyPlaybackFrameObserversIfNeeded(renderedPositionMs, releaseTimeNs)
         if (!isScrubSettling || presentationTimeUs < 0L) {
             return
         }
@@ -1448,7 +1454,10 @@ class Stage5TransportManager(context: Context) {
         emitState()
     }
 
-    private fun notifyPlaybackFrameObserversIfNeeded(renderedPositionMs: Long?) {
+    private fun notifyPlaybackFrameObserversIfNeeded(
+        renderedPositionMs: Long?,
+        releaseTimeNs: Long,
+    ) {
         val activePlayer = activePlayer ?: exoPlayer ?: compositionPlayer ?: return
         if (!activePlayer.playWhenReady && !activePlayer.isPlaying) {
             return
@@ -1458,15 +1467,42 @@ class Stage5TransportManager(context: Context) {
         }
         val readyObservers =
             playbackFrameObservers.filter { observer ->
-                isPlaybackFrameObserverReady(observer, renderedPositionMs)
+                !scheduledPlaybackFrameObservers.contains(observer) &&
+                    isPlaybackFrameObserverReady(observer, renderedPositionMs)
             }
         if (readyObservers.isEmpty()) {
             return
         }
-        playbackFrameObservers.removeAll(readyObservers)
-        readyObservers.forEach { observer -> observer.callback() }
-        emitPreviewRetentionPolicy()
-        emitState()
+        scheduledPlaybackFrameObservers.addAll(readyObservers)
+        val handoffDelayMs = playbackSurfaceHandoffDelayMs(releaseTimeNs)
+        mainHandler.postDelayed(
+            {
+                val stillPending =
+                    readyObservers.filter { observer ->
+                        playbackFrameObservers.contains(observer)
+                    }
+                if (stillPending.isEmpty()) {
+                    scheduledPlaybackFrameObservers.removeAll(readyObservers.toSet())
+                    return@postDelayed
+                }
+                playbackFrameObservers.removeAll(stillPending)
+                scheduledPlaybackFrameObservers.removeAll(stillPending.toSet())
+                stillPending.forEach { observer -> observer.callback() }
+                emitPreviewRetentionPolicy()
+                emitState()
+            },
+            handoffDelayMs,
+        )
+    }
+
+    private fun playbackSurfaceHandoffDelayMs(releaseTimeNs: Long): Long {
+        val releaseDelayMs =
+            if (releaseTimeNs > 0L) {
+                ((releaseTimeNs - System.nanoTime()) / 1_000_000L).coerceAtLeast(0L)
+            } else {
+                0L
+            }
+        return releaseDelayMs + PLAYBACK_SURFACE_HANDOFF_AFTER_RELEASE_MS
     }
 
     private fun isPlaybackFrameObserverReady(
