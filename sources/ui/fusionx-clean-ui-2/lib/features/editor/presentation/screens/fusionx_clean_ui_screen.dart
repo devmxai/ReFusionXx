@@ -75,6 +75,7 @@ import '../services/transition_unified_scope_bridge_entry_adapter.dart';
 import '../services/transition_unified_scope_entry_gate.dart';
 import '../services/transition_unified_scope_keyframe_adapter.dart';
 import '../services/transition_unified_scope_timeline_session_adapter.dart';
+import '../services/universal_master_frame_evaluation_service.dart';
 import '../services/universal_motion_channel_collector.dart';
 import '../widgets/editor_tools_bar.dart';
 import '../widgets/editor_top_bar.dart';
@@ -539,6 +540,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   late final MasterLiveScrubDescriptorProjection
       _masterLiveScrubDescriptorProjection;
   late final UniversalMotionChannelCollector _universalMotionChannelCollector;
+  late final UniversalMasterFrameEvaluationService
+      _universalMasterFrameEvaluationService;
   late final ManualTransitionMasterFrameEvaluationAdapter
       _manualTransitionMasterFrameEvaluationAdapter;
   static const TransitionFocusValueWriteAdapter
@@ -686,6 +689,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _masterLiveScrubDescriptorProjection =
         const MasterLiveScrubDescriptorProjection();
     _universalMotionChannelCollector = const UniversalMotionChannelCollector();
+    _universalMasterFrameEvaluationService =
+        UniversalMasterFrameEvaluationService(
+      readAdapter: _masterFrameEvaluationReadAdapter,
+      channelCollector: _universalMotionChannelCollector,
+    );
     _manualTransitionMasterFrameEvaluationAdapter =
         ManualTransitionMasterFrameEvaluationAdapter(
       laneAdapter: const ManualTransitionLaneToMotionChannelAdapter(),
@@ -21605,7 +21613,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
   }
 
-  UniversalMotionChannelCollectionResult _collectUniversalMotionChannels() {
+  List<UniversalMotionChannelCollectionSource>
+      _universalMotionChannelSources() {
     final sources = <UniversalMotionChannelCollectionSource>[
       UniversalMotionChannelCollectionSource(
         id: 'manual_motion_property_channels',
@@ -21621,14 +21630,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         ),
       );
     }
-    return _universalMotionChannelCollector.collect(
-      project: _effectiveMotionProject,
-      sceneClips: _sceneClips,
-      sources: sources,
-    );
+    return List<UniversalMotionChannelCollectionSource>.unmodifiable(sources);
   }
 
-  MasterFrameEvaluation? _masterFrameEvaluationForMode(
+  UniversalMasterFrameEvaluationResult _evaluateUniversalMasterFrameForMode(
     String mode, {
     TimelineTime? previewTimeOverride,
   }) {
@@ -21645,31 +21650,27 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             evaluationTime: effectivePreviewTime,
             presentationTime: effectivePreviewTime,
           );
-    final channelCollection = _collectUniversalMotionChannels();
-    final frame = _masterFrameEvaluationReadAdapter.evaluate(
-      clock: evaluationClock,
-      frameRate: project.frameRate.framesPerSecond,
-      sceneClips: _sceneClips,
-      channels: channelCollection.channels,
-      renderMode: _masterRenderModeForTransitionMode(mode),
+    return _universalMasterFrameEvaluationService.evaluate(
+      UniversalMasterFrameEvaluationRequest(
+        clock: evaluationClock,
+        frameRate: project.frameRate.framesPerSecond,
+        project: project,
+        sceneClips: _sceneClips,
+        channelSources: _universalMotionChannelSources(),
+        renderMode: _masterRenderModeForTransitionMode(mode),
+      ),
     );
-    if (channelCollection.diagnostics.isEmpty &&
-        channelCollection.blockers.isEmpty) {
-      return frame;
-    }
-    return MasterFrameEvaluation(
-      time: frame.time,
-      projections: frame.projections,
-      visibleLayerIds: frame.visibleLayerIds,
-      activeTransitionIds: frame.activeTransitionIds,
-      evaluatedChannels: frame.evaluatedChannels,
-      effectParameters: frame.effectParameters,
-      diagnostics: <String>[
-        ...frame.diagnostics,
-        ...channelCollection.diagnostics,
-        ...channelCollection.blockers,
-      ],
+  }
+
+  MasterFrameEvaluation? _masterFrameEvaluationForMode(
+    String mode, {
+    TimelineTime? previewTimeOverride,
+  }) {
+    final evaluation = _evaluateUniversalMasterFrameForMode(
+      mode,
+      previewTimeOverride: previewTimeOverride,
     );
+    return evaluation.frame;
   }
 
   String _liveScrubRuntimeBridgeSubmissionKey({
@@ -21704,7 +21705,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         scrubStoreKey: source.assetId,
       );
     }
-    final channelCollection = _collectUniversalMotionChannels();
+    final universalEvaluation = _evaluateUniversalMasterFrameForMode(
+      mode,
+      previewTimeOverride: evaluation.time.rootTime,
+    );
     final program = _masterLiveScrubProgramAdapter.build(
       frame: MasterFrameEvaluation(
         time: evaluation.time,
@@ -21718,14 +21722,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         effectParameters: evaluation.effectParameters,
         diagnostics: <String>[
           ...evaluation.diagnostics,
-          ...channelCollection.diagnostics,
-          ...channelCollection.blockers,
+          ...universalEvaluation.diagnostics,
+          ...universalEvaluation.blockers,
           'transition_runtime_bridge_mode:$mode',
         ],
       ),
       sourcesByTargetId: sourcesByTargetId,
       transitionRolesByTargetId: transitionRoles,
-      channels: channelCollection.channels,
+      channels: universalEvaluation.channels,
     );
     return LiveScrubVisualProgram(
       time: program.time,
