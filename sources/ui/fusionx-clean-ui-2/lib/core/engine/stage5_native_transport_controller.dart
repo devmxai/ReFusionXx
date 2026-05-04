@@ -421,6 +421,14 @@ class Stage5NativeTransportController extends ChangeNotifier {
     );
   }
 
+  Future<void> alignPlaybackAfterScrubPositionMs(int positionMs) async {
+    final clampedPositionMs = positionMs < 0 ? 0 : positionMs;
+    await _invokeWithoutResult(
+      'alignPlaybackAfterScrub',
+      <String, dynamic>{'positionMs': clampedPositionMs},
+    );
+  }
+
   Future<void> recoverPreviewSurface({int? positionMs}) async {
     if (!isPlatformSupported) {
       return;

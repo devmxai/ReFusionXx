@@ -591,6 +591,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   int _timelineZoomLockRevision = 0;
   bool _isAnimateBrowserOpen = false;
   TimelineTime? _timelineScrubFinalTime;
+  TimelineTime? _nativeScrubPlaybackAlignmentTime;
   bool _isApplyingStructuralEdit = false;
   Future<void> _timelineStructuralCommit = Future<void>.value();
   MotionProjectModel? _motionProject;
@@ -3780,21 +3781,34 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (!_useNativePreview || !_transportController.isPlatformSupported) {
       return _playPlayback();
     }
+    final nativeScrubAlignmentTime = _nativeScrubPlaybackAlignmentTime;
+    final requiresTargetedNativeHandoff = nativeScrubAlignmentTime != null &&
+        _timelineDistanceMs(nativeScrubAlignmentTime, time) <=
+            _playbackStartPositionToleranceMs;
     if (_currentTransportMatchesTimelineTime(
-      time,
-      toleranceMs: _playbackStartPositionToleranceMs,
-      requireSettled: false,
-    )) {
+          time,
+          toleranceMs: _playbackStartPositionToleranceMs,
+          requireSettled: false,
+        ) &&
+        !requiresTargetedNativeHandoff) {
       return _playPlayback();
     }
     final clampedTime = _nativeTransportTimeForTimelineTime(time).clamp(
       TimelineTime.zero,
       _nativeTransportDurationForCurrentScope(),
     );
-    return _transportController.playFromPositionMs(clampedTime.inMilliseconds);
+    return _transportController
+        .playFromPositionMs(clampedTime.inMilliseconds)
+        .whenComplete(() {
+      if (identical(
+          _nativeScrubPlaybackAlignmentTime, nativeScrubAlignmentTime)) {
+        _nativeScrubPlaybackAlignmentTime = null;
+      }
+    });
   }
 
   Future<void> _seekPlaybackTo(TimelineTime time) {
+    _nativeScrubPlaybackAlignmentTime = null;
     final clampedTime = _nativeTransportTimeForTimelineTime(time).clamp(
       TimelineTime.zero,
       _nativeTransportDurationForCurrentScope(),
@@ -17649,6 +17663,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (isScrubbing) {
       _clearPlaybackStopTimeLock();
       _clearTimelineScrubHandoff();
+      _nativeScrubPlaybackAlignmentTime = null;
       _timelineZoomLockedDisplayTime = null;
       final scrubAnchorTime = (_timelineScrubFinalTime ??
               (_isPlaying ? _timelineDisplayTimeNotifier.value : _currentTime))
@@ -17677,6 +17692,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _stopMotionPreviewFrameClock(resetTo: resolvedFinalTime);
       _setCurrentTime(resolvedFinalTime);
       _clearTimelineScrubHandoff();
+      _nativeScrubPlaybackAlignmentTime = resolvedFinalTime;
+      final nativeAlignTime = _nativeTransportTimeForTimelineTime(
+        resolvedFinalTime,
+      ).clamp(
+        TimelineTime.zero,
+        _nativeTransportDurationForCurrentScope(),
+      );
+      unawaited(
+        _transportController.alignPlaybackAfterScrubPositionMs(
+          nativeAlignTime.inMilliseconds,
+        ),
+      );
       return;
     }
     final nativeSettleTime = _nativeTransportTimeForTimelineTime(

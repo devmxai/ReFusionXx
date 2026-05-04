@@ -93,6 +93,9 @@ class Stage5TransportManager(context: Context) {
     private var scrubSettleRenderedFirstFrameSeen = false
     private var scrubSettleWatchdogAttempts = 0
     private var pendingPlayAfterSettledSeekTargetMs: Long? = null
+    private var playbackAlignmentTargetPositionMs: Long? = null
+    private var playbackAlignmentRenderedFrameCandidatesMs = LongArray(0)
+    private var playbackAlignmentReady = false
     private var timelinePlaybackBackend = TimelinePlaybackBackend.NONE
     private var isPreviewOutputSuppressed = false
     private val playerObservers = LinkedHashSet<(Player) -> Unit>()
@@ -271,6 +274,7 @@ class Stage5TransportManager(context: Context) {
 
             override fun onPlayerError(error: PlaybackException) {
                 cancelPendingPlayAfterSettledSeek()
+                clearPlaybackAlignment()
                 finishScrubSettle(forcePositionUpdate = false)
                 latestError = error.message ?: error.errorCodeName
                 emitState()
@@ -315,6 +319,7 @@ class Stage5TransportManager(context: Context) {
         latestError = null
         lastRequestedPositionMs = 0L
         lastAppliedPlaybackRate = null
+        clearPlaybackAlignment()
         finishScrubSettle(forcePositionUpdate = false)
         emitPreviewRetentionPolicy()
         emitState()
@@ -350,6 +355,7 @@ class Stage5TransportManager(context: Context) {
         exo.seekTo(0)
         lastRequestedPositionMs = 0L
         lastAppliedPlaybackRate = null
+        clearPlaybackAlignment()
         finishScrubSettle(forcePositionUpdate = false)
         emitPreviewRetentionPolicy()
         exo.prepare()
@@ -604,6 +610,7 @@ class Stage5TransportManager(context: Context) {
         exo.seekTo(0)
         lastRequestedPositionMs = 0L
         lastAppliedPlaybackRate = null
+        clearPlaybackAlignment()
         finishScrubSettle(forcePositionUpdate = false)
         emitPreviewRetentionPolicy()
         exo.prepare()
@@ -759,6 +766,19 @@ class Stage5TransportManager(context: Context) {
         latestError = null
         cancelPendingPlayAfterSettledSeek()
         clearScrubSettleForPlaybackStart()
+        val hasMatchingPlaybackAlignment =
+            isPlaybackAlignmentForPosition(safePositionMs)
+        if (hasMatchingPlaybackAlignment) {
+            lastRequestedPositionMs = safePositionMs
+            if (timelineSegments.isNotEmpty()) {
+                applyPlaybackRateForSegmentIndex(activeTimelineSegmentIndex)
+            }
+            currentPlayer.play()
+            emitPreviewRetentionPolicy()
+            emitState()
+            return
+        }
+        clearPlaybackAlignment()
         if (isPlaybackAlreadyAtTimelinePosition(currentPlayer, safePositionMs)) {
             lastRequestedPositionMs = safePositionMs
             if (timelineSegments.isNotEmpty()) {
@@ -807,6 +827,7 @@ class Stage5TransportManager(context: Context) {
     fun seekTo(positionMs: Long) {
         val safePositionMs = positionMs.coerceAtLeast(0L)
         cancelPendingPlayAfterSettledSeek()
+        clearPlaybackAlignment()
         lastRequestedPositionMs = safePositionMs
         finishScrubSettle(forcePositionUpdate = false)
         performResolvedSeek(safePositionMs)
@@ -816,9 +837,41 @@ class Stage5TransportManager(context: Context) {
     fun settleAfterScrub(positionMs: Long) {
         val safePositionMs = positionMs.coerceAtLeast(0L)
         cancelPendingPlayAfterSettledSeek()
+        clearPlaybackAlignment()
         lastRequestedPositionMs = safePositionMs
         player.pause()
         beginExactScrubSettle(safePositionMs)
+        emitPreviewRetentionPolicy()
+        emitState()
+    }
+
+    fun alignPlaybackAfterScrub(positionMs: Long) {
+        val currentPlayer = player
+        val safePositionMs = clampRecoverablePosition(positionMs, currentPlayer)
+            .let { clamped ->
+                val durationBoundMs =
+                    if (timelineSegments.isNotEmpty()) {
+                        timelineDurationMs
+                    } else {
+                        currentPlayer.duration.takeIf { it > 0L && it != C.TIME_UNSET }
+                    }
+                if (durationBoundMs != null && durationBoundMs > 0L) {
+                    clamped.coerceIn(0L, safeDisplayableEndPosition(durationBoundMs))
+                } else {
+                    clamped.coerceAtLeast(0L)
+                }
+            }
+        latestError = null
+        cancelPendingPlayAfterSettledSeek()
+        clearScrubSettleForPlaybackStart()
+        lastRequestedPositionMs = safePositionMs
+        playbackAlignmentTargetPositionMs = safePositionMs
+        playbackAlignmentRenderedFrameCandidatesMs =
+            resolveScrubSettleRenderedFrameCandidates(safePositionMs)
+        playbackAlignmentReady = false
+        currentPlayer.pause()
+        (currentPlayer as? ExoPlayer)?.setSeekParameters(SeekParameters.EXACT)
+        performResolvedSeek(safePositionMs)
         emitPreviewRetentionPolicy()
         emitState()
     }
@@ -834,6 +887,7 @@ class Stage5TransportManager(context: Context) {
                 }
         val safePositionMs = clampRecoverablePosition(requestedPositionMs, currentPlayer)
 
+        clearPlaybackAlignment()
         clearVideoPresentationState()
         currentPlayer?.let { player ->
             playerObservers.forEach { observer -> observer(player) }
@@ -942,6 +996,7 @@ class Stage5TransportManager(context: Context) {
     fun release() {
         detachEventSink()
         cancelPendingPlayAfterSettledSeek()
+        clearPlaybackAlignment()
         finishScrubSettle(forcePositionUpdate = false)
         exoPlayer?.let { currentPlayer ->
             currentPlayer.removeListener(playerListener)
@@ -1023,6 +1078,18 @@ class Stage5TransportManager(context: Context) {
         if (hadPendingSettle) {
             emitScrubSettlingState()
         }
+    }
+
+    private fun clearPlaybackAlignment() {
+        playbackAlignmentTargetPositionMs = null
+        playbackAlignmentRenderedFrameCandidatesMs = LongArray(0)
+        playbackAlignmentReady = false
+    }
+
+    private fun isPlaybackAlignmentForPosition(positionMs: Long): Boolean {
+        val targetPositionMs = playbackAlignmentTargetPositionMs ?: return false
+        return kotlin.math.abs(targetPositionMs - positionMs.coerceAtLeast(0L)) <=
+            PLAY_FROM_POSITION_SEEK_TOLERANCE_MS
     }
 
     private fun cancelPendingPlayAfterSettledSeek() {
@@ -1251,6 +1318,7 @@ class Stage5TransportManager(context: Context) {
             currentPlayer.pause()
             currentPlayer.stop()
         }
+        clearPlaybackAlignment()
         singleSourceTimelineUri = null
         activeTimelineRunIndex = 0
         activeTimelineSegmentIndex = 0
@@ -1292,23 +1360,48 @@ class Stage5TransportManager(context: Context) {
             }
             return
         }
+        val renderedPositionMs =
+            if (presentationTimeUs >= 0L) {
+                (presentationTimeUs / 1_000L).coerceAtLeast(0L)
+            } else {
+                null
+            }
+        maybeCompletePlaybackAlignment(renderedPositionMs)
+        notifyPlaybackFrameObserversIfNeeded(renderedPositionMs)
         if (!isScrubSettling || presentationTimeUs < 0L) {
-            val renderedPositionMs =
-                if (presentationTimeUs >= 0L) {
-                    (presentationTimeUs / 1_000L).coerceAtLeast(0L)
-                } else {
-                    null
-                }
-            notifyPlaybackFrameObserversIfNeeded(renderedPositionMs)
             return
         }
-        val renderedPositionMs = (presentationTimeUs / 1_000L).coerceAtLeast(0L)
-        if (!doesRenderedFrameMatchScrubSettleTarget(renderedPositionMs)) {
+        val scrubRenderedPositionMs = renderedPositionMs ?: return
+        if (!doesRenderedFrameMatchScrubSettleTarget(scrubRenderedPositionMs)) {
             return
         }
         scrubSettleRenderedFirstFrameSeen = true
         maybeFinishScrubSettle()
         emitPreviewRetentionPolicy()
+        emitState()
+    }
+
+    private fun maybeCompletePlaybackAlignment(renderedPositionMs: Long?) {
+        val targetPositionMs = playbackAlignmentTargetPositionMs ?: return
+        if (playbackAlignmentReady || renderedPositionMs == null) {
+            return
+        }
+        val candidates = playbackAlignmentRenderedFrameCandidatesMs
+        val renderedMatchesTarget =
+            if (candidates.isEmpty()) {
+                kotlin.math.abs(renderedPositionMs - targetPositionMs) <=
+                    PLAY_FROM_POSITION_RENDERED_FRAME_TOLERANCE_MS
+            } else {
+                candidates.any { candidateMs ->
+                    kotlin.math.abs(renderedPositionMs - candidateMs) <=
+                        PLAY_FROM_POSITION_RENDERED_FRAME_TOLERANCE_MS
+                }
+            }
+        if (!renderedMatchesTarget) {
+            return
+        }
+        playbackAlignmentReady = true
+        lastRequestedPositionMs = targetPositionMs
         emitState()
     }
 

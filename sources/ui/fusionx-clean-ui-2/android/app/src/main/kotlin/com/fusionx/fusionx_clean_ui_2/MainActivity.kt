@@ -287,6 +287,11 @@ class MainActivity: FlutterActivity() {
                     stage5TransportManager.settleAfterScrub(positionMs)
                     result.success(null)
                 }
+                "alignPlaybackAfterScrub" -> {
+                    val positionMs = call.argument<Number>("positionMs")?.toLong() ?: 0L
+                    stage5TransportManager.alignPlaybackAfterScrub(positionMs)
+                    result.success(null)
+                }
                 "recoverPreviewSurface" -> {
                     val positionMs = call.argument<Number>("positionMs")?.toLong()
                     result.success(stage5TransportManager.recoverPreviewSurface(positionMs))
