@@ -27,6 +27,9 @@ void main() {
   final stage5TransportControllerFile = File(
     'lib/core/engine/stage5_native_transport_controller.dart',
   );
+  final compositionMediaPlaybackProjectionAdapterFile = File(
+    'lib/features/editor/presentation/services/composition_media_playback_projection_adapter.dart',
+  );
 
   test('master evaluation path uses universal evaluation service', () async {
     final source = await screenFile.readAsString();
@@ -123,7 +126,8 @@ void main() {
       isTrue,
     );
     expect(
-      source.contains('MotionLayerKind.camera || MotionLayerKind.effectControl =>\n'
+      source.contains(
+          'MotionLayerKind.camera || MotionLayerKind.effectControl =>\n'
           '        TimelineTrackKind.text'),
       isFalse,
     );
@@ -136,6 +140,26 @@ void main() {
     expect(
       source.contains(
         'Unsupported layer kind for Scene Layer Scope content kind',
+      ),
+      isTrue,
+    );
+  });
+
+  test('media playback projection has no text/control fallback for layer kind',
+      () async {
+    final source =
+        await compositionMediaPlaybackProjectionAdapterFile.readAsString();
+    expect(source.contains('_ => TimelineTrackKind.text'), isFalse);
+    expect(source.contains('_ => TimelineVisualKind.control'), isFalse);
+    expect(
+      source.contains(
+        'Unsupported layer kind for media playback track kind',
+      ),
+      isTrue,
+    );
+    expect(
+      source.contains(
+        'Unsupported layer kind for media playback visual kind',
       ),
       isTrue,
     );

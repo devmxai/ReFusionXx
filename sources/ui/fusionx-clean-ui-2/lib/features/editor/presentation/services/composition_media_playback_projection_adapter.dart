@@ -511,7 +511,9 @@ class CompositionMediaPlaybackProjectionAdapter {
     return switch (kind) {
       MotionLayerKind.video => TimelineTrackKind.video,
       MotionLayerKind.image => TimelineTrackKind.image,
-      _ => TimelineTrackKind.text,
+      _ => throw StateError(
+          'Unsupported layer kind for media playback track kind: ${kind.name}',
+        ),
     };
   }
 
@@ -519,7 +521,9 @@ class CompositionMediaPlaybackProjectionAdapter {
     return switch (kind) {
       MotionLayerKind.video => TimelineVisualKind.video,
       MotionLayerKind.image => TimelineVisualKind.image,
-      _ => TimelineVisualKind.control,
+      _ => throw StateError(
+          'Unsupported layer kind for media playback visual kind: ${kind.name}',
+        ),
     };
   }
 
