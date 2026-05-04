@@ -173,7 +173,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _normalTransitionAuthoringAdapter =
       NormalTransitionTimelineAuthoringAdapter();
   static const bool _textPresetPickerEnabled = false;
-  static const bool _unifiedTransitionScopeBridgeEnabled = true;
   static const String _defaultInsertedTextValue = 'Text';
   static const double _defaultInsertedTextFontSize = 56;
   static const bool _timelineClockCoordinatorOwnsPlaybackSamples = true;
@@ -683,7 +682,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _transitionUnifiedScopeBridgeEntryAdapter =
         TransitionUnifiedScopeBridgeEntryAdapter(
       config: const TransitionUnifiedScopeEntryConfig(
-        enableUnifiedTransitionScope: _unifiedTransitionScopeBridgeEnabled,
+        enableUnifiedTransitionScope: true,
       ),
     );
     _transitionUnifiedScopeKeyframeAdapter =
@@ -20164,9 +20163,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required TimelineTransitionPreset preset,
     TimelineTrackTransitionData? transition,
   }) {
-    if (!_unifiedTransitionScopeBridgeEnabled) {
-      return false;
-    }
     final result = _transitionUnifiedScopeBridgeEntryAdapter.resolveBridgeEntry(
       TransitionUnifiedScopeBridgeEntryRequest(
         track: track,
@@ -20183,8 +20179,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
     if (!result.opensUnifiedScope) {
       final shouldReportIssue = result.fallbackReason !=
-              TransitionUnifiedScopeBridgeFallbackReason.featureDisabled &&
-          result.fallbackReason !=
               TransitionUnifiedScopeBridgeFallbackReason.unsupportedPreset &&
           result.issues.isNotEmpty;
       if (shouldReportIssue) {

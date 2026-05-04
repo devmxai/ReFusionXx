@@ -128,14 +128,16 @@ void main() {
       () async {
     final source = await screenFile.readAsString();
     expect(
-      source.contains(
-        'static const bool _unifiedTransitionScopeBridgeEnabled = true;',
-      ),
+      source.contains('_unifiedTransitionScopeBridgeEnabled'),
+      isFalse,
+    );
+    expect(
+      source.contains('enableUnifiedTransitionScope: true'),
       isTrue,
     );
     expect(
       source.contains(
-        'static const bool _unifiedTransitionScopeBridgeEnabled = false;',
+        'TransitionUnifiedScopeBridgeFallbackReason.featureDisabled',
       ),
       isFalse,
     );
