@@ -173,7 +173,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _normalTransitionAuthoringAdapter =
       NormalTransitionTimelineAuthoringAdapter();
   static const bool _textPresetPickerEnabled = false;
-  static const bool _unifiedTransitionScopeBridgeEnabled = false;
+  static const bool _unifiedTransitionScopeBridgeEnabled = true;
   static const String _defaultInsertedTextValue = 'Text';
   static const double _defaultInsertedTextFontSize = 56;
   static const bool _timelineClockCoordinatorOwnsPlaybackSamples = true;

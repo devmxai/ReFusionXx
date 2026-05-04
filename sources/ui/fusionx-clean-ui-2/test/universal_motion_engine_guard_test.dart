@@ -124,6 +124,23 @@ void main() {
     expect(source.contains("id: 'scene_scope_projection_channels'"), isTrue);
   });
 
+  test('screen enables unified transition scope bridge in production',
+      () async {
+    final source = await screenFile.readAsString();
+    expect(
+      source.contains(
+        'static const bool _unifiedTransitionScopeBridgeEnabled = true;',
+      ),
+      isTrue,
+    );
+    expect(
+      source.contains(
+        'static const bool _unifiedTransitionScopeBridgeEnabled = false;',
+      ),
+      isFalse,
+    );
+  });
+
   test('scene layer scope enables track animate/fx controls including shape',
       () async {
     final source = await screenFile.readAsString();
