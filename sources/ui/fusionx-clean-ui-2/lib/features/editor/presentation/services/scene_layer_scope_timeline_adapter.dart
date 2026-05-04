@@ -315,8 +315,11 @@ class SceneLayerScopeTimelineAdapter {
       MotionLayerKind.audio => TimelineTrackKind.audio,
       MotionLayerKind.text => TimelineTrackKind.text,
       MotionLayerKind.shape => TimelineTrackKind.shape,
-      MotionLayerKind.camera || MotionLayerKind.effectControl =>
-        TimelineTrackKind.text,
+      MotionLayerKind.camera ||
+      MotionLayerKind.effectControl =>
+        throw StateError(
+          'Unsupported layer kind for Scene Layer Scope track kind: ${layer.kind.name}',
+        ),
     };
   }
 
@@ -327,8 +330,11 @@ class SceneLayerScopeTimelineAdapter {
       MotionLayerKind.audio => TimelineTrackContentKind.audio,
       MotionLayerKind.text => TimelineTrackContentKind.text,
       MotionLayerKind.shape => TimelineTrackContentKind.shape,
-      MotionLayerKind.camera || MotionLayerKind.effectControl =>
-        TimelineTrackContentKind.text,
+      MotionLayerKind.camera ||
+      MotionLayerKind.effectControl =>
+        throw StateError(
+          'Unsupported layer kind for Scene Layer Scope content kind: ${layer.kind.name}',
+        ),
     };
   }
 

@@ -49,6 +49,13 @@ void main() {
       localRange: range(0, 3000),
       name: 'Hero Video',
     );
+    final cameraElement = MotionElementModel(
+      id: 'camera-element',
+      layerId: 'camera-layer',
+      kind: MotionElementKind.camera,
+      localRange: range(0, 3000),
+      name: 'Camera',
+    );
     return MotionProjectModel(
       id: 'project',
       format: const MotionProjectFormat(
@@ -96,6 +103,14 @@ void main() {
               visibleRange: range(500, 3500),
               elements: <MotionElementModel>[videoElement],
               name: 'Video Layer',
+            ),
+            MotionLayerModel(
+              id: 'camera-layer',
+              sceneId: 'source',
+              kind: MotionLayerKind.camera,
+              visibleRange: range(500, 3500),
+              elements: <MotionElementModel>[cameraElement],
+              name: 'Camera Layer',
             ),
           ],
         ),
@@ -263,5 +278,23 @@ void main() {
     expect(result.viewModel, isNull);
     expect(result.issues.single.code,
         SceneLayerScopeTimelineIssueCode.missingLayer);
+  });
+
+  test('reports unsupported Scene Layer kind without text fallback', () {
+    final result = adapter.viewModelForLayer(
+      project: project(),
+      sceneSession: sceneSession(),
+      layerId: 'camera-layer',
+    );
+
+    expect(result.viewModel, isNull);
+    expect(
+      result.issues.single.code,
+      SceneLayerScopeTimelineIssueCode.unsupportedLayerKind,
+    );
+    expect(
+      result.issues.single.message,
+      contains('Camera Layer Scope is not enabled yet.'),
+    );
   });
 }
