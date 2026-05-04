@@ -597,17 +597,6 @@ class Stage5NativeTransportController extends ChangeNotifier {
     }
   }
 
-  Future<RendererPresentationProof>
-      refreshRuntimeBridgePresentationProofFromNativeSnapshot() async {
-    final snapshot = await getLiveScrubRuntimeBridgeSnapshot();
-    final reconciled = reconcileRuntimeBridgeProofWithNativeSnapshot(
-      proof: _lastRuntimeBridgePresentationProof,
-      snapshot: snapshot,
-    );
-    _lastRuntimeBridgePresentationProof = reconciled;
-    return reconciled;
-  }
-
   @override
   void dispose() {
     _eventsSubscription?.cancel();

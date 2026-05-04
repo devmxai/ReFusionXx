@@ -25,6 +25,7 @@ void main() {
       },
     );
     expect(submission.accepted, isTrue);
+    expect(submission.isRenderableMatch, isTrue);
     expect(submission.proof.nativePresentationAck, isTrue);
     expect(
       submission.proof.matchState,
@@ -106,6 +107,7 @@ void main() {
       },
     );
     expect(submission.accepted, isTrue);
+    expect(submission.isRenderableMatch, isFalse);
     expect(
       submission.proof.matchState,
       RendererPresentationMatchState.mismatched,
