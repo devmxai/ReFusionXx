@@ -21691,6 +21691,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         ...universalEvaluation.blockers,
       ],
       diagnostics: program.diagnostics,
+      sourceRevision: program.sourceRevision,
+      renderGraphRevision: program.renderGraphRevision,
       transitionState: LiveScrubTransitionState(
         activeTransitionIds: <String>[activeTransition.transition.id],
         hasRenderableTransitionPixels: false,
@@ -21775,6 +21777,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         ...evaluationResult.blockers,
       ],
       diagnostics: baseProgram.diagnostics,
+      sourceRevision: baseProgram.sourceRevision,
+      renderGraphRevision: baseProgram.renderGraphRevision,
       transitionState: LiveScrubTransitionState(
         activeTransitionIds: <String>[transition.id],
         hasRenderableTransitionPixels: false,

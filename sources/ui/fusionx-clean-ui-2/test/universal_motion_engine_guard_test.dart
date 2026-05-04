@@ -181,4 +181,48 @@ void main() {
     );
     expect(source.contains("'stage5-runtime-bridge'"), isFalse);
   });
+
+  test('transition runtime bridge preserves program revisions', () async {
+    final source = await screenFile.readAsString();
+    final transitionMethodStart = source.indexOf(
+      'LiveScrubVisualProgram _liveScrubVisualProgramForTransitionRuntimeBridge({',
+    );
+    expect(transitionMethodStart, isNonNegative);
+    final transitionMethodEnd = source.indexOf(
+      'LiveScrubVisualProgram? _manualTransitionLiveScrubProgram({',
+      transitionMethodStart,
+    );
+    expect(transitionMethodEnd, greaterThan(transitionMethodStart));
+    final transitionBody =
+        source.substring(transitionMethodStart, transitionMethodEnd);
+    expect(
+      transitionBody.contains('sourceRevision: program.sourceRevision'),
+      isTrue,
+    );
+    expect(
+      transitionBody
+          .contains('renderGraphRevision: program.renderGraphRevision'),
+      isTrue,
+    );
+
+    final manualMethodStart = source.indexOf(
+      'LiveScrubVisualProgram? _manualTransitionLiveScrubProgram({',
+    );
+    expect(manualMethodStart, isNonNegative);
+    final manualMethodEnd = source.indexOf(
+      'Set<String> _activeManualTransitionSourceIdsForTime({',
+      manualMethodStart,
+    );
+    expect(manualMethodEnd, greaterThan(manualMethodStart));
+    final manualBody = source.substring(manualMethodStart, manualMethodEnd);
+    expect(
+      manualBody.contains('sourceRevision: baseProgram.sourceRevision'),
+      isTrue,
+    );
+    expect(
+      manualBody
+          .contains('renderGraphRevision: baseProgram.renderGraphRevision'),
+      isTrue,
+    );
+  });
 }
