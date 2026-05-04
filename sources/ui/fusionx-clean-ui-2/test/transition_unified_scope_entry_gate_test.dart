@@ -124,30 +124,8 @@ void main() {
     );
   }
 
-  test('feature-disabled entry falls back to legacy transition scope', () {
-    final gate = TransitionUnifiedScopeEntryGate();
-
-    final result = gate.resolveEntry(request());
-
-    expect(result.opensUnifiedScope, isFalse);
-    expect(
-      result.decision,
-      TransitionUnifiedScopeEntryDecision.legacyTransitionScope,
-    );
-    expect(
-      result.fallbackReason,
-      TransitionUnifiedScopeEntryFallbackReason.featureDisabled,
-    );
-    expect(result.unifiedScope, isNull);
-    expect(result.graphIssues, isEmpty);
-  });
-
   test('feature-enabled entry opens graph-backed unified scope', () {
-    final gate = TransitionUnifiedScopeEntryGate(
-      config: const TransitionUnifiedScopeEntryConfig(
-        enableUnifiedTransitionScope: true,
-      ),
-    );
+    final gate = TransitionUnifiedScopeEntryGate();
 
     final result = gate.resolveEntry(request());
 
@@ -162,11 +140,7 @@ void main() {
   });
 
   test('blocked graph apply falls back with graph issues', () {
-    final gate = TransitionUnifiedScopeEntryGate(
-      config: const TransitionUnifiedScopeEntryConfig(
-        enableUnifiedTransitionScope: true,
-      ),
-    );
+    final gate = TransitionUnifiedScopeEntryGate();
 
     final result = gate.resolveEntry(
       request(leftAvailableTail: TimelineTime.fromMilliseconds(1)),
@@ -183,11 +157,7 @@ void main() {
   });
 
   test('invalid transition scope falls back with projection issues', () {
-    final gate = TransitionUnifiedScopeEntryGate(
-      config: const TransitionUnifiedScopeEntryConfig(
-        enableUnifiedTransitionScope: true,
-      ),
-    );
+    final gate = TransitionUnifiedScopeEntryGate();
 
     final result = gate.resolveEntry(
       request(incomingLayerId: 'missing-layer'),

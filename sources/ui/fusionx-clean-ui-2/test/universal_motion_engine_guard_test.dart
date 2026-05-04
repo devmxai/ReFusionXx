@@ -132,7 +132,8 @@ void main() {
       isFalse,
     );
     expect(
-      source.contains('enableUnifiedTransitionScope: true'),
+      source.contains('_transitionUnifiedScopeBridgeEntryAdapter =\n'
+          '        TransitionUnifiedScopeBridgeEntryAdapter();'),
       isTrue,
     );
     expect(
@@ -141,6 +142,7 @@ void main() {
       ),
       isFalse,
     );
+    expect(source.contains('TransitionUnifiedScopeEntryConfig'), isFalse);
   });
 
   test('scene layer scope enables track animate/fx controls including shape',

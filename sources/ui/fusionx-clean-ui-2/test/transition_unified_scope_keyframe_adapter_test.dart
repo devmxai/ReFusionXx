@@ -25,11 +25,7 @@ void main() {
   TransitionUnifiedScopeBridgeSession session() {
     final left = clip(id: 'clip-a', milliseconds: 8000);
     final right = clip(id: 'clip-b', milliseconds: 6000);
-    final adapter = TransitionUnifiedScopeBridgeEntryAdapter(
-      config: const TransitionUnifiedScopeEntryConfig(
-        enableUnifiedTransitionScope: true,
-      ),
-    );
+    final adapter = TransitionUnifiedScopeBridgeEntryAdapter();
     final result = adapter.resolveBridgeEntry(
       TransitionUnifiedScopeBridgeEntryRequest(
         track: TimelineTrackData(
@@ -183,8 +179,8 @@ void main() {
     final lane = source.lanes.first;
     final keyframeId = lane.keyframeIds.first;
 
-    final result = const TransitionUnifiedScopeKeyframeAdapter()
-        .setKeyframeInterpolation(
+    final result =
+        const TransitionUnifiedScopeKeyframeAdapter().setKeyframeInterpolation(
       TransitionUnifiedScopeSetInterpolationRequest(
         session: source,
         laneId: lane.id,

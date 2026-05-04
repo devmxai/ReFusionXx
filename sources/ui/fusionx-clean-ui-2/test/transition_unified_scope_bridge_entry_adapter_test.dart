@@ -50,32 +50,8 @@ void main() {
     );
   }
 
-  test('feature-disabled bridge entry falls back before graph work', () {
-    final adapter = TransitionUnifiedScopeBridgeEntryAdapter();
-
-    final result = adapter.resolveBridgeEntry(
-      request(preset: TimelineTransitionPreset.manual),
-    );
-
-    expect(result.opensUnifiedScope, isFalse);
-    expect(
-      result.decision,
-      TransitionUnifiedScopeEntryDecision.legacyTransitionScope,
-    );
-    expect(
-      result.fallbackReason,
-      TransitionUnifiedScopeBridgeFallbackReason.featureDisabled,
-    );
-    expect(result.factoryResult, isNull);
-    expect(result.issues, isEmpty);
-  });
-
   test('unsupported preset falls back with a clear issue when enabled', () {
-    final adapter = TransitionUnifiedScopeBridgeEntryAdapter(
-      config: const TransitionUnifiedScopeEntryConfig(
-        enableUnifiedTransitionScope: true,
-      ),
-    );
+    final adapter = TransitionUnifiedScopeBridgeEntryAdapter();
 
     final result = adapter.resolveBridgeEntry(
       request(preset: TimelineTransitionPreset.manual),
@@ -90,11 +66,7 @@ void main() {
   });
 
   test('enabled cross dissolve bridge opens unified transition scope', () {
-    final adapter = TransitionUnifiedScopeBridgeEntryAdapter(
-      config: const TransitionUnifiedScopeEntryConfig(
-        enableUnifiedTransitionScope: true,
-      ),
-    );
+    final adapter = TransitionUnifiedScopeBridgeEntryAdapter();
 
     final result = adapter.resolveBridgeEntry(request());
 
@@ -143,11 +115,7 @@ void main() {
   });
 
   test('enabled fade black and zoom bridges open graph-backed lanes', () {
-    final adapter = TransitionUnifiedScopeBridgeEntryAdapter(
-      config: const TransitionUnifiedScopeEntryConfig(
-        enableUnifiedTransitionScope: true,
-      ),
-    );
+    final adapter = TransitionUnifiedScopeBridgeEntryAdapter();
 
     final fade = adapter.resolveBridgeEntry(
       request(preset: TimelineTransitionPreset.fadeBlack),
@@ -178,11 +146,7 @@ void main() {
   });
 
   test('invalid boundary falls back before opening unified scope', () {
-    final adapter = TransitionUnifiedScopeBridgeEntryAdapter(
-      config: const TransitionUnifiedScopeEntryConfig(
-        enableUnifiedTransitionScope: true,
-      ),
-    );
+    final adapter = TransitionUnifiedScopeBridgeEntryAdapter();
 
     final result = adapter.resolveBridgeEntry(
       request(middle: clip(id: 'middle', milliseconds: 1000)),
@@ -198,11 +162,7 @@ void main() {
   });
 
   test('insufficient handles fall back through the entry gate', () {
-    final adapter = TransitionUnifiedScopeBridgeEntryAdapter(
-      config: const TransitionUnifiedScopeEntryConfig(
-        enableUnifiedTransitionScope: true,
-      ),
-    );
+    final adapter = TransitionUnifiedScopeBridgeEntryAdapter();
 
     final result = adapter.resolveBridgeEntry(
       request(

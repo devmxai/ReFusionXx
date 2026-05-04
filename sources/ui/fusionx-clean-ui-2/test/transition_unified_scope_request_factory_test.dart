@@ -126,11 +126,7 @@ void main() {
           trackId: 'video-main',
         )
         .request!;
-    final gate = TransitionUnifiedScopeEntryGate(
-      config: const TransitionUnifiedScopeEntryConfig(
-        enableUnifiedTransitionScope: true,
-      ),
-    );
+    final gate = TransitionUnifiedScopeEntryGate();
 
     final result = gate.resolveEntry(request);
 

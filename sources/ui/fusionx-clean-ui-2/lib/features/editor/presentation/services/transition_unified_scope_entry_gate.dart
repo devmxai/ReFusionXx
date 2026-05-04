@@ -14,18 +14,9 @@ enum TransitionUnifiedScopeEntryDecision {
 }
 
 enum TransitionUnifiedScopeEntryFallbackReason {
-  featureDisabled,
   graphApplyBlocked,
   projectionBlocked,
   laneProjectionBlocked,
-}
-
-class TransitionUnifiedScopeEntryConfig {
-  const TransitionUnifiedScopeEntryConfig({
-    this.enableUnifiedTransitionScope = false,
-  });
-
-  final bool enableUnifiedTransitionScope;
 }
 
 class TransitionUnifiedScopeEntryResult {
@@ -55,27 +46,17 @@ class TransitionUnifiedScopeEntryResult {
 
 class TransitionUnifiedScopeEntryGate {
   TransitionUnifiedScopeEntryGate({
-    this.config = const TransitionUnifiedScopeEntryConfig(),
     TransitionScopeGraphAuthoringAdapter adapter =
         const TransitionScopeGraphAuthoringAdapter(),
     TransitionScopeGraphAuthoringDelegate? applyPresetToUnifiedScope,
   }) : _applyPresetToUnifiedScope =
             applyPresetToUnifiedScope ?? adapter.applyPresetToUnifiedScope;
 
-  final TransitionUnifiedScopeEntryConfig config;
   final TransitionScopeGraphAuthoringDelegate _applyPresetToUnifiedScope;
 
   TransitionUnifiedScopeEntryResult resolveEntry(
     TransitionScopeGraphAuthoringRequest request,
   ) {
-    if (!config.enableUnifiedTransitionScope) {
-      return TransitionUnifiedScopeEntryResult(
-        decision: TransitionUnifiedScopeEntryDecision.legacyTransitionScope,
-        fallbackReason:
-            TransitionUnifiedScopeEntryFallbackReason.featureDisabled,
-      );
-    }
-
     final result = _applyPresetToUnifiedScope(request);
     if (!result.graph.canApply) {
       return TransitionUnifiedScopeEntryResult(

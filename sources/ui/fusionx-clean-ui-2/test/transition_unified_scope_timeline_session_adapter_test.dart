@@ -37,11 +37,7 @@ void main() {
       assetId: 'asset-b',
       label: 'Right shot',
     );
-    final adapter = TransitionUnifiedScopeBridgeEntryAdapter(
-      config: const TransitionUnifiedScopeEntryConfig(
-        enableUnifiedTransitionScope: true,
-      ),
-    );
+    final adapter = TransitionUnifiedScopeBridgeEntryAdapter();
     final result = adapter.resolveBridgeEntry(
       TransitionUnifiedScopeBridgeEntryRequest(
         track: TimelineTrackData(

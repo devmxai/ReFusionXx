@@ -680,11 +680,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _motionEvaluator = const BasicMotionRuntimeEvaluator();
     _motionTextRenderAdapter = const BasicMotionTextRenderAdapter();
     _transitionUnifiedScopeBridgeEntryAdapter =
-        TransitionUnifiedScopeBridgeEntryAdapter(
-      config: const TransitionUnifiedScopeEntryConfig(
-        enableUnifiedTransitionScope: true,
-      ),
-    );
+        TransitionUnifiedScopeBridgeEntryAdapter();
     _transitionUnifiedScopeKeyframeAdapter =
         const TransitionUnifiedScopeKeyframeAdapter();
     _transitionUnifiedScopeTimelineSessionAdapter =

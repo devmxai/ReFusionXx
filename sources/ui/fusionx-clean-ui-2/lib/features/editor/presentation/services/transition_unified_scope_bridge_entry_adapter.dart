@@ -11,7 +11,6 @@ import 'transition_unified_scope_entry_gate.dart';
 import 'transition_unified_scope_request_factory.dart';
 
 enum TransitionUnifiedScopeBridgeFallbackReason {
-  featureDisabled,
   unsupportedPreset,
   catalogBlocked,
   requestBlocked,
@@ -144,14 +143,12 @@ class TransitionUnifiedScopeBridgeSession {
 
 class TransitionUnifiedScopeBridgeEntryAdapter {
   TransitionUnifiedScopeBridgeEntryAdapter({
-    this.config = const TransitionUnifiedScopeEntryConfig(),
     this.catalog = const NormalTransitionCatalog(),
     this.timelineAdapter = const NormalTransitionTimelineAdapter(),
     this.requestFactory = const TransitionUnifiedScopeRequestFactory(),
     TransitionUnifiedScopeEntryGate? entryGate,
-  }) : entryGate = entryGate ?? TransitionUnifiedScopeEntryGate(config: config);
+  }) : entryGate = entryGate ?? TransitionUnifiedScopeEntryGate();
 
-  final TransitionUnifiedScopeEntryConfig config;
   final NormalTransitionCatalog catalog;
   final NormalTransitionTimelineAdapter timelineAdapter;
   final TransitionUnifiedScopeRequestFactory requestFactory;
@@ -160,14 +157,6 @@ class TransitionUnifiedScopeBridgeEntryAdapter {
   TransitionUnifiedScopeBridgeEntryResult resolveBridgeEntry(
     TransitionUnifiedScopeBridgeEntryRequest request,
   ) {
-    if (!config.enableUnifiedTransitionScope) {
-      return TransitionUnifiedScopeBridgeEntryResult(
-        decision: TransitionUnifiedScopeEntryDecision.legacyTransitionScope,
-        fallbackReason:
-            TransitionUnifiedScopeBridgeFallbackReason.featureDisabled,
-      );
-    }
-
     final definitionId = timelineAdapter.definitionIdForPreset(request.preset);
     if (definitionId == null) {
       return TransitionUnifiedScopeBridgeEntryResult(
