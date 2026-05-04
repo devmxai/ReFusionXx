@@ -143,4 +143,55 @@ void main() {
     );
     expect(submission.proof.presentedRootTimeMs, 1700);
   });
+
+  test('reconciles proof with native snapshot as verified match', () {
+    const proof = RendererPresentationProof(
+      requestedRootTimeMs: 2000,
+      requestedFrameIndex: 60,
+      requestedCommitFrameNumber: 110,
+      requestedSourceIds: <String>['clip-a', 'clip-b'],
+      requestId: 'req-snapshot-ok',
+      nativePresentationAck: true,
+      matchState: RendererPresentationMatchState.matched,
+      matchReason: 'native_runtime_bridge_snapshot_acknowledged',
+    );
+    final reconciled = reconcileRuntimeBridgeProofWithNativeSnapshot(
+      proof: proof,
+      snapshot: <String, dynamic>{
+        'requestId': 'req-snapshot-ok',
+        'timelinePositionMs': 2000,
+        'blockerCount': 0,
+        'nativeReceivedAtMs': 1234,
+        'surfaceId': 'surface-1',
+      },
+    );
+    expect(reconciled.matchState, RendererPresentationMatchState.matched);
+    expect(reconciled.matchReason, 'native_runtime_bridge_snapshot_verified');
+    expect(reconciled.presentedRootTimeMs, 2000);
+    expect(reconciled.presentationTimestampUs, 1234000);
+    expect(reconciled.surfaceId, 'surface-1');
+  });
+
+  test('reconcile marks mismatch when snapshot timeline differs', () {
+    const proof = RendererPresentationProof(
+      requestedRootTimeMs: 3000,
+      requestedFrameIndex: 90,
+      requestedCommitFrameNumber: 120,
+      requestId: 'req-snapshot-mismatch',
+      nativePresentationAck: true,
+    );
+    final reconciled = reconcileRuntimeBridgeProofWithNativeSnapshot(
+      proof: proof,
+      snapshot: <String, dynamic>{
+        'requestId': 'req-snapshot-mismatch',
+        'timelinePositionMs': 3100,
+        'blockerCount': 0,
+      },
+    );
+    expect(reconciled.matchState, RendererPresentationMatchState.mismatched);
+    expect(
+      reconciled.matchReason,
+      'native_snapshot_timeline_position_mismatch',
+    );
+  });
 }

@@ -556,6 +556,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   final Set<String> _motionImagePreviewRequestsInFlight = <String>{};
   final Set<String> _transitionBoundaryFrameRequestsInFlight = <String>{};
   final Set<String> _reportedProfessionalTransitionPlanIssueKeys = <String>{};
+  final Set<String> _reportedLiveScrubRuntimeBridgeProofIssueKeys = <String>{};
   final TransitionBoundaryFrameRequestResolver
       _transitionBoundaryFrameRequestResolver =
       const TransitionBoundaryFrameRequestResolver();
@@ -5821,7 +5822,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       MotionLayerKind.audio => TimelineTrackKind.audio,
       MotionLayerKind.text => TimelineTrackKind.text,
       MotionLayerKind.shape => TimelineTrackKind.shape,
-      MotionLayerKind.camera || MotionLayerKind.effectControl =>
+      MotionLayerKind.camera ||
+      MotionLayerKind.effectControl =>
         TimelineTrackKind.text,
     };
   }
@@ -22226,8 +22228,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             capabilities: capabilities.toDescriptorCapabilities(),
             performanceSnapshot: performanceSnapshot,
           );
-          await _transportController.submitLiveScrubRuntimeBridgeSnapshot(
+          final accepted =
+              await _transportController.submitLiveScrubRuntimeBridgeSnapshot(
             projection,
+          );
+          final proof = accepted
+              ? await _transportController
+                  .refreshRuntimeBridgePresentationProofFromNativeSnapshot()
+              : _transportController.lastRuntimeBridgePresentationProof;
+          _debugLiveScrubRuntimeBridgeProof(
+            proof: proof,
+            transitionId: activeTransition.transition.id,
+            mode: mode,
           );
         } catch (_) {
           // Keep runtime bridge submission nonblocking for the editor path.
@@ -22235,6 +22247,33 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           _liveScrubRuntimeBridgeSubmissionInFlight = false;
         }
       }),
+    );
+  }
+
+  void _debugLiveScrubRuntimeBridgeProof({
+    required RendererPresentationProof proof,
+    required String transitionId,
+    required String mode,
+  }) {
+    if (proof.matchState == RendererPresentationMatchState.matched) {
+      return;
+    }
+    final key =
+        '$transitionId:$mode:${proof.requestId}:${proof.matchState.name}:${proof.matchReason}';
+    if (!_reportedLiveScrubRuntimeBridgeProofIssueKeys.add(key)) {
+      return;
+    }
+    debugPrint(
+      'Live scrub runtime bridge proof issue: '
+      'transition=$transitionId, mode=$mode, '
+      'state=${proof.matchState.name}, reason=${proof.matchReason}, '
+      'requestId=${proof.requestId}, '
+      'requestedRootTimeMs=${proof.requestedRootTimeMs}, '
+      'presentedRootTimeMs=${proof.presentedRootTimeMs}, '
+      'sourceRevision=${proof.sourceRevision}, '
+      'renderGraphRevision=${proof.renderGraphRevision}, '
+      'surfaceId=${proof.surfaceId}, '
+      'nativeAck=${proof.nativePresentationAck}',
     );
   }
 

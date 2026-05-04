@@ -132,4 +132,15 @@ void main() {
     expect(source.contains('_projectFromMasterVisualProgram('), isTrue);
     expect(source.contains('masterRenderGraphAdapter.build('), isTrue);
   });
+
+  test('runtime bridge submission refreshes native presentation proof',
+      () async {
+    final source = await screenFile.readAsString();
+    expect(
+      source.contains(
+        'refreshRuntimeBridgePresentationProofFromNativeSnapshot()',
+      ),
+      isTrue,
+    );
+  });
 }

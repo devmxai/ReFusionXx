@@ -571,6 +571,17 @@ class Stage5NativeTransportController extends ChangeNotifier {
     }
   }
 
+  Future<RendererPresentationProof>
+      refreshRuntimeBridgePresentationProofFromNativeSnapshot() async {
+    final snapshot = await getLiveScrubRuntimeBridgeSnapshot();
+    final reconciled = reconcileRuntimeBridgeProofWithNativeSnapshot(
+      proof: _lastRuntimeBridgePresentationProof,
+      snapshot: snapshot,
+    );
+    _lastRuntimeBridgePresentationProof = reconciled;
+    return reconciled;
+  }
+
   @override
   void dispose() {
     _eventsSubscription?.cancel();
@@ -843,6 +854,108 @@ LiveScrubRuntimeBridgeSubmission parseLiveScrubRuntimeBridgeSubmission({
   return LiveScrubRuntimeBridgeSubmission(
     accepted: accepted,
     proof: proof,
+  );
+}
+
+@visibleForTesting
+RendererPresentationProof reconcileRuntimeBridgeProofWithNativeSnapshot({
+  required RendererPresentationProof proof,
+  required Map<String, dynamic> snapshot,
+}) {
+  if (snapshot.isEmpty) {
+    return proof.copyWith(
+      matchState: proof.nativePresentationAck
+          ? RendererPresentationMatchState.mismatched
+          : proof.matchState,
+      matchReason: proof.nativePresentationAck
+          ? 'native_runtime_bridge_snapshot_missing'
+          : proof.matchReason,
+    );
+  }
+
+  String? readSnapshotRequestId() {
+    final root = snapshot['requestId']?.toString();
+    if (root != null && root.isNotEmpty) {
+      return root;
+    }
+    final nested = (snapshot['rendererPresentationProof'] as Map?)
+        ?.cast<Object?, Object?>();
+    final nestedId = nested?['requestId']?.toString();
+    if (nestedId != null && nestedId.isNotEmpty) {
+      return nestedId;
+    }
+    return null;
+  }
+
+  int? readSnapshotTimelinePositionMs() {
+    final root = _asInt(snapshot['timelinePositionMs']);
+    if (root != null) {
+      return root;
+    }
+    final requested = _asInt(snapshot['requestedRootTimeMs']);
+    if (requested != null) {
+      return requested;
+    }
+    final nested = (snapshot['rendererPresentationProof'] as Map?)
+        ?.cast<Object?, Object?>();
+    return _asInt(nested?['requestedRootTimeMs']);
+  }
+
+  int readSnapshotBlockerCount() {
+    final reported = _asInt(snapshot['blockerCount']);
+    if (reported != null) {
+      return reported;
+    }
+    final blockers = snapshot['blockers'];
+    if (blockers is List) {
+      return blockers.length;
+    }
+    return 0;
+  }
+
+  final snapshotRequestId = readSnapshotRequestId();
+  final snapshotTimelinePositionMs = readSnapshotTimelinePositionMs();
+  final snapshotBlockerCount = readSnapshotBlockerCount();
+  final snapshotSurfaceId = snapshot['surfaceId']?.toString();
+  final nativeReceivedAtMs = _asInt(snapshot['nativeReceivedAtMs']);
+  final nativeReceivedAtUs =
+      nativeReceivedAtMs == null ? null : nativeReceivedAtMs * 1000;
+
+  final requestIdMismatch =
+      snapshotRequestId != null && snapshotRequestId != proof.requestId;
+  final timelinePositionMismatch = snapshotTimelinePositionMs != null &&
+      snapshotTimelinePositionMs != proof.requestedRootTimeMs;
+
+  final hasMismatch = requestIdMismatch || timelinePositionMismatch;
+  final hasSnapshotBlockers = snapshotBlockerCount > 0;
+
+  final matchState = hasMismatch
+      ? RendererPresentationMatchState.mismatched
+      : hasSnapshotBlockers
+          ? RendererPresentationMatchState.blocked
+          : proof.nativePresentationAck
+              ? RendererPresentationMatchState.matched
+              : proof.matchState;
+  final matchReason = hasMismatch
+      ? requestIdMismatch
+          ? 'native_snapshot_request_id_mismatch'
+          : 'native_snapshot_timeline_position_mismatch'
+      : hasSnapshotBlockers
+          ? 'native_snapshot_reports_blockers'
+          : proof.nativePresentationAck
+              ? 'native_runtime_bridge_snapshot_verified'
+              : proof.matchReason;
+
+  return proof.copyWith(
+    requestId: snapshotRequestId ?? proof.requestId,
+    presentedRootTimeMs: snapshotTimelinePositionMs,
+    clearPresentedRootTimeMs: snapshotTimelinePositionMs == null,
+    surfaceId: snapshotSurfaceId,
+    clearSurfaceId: snapshotSurfaceId == null,
+    presentationTimestampUs: nativeReceivedAtUs,
+    clearPresentationTimestampUs: nativeReceivedAtUs == null,
+    matchState: matchState,
+    matchReason: matchReason,
   );
 }
 
