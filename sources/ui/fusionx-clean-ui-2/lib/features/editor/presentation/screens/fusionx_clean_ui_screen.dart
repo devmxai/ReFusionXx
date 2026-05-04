@@ -21660,7 +21660,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return LiveScrubVisualProgram(
       time: program.time,
       surfaces: program.surfaces,
-      blockers: const <String>[],
+      blockers: <String>[
+        ...program.blockers,
+        ...universalEvaluation.blockers,
+      ],
       diagnostics: program.diagnostics,
       transitionState: LiveScrubTransitionState(
         activeTransitionIds: <String>[activeTransition.transition.id],

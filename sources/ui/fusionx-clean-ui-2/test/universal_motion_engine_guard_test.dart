@@ -50,6 +50,7 @@ void main() {
       body.contains('channels: const <MotionPropertyChannelModel>[]'),
       isFalse,
     );
+    expect(body.contains('blockers: const <String>[]'), isFalse);
     expect(body.contains('evaluatedChannels: evaluation.evaluatedChannels'),
         isTrue);
     expect(body.contains('_evaluateUniversalMasterFrameForMode('), isFalse);
