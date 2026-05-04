@@ -171,7 +171,16 @@ void main() {
     final source = await liveScrubDescriptorProjectionFile.readAsString();
     expect(source.contains('MasterRendererModeAdapter'), isTrue);
     expect(source.contains('MasterRendererContracts'), isTrue);
+    expect(source.contains('_rendererModeFromMasterRenderMode('), isTrue);
     expect(source.contains('masterRendererModeAdapter.buildProof('), isTrue);
+    expect(
+      source.contains('MasterRendererContracts.descriptorRequestIdForMode('),
+      isTrue,
+    );
+    expect(
+      source.contains('MasterRendererContracts.runtimeBridgeSurfaceIdForMode('),
+      isTrue,
+    );
     expect(source.contains("'projection_blocked'"), isFalse);
     expect(source.contains("'awaiting_native_ack'"), isFalse);
     expect(source.contains('_extractDiagnosticValue('), isFalse);

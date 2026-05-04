@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import '../models/master_live_scrub_descriptor_models.dart';
 import '../models/master_renderer_adapter_models.dart';
 import '../models/master_renderer_contract_models.dart';
+import '../models/master_time_models.dart';
 import '../models/master_live_scrub_visual_program_models.dart';
 import 'master_renderer_mode_adapter.dart';
 
@@ -240,7 +241,7 @@ class MasterLiveScrubDescriptorProjection {
     }
 
     final rendererPresentationProof = masterRendererModeAdapter.buildProof(
-      mode: MasterRendererAdapterMode.liveScrub,
+      mode: _rendererModeFromMasterRenderMode(program.time.renderMode),
       requestedRootTimeMs: timelinePositionMs,
       requestedFrameIndex: program.time.frameIndex,
       requestedCommitFrameNumber: program.time.commitFrameNumber,
@@ -248,13 +249,16 @@ class MasterLiveScrubDescriptorProjection {
         for (final descriptor in descriptors)
           if (descriptor.sourceUri.trim().isNotEmpty) descriptor.targetId,
       ],
-      requestId: MasterRendererContracts.liveScrubDescriptorRequestId(
-        program.time,
+      requestId: MasterRendererContracts.descriptorRequestIdForMode(
+        mode: _rendererModeFromMasterRenderMode(program.time.renderMode),
+        time: program.time,
       ),
       sourceRevision: program.sourceRevision,
       renderGraphRevision: program.renderGraphRevision,
       blockers: blockers,
-      surfaceId: MasterRendererContracts.liveScrubDescriptorSurfaceId,
+      surfaceId: MasterRendererContracts.runtimeBridgeSurfaceIdForMode(
+        _rendererModeFromMasterRenderMode(program.time.renderMode),
+      ),
       nativePresentationAck: false,
     );
 
@@ -315,5 +319,22 @@ class MasterLiveScrubDescriptorProjection {
       0.0,
       1.0,
     ];
+  }
+
+  MasterRendererAdapterMode _rendererModeFromMasterRenderMode(
+    MasterRenderMode mode,
+  ) {
+    switch (mode) {
+      case MasterRenderMode.preview:
+        return MasterRendererAdapterMode.preview;
+      case MasterRenderMode.playback:
+        return MasterRendererAdapterMode.playback;
+      case MasterRenderMode.liveScrub:
+      case MasterRenderMode.settle:
+      case MasterRenderMode.test:
+        return MasterRendererAdapterMode.liveScrub;
+      case MasterRenderMode.export:
+        return MasterRendererAdapterMode.export;
+    }
   }
 }

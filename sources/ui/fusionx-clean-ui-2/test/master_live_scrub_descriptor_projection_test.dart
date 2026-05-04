@@ -640,4 +640,81 @@ void main() {
       isNotNull,
     );
   });
+
+  test('uses preview renderer proof contract when program mode is preview', () {
+    final clock = TimelineClockCoordinator(
+      timelineDuration: ms(5000),
+      initialTime: ms(1500),
+    );
+    final time = MasterTimeSnapshot.fromClockSnapshot(
+      clock: clock.snapshot,
+      frameRate: 30,
+      renderMode: MasterRenderMode.preview,
+      sourceScope: MasterTimeScope.rootComposition,
+    );
+    final program = LiveScrubVisualProgram(
+      time: time,
+      surfaces: <LiveScrubVisualSurface>[
+        LiveScrubVisualSurface(
+          targetId: 'layer-preview',
+          sourceKind: LiveScrubSourceKind.video,
+          source: const LiveScrubSurfaceSource(
+            targetId: 'layer-preview',
+            kind: LiveScrubSourceKind.video,
+            sourceUri: '/media/video-preview.mp4',
+          ),
+          blockers: const <String>[],
+        ),
+      ],
+      blockers: const <String>[],
+      diagnostics: const <String>[],
+      sourceRevision: 'msr:test-preview',
+      renderGraphRevision: 'mrg:test-preview',
+      transitionState: LiveScrubTransitionState(
+        activeTransitionIds: const <String>[],
+        hasRenderableTransitionPixels: false,
+        reason: 'phase5_preview_contract',
+      ),
+    );
+    const projection = MasterLiveScrubDescriptorProjection();
+    const sourceWindow = LiveScrubTimelineSourceWindow(
+      targetId: 'layer-preview',
+      timelineStartMs: 0,
+      timelineEndMs: 5000,
+      sourceStartMs: 0,
+      sourceDurationMs: 5000,
+      playbackRate: 1.0,
+    );
+
+    final result = projection.project(
+      program: program,
+      sourceWindowsByTargetId: const <String, LiveScrubTimelineSourceWindow>{
+        'layer-preview': sourceWindow,
+      },
+      capabilities: const LiveScrubDescriptorCapabilities(
+        supportsSourceDimensions: true,
+        supportsCanvasPlacement: true,
+        supportsCrop: true,
+        supportsTransformMatrix: true,
+        supportsOpacity: true,
+        supportsEffectProgramIds: true,
+        supportsDualSourceTransitionWindow: true,
+        source: 'preview-contract-test',
+      ),
+    );
+
+    expect(result.rendererPresentationProof.rendererMode, 'preview');
+    expect(
+      result.rendererPresentationProof.matchReason,
+      'awaiting_preview_native_ack',
+    );
+    expect(
+      result.rendererPresentationProof.requestId.startsWith('preview:'),
+      isTrue,
+    );
+    expect(
+      result.rendererPresentationProof.surfaceId,
+      'stage5-preview-surface',
+    );
+  });
 }
