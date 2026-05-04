@@ -3256,16 +3256,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
   }
 
-  bool _scrubUpdateTimelineClockAt(TimelineTime targetTime) {
-    return _masterClockNativeBridge.scrubUpdate(
-      targetTime: targetTime,
+  bool _scrubUpdateTimelineClockAt(TimelineTime presentedTime) {
+    return _masterClockNativeBridge.scrubPresentedFrame(
+      presentedTime: presentedTime,
       timelineDurationTime: _timelineDurationTime,
     );
   }
 
-  bool _scrubEndTimelineClockAt(TimelineTime finalTime) {
-    return _masterClockNativeBridge.scrubEnd(
-      finalTime: finalTime,
+  bool _scrubEndTimelineClockAt(TimelineTime presentedTime) {
+    return _masterClockNativeBridge.commitPresentedScrubFrame(
+      presentedTime: presentedTime,
       timelineDurationTime: _timelineDurationTime,
     );
   }
@@ -21824,15 +21824,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final bucket = (state.timelineTimeMs / 16).floor();
     final primary = state.primaryTargetClipId ?? 'none';
     final transitionId = state.transitionId ?? 'none';
-    final surfacesDigest = state.surfaces
-        .map((surface) {
-          final matrix = surface.transformMatrix3x3
-              .take(6)
-              .map((value) => value.toStringAsFixed(4))
-              .join(',');
-          return '${surface.targetClipId}:${surface.role}:$matrix:${surface.opacity.toStringAsFixed(4)}';
-        })
-        .join('|');
+    final surfacesDigest = state.surfaces.map((surface) {
+      final matrix = surface.transformMatrix3x3
+          .take(6)
+          .map((value) => value.toStringAsFixed(4))
+          .join(',');
+      return '${surface.targetClipId}:${surface.role}:$matrix:${surface.opacity.toStringAsFixed(4)}';
+    }).join('|');
     return '$transitionId:${state.mode}:$primary:$bucket:$surfacesDigest:${state.surfaces.length}';
   }
 

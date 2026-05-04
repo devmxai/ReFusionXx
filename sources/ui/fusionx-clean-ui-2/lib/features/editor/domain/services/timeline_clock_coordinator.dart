@@ -282,18 +282,36 @@ class TimelineClockCoordinator extends ChangeNotifier {
     );
   }
 
-  bool scrubUpdate(TimelineTime targetTime) {
+  bool scrubRequest(TimelineTime targetTime) {
     if (_snapshot.phase != TimelineClockPhase.scrubbing) {
       return false;
     }
     final clamped = _clamp(targetTime);
     _commit(
       _snapshot.copyWith(
+        authority: TimelineClockAuthority.user,
+        scrubTargetTime: clamped,
+      ),
+    );
+    return true;
+  }
+
+  bool scrubUpdate(TimelineTime presentedTime) {
+    if (_snapshot.phase != TimelineClockPhase.scrubbing) {
+      return false;
+    }
+    final clamped = _clamp(presentedTime);
+    final existingTarget = _snapshot.scrubTargetTime;
+    final shouldPromotePresentedTimeToTarget =
+        existingTarget == null || existingTarget == _snapshot.presentationTime;
+    _commit(
+      _snapshot.copyWith(
         time: clamped,
         evaluationTime: clamped,
         presentationTime: clamped,
         authority: TimelineClockAuthority.user,
-        scrubTargetTime: clamped,
+        scrubTargetTime:
+            shouldPromotePresentedTimeToTarget ? clamped : existingTarget,
       ),
     );
     return true;

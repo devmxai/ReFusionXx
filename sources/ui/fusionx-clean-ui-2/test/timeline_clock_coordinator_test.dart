@@ -49,6 +49,28 @@ void main() {
       expect(clock.snapshot.scrubTargetTime, isNull);
     });
 
+    test('scrub requests do not move the presented master frame', () {
+      final clock = newClock();
+
+      clock.scrubStart(TimelineTime.fromMilliseconds(1000));
+
+      expect(clock.scrubRequest(TimelineTime.fromMilliseconds(3600)), isTrue);
+      expect(clock.time.inMilliseconds, 1000);
+      expect(clock.evaluationTime.inMilliseconds, 1000);
+      expect(clock.snapshot.presentationTime.inMilliseconds, 1000);
+      expect(clock.snapshot.scrubTargetTime!.inMilliseconds, 3600);
+
+      expect(clock.scrubUpdate(TimelineTime.fromMilliseconds(1400)), isTrue);
+      expect(clock.time.inMilliseconds, 1400);
+      expect(clock.evaluationTime.inMilliseconds, 1400);
+      expect(clock.snapshot.presentationTime.inMilliseconds, 1400);
+      expect(clock.snapshot.scrubTargetTime!.inMilliseconds, 3600);
+
+      expect(clock.scrubEnd(TimelineTime.fromMilliseconds(1400)), isTrue);
+      expect(clock.phase, TimelineClockPhase.scrubSettling);
+      expect(clock.snapshot.scrubTargetTime!.inMilliseconds, 1400);
+    });
+
     test('playFrom supersedes scrub settling and rejects stale samples', () {
       final clock = newClock();
 

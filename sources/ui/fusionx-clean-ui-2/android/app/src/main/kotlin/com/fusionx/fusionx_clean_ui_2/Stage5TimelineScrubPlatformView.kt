@@ -331,7 +331,7 @@ private class Stage5TimelineScrubInputView(
                 val wasScrubbing = scrubbing
                 val tapped = !wasScrubbing && config.tapEnabled
                 if (wasScrubbing) {
-                    settleAtLastRenderedPosition()
+                    commitAuthoritativeRenderedPosition()
                 } else if (tapped) {
                     channel.invokeMethod(
                         "tap",
@@ -348,7 +348,7 @@ private class Stage5TimelineScrubInputView(
                     return true
                 }
                 if (scrubbing) {
-                    settleAtLastRenderedPosition()
+                    commitAuthoritativeRenderedPosition()
                 }
                 resetGesture()
                 return true
@@ -396,7 +396,7 @@ private class Stage5TimelineScrubInputView(
         }
     }
 
-    private fun settleAtLastRenderedPosition() {
+    private fun commitAuthoritativeRenderedPosition() {
         val finalPositionMs = lastDeliveredRenderedPositionMs ?: gesturePositionMs
         pendingFinalPositionMs = finalPositionMs
         if (!nativeScrubEngine.commitFinalTimelinePosition(finalPositionMs)) {

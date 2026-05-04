@@ -32,20 +32,48 @@ class MasterClockNativeBridge {
     _clock.scrubStart(anchorTime);
   }
 
-  bool scrubUpdate({
+  bool scrubRequest({
     required TimelineTime targetTime,
     required TimelineTime timelineDurationTime,
   }) {
     syncTimelineDuration(timelineDurationTime);
-    return _clock.scrubUpdate(targetTime);
+    return _clock.scrubRequest(targetTime);
+  }
+
+  bool scrubUpdate({
+    required TimelineTime targetTime,
+    required TimelineTime timelineDurationTime,
+  }) {
+    return scrubPresentedFrame(
+      presentedTime: targetTime,
+      timelineDurationTime: timelineDurationTime,
+    );
+  }
+
+  bool scrubPresentedFrame({
+    required TimelineTime presentedTime,
+    required TimelineTime timelineDurationTime,
+  }) {
+    syncTimelineDuration(timelineDurationTime);
+    return _clock.scrubUpdate(presentedTime);
   }
 
   bool scrubEnd({
     required TimelineTime finalTime,
     required TimelineTime timelineDurationTime,
   }) {
+    return commitPresentedScrubFrame(
+      presentedTime: finalTime,
+      timelineDurationTime: timelineDurationTime,
+    );
+  }
+
+  bool commitPresentedScrubFrame({
+    required TimelineTime presentedTime,
+    required TimelineTime timelineDurationTime,
+  }) {
     syncTimelineDuration(timelineDurationTime);
-    return _clock.scrubEnd(finalTime);
+    return _clock.scrubEnd(presentedTime);
   }
 
   bool confirmScrubSettled({

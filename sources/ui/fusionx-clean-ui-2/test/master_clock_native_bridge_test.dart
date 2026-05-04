@@ -124,5 +124,47 @@ void main() {
       expect(clock.phase, TimelineClockPhase.paused);
       expect(clock.time.inMilliseconds, 1800);
     });
+
+    test('separates requested scrub target from rendered master frame', () {
+      final clock = newClock(durationMs: 9000, initialMs: 1000);
+      final bridge = MasterClockNativeBridge(clock: clock);
+
+      bridge.scrubStart(
+        anchorTime: ms(1000),
+        timelineDurationTime: ms(9000),
+      );
+
+      expect(
+        bridge.scrubRequest(
+          targetTime: ms(3600),
+          timelineDurationTime: ms(9000),
+        ),
+        isTrue,
+      );
+      expect(clock.time.inMilliseconds, 1000);
+      expect(clock.snapshot.presentationTime.inMilliseconds, 1000);
+      expect(clock.snapshot.scrubTargetTime!.inMilliseconds, 3600);
+
+      expect(
+        bridge.scrubPresentedFrame(
+          presentedTime: ms(1400),
+          timelineDurationTime: ms(9000),
+        ),
+        isTrue,
+      );
+      expect(clock.time.inMilliseconds, 1400);
+      expect(clock.snapshot.presentationTime.inMilliseconds, 1400);
+      expect(clock.snapshot.scrubTargetTime!.inMilliseconds, 3600);
+
+      expect(
+        bridge.commitPresentedScrubFrame(
+          presentedTime: ms(1400),
+          timelineDurationTime: ms(9000),
+        ),
+        isTrue,
+      );
+      expect(clock.phase, TimelineClockPhase.scrubSettling);
+      expect(clock.snapshot.scrubTargetTime!.inMilliseconds, 1400);
+    });
   });
 }
