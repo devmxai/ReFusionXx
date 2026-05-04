@@ -538,7 +538,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _transitionUnifiedScopeKeyframeAdapter;
   late final TransitionUnifiedScopeTimelineSessionAdapter
       _transitionUnifiedScopeTimelineSessionAdapter;
-  late final MasterFrameEvaluationReadAdapter _masterFrameEvaluationReadAdapter;
   late final MasterLiveScrubProgramAdapter _masterLiveScrubProgramAdapter;
   late final MasterLiveScrubDescriptorProjection
       _masterLiveScrubDescriptorProjection;
@@ -687,22 +686,22 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         const TransitionUnifiedScopeKeyframeAdapter();
     _transitionUnifiedScopeTimelineSessionAdapter =
         const TransitionUnifiedScopeTimelineSessionAdapter();
-    _masterFrameEvaluationReadAdapter = MasterFrameEvaluationReadAdapter();
+    final masterFrameEvaluationReadAdapter = MasterFrameEvaluationReadAdapter();
     _masterLiveScrubProgramAdapter = const MasterLiveScrubProgramAdapter();
     _masterLiveScrubDescriptorProjection =
         const MasterLiveScrubDescriptorProjection();
     _universalMotionChannelCollector = const UniversalMotionChannelCollector();
     _universalMasterFrameEvaluationService =
         UniversalMasterFrameEvaluationService(
-      readAdapter: _masterFrameEvaluationReadAdapter,
+      readAdapter: masterFrameEvaluationReadAdapter,
       channelCollector: _universalMotionChannelCollector,
     );
     _manualTransitionMasterFrameEvaluationAdapter =
         ManualTransitionMasterFrameEvaluationAdapter(
       laneAdapter: const ManualTransitionLaneToMotionChannelAdapter(),
-      keyframeEvaluator: _masterFrameEvaluationReadAdapter.keyframeEvaluator,
-      timeMapper: _masterFrameEvaluationReadAdapter.timeMapper,
-      valueRegistry: _masterFrameEvaluationReadAdapter.valueRegistry,
+      keyframeEvaluator: masterFrameEvaluationReadAdapter.keyframeEvaluator,
+      timeMapper: masterFrameEvaluationReadAdapter.timeMapper,
+      valueRegistry: masterFrameEvaluationReadAdapter.valueRegistry,
     );
     _assetLibrary =
         ValueNotifier<List<EditorAssetItem>>(const <EditorAssetItem>[]);

@@ -77,6 +77,13 @@ void main() {
         body.contains('effectParameters: evaluation.effectParameters'), isTrue);
   });
 
+  test('screen state does not keep legacy master frame read adapter field',
+      () async {
+    final source = await screenFile.readAsString();
+    expect(source.contains('late final MasterFrameEvaluationReadAdapter'), isFalse);
+    expect(source.contains('_masterFrameEvaluationReadAdapter'), isFalse);
+  });
+
   test('scene layer scope maps shape layers to dedicated shape track kind',
       () async {
     final source = await sceneLayerScopeAdapterFile.readAsString();
