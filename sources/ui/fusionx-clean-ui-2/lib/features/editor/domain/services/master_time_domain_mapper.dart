@@ -20,6 +20,22 @@ class MasterTimeDomainMappingResult {
 class MasterTimeDomainMapper {
   const MasterTimeDomainMapper();
 
+  MasterTimeProjection rootIdentity({
+    required TimelineTime rootTime,
+    MasterTimeProjectionPolicy policy = MasterTimeProjectionPolicy.clamp,
+  }) {
+    return MasterTimeProjection(
+      fromDomain: const MasterTimeDomain.root(),
+      toDomain: const MasterTimeDomain.root(),
+      inputTime: rootTime,
+      outputTime: rootTime,
+      validRange: null,
+      policy: policy,
+      reason: 'root_time_identity_projection',
+      isValid: true,
+    );
+  }
+
   MasterTimeProjection rootToScene({
     required TimelineTime rootTime,
     required CompositionSceneClipModel sceneClip,

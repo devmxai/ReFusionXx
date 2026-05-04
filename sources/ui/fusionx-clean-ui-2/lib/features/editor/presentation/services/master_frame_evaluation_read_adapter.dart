@@ -2,6 +2,7 @@ import '../../domain/models/composition_scene_clip_models.dart';
 import '../../domain/models/master_frame_evaluation_models.dart';
 import '../../domain/models/master_time_models.dart';
 import '../../domain/models/professional_motion_animation_models.dart';
+import '../../domain/models/professional_motion_models.dart';
 import '../../domain/services/master_keyframe_value_evaluator.dart';
 import '../../domain/services/master_time_domain_mapper.dart';
 import '../../domain/services/master_value_truth_registry.dart';
@@ -41,6 +42,21 @@ class MasterFrameEvaluationReadAdapter {
     final evaluated = <MasterEvaluatedPropertyValue>[];
     final diagnostics = <String>[];
     final visibleLayerIds = <String>{};
+    final rootProjection = timeMapper.rootIdentity(rootTime: time.rootTime);
+
+    for (final channel in channels) {
+      if (!_isRootScopedChannel(channel)) {
+        continue;
+      }
+      _evaluateChannel(
+        channel: channel,
+        time: time,
+        projection: rootProjection,
+        evaluated: evaluated,
+        diagnostics: diagnostics,
+        visibleLayerIds: visibleLayerIds,
+      );
+    }
 
     for (final clip in sceneClips) {
       if (!clip.containsRootTime(time.rootTime)) {
@@ -57,38 +73,17 @@ class MasterFrameEvaluationReadAdapter {
       }
 
       for (final channel in channels) {
-        if (channel.target.sceneId != clip.sourceSceneId) {
+        if (_isRootScopedChannel(channel) ||
+            channel.target.sceneId != clip.sourceSceneId) {
           continue;
         }
-        if (channel.target.layerId != null) {
-          visibleLayerIds.add(channel.target.layerId!);
-        }
-        final result = keyframeEvaluator.evaluate(
-          MasterKeyframeEvaluationRequest(
-            channel: channel,
-            time: time,
-            domainProjection: sceneProjection,
-          ),
-        );
-        if (result.mapping == null) {
-          diagnostics.add('unevaluated_channel:${channel.id}:${result.reason}');
-          continue;
-        }
-        final definition =
-            valueRegistry.definitionForMotionProperty(channel.definition);
-        if (definition == null) {
-          diagnostics.add('missing_definition:${channel.definition.id}');
-          continue;
-        }
-        evaluated.add(
-          MasterEvaluatedPropertyValue(
-            targetId: channel.target.targetId,
-            propertyDefinitionId: definition.id,
-            domain: MasterTimeDomain.scene(clip.sourceSceneId),
-            mapping: result.mapping!,
-            sourceChannelId: channel.id,
-            status: result.status.name,
-          ),
+        _evaluateChannel(
+          channel: channel,
+          time: time,
+          projection: sceneProjection,
+          evaluated: evaluated,
+          diagnostics: diagnostics,
+          visibleLayerIds: visibleLayerIds,
         );
       }
     }
@@ -100,6 +95,50 @@ class MasterFrameEvaluationReadAdapter {
       activeTransitionIds: const <String>[],
       evaluatedChannels: evaluated,
       diagnostics: diagnostics,
+    );
+  }
+
+  bool _isRootScopedChannel(MotionPropertyChannelModel channel) {
+    return channel.target.kind == MotionTargetKind.project;
+  }
+
+  void _evaluateChannel({
+    required MotionPropertyChannelModel channel,
+    required MasterTimeSnapshot time,
+    required MasterTimeProjection projection,
+    required List<MasterEvaluatedPropertyValue> evaluated,
+    required List<String> diagnostics,
+    required Set<String> visibleLayerIds,
+  }) {
+    if (channel.target.layerId != null) {
+      visibleLayerIds.add(channel.target.layerId!);
+    }
+    final result = keyframeEvaluator.evaluate(
+      MasterKeyframeEvaluationRequest(
+        channel: channel,
+        time: time,
+        domainProjection: projection,
+      ),
+    );
+    if (result.mapping == null) {
+      diagnostics.add('unevaluated_channel:${channel.id}:${result.reason}');
+      return;
+    }
+    final definition =
+        valueRegistry.definitionForMotionProperty(channel.definition);
+    if (definition == null) {
+      diagnostics.add('missing_definition:${channel.definition.id}');
+      return;
+    }
+    evaluated.add(
+      MasterEvaluatedPropertyValue(
+        targetId: channel.target.targetId,
+        propertyDefinitionId: definition.id,
+        domain: projection.toDomain,
+        mapping: result.mapping!,
+        sourceChannelId: channel.id,
+        status: result.status.name,
+      ),
     );
   }
 }

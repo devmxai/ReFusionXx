@@ -56,6 +56,15 @@ void main() {
   });
 
   group('MasterTimeDomainMapper', () {
+    test('maps root identity without domain drift', () {
+      final projection = mapper.rootIdentity(rootTime: ms(1234));
+      expect(projection.isValid, isTrue);
+      expect(projection.inputTime.inMilliseconds, 1234);
+      expect(projection.outputTime.inMilliseconds, 1234);
+      expect(projection.fromDomain, const MasterTimeDomain.root());
+      expect(projection.toDomain, const MasterTimeDomain.root());
+    });
+
     test('maps root time to scene source time', () {
       final projection = mapper.rootToScene(
         rootTime: ms(2500),

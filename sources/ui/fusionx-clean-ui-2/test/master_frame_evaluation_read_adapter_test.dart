@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:refusion_app/features/editor/domain/models/composition_scene_clip_models.dart';
+import 'package:refusion_app/features/editor/domain/models/master_time_models.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_animation_models.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_models.dart';
 import 'package:refusion_app/features/editor/domain/services/timeline_clock_coordinator.dart';
@@ -56,6 +57,36 @@ void main() {
     );
   }
 
+  MotionPropertyChannelModel rootOpacityChannel() {
+    return MotionPropertyChannelModel(
+      id: 'channel.root.opacity',
+      target: const MotionPropertyTarget(
+        kind: MotionTargetKind.project,
+        targetId: 'project-1',
+        projectId: 'project-1',
+      ),
+      definition: MotionPropertyCatalog.opacity,
+      activeRange:
+          TimelineTimeRange(start: TimelineTime.zero, endExclusive: ms(3000)),
+      keyframes: <MotionKeyframeModel>[
+        const MotionKeyframeModel(
+          id: 'rk0',
+          channelId: 'channel.root.opacity',
+          time: TimelineTime.zero,
+          value: MotionPropertyValue.scalar(0),
+          interpolationToNext: MotionInterpolationSpec.linear(),
+        ),
+        MotionKeyframeModel(
+          id: 'rk1',
+          channelId: 'channel.root.opacity',
+          time: ms(3000),
+          value: const MotionPropertyValue.scalar(100),
+          interpolationToNext: const MotionInterpolationSpec.linear(),
+        ),
+      ],
+    );
+  }
+
   test('builds read-only frame evaluation from clock + clips + channels', () {
     final adapter = MasterFrameEvaluationReadAdapter();
     final clock = TimelineClockCoordinator(
@@ -76,5 +107,29 @@ void main() {
     expect(opacity.propertyDefinitionId, 'opacity');
     expect(opacity.mapping.renderer.scalar, closeTo(0.6666, 0.02));
     expect(frame.diagnostics, isEmpty);
+  });
+
+  test('evaluates root-scoped project channels once per frame', () {
+    final adapter = MasterFrameEvaluationReadAdapter();
+    final clock = TimelineClockCoordinator(
+      timelineDuration: ms(6000),
+      initialTime: ms(1500),
+    );
+    final frame = adapter.evaluate(
+      clock: clock.snapshot,
+      frameRate: 30,
+      sceneClips: <CompositionSceneClipModel>[clip()],
+      channels: <MotionPropertyChannelModel>[
+        opacityChannel(),
+        rootOpacityChannel(),
+      ],
+    );
+
+    final rootEvaluations = frame.evaluatedChannels
+        .where((entry) => entry.sourceChannelId == 'channel.root.opacity')
+        .toList(growable: false);
+    expect(rootEvaluations, hasLength(1));
+    expect(rootEvaluations.single.domain, const MasterTimeDomain.root());
+    expect(rootEvaluations.single.mapping.renderer.scalar, closeTo(0.5, 0.02));
   });
 }
