@@ -382,16 +382,28 @@ class MainActivity: FlutterActivity() {
                         (rendererPresentationProof["requestedRootTimeMs"] as? Number)?.toLong()
                             ?: (payload["timelinePositionMs"] as? Number)?.toLong()
                     val surfaceId = payload["surfaceId"]?.toString()
+                    val hasRequestId = !requestId.isNullOrBlank()
+                    val hasRequestedRootTime = requestedRootTimeMs != null
+                    val accepted = hasRequestId && hasRequestedRootTime
+                    val rejectionReason =
+                        when {
+                            hasRequestId && hasRequestedRootTime -> null
+                            !hasRequestId && !hasRequestedRootTime ->
+                                "missing_request_id_and_requested_root_time"
+                            !hasRequestId -> "missing_request_id"
+                            else -> "missing_requested_root_time"
+                        }
                     latestLiveScrubRuntimeBridgeSnapshot = payload
                     result.success(
                         mapOf(
-                            "accepted" to true,
+                            "accepted" to accepted,
                             "descriptorCount" to descriptors.size,
                             "blockerCount" to blockers.size,
                             "requestId" to requestId,
                             "nativeReceivedAtMs" to nativeReceivedAtMs,
                             "requestedRootTimeMs" to requestedRootTimeMs,
                             "surfaceId" to surfaceId,
+                            "rejectionReason" to rejectionReason,
                         ),
                     )
                 }

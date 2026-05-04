@@ -90,6 +90,27 @@ void main() {
     );
   });
 
+  test('captures native rejection reason when provided', () {
+    const baseProof = RendererPresentationProof(
+      requestedRootTimeMs: 510,
+      requestedFrameIndex: 16,
+      requestedCommitFrameNumber: 42,
+      requestId: 'req-3b',
+    );
+    final submission = parseLiveScrubRuntimeBridgeSubmission(
+      baseProof: baseProof,
+      response: <String, dynamic>{
+        'accepted': false,
+        'rejectionReason': 'missing_request_id',
+      },
+    );
+    expect(submission.accepted, isFalse);
+    expect(
+      submission.proof.matchReason,
+      'native_rejected_runtime_bridge_snapshot:missing_request_id',
+    );
+  });
+
   test('marks proof mismatched when native echoes different request id', () {
     const baseProof = RendererPresentationProof(
       requestedRootTimeMs: 1400,

@@ -817,6 +817,7 @@ LiveScrubRuntimeBridgeSubmission parseLiveScrubRuntimeBridgeSubmission({
   required Map<String, dynamic> response,
 }) {
   final accepted = response['accepted'] == true;
+  final rejectionReason = response['rejectionReason']?.toString();
   final hasBlockers = baseProof.blockers.isNotEmpty;
   final nativeReceivedAtMs = _asInt(response['nativeReceivedAtMs']);
   final nativeReceivedAtUs =
@@ -849,7 +850,9 @@ LiveScrubRuntimeBridgeSubmission parseLiveScrubRuntimeBridgeSubmission({
               ? RendererPresentationMatchState.blocked
               : RendererPresentationMatchState.matched;
   final matchReason = !accepted
-      ? 'native_rejected_runtime_bridge_snapshot'
+      ? (rejectionReason != null && rejectionReason.isNotEmpty
+          ? 'native_rejected_runtime_bridge_snapshot:$rejectionReason'
+          : 'native_rejected_runtime_bridge_snapshot')
       : hasMismatch
           ? requestIdMismatch
               ? 'native_ack_request_id_mismatch'
