@@ -49,6 +49,11 @@ void main() {
         body.contains('_masterFrameEvaluationReadAdapter.evaluate('), isFalse);
   });
 
+  test('screen does not rebuild master frame evaluation manually', () async {
+    final source = await screenFile.readAsString();
+    expect(source.contains('MasterFrameEvaluation('), isFalse);
+  });
+
   test('transition runtime bridge does not drop evaluated channels', () async {
     final source = await screenFile.readAsString();
     final methodStart = source.indexOf(
