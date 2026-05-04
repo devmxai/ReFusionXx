@@ -56,10 +56,7 @@ void main() {
         ),
       ],
       blockers: const <String>[],
-      diagnostics: const <String>[
-        'master_source_revision:msr:test-source',
-        'master_render_graph_revision:mrg:test-graph',
-      ],
+      diagnostics: const <String>[],
       sourceRevision: 'msr:test-source',
       renderGraphRevision: 'mrg:test-graph',
       transitionState: LiveScrubTransitionState(

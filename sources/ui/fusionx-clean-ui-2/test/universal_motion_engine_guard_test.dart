@@ -189,6 +189,7 @@ void main() {
       isTrue,
     );
     expect(source.contains("'stage5-runtime-bridge'"), isFalse);
+    expect(source.contains('master_source_revision:'), isFalse);
   });
 
   test('transition runtime bridge preserves program revisions', () async {

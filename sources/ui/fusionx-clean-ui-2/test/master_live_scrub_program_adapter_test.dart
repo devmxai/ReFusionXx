@@ -278,9 +278,9 @@ void main() {
     );
     expect(
       program.diagnostics.any(
-        (entry) => entry.startsWith('master_source_revision:msr:'),
+        (entry) => entry.startsWith('master_source_revision:'),
       ),
-      isTrue,
+      isFalse,
     );
     expect(
       program.diagnostics.any(

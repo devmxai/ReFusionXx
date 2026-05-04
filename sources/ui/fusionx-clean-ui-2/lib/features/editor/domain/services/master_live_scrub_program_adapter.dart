@@ -97,7 +97,6 @@ class MasterLiveScrubProgramAdapter {
       'renderer_frame_match_state:${rendererFrameResult.proof.matchState.name}',
       'renderer_frame_match_reason:${rendererFrameResult.proof.matchReason}',
       'renderer_frame_request_id:${rendererFrameResult.proof.requestId}',
-      'master_source_revision:$sourceRevision',
       'master_render_graph_output:${renderGraph.outputNodeId}',
     ];
     return LiveScrubVisualProgram(
