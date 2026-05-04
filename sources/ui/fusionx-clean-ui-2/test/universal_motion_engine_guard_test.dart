@@ -12,6 +12,9 @@ void main() {
   final sceneLayerScopeAdapterFile = File(
     'lib/features/editor/presentation/services/scene_layer_scope_timeline_adapter.dart',
   );
+  final liveScrubDescriptorProjectionFile = File(
+    'lib/features/editor/domain/services/master_live_scrub_descriptor_projection.dart',
+  );
 
   test('master evaluation path uses universal evaluation service', () async {
     final source = await screenFile.readAsString();
@@ -149,5 +152,15 @@ void main() {
       source.contains('if (submission.isRenderableMatch) {'),
       isTrue,
     );
+  });
+
+  test('descriptor projection proof uses renderer mode adapter contract',
+      () async {
+    final source = await liveScrubDescriptorProjectionFile.readAsString();
+    expect(source.contains('MasterRendererModeAdapter'), isTrue);
+    expect(source.contains('masterRendererModeAdapter.buildProof('), isTrue);
+    expect(source.contains("'projection_blocked'"), isFalse);
+    expect(source.contains("'awaiting_native_ack'"), isFalse);
+    expect(source.contains('RendererPresentationProof('), isFalse);
   });
 }

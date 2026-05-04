@@ -104,4 +104,44 @@ void main() {
     expect(result.proof.matchState, RendererPresentationMatchState.blocked);
     expect(result.canPresentTruthfully, isFalse);
   });
+
+  test('buildProof applies live scrub match contract', () {
+    final adapter = MasterRendererModeAdapter();
+    final pending = adapter.buildProof(
+      mode: MasterRendererAdapterMode.liveScrub,
+      requestedRootTimeMs: 1000,
+      requestedFrameIndex: 30,
+      requestedCommitFrameNumber: 2,
+      requestedSourceIds: const <String>['layer-a'],
+      requestId: 'req-live-1',
+      sourceRevision: 'msr:live-1',
+      renderGraphRevision: 'mrg:live-1',
+      blockers: const <String>[],
+      surfaceId: 'stage5-scrub-surface',
+      nativePresentationAck: false,
+    );
+
+    expect(
+      pending.matchState,
+      RendererPresentationMatchState.pendingNativeAck,
+    );
+    expect(pending.matchReason, 'awaiting_liveScrub_native_ack');
+
+    final blocked = adapter.buildProof(
+      mode: MasterRendererAdapterMode.liveScrub,
+      requestedRootTimeMs: 1000,
+      requestedFrameIndex: 30,
+      requestedCommitFrameNumber: 2,
+      requestedSourceIds: const <String>['layer-a'],
+      requestId: 'req-live-2',
+      sourceRevision: 'msr:live-2',
+      renderGraphRevision: 'mrg:live-2',
+      blockers: const <String>['missing_source_window:layer-a'],
+      surfaceId: 'stage5-scrub-surface',
+      nativePresentationAck: false,
+    );
+
+    expect(blocked.matchState, RendererPresentationMatchState.blocked);
+    expect(blocked.matchReason, 'renderer_blocked_by_master_chain');
+  });
 }

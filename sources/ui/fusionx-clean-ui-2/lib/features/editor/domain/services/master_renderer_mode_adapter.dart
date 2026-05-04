@@ -6,6 +6,54 @@ import '../models/master_visual_program_models.dart';
 class MasterRendererModeAdapter {
   const MasterRendererModeAdapter();
 
+  RendererPresentationProof buildProof({
+    required MasterRendererAdapterMode mode,
+    required int requestedRootTimeMs,
+    required int requestedFrameIndex,
+    required int requestedCommitFrameNumber,
+    required List<String> requestedSourceIds,
+    required String requestId,
+    required String sourceRevision,
+    required String renderGraphRevision,
+    required List<String> blockers,
+    required String surfaceId,
+    bool nativePresentationAck = false,
+    int? presentedRootTimeMs,
+    int? presentedFrameIndex,
+    int? presentedCommitFrameNumber,
+    List<String> presentedSourceIds = const <String>[],
+    int? presentationTimestampUs,
+  }) {
+    final blockerSet = blockers.toSet();
+    return RendererPresentationProof(
+      requestedRootTimeMs: requestedRootTimeMs,
+      requestedFrameIndex: requestedFrameIndex,
+      requestedCommitFrameNumber: requestedCommitFrameNumber,
+      requestedSourceIds: requestedSourceIds,
+      requestId: requestId,
+      sourceRevision: sourceRevision,
+      renderGraphRevision: renderGraphRevision,
+      rendererMode: mode.name,
+      blockers: blockers,
+      presentedRootTimeMs: presentedRootTimeMs,
+      presentedFrameIndex: presentedFrameIndex,
+      presentedCommitFrameNumber: presentedCommitFrameNumber,
+      presentedSourceIds: presentedSourceIds,
+      surfaceId: surfaceId,
+      presentationTimestampUs: presentationTimestampUs,
+      nativePresentationAck: nativePresentationAck,
+      matchState: _resolveMatchState(
+        blockers: blockerSet,
+        nativePresentationAck: nativePresentationAck,
+      ),
+      matchReason: _resolveMatchReason(
+        mode: mode,
+        blockers: blockerSet,
+        nativePresentationAck: nativePresentationAck,
+      ),
+    );
+  }
+
   MasterRendererFrameResult project({
     required MasterRendererAdapterMode mode,
     required MasterVisualProgram program,
@@ -32,7 +80,8 @@ class MasterRendererModeAdapter {
     };
 
     final renderGraphRevision = renderGraph.revision;
-    final baseProof = RendererPresentationProof(
+    final baseProof = buildProof(
+      mode: mode,
       requestedRootTimeMs: program.time.rootTime.inMilliseconds,
       requestedFrameIndex: program.time.frameIndex,
       requestedCommitFrameNumber: program.time.commitFrameNumber,
@@ -40,24 +89,14 @@ class MasterRendererModeAdapter {
       requestId: requestId,
       sourceRevision: sourceRevision,
       renderGraphRevision: renderGraphRevision,
-      rendererMode: mode.name,
       blockers: blockers.toList(growable: false),
+      surfaceId: surfaceId,
+      nativePresentationAck: nativePresentationAck,
       presentedRootTimeMs: presentedRootTimeMs,
       presentedFrameIndex: presentedFrameIndex,
       presentedCommitFrameNumber: presentedCommitFrameNumber,
       presentedSourceIds: presentedSourceIds,
-      surfaceId: surfaceId,
       presentationTimestampUs: presentationTimestampUs,
-      nativePresentationAck: nativePresentationAck,
-      matchState: _resolveMatchState(
-        blockers: blockers,
-        nativePresentationAck: nativePresentationAck,
-      ),
-      matchReason: _resolveMatchReason(
-        mode: mode,
-        blockers: blockers,
-        nativePresentationAck: nativePresentationAck,
-      ),
     );
 
     return MasterRendererFrameResult(

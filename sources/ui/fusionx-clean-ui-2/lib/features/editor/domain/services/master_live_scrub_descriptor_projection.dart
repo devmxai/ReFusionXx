@@ -1,10 +1,16 @@
 import 'dart:math' as math;
 
 import '../models/master_live_scrub_descriptor_models.dart';
+import '../models/master_renderer_adapter_models.dart';
 import '../models/master_live_scrub_visual_program_models.dart';
+import 'master_renderer_mode_adapter.dart';
 
 class MasterLiveScrubDescriptorProjection {
-  const MasterLiveScrubDescriptorProjection();
+  const MasterLiveScrubDescriptorProjection({
+    this.masterRendererModeAdapter = const MasterRendererModeAdapter(),
+  });
+
+  final MasterRendererModeAdapter masterRendererModeAdapter;
 
   LiveScrubDescriptorProjectionResult project({
     required LiveScrubVisualProgram program,
@@ -232,6 +238,30 @@ class MasterLiveScrubDescriptorProjection {
           : LiveScrubLatencyBudgetState.overBudget;
     }
 
+    final rendererPresentationProof = masterRendererModeAdapter.buildProof(
+      mode: MasterRendererAdapterMode.liveScrub,
+      requestedRootTimeMs: timelinePositionMs,
+      requestedFrameIndex: program.time.frameIndex,
+      requestedCommitFrameNumber: program.time.commitFrameNumber,
+      requestedSourceIds: <String>[
+        for (final descriptor in descriptors)
+          if (descriptor.sourceUri.trim().isNotEmpty) descriptor.targetId,
+      ],
+      requestId:
+          'liveScrub:${program.time.commitFrameNumber}:${program.time.frameIndex}:$timelinePositionMs',
+      sourceRevision: _extractDiagnosticValue(
+        diagnostics,
+        'master_source_revision:',
+      ),
+      renderGraphRevision: _extractDiagnosticValue(
+        diagnostics,
+        'master_render_graph_revision:',
+      ),
+      blockers: blockers,
+      surfaceId: 'stage5-scrub-surface',
+      nativePresentationAck: false,
+    );
+
     return LiveScrubDescriptorProjectionResult(
       timelinePositionMs: timelinePositionMs,
       descriptors: descriptors,
@@ -251,33 +281,7 @@ class MasterLiveScrubDescriptorProjection {
         latencyBudgetState: latencyBudgetState,
         performanceSnapshot: effectivePerformanceSnapshot,
       ),
-      rendererPresentationProof: RendererPresentationProof(
-        requestedRootTimeMs: timelinePositionMs,
-        requestedFrameIndex: program.time.frameIndex,
-        requestedCommitFrameNumber: program.time.commitFrameNumber,
-        requestedSourceIds: <String>[
-          for (final descriptor in descriptors)
-            if (descriptor.sourceUri.trim().isNotEmpty) descriptor.targetId,
-        ],
-        requestId:
-            'liveScrub:${program.time.commitFrameNumber}:${program.time.frameIndex}:$timelinePositionMs',
-        sourceRevision: _extractDiagnosticValue(
-          diagnostics,
-          'master_source_revision:',
-        ),
-        renderGraphRevision: _extractDiagnosticValue(
-          diagnostics,
-          'master_render_graph_revision:',
-        ),
-        rendererMode: program.time.renderMode.name,
-        blockers: blockers,
-        nativePresentationAck: false,
-        matchState: blockers.isEmpty
-            ? RendererPresentationMatchState.pendingNativeAck
-            : RendererPresentationMatchState.blocked,
-        matchReason:
-            blockers.isEmpty ? 'awaiting_native_ack' : 'projection_blocked',
-      ),
+      rendererPresentationProof: rendererPresentationProof,
     );
   }
 

@@ -144,6 +144,14 @@ void main() {
       first.rendererPresentationProof.renderGraphRevision,
       'mrg:test-graph',
     );
+    expect(
+      first.rendererPresentationProof.rendererMode,
+      'liveScrub',
+    );
+    expect(
+      first.rendererPresentationProof.matchReason,
+      'awaiting_liveScrub_native_ack',
+    );
   });
 
   test('reports blockers when source window is missing', () {
@@ -187,6 +195,10 @@ void main() {
     expect(
       result.rendererPresentationProof.matchState,
       RendererPresentationMatchState.blocked,
+    );
+    expect(
+      result.rendererPresentationProof.matchReason,
+      'renderer_blocked_by_master_chain',
     );
   });
 
