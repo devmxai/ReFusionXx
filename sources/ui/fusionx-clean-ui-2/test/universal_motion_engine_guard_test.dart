@@ -122,6 +122,23 @@ void main() {
           .contains('MotionLayerKind.shape => TimelineTrackContentKind.shape'),
       isTrue,
     );
+    expect(
+      source.contains('MotionLayerKind.camera || MotionLayerKind.effectControl =>\n'
+          '        TimelineTrackKind.text'),
+      isFalse,
+    );
+    expect(
+      source.contains(
+        'Unsupported layer kind for Scene Layer Scope track kind',
+      ),
+      isTrue,
+    );
+    expect(
+      source.contains(
+        'Unsupported layer kind for Scene Layer Scope content kind',
+      ),
+      isTrue,
+    );
   });
 
   test('universal channel source detaches legacy manual source id', () async {
