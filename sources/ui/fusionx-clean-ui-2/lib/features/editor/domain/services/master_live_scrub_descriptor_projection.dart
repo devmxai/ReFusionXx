@@ -249,14 +249,8 @@ class MasterLiveScrubDescriptorProjection {
       ],
       requestId:
           'liveScrub:${program.time.commitFrameNumber}:${program.time.frameIndex}:$timelinePositionMs',
-      sourceRevision: _extractDiagnosticValue(
-        diagnostics,
-        'master_source_revision:',
-      ),
-      renderGraphRevision: _extractDiagnosticValue(
-        diagnostics,
-        'master_render_graph_revision:',
-      ),
+      sourceRevision: program.sourceRevision,
+      renderGraphRevision: program.renderGraphRevision,
       blockers: blockers,
       surfaceId: 'stage5-scrub-surface',
       nativePresentationAck: false,
@@ -283,18 +277,6 @@ class MasterLiveScrubDescriptorProjection {
       ),
       rendererPresentationProof: rendererPresentationProof,
     );
-  }
-
-  String _extractDiagnosticValue(List<String> diagnostics, String prefix) {
-    for (final entry in diagnostics) {
-      if (entry.startsWith(prefix)) {
-        final value = entry.substring(prefix.length).trim();
-        if (value.isNotEmpty) {
-          return value;
-        }
-      }
-    }
-    return 'unknown';
   }
 
   String _stableDescriptorId({

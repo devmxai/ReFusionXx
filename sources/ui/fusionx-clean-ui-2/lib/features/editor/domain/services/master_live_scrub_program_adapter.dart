@@ -139,6 +139,8 @@ class MasterLiveScrubProgramAdapter {
       ],
       blockers: blockers.toList(growable: false),
       diagnostics: diagnostics,
+      sourceRevision: sourceRevision,
+      renderGraphRevision: renderGraph.revision,
       transitionState: LiveScrubTransitionState(
         activeTransitionIds: masterProgram.transitionState.activeTransitionIds,
         hasRenderableTransitionPixels:

@@ -60,6 +60,8 @@ void main() {
         'master_source_revision:msr:test-source',
         'master_render_graph_revision:mrg:test-graph',
       ],
+      sourceRevision: 'msr:test-source',
+      renderGraphRevision: 'mrg:test-graph',
       transitionState: LiveScrubTransitionState(
         activeTransitionIds: const <String>[],
         hasRenderableTransitionPixels: false,

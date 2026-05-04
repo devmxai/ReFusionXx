@@ -128,6 +128,8 @@ class LiveScrubVisualProgram {
     List<LiveScrubVisualSurface> surfaces = const <LiveScrubVisualSurface>[],
     List<String> blockers = const <String>[],
     List<String> diagnostics = const <String>[],
+    this.sourceRevision = 'unknown',
+    this.renderGraphRevision = 'unknown',
     required this.transitionState,
   })  : surfaces = List.unmodifiable(surfaces),
         blockers = List.unmodifiable(blockers),
@@ -137,6 +139,8 @@ class LiveScrubVisualProgram {
   final List<LiveScrubVisualSurface> surfaces;
   final List<String> blockers;
   final List<String> diagnostics;
+  final String sourceRevision;
+  final String renderGraphRevision;
   final LiveScrubTransitionState transitionState;
 
   bool get canRenderTruthfully {

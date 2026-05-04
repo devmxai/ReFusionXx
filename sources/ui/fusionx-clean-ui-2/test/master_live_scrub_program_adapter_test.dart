@@ -262,6 +262,8 @@ void main() {
     expect(program.transitionState.hasTransitionWindow, isTrue);
     expect(program.transitionState.hasRenderableTransitionPixels, isFalse);
     expect(program.transitionState.reason, 'phase1_domain_contract_only');
+    expect(program.sourceRevision.startsWith('msr:'), isTrue);
+    expect(program.renderGraphRevision.startsWith('mrg:'), isTrue);
     expect(
       program.diagnostics.any(
         (entry) => entry.startsWith('master_render_graph_revision:'),

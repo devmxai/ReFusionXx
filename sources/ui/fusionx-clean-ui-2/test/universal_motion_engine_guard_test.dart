@@ -161,6 +161,7 @@ void main() {
     expect(source.contains('masterRendererModeAdapter.buildProof('), isTrue);
     expect(source.contains("'projection_blocked'"), isFalse);
     expect(source.contains("'awaiting_native_ack'"), isFalse);
+    expect(source.contains('_extractDiagnosticValue('), isFalse);
     expect(source.contains('RendererPresentationProof('), isFalse);
   });
 }
