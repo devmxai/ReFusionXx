@@ -21554,6 +21554,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         channels: _manualMotionPropertyChannels,
       ),
     ];
+    final sceneScopeSession = _sceneScopeSession;
+    if (sceneScopeSession != null) {
+      sources.add(
+        UniversalMotionChannelCollectionSource(
+          id: 'scene_scope_projection_channels',
+          channels: sceneScopeSession.channels,
+        ),
+      );
+    }
     final unifiedSession = _unifiedTransitionScopeSession;
     if (unifiedSession != null) {
       sources.add(

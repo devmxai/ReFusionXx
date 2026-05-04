@@ -101,5 +101,6 @@ void main() {
     final source = await screenFile.readAsString();
     expect(source.contains("id: 'manual_motion_property_channels'"), isFalse);
     expect(source.contains("id: 'universal_authored_channels'"), isTrue);
+    expect(source.contains("id: 'scene_scope_projection_channels'"), isTrue);
   });
 }
