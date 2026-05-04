@@ -1,20 +1,25 @@
 import '../models/master_frame_evaluation_models.dart';
 import '../models/master_live_scrub_visual_program_models.dart';
 import '../models/master_render_graph_models.dart';
+import '../models/master_renderer_adapter_models.dart';
+import '../models/master_time_models.dart';
 import '../models/master_visual_program_models.dart';
 import '../models/professional_motion_animation_models.dart';
 import '../models/professional_motion_models.dart';
 import 'master_render_graph_adapter.dart';
+import 'master_renderer_mode_adapter.dart';
 import 'master_visual_program_adapter.dart';
 
 class MasterLiveScrubProgramAdapter {
   const MasterLiveScrubProgramAdapter({
     this.masterVisualProgramAdapter = const MasterVisualProgramAdapter(),
     this.masterRenderGraphAdapter = const MasterRenderGraphAdapter(),
+    this.masterRendererModeAdapter = const MasterRendererModeAdapter(),
   });
 
   final MasterVisualProgramAdapter masterVisualProgramAdapter;
   final MasterRenderGraphAdapter masterRenderGraphAdapter;
+  final MasterRendererModeAdapter masterRendererModeAdapter;
 
   LiveScrubVisualProgram build({
     required MasterFrameEvaluation frame,
@@ -32,7 +37,21 @@ class MasterLiveScrubProgramAdapter {
       channels: channels,
     );
     final renderGraph = masterRenderGraphAdapter.build(program: masterProgram);
-    return _projectFromMasterVisualProgram(masterProgram, renderGraph);
+    final rendererFrameResult = masterRendererModeAdapter.project(
+      mode: _rendererModeFromMasterRenderMode(frame.time.renderMode),
+      program: masterProgram,
+      renderGraph: renderGraph,
+      requestId:
+          'mlsp:${frame.time.commitFrameNumber}:${frame.time.frameIndex}:${frame.time.renderMode.name}',
+      sourceRevision: _buildSourceRevision(masterProgram),
+      surfaceId: 'stage5-runtime-bridge',
+      nativePresentationAck: false,
+    );
+    return _projectFromMasterVisualProgram(
+      masterProgram,
+      renderGraph,
+      rendererFrameResult,
+    );
   }
 
   Map<String, MasterVisualSourceBinding> _mapSources(
@@ -63,15 +82,21 @@ class MasterLiveScrubProgramAdapter {
   LiveScrubVisualProgram _projectFromMasterVisualProgram(
     MasterVisualProgram masterProgram,
     MasterRenderGraph renderGraph,
+    MasterRendererFrameResult rendererFrameResult,
   ) {
     final sourceRevision = _buildSourceRevision(masterProgram);
     final blockers = <String>{
       ...masterProgram.blockers,
       ...renderGraph.blockers,
+      ...rendererFrameResult.blockers,
     };
     final diagnostics = <String>[
       ...masterProgram.diagnostics,
       ...renderGraph.diagnostics,
+      ...rendererFrameResult.diagnostics,
+      'renderer_frame_match_state:${rendererFrameResult.proof.matchState.name}',
+      'renderer_frame_match_reason:${rendererFrameResult.proof.matchReason}',
+      'renderer_frame_request_id:${rendererFrameResult.proof.requestId}',
       'master_source_revision:$sourceRevision',
       'master_render_graph_output:${renderGraph.outputNodeId}',
     ];
@@ -139,6 +164,23 @@ class MasterLiveScrubProgramAdapter {
     ];
     final hash = Object.hashAll(signature).toUnsigned(32).toRadixString(16);
     return 'msr:$hash';
+  }
+
+  MasterRendererAdapterMode _rendererModeFromMasterRenderMode(
+    MasterRenderMode mode,
+  ) {
+    switch (mode) {
+      case MasterRenderMode.preview:
+        return MasterRendererAdapterMode.preview;
+      case MasterRenderMode.playback:
+        return MasterRendererAdapterMode.playback;
+      case MasterRenderMode.liveScrub:
+      case MasterRenderMode.settle:
+      case MasterRenderMode.test:
+        return MasterRendererAdapterMode.liveScrub;
+      case MasterRenderMode.export:
+        return MasterRendererAdapterMode.export;
+    }
   }
 
   MasterVisualSourceKind _sourceKindToMaster(LiveScrubSourceKind kind) {

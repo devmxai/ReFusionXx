@@ -280,6 +280,25 @@ void main() {
       ),
       isTrue,
     );
+    expect(
+      program.diagnostics.any(
+        (entry) => entry.startsWith('renderer_mode:liveScrub'),
+      ),
+      isTrue,
+    );
+    expect(
+      program.diagnostics.any(
+        (entry) => entry.startsWith('renderer_frame_match_state:'),
+      ),
+      isTrue,
+    );
+    expect(
+      program.diagnostics.any(
+        (entry) => entry.startsWith(
+            'renderer_frame_match_reason:awaiting_liveScrub_native_ack'),
+      ),
+      isTrue,
+    );
 
     expect(
       program.blockers

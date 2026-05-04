@@ -129,8 +129,10 @@ void main() {
     final source = await liveScrubProgramAdapterFile.readAsString();
     expect(source.contains('MasterVisualProgramAdapter'), isTrue);
     expect(source.contains('MasterRenderGraphAdapter'), isTrue);
+    expect(source.contains('MasterRendererModeAdapter'), isTrue);
     expect(source.contains('_projectFromMasterVisualProgram('), isTrue);
     expect(source.contains('masterRenderGraphAdapter.build('), isTrue);
+    expect(source.contains('masterRendererModeAdapter.project('), isTrue);
   });
 
   test('runtime bridge submission gates on reconciled native proof', () async {
