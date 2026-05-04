@@ -47,6 +47,7 @@ import '../../domain/services/refusion_motion_patch_import_service.dart';
 import '../../domain/services/scene_export_parity_gate.dart';
 import '../../domain/services/scene_program_apply_transaction.dart';
 import '../../domain/services/scene_mention_index.dart';
+import '../../domain/services/scene_scope_channel_time_mapper.dart';
 import '../../domain/services/scene_scope_session.dart';
 import '../../domain/services/scoped_text_motion_script_import_service.dart';
 import '../../domain/services/timeline_clock_coordinator.dart';
@@ -199,6 +200,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       NativePreviewIdentityResolver();
   static const SceneScopeSessionResolver _sceneScopeSessionResolver =
       SceneScopeSessionResolver();
+  static const SceneScopeChannelTimeMapper _sceneScopeChannelTimeMapper =
+      SceneScopeChannelTimeMapper();
   static const SceneLayerScopeTimelineAdapter _sceneLayerScopeTimelineAdapter =
       SceneLayerScopeTimelineAdapter();
   static const SceneScopeTransitionPreviewResolver
@@ -15487,7 +15490,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       <MotionPropertyChannelModel>[
         for (final channel in _manualMotionPropertyChannels)
           if (channel.target.sceneId == sceneScope.sourceSceneId)
-            _sceneScopeChannelToLocalTime(sceneScope, channel),
+            _sceneScopeChannelTimeMapper.channelToLocalTime(
+                sceneScope, channel),
       ],
     );
   }
@@ -15498,7 +15502,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   ) {
     final replacements = <String, MotionPropertyChannelModel>{
       for (final channel in localChannels)
-        channel.id: _sceneScopeChannelToSourceTime(sceneScope, channel),
+        channel.id: _sceneScopeChannelTimeMapper.channelToSourceTime(
+            sceneScope, channel),
     };
     final nextChannels = <MotionPropertyChannelModel>[];
     final replacedIds = <String>{};
@@ -15521,56 +15526,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
     }
     return List<MotionPropertyChannelModel>.unmodifiable(nextChannels);
-  }
-
-  MotionPropertyChannelModel _sceneScopeChannelToLocalTime(
-    SceneScopeSession sceneScope,
-    MotionPropertyChannelModel channel,
-  ) {
-    final activeRange = channel.activeRange;
-    final localActiveRange = activeRange == null
-        ? null
-        : TimelineTimeRange(
-            start: sceneScope.sourceToLocal(activeRange.start),
-            endExclusive: sceneScope.sourceToLocal(activeRange.endExclusive),
-          );
-    return channel.copyWith(
-      activeRange: localActiveRange,
-      clearActiveRange: localActiveRange == null,
-      keyframes: List<MotionKeyframeModel>.unmodifiable(
-        <MotionKeyframeModel>[
-          for (final keyframe in channel.keyframes)
-            keyframe.copyWith(
-              time: sceneScope.sourceToLocal(keyframe.time),
-            ),
-        ]..sort((left, right) => left.time.compareTo(right.time)),
-      ),
-    );
-  }
-
-  MotionPropertyChannelModel _sceneScopeChannelToSourceTime(
-    SceneScopeSession sceneScope,
-    MotionPropertyChannelModel channel,
-  ) {
-    final activeRange = channel.activeRange;
-    final sourceActiveRange = activeRange == null
-        ? null
-        : TimelineTimeRange(
-            start: sceneScope.localToSource(activeRange.start),
-            endExclusive: sceneScope.localToSource(activeRange.endExclusive),
-          );
-    return channel.copyWith(
-      activeRange: sourceActiveRange,
-      clearActiveRange: sourceActiveRange == null,
-      keyframes: List<MotionKeyframeModel>.unmodifiable(
-        <MotionKeyframeModel>[
-          for (final keyframe in channel.keyframes)
-            keyframe.copyWith(
-              time: sceneScope.localToSource(keyframe.time),
-            ),
-        ]..sort((left, right) => left.time.compareTo(right.time)),
-      ),
-    );
   }
 
   List<SceneMentionEntity> _sceneMentionEntitiesForCurrentScope() {
