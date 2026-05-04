@@ -21550,7 +21550,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _universalMotionChannelSources() {
     final sources = <UniversalMotionChannelCollectionSource>[
       UniversalMotionChannelCollectionSource(
-        id: 'manual_motion_property_channels',
+        id: 'universal_authored_channels',
         channels: _manualMotionPropertyChannels,
       ),
     ];

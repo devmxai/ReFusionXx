@@ -96,4 +96,10 @@ void main() {
       isTrue,
     );
   });
+
+  test('universal channel source detaches legacy manual source id', () async {
+    final source = await screenFile.readAsString();
+    expect(source.contains("id: 'manual_motion_property_channels'"), isFalse);
+    expect(source.contains("id: 'universal_authored_channels'"), isTrue);
+  });
 }
