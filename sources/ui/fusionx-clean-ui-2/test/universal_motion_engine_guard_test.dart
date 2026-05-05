@@ -51,6 +51,12 @@ void main() {
   final stage5ScrubOverlayTextureViewFile = File(
     'android/app/src/main/kotlin/com/fusionx/fusionx_clean_ui_2/Stage5ScrubOverlayTextureView.kt',
   );
+  final exportCompositionModelsFile = File(
+    'lib/features/editor/domain/models/export_composition_models.dart',
+  );
+  final stage6ExportManagerFile = File(
+    'android/app/src/main/kotlin/com/fusionx/fusionx_clean_ui_2/Stage6ExportManager.kt',
+  );
 
   test('master evaluation path uses universal evaluation service', () async {
     final source = await screenFile.readAsString();
@@ -238,6 +244,30 @@ void main() {
     );
     expect(
       source.contains('trueframe_core_motion_blur_plan_mode:'),
+      isTrue,
+    );
+  });
+
+  test('stage6 export requires trueframe execution contract for transitions',
+      () async {
+    final exportModels = await exportCompositionModelsFile.readAsString();
+    final stage6Source = await stage6ExportManagerFile.readAsString();
+    expect(exportModels.contains('class ExportTrueFrameExecutionContract'),
+        isTrue);
+    expect(
+      exportModels.contains("'trueFrameExecutionContract':"),
+      isTrue,
+    );
+    expect(
+      stage6Source.contains(
+        'readTrueFrameExecutionContract(compositionMap["trueFrameExecutionContract"])',
+      ),
+      isTrue,
+    );
+    expect(
+      stage6Source.contains(
+        'TRUEFRAME export execution contract is missing for motion transition export.',
+      ),
       isTrue,
     );
   });

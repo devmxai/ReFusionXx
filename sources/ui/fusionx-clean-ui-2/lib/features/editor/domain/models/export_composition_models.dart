@@ -226,6 +226,53 @@ class ExportBackendProfileDescriptor {
 }
 
 @immutable
+class ExportTrueFrameExecutionContract {
+  ExportTrueFrameExecutionContract({
+    required this.contractVersion,
+    required this.engineId,
+    required this.evaluatorId,
+    required this.qualityMode,
+    required this.graphRevision,
+    required this.transitionCount,
+    required this.manualTransitionCount,
+    required this.temporalMotionBlurTransitionCount,
+    required this.maxTemporalSampleCount,
+    List<String> blockers = const <String>[],
+    List<String> diagnostics = const <String>[],
+  })  : blockers = List.unmodifiable(blockers),
+        diagnostics = List.unmodifiable(diagnostics);
+
+  final String contractVersion;
+  final String engineId;
+  final String evaluatorId;
+  final String qualityMode;
+  final String graphRevision;
+  final int transitionCount;
+  final int manualTransitionCount;
+  final int temporalMotionBlurTransitionCount;
+  final int maxTemporalSampleCount;
+  final List<String> blockers;
+  final List<String> diagnostics;
+
+  bool get isReady => blockers.isEmpty;
+
+  Map<String, Object?> toBridgeMap() => <String, Object?>{
+        'contractVersion': contractVersion,
+        'engineId': engineId,
+        'evaluatorId': evaluatorId,
+        'qualityMode': qualityMode,
+        'graphRevision': graphRevision,
+        'transitionCount': transitionCount,
+        'manualTransitionCount': manualTransitionCount,
+        'temporalMotionBlurTransitionCount': temporalMotionBlurTransitionCount,
+        'maxTemporalSampleCount': maxTemporalSampleCount,
+        'isReady': isReady,
+        'blockers': blockers,
+        'diagnostics': diagnostics,
+      };
+}
+
+@immutable
 class ExportPropertyCapabilityDescriptor {
   const ExportPropertyCapabilityDescriptor({
     required this.propertyId,
@@ -966,6 +1013,7 @@ class ExportComposition {
     this.motionTextRasterContract,
     this.motionTextRasterProgram,
     this.authoredVisualSurfaceProgram,
+    this.trueFrameExecutionContract,
     this.motionComposition,
     this.motionTextProgram,
     this.motionTextRenderTrack,
@@ -982,6 +1030,7 @@ class ExportComposition {
   final MotionTextRasterContract? motionTextRasterContract;
   final MotionTextRasterExportProgram? motionTextRasterProgram;
   final ExportAuthoredVisualSurfaceProgram? authoredVisualSurfaceProgram;
+  final ExportTrueFrameExecutionContract? trueFrameExecutionContract;
   final MotionNormalizedComposition? motionComposition;
   final ExportMotionTextProgram? motionTextProgram;
   final ExportMotionTextRenderTrack? motionTextRenderTrack;
@@ -1080,6 +1129,13 @@ class ExportComposition {
           detail:
               'Live player/transport state is explicitly excluded from export truth.',
         ),
+        if (trueFrameExecutionContract != null)
+          const ExportTruthSourceDescriptor(
+            kind: ExportTruthSourceKind.previewState,
+            role: ExportTruthSourceRole.auxiliary,
+            detail:
+                'TRUEFRAME core export adapter contract mirrors manual transition graph/evaluator truth for export.',
+          ),
       ];
 
   ExportVisualCompositorGraph get visualCompositorGraph {
@@ -1958,6 +2014,8 @@ class ExportComposition {
             motionTextRasterProgram?.nodes.length,
         'authoredVisualSurfaceProgramNodeCount':
             authoredVisualSurfaceProgram?.nodes.length,
+        'trueFrameExecutionContract': trueFrameExecutionContract?.toBridgeMap(),
+        'trueFrameExecutionReady': trueFrameExecutionContract?.isReady ?? false,
         'truthSources':
             truthSources.map((source) => source.toBridgeMap()).toList(),
         'capabilityMatrix':
@@ -1993,6 +2051,15 @@ class ExportComposition {
         'hasCurveSpeedClips': hasCurveSpeedClips,
         'motionTextProgramIncluded': motionTextProgram != null,
         'motionTextRenderTrackIncluded': motionTextRenderTrack != null,
+        'trueFrameExecutionContractIncluded':
+            trueFrameExecutionContract != null,
+        'trueFrameExecutionReady': trueFrameExecutionContract?.isReady ?? false,
+        'trueFrameExecutionQualityMode':
+            trueFrameExecutionContract?.qualityMode,
+        'manualTransitionCount':
+            trueFrameExecutionContract?.manualTransitionCount ?? 0,
+        'temporalMotionBlurTransitionCount':
+            trueFrameExecutionContract?.temporalMotionBlurTransitionCount ?? 0,
         'isFirstBaselineEligible': isFirstBaselineEligible,
         'firstBaselineBlockingCodes':
             firstBaselineBlockingCodes.map((code) => code.name).toList(),
@@ -2028,6 +2095,7 @@ class ExportComposition {
       'motionTextRasterProgram': motionTextRasterProgram?.toBridgeMap(),
       'authoredVisualSurfaceProgram':
           authoredVisualSurfaceProgram?.toBridgeMap(),
+      'trueFrameExecutionContract': trueFrameExecutionContract?.toBridgeMap(),
       'format': <String, Object?>{
         'canvasWidth': format.canvasWidth,
         'canvasHeight': format.canvasHeight,
@@ -2180,6 +2248,7 @@ class ExportComposition {
           : _motionTextProgramBridgeMap(motionTextProgram!),
       'authoredVisualSurfaceProgram':
           authoredVisualSurfaceProgram?.toBridgeMap(),
+      'trueFrameExecutionContract': trueFrameExecutionContract?.toBridgeMap(),
       'motionTextRenderTrack': motionTextRenderTrack == null
           ? null
           : _motionTextRenderTrackBridgeMap(motionTextRenderTrack!),
@@ -4017,6 +4086,7 @@ class ExportCompositionBuildInput {
     this.motionComposition,
     this.motionTextProgram,
     this.motionTextRenderTrack,
+    this.trueFrameExecutionContract,
   })  : assets = List.unmodifiable(assets),
         timelineTracks = List.unmodifiable(timelineTracks);
 
@@ -4028,6 +4098,7 @@ class ExportCompositionBuildInput {
   final MotionNormalizedComposition? motionComposition;
   final ExportMotionTextProgram? motionTextProgram;
   final ExportMotionTextRenderTrack? motionTextRenderTrack;
+  final ExportTrueFrameExecutionContract? trueFrameExecutionContract;
 }
 
 Map<String, Object?> _motionTextProgramBridgeMap(

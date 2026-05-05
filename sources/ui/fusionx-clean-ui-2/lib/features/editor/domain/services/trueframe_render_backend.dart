@@ -23,6 +23,7 @@ abstract class TrueFrameRenderBackend {
   const TrueFrameRenderBackend();
 
   TrueFrameRenderBackendMode modeForState({
+    required bool isExporting,
     required bool isTimelineScrubbing,
     required bool isPlaying,
   });
@@ -41,9 +42,13 @@ class TrueFrameManualTransitionRenderBackend extends TrueFrameRenderBackend {
 
   @override
   TrueFrameRenderBackendMode modeForState({
+    required bool isExporting,
     required bool isTimelineScrubbing,
     required bool isPlaying,
   }) {
+    if (isExporting) {
+      return TrueFrameRenderBackendMode.export;
+    }
     if (isTimelineScrubbing) {
       return TrueFrameRenderBackendMode.liveScrub;
     }

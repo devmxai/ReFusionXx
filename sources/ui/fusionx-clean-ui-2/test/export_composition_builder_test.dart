@@ -96,6 +96,64 @@ void main() {
     expect(composition.graphSchemaVersion, kExportGraphSchemaVersion);
   });
 
+  test('keeps trueframe export execution contract in bridge payload', () {
+    final composition = builder.build(
+      ExportCompositionBuildInput(
+        contractVersion: 'v1alpha1',
+        projectId: 'project-trueframe-export',
+        projectFormat: format(),
+        assets: const <ExportAssetDescriptor>[
+          ExportAssetDescriptor(
+            assetId: 'asset-a',
+            kind: ExportAssetKind.video,
+            label: 'A',
+            sourceUri: '/tmp/a.mp4',
+          ),
+        ],
+        timelineTracks: <ExportTrackSeed>[
+          ExportTrackSeed(
+            kind: ExportTrackKind.video,
+            clips: <ExportClipSeed>[
+              ExportClipSeed(
+                clipId: 'clip-a',
+                assetId: 'asset-a',
+                timelineStartTime: TimelineTime.zero,
+                timelineDurationTime: TimelineTime.fromSecondsDouble(2),
+                sourceStartTime: TimelineTime.zero,
+                sourceDurationTime: TimelineTime.fromSecondsDouble(2),
+                playbackRate: 1.0,
+                speedMode: ExportClipSpeedMode.normal,
+              ),
+            ],
+          ),
+        ],
+        trueFrameExecutionContract: ExportTrueFrameExecutionContract(
+          contractVersion: 'trueframe-export.v1alpha1',
+          engineId: 'trueframe_core',
+          evaluatorId: 'trueframe_core_runtime_evaluator',
+          qualityMode: 'export',
+          graphRevision: 'trueframe:r1',
+          transitionCount: 1,
+          manualTransitionCount: 1,
+          temporalMotionBlurTransitionCount: 1,
+          maxTemporalSampleCount: 16,
+          blockers: const <String>[],
+          diagnostics: const <String>['ok'],
+        ),
+      ),
+    );
+
+    expect(composition.trueFrameExecutionContract, isNotNull);
+    expect(composition.trueFrameExecutionContract?.isReady, isTrue);
+    final bridge = composition.toBridgeMap();
+    final contract =
+        bridge['trueFrameExecutionContract'] as Map<String, Object?>?;
+    expect(contract, isNotNull);
+    expect(contract?['qualityMode'], 'export');
+    expect(contract?['temporalMotionBlurTransitionCount'], 1);
+    expect(contract?['isReady'], isTrue);
+  });
+
   test(
       'marks first export baseline blockers for audio-only timelines and curve speed',
       () {

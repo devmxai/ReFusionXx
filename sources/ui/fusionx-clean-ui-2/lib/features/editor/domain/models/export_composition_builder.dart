@@ -137,6 +137,7 @@ class ExportCompositionBuilder {
       motionTextRasterContract: motionTextRasterContract,
       motionTextRasterProgram: motionTextRasterProgram,
       authoredVisualSurfaceProgram: authoredVisualSurfaceProgram,
+      trueFrameExecutionContract: input.trueFrameExecutionContract,
       motionComposition: input.motionComposition,
       motionTextProgram: input.motionTextProgram,
       motionTextRenderTrack: input.motionTextRenderTrack,

@@ -1323,6 +1323,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             projectFormat: projectFormat,
           )
         : null;
+    final trueFrameExecutionContract =
+        _buildTrueFrameExecutionContractForExport(
+      canonicalTracks: canonicalTracks,
+      timelineDurationTime: projectDuration,
+    );
     return const ExportCompositionBuilder().build(
       ExportCompositionBuildInput(
         contractVersion: _exportContractVersion,
@@ -1333,7 +1338,125 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         motionComposition: motionComposition,
         motionTextProgram: motionTextProgram,
         motionTextRenderTrack: motionTextRenderTrack,
+        trueFrameExecutionContract: trueFrameExecutionContract,
       ),
+    );
+  }
+
+  ExportTrueFrameExecutionContract _buildTrueFrameExecutionContractForExport({
+    required List<TimelineTrackData> canonicalTracks,
+    required TimelineTime timelineDurationTime,
+  }) {
+    final diagnostics = <String>[
+      'trueframe_export_contract_mode:export',
+      'trueframe_export_contract_backend:${_trueFrameRenderBackend.runtimeType}',
+    ];
+    final blockers = <String>[];
+    var transitionCount = 0;
+    var manualTransitionCount = 0;
+    var temporalMotionBlurTransitionCount = 0;
+    var maxTemporalSampleCount = 0;
+    var graphRevision = 'none';
+    for (final track in canonicalTracks.where(
+      (entry) => entry.kind == TimelineTrackKind.video,
+    )) {
+      final positionedClips = _positionedTransitionClipsForTrack(track);
+      if (positionedClips.length < 2) {
+        continue;
+      }
+      final clipById = <String, _PositionedTimelineTrackClip>{
+        for (final clip in positionedClips) clip.clip.id: clip,
+      };
+      for (final transition in _sanitizeTransitionsForTrack(track)) {
+        if (transition.preset == TimelineTransitionPreset.aiGenerated) {
+          continue;
+        }
+        transitionCount += 1;
+        if (transition.preset != TimelineTransitionPreset.manual) {
+          continue;
+        }
+        manualTransitionCount += 1;
+        final leftClip = clipById[transition.leftClipId];
+        final rightClip = clipById[transition.rightClipId];
+        if (leftClip == null || rightClip == null) {
+          blockers.add(
+              'trueframe_export_missing_transition_clips:${transition.id}');
+          continue;
+        }
+        final seamTime = leftClip.startTime + leftClip.clip.durationTime;
+        final totalSpan = (transition.resolvedLeadingDurationTime +
+                transition.resolvedTrailingDurationTime)
+            .inMilliseconds;
+        final progress = totalSpan <= 0
+            ? 0.0
+            : (transition.resolvedLeadingDurationTime.inMilliseconds /
+                    totalSpan)
+                .clamp(0.0, 1.0)
+                .toDouble();
+        final activeTransition = _ActiveTimelineTransitionPreview(
+          transition: transition,
+          leftClip: leftClip,
+          rightClip: rightClip,
+          timelineTime: seamTime.clamp(TimelineTime.zero, timelineDurationTime),
+          progress: progress,
+          manualLaneProgress: progress,
+          manualSeamProgress: progress,
+        );
+        final surfaceId = _professionalTransitionSurfaceId(activeTransition);
+        final plan = _professionalTransitionRenderPlanFor(
+          activeTransition: activeTransition,
+          mode: 'export',
+          surfaceId: surfaceId,
+        );
+        if (plan == null) {
+          blockers.add('trueframe_export_missing_render_plan:${transition.id}');
+          continue;
+        }
+        graphRevision = plan.renderGraphRevision;
+        final temporalPlans = plan.parameters['temporalMotionBlurSamplePlans'];
+        if (temporalPlans is! List || temporalPlans.isEmpty) {
+          diagnostics.add('trueframe_export_no_temporal_plan:${transition.id}');
+          continue;
+        }
+        for (final temporalPlan in temporalPlans) {
+          if (temporalPlan is! Map) {
+            continue;
+          }
+          final sampleTimes = temporalPlan['sampleTimesMs'];
+          final sampleCount = sampleTimes is List ? sampleTimes.length : 0;
+          if (sampleCount > 1) {
+            temporalMotionBlurTransitionCount += 1;
+            if (sampleCount > maxTemporalSampleCount) {
+              maxTemporalSampleCount = sampleCount;
+            }
+          }
+        }
+      }
+    }
+    if (manualTransitionCount > 0 && temporalMotionBlurTransitionCount <= 0) {
+      blockers.add('trueframe_export_manual_transition_temporal_plan_missing');
+    }
+    diagnostics.add('trueframe_export_transition_count:$transitionCount');
+    diagnostics
+        .add('trueframe_export_manual_transition_count:$manualTransitionCount');
+    diagnostics.add(
+      'trueframe_export_temporal_motion_blur_transition_count:$temporalMotionBlurTransitionCount',
+    );
+    diagnostics.add(
+      'trueframe_export_max_temporal_sample_count:$maxTemporalSampleCount',
+    );
+    return ExportTrueFrameExecutionContract(
+      contractVersion: 'trueframe-export.v1alpha1',
+      engineId: 'trueframe_core',
+      evaluatorId: 'trueframe_core_runtime_evaluator',
+      qualityMode: TrueFrameSamplingQualityMode.export.name,
+      graphRevision: graphRevision,
+      transitionCount: transitionCount,
+      manualTransitionCount: manualTransitionCount,
+      temporalMotionBlurTransitionCount: temporalMotionBlurTransitionCount,
+      maxTemporalSampleCount: maxTemporalSampleCount,
+      blockers: blockers,
+      diagnostics: diagnostics,
     );
   }
 
@@ -23512,6 +23635,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required bool effectiveIsPlaying,
   }) {
     final mode = _trueFrameRenderBackend.modeForState(
+      isExporting: _exportController.state.isActive,
       isTimelineScrubbing: _isTimelineScrubbing,
       isPlaying: effectiveIsPlaying,
     );

@@ -6,16 +6,36 @@ void main() {
 
   test('maps timeline scrubbing and playback state to backend mode', () {
     expect(
-      backend.modeForState(isTimelineScrubbing: true, isPlaying: false),
+      backend.modeForState(
+        isExporting: false,
+        isTimelineScrubbing: true,
+        isPlaying: false,
+      ),
       TrueFrameRenderBackendMode.liveScrub,
     );
     expect(
-      backend.modeForState(isTimelineScrubbing: false, isPlaying: true),
+      backend.modeForState(
+        isExporting: false,
+        isTimelineScrubbing: false,
+        isPlaying: true,
+      ),
       TrueFrameRenderBackendMode.playback,
     );
     expect(
-      backend.modeForState(isTimelineScrubbing: false, isPlaying: false),
+      backend.modeForState(
+        isExporting: false,
+        isTimelineScrubbing: false,
+        isPlaying: false,
+      ),
       TrueFrameRenderBackendMode.preview,
+    );
+    expect(
+      backend.modeForState(
+        isExporting: true,
+        isTimelineScrubbing: true,
+        isPlaying: true,
+      ),
+      TrueFrameRenderBackendMode.export,
     );
   });
 

@@ -732,6 +732,8 @@ class Stage6ExportManager(
         val canonicalEffectsGraph =
             readCanonicalEffectsGraph(compositionMap["canonicalEffectsGraph"])
                 ?: return "Canonical effects graph is missing."
+        val trueFrameExecutionContract =
+            readTrueFrameExecutionContract(compositionMap["trueFrameExecutionContract"])
         val visualCompositorGraph =
             readVisualCompositorGraph(compositionMap["visualCompositorGraph"])
                 ?: return "Visual compositor graph is missing."
@@ -759,6 +761,24 @@ class Stage6ExportManager(
         val canonicalEffectsDiagnostics = buildCanonicalEffectsDiagnostics(canonicalEffectsGraph)
         canonicalEffectsDiagnostics.firstBlockedDetail?.let { blockingDetail ->
             return blockingDetail
+        }
+        val hasMotionTransitionOperations =
+            canonicalEffectsGraph.operations.any { operation ->
+                operation.kind == "motionTransition"
+            }
+        if (hasMotionTransitionOperations) {
+            if (trueFrameExecutionContract == null) {
+                return "TRUEFRAME export execution contract is missing for motion transition export."
+            }
+            if (!trueFrameExecutionContract.isReady) {
+                val blocker =
+                    trueFrameExecutionContract.blockers.firstOrNull()
+                        ?: "unknown_trueframe_export_contract_blocker"
+                return "TRUEFRAME export execution contract is not ready ($blocker)."
+            }
+            if (trueFrameExecutionContract.qualityMode != "export") {
+                return "TRUEFRAME export execution contract must use export quality mode."
+            }
         }
         val motionSummary = readMotionContractSummary(compositionMap["motion"])
         val motionTextProgramSummary =
@@ -1131,6 +1151,25 @@ class Stage6ExportManager(
                 val text = entry?.toString()?.trim().orEmpty()
                 text.takeIf { it.isNotEmpty() }
             }
+    }
+
+    private fun readTrueFrameExecutionContract(value: Any?): NativeTrueFrameExecutionContract? {
+        val map = value as? Map<*, *> ?: return null
+        return NativeTrueFrameExecutionContract(
+            contractVersion = map["contractVersion"]?.toString().orEmpty(),
+            engineId = map["engineId"]?.toString().orEmpty(),
+            evaluatorId = map["evaluatorId"]?.toString().orEmpty(),
+            qualityMode = map["qualityMode"]?.toString().orEmpty(),
+            graphRevision = map["graphRevision"]?.toString().orEmpty(),
+            transitionCount = readInt(map["transitionCount"]),
+            manualTransitionCount = readInt(map["manualTransitionCount"]),
+            temporalMotionBlurTransitionCount =
+                readInt(map["temporalMotionBlurTransitionCount"]),
+            maxTemporalSampleCount = readInt(map["maxTemporalSampleCount"]),
+            isReady = readBoolean(map["isReady"]),
+            blockers = readStringList(map["blockers"]),
+            diagnostics = readStringList(map["diagnostics"]),
+        )
     }
 
     private fun readMotionPropertyValueMap(value: Any?): Map<String, Map<String, Any?>> {
@@ -4925,6 +4964,21 @@ private data class NativeMotionContractSummary(
     val textAnimationCount: Int,
     val effectCount: Int,
     val transitionCount: Int,
+)
+
+private data class NativeTrueFrameExecutionContract(
+    val contractVersion: String,
+    val engineId: String,
+    val evaluatorId: String,
+    val qualityMode: String,
+    val graphRevision: String,
+    val transitionCount: Int,
+    val manualTransitionCount: Int,
+    val temporalMotionBlurTransitionCount: Int,
+    val maxTemporalSampleCount: Int,
+    val isReady: Boolean,
+    val blockers: List<String>,
+    val diagnostics: List<String>,
 )
 
 private data class NativeMotionTextRenderTrackSummary(
