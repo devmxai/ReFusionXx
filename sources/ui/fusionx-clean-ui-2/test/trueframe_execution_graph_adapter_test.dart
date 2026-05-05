@@ -248,4 +248,79 @@ void main() {
     );
     expect(projection.graph.nodes, isNotEmpty);
   });
+
+  test('projects group/scene clip/adjustment layer families for phase I', () {
+    final clock = TimelineClockCoordinator(
+      timelineDuration: ms(9000),
+      initialTime: ms(1200),
+    );
+    final time = MasterTimeSnapshot.fromClockSnapshot(
+      clock: clock.snapshot,
+      frameRate: 30,
+      renderMode: MasterRenderMode.preview,
+      sourceScope: MasterTimeScope.rootComposition,
+    );
+    final program = MasterVisualProgram(
+      time: time,
+      surfaces: <MasterVisualSurface>[
+        MasterVisualSurface(
+          targetId: 'group-main-1',
+          sourceKind: MasterVisualSourceKind.video,
+          source: const MasterVisualSourceBinding(
+            targetId: 'group-main-1',
+            kind: MasterVisualSourceKind.video,
+            sourceUri: '/media/group.mp4',
+          ),
+        ),
+        MasterVisualSurface(
+          targetId: 'scene-clip-hero-1',
+          sourceKind: MasterVisualSourceKind.image,
+          source: const MasterVisualSourceBinding(
+            targetId: 'scene-clip-hero-1',
+            kind: MasterVisualSourceKind.image,
+            sourceUri: '/media/scene.png',
+          ),
+        ),
+        MasterVisualSurface(
+          targetId: 'adjustment-control-1',
+          sourceKind: MasterVisualSourceKind.video,
+          source: const MasterVisualSourceBinding(
+            targetId: 'adjustment-control-1',
+            kind: MasterVisualSourceKind.video,
+            sourceUri: '/media/adjust.mp4',
+          ),
+        ),
+      ],
+      transitionState: MasterVisualTransitionState(
+        hasRenderableTransitionPixels: false,
+        reason: 'phase_i_group_scene_adjustment_projection',
+      ),
+    );
+
+    const masterAdapter = MasterRenderGraphAdapter();
+    final graph = masterAdapter.build(program: program);
+    const adapter = TrueFrameExecutionGraphAdapter();
+    final projection = adapter.project(
+      TrueFrameExecutionGraphProjectionRequest(masterGraph: graph),
+    );
+
+    expect(
+      projection.graph.nodes.any(
+        (node) => node.family == TrueFrameExecutionNodeFamily.groupPrecomp,
+      ),
+      isTrue,
+    );
+    expect(
+      projection.graph.nodes.any(
+        (node) => node.family == TrueFrameExecutionNodeFamily.sceneClipInstance,
+      ),
+      isTrue,
+    );
+    expect(
+      projection.graph.nodes.any(
+        (node) => node.family == TrueFrameExecutionNodeFamily.adjustmentControl,
+      ),
+      isTrue,
+    );
+  });
 }

@@ -741,6 +741,11 @@ Phase I progress:
 - Phase I.B runtime state is complete: `NodeFrameState` now carries
   `resolvedLayerFamilies` from the same core graph node set, so quality adapters
   consume one canonical layer-family truth at runtime.
+- Phase I.C parity coverage is complete: projection/runtime tests now explicitly
+  lock `groupPrecomp`, `sceneClipInstance`, and `adjustmentControl` family
+  resolution (`test/trueframe_execution_graph_adapter_test.dart` and
+  `test/trueframe_core_runtime_evaluator_test.dart`) so these families cannot
+  silently regress while transition-focused slices continue.
 
 Checkpoint:
 

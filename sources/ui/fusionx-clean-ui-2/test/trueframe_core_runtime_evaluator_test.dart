@@ -88,6 +88,55 @@ void main() {
     );
   }
 
+  MasterVisualProgram _phaseILayerFamilyProgram() {
+    final clock = TimelineClockCoordinator(
+      timelineDuration: ms(12000),
+      initialTime: ms(3000),
+    );
+    final time = MasterTimeSnapshot.fromClockSnapshot(
+      clock: clock.snapshot,
+      frameRate: 30,
+      renderMode: MasterRenderMode.preview,
+      sourceScope: MasterTimeScope.rootComposition,
+    );
+    return MasterVisualProgram(
+      time: time,
+      surfaces: <MasterVisualSurface>[
+        MasterVisualSurface(
+          targetId: 'group-main-1',
+          sourceKind: MasterVisualSourceKind.video,
+          source: const MasterVisualSourceBinding(
+            targetId: 'group-main-1',
+            kind: MasterVisualSourceKind.video,
+            sourceUri: '/media/group.mp4',
+          ),
+        ),
+        MasterVisualSurface(
+          targetId: 'scene-clip-hero-1',
+          sourceKind: MasterVisualSourceKind.image,
+          source: const MasterVisualSourceBinding(
+            targetId: 'scene-clip-hero-1',
+            kind: MasterVisualSourceKind.image,
+            sourceUri: '/media/scene.png',
+          ),
+        ),
+        MasterVisualSurface(
+          targetId: 'adjustment-control-1',
+          sourceKind: MasterVisualSourceKind.video,
+          source: const MasterVisualSourceBinding(
+            targetId: 'adjustment-control-1',
+            kind: MasterVisualSourceKind.video,
+            sourceUri: '/media/adjust.mp4',
+          ),
+        ),
+      ],
+      transitionState: MasterVisualTransitionState(
+        hasRenderableTransitionPixels: false,
+        reason: 'phase_i_runtime_layer_families',
+      ),
+    );
+  }
+
   test(
       'evaluates composition/node states from trueframe graph deterministically',
       () {
@@ -174,6 +223,48 @@ void main() {
     expect(
       exportPlan.diagnostics,
       contains('trueframe_motion_blur_plan_from_graph'),
+    );
+  });
+
+  test('runtime evaluator resolves group/scene clip/adjustment layer families',
+      () {
+    const masterAdapter = MasterRenderGraphAdapter();
+    final masterGraph =
+        masterAdapter.build(program: _phaseILayerFamilyProgram());
+    const graphAdapter = TrueFrameExecutionGraphAdapter();
+    final trueFrameGraph = graphAdapter
+        .project(
+          TrueFrameExecutionGraphProjectionRequest(masterGraph: masterGraph),
+        )
+        .graph;
+
+    const evaluator = TrueFrameCoreRuntimeEvaluator();
+    final frameState = evaluator.evaluateCompositionAt(
+      graph: trueFrameGraph,
+      qualityMode: TrueFrameSamplingQualityMode.preview,
+    );
+
+    final groupState = frameState.nodeStatesByNodeId['composite:group-main-1'];
+    final sceneState =
+        frameState.nodeStatesByNodeId['composite:scene-clip-hero-1'];
+    final adjustmentState =
+        frameState.nodeStatesByNodeId['composite:adjustment-control-1'];
+
+    expect(groupState, isNotNull);
+    expect(sceneState, isNotNull);
+    expect(adjustmentState, isNotNull);
+
+    expect(
+      groupState!.resolvedLayerFamilies,
+      contains(TrueFrameExecutionNodeFamily.groupPrecomp.name),
+    );
+    expect(
+      sceneState!.resolvedLayerFamilies,
+      contains(TrueFrameExecutionNodeFamily.sceneClipInstance.name),
+    );
+    expect(
+      adjustmentState!.resolvedLayerFamilies,
+      contains(TrueFrameExecutionNodeFamily.adjustmentControl.name),
     );
   });
 }
