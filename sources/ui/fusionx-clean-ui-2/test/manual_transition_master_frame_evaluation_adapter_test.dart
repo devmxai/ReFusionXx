@@ -55,13 +55,21 @@ void main() {
     );
 
     expect(result.blockers, isEmpty);
-    expect(result.channels, isNotEmpty);
+    expect(result.channels.length, 4);
     final scaleX = result.evaluatedChannels.firstWhere(
-      (value) => value.propertyDefinitionId == 'scale',
+      (value) =>
+          value.propertyDefinitionId == 'scale' && value.targetId == 'clip-a',
     );
     expect(scaleX.targetId, 'clip-a');
     expect(scaleX.mapping.renderer.scalar, closeTo(1.5, 0.0001));
     expect(scaleX.domain, const MasterTimeDomain.transition('transition-1'));
+    final incomingScaleX = result.evaluatedChannels.firstWhere(
+      (value) =>
+          value.propertyDefinitionId == 'scale' && value.targetId == 'clip-b',
+    );
+    expect(incomingScaleX.mapping.renderer.scalar, closeTo(1.5, 0.0001));
+    expect(incomingScaleX.domain,
+        const MasterTimeDomain.transition('transition-1'));
   });
 
   test('interpolates manual scale from authored keyframe time and value', () {
@@ -96,10 +104,16 @@ void main() {
 
     expect(result.blockers, isEmpty);
     final scaleX = result.evaluatedChannels.firstWhere(
-      (value) => value.propertyDefinitionId == 'scale',
+      (value) =>
+          value.propertyDefinitionId == 'scale' && value.targetId == 'clip-a',
     );
     expect(scaleX.targetId, 'clip-a');
     expect(scaleX.mapping.renderer.scalar, closeTo(1.35, 0.0001));
+    final incomingScaleX = result.evaluatedChannels.firstWhere(
+      (value) =>
+          value.propertyDefinitionId == 'scale' && value.targetId == 'clip-b',
+    );
+    expect(incomingScaleX.mapping.renderer.scalar, closeTo(1.35, 0.0001));
   });
 
   test('reports blockers for unsupported manual lanes', () {

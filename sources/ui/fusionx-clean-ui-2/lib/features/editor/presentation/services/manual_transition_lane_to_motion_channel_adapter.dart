@@ -153,8 +153,7 @@ class ManualTransitionLaneToMotionChannelAdapter {
         return <MotionPropertyChannelModel>[
           for (final laneTargetId in laneTargetIds) ...[
             MotionPropertyChannelModel(
-              id:
-                  'manual-transition-${transition.id}-${lane.id}-$laneTargetId-scale-x',
+              id: 'manual-transition-${transition.id}-${lane.id}-$laneTargetId-scale-x',
               target: _elementTargetFor(
                 projectId: projectId,
                 targetId: laneTargetId,
@@ -172,8 +171,7 @@ class ManualTransitionLaneToMotionChannelAdapter {
               ),
             ),
             MotionPropertyChannelModel(
-              id:
-                  'manual-transition-${transition.id}-${lane.id}-$laneTargetId-scale-y',
+              id: 'manual-transition-${transition.id}-${lane.id}-$laneTargetId-scale-y',
               target: _elementTargetFor(
                 projectId: projectId,
                 targetId: laneTargetId,
@@ -196,8 +194,7 @@ class ManualTransitionLaneToMotionChannelAdapter {
         return <MotionPropertyChannelModel>[
           for (final laneTargetId in laneTargetIds)
             MotionPropertyChannelModel(
-              id:
-                  'manual-transition-${transition.id}-${lane.id}-$laneTargetId-opacity',
+              id: 'manual-transition-${transition.id}-${lane.id}-$laneTargetId-opacity',
               target: _elementTargetFor(
                 projectId: projectId,
                 targetId: laneTargetId,
@@ -219,8 +216,7 @@ class ManualTransitionLaneToMotionChannelAdapter {
         return <MotionPropertyChannelModel>[
           for (final laneTargetId in laneTargetIds)
             MotionPropertyChannelModel(
-              id:
-                  'manual-transition-${transition.id}-${lane.id}-$laneTargetId-position-x',
+              id: 'manual-transition-${transition.id}-${lane.id}-$laneTargetId-position-x',
               target: _elementTargetFor(
                 projectId: projectId,
                 targetId: laneTargetId,
@@ -242,8 +238,7 @@ class ManualTransitionLaneToMotionChannelAdapter {
         return <MotionPropertyChannelModel>[
           for (final laneTargetId in laneTargetIds)
             MotionPropertyChannelModel(
-              id:
-                  'manual-transition-${transition.id}-${lane.id}-$laneTargetId-rotation-deg',
+              id: 'manual-transition-${transition.id}-${lane.id}-$laneTargetId-rotation-deg',
               target: _elementTargetFor(
                 projectId: projectId,
                 targetId: laneTargetId,
@@ -265,8 +260,7 @@ class ManualTransitionLaneToMotionChannelAdapter {
         return <MotionPropertyChannelModel>[
           for (final laneTargetId in laneTargetIds)
             MotionPropertyChannelModel(
-              id:
-                  'manual-transition-${transition.id}-${lane.id}-$laneTargetId-blur-amount',
+              id: 'manual-transition-${transition.id}-${lane.id}-$laneTargetId-blur-amount',
               target: _elementTargetFor(
                 projectId: projectId,
                 targetId: laneTargetId,
@@ -306,20 +300,61 @@ class ManualTransitionLaneToMotionChannelAdapter {
     required TimelineAnimationLaneData lane,
     required String fallbackTargetId,
   }) {
+    final rawLaneTargetId = lane.targetClipId.trim().isEmpty
+        ? fallbackTargetId
+        : lane.targetClipId.trim();
     final laneTargetId = _canonicalManualLaneTargetId(
       transition: transition,
-      laneTargetId: lane.targetClipId.trim().isEmpty
-          ? fallbackTargetId
-          : lane.targetClipId.trim(),
+      laneTargetId: rawLaneTargetId,
       fallbackTargetId: fallbackTargetId,
     );
-    // Preserve strict lane targeting: authored keyframes must only affect
-    // the clip targeted by the lane, not both transition sides.
+    if (_isExplicitManualTransitionSideTarget(
+      transition: transition,
+      rawLaneTargetId: rawLaneTargetId,
+    )) {
+      return <String>[laneTargetId];
+    }
+    if (_isActiveSourceManualTransitionLane(lane.id)) {
+      final rightClipId = transition.rightClipId.trim();
+      return <String>{
+        laneTargetId,
+        if (rightClipId.isNotEmpty) rightClipId,
+      }.toList(growable: false);
+    }
     final rightClipId = transition.rightClipId.trim();
     if (rightClipId.isEmpty || rightClipId == laneTargetId) {
       return <String>[laneTargetId];
     }
     return <String>[laneTargetId];
+  }
+
+  bool _isActiveSourceManualTransitionLane(String laneId) {
+    return switch (laneId) {
+      'scale' ||
+      'opacity' ||
+      'position' ||
+      'rotation' ||
+      'gaussian_blur' =>
+        true,
+      _ => false,
+    };
+  }
+
+  bool _isExplicitManualTransitionSideTarget({
+    required TimelineTrackTransitionData transition,
+    required String rawLaneTargetId,
+  }) {
+    final trimmed = rawLaneTargetId.trim();
+    if (trimmed.isEmpty) {
+      return false;
+    }
+    if (trimmed == transition.rightClipId.trim()) {
+      return true;
+    }
+    final transitionPrefix = '${transition.id}::focus-';
+    return trimmed.startsWith(transitionPrefix) ||
+        trimmed.endsWith('::focus-left') ||
+        trimmed.endsWith('::focus-right');
   }
 
   String _canonicalManualLaneTargetId({

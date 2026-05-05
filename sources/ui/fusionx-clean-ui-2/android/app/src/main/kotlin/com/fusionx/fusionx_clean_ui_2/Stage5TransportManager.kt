@@ -48,7 +48,7 @@ class Stage5TransportManager(context: Context) {
         // earlier than the original baseline.
         private const val MULTI_ITEM_PRELOAD_DURATION_US = 12_000_000L
         private const val SOURCE_CONTIGUITY_TOLERANCE_MS = 1L
-        private const val LOW_LATENCY_VIDEO_JOINING_TIME_MS = 350L
+        private const val LOW_LATENCY_VIDEO_JOINING_TIME_MS = 80L
         private const val SCRUB_SETTLE_WATCHDOG_MS = 320L
         private const val SCRUB_SETTLE_MAX_WATCHDOG_ATTEMPTS = 3
         private const val SCRUB_SETTLE_TOLERANCE_MS = 12L

@@ -6,7 +6,8 @@ import 'package:refusion_app/features/editor/presentation/services/manual_transi
 void main() {
   const adapter = ManualTransitionLaneToMotionChannelAdapter();
 
-  test('maps scale lane to paired scale channels in transition window', () {
+  test('maps scale lane to active-source scale channels in transition window',
+      () {
     final transition = TimelineTrackTransitionData(
       id: 'transition-1',
       leftClipId: 'clip-a',
@@ -35,7 +36,7 @@ void main() {
     );
 
     expect(result.issues, isEmpty);
-    expect(result.channels.length, 2);
+    expect(result.channels.length, 4);
     final scaleX = result.channels.firstWhere(
       (channel) =>
           channel.definition.id == 'transform.scale.x' &&
@@ -54,7 +55,53 @@ void main() {
     expect(scaleX.keyframes.last.value.rawValue, 2.0);
     expect(
       result.channels.any((channel) => channel.target.targetId == 'clip-b'),
-      isFalse,
+      isTrue,
+    );
+    final incomingScaleX = result.channels.firstWhere(
+      (channel) =>
+          channel.definition.id == 'transform.scale.x' &&
+          channel.target.targetId == 'clip-b',
+    );
+    expect(incomingScaleX.keyframes.first.time,
+        TimelineTime.fromMilliseconds(4000));
+    expect(incomingScaleX.keyframes.last.time,
+        TimelineTime.fromMilliseconds(6000));
+    expect(incomingScaleX.keyframes.first.value.rawValue, 1.0);
+    expect(incomingScaleX.keyframes.last.value.rawValue, 2.0);
+  });
+
+  test('keeps explicit right-side manual lane scoped to incoming clip', () {
+    final transition = TimelineTrackTransitionData(
+      id: 'transition-1',
+      leftClipId: 'clip-a',
+      rightClipId: 'clip-b',
+      preset: TimelineTransitionPreset.manual,
+      durationTime: TimelineTime.fromMilliseconds(2000),
+      manualEffectIds: const <String>['scale'],
+      manualAnimationLanes: const <TimelineAnimationLaneData>[
+        TimelineAnimationLaneData(
+          id: 'scale',
+          label: 'Scale',
+          targetClipId: 'clip-b',
+          normalizedKeyframeStops: <double>[0.0, 1.0],
+          keyframeValues: <double>[0.0, 50.0],
+        ),
+      ],
+    );
+
+    final result = adapter.projectChannels(
+      request: ManualTransitionLaneChannelProjectionRequest(
+        transition: transition,
+        seamTime: TimelineTime.fromMilliseconds(5000),
+        projectId: 'project-1',
+      ),
+    );
+
+    expect(result.issues, isEmpty);
+    expect(result.channels.length, 2);
+    expect(
+      result.channels.map((channel) => channel.target.targetId).toSet(),
+      <String>{'clip-b'},
     );
   });
 
@@ -126,7 +173,7 @@ void main() {
     );
 
     expect(result.issues, isEmpty);
-    expect(result.channels.length, 1);
+    expect(result.channels.length, 2);
     final opacity = result.channels.firstWhere(
       (channel) => channel.target.targetId == 'clip-a',
     );
@@ -134,6 +181,12 @@ void main() {
     expect(opacity.keyframes.length, 2);
     expect(opacity.keyframes.first.value.rawValue, 1.0);
     expect(opacity.keyframes.last.value.rawValue, 0.0);
+    final incomingOpacity = result.channels.firstWhere(
+      (channel) => channel.target.targetId == 'clip-b',
+    );
+    expect(incomingOpacity.definition.id, 'visual.opacity');
+    expect(incomingOpacity.keyframes.first.value.rawValue, 1.0);
+    expect(incomingOpacity.keyframes.last.value.rawValue, 0.0);
   });
 
   test('maps focus scoped lane target ids back to real clip ids', () {
