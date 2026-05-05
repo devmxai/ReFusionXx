@@ -5,6 +5,13 @@ import 'master_time_models.dart';
 
 enum TrueFrameExecutionNodeFamily {
   sourceSample,
+  videoLayer,
+  imageLayer,
+  textLayer,
+  shapeLayer,
+  groupPrecomp,
+  sceneClipInstance,
+  adjustmentControl,
   layerTransform,
   crop,
   mask,

@@ -112,7 +112,8 @@ void main() {
     expect(projection.blockers, isEmpty);
     expect(projection.graph.canExecuteTruthfully, isTrue);
     expect(projection.graph.sourceGraphRevision, masterGraph.revision);
-    expect(projection.graph.nodes.length, masterGraph.nodes.length);
+    expect(
+        projection.graph.nodes.length, greaterThan(masterGraph.nodes.length));
     expect(
       projection.graph.nodes.any(
         (node) => node.family == TrueFrameExecutionNodeFamily.sourceSample,
@@ -157,6 +158,12 @@ void main() {
       isTrue,
     );
     expect(
+      projection.graph.nodes.any(
+        (node) => node.family == TrueFrameExecutionNodeFamily.videoLayer,
+      ),
+      isTrue,
+    );
+    expect(
       projection.diagnostics,
       contains('trueframe_transition_node_resolved:transition-1'),
     );
@@ -186,5 +193,59 @@ void main() {
       projection.blockers,
       contains('trueframe_missing_transition_node:transition-missing'),
     );
+  });
+
+  test('projects image layer family for phase I expansion', () {
+    final clock = TimelineClockCoordinator(
+      timelineDuration: ms(8000),
+      initialTime: ms(1000),
+    );
+    final time = MasterTimeSnapshot.fromClockSnapshot(
+      clock: clock.snapshot,
+      frameRate: 30,
+      renderMode: MasterRenderMode.preview,
+      sourceScope: MasterTimeScope.rootComposition,
+    );
+    final program = MasterVisualProgram(
+      time: time,
+      surfaces: <MasterVisualSurface>[
+        MasterVisualSurface(
+          targetId: 'image-layer-1',
+          sourceKind: MasterVisualSourceKind.image,
+          source: const MasterVisualSourceBinding(
+            targetId: 'image-layer-1',
+            kind: MasterVisualSourceKind.image,
+            sourceUri: '/media/image.png',
+          ),
+          textStyle: const MasterVisualTextStyle(
+            fontSize: 42,
+            alignment: 'center',
+          ),
+          shapeStyle: const MasterVisualShapeStyle(
+            width: 220,
+            height: 180,
+          ),
+        ),
+      ],
+      transitionState: MasterVisualTransitionState(
+        hasRenderableTransitionPixels: false,
+        reason: 'phase_i_visual_layer_projection',
+      ),
+    );
+
+    const masterAdapter = MasterRenderGraphAdapter();
+    final graph = masterAdapter.build(program: program);
+    const adapter = TrueFrameExecutionGraphAdapter();
+    final projection = adapter.project(
+      TrueFrameExecutionGraphProjectionRequest(masterGraph: graph),
+    );
+
+    expect(
+      projection.graph.nodes.any(
+        (node) => node.family == TrueFrameExecutionNodeFamily.imageLayer,
+      ),
+      isTrue,
+    );
+    expect(projection.graph.nodes, isNotEmpty);
   });
 }

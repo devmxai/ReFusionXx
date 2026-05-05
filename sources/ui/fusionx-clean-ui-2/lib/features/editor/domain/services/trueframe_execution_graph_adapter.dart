@@ -20,20 +20,25 @@ class TrueFrameExecutionGraphAdapter {
     TrueFrameExecutionGraphProjectionRequest request,
   ) {
     final masterGraph = request.masterGraph;
-    final nodes = masterGraph.nodes
-        .map(
-          (node) => TrueFrameExecutionNode(
-            id: node.id,
-            family: _mapFamily(node.family),
-            targetId: node.targetId,
-            inputNodeIds: List<String>.unmodifiable(node.inputNodeIds),
-            cacheKey: node.cacheKey,
-            attributes: Map<String, Object?>.unmodifiable(node.attributes),
-            blockers: List<String>.unmodifiable(node.blockers),
-            diagnostics: List<String>.unmodifiable(node.diagnostics),
-          ),
-        )
-        .toList(growable: false);
+    final nodes = <TrueFrameExecutionNode>[
+      for (final node in masterGraph.nodes)
+        TrueFrameExecutionNode(
+          id: node.id,
+          family: _mapFamily(node.family),
+          targetId: node.targetId,
+          inputNodeIds: List<String>.unmodifiable(node.inputNodeIds),
+          cacheKey: node.cacheKey,
+          attributes: Map<String, Object?>.unmodifiable(node.attributes),
+          blockers: List<String>.unmodifiable(node.blockers),
+          diagnostics: List<String>.unmodifiable(node.diagnostics),
+        ),
+    ];
+    nodes.addAll(
+      _phaseIExpandedNodes(
+        masterGraph: masterGraph,
+        projectedNodes: nodes,
+      ),
+    );
     final bindings = masterGraph.surfaceBindings
         .map(
           (binding) => TrueFrameExecutionSurfaceBinding(
@@ -92,6 +97,173 @@ class TrueFrameExecutionGraphAdapter {
       graph: graph,
       blockers: graph.blockers,
       diagnostics: graph.diagnostics,
+    );
+  }
+
+  List<TrueFrameExecutionNode> _phaseIExpandedNodes({
+    required MasterRenderGraph masterGraph,
+    required List<TrueFrameExecutionNode> projectedNodes,
+  }) {
+    final nodesById = <String, TrueFrameExecutionNode>{
+      for (final node in projectedNodes) node.id: node,
+    };
+    final expanded = <TrueFrameExecutionNode>[];
+    final expandedNodeIds = <String>{};
+    for (final node in masterGraph.nodes) {
+      if (node.family == MasterRenderGraphNodeFamily.sourceSample) {
+        final sourceKind = node.attributes['sourceKind']?.toString() ?? '';
+        final layerFamily = switch (sourceKind) {
+          'video' => TrueFrameExecutionNodeFamily.videoLayer,
+          'image' => TrueFrameExecutionNodeFamily.imageLayer,
+          _ => null,
+        };
+        if (layerFamily != null) {
+          final layerNodeId = 'layer:$sourceKind:${node.targetId}';
+          if (expandedNodeIds.add(layerNodeId)) {
+            expanded.add(
+              _phaseINodeFrom(
+                baseNode: nodesById[node.id]!,
+                id: layerNodeId,
+                family: layerFamily,
+                inputNodeIds: <String>[node.id],
+                attributes: <String, Object?>{
+                  ...node.attributes,
+                  'phase': 'phase_i_layer_slice',
+                },
+                diagnostics: <String>[
+                  ...node.diagnostics,
+                  'trueframe_phase_i_${sourceKind}_layer_from_source_sample',
+                ],
+              ),
+            );
+          }
+        }
+      }
+      if (node.family == MasterRenderGraphNodeFamily.style) {
+        final hasTextStyle = node.attributes['hasTextStyle'] == true;
+        if (hasTextStyle) {
+          final textNodeId = 'layer:text:${node.targetId}';
+          if (expandedNodeIds.add(textNodeId)) {
+            expanded.add(
+              _phaseINodeFrom(
+                baseNode: nodesById[node.id]!,
+                id: textNodeId,
+                family: TrueFrameExecutionNodeFamily.textLayer,
+                inputNodeIds: <String>[node.id],
+                attributes: <String, Object?>{
+                  ...node.attributes,
+                  'phase': 'phase_i_layer_slice',
+                },
+                diagnostics: <String>[
+                  ...node.diagnostics,
+                  'trueframe_phase_i_text_layer_from_style',
+                ],
+              ),
+            );
+          }
+        }
+        final hasShapeStyle = node.attributes['hasShapeStyle'] == true;
+        if (hasShapeStyle) {
+          final shapeNodeId = 'layer:shape:${node.targetId}';
+          if (expandedNodeIds.add(shapeNodeId)) {
+            expanded.add(
+              _phaseINodeFrom(
+                baseNode: nodesById[node.id]!,
+                id: shapeNodeId,
+                family: TrueFrameExecutionNodeFamily.shapeLayer,
+                inputNodeIds: <String>[node.id],
+                attributes: <String, Object?>{
+                  ...node.attributes,
+                  'phase': 'phase_i_layer_slice',
+                },
+                diagnostics: <String>[
+                  ...node.diagnostics,
+                  'trueframe_phase_i_shape_layer_from_style',
+                ],
+              ),
+            );
+          }
+        }
+      }
+      if (node.family == MasterRenderGraphNodeFamily.layerTransform ||
+          node.family == MasterRenderGraphNodeFamily.transition) {
+        final target = node.targetId.toLowerCase();
+        if (target.contains('group')) {
+          final groupNodeId = 'group:${node.targetId}';
+          if (expandedNodeIds.add(groupNodeId)) {
+            expanded.add(
+              _phaseINodeFrom(
+                baseNode: nodesById[node.id]!,
+                id: groupNodeId,
+                family: TrueFrameExecutionNodeFamily.groupPrecomp,
+                inputNodeIds: <String>[node.id],
+                attributes: const <String, Object?>{'phase': 'phase_i_slice'},
+                diagnostics: <String>[
+                  ...node.diagnostics,
+                  'trueframe_phase_i_group_precomp_node',
+                ],
+              ),
+            );
+          }
+        }
+        if (target.contains('scene-clip') || target.contains('scene_clip')) {
+          final sceneNodeId = 'scene-clip:${node.targetId}';
+          if (expandedNodeIds.add(sceneNodeId)) {
+            expanded.add(
+              _phaseINodeFrom(
+                baseNode: nodesById[node.id]!,
+                id: sceneNodeId,
+                family: TrueFrameExecutionNodeFamily.sceneClipInstance,
+                inputNodeIds: <String>[node.id],
+                attributes: const <String, Object?>{'phase': 'phase_i_slice'},
+                diagnostics: <String>[
+                  ...node.diagnostics,
+                  'trueframe_phase_i_scene_clip_instance_node',
+                ],
+              ),
+            );
+          }
+        }
+        if (target.contains('adjustment') || target.contains('effectcontrol')) {
+          final adjustmentNodeId = 'adjustment:${node.targetId}';
+          if (expandedNodeIds.add(adjustmentNodeId)) {
+            expanded.add(
+              _phaseINodeFrom(
+                baseNode: nodesById[node.id]!,
+                id: adjustmentNodeId,
+                family: TrueFrameExecutionNodeFamily.adjustmentControl,
+                inputNodeIds: <String>[node.id],
+                attributes: const <String, Object?>{'phase': 'phase_i_slice'},
+                diagnostics: <String>[
+                  ...node.diagnostics,
+                  'trueframe_phase_i_adjustment_control_node',
+                ],
+              ),
+            );
+          }
+        }
+      }
+    }
+    return List<TrueFrameExecutionNode>.unmodifiable(expanded);
+  }
+
+  TrueFrameExecutionNode _phaseINodeFrom({
+    required TrueFrameExecutionNode baseNode,
+    required String id,
+    required TrueFrameExecutionNodeFamily family,
+    required List<String> inputNodeIds,
+    required Map<String, Object?> attributes,
+    required List<String> diagnostics,
+  }) {
+    return TrueFrameExecutionNode(
+      id: id,
+      family: family,
+      targetId: baseNode.targetId,
+      inputNodeIds: List<String>.unmodifiable(inputNodeIds),
+      cacheKey: '${baseNode.cacheKey}:$id',
+      attributes: Map<String, Object?>.unmodifiable(attributes),
+      blockers: List<String>.unmodifiable(baseNode.blockers),
+      diagnostics: List<String>.unmodifiable(diagnostics),
     );
   }
 

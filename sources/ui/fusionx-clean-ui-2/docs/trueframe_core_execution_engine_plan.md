@@ -732,6 +732,19 @@ Only after Manual Transition proves the core path:
 
 Each slice must add no new engine. It adds a new node family to TRUEFRAME CORE.
 
+Phase I progress:
+
+- Phase I.A foundation is complete: projected core graph now expands explicit
+  `videoLayer`, `imageLayer`, `textLayer`, and `shapeLayer` families (plus
+  compatibility stubs for `groupPrecomp`, `sceneClipInstance`, and
+  `adjustmentControl`) from existing master graph truth.
+
+Checkpoint:
+
+```text
+checkpoint: expand trueframe core layer families beyond transition
+```
+
 ## 12. Acceptance Criteria
 
 TRUEFRAME CORE is credible only when:

@@ -57,6 +57,9 @@ void main() {
   final stage6ExportManagerFile = File(
     'android/app/src/main/kotlin/com/fusionx/fusionx_clean_ui_2/Stage6ExportManager.kt',
   );
+  final trueFrameExecutionGraphAdapterFile = File(
+    'lib/features/editor/domain/services/trueframe_execution_graph_adapter.dart',
+  );
 
   test('master evaluation path uses universal evaluation service', () async {
     final source = await screenFile.readAsString();
@@ -270,6 +273,17 @@ void main() {
       ),
       isTrue,
     );
+  });
+
+  test('trueframe phase I projection expands layer families in core graph',
+      () async {
+    final source = await trueFrameExecutionGraphAdapterFile.readAsString();
+    expect(source.contains('_phaseIExpandedNodes('), isTrue);
+    expect(source.contains('phase_i_layer_slice'), isTrue);
+    expect(source.contains('TrueFrameExecutionNodeFamily.videoLayer'), isTrue);
+    expect(source.contains('TrueFrameExecutionNodeFamily.imageLayer'), isTrue);
+    expect(source.contains('TrueFrameExecutionNodeFamily.textLayer'), isTrue);
+    expect(source.contains('TrueFrameExecutionNodeFamily.shapeLayer'), isTrue);
   });
 
   test('manual transition Motion Blur remains one timeline effect', () async {
