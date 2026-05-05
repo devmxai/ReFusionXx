@@ -746,6 +746,11 @@ Phase I progress:
   resolution (`test/trueframe_execution_graph_adapter_test.dart` and
   `test/trueframe_core_runtime_evaluator_test.dart`) so these families cannot
   silently regress while transition-focused slices continue.
+- Phase I.D backend routing contract is complete: `TrueFrameRenderBackend` now
+  exposes node-family routing (`routeNodeFamilies`) with explicit owners
+  (`stage5Presenter`, `professionalCompositor`, `exportAdapter`, `blocked`),
+  phase-I family support checks, and explicit blockers for unsupported families.
+  Covered by `test/trueframe_render_backend_test.dart`.
 
 Checkpoint:
 

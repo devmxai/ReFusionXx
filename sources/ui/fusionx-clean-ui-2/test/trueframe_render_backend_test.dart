@@ -83,4 +83,52 @@ void main() {
     expect(decision.suppressesStage5Preview, isTrue);
     expect(decision.reason, 'non_manual_transition_backend_owner');
   });
+
+  test('routes supported phase I node families to professional compositor', () {
+    final decision = backend.routeNodeFamilies(
+      mode: TrueFrameRenderBackendMode.preview,
+      resolvedLayerFamilies: const <String>['videoLayer', 'shapeLayer'],
+      hasRenderablePlan: true,
+      hasTemporalMotionBlur: false,
+      hasPresentedFirstFrame: false,
+      isManualTransition: false,
+    );
+
+    expect(decision.owner, TrueFrameRenderOwner.professionalCompositor);
+    expect(decision.blockers, isEmpty);
+    expect(decision.reason,
+        contains('trueframe_node_professional_compositor_owner'));
+  });
+
+  test('blocks unsupported node families explicitly', () {
+    final decision = backend.routeNodeFamilies(
+      mode: TrueFrameRenderBackendMode.preview,
+      resolvedLayerFamilies: const <String>['cameraLayer'],
+      hasRenderablePlan: true,
+      hasTemporalMotionBlur: false,
+      hasPresentedFirstFrame: false,
+      isManualTransition: false,
+    );
+
+    expect(decision.owner, TrueFrameRenderOwner.blocked);
+    expect(
+      decision.blockers,
+      contains('trueframe_node_family_not_supported:cameraLayer'),
+    );
+  });
+
+  test('routes export mode to export adapter owner', () {
+    final decision = backend.routeNodeFamilies(
+      mode: TrueFrameRenderBackendMode.export,
+      resolvedLayerFamilies: const <String>['textLayer'],
+      hasRenderablePlan: true,
+      hasTemporalMotionBlur: false,
+      hasPresentedFirstFrame: false,
+      isManualTransition: false,
+    );
+
+    expect(decision.owner, TrueFrameRenderOwner.exportAdapter);
+    expect(decision.blockers, isEmpty);
+    expect(decision.reason, 'trueframe_node_export_adapter_owner');
+  });
 }
