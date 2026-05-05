@@ -22623,97 +22623,211 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required _ActiveTimelineTransitionPreview activeTransition,
     required LiveScrubVisualProgram baseProgram,
   }) {
-    final plans = <TemporalMotionBlurSamplePlan>[];
+    LiveScrubVisualSurface? blurSurface;
     for (final surface in baseProgram.surfaces) {
-      if (surface.sourceKind != LiveScrubSourceKind.video ||
-          surface.blockers.isNotEmpty) {
+      if (surface.sourceKind != LiveScrubSourceKind.video) {
         continue;
       }
-      final policy = surface.motionBlur;
-      final sampleOffsets = policy.isEnabled
-          ? _stage5MotionBlurSampleOffsetsMs(policy)
-          : const <double>[];
-      final offsets = sampleOffsets.length > 1 ? sampleOffsets : <double>[0.0];
-      final sampleTimesMs = <int>[];
-      final sourceIdsBySample = <String>[];
-      final sampleTransforms = <List<double>>[];
-      final sampleOpacities = <double>[];
-      for (final offset in offsets) {
-        final sampleTime = TimelineTime.fromMilliseconds(
-          (previewTime.inMilliseconds + offset).round(),
-        ).clamp(TimelineTime.zero, _timelineDurationTime);
-        final sampleEvaluation = _masterFrameEvaluationForMode(
-          mode,
-          previewTimeOverride: sampleTime,
-        );
-        final sampleProgram = _manualTransitionLiveScrubProgram(
-          evaluation: sampleEvaluation,
-          activeTransition: activeTransition,
-          mode: mode,
-        );
-        if (sampleProgram == null) {
+      if (surface.blockers.isNotEmpty) {
+        continue;
+      }
+      if (!surface.motionBlur.isEnabled ||
+          surface.motionBlur.amount <= 0.0001) {
+        continue;
+      }
+      blurSurface = surface;
+      break;
+    }
+    if (blurSurface == null) {
+      return const <TemporalMotionBlurSamplePlan>[];
+    }
+    final policy = blurSurface.motionBlur;
+    final sampleOffsets = _stage5MotionBlurSampleOffsetsMs(policy);
+    if (sampleOffsets.length <= 1) {
+      return const <TemporalMotionBlurSamplePlan>[];
+    }
+    final sampleCount = sampleOffsets.length;
+    final normalizedWeight = 1.0 / sampleCount;
+    final sampleWeights = List<double>.filled(sampleCount, normalizedWeight);
+    final sourceWindows =
+        _liveScrubSourceWindowsForActiveTransition(activeTransition);
+    final seamTime = _manualTransitionRootSeamTimeForActiveTransition(
+      activeTransition,
+    );
+    final transitionStartMs =
+        (seamTime - activeTransition.transition.resolvedLeadingDurationTime)
+            .inMilliseconds;
+    final transitionEndMs =
+        (seamTime + activeTransition.transition.resolvedTrailingDurationTime)
+            .inMilliseconds;
+    final sampleTimesMs = <int>[];
+    final sourceIdsBySample = <String>[];
+    final sampleTransforms = <List<double>>[];
+    final sampleOpacities = <double>[];
+    final contributions = <TemporalMotionBlurSampleContribution>[];
+    for (var sampleIndex = 0;
+        sampleIndex < sampleOffsets.length;
+        sampleIndex++) {
+      final offset = sampleOffsets[sampleIndex];
+      final sampleTime = TimelineTime.fromMilliseconds(
+        (previewTime.inMilliseconds + offset).round(),
+      ).clamp(TimelineTime.zero, _timelineDurationTime);
+      final sampleEvaluation = _masterFrameEvaluationForMode(
+        mode,
+        previewTimeOverride: sampleTime,
+      );
+      final sampleProgram = _manualTransitionLiveScrubProgram(
+        evaluation: sampleEvaluation,
+        activeTransition: activeTransition,
+        mode: mode,
+      );
+      if (sampleProgram == null) {
+        continue;
+      }
+      final sampleSurfaces = sampleProgram.surfaces
+          .where(
+            (surface) =>
+                (surface.sourceKind == LiveScrubSourceKind.video ||
+                    surface.sourceKind == LiveScrubSourceKind.image) &&
+                surface.blockers.isEmpty,
+          )
+          .toList(growable: false);
+      if (sampleSurfaces.isEmpty) {
+        continue;
+      }
+      LiveScrubVisualSurface legacySurface = sampleSurfaces.first;
+      for (final sampleSurface in sampleSurfaces) {
+        if (sampleSurface.targetId == blurSurface.targetId) {
+          legacySurface = sampleSurface;
+          break;
+        }
+      }
+      final legacyMatrix = _stage5VisualTransformMatrix3x3FromComponents(
+        positionX: policy.affectPosition
+            ? legacySurface.transform.positionX
+            : blurSurface.transform.positionX,
+        positionY: policy.affectPosition
+            ? legacySurface.transform.positionY
+            : blurSurface.transform.positionY,
+        scaleX: policy.affectScale
+            ? legacySurface.transform.scaleX
+            : blurSurface.transform.scaleX,
+        scaleY: policy.affectScale
+            ? legacySurface.transform.scaleY
+            : blurSurface.transform.scaleY,
+        rotationRadians: policy.affectRotation
+            ? legacySurface.transform.rotationRadians
+            : blurSurface.transform.rotationRadians,
+      );
+      sampleTimesMs.add(sampleTime.inMilliseconds);
+      sourceIdsBySample.add(legacySurface.targetId);
+      sampleTransforms.add(legacyMatrix);
+      sampleOpacities.add(legacySurface.opacity.clamp(0.0, 1.0).toDouble());
+      for (final sampleSurface in sampleSurfaces) {
+        final sourceWindow = sourceWindows[sampleSurface.targetId];
+        if (sourceWindow == null) {
           continue;
         }
-        LiveScrubVisualSurface? sampleSurface;
-        for (final candidate in sampleProgram.surfaces) {
-          if (candidate.targetId == surface.targetId) {
-            sampleSurface = candidate;
-            break;
-          }
-        }
-        if (sampleSurface == null || sampleSurface.blockers.isNotEmpty) {
-          continue;
-        }
-        sampleTimesMs.add(sampleTime.inMilliseconds);
-        sourceIdsBySample.add(sampleSurface.targetId);
-        sampleTransforms.add(
-          _stage5VisualTransformMatrix3x3FromComponents(
-            positionX: policy.affectPosition
-                ? sampleSurface.transform.positionX
-                : surface.transform.positionX,
-            positionY: policy.affectPosition
-                ? sampleSurface.transform.positionY
-                : surface.transform.positionY,
-            scaleX: policy.affectScale
-                ? sampleSurface.transform.scaleX
-                : surface.transform.scaleX,
-            scaleY: policy.affectScale
-                ? sampleSurface.transform.scaleY
-                : surface.transform.scaleY,
-            rotationRadians: policy.affectRotation
-                ? sampleSurface.transform.rotationRadians
-                : surface.transform.rotationRadians,
+        final contributionMatrix =
+            _stage5VisualTransformMatrix3x3FromComponents(
+          positionX: policy.affectPosition
+              ? sampleSurface.transform.positionX
+              : blurSurface.transform.positionX,
+          positionY: policy.affectPosition
+              ? sampleSurface.transform.positionY
+              : blurSurface.transform.positionY,
+          scaleX: policy.affectScale
+              ? sampleSurface.transform.scaleX
+              : blurSurface.transform.scaleX,
+          scaleY: policy.affectScale
+              ? sampleSurface.transform.scaleY
+              : blurSurface.transform.scaleY,
+          rotationRadians: policy.affectRotation
+              ? sampleSurface.transform.rotationRadians
+              : blurSurface.transform.rotationRadians,
+        );
+        final role = sampleSurface.targetId == activeTransition.leftClip.clip.id
+            ? 'outgoing'
+            : sampleSurface.targetId == activeTransition.rightClip.clip.id
+                ? 'incoming'
+                : 'unknown';
+        contributions.add(
+          TemporalMotionBlurSampleContribution(
+            sampleIndex: sampleIndex,
+            timelineTimeMs: sampleTime.inMilliseconds,
+            sourceRole: role,
+            sourceClipId: sampleSurface.targetId,
+            sourcePositionMs: _sourcePositionMsForWindowAndTimelineTime(
+              window: sourceWindow,
+              timelineTimeMs: sampleTime.inMilliseconds,
+            ),
+            transformMatrix3x3: contributionMatrix,
+            opacity: sampleSurface.opacity.clamp(0.0, 1.0).toDouble(),
+            transitionProgress: _manualTransitionProgressForTimelineTimeMs(
+              sampleTimeMs: sampleTime.inMilliseconds,
+              transitionStartMs: transitionStartMs,
+              transitionEndMs: transitionEndMs,
+            ),
           ),
         );
-        sampleOpacities.add(sampleSurface.opacity.clamp(0.0, 1.0).toDouble());
       }
-      if (sampleTimesMs.isEmpty) {
-        sampleTimesMs.add(previewTime.inMilliseconds);
-        sourceIdsBySample.add(surface.targetId);
-        sampleTransforms
-            .add(_stage5VisualTransformMatrix3x3(surface.transform));
-        sampleOpacities.add(surface.opacity.clamp(0.0, 1.0).toDouble());
-      }
-      plans.add(
-        TemporalMotionBlurSamplePlan(
-          targetId: surface.targetId,
-          rootTimeMs: previewTime.inMilliseconds,
-          sampleTimesMs: List<int>.unmodifiable(sampleTimesMs),
-          sampleOffsetsMs: List<double>.unmodifiable(offsets),
-          sampleTransforms: List<List<double>>.unmodifiable(sampleTransforms),
-          sourceIdsBySample: List<String>.unmodifiable(sourceIdsBySample),
-          sampleOpacities: List<double>.unmodifiable(sampleOpacities),
-          amount: policy.amount,
-          shutterAngle: policy.shutterAngleDegrees,
-          shutterPhase: policy.shutterPhaseDegrees,
-          samples: policy.samples,
-          affectPosition: policy.affectPosition,
-          affectScale: policy.affectScale,
-          affectRotation: policy.affectRotation,
-        ),
-      );
     }
-    return List<TemporalMotionBlurSamplePlan>.unmodifiable(plans);
+    if (sampleTimesMs.length <= 1 || contributions.length <= 1) {
+      return const <TemporalMotionBlurSamplePlan>[];
+    }
+    final plan = TemporalMotionBlurSamplePlan(
+      transitionId: activeTransition.transition.id,
+      targetId: blurSurface.targetId,
+      rootTimeMs: previewTime.inMilliseconds,
+      sampleTimesMs: List<int>.unmodifiable(sampleTimesMs),
+      sampleOffsetsMs: List<double>.unmodifiable(sampleOffsets),
+      sampleWeights: List<double>.unmodifiable(sampleWeights),
+      sampleTransforms: List<List<double>>.unmodifiable(sampleTransforms),
+      sourceIdsBySample: List<String>.unmodifiable(sourceIdsBySample),
+      sampleOpacities: List<double>.unmodifiable(sampleOpacities),
+      sampleContributions:
+          List<TemporalMotionBlurSampleContribution>.unmodifiable(
+        contributions,
+      ),
+      amount: policy.amount,
+      shutterAngle: policy.shutterAngleDegrees,
+      shutterPhase: policy.shutterPhaseDegrees,
+      samples: policy.samples,
+      affectPosition: policy.affectPosition,
+      affectScale: policy.affectScale,
+      affectRotation: policy.affectRotation,
+      graphRevision: baseProgram.renderGraphRevision,
+      policyRevision: _stage5VisualRuntimeRevision + 1,
+    );
+    return List<TemporalMotionBlurSamplePlan>.unmodifiable(
+      <TemporalMotionBlurSamplePlan>[plan],
+    );
+  }
+
+  int _sourcePositionMsForWindowAndTimelineTime({
+    required LiveScrubTimelineSourceWindow window,
+    required int timelineTimeMs,
+  }) {
+    final rate = window.playbackRate.isFinite && window.playbackRate > 0
+        ? window.playbackRate
+        : 1.0;
+    final timelineOffsetMs = (timelineTimeMs - window.timelineStartMs)
+        .clamp(0, math.max(0, window.timelineEndMs - window.timelineStartMs))
+        .toInt();
+    final sourceOffsetMs = (timelineOffsetMs * rate).round();
+    return (window.sourceStartMs + sourceOffsetMs).clamp(
+      window.sourceStartMs,
+      window.sourceStartMs + math.max(0, window.sourceDurationMs),
+    );
+  }
+
+  double _manualTransitionProgressForTimelineTimeMs({
+    required int sampleTimeMs,
+    required int transitionStartMs,
+    required int transitionEndMs,
+  }) {
+    final durationMs = (transitionEndMs - transitionStartMs).clamp(1, 1 << 30);
+    return ((sampleTimeMs - transitionStartMs) / durationMs).clamp(0.0, 1.0);
   }
 
   void _scheduleStage5VisualRuntimeSubmission({
@@ -23250,6 +23364,26 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return 'professional-transition-${safe.isEmpty ? 'surface' : safe}';
   }
 
+  bool _manualTransitionTemporalMotionBlurPlanIsActive(
+    ProfessionalVideoTransitionRenderPlan plan,
+  ) {
+    final entries = plan.parameters['temporalMotionBlurSamplePlans'];
+    if (entries is! List || entries.isEmpty) {
+      return false;
+    }
+    var contributionCount = 0;
+    for (final entry in entries) {
+      if (entry is! Map) {
+        continue;
+      }
+      final contributions = entry['sampleContributions'];
+      if (contributions is List) {
+        contributionCount += contributions.length;
+      }
+    }
+    return contributionCount > 1;
+  }
+
   Widget _buildNativePreviewSurface({
     required Widget fallback,
     required String? previewIdentity,
@@ -23275,17 +23409,23 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         final professionalTransitionSurfaceId = activeTransition == null
             ? null
             : _professionalTransitionSurfaceId(activeTransition);
+        final professionalTransitionPlan =
+            activeTransition == null || professionalTransitionSurfaceId == null
+                ? null
+                : _professionalTransitionRenderPlanFor(
+                    activeTransition: activeTransition,
+                    mode: professionalTransitionMode,
+                    surfaceId: professionalTransitionSurfaceId,
+                  );
         final shouldSuppressNativePreviewForProfessionalTransition =
             activeTransition != null &&
                 professionalTransitionSurfaceId != null &&
-                activeTransition.transition.preset !=
-                    TimelineTransitionPreset.manual &&
-                _professionalTransitionRenderPlanFor(
-                      activeTransition: activeTransition,
-                      mode: professionalTransitionMode,
-                      surfaceId: professionalTransitionSurfaceId,
-                    ) !=
-                    null;
+                professionalTransitionPlan != null &&
+                (activeTransition.transition.preset !=
+                        TimelineTransitionPreset.manual ||
+                    _manualTransitionTemporalMotionBlurPlanIsActive(
+                      professionalTransitionPlan,
+                    ));
         return MotionVideoPreviewTransformSurface(
           transform: _motionVideoPreviewTransformForTime(previewTime),
           surfaceTransform: _transitionVideoSurfaceTransformForTime(

@@ -180,7 +180,8 @@ void main() {
     );
   });
 
-  test('stage5 executes temporal Motion Blur in live scrub renderer', () async {
+  test('stage5 does not use snapshot overlay for temporal Motion Blur',
+      () async {
     final nativeEngine = await stage5NativeScrubEngineFile.readAsString();
     final preview = await stage5PreviewPlatformViewFile.readAsString();
     final scrubOverlay = await stage5ScrubOverlayTextureViewFile.readAsString();
@@ -193,7 +194,7 @@ void main() {
     expect(nativeEngine.contains('lockCanvas(null)'), isFalse);
     expect(nativeEngine.contains('getFrameAtTime'), isFalse);
     expect(preview.contains('runtimeMotionBlurSigmaPx'), isFalse);
-    expect(preview.contains('runtimeMotionBlurSamples'), isTrue);
+    expect(preview.contains('runtimeMotionBlurSamples'), isFalse);
     expect(
       preview.contains('maxOf(\n                runtimeGaussianBlurSigmaPx'),
       isFalse,
@@ -204,10 +205,24 @@ void main() {
       ),
       isFalse,
     );
-    expect(preview.contains('Stage5MotionBlurCompositeView'), isTrue);
-    expect(preview.contains('snapshotBitmap'), isTrue);
-    expect(scrubOverlay.contains('getBitmap('), isTrue);
-    expect(scrubOverlay.contains('snapshotBitmap'), isTrue);
+    expect(preview.contains('Stage5MotionBlurCompositeView'), isFalse);
+    expect(preview.contains('refreshMotionBlurComposite'), isFalse);
+    expect(preview.contains('snapshotBitmap'), isFalse);
+    expect(scrubOverlay.contains('getBitmap('), isFalse);
+    expect(scrubOverlay.contains('snapshotBitmap'), isFalse);
+    expect(scrubOverlay.contains('setMotionCompositeSuppressed'), isFalse);
+  });
+
+  test(
+      'manual temporal motion blur plans include explicit sample contributions',
+      () async {
+    final source = await screenFile.readAsString();
+    expect(source.contains('sampleContributions'), isTrue);
+    expect(source.contains("'sourceRole':"), isFalse);
+    expect(
+        source.contains('_sourcePositionMsForWindowAndTimelineTime('), isTrue);
+    expect(
+        source.contains('_manualTransitionProgressForTimelineTimeMs('), isTrue);
   });
 
   test('manual transition Motion Blur remains one timeline effect', () async {
@@ -360,7 +375,7 @@ void main() {
     );
   });
 
-  test('manual professional transition does not suppress Stage5 preview',
+  test('manual transition with temporal blur suppresses Stage5 preview',
       () async {
     final source = await screenFile.readAsString();
     final nativePreviewStart =
@@ -373,8 +388,7 @@ void main() {
         source.substring(nativePreviewStart, nativePreviewEnd);
     expect(
       nativePreviewBody.contains(
-        'activeTransition.transition.preset !=\n'
-        '                    TimelineTransitionPreset.manual',
+        '_manualTransitionTemporalMotionBlurPlanIsActive(',
       ),
       isTrue,
     );
