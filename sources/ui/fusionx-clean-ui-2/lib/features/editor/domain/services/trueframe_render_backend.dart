@@ -120,9 +120,9 @@ class TrueFrameManualTransitionRenderBackend extends TrueFrameRenderBackend {
     if (!hasTemporalMotionBlur) {
       return _TransitionSurfaceRouteDecision(
         mode: mode,
-        usesProfessionalSurface: true,
+        usesProfessionalSurface: false,
         suppressesStage5Preview: false,
-        reason: 'manual_transition_no_temporal_blur_keep_stage5_presenter',
+        reason: 'manual_transition_no_temporal_blur_stage5_presenter_owner',
       );
     }
 

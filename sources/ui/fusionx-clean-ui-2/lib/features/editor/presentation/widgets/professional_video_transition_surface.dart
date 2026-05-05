@@ -26,6 +26,17 @@ bool shouldRetryInteractiveRenderResult(
   )) {
     return true;
   }
+  if (reasons.any(
+    (reason) =>
+        reason == 'native_transition_temporal_video_pixels_missing' ||
+        reason == 'native_transition_manual_temporal_samples_missing' ||
+        reason == 'native_transition_manual_video_pixels_missing',
+  )) {
+    return false;
+  }
+  if (!result.surfaceAttached) {
+    return true;
+  }
   if (!result.pixelOutputReady || !result.surfaceAttached) {
     return false;
   }

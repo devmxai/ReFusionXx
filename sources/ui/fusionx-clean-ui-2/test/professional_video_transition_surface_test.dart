@@ -42,6 +42,25 @@ void main() {
       );
     });
 
+    test('retries while the Android surface is not attached yet', () {
+      final result = _result(
+        pixelOutputReady: false,
+        surfaceAttached: false,
+        blockedReasons: const <String>[
+          'native_transition_preview_interactive_surface_missing',
+        ],
+      );
+
+      expect(
+        shouldRetryInteractiveRenderResult(
+          result,
+          retryCount: 1,
+          maxRetryCount: 24,
+        ),
+        isTrue,
+      );
+    });
+
     test('does not retry permanent source pixel blockers', () {
       final result = _result(
         blockedReasons: const <String>[

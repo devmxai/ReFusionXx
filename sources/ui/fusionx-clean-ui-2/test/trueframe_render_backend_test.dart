@@ -75,6 +75,25 @@ void main() {
     );
   });
 
+  test('keeps manual transition on stage5 when temporal plan is not active',
+      () {
+    final decision = backend.routeNodeFamilies(
+      mode: TrueFrameRenderBackendMode.preview,
+      resolvedLayerFamilies: const <String>['videoLayer'],
+      hasRenderablePlan: true,
+      hasTemporalMotionBlur: false,
+      hasPresentedFirstFrame: false,
+      isManualTransition: true,
+    );
+
+    expect(decision.owner, TrueFrameRenderOwner.stage5Presenter);
+    expect(decision.suppressesStage5Preview, isFalse);
+    expect(
+      decision.reason,
+      contains('manual_transition_no_temporal_blur_stage5_presenter_owner'),
+    );
+  });
+
   test('routes non-manual transitions to professional backend ownership', () {
     final decision = backend.routeNodeFamilies(
       mode: TrueFrameRenderBackendMode.preview,

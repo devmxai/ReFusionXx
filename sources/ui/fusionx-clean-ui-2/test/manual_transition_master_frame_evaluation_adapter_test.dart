@@ -116,6 +116,85 @@ void main() {
     expect(incomingScaleX.mapping.renderer.scalar, closeTo(1.35, 0.0001));
   });
 
+  test('evaluates rotation motion blur modifier into active temporal policy',
+      () {
+    final transition = TimelineTrackTransitionData(
+      id: 'transition-rotation-blur',
+      leftClipId: 'clip-a',
+      rightClipId: 'clip-b',
+      preset: TimelineTransitionPreset.manual,
+      durationTime: TimelineTime.fromMilliseconds(2000),
+      parameterValues: const <String, double>{
+        'rotation.motion_blur.samples': 12.0,
+        'rotation.motion_blur.shutter_angle': 360.0,
+      },
+      manualEffectIds: const <String>[
+        'rotation',
+        'rotation.motion_blur',
+      ],
+      manualAnimationLanes: const <TimelineAnimationLaneData>[
+        TimelineAnimationLaneData(
+          id: 'rotation',
+          label: 'Rotation',
+          targetClipId: 'clip-a',
+          normalizedKeyframeStops: <double>[0.0, 1.0],
+          keyframeIds: <String>['rot-a', 'rot-b'],
+          keyframeValues: <double>[0.0, 180.0],
+        ),
+        TimelineAnimationLaneData(
+          id: 'rotation.motion_blur',
+          label: 'Rotation Motion Blur',
+          targetClipId: 'clip-a',
+          normalizedKeyframeStops: <double>[0.0, 1.0],
+          keyframeIds: <String>['blur-a', 'blur-b'],
+          keyframeValues: <double>[0.0, 80.0],
+        ),
+      ],
+    );
+
+    final result = adapter.evaluate(
+      request: ManualTransitionMasterFrameEvaluationRequest(
+        time: buildTime(timeMs: 1500),
+        transition: transition,
+        seamTime: TimelineTime.fromMilliseconds(1000),
+        projectId: 'project-1',
+      ),
+    );
+
+    expect(result.blockers, isEmpty);
+    final outgoingAmount = result.evaluatedChannels.firstWhere(
+      (value) =>
+          value.propertyDefinitionId == 'motionBlurAmount' &&
+          value.targetId == 'clip-a',
+    );
+    final incomingAmount = result.evaluatedChannels.firstWhere(
+      (value) =>
+          value.propertyDefinitionId == 'motionBlurAmount' &&
+          value.targetId == 'clip-b',
+    );
+    expect(outgoingAmount.mapping.renderer.scalar, closeTo(0.6, 0.0001));
+    expect(incomingAmount.mapping.renderer.scalar, closeTo(0.6, 0.0001));
+
+    final affectRotation = result.evaluatedChannels.firstWhere(
+      (value) =>
+          value.propertyDefinitionId == 'motionBlurAffectRotation' &&
+          value.targetId == 'clip-a',
+    );
+    final affectScale = result.evaluatedChannels.firstWhere(
+      (value) =>
+          value.propertyDefinitionId == 'motionBlurAffectScale' &&
+          value.targetId == 'clip-a',
+    );
+    final samples = result.evaluatedChannels.firstWhere(
+      (value) =>
+          value.propertyDefinitionId == 'motionBlurSamples' &&
+          value.targetId == 'clip-a',
+    );
+    expect(affectRotation.mapping.renderer.booleanValue, isTrue);
+    expect(affectScale.mapping.renderer.booleanValue, isFalse);
+    expect(samples.mapping.renderer.scalar, 12);
+  });
+
   test('reports blockers for unsupported manual lanes', () {
     final transition = TimelineTrackTransitionData(
       id: 'transition-2',
