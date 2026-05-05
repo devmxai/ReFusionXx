@@ -127,7 +127,6 @@ class Stage5ScrubOverlayTextureView(
     override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
         synchronized(this) {
             releaseOutputSurface()
-            snapshotBitmapCache?.recycle()
             snapshotBitmapCache = null
         }
         return true

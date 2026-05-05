@@ -260,20 +260,14 @@ class Stage5PreviewPlatformView(
     private fun syncPlayerVisibility() {
         val shouldAttachPlayerSurface = !isPreviewOutputSuppressed
         playerView.visibility = if (shouldAttachPlayerSurface) View.VISIBLE else View.INVISIBLE
-        val motionBlurActive = motionBlurCompositeView.hasActiveComposite
         val baseAlpha =
             if (shouldAttachPlayerSurface && !isScrubSurfaceVisible && isPlayerContentSized) {
                 1f
             } else {
                 0f
             }
-        playerView.alpha =
-            if (motionBlurActive) {
-                0f
-            } else {
-                (baseAlpha * runtimeOpacity.toFloat().coerceIn(0f, 1f)).coerceIn(0f, 1f)
-            }
-        scrubOverlayView.setMotionCompositeSuppressed(motionBlurActive)
+        playerView.alpha = (baseAlpha * runtimeOpacity.toFloat().coerceIn(0f, 1f)).coerceIn(0f, 1f)
+        scrubOverlayView.setMotionCompositeSuppressed(false)
     }
 
     private fun applyRuntimeStateToPlayerView() {

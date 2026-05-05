@@ -26,24 +26,14 @@ class Stage5MotionBlurCompositeView(
         if (bitmap == null || bitmap.isRecycled) {
             return
         }
-        if (sourceFrame !== bitmap) {
-            val copied = runCatching {
-                bitmap.copy(Bitmap.Config.ARGB_8888, false)
-            }.getOrNull()
-            bitmap.recycle()
-            if (copied == null) {
-                clearSourceFrame()
-                return
-            }
-            sourceFrame?.recycle()
-            sourceFrame = copied
-        }
+        // Source frame is owned by Stage5ScrubOverlayTextureView cache.
+        // Never recycle/copy it here to avoid use-after-recycle crashes.
+        sourceFrame = bitmap
         updateVisibility()
         invalidate()
     }
 
     fun clearSourceFrame() {
-        sourceFrame?.recycle()
         sourceFrame = null
         updateVisibility()
         invalidate()
@@ -63,7 +53,6 @@ class Stage5MotionBlurCompositeView(
     }
 
     override fun onDetachedFromWindow() {
-        sourceFrame?.recycle()
         sourceFrame = null
         super.onDetachedFromWindow()
     }
@@ -76,9 +65,14 @@ class Stage5MotionBlurCompositeView(
         val viewWidth = width.toFloat().coerceAtLeast(1f)
         val viewHeight = height.toFloat().coerceAtLeast(1f)
         val dst = RectF(0f, 0f, viewWidth, viewHeight)
-        val sampleAlpha = (255f / samples.size.toFloat()).coerceIn(1f, 255f)
+        val centerIndex = samples.size / 2
+        val trailCount = (samples.size - 1).coerceAtLeast(1)
+        val sampleAlpha = (200f / trailCount.toFloat()).coerceIn(1f, 255f)
         val layerId = canvas.saveLayer(0f, 0f, viewWidth, viewHeight, null)
-        samples.forEach { sample ->
+        samples.forEachIndexed { index, sample ->
+            if (index == centerIndex) {
+                return@forEachIndexed
+            }
             val sampleMatrix = transformMatrixForSample(
                 sample = sample,
                 viewWidth = viewWidth,
