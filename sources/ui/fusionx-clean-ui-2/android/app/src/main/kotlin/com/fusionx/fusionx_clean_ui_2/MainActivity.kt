@@ -1050,6 +1050,31 @@ class MainActivity: FlutterActivity() {
                             rendererUnit = rendererUnit,
                         )
                     } ?: emptyList()
+                val motionBlurPolicy =
+                    (surfaceMap["motionBlurPolicy"] as? Map<*, *>)
+                        ?.mapKeys { (key, _) -> key.toString() }
+                        ?.let { policyMap ->
+                            Stage5VisualRuntimeMotionBlurPolicy(
+                                enabled = policyMap["enabled"] as? Boolean ?: false,
+                                amount = (policyMap["amount"] as? Number)?.toDouble() ?: 0.0,
+                                shutterAngleDegrees =
+                                    (policyMap["shutterAngleDegrees"] as? Number)?.toDouble()
+                                        ?: 180.0,
+                                shutterPhaseDegrees =
+                                    (policyMap["shutterPhaseDegrees"] as? Number)?.toDouble()
+                                        ?: -90.0,
+                                samples = (policyMap["samples"] as? Number)?.toInt() ?: 8,
+                                adaptiveSampleLimit =
+                                    (policyMap["adaptiveSampleLimit"] as? Number)?.toInt() ?: 16,
+                                maxTrailPx =
+                                    (policyMap["maxTrailPx"] as? Number)?.toDouble() ?: 240.0,
+                                affectPosition =
+                                    policyMap["affectPosition"] as? Boolean ?: true,
+                                affectScale = policyMap["affectScale"] as? Boolean ?: true,
+                                affectRotation =
+                                    policyMap["affectRotation"] as? Boolean ?: true,
+                            )
+                        }
                 val surfaceBlockers =
                     (surfaceMap["blockers"] as? List<*>)?.mapNotNull { value ->
                         value?.toString()
@@ -1062,6 +1087,7 @@ class MainActivity: FlutterActivity() {
                     transitionProgress = (surfaceMap["transitionProgress"] as? Number)?.toDouble(),
                     effectProgramIds = effectProgramIds,
                     effectBindings = effectBindings,
+                    motionBlurPolicy = motionBlurPolicy,
                     blockers = surfaceBlockers,
                 )
             } ?: emptyList()

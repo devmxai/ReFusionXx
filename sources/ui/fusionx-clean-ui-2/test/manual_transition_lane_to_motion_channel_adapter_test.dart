@@ -232,6 +232,104 @@ void main() {
     expect(result.channels.first.keyframes.last.value.rawValue, 100.0);
   });
 
+  test('maps professional motion blur controls to master policy channels', () {
+    final transition = TimelineTrackTransitionData(
+      id: 'transition-1',
+      leftClipId: 'clip-a',
+      rightClipId: 'clip-b',
+      preset: TimelineTransitionPreset.manual,
+      durationTime: TimelineTime.fromMilliseconds(1000),
+      manualEffectIds: const <String>[
+        'motion_blur_amount',
+        'motion_blur_shutter_angle',
+        'motion_blur_shutter_phase',
+        'motion_blur_samples',
+        'motion_blur_adaptive_samples',
+        'motion_blur_max_trail',
+      ],
+      manualAnimationLanes: const <TimelineAnimationLaneData>[
+        TimelineAnimationLaneData(
+          id: 'motion_blur_amount',
+          label: 'Amount',
+          targetClipId: 'clip-a',
+          normalizedKeyframeStops: <double>[0.0, 1.0],
+          keyframeValues: <double>[0.0, 80.0],
+        ),
+        TimelineAnimationLaneData(
+          id: 'motion_blur_shutter_angle',
+          label: 'Shutter Angle',
+          targetClipId: 'clip-a',
+          normalizedKeyframeStops: <double>[0.0],
+          keyframeValues: <double>[270.0],
+        ),
+        TimelineAnimationLaneData(
+          id: 'motion_blur_shutter_phase',
+          label: 'Shutter Phase',
+          targetClipId: 'clip-a',
+          normalizedKeyframeStops: <double>[0.0],
+          keyframeValues: <double>[-135.0],
+        ),
+        TimelineAnimationLaneData(
+          id: 'motion_blur_samples',
+          label: 'Samples',
+          targetClipId: 'clip-a',
+          normalizedKeyframeStops: <double>[0.0],
+          keyframeValues: <double>[12.0],
+        ),
+        TimelineAnimationLaneData(
+          id: 'motion_blur_adaptive_samples',
+          label: 'Adaptive Samples',
+          targetClipId: 'clip-a',
+          normalizedKeyframeStops: <double>[0.0],
+          keyframeValues: <double>[24.0],
+        ),
+        TimelineAnimationLaneData(
+          id: 'motion_blur_max_trail',
+          label: 'Max Trail',
+          targetClipId: 'clip-a',
+          normalizedKeyframeStops: <double>[0.0],
+          keyframeValues: <double>[360.0],
+        ),
+      ],
+    );
+
+    final result = adapter.projectChannels(
+      request: ManualTransitionLaneChannelProjectionRequest(
+        transition: transition,
+        seamTime: TimelineTime.fromMilliseconds(2000),
+        projectId: 'project-1',
+      ),
+    );
+
+    expect(result.issues, isEmpty);
+    expect(
+      result.channels
+          .where((channel) => channel.target.targetId == 'clip-a')
+          .map((channel) => channel.definition.id)
+          .toSet(),
+      <String>{
+        MotionPropertyCatalog.motionBlurAmount.id,
+        MotionPropertyCatalog.motionBlurShutterAngle.id,
+        MotionPropertyCatalog.motionBlurShutterPhase.id,
+        MotionPropertyCatalog.motionBlurSamples.id,
+        MotionPropertyCatalog.motionBlurAdaptiveSampleLimit.id,
+        MotionPropertyCatalog.motionBlurMaxTrailPx.id,
+      },
+    );
+    final amount = result.channels.firstWhere(
+      (channel) =>
+          channel.target.targetId == 'clip-a' &&
+          channel.definition.id == MotionPropertyCatalog.motionBlurAmount.id,
+    );
+    expect(amount.keyframes.last.value.rawValue, 80.0);
+    final samples = result.channels.firstWhere(
+      (channel) =>
+          channel.target.targetId == 'clip-a' &&
+          channel.definition.id == MotionPropertyCatalog.motionBlurSamples.id,
+    );
+    expect(samples.keyframes.single.value.rawValue, 12.0);
+  });
+
   test('maps focus scoped lane target ids back to real clip ids', () {
     final transition = TimelineTrackTransitionData(
       id: 'transition-1',

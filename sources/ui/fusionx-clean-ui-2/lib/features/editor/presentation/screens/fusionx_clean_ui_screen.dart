@@ -18789,6 +18789,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       'entryDelay' => const <double>[18.0],
       'bridgeDarkness' => const <double>[0.0, 22.0, 0.0],
       'blackPeak' => const <double>[0.0, 100.0, 100.0, 0.0],
+      'motion_blur_shutter_angle' => const <double>[180.0],
+      'motion_blur_shutter_phase' => const <double>[-90.0],
+      'motion_blur_samples' => const <double>[12.0],
+      'motion_blur_adaptive_samples' => const <double>[24.0],
+      'motion_blur_max_trail' => const <double>[240.0],
       _ => const <double>[0.0, 100.0],
     };
   }
@@ -18861,28 +18866,35 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     TimelineAnimationLaneData lane,
     _TransitionFocusContext? scopeContext,
   ) {
-    final isAutoSeeded = _isAutoSeededTransitionFocusLane(lane);
+    final migratedLane = lane.id == 'motion_blur'
+        ? lane.copyWith(id: 'motion_blur_amount', label: 'Amount')
+        : lane;
+    final isAutoSeeded = _isAutoSeededTransitionFocusLane(migratedLane);
     if (isAutoSeeded &&
-        (scopeContext != null && _isDefaultTransitionFocusLane(lane))) {
+        (scopeContext != null && _isDefaultTransitionFocusLane(migratedLane))) {
       final normalizedLane = _emptyTransitionFocusManualLane(
-        laneId: lane.id,
-        targetClipId: lane.targetClipId,
+        laneId: migratedLane.id,
+        targetClipId: migratedLane.targetClipId,
       );
       if (normalizedLane != null) {
         return normalizedLane;
       }
     }
-    return lane;
+    return migratedLane;
   }
 
   TimelineTrackTransitionData _normalizeTransitionFocusManualTransition(
     TimelineTrackTransitionData transition,
     _TransitionFocusContext? scopeContext,
   ) {
-    if (transition.manualAnimationLanes.isEmpty) {
-      return transition;
-    }
     var changed = false;
+    final expandedEffectIds =
+        _expandedManualTransitionEffectIds(transition.manualEffectIds);
+    changed = changed ||
+        expandedEffectIds.length != transition.manualEffectIds.length ||
+        expandedEffectIds.asMap().entries.any(
+              (entry) => transition.manualEffectIds[entry.key] != entry.value,
+            );
     final normalizedLanes = <TimelineAnimationLaneData>[
       for (final lane in transition.manualAnimationLanes)
         (() {
@@ -18898,6 +18910,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return transition;
     }
     return transition.copyWith(
+      manualEffectIds: expandedEffectIds,
       manualAnimationLanes: List<TimelineAnimationLaneData>.unmodifiable(
         normalizedLanes,
       ),
@@ -18921,7 +18934,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         seenLaneIds.add(normalized.id);
       }
     }
-    for (final laneId in transition.manualEffectIds) {
+    for (final laneId in _expandedManualTransitionEffectIds(
+      transition.manualEffectIds,
+    )) {
       if (seenLaneIds.contains(laneId)) {
         continue;
       }
@@ -19156,6 +19171,82 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       keyframeStops: <double>[],
       valueFormatter: _formatTransitionPercent,
     ),
+    'motion_blur_amount': _TransitionFocusLaneSpec(
+      id: 'motion_blur_amount',
+      groupLabel: 'Motion Blur',
+      label: 'Amount',
+      editorDescription:
+          'Controls the strength of velocity-driven shutter blur.',
+      min: 0.0,
+      max: 100.0,
+      fallback: 0.0,
+      tint: Color(0xFFFFB86B),
+      keyframeStops: <double>[],
+      valueFormatter: _formatTransitionPercent,
+    ),
+    'motion_blur_shutter_angle': _TransitionFocusLaneSpec(
+      id: 'motion_blur_shutter_angle',
+      groupLabel: 'Motion Blur',
+      label: 'Shutter Angle',
+      editorDescription:
+          'Controls exposure length for the motion blur sample window.',
+      min: 0.0,
+      max: 720.0,
+      fallback: 180.0,
+      tint: Color(0xFFFFD98A),
+      keyframeStops: <double>[],
+      valueFormatter: _formatTransitionDegrees,
+    ),
+    'motion_blur_shutter_phase': _TransitionFocusLaneSpec(
+      id: 'motion_blur_shutter_phase',
+      groupLabel: 'Motion Blur',
+      label: 'Shutter Phase',
+      editorDescription:
+          'Offsets the shutter window before or after the current frame.',
+      min: -360.0,
+      max: 360.0,
+      fallback: -90.0,
+      tint: Color(0xFFB79CFF),
+      keyframeStops: <double>[],
+      valueFormatter: _formatTransitionDegrees,
+    ),
+    'motion_blur_samples': _TransitionFocusLaneSpec(
+      id: 'motion_blur_samples',
+      groupLabel: 'Motion Blur',
+      label: 'Samples',
+      editorDescription:
+          'Controls temporal sample density for professional blur quality.',
+      min: 1.0,
+      max: 32.0,
+      fallback: 12.0,
+      tint: Color(0xFF82E6FF),
+      keyframeStops: <double>[],
+      valueFormatter: _formatTransitionWholeNumber,
+    ),
+    'motion_blur_adaptive_samples': _TransitionFocusLaneSpec(
+      id: 'motion_blur_adaptive_samples',
+      groupLabel: 'Motion Blur',
+      label: 'Adaptive Samples',
+      editorDescription: 'Caps adaptive temporal samples for heavy movement.',
+      min: 1.0,
+      max: 64.0,
+      fallback: 24.0,
+      tint: Color(0xFF8DFFAE),
+      keyframeStops: <double>[],
+      valueFormatter: _formatTransitionWholeNumber,
+    ),
+    'motion_blur_max_trail': _TransitionFocusLaneSpec(
+      id: 'motion_blur_max_trail',
+      groupLabel: 'Motion Blur',
+      label: 'Max Trail',
+      editorDescription: 'Limits the longest visible motion trail in pixels.',
+      min: 0.0,
+      max: 600.0,
+      fallback: 240.0,
+      tint: Color(0xFFFFA7C9),
+      keyframeStops: <double>[],
+      valueFormatter: _formatTransitionPixels,
+    ),
     'outgoingBoostScale': _TransitionFocusLaneSpec(
       id: 'outgoingBoostScale',
       groupLabel: 'Outgoing',
@@ -19249,14 +19340,46 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     ),
   };
 
+  static const List<String> _manualMotionBlurLaneIds = <String>[
+    'motion_blur_amount',
+    'motion_blur_shutter_angle',
+    'motion_blur_shutter_phase',
+    'motion_blur_samples',
+    'motion_blur_adaptive_samples',
+    'motion_blur_max_trail',
+  ];
+
+  List<String> _expandedManualTransitionEffectIds(Iterable<String> laneIds) {
+    final expanded = <String>[];
+    for (final laneId in laneIds) {
+      final additions =
+          laneId == 'motion_blur' ? _manualMotionBlurLaneIds : <String>[laneId];
+      for (final addition in additions) {
+        if (!expanded.contains(addition)) {
+          expanded.add(addition);
+        }
+      }
+    }
+    return List<String>.unmodifiable(expanded);
+  }
+
   List<_TransitionFocusLaneSpec> _transitionFocusLaneSpecs(
     TimelineTrackTransitionData transition,
   ) {
     final laneIds = <String>[
       if (transition.preset == TimelineTransitionPreset.manual) ...[
-        ...transition.manualEffectIds,
-        for (final lane in transition.manualAnimationLanes)
-          if (!transition.manualEffectIds.contains(lane.id)) lane.id,
+        ...(() {
+          final expandedIds =
+              _expandedManualTransitionEffectIds(transition.manualEffectIds);
+          return <String>[
+            ...expandedIds,
+            for (final lane in transition.manualAnimationLanes)
+              if (!expandedIds.contains(
+                lane.id == 'motion_blur' ? 'motion_blur_amount' : lane.id,
+              ))
+                lane.id,
+          ];
+        })(),
       ] else
         ...switch (transition.preset) {
           TimelineTransitionPreset.crossDissolve => const <String>[],
@@ -19702,12 +19825,17 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (transition == null) {
       return;
     }
-    if (transition.manualEffectIds.contains(item.id)) {
+    final requestedLaneIds =
+        item.id == 'motion_blur' ? _manualMotionBlurLaneIds : <String>[item.id];
+    final currentExpandedEffectIds = _expandedManualTransitionEffectIds(
+      transition.manualEffectIds,
+    );
+    if (requestedLaneIds.every(currentExpandedEffectIds.contains)) {
       _showStageMessage('${item.label} already exists on this transition.');
-      _selectTransitionFocusLane(item.id);
+      _selectTransitionFocusLane(requestedLaneIds.first);
       return;
     }
-    final baseSpec = _transitionLaneLibrary[item.id];
+    final baseSpec = _transitionLaneLibrary[requestedLaneIds.first];
     if (baseSpec == null) {
       return;
     }
@@ -19719,30 +19847,45 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _warmTransitionFocusPreviewAssets(focusContext);
     }
     final existingLanes = transition.manualAnimationLanes;
-    final nextLane = _emptyTransitionFocusManualLane(
-      laneId: item.id,
-      targetClipId: transition.leftClipId,
-    );
+    final existingLaneIds = <String>{
+      ...currentExpandedEffectIds,
+      for (final lane in existingLanes) lane.id,
+    };
+    final nextLaneIds = <String>[
+      ...currentExpandedEffectIds,
+      for (final laneId in requestedLaneIds)
+        if (!currentExpandedEffectIds.contains(laneId)) laneId,
+    ];
+    final nextLanes = <TimelineAnimationLaneData>[...existingLanes];
+    for (final laneId in requestedLaneIds) {
+      if (existingLaneIds.contains(laneId)) {
+        continue;
+      }
+      final nextLane = _emptyTransitionFocusManualLane(
+        laneId: laneId,
+        targetClipId: transition.leftClipId,
+      );
+      if (nextLane != null) {
+        nextLanes.add(nextLane);
+      }
+    }
     _updateTransitionFocusTransition(
       transitionId,
       update: (current) => current.copyWith(
-        manualEffectIds: <String>[
-          ...current.manualEffectIds,
-          item.id,
-        ],
+        manualEffectIds: nextLaneIds,
         parameterValues: <String, double>{
           ...current.parameterValues,
-          item.id: current.parameterValue(item.id, fallback: baseSpec.fallback),
+          for (final laneId in requestedLaneIds)
+            laneId: current.parameterValue(
+              laneId,
+              fallback:
+                  _transitionLaneLibrary[laneId]?.fallback ?? baseSpec.fallback,
+            ),
         },
-        manualAnimationLanes: nextLane == null
-            ? current.manualAnimationLanes
-            : <TimelineAnimationLaneData>[
-                ...existingLanes,
-                nextLane,
-              ],
+        manualAnimationLanes: nextLanes,
       ),
     );
-    _selectTransitionFocusLane(item.id);
+    _selectTransitionFocusLane(requestedLaneIds.first);
   }
 
   void _updateTransitionFocusTransition(
@@ -20266,6 +20409,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       '${value.round()} deg';
 
   static String _formatTransitionPixels(double value) => '${value.round()} px';
+
+  static String _formatTransitionWholeNumber(double value) =>
+      '${value.round()}';
 
   bool _tryOpenUnifiedTransitionScopeBridge({
     required TimelineTrackData track,
@@ -21946,6 +22092,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                   ),
                 )
                 .toList(growable: false),
+            motionBlurPolicy: Stage5VisualRuntimeMotionBlurPolicy(
+              enabled: surface.motionBlur.isEnabled,
+              amount: surface.motionBlur.amount,
+              shutterAngleDegrees: surface.motionBlur.shutterAngleDegrees,
+              shutterPhaseDegrees: surface.motionBlur.shutterPhaseDegrees,
+              samples: surface.motionBlur.samples,
+              adaptiveSampleLimit: surface.motionBlur.adaptiveSampleLimit,
+              maxTrailPx: surface.motionBlur.maxTrailPx,
+              affectPosition: surface.motionBlur.affectPosition,
+              affectScale: surface.motionBlur.affectScale,
+              affectRotation: surface.motionBlur.affectRotation,
+            ),
             blockers: <String>[...surface.blockers],
           ),
     ];

@@ -31,6 +31,18 @@ void main() {
               rendererUnit: 'shaderSigmaPx',
             ),
           ],
+          motionBlurPolicy: Stage5VisualRuntimeMotionBlurPolicy(
+            enabled: true,
+            amount: 0.8,
+            shutterAngleDegrees: 270,
+            shutterPhaseDegrees: -135,
+            samples: 12,
+            adaptiveSampleLimit: 24,
+            maxTrailPx: 360,
+            affectPosition: true,
+            affectScale: true,
+            affectRotation: true,
+          ),
         ),
       ],
     );
@@ -45,5 +57,13 @@ void main() {
     expect(binding['id'], 'gaussianBlur');
     expect(binding['rendererValue'], 5.75);
     expect(binding['rendererUnit'], 'shaderSigmaPx');
+
+    final motionBlurPolicy =
+        surface['motionBlurPolicy'] as Map<String, Object?>;
+    expect(motionBlurPolicy['enabled'], isTrue);
+    expect(motionBlurPolicy['amount'], 0.8);
+    expect(motionBlurPolicy['shutterAngleDegrees'], 270);
+    expect(motionBlurPolicy['samples'], 12);
+    expect(motionBlurPolicy['maxTrailPx'], 360);
   });
 }

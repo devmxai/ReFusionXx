@@ -8,6 +8,9 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import kotlin.math.abs
+import kotlin.math.atan2
+import kotlin.math.sqrt
 
 data class Stage5NativeScrubSourceDescriptor(
     val clipId: String,
@@ -71,6 +74,7 @@ data class Stage5VisualRuntimeSurfaceState(
     val transitionProgress: Double? = null,
     val effectProgramIds: List<String> = emptyList(),
     val effectBindings: List<Stage5VisualRuntimeEffectBinding> = emptyList(),
+    val motionBlurPolicy: Stage5VisualRuntimeMotionBlurPolicy? = null,
     val blockers: List<String> = emptyList(),
 )
 
@@ -78,6 +82,19 @@ data class Stage5VisualRuntimeEffectBinding(
     val id: String,
     val rendererValue: Double,
     val rendererUnit: String,
+)
+
+data class Stage5VisualRuntimeMotionBlurPolicy(
+    val enabled: Boolean,
+    val amount: Double,
+    val shutterAngleDegrees: Double,
+    val shutterPhaseDegrees: Double,
+    val samples: Int,
+    val adaptiveSampleLimit: Int,
+    val maxTrailPx: Double,
+    val affectPosition: Boolean,
+    val affectScale: Boolean,
+    val affectRotation: Boolean,
 )
 
 data class Stage5VisualRuntimeState(
@@ -197,12 +214,18 @@ class Stage5NativeScrubEngine(
         val sourcePositionMs: Long,
     )
 
+    private data class Stage5MotionBlurSample(
+        val timelineTimeMs: Long,
+        val transformMatrix3x3: List<Double>,
+    )
+
     private val surfaceScrubDecoder = Stage5SurfaceScrubDecoder(context.applicationContext)
     private val mediaDisplayGeometryResolver =
         MediaDisplayGeometryResolver(context.applicationContext)
     private val renderHosts = LinkedHashSet<Stage5ScrubRenderHost>()
     private val renderExecutor: ExecutorService = Executors.newSingleThreadExecutor()
     private val warmupExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+    private val previousMotionBlurSamples = mutableMapOf<String, Stage5MotionBlurSample>()
     private val diagnostics = Diagnostics()
     private val frameRenderListeners = LinkedHashSet<Stage5ScrubFrameRenderListener>()
     private var diagnosticsStartedAtMs = SystemClock.elapsedRealtime()
@@ -602,6 +625,7 @@ class Stage5NativeScrubEngine(
         latestTargetSourcePositionMs = null
         latestTargetTimelinePositionMs = null
         pendingDecoderForceSeekStoreKey = null
+        previousMotionBlurSamples.clear()
         targetGeneration += 1
         renderHosts.forEach { host ->
             host.setScrubSurfaceVisible(false)
@@ -810,6 +834,9 @@ class Stage5NativeScrubEngine(
             transformMatrix3x3 = visualState.transformMatrix3x3,
             opacity = visualState.opacity,
             gaussianBlurSigmaPx = visualState.gaussianBlurSigmaPx(),
+            motionBlurSigmaPx = visualState.motionBlurSigmaPx(
+                timelineTimeMs = snapshot.timelinePositionMs ?: latestKnownTimelinePositionMs ?: 0L,
+            ),
         )
         if (snapshot.forceSeekBeforeRender) {
             surfaceScrubDecoder.forceSeekOnNextRender()
@@ -914,6 +941,9 @@ class Stage5NativeScrubEngine(
                 transformMatrix3x3 = visualState.transformMatrix3x3,
                 opacity = visualState.opacity,
                 gaussianBlurSigmaPx = visualState.gaussianBlurSigmaPx(),
+                motionBlurSigmaPx = visualState.motionBlurSigmaPx(
+                    timelineTimeMs = target.descriptor.timelineStartMs,
+                ),
             )
             surfaceScrubDecoder.forceSeekOnNextRender()
             val rendered =
@@ -1029,6 +1059,7 @@ class Stage5NativeScrubEngine(
                 transitionProgress = descriptor.transitionProgress,
                 effectProgramIds = descriptor.effectProgramIds,
                 effectBindings = emptyList(),
+                motionBlurPolicy = null,
                 blockers = descriptor.runtimeBlockers,
             )
         }
@@ -1042,6 +1073,7 @@ class Stage5NativeScrubEngine(
                 transitionProgress = descriptor.transitionProgress,
                 effectProgramIds = emptyList(),
                 effectBindings = emptyList(),
+                motionBlurPolicy = null,
                 blockers = runtimeSurface?.blockers ?: emptyList(),
             )
         }
@@ -1078,11 +1110,18 @@ class Stage5NativeScrubEngine(
             } else {
                 surface.gaussianBlurSigmaPx()
             }
+        val motionBlurSigmaPx =
+            if (surface == null || surface.blockers.isNotEmpty()) {
+                null
+            } else {
+                surface.motionBlurSigmaPx(timelinePositionMs)
+            }
         renderHosts.forEach { host ->
             host.setScrubVisualState(
                 transformMatrix3x3 = transformMatrix,
                 opacity = opacity,
                 gaussianBlurSigmaPx = gaussianBlurSigmaPx,
+                motionBlurSigmaPx = motionBlurSigmaPx,
             )
         }
     }
@@ -1099,6 +1138,105 @@ class Stage5NativeScrubEngine(
             return null
         }
         return rendererValue.coerceIn(0.0, 80.0).toFloat()
+    }
+
+    private fun Stage5VisualRuntimeSurfaceState.motionBlurSigmaPx(
+        timelineTimeMs: Long,
+    ): Float? {
+        val policy = motionBlurPolicy ?: return null
+        if (!policy.enabled || policy.amount <= 0.0001) {
+            synchronized(this@Stage5NativeScrubEngine) {
+                previousMotionBlurSamples.remove(targetClipId)
+            }
+            return null
+        }
+        val currentSample =
+            Stage5MotionBlurSample(
+                timelineTimeMs = timelineTimeMs.coerceAtLeast(0L),
+                transformMatrix3x3 = transformMatrix3x3,
+            )
+        val previousSample =
+            synchronized(this@Stage5NativeScrubEngine) {
+                previousMotionBlurSamples[targetClipId].also {
+                    previousMotionBlurSamples[targetClipId] = currentSample
+                }
+            }
+        if (previousSample == null) {
+            return null
+        }
+        val deltaMs = abs(currentSample.timelineTimeMs - previousSample.timelineTimeMs)
+            .coerceAtLeast(1L)
+        val normalizedFrameFactor = 16.6667 / deltaMs.toDouble()
+        val trailPx =
+            motionBlurTrailPx(
+                previous = previousSample.transformMatrix3x3,
+                current = currentSample.transformMatrix3x3,
+                policy = policy,
+            ) * normalizedFrameFactor
+        if (!trailPx.isFinite() || trailPx <= 0.05) {
+            return null
+        }
+        val shutterFactor = (policy.shutterAngleDegrees / 180.0)
+            .coerceIn(0.0, 8.0)
+        val sampleFactor = (policy.samples.coerceAtLeast(1) / 8.0)
+            .coerceIn(0.35, 2.0)
+        val maxTrail = policy.maxTrailPx.coerceIn(0.0, 4096.0)
+        val clampedTrail =
+            (trailPx * policy.amount.coerceIn(0.0, 1.0) * shutterFactor * sampleFactor)
+                .coerceIn(0.0, maxTrail)
+        val sigma = (clampedTrail / 3.0).coerceIn(0.0, 80.0)
+        return if (sigma > 0.05) sigma.toFloat() else null
+    }
+
+    private fun motionBlurTrailPx(
+        previous: List<Double>,
+        current: List<Double>,
+        policy: Stage5VisualRuntimeMotionBlurPolicy,
+    ): Double {
+        if (previous.size != 9 || current.size != 9) {
+            return 0.0
+        }
+        val positionDelta =
+            if (policy.affectPosition) {
+                val dx = current[2] - previous[2]
+                val dy = current[5] - previous[5]
+                sqrt((dx * dx) + (dy * dy))
+            } else {
+                0.0
+            }
+        val scaleDelta =
+            if (policy.affectScale) {
+                val previousScaleX = sqrt((previous[0] * previous[0]) + (previous[3] * previous[3]))
+                val previousScaleY = sqrt((previous[1] * previous[1]) + (previous[4] * previous[4]))
+                val currentScaleX = sqrt((current[0] * current[0]) + (current[3] * current[3]))
+                val currentScaleY = sqrt((current[1] * current[1]) + (current[4] * current[4]))
+                ((abs(currentScaleX - previousScaleX) + abs(currentScaleY - previousScaleY)) * 140.0)
+            } else {
+                0.0
+            }
+        val rotationDelta =
+            if (policy.affectRotation) {
+                val previousDegrees = Math.toDegrees(atan2(previous[3], previous[0]))
+                val currentDegrees = Math.toDegrees(atan2(current[3], current[0]))
+                abs(shortestAngleDeltaDegrees(currentDegrees, previousDegrees)) * 1.4
+            } else {
+                0.0
+            }
+        return positionDelta + scaleDelta + rotationDelta
+    }
+
+    private fun shortestAngleDeltaDegrees(
+        currentDegrees: Double,
+        previousDegrees: Double,
+    ): Double {
+        var delta = currentDegrees - previousDegrees
+        while (delta > 180.0) {
+            delta -= 360.0
+        }
+        while (delta < -180.0) {
+            delta += 360.0
+        }
+        return delta
     }
 
     private fun handleProxyReady(sourceUri: String) {

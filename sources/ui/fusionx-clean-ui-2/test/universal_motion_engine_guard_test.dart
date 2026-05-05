@@ -147,6 +147,30 @@ void main() {
     expect(source.contains('Stage5VisualRuntimeEffectBinding('), isTrue);
     expect(source.contains('rendererValue: effect.rendererValue'), isTrue);
     expect(source.contains('rendererUnit: effect.rendererUnit.name'), isTrue);
+    expect(source.contains('Stage5VisualRuntimeMotionBlurPolicy('), isTrue);
+    expect(source.contains('amount: surface.motionBlur.amount'), isTrue);
+    expect(
+      source.contains(
+        'shutterAngleDegrees: surface.motionBlur.shutterAngleDegrees',
+      ),
+      isTrue,
+    );
+  });
+
+  test('manual transition Motion Blur expands to professional controls',
+      () async {
+    final source = await screenFile.readAsString();
+    expect(source.contains('_manualMotionBlurLaneIds'), isTrue);
+    for (final laneId in <String>[
+      'motion_blur_amount',
+      'motion_blur_shutter_angle',
+      'motion_blur_shutter_phase',
+      'motion_blur_samples',
+      'motion_blur_adaptive_samples',
+      'motion_blur_max_trail',
+    ]) {
+      expect(source.contains("'$laneId'"), isTrue);
+    }
   });
 
   test('screen state does not keep legacy master frame read adapter field',

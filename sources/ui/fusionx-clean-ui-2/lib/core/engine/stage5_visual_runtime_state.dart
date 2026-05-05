@@ -22,6 +22,48 @@ class Stage5VisualRuntimeEffectBinding {
 }
 
 @immutable
+class Stage5VisualRuntimeMotionBlurPolicy {
+  const Stage5VisualRuntimeMotionBlurPolicy({
+    required this.enabled,
+    required this.amount,
+    required this.shutterAngleDegrees,
+    required this.shutterPhaseDegrees,
+    required this.samples,
+    required this.adaptiveSampleLimit,
+    required this.maxTrailPx,
+    required this.affectPosition,
+    required this.affectScale,
+    required this.affectRotation,
+  });
+
+  final bool enabled;
+  final double amount;
+  final double shutterAngleDegrees;
+  final double shutterPhaseDegrees;
+  final int samples;
+  final int adaptiveSampleLimit;
+  final double maxTrailPx;
+  final bool affectPosition;
+  final bool affectScale;
+  final bool affectRotation;
+
+  Map<String, Object?> toMap() {
+    return <String, Object?>{
+      'enabled': enabled,
+      'amount': amount,
+      'shutterAngleDegrees': shutterAngleDegrees,
+      'shutterPhaseDegrees': shutterPhaseDegrees,
+      'samples': samples,
+      'adaptiveSampleLimit': adaptiveSampleLimit,
+      'maxTrailPx': maxTrailPx,
+      'affectPosition': affectPosition,
+      'affectScale': affectScale,
+      'affectRotation': affectRotation,
+    };
+  }
+}
+
+@immutable
 class Stage5VisualRuntimeSurfaceState {
   const Stage5VisualRuntimeSurfaceState({
     required this.targetClipId,
@@ -31,6 +73,7 @@ class Stage5VisualRuntimeSurfaceState {
     this.transitionProgress,
     this.effectProgramIds = const <String>[],
     this.effectBindings = const <Stage5VisualRuntimeEffectBinding>[],
+    this.motionBlurPolicy,
     this.blockers = const <String>[],
   });
 
@@ -41,6 +84,7 @@ class Stage5VisualRuntimeSurfaceState {
   final double? transitionProgress;
   final List<String> effectProgramIds;
   final List<Stage5VisualRuntimeEffectBinding> effectBindings;
+  final Stage5VisualRuntimeMotionBlurPolicy? motionBlurPolicy;
   final List<String> blockers;
 
   Map<String, Object?> toMap() {
@@ -54,6 +98,7 @@ class Stage5VisualRuntimeSurfaceState {
       'effectBindings': effectBindings
           .map((effect) => effect.toMap())
           .toList(growable: false),
+      'motionBlurPolicy': motionBlurPolicy?.toMap(),
       'blockers': blockers,
     };
   }

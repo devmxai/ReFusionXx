@@ -34,6 +34,7 @@ class Stage5PreviewPlatformView(
     private var runtimeTransformMatrix3x3: List<Double>? = null
     private var runtimeOpacity = 1.0
     private var runtimeGaussianBlurSigmaPx: Float? = null
+    private var runtimeMotionBlurSigmaPx: Float? = null
     @Volatile
     private var appliedScrubAspectRatio: Float? = null
     @Volatile
@@ -160,10 +161,12 @@ class Stage5PreviewPlatformView(
         transformMatrix3x3: List<Double>?,
         opacity: Double?,
         gaussianBlurSigmaPx: Float?,
+        motionBlurSigmaPx: Float?,
     ) {
         runtimeTransformMatrix3x3 = transformMatrix3x3
         runtimeOpacity = ((opacity ?: 1.0).coerceIn(0.0, 1.0))
         runtimeGaussianBlurSigmaPx = gaussianBlurSigmaPx?.takeIf { it.isFinite() && it > 0.05f }
+        runtimeMotionBlurSigmaPx = motionBlurSigmaPx?.takeIf { it.isFinite() && it > 0.05f }
         runOnUiThreadIfActive(waitForCompletion = true) {
             scrubOverlayView.setRuntimeVisualState(
                 transformMatrix3x3 = transformMatrix3x3,
@@ -318,9 +321,13 @@ class Stage5PreviewPlatformView(
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
             return
         }
-        val sigma = runtimeGaussianBlurSigmaPx?.coerceIn(0f, 80f)
+        val sigma =
+            maxOf(
+                runtimeGaussianBlurSigmaPx ?: 0f,
+                runtimeMotionBlurSigmaPx ?: 0f,
+            ).coerceIn(0f, 80f)
         val renderEffect =
-            if (sigma != null && sigma > 0.05f) {
+            if (sigma > 0.05f) {
                 RenderEffect.createBlurEffect(
                     sigma,
                     sigma,
