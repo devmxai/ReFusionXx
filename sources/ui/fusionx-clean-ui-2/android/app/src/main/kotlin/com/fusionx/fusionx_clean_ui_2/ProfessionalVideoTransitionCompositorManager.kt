@@ -9,8 +9,10 @@ import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
 import android.graphics.PixelFormat
+import android.graphics.PorterDuff
 import android.graphics.Rect
 import android.graphics.RectF
+import android.graphics.Matrix
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
@@ -3422,7 +3424,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                 parameters = parameters,
             )
         }
-        if (definitionId == "manualTransform") {
+        if (definitionId == "manualTransform" || definitionId == "manualTransformMotionBlur") {
             return writeManualTransformPixelsToFrameBuffer(
                 appContext = appContext,
                 frameBufferStore = frameBufferStore,
@@ -3568,14 +3570,12 @@ private data class ProfessionalVideoTransitionRenderSession(
                 reason = "native_transition_temporal_samples_missing",
             )
         }
-        val scale =
-            parameters
-                ?.doubleValue("manualScale", defaultValue = 1.0)
-                ?.coerceIn(0.1, 4.0) ?: 1.0
-        val opacity =
-            parameters
-                ?.doubleValue("manualOpacity", defaultValue = 1.0)
-                ?.coerceIn(0.0, 1.0) ?: 1.0
+        val manualTemporalSamples =
+            readManualTemporalMotionBlurSamples(
+                parameters = parameters,
+                fallbackTimelineSamples = timelineSamples,
+                timelineTimeMs = timelineTimeMs,
+            )
         val canvasBitmap =
             runCatching {
                 Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
@@ -3591,34 +3591,67 @@ private data class ProfessionalVideoTransitionRenderSession(
         var extractedFrameCount = 0
         try {
             val canvas = Canvas(canvasBitmap)
-            canvas.drawColor(Color.BLACK)
-            val sampleAlpha =
-                temporalSampleAlpha((opacity * 255.0).roundToInt(), timelineSamples.size)
-            timelineSamples.forEach { sampleTimelineMs ->
-                val source =
-                    if (sampleTimelineMs < boundaryTimeMs) {
-                        outgoing
-                    } else {
-                        incoming
+            canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
+            val centerSampleIndex =
+                manualTemporalSamples.withIndex().minByOrNull { indexed ->
+                    kotlin.math.abs(indexed.value.timelineTimeMs - timelineTimeMs)
+                }?.index ?: 0
+            val centerSample =
+                manualTemporalSamples.getOrNull(centerSampleIndex)
+            if (centerSample != null) {
+                val centerSource = sourceForManualTemporalSample(centerSample)
+                if (centerSource != null && centerSource.coversTimelineTime(centerSample.timelineTimeMs)) {
+                    val frame =
+                        extractVideoFrameBitmap(
+                            appContext,
+                            centerSource.sourceUri,
+                            centerSource.sourceTimeForTimelineTime(centerSample.timelineTimeMs),
+                        )
+                    if (frame != null) {
+                        drawBitmapCenterCropMatrixTransform(
+                            canvas = canvas,
+                            bitmap = frame,
+                            alpha = (centerSample.opacity * 255.0).roundToInt().coerceIn(0, 255),
+                            canvasWidth = width,
+                            canvasHeight = height,
+                            transformMatrix3x3 = centerSample.transformMatrix3x3,
+                        )
+                        extractedFrameCount += 1
+                        frame.recycle()
                     }
-                if (!source.coversTimelineTime(sampleTimelineMs)) {
-                    return@forEach
+                }
+            }
+            val trailSampleCount = (manualTemporalSamples.size - 1).coerceAtLeast(1)
+            manualTemporalSamples.forEachIndexed { index, sample ->
+                if (index == centerSampleIndex) {
+                    return@forEachIndexed
+                }
+                val source = sourceForManualTemporalSample(sample) ?: return@forEachIndexed
+                if (!source.coversTimelineTime(sample.timelineTimeMs)) {
+                    return@forEachIndexed
                 }
                 val frame =
                     extractVideoFrameBitmap(
                         appContext,
                         source.sourceUri,
-                        source.sourceTimeForTimelineTime(sampleTimelineMs),
+                        source.sourceTimeForTimelineTime(sample.timelineTimeMs),
                     )
                 if (frame != null) {
-                    drawBitmapCenterCropTransform(
-                        canvas = canvas,
-                        bitmap = frame,
-                        alpha = sampleAlpha,
-                        canvasWidth = width,
-                        canvasHeight = height,
-                        scale = scale,
-                    )
+                    val trailAlpha =
+                        temporalSampleAlpha(
+                            (sample.opacity * sample.weight * 255.0).roundToInt().coerceIn(0, 255),
+                            trailSampleCount,
+                        )
+                    if (trailAlpha > 0) {
+                        drawBitmapCenterCropMatrixTransform(
+                            canvas = canvas,
+                            bitmap = frame,
+                            alpha = trailAlpha,
+                            canvasWidth = width,
+                            canvasHeight = height,
+                            transformMatrix3x3 = sample.transformMatrix3x3,
+                        )
+                    }
                     extractedFrameCount += 1
                     frame.recycle()
                 }
@@ -3636,12 +3669,141 @@ private data class ProfessionalVideoTransitionRenderSession(
             return frameBufferStore.writeBitmap(
                 frameBufferId = frameBufferId,
                 bitmap = canvasBitmap,
-                sampleCount = timelineSamples.size,
+                sampleCount = manualTemporalSamples.size,
                 extractedFrameCount = extractedFrameCount,
             )
         } finally {
             canvasBitmap.recycle()
         }
+    }
+
+    private data class ManualTemporalMotionBlurSample(
+        val timelineTimeMs: Long,
+        val sourceClipId: String,
+        val transformMatrix3x3: List<Double>,
+        val opacity: Double,
+        val weight: Double,
+    )
+
+    private fun sourceForManualTemporalSample(
+        sample: ManualTemporalMotionBlurSample,
+    ): ProfessionalVideoTransitionRenderSource? {
+        return when (sample.sourceClipId) {
+            outgoing.clipId -> outgoing
+            incoming.clipId -> incoming
+            else ->
+                if (sample.timelineTimeMs < boundaryTimeMs) {
+                    outgoing
+                } else {
+                    incoming
+                }
+        }
+    }
+
+    private fun readManualTemporalMotionBlurSamples(
+        parameters: Map<*, *>?,
+        fallbackTimelineSamples: List<Long>,
+        timelineTimeMs: Long,
+    ): List<ManualTemporalMotionBlurSample> {
+        val plans =
+            (parameters?.get("temporalMotionBlurSamplePlans") as? List<*>)
+                ?.mapNotNull { entry -> entry as? Map<*, *> }
+                ?: emptyList()
+        if (plans.isEmpty()) {
+            return fallbackTimelineSamples.map { sampleTimeMs ->
+                val source =
+                    if (sampleTimeMs < boundaryTimeMs) {
+                        outgoing
+                    } else {
+                        incoming
+                    }
+                ManualTemporalMotionBlurSample(
+                    timelineTimeMs = sampleTimeMs,
+                    sourceClipId = source.clipId,
+                    transformMatrix3x3 = identityMatrix3x3(),
+                    opacity = 1.0,
+                    weight = 1.0,
+                )
+            }
+        }
+        val aggregated = mutableListOf<ManualTemporalMotionBlurSample>()
+        plans.forEach { plan ->
+            val targetId = plan.stringValue("targetId")
+            val sampleTimes =
+                (plan["sampleTimesMs"] as? List<*>)?.mapNotNull { sample ->
+                    when (sample) {
+                        is Number -> sample.toLong()
+                        is String -> sample.toLongOrNull()
+                        else -> null
+                    }
+                } ?: emptyList()
+            if (sampleTimes.isEmpty()) {
+                return@forEach
+            }
+            val sampleTransforms =
+                (plan["sampleTransforms"] as? List<*>)?.mapNotNull { entry ->
+                    (entry as? List<*>)?.mapNotNull { value ->
+                        when (value) {
+                            is Number -> value.toDouble()
+                            is String -> value.toDoubleOrNull()
+                            else -> null
+                        }
+                    }?.takeIf { values -> values.size == 9 }
+                } ?: emptyList()
+            val sourceIds =
+                (plan["sourceIdsBySample"] as? List<*>)?.map { source ->
+                    source?.toString().orEmpty()
+                } ?: emptyList()
+            val sampleOpacities =
+                (plan["sampleOpacities"] as? List<*>)?.map { value ->
+                    when (value) {
+                        is Number -> value.toDouble()
+                        is String -> value.toDoubleOrNull() ?: 1.0
+                        else -> 1.0
+                    }
+                } ?: emptyList()
+            val amount = plan.doubleValue("amount", defaultValue = 1.0).coerceIn(0.0, 1.0)
+            if (sampleTransforms.isEmpty()) {
+                return@forEach
+            }
+            val weightScale =
+                if (sampleTimes.size <= 1) {
+                    1.0
+                } else {
+                    amount.coerceAtLeast(0.05)
+                }
+            sampleTimes.forEachIndexed { index, sampleTime ->
+                val transform =
+                    sampleTransforms.getOrElse(index) {
+                        sampleTransforms.last()
+                    }
+                val sourceId =
+                    sourceIds.getOrNull(index)
+                        ?.takeIf { value -> value.isNotBlank() } ?: targetId
+                val opacity = sampleOpacities.getOrNull(index) ?: 1.0
+                aggregated.add(
+                    ManualTemporalMotionBlurSample(
+                        timelineTimeMs = sampleTime,
+                        sourceClipId = sourceId,
+                        transformMatrix3x3 = transform,
+                        opacity = opacity.coerceIn(0.0, 1.0),
+                        weight = weightScale,
+                    ),
+                )
+            }
+        }
+        if (aggregated.isEmpty()) {
+            return listOf(
+                ManualTemporalMotionBlurSample(
+                    timelineTimeMs = timelineTimeMs,
+                    sourceClipId = if (timelineTimeMs < boundaryTimeMs) outgoing.clipId else incoming.clipId,
+                    transformMatrix3x3 = identityMatrix3x3(),
+                    opacity = 1.0,
+                    weight = 1.0,
+                ),
+            )
+        }
+        return aggregated.sortedBy { sample -> sample.timelineTimeMs }
     }
 
     private fun writeDistortionZoomInV1PixelsToFrameBuffer(
@@ -4170,33 +4332,118 @@ private data class ProfessionalVideoTransitionRenderSession(
         canvasHeight: Int,
         scale: Double,
     ) {
-        if (alpha <= 0 || bitmap.width <= 0 || bitmap.height <= 0) {
+        val safeScale = scale.coerceIn(0.1, 4.0)
+        drawBitmapCenterCropMatrixTransform(
+            canvas = canvas,
+            bitmap = bitmap,
+            alpha = alpha,
+            canvasWidth = canvasWidth,
+            canvasHeight = canvasHeight,
+            transformMatrix3x3 =
+                listOf(
+                    safeScale,
+                    0.0,
+                    0.0,
+                    0.0,
+                    safeScale,
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0,
+                ),
+        )
+    }
+
+    private fun drawBitmapCenterCropMatrixTransform(
+        canvas: Canvas,
+        bitmap: Bitmap,
+        alpha: Int,
+        canvasWidth: Int,
+        canvasHeight: Int,
+        transformMatrix3x3: List<Double>,
+    ) {
+        if (alpha <= 0 || bitmap.width <= 0 || bitmap.height <= 0 || transformMatrix3x3.size != 9) {
             return
         }
-        val bitmapRatio = bitmap.width.toFloat() / bitmap.height.toFloat()
-        val canvasRatio = canvasWidth.toFloat() / canvasHeight.toFloat()
-        val sourceRect =
-            if (bitmapRatio > canvasRatio) {
-                val cropWidth = (bitmap.height * canvasRatio).roundToInt().coerceAtLeast(1)
-                val left = ((bitmap.width - cropWidth) / 2).coerceAtLeast(0)
-                Rect(left, 0, (left + cropWidth).coerceAtMost(bitmap.width), bitmap.height)
-            } else {
-                val cropHeight = (bitmap.width / canvasRatio).roundToInt().coerceAtLeast(1)
-                val top = ((bitmap.height - cropHeight) / 2).coerceAtLeast(0)
-                Rect(0, top, bitmap.width, (top + cropHeight).coerceAtMost(bitmap.height))
-            }
-        val safeScale = scale.coerceIn(0.1, 4.0).toFloat()
-        val scaledWidth = canvasWidth * safeScale
-        val scaledHeight = canvasHeight * safeScale
-        val left = (canvasWidth - scaledWidth) / 2f
-        val top = (canvasHeight - scaledHeight) / 2f
-        val destinationRect = RectF(left, top, left + scaledWidth, top + scaledHeight)
+        val sourceRect = centerCropSourceRect(bitmap = bitmap, canvasWidth = canvasWidth, canvasHeight = canvasHeight)
+        val m00 = transformMatrix3x3[0].toFloat()
+        val m01 = transformMatrix3x3[1].toFloat()
+        val tx = transformMatrix3x3[2].toFloat()
+        val m10 = transformMatrix3x3[3].toFloat()
+        val m11 = transformMatrix3x3[4].toFloat()
+        val ty = transformMatrix3x3[5].toFloat()
+        if (!m00.isFinite() || !m01.isFinite() || !tx.isFinite() ||
+            !m10.isFinite() || !m11.isFinite() || !ty.isFinite()
+        ) {
+            return
+        }
         val paint =
             Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG or Paint.DITHER_FLAG).apply {
                 this.alpha = alpha.coerceIn(0, 255)
             }
-        canvas.drawBitmap(bitmap, sourceRect, destinationRect, paint)
+        val centerX = canvasWidth / 2f
+        val centerY = canvasHeight / 2f
+        val matrix =
+            Matrix().apply {
+                setValues(
+                    floatArrayOf(
+                        m00,
+                        m01,
+                        tx,
+                        m10,
+                        m11,
+                        ty,
+                        0f,
+                        0f,
+                        1f,
+                    ),
+                )
+                postTranslate(
+                    centerX - (m00 * centerX + m01 * centerY),
+                    centerY - (m10 * centerX + m11 * centerY),
+                )
+            }
+        canvas.save()
+        canvas.concat(matrix)
+        canvas.drawBitmap(
+            bitmap,
+            sourceRect,
+            RectF(0f, 0f, canvasWidth.toFloat(), canvasHeight.toFloat()),
+            paint,
+        )
+        canvas.restore()
     }
+
+    private fun centerCropSourceRect(
+        bitmap: Bitmap,
+        canvasWidth: Int,
+        canvasHeight: Int,
+    ): Rect {
+        val bitmapRatio = bitmap.width.toFloat() / bitmap.height.toFloat()
+        val canvasRatio = canvasWidth.toFloat() / canvasHeight.toFloat()
+        return if (bitmapRatio > canvasRatio) {
+            val cropWidth = (bitmap.height * canvasRatio).roundToInt().coerceAtLeast(1)
+            val left = ((bitmap.width - cropWidth) / 2).coerceAtLeast(0)
+            Rect(left, 0, (left + cropWidth).coerceAtMost(bitmap.width), bitmap.height)
+        } else {
+            val cropHeight = (bitmap.width / canvasRatio).roundToInt().coerceAtLeast(1)
+            val top = ((bitmap.height - cropHeight) / 2).coerceAtLeast(0)
+            Rect(0, top, bitmap.width, (top + cropHeight).coerceAtMost(bitmap.height))
+        }
+    }
+
+    private fun identityMatrix3x3(): List<Double> =
+        listOf(
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+        )
 
     fun planTransitionPixelFrameBuffer(
         timelineTimeMs: Long,
@@ -6612,6 +6859,19 @@ private class ProfessionalVideoTransitionRendererRegistry(
                                 "temporalMotionBlur",
                                 "mirrorEdgeTiling",
                                 "previewParity",
+                            ),
+                        implemented = true,
+                    ),
+                    ProfessionalVideoTransitionRendererDefinition(
+                        definitionId = "manualTransformMotionBlur",
+                        requiredCapabilities =
+                            setOf(
+                                "dualVideoSampling",
+                                "temporalMotionBlur",
+                                "mirrorEdgeTiling",
+                                "previewParity",
+                                "liveScrubParity",
+                                "playbackParity",
                             ),
                         implemented = true,
                     ),

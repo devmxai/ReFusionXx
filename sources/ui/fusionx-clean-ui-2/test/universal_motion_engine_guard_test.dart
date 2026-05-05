@@ -164,8 +164,8 @@ void main() {
       ),
       isTrue,
     );
-    expect(source.contains('_stage5TemporalMotionBlurSamplesForSurface('),
-        isTrue);
+    expect(
+        source.contains('_stage5TemporalMotionBlurSamplesForSurface('), isTrue);
     expect(
       source.contains(
         'motionBlurSamples: const <Stage5VisualRuntimeMotionBlurSample>[]',
@@ -183,7 +183,8 @@ void main() {
     expect(nativeEngine.contains('motionBlurSigmaPx'), isFalse);
     expect(nativeEngine.contains('previousMotionBlurSamples'), isFalse);
     expect(nativeEngine.contains('Stage5TemporalMotionBlurRenderer'), isFalse);
-    expect(nativeEngine.contains('temporalMotionBlurRenderer.render('), isFalse);
+    expect(
+        nativeEngine.contains('temporalMotionBlurRenderer.render('), isFalse);
     expect(nativeEngine.contains('lockCanvas(null)'), isFalse);
     expect(nativeEngine.contains('getFrameAtTime'), isFalse);
     expect(preview.contains('runtimeMotionBlurSigmaPx'), isFalse);
@@ -342,12 +343,53 @@ void main() {
 
   test('screen detaches legacy manual transform transition hooks', () async {
     final source = await screenFile.readAsString();
+    expect(source.contains("'manualTransformMotionBlur'"), isTrue);
     expect(source.contains("'manualTransform'"), isFalse);
     expect(source.contains('_manualTransitionNativeParameters('), isFalse);
     expect(source.contains('_isLegacyTriangularBlackMixLane('), isFalse);
     expect(
-      source.contains('TimelineTransitionPreset.manual => null'),
+      source.contains(
+        "TimelineTransitionPreset.manual => 'manualTransformMotionBlur'",
+      ),
       isTrue,
+    );
+  });
+
+  test('manual professional transition does not suppress Stage5 preview',
+      () async {
+    final source = await screenFile.readAsString();
+    final nativePreviewStart =
+        source.indexOf('Widget _buildNativePreviewSurface({');
+    expect(nativePreviewStart, isNonNegative);
+    final nativePreviewEnd =
+        source.indexOf('Widget? _buildPreviewOverlay({', nativePreviewStart);
+    expect(nativePreviewEnd, greaterThan(nativePreviewStart));
+    final nativePreviewBody =
+        source.substring(nativePreviewStart, nativePreviewEnd);
+    expect(
+      nativePreviewBody.contains(
+        'activeTransition.transition.preset !=\n'
+        '                    TimelineTransitionPreset.manual',
+      ),
+      isTrue,
+    );
+
+    final previewOverlayStart =
+        source.indexOf('Widget? _buildPreviewOverlay({');
+    expect(previewOverlayStart, isNonNegative);
+    final previewOverlayEnd = source.indexOf(
+      '@override\n  Widget build(BuildContext context)',
+      previewOverlayStart,
+    );
+    expect(previewOverlayEnd, greaterThan(previewOverlayStart));
+    final previewOverlayBody =
+        source.substring(previewOverlayStart, previewOverlayEnd);
+    expect(
+      previewOverlayBody.contains(
+        'if (!hasManualProfessionalTransition) {\n'
+        '                  _scheduleStage5VisualRuntimeSubmission(',
+      ),
+      isFalse,
     );
   });
 

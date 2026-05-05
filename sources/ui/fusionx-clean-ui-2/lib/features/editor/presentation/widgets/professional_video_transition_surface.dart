@@ -100,6 +100,7 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
   String? _lastRenderedKey;
   String? _lastReportedRenderIssueKey;
   Timer? _renderTimer;
+  bool _hasPresentedFrame = false;
 
   @override
   void didUpdateWidget(
@@ -111,6 +112,7 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
       _registrationRetryCount = 0;
       _lastRenderedKey = null;
       _lastReportedRenderIssueKey = null;
+      _hasPresentedFrame = false;
       _renderTimer?.cancel();
       return;
     }
@@ -170,6 +172,11 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
     if (result.canRenderFrame) {
       _lastRenderedKey = renderKey;
       _registrationRetryCount = 0;
+      if (!_hasPresentedFrame) {
+        setState(() {
+          _hasPresentedFrame = true;
+        });
+      }
       return;
     }
     _debugRenderIssue(result);
@@ -243,18 +250,21 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
       return const SizedBox.shrink();
     }
     return IgnorePointer(
-      child: AndroidView(
-        key: ValueKey<String>(widget.surfaceId),
-        viewType: ProfessionalVideoTransitionSurfaceOverlay.viewType,
-        hitTestBehavior: PlatformViewHitTestBehavior.transparent,
-        creationParams: <String, Object?>{
-          'surfaceId': widget.surfaceId,
-          'mode': widget.mode,
-          'canvasWidth': widget.plan.canvasWidth,
-          'canvasHeight': widget.plan.canvasHeight,
-        },
-        creationParamsCodec: const StandardMessageCodec(),
-        onPlatformViewCreated: _handlePlatformViewCreated,
+      child: Opacity(
+        opacity: _hasPresentedFrame ? 1.0 : 0.0,
+        child: AndroidView(
+          key: ValueKey<String>(widget.surfaceId),
+          viewType: ProfessionalVideoTransitionSurfaceOverlay.viewType,
+          hitTestBehavior: PlatformViewHitTestBehavior.transparent,
+          creationParams: <String, Object?>{
+            'surfaceId': widget.surfaceId,
+            'mode': widget.mode,
+            'canvasWidth': widget.plan.canvasWidth,
+            'canvasHeight': widget.plan.canvasHeight,
+          },
+          creationParamsCodec: const StandardMessageCodec(),
+          onPlatformViewCreated: _handlePlatformViewCreated,
+        ),
       ),
     );
   }

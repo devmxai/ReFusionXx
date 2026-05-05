@@ -22,6 +22,7 @@ import '../../domain/models/master_live_scrub_visual_program_models.dart';
 import '../../domain/models/master_time_models.dart';
 import '../../domain/models/master_visual_program_models.dart';
 import '../../domain/models/professional_canvas_timeline_authoring_models.dart';
+import '../../domain/models/temporal_motion_blur_sample_plan.dart';
 import '../../domain/models/professional_motion_animation_models.dart';
 import '../../domain/models/professional_motion_compilation_models.dart';
 import '../../domain/models/professional_motion_evaluation_models.dart';
@@ -22043,7 +22044,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   bool _hasImplementedNativeProfessionalTransitionRenderer(
     TimelineTransitionPreset preset,
   ) {
-    return preset == TimelineTransitionPreset.distortionZoomInV1;
+    return preset == TimelineTransitionPreset.distortionZoomInV1 ||
+        preset == TimelineTransitionPreset.manual;
   }
 
   bool _mustRenderTransitionOnNativeSurface(
@@ -22061,6 +22063,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required TimelineTime boundaryTime,
     required String mode,
     required String surfaceId,
+    _ActiveTimelineTransitionPreview? activeTransition,
   }) {
     final definitionId = _professionalTransitionDefinitionId(transition.preset);
     if (definitionId == null) {
@@ -22083,6 +22086,30 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       ...transition.preset.defaultParameterValues,
       ...transition.parameterValues,
     };
+    if (transition.preset == TimelineTransitionPreset.manual &&
+        activeTransition != null) {
+      final previewTime = activeTransition.timelineTime;
+      final evaluation = _masterFrameEvaluationForMode(
+        mode,
+        previewTimeOverride: previewTime,
+      );
+      final program = _manualTransitionLiveScrubProgram(
+        evaluation: evaluation,
+        activeTransition: activeTransition,
+        mode: mode,
+      );
+      if (program != null) {
+        final temporalPlans = _temporalMotionBlurSamplePlansForManualTransition(
+          previewTime: previewTime,
+          mode: mode,
+          activeTransition: activeTransition,
+          baseProgram: program,
+        );
+        parameters['temporalMotionBlurSamplePlans'] = temporalPlans
+            .map((plan) => plan.toPlatformMap())
+            .toList(growable: false);
+      }
+    }
     return const ProfessionalVideoTransitionRenderPlanAdapter().build(
       ProfessionalVideoTransitionRenderPlanRequest(
         transition: transition,
@@ -22586,6 +22613,106 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     ];
   }
 
+  List<TemporalMotionBlurSamplePlan>
+      _temporalMotionBlurSamplePlansForManualTransition({
+    required TimelineTime previewTime,
+    required String mode,
+    required _ActiveTimelineTransitionPreview activeTransition,
+    required LiveScrubVisualProgram baseProgram,
+  }) {
+    final plans = <TemporalMotionBlurSamplePlan>[];
+    for (final surface in baseProgram.surfaces) {
+      if (surface.sourceKind != LiveScrubSourceKind.video ||
+          surface.blockers.isNotEmpty) {
+        continue;
+      }
+      final policy = surface.motionBlur;
+      final sampleOffsets = policy.isEnabled
+          ? _stage5MotionBlurSampleOffsetsMs(policy)
+          : const <double>[];
+      final offsets = sampleOffsets.length > 1 ? sampleOffsets : <double>[0.0];
+      final sampleTimesMs = <int>[];
+      final sourceIdsBySample = <String>[];
+      final sampleTransforms = <List<double>>[];
+      final sampleOpacities = <double>[];
+      for (final offset in offsets) {
+        final sampleTime = TimelineTime.fromMilliseconds(
+          (previewTime.inMilliseconds + offset).round(),
+        ).clamp(TimelineTime.zero, _timelineDurationTime);
+        final sampleEvaluation = _masterFrameEvaluationForMode(
+          mode,
+          previewTimeOverride: sampleTime,
+        );
+        final sampleProgram = _manualTransitionLiveScrubProgram(
+          evaluation: sampleEvaluation,
+          activeTransition: activeTransition,
+          mode: mode,
+        );
+        if (sampleProgram == null) {
+          continue;
+        }
+        LiveScrubVisualSurface? sampleSurface;
+        for (final candidate in sampleProgram.surfaces) {
+          if (candidate.targetId == surface.targetId) {
+            sampleSurface = candidate;
+            break;
+          }
+        }
+        if (sampleSurface == null || sampleSurface.blockers.isNotEmpty) {
+          continue;
+        }
+        sampleTimesMs.add(sampleTime.inMilliseconds);
+        sourceIdsBySample.add(sampleSurface.targetId);
+        sampleTransforms.add(
+          _stage5VisualTransformMatrix3x3FromComponents(
+            positionX: policy.affectPosition
+                ? sampleSurface.transform.positionX
+                : surface.transform.positionX,
+            positionY: policy.affectPosition
+                ? sampleSurface.transform.positionY
+                : surface.transform.positionY,
+            scaleX: policy.affectScale
+                ? sampleSurface.transform.scaleX
+                : surface.transform.scaleX,
+            scaleY: policy.affectScale
+                ? sampleSurface.transform.scaleY
+                : surface.transform.scaleY,
+            rotationRadians: policy.affectRotation
+                ? sampleSurface.transform.rotationRadians
+                : surface.transform.rotationRadians,
+          ),
+        );
+        sampleOpacities.add(sampleSurface.opacity.clamp(0.0, 1.0).toDouble());
+      }
+      if (sampleTimesMs.isEmpty) {
+        sampleTimesMs.add(previewTime.inMilliseconds);
+        sourceIdsBySample.add(surface.targetId);
+        sampleTransforms
+            .add(_stage5VisualTransformMatrix3x3(surface.transform));
+        sampleOpacities.add(surface.opacity.clamp(0.0, 1.0).toDouble());
+      }
+      plans.add(
+        TemporalMotionBlurSamplePlan(
+          targetId: surface.targetId,
+          rootTimeMs: previewTime.inMilliseconds,
+          sampleTimesMs: List<int>.unmodifiable(sampleTimesMs),
+          sampleOffsetsMs: List<double>.unmodifiable(offsets),
+          sampleTransforms: List<List<double>>.unmodifiable(sampleTransforms),
+          sourceIdsBySample: List<String>.unmodifiable(sourceIdsBySample),
+          sampleOpacities: List<double>.unmodifiable(sampleOpacities),
+          amount: policy.amount,
+          shutterAngle: policy.shutterAngleDegrees,
+          shutterPhase: policy.shutterPhaseDegrees,
+          samples: policy.samples,
+          affectPosition: policy.affectPosition,
+          affectScale: policy.affectScale,
+          affectRotation: policy.affectRotation,
+        ),
+      );
+    }
+    return List<TemporalMotionBlurSamplePlan>.unmodifiable(plans);
+  }
+
   void _scheduleStage5VisualRuntimeSubmission({
     required TimelineTime previewTime,
     required String mode,
@@ -23056,6 +23183,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       boundaryTime: activeTransition.leftClip.endTime,
       mode: mode,
       surfaceId: surfaceId,
+      activeTransition: activeTransition,
     );
     if (!buildResult.canBuild) {
       _debugProfessionalTransitionBuildIssues(
@@ -23072,11 +23200,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required String mode,
   }) {
     if (preset == TimelineTransitionPreset.manual) {
-      // Manual transition authoring is data-only until its values are consumed
-      // by the Stage5 master runtime path. Keep the legacy compositor disabled
-      // for every interactive mode to avoid surface suppression and frozen
-      // preview/audio-only regressions while keyframes are edited.
-      return false;
+      return true;
     }
     // The current Distortion Zoom V1 native path decodes source frames and
     // writes a full transition bitmap per request. Keep it out of playback and
@@ -23088,7 +23212,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     TimelineTransitionPreset preset,
   ) {
     return switch (preset) {
-      TimelineTransitionPreset.manual => null,
+      TimelineTransitionPreset.manual => 'manualTransformMotionBlur',
       TimelineTransitionPreset.zoomInCamera => 'zoomInCamera',
       TimelineTransitionPreset.zoomInPro => 'zoomInCamera',
       TimelineTransitionPreset.distortionZoomInV1 => 'distortionZoomInV1',
@@ -23151,6 +23275,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         final shouldSuppressNativePreviewForProfessionalTransition =
             activeTransition != null &&
                 professionalTransitionSurfaceId != null &&
+                activeTransition.transition.preset !=
+                    TimelineTransitionPreset.manual &&
                 _professionalTransitionRenderPlanFor(
                       activeTransition: activeTransition,
                       mode: professionalTransitionMode,
@@ -23252,10 +23378,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                     _professionalVideoTransitionMode(
                   effectiveIsPlaying: effectiveIsPlaying,
                 );
-                _scheduleStage5VisualRuntimeSubmission(
-                  previewTime: previewTime,
-                  mode: professionalTransitionMode,
-                );
                 final professionalTransitionSurfaceId = activeTransition == null
                     ? null
                     : _professionalTransitionSurfaceId(activeTransition);
@@ -23267,8 +23389,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                         mode: professionalTransitionMode,
                         surfaceId: professionalTransitionSurfaceId,
                       );
+                _scheduleStage5VisualRuntimeSubmission(
+                  previewTime: previewTime,
+                  mode: professionalTransitionMode,
+                );
                 if (activeTransition != null &&
-                    professionalTransitionPlan != null) {
+                    professionalTransitionPlan != null &&
+                    activeTransition.transition.preset !=
+                        TimelineTransitionPreset.manual) {
                   _scheduleLiveScrubRuntimeBridgeSubmission(
                     activeTransition: activeTransition,
                     mode: professionalTransitionMode,
