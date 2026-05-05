@@ -1482,150 +1482,176 @@ class ExportComposition {
       .map(_baselineBlockerMessage)
       .toList(growable: false);
 
-  List<ExportCapabilityDescriptor> get capabilityMatrix =>
-      <ExportCapabilityDescriptor>[
-        const ExportCapabilityDescriptor(
-          id: 'track.video',
-          label: 'Video Track Export',
-          scope: ExportCapabilityScope.trackType,
-          status: ExportCapabilityStatus.supported,
-          detail:
-              'Video clips export through the media-native Transformer path with trim, sequencing, and constant speed support.',
-        ),
-        const ExportCapabilityDescriptor(
-          id: 'track.image',
-          label: 'Image Track Export',
-          scope: ExportCapabilityScope.trackType,
-          status: ExportCapabilityStatus.baselineOnly,
-          detail:
-              'Image clips are supported within the current single-visual baseline path only.',
-        ),
-        const ExportCapabilityDescriptor(
-          id: 'track.audio.single',
-          label: 'Single Audio Track Export',
-          scope: ExportCapabilityScope.trackType,
-          status: ExportCapabilityStatus.baselineOnly,
-          detail:
-              'One audio track can join the current baseline export path as a separate sequence.',
-        ),
-        const ExportCapabilityDescriptor(
-          id: 'track.audio.multi',
-          label: 'Multi-Audio Export',
-          scope: ExportCapabilityScope.trackType,
-          status: ExportCapabilityStatus.blocked,
-          detail: 'A full audio graph and mix engine are not yet implemented.',
-        ),
-        const ExportCapabilityDescriptor(
-          id: 'track.text',
-          label: 'Dedicated Text Track Export',
-          scope: ExportCapabilityScope.trackType,
-          status: ExportCapabilityStatus.blocked,
-          detail:
-              'Dedicated text-track export parity is not implemented outside the authored motion-text path.',
-        ),
-        const ExportCapabilityDescriptor(
-          id: 'track.lip_sync',
-          label: 'Lip Sync Track Export',
-          scope: ExportCapabilityScope.trackType,
-          status: ExportCapabilityStatus.blocked,
-          detail: 'Lip sync track export parity is not implemented.',
-        ),
-        const ExportCapabilityDescriptor(
-          id: 'node.text_motion',
-          label: 'Text Motion Export',
-          scope: ExportCapabilityScope.nodeType,
-          status: ExportCapabilityStatus.approximation,
-          detail:
-              'Text motion now uses a deterministic program path, but final renderer parity is not complete.',
-        ),
-        const ExportCapabilityDescriptor(
-          id: 'node.non_text_motion',
-          label: 'Non-Text Motion Export',
-          scope: ExportCapabilityScope.nodeType,
-          status: ExportCapabilityStatus.blocked,
-          detail:
-              'Non-text motion elements are not yet represented by a supported export renderer.',
-        ),
-        const ExportCapabilityDescriptor(
-          id: 'node.effect',
-          label: 'Effect Node Export',
-          scope: ExportCapabilityScope.nodeType,
-          status: ExportCapabilityStatus.blocked,
-          detail: 'Authored effect-node export parity is not implemented.',
-        ),
-        const ExportCapabilityDescriptor(
-          id: 'node.transition',
-          label: 'Transition Node Export',
-          scope: ExportCapabilityScope.nodeType,
-          status: ExportCapabilityStatus.blocked,
-          detail: 'Authored transition-node export parity is not implemented.',
-        ),
-        const ExportCapabilityDescriptor(
-          id: 'node.camera',
-          label: 'Camera Node Export',
-          scope: ExportCapabilityScope.nodeType,
-          status: ExportCapabilityStatus.blocked,
-          detail: 'Camera-node export parity is not implemented.',
-        ),
-        const ExportCapabilityDescriptor(
-          id: 'property.constant_speed',
-          label: 'Constant Speed Export',
-          scope: ExportCapabilityScope.property,
-          status: ExportCapabilityStatus.supported,
-          detail:
-              'Constant clip speed is handled natively through the Transformer export path.',
-        ),
-        const ExportCapabilityDescriptor(
-          id: 'property.curve_speed',
-          label: 'Curve Speed Export',
-          scope: ExportCapabilityScope.property,
-          status: ExportCapabilityStatus.blocked,
-          detail: 'Curve speed export parity is not implemented.',
-        ),
-        ExportCapabilityDescriptor(
-          id: 'property.interpolation',
-          label: 'Interpolation Parity',
-          scope: ExportCapabilityScope.property,
-          status: hasUnsupportedInterpolationKinds
-              ? ExportCapabilityStatus.blocked
-              : ExportCapabilityStatus.approximation,
-          detail: hasUnsupportedInterpolationKinds
-              ? 'Encountered interpolation kinds are not in the authoritative export registry: ${unsupportedInterpolationKinds.join(', ')}'
-              : 'Interpolation support is partial and must still be aligned across preview and export runtimes.',
-        ),
-        const ExportCapabilityDescriptor(
-          id: 'property.typography',
-          label: 'Typography Parity',
-          scope: ExportCapabilityScope.property,
-          status: ExportCapabilityStatus.approximation,
-          detail:
-              'Typography semantics still require explicit parity work across preview and export renderers.',
-        ),
-        const ExportCapabilityDescriptor(
-          id: 'system.multi_visual_compositing',
-          label: 'Multi-Visual Compositing',
-          scope: ExportCapabilityScope.system,
-          status: ExportCapabilityStatus.blocked,
-          detail:
-              'The current export baseline is not a full visual compositor and does not support multi-visual parity.',
-        ),
-        const ExportCapabilityDescriptor(
-          id: 'system.audio_graph',
-          label: 'Audio Graph',
-          scope: ExportCapabilityScope.system,
-          status: ExportCapabilityStatus.blocked,
-          detail:
-              'Audio is currently baseline inclusion, not a full deterministic audio graph.',
-        ),
-        const ExportCapabilityDescriptor(
-          id: 'fallback.motion_text_render_track',
-          label: 'Motion Text Sampled Fallback',
-          scope: ExportCapabilityScope.system,
-          status: ExportCapabilityStatus.fallbackOnly,
-          detail:
-              'Sampled text render snapshots remain fallback/debug input only and are not final truth.',
-        ),
-      ];
+  List<ExportCapabilityDescriptor> get capabilityMatrix {
+    final hasUnsupportedCompositorWindows =
+        visualCompositorGraph.unsupportedCompositorWindowCount > 0;
+    final nonTextMotionStatus = hasUnsupportedCompositorWindows
+        ? ExportCapabilityStatus.blocked
+        : ExportCapabilityStatus.approximation;
+    final nonTextMotionDetail = hasUnsupportedCompositorWindows
+        ? 'Non-text motion now routes through authored/compositor lanes, but at least one active visual window is still unsupported by the current backend.'
+        : 'Non-text motion is routed through authored visual surface and compositor execution plans for currently supported windows.';
+    final effectsStatus = hasUnsupportedCompositorWindows
+        ? ExportCapabilityStatus.blocked
+        : ExportCapabilityStatus.approximation;
+    final effectsDetail = hasUnsupportedCompositorWindows
+        ? 'Effect-node export is represented canonically, but unsupported compositor windows still block full production parity.'
+        : 'Effect-node export contracts are represented canonically and pass through the compositor path for currently supported windows.';
+    final transitionsStatus = hasUnsupportedCompositorWindows
+        ? ExportCapabilityStatus.blocked
+        : ExportCapabilityStatus.approximation;
+    final transitionsDetail = hasUnsupportedCompositorWindows
+        ? 'Transition-node export is represented canonically, but unsupported compositor windows still block full production parity.'
+        : 'Transition-node export contracts flow through compositor execution plans for currently supported windows.';
+    final multiVisualStatus = hasUnsupportedCompositorWindows
+        ? ExportCapabilityStatus.blocked
+        : ExportCapabilityStatus.approximation;
+    final multiVisualDetail = hasUnsupportedCompositorWindows
+        ? 'At least one compositor-required visual window is not supported by the current backend, so full multi-visual parity remains blocked.'
+        : 'Multi-visual assembly windows are now modeled and executable on the supported compositor subset.';
+
+    return <ExportCapabilityDescriptor>[
+      const ExportCapabilityDescriptor(
+        id: 'track.video',
+        label: 'Video Track Export',
+        scope: ExportCapabilityScope.trackType,
+        status: ExportCapabilityStatus.supported,
+        detail:
+            'Video clips export through the media-native Transformer path with trim, sequencing, and constant speed support.',
+      ),
+      const ExportCapabilityDescriptor(
+        id: 'track.image',
+        label: 'Image Track Export',
+        scope: ExportCapabilityScope.trackType,
+        status: ExportCapabilityStatus.baselineOnly,
+        detail:
+            'Image clips are supported within the current single-visual baseline path only.',
+      ),
+      const ExportCapabilityDescriptor(
+        id: 'track.audio.single',
+        label: 'Single Audio Track Export',
+        scope: ExportCapabilityScope.trackType,
+        status: ExportCapabilityStatus.baselineOnly,
+        detail:
+            'One audio track can join the current baseline export path as a separate sequence.',
+      ),
+      const ExportCapabilityDescriptor(
+        id: 'track.audio.multi',
+        label: 'Multi-Audio Export',
+        scope: ExportCapabilityScope.trackType,
+        status: ExportCapabilityStatus.blocked,
+        detail: 'A full audio graph and mix engine are not yet implemented.',
+      ),
+      const ExportCapabilityDescriptor(
+        id: 'track.text',
+        label: 'Dedicated Text Track Export',
+        scope: ExportCapabilityScope.trackType,
+        status: ExportCapabilityStatus.blocked,
+        detail:
+            'Dedicated text-track export parity is not implemented outside the authored motion-text path.',
+      ),
+      const ExportCapabilityDescriptor(
+        id: 'track.lip_sync',
+        label: 'Lip Sync Track Export',
+        scope: ExportCapabilityScope.trackType,
+        status: ExportCapabilityStatus.blocked,
+        detail: 'Lip sync track export parity is not implemented.',
+      ),
+      const ExportCapabilityDescriptor(
+        id: 'node.text_motion',
+        label: 'Text Motion Export',
+        scope: ExportCapabilityScope.nodeType,
+        status: ExportCapabilityStatus.approximation,
+        detail:
+            'Text motion now uses a deterministic program path, but final renderer parity is not complete.',
+      ),
+      ExportCapabilityDescriptor(
+        id: 'node.non_text_motion',
+        label: 'Non-Text Motion Export',
+        scope: ExportCapabilityScope.nodeType,
+        status: nonTextMotionStatus,
+        detail: nonTextMotionDetail,
+      ),
+      ExportCapabilityDescriptor(
+        id: 'node.effect',
+        label: 'Effect Node Export',
+        scope: ExportCapabilityScope.nodeType,
+        status: effectsStatus,
+        detail: effectsDetail,
+      ),
+      ExportCapabilityDescriptor(
+        id: 'node.transition',
+        label: 'Transition Node Export',
+        scope: ExportCapabilityScope.nodeType,
+        status: transitionsStatus,
+        detail: transitionsDetail,
+      ),
+      const ExportCapabilityDescriptor(
+        id: 'node.camera',
+        label: 'Camera Node Export',
+        scope: ExportCapabilityScope.nodeType,
+        status: ExportCapabilityStatus.blocked,
+        detail: 'Camera-node export parity is not implemented.',
+      ),
+      const ExportCapabilityDescriptor(
+        id: 'property.constant_speed',
+        label: 'Constant Speed Export',
+        scope: ExportCapabilityScope.property,
+        status: ExportCapabilityStatus.supported,
+        detail:
+            'Constant clip speed is handled natively through the Transformer export path.',
+      ),
+      const ExportCapabilityDescriptor(
+        id: 'property.curve_speed',
+        label: 'Curve Speed Export',
+        scope: ExportCapabilityScope.property,
+        status: ExportCapabilityStatus.blocked,
+        detail: 'Curve speed export parity is not implemented.',
+      ),
+      ExportCapabilityDescriptor(
+        id: 'property.interpolation',
+        label: 'Interpolation Parity',
+        scope: ExportCapabilityScope.property,
+        status: hasUnsupportedInterpolationKinds
+            ? ExportCapabilityStatus.blocked
+            : ExportCapabilityStatus.approximation,
+        detail: hasUnsupportedInterpolationKinds
+            ? 'Encountered interpolation kinds are not in the authoritative export registry: ${unsupportedInterpolationKinds.join(', ')}'
+            : 'Interpolation support is partial and must still be aligned across preview and export runtimes.',
+      ),
+      const ExportCapabilityDescriptor(
+        id: 'property.typography',
+        label: 'Typography Parity',
+        scope: ExportCapabilityScope.property,
+        status: ExportCapabilityStatus.approximation,
+        detail:
+            'Typography semantics still require explicit parity work across preview and export renderers.',
+      ),
+      ExportCapabilityDescriptor(
+        id: 'system.multi_visual_compositing',
+        label: 'Multi-Visual Compositing',
+        scope: ExportCapabilityScope.system,
+        status: multiVisualStatus,
+        detail: multiVisualDetail,
+      ),
+      const ExportCapabilityDescriptor(
+        id: 'system.audio_graph',
+        label: 'Audio Graph',
+        scope: ExportCapabilityScope.system,
+        status: ExportCapabilityStatus.blocked,
+        detail:
+            'Audio is currently baseline inclusion, not a full deterministic audio graph.',
+      ),
+      const ExportCapabilityDescriptor(
+        id: 'fallback.motion_text_render_track',
+        label: 'Motion Text Sampled Fallback',
+        scope: ExportCapabilityScope.system,
+        status: ExportCapabilityStatus.fallbackOnly,
+        detail:
+            'Sampled text render snapshots remain fallback/debug input only and are not final truth.',
+      ),
+    ];
+  }
 
   List<ExportRendererOwnershipDescriptor> get rendererOwnershipMatrix =>
       const <ExportRendererOwnershipDescriptor>[

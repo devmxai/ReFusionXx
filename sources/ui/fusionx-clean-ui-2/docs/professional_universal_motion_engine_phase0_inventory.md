@@ -42,13 +42,15 @@ Plan source: `/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/docs/
    - Verified by test:
      - `/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/test/master_live_scrub_program_adapter_test.dart`
 
-## Temporary Compatibility (Explicit)
+## Closed Compatibility Paths
 
-1. **`currentPositionMs` payload in native scrub surface**
-   - File: `/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/widgets/native_timeline_scrub_surface.dart`
-   - Classification: `temporary compatibility`
-   - Current behavior: value is derived from canonical effective master time (`effectiveCurrentTime + timelineOffset`), not an independent writer.
-   - Removal trigger: native scrub view contract upgrade to accept dedicated master-time field naming without legacy key dependency.
+1. **Legacy `currentPositionMs` scrub payload**
+   - Files:
+     - `/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/widgets/native_timeline_scrub_surface.dart`
+     - `/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/android/app/src/main/kotlin/com/fusionx/fusionx_clean_ui_2/Stage5TimelineScrubPlatformView.kt`
+   - Classification: `deleted`
+   - Current behavior: Flutter/native scrub contract uses `masterRootTimeMs` as the canonical master-time payload key.
+   - Verification: guard test asserts `masterRootTimeMs` is present and `currentPositionMs` key is absent from the scrub payload path.
 
 ## Remaining For Full Production Closure
 
