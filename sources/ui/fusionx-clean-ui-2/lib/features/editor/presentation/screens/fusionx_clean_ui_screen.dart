@@ -23,6 +23,7 @@ import '../../domain/models/master_time_models.dart';
 import '../../domain/models/master_visual_program_models.dart';
 import '../../domain/models/professional_canvas_timeline_authoring_models.dart';
 import '../../domain/models/temporal_motion_blur_sample_plan.dart';
+import '../../domain/models/trueframe_execution_graph_models.dart';
 import '../../domain/models/trueframe_runtime_evaluator_models.dart';
 import '../../domain/models/professional_motion_animation_models.dart';
 import '../../domain/models/professional_motion_compilation_models.dart';
@@ -1412,7 +1413,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           blockers.add('trueframe_export_missing_render_plan:${transition.id}');
           continue;
         }
-        graphRevision = plan.renderGraphRevision;
         final temporalPlans = plan.parameters['temporalMotionBlurSamplePlans'];
         if (temporalPlans is! List || temporalPlans.isEmpty) {
           diagnostics.add('trueframe_export_no_temporal_plan:${transition.id}');
@@ -1421,6 +1421,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         for (final temporalPlan in temporalPlans) {
           if (temporalPlan is! Map) {
             continue;
+          }
+          final temporalGraphRevision = temporalPlan['graphRevision'];
+          if (temporalGraphRevision != null &&
+              temporalGraphRevision.toString().isNotEmpty) {
+            graphRevision = temporalGraphRevision.toString();
           }
           final sampleTimes = temporalPlan['sampleTimesMs'];
           final sampleCount = sampleTimes is List ? sampleTimes.length : 0;
@@ -23655,16 +23660,23 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return false;
     }
     var contributionCount = 0;
+    var hasVisibleAmount = false;
     for (final entry in entries) {
       if (entry is! Map) {
         continue;
       }
+      final amount = switch (entry['amount']) {
+        final num value => value.toDouble(),
+        final String value => double.tryParse(value) ?? 0.0,
+        _ => 0.0,
+      };
+      hasVisibleAmount = hasVisibleAmount || amount > 0.0001;
       final contributions = entry['sampleContributions'];
       if (contributions is List) {
         contributionCount += contributions.length;
       }
     }
-    return contributionCount > 1;
+    return hasVisibleAmount && contributionCount > 1;
   }
 
   List<String> _trueFrameLayerFamiliesForActiveTransition(

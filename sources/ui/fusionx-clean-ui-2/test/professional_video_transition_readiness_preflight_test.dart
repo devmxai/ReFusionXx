@@ -1469,6 +1469,17 @@ class _FakeProfessionalVideoTransitionCompositorClient
       frameChecksum: _rendererReady ? 7 : 0,
       surfaceAttached: _rendererReady,
       surfaceKind: _rendererReady ? 'interactiveNativeTransitionSurface' : '',
+      renderOwner: _rendererReady ? 'professionalCompositor' : '',
+      motionBlurEnabled: false,
+      sampleCount: 0,
+      outgoingContributionCount: 0,
+      incomingContributionCount: 0,
+      centerContributionCount: 0,
+      trailContributionCount: 0,
+      motionBlurAmount: 0,
+      checksumBefore: 0,
+      checksumAfter: _rendererReady ? 7 : 0,
+      checksumDelta: _rendererReady,
       canRenderFrame: _rendererReady,
       blockedReasons: _rendererReady
           ? const <String>[]

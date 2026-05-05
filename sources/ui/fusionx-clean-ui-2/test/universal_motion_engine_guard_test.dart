@@ -66,6 +66,12 @@ void main() {
   final trueFrameRenderBackendFile = File(
     'lib/features/editor/domain/services/trueframe_render_backend.dart',
   );
+  final professionalTransitionSurfaceFile = File(
+    'lib/features/editor/presentation/widgets/professional_video_transition_surface.dart',
+  );
+  final professionalTransitionCompositorFile = File(
+    'android/app/src/main/kotlin/com/fusionx/fusionx_clean_ui_2/ProfessionalVideoTransitionCompositorManager.kt',
+  );
 
   test('master evaluation path uses universal evaluation service', () async {
     final source = await screenFile.readAsString();
@@ -488,6 +494,8 @@ void main() {
   test('manual temporal blur suppresses Stage5 only after first surface frame',
       () async {
     final source = await screenFile.readAsString();
+    final surfaceSource =
+        await professionalTransitionSurfaceFile.readAsString();
     final nativePreviewStart =
         source.indexOf('Widget _buildNativePreviewSurface({');
     expect(nativePreviewStart, isNonNegative);
@@ -523,6 +531,37 @@ void main() {
       previewOverlayBody.contains(
         '_handleProfessionalTransitionSurfacePresentationChanged(',
       ),
+      isTrue,
+    );
+    expect(
+      surfaceSource.contains(
+        'professionalTransitionSurfaceOpacityForPresentedState(',
+      ),
+      isTrue,
+    );
+    expect(
+      surfaceSource.contains('opacity: _hasPresentedFrame ? 1.0 : 0.0'),
+      isFalse,
+    );
+  });
+
+  test('professional compositor owns visible temporal blur trails', () async {
+    final source = await professionalTransitionCompositorFile.readAsString();
+    expect(
+      source.contains('writerTrailContributionCount'),
+      isTrue,
+    );
+    expect(
+      source.contains('manualMotionBlurSampleHasVisibleTrailDelta('),
+      isTrue,
+    );
+    expect(
+      source.contains('baseWeight * weightedAmount'),
+      isFalse,
+    );
+    expect(
+      source.contains(
+          'canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)'),
       isTrue,
     );
   });

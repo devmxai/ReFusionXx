@@ -77,6 +77,21 @@ void main() {
         isFalse,
       );
     });
+
+    test('keeps Android surface warm before first presented frame', () {
+      expect(
+        professionalTransitionSurfaceOpacityForPresentedState(false),
+        greaterThan(0),
+      );
+      expect(
+        professionalTransitionSurfaceOpacityForPresentedState(false),
+        lessThan(1),
+      );
+      expect(
+        professionalTransitionSurfaceOpacityForPresentedState(true),
+        1.0,
+      );
+    });
   });
 }
 
@@ -106,6 +121,17 @@ ProfessionalVideoTransitionInteractiveFrameRenderResult _result({
     frameChecksum: frameDelivered ? 7 : 0,
     surfaceAttached: surfaceAttached,
     surfaceKind: surfaceAttached ? 'interactiveNativeTransitionSurface' : '',
+    renderOwner: 'professionalCompositor',
+    motionBlurEnabled: false,
+    sampleCount: 0,
+    outgoingContributionCount: 0,
+    incomingContributionCount: 0,
+    centerContributionCount: 0,
+    trailContributionCount: 0,
+    motionBlurAmount: 0,
+    checksumBefore: 0,
+    checksumAfter: frameDelivered ? 7 : 0,
+    checksumDelta: frameDelivered,
     canRenderFrame: canRenderFrame,
     blockedReasons: blockedReasons,
   );

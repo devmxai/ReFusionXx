@@ -6697,6 +6697,17 @@ class ProfessionalVideoTransitionInteractiveFrameRenderResult {
     required this.frameChecksum,
     required this.surfaceAttached,
     required this.surfaceKind,
+    required this.renderOwner,
+    required this.motionBlurEnabled,
+    required this.sampleCount,
+    required this.outgoingContributionCount,
+    required this.incomingContributionCount,
+    required this.centerContributionCount,
+    required this.trailContributionCount,
+    required this.motionBlurAmount,
+    required this.checksumBefore,
+    required this.checksumAfter,
+    required this.checksumDelta,
     required this.canRenderFrame,
     required this.blockedReasons,
   });
@@ -6724,6 +6735,17 @@ class ProfessionalVideoTransitionInteractiveFrameRenderResult {
       frameChecksum: 0,
       surfaceAttached: false,
       surfaceKind: '',
+      renderOwner: '',
+      motionBlurEnabled: false,
+      sampleCount: 0,
+      outgoingContributionCount: 0,
+      incomingContributionCount: 0,
+      centerContributionCount: 0,
+      trailContributionCount: 0,
+      motionBlurAmount: 0,
+      checksumBefore: 0,
+      checksumAfter: 0,
+      checksumDelta: false,
       canRenderFrame: false,
       blockedReasons: const <String>[],
     );
@@ -6746,6 +6768,17 @@ class ProfessionalVideoTransitionInteractiveFrameRenderResult {
   final int frameChecksum;
   final bool surfaceAttached;
   final String surfaceKind;
+  final String renderOwner;
+  final bool motionBlurEnabled;
+  final int sampleCount;
+  final int outgoingContributionCount;
+  final int incomingContributionCount;
+  final int centerContributionCount;
+  final int trailContributionCount;
+  final double motionBlurAmount;
+  final int checksumBefore;
+  final int checksumAfter;
+  final bool checksumDelta;
   final bool canRenderFrame;
   final List<String> blockedReasons;
 }
@@ -6786,6 +6819,17 @@ class ProfessionalVideoTransitionInteractiveFrameRenderResultMapper {
       frameChecksum: _readInt(map['frameChecksum']),
       surfaceAttached: _readBool(map['surfaceAttached']),
       surfaceKind: map['surfaceKind']?.toString() ?? '',
+      renderOwner: map['renderOwner']?.toString() ?? '',
+      motionBlurEnabled: _readBool(map['motionBlurEnabled']),
+      sampleCount: _readInt(map['sampleCount']),
+      outgoingContributionCount: _readInt(map['outgoingContributionCount']),
+      incomingContributionCount: _readInt(map['incomingContributionCount']),
+      centerContributionCount: _readInt(map['centerContributionCount']),
+      trailContributionCount: _readInt(map['trailContributionCount']),
+      motionBlurAmount: _readDouble(map['motionBlurAmount']),
+      checksumBefore: _readInt(map['checksumBefore']),
+      checksumAfter: _readInt(map['checksumAfter']),
+      checksumDelta: _readBool(map['checksumDelta']),
       canRenderFrame: _readBool(map['canRenderFrame']),
       blockedReasons: _readStringList(map['blockedReasons']),
     );
@@ -6809,6 +6853,13 @@ class ProfessionalVideoTransitionInteractiveFrameRenderResultMapper {
       return value.round();
     }
     return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
+
+  static double _readDouble(Object? value) {
+    if (value is num) {
+      return value.toDouble();
+    }
+    return double.tryParse(value?.toString() ?? '') ?? 0;
   }
 
   static List<String> _readStringList(Object? value) {

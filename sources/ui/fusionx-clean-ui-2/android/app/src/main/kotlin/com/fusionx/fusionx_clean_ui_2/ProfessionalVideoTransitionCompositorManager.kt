@@ -1367,6 +1367,12 @@ class ProfessionalVideoTransitionCompositorManager(
             (pixelRenderExecution["writerOutgoingContributionCount"] as? Number)?.toInt() ?: 0
         val incomingContributionCount =
             (pixelRenderExecution["writerIncomingContributionCount"] as? Number)?.toInt() ?: 0
+        val centerContributionCount =
+            (pixelRenderExecution["writerCenterContributionCount"] as? Number)?.toInt() ?: 0
+        val trailContributionCount =
+            (pixelRenderExecution["writerTrailContributionCount"] as? Number)?.toInt() ?: 0
+        val motionBlurAmount =
+            (pixelRenderExecution["writerMotionBlurAmount"] as? Number)?.toDouble() ?: 0.0
         val checksumBefore =
             (pixelRenderExecution["writerChecksumBefore"] as? Number)?.toLong() ?: 0L
         val checksumAfter =
@@ -1399,6 +1405,9 @@ class ProfessionalVideoTransitionCompositorManager(
             "sampleCount" to sampleCount,
             "outgoingContributionCount" to outgoingContributionCount,
             "incomingContributionCount" to incomingContributionCount,
+            "centerContributionCount" to centerContributionCount,
+            "trailContributionCount" to trailContributionCount,
+            "motionBlurAmount" to motionBlurAmount,
             "checksumBefore" to checksumBefore,
             "checksumAfter" to checksumAfter,
             "checksumDelta" to checksumDelta,
@@ -3631,6 +3640,9 @@ private data class ProfessionalVideoTransitionRenderSession(
                 "writerCanvasFillMode" to "centerCropFill",
                 "writerOutgoingContributionCount" to writeResult.outgoingContributionCount,
                 "writerIncomingContributionCount" to writeResult.incomingContributionCount,
+                "writerCenterContributionCount" to writeResult.centerContributionCount,
+                "writerTrailContributionCount" to writeResult.trailContributionCount,
+                "writerMotionBlurAmount" to writeResult.motionBlurAmount,
                 "writerReason" to (writeResult.reason ?: ""),
                 "pixelRendererImplemented" to false,
                 "pixelRendererReady" to false,
@@ -3849,12 +3861,44 @@ private data class ProfessionalVideoTransitionRenderSession(
                     reason = "native_transition_manual_temporal_samples_missing",
                 )
             }
-            val totalWeight =
-                validSamples.sumOf { sample -> sample.weight.coerceAtLeast(0.0) }
+            val motionBlurAmount =
+                validSamples.maxOf { sample -> sample.amount.coerceIn(0.0, 1.0) }
+            val centerDistance =
+                validSamples.minOf { sample -> abs(sample.timelineTimeMs - timelineTimeMs) }
+            val centerSamples =
+                validSamples.filter { sample ->
+                    abs(sample.timelineTimeMs - timelineTimeMs) == centerDistance
+                }.ifEmpty {
+                    listOf(
+                        validSamples.minByOrNull { sample ->
+                            abs(sample.timelineTimeMs - timelineTimeMs)
+                        } ?: validSamples.first(),
+                    )
+                }
+            val centerBySource =
+                centerSamples.associateBy { sample ->
+                    sample.sourceRole.takeIf { it.isNotBlank() } ?: sample.sourceClipId
+                }
+            val trailSamples =
+                if (motionBlurAmount <= 0.0001) {
+                    emptyList()
+                } else {
+                    validSamples.filter { sample ->
+                        val sourceKey = sample.sourceRole.takeIf { it.isNotBlank() } ?: sample.sourceClipId
+                        val centerSample = centerBySource[sourceKey] ?: centerSamples.firstOrNull()
+                        centerSample == null ||
+                            sample !== centerSample &&
+                            manualMotionBlurSampleHasVisibleTrailDelta(sample, centerSample)
+                    }
+                }
+            val trailWeightTotal =
+                trailSamples.sumOf { sample -> sample.weight.coerceAtLeast(0.0) }
                     .takeIf { weight -> weight.isFinite() && weight > 0.0 } ?: 1.0
             var outgoingContributionCount = 0
             var incomingContributionCount = 0
-            validSamples.forEach { sample ->
+            var centerContributionCount = 0
+            var trailContributionCount = 0
+            centerSamples.forEach { sample ->
                 val source = sourceForManualTemporalSample(sample) ?: return@forEach
                 if (!source.coversTimelineTime(sample.timelineTimeMs)) {
                     return@forEach
@@ -3867,9 +3911,8 @@ private data class ProfessionalVideoTransitionRenderSession(
                             ?: source.sourceTimeForTimelineTime(sample.timelineTimeMs),
                     )
                 if (frame != null) {
-                    val normalizedWeight = sample.weight / totalWeight
                     val sampleAlpha =
-                        (sample.opacity * normalizedWeight * 255.0).roundToInt().coerceIn(0, 255)
+                        (sample.opacity * 255.0).roundToInt().coerceIn(0, 255)
                     if (sampleAlpha > 0) {
                         drawBitmapCenterCropMatrixTransform(
                             canvas = canvas,
@@ -3879,6 +3922,44 @@ private data class ProfessionalVideoTransitionRenderSession(
                             canvasHeight = height,
                             transformMatrix3x3 = sample.transformMatrix3x3,
                         )
+                    }
+                    when (sample.sourceRole) {
+                        "outgoing" -> outgoingContributionCount += 1
+                        "incoming" -> incomingContributionCount += 1
+                    }
+                    centerContributionCount += 1
+                    extractedFrameCount += 1
+                    frame.recycle()
+                }
+            }
+            trailSamples.forEach { sample ->
+                val source = sourceForManualTemporalSample(sample) ?: return@forEach
+                if (!source.coversTimelineTime(sample.timelineTimeMs)) {
+                    return@forEach
+                }
+                val frame =
+                    extractVideoFrameBitmap(
+                        appContext,
+                        source.sourceUri,
+                        sample.sourcePositionMs
+                            ?: source.sourceTimeForTimelineTime(sample.timelineTimeMs),
+                    )
+                if (frame != null) {
+                    val normalizedTrailWeight = sample.weight.coerceAtLeast(0.0) / trailWeightTotal
+                    val sampleAlpha =
+                        (sample.opacity * motionBlurAmount * normalizedTrailWeight * 255.0)
+                            .roundToInt()
+                            .coerceIn(0, 255)
+                    if (sampleAlpha > 0) {
+                        drawBitmapCenterCropMatrixTransform(
+                            canvas = canvas,
+                            bitmap = frame,
+                            alpha = sampleAlpha,
+                            canvasWidth = width,
+                            canvasHeight = height,
+                            transformMatrix3x3 = sample.transformMatrix3x3,
+                        )
+                        trailContributionCount += 1
                     }
                     when (sample.sourceRole) {
                         "outgoing" -> outgoingContributionCount += 1
@@ -3898,6 +3979,9 @@ private data class ProfessionalVideoTransitionRenderSession(
                     reason = "native_transition_manual_video_pixels_missing",
                     outgoingContributionCount = outgoingContributionCount,
                     incomingContributionCount = incomingContributionCount,
+                    centerContributionCount = centerContributionCount,
+                    trailContributionCount = trailContributionCount,
+                    motionBlurAmount = motionBlurAmount,
                 )
             }
             val checksumBefore = frameBufferStore.checksum(frameBufferId)
@@ -3910,6 +3994,9 @@ private data class ProfessionalVideoTransitionRenderSession(
             return writeResult.copy(
                 outgoingContributionCount = outgoingContributionCount,
                 incomingContributionCount = incomingContributionCount,
+                centerContributionCount = centerContributionCount,
+                trailContributionCount = trailContributionCount,
+                motionBlurAmount = motionBlurAmount,
                 checksumBefore = checksumBefore,
                 checksumAfter = writeResult.checksum,
             )
@@ -3926,6 +4013,7 @@ private data class ProfessionalVideoTransitionRenderSession(
         val transformMatrix3x3: List<Double>,
         val opacity: Double,
         val weight: Double,
+        val amount: Double,
         val transitionProgress: Double,
     )
 
@@ -3948,6 +4036,19 @@ private data class ProfessionalVideoTransitionRenderSession(
                     incoming
                 }
         }
+    }
+
+    private fun manualMotionBlurSampleHasVisibleTrailDelta(
+        sample: ManualTemporalMotionBlurSample,
+        centerSample: ManualTemporalMotionBlurSample,
+    ): Boolean {
+        if (sample.sourceRole != centerSample.sourceRole || sample.sourceClipId != centerSample.sourceClipId) {
+            return true
+        }
+        val matrixDelta =
+            sample.transformMatrix3x3.zip(centerSample.transformMatrix3x3)
+                .sumOf { (sampleValue, centerValue) -> abs(sampleValue - centerValue) }
+        return matrixDelta > 0.0001
     }
 
     private fun readManualTemporalMotionBlurSamples(
@@ -3975,6 +4076,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                     transformMatrix3x3 = identityMatrix3x3(),
                     opacity = 1.0,
                     weight = 1.0,
+                    amount = 0.0,
                     transitionProgress = transitionProgressAt(sampleTimeMs),
                 )
             }
@@ -4031,13 +4133,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                     val baseWeight =
                         sampleWeights.getOrNull(sampleIndex)?.coerceAtLeast(0.0)
                             ?: if (sampleWeights.isEmpty()) 1.0 else 0.0
-                    val weightedAmount =
-                        if (sampleWeights.size <= 1) {
-                            1.0
-                        } else {
-                            amount.coerceAtLeast(0.05)
-                        }
-                    val finalWeight = (baseWeight * weightedAmount).coerceAtLeast(0.0001)
+                    val finalWeight = baseWeight.coerceAtLeast(0.0001)
                     aggregated.add(
                         ManualTemporalMotionBlurSample(
                             timelineTimeMs = timelineSampleMs,
@@ -4047,6 +4143,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                             transformMatrix3x3 = transform,
                             opacity = opacity,
                             weight = finalWeight,
+                            amount = amount,
                             transitionProgress = transitionProgress,
                         ),
                     )
@@ -4090,12 +4187,6 @@ private data class ProfessionalVideoTransitionRenderSession(
             if (sampleTransforms.isEmpty()) {
                 return@forEach
             }
-            val weightScale =
-                if (sampleTimes.size <= 1) {
-                    1.0
-                } else {
-                    amount.coerceAtLeast(0.05)
-                }
             sampleTimes.forEachIndexed { index, sampleTime ->
                 val transform =
                     sampleTransforms.getOrElse(index) {
@@ -4129,7 +4220,8 @@ private data class ProfessionalVideoTransitionRenderSession(
                             resolvedSource.sourceTimeForTimelineTime(sampleTime),
                         transformMatrix3x3 = transform,
                         opacity = opacity.coerceIn(0.0, 1.0),
-                        weight = weightScale,
+                        weight = 1.0,
+                        amount = amount,
                         transitionProgress = transitionProgressAt(sampleTime),
                     ),
                 )
@@ -4150,6 +4242,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                     transformMatrix3x3 = identityMatrix3x3(),
                     opacity = 1.0,
                     weight = 1.0,
+                    amount = 0.0,
                     transitionProgress = transitionProgressAt(timelineTimeMs),
                 ),
             )
@@ -6569,6 +6662,9 @@ private data class ProfessionalVideoTransitionPixelFrameBufferWriteResult(
     val reason: String?,
     val outgoingContributionCount: Int = 0,
     val incomingContributionCount: Int = 0,
+    val centerContributionCount: Int = 0,
+    val trailContributionCount: Int = 0,
+    val motionBlurAmount: Double = 0.0,
     val checksumBefore: Long = 0L,
     val checksumAfter: Long = 0L,
 )
@@ -6811,7 +6907,7 @@ private class ProfessionalVideoTransitionNativeSurfaceEndpointStore(
         return try {
             val canvas = endpoint.surface.lockCanvas(null)
             try {
-                canvas.drawColor(Color.TRANSPARENT)
+                canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
                 canvas.drawBitmap(
                     bitmap,
                     0f,

@@ -56,9 +56,22 @@ String interactiveRenderDiagnosticKey(
     result.frameDelivered,
     result.framePresented,
     result.surfaceAttached,
+    result.motionBlurEnabled,
+    result.sampleCount,
+    result.centerContributionCount,
+    result.trailContributionCount,
+    result.motionBlurAmount,
+    result.checksumDelta,
     result.blockedReasons.join(','),
     result.reason,
   ].join('|');
+}
+
+@visibleForTesting
+double professionalTransitionSurfaceOpacityForPresentedState(
+  bool hasPresentedFrame,
+) {
+  return hasPresentedFrame ? 1.0 : 0.01;
 }
 
 class ProfessionalVideoTransitionSurfaceOverlay extends StatefulWidget {
@@ -212,6 +225,12 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
       'frameDelivered=${result.frameDelivered}, '
       'framePresented=${result.framePresented}, '
       'surfaceAttached=${result.surfaceAttached}, '
+      'motionBlur=${result.motionBlurEnabled}, '
+      'samples=${result.sampleCount}, '
+      'center=${result.centerContributionCount}, '
+      'trails=${result.trailContributionCount}, '
+      'amount=${result.motionBlurAmount}, '
+      'checksumDelta=${result.checksumDelta}, '
       'blockedReasons=${result.blockedReasons}, reason=${result.reason}',
     );
   }
@@ -257,7 +276,9 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
     }
     return IgnorePointer(
       child: Opacity(
-        opacity: _hasPresentedFrame ? 1.0 : 0.0,
+        opacity: professionalTransitionSurfaceOpacityForPresentedState(
+          _hasPresentedFrame,
+        ),
         child: AndroidView(
           key: ValueKey<String>(widget.surfaceId),
           viewType: ProfessionalVideoTransitionSurfaceOverlay.viewType,
