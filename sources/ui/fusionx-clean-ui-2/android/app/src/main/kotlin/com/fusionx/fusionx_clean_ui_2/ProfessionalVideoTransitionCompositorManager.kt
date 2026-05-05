@@ -2551,6 +2551,11 @@ private data class ProfessionalVideoTransitionRenderSession(
         return List(sampleCount) { weight }
     }
 
+    private fun usesWriterBackedPixelOutput(): Boolean =
+        definitionId == "manualTransform" ||
+            definitionId == "manualTransformMotionBlur" ||
+            definitionId == "distortionZoomInV1"
+
     private fun outgoingTemporalPassFallback(timelineTimeMs: Long): String =
         "$id:accumulator:outgoing:$timelineTimeMs"
 
@@ -3381,6 +3386,7 @@ private data class ProfessionalVideoTransitionRenderSession(
             (writerPlan["writerFrameBufferWriteByteCount"] as? Number)?.toLong() ?: 0L
         val sourceFrameBufferChecksum =
             (writerPlan["writerFrameBufferChecksum"] as? Number)?.toLong() ?: 0L
+        val writerBackedDefinition = usesWriterBackedPixelOutput()
         val pixelOutputWritten =
             pixelWorkloadBound &&
                 outputFramebufferBound &&
@@ -3394,12 +3400,28 @@ private data class ProfessionalVideoTransitionRenderSession(
         val pixelRendererImplemented = pixelOutputWritten
         val pixelRendererReady = pixelOutputWritten
         val pixelRenderExecutionReady = pixelOutputWritten
-        val pixelOutputReady = false
-        val rendererImplemented = writerPlan["rendererImplemented"] == true
+        val pixelOutputReady = pixelOutputWritten
+        val rendererImplemented =
+            if (writerBackedDefinition) {
+                pixelOutputWritten
+            } else {
+                writerPlan["rendererImplemented"] == true
+            }
         val upstreamBlockedReasons =
             (writerPlan["blockedReasons"] as? List<*>)
                 ?.map { reason -> reason.toString() }
-                ?.filterNot { reason -> reason == "native_transition_pixel_renderer_missing" }
+                ?.let { reasons ->
+                    if (writerBackedDefinition) {
+                        reasons.filter { reason ->
+                            reason.startsWith("native_transition_pixel_frame_buffer_") ||
+                                reason.startsWith("native_transition_temporal_")
+                        }
+                    } else {
+                        reasons.filterNot { reason ->
+                            reason == "native_transition_pixel_renderer_missing"
+                        }
+                    }
+                }
                 ?: emptyList()
         val blockedReasons =
             buildList {
@@ -3435,6 +3457,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                     add("native_transition_renderer_pixels_missing")
                 }
             }.distinct()
+        val canRenderPixels = pixelOutputWritten && rendererImplemented
         return writerPlan +
             mapOf(
                 "transitionPixelRenderExecutionId" to "$id:pixel-render-execution:$timelineTimeMs",
@@ -3458,10 +3481,10 @@ private data class ProfessionalVideoTransitionRenderSession(
                         "native_transition_pixel_output_missing"
                     },
                 "rendererImplemented" to rendererImplemented,
-                "canRenderPixels" to false,
-                "rendersRealPixels" to false,
-                "drawsPixels" to false,
-                "canRenderFrame" to false,
+                "canRenderPixels" to canRenderPixels,
+                "rendersRealPixels" to canRenderPixels,
+                "drawsPixels" to canRenderPixels,
+                "canRenderFrame" to (canRenderPixels && blockedReasons.isEmpty()),
                 "blockedReasons" to blockedReasons,
             )
     }
@@ -3527,9 +3550,15 @@ private data class ProfessionalVideoTransitionRenderSession(
         val upstreamBlockedReasons =
             (frameBufferPlan["blockedReasons"] as? List<*>)
                 ?.map { reason -> reason.toString() }
-                ?.filterNot { reason ->
-                    reason == "native_transition_pixel_frame_buffer_pixels_missing" ||
-                        reason == "native_transition_pixel_frame_buffer_renderer_missing"
+                ?.let { reasons ->
+                    if (usesWriterBackedPixelOutput()) {
+                        emptyList()
+                    } else {
+                        reasons.filterNot { reason ->
+                            reason == "native_transition_pixel_frame_buffer_pixels_missing" ||
+                                reason == "native_transition_pixel_frame_buffer_renderer_missing"
+                        }
+                    }
                 }
                 ?: emptyList()
         val blockedReasons =
@@ -3576,7 +3605,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                 "writerReason" to (writeResult.reason ?: ""),
                 "pixelRendererImplemented" to false,
                 "pixelRendererReady" to false,
-                "rendererImplemented" to false,
+                "rendererImplemented" to writeResult.wrotePixels,
                 "canRenderPixels" to false,
                 "rendersRealPixels" to false,
                 "drawsPixels" to false,
