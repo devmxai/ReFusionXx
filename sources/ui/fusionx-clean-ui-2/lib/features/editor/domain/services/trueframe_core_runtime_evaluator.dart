@@ -6,6 +6,17 @@ import '../models/trueframe_runtime_evaluator_models.dart';
 class TrueFrameCoreRuntimeEvaluator {
   const TrueFrameCoreRuntimeEvaluator();
 
+  static const Set<TrueFrameExecutionNodeFamily> _phaseILayerFamilies =
+      <TrueFrameExecutionNodeFamily>{
+    TrueFrameExecutionNodeFamily.videoLayer,
+    TrueFrameExecutionNodeFamily.imageLayer,
+    TrueFrameExecutionNodeFamily.textLayer,
+    TrueFrameExecutionNodeFamily.shapeLayer,
+    TrueFrameExecutionNodeFamily.groupPrecomp,
+    TrueFrameExecutionNodeFamily.sceneClipInstance,
+    TrueFrameExecutionNodeFamily.adjustmentControl,
+  };
+
   CompositionFrameState evaluateCompositionAt({
     required TrueFrameExecutionGraph graph,
     required TrueFrameSamplingQualityMode qualityMode,
@@ -66,6 +77,7 @@ class TrueFrameCoreRuntimeEvaluator {
         nodeId: nodeId,
         targetId: nodeId,
         sourceId: '',
+        resolvedLayerFamilies: const <String>[],
         visibility: false,
         transformMatrix3x3: const <double>[1, 0, 0, 0, 1, 0, 0, 0, 1],
         positionX: 0,
@@ -102,6 +114,7 @@ class TrueFrameCoreRuntimeEvaluator {
         nodeId: nodeId,
         targetId: targetId,
         sourceId: '',
+        resolvedLayerFamilies: const <String>[],
         visibility: false,
         transformMatrix3x3: const <double>[1, 0, 0, 0, 1, 0, 0, 0, 1],
         positionX: 0,
@@ -178,6 +191,21 @@ class TrueFrameCoreRuntimeEvaluator {
             nodeId: targetId,
             qualityMode: qualityMode,
           );
+    final resolvedLayerFamilies = graph.nodes
+        .where(
+          (node) =>
+              node.targetId == targetId &&
+              _phaseILayerFamilies.contains(node.family),
+        )
+        .map((node) => node.family.name)
+        .toSet()
+        .toList(growable: false)
+      ..sort();
+    if (resolvedLayerFamilies.isNotEmpty) {
+      diagnostics.add(
+        'trueframe_node_layer_families:${resolvedLayerFamilies.join(',')}',
+      );
+    }
 
     return NodeFrameState(
       rootTimeMs: graph.rootTimeMs,
@@ -186,6 +214,7 @@ class TrueFrameCoreRuntimeEvaluator {
       nodeId: compositeNode.id,
       targetId: targetId,
       sourceId: sourceNode?.targetId ?? targetId,
+      resolvedLayerFamilies: List<String>.unmodifiable(resolvedLayerFamilies),
       visibility: sourceNode != null,
       transformMatrix3x3: matrix,
       positionX: positionX,

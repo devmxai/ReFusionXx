@@ -738,6 +738,9 @@ Phase I progress:
   `videoLayer`, `imageLayer`, `textLayer`, and `shapeLayer` families (plus
   compatibility stubs for `groupPrecomp`, `sceneClipInstance`, and
   `adjustmentControl`) from existing master graph truth.
+- Phase I.B runtime state is complete: `NodeFrameState` now carries
+  `resolvedLayerFamilies` from the same core graph node set, so quality adapters
+  consume one canonical layer-family truth at runtime.
 
 Checkpoint:
 

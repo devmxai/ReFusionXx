@@ -87,6 +87,7 @@ class NodeFrameState {
     required this.nodeId,
     required this.targetId,
     required this.sourceId,
+    required this.resolvedLayerFamilies,
     required this.visibility,
     required this.transformMatrix3x3,
     required this.positionX,
@@ -113,6 +114,7 @@ class NodeFrameState {
   final String nodeId;
   final String targetId;
   final String sourceId;
+  final List<String> resolvedLayerFamilies;
   final bool visibility;
   final List<double> transformMatrix3x3;
   final double positionX;

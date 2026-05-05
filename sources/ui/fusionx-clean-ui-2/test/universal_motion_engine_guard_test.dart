@@ -60,6 +60,9 @@ void main() {
   final trueFrameExecutionGraphAdapterFile = File(
     'lib/features/editor/domain/services/trueframe_execution_graph_adapter.dart',
   );
+  final trueFrameCoreRuntimeEvaluatorFile = File(
+    'lib/features/editor/domain/services/trueframe_core_runtime_evaluator.dart',
+  );
 
   test('master evaluation path uses universal evaluation service', () async {
     final source = await screenFile.readAsString();
@@ -284,6 +287,13 @@ void main() {
     expect(source.contains('TrueFrameExecutionNodeFamily.imageLayer'), isTrue);
     expect(source.contains('TrueFrameExecutionNodeFamily.textLayer'), isTrue);
     expect(source.contains('TrueFrameExecutionNodeFamily.shapeLayer'), isTrue);
+  });
+
+  test('trueframe runtime evaluator carries resolved layer families', () async {
+    final source = await trueFrameCoreRuntimeEvaluatorFile.readAsString();
+    expect(source.contains('_phaseILayerFamilies'), isTrue);
+    expect(source.contains('resolvedLayerFamilies'), isTrue);
+    expect(source.contains('trueframe_node_layer_families:'), isTrue);
   });
 
   test('manual transition Motion Blur remains one timeline effect', () async {

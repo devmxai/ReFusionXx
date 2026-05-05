@@ -119,6 +119,10 @@ void main() {
     expect(outgoing, isNotNull);
     expect(incoming, isNotNull);
     expect(outgoing!.visibility, isTrue);
+    expect(
+      outgoing.resolvedLayerFamilies,
+      contains(TrueFrameExecutionNodeFamily.videoLayer.name),
+    );
     expect(outgoing.gaussianBlurSigmaPx, 9);
     expect(outgoing.opacity, closeTo(0.82, 1e-9));
     expect(outgoing.motionBlurSamplingPlan, isNotNull);
