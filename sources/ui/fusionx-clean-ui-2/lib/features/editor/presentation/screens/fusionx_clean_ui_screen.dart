@@ -22236,6 +22236,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         evaluation: evaluation,
         activeTransition: activeTransition,
         mode: mode,
+        includeAllTransitionSourcesForTemporalPlan: true,
       );
       if (program != null) {
         final temporalPlans = _temporalMotionBlurSamplePlansForManualTransition(
@@ -22438,6 +22439,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required MasterFrameEvaluation evaluation,
     required _ActiveTimelineTransitionPreview activeTransition,
     required String mode,
+    bool includeAllTransitionSourcesForTemporalPlan = false,
   }) {
     final transition = activeTransition.transition;
     if (transition.manualEffectIds.isEmpty ||
@@ -22467,11 +22469,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         _liveScrubSourcesByTargetIdForActiveTransition(activeTransition);
     final sourceWindows =
         _liveScrubSourceWindowsForActiveTransition(activeTransition);
-    final activeSourceIds = _activeManualTransitionSourceIdsForTime(
-      rootTime: evaluation.time.rootTime,
-      sourceWindowsByTargetId: sourceWindows,
-      activeTransition: activeTransition,
-    );
+    final activeSourceIds = includeAllTransitionSourcesForTemporalPlan
+        ? allSourcesByTargetId.keys.toSet()
+        : _activeManualTransitionSourceIdsForTime(
+            rootTime: evaluation.time.rootTime,
+            sourceWindowsByTargetId: sourceWindows,
+            activeTransition: activeTransition,
+          );
     final sourcesByTargetId = <String, LiveScrubSurfaceSource>{
       for (final entry in allSourcesByTargetId.entries)
         if (activeSourceIds.contains(entry.key)) entry.key: entry.value,
@@ -22681,6 +22685,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       activeTransition: activeTransition,
       baseProgram: baseProgram,
       targetId: targetId,
+      includeAllTransitionSources: false,
     );
     if (coreSamplingPlan == null || coreSamplingPlan.sampleCount <= 1) {
       return const <Stage5VisualRuntimeMotionBlurSample>[];
@@ -22753,6 +22758,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required _ActiveTimelineTransitionPreview activeTransition,
     required LiveScrubVisualProgram baseProgram,
     required String targetId,
+    required bool includeAllTransitionSources,
   }) {
     final evaluation = _masterFrameEvaluationForMode(
       mode,
@@ -22781,11 +22787,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         _liveScrubSourcesByTargetIdForActiveTransition(activeTransition);
     final sourceWindows =
         _liveScrubSourceWindowsForActiveTransition(activeTransition);
-    final activeSourceIds = _activeManualTransitionSourceIdsForTime(
-      rootTime: evaluation.time.rootTime,
-      sourceWindowsByTargetId: sourceWindows,
-      activeTransition: activeTransition,
-    );
+    final activeSourceIds = includeAllTransitionSources
+        ? allSourcesByTargetId.keys.toSet()
+        : _activeManualTransitionSourceIdsForTime(
+            rootTime: evaluation.time.rootTime,
+            sourceWindowsByTargetId: sourceWindows,
+            activeTransition: activeTransition,
+          );
     final sourcesByTargetId = <String, LiveScrubSurfaceSource>{
       for (final entry in allSourcesByTargetId.entries)
         if (activeSourceIds.contains(entry.key)) entry.key: entry.value,
@@ -22897,6 +22905,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       activeTransition: activeTransition,
       baseProgram: baseProgram,
       targetId: blurSurface.targetId,
+      includeAllTransitionSources: true,
     );
     if (coreSamplingPlan == null) {
       return const <TemporalMotionBlurSamplePlan>[];
@@ -22944,6 +22953,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         evaluation: sampleEvaluation,
         activeTransition: activeTransition,
         mode: mode,
+        includeAllTransitionSourcesForTemporalPlan: true,
       );
       if (sampleProgram == null) {
         continue;
