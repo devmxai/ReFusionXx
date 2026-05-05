@@ -13,12 +13,14 @@ class Stage5ScrubOverlayTextureView(
     context: Context,
 ) : TextureView(context), TextureView.SurfaceTextureListener {
     var onOutputSurfaceAvailable: (() -> Unit)? = null
+    var onFrameAvailable: (() -> Unit)? = null
     private var outputSurface: Surface? = null
     private var contentAspectRatio: Float? = null
     private var runtimeTransformMatrix3x3: List<Double>? = null
     private var runtimeOpacity: Float = 1f
     private var visibilityAlpha: Float = 1f
     private var motionCompositeSuppressed: Boolean = false
+    private var snapshotBitmapCache: Bitmap? = null
 
     init {
         isOpaque = false
@@ -85,8 +87,23 @@ class Stage5ScrubOverlayTextureView(
         if (!isAvailable || width <= 0 || height <= 0) {
             return null
         }
+        val targetWidth = width
+        val targetHeight = height
+        val cached = snapshotBitmapCache
+        if (cached == null ||
+            cached.isRecycled ||
+            cached.width != targetWidth ||
+            cached.height != targetHeight
+        ) {
+            cached?.recycle()
+            snapshotBitmapCache =
+                runCatching {
+                    Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
+                }.getOrNull()
+        }
+        val reusable = snapshotBitmapCache ?: return null
         return runCatching {
-            getBitmap(width.coerceAtMost(1280), height.coerceAtMost(1280))
+            getBitmap(reusable)
         }.getOrNull()
     }
 
@@ -110,11 +127,15 @@ class Stage5ScrubOverlayTextureView(
     override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
         synchronized(this) {
             releaseOutputSurface()
+            snapshotBitmapCache?.recycle()
+            snapshotBitmapCache = null
         }
         return true
     }
 
-    override fun onSurfaceTextureUpdated(surface: SurfaceTexture) = Unit
+    override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {
+        onFrameAvailable?.invoke()
+    }
 
     private fun applyCompositeTransform() {
         val viewWidth = width.toFloat().coerceAtLeast(1f)

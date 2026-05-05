@@ -182,9 +182,15 @@ void main() {
       preview.contains('maxOf(\n                runtimeGaussianBlurSigmaPx'),
       isFalse,
     );
+    expect(
+      preview.contains(
+        'transformMatrix3x3 = if (motionBlurActive) null else transformMatrix3x3',
+      ),
+      isTrue,
+    );
     expect(composite.contains('Stage5MotionBlurCompositeView'), isTrue);
     expect(composite.contains('samples.forEach'), isTrue);
-    expect(composite.contains('BlendMode.PLUS'), isTrue);
+    expect(composite.contains('BlendMode.PLUS'), isFalse);
     expect(composite.contains('canvas.concat(sampleMatrix)'), isTrue);
   });
 

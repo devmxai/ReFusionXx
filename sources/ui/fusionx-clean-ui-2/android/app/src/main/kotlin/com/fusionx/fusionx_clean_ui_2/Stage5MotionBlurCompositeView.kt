@@ -2,12 +2,10 @@ package com.refusion.app
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BlendMode
 import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.RectF
-import android.os.Build
 import android.view.View
 
 class Stage5MotionBlurCompositeView(
@@ -88,16 +86,10 @@ class Stage5MotionBlurCompositeView(
             )
             val opacity = sample.opacity.toFloat().coerceIn(0f, 1f)
             paint.alpha = (sampleAlpha * opacity).toInt().coerceIn(0, 255)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                paint.blendMode = BlendMode.PLUS
-            }
             canvas.save()
             canvas.concat(sampleMatrix)
             canvas.drawBitmap(bitmap, null, dst, paint)
             canvas.restore()
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                paint.blendMode = null
-            }
         }
         canvas.restoreToCount(layerId)
     }
