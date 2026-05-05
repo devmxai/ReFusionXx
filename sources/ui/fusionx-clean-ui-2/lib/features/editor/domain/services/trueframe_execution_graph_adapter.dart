@@ -225,64 +225,6 @@ class TrueFrameExecutionGraphAdapter {
           }
           continue;
         }
-        final target = node.targetId.toLowerCase();
-        if (target.contains('group')) {
-          final groupNodeId = 'group:${node.targetId}';
-          if (expandedNodeIds.add(groupNodeId)) {
-            expanded.add(
-              _phaseINodeFrom(
-                baseNode: nodesById[node.id]!,
-                id: groupNodeId,
-                family: TrueFrameExecutionNodeFamily.groupPrecomp,
-                inputNodeIds: <String>[node.id],
-                attributes: const <String, Object?>{'phase': 'phase_i_slice'},
-                diagnostics: <String>[
-                  ...node.diagnostics,
-                  'trueframe_phase_i_group_precomp_node',
-                  'trueframe_phase_i_family_legacy_target_fallback',
-                ],
-              ),
-            );
-          }
-        }
-        if (target.contains('scene-clip') || target.contains('scene_clip')) {
-          final sceneNodeId = 'scene-clip:${node.targetId}';
-          if (expandedNodeIds.add(sceneNodeId)) {
-            expanded.add(
-              _phaseINodeFrom(
-                baseNode: nodesById[node.id]!,
-                id: sceneNodeId,
-                family: TrueFrameExecutionNodeFamily.sceneClipInstance,
-                inputNodeIds: <String>[node.id],
-                attributes: const <String, Object?>{'phase': 'phase_i_slice'},
-                diagnostics: <String>[
-                  ...node.diagnostics,
-                  'trueframe_phase_i_scene_clip_instance_node',
-                  'trueframe_phase_i_family_legacy_target_fallback',
-                ],
-              ),
-            );
-          }
-        }
-        if (target.contains('adjustment') || target.contains('effectcontrol')) {
-          final adjustmentNodeId = 'adjustment:${node.targetId}';
-          if (expandedNodeIds.add(adjustmentNodeId)) {
-            expanded.add(
-              _phaseINodeFrom(
-                baseNode: nodesById[node.id]!,
-                id: adjustmentNodeId,
-                family: TrueFrameExecutionNodeFamily.adjustmentControl,
-                inputNodeIds: <String>[node.id],
-                attributes: const <String, Object?>{'phase': 'phase_i_slice'},
-                diagnostics: <String>[
-                  ...node.diagnostics,
-                  'trueframe_phase_i_adjustment_control_node',
-                  'trueframe_phase_i_family_legacy_target_fallback',
-                ],
-              ),
-            );
-          }
-        }
       }
     }
     return List<TrueFrameExecutionNode>.unmodifiable(expanded);

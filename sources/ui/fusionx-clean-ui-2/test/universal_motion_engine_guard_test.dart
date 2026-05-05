@@ -294,6 +294,18 @@ void main() {
     expect(source.contains('TrueFrameExecutionNodeFamily.shapeLayer'), isTrue);
   });
 
+  test('trueframe phase I projection removes legacy target-name fallback',
+      () async {
+    final source = await trueFrameExecutionGraphAdapterFile.readAsString();
+    expect(source.contains('target.contains(\'group\')'), isFalse);
+    expect(source.contains('target.contains(\'scene-clip\')'), isFalse);
+    expect(source.contains('target.contains(\'scene_clip\')'), isFalse);
+    expect(source.contains('target.contains(\'adjustment\')'), isFalse);
+    expect(source.contains('target.contains(\'effectcontrol\')'), isFalse);
+    expect(source.contains('trueframe_phase_i_family_legacy_target_fallback'),
+        isFalse);
+  });
+
   test('trueframe runtime evaluator carries resolved layer families', () async {
     final source = await trueFrameCoreRuntimeEvaluatorFile.readAsString();
     expect(source.contains('_phaseILayerFamilies'), isTrue);

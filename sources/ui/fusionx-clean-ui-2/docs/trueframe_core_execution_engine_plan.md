@@ -754,8 +754,8 @@ Phase I progress:
 - Phase I.E explicit family-hint propagation is complete: `MasterVisualSurface`
   now carries `coreLayerFamilyHint`, `MasterRenderGraphAdapter` projects it into
   graph node attributes, and `TrueFrameExecutionGraphAdapter` resolves
-  group/scene-clip/adjustment families from this canonical hint first (with
-  legacy target-name fallback explicitly marked in diagnostics). Covered by
+  group/scene-clip/adjustment families from this canonical hint only (legacy
+  target-name fallback removed). Covered by
   `test/master_render_graph_adapter_test.dart`,
   `test/trueframe_execution_graph_adapter_test.dart`, and
   `test/trueframe_core_runtime_evaluator_test.dart`.
