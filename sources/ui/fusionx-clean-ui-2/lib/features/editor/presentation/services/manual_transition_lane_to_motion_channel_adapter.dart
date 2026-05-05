@@ -279,7 +279,6 @@ class ManualTransitionLaneToMotionChannelAdapter {
             ),
         ];
       case 'motion_blur':
-      case 'motion_blur_amount':
         return <MotionPropertyChannelModel>[
           for (final laneTargetId in laneTargetIds)
             MotionPropertyChannelModel(
@@ -300,121 +299,104 @@ class ManualTransitionLaneToMotionChannelAdapter {
                     'manual-transition-${transition.id}-${lane.id}-$laneTargetId-motion-blur-amount',
               ),
             ),
+          ..._constantMotionBlurChannels(
+            transition: transition,
+            laneTargetIds: laneTargetIds,
+            projectId: projectId,
+            activeRange: activeRange,
+          ),
         ];
-      case 'motion_blur_shutter_angle':
-        return _scalarMotionBlurChannels(
-          transition: transition,
-          lane: lane,
-          laneTargetIds: laneTargetIds,
-          projectId: projectId,
-          activeRange: activeRange,
-          keyframes: keyframes,
-          definition: MotionPropertyCatalog.motionBlurShutterAngle,
-          suffix: 'motion-blur-shutter-angle',
-          min: 0.0,
-          max: 720.0,
-        );
-      case 'motion_blur_shutter_phase':
-        return _scalarMotionBlurChannels(
-          transition: transition,
-          lane: lane,
-          laneTargetIds: laneTargetIds,
-          projectId: projectId,
-          activeRange: activeRange,
-          keyframes: keyframes,
-          definition: MotionPropertyCatalog.motionBlurShutterPhase,
-          suffix: 'motion-blur-shutter-phase',
-          min: -360.0,
-          max: 360.0,
-        );
-      case 'motion_blur_samples':
-        return _scalarMotionBlurChannels(
-          transition: transition,
-          lane: lane,
-          laneTargetIds: laneTargetIds,
-          projectId: projectId,
-          activeRange: activeRange,
-          keyframes: keyframes,
-          definition: MotionPropertyCatalog.motionBlurSamples,
-          suffix: 'motion-blur-samples',
-          min: 1.0,
-          max: 32.0,
-          integerValue: true,
-        );
-      case 'motion_blur_adaptive_samples':
-        return _scalarMotionBlurChannels(
-          transition: transition,
-          lane: lane,
-          laneTargetIds: laneTargetIds,
-          projectId: projectId,
-          activeRange: activeRange,
-          keyframes: keyframes,
-          definition: MotionPropertyCatalog.motionBlurAdaptiveSampleLimit,
-          suffix: 'motion-blur-adaptive-samples',
-          min: 1.0,
-          max: 64.0,
-          integerValue: true,
-        );
-      case 'motion_blur_max_trail':
-        return _scalarMotionBlurChannels(
-          transition: transition,
-          lane: lane,
-          laneTargetIds: laneTargetIds,
-          projectId: projectId,
-          activeRange: activeRange,
-          keyframes: keyframes,
-          definition: MotionPropertyCatalog.motionBlurMaxTrailPx,
-          suffix: 'motion-blur-max-trail',
-          min: 0.0,
-          max: 600.0,
-        );
       default:
         return null;
     }
   }
 
-  List<MotionPropertyChannelModel> _scalarMotionBlurChannels({
+  List<MotionPropertyChannelModel> _constantMotionBlurChannels({
     required TimelineTrackTransitionData transition,
-    required TimelineAnimationLaneData lane,
     required List<String> laneTargetIds,
     required String projectId,
     required TimelineTimeRange activeRange,
-    required List<_LaneKeyframe> keyframes,
-    required MotionPropertyDefinition definition,
-    required String suffix,
-    required double min,
-    required double max,
-    bool integerValue = false,
   }) {
+    final specs = <({
+      String key,
+      MotionPropertyDefinition definition,
+      String suffix,
+      double fallback,
+      double min,
+      double max,
+      bool integerValue,
+    })>[
+      (
+        key: 'motion_blur_shutter_angle',
+        definition: MotionPropertyCatalog.motionBlurShutterAngle,
+        suffix: 'motion-blur-shutter-angle',
+        fallback: 180.0,
+        min: 0.0,
+        max: 720.0,
+        integerValue: false,
+      ),
+      (
+        key: 'motion_blur_shutter_phase',
+        definition: MotionPropertyCatalog.motionBlurShutterPhase,
+        suffix: 'motion-blur-shutter-phase',
+        fallback: -90.0,
+        min: -360.0,
+        max: 360.0,
+        integerValue: false,
+      ),
+      (
+        key: 'motion_blur_samples',
+        definition: MotionPropertyCatalog.motionBlurSamples,
+        suffix: 'motion-blur-samples',
+        fallback: 12.0,
+        min: 1.0,
+        max: 32.0,
+        integerValue: true,
+      ),
+      (
+        key: 'motion_blur_adaptive_samples',
+        definition: MotionPropertyCatalog.motionBlurAdaptiveSampleLimit,
+        suffix: 'motion-blur-adaptive-samples',
+        fallback: 24.0,
+        min: 1.0,
+        max: 64.0,
+        integerValue: true,
+      ),
+      (
+        key: 'motion_blur_max_trail',
+        definition: MotionPropertyCatalog.motionBlurMaxTrailPx,
+        suffix: 'motion-blur-max-trail',
+        fallback: 240.0,
+        min: 0.0,
+        max: 600.0,
+        integerValue: false,
+      ),
+    ];
     return <MotionPropertyChannelModel>[
       for (final laneTargetId in laneTargetIds)
-        MotionPropertyChannelModel(
-          id: 'manual-transition-${transition.id}-${lane.id}-$laneTargetId-$suffix',
-          target: _elementTargetFor(
-            projectId: projectId,
-            targetId: laneTargetId,
+        for (final spec in specs)
+          MotionPropertyChannelModel(
+            id: 'manual-transition-${transition.id}-motion-blur-$laneTargetId-${spec.suffix}',
+            target: _elementTargetFor(
+              projectId: projectId,
+              targetId: laneTargetId,
+            ),
+            definition: spec.definition,
+            activeRange: activeRange,
+            baseValue: spec.integerValue
+                ? MotionPropertyValue.integer(
+                    transition
+                        .parameterValue(spec.key, fallback: spec.fallback)
+                        .clamp(spec.min, spec.max)
+                        .round(),
+                  )
+                : MotionPropertyValue.scalar(
+                    transition
+                        .parameterValue(spec.key, fallback: spec.fallback)
+                        .clamp(spec.min, spec.max)
+                        .toDouble(),
+                  ),
           ),
-          definition: definition,
-          activeRange: activeRange,
-          baseValue: integerValue
-              ? MotionPropertyValue.integer(
-                  _defaultFallbackValueForLane(lane.id).clamp(min, max).round(),
-                )
-              : MotionPropertyValue.scalar(
-                  _defaultFallbackValueForLane(lane.id)
-                      .clamp(min, max)
-                      .toDouble(),
-                ),
-          keyframes: _mapKeyframes(
-            keyframes,
-            valueResolver: (value) => value.clamp(min, max).toDouble(),
-            channelId:
-                'manual-transition-${transition.id}-${lane.id}-$laneTargetId-$suffix',
-            valueBuilder: integerValue
-                ? (value) => MotionPropertyValue.integer(value.round())
-                : null,
-          ),
-        ),
     ];
   }
 
@@ -586,12 +568,6 @@ class ManualTransitionLaneToMotionChannelAdapter {
       'rotation' => 0.0,
       'gaussian_blur' => 0.0,
       'motion_blur' => 0.0,
-      'motion_blur_amount' => 0.0,
-      'motion_blur_shutter_angle' => 180.0,
-      'motion_blur_shutter_phase' => -90.0,
-      'motion_blur_samples' => 12.0,
-      'motion_blur_adaptive_samples' => 24.0,
-      'motion_blur_max_trail' => 240.0,
       _ => 0.0,
     };
   }

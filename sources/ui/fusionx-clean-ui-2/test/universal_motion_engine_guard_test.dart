@@ -157,11 +157,22 @@ void main() {
     );
   });
 
-  test('manual transition Motion Blur expands to professional controls',
-      () async {
+  test('manual transition Motion Blur remains one timeline effect', () async {
     final source = await screenFile.readAsString();
-    expect(source.contains('_manualMotionBlurLaneIds'), isTrue);
-    for (final laneId in <String>[
+    expect(source.contains('_manualMotionBlurLaneIds'), isFalse);
+    final laneLibraryStart = source.indexOf(
+      'static const Map<String, _TransitionFocusLaneSpec> _transitionLaneLibrary',
+    );
+    expect(laneLibraryStart, isNonNegative);
+    final laneLibraryEnd = source.indexOf(
+      'static const Set<String> _legacyManualMotionBlurSettingLaneIds',
+      laneLibraryStart,
+    );
+    expect(laneLibraryEnd, greaterThan(laneLibraryStart));
+    final laneLibraryBody = source.substring(laneLibraryStart, laneLibraryEnd);
+    expect(laneLibraryBody.contains("'motion_blur': _TransitionFocusLaneSpec"),
+        isTrue);
+    for (final settingLaneId in <String>[
       'motion_blur_amount',
       'motion_blur_shutter_angle',
       'motion_blur_shutter_phase',
@@ -169,7 +180,10 @@ void main() {
       'motion_blur_adaptive_samples',
       'motion_blur_max_trail',
     ]) {
-      expect(source.contains("'$laneId'"), isTrue);
+      expect(
+        laneLibraryBody.contains("'$settingLaneId': _TransitionFocusLaneSpec"),
+        isFalse,
+      );
     }
   });
 
