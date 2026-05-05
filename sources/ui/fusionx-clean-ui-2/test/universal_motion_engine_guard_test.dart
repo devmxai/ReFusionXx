@@ -252,6 +252,11 @@ void main() {
       source.contains('trueframe_core_motion_blur_plan_mode:'),
       isTrue,
     );
+    expect(source.contains('_stage5MotionBlurSampleOffsetsMs('), isFalse);
+    expect(
+        source.contains(
+            'coreSamplingPlan == null\n        ? _stage5MotionBlurSampleOffsetsMs(policy)'),
+        isFalse);
   });
 
   test('stage6 export requires trueframe execution contract for transitions',

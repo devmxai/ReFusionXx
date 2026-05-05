@@ -22617,8 +22617,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
               previewTime: previewTime,
               mode: mode,
               activeTransition: activeTransition,
+              baseProgram: program,
               targetId: surface.targetId,
-              currentTransform: surface.transform,
               policy: surface.motionBlur,
             ),
             blockers: <String>[...surface.blockers],
@@ -22663,21 +22663,29 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required TimelineTime previewTime,
     required String mode,
     required _ActiveTimelineTransitionPreview activeTransition,
+    required LiveScrubVisualProgram baseProgram,
     required String targetId,
-    required LiveScrubSurfaceTransform currentTransform,
     required MasterMotionBlurPolicy policy,
   }) {
     if (!policy.isEnabled) {
       return const <Stage5VisualRuntimeMotionBlurSample>[];
     }
-    final sampleOffsets = _stage5MotionBlurSampleOffsetsMs(policy);
-    if (sampleOffsets.length <= 1) {
+    final coreSamplingPlan = _coreMotionBlurSamplingPlanForManualTransition(
+      previewTime: previewTime,
+      mode: mode,
+      activeTransition: activeTransition,
+      baseProgram: baseProgram,
+      targetId: targetId,
+    );
+    if (coreSamplingPlan == null || coreSamplingPlan.sampleCount <= 1) {
       return const <Stage5VisualRuntimeMotionBlurSample>[];
     }
     final samples = <Stage5VisualRuntimeMotionBlurSample>[];
-    for (final offsetMs in sampleOffsets) {
+    for (var sampleIndex = 0;
+        sampleIndex < coreSamplingPlan.sampleTimesMs.length;
+        sampleIndex++) {
       final sampleTime = TimelineTime.fromMilliseconds(
-        (previewTime.inMilliseconds + offsetMs).round(),
+        coreSamplingPlan.sampleTimesMs[sampleIndex],
       ).clamp(TimelineTime.zero, _timelineDurationTime);
       final sampleEvaluation = _masterFrameEvaluationForMode(
         mode,
@@ -22702,24 +22710,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       samples.add(
         Stage5VisualRuntimeMotionBlurSample(
           timelineTimeMs: sampleTime.inMilliseconds,
-          transformMatrix3x3: _stage5VisualTransformMatrix3x3FromComponents(
-            positionX: policy.affectPosition
-                ? sampleSurface.transform.positionX
-                : currentTransform.positionX,
-            positionY: policy.affectPosition
-                ? sampleSurface.transform.positionY
-                : currentTransform.positionY,
-            scaleX: policy.affectScale
-                ? sampleSurface.transform.scaleX
-                : currentTransform.scaleX,
-            scaleY: policy.affectScale
-                ? sampleSurface.transform.scaleY
-                : currentTransform.scaleY,
-            rotationRadians: policy.affectRotation
-                ? sampleSurface.transform.rotationRadians
-                : currentTransform.rotationRadians,
+          transformMatrix3x3: List<double>.from(
+            coreSamplingPlan.sampleTransforms[sampleIndex],
+            growable: false,
           ),
-          opacity: sampleSurface.opacity.clamp(0.0, 1.0).toDouble(),
+          opacity: coreSamplingPlan.sampleNodeStates[sampleIndex].opacity
+              .clamp(0.0, 1.0)
+              .toDouble(),
         ),
       );
     }
@@ -22727,27 +22724,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return const <Stage5VisualRuntimeMotionBlurSample>[];
     }
     return List<Stage5VisualRuntimeMotionBlurSample>.unmodifiable(samples);
-  }
-
-  List<double> _stage5MotionBlurSampleOffsetsMs(
-    MasterMotionBlurPolicy policy,
-  ) {
-    final frameRate =
-        _timelineFps.isFinite && _timelineFps > 0 ? _timelineFps : 30.0;
-    final frameDurationMs = 1000.0 / frameRate;
-    final exposureMs = frameDurationMs *
-        (policy.shutterAngleDegrees.clamp(0.0, 1440.0).toDouble() / 360.0) *
-        policy.amount.clamp(0.0, 1.0).toDouble();
-    final phaseStartMs = frameDurationMs *
-        (policy.shutterPhaseDegrees.clamp(-720.0, 720.0).toDouble() / 360.0);
-    final sampleCount = policy.samples.clamp(1, policy.adaptiveSampleLimit);
-    if (sampleCount <= 1 || exposureMs <= 0) {
-      return const <double>[];
-    }
-    return <double>[
-      for (var index = 0; index < sampleCount; index++)
-        phaseStartMs + (exposureMs * index / (sampleCount - 1)),
-    ];
   }
 
   TrueFrameSamplingQualityMode _trueFrameSamplingQualityModeForTransitionMode(
@@ -22917,18 +22893,20 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       baseProgram: baseProgram,
       targetId: blurSurface.targetId,
     );
-    final sampleOffsets = coreSamplingPlan == null
-        ? _stage5MotionBlurSampleOffsetsMs(policy)
-        : coreSamplingPlan.sampleTimesMs
-            .map((sampleTimeMs) =>
-                (sampleTimeMs - previewTime.inMilliseconds).toDouble())
-            .toList(growable: false);
+    if (coreSamplingPlan == null) {
+      return const <TemporalMotionBlurSamplePlan>[];
+    }
+    final sampleOffsets = coreSamplingPlan.sampleTimesMs
+        .map(
+          (sampleTimeMs) =>
+              (sampleTimeMs - previewTime.inMilliseconds).toDouble(),
+        )
+        .toList(growable: false);
     if (sampleOffsets.length <= 1) {
       return const <TemporalMotionBlurSamplePlan>[];
     }
-    final sampleWeights = coreSamplingPlan == null
-        ? List<double>.filled(sampleOffsets.length, 1.0 / sampleOffsets.length)
-        : List<double>.from(coreSamplingPlan.sampleWeights, growable: false);
+    final sampleWeights =
+        List<double>.from(coreSamplingPlan.sampleWeights, growable: false);
     final sourceWindows =
         _liveScrubSourceWindowsForActiveTransition(activeTransition);
     final seamTime = _manualTransitionRootSeamTimeForActiveTransition(
@@ -22948,9 +22926,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     for (var sampleIndex = 0;
         sampleIndex < sampleOffsets.length;
         sampleIndex++) {
-      final sampleTimeMs = coreSamplingPlan == null
-          ? (previewTime.inMilliseconds + sampleOffsets[sampleIndex]).round()
-          : coreSamplingPlan.sampleTimesMs[sampleIndex];
+      final sampleTimeMs = coreSamplingPlan.sampleTimesMs[sampleIndex];
       final sampleTime = TimelineTime.fromMilliseconds(sampleTimeMs).clamp(
         TimelineTime.zero,
         _timelineDurationTime,
@@ -22978,45 +22954,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       if (sampleSurfaces.isEmpty) {
         continue;
       }
-      LiveScrubVisualSurface legacySurface = sampleSurfaces.first;
-      for (final sampleSurface in sampleSurfaces) {
-        if (sampleSurface.targetId == blurSurface.targetId) {
-          legacySurface = sampleSurface;
-          break;
-        }
-      }
-      final legacyMatrix = coreSamplingPlan == null
-          ? _stage5VisualTransformMatrix3x3FromComponents(
-              positionX: policy.affectPosition
-                  ? legacySurface.transform.positionX
-                  : blurSurface.transform.positionX,
-              positionY: policy.affectPosition
-                  ? legacySurface.transform.positionY
-                  : blurSurface.transform.positionY,
-              scaleX: policy.affectScale
-                  ? legacySurface.transform.scaleX
-                  : blurSurface.transform.scaleX,
-              scaleY: policy.affectScale
-                  ? legacySurface.transform.scaleY
-                  : blurSurface.transform.scaleY,
-              rotationRadians: policy.affectRotation
-                  ? legacySurface.transform.rotationRadians
-                  : blurSurface.transform.rotationRadians,
-            )
-          : List<double>.from(
-              coreSamplingPlan.sampleTransforms[sampleIndex],
-              growable: false,
-            );
       sampleTimesMs.add(sampleTime.inMilliseconds);
-      sourceIdsBySample.add(coreSamplingPlan == null
-          ? legacySurface.targetId
-          : coreSamplingPlan.sampleNodeStates[sampleIndex].sourceId);
-      sampleTransforms.add(legacyMatrix);
-      sampleOpacities.add(coreSamplingPlan == null
-          ? legacySurface.opacity.clamp(0.0, 1.0).toDouble()
-          : coreSamplingPlan.sampleNodeStates[sampleIndex].opacity
-              .clamp(0.0, 1.0)
-              .toDouble());
+      sourceIdsBySample
+          .add(coreSamplingPlan.sampleNodeStates[sampleIndex].sourceId);
+      sampleTransforms.add(
+        List<double>.from(
+          coreSamplingPlan.sampleTransforms[sampleIndex],
+          growable: false,
+        ),
+      );
+      sampleOpacities.add(coreSamplingPlan.sampleNodeStates[sampleIndex].opacity
+          .clamp(0.0, 1.0)
+          .toDouble());
       for (final sampleSurface in sampleSurfaces) {
         final sourceWindow = sourceWindows[sampleSurface.targetId];
         if (sourceWindow == null) {
