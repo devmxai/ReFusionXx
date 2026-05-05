@@ -116,82 +116,20 @@ Mandatory safety remains:
 - Keep Stage5 protected-file changes explicit and justified by this plan.
 - Every completed build step must be checkpointed, pushed, and reported.
 
-## Mandatory Workflow For Codex 5.3
+## Workflow Source
 
-Before every implementation slice:
+All work, checkpoint, GitHub, install, and protected-file rules live in:
 
-1. Run:
+```text
+sources/ui/fusionx-clean-ui-2/docs/trueframe_core_execution_engine_plan.md
+```
 
-   ```bash
-   git status -sb
-   git rev-parse --short HEAD
-   ```
+This slice document must not redefine those rules. It may only add
+Manual-Transition-specific validation scenarios and acceptance criteria.
 
-2. Read the mandatory ReFusion policies:
-
-   ```text
-   sources/ui/fusionx-clean-ui-2/docs/professional_checkpoint_policy.md
-   sources/ui/fusionx-clean-ui-2/docs/professional_refusion_motion_keyframe_engine.md
-   sources/ui/fusionx-clean-ui-2/docs/trueframe_core_execution_engine_plan.md
-   sources/ui/fusionx-clean-ui-2/docs/trueframe_one_transition_execution_backend_plan.md
-   ```
-
-3. Identify whether the slice touches protected Stage5 / Live Scrub files.
-   This plan approves Stage5 changes only when they directly serve:
-
-   - surface handoff safety,
-   - preview host/presenter behavior,
-   - transition backend integration,
-   - live scrub parity diagnostics.
-
-4. Before editing a protected file, state the exact reason in the work log.
-
-After every completed implementation slice:
-
-1. Run the smallest relevant verification.
-2. For native/renderer changes, run at minimum:
-
-   ```bash
-   flutter test <targeted tests>
-   flutter build apk --debug
-   ```
-
-3. Install the latest build on the connected wireless Android device when
-   available:
-
-   ```bash
-   adb devices -l
-   adb mdns services
-   adb connect <ip:port>
-   flutter install --debug -d <ip:port>
-   ```
-
-   If `flutter install` hangs, use the explicit APK route:
-
-   ```bash
-   adb -s <ip:port> push build/app/outputs/flutter-apk/app-debug.apk /data/local/tmp/refusion-debug.apk
-   adb -s <ip:port> shell pm install -r -t --user 0 /data/local/tmp/refusion-debug.apk
-   ```
-
-4. Stage only the related files.
-5. Commit with:
-
-   ```text
-   checkpoint: <short phase result>
-   ```
-
-6. Push the branch.
-7. Report:
-
-   - branch,
-   - commit hash,
-   - files changed,
-   - tests/builds,
-   - device install result,
-   - rollback command.
-
-8. Update the relevant plan/status documentation or local agent skill notes when
-   a new invariant is introduced. Do not leave future agents guessing.
+Do not update Codex skills or local skill files during TRUEFRAME ONE. Skill
+updates are paused until TRUEFRAME CORE has production proof. New invariants
+must be recorded in repo documentation and checkpointed to GitHub.
 
 ## Non-Negotiable Engineering Rules
 
@@ -741,61 +679,32 @@ Checkpoint:
 checkpoint: remove legacy manual transition effect ownership
 ```
 
-## Device Validation Script
+## Manual Transition Device Validation Scenario
 
-After each native or rendering checkpoint:
+After each native or rendering checkpoint, follow the unified device workflow in
+`trueframe_core_execution_engine_plan.md`, then validate this scenario:
 
-1. Discover device:
+```text
+New Composition
+-> Scene 01
+-> Track A + Track B
+-> Transition Timeline
+-> Add Rotation keyframes
+-> Add Motion Blur
+-> Change Amount
+-> Live Scrub
+-> Play
+-> Stop
+-> Scrub backward/forward
+```
 
-   ```bash
-   adb devices -l
-   adb mdns services
-   adb connect <ip:port>
-   ```
+Capture proof if a failure occurs:
 
-2. Build:
-
-   ```bash
-   cd /Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2
-   flutter build apk --debug
-   ```
-
-3. Install:
-
-   ```bash
-   flutter install --debug -d <ip:port>
-   ```
-
-4. If install hangs:
-
-   ```bash
-   adb -s <ip:port> push build/app/outputs/flutter-apk/app-debug.apk /data/local/tmp/refusion-debug.apk
-   adb -s <ip:port> shell pm install -r -t --user 0 /data/local/tmp/refusion-debug.apk
-   ```
-
-5. Validate manually:
-
-   ```text
-   New Composition
-   -> Scene 01
-   -> Track A + Track B
-   -> Transition Timeline
-   -> Add Rotation keyframes
-   -> Add Motion Blur
-   -> Change Amount
-   -> Live Scrub
-   -> Play
-   -> Stop
-   -> Scrub backward/forward
-   ```
-
-6. Capture proof if a failure occurs:
-
-   ```bash
-   adb -s <ip:port> shell pidof com.refusion.app
-   adb -s <ip:port> logcat --pid <pid> -d -t 1500
-   adb -s <ip:port> exec-out screencap -p > /tmp/trueframe_failure.png
-   ```
+```bash
+adb -s <ip:port> shell pidof com.refusion.app
+adb -s <ip:port> logcat --pid <pid> -d -t 1500
+adb -s <ip:port> exec-out screencap -p > /tmp/trueframe_failure.png
+```
 
 ## Acceptance Criteria
 

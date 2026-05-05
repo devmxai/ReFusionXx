@@ -755,7 +755,16 @@ Manual Transition is complete only when:
 - export uses the same meaning;
 - diagnostics prove visible pixel/frame delta for Motion Blur.
 
-## 13. Mandatory Checkpoint And Device Rules
+## 13. Unified Work And Checkpoint Rules
+
+This is the single workflow source for TRUEFRAME work. Slice documents may add
+feature-specific validation scenarios, but they must not redefine checkpoint,
+GitHub, install, or protected-file rules.
+
+Do not update Codex skills or local skill files as part of TRUEFRAME work yet.
+Skill updates are intentionally paused until TRUEFRAME CORE has a production
+proof. If a new invariant is discovered, update the relevant repo documentation
+and checkpoint it to GitHub instead.
 
 Before every slice:
 
@@ -763,6 +772,22 @@ Before every slice:
 git status -sb
 git rev-parse --short HEAD
 ```
+
+The writer must read:
+
+```text
+sources/ui/fusionx-clean-ui-2/docs/professional_checkpoint_policy.md
+sources/ui/fusionx-clean-ui-2/docs/professional_refusion_motion_keyframe_engine.md
+sources/ui/fusionx-clean-ui-2/docs/trueframe_core_execution_engine_plan.md
+```
+
+If the slice is a vertical slice such as Manual Transition, also read the
+slice-specific document.
+
+Protected Stage5 / Live Scrub files may be edited only when the slice explicitly
+requires handoff, surface ownership, host/presenter behavior, or parity
+diagnostics. The work log and final report must state why the protected file was
+touched.
 
 After every completed slice:
 
@@ -772,7 +797,27 @@ verify
 -> commit focused checkpoint
 -> push branch
 -> install on connected wireless device when app/native/rendering behavior changed
--> report rollback command
+-> report checkpoint date, branch, commit hash, verification, install result, and rollback command
+```
+
+Checkpoint commit format:
+
+```text
+checkpoint: <short phase result>
+```
+
+Each checkpoint report must include:
+
+```text
+date/time
+branch
+commit hash
+commit message
+files changed
+verification performed
+device install result, if applicable
+known risks
+rollback command
 ```
 
 For native/rendering slices:
@@ -782,6 +827,7 @@ cd /Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2
 flutter test <targeted tests>
 flutter build apk --debug
 adb devices -l
+adb mdns services
 flutter install --debug -d <ip:port>
 ```
 
@@ -794,6 +840,9 @@ adb -s <ip:port> shell pm install -r -t --user 0 /data/local/tmp/refusion-debug.
 
 Documentation-only updates do not require APK install.
 
+GitHub push is mandatory after every completed build slice, including
+documentation slices that define official implementation rules.
+
 ## 14. Writer Agent Rule
 
 Do not build a transition engine.
@@ -805,4 +854,3 @@ Use Manual Transition as the first proof slice.
 If a proposed implementation cannot later support video/image/text/shape with
 the same evaluator, same sampling plan, same effect order, and same proof
 contract, reject it before coding.
-
