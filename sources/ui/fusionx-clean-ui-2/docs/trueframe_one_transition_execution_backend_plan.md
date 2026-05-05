@@ -1,15 +1,45 @@
 # TRUEFRAME ONE
 
-Status: official implementation plan for the first correct professional transition execution step  
-Audience: Codex 5.3 writer agent and future ReFusion engineering agents  
-Project: `/Users/mx/Documents/ReFusionXx`  
-Branch: `codex/unified-keyframe-ops-foundation-20260426`  
+Status: official first vertical slice over TRUEFRAME CORE
+Audience: Codex 5.3 writer agent and future ReFusion engineering agents
+Project: `/Users/mx/Documents/ReFusionXx`
+Branch: `codex/unified-keyframe-ops-foundation-20260426`
 Current reference checkpoint at plan creation: `3ca7075`
+
+## TRUEFRAME CORE Update
+
+This document is no longer a transition-only architecture.
+
+The official global architecture is:
+
+```text
+TRUEFRAME CORE = global composition/layer/effect execution engine
+TRUEFRAME ONE  = first vertical slice: Manual Transition FX
+```
+
+Read the core plan first:
+
+```text
+sources/ui/fusionx-clean-ui-2/docs/trueframe_core_execution_engine_plan.md
+```
+
+The transition-specific names in this file are first-slice aliases only:
+
+```text
+TransitionExecutionGraph      -> MasterRenderGraph / TrueFrameExecutionGraph specialization
+TransitionRuntimeEvaluator    -> CoreRuntimeEvaluator specialization
+TransitionFrameState          -> NodeFrameState / CompositionFrameState specialization
+MotionBlurSamplingPlan        -> CoreMotionBlurSamplingPlan specialization
+NativeTransitionRenderBackend -> TrueFrameRenderBackend adapter
+```
+
+Do not build a permanent transition engine. Build the core execution engine,
+then prove it first on Manual Transition.
 
 ## Purpose
 
-`TRUEFRAME ONE` is the first correct step toward a professional ReFusion motion
-and effects engine.
+`TRUEFRAME ONE` is the first correct vertical slice toward a professional
+ReFusion motion and effects engine.
 
 The goal is not to patch Motion Blur as an isolated filter. The goal is to stop
 the current split execution model where:
@@ -20,13 +50,16 @@ Professional transition compositor owns some visual truth.
 Stage6 export renderer owns another visual truth.
 ```
 
-This plan moves Manual Transition FX toward one execution truth:
+This plan moves Manual Transition FX onto the global TRUEFRAME execution truth:
 
 ```text
-TransitionExecutionGraph
--> TransitionRuntimeEvaluator
--> NativeTransitionRenderBackend
--> Preview / Live Scrub / Playback / Export adapters
+UniversalMotionGraph / authoring truth
+-> MasterFrameEvaluation / value truth
+-> MasterVisualProgram / renderer-neutral visual truth
+-> MasterRenderGraph / execution graph truth
+-> CoreRuntimeEvaluator
+-> TrueFrameRenderBackend adapters
+-> RendererPresentationProof
 ```
 
 Preview and export do not need to share identical rendering code on day one.
@@ -99,6 +132,7 @@ Before every implementation slice:
    ```text
    sources/ui/fusionx-clean-ui-2/docs/professional_checkpoint_policy.md
    sources/ui/fusionx-clean-ui-2/docs/professional_refusion_motion_keyframe_engine.md
+   sources/ui/fusionx-clean-ui-2/docs/trueframe_core_execution_engine_plan.md
    sources/ui/fusionx-clean-ui-2/docs/trueframe_one_transition_execution_backend_plan.md
    ```
 
@@ -796,4 +830,3 @@ Then route preview/playback/export through adapters over that same truth.
 Then remove old competing ownership paths only after proof exists.
 
 This is the first correct step.
-

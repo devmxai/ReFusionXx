@@ -42,6 +42,11 @@ Tutorial-derived professional capability growth must also follow:
 
 `docs/super_professional_engine_like_after_effects.md`
 
+TRUEFRAME global composition/layer/effect execution work must also follow:
+
+`docs/trueframe_core_execution_engine_plan.md`
+`docs/trueframe_one_transition_execution_backend_plan.md`
+
 This is a strict project rule. Every completed build step must be committed as a focused checkpoint and pushed to GitHub before starting the next build step, unless the user explicitly says not to push.
 
 The required order is:
