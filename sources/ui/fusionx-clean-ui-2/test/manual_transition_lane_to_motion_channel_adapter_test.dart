@@ -219,7 +219,7 @@ void main() {
     );
 
     expect(result.issues, isEmpty);
-    expect(result.channels.length, 12);
+    expect(result.channels.length, 18);
     expect(
       result.channels.map((channel) => channel.target.targetId).toSet(),
       <String>{'clip-a', 'clip-b'},
@@ -233,6 +233,9 @@ void main() {
         MotionPropertyCatalog.motionBlurSamples.id,
         MotionPropertyCatalog.motionBlurAdaptiveSampleLimit.id,
         MotionPropertyCatalog.motionBlurMaxTrailPx.id,
+        MotionPropertyCatalog.motionBlurAffectPosition.id,
+        MotionPropertyCatalog.motionBlurAffectScale.id,
+        MotionPropertyCatalog.motionBlurAffectRotation.id,
       },
     );
     final amount = result.channels.firstWhere(
@@ -298,6 +301,9 @@ void main() {
         MotionPropertyCatalog.motionBlurSamples.id,
         MotionPropertyCatalog.motionBlurAdaptiveSampleLimit.id,
         MotionPropertyCatalog.motionBlurMaxTrailPx.id,
+        MotionPropertyCatalog.motionBlurAffectPosition.id,
+        MotionPropertyCatalog.motionBlurAffectScale.id,
+        MotionPropertyCatalog.motionBlurAffectRotation.id,
       },
     );
     final amount = result.channels.firstWhere(
@@ -321,6 +327,84 @@ void main() {
     );
     expect(shutterPhase.keyframes, isEmpty);
     expect(shutterPhase.baseValue?.rawValue, -135.0);
+  });
+
+  test('maps scale motion blur modifier to scale-only shutter policy', () {
+    final transition = TimelineTrackTransitionData(
+      id: 'transition-1',
+      leftClipId: 'clip-a',
+      rightClipId: 'clip-b',
+      preset: TimelineTransitionPreset.manual,
+      durationTime: TimelineTime.fromMilliseconds(1000),
+      parameterValues: const <String, double>{
+        'scale.motion_blur.shutter_angle': 360.0,
+        'scale.motion_blur.samples': 16.0,
+      },
+      manualEffectIds: const <String>['scale', 'scale.motion_blur'],
+      manualAnimationLanes: const <TimelineAnimationLaneData>[
+        TimelineAnimationLaneData(
+          id: 'scale',
+          label: 'Scale',
+          targetClipId: 'clip-a',
+          normalizedKeyframeStops: <double>[0.0, 1.0],
+          keyframeValues: <double>[0.0, 85.0],
+        ),
+        TimelineAnimationLaneData(
+          id: 'scale.motion_blur',
+          label: 'Scale Motion Blur',
+          targetClipId: 'clip-a',
+          normalizedKeyframeStops: <double>[0.0, 1.0],
+          keyframeValues: <double>[0.0, 70.0],
+        ),
+      ],
+    );
+
+    final result = adapter.projectChannels(
+      request: ManualTransitionLaneChannelProjectionRequest(
+        transition: transition,
+        seamTime: TimelineTime.fromMilliseconds(2000),
+        projectId: 'project-1',
+      ),
+    );
+
+    expect(result.issues, isEmpty);
+    final clipAChannels = result.channels
+        .where((channel) => channel.target.targetId == 'clip-a')
+        .toList(growable: false);
+    final amount = clipAChannels.firstWhere(
+      (channel) =>
+          channel.definition.id == MotionPropertyCatalog.motionBlurAmount.id,
+    );
+    expect(amount.keyframes.last.value.rawValue, 70.0);
+    final shutterAngle = clipAChannels.firstWhere(
+      (channel) =>
+          channel.definition.id ==
+          MotionPropertyCatalog.motionBlurShutterAngle.id,
+    );
+    expect(shutterAngle.baseValue?.rawValue, 360.0);
+    final samples = clipAChannels.firstWhere(
+      (channel) =>
+          channel.definition.id == MotionPropertyCatalog.motionBlurSamples.id,
+    );
+    expect(samples.baseValue?.rawValue, 16);
+    final affectPosition = clipAChannels.firstWhere(
+      (channel) =>
+          channel.definition.id ==
+          MotionPropertyCatalog.motionBlurAffectPosition.id,
+    );
+    final affectScale = clipAChannels.firstWhere(
+      (channel) =>
+          channel.definition.id ==
+          MotionPropertyCatalog.motionBlurAffectScale.id,
+    );
+    final affectRotation = clipAChannels.firstWhere(
+      (channel) =>
+          channel.definition.id ==
+          MotionPropertyCatalog.motionBlurAffectRotation.id,
+    );
+    expect(affectPosition.baseValue?.rawValue, isFalse);
+    expect(affectScale.baseValue?.rawValue, isTrue);
+    expect(affectRotation.baseValue?.rawValue, isFalse);
   });
 
   test('maps focus scoped lane target ids back to real clip ids', () {

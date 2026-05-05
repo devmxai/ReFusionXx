@@ -279,6 +279,10 @@ class ManualTransitionLaneToMotionChannelAdapter {
             ),
         ];
       case 'motion_blur':
+      case 'transform.motion_blur':
+      case 'position.motion_blur':
+      case 'scale.motion_blur':
+      case 'rotation.motion_blur':
         return <MotionPropertyChannelModel>[
           for (final laneTargetId in laneTargetIds)
             MotionPropertyChannelModel(
@@ -301,6 +305,7 @@ class ManualTransitionLaneToMotionChannelAdapter {
             ),
           ..._constantMotionBlurChannels(
             transition: transition,
+            laneId: lane.id,
             laneTargetIds: laneTargetIds,
             projectId: projectId,
             activeRange: activeRange,
@@ -313,10 +318,12 @@ class ManualTransitionLaneToMotionChannelAdapter {
 
   List<MotionPropertyChannelModel> _constantMotionBlurChannels({
     required TimelineTrackTransitionData transition,
+    required String laneId,
     required List<String> laneTargetIds,
     required String projectId,
     required TimelineTimeRange activeRange,
   }) {
+    final affectFlags = _motionBlurAffectFlagsForLane(laneId);
     final specs = <({
       String key,
       MotionPropertyDefinition definition,
@@ -376,7 +383,7 @@ class ManualTransitionLaneToMotionChannelAdapter {
       for (final laneTargetId in laneTargetIds)
         for (final spec in specs)
           MotionPropertyChannelModel(
-            id: 'manual-transition-${transition.id}-motion-blur-$laneTargetId-${spec.suffix}',
+            id: 'manual-transition-${transition.id}-$laneId-$laneTargetId-${spec.suffix}',
             target: _elementTargetFor(
               projectId: projectId,
               targetId: laneTargetId,
@@ -386,18 +393,113 @@ class ManualTransitionLaneToMotionChannelAdapter {
             baseValue: spec.integerValue
                 ? MotionPropertyValue.integer(
                     transition
-                        .parameterValue(spec.key, fallback: spec.fallback)
+                        .parameterValue(
+                          _motionBlurSettingKeyForLane(laneId, spec.key),
+                          fallback: spec.fallback,
+                        )
                         .clamp(spec.min, spec.max)
                         .round(),
                   )
                 : MotionPropertyValue.scalar(
                     transition
-                        .parameterValue(spec.key, fallback: spec.fallback)
+                        .parameterValue(
+                          _motionBlurSettingKeyForLane(laneId, spec.key),
+                          fallback: spec.fallback,
+                        )
                         .clamp(spec.min, spec.max)
                         .toDouble(),
                   ),
           ),
+      for (final laneTargetId in laneTargetIds) ...[
+        _constantMotionBlurBooleanChannel(
+          transition: transition,
+          laneId: laneId,
+          laneTargetId: laneTargetId,
+          projectId: projectId,
+          activeRange: activeRange,
+          definition: MotionPropertyCatalog.motionBlurAffectPosition,
+          suffix: 'motion-blur-affect-position',
+          value: affectFlags.affectPosition,
+        ),
+        _constantMotionBlurBooleanChannel(
+          transition: transition,
+          laneId: laneId,
+          laneTargetId: laneTargetId,
+          projectId: projectId,
+          activeRange: activeRange,
+          definition: MotionPropertyCatalog.motionBlurAffectScale,
+          suffix: 'motion-blur-affect-scale',
+          value: affectFlags.affectScale,
+        ),
+        _constantMotionBlurBooleanChannel(
+          transition: transition,
+          laneId: laneId,
+          laneTargetId: laneTargetId,
+          projectId: projectId,
+          activeRange: activeRange,
+          definition: MotionPropertyCatalog.motionBlurAffectRotation,
+          suffix: 'motion-blur-affect-rotation',
+          value: affectFlags.affectRotation,
+        ),
+      ],
     ];
+  }
+
+  String _motionBlurSettingKeyForLane(String laneId, String legacySettingKey) {
+    if (laneId == 'motion_blur') {
+      return legacySettingKey;
+    }
+    final suffix = legacySettingKey.replaceFirst('motion_blur_', '');
+    return '$laneId.$suffix';
+  }
+
+  MotionPropertyChannelModel _constantMotionBlurBooleanChannel({
+    required TimelineTrackTransitionData transition,
+    required String laneId,
+    required String laneTargetId,
+    required String projectId,
+    required TimelineTimeRange activeRange,
+    required MotionPropertyDefinition definition,
+    required String suffix,
+    required bool value,
+  }) {
+    return MotionPropertyChannelModel(
+      id: 'manual-transition-${transition.id}-$laneId-$laneTargetId-$suffix',
+      target: _elementTargetFor(
+        projectId: projectId,
+        targetId: laneTargetId,
+      ),
+      definition: definition,
+      activeRange: activeRange,
+      baseValue: MotionPropertyValue.boolean(value),
+      keyframes: const <MotionKeyframeModel>[],
+    );
+  }
+
+  ({bool affectPosition, bool affectScale, bool affectRotation})
+      _motionBlurAffectFlagsForLane(String laneId) {
+    return switch (laneId) {
+      'position.motion_blur' => (
+          affectPosition: true,
+          affectScale: false,
+          affectRotation: false,
+        ),
+      'scale.motion_blur' => (
+          affectPosition: false,
+          affectScale: true,
+          affectRotation: false,
+        ),
+      'rotation.motion_blur' => (
+          affectPosition: false,
+          affectScale: false,
+          affectRotation: true,
+        ),
+      _ => (
+          affectPosition: true,
+          affectScale: true,
+          affectRotation: true,
+        ),
+    };
   }
 
   MotionPropertyTarget _elementTargetFor({
@@ -452,7 +554,11 @@ class ManualTransitionLaneToMotionChannelAdapter {
       'position' ||
       'rotation' ||
       'gaussian_blur' ||
-      'motion_blur' =>
+      'motion_blur' ||
+      'transform.motion_blur' ||
+      'position.motion_blur' ||
+      'scale.motion_blur' ||
+      'rotation.motion_blur' =>
         true,
       _ => false,
     };
@@ -568,6 +674,10 @@ class ManualTransitionLaneToMotionChannelAdapter {
       'rotation' => 0.0,
       'gaussian_blur' => 0.0,
       'motion_blur' => 0.0,
+      'transform.motion_blur' => 0.0,
+      'position.motion_blur' => 0.0,
+      'scale.motion_blur' => 0.0,
+      'rotation.motion_blur' => 0.0,
       _ => 0.0,
     };
   }

@@ -187,6 +187,22 @@ void main() {
     }
   });
 
+  test('manual transition exposes channel-scoped motion blur modifiers',
+      () async {
+    final source = await screenFile.readAsString();
+    expect(source.contains('_manualTransitionMotionModifierItems'), isTrue);
+    expect(source.contains("'transform.motion_blur': _TransitionFocusLaneSpec"),
+        isTrue);
+    expect(source.contains("'position.motion_blur': _TransitionFocusLaneSpec"),
+        isTrue);
+    expect(source.contains("'scale.motion_blur': _TransitionFocusLaneSpec"),
+        isTrue);
+    expect(source.contains("'rotation.motion_blur': _TransitionFocusLaneSpec"),
+        isTrue);
+    expect(source.contains('onAnimationLaneModifierAdd'), isTrue);
+    expect(source.contains('animationModifierSourceLaneIds'), isTrue);
+  });
+
   test('screen state does not keep legacy master frame read adapter field',
       () async {
     final source = await screenFile.readAsString();

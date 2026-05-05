@@ -41,6 +41,9 @@ typedef TimelineAnimationKeyframeDragCallback = void Function(
   String keyframeId,
   double normalizedStop,
 );
+typedef TimelineAnimationLaneModifierAddCallback = void Function(
+  String laneId,
+);
 typedef TimelineScrubSurfaceBuilder = Widget Function(
     TimelineScrubSurfaceConfig config);
 typedef TimelineZoomStateChanged = void Function(TimelineZoomState state);
@@ -565,6 +568,7 @@ class TimelinePanel extends StatefulWidget {
     this.selectedAnimationLaneId,
     this.selectedAnimationKeyframeIndex,
     this.onAnimationLaneTap,
+    this.onAnimationLaneModifierAdd,
     this.onAnimationKeyframeTap,
     this.onAnimationKeyframeDrag,
     this.onTrackFxTap,
@@ -576,6 +580,7 @@ class TimelinePanel extends StatefulWidget {
       TimelineTrackKind.text,
     },
     this.fxTrackKinds = const <TimelineTrackKind>{},
+    this.animationModifierSourceLaneIds = const <String>{},
     this.enableSceneClipTimeShift = false,
     this.minimumClipVisualWidth = 0,
     this.scrubSurfaceBuilder,
@@ -609,6 +614,7 @@ class TimelinePanel extends StatefulWidget {
   final String? selectedAnimationLaneId;
   final int? selectedAnimationKeyframeIndex;
   final ValueChanged<String>? onAnimationLaneTap;
+  final TimelineAnimationLaneModifierAddCallback? onAnimationLaneModifierAdd;
   final TimelineAnimationKeyframeTapCallback? onAnimationKeyframeTap;
   final TimelineAnimationKeyframeDragCallback? onAnimationKeyframeDrag;
   final ValueChanged<TimelineTrackData>? onTrackFxTap;
@@ -618,6 +624,7 @@ class TimelinePanel extends StatefulWidget {
   final double initialSecondsWidth;
   final Set<TimelineTrackKind> animateTrackKinds;
   final Set<TimelineTrackKind> fxTrackKinds;
+  final Set<String> animationModifierSourceLaneIds;
   final bool enableSceneClipTimeShift;
   final double minimumClipVisualWidth;
   final TimelineScrubSurfaceBuilder? scrubSurfaceBuilder;
@@ -4681,6 +4688,12 @@ class _TimelinePanelState extends State<TimelinePanel>
                                                               onAnimationLaneTap:
                                                                   widget
                                                                       .onAnimationLaneTap,
+                                                              onAnimationLaneModifierAdd:
+                                                                  widget
+                                                                      .onAnimationLaneModifierAdd,
+                                                              animationModifierSourceLaneIds:
+                                                                  widget
+                                                                      .animationModifierSourceLaneIds,
                                                               onAnimationKeyframeTap:
                                                                   widget
                                                                       .onAnimationKeyframeTap,
@@ -4858,6 +4871,8 @@ class _TimelineTrackRow extends StatelessWidget {
     required this.onTrackAnimateTap,
     required this.onTrackFxTap,
     required this.onAnimationLaneTap,
+    required this.onAnimationLaneModifierAdd,
+    required this.animationModifierSourceLaneIds,
     required this.onAnimationKeyframeTap,
     required this.onAnimationKeyframeDrag,
     required this.onTransitionTap,
@@ -4911,6 +4926,8 @@ class _TimelineTrackRow extends StatelessWidget {
   final ValueChanged<TimelineTrackData>? onTrackAnimateTap;
   final ValueChanged<TimelineTrackData>? onTrackFxTap;
   final ValueChanged<String>? onAnimationLaneTap;
+  final TimelineAnimationLaneModifierAddCallback? onAnimationLaneModifierAdd;
+  final Set<String> animationModifierSourceLaneIds;
   final TimelineAnimationKeyframeTapCallback? onAnimationKeyframeTap;
   final TimelineAnimationKeyframeDragCallback? onAnimationKeyframeDrag;
   final TimelineBoundaryTransitionTapCallback? onTransitionTap;
@@ -5447,6 +5464,10 @@ class _TimelineTrackRow extends StatelessWidget {
                         keyframeId,
                         normalizedStop,
                       ),
+              onModifierAdd: onAnimationLaneModifierAdd == null ||
+                      !animationModifierSourceLaneIds.contains(lane.id)
+                  ? null
+                  : () => onAnimationLaneModifierAdd!(lane.id),
               onTap: () {
                 if (onAnimationLaneTap != null) {
                   onAnimationLaneTap!(lane.id);
@@ -5644,6 +5665,7 @@ class _TimelineAnimationLaneRow extends StatelessWidget {
     required this.isSelected,
     required this.onKeyframeTap,
     required this.onKeyframeDrag,
+    required this.onModifierAdd,
     required this.onTap,
   });
 
@@ -5660,6 +5682,7 @@ class _TimelineAnimationLaneRow extends StatelessWidget {
     String keyframeId,
     double normalizedStop,
   )? onKeyframeDrag;
+  final VoidCallback? onModifierAdd;
   final VoidCallback onTap;
 
   @override
@@ -5682,6 +5705,7 @@ class _TimelineAnimationLaneRow extends StatelessWidget {
               label: label,
               isSelected: isSelected,
               width: resolvedLabelWidth,
+              onModifierAdd: onModifierAdd,
             ),
           ),
           Positioned(
@@ -5718,11 +5742,13 @@ class _TimelineAnimationLabelChip extends StatelessWidget {
     required this.label,
     required this.isSelected,
     required this.width,
+    this.onModifierAdd,
   });
 
   final String label;
   final bool isSelected;
   final double width;
+  final VoidCallback? onModifierAdd;
 
   @override
   Widget build(BuildContext context) {
@@ -5767,6 +5793,34 @@ class _TimelineAnimationLabelChip extends StatelessWidget {
                   ),
                 ),
               ),
+              if (onModifierAdd != null) ...[
+                const SizedBox(width: 4),
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onModifierAdd,
+                  child: Container(
+                    width: 18,
+                    height: 18,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(isSelected ? 0.14 : 0.08),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color:
+                            Colors.white.withOpacity(isSelected ? 0.28 : 0.14),
+                        width: 1,
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.add_rounded,
+                      size: 14,
+                      color: Colors.white.withOpacity(
+                        isSelected ? 0.96 : 0.72,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
