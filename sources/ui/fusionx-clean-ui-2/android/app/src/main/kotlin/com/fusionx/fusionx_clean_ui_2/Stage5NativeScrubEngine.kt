@@ -219,8 +219,6 @@ class Stage5NativeScrubEngine(
     )
 
     private val surfaceScrubDecoder = Stage5SurfaceScrubDecoder(context.applicationContext)
-    private val temporalMotionBlurRenderer =
-        Stage5TemporalMotionBlurRenderer(context.applicationContext)
     private val mediaDisplayGeometryResolver =
         MediaDisplayGeometryResolver(context.applicationContext)
     private val renderHosts = LinkedHashSet<Stage5ScrubRenderHost>()
@@ -638,7 +636,6 @@ class Stage5NativeScrubEngine(
         renderHosts.clear()
         scrubPreviewProxyManager.removeListener(proxyReadyListener)
         surfaceScrubDecoder.release()
-        temporalMotionBlurRenderer.release()
         renderExecutor.shutdownNow()
         warmupExecutor.shutdownNow()
         scrubPreviewProxyManager.release()
@@ -814,55 +811,6 @@ class Stage5NativeScrubEngine(
             resolveDescriptorAspectRatio(snapshot.descriptor),
         )
         val visualState = resolveVisualStateForDescriptor(snapshot.descriptor)
-        val temporalMotionBlurSamples = visualState.validMotionBlurSamples()
-        if (temporalMotionBlurSamples.isNotEmpty()) {
-            surfaceScrubDecoder.release()
-            outputTarget.host.setScrubVisualState(
-                transformMatrix3x3 = null,
-                opacity = 1.0,
-                gaussianBlurSigmaPx = visualState.gaussianBlurSigmaPx(),
-                motionBlurSamples = emptyList(),
-            )
-            val rendered =
-                temporalMotionBlurRenderer.render(
-                    playbackUri = playbackUri.playbackUri,
-                    descriptor = snapshot.descriptor,
-                    visualState = visualState,
-                    samples = temporalMotionBlurSamples,
-                    outputSurface = outputTarget.surface,
-                )
-            if (!rendered) {
-                val renderDurationMs = (SystemClock.elapsedRealtime() - renderStartMs).coerceAtLeast(0L)
-                diagnostics.frameRenderLatencyTotalMs += renderDurationMs
-                diagnostics.frameRenderLatencySampleCount += 1L
-                diagnostics.frameRenderLatencyMaxMs =
-                    maxOf(diagnostics.frameRenderLatencyMaxMs, renderDurationMs)
-                diagnostics.renderFailureCount += 1
-                return false
-            }
-            val renderDurationMs = (SystemClock.elapsedRealtime() - renderStartMs).coerceAtLeast(0L)
-            diagnostics.frameRenderLatencyTotalMs += renderDurationMs
-            diagnostics.frameRenderLatencySampleCount += 1L
-            diagnostics.frameRenderLatencyMaxMs =
-                maxOf(diagnostics.frameRenderLatencyMaxMs, renderDurationMs)
-            diagnostics.renderedFrameCount += 1
-            synchronized(this) {
-                if (
-                    sessionFrozen ||
-                    activeDescriptor?.scrubStoreKey != snapshot.descriptor.scrubStoreKey
-                ) {
-                    return false
-                }
-                renderHosts.forEach { host ->
-                    host.setScrubSurfaceVisible(host === outputTarget.host)
-                }
-                if (pendingDecoderForceSeekStoreKey == snapshot.descriptor.scrubStoreKey) {
-                    pendingDecoderForceSeekStoreKey = null
-                }
-            }
-            snapshot.timelinePositionMs?.let(::notifyFrameRendered)
-            return true
-        }
         val decoderConfigureStartMs = SystemClock.elapsedRealtime()
         if (
             !surfaceScrubDecoder.ensureConfigured(
