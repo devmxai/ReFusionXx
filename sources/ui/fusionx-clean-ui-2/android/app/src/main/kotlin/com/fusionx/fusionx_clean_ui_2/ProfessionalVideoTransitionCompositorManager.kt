@@ -19,6 +19,7 @@ import android.media.MediaFormat
 import android.media.ImageReader
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.os.SystemClock
 import android.view.Surface
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -28,6 +29,186 @@ import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+
+private object TransitionFrameExtractorCache {
+    private val lock = Any()
+    private const val frameCacheMaxEntries = 96
+    private const val frameCacheTtlMs = 4_000L
+    private const val frameRetrieverMaxEntries = 6
+    private const val frameRetrieverIdleTtlMs = 8_000L
+
+    private val frameCache =
+        object : LinkedHashMap<String, CachedFrameEntry>(128, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, CachedFrameEntry>?): Boolean {
+                return size > frameCacheMaxEntries
+            }
+        }
+
+    private val frameRetrieversBySourceUri =
+        object : LinkedHashMap<String, CachedFrameRetriever>(16, 0.75f, true) {
+            override fun removeEldestEntry(
+                eldest: MutableMap.MutableEntry<String, CachedFrameRetriever>?,
+            ): Boolean {
+                if (size <= frameRetrieverMaxEntries) {
+                    return false
+                }
+                eldest?.value?.retriever?.release()
+                return true
+            }
+        }
+
+    private data class CachedFrameEntry(
+        val width: Int,
+        val height: Int,
+        val pixels: IntArray,
+        val cachedAtUptimeMs: Long,
+    )
+
+    private data class CachedFrameRetriever(
+        val retriever: MediaMetadataRetriever,
+        var lastUsedUptimeMs: Long,
+    )
+
+    fun extract(
+        appContext: Context,
+        sourceUri: String?,
+        sourceTimeMs: Long,
+    ): Bitmap? {
+        if (sourceUri.isNullOrBlank()) {
+            return null
+        }
+        val safeSourceTimeUs = sourceTimeMs.coerceAtLeast(0L) * 1000L
+        val cacheKey = buildFrameCacheKey(sourceUri, safeSourceTimeUs)
+        frameBitmapFromCache(cacheKey)?.let { return it }
+        val retriever = acquireFrameRetriever(appContext, sourceUri) ?: return null
+        return try {
+            val extracted =
+                retriever.getFrameAtTime(
+                    safeSourceTimeUs,
+                    MediaMetadataRetriever.OPTION_CLOSEST,
+                ) ?: return null
+            val argbBitmap =
+                if (extracted.config == Bitmap.Config.ARGB_8888) {
+                    extracted
+                } else {
+                    extracted.copy(Bitmap.Config.ARGB_8888, false) ?: extracted
+                }
+            if (argbBitmap.width <= 0 || argbBitmap.height <= 0) {
+                if (argbBitmap !== extracted) {
+                    argbBitmap.recycle()
+                }
+                extracted.recycle()
+                return null
+            }
+            val pixels = IntArray(argbBitmap.width * argbBitmap.height)
+            argbBitmap.getPixels(
+                pixels,
+                0,
+                argbBitmap.width,
+                0,
+                0,
+                argbBitmap.width,
+                argbBitmap.height,
+            )
+            synchronized(lock) {
+                frameCache[cacheKey] =
+                    CachedFrameEntry(
+                        width = argbBitmap.width,
+                        height = argbBitmap.height,
+                        pixels = pixels,
+                        cachedAtUptimeMs = SystemClock.uptimeMillis(),
+                    )
+            }
+            if (argbBitmap !== extracted) {
+                argbBitmap.recycle()
+            }
+            extracted.recycle()
+            Bitmap.createBitmap(
+                pixels,
+                argbBitmap.width,
+                argbBitmap.height,
+                Bitmap.Config.ARGB_8888,
+            )
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    private fun buildFrameCacheKey(
+        sourceUri: String,
+        sourceTimeUs: Long,
+    ): String {
+        val frameStepUs = 33_333L
+        val quantizedTimeUs = ((sourceTimeUs + (frameStepUs / 2L)) / frameStepUs) * frameStepUs
+        return "$sourceUri@$quantizedTimeUs"
+    }
+
+    private fun frameBitmapFromCache(cacheKey: String): Bitmap? {
+        val entry =
+            synchronized(lock) {
+                val now = SystemClock.uptimeMillis()
+                evictExpiredFrameEntries(now)
+                frameCache[cacheKey]
+            } ?: return null
+        return runCatching {
+            Bitmap.createBitmap(
+                entry.pixels,
+                entry.width,
+                entry.height,
+                Bitmap.Config.ARGB_8888,
+            )
+        }.getOrNull()
+    }
+
+    private fun acquireFrameRetriever(
+        appContext: Context,
+        sourceUri: String,
+    ): MediaMetadataRetriever? {
+        synchronized(lock) {
+            val now = SystemClock.uptimeMillis()
+            evictIdleFrameRetrievers(now)
+            val cached = frameRetrieversBySourceUri[sourceUri]
+            if (cached != null) {
+                cached.lastUsedUptimeMs = now
+                return cached.retriever
+            }
+            val retriever = MediaMetadataRetriever()
+            return try {
+                retriever.setDataSource(appContext, Uri.parse(sourceUri))
+                frameRetrieversBySourceUri[sourceUri] =
+                    CachedFrameRetriever(
+                        retriever = retriever,
+                        lastUsedUptimeMs = now,
+                    )
+                retriever
+            } catch (_: Throwable) {
+                retriever.release()
+                null
+            }
+        }
+    }
+
+    private fun evictExpiredFrameEntries(nowUptimeMs: Long) {
+        val iterator = frameCache.entries.iterator()
+        while (iterator.hasNext()) {
+            val entry = iterator.next().value
+            if ((nowUptimeMs - entry.cachedAtUptimeMs) > frameCacheTtlMs) {
+                iterator.remove()
+            }
+        }
+    }
+
+    private fun evictIdleFrameRetrievers(nowUptimeMs: Long) {
+        val iterator = frameRetrieversBySourceUri.entries.iterator()
+        while (iterator.hasNext()) {
+            val entry = iterator.next().value
+            if ((nowUptimeMs - entry.lastUsedUptimeMs) > frameRetrieverIdleTtlMs) {
+                runCatching { entry.retriever.release() }
+                iterator.remove()
+            }
+        }
+    }
+}
 
 class ProfessionalVideoTransitionCompositorManager(
     private val appContext: Context,
@@ -4275,23 +4456,11 @@ private data class ProfessionalVideoTransitionRenderSession(
         sourceUri: String?,
         sourceTimeMs: Long,
     ): Bitmap? {
-        if (sourceUri.isNullOrBlank()) {
-            return null
-        }
-        val retriever = MediaMetadataRetriever()
-        return try {
-            retriever.setDataSource(appContext, Uri.parse(sourceUri))
-            retriever.getFrameAtTime(
-                sourceTimeMs.coerceAtLeast(0L) * 1000L,
-                MediaMetadataRetriever.OPTION_CLOSEST,
-            )
-        } catch (_: SecurityException) {
-            null
-        } catch (_: Throwable) {
-            null
-        } finally {
-            retriever.release()
-        }
+        return TransitionFrameExtractorCache.extract(
+            appContext = appContext,
+            sourceUri = sourceUri,
+            sourceTimeMs = sourceTimeMs,
+        )
     }
 
     private fun drawBitmapCenterCrop(
