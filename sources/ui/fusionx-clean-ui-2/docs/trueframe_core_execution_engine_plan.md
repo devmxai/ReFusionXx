@@ -759,6 +759,12 @@ Phase I progress:
   `test/master_render_graph_adapter_test.dart`,
   `test/trueframe_execution_graph_adapter_test.dart`, and
   `test/trueframe_core_runtime_evaluator_test.dart`.
+- Phase I.F screen/backend integration is complete for transition preview
+  ownership routing: `FusionXCleanUiScreen` now routes professional surface
+  decisions through `routeNodeFamilies(...)` with families derived from active
+  transition visual kinds, instead of calling the transition-only route
+  contract directly. Guarded by
+  `test/universal_motion_engine_guard_test.dart`.
 
 Checkpoint:
 

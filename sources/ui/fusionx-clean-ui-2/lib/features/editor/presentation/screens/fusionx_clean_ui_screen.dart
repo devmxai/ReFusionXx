@@ -23667,6 +23667,41 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return contributionCount > 1;
   }
 
+  List<String> _trueFrameLayerFamiliesForActiveTransition(
+    _ActiveTimelineTransitionPreview activeTransition,
+  ) {
+    final families = <String>{};
+    void addForVisualKind(TimelineVisualKind kind) {
+      switch (kind) {
+        case TimelineVisualKind.video:
+          families.add('videoLayer');
+        case TimelineVisualKind.image:
+          families.add('imageLayer');
+        case TimelineVisualKind.text:
+          families.add('textLayer');
+        case TimelineVisualKind.shape:
+          families.add('shapeLayer');
+        case TimelineVisualKind.composition:
+          families.add('sceneClipInstance');
+        case TimelineVisualKind.camera:
+        case TimelineVisualKind.control:
+          families.add('adjustmentControl');
+        case TimelineVisualKind.audio:
+        case TimelineVisualKind.lipSync:
+          // Transition preview path here is visual-only; keep unsupported kinds
+          // out of the route-family set so backend can block explicitly if needed.
+          break;
+      }
+    }
+
+    addForVisualKind(activeTransition.leftClip.clip.visualKind);
+    addForVisualKind(activeTransition.rightClip.clip.visualKind);
+    if (families.isEmpty) {
+      families.add('videoLayer');
+    }
+    return List<String>.unmodifiable(families);
+  }
+
   Widget _buildNativePreviewSurface({
     required Widget fallback,
     required String? previewIdentity,
@@ -23708,18 +23743,19 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             _manualTransitionTemporalMotionBlurPlanIsActive(
               professionalTransitionPlan,
             );
-        final routeDecision = _trueFrameRenderBackend.routeManualTransition(
+        final routeDecision = _trueFrameRenderBackend.routeNodeFamilies(
           mode: switch (professionalTransitionMode) {
             'liveScrub' => TrueFrameRenderBackendMode.liveScrub,
             'playback' => TrueFrameRenderBackendMode.playback,
             'export' => TrueFrameRenderBackendMode.export,
             _ => TrueFrameRenderBackendMode.preview,
           },
+          resolvedLayerFamilies: activeTransition == null
+              ? const <String>[]
+              : _trueFrameLayerFamiliesForActiveTransition(activeTransition),
           hasRenderablePlan: activeTransition != null &&
               professionalTransitionSurfaceId != null &&
               professionalTransitionPlan != null,
-          isManualTransition: activeTransition?.transition.preset ==
-              TimelineTransitionPreset.manual,
           hasTemporalMotionBlur: hasManualTemporalMotionBlur,
           hasPresentedFirstFrame: activeTransition != null &&
               professionalTransitionSurfaceId != null &&
@@ -23727,6 +23763,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                 surfaceId: professionalTransitionSurfaceId,
                 mode: professionalTransitionMode,
               ),
+          isManualTransition: activeTransition?.transition.preset ==
+              TimelineTransitionPreset.manual,
         );
         final shouldSuppressNativePreviewForProfessionalTransition =
             routeDecision.suppressesStage5Preview;
@@ -23845,18 +23883,21 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                       professionalTransitionPlan,
                     );
                 final professionalRouteDecision =
-                    _trueFrameRenderBackend.routeManualTransition(
+                    _trueFrameRenderBackend.routeNodeFamilies(
                   mode: switch (professionalTransitionMode) {
                     'liveScrub' => TrueFrameRenderBackendMode.liveScrub,
                     'playback' => TrueFrameRenderBackendMode.playback,
                     'export' => TrueFrameRenderBackendMode.export,
                     _ => TrueFrameRenderBackendMode.preview,
                   },
+                  resolvedLayerFamilies: activeTransition == null
+                      ? const <String>[]
+                      : _trueFrameLayerFamiliesForActiveTransition(
+                          activeTransition,
+                        ),
                   hasRenderablePlan: activeTransition != null &&
                       professionalTransitionSurfaceId != null &&
                       professionalTransitionPlan != null,
-                  isManualTransition: activeTransition?.transition.preset ==
-                      TimelineTransitionPreset.manual,
                   hasTemporalMotionBlur: hasManualTemporalMotionBlur,
                   hasPresentedFirstFrame: activeTransition != null &&
                       professionalTransitionSurfaceId != null &&
@@ -23864,6 +23905,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                         surfaceId: professionalTransitionSurfaceId,
                         mode: professionalTransitionMode,
                       ),
+                  isManualTransition: activeTransition?.transition.preset ==
+                      TimelineTransitionPreset.manual,
                 );
                 _scheduleStage5VisualRuntimeSubmission(
                   previewTime: previewTime,
@@ -23897,7 +23940,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                       ),
                     if (professionalTransitionPlan != null &&
                         professionalTransitionSurfaceId != null &&
-                        professionalRouteDecision.usesProfessionalSurface)
+                        (professionalRouteDecision.owner ==
+                                TrueFrameRenderOwner.professionalCompositor ||
+                            professionalRouteDecision.owner ==
+                                TrueFrameRenderOwner.exportAdapter))
                       Positioned.fill(
                         child: ProfessionalVideoTransitionSurfaceOverlay(
                           plan: professionalTransitionPlan,

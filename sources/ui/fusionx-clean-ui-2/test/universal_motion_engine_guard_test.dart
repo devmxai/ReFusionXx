@@ -301,6 +301,19 @@ void main() {
     expect(source.contains('trueframe_node_layer_families:'), isTrue);
   });
 
+  test('screen routes professional preview via trueframe node-family contract',
+      () async {
+    final source = await screenFile.readAsString();
+    expect(
+        source.contains('_trueFrameLayerFamiliesForActiveTransition('), isTrue);
+    expect(
+        source.contains('_trueFrameRenderBackend.routeNodeFamilies('), isTrue);
+    expect(source.contains('_trueFrameRenderBackend.routeManualTransition('),
+        isFalse);
+    expect(
+        source.contains('TrueFrameRenderOwner.professionalCompositor'), isTrue);
+  });
+
   test('manual transition Motion Blur remains one timeline effect', () async {
     final source = await screenFile.readAsString();
     expect(source.contains('_manualMotionBlurLaneIds'), isFalse);
