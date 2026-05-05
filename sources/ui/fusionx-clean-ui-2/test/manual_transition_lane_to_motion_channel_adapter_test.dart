@@ -407,6 +407,60 @@ void main() {
     expect(affectRotation.baseValue?.rawValue, isFalse);
   });
 
+  test('uses persisted rotation motion blur amount as base policy value', () {
+    final transition = TimelineTrackTransitionData(
+      id: 'transition-1',
+      leftClipId: 'clip-a',
+      rightClipId: 'clip-b',
+      preset: TimelineTransitionPreset.manual,
+      durationTime: TimelineTime.fromMilliseconds(1000),
+      parameterValues: const <String, double>{
+        'rotation.motion_blur': 100.0,
+        'rotation.motion_blur.samples': 12.0,
+      },
+      manualEffectIds: const <String>['rotation', 'rotation.motion_blur'],
+      manualAnimationLanes: const <TimelineAnimationLaneData>[
+        TimelineAnimationLaneData(
+          id: 'rotation.motion_blur',
+          label: 'Rotation Motion Blur',
+          targetClipId: 'clip-a',
+          normalizedKeyframeStops: <double>[],
+          keyframeValues: <double>[],
+        ),
+      ],
+    );
+
+    final result = adapter.projectChannels(
+      request: ManualTransitionLaneChannelProjectionRequest(
+        transition: transition,
+        seamTime: TimelineTime.fromMilliseconds(2000),
+        projectId: 'project-1',
+      ),
+    );
+
+    expect(result.issues, isEmpty);
+    final clipAAmount = result.channels.firstWhere(
+      (channel) =>
+          channel.target.targetId == 'clip-a' &&
+          channel.definition.id == MotionPropertyCatalog.motionBlurAmount.id,
+    );
+    final clipBAmount = result.channels.firstWhere(
+      (channel) =>
+          channel.target.targetId == 'clip-b' &&
+          channel.definition.id == MotionPropertyCatalog.motionBlurAmount.id,
+    );
+    expect(clipAAmount.baseValue?.rawValue, 100.0);
+    expect(clipBAmount.baseValue?.rawValue, 100.0);
+    expect(clipAAmount.keyframes, isEmpty);
+    final affectRotation = result.channels.firstWhere(
+      (channel) =>
+          channel.target.targetId == 'clip-a' &&
+          channel.definition.id ==
+              MotionPropertyCatalog.motionBlurAffectRotation.id,
+    );
+    expect(affectRotation.baseValue?.rawValue, isTrue);
+  });
+
   test('maps focus scoped lane target ids back to real clip ids', () {
     final transition = TimelineTrackTransitionData(
       id: 'transition-1',

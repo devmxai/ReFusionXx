@@ -33,11 +33,22 @@ class TransitionFocusValueWriteAdapter {
     lanes[laneIndex] = lane.copyWith(
       keyframeValues: List<double>.unmodifiable(values),
     );
+    final isMotionBlurAmountLane = laneId == 'motion_blur' ||
+        laneId == 'transform.motion_blur' ||
+        laneId == 'position.motion_blur' ||
+        laneId == 'scale.motion_blur' ||
+        laneId == 'rotation.motion_blur';
     return transition.copyWith(
       manualAnimationLanes: List<TimelineAnimationLaneData>.unmodifiable(lanes),
       manualEffectIds: transition.manualEffectIds.contains(laneId)
           ? transition.manualEffectIds
           : <String>[...transition.manualEffectIds, laneId],
+      parameterValues: isMotionBlurAmountLane
+          ? <String, double>{
+              ...transition.parameterValues,
+              laneId: value,
+            }
+          : transition.parameterValues,
     );
   }
 }

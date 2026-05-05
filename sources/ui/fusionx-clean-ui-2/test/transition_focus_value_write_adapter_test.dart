@@ -73,4 +73,39 @@ void main() {
       <double>[0.0, 100.0],
     );
   });
+
+  test('persists motion blur amount as lane setting and keyframe value', () {
+    final transition = TimelineTrackTransitionData(
+      id: 'transition-1',
+      leftClipId: 'clip-a',
+      rightClipId: 'clip-b',
+      preset: TimelineTransitionPreset.manual,
+      durationTime: TimelineTime.fromMilliseconds(1200),
+      manualEffectIds: const <String>['rotation', 'rotation.motion_blur'],
+      manualAnimationLanes: const <TimelineAnimationLaneData>[
+        TimelineAnimationLaneData(
+          id: 'rotation.motion_blur',
+          label: 'Rotation Motion Blur',
+          targetClipId: 'clip-a',
+          normalizedKeyframeStops: <double>[0.0, 1.0],
+          keyframeIds: <String>['mb0', 'mb1'],
+          keyframeValues: <double>[0.0, 0.0],
+        ),
+      ],
+    );
+
+    final updated = adapter.writeLaneKeyframeValue(
+      transition: transition,
+      laneId: 'rotation.motion_blur',
+      keyframeIndex: 1,
+      value: 100.0,
+      fallbackValue: 0.0,
+    );
+
+    final lane = updated.manualAnimationLaneById('rotation.motion_blur');
+    expect(lane, isNotNull);
+    expect(lane!.keyframeValues, <double>[0.0, 100.0]);
+    expect(updated.parameterValue('rotation.motion_blur'), 100.0);
+    expect(updated.manualEffectIds, contains('rotation.motion_blur'));
+  });
 }

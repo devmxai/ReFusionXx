@@ -294,7 +294,13 @@ class ManualTransitionLaneToMotionChannelAdapter {
               definition: MotionPropertyCatalog.motionBlurAmount,
               activeRange: activeRange,
               baseValue: MotionPropertyValue.scalar(
-                _defaultFallbackValueForLane(lane.id).clamp(0.0, 100.0),
+                transition
+                    .parameterValue(
+                      lane.id,
+                      fallback: _defaultFallbackValueForLane(lane.id),
+                    )
+                    .clamp(0.0, 100.0)
+                    .toDouble(),
               ),
               keyframes: _mapKeyframes(
                 keyframes,
