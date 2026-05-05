@@ -610,6 +610,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   final Set<String> _transitionBoundaryFrameRequestsInFlight = <String>{};
   final Set<String> _reportedProfessionalTransitionPlanIssueKeys = <String>{};
   final Set<String> _reportedLiveScrubRuntimeBridgeProofIssueKeys = <String>{};
+  final Set<String> _presentedProfessionalTransitionSurfaceKeys = <String>{};
   final TransitionBoundaryFrameRequestResolver
       _transitionBoundaryFrameRequestResolver =
       const TransitionBoundaryFrameRequestResolver();
@@ -23364,6 +23365,42 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return 'professional-transition-${safe.isEmpty ? 'surface' : safe}';
   }
 
+  String _professionalTransitionPresentationKey({
+    required String surfaceId,
+    required String mode,
+  }) {
+    return '$surfaceId::$mode';
+  }
+
+  bool _professionalTransitionSurfaceHasPresented({
+    required String surfaceId,
+    required String mode,
+  }) {
+    return _presentedProfessionalTransitionSurfaceKeys.contains(
+      _professionalTransitionPresentationKey(
+        surfaceId: surfaceId,
+        mode: mode,
+      ),
+    );
+  }
+
+  void _handleProfessionalTransitionSurfacePresentationChanged({
+    required String surfaceId,
+    required String mode,
+    required bool hasPresented,
+  }) {
+    final key = _professionalTransitionPresentationKey(
+      surfaceId: surfaceId,
+      mode: mode,
+    );
+    final didChange = hasPresented
+        ? _presentedProfessionalTransitionSurfaceKeys.add(key)
+        : _presentedProfessionalTransitionSurfaceKeys.remove(key);
+    if (didChange && mounted) {
+      setState(() {});
+    }
+  }
+
   bool _manualTransitionTemporalMotionBlurPlanIsActive(
     ProfessionalVideoTransitionRenderPlan plan,
   ) {
@@ -23417,15 +23454,25 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                     mode: professionalTransitionMode,
                     surfaceId: professionalTransitionSurfaceId,
                   );
+        final hasManualTemporalMotionBlur = activeTransition != null &&
+            professionalTransitionSurfaceId != null &&
+            professionalTransitionPlan != null &&
+            activeTransition.transition.preset ==
+                TimelineTransitionPreset.manual &&
+            _manualTransitionTemporalMotionBlurPlanIsActive(
+              professionalTransitionPlan,
+            );
         final shouldSuppressNativePreviewForProfessionalTransition =
             activeTransition != null &&
                 professionalTransitionSurfaceId != null &&
                 professionalTransitionPlan != null &&
                 (activeTransition.transition.preset !=
                         TimelineTransitionPreset.manual ||
-                    _manualTransitionTemporalMotionBlurPlanIsActive(
-                      professionalTransitionPlan,
-                    ));
+                    (hasManualTemporalMotionBlur &&
+                        _professionalTransitionSurfaceHasPresented(
+                          surfaceId: professionalTransitionSurfaceId,
+                          mode: professionalTransitionMode,
+                        )));
         return MotionVideoPreviewTransformSurface(
           transform: _motionVideoPreviewTransformForTime(previewTime),
           surfaceTransform: _transitionVideoSurfaceTransformForTime(
@@ -23570,6 +23617,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                           timelineTime: activeTransition!.timelineTime,
                           mode: professionalTransitionMode,
                           surfaceId: professionalTransitionSurfaceId,
+                          onPresentationChanged: (hasPresented) {
+                            _handleProfessionalTransitionSurfacePresentationChanged(
+                              surfaceId: professionalTransitionSurfaceId,
+                              mode: professionalTransitionMode,
+                              hasPresented: hasPresented,
+                            );
+                          },
                         ),
                       ),
                     if (activeTransition != null &&

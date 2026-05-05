@@ -68,6 +68,7 @@ class ProfessionalVideoTransitionSurfaceOverlay extends StatefulWidget {
     required this.timelineTime,
     required this.mode,
     required this.surfaceId,
+    this.onPresentationChanged,
     this.client =
         const MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider(),
   });
@@ -79,6 +80,7 @@ class ProfessionalVideoTransitionSurfaceOverlay extends StatefulWidget {
   final TimelineTime timelineTime;
   final String mode;
   final String surfaceId;
+  final ValueChanged<bool>? onPresentationChanged;
   final ProfessionalVideoTransitionCompositorClient client;
 
   bool get _supportsAndroidSurface => !kIsWeb && Platform.isAndroid;
@@ -107,11 +109,13 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
     covariant ProfessionalVideoTransitionSurfaceOverlay oldWidget,
   ) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.surfaceId != widget.surfaceId) {
+    if (oldWidget.surfaceId != widget.surfaceId ||
+        oldWidget.mode != widget.mode) {
       _platformViewReady = false;
       _registrationRetryCount = 0;
       _lastRenderedKey = null;
       _lastReportedRenderIssueKey = null;
+      widget.onPresentationChanged?.call(false);
       _hasPresentedFrame = false;
       _renderTimer?.cancel();
       return;
@@ -121,6 +125,7 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
 
   @override
   void dispose() {
+    widget.onPresentationChanged?.call(false);
     _renderTimer?.cancel();
     super.dispose();
   }
@@ -176,6 +181,7 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
         setState(() {
           _hasPresentedFrame = true;
         });
+        widget.onPresentationChanged?.call(true);
       }
       return;
     }

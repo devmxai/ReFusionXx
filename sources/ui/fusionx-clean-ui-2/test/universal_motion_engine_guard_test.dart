@@ -375,7 +375,7 @@ void main() {
     );
   });
 
-  test('manual transition with temporal blur suppresses Stage5 preview',
+  test('manual temporal blur suppresses Stage5 only after first surface frame',
       () async {
     final source = await screenFile.readAsString();
     final nativePreviewStart =
@@ -392,6 +392,12 @@ void main() {
       ),
       isTrue,
     );
+    expect(
+      nativePreviewBody.contains(
+        '_professionalTransitionSurfaceHasPresented(',
+      ),
+      isTrue,
+    );
 
     final previewOverlayStart =
         source.indexOf('Widget? _buildPreviewOverlay({');
@@ -405,10 +411,9 @@ void main() {
         source.substring(previewOverlayStart, previewOverlayEnd);
     expect(
       previewOverlayBody.contains(
-        'if (!hasManualProfessionalTransition) {\n'
-        '                  _scheduleStage5VisualRuntimeSubmission(',
+        '_handleProfessionalTransitionSurfacePresentationChanged(',
       ),
-      isFalse,
+      isTrue,
     );
   });
 
