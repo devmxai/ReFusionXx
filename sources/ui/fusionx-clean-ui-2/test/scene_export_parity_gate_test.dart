@@ -341,7 +341,8 @@ void main() {
     expect(result.isProductionExportReady, isFalse);
   });
 
-  test('blocks non-text authored visuals until the renderer ships', () {
+  test('accepts non-text authored visuals when compositor path is supported',
+      () {
     final motion = shapeComposition();
     final composition = builder.build(
       ExportCompositionBuildInput(
@@ -363,14 +364,17 @@ void main() {
     expect(result.authoredVisualSurfaceNodeCount, 1);
     expect(
       result.blockerCodes,
-      contains(
-        SceneExportParityIssueCode.nonTextAuthoredVisualRendererMissing,
+      isNot(
+        contains(
+          SceneExportParityIssueCode.nonTextAuthoredVisualRendererMissing,
+        ),
       ),
     );
-    expect(result.isProductionExportReady, isFalse);
+    expect(result.isProductionExportReady, isTrue);
   });
 
-  test('names authored video export blockers explicitly', () {
+  test('keeps authored video kinds visible without forcing a renderer blocker',
+      () {
     final motion = videoComposition();
     final composition = builder.build(
       ExportCompositionBuildInput(
@@ -389,13 +393,15 @@ void main() {
     expect(result.motionNonTextElementCount, 1);
     expect(result.authoredVisualSurfaceNodeCount, 1);
     expect(result.authoredVisualSurfaceKinds, contains('videoClip'));
-    final issue = result.issues.singleWhere(
-      (issue) =>
-          issue.code ==
+    expect(
+      result.blockerCodes,
+      isNot(
+        contains(
           SceneExportParityIssueCode.nonTextAuthoredVisualRendererMissing,
+        ),
+      ),
     );
-    expect(issue.message, contains('video authored visual motion'));
-    expect(issue.detail, contains('authoredVisualSurfaceKinds=videoClip'));
+    expect(result.isProductionExportReady, isTrue);
     expect(
       result.toBridgeMap()['authoredVisualSurfaceKinds'],
       contains('videoClip'),

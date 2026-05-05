@@ -1992,19 +1992,19 @@ void main() {
       ]),
     );
     expect(graph.requiresVisualCompositor, isTrue);
-    expect(graph.supportedCompositorWindowCount, 0);
-    expect(graph.unsupportedCompositorWindowCount, greaterThan(0));
+    expect(graph.supportedCompositorWindowCount, greaterThan(0));
+    expect(graph.unsupportedCompositorWindowCount, 0);
     expect(
       graph.requirementReasons,
       contains('non_text_authored_visuals_present'),
     );
     expect(
       composition.firstBaselineBlockingCodes,
-      contains(ExportBaselineBlockerCode.compositorRequiredVisualWindow),
+      isNot(contains(ExportBaselineBlockerCode.compositorRequiredVisualWindow)),
     );
     expect(
       composition.firstBaselineBlockingCodes,
-      contains(ExportBaselineBlockerCode.unsupportedNonTextMotion),
+      isNot(contains(ExportBaselineBlockerCode.unsupportedNonTextMotion)),
     );
 
     final authoredSegmentIds = graph.compositorWindowExecutionPlans
@@ -2034,7 +2034,8 @@ void main() {
     );
     final visualGraph =
         bridgeMap['visualCompositorGraph'] as Map<Object?, Object?>;
-    expect(visualGraph['unsupportedCompositorWindowCount'], greaterThan(0));
+    expect(visualGraph['supportedCompositorWindowCount'], greaterThan(0));
+    expect(visualGraph['unsupportedCompositorWindowCount'], 0);
     expect(
       visualGraph['requirementReasons'] as List<Object?>,
       contains('non_text_authored_visuals_present'),

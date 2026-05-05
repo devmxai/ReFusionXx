@@ -280,7 +280,7 @@ class _NativeTimelineScrubSurfaceState
     await channel.invokeMethod<void>(
       'updateConfig',
       <String, Object?>{
-        'currentPositionMs': effectiveCurrentTime.inMilliseconds +
+        'masterRootTimeMs': effectiveCurrentTime.inMilliseconds +
             widget.timelineOffsetTime.inMilliseconds,
         'timelineDurationMs': widget.timelineDurationTime.inMilliseconds,
         'timelineOffsetMs': widget.timelineOffsetTime.inMilliseconds,
@@ -346,7 +346,7 @@ class _NativeTimelineScrubSurfaceState
       child: AndroidView(
         viewType: Stage5NativeTransportController.timelineScrubViewType,
         creationParams: <String, Object?>{
-          'currentPositionMs': effectiveCurrentTime.inMilliseconds +
+          'masterRootTimeMs': effectiveCurrentTime.inMilliseconds +
               widget.timelineOffsetTime.inMilliseconds,
           'timelineDurationMs': widget.timelineDurationTime.inMilliseconds,
           'timelineOffsetMs': widget.timelineOffsetTime.inMilliseconds,

@@ -1408,6 +1408,8 @@ class ExportComposition {
     final reasons = <ExportBaselineBlockerCode>[];
     final unsupportedCompositorWindows =
         visualCompositorGraph.compositorRequiredWindows;
+    final hasUnsupportedCompositorWindows =
+        unsupportedCompositorWindows.isNotEmpty;
     if (hasErrors) {
       reasons.add(ExportBaselineBlockerCode.unresolvedCompositionErrors);
     }
@@ -1415,16 +1417,16 @@ class ExportComposition {
       reasons.add(ExportBaselineBlockerCode.compositorRequiredVisualWindow);
     }
     if (motionComposition != null) {
-      if (motionNonTextElementCount > 0) {
+      if (motionNonTextElementCount > 0 && hasUnsupportedCompositorWindows) {
         reasons.add(ExportBaselineBlockerCode.unsupportedNonTextMotion);
       }
       if (motionCameraCount > 0) {
         reasons.add(ExportBaselineBlockerCode.unsupportedMotionCamera);
       }
-      if (motionEffectCount > 0) {
+      if (motionEffectCount > 0 && hasUnsupportedCompositorWindows) {
         reasons.add(ExportBaselineBlockerCode.unsupportedMotionEffect);
       }
-      if (motionTransitionCount > 0) {
+      if (motionTransitionCount > 0 && hasUnsupportedCompositorWindows) {
         reasons.add(ExportBaselineBlockerCode.unsupportedMotionTransition);
       }
       if (motionTextElementCount > 0 && motionTextProgram == null) {
@@ -3364,7 +3366,7 @@ bool _isSupportedCurrentBackendCompositorPlan({
             ExportCompositorExecutionInputRoleKind.authoredOverlay,
       )
       .toList(growable: false);
-  if (baseMediaInputs.length != 1 || overlayMediaInputs.isEmpty) {
+  if (baseMediaInputs.length != 1) {
     return false;
   }
   if (baseMediaInputs.any(
@@ -3394,11 +3396,17 @@ bool _isSupportedCurrentBackendCompositorPlan({
   }
   return authoredInputs.every(
     (input) =>
-        input.rendererOwnerId == 'app_motion_text_program_renderer' &&
+        _isSupportedCurrentBackendAuthoredRendererOwner(
+            input.rendererOwnerId) &&
         input.nodeId != null &&
         input.sourceTruthKind != ExportTruthSourceKind.canonicalTracks &&
         segmentsById[input.segmentId]?.nodeId != null,
   );
+}
+
+bool _isSupportedCurrentBackendAuthoredRendererOwner(String ownerId) {
+  return ownerId == 'app_motion_text_program_renderer' ||
+      ownerId == 'app_authored_visual_surface_renderer';
 }
 
 bool _isGraphOwnedAuthoredVisualElement(MotionElementKind kind) {

@@ -488,19 +488,18 @@ void main() {
     expect(source.contains('master_render_graph_revision:'), isFalse);
   });
 
-  test(
-      'native timeline scrub compatibility time payload is derived from master time',
+  test('native timeline scrub payload uses master root time contract',
       () async {
     final source = await nativeTimelineScrubSurfaceFile.readAsString();
     expect(
         source.contains(
-            "'currentPositionMs': effectiveCurrentTime.inMilliseconds +"),
+            "'masterRootTimeMs': effectiveCurrentTime.inMilliseconds +"),
         isTrue);
     expect(
       source.contains("widget.timelineOffsetTime.inMilliseconds"),
       isTrue,
     );
-    expect(source.contains("'masterRootTimeMs':"), isFalse);
+    expect(source.contains("'currentPositionMs':"), isFalse);
   });
 
   test('phase7 production-path parity test uses universal evaluation service',

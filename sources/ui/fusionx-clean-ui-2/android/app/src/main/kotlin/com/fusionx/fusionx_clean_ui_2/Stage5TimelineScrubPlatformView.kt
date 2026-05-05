@@ -16,7 +16,7 @@ import kotlin.math.abs
 import kotlin.math.roundToLong
 
 private data class Stage5TimelineScrubSurfaceConfig(
-    val currentPositionMs: Long,
+    val masterRootTimeMs: Long,
     val timelineDurationMs: Long,
     val timelineOffsetMs: Long,
     val secondsWidth: Double,
@@ -71,7 +71,7 @@ private class Stage5TimelineScrubInputView(
         ViewConfiguration.get(context).scaledTouchSlop.toFloat() / displayDensity
     private var config =
         Stage5TimelineScrubSurfaceConfig(
-            currentPositionMs = 0L,
+            masterRootTimeMs = 0L,
             timelineDurationMs = 0L,
             timelineOffsetMs = 0L,
             secondsWidth = 1.0,
@@ -184,22 +184,22 @@ private class Stage5TimelineScrubInputView(
             }
         config = nextConfig
         if (!scrubbing) {
-            gesturePositionMs = nextConfig.currentPositionMs
-            stableGesturePositionMs = nextConfig.currentPositionMs
-            stableGestureFrameIndex = positionToFrameIndex(nextConfig.currentPositionMs)
+            gesturePositionMs = nextConfig.masterRootTimeMs
+            stableGesturePositionMs = nextConfig.masterRootTimeMs
+            stableGestureFrameIndex = positionToFrameIndex(nextConfig.masterRootTimeMs)
         }
         val shouldReconfigure =
             configuredPreviewSources != nextConfig.previewSources ||
                 configuredTargetWidth != nextConfig.targetWidth ||
                 configuredTargetHeight != nextConfig.targetHeight
         if (!shouldReconfigure) {
-            if (!scrubbing && previousConfig.currentPositionMs != nextConfig.currentPositionMs) {
+            if (!scrubbing && previousConfig.masterRootTimeMs != nextConfig.masterRootTimeMs) {
                 val previousDescriptor =
-                    resolveDescriptorForPosition(previousSources, previousConfig.currentPositionMs)
+                    resolveDescriptorForPosition(previousSources, previousConfig.masterRootTimeMs)
                 val nextDescriptor =
-                    resolveDescriptorForPosition(previousSources, nextConfig.currentPositionMs)
+                    resolveDescriptorForPosition(previousSources, nextConfig.masterRootTimeMs)
                 if (previousDescriptor?.scrubStoreKey != nextDescriptor?.scrubStoreKey) {
-                    nativeScrubEngine.primeTimelinePosition(nextConfig.currentPositionMs)
+                    nativeScrubEngine.primeTimelinePosition(nextConfig.masterRootTimeMs)
                 }
             }
             return
@@ -211,7 +211,7 @@ private class Stage5TimelineScrubInputView(
             previewSources = nextConfig.previewSources,
             targetWidth = nextConfig.targetWidth,
             targetHeight = nextConfig.targetHeight,
-            initialTimelinePositionMs = nextConfig.currentPositionMs,
+            initialTimelinePositionMs = nextConfig.masterRootTimeMs,
         )
     }
 
@@ -241,17 +241,17 @@ private class Stage5TimelineScrubInputView(
 
     private fun suppressGestureForMultiTouch() {
         if (scrubbing) {
-            gesturePositionMs = config.currentPositionMs
+            gesturePositionMs = config.masterRootTimeMs
             nativeScrubEngine.commitFinalTimelinePosition(gesturePositionMs)
             channel.invokeMethod(
                 "scrubEnd",
                 mapOf("positionMs" to gesturePositionMs),
             )
         } else {
-            gesturePositionMs = config.currentPositionMs
+            gesturePositionMs = config.masterRootTimeMs
         }
-        stableGesturePositionMs = config.currentPositionMs
-        stableGestureFrameIndex = positionToFrameIndex(config.currentPositionMs)
+        stableGesturePositionMs = config.masterRootTimeMs
+        stableGestureFrameIndex = positionToFrameIndex(config.masterRootTimeMs)
         scrubbing = false
         multiTouchSuppressed = true
         parent?.requestDisallowInterceptTouchEvent(false)
@@ -267,10 +267,10 @@ private class Stage5TimelineScrubInputView(
                 }
                 pointerId = event.getPointerId(0)
                 downX = toLogicalPixels(event.rawX)
-                gestureStartPositionMs = config.currentPositionMs
-                gesturePositionMs = config.currentPositionMs
-                stableGesturePositionMs = config.currentPositionMs
-                stableGestureFrameIndex = positionToFrameIndex(config.currentPositionMs)
+                gestureStartPositionMs = config.masterRootTimeMs
+                gesturePositionMs = config.masterRootTimeMs
+                stableGesturePositionMs = config.masterRootTimeMs
+                stableGestureFrameIndex = positionToFrameIndex(config.masterRootTimeMs)
                 scrubbing = false
                 multiTouchSuppressed = false
                 nativeScrubEngine.primeTimelinePosition(gesturePositionMs)
@@ -335,7 +335,7 @@ private class Stage5TimelineScrubInputView(
                 } else if (tapped) {
                     channel.invokeMethod(
                         "tap",
-                        mapOf("positionMs" to config.currentPositionMs),
+                        mapOf("positionMs" to config.masterRootTimeMs),
                     )
                 }
                 resetGesture()
@@ -360,10 +360,10 @@ private class Stage5TimelineScrubInputView(
     private fun resetGesture() {
         pointerId = MotionEvent.INVALID_POINTER_ID
         downX = 0f
-        gestureStartPositionMs = config.currentPositionMs
+        gestureStartPositionMs = config.masterRootTimeMs
         scrubbing = false
-        gesturePositionMs = config.currentPositionMs
-        stableGesturePositionMs = config.currentPositionMs
+        gesturePositionMs = config.masterRootTimeMs
+        stableGesturePositionMs = config.masterRootTimeMs
         stableGestureFrameIndex = null
         multiTouchSuppressed = false
         parent?.requestDisallowInterceptTouchEvent(false)
@@ -527,7 +527,7 @@ class Stage5TimelineScrubPlatformView(
                 )
             } ?: emptyList()
         return Stage5TimelineScrubSurfaceConfig(
-            currentPositionMs = (arguments["currentPositionMs"] as? Number)?.toLong() ?: 0L,
+            masterRootTimeMs = (arguments["masterRootTimeMs"] as? Number)?.toLong() ?: 0L,
             timelineDurationMs = (arguments["timelineDurationMs"] as? Number)?.toLong() ?: 0L,
             timelineOffsetMs = (arguments["timelineOffsetMs"] as? Number)?.toLong() ?: 0L,
             secondsWidth = (arguments["secondsWidth"] as? Number)?.toDouble() ?: 1.0,

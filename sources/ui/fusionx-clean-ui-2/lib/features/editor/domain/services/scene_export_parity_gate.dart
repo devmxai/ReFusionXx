@@ -115,6 +115,8 @@ class SceneExportParityGate {
         composition.motionTextProgram?.nodes.length ?? 0;
     final authoredVisualSurfaceNodeCount =
         composition.authoredVisualSurfaceProgram?.nodes.length ?? 0;
+    final hasUnsupportedCompositorWindows =
+        composition.visualCompositorGraph.unsupportedCompositorWindowCount > 0;
     final authoredVisualSurfaceKinds = <String>{
       for (final node
           in composition.authoredVisualSurfaceProgram?.nodes ?? const [])
@@ -166,7 +168,7 @@ class SceneExportParityGate {
                 '${_formatAuthoredVisualSurfaceKinds(authoredVisualSurfaceKinds)} motion exists but the authored visual surface export program is missing.',
           ),
         );
-      } else {
+      } else if (hasUnsupportedCompositorWindows) {
         issues.add(
           SceneExportParityIssue(
             code:
@@ -191,7 +193,7 @@ class SceneExportParityGate {
         ),
       );
     }
-    if (composition.motionEffectCount > 0) {
+    if (composition.motionEffectCount > 0 && hasUnsupportedCompositorWindows) {
       issues.add(
         const SceneExportParityIssue(
           code: SceneExportParityIssueCode.unsupportedMotionEffect,
@@ -201,7 +203,8 @@ class SceneExportParityGate {
         ),
       );
     }
-    if (composition.motionTransitionCount > 0) {
+    if (composition.motionTransitionCount > 0 &&
+        hasUnsupportedCompositorWindows) {
       issues.add(
         const SceneExportParityIssue(
           code: SceneExportParityIssueCode.unsupportedMotionTransition,
