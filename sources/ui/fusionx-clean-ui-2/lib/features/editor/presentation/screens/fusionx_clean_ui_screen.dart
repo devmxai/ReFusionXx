@@ -22479,11 +22479,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
               affectScale: surface.motionBlur.affectScale,
               affectRotation: surface.motionBlur.affectRotation,
             ),
-            // Motion Blur must not render inside Stage5's live scrub decoder.
-            // Temporal accumulation belongs to the compositor/render-graph path;
-            // pushing shutter samples into Stage5 causes decoder churn and
-            // lets FX timing fight the master scrub session.
-            motionBlurSamples: const <Stage5VisualRuntimeMotionBlurSample>[],
+            motionBlurSamples: _stage5TemporalMotionBlurSamplesForSurface(
+              previewTime: previewTime,
+              mode: mode,
+              activeTransition: activeTransition,
+              targetId: surface.targetId,
+              currentTransform: surface.transform,
+              policy: surface.motionBlur,
+            ),
             blockers: <String>[...surface.blockers],
           ),
     ];

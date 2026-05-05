@@ -831,7 +831,7 @@ class Stage5NativeScrubEngine(
             transformMatrix3x3 = visualState.transformMatrix3x3,
             opacity = visualState.opacity,
             gaussianBlurSigmaPx = visualState.gaussianBlurSigmaPx(),
-            motionBlurSamples = emptyList(),
+            motionBlurSamples = visualState.validMotionBlurSamples(),
         )
         if (snapshot.forceSeekBeforeRender) {
             surfaceScrubDecoder.forceSeekOnNextRender()

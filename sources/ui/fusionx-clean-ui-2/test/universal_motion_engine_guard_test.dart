@@ -168,14 +168,19 @@ void main() {
         source.contains('_stage5TemporalMotionBlurSamplesForSurface('), isTrue);
     expect(
       source.contains(
-        'motionBlurSamples: const <Stage5VisualRuntimeMotionBlurSample>[]',
+        'motionBlurSamples: _stage5TemporalMotionBlurSamplesForSurface(',
       ),
       isTrue,
     );
+    expect(
+      source.contains(
+        'motionBlurSamples: const <Stage5VisualRuntimeMotionBlurSample>[]',
+      ),
+      isFalse,
+    );
   });
 
-  test('stage5 does not execute Motion Blur inside live scrub renderer',
-      () async {
+  test('stage5 executes temporal Motion Blur in live scrub renderer', () async {
     final nativeEngine = await stage5NativeScrubEngineFile.readAsString();
     final preview = await stage5PreviewPlatformViewFile.readAsString();
     final scrubOverlay = await stage5ScrubOverlayTextureViewFile.readAsString();
@@ -188,7 +193,7 @@ void main() {
     expect(nativeEngine.contains('lockCanvas(null)'), isFalse);
     expect(nativeEngine.contains('getFrameAtTime'), isFalse);
     expect(preview.contains('runtimeMotionBlurSigmaPx'), isFalse);
-    expect(preview.contains('runtimeMotionBlurSamples'), isFalse);
+    expect(preview.contains('runtimeMotionBlurSamples'), isTrue);
     expect(
       preview.contains('maxOf(\n                runtimeGaussianBlurSigmaPx'),
       isFalse,
@@ -199,10 +204,10 @@ void main() {
       ),
       isFalse,
     );
-    expect(preview.contains('Stage5MotionBlurCompositeView'), isFalse);
-    expect(preview.contains('snapshotBitmap'), isFalse);
-    expect(scrubOverlay.contains('getBitmap('), isFalse);
-    expect(scrubOverlay.contains('snapshotBitmap'), isFalse);
+    expect(preview.contains('Stage5MotionBlurCompositeView'), isTrue);
+    expect(preview.contains('snapshotBitmap'), isTrue);
+    expect(scrubOverlay.contains('getBitmap('), isTrue);
+    expect(scrubOverlay.contains('snapshotBitmap'), isTrue);
   });
 
   test('manual transition Motion Blur remains one timeline effect', () async {

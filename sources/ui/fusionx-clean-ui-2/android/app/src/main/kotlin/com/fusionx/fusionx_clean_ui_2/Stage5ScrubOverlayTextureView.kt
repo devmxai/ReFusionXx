@@ -1,6 +1,7 @@
 package com.refusion.app
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.graphics.SurfaceTexture
 import android.view.Surface
@@ -12,11 +13,14 @@ class Stage5ScrubOverlayTextureView(
     context: Context,
 ) : TextureView(context), TextureView.SurfaceTextureListener {
     var onOutputSurfaceAvailable: (() -> Unit)? = null
+    var onFrameAvailable: (() -> Unit)? = null
     private var outputSurface: Surface? = null
     private var contentAspectRatio: Float? = null
     private var runtimeTransformMatrix3x3: List<Double>? = null
     private var runtimeOpacity: Float = 1f
     private var visibilityAlpha: Float = 1f
+    private var motionCompositeSuppressed: Boolean = false
+    private var snapshotBitmapCache: Bitmap? = null
 
     init {
         isOpaque = false
@@ -56,6 +60,12 @@ class Stage5ScrubOverlayTextureView(
     }
 
     @Synchronized
+    fun setMotionCompositeSuppressed(suppressed: Boolean) {
+        motionCompositeSuppressed = suppressed
+        applyCompositeTransform()
+    }
+
+    @Synchronized
     fun acquireOutputSurface(): Surface? {
         val texture = surfaceTexture ?: return null
         val currentSurface = outputSurface
@@ -71,6 +81,29 @@ class Stage5ScrubOverlayTextureView(
     fun releaseOutputSurface() {
         outputSurface?.release()
         outputSurface = null
+    }
+
+    fun snapshotBitmap(): Bitmap? {
+        if (!isAvailable || width <= 0 || height <= 0) {
+            return null
+        }
+        val targetWidth = width
+        val targetHeight = height
+        val cached = snapshotBitmapCache
+        if (cached == null ||
+            cached.isRecycled ||
+            cached.width != targetWidth ||
+            cached.height != targetHeight
+        ) {
+            snapshotBitmapCache =
+                runCatching {
+                    Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
+                }.getOrNull()
+        }
+        val reusable = snapshotBitmapCache ?: return null
+        return runCatching {
+            getBitmap(reusable)
+        }.getOrNull()
     }
 
     override fun onSurfaceTextureAvailable(
@@ -93,11 +126,14 @@ class Stage5ScrubOverlayTextureView(
     override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean {
         synchronized(this) {
             releaseOutputSurface()
+            snapshotBitmapCache = null
         }
         return true
     }
 
-    override fun onSurfaceTextureUpdated(surface: SurfaceTexture) = Unit
+    override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {
+        onFrameAvailable?.invoke()
+    }
 
     private fun applyCompositeTransform() {
         val viewWidth = width.toFloat().coerceAtLeast(1f)
@@ -131,7 +167,12 @@ class Stage5ScrubOverlayTextureView(
         // one texture matrix can produce anisotropic stretch artifacts.
         setTransform(aspectMatrix)
         applyRuntimeViewTransform(viewWidth, viewHeight)
-        alpha = (runtimeOpacity * visibilityAlpha).coerceIn(0f, 1f)
+        alpha =
+            if (motionCompositeSuppressed) {
+                0f
+            } else {
+                (runtimeOpacity * visibilityAlpha).coerceIn(0f, 1f)
+            }
     }
 
     private fun applyRuntimeViewTransform(
