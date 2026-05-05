@@ -111,11 +111,18 @@ class TrueFrameExecutionGraphAdapter {
     final expandedNodeIds = <String>{};
     for (final node in masterGraph.nodes) {
       if (node.family == MasterRenderGraphNodeFamily.sourceSample) {
+        final hintedFamily =
+            _phaseIFamilyFromHint(node.attributes['coreLayerFamilyHint']);
         final sourceKind = node.attributes['sourceKind']?.toString() ?? '';
-        final layerFamily = switch (sourceKind) {
-          'video' => TrueFrameExecutionNodeFamily.videoLayer,
-          'image' => TrueFrameExecutionNodeFamily.imageLayer,
-          _ => null,
+        final layerFamily = switch (hintedFamily) {
+          TrueFrameExecutionNodeFamily.videoLayer ||
+          TrueFrameExecutionNodeFamily.imageLayer =>
+            hintedFamily,
+          _ => switch (sourceKind) {
+              'video' => TrueFrameExecutionNodeFamily.videoLayer,
+              'image' => TrueFrameExecutionNodeFamily.imageLayer,
+              _ => null,
+            },
         };
         if (layerFamily != null) {
           final layerNodeId = 'layer:$sourceKind:${node.targetId}';
@@ -140,8 +147,11 @@ class TrueFrameExecutionGraphAdapter {
         }
       }
       if (node.family == MasterRenderGraphNodeFamily.style) {
+        final hintedFamily =
+            _phaseIFamilyFromHint(node.attributes['coreLayerFamilyHint']);
         final hasTextStyle = node.attributes['hasTextStyle'] == true;
-        if (hasTextStyle) {
+        if (hasTextStyle ||
+            hintedFamily == TrueFrameExecutionNodeFamily.textLayer) {
           final textNodeId = 'layer:text:${node.targetId}';
           if (expandedNodeIds.add(textNodeId)) {
             expanded.add(
@@ -163,7 +173,8 @@ class TrueFrameExecutionGraphAdapter {
           }
         }
         final hasShapeStyle = node.attributes['hasShapeStyle'] == true;
-        if (hasShapeStyle) {
+        if (hasShapeStyle ||
+            hintedFamily == TrueFrameExecutionNodeFamily.shapeLayer) {
           final shapeNodeId = 'layer:shape:${node.targetId}';
           if (expandedNodeIds.add(shapeNodeId)) {
             expanded.add(
@@ -187,6 +198,33 @@ class TrueFrameExecutionGraphAdapter {
       }
       if (node.family == MasterRenderGraphNodeFamily.layerTransform ||
           node.family == MasterRenderGraphNodeFamily.transition) {
+        final hintedFamily =
+            _phaseIFamilyFromHint(node.attributes['coreLayerFamilyHint']);
+        if (hintedFamily == TrueFrameExecutionNodeFamily.groupPrecomp ||
+            hintedFamily == TrueFrameExecutionNodeFamily.sceneClipInstance ||
+            hintedFamily == TrueFrameExecutionNodeFamily.adjustmentControl) {
+          final resolvedHintedFamily = hintedFamily!;
+          final explicitNodeId = _phaseICompatibilityNodeIdForFamily(
+            family: resolvedHintedFamily,
+            targetId: node.targetId,
+          );
+          if (expandedNodeIds.add(explicitNodeId)) {
+            expanded.add(
+              _phaseINodeFrom(
+                baseNode: nodesById[node.id]!,
+                id: explicitNodeId,
+                family: resolvedHintedFamily,
+                inputNodeIds: <String>[node.id],
+                attributes: const <String, Object?>{'phase': 'phase_i_slice'},
+                diagnostics: <String>[
+                  ...node.diagnostics,
+                  'trueframe_phase_i_family_from_core_hint:${resolvedHintedFamily.name}',
+                ],
+              ),
+            );
+          }
+          continue;
+        }
         final target = node.targetId.toLowerCase();
         if (target.contains('group')) {
           final groupNodeId = 'group:${node.targetId}';
@@ -201,6 +239,7 @@ class TrueFrameExecutionGraphAdapter {
                 diagnostics: <String>[
                   ...node.diagnostics,
                   'trueframe_phase_i_group_precomp_node',
+                  'trueframe_phase_i_family_legacy_target_fallback',
                 ],
               ),
             );
@@ -219,6 +258,7 @@ class TrueFrameExecutionGraphAdapter {
                 diagnostics: <String>[
                   ...node.diagnostics,
                   'trueframe_phase_i_scene_clip_instance_node',
+                  'trueframe_phase_i_family_legacy_target_fallback',
                 ],
               ),
             );
@@ -237,6 +277,7 @@ class TrueFrameExecutionGraphAdapter {
                 diagnostics: <String>[
                   ...node.diagnostics,
                   'trueframe_phase_i_adjustment_control_node',
+                  'trueframe_phase_i_family_legacy_target_fallback',
                 ],
               ),
             );
@@ -245,6 +286,32 @@ class TrueFrameExecutionGraphAdapter {
       }
     }
     return List<TrueFrameExecutionNode>.unmodifiable(expanded);
+  }
+
+  String _phaseICompatibilityNodeIdForFamily({
+    required TrueFrameExecutionNodeFamily family,
+    required String targetId,
+  }) {
+    return switch (family) {
+      TrueFrameExecutionNodeFamily.groupPrecomp => 'group:$targetId',
+      TrueFrameExecutionNodeFamily.sceneClipInstance => 'scene-clip:$targetId',
+      TrueFrameExecutionNodeFamily.adjustmentControl => 'adjustment:$targetId',
+      _ => 'phase-i:${family.name}:$targetId',
+    };
+  }
+
+  TrueFrameExecutionNodeFamily? _phaseIFamilyFromHint(Object? rawValue) {
+    final value = rawValue?.toString();
+    return switch (value) {
+      'videoLayer' => TrueFrameExecutionNodeFamily.videoLayer,
+      'imageLayer' => TrueFrameExecutionNodeFamily.imageLayer,
+      'textLayer' => TrueFrameExecutionNodeFamily.textLayer,
+      'shapeLayer' => TrueFrameExecutionNodeFamily.shapeLayer,
+      'groupPrecomp' => TrueFrameExecutionNodeFamily.groupPrecomp,
+      'sceneClipInstance' => TrueFrameExecutionNodeFamily.sceneClipInstance,
+      'adjustmentControl' => TrueFrameExecutionNodeFamily.adjustmentControl,
+      _ => null,
+    };
   }
 
   TrueFrameExecutionNode _phaseINodeFrom({

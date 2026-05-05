@@ -52,6 +52,7 @@ class MasterRenderGraphAdapter {
             attributes: <String, Object?>{
               'sourceUri': source.sourceUri,
               'sourceKind': source.kind.name,
+              'coreLayerFamilyHint': surface.coreLayerFamilyHint.name,
               'scrubStoreKey': source.scrubStoreKey,
               'sourceWidth': source.sourceWidth,
               'sourceHeight': source.sourceHeight,
@@ -82,6 +83,7 @@ class MasterRenderGraphAdapter {
             surface.opacity,
           ),
           attributes: <String, Object?>{
+            'coreLayerFamilyHint': surface.coreLayerFamilyHint.name,
             'positionX': surface.transform.positionX,
             'positionY': surface.transform.positionY,
             'scaleX': surface.transform.scaleX,
@@ -181,6 +183,7 @@ class MasterRenderGraphAdapter {
               ]),
             ),
             attributes: <String, Object?>{
+              'coreLayerFamilyHint': surface.coreLayerFamilyHint.name,
               'text.fontSize': surface.textStyle.fontSize,
               'text.fontWeight': surface.textStyle.fontWeight,
               'text.fontFamily': surface.textStyle.fontFamily,
@@ -224,6 +227,7 @@ class MasterRenderGraphAdapter {
               effect.rendererUnit.name,
             ),
             attributes: <String, Object?>{
+              'coreLayerFamilyHint': surface.coreLayerFamilyHint.name,
               'effectId': effect.id,
               'rendererValue': effect.rendererValue,
               'rendererUnit': effect.rendererUnit.name,
@@ -258,6 +262,7 @@ class MasterRenderGraphAdapter {
               Object.hashAll(sampleOffsetsMs),
             ),
             attributes: <String, Object?>{
+              'coreLayerFamilyHint': surface.coreLayerFamilyHint.name,
               'effectId': 'temporalMotionBlur',
               'enabled': surface.motionBlur.enabled,
               'amount': surface.motionBlur.amount,
@@ -299,6 +304,7 @@ class MasterRenderGraphAdapter {
               program.transitionState.activeTransitionIds.join(','),
             ),
             attributes: <String, Object?>{
+              'coreLayerFamilyHint': surface.coreLayerFamilyHint.name,
               'role': surface.transitionRole.name,
               'activeTransitionIds':
                   program.transitionState.activeTransitionIds,
@@ -322,6 +328,7 @@ class MasterRenderGraphAdapter {
           inputNodeIds: <String>[previousNodeId],
           cacheKey: _cacheKey('composite', surface.targetId, previousNodeId),
           attributes: <String, Object?>{
+            'coreLayerFamilyHint': surface.coreLayerFamilyHint.name,
             'drawOrder': surface.drawOrder,
             'transitionRole': surface.transitionRole.name,
             'sourceKind': surface.sourceKind.name,

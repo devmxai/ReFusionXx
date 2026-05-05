@@ -18,6 +18,17 @@ enum MasterVisualTransitionRole {
   matte,
 }
 
+enum MasterVisualLayerFamilyHint {
+  none,
+  videoLayer,
+  imageLayer,
+  textLayer,
+  shapeLayer,
+  groupPrecomp,
+  sceneClipInstance,
+  adjustmentControl,
+}
+
 @immutable
 class MasterVisualSourceBinding {
   const MasterVisualSourceBinding({
@@ -316,6 +327,7 @@ class MasterVisualSurface {
   MasterVisualSurface({
     required this.targetId,
     required this.sourceKind,
+    this.coreLayerFamilyHint = MasterVisualLayerFamilyHint.none,
     this.source,
     this.drawOrder = 0,
     this.transitionRole = MasterVisualTransitionRole.none,
@@ -335,6 +347,7 @@ class MasterVisualSurface {
 
   final String targetId;
   final MasterVisualSourceKind sourceKind;
+  final MasterVisualLayerFamilyHint coreLayerFamilyHint;
   final MasterVisualSourceBinding? source;
   final int drawOrder;
   final MasterVisualTransitionRole transitionRole;

@@ -264,28 +264,31 @@ void main() {
       time: time,
       surfaces: <MasterVisualSurface>[
         MasterVisualSurface(
-          targetId: 'group-main-1',
+          targetId: 'unit-a',
           sourceKind: MasterVisualSourceKind.video,
+          coreLayerFamilyHint: MasterVisualLayerFamilyHint.groupPrecomp,
           source: const MasterVisualSourceBinding(
-            targetId: 'group-main-1',
+            targetId: 'unit-a',
             kind: MasterVisualSourceKind.video,
             sourceUri: '/media/group.mp4',
           ),
         ),
         MasterVisualSurface(
-          targetId: 'scene-clip-hero-1',
+          targetId: 'unit-b',
           sourceKind: MasterVisualSourceKind.image,
+          coreLayerFamilyHint: MasterVisualLayerFamilyHint.sceneClipInstance,
           source: const MasterVisualSourceBinding(
-            targetId: 'scene-clip-hero-1',
+            targetId: 'unit-b',
             kind: MasterVisualSourceKind.image,
             sourceUri: '/media/scene.png',
           ),
         ),
         MasterVisualSurface(
-          targetId: 'adjustment-control-1',
+          targetId: 'unit-c',
           sourceKind: MasterVisualSourceKind.video,
+          coreLayerFamilyHint: MasterVisualLayerFamilyHint.adjustmentControl,
           source: const MasterVisualSourceBinding(
-            targetId: 'adjustment-control-1',
+            targetId: 'unit-c',
             kind: MasterVisualSourceKind.video,
             sourceUri: '/media/adjust.mp4',
           ),
@@ -321,6 +324,20 @@ void main() {
         (node) => node.family == TrueFrameExecutionNodeFamily.adjustmentControl,
       ),
       isTrue,
+    );
+    expect(
+      projection.graph.nodes.any(
+        (node) => node.diagnostics
+            .contains('trueframe_phase_i_family_from_core_hint:groupPrecomp'),
+      ),
+      isTrue,
+    );
+    expect(
+      projection.graph.nodes.any(
+        (node) => node.diagnostics
+            .contains('trueframe_phase_i_family_legacy_target_fallback'),
+      ),
+      isFalse,
     );
   });
 }

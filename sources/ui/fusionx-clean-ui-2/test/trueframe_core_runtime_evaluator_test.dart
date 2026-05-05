@@ -103,28 +103,31 @@ void main() {
       time: time,
       surfaces: <MasterVisualSurface>[
         MasterVisualSurface(
-          targetId: 'group-main-1',
+          targetId: 'unit-a',
           sourceKind: MasterVisualSourceKind.video,
+          coreLayerFamilyHint: MasterVisualLayerFamilyHint.groupPrecomp,
           source: const MasterVisualSourceBinding(
-            targetId: 'group-main-1',
+            targetId: 'unit-a',
             kind: MasterVisualSourceKind.video,
             sourceUri: '/media/group.mp4',
           ),
         ),
         MasterVisualSurface(
-          targetId: 'scene-clip-hero-1',
+          targetId: 'unit-b',
           sourceKind: MasterVisualSourceKind.image,
+          coreLayerFamilyHint: MasterVisualLayerFamilyHint.sceneClipInstance,
           source: const MasterVisualSourceBinding(
-            targetId: 'scene-clip-hero-1',
+            targetId: 'unit-b',
             kind: MasterVisualSourceKind.image,
             sourceUri: '/media/scene.png',
           ),
         ),
         MasterVisualSurface(
-          targetId: 'adjustment-control-1',
+          targetId: 'unit-c',
           sourceKind: MasterVisualSourceKind.video,
+          coreLayerFamilyHint: MasterVisualLayerFamilyHint.adjustmentControl,
           source: const MasterVisualSourceBinding(
-            targetId: 'adjustment-control-1',
+            targetId: 'unit-c',
             kind: MasterVisualSourceKind.video,
             sourceUri: '/media/adjust.mp4',
           ),
@@ -244,11 +247,9 @@ void main() {
       qualityMode: TrueFrameSamplingQualityMode.preview,
     );
 
-    final groupState = frameState.nodeStatesByNodeId['composite:group-main-1'];
-    final sceneState =
-        frameState.nodeStatesByNodeId['composite:scene-clip-hero-1'];
-    final adjustmentState =
-        frameState.nodeStatesByNodeId['composite:adjustment-control-1'];
+    final groupState = frameState.nodeStatesByNodeId['composite:unit-a'];
+    final sceneState = frameState.nodeStatesByNodeId['composite:unit-b'];
+    final adjustmentState = frameState.nodeStatesByNodeId['composite:unit-c'];
 
     expect(groupState, isNotNull);
     expect(sceneState, isNotNull);

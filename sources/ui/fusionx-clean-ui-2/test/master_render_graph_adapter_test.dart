@@ -28,6 +28,7 @@ void main() {
         MasterVisualSurface(
           targetId: 'layer-b',
           sourceKind: MasterVisualSourceKind.image,
+          coreLayerFamilyHint: MasterVisualLayerFamilyHint.shapeLayer,
           drawOrder: 0,
           source: const MasterVisualSourceBinding(
             targetId: 'layer-b',
@@ -59,6 +60,7 @@ void main() {
         MasterVisualSurface(
           targetId: 'layer-a',
           sourceKind: MasterVisualSourceKind.video,
+          coreLayerFamilyHint: MasterVisualLayerFamilyHint.videoLayer,
           drawOrder: 1,
           source: const MasterVisualSourceBinding(
             targetId: 'layer-a',
@@ -173,7 +175,11 @@ void main() {
     expect(motionBlurNode.attributes['requiresTemporalSampling'], isTrue);
     expect(motionBlurNode.attributes['fallbackAllowed'], isFalse);
     expect(motionBlurNode.attributes['isSyntheticBlur'], isFalse);
+    expect(motionBlurNode.attributes['coreLayerFamilyHint'], 'videoLayer');
     expect(motionBlurNode.attributes['sampleOffsetsMs'], hasLength(5));
+    final layerBCompositeNode =
+        first.nodes.firstWhere((node) => node.id == 'composite:layer-b');
+    expect(layerBCompositeNode.attributes['coreLayerFamilyHint'], 'shapeLayer');
     expect(first.canRenderTruthfully, isTrue);
   });
 
