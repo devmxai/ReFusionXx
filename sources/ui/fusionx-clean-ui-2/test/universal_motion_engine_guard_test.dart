@@ -225,6 +225,23 @@ void main() {
         source.contains('_manualTransitionProgressForTimelineTimeMs('), isTrue);
   });
 
+  test('manual temporal motion blur plans read trueframe core sampling plan',
+      () async {
+    final source = await screenFile.readAsString();
+    expect(
+      source.contains('_coreMotionBlurSamplingPlanForManualTransition('),
+      isTrue,
+    );
+    expect(
+      source.contains('_trueFrameCoreRuntimeEvaluator.buildSamplingPlan('),
+      isTrue,
+    );
+    expect(
+      source.contains('trueframe_core_motion_blur_plan_mode:'),
+      isTrue,
+    );
+  });
+
   test('manual transition Motion Blur remains one timeline effect', () async {
     final source = await screenFile.readAsString();
     expect(source.contains('_manualMotionBlurLaneIds'), isFalse);

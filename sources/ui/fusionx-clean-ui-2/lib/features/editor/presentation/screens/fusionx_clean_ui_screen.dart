@@ -23,6 +23,7 @@ import '../../domain/models/master_time_models.dart';
 import '../../domain/models/master_visual_program_models.dart';
 import '../../domain/models/professional_canvas_timeline_authoring_models.dart';
 import '../../domain/models/temporal_motion_blur_sample_plan.dart';
+import '../../domain/models/trueframe_runtime_evaluator_models.dart';
 import '../../domain/models/professional_motion_animation_models.dart';
 import '../../domain/models/professional_motion_compilation_models.dart';
 import '../../domain/models/professional_motion_evaluation_models.dart';
@@ -54,6 +55,8 @@ import '../../domain/services/scene_scope_session.dart';
 import '../../domain/services/scoped_text_motion_script_import_service.dart';
 import '../../domain/services/timeline_clock_coordinator.dart';
 import '../../domain/services/trueframe_render_backend.dart';
+import '../../domain/services/trueframe_execution_graph_adapter.dart';
+import '../../domain/services/trueframe_core_runtime_evaluator.dart';
 import '../models/ai_transition_models.dart';
 import '../models/editor_asset_item.dart';
 import '../models/editor_media_tab.dart';
@@ -601,6 +604,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   late final ManualTransitionMasterFrameEvaluationAdapter
       _manualTransitionMasterFrameEvaluationAdapter;
   late final TrueFrameRenderBackend _trueFrameRenderBackend;
+  late final TrueFrameExecutionGraphAdapter _trueFrameExecutionGraphAdapter;
+  late final TrueFrameCoreRuntimeEvaluator _trueFrameCoreRuntimeEvaluator;
   static const TransitionFocusValueWriteAdapter
       _transitionFocusValueWriteAdapter = TransitionFocusValueWriteAdapter();
   final Map<String, EditorAssetItem> _importedAssetsById =
@@ -760,6 +765,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       valueRegistry: masterFrameEvaluationReadAdapter.valueRegistry,
     );
     _trueFrameRenderBackend = const TrueFrameManualTransitionRenderBackend();
+    _trueFrameExecutionGraphAdapter = const TrueFrameExecutionGraphAdapter();
+    _trueFrameCoreRuntimeEvaluator = const TrueFrameCoreRuntimeEvaluator();
     _assetLibrary =
         ValueNotifier<List<EditorAssetItem>>(const <EditorAssetItem>[]);
     _assetLibraryLoading = ValueNotifier<bool>(false);
@@ -22620,6 +22627,140 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     ];
   }
 
+  TrueFrameSamplingQualityMode _trueFrameSamplingQualityModeForTransitionMode(
+    String mode,
+  ) {
+    switch (mode) {
+      case 'liveScrub':
+        return TrueFrameSamplingQualityMode.liveScrub;
+      case 'playback':
+        return TrueFrameSamplingQualityMode.playback;
+      case 'export':
+        return TrueFrameSamplingQualityMode.export;
+      case 'preview':
+      default:
+        return TrueFrameSamplingQualityMode.preview;
+    }
+  }
+
+  CoreMotionBlurSamplingPlan? _coreMotionBlurSamplingPlanForManualTransition({
+    required TimelineTime previewTime,
+    required String mode,
+    required _ActiveTimelineTransitionPreview activeTransition,
+    required LiveScrubVisualProgram baseProgram,
+    required String targetId,
+  }) {
+    final evaluation = _masterFrameEvaluationForMode(
+      mode,
+      previewTimeOverride: previewTime,
+    );
+    final seamTime =
+        _manualTransitionRootSeamTimeForActiveTransition(activeTransition);
+    final rootWindow =
+        _manualTransitionRootWindowForActiveTransition(activeTransition);
+    final evaluationResult =
+        _manualTransitionMasterFrameEvaluationAdapter.evaluate(
+      request: ManualTransitionMasterFrameEvaluationRequest(
+        time: evaluation.time,
+        transition: activeTransition.transition,
+        seamTime: seamTime,
+        windowStartTime: rootWindow.start,
+        windowEndTime: rootWindow.endExclusive,
+        projectId: _effectiveMotionProject.id,
+      ),
+    );
+    final transitionRoles = <String, LiveScrubTransitionRole>{
+      activeTransition.leftClip.clip.id: LiveScrubTransitionRole.outgoing,
+      activeTransition.rightClip.clip.id: LiveScrubTransitionRole.incoming,
+    };
+    final allSourcesByTargetId =
+        _liveScrubSourcesByTargetIdForActiveTransition(activeTransition);
+    final sourceWindows =
+        _liveScrubSourceWindowsForActiveTransition(activeTransition);
+    final activeSourceIds = _activeManualTransitionSourceIdsForTime(
+      rootTime: evaluation.time.rootTime,
+      sourceWindowsByTargetId: sourceWindows,
+      activeTransition: activeTransition,
+    );
+    final sourcesByTargetId = <String, LiveScrubSurfaceSource>{
+      for (final entry in allSourcesByTargetId.entries)
+        if (activeSourceIds.contains(entry.key)) entry.key: entry.value,
+    };
+    final visibleLayerIds = activeSourceIds.toList(growable: false);
+    final activeEvaluatedChannels = evaluationResult.evaluatedChannels
+        .where((channel) => activeSourceIds.contains(channel.targetId))
+        .toList(growable: false);
+    final activeChannels = evaluationResult.channels
+        .where((channel) => activeSourceIds.contains(channel.target.targetId))
+        .toList(growable: false);
+    final masterProgram =
+        _masterLiveScrubProgramAdapter.masterVisualProgramAdapter.build(
+      frame: evaluation.copyWith(
+        visibleLayerIds: visibleLayerIds,
+        activeTransitionIds: <String>[activeTransition.transition.id],
+        evaluatedChannels: activeEvaluatedChannels,
+        diagnostics: <String>[
+          ...evaluation.diagnostics,
+          ...evaluationResult.diagnostics,
+          ...baseProgram.diagnostics,
+          'trueframe_core_motion_blur_plan_mode:$mode',
+        ],
+      ),
+      sourcesByTargetId: <String, MasterVisualSourceBinding>{
+        for (final entry in sourcesByTargetId.entries)
+          entry.key: MasterVisualSourceBinding(
+            targetId: entry.value.targetId,
+            kind: switch (entry.value.kind) {
+              LiveScrubSourceKind.video => MasterVisualSourceKind.video,
+              LiveScrubSourceKind.image => MasterVisualSourceKind.image,
+              LiveScrubSourceKind.unknown => MasterVisualSourceKind.unknown,
+            },
+            sourceUri: entry.value.sourceUri,
+            scrubStoreKey: entry.value.scrubStoreKey,
+            sourceWidth: entry.value.sourceWidth,
+            sourceHeight: entry.value.sourceHeight,
+          ),
+      },
+      transitionRolesByTargetId: <String, MasterVisualTransitionRole>{
+        for (final entry in transitionRoles.entries)
+          entry.key: switch (entry.value) {
+            LiveScrubTransitionRole.none => MasterVisualTransitionRole.none,
+            LiveScrubTransitionRole.outgoing =>
+              MasterVisualTransitionRole.outgoing,
+            LiveScrubTransitionRole.incoming =>
+              MasterVisualTransitionRole.incoming,
+            LiveScrubTransitionRole.overlay =>
+              MasterVisualTransitionRole.overlay,
+            LiveScrubTransitionRole.matte => MasterVisualTransitionRole.matte,
+          },
+      },
+      channels: activeChannels,
+    );
+    final masterGraph =
+        _masterLiveScrubProgramAdapter.masterRenderGraphAdapter.build(
+      program: masterProgram,
+    );
+    final trueFrameGraph = _trueFrameExecutionGraphAdapter
+        .project(
+          TrueFrameExecutionGraphProjectionRequest(
+            masterGraph: masterGraph,
+            transitionId: activeTransition.transition.id,
+            outgoingTargetId: activeTransition.leftClip.clip.id,
+            incomingTargetId: activeTransition.rightClip.clip.id,
+          ),
+        )
+        .graph;
+    final samplingPlan = _trueFrameCoreRuntimeEvaluator.buildSamplingPlan(
+      graph: trueFrameGraph,
+      nodeId: targetId,
+      qualityMode: _trueFrameSamplingQualityModeForTransitionMode(mode),
+    );
+    if (!samplingPlan.enabled || samplingPlan.sampleCount <= 1) {
+      return null;
+    }
+    return samplingPlan;
+  }
+
   List<TemporalMotionBlurSamplePlan>
       _temporalMotionBlurSamplePlansForManualTransition({
     required TimelineTime previewTime,
@@ -22646,13 +22787,25 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return const <TemporalMotionBlurSamplePlan>[];
     }
     final policy = blurSurface.motionBlur;
-    final sampleOffsets = _stage5MotionBlurSampleOffsetsMs(policy);
+    final coreSamplingPlan = _coreMotionBlurSamplingPlanForManualTransition(
+      previewTime: previewTime,
+      mode: mode,
+      activeTransition: activeTransition,
+      baseProgram: baseProgram,
+      targetId: blurSurface.targetId,
+    );
+    final sampleOffsets = coreSamplingPlan == null
+        ? _stage5MotionBlurSampleOffsetsMs(policy)
+        : coreSamplingPlan.sampleTimesMs
+            .map((sampleTimeMs) =>
+                (sampleTimeMs - previewTime.inMilliseconds).toDouble())
+            .toList(growable: false);
     if (sampleOffsets.length <= 1) {
       return const <TemporalMotionBlurSamplePlan>[];
     }
-    final sampleCount = sampleOffsets.length;
-    final normalizedWeight = 1.0 / sampleCount;
-    final sampleWeights = List<double>.filled(sampleCount, normalizedWeight);
+    final sampleWeights = coreSamplingPlan == null
+        ? List<double>.filled(sampleOffsets.length, 1.0 / sampleOffsets.length)
+        : List<double>.from(coreSamplingPlan.sampleWeights, growable: false);
     final sourceWindows =
         _liveScrubSourceWindowsForActiveTransition(activeTransition);
     final seamTime = _manualTransitionRootSeamTimeForActiveTransition(
@@ -22672,10 +22825,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     for (var sampleIndex = 0;
         sampleIndex < sampleOffsets.length;
         sampleIndex++) {
-      final offset = sampleOffsets[sampleIndex];
-      final sampleTime = TimelineTime.fromMilliseconds(
-        (previewTime.inMilliseconds + offset).round(),
-      ).clamp(TimelineTime.zero, _timelineDurationTime);
+      final sampleTimeMs = coreSamplingPlan == null
+          ? (previewTime.inMilliseconds + sampleOffsets[sampleIndex]).round()
+          : coreSamplingPlan.sampleTimesMs[sampleIndex];
+      final sampleTime = TimelineTime.fromMilliseconds(sampleTimeMs).clamp(
+        TimelineTime.zero,
+        _timelineDurationTime,
+      );
       final sampleEvaluation = _masterFrameEvaluationForMode(
         mode,
         previewTimeOverride: sampleTime,
@@ -22706,27 +22862,38 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           break;
         }
       }
-      final legacyMatrix = _stage5VisualTransformMatrix3x3FromComponents(
-        positionX: policy.affectPosition
-            ? legacySurface.transform.positionX
-            : blurSurface.transform.positionX,
-        positionY: policy.affectPosition
-            ? legacySurface.transform.positionY
-            : blurSurface.transform.positionY,
-        scaleX: policy.affectScale
-            ? legacySurface.transform.scaleX
-            : blurSurface.transform.scaleX,
-        scaleY: policy.affectScale
-            ? legacySurface.transform.scaleY
-            : blurSurface.transform.scaleY,
-        rotationRadians: policy.affectRotation
-            ? legacySurface.transform.rotationRadians
-            : blurSurface.transform.rotationRadians,
-      );
+      final legacyMatrix = coreSamplingPlan == null
+          ? _stage5VisualTransformMatrix3x3FromComponents(
+              positionX: policy.affectPosition
+                  ? legacySurface.transform.positionX
+                  : blurSurface.transform.positionX,
+              positionY: policy.affectPosition
+                  ? legacySurface.transform.positionY
+                  : blurSurface.transform.positionY,
+              scaleX: policy.affectScale
+                  ? legacySurface.transform.scaleX
+                  : blurSurface.transform.scaleX,
+              scaleY: policy.affectScale
+                  ? legacySurface.transform.scaleY
+                  : blurSurface.transform.scaleY,
+              rotationRadians: policy.affectRotation
+                  ? legacySurface.transform.rotationRadians
+                  : blurSurface.transform.rotationRadians,
+            )
+          : List<double>.from(
+              coreSamplingPlan.sampleTransforms[sampleIndex],
+              growable: false,
+            );
       sampleTimesMs.add(sampleTime.inMilliseconds);
-      sourceIdsBySample.add(legacySurface.targetId);
+      sourceIdsBySample.add(coreSamplingPlan == null
+          ? legacySurface.targetId
+          : coreSamplingPlan.sampleNodeStates[sampleIndex].sourceId);
       sampleTransforms.add(legacyMatrix);
-      sampleOpacities.add(legacySurface.opacity.clamp(0.0, 1.0).toDouble());
+      sampleOpacities.add(coreSamplingPlan == null
+          ? legacySurface.opacity.clamp(0.0, 1.0).toDouble()
+          : coreSamplingPlan.sampleNodeStates[sampleIndex].opacity
+              .clamp(0.0, 1.0)
+              .toDouble());
       for (final sampleSurface in sampleSurfaces) {
         final sourceWindow = sourceWindows[sampleSurface.targetId];
         if (sourceWindow == null) {
