@@ -675,6 +675,166 @@ class MotionPropertyCatalog {
     defaultValue: const MotionPropertyValue.scalar(0),
   );
 
+  static final MotionPropertyDefinition motionBlurEnabled =
+      MotionPropertyDefinition(
+    id: 'effect.motionBlur.enabled',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.effect,
+      name: 'motionBlur',
+      component: 'enabled',
+    ),
+    valueKind: MotionPropertyValueKind.boolean,
+    supportedTargets: const <MotionTargetKind>[
+      MotionTargetKind.layer,
+      MotionTargetKind.element,
+    ],
+    defaultValue: const MotionPropertyValue.boolean(false),
+  );
+
+  static final MotionPropertyDefinition motionBlurAmount =
+      MotionPropertyDefinition(
+    id: 'effect.motionBlur.amount',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.effect,
+      name: 'motionBlur',
+      component: 'amount',
+    ),
+    valueKind: MotionPropertyValueKind.scalar,
+    supportedTargets: const <MotionTargetKind>[
+      MotionTargetKind.layer,
+      MotionTargetKind.element,
+    ],
+    defaultValue: const MotionPropertyValue.scalar(0),
+  );
+
+  static final MotionPropertyDefinition motionBlurShutterAngle =
+      MotionPropertyDefinition(
+    id: 'effect.motionBlur.shutterAngle',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.effect,
+      name: 'motionBlur',
+      component: 'shutterAngle',
+    ),
+    valueKind: MotionPropertyValueKind.scalar,
+    supportedTargets: const <MotionTargetKind>[
+      MotionTargetKind.layer,
+      MotionTargetKind.element,
+    ],
+    defaultValue: const MotionPropertyValue.scalar(180),
+  );
+
+  static final MotionPropertyDefinition motionBlurShutterPhase =
+      MotionPropertyDefinition(
+    id: 'effect.motionBlur.shutterPhase',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.effect,
+      name: 'motionBlur',
+      component: 'shutterPhase',
+    ),
+    valueKind: MotionPropertyValueKind.scalar,
+    supportedTargets: const <MotionTargetKind>[
+      MotionTargetKind.layer,
+      MotionTargetKind.element,
+    ],
+    defaultValue: const MotionPropertyValue.scalar(-90),
+  );
+
+  static final MotionPropertyDefinition motionBlurSamples =
+      MotionPropertyDefinition(
+    id: 'effect.motionBlur.samples',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.effect,
+      name: 'motionBlur',
+      component: 'samples',
+    ),
+    valueKind: MotionPropertyValueKind.integer,
+    supportedTargets: const <MotionTargetKind>[
+      MotionTargetKind.layer,
+      MotionTargetKind.element,
+    ],
+    defaultValue: const MotionPropertyValue.integer(8),
+  );
+
+  static final MotionPropertyDefinition motionBlurAdaptiveSampleLimit =
+      MotionPropertyDefinition(
+    id: 'effect.motionBlur.adaptiveSampleLimit',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.effect,
+      name: 'motionBlur',
+      component: 'adaptiveSampleLimit',
+    ),
+    valueKind: MotionPropertyValueKind.integer,
+    supportedTargets: const <MotionTargetKind>[
+      MotionTargetKind.layer,
+      MotionTargetKind.element,
+    ],
+    defaultValue: const MotionPropertyValue.integer(16),
+  );
+
+  static final MotionPropertyDefinition motionBlurMaxTrailPx =
+      MotionPropertyDefinition(
+    id: 'effect.motionBlur.maxTrailPx',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.effect,
+      name: 'motionBlur',
+      component: 'maxTrailPx',
+    ),
+    valueKind: MotionPropertyValueKind.scalar,
+    supportedTargets: const <MotionTargetKind>[
+      MotionTargetKind.layer,
+      MotionTargetKind.element,
+    ],
+    defaultValue: const MotionPropertyValue.scalar(240),
+  );
+
+  static final MotionPropertyDefinition motionBlurAffectPosition =
+      MotionPropertyDefinition(
+    id: 'effect.motionBlur.affectPosition',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.effect,
+      name: 'motionBlur',
+      component: 'affectPosition',
+    ),
+    valueKind: MotionPropertyValueKind.boolean,
+    supportedTargets: const <MotionTargetKind>[
+      MotionTargetKind.layer,
+      MotionTargetKind.element,
+    ],
+    defaultValue: const MotionPropertyValue.boolean(true),
+  );
+
+  static final MotionPropertyDefinition motionBlurAffectScale =
+      MotionPropertyDefinition(
+    id: 'effect.motionBlur.affectScale',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.effect,
+      name: 'motionBlur',
+      component: 'affectScale',
+    ),
+    valueKind: MotionPropertyValueKind.boolean,
+    supportedTargets: const <MotionTargetKind>[
+      MotionTargetKind.layer,
+      MotionTargetKind.element,
+    ],
+    defaultValue: const MotionPropertyValue.boolean(true),
+  );
+
+  static final MotionPropertyDefinition motionBlurAffectRotation =
+      MotionPropertyDefinition(
+    id: 'effect.motionBlur.affectRotation',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.effect,
+      name: 'motionBlur',
+      component: 'affectRotation',
+    ),
+    valueKind: MotionPropertyValueKind.boolean,
+    supportedTargets: const <MotionTargetKind>[
+      MotionTargetKind.layer,
+      MotionTargetKind.element,
+    ],
+    defaultValue: const MotionPropertyValue.boolean(true),
+  );
+
   static final MotionPropertyDefinition shadowOpacity =
       MotionPropertyDefinition(
     id: 'effect.shadow.opacity',
@@ -1018,6 +1178,16 @@ class MotionPropertyCatalog {
     blurMix,
     blurEdgeMode,
     blurCrop,
+    motionBlurEnabled,
+    motionBlurAmount,
+    motionBlurShutterAngle,
+    motionBlurShutterPhase,
+    motionBlurSamples,
+    motionBlurAdaptiveSampleLimit,
+    motionBlurMaxTrailPx,
+    motionBlurAffectPosition,
+    motionBlurAffectScale,
+    motionBlurAffectRotation,
     shadowOpacity,
     shadowBlur,
     shadowOffsetX,

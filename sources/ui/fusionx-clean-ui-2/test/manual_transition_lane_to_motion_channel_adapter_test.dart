@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_models.dart';
 import 'package:refusion_app/features/editor/presentation/models/timeline_mock_models.dart';
 import 'package:refusion_app/features/editor/presentation/models/timeline_time.dart';
 import 'package:refusion_app/features/editor/presentation/services/manual_transition_lane_to_motion_channel_adapter.dart';
@@ -187,6 +188,48 @@ void main() {
     expect(incomingOpacity.definition.id, 'visual.opacity');
     expect(incomingOpacity.keyframes.first.value.rawValue, 1.0);
     expect(incomingOpacity.keyframes.last.value.rawValue, 0.0);
+  });
+
+  test('maps motion blur lane to active-source temporal blur amount channels',
+      () {
+    final transition = TimelineTrackTransitionData(
+      id: 'transition-1',
+      leftClipId: 'clip-a',
+      rightClipId: 'clip-b',
+      preset: TimelineTransitionPreset.manual,
+      durationTime: TimelineTime.fromMilliseconds(1000),
+      manualEffectIds: const <String>['motion_blur'],
+      manualAnimationLanes: const <TimelineAnimationLaneData>[
+        TimelineAnimationLaneData(
+          id: 'motion_blur',
+          label: 'Motion Blur',
+          targetClipId: 'clip-a',
+          normalizedKeyframeStops: <double>[0.0, 1.0],
+          keyframeValues: <double>[0.0, 100.0],
+        ),
+      ],
+    );
+
+    final result = adapter.projectChannels(
+      request: ManualTransitionLaneChannelProjectionRequest(
+        transition: transition,
+        seamTime: TimelineTime.fromMilliseconds(2000),
+        projectId: 'project-1',
+      ),
+    );
+
+    expect(result.issues, isEmpty);
+    expect(result.channels.length, 2);
+    expect(
+      result.channels.map((channel) => channel.target.targetId).toSet(),
+      <String>{'clip-a', 'clip-b'},
+    );
+    expect(
+      result.channels.map((channel) => channel.definition.id).toSet(),
+      <String>{MotionPropertyCatalog.motionBlurAmount.id},
+    );
+    expect(result.channels.first.keyframes.first.value.rawValue, 0.0);
+    expect(result.channels.first.keyframes.last.value.rawValue, 100.0);
   });
 
   test('maps focus scoped lane target ids back to real clip ids', () {

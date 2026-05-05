@@ -3,10 +3,8 @@ import '../models/master_live_scrub_visual_program_models.dart';
 import '../models/master_render_graph_models.dart';
 import '../models/master_renderer_adapter_models.dart';
 import '../models/master_renderer_contract_models.dart';
-import '../models/master_time_models.dart';
 import '../models/master_visual_program_models.dart';
 import '../models/professional_motion_animation_models.dart';
-import '../models/professional_motion_models.dart';
 import 'master_render_graph_adapter.dart';
 import 'master_renderer_frame_adapters.dart';
 import 'master_visual_program_adapter.dart';
@@ -124,6 +122,7 @@ class MasterLiveScrubProgramAdapter {
               rotationRadians: surface.transform.rotationRadians,
             ),
             opacity: surface.opacity,
+            motionBlur: surface.motionBlur,
             effects: <LiveScrubEffectBinding>[
               for (final effect in surface.effects)
                 LiveScrubEffectBinding(

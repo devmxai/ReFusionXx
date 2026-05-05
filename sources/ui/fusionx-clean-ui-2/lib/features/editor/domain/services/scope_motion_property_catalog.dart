@@ -12,6 +12,16 @@ class ScopeMotionPropertyCatalog {
     MotionPropertyCatalog.rotationDegrees,
     MotionPropertyCatalog.opacity,
     MotionPropertyCatalog.blurAmount,
+    MotionPropertyCatalog.motionBlurEnabled,
+    MotionPropertyCatalog.motionBlurAmount,
+    MotionPropertyCatalog.motionBlurShutterAngle,
+    MotionPropertyCatalog.motionBlurShutterPhase,
+    MotionPropertyCatalog.motionBlurSamples,
+    MotionPropertyCatalog.motionBlurAdaptiveSampleLimit,
+    MotionPropertyCatalog.motionBlurMaxTrailPx,
+    MotionPropertyCatalog.motionBlurAffectPosition,
+    MotionPropertyCatalog.motionBlurAffectScale,
+    MotionPropertyCatalog.motionBlurAffectRotation,
   ]);
 
   static final List<MotionPropertyDefinition> _textElementProperties =
@@ -25,6 +35,12 @@ class ScopeMotionPropertyCatalog {
   ]);
 
   static final List<MotionPropertyDefinition> _imageElementProperties =
+      List<MotionPropertyDefinition>.unmodifiable(<MotionPropertyDefinition>[
+    ...sharedVisualElementProperties,
+    MotionPropertyCatalog.cropRect,
+  ]);
+
+  static final List<MotionPropertyDefinition> _videoElementProperties =
       List<MotionPropertyDefinition>.unmodifiable(<MotionPropertyDefinition>[
     ...sharedVisualElementProperties,
     MotionPropertyCatalog.cropRect,
@@ -52,6 +68,7 @@ class ScopeMotionPropertyCatalog {
     <MotionElementKind, List<MotionPropertyDefinition>>{
       MotionElementKind.text: _textElementProperties,
       MotionElementKind.image: _imageElementProperties,
+      MotionElementKind.videoClip: _videoElementProperties,
       MotionElementKind.shape: _shapeElementProperties,
     },
   );

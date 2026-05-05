@@ -73,7 +73,6 @@ import '../services/timeline_media_program_time_mapper.dart';
 import '../services/transition_focus_value_write_adapter.dart';
 import '../services/transition_boundary_frame_request.dart';
 import '../services/transition_unified_scope_bridge_entry_adapter.dart';
-import '../services/transition_unified_scope_entry_gate.dart';
 import '../services/transition_unified_scope_keyframe_adapter.dart';
 import '../services/transition_unified_scope_timeline_session_adapter.dart';
 import '../services/universal_master_frame_evaluation_service.dart';
@@ -5020,14 +5019,22 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         propertyId == MotionPropertyCatalog.blurVertical.id ||
         propertyId == MotionPropertyCatalog.blurMix.id ||
         propertyId == MotionPropertyCatalog.blurAmount.id ||
+        propertyId == MotionPropertyCatalog.motionBlurAmount.id ||
+        propertyId == MotionPropertyCatalog.motionBlurShutterAngle.id ||
+        propertyId == MotionPropertyCatalog.motionBlurMaxTrailPx.id ||
         propertyId == MotionPropertyCatalog.shakeAmount.id) {
       return 0;
+    }
+    if (propertyId == MotionPropertyCatalog.motionBlurSamples.id ||
+        propertyId == MotionPropertyCatalog.motionBlurAdaptiveSampleLimit.id) {
+      return 1;
     }
     if (propertyId == MotionPropertyCatalog.scaleX.id ||
         propertyId == MotionPropertyCatalog.scaleY.id) {
       return 0;
     }
-    if (propertyId == MotionPropertyCatalog.rotationDegrees.id) {
+    if (propertyId == MotionPropertyCatalog.rotationDegrees.id ||
+        propertyId == MotionPropertyCatalog.motionBlurShutterPhase.id) {
       return -360;
     }
     return -1000;
@@ -5041,8 +5048,24 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return 100;
     }
     if (propertyId == MotionPropertyCatalog.blurAmount.id ||
+        propertyId == MotionPropertyCatalog.motionBlurAmount.id ||
         propertyId == MotionPropertyCatalog.shakeAmount.id) {
       return 100;
+    }
+    if (propertyId == MotionPropertyCatalog.motionBlurShutterAngle.id) {
+      return 1440;
+    }
+    if (propertyId == MotionPropertyCatalog.motionBlurShutterPhase.id) {
+      return 360;
+    }
+    if (propertyId == MotionPropertyCatalog.motionBlurSamples.id) {
+      return 64;
+    }
+    if (propertyId == MotionPropertyCatalog.motionBlurAdaptiveSampleLimit.id) {
+      return 128;
+    }
+    if (propertyId == MotionPropertyCatalog.motionBlurMaxTrailPx.id) {
+      return 4096;
     }
     if (propertyId == MotionPropertyCatalog.scaleX.id ||
         propertyId == MotionPropertyCatalog.scaleY.id) {
@@ -5074,14 +5097,24 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         propertyId == MotionPropertyCatalog.scaleY.id ||
         propertyId == MotionPropertyCatalog.blurHorizontal.id ||
         propertyId == MotionPropertyCatalog.blurVertical.id ||
-        propertyId == MotionPropertyCatalog.blurMix.id) {
+        propertyId == MotionPropertyCatalog.blurMix.id ||
+        propertyId == MotionPropertyCatalog.motionBlurAmount.id) {
       return '${value.round()}%';
     }
     if (propertyId == MotionPropertyCatalog.blurAmount.id) {
       return '${value.toStringAsFixed(value >= 10 ? 0 : 1)}px';
     }
-    if (propertyId == MotionPropertyCatalog.rotationDegrees.id) {
+    if (propertyId == MotionPropertyCatalog.rotationDegrees.id ||
+        propertyId == MotionPropertyCatalog.motionBlurShutterAngle.id ||
+        propertyId == MotionPropertyCatalog.motionBlurShutterPhase.id) {
       return '${value.round()} deg';
+    }
+    if (propertyId == MotionPropertyCatalog.motionBlurSamples.id ||
+        propertyId == MotionPropertyCatalog.motionBlurAdaptiveSampleLimit.id) {
+      return value.round().toString();
+    }
+    if (propertyId == MotionPropertyCatalog.motionBlurMaxTrailPx.id) {
+      return '${value.round()}px';
     }
     return value.toStringAsFixed(value.abs() >= 10 ? 0 : 1);
   }
@@ -6416,6 +6449,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         <MotionPropertyDefinition>[
           MotionPropertyCatalog.blurAmount,
         ],
+      'motion_blur' => <MotionPropertyDefinition>[
+          MotionPropertyCatalog.motionBlurEnabled,
+          MotionPropertyCatalog.motionBlurAmount,
+          MotionPropertyCatalog.motionBlurShutterAngle,
+          MotionPropertyCatalog.motionBlurShutterPhase,
+          MotionPropertyCatalog.motionBlurSamples,
+          MotionPropertyCatalog.motionBlurAdaptiveSampleLimit,
+          MotionPropertyCatalog.motionBlurMaxTrailPx,
+          MotionPropertyCatalog.motionBlurAffectPosition,
+          MotionPropertyCatalog.motionBlurAffectScale,
+          MotionPropertyCatalog.motionBlurAffectRotation,
+        ],
       'shape.size' => <MotionPropertyDefinition>[
           MotionPropertyCatalog.width,
           MotionPropertyCatalog.height,
@@ -6460,7 +6505,17 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         definition == MotionPropertyCatalog.scaleY ||
         definition == MotionPropertyCatalog.rotationDegrees ||
         definition == MotionPropertyCatalog.opacity ||
-        definition == MotionPropertyCatalog.blurAmount;
+        definition == MotionPropertyCatalog.blurAmount ||
+        definition == MotionPropertyCatalog.motionBlurEnabled ||
+        definition == MotionPropertyCatalog.motionBlurAmount ||
+        definition == MotionPropertyCatalog.motionBlurShutterAngle ||
+        definition == MotionPropertyCatalog.motionBlurShutterPhase ||
+        definition == MotionPropertyCatalog.motionBlurSamples ||
+        definition == MotionPropertyCatalog.motionBlurAdaptiveSampleLimit ||
+        definition == MotionPropertyCatalog.motionBlurMaxTrailPx ||
+        definition == MotionPropertyCatalog.motionBlurAffectPosition ||
+        definition == MotionPropertyCatalog.motionBlurAffectScale ||
+        definition == MotionPropertyCatalog.motionBlurAffectRotation;
     if (elementKind == MotionElementKind.text) {
       return isSharedVisual ||
           definition == MotionPropertyCatalog.revealProgress ||
@@ -7254,14 +7309,22 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final propertyId = channel.definition.id;
     if (propertyId == MotionPropertyCatalog.opacity.id ||
         propertyId == MotionPropertyCatalog.revealProgress.id ||
-        propertyId == MotionPropertyCatalog.blurMix.id) {
+        propertyId == MotionPropertyCatalog.blurMix.id ||
+        propertyId == MotionPropertyCatalog.motionBlurAmount.id ||
+        propertyId == MotionPropertyCatalog.motionBlurShutterAngle.id ||
+        propertyId == MotionPropertyCatalog.motionBlurMaxTrailPx.id) {
       return 0;
+    }
+    if (propertyId == MotionPropertyCatalog.motionBlurSamples.id ||
+        propertyId == MotionPropertyCatalog.motionBlurAdaptiveSampleLimit.id) {
+      return 1;
     }
     if (propertyId == MotionPropertyCatalog.scaleX.id ||
         propertyId == MotionPropertyCatalog.scaleY.id) {
       return 20;
     }
-    if (propertyId == MotionPropertyCatalog.rotationDegrees.id) {
+    if (propertyId == MotionPropertyCatalog.rotationDegrees.id ||
+        propertyId == MotionPropertyCatalog.motionBlurShutterPhase.id) {
       return -720;
     }
     if (propertyId == MotionPropertyCatalog.positionX.id) {
@@ -7281,8 +7344,24 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (propertyId == MotionPropertyCatalog.opacity.id ||
         propertyId == MotionPropertyCatalog.revealProgress.id ||
         propertyId == MotionPropertyCatalog.blurMix.id ||
-        propertyId == MotionPropertyCatalog.blurAmount.id) {
+        propertyId == MotionPropertyCatalog.blurAmount.id ||
+        propertyId == MotionPropertyCatalog.motionBlurAmount.id) {
       return 100;
+    }
+    if (propertyId == MotionPropertyCatalog.motionBlurShutterAngle.id) {
+      return 1440;
+    }
+    if (propertyId == MotionPropertyCatalog.motionBlurShutterPhase.id) {
+      return 720;
+    }
+    if (propertyId == MotionPropertyCatalog.motionBlurSamples.id) {
+      return 64;
+    }
+    if (propertyId == MotionPropertyCatalog.motionBlurAdaptiveSampleLimit.id) {
+      return 128;
+    }
+    if (propertyId == MotionPropertyCatalog.motionBlurMaxTrailPx.id) {
+      return 4096;
     }
     if (propertyId == MotionPropertyCatalog.scaleX.id ||
         propertyId == MotionPropertyCatalog.scaleY.id) {
@@ -7316,7 +7395,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (propertyId == MotionPropertyCatalog.opacity.id ||
         propertyId == MotionPropertyCatalog.revealProgress.id ||
         propertyId == MotionPropertyCatalog.blurMix.id ||
-        propertyId == MotionPropertyCatalog.blurAmount.id) {
+        propertyId == MotionPropertyCatalog.blurAmount.id ||
+        propertyId == MotionPropertyCatalog.motionBlurAmount.id) {
       return 100;
     }
     if (propertyId == MotionPropertyCatalog.scaleX.id ||
@@ -7352,14 +7432,22 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (propertyId == MotionPropertyCatalog.opacity.id ||
         propertyId == MotionPropertyCatalog.revealProgress.id ||
         propertyId == MotionPropertyCatalog.blurMix.id ||
+        propertyId == MotionPropertyCatalog.motionBlurAmount.id ||
         propertyId == MotionPropertyCatalog.scaleX.id ||
         propertyId == MotionPropertyCatalog.scaleY.id) {
       return '${value.round()}%';
     }
-    if (propertyId == MotionPropertyCatalog.rotationDegrees.id) {
+    if (propertyId == MotionPropertyCatalog.rotationDegrees.id ||
+        propertyId == MotionPropertyCatalog.motionBlurShutterAngle.id ||
+        propertyId == MotionPropertyCatalog.motionBlurShutterPhase.id) {
       return '${value.round()} deg';
     }
-    if (propertyId == MotionPropertyCatalog.blurAmount.id) {
+    if (propertyId == MotionPropertyCatalog.blurAmount.id ||
+        propertyId == MotionPropertyCatalog.motionBlurMaxTrailPx.id) {
+      return '${value.round()}px';
+    }
+    if (propertyId == MotionPropertyCatalog.motionBlurSamples.id ||
+        propertyId == MotionPropertyCatalog.motionBlurAdaptiveSampleLimit.id) {
       return value.round().toString();
     }
     return value.toStringAsFixed(value.abs() >= 100 ? 0 : 1);
@@ -19018,6 +19106,19 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       tint: Color(0xFFFFA7C9),
       keyframeStops: <double>[],
       valueFormatter: _formatTransitionPixels,
+    ),
+    'motion_blur': _TransitionFocusLaneSpec(
+      id: 'motion_blur',
+      groupLabel: 'FX',
+      label: 'Motion Blur',
+      editorDescription:
+          'Adds temporal shutter blur from the same Master motion path used by Position, Scale, and Rotation.',
+      min: 0.0,
+      max: 100.0,
+      fallback: 0.0,
+      tint: Color(0xFFFFB86B),
+      keyframeStops: <double>[],
+      valueFormatter: _formatTransitionPercent,
     ),
     'outgoingBoostScale': _TransitionFocusLaneSpec(
       id: 'outgoingBoostScale',

@@ -84,6 +84,66 @@ class MasterVisualEffectBinding {
 }
 
 @immutable
+class MasterMotionBlurPolicy {
+  const MasterMotionBlurPolicy({
+    this.enabled = false,
+    this.amount = 0.0,
+    this.shutterAngleDegrees = 180.0,
+    this.shutterPhaseDegrees = -90.0,
+    this.samples = 8,
+    this.adaptiveSampleLimit = 16,
+    this.maxTrailPx = 240.0,
+    this.affectPosition = true,
+    this.affectScale = true,
+    this.affectRotation = true,
+  });
+
+  final bool enabled;
+  final double amount;
+  final double shutterAngleDegrees;
+  final double shutterPhaseDegrees;
+  final int samples;
+  final int adaptiveSampleLimit;
+  final double maxTrailPx;
+  final bool affectPosition;
+  final bool affectScale;
+  final bool affectRotation;
+
+  bool get isEnabled =>
+      enabled &&
+      amount > 0 &&
+      shutterAngleDegrees > 0 &&
+      samples > 0 &&
+      (affectPosition || affectScale || affectRotation);
+
+  MasterMotionBlurPolicy copyWith({
+    bool? enabled,
+    double? amount,
+    double? shutterAngleDegrees,
+    double? shutterPhaseDegrees,
+    int? samples,
+    int? adaptiveSampleLimit,
+    double? maxTrailPx,
+    bool? affectPosition,
+    bool? affectScale,
+    bool? affectRotation,
+  }) {
+    return MasterMotionBlurPolicy(
+      enabled: enabled ?? this.enabled,
+      amount: amount ?? this.amount,
+      shutterAngleDegrees: shutterAngleDegrees ?? this.shutterAngleDegrees,
+      shutterPhaseDegrees: shutterPhaseDegrees ?? this.shutterPhaseDegrees,
+      samples: samples ?? this.samples,
+      adaptiveSampleLimit: adaptiveSampleLimit ?? this.adaptiveSampleLimit,
+      maxTrailPx: maxTrailPx ?? this.maxTrailPx,
+      affectPosition: affectPosition ?? this.affectPosition,
+      affectScale: affectScale ?? this.affectScale,
+      affectRotation: affectRotation ?? this.affectRotation,
+    );
+  }
+}
+
+@immutable
 class MasterVisualCrop {
   const MasterVisualCrop({
     this.rect,
@@ -266,6 +326,7 @@ class MasterVisualSurface {
     this.textStyle = const MasterVisualTextStyle(),
     this.shapeStyle = const MasterVisualShapeStyle(),
     this.opacity = 1.0,
+    this.motionBlur = const MasterMotionBlurPolicy(),
     List<MasterVisualEffectBinding> effects =
         const <MasterVisualEffectBinding>[],
     List<String> blockers = const <String>[],
@@ -284,6 +345,7 @@ class MasterVisualSurface {
   final MasterVisualTextStyle textStyle;
   final MasterVisualShapeStyle shapeStyle;
   final double opacity;
+  final MasterMotionBlurPolicy motionBlur;
   final List<MasterVisualEffectBinding> effects;
   final List<String> blockers;
 }

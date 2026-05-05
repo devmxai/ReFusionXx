@@ -11,6 +11,7 @@ enum MasterRenderGraphNodeFamily {
   mask,
   style,
   effect,
+  temporalMotionBlur,
   transition,
   composite,
   outputSurface,
@@ -52,6 +53,7 @@ class MasterRenderSurfaceBinding {
     this.maskNodeId,
     this.styleNodeId,
     required List<String> effectNodeIds,
+    this.motionBlurNodeId,
     this.transitionNodeId,
     required this.compositeNodeId,
     this.drawOrder = 0,
@@ -67,6 +69,7 @@ class MasterRenderSurfaceBinding {
   final String? maskNodeId;
   final String? styleNodeId;
   final List<String> effectNodeIds;
+  final String? motionBlurNodeId;
   final String? transitionNodeId;
   final String compositeNodeId;
   final int drawOrder;

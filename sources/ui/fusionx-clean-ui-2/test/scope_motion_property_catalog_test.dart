@@ -107,6 +107,7 @@ void main() {
     for (final kind in <MotionElementKind>[
       MotionElementKind.text,
       MotionElementKind.image,
+      MotionElementKind.videoClip,
       MotionElementKind.shape,
     ]) {
       final properties = catalog.propertiesForElementKind(kind);
@@ -128,6 +129,16 @@ void main() {
           MotionPropertyCatalog.rotationDegrees.id,
           MotionPropertyCatalog.opacity.id,
           MotionPropertyCatalog.blurAmount.id,
+          MotionPropertyCatalog.motionBlurEnabled.id,
+          MotionPropertyCatalog.motionBlurAmount.id,
+          MotionPropertyCatalog.motionBlurShutterAngle.id,
+          MotionPropertyCatalog.motionBlurShutterPhase.id,
+          MotionPropertyCatalog.motionBlurSamples.id,
+          MotionPropertyCatalog.motionBlurAdaptiveSampleLimit.id,
+          MotionPropertyCatalog.motionBlurMaxTrailPx.id,
+          MotionPropertyCatalog.motionBlurAffectPosition.id,
+          MotionPropertyCatalog.motionBlurAffectScale.id,
+          MotionPropertyCatalog.motionBlurAffectRotation.id,
         ]),
       );
     }
@@ -148,6 +159,12 @@ void main() {
     );
     expect(
       catalog.propertiesForElementKind(MotionElementKind.image).map(
+            (definition) => definition.id,
+          ),
+      contains(MotionPropertyCatalog.cropRect.id),
+    );
+    expect(
+      catalog.propertiesForElementKind(MotionElementKind.videoClip).map(
             (definition) => definition.id,
           ),
       contains(MotionPropertyCatalog.cropRect.id),
@@ -185,7 +202,7 @@ void main() {
       ),
       isFalse,
     );
-    expect(catalog.supportsElementKind(MotionElementKind.videoClip), isFalse);
+    expect(catalog.supportsElementKind(MotionElementKind.videoClip), isTrue);
   });
 
   test('builds canonical element targets for scope authoring', () {

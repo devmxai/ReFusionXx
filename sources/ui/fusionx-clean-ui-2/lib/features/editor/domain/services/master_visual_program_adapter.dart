@@ -25,6 +25,19 @@ class MasterVisualProgramAdapter {
     'tileOutputScale',
   };
 
+  static const Set<String> _motionBlurPropertyIds = <String>{
+    'motionBlurEnabled',
+    'motionBlurAmount',
+    'motionBlurShutterAngle',
+    'motionBlurShutterPhase',
+    'motionBlurSamples',
+    'motionBlurAdaptiveSampleLimit',
+    'motionBlurMaxTrailPx',
+    'motionBlurAffectPosition',
+    'motionBlurAffectScale',
+    'motionBlurAffectRotation',
+  };
+
   MasterVisualProgram build({
     required MasterFrameEvaluation frame,
     Map<String, MasterVisualSourceBinding> sourcesByTargetId =
@@ -73,6 +86,8 @@ class MasterVisualProgramAdapter {
       var textStyle = const MasterVisualTextStyle();
       var shapeStyle = const MasterVisualShapeStyle();
       var opacity = 1.0;
+      var motionBlur = const MasterMotionBlurPolicy();
+      var motionBlurEnabledWasAuthored = false;
 
       for (final value in values) {
         final rendererScalar = value.mapping.renderer.scalar;
@@ -229,6 +244,62 @@ class MasterVisualProgramAdapter {
             } else {
               textStyle = textStyle.copyWith(revealProgress: rendererScalar);
             }
+          case 'motionBlurAmount':
+            if (rendererScalar == null || !rendererScalar.isFinite) {
+              blockers.add('invalid_effect_value:motionBlurAmount');
+              continue;
+            }
+            motionBlur = _applyMotionBlurScalar(
+              motionBlur,
+              propertyId: value.propertyDefinitionId,
+              rendererScalar: rendererScalar,
+              enabledWasAuthored: motionBlurEnabledWasAuthored,
+            );
+          case 'motionBlurShutterAngle':
+          case 'motionBlurShutterPhase':
+          case 'motionBlurSamples':
+          case 'motionBlurAdaptiveSampleLimit':
+          case 'motionBlurMaxTrailPx':
+            if (rendererScalar == null || !rendererScalar.isFinite) {
+              blockers
+                  .add('invalid_effect_value:${value.propertyDefinitionId}');
+              continue;
+            }
+            motionBlur = _applyMotionBlurScalar(
+              motionBlur,
+              propertyId: value.propertyDefinitionId,
+              rendererScalar: rendererScalar,
+              enabledWasAuthored: motionBlurEnabledWasAuthored,
+            );
+          case 'motionBlurEnabled':
+          case 'motionBlurAffectPosition':
+          case 'motionBlurAffectScale':
+          case 'motionBlurAffectRotation':
+            final rendererBool = value.mapping.renderer.booleanValue;
+            if (rendererBool == null) {
+              blockers
+                  .add('invalid_effect_value:${value.propertyDefinitionId}');
+              continue;
+            }
+            if (value.propertyDefinitionId == 'motionBlurEnabled') {
+              motionBlurEnabledWasAuthored = true;
+            }
+            motionBlur = _applyMotionBlurBoolean(
+              motionBlur,
+              propertyId: value.propertyDefinitionId,
+              rendererBool: rendererBool,
+            );
+          case 'tileOutputScale':
+            if (rendererScalar == null || !rendererScalar.isFinite) {
+              blockers
+                  .add('invalid_effect_value:${value.propertyDefinitionId}');
+              continue;
+            }
+            effectsById[value.propertyDefinitionId] = MasterVisualEffectBinding(
+              id: value.propertyDefinitionId,
+              rendererValue: rendererScalar,
+              rendererUnit: value.mapping.rendererUnit,
+            );
           case 'gaussianBlur':
           case 'blurHorizontal':
           case 'blurVertical':
@@ -240,8 +311,6 @@ class MasterVisualProgramAdapter {
           case 'shadowOffsetX':
           case 'shadowOffsetY':
           case 'shadowSpread':
-          case 'motionBlurAmount':
-          case 'tileOutputScale':
             if (rendererScalar == null || !rendererScalar.isFinite) {
               blockers
                   .add('invalid_effect_value:${value.propertyDefinitionId}');
@@ -261,6 +330,44 @@ class MasterVisualProgramAdapter {
 
       final explicitEffectIds = frame.effectParameters.keys;
       for (final effectId in explicitEffectIds) {
+        if (_motionBlurPropertyIds.contains(effectId)) {
+          final mapping = frame.effectParameters[effectId];
+          if (mapping == null) {
+            blockers.add('invalid_effect_value:$effectId');
+            continue;
+          }
+          final rendererScalar = mapping.renderer.scalar;
+          final rendererBool = mapping.renderer.booleanValue;
+          if (effectId == 'motionBlurEnabled' ||
+              effectId == 'motionBlurAffectPosition' ||
+              effectId == 'motionBlurAffectScale' ||
+              effectId == 'motionBlurAffectRotation') {
+            if (rendererBool == null) {
+              blockers.add('invalid_effect_value:$effectId');
+              continue;
+            }
+            if (effectId == 'motionBlurEnabled') {
+              motionBlurEnabledWasAuthored = true;
+            }
+            motionBlur = _applyMotionBlurBoolean(
+              motionBlur,
+              propertyId: effectId,
+              rendererBool: rendererBool,
+            );
+            continue;
+          }
+          if (rendererScalar == null || !rendererScalar.isFinite) {
+            blockers.add('invalid_effect_value:$effectId');
+            continue;
+          }
+          motionBlur = _applyMotionBlurScalar(
+            motionBlur,
+            propertyId: effectId,
+            rendererScalar: rendererScalar,
+            enabledWasAuthored: motionBlurEnabledWasAuthored,
+          );
+          continue;
+        }
         if (_supportedEffectIds.contains(effectId)) {
           final mapping = frame.effectParameters[effectId];
           final rendererScalar = mapping?.renderer.scalar;
@@ -300,6 +407,7 @@ class MasterVisualProgramAdapter {
           textStyle: textStyle,
           shapeStyle: shapeStyle,
           opacity: opacity,
+          motionBlur: motionBlur,
           effects: effectsById.values.toList(growable: false),
           blockers: blockers,
         ),
@@ -326,6 +434,63 @@ class MasterVisualProgramAdapter {
       diagnostics: globalDiagnostics,
       transitionState: transitionState,
     );
+  }
+
+  MasterMotionBlurPolicy _applyMotionBlurScalar(
+    MasterMotionBlurPolicy policy, {
+    required String propertyId,
+    required double rendererScalar,
+    required bool enabledWasAuthored,
+  }) {
+    switch (propertyId) {
+      case 'motionBlurAmount':
+        final amount = rendererScalar.clamp(0.0, 1.0).toDouble();
+        return policy.copyWith(
+          amount: amount,
+          enabled: enabledWasAuthored ? policy.enabled : amount > 0,
+        );
+      case 'motionBlurShutterAngle':
+        return policy.copyWith(
+          shutterAngleDegrees: rendererScalar.clamp(0.0, 1440.0).toDouble(),
+        );
+      case 'motionBlurShutterPhase':
+        return policy.copyWith(
+          shutterPhaseDegrees: rendererScalar.clamp(-720.0, 720.0).toDouble(),
+        );
+      case 'motionBlurSamples':
+        return policy.copyWith(
+          samples: rendererScalar.round().clamp(1, 64),
+        );
+      case 'motionBlurAdaptiveSampleLimit':
+        return policy.copyWith(
+          adaptiveSampleLimit: rendererScalar.round().clamp(1, 128),
+        );
+      case 'motionBlurMaxTrailPx':
+        return policy.copyWith(
+          maxTrailPx: rendererScalar.clamp(0.0, 4096.0).toDouble(),
+        );
+      default:
+        return policy;
+    }
+  }
+
+  MasterMotionBlurPolicy _applyMotionBlurBoolean(
+    MasterMotionBlurPolicy policy, {
+    required String propertyId,
+    required bool rendererBool,
+  }) {
+    switch (propertyId) {
+      case 'motionBlurEnabled':
+        return policy.copyWith(enabled: rendererBool);
+      case 'motionBlurAffectPosition':
+        return policy.copyWith(affectPosition: rendererBool);
+      case 'motionBlurAffectScale':
+        return policy.copyWith(affectScale: rendererBool);
+      case 'motionBlurAffectRotation':
+        return policy.copyWith(affectRotation: rendererBool);
+      default:
+        return policy;
+    }
   }
 
   List<String> _orderedTargetIds({

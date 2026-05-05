@@ -421,6 +421,34 @@ void main() {
       effectParameters: <String, MasterPropertyValueMapping>{
         'tileOutputScale':
             mapping('tileOutputScale', const MotionPropertyValue.scalar(1.2)),
+        'motionBlurEnabled': mapping(
+          'motionBlurEnabled',
+          const MotionPropertyValue.boolean(true),
+        ),
+        'motionBlurAmount':
+            mapping('motionBlurAmount', const MotionPropertyValue.scalar(80)),
+        'motionBlurShutterAngle': mapping(
+          'motionBlurShutterAngle',
+          const MotionPropertyValue.scalar(270),
+        ),
+        'motionBlurShutterPhase': mapping(
+          'motionBlurShutterPhase',
+          const MotionPropertyValue.scalar(-135),
+        ),
+        'motionBlurSamples':
+            mapping('motionBlurSamples', const MotionPropertyValue.integer(12)),
+        'motionBlurAdaptiveSampleLimit': mapping(
+          'motionBlurAdaptiveSampleLimit',
+          const MotionPropertyValue.integer(24),
+        ),
+        'motionBlurMaxTrailPx': mapping(
+          'motionBlurMaxTrailPx',
+          const MotionPropertyValue.scalar(360),
+        ),
+        'motionBlurAffectRotation': mapping(
+          'motionBlurAffectRotation',
+          const MotionPropertyValue.boolean(false),
+        ),
       },
     );
 
@@ -480,8 +508,22 @@ void main() {
     expect(surface.shapeStyle.trimStart, closeTo(0.25, 0.0001));
     expect(surface.shapeStyle.hasShapeStyle, isTrue);
     expect(surface.transitionRole, MasterVisualTransitionRole.outgoing);
+    expect(surface.motionBlur.isEnabled, isTrue);
+    expect(surface.motionBlur.amount, closeTo(0.8, 0.0001));
+    expect(surface.motionBlur.shutterAngleDegrees, closeTo(270, 0.0001));
+    expect(surface.motionBlur.shutterPhaseDegrees, closeTo(-135, 0.0001));
+    expect(surface.motionBlur.samples, 12);
+    expect(surface.motionBlur.adaptiveSampleLimit, 24);
+    expect(surface.motionBlur.maxTrailPx, closeTo(360, 0.0001));
+    expect(surface.motionBlur.affectPosition, isTrue);
+    expect(surface.motionBlur.affectScale, isTrue);
+    expect(surface.motionBlur.affectRotation, isFalse);
     expect(
         surface.effects.any((effect) => effect.id == 'gaussianBlur'), isTrue);
+    expect(
+      surface.effects.any((effect) => effect.id == 'motionBlurAmount'),
+      isFalse,
+    );
     expect(
         surface.effects.any((effect) => effect.id == 'shadowOpacity'), isTrue);
     expect(surface.effects.any((effect) => effect.id == 'tileOutputScale'),

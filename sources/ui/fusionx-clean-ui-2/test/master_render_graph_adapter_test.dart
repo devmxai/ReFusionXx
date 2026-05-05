@@ -77,6 +77,15 @@ void main() {
             rotationRadians: 0.25,
           ),
           opacity: 0.8,
+          motionBlur: const MasterMotionBlurPolicy(
+            enabled: true,
+            amount: 1,
+            shutterAngleDegrees: 180,
+            shutterPhaseDegrees: -90,
+            samples: 5,
+            adaptiveSampleLimit: 8,
+            maxTrailPx: 320,
+          ),
           effects: const <MasterVisualEffectBinding>[
             MasterVisualEffectBinding(
               id: 'tileOutputScale',
@@ -130,6 +139,10 @@ void main() {
             .any((node) => node.family == MasterRenderGraphNodeFamily.effect),
         isTrue);
     expect(
+        first.nodes.any((node) =>
+            node.family == MasterRenderGraphNodeFamily.temporalMotionBlur),
+        isTrue);
+    expect(
         first.nodes.any(
             (node) => node.family == MasterRenderGraphNodeFamily.transition),
         isTrue);
@@ -143,6 +156,7 @@ void main() {
     expect(layerABinding, isNotNull);
     expect(layerBBinding, isNotNull);
     expect(layerABinding!.effectNodeIds.length, 2);
+    expect(layerABinding.motionBlurNodeId, 'motionBlur:layer-a');
     expect(layerABinding.transitionNodeId, isNotNull);
     expect(layerBBinding!.cropNodeId, isNotNull);
     expect(layerBBinding.maskNodeId, isNotNull);
@@ -151,6 +165,15 @@ void main() {
         first.nodes.firstWhere((node) => node.id == first.outputNodeId);
     expect(outputNode.inputNodeIds.first, layerBBinding.compositeNodeId);
     expect(outputNode.inputNodeIds.last, layerABinding.compositeNodeId);
+    final motionBlurNode =
+        first.nodes.firstWhere((node) => node.id == 'motionBlur:layer-a');
+    expect(
+        motionBlurNode.inputNodeIds.single, layerABinding.effectNodeIds.last);
+    expect(motionBlurNode.attributes['effectId'], 'temporalMotionBlur');
+    expect(motionBlurNode.attributes['requiresTemporalSampling'], isTrue);
+    expect(motionBlurNode.attributes['fallbackAllowed'], isFalse);
+    expect(motionBlurNode.attributes['isSyntheticBlur'], isFalse);
+    expect(motionBlurNode.attributes['sampleOffsetsMs'], hasLength(5));
     expect(first.canRenderTruthfully, isTrue);
   });
 

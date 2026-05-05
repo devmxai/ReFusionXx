@@ -50,6 +50,36 @@ class MasterValueTruthRegistry {
     if (key == 'visual.blur.crop') {
       return _definitions['blurCrop'];
     }
+    if (key == 'effect.motionBlur.enabled') {
+      return _definitions['motionBlurEnabled'];
+    }
+    if (key == 'effect.motionBlur.amount') {
+      return _definitions['motionBlurAmount'];
+    }
+    if (key == 'effect.motionBlur.shutterAngle') {
+      return _definitions['motionBlurShutterAngle'];
+    }
+    if (key == 'effect.motionBlur.shutterPhase') {
+      return _definitions['motionBlurShutterPhase'];
+    }
+    if (key == 'effect.motionBlur.samples') {
+      return _definitions['motionBlurSamples'];
+    }
+    if (key == 'effect.motionBlur.adaptiveSampleLimit') {
+      return _definitions['motionBlurAdaptiveSampleLimit'];
+    }
+    if (key == 'effect.motionBlur.maxTrailPx') {
+      return _definitions['motionBlurMaxTrailPx'];
+    }
+    if (key == 'effect.motionBlur.affectPosition') {
+      return _definitions['motionBlurAffectPosition'];
+    }
+    if (key == 'effect.motionBlur.affectScale') {
+      return _definitions['motionBlurAffectScale'];
+    }
+    if (key == 'effect.motionBlur.affectRotation') {
+      return _definitions['motionBlurAffectRotation'];
+    }
     if (key == 'effect.shadow.opacity') {
       return _definitions['shadowOpacity'];
     }
@@ -853,6 +883,204 @@ class MasterValueTruthRegistry {
           MasterRenderCapability.export,
         ],
       ),
+      'motionBlurEnabled': const MasterPropertyDefinition(
+        id: 'motionBlurEnabled',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.boolean,
+        uiUnit: MasterValueUnit.enumToken,
+        engineUnit: MasterValueUnit.enumToken,
+        rendererUnit: MasterValueUnit.enumToken,
+        defaultValue: MotionPropertyValue.boolean(false),
+        minValue: 0,
+        maxValue: 1,
+        mapper: _mapBoolean,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.layer,
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'motionBlurShutterAngle': const MasterPropertyDefinition(
+        id: 'motionBlurShutterAngle',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.degrees,
+        uiUnit: MasterValueUnit.degrees,
+        engineUnit: MasterValueUnit.degrees,
+        rendererUnit: MasterValueUnit.degrees,
+        defaultValue: MotionPropertyValue.scalar(180),
+        minValue: 0,
+        maxValue: 1440,
+        mapper: _mapMotionBlurShutterAngle,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.layer,
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'motionBlurShutterPhase': const MasterPropertyDefinition(
+        id: 'motionBlurShutterPhase',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.degrees,
+        uiUnit: MasterValueUnit.degrees,
+        engineUnit: MasterValueUnit.degrees,
+        rendererUnit: MasterValueUnit.degrees,
+        defaultValue: MotionPropertyValue.scalar(-90),
+        minValue: -720,
+        maxValue: 720,
+        mapper: _mapMotionBlurShutterPhase,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.layer,
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'motionBlurSamples': const MasterPropertyDefinition(
+        id: 'motionBlurSamples',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.scalar,
+        uiUnit: MasterValueUnit.enumToken,
+        engineUnit: MasterValueUnit.enumToken,
+        rendererUnit: MasterValueUnit.enumToken,
+        defaultValue: MotionPropertyValue.integer(8),
+        minValue: 1,
+        maxValue: 64,
+        mapper: _mapMotionBlurSamples,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.layer,
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'motionBlurAdaptiveSampleLimit': const MasterPropertyDefinition(
+        id: 'motionBlurAdaptiveSampleLimit',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.scalar,
+        uiUnit: MasterValueUnit.enumToken,
+        engineUnit: MasterValueUnit.enumToken,
+        rendererUnit: MasterValueUnit.enumToken,
+        defaultValue: MotionPropertyValue.integer(16),
+        minValue: 1,
+        maxValue: 128,
+        mapper: _mapMotionBlurAdaptiveSampleLimit,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.layer,
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'motionBlurMaxTrailPx': const MasterPropertyDefinition(
+        id: 'motionBlurMaxTrailPx',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.dimension,
+        uiUnit: MasterValueUnit.canvasPx,
+        engineUnit: MasterValueUnit.canvasPx,
+        rendererUnit: MasterValueUnit.devicePx,
+        defaultValue: MotionPropertyValue.scalar(240),
+        minValue: 0,
+        maxValue: 4096,
+        mapper: _mapMotionBlurMaxTrailPx,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.layer,
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'motionBlurAffectPosition': const MasterPropertyDefinition(
+        id: 'motionBlurAffectPosition',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.boolean,
+        uiUnit: MasterValueUnit.enumToken,
+        engineUnit: MasterValueUnit.enumToken,
+        rendererUnit: MasterValueUnit.enumToken,
+        defaultValue: MotionPropertyValue.boolean(true),
+        minValue: 0,
+        maxValue: 1,
+        mapper: _mapBoolean,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.layer,
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'motionBlurAffectScale': const MasterPropertyDefinition(
+        id: 'motionBlurAffectScale',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.boolean,
+        uiUnit: MasterValueUnit.enumToken,
+        engineUnit: MasterValueUnit.enumToken,
+        rendererUnit: MasterValueUnit.enumToken,
+        defaultValue: MotionPropertyValue.boolean(true),
+        minValue: 0,
+        maxValue: 1,
+        mapper: _mapBoolean,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.layer,
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'motionBlurAffectRotation': const MasterPropertyDefinition(
+        id: 'motionBlurAffectRotation',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.boolean,
+        uiUnit: MasterValueUnit.enumToken,
+        engineUnit: MasterValueUnit.enumToken,
+        rendererUnit: MasterValueUnit.enumToken,
+        defaultValue: MotionPropertyValue.boolean(true),
+        minValue: 0,
+        maxValue: 1,
+        mapper: _mapBoolean,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.layer,
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
       'tileOutputScale': const MasterPropertyDefinition(
         id: 'tileOutputScale',
         category: MasterPropertyCategory.effect,
@@ -964,6 +1192,81 @@ class MasterValueTruthRegistry {
     );
   }
 
+  static MasterPropertyValueMapping _mapMotionBlurShutterAngle(
+    MotionPropertyValue value,
+  ) {
+    final degrees =
+        _readScalar(value, fallback: 180).clamp(0.0, 1440.0).toDouble();
+    return MasterPropertyValueMapping(
+      ui: MasterValueLayer(scalar: degrees),
+      engine: MasterValueLayer(scalar: degrees),
+      renderer: MasterValueLayer(scalar: degrees),
+      uiUnit: MasterValueUnit.degrees,
+      engineUnit: MasterValueUnit.degrees,
+      rendererUnit: MasterValueUnit.degrees,
+    );
+  }
+
+  static MasterPropertyValueMapping _mapMotionBlurShutterPhase(
+    MotionPropertyValue value,
+  ) {
+    final degrees =
+        _readScalar(value, fallback: -90).clamp(-720.0, 720.0).toDouble();
+    return MasterPropertyValueMapping(
+      ui: MasterValueLayer(scalar: degrees),
+      engine: MasterValueLayer(scalar: degrees),
+      renderer: MasterValueLayer(scalar: degrees),
+      uiUnit: MasterValueUnit.degrees,
+      engineUnit: MasterValueUnit.degrees,
+      rendererUnit: MasterValueUnit.degrees,
+    );
+  }
+
+  static MasterPropertyValueMapping _mapMotionBlurSamples(
+    MotionPropertyValue value,
+  ) {
+    final samples =
+        _readScalar(value, fallback: 8).round().clamp(1, 64).toDouble();
+    return MasterPropertyValueMapping(
+      ui: MasterValueLayer(scalar: samples),
+      engine: MasterValueLayer(scalar: samples),
+      renderer: MasterValueLayer(scalar: samples),
+      uiUnit: MasterValueUnit.enumToken,
+      engineUnit: MasterValueUnit.enumToken,
+      rendererUnit: MasterValueUnit.enumToken,
+    );
+  }
+
+  static MasterPropertyValueMapping _mapMotionBlurAdaptiveSampleLimit(
+    MotionPropertyValue value,
+  ) {
+    final samples =
+        _readScalar(value, fallback: 16).round().clamp(1, 128).toDouble();
+    return MasterPropertyValueMapping(
+      ui: MasterValueLayer(scalar: samples),
+      engine: MasterValueLayer(scalar: samples),
+      renderer: MasterValueLayer(scalar: samples),
+      uiUnit: MasterValueUnit.enumToken,
+      engineUnit: MasterValueUnit.enumToken,
+      rendererUnit: MasterValueUnit.enumToken,
+    );
+  }
+
+  static MasterPropertyValueMapping _mapMotionBlurMaxTrailPx(
+    MotionPropertyValue value,
+  ) {
+    final pixels =
+        _readScalar(value, fallback: 240).clamp(0.0, 4096.0).toDouble();
+    return MasterPropertyValueMapping(
+      ui: MasterValueLayer(scalar: pixels),
+      engine: MasterValueLayer(scalar: pixels),
+      renderer: MasterValueLayer(scalar: pixels),
+      uiUnit: MasterValueUnit.canvasPx,
+      engineUnit: MasterValueUnit.canvasPx,
+      rendererUnit: MasterValueUnit.devicePx,
+    );
+  }
+
   static MasterPropertyValueMapping _mapTileOutputScale(
     MotionPropertyValue value,
   ) {
@@ -975,6 +1278,18 @@ class MasterValueTruthRegistry {
       uiUnit: MasterValueUnit.multiplier,
       engineUnit: MasterValueUnit.multiplier,
       rendererUnit: MasterValueUnit.multiplier,
+    );
+  }
+
+  static MasterPropertyValueMapping _mapBoolean(MotionPropertyValue value) {
+    final enabled = _readBoolean(value, fallback: false);
+    return MasterPropertyValueMapping(
+      ui: MasterValueLayer(booleanValue: enabled),
+      engine: MasterValueLayer(booleanValue: enabled),
+      renderer: MasterValueLayer(booleanValue: enabled),
+      uiUnit: MasterValueUnit.enumToken,
+      engineUnit: MasterValueUnit.enumToken,
+      rendererUnit: MasterValueUnit.enumToken,
     );
   }
 
@@ -1111,5 +1426,21 @@ class MasterValueTruthRegistry {
       return fallback;
     }
     return raw.toDouble();
+  }
+
+  static bool _readBoolean(MotionPropertyValue value,
+      {required bool fallback}) {
+    if (value.kind == MotionPropertyValueKind.boolean) {
+      final raw = value.rawValue;
+      return raw is bool ? raw : fallback;
+    }
+    if (value.kind == MotionPropertyValueKind.scalar ||
+        value.kind == MotionPropertyValueKind.integer) {
+      final raw = value.rawValue;
+      if (raw is num) {
+        return raw != 0;
+      }
+    }
+    return fallback;
   }
 }

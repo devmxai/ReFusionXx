@@ -19,7 +19,14 @@ void main() {
       expect(registry.definitionById('position'), isNotNull);
       expect(registry.definitionById('rotation'), isNotNull);
       expect(registry.definitionById('gaussianBlur'), isNotNull);
+      expect(registry.definitionById('motionBlurEnabled'), isNotNull);
       expect(registry.definitionById('motionBlurAmount'), isNotNull);
+      expect(registry.definitionById('motionBlurShutterAngle'), isNotNull);
+      expect(registry.definitionById('motionBlurShutterPhase'), isNotNull);
+      expect(registry.definitionById('motionBlurSamples'), isNotNull);
+      expect(
+          registry.definitionById('motionBlurAdaptiveSampleLimit'), isNotNull);
+      expect(registry.definitionById('motionBlurMaxTrailPx'), isNotNull);
       expect(registry.definitionById('tileOutputScale'), isNotNull);
       expect(registry.definitionById('cropRect'), isNotNull);
       expect(registry.definitionById('shapeWidth'), isNotNull);
@@ -110,6 +117,55 @@ void main() {
         value: const MotionPropertyValue.scalar(50),
       );
       expect(trimOffset.renderer.scalar, closeTo(0.5, 0.0001));
+    });
+
+    test('maps professional temporal motion blur controls', () {
+      expect(
+        registry
+            .definitionForMotionProperty(
+              MotionPropertyCatalog.motionBlurEnabled,
+            )
+            ?.id,
+        'motionBlurEnabled',
+      );
+      expect(
+        registry
+            .definitionForMotionProperty(MotionPropertyCatalog.motionBlurAmount)
+            ?.id,
+        'motionBlurAmount',
+      );
+      expect(
+        registry
+            .definitionForMotionProperty(
+              MotionPropertyCatalog.motionBlurShutterAngle,
+            )
+            ?.id,
+        'motionBlurShutterAngle',
+      );
+
+      final enabled = registry.mapValue(
+        definition: definition('motionBlurEnabled'),
+        value: const MotionPropertyValue.boolean(true),
+      );
+      expect(enabled.renderer.booleanValue, isTrue);
+
+      final amount = registry.mapValue(
+        definition: definition('motionBlurAmount'),
+        value: const MotionPropertyValue.scalar(75),
+      );
+      expect(amount.renderer.scalar, closeTo(0.75, 0.0001));
+
+      final samples = registry.mapValue(
+        definition: definition('motionBlurSamples'),
+        value: const MotionPropertyValue.integer(120),
+      );
+      expect(samples.renderer.scalar, 64);
+
+      final phase = registry.mapValue(
+        definition: definition('motionBlurShutterPhase'),
+        value: const MotionPropertyValue.scalar(-900),
+      );
+      expect(phase.renderer.scalar, -720);
     });
 
     test('maps crop, shape, and text motion properties', () {

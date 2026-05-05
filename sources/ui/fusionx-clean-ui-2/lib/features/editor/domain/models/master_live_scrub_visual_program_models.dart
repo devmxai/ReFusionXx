@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import 'master_time_models.dart';
 import 'master_value_truth_models.dart';
+import 'master_visual_program_models.dart';
 
 enum LiveScrubSourceKind {
   video,
@@ -91,6 +92,7 @@ class LiveScrubVisualSurface {
     this.transitionRole = LiveScrubTransitionRole.none,
     this.transform = const LiveScrubSurfaceTransform(),
     this.opacity = 1.0,
+    this.motionBlur = const MasterMotionBlurPolicy(),
     List<LiveScrubEffectBinding> effects = const <LiveScrubEffectBinding>[],
     List<String> blockers = const <String>[],
   })  : effects = List.unmodifiable(effects),
@@ -102,6 +104,7 @@ class LiveScrubVisualSurface {
   final LiveScrubTransitionRole transitionRole;
   final LiveScrubSurfaceTransform transform;
   final double opacity;
+  final MasterMotionBlurPolicy motionBlur;
   final List<LiveScrubEffectBinding> effects;
   final List<String> blockers;
 }

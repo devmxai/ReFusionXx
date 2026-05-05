@@ -137,7 +137,7 @@ void main() {
           layerId: 'layer-1',
           elementId: 'element-1',
         ),
-        definition: MotionPropertyCatalog.blurAmount,
+        definition: MotionPropertyCatalog.motionBlurAmount,
         keyframes: const <MotionKeyframeModel>[],
       ),
     ];
@@ -250,9 +250,11 @@ void main() {
     expect(surface.transitionRole, LiveScrubTransitionRole.outgoing);
     expect(
         surface.effects.any((effect) => effect.id == 'gaussianBlur'), isTrue);
+    expect(surface.motionBlur.isEnabled, isTrue);
+    expect(surface.motionBlur.amount, closeTo(0.35, 0.0001));
     expect(
       surface.effects.any((effect) => effect.id == 'motionBlurAmount'),
-      isTrue,
+      isFalse,
     );
     expect(
       surface.effects.any((effect) => effect.id == 'tileOutputScale'),

@@ -29,6 +29,7 @@ class MasterRenderGraphAdapter {
       String? cropNodeId;
       String? maskNodeId;
       String? styleNodeId;
+      String? motionBlurNodeId;
       String previousNodeId;
 
       final source = surface.source;
@@ -235,6 +236,52 @@ class MasterRenderGraphAdapter {
         previousNodeId = effectNodeId;
       }
 
+      if (surface.motionBlur.isEnabled) {
+        motionBlurNodeId = 'motionBlur:${surface.targetId}';
+        final sampleOffsetsMs = _motionBlurSampleOffsetsMs(
+          policy: surface.motionBlur,
+          frameRate: program.time.frameRate,
+        );
+        nodes.add(
+          MasterRenderGraphNode(
+            id: motionBlurNodeId,
+            family: MasterRenderGraphNodeFamily.temporalMotionBlur,
+            targetId: surface.targetId,
+            inputNodeIds: <String>[previousNodeId],
+            cacheKey: _cacheKey(
+              'motionBlur',
+              surface.targetId,
+              surface.motionBlur.amount,
+              surface.motionBlur.shutterAngleDegrees,
+              surface.motionBlur.shutterPhaseDegrees,
+              surface.motionBlur.samples,
+              Object.hashAll(sampleOffsetsMs),
+            ),
+            attributes: <String, Object?>{
+              'effectId': 'temporalMotionBlur',
+              'enabled': surface.motionBlur.enabled,
+              'amount': surface.motionBlur.amount,
+              'shutterAngleDegrees': surface.motionBlur.shutterAngleDegrees,
+              'shutterPhaseDegrees': surface.motionBlur.shutterPhaseDegrees,
+              'samples': surface.motionBlur.samples,
+              'adaptiveSampleLimit': surface.motionBlur.adaptiveSampleLimit,
+              'maxTrailPx': surface.motionBlur.maxTrailPx,
+              'affectPosition': surface.motionBlur.affectPosition,
+              'affectScale': surface.motionBlur.affectScale,
+              'affectRotation': surface.motionBlur.affectRotation,
+              'frameRate': program.time.frameRate,
+              'sampleOffsetsMs': sampleOffsetsMs,
+              'requiresTemporalSampling': true,
+              'fallbackAllowed': false,
+              'isSyntheticBlur': false,
+            },
+            blockers: surfaceBlockers,
+            diagnostics: surfaceDiagnostics,
+          ),
+        );
+        previousNodeId = motionBlurNodeId;
+      }
+
       String? transitionNodeId;
       if (surface.transitionRole != MasterVisualTransitionRole.none) {
         transitionNodeId =
@@ -300,6 +347,7 @@ class MasterRenderGraphAdapter {
           maskNodeId: maskNodeId,
           styleNodeId: styleNodeId,
           effectNodeIds: effectNodeIds,
+          motionBlurNodeId: motionBlurNodeId,
           transitionNodeId: transitionNodeId,
           compositeNodeId: compositeNodeId,
           drawOrder: surface.drawOrder,
@@ -417,5 +465,27 @@ class MasterRenderGraphAdapter {
       valueF,
     ]).toUnsigned(32).toRadixString(16);
     return '$family:$targetId:$hash';
+  }
+
+  List<double> _motionBlurSampleOffsetsMs({
+    required MasterMotionBlurPolicy policy,
+    required double frameRate,
+  }) {
+    final safeFrameRate =
+        (frameRate.isFinite && frameRate > 0 ? frameRate : 30.0).toDouble();
+    final frameDurationMs = 1000.0 / safeFrameRate;
+    final exposureMs = frameDurationMs *
+        (policy.shutterAngleDegrees.clamp(0.0, 1440.0).toDouble() / 360.0) *
+        policy.amount.clamp(0.0, 1.0).toDouble();
+    final phaseStartMs = frameDurationMs *
+        (policy.shutterPhaseDegrees.clamp(-720.0, 720.0).toDouble() / 360.0);
+    final count = policy.samples.clamp(1, policy.adaptiveSampleLimit);
+    if (count <= 1 || exposureMs <= 0) {
+      return <double>[phaseStartMs + exposureMs / 2.0];
+    }
+    return <double>[
+      for (var index = 0; index < count; index++)
+        phaseStartMs + (exposureMs * index / (count - 1)),
+    ];
   }
 }

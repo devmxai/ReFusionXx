@@ -278,6 +278,28 @@ class ManualTransitionLaneToMotionChannelAdapter {
               ),
             ),
         ];
+      case 'motion_blur':
+        return <MotionPropertyChannelModel>[
+          for (final laneTargetId in laneTargetIds)
+            MotionPropertyChannelModel(
+              id: 'manual-transition-${transition.id}-${lane.id}-$laneTargetId-motion-blur-amount',
+              target: _elementTargetFor(
+                projectId: projectId,
+                targetId: laneTargetId,
+              ),
+              definition: MotionPropertyCatalog.motionBlurAmount,
+              activeRange: activeRange,
+              baseValue: MotionPropertyValue.scalar(
+                _defaultFallbackValueForLane(lane.id).clamp(0.0, 100.0),
+              ),
+              keyframes: _mapKeyframes(
+                keyframes,
+                valueResolver: (value) => value.clamp(0.0, 100.0).toDouble(),
+                channelId:
+                    'manual-transition-${transition.id}-${lane.id}-$laneTargetId-motion-blur-amount',
+              ),
+            ),
+        ];
       default:
         return null;
     }
@@ -334,7 +356,8 @@ class ManualTransitionLaneToMotionChannelAdapter {
       'opacity' ||
       'position' ||
       'rotation' ||
-      'gaussian_blur' =>
+      'gaussian_blur' ||
+      'motion_blur' =>
         true,
       _ => false,
     };
@@ -446,6 +469,7 @@ class ManualTransitionLaneToMotionChannelAdapter {
       'position' => 0.0,
       'rotation' => 0.0,
       'gaussian_blur' => 0.0,
+      'motion_blur' => 0.0,
       _ => 0.0,
     };
   }
