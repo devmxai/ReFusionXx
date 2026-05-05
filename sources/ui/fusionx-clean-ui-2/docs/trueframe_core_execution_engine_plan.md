@@ -765,6 +765,11 @@ Phase I progress:
   transition visual kinds, instead of calling the transition-only route
   contract directly. Guarded by
   `test/universal_motion_engine_guard_test.dart`.
+- Phase I.G backend API cleanup is complete: transition-only routing API has
+  been removed from the public `TrueFrameRenderBackend` contract. Only the
+  generalized `routeNodeFamilies(...)` API remains exposed, with internal
+  transition ownership logic kept private to backend implementation and guarded
+  by `test/universal_motion_engine_guard_test.dart`.
 
 Checkpoint:
 

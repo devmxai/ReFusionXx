@@ -40,48 +40,54 @@ void main() {
   });
 
   test('keeps stage5 visible while manual temporal blur waits first frame', () {
-    final decision = backend.routeManualTransition(
+    final decision = backend.routeNodeFamilies(
       mode: TrueFrameRenderBackendMode.liveScrub,
+      resolvedLayerFamilies: const <String>['videoLayer'],
       hasRenderablePlan: true,
-      isManualTransition: true,
       hasTemporalMotionBlur: true,
       hasPresentedFirstFrame: false,
+      isManualTransition: true,
     );
 
-    expect(decision.usesProfessionalSurface, isTrue);
+    expect(decision.owner, TrueFrameRenderOwner.professionalCompositor);
     expect(decision.suppressesStage5Preview, isFalse);
-    expect(decision.reason, 'manual_temporal_blur_waiting_first_frame');
+    expect(
+      decision.reason,
+      contains('manual_temporal_blur_waiting_first_frame'),
+    );
   });
 
   test('suppresses stage5 after manual temporal blur first frame presents', () {
-    final decision = backend.routeManualTransition(
+    final decision = backend.routeNodeFamilies(
       mode: TrueFrameRenderBackendMode.playback,
+      resolvedLayerFamilies: const <String>['videoLayer'],
       hasRenderablePlan: true,
-      isManualTransition: true,
       hasTemporalMotionBlur: true,
       hasPresentedFirstFrame: true,
+      isManualTransition: true,
     );
 
-    expect(decision.usesProfessionalSurface, isTrue);
+    expect(decision.owner, TrueFrameRenderOwner.professionalCompositor);
     expect(decision.suppressesStage5Preview, isTrue);
     expect(
       decision.reason,
-      'manual_temporal_blur_professional_surface_presented',
+      contains('manual_temporal_blur_professional_surface_presented'),
     );
   });
 
   test('routes non-manual transitions to professional backend ownership', () {
-    final decision = backend.routeManualTransition(
+    final decision = backend.routeNodeFamilies(
       mode: TrueFrameRenderBackendMode.preview,
+      resolvedLayerFamilies: const <String>['videoLayer'],
       hasRenderablePlan: true,
-      isManualTransition: false,
       hasTemporalMotionBlur: false,
       hasPresentedFirstFrame: false,
+      isManualTransition: false,
     );
 
-    expect(decision.usesProfessionalSurface, isTrue);
+    expect(decision.owner, TrueFrameRenderOwner.professionalCompositor);
     expect(decision.suppressesStage5Preview, isTrue);
-    expect(decision.reason, 'non_manual_transition_backend_owner');
+    expect(decision.reason, contains('non_manual_transition_backend_owner'));
   });
 
   test('routes supported phase I node families to professional compositor', () {

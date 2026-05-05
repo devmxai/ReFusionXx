@@ -12,8 +12,8 @@ enum TrueFrameRenderOwner {
   blocked,
 }
 
-class TrueFrameRenderBackendRouteDecision {
-  const TrueFrameRenderBackendRouteDecision({
+class _TransitionSurfaceRouteDecision {
+  const _TransitionSurfaceRouteDecision({
     required this.mode,
     required this.usesProfessionalSurface,
     required this.suppressesStage5Preview,
@@ -49,14 +49,6 @@ abstract class TrueFrameRenderBackend {
     required bool isExporting,
     required bool isTimelineScrubbing,
     required bool isPlaying,
-  });
-
-  TrueFrameRenderBackendRouteDecision routeManualTransition({
-    required TrueFrameRenderBackendMode mode,
-    required bool hasRenderablePlan,
-    required bool isManualTransition,
-    required bool hasTemporalMotionBlur,
-    required bool hasPresentedFirstFrame,
   });
 
   TrueFrameNodeRenderRouteDecision routeNodeFamilies({
@@ -100,8 +92,7 @@ class TrueFrameManualTransitionRenderBackend extends TrueFrameRenderBackend {
     return TrueFrameRenderBackendMode.preview;
   }
 
-  @override
-  TrueFrameRenderBackendRouteDecision routeManualTransition({
+  _TransitionSurfaceRouteDecision _routeTransitionSurfaceOwnership({
     required TrueFrameRenderBackendMode mode,
     required bool hasRenderablePlan,
     required bool isManualTransition,
@@ -109,7 +100,7 @@ class TrueFrameManualTransitionRenderBackend extends TrueFrameRenderBackend {
     required bool hasPresentedFirstFrame,
   }) {
     if (!hasRenderablePlan) {
-      return TrueFrameRenderBackendRouteDecision(
+      return _TransitionSurfaceRouteDecision(
         mode: mode,
         usesProfessionalSurface: false,
         suppressesStage5Preview: false,
@@ -118,7 +109,7 @@ class TrueFrameManualTransitionRenderBackend extends TrueFrameRenderBackend {
     }
 
     if (!isManualTransition) {
-      return TrueFrameRenderBackendRouteDecision(
+      return _TransitionSurfaceRouteDecision(
         mode: mode,
         usesProfessionalSurface: true,
         suppressesStage5Preview: true,
@@ -127,7 +118,7 @@ class TrueFrameManualTransitionRenderBackend extends TrueFrameRenderBackend {
     }
 
     if (!hasTemporalMotionBlur) {
-      return TrueFrameRenderBackendRouteDecision(
+      return _TransitionSurfaceRouteDecision(
         mode: mode,
         usesProfessionalSurface: true,
         suppressesStage5Preview: false,
@@ -135,7 +126,7 @@ class TrueFrameManualTransitionRenderBackend extends TrueFrameRenderBackend {
       );
     }
 
-    return TrueFrameRenderBackendRouteDecision(
+    return _TransitionSurfaceRouteDecision(
       mode: mode,
       usesProfessionalSurface: true,
       suppressesStage5Preview: hasPresentedFirstFrame,
@@ -193,7 +184,7 @@ class TrueFrameManualTransitionRenderBackend extends TrueFrameRenderBackend {
       );
     }
 
-    final transitionRoute = routeManualTransition(
+    final transitionRoute = _routeTransitionSurfaceOwnership(
       mode: mode,
       hasRenderablePlan: hasRenderablePlan,
       isManualTransition: isManualTransition,

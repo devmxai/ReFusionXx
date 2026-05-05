@@ -63,6 +63,9 @@ void main() {
   final trueFrameCoreRuntimeEvaluatorFile = File(
     'lib/features/editor/domain/services/trueframe_core_runtime_evaluator.dart',
   );
+  final trueFrameRenderBackendFile = File(
+    'lib/features/editor/domain/services/trueframe_render_backend.dart',
+  );
 
   test('master evaluation path uses universal evaluation service', () async {
     final source = await screenFile.readAsString();
@@ -324,6 +327,12 @@ void main() {
         isFalse);
     expect(
         source.contains('TrueFrameRenderOwner.professionalCompositor'), isTrue);
+  });
+
+  test('trueframe backend does not expose transition-only route api', () async {
+    final source = await trueFrameRenderBackendFile.readAsString();
+    expect(source.contains('routeManualTransition('), isFalse);
+    expect(source.contains('routeNodeFamilies('), isTrue);
   });
 
   test('manual transition Motion Blur remains one timeline effect', () async {
