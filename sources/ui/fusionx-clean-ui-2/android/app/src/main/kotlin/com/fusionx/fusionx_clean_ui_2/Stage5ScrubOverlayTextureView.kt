@@ -1,6 +1,7 @@
 package com.refusion.app
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.graphics.SurfaceTexture
 import android.view.Surface
@@ -17,6 +18,7 @@ class Stage5ScrubOverlayTextureView(
     private var runtimeTransformMatrix3x3: List<Double>? = null
     private var runtimeOpacity: Float = 1f
     private var visibilityAlpha: Float = 1f
+    private var motionCompositeSuppressed: Boolean = false
 
     init {
         isOpaque = false
@@ -56,6 +58,12 @@ class Stage5ScrubOverlayTextureView(
     }
 
     @Synchronized
+    fun setMotionCompositeSuppressed(suppressed: Boolean) {
+        motionCompositeSuppressed = suppressed
+        applyCompositeTransform()
+    }
+
+    @Synchronized
     fun acquireOutputSurface(): Surface? {
         val texture = surfaceTexture ?: return null
         val currentSurface = outputSurface
@@ -71,6 +79,15 @@ class Stage5ScrubOverlayTextureView(
     fun releaseOutputSurface() {
         outputSurface?.release()
         outputSurface = null
+    }
+
+    fun snapshotBitmap(): Bitmap? {
+        if (!isAvailable || width <= 0 || height <= 0) {
+            return null
+        }
+        return runCatching {
+            getBitmap(width.coerceAtMost(1280), height.coerceAtMost(1280))
+        }.getOrNull()
     }
 
     override fun onSurfaceTextureAvailable(
@@ -131,7 +148,12 @@ class Stage5ScrubOverlayTextureView(
         // one texture matrix can produce anisotropic stretch artifacts.
         setTransform(aspectMatrix)
         applyRuntimeViewTransform(viewWidth, viewHeight)
-        alpha = (runtimeOpacity * visibilityAlpha).coerceIn(0f, 1f)
+        alpha =
+            if (motionCompositeSuppressed) {
+                0f
+            } else {
+                (runtimeOpacity * visibilityAlpha).coerceIn(0f, 1f)
+            }
     }
 
     private fun applyRuntimeViewTransform(

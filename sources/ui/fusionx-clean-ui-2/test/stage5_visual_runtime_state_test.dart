@@ -43,6 +43,38 @@ void main() {
             affectScale: true,
             affectRotation: true,
           ),
+          motionBlurSamples: <Stage5VisualRuntimeMotionBlurSample>[
+            Stage5VisualRuntimeMotionBlurSample(
+              timelineTimeMs: 1184,
+              transformMatrix3x3: <double>[
+                1,
+                0,
+                -18,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+              ],
+              opacity: 1,
+            ),
+            Stage5VisualRuntimeMotionBlurSample(
+              timelineTimeMs: 1200,
+              transformMatrix3x3: <double>[
+                1,
+                0,
+                0,
+                0,
+                1,
+                0,
+                0,
+                0,
+                1,
+              ],
+              opacity: 1,
+            ),
+          ],
         ),
       ],
     );
@@ -65,5 +97,22 @@ void main() {
     expect(motionBlurPolicy['shutterAngleDegrees'], 270);
     expect(motionBlurPolicy['samples'], 12);
     expect(motionBlurPolicy['maxTrailPx'], 360);
+
+    final motionBlurSamples = surface['motionBlurSamples'] as List<Object?>;
+    expect(motionBlurSamples, hasLength(2));
+    final firstSample = motionBlurSamples.first as Map<String, Object?>;
+    expect(firstSample['timelineTimeMs'], 1184);
+    expect(firstSample['opacity'], 1);
+    expect(firstSample['transformMatrix3x3'], <double>[
+      1,
+      0,
+      -18,
+      0,
+      1,
+      0,
+      0,
+      0,
+      1,
+    ]);
   });
 }

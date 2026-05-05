@@ -34,7 +34,7 @@ class Stage5PreviewPlatformView(
     private var runtimeTransformMatrix3x3: List<Double>? = null
     private var runtimeOpacity = 1.0
     private var runtimeGaussianBlurSigmaPx: Float? = null
-    private var runtimeMotionBlurSigmaPx: Float? = null
+    private var runtimeMotionBlurSamples: List<Stage5VisualRuntimeMotionBlurSample> = emptyList()
     @Volatile
     private var appliedScrubAspectRatio: Float? = null
     @Volatile
@@ -108,6 +108,10 @@ class Stage5PreviewPlatformView(
                 stage5NativeScrubEngine.notifyDirectOutputSurfaceAvailable()
             }
         }
+    private val motionBlurCompositeView =
+        Stage5MotionBlurCompositeView(context).apply {
+            visibility = View.INVISIBLE
+        }
     private val rootView =
         FrameLayout(context).apply {
             addView(
@@ -119,6 +123,13 @@ class Stage5PreviewPlatformView(
             )
             addView(
                 scrubOverlayView,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                ),
+            )
+            addView(
+                motionBlurCompositeView,
                 FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT,
@@ -142,6 +153,7 @@ class Stage5PreviewPlatformView(
         isScrubSurfaceVisible = visible
         runOnUiThreadIfActive {
             scrubOverlayView.setSurfaceVisibilityAlpha(if (visible) 1f else 0f)
+            refreshMotionBlurComposite()
             syncPlayerVisibility()
         }
     }
@@ -161,19 +173,21 @@ class Stage5PreviewPlatformView(
         transformMatrix3x3: List<Double>?,
         opacity: Double?,
         gaussianBlurSigmaPx: Float?,
-        motionBlurSigmaPx: Float?,
+        motionBlurSamples: List<Stage5VisualRuntimeMotionBlurSample>,
     ) {
         runtimeTransformMatrix3x3 = transformMatrix3x3
         runtimeOpacity = ((opacity ?: 1.0).coerceIn(0.0, 1.0))
         runtimeGaussianBlurSigmaPx = gaussianBlurSigmaPx?.takeIf { it.isFinite() && it > 0.05f }
-        runtimeMotionBlurSigmaPx = motionBlurSigmaPx?.takeIf { it.isFinite() && it > 0.05f }
+        runtimeMotionBlurSamples = motionBlurSamples
         runOnUiThreadIfActive(waitForCompletion = true) {
             scrubOverlayView.setRuntimeVisualState(
                 transformMatrix3x3 = transformMatrix3x3,
                 opacity = opacity,
             )
+            motionBlurCompositeView.setMotionBlurSamples(runtimeMotionBlurSamples)
             applyRuntimeStateToPlayerView()
             applyRuntimeEffects()
+            refreshMotionBlurComposite()
             syncPlayerVisibility()
         }
     }
@@ -240,6 +254,7 @@ class Stage5PreviewPlatformView(
     private fun syncPlayerVisibility() {
         val shouldAttachPlayerSurface = !isPreviewOutputSuppressed
         playerView.visibility = if (shouldAttachPlayerSurface) View.VISIBLE else View.INVISIBLE
+        val motionBlurActive = motionBlurCompositeView.hasActiveComposite
         val baseAlpha =
             if (shouldAttachPlayerSurface && !isScrubSurfaceVisible && isPlayerContentSized) {
                 1f
@@ -247,7 +262,12 @@ class Stage5PreviewPlatformView(
                 0f
             }
         playerView.alpha =
-            (baseAlpha * runtimeOpacity.toFloat().coerceIn(0f, 1f)).coerceIn(0f, 1f)
+            if (motionBlurActive) {
+                0f
+            } else {
+                (baseAlpha * runtimeOpacity.toFloat().coerceIn(0f, 1f)).coerceIn(0f, 1f)
+            }
+        scrubOverlayView.setMotionCompositeSuppressed(motionBlurActive)
     }
 
     private fun applyRuntimeStateToPlayerView() {
@@ -321,11 +341,7 @@ class Stage5PreviewPlatformView(
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
             return
         }
-        val sigma =
-            maxOf(
-                runtimeGaussianBlurSigmaPx ?: 0f,
-                runtimeMotionBlurSigmaPx ?: 0f,
-            ).coerceIn(0f, 80f)
+        val sigma = (runtimeGaussianBlurSigmaPx ?: 0f).coerceIn(0f, 80f)
         val renderEffect =
             if (sigma > 0.05f) {
                 RenderEffect.createBlurEffect(
@@ -338,6 +354,18 @@ class Stage5PreviewPlatformView(
             }
         playerView.setRenderEffect(renderEffect)
         scrubOverlayView.setRenderEffect(renderEffect)
+        motionBlurCompositeView.setRenderEffect(renderEffect)
+    }
+
+    private fun refreshMotionBlurComposite() {
+        if (runtimeMotionBlurSamples.size <= 1) {
+            motionBlurCompositeView.clearSourceFrame()
+            return
+        }
+        val sourceBitmap =
+            scrubOverlayView.snapshotBitmap()
+                ?: motionBlurCompositeView.currentSourceFrame
+        motionBlurCompositeView.setSourceFrame(sourceBitmap)
     }
 
     private fun runOnUiThread(action: () -> Unit) {

@@ -1075,6 +1075,27 @@ class MainActivity: FlutterActivity() {
                                     policyMap["affectRotation"] as? Boolean ?: true,
                             )
                         }
+                val motionBlurSamples =
+                    (surfaceMap["motionBlurSamples"] as? List<*>)?.mapNotNull { entry ->
+                        val sampleMap =
+                            (entry as? Map<*, *>)?.mapKeys { (key, _) -> key.toString() }
+                                ?: return@mapNotNull null
+                        val timelineTimeMs =
+                            (sampleMap["timelineTimeMs"] as? Number)?.toLong()
+                                ?: return@mapNotNull null
+                        val sampleMatrix =
+                            (sampleMap["transformMatrix3x3"] as? List<*>)?.mapNotNull { value ->
+                                (value as? Number)?.toDouble()
+                            }?.takeIf { values -> values.size == 9 }
+                                ?: return@mapNotNull null
+                        val sampleOpacity =
+                            (sampleMap["opacity"] as? Number)?.toDouble() ?: 1.0
+                        Stage5VisualRuntimeMotionBlurSample(
+                            timelineTimeMs = timelineTimeMs.coerceAtLeast(0L),
+                            transformMatrix3x3 = sampleMatrix,
+                            opacity = sampleOpacity,
+                        )
+                    } ?: emptyList()
                 val surfaceBlockers =
                     (surfaceMap["blockers"] as? List<*>)?.mapNotNull { value ->
                         value?.toString()
@@ -1088,6 +1109,7 @@ class MainActivity: FlutterActivity() {
                     effectProgramIds = effectProgramIds,
                     effectBindings = effectBindings,
                     motionBlurPolicy = motionBlurPolicy,
+                    motionBlurSamples = motionBlurSamples,
                     blockers = surfaceBlockers,
                 )
             } ?: emptyList()

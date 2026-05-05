@@ -64,6 +64,27 @@ class Stage5VisualRuntimeMotionBlurPolicy {
 }
 
 @immutable
+class Stage5VisualRuntimeMotionBlurSample {
+  const Stage5VisualRuntimeMotionBlurSample({
+    required this.timelineTimeMs,
+    required this.transformMatrix3x3,
+    required this.opacity,
+  });
+
+  final int timelineTimeMs;
+  final List<double> transformMatrix3x3;
+  final double opacity;
+
+  Map<String, Object?> toMap() {
+    return <String, Object?>{
+      'timelineTimeMs': timelineTimeMs,
+      'transformMatrix3x3': transformMatrix3x3,
+      'opacity': opacity,
+    };
+  }
+}
+
+@immutable
 class Stage5VisualRuntimeSurfaceState {
   const Stage5VisualRuntimeSurfaceState({
     required this.targetClipId,
@@ -74,6 +95,7 @@ class Stage5VisualRuntimeSurfaceState {
     this.effectProgramIds = const <String>[],
     this.effectBindings = const <Stage5VisualRuntimeEffectBinding>[],
     this.motionBlurPolicy,
+    this.motionBlurSamples = const <Stage5VisualRuntimeMotionBlurSample>[],
     this.blockers = const <String>[],
   });
 
@@ -85,6 +107,7 @@ class Stage5VisualRuntimeSurfaceState {
   final List<String> effectProgramIds;
   final List<Stage5VisualRuntimeEffectBinding> effectBindings;
   final Stage5VisualRuntimeMotionBlurPolicy? motionBlurPolicy;
+  final List<Stage5VisualRuntimeMotionBlurSample> motionBlurSamples;
   final List<String> blockers;
 
   Map<String, Object?> toMap() {
@@ -99,6 +122,9 @@ class Stage5VisualRuntimeSurfaceState {
           .map((effect) => effect.toMap())
           .toList(growable: false),
       'motionBlurPolicy': motionBlurPolicy?.toMap(),
+      'motionBlurSamples': motionBlurSamples
+          .map((sample) => sample.toMap())
+          .toList(growable: false),
       'blockers': blockers,
     };
   }

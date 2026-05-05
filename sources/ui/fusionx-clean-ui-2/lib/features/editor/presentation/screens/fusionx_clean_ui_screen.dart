@@ -20,6 +20,7 @@ import '../../domain/models/master_frame_evaluation_models.dart';
 import '../../domain/models/master_live_scrub_descriptor_models.dart';
 import '../../domain/models/master_live_scrub_visual_program_models.dart';
 import '../../domain/models/master_time_models.dart';
+import '../../domain/models/master_visual_program_models.dart';
 import '../../domain/models/professional_canvas_timeline_authoring_models.dart';
 import '../../domain/models/professional_motion_animation_models.dart';
 import '../../domain/models/professional_motion_compilation_models.dart';
@@ -22451,6 +22452,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
               affectScale: surface.motionBlur.affectScale,
               affectRotation: surface.motionBlur.affectRotation,
             ),
+            motionBlurSamples: _stage5TemporalMotionBlurSamplesForSurface(
+              previewTime: previewTime,
+              mode: mode,
+              activeTransition: activeTransition,
+              targetId: surface.targetId,
+              currentTransform: surface.transform,
+              policy: surface.motionBlur,
+            ),
             blockers: <String>[...surface.blockers],
           ),
     ];
@@ -22476,9 +22485,108 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           .take(6)
           .map((value) => value.toStringAsFixed(4))
           .join(',');
-      return '${surface.targetClipId}:${surface.role}:$matrix:${surface.opacity.toStringAsFixed(4)}';
+      final samplesDigest = surface.motionBlurSamples.map((sample) {
+        final sampleMatrix = sample.transformMatrix3x3
+            .take(6)
+            .map((value) => value.toStringAsFixed(3))
+            .join(',');
+        return '${sample.timelineTimeMs}:$sampleMatrix:${sample.opacity.toStringAsFixed(3)}';
+      }).join(';');
+      return '${surface.targetClipId}:${surface.role}:$matrix:${surface.opacity.toStringAsFixed(4)}:$samplesDigest';
     }).join('|');
     return '$transitionId:${state.mode}:$primary:$bucket:$surfacesDigest:${state.surfaces.length}';
+  }
+
+  List<Stage5VisualRuntimeMotionBlurSample>
+      _stage5TemporalMotionBlurSamplesForSurface({
+    required TimelineTime previewTime,
+    required String mode,
+    required _ActiveTimelineTransitionPreview activeTransition,
+    required String targetId,
+    required LiveScrubSurfaceTransform currentTransform,
+    required MasterMotionBlurPolicy policy,
+  }) {
+    if (!policy.isEnabled) {
+      return const <Stage5VisualRuntimeMotionBlurSample>[];
+    }
+    final sampleOffsets = _stage5MotionBlurSampleOffsetsMs(policy);
+    if (sampleOffsets.length <= 1) {
+      return const <Stage5VisualRuntimeMotionBlurSample>[];
+    }
+    final samples = <Stage5VisualRuntimeMotionBlurSample>[];
+    for (final offsetMs in sampleOffsets) {
+      final sampleTime = TimelineTime.fromMilliseconds(
+        (previewTime.inMilliseconds + offsetMs).round(),
+      ).clamp(TimelineTime.zero, _timelineDurationTime);
+      final sampleEvaluation = _masterFrameEvaluationForMode(
+        mode,
+        previewTimeOverride: sampleTime,
+      );
+      final sampleProgram = _manualTransitionLiveScrubProgram(
+        evaluation: sampleEvaluation,
+        activeTransition: activeTransition,
+        mode: mode,
+      );
+      LiveScrubVisualSurface? sampleSurface;
+      for (final surface
+          in sampleProgram?.surfaces ?? const <LiveScrubVisualSurface>[]) {
+        if (surface.targetId == targetId) {
+          sampleSurface = surface;
+          break;
+        }
+      }
+      if (sampleSurface == null || sampleSurface.blockers.isNotEmpty) {
+        continue;
+      }
+      samples.add(
+        Stage5VisualRuntimeMotionBlurSample(
+          timelineTimeMs: sampleTime.inMilliseconds,
+          transformMatrix3x3: _stage5VisualTransformMatrix3x3FromComponents(
+            positionX: policy.affectPosition
+                ? sampleSurface.transform.positionX
+                : currentTransform.positionX,
+            positionY: policy.affectPosition
+                ? sampleSurface.transform.positionY
+                : currentTransform.positionY,
+            scaleX: policy.affectScale
+                ? sampleSurface.transform.scaleX
+                : currentTransform.scaleX,
+            scaleY: policy.affectScale
+                ? sampleSurface.transform.scaleY
+                : currentTransform.scaleY,
+            rotationRadians: policy.affectRotation
+                ? sampleSurface.transform.rotationRadians
+                : currentTransform.rotationRadians,
+          ),
+          opacity: sampleSurface.opacity.clamp(0.0, 1.0).toDouble(),
+        ),
+      );
+    }
+    if (samples.length <= 1) {
+      return const <Stage5VisualRuntimeMotionBlurSample>[];
+    }
+    return List<Stage5VisualRuntimeMotionBlurSample>.unmodifiable(samples);
+  }
+
+  List<double> _stage5MotionBlurSampleOffsetsMs(
+    MasterMotionBlurPolicy policy,
+  ) {
+    final frameRate =
+        _timelineFps.isFinite && _timelineFps > 0 ? _timelineFps : 30.0;
+    final frameDurationMs = 1000.0 / frameRate;
+    final exposureMs = frameDurationMs *
+        (policy.shutterAngleDegrees.clamp(0.0, 1440.0).toDouble() / 360.0) *
+        policy.amount.clamp(0.0, 1.0).toDouble();
+    final phaseStartMs = frameDurationMs *
+        (policy.shutterPhaseDegrees.clamp(-720.0, 720.0).toDouble() / 360.0);
+    final sampleCount = policy.samples.clamp(1, policy.adaptiveSampleLimit);
+    if (sampleCount <= 1 || exposureMs <= 0) {
+      return const <double>[];
+    }
+    return <double>[
+      for (var index = 0; index < sampleCount; index++)
+        phaseStartMs + (exposureMs * index / (sampleCount - 1)),
+    ];
   }
 
   void _scheduleStage5VisualRuntimeSubmission({
@@ -22530,19 +22638,35 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   List<double> _stage5VisualTransformMatrix3x3(
     LiveScrubSurfaceTransform transform,
   ) {
-    final cosTheta = math.cos(transform.rotationRadians);
-    final sinTheta = math.sin(transform.rotationRadians);
-    final m00 = transform.scaleX * cosTheta;
-    final m01 = -transform.scaleY * sinTheta;
-    final m10 = transform.scaleX * sinTheta;
-    final m11 = transform.scaleY * cosTheta;
+    return _stage5VisualTransformMatrix3x3FromComponents(
+      positionX: transform.positionX,
+      positionY: transform.positionY,
+      scaleX: transform.scaleX,
+      scaleY: transform.scaleY,
+      rotationRadians: transform.rotationRadians,
+    );
+  }
+
+  List<double> _stage5VisualTransformMatrix3x3FromComponents({
+    required double positionX,
+    required double positionY,
+    required double scaleX,
+    required double scaleY,
+    required double rotationRadians,
+  }) {
+    final cosTheta = math.cos(rotationRadians);
+    final sinTheta = math.sin(rotationRadians);
+    final m00 = scaleX * cosTheta;
+    final m01 = -scaleY * sinTheta;
+    final m10 = scaleX * sinTheta;
+    final m11 = scaleY * cosTheta;
     return <double>[
       m00,
       m01,
-      transform.positionX,
+      positionX,
       m10,
       m11,
-      transform.positionY,
+      positionY,
       0.0,
       0.0,
       1.0,
