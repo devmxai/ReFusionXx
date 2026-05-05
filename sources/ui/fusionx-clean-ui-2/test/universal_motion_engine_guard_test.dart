@@ -48,8 +48,11 @@ void main() {
   final stage5PreviewPlatformViewFile = File(
     'android/app/src/main/kotlin/com/fusionx/fusionx_clean_ui_2/Stage5PreviewPlatformView.kt',
   );
-  final stage5MotionBlurCompositeViewFile = File(
-    'android/app/src/main/kotlin/com/fusionx/fusionx_clean_ui_2/Stage5MotionBlurCompositeView.kt',
+  final stage5TemporalMotionBlurRendererFile = File(
+    'android/app/src/main/kotlin/com/fusionx/fusionx_clean_ui_2/Stage5TemporalMotionBlurRenderer.kt',
+  );
+  final stage5ScrubOverlayTextureViewFile = File(
+    'android/app/src/main/kotlin/com/fusionx/fusionx_clean_ui_2/Stage5ScrubOverlayTextureView.kt',
   );
 
   test('master evaluation path uses universal evaluation service', () async {
@@ -172,12 +175,16 @@ void main() {
   test('stage5 motion blur is temporal samples, not gaussian sigma', () async {
     final nativeEngine = await stage5NativeScrubEngineFile.readAsString();
     final preview = await stage5PreviewPlatformViewFile.readAsString();
-    final composite = await stage5MotionBlurCompositeViewFile.readAsString();
+    final temporalRenderer =
+        await stage5TemporalMotionBlurRendererFile.readAsString();
+    final scrubOverlay = await stage5ScrubOverlayTextureViewFile.readAsString();
 
     expect(nativeEngine.contains('motionBlurSigmaPx'), isFalse);
     expect(nativeEngine.contains('previousMotionBlurSamples'), isFalse);
+    expect(nativeEngine.contains('Stage5TemporalMotionBlurRenderer'), isTrue);
+    expect(nativeEngine.contains('temporalMotionBlurRenderer.render('), isTrue);
     expect(preview.contains('runtimeMotionBlurSigmaPx'), isFalse);
-    expect(preview.contains('runtimeMotionBlurSamples'), isTrue);
+    expect(preview.contains('runtimeMotionBlurSamples'), isFalse);
     expect(
       preview.contains('maxOf(\n                runtimeGaussianBlurSigmaPx'),
       isFalse,
@@ -186,12 +193,17 @@ void main() {
       preview.contains(
         'transformMatrix3x3 = if (motionBlurActive) null else transformMatrix3x3',
       ),
-      isTrue,
+      isFalse,
     );
-    expect(composite.contains('Stage5MotionBlurCompositeView'), isTrue);
-    expect(composite.contains('samples.forEach'), isTrue);
-    expect(composite.contains('BlendMode.PLUS'), isFalse);
-    expect(composite.contains('canvas.concat(sampleMatrix)'), isTrue);
+    expect(preview.contains('Stage5MotionBlurCompositeView'), isFalse);
+    expect(preview.contains('snapshotBitmap'), isFalse);
+    expect(scrubOverlay.contains('getBitmap('), isFalse);
+    expect(scrubOverlay.contains('snapshotBitmap'), isFalse);
+    expect(temporalRenderer.contains('lockCanvas(null)'), isTrue);
+    expect(temporalRenderer.contains('getScaledFrameAtTime'), isTrue);
+    expect(temporalRenderer.contains('BlendMode.PLUS'), isTrue);
+    expect(temporalRenderer.contains('canvas.concat(sampleMatrix)'), isTrue);
+    expect(temporalRenderer.contains('Stage5MotionBlurCompositeView'), isFalse);
   });
 
   test('manual transition Motion Blur remains one timeline effect', () async {
