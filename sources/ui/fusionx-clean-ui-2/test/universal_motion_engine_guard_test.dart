@@ -117,6 +117,38 @@ void main() {
     expect(body.contains('frame: evaluation.copyWith('), isTrue);
   });
 
+  test('manual transition FX catalog exposes Gaussian and Motion Blur',
+      () async {
+    final source = await screenFile.readAsString();
+    final videoFxStart = source.indexOf(
+      'static const List<AnimateBrowserItem> _scopedVideoFxItems',
+    );
+    expect(videoFxStart, isNonNegative);
+    final videoFxEnd = source.indexOf(
+      'static const List<AnimateBrowserItem> _manualTransitionAnimateItems',
+      videoFxStart,
+    );
+    expect(videoFxEnd, greaterThan(videoFxStart));
+    final videoFxBody = source.substring(videoFxStart, videoFxEnd);
+
+    expect(videoFxBody.contains("id: 'gaussian_blur'"), isTrue);
+    expect(videoFxBody.contains("id: 'motion_blur'"), isTrue);
+    expect(
+      source.contains(
+        'static const List<AnimateBrowserItem> _manualTransitionFxItems =\n'
+        '      _scopedVideoFxItems;',
+      ),
+      isTrue,
+    );
+  });
+
+  test('stage5 visual runtime bridge sends effect renderer values', () async {
+    final source = await screenFile.readAsString();
+    expect(source.contains('Stage5VisualRuntimeEffectBinding('), isTrue);
+    expect(source.contains('rendererValue: effect.rendererValue'), isTrue);
+    expect(source.contains('rendererUnit: effect.rendererUnit.name'), isTrue);
+  });
+
   test('screen state does not keep legacy master frame read adapter field',
       () async {
     final source = await screenFile.readAsString();

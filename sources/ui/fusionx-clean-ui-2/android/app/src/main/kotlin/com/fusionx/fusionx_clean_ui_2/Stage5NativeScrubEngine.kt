@@ -70,7 +70,14 @@ data class Stage5VisualRuntimeSurfaceState(
     val opacity: Double,
     val transitionProgress: Double? = null,
     val effectProgramIds: List<String> = emptyList(),
+    val effectBindings: List<Stage5VisualRuntimeEffectBinding> = emptyList(),
     val blockers: List<String> = emptyList(),
+)
+
+data class Stage5VisualRuntimeEffectBinding(
+    val id: String,
+    val rendererValue: Double,
+    val rendererUnit: String,
 )
 
 data class Stage5VisualRuntimeState(
@@ -802,6 +809,7 @@ class Stage5NativeScrubEngine(
         outputTarget.host.setScrubVisualState(
             transformMatrix3x3 = visualState.transformMatrix3x3,
             opacity = visualState.opacity,
+            gaussianBlurSigmaPx = visualState.gaussianBlurSigmaPx(),
         )
         if (snapshot.forceSeekBeforeRender) {
             surfaceScrubDecoder.forceSeekOnNextRender()
@@ -905,6 +913,7 @@ class Stage5NativeScrubEngine(
             outputTarget.host.setScrubVisualState(
                 transformMatrix3x3 = visualState.transformMatrix3x3,
                 opacity = visualState.opacity,
+                gaussianBlurSigmaPx = visualState.gaussianBlurSigmaPx(),
             )
             surfaceScrubDecoder.forceSeekOnNextRender()
             val rendered =
@@ -1019,6 +1028,7 @@ class Stage5NativeScrubEngine(
                 opacity = descriptor.opacity,
                 transitionProgress = descriptor.transitionProgress,
                 effectProgramIds = descriptor.effectProgramIds,
+                effectBindings = emptyList(),
                 blockers = descriptor.runtimeBlockers,
             )
         }
@@ -1031,6 +1041,7 @@ class Stage5NativeScrubEngine(
                 opacity = 1.0,
                 transitionProgress = descriptor.transitionProgress,
                 effectProgramIds = emptyList(),
+                effectBindings = emptyList(),
                 blockers = runtimeSurface?.blockers ?: emptyList(),
             )
         }
@@ -1061,12 +1072,33 @@ class Stage5NativeScrubEngine(
             } else {
                 surface.opacity
             }
+        val gaussianBlurSigmaPx =
+            if (surface == null || surface.blockers.isNotEmpty()) {
+                null
+            } else {
+                surface.gaussianBlurSigmaPx()
+            }
         renderHosts.forEach { host ->
             host.setScrubVisualState(
                 transformMatrix3x3 = transformMatrix,
                 opacity = opacity,
+                gaussianBlurSigmaPx = gaussianBlurSigmaPx,
             )
         }
+    }
+
+    private fun Stage5VisualRuntimeSurfaceState.gaussianBlurSigmaPx(): Float? {
+        val directBinding =
+            effectBindings.firstOrNull { effect ->
+                effect.id == "gaussianBlur" && effect.rendererUnit == "shaderSigmaPx"
+            }
+        val fallbackBinding =
+            effectBindings.firstOrNull { effect -> effect.id == "gaussianBlur" }
+        val rendererValue = (directBinding ?: fallbackBinding)?.rendererValue ?: return null
+        if (!rendererValue.isFinite()) {
+            return null
+        }
+        return rendererValue.coerceIn(0.0, 80.0).toFloat()
     }
 
     private fun handleProxyReady(sourceUri: String) {

@@ -457,6 +457,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       summary: 'Soften the selected text layer with keyframeable blur.',
       keywords: <String>['blur', 'gaussian', 'soften', 'focus', 'defocus'],
     ),
+    AnimateBrowserItem(
+      id: 'motion_blur',
+      label: 'Motion Blur',
+      category: 'FX',
+      summary: 'Add shutter-based blur driven by authored layer motion.',
+      keywords: <String>['motion', 'blur', 'shutter', 'speed', 'temporal'],
+    ),
   ];
   static const List<AnimateBrowserItem> _scopedImageFxItems =
       <AnimateBrowserItem>[
@@ -466,6 +473,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       category: 'FX',
       summary: 'Soften the selected image layer with keyframeable blur.',
       keywords: <String>['blur', 'gaussian', 'soften', 'focus', 'defocus'],
+    ),
+    AnimateBrowserItem(
+      id: 'motion_blur',
+      label: 'Motion Blur',
+      category: 'FX',
+      summary: 'Add shutter-based blur driven by authored image motion.',
+      keywords: <String>['motion', 'blur', 'shutter', 'speed', 'temporal'],
     ),
   ];
   static const List<AnimateBrowserItem> _scopedVideoFxItems =
@@ -484,6 +498,21 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         'video',
       ],
     ),
+    AnimateBrowserItem(
+      id: 'motion_blur',
+      label: 'Motion Blur',
+      category: 'FX',
+      summary:
+          'Add temporal shutter blur driven by Position, Scale, and Rotation.',
+      keywords: <String>[
+        'motion',
+        'blur',
+        'shutter',
+        'speed',
+        'temporal',
+        'video',
+      ],
+    ),
   ];
   static const List<AnimateBrowserItem> _manualTransitionAnimateItems =
       _scopedVideoAnimateItems;
@@ -497,6 +526,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       category: 'FX',
       summary: 'Soften the selected shape layer with keyframeable blur.',
       keywords: <String>['blur', 'gaussian', 'soften', 'focus', 'defocus'],
+    ),
+    AnimateBrowserItem(
+      id: 'motion_blur',
+      label: 'Motion Blur',
+      category: 'FX',
+      summary: 'Add shutter-based blur driven by authored shape motion.',
+      keywords: <String>['motion', 'blur', 'shutter', 'speed', 'temporal'],
     ),
     AnimateBrowserItem(
       id: 'shadow',
@@ -21901,6 +21937,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             effectProgramIds: surface.effects.map((effect) => effect.id).toList(
                   growable: false,
                 ),
+            effectBindings: surface.effects
+                .map(
+                  (effect) => Stage5VisualRuntimeEffectBinding(
+                    id: effect.id,
+                    rendererValue: effect.rendererValue,
+                    rendererUnit: effect.rendererUnit.name,
+                  ),
+                )
+                .toList(growable: false),
             blockers: <String>[...surface.blockers],
           ),
     ];

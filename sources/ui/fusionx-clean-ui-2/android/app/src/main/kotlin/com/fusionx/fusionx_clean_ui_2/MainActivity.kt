@@ -1030,6 +1030,26 @@ class MainActivity: FlutterActivity() {
                     (surfaceMap["effectProgramIds"] as? List<*>)?.mapNotNull { value ->
                         value?.toString()
                     } ?: emptyList()
+                val effectBindings =
+                    (surfaceMap["effectBindings"] as? List<*>)?.mapNotNull { entry ->
+                        val effectMap =
+                            (entry as? Map<*, *>)?.mapKeys { (key, _) -> key.toString() }
+                                ?: return@mapNotNull null
+                        val id = effectMap["id"]?.toString().orEmpty()
+                        if (id.isBlank()) {
+                            return@mapNotNull null
+                        }
+                        val rendererValue =
+                            (effectMap["rendererValue"] as? Number)?.toDouble()
+                                ?: return@mapNotNull null
+                        val rendererUnit =
+                            effectMap["rendererUnit"]?.toString().orEmpty()
+                        Stage5VisualRuntimeEffectBinding(
+                            id = id,
+                            rendererValue = rendererValue,
+                            rendererUnit = rendererUnit,
+                        )
+                    } ?: emptyList()
                 val surfaceBlockers =
                     (surfaceMap["blockers"] as? List<*>)?.mapNotNull { value ->
                         value?.toString()
@@ -1041,6 +1061,7 @@ class MainActivity: FlutterActivity() {
                     opacity = opacity,
                     transitionProgress = (surfaceMap["transitionProgress"] as? Number)?.toDouble(),
                     effectProgramIds = effectProgramIds,
+                    effectBindings = effectBindings,
                     blockers = surfaceBlockers,
                 )
             } ?: emptyList()

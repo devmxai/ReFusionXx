@@ -10,6 +10,7 @@ interface Stage5ScrubRenderHost {
     fun setScrubVisualState(
         transformMatrix3x3: List<Double>?,
         opacity: Double?,
+        gaussianBlurSigmaPx: Float? = null,
     ) = Unit
 
     fun hasScrubOutputSurface(): Boolean = false

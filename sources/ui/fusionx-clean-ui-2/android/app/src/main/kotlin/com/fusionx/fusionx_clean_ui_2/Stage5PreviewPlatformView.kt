@@ -3,6 +3,8 @@ package com.refusion.app
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Matrix
+import android.graphics.RenderEffect
+import android.graphics.Shader
 import android.os.Handler
 import android.os.Looper
 import android.os.Build
@@ -31,6 +33,7 @@ class Stage5PreviewPlatformView(
     private var isPlayerContentSized = false
     private var runtimeTransformMatrix3x3: List<Double>? = null
     private var runtimeOpacity = 1.0
+    private var runtimeGaussianBlurSigmaPx: Float? = null
     @Volatile
     private var appliedScrubAspectRatio: Float? = null
     @Volatile
@@ -156,15 +159,18 @@ class Stage5PreviewPlatformView(
     override fun setScrubVisualState(
         transformMatrix3x3: List<Double>?,
         opacity: Double?,
+        gaussianBlurSigmaPx: Float?,
     ) {
         runtimeTransformMatrix3x3 = transformMatrix3x3
         runtimeOpacity = ((opacity ?: 1.0).coerceIn(0.0, 1.0))
+        runtimeGaussianBlurSigmaPx = gaussianBlurSigmaPx?.takeIf { it.isFinite() && it > 0.05f }
         runOnUiThreadIfActive(waitForCompletion = true) {
             scrubOverlayView.setRuntimeVisualState(
                 transformMatrix3x3 = transformMatrix3x3,
                 opacity = opacity,
             )
             applyRuntimeStateToPlayerView()
+            applyRuntimeEffects()
             syncPlayerVisibility()
         }
     }
@@ -306,6 +312,25 @@ class Stage5PreviewPlatformView(
         playerView.scaleX = if (sx.isFinite()) sx else 1f
         playerView.scaleY = if (sy.isFinite()) sy else 1f
         playerView.rotation = if (rotationDegrees.isFinite()) rotationDegrees else 0f
+    }
+
+    private fun applyRuntimeEffects() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            return
+        }
+        val sigma = runtimeGaussianBlurSigmaPx?.coerceIn(0f, 80f)
+        val renderEffect =
+            if (sigma != null && sigma > 0.05f) {
+                RenderEffect.createBlurEffect(
+                    sigma,
+                    sigma,
+                    Shader.TileMode.CLAMP,
+                )
+            } else {
+                null
+            }
+        playerView.setRenderEffect(renderEffect)
+        scrubOverlayView.setRenderEffect(renderEffect)
     }
 
     private fun runOnUiThread(action: () -> Unit) {

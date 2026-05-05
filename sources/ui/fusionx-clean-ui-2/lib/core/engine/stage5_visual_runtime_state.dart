@@ -1,6 +1,27 @@
 import 'package:flutter/foundation.dart';
 
 @immutable
+class Stage5VisualRuntimeEffectBinding {
+  const Stage5VisualRuntimeEffectBinding({
+    required this.id,
+    required this.rendererValue,
+    required this.rendererUnit,
+  });
+
+  final String id;
+  final double rendererValue;
+  final String rendererUnit;
+
+  Map<String, Object?> toMap() {
+    return <String, Object?>{
+      'id': id,
+      'rendererValue': rendererValue,
+      'rendererUnit': rendererUnit,
+    };
+  }
+}
+
+@immutable
 class Stage5VisualRuntimeSurfaceState {
   const Stage5VisualRuntimeSurfaceState({
     required this.targetClipId,
@@ -9,6 +30,7 @@ class Stage5VisualRuntimeSurfaceState {
     required this.opacity,
     this.transitionProgress,
     this.effectProgramIds = const <String>[],
+    this.effectBindings = const <Stage5VisualRuntimeEffectBinding>[],
     this.blockers = const <String>[],
   });
 
@@ -18,6 +40,7 @@ class Stage5VisualRuntimeSurfaceState {
   final double opacity;
   final double? transitionProgress;
   final List<String> effectProgramIds;
+  final List<Stage5VisualRuntimeEffectBinding> effectBindings;
   final List<String> blockers;
 
   Map<String, Object?> toMap() {
@@ -28,6 +51,9 @@ class Stage5VisualRuntimeSurfaceState {
       'opacity': opacity,
       'transitionProgress': transitionProgress,
       'effectProgramIds': effectProgramIds,
+      'effectBindings': effectBindings
+          .map((effect) => effect.toMap())
+          .toList(growable: false),
       'blockers': blockers,
     };
   }
