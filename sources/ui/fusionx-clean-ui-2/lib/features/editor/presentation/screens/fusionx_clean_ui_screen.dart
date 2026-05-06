@@ -618,6 +618,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   final Set<String> _transitionBoundaryFrameRequestsInFlight = <String>{};
   final Set<String> _reportedProfessionalTransitionPlanIssueKeys = <String>{};
   final Set<String> _reportedLiveScrubRuntimeBridgeProofIssueKeys = <String>{};
+  final Set<String> _reportedMotionBlurValuePropagationProofKeys = <String>{};
   final Set<String> _presentedProfessionalTransitionSurfaceKeys = <String>{};
   final TransitionBoundaryFrameRequestResolver
       _transitionBoundaryFrameRequestResolver =
@@ -22243,6 +22244,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           previewTime: previewTime,
           mode: mode,
           activeTransition: activeTransition,
+          baseEvaluation: evaluation,
           baseProgram: program,
         );
         parameters['temporalMotionBlurSamplePlans'] = temporalPlans
@@ -22893,8 +22895,35 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required TimelineTime previewTime,
     required String mode,
     required _ActiveTimelineTransitionPreview activeTransition,
+    required MasterFrameEvaluation baseEvaluation,
     required LiveScrubVisualProgram baseProgram,
   }) {
+    final selectedPropertyPath = _motionBlurProofSelectedPropertyPath(
+      activeTransition.transition,
+    );
+    final authoredMotionBlurAmount = selectedPropertyPath == null
+        ? 0.0
+        : activeTransition.transition.parameterValue(
+            selectedPropertyPath,
+            fallback: 0.0,
+          );
+    final selectedKeyframeValue = selectedPropertyPath == null
+        ? null
+        : _selectedTransitionFocusKeyframeValue(
+            activeTransition.transition,
+            selectedPropertyPath,
+          );
+    final rootTimeMs = previewTime.inMilliseconds;
+    final seamTime = _manualTransitionRootSeamTimeForActiveTransition(
+      activeTransition,
+    );
+    final transitionStartMs =
+        (seamTime - activeTransition.transition.resolvedLeadingDurationTime)
+            .inMilliseconds;
+    final transitionEndMs =
+        (seamTime + activeTransition.transition.resolvedTrailingDurationTime)
+            .inMilliseconds;
+    final localTimeMs = rootTimeMs - transitionStartMs;
     LiveScrubVisualSurface? blurSurface;
     for (final surface in baseProgram.surfaces) {
       if (surface.sourceKind != LiveScrubSourceKind.video) {
@@ -22911,9 +22940,43 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       break;
     }
     if (blurSurface == null) {
+      final strongestSurface = _strongestMotionBlurSurface(baseProgram);
+      _debugMotionBlurValuePropagationProof(
+        transition: activeTransition.transition,
+        selectedPropertyPath: selectedPropertyPath,
+        targetId: strongestSurface?.targetId ?? '',
+        nodeId: strongestSurface == null
+            ? ''
+            : 'motionBlur:${strongestSurface.targetId}',
+        rootTimeMs: rootTimeMs,
+        localTimeMs: localTimeMs,
+        authoredMotionBlurAmount: authoredMotionBlurAmount,
+        selectedKeyframeValue: selectedKeyframeValue,
+        evaluatedMotionBlurAmount: _evaluatedMotionBlurAmount(
+          baseEvaluation,
+          targetId: strongestSurface?.targetId,
+        ),
+        masterVisualProgramMotionBlurEnabled:
+            strongestSurface?.motionBlur.isEnabled ?? false,
+        masterVisualProgramMotionBlurAmount:
+            strongestSurface?.motionBlur.amount ?? 0.0,
+        samplingPlanEnabled: false,
+        samplingPlanAmount: 0.0,
+        sampleCount: 0,
+        sampleTimesMs: const <int>[],
+        sampleTransformsDifferent: false,
+        nativeWriterSamplePayloadCount: 0,
+        nativeWriterPayloadAmount: 0.0,
+        nativeWriterTransformDelta: 0.0,
+        failureReason: 'no_master_visual_program_motion_blur_surface',
+      );
       return const <TemporalMotionBlurSamplePlan>[];
     }
     final policy = blurSurface.motionBlur;
+    final evaluatedMotionBlurAmount = _evaluatedMotionBlurAmount(
+      baseEvaluation,
+      targetId: blurSurface.targetId,
+    );
     final coreSamplingPlan = _coreMotionBlurSamplingPlanForManualTransition(
       previewTime: previewTime,
       mode: mode,
@@ -22923,6 +22986,28 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       includeAllTransitionSources: true,
     );
     if (coreSamplingPlan == null) {
+      _debugMotionBlurValuePropagationProof(
+        transition: activeTransition.transition,
+        selectedPropertyPath: selectedPropertyPath,
+        targetId: blurSurface.targetId,
+        nodeId: 'motionBlur:${blurSurface.targetId}',
+        rootTimeMs: rootTimeMs,
+        localTimeMs: localTimeMs,
+        authoredMotionBlurAmount: authoredMotionBlurAmount,
+        selectedKeyframeValue: selectedKeyframeValue,
+        evaluatedMotionBlurAmount: evaluatedMotionBlurAmount,
+        masterVisualProgramMotionBlurEnabled: policy.isEnabled,
+        masterVisualProgramMotionBlurAmount: policy.amount,
+        samplingPlanEnabled: false,
+        samplingPlanAmount: policy.amount,
+        sampleCount: 0,
+        sampleTimesMs: const <int>[],
+        sampleTransformsDifferent: false,
+        nativeWriterSamplePayloadCount: 0,
+        nativeWriterPayloadAmount: 0.0,
+        nativeWriterTransformDelta: 0.0,
+        failureReason: 'core_sampling_plan_null',
+      );
       return const <TemporalMotionBlurSamplePlan>[];
     }
     final sampleOffsets = coreSamplingPlan.sampleTimesMs
@@ -22932,21 +23017,38 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         )
         .toList(growable: false);
     if (sampleOffsets.length <= 1) {
+      _debugMotionBlurValuePropagationProof(
+        transition: activeTransition.transition,
+        selectedPropertyPath: selectedPropertyPath,
+        targetId: blurSurface.targetId,
+        nodeId: 'motionBlur:${blurSurface.targetId}',
+        rootTimeMs: rootTimeMs,
+        localTimeMs: localTimeMs,
+        authoredMotionBlurAmount: authoredMotionBlurAmount,
+        selectedKeyframeValue: selectedKeyframeValue,
+        evaluatedMotionBlurAmount: evaluatedMotionBlurAmount,
+        masterVisualProgramMotionBlurEnabled: policy.isEnabled,
+        masterVisualProgramMotionBlurAmount: policy.amount,
+        samplingPlanEnabled: coreSamplingPlan.enabled,
+        samplingPlanAmount: coreSamplingPlan.amount,
+        sampleCount: coreSamplingPlan.sampleTimesMs.length,
+        sampleTimesMs: coreSamplingPlan.sampleTimesMs,
+        sampleTransformsDifferent: _sampleTransformsDifferent(
+          coreSamplingPlan.sampleTransforms,
+        ),
+        nativeWriterSamplePayloadCount: 0,
+        nativeWriterPayloadAmount: 0.0,
+        nativeWriterTransformDelta: _sampleTransformDelta(
+          coreSamplingPlan.sampleTransforms,
+        ),
+        failureReason: 'sample_offsets_too_short',
+      );
       return const <TemporalMotionBlurSamplePlan>[];
     }
     final sampleWeights =
         List<double>.from(coreSamplingPlan.sampleWeights, growable: false);
     final sourceWindows =
         _liveScrubSourceWindowsForActiveTransition(activeTransition);
-    final seamTime = _manualTransitionRootSeamTimeForActiveTransition(
-      activeTransition,
-    );
-    final transitionStartMs =
-        (seamTime - activeTransition.transition.resolvedLeadingDurationTime)
-            .inMilliseconds;
-    final transitionEndMs =
-        (seamTime + activeTransition.transition.resolvedTrailingDurationTime)
-            .inMilliseconds;
     final sampleTimesMs = <int>[];
     final sourceIdsBySample = <String>[];
     final sampleTransforms = <List<double>>[];
@@ -22971,6 +23073,32 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         includeAllTransitionSourcesForTemporalPlan: true,
       );
       if (sampleProgram == null) {
+        _debugMotionBlurValuePropagationProof(
+          transition: activeTransition.transition,
+          selectedPropertyPath: selectedPropertyPath,
+          targetId: blurSurface.targetId,
+          nodeId: 'motionBlur:${blurSurface.targetId}',
+          rootTimeMs: rootTimeMs,
+          localTimeMs: localTimeMs,
+          authoredMotionBlurAmount: authoredMotionBlurAmount,
+          selectedKeyframeValue: selectedKeyframeValue,
+          evaluatedMotionBlurAmount: evaluatedMotionBlurAmount,
+          masterVisualProgramMotionBlurEnabled: policy.isEnabled,
+          masterVisualProgramMotionBlurAmount: policy.amount,
+          samplingPlanEnabled: coreSamplingPlan.enabled,
+          samplingPlanAmount: coreSamplingPlan.amount,
+          sampleCount: coreSamplingPlan.sampleTimesMs.length,
+          sampleTimesMs: coreSamplingPlan.sampleTimesMs,
+          sampleTransformsDifferent: _sampleTransformsDifferent(
+            coreSamplingPlan.sampleTransforms,
+          ),
+          nativeWriterSamplePayloadCount: contributions.length,
+          nativeWriterPayloadAmount: policy.amount,
+          nativeWriterTransformDelta: _sampleTransformDelta(
+            coreSamplingPlan.sampleTransforms,
+          ),
+          failureReason: 'sample_program_null',
+        );
         continue;
       }
       final sampleSurfaces = sampleProgram.surfaces
@@ -22982,6 +23110,32 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           )
           .toList(growable: false);
       if (sampleSurfaces.isEmpty) {
+        _debugMotionBlurValuePropagationProof(
+          transition: activeTransition.transition,
+          selectedPropertyPath: selectedPropertyPath,
+          targetId: blurSurface.targetId,
+          nodeId: 'motionBlur:${blurSurface.targetId}',
+          rootTimeMs: rootTimeMs,
+          localTimeMs: localTimeMs,
+          authoredMotionBlurAmount: authoredMotionBlurAmount,
+          selectedKeyframeValue: selectedKeyframeValue,
+          evaluatedMotionBlurAmount: evaluatedMotionBlurAmount,
+          masterVisualProgramMotionBlurEnabled: policy.isEnabled,
+          masterVisualProgramMotionBlurAmount: policy.amount,
+          samplingPlanEnabled: coreSamplingPlan.enabled,
+          samplingPlanAmount: coreSamplingPlan.amount,
+          sampleCount: coreSamplingPlan.sampleTimesMs.length,
+          sampleTimesMs: coreSamplingPlan.sampleTimesMs,
+          sampleTransformsDifferent: _sampleTransformsDifferent(
+            coreSamplingPlan.sampleTransforms,
+          ),
+          nativeWriterSamplePayloadCount: contributions.length,
+          nativeWriterPayloadAmount: policy.amount,
+          nativeWriterTransformDelta: _sampleTransformDelta(
+            coreSamplingPlan.sampleTransforms,
+          ),
+          failureReason: 'sample_surfaces_empty',
+        );
         continue;
       }
       sampleTimesMs.add(sampleTime.inMilliseconds);
@@ -23046,6 +23200,32 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
     }
     if (sampleTimesMs.length <= 1 || contributions.length <= 1) {
+      _debugMotionBlurValuePropagationProof(
+        transition: activeTransition.transition,
+        selectedPropertyPath: selectedPropertyPath,
+        targetId: blurSurface.targetId,
+        nodeId: 'motionBlur:${blurSurface.targetId}',
+        rootTimeMs: rootTimeMs,
+        localTimeMs: localTimeMs,
+        authoredMotionBlurAmount: authoredMotionBlurAmount,
+        selectedKeyframeValue: selectedKeyframeValue,
+        evaluatedMotionBlurAmount: evaluatedMotionBlurAmount,
+        masterVisualProgramMotionBlurEnabled: policy.isEnabled,
+        masterVisualProgramMotionBlurAmount: policy.amount,
+        samplingPlanEnabled: coreSamplingPlan.enabled,
+        samplingPlanAmount: coreSamplingPlan.amount,
+        sampleCount: coreSamplingPlan.sampleTimesMs.length,
+        sampleTimesMs: coreSamplingPlan.sampleTimesMs,
+        sampleTransformsDifferent: _sampleTransformsDifferent(
+          coreSamplingPlan.sampleTransforms,
+        ),
+        nativeWriterSamplePayloadCount: contributions.length,
+        nativeWriterPayloadAmount: policy.amount,
+        nativeWriterTransformDelta: _sampleTransformDelta(
+          coreSamplingPlan.sampleTransforms,
+        ),
+        failureReason: 'sample_contributions_missing',
+      );
       return const <TemporalMotionBlurSamplePlan>[];
     }
     final plan = TemporalMotionBlurSamplePlan(
@@ -23071,6 +23251,32 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       affectRotation: policy.affectRotation,
       graphRevision: baseProgram.renderGraphRevision,
       policyRevision: _stage5VisualRuntimeRevision + 1,
+    );
+    _debugMotionBlurValuePropagationProof(
+      transition: activeTransition.transition,
+      selectedPropertyPath: selectedPropertyPath,
+      targetId: blurSurface.targetId,
+      nodeId: 'motionBlur:${blurSurface.targetId}',
+      rootTimeMs: rootTimeMs,
+      localTimeMs: localTimeMs,
+      authoredMotionBlurAmount: authoredMotionBlurAmount,
+      selectedKeyframeValue: selectedKeyframeValue,
+      evaluatedMotionBlurAmount: evaluatedMotionBlurAmount,
+      masterVisualProgramMotionBlurEnabled: policy.isEnabled,
+      masterVisualProgramMotionBlurAmount: policy.amount,
+      samplingPlanEnabled: coreSamplingPlan.enabled,
+      samplingPlanAmount: coreSamplingPlan.amount,
+      sampleCount: coreSamplingPlan.sampleTimesMs.length,
+      sampleTimesMs: coreSamplingPlan.sampleTimesMs,
+      sampleTransformsDifferent: _sampleTransformsDifferent(
+        coreSamplingPlan.sampleTransforms,
+      ),
+      nativeWriterSamplePayloadCount: contributions.length,
+      nativeWriterPayloadAmount: plan.amount,
+      nativeWriterTransformDelta: _sampleTransformDelta(
+        coreSamplingPlan.sampleTransforms,
+      ),
+      failureReason: 'ready',
     );
     return List<TemporalMotionBlurSamplePlan>.unmodifiable(
       <TemporalMotionBlurSamplePlan>[plan],
@@ -23702,6 +23908,176 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
     }
     return hasVisibleAmount && contributionCount > 1;
+  }
+
+  String? _motionBlurProofSelectedPropertyPath(
+    TimelineTrackTransitionData transition,
+  ) {
+    final selectedLaneId =
+        _transitionFocusSession?.transitionId == transition.id
+            ? _transitionFocusSession?.selectedLaneId
+            : null;
+    if (selectedLaneId != null &&
+        _isTransitionMotionBlurLaneId(selectedLaneId)) {
+      return selectedLaneId;
+    }
+    for (final laneId in <String>[
+      ...transition.manualEffectIds,
+      for (final lane in transition.manualAnimationLanes) lane.id,
+    ]) {
+      if (_isTransitionMotionBlurLaneId(laneId)) {
+        return laneId;
+      }
+    }
+    return null;
+  }
+
+  double? _selectedTransitionFocusKeyframeValue(
+    TimelineTrackTransitionData transition,
+    String laneId,
+  ) {
+    final lane = transition.manualAnimationLaneById(laneId);
+    if (lane == null) {
+      return null;
+    }
+    final selectedIndex = _transitionFocusSession?.transitionId == transition.id
+        ? _selectedTransitionFocusKeyframeIndex
+        : null;
+    if (selectedIndex == null) {
+      return null;
+    }
+    final values = lane.alignedKeyframeValues(
+      fallbackValue: transition.parameterValue(laneId, fallback: 0.0),
+      clampToPercent: false,
+    );
+    if (selectedIndex < 0 || selectedIndex >= values.length) {
+      return null;
+    }
+    return values[selectedIndex];
+  }
+
+  LiveScrubVisualSurface? _strongestMotionBlurSurface(
+    LiveScrubVisualProgram program,
+  ) {
+    LiveScrubVisualSurface? strongest;
+    for (final surface in program.surfaces) {
+      if (surface.sourceKind != LiveScrubSourceKind.video &&
+          surface.sourceKind != LiveScrubSourceKind.image) {
+        continue;
+      }
+      if (strongest == null ||
+          surface.motionBlur.amount > strongest.motionBlur.amount) {
+        strongest = surface;
+      }
+    }
+    return strongest;
+  }
+
+  double _evaluatedMotionBlurAmount(
+    MasterFrameEvaluation evaluation, {
+    required String? targetId,
+  }) {
+    for (final channel in evaluation.evaluatedChannels) {
+      if (targetId != null &&
+          targetId.isNotEmpty &&
+          channel.targetId != targetId) {
+        continue;
+      }
+      if (channel.propertyDefinitionId ==
+          MotionPropertyCatalog.motionBlurAmount.id) {
+        return channel.mapping.renderer.scalar ?? 0.0;
+      }
+    }
+    return 0.0;
+  }
+
+  bool _sampleTransformsDifferent(List<List<double>> transforms) =>
+      _sampleTransformDelta(transforms) > 0.0001;
+
+  double _sampleTransformDelta(List<List<double>> transforms) {
+    if (transforms.length <= 1) {
+      return 0;
+    }
+    final first = transforms.first;
+    var maxDelta = 0.0;
+    for (final transform in transforms.skip(1)) {
+      final length = math.min(first.length, transform.length);
+      var delta = 0.0;
+      for (var index = 0; index < length; index++) {
+        delta += (transform[index] - first[index]).abs();
+      }
+      maxDelta = math.max(maxDelta, delta);
+    }
+    return maxDelta;
+  }
+
+  void _debugMotionBlurValuePropagationProof({
+    required TimelineTrackTransitionData transition,
+    required String? selectedPropertyPath,
+    required String targetId,
+    required String nodeId,
+    required int rootTimeMs,
+    required int localTimeMs,
+    required double authoredMotionBlurAmount,
+    required double? selectedKeyframeValue,
+    required double evaluatedMotionBlurAmount,
+    required bool masterVisualProgramMotionBlurEnabled,
+    required double masterVisualProgramMotionBlurAmount,
+    required bool samplingPlanEnabled,
+    required double samplingPlanAmount,
+    required int sampleCount,
+    required List<int> sampleTimesMs,
+    required bool sampleTransformsDifferent,
+    required int nativeWriterSamplePayloadCount,
+    required double nativeWriterPayloadAmount,
+    required double nativeWriterTransformDelta,
+    required String failureReason,
+  }) {
+    final key = [
+      transition.id,
+      selectedPropertyPath ?? 'none',
+      targetId,
+      rootTimeMs,
+      authoredMotionBlurAmount.toStringAsFixed(3),
+      evaluatedMotionBlurAmount.toStringAsFixed(3),
+      masterVisualProgramMotionBlurAmount.toStringAsFixed(3),
+      samplingPlanAmount.toStringAsFixed(3),
+      sampleCount,
+      nativeWriterSamplePayloadCount,
+      nativeWriterPayloadAmount.toStringAsFixed(3),
+      nativeWriterTransformDelta.toStringAsFixed(4),
+      failureReason,
+    ].join('|');
+    if (!_reportedMotionBlurValuePropagationProofKeys.add(key)) {
+      return;
+    }
+    final selectedKeyframeText = selectedKeyframeValue == null
+        ? 'null'
+        : selectedKeyframeValue.toStringAsFixed(3);
+    debugPrint(
+      'Motion Blur value propagation proof: '
+      'transitionId=${transition.id}, '
+      'targetId=$targetId, '
+      'nodeId=$nodeId, '
+      'rootTimeMs=$rootTimeMs, '
+      'localTimeMs=$localTimeMs, '
+      'selectedPropertyPath=${selectedPropertyPath ?? 'none'}, '
+      'authoredMotionBlurAmount=${authoredMotionBlurAmount.toStringAsFixed(3)}, '
+      'selectedKeyframeValue=$selectedKeyframeText, '
+      'evaluatedMotionBlurAmount=${evaluatedMotionBlurAmount.toStringAsFixed(3)}, '
+      'masterVisualProgramMotionBlurEnabled=$masterVisualProgramMotionBlurEnabled, '
+      'masterVisualProgramMotionBlurAmount=${masterVisualProgramMotionBlurAmount.toStringAsFixed(3)}, '
+      'samplingPlanEnabled=$samplingPlanEnabled, '
+      'samplingPlanAmount=${samplingPlanAmount.toStringAsFixed(3)}, '
+      'sampleCount=$sampleCount, '
+      'sampleTimesMs=$sampleTimesMs, '
+      'sampleTransformsDifferent=$sampleTransformsDifferent, '
+      'nativeWriterSamplePayloadCount=$nativeWriterSamplePayloadCount, '
+      'nativeWriterPayloadAmount=${nativeWriterPayloadAmount.toStringAsFixed(3)}, '
+      'nativeWriterTransformDelta=${nativeWriterTransformDelta.toStringAsFixed(4)}, '
+      'transitionParameterValues=${transition.parameterValues}, '
+      'failureReason=$failureReason',
+    );
   }
 
   double _motionBlurVisibilityGateTransformDelta(
