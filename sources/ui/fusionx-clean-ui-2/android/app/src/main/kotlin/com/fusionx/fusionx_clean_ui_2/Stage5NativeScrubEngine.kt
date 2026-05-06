@@ -1174,17 +1174,21 @@ class Stage5NativeScrubEngine(
             timeDeltaMs = acceptance.timeDeltaMs,
             effectValuesHash = packet.effectValuesHash,
         )
-        if (!acceptance.accepted) {
-            return cachedOrDescriptorVisualSurface(
-                descriptor = descriptor,
-                runtimeFallbackBlockers = listOfNotNull(acceptance.rejectionReason),
-            )
-        }
         val runtimeSurface = runtimeState.resolveSurfaceForExactClipId(descriptor.clipId)
         if (runtimeSurface == null || runtimeSurface.blockers.isNotEmpty()) {
             return cachedOrDescriptorVisualSurface(
                 descriptor = descriptor,
                 runtimeFallbackBlockers = runtimeSurface?.blockers ?: emptyList(),
+            )
+        }
+        if (!acceptance.accepted) {
+            if (acceptance.rejectionReason == "timeline_time_mismatch") {
+                cacheStableVisualSurface(runtimeSurface)
+                return runtimeSurface
+            }
+            return cachedOrDescriptorVisualSurface(
+                descriptor = descriptor,
+                runtimeFallbackBlockers = listOfNotNull(acceptance.rejectionReason),
             )
         }
         latestAcceptedVisualRuntimeRevision = packet.revision

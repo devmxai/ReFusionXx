@@ -683,6 +683,20 @@ void main() {
       reason:
           'When Motion Tile is active, Stage5 must not also apply the same rotation as a PlayerView transform.',
     );
+    expect(
+      previewSource.contains('buildCenteredRuntimeTransformMatrix('),
+      isTrue,
+      reason:
+          'Authored rotation must be applied as one centered matrix, not decomposed into a drifting view transform.',
+    );
+    final scrubOverlaySource =
+        await stage5ScrubOverlayTextureViewFile.readAsString();
+    expect(
+      scrubOverlaySource.contains('buildCenteredRuntimeTransformMatrix('),
+      isTrue,
+      reason:
+          'Live Scrub overlay rotation must use the same centered matrix contract as playback preview.',
+    );
   });
 
   test('scene-layer FX authoring exposes edge fill channels', () async {
@@ -1123,6 +1137,12 @@ void main() {
     expect(source.contains('TF_STAGE5_FRAME_PACKET_PROOF'), isTrue);
     expect(source.contains('acceptFramePacket('), isTrue);
     expect(source.contains('timeline_time_mismatch'), isTrue);
+    expect(
+      source.contains('acceptance.rejectionReason == "timeline_time_mismatch"'),
+      isTrue,
+      reason:
+          'A late visual packet may be logged, but it must not reset authored rotation to identity and create visible cuts.',
+    );
     expect(source.contains('target_clip_mismatch'), isTrue);
     expect(source.contains('stale_revision'), isTrue);
   });

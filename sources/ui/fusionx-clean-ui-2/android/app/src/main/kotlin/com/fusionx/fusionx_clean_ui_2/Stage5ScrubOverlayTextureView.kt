@@ -2,6 +2,7 @@ package com.refusion.app
 
 import android.content.Context
 import android.graphics.Matrix
+import android.os.Build
 import android.graphics.SurfaceTexture
 import android.view.Surface
 import android.view.TextureView
@@ -140,23 +141,33 @@ class Stage5ScrubOverlayTextureView(
     ) {
         val centerX = viewWidth / 2f
         val centerY = viewHeight / 2f
-        pivotX = centerX
-        pivotY = centerY
         val values = runtimeTransformMatrix3x3
         if (values == null) {
-            translationX = 0f
-            translationY = 0f
-            scaleX = 1f
-            scaleY = 1f
-            rotation = 0f
+            resetRuntimeViewTransform()
             return
         }
         if (values.size != 9) {
+            resetRuntimeViewTransform()
+            return
+        }
+        if (!isRuntimeMatrixFinite(values)) {
+            resetRuntimeViewTransform()
+            return
+        }
+        val runtimeMatrix = buildCenteredRuntimeTransformMatrix(
+            matrixValues = values,
+            centerX = centerX,
+            centerY = centerY,
+        )
+        if (Build.VERSION.SDK_INT >= 29 && runtimeMatrix != null) {
             translationX = 0f
             translationY = 0f
             scaleX = 1f
             scaleY = 1f
             rotation = 0f
+            pivotX = centerX
+            pivotY = centerY
+            animationMatrix = runtimeMatrix
             return
         }
         val m00 = values[0].toFloat()
@@ -165,23 +176,74 @@ class Stage5ScrubOverlayTextureView(
         val m10 = values[3].toFloat()
         val m11 = values[4].toFloat()
         val ty = values[5].toFloat()
-        if (!m00.isFinite() || !m01.isFinite() || !tx.isFinite() ||
-            !m10.isFinite() || !m11.isFinite() || !ty.isFinite()
-        ) {
-            translationX = 0f
-            translationY = 0f
-            scaleX = 1f
-            scaleY = 1f
-            rotation = 0f
-            return
-        }
         val derivedScaleX = sqrt((m00 * m00) + (m10 * m10))
         val derivedScaleY = sqrt((m01 * m01) + (m11 * m11))
         val derivedRotationDegrees = Math.toDegrees(atan2(m10, m00).toDouble()).toFloat()
+        clearRuntimeAnimationMatrix()
+        pivotX = centerX
+        pivotY = centerY
         translationX = tx
         translationY = ty
         scaleX = if (derivedScaleX.isFinite()) derivedScaleX else 1f
         scaleY = if (derivedScaleY.isFinite()) derivedScaleY else 1f
         rotation = if (derivedRotationDegrees.isFinite()) derivedRotationDegrees else 0f
+    }
+
+    private fun resetRuntimeViewTransform() {
+        clearRuntimeAnimationMatrix()
+        translationX = 0f
+        translationY = 0f
+        scaleX = 1f
+        scaleY = 1f
+        rotation = 0f
+    }
+
+    private fun clearRuntimeAnimationMatrix() {
+        if (Build.VERSION.SDK_INT >= 29) {
+            animationMatrix = null
+        }
+    }
+
+    private fun isRuntimeMatrixFinite(matrixValues: List<Double>): Boolean {
+        if (matrixValues.size != 9) {
+            return false
+        }
+        return matrixValues.take(6).all { value -> value.isFinite() }
+    }
+
+    private fun buildCenteredRuntimeTransformMatrix(
+        matrixValues: List<Double>,
+        centerX: Float,
+        centerY: Float,
+    ): Matrix? {
+        if (!isRuntimeMatrixFinite(matrixValues)) {
+            return null
+        }
+        val m00 = matrixValues[0].toFloat()
+        val m01 = matrixValues[1].toFloat()
+        val tx = matrixValues[2].toFloat()
+        val m10 = matrixValues[3].toFloat()
+        val m11 = matrixValues[4].toFloat()
+        val ty = matrixValues[5].toFloat()
+        val centeredTx = tx + centerX - ((m00 * centerX) + (m01 * centerY))
+        val centeredTy = ty + centerY - ((m10 * centerX) + (m11 * centerY))
+        if (!centeredTx.isFinite() || !centeredTy.isFinite()) {
+            return null
+        }
+        return Matrix().apply {
+            setValues(
+                floatArrayOf(
+                    m00,
+                    m01,
+                    centeredTx,
+                    m10,
+                    m11,
+                    centeredTy,
+                    0f,
+                    0f,
+                    1f,
+                ),
+            )
+        }
     }
 }

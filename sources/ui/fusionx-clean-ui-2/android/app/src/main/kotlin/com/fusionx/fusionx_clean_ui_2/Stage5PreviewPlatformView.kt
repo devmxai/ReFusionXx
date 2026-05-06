@@ -2,6 +2,7 @@ package com.refusion.app
 
 import android.content.Context
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.RenderEffect
 import android.graphics.Shader
 import android.os.Handler
@@ -295,15 +296,7 @@ class Stage5PreviewPlatformView(
             )
             return
         }
-        val m00 = matrixValues[0].toFloat()
-        val m01 = matrixValues[1].toFloat()
-        val tx = matrixValues[2].toFloat()
-        val m10 = matrixValues[3].toFloat()
-        val m11 = matrixValues[4].toFloat()
-        val ty = matrixValues[5].toFloat()
-        if (!m00.isFinite() || !m01.isFinite() || !tx.isFinite() ||
-            !m10.isFinite() || !m11.isFinite() || !ty.isFinite()
-        ) {
+        if (!isRuntimeMatrixFinite(matrixValues)) {
             resetPlayerRuntimeTransform()
             logRotationStabilityProof(
                 fallbackReason = "transform_matrix_invalid",
@@ -315,17 +308,39 @@ class Stage5PreviewPlatformView(
         val viewHeight = playerView.height.toFloat().coerceAtLeast(1f)
         val centerX = viewWidth / 2f
         val centerY = viewHeight / 2f
-        val sx = sqrt((m00 * m00) + (m10 * m10))
-        val sy = sqrt((m01 * m01) + (m11 * m11))
-        val rotationDegrees = Math.toDegrees(atan2(m10, m00).toDouble()).toFloat()
-        clearPlayerAnimationMatrix()
-        playerView.pivotX = centerX
-        playerView.pivotY = centerY
-        playerView.translationX = tx
-        playerView.translationY = ty
-        playerView.scaleX = if (sx.isFinite()) sx else 1f
-        playerView.scaleY = if (sy.isFinite()) sy else 1f
-        playerView.rotation = if (rotationDegrees.isFinite()) rotationDegrees else 0f
+        val runtimeMatrix = buildCenteredRuntimeTransformMatrix(
+            matrixValues = matrixValues,
+            centerX = centerX,
+            centerY = centerY,
+        )
+        if (Build.VERSION.SDK_INT >= 29 && runtimeMatrix != null) {
+            playerView.translationX = 0f
+            playerView.translationY = 0f
+            playerView.scaleX = 1f
+            playerView.scaleY = 1f
+            playerView.rotation = 0f
+            playerView.pivotX = centerX
+            playerView.pivotY = centerY
+            playerView.animationMatrix = runtimeMatrix
+        } else {
+            val m00 = matrixValues[0].toFloat()
+            val m01 = matrixValues[1].toFloat()
+            val tx = matrixValues[2].toFloat()
+            val m10 = matrixValues[3].toFloat()
+            val m11 = matrixValues[4].toFloat()
+            val ty = matrixValues[5].toFloat()
+            val sx = sqrt((m00 * m00) + (m10 * m10))
+            val sy = sqrt((m01 * m01) + (m11 * m11))
+            val rotationDegrees = Math.toDegrees(atan2(m10, m00).toDouble()).toFloat()
+            clearPlayerAnimationMatrix()
+            playerView.pivotX = centerX
+            playerView.pivotY = centerY
+            playerView.translationX = tx
+            playerView.translationY = ty
+            playerView.scaleX = if (sx.isFinite()) sx else 1f
+            playerView.scaleY = if (sy.isFinite()) sy else 1f
+            playerView.rotation = if (rotationDegrees.isFinite()) rotationDegrees else 0f
+        }
         logRotationStabilityProof(
             fallbackReason = null,
             matrix = matrixValues,
@@ -560,6 +575,49 @@ class Stage5PreviewPlatformView(
         }
     }
 
+    private fun isRuntimeMatrixFinite(matrixValues: List<Double>): Boolean {
+        if (matrixValues.size != 9) {
+            return false
+        }
+        return matrixValues.take(6).all { value -> value.isFinite() }
+    }
+
+    private fun buildCenteredRuntimeTransformMatrix(
+        matrixValues: List<Double>,
+        centerX: Float,
+        centerY: Float,
+    ): Matrix? {
+        if (!isRuntimeMatrixFinite(matrixValues)) {
+            return null
+        }
+        val m00 = matrixValues[0].toFloat()
+        val m01 = matrixValues[1].toFloat()
+        val tx = matrixValues[2].toFloat()
+        val m10 = matrixValues[3].toFloat()
+        val m11 = matrixValues[4].toFloat()
+        val ty = matrixValues[5].toFloat()
+        val centeredTx = tx + centerX - ((m00 * centerX) + (m01 * centerY))
+        val centeredTy = ty + centerY - ((m10 * centerX) + (m11 * centerY))
+        if (!centeredTx.isFinite() || !centeredTy.isFinite()) {
+            return null
+        }
+        return Matrix().apply {
+            setValues(
+                floatArrayOf(
+                    m00,
+                    m01,
+                    centeredTx,
+                    m10,
+                    m11,
+                    centeredTy,
+                    0f,
+                    0f,
+                    1f,
+                ),
+            )
+        }
+    }
+
     private fun logRotationStabilityProof(
         fallbackReason: String?,
         matrix: List<Double>?,
@@ -569,19 +627,31 @@ class Stage5PreviewPlatformView(
         val centerX = viewWidth / 2f
         val centerY = viewHeight / 2f
         val resolvedMatrix = matrix ?: runtimeTransformMatrix3x3
+        val centeredMatrixValues = FloatArray(9)
+        val centeredMatrix =
+            if (resolvedMatrix != null) {
+                buildCenteredRuntimeTransformMatrix(
+                    matrixValues = resolvedMatrix,
+                    centerX = centerX,
+                    centerY = centerY,
+                )
+            } else {
+                null
+            }
+        centeredMatrix?.getValues(centeredMatrixValues)
         val transformedCenterX =
-            if (resolvedMatrix != null && resolvedMatrix.size >= 6) {
-                ((resolvedMatrix[0] * centerX) +
-                    (resolvedMatrix[1] * centerY) +
-                    resolvedMatrix[2]).toFloat()
+            if (centeredMatrix != null) {
+                (centeredMatrixValues[0] * centerX) +
+                    (centeredMatrixValues[1] * centerY) +
+                    centeredMatrixValues[2]
             } else {
                 centerX
             }
         val transformedCenterY =
-            if (resolvedMatrix != null && resolvedMatrix.size >= 6) {
-                ((resolvedMatrix[3] * centerX) +
-                    (resolvedMatrix[4] * centerY) +
-                    resolvedMatrix[5]).toFloat()
+            if (centeredMatrix != null) {
+                (centeredMatrixValues[3] * centerX) +
+                    (centeredMatrixValues[4] * centerY) +
+                    centeredMatrixValues[5]
             } else {
                 centerY
             }
