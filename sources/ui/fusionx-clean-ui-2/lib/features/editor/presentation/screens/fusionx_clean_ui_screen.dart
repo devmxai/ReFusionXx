@@ -615,7 +615,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   final Set<String> _transitionBoundaryFrameRequestsInFlight = <String>{};
   final Set<String> _reportedProfessionalTransitionPlanIssueKeys = <String>{};
   final Set<String> _reportedLiveScrubRuntimeBridgeProofIssueKeys = <String>{};
-  final Set<String> _presentedProfessionalTransitionSurfaceKeys = <String>{};
   final TransitionBoundaryFrameRequestResolver
       _transitionBoundaryFrameRequestResolver =
       const TransitionBoundaryFrameRequestResolver();
@@ -23210,42 +23209,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return 'professional-transition-${safe.isEmpty ? 'surface' : safe}';
   }
 
-  String _professionalTransitionPresentationKey({
-    required String surfaceId,
-    required String mode,
-  }) {
-    return '$surfaceId::$mode';
-  }
-
-  bool _professionalTransitionSurfaceHasPresented({
-    required String surfaceId,
-    required String mode,
-  }) {
-    return _presentedProfessionalTransitionSurfaceKeys.contains(
-      _professionalTransitionPresentationKey(
-        surfaceId: surfaceId,
-        mode: mode,
-      ),
-    );
-  }
-
-  void _handleProfessionalTransitionSurfacePresentationChanged({
-    required String surfaceId,
-    required String mode,
-    required bool hasPresented,
-  }) {
-    final key = _professionalTransitionPresentationKey(
-      surfaceId: surfaceId,
-      mode: mode,
-    );
-    final didChange = hasPresented
-        ? _presentedProfessionalTransitionSurfaceKeys.add(key)
-        : _presentedProfessionalTransitionSurfaceKeys.remove(key);
-    if (didChange && mounted) {
-      setState(() {});
-    }
-  }
-
   List<String> _trueFrameLayerFamiliesForActiveTransition(
     _ActiveTimelineTransitionPreview activeTransition,
   ) {
@@ -23328,12 +23291,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
               professionalTransitionSurfaceId != null &&
               professionalTransitionPlan != null,
           hasTemporalMotionBlur: false,
-          hasRealFrameProof: activeTransition != null &&
-              professionalTransitionSurfaceId != null &&
-              _professionalTransitionSurfaceHasPresented(
-                surfaceId: professionalTransitionSurfaceId,
-                mode: professionalTransitionMode,
-              ),
+          hasRealFrameProof: false,
           hasProductionTextureRenderer: false,
           isManualTransition: activeTransition?.transition.preset ==
               TimelineTransitionPreset.manual,
@@ -23463,12 +23421,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                       professionalTransitionSurfaceId != null &&
                       professionalTransitionPlan != null,
                   hasTemporalMotionBlur: false,
-                  hasRealFrameProof: activeTransition != null &&
-                      professionalTransitionSurfaceId != null &&
-                      _professionalTransitionSurfaceHasPresented(
-                        surfaceId: professionalTransitionSurfaceId,
-                        mode: professionalTransitionMode,
-                      ),
+                  hasRealFrameProof: false,
                   hasProductionTextureRenderer: false,
                   isManualTransition: activeTransition?.transition.preset ==
                       TimelineTransitionPreset.manual,
@@ -23515,15 +23468,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                           timelineTime: activeTransition!.timelineTime,
                           mode: professionalTransitionMode,
                           surfaceId: professionalTransitionSurfaceId,
-                          showPresentedFrame:
-                              professionalRouteDecision.suppressesStage5Preview,
-                          onPresentationChanged: (hasPresented) {
-                            _handleProfessionalTransitionSurfacePresentationChanged(
-                              surfaceId: professionalTransitionSurfaceId,
-                              mode: professionalTransitionMode,
-                              hasPresented: hasPresented,
-                            );
-                          },
+                          showPresentedFrame: true,
                         ),
                       ),
                     if (activeTransition != null &&

@@ -40,7 +40,7 @@ void main() {
   });
 
   test(
-      'keeps manual temporal blur on stage5 when production renderer is not ready',
+      'keeps manual transition on stage5 for live scrub even when blur is enabled',
       () {
     final decision = backend.routeNodeFamilies(
       mode: TrueFrameRenderBackendMode.liveScrub,
@@ -56,12 +56,11 @@ void main() {
     expect(decision.suppressesStage5Preview, isFalse);
     expect(
       decision.reason,
-      contains('manual_temporal_blur_production_texture_renderer_not_ready'),
+      contains('manual_transition_stage5_velocity_shader_owner'),
     );
   });
 
-  test('suppresses stage5 only after real frame proof on production renderer',
-      () {
+  test('keeps manual transition on stage5 even with production proof flags', () {
     final decision = backend.routeNodeFamilies(
       mode: TrueFrameRenderBackendMode.playback,
       resolvedLayerFamilies: const <String>['videoLayer'],
@@ -72,16 +71,15 @@ void main() {
       isManualTransition: true,
     );
 
-    expect(decision.owner, TrueFrameRenderOwner.professionalCompositor);
-    expect(decision.suppressesStage5Preview, isTrue);
+    expect(decision.owner, TrueFrameRenderOwner.stage5Presenter);
+    expect(decision.suppressesStage5Preview, isFalse);
     expect(
       decision.reason,
-      contains('manual_temporal_blur_realtime_professional_surface_presented'),
+      contains('manual_transition_stage5_velocity_shader_owner'),
     );
   });
 
-  test('keeps manual transition on stage5 when temporal plan is not active',
-      () {
+  test('keeps manual transition on stage5 when blur is not active', () {
     final decision = backend.routeNodeFamilies(
       mode: TrueFrameRenderBackendMode.preview,
       resolvedLayerFamilies: const <String>['videoLayer'],
@@ -96,7 +94,7 @@ void main() {
     expect(decision.suppressesStage5Preview, isFalse);
     expect(
       decision.reason,
-      contains('manual_transition_no_temporal_blur_stage5_presenter_owner'),
+      contains('manual_transition_stage5_velocity_shader_owner'),
     );
   });
 
