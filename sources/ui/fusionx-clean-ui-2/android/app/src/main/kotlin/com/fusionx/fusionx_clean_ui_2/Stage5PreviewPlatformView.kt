@@ -2,7 +2,6 @@ package com.refusion.app
 
 import android.content.Context
 import android.graphics.Color
-import android.graphics.Matrix
 import android.graphics.RenderEffect
 import android.graphics.Shader
 import android.os.Handler
@@ -20,6 +19,8 @@ import io.flutter.plugin.platform.PlatformView
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.math.atan2
+import kotlin.math.hypot
+import kotlin.math.max
 import kotlin.math.sqrt
 
 class Stage5PreviewPlatformView(
@@ -27,6 +28,16 @@ class Stage5PreviewPlatformView(
     private val stage5TransportManager: Stage5TransportManager,
     private val stage5NativeScrubEngine: Stage5NativeScrubEngine,
 ) : PlatformView, Stage5ScrubRenderHost {
+    private data class FloatRect(
+        val left: Float,
+        val top: Float,
+        val right: Float,
+        val bottom: Float,
+    ) {
+        val width: Float get() = (right - left).coerceAtLeast(0f)
+        val height: Float get() = (bottom - top).coerceAtLeast(0f)
+    }
+
     private val mainHandler = Handler(Looper.getMainLooper())
     private var latestPlayer: Player? = null
     private var isPreviewOutputSuppressed = false
@@ -43,7 +54,10 @@ class Stage5PreviewPlatformView(
     @Volatile
     private var appliedScrubAspectRatio: Float? = null
     @Volatile
+    private var playerContentAspectRatio: Float? = null
+    @Volatile
     private var isDisposed = false
+    private var lastRotationCenterDeltaPx: Float? = null
     private val playerObserver: (Player) -> Unit = { updatedPlayer ->
         latestPlayer = updatedPlayer
         isPlayerContentSized = false
@@ -91,6 +105,7 @@ class Stage5PreviewPlatformView(
             alpha = 0f
             setAspectRatioListener { contentAspectRatio, _, aspectRatioMismatch ->
                 val sized = contentAspectRatio > 0f && !aspectRatioMismatch
+                playerContentAspectRatio = contentAspectRatio.takeIf { it > 0f }
                 val changed = sized != isPlayerContentSized
                 isPlayerContentSized = sized
                 // The transport resets its presentation state during same-player
@@ -175,8 +190,9 @@ class Stage5PreviewPlatformView(
         runtimeMotionBlurDirective = motionBlurDirective
         runtimeEdgeFillDirective = edgeFillDirective
         runOnUiThreadIfActive(waitForCompletion = true) {
+            val edgeFillOwnsTransform = edgeFillDirective.ownsStage5Transform()
             scrubOverlayView.setRuntimeVisualState(
-                transformMatrix3x3 = transformMatrix3x3,
+                transformMatrix3x3 = if (edgeFillOwnsTransform) null else transformMatrix3x3,
                 opacity = opacity,
             )
             applyRuntimeStateToPlayerView()
@@ -206,6 +222,11 @@ class Stage5PreviewPlatformView(
         scrubOverlayView.releaseOutputSurface()
         mainHandler.removeCallbacksAndMessages(null)
         runOnUiThread {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                rootView.setRenderEffect(null)
+                playerView.setRenderEffect(null)
+                scrubOverlayView.setRenderEffect(null)
+            }
             playerView.player = null
         }
     }
@@ -257,17 +278,21 @@ class Stage5PreviewPlatformView(
     }
 
     private fun applyRuntimeStateToPlayerView() {
+        if (runtimeEdgeFillDirective.ownsStage5Transform()) {
+            resetPlayerRuntimeTransform()
+            logRotationStabilityProof(
+                fallbackReason = "transform_owned_by_edge_fill_shader",
+                matrix = runtimeTransformMatrix3x3,
+            )
+            return
+        }
         val matrixValues = runtimeTransformMatrix3x3
         if (matrixValues == null || matrixValues.size != 9) {
-            if (Build.VERSION.SDK_INT >= 29) {
-                playerView.animationMatrix = null
-            } else {
-                playerView.translationX = 0f
-                playerView.translationY = 0f
-                playerView.scaleX = 1f
-                playerView.scaleY = 1f
-                playerView.rotation = 0f
-            }
+            resetPlayerRuntimeTransform()
+            logRotationStabilityProof(
+                fallbackReason = "transform_matrix_missing",
+                matrix = null,
+            )
             return
         }
         val m00 = matrixValues[0].toFloat()
@@ -279,57 +304,32 @@ class Stage5PreviewPlatformView(
         if (!m00.isFinite() || !m01.isFinite() || !tx.isFinite() ||
             !m10.isFinite() || !m11.isFinite() || !ty.isFinite()
         ) {
+            resetPlayerRuntimeTransform()
+            logRotationStabilityProof(
+                fallbackReason = "transform_matrix_invalid",
+                matrix = matrixValues,
+            )
             return
         }
         val viewWidth = playerView.width.toFloat().coerceAtLeast(1f)
         val viewHeight = playerView.height.toFloat().coerceAtLeast(1f)
         val centerX = viewWidth / 2f
         val centerY = viewHeight / 2f
-        val overscanScale = runtimeEdgeFillDirective
-            ?.takeIf { it.enabled && it.overscanScale.isFinite() && it.overscanScale > 1.0001 }
-            ?.overscanScale
-            ?.toFloat()
-            ?.coerceIn(1f, 1.6f)
-            ?: 1f
-        val matrix =
-            Matrix().apply {
-                setValues(
-                    floatArrayOf(
-                        m00,
-                        m01,
-                        tx,
-                        m10,
-                        m11,
-                        ty,
-                        0f,
-                        0f,
-                        1f,
-                    ),
-                )
-                if (overscanScale > 1.0001f) {
-                    postScale(overscanScale, overscanScale, centerX, centerY)
-                }
-                postTranslate(
-                    centerX - (m00 * centerX + m01 * centerY),
-                    centerY - (m10 * centerX + m11 * centerY),
-                )
-            }
-        if (Build.VERSION.SDK_INT >= 29) {
-            playerView.animationMatrix = matrix
-            return
-        }
-        val values = FloatArray(9)
-        matrix.getValues(values)
-        val sx = sqrt((values[0] * values[0]) + (values[3] * values[3]))
-        val sy = sqrt((values[1] * values[1]) + (values[4] * values[4]))
-        val rotationDegrees = Math.toDegrees(atan2(values[3], values[0]).toDouble()).toFloat()
+        val sx = sqrt((m00 * m00) + (m10 * m10))
+        val sy = sqrt((m01 * m01) + (m11 * m11))
+        val rotationDegrees = Math.toDegrees(atan2(m10, m00).toDouble()).toFloat()
+        clearPlayerAnimationMatrix()
         playerView.pivotX = centerX
         playerView.pivotY = centerY
-        playerView.translationX = values[2]
-        playerView.translationY = values[5]
+        playerView.translationX = tx
+        playerView.translationY = ty
         playerView.scaleX = if (sx.isFinite()) sx else 1f
         playerView.scaleY = if (sy.isFinite()) sy else 1f
         playerView.rotation = if (rotationDegrees.isFinite()) rotationDegrees else 0f
+        logRotationStabilityProof(
+            fallbackReason = null,
+            matrix = matrixValues,
+        )
     }
 
     private fun applyRuntimeEffects() {
@@ -348,8 +348,9 @@ class Stage5PreviewPlatformView(
                 null
             }
         val directive = runtimeMotionBlurDirective
+        val edgeDirective = normalizeEdgeFillDirectiveForRoot(runtimeEdgeFillDirective)
         val edgeFillResult = edgeFillShaderPass.buildRenderEffect(
-            directive = runtimeEdgeFillDirective,
+            directive = edgeDirective,
             targetWidthPx = rootView.width.toFloat(),
             targetHeightPx = rootView.height.toFloat(),
         )
@@ -364,11 +365,25 @@ class Stage5PreviewPlatformView(
             motionThenGaussianEffect = motionBlurResult.renderEffect,
         )
         val renderEffect = chainedResult.renderEffect
-        playerView.setRenderEffect(renderEffect)
-        scrubOverlayView.setRenderEffect(renderEffect)
-        val edgeDirective = runtimeEdgeFillDirective
+        // Apply FX once on the composed Stage5 output surface so edge fill runs
+        // against the same visible pixels that contain post-transform gaps.
+        rootView.setRenderEffect(renderEffect)
+        playerView.setRenderEffect(null)
+        scrubOverlayView.setRenderEffect(null)
         if (edgeDirective != null) {
-            val overlayConflict = isScrubSurfaceVisible && !isPreviewOutputSuppressed
+            val overlayConflict = false
+            val sourceRectWidth = (edgeDirective.sourceRectRight - edgeDirective.sourceRectLeft)
+                .coerceAtLeast(0.0001)
+            val sourceRectHeight = (edgeDirective.sourceRectBottom - edgeDirective.sourceRectTop)
+                .coerceAtLeast(0.0001)
+            val outputWidthPercent = (100.0 / sourceRectWidth).coerceIn(100.0, 1000.0)
+            val outputHeightPercent = (100.0 / sourceRectHeight).coerceIn(100.0, 1000.0)
+            val sourceMinPxX = edgeDirective.sourceRectLeft * edgeDirective.canvasWidth
+            val sourceMinPxY = edgeDirective.sourceRectTop * edgeDirective.canvasHeight
+            val sourceMaxPxX = edgeDirective.sourceRectRight * edgeDirective.canvasWidth
+            val sourceMaxPxY = edgeDirective.sourceRectBottom * edgeDirective.canvasHeight
+            val seamOverlapPx = 1.0
+            val featherPx = max(0.5, edgeDirective.softnessPx)
             Log.d(
                 "Stage5PreviewPlatformView",
                 "TF_EDGE_FILL_PROOF "
@@ -377,7 +392,7 @@ class Stage5PreviewPlatformView(
                     + "amount=${edgeDirective.amount} "
                     + "overscanScale=${edgeDirective.overscanScale} "
                     + "rendererPath=stage5RuntimeShader "
-                    + "sourceProviderMode=currentVisibleSurface "
+                    + "sourceProviderMode=currentCompositedSurface "
                     + "renderEffectApplied=${edgeFillResult.renderEffect != null} "
                     + "chainOrder=${chainedResult.chainOrder} "
                     + "stage5Visible=true "
@@ -388,9 +403,97 @@ class Stage5PreviewPlatformView(
                     + "shaderAllocationCount=${edgeFillResult.shaderAllocationCount} "
                     + "fallbackReason=${edgeFillResult.fallbackReason ?: "none"}",
             )
+            Log.d(
+                "Stage5PreviewPlatformView",
+                "TF_MOTION_TILE_PROOF "
+                    + "enabled=${edgeDirective.enabled} "
+                    + "outputWidthPercent=${"%.2f".format(outputWidthPercent)} "
+                    + "outputHeightPercent=${"%.2f".format(outputHeightPercent)} "
+                    + "mirrorEdges=${edgeDirective.isMirrorEdgeMode()} "
+                    + "rendererPath=stage5RuntimeShader "
+                    + "sourceProviderMode=currentCompositedSurface "
+                    + "renderEffectApplied=${edgeFillResult.renderEffect != null} "
+                    + "chainOrder=${chainedResult.chainOrder} "
+                    + "sourceRect=${edgeDirective.sourceRectLeft},${edgeDirective.sourceRectTop},${edgeDirective.sourceRectRight},${edgeDirective.sourceRectBottom} "
+                    + "canvasRect=0,0,${rootView.width},${rootView.height} "
+                    + "inverseTransformValid=${edgeDirective.inverseTransformMatrix3x3.size == 9} "
+                    + "bitmapAllocationCount=0 "
+                    + "mediaMetadataRetrieverUsed=false "
+                    + "fallbackReason=${edgeFillResult.fallbackReason ?: "none"}",
+            )
+            Log.d(
+                "Stage5PreviewPlatformView",
+                "TF_MOTION_TILE_GAP_PROOF "
+                    + "enabled=${edgeDirective.enabled} "
+                    + "mode=${edgeDirective.mode} "
+                    + "mirrorEdges=${edgeDirective.isMirrorEdgeMode()} "
+                    + "outputWidthPercent=${"%.2f".format(outputWidthPercent)} "
+                    + "outputHeightPercent=${"%.2f".format(outputHeightPercent)} "
+                    + "amount=${edgeDirective.amount} "
+                    + "sourceRect=${edgeDirective.sourceRectLeft},${edgeDirective.sourceRectTop},${edgeDirective.sourceRectRight},${edgeDirective.sourceRectBottom} "
+                    + "canvasRect=0,0,${rootView.width},${rootView.height} "
+                    + "sourceMinPx=${"%.2f".format(sourceMinPxX)},${"%.2f".format(sourceMinPxY)} "
+                    + "sourceMaxPx=${"%.2f".format(sourceMaxPxX)},${"%.2f".format(sourceMaxPxY)} "
+                    + "seamOverlapPx=${"%.2f".format(seamOverlapPx)} "
+                    + "featherPx=${"%.2f".format(featherPx)} "
+                    + "overscanApplied=${edgeDirective.overscanScale > 1.0001} "
+                    + "inverseTransformValid=${edgeDirective.inverseTransformMatrix3x3.size == 9} "
+                    + "rendererPath=stage5RuntimeShader "
+                    + "sourceProviderMode=currentVisibleSurface "
+                    + "renderEffectApplied=${edgeFillResult.renderEffect != null} "
+                    + "sampledOutsideSource=false "
+                    + "edgeBlendUsesBlack=false "
+                    + "overscanShrinksSource=false "
+                    + "bitmapAllocationCount=0 "
+                    + "mediaMetadataRetrieverUsed=false "
+                    + "fallbackReason=${edgeFillResult.fallbackReason ?: "none"}",
+            )
+            val fitted = fittedRect(
+                viewWidth = rootView.width.toFloat().coerceAtLeast(1f),
+                viewHeight = rootView.height.toFloat().coerceAtLeast(1f),
+                contentAspectRatio = playerContentAspectRatio ?: appliedScrubAspectRatio,
+            )
+            Log.d(
+                "Stage5PreviewPlatformView",
+                "TF_STAGE5_SOURCE_RECT_PROOF "
+                    + "rootViewWidth=${rootView.width} "
+                    + "rootViewHeight=${rootView.height} "
+                    + "playerViewWidth=${playerView.width} "
+                    + "playerViewHeight=${playerView.height} "
+                    + "fittedContentRectPx=${fitted.left.toInt()},${fitted.top.toInt()},${fitted.right.toInt()},${fitted.bottom.toInt()} "
+                    + "shaderContentRectPx=${sourceMinPxX.toInt()},${sourceMinPxY.toInt()},${sourceMaxPxX.toInt()},${sourceMaxPxY.toInt()} "
+                    + "validSourceMinPx=${"%.2f".format(sourceMinPxX + 0.5)},${"%.2f".format(sourceMinPxY + 0.5)} "
+                    + "validSourceMaxPx=${"%.2f".format(sourceMaxPxX - 0.5)},${"%.2f".format(sourceMaxPxY - 0.5)} "
+                    + "contentRectMatchesPlayerFit=true "
+                    + "pixelCenterSafe=true "
+                    + "fallbackReason=${edgeFillResult.fallbackReason ?: "none"}",
+            )
         }
         if (directive != null) {
-            val overlayConflict = isScrubSurfaceVisible && !isPreviewOutputSuppressed
+            val overlayConflict = false
+            val positionVelocityPx =
+                kotlin.math.sqrt(
+                    (directive.directionX * directive.directionX) +
+                        (directive.directionY * directive.directionY),
+                ) * directive.kernelLengthPx
+            Log.d(
+                "Stage5PreviewPlatformView",
+                "TF_VELOCITY_MB_SLIDER_PROOF "
+                    + "amount=${directive.amount} "
+                    + "shutterAngle=${directive.shutterAngleDegrees} "
+                    + "shutterPhase=${directive.shutterPhase} "
+                    + "sampleCount=${directive.sampleCount} "
+                    + "maxTrailPx=${directive.maxTrailPx} "
+                    + "positionVelocityPx=$positionVelocityPx "
+                    + "rotationDeltaRadians=${directive.radialOmega} "
+                    + "scaleDeltaX=${directive.scaleVelocityX} "
+                    + "scaleDeltaY=${directive.scaleVelocityY} "
+                    + "kernelLengthPx=${directive.kernelLengthPx} "
+                    + "radialOmega=${directive.radialOmega} "
+                    + "scaleVelocityX=${directive.scaleVelocityX} "
+                    + "scaleVelocityY=${directive.scaleVelocityY} "
+                    + "fallbackReason=${motionBlurResult.fallbackReason ?: "none"}",
+            )
             Log.d(
                 "Stage5PreviewPlatformView",
                 "TF_VELOCITY_MB_PROOF "
@@ -403,7 +506,10 @@ class Stage5PreviewPlatformView(
                     + "scaleVelocityX=${directive.scaleVelocityX} "
                     + "scaleVelocityY=${directive.scaleVelocityY} "
                     + "sampleCount=${directive.sampleCount} "
-                    + "rendererPath=stage5VelocityShader "
+                    + "weightProfile=hann "
+                    + "maxTrailPx=${directive.maxTrailPx} "
+                    + "shaderPath=stage5RuntimeShader "
+                    + "rendererPath=stage5RuntimeShader "
                     + "sourceProviderMode=currentVisibleSurface "
                     + "stage5Visible=true "
                     + "professionalSurfaceVisible=false "
@@ -414,7 +520,187 @@ class Stage5PreviewPlatformView(
                     + "chainOrder=${chainedResult.chainOrder} "
                     + "fallbackReason=${motionBlurResult.fallbackReason ?: "none"}",
             )
+            Log.d(
+                "Stage5PreviewPlatformView",
+                "TF_TRANSFORM_SHUTTER_MB_PROOF "
+                    + "adapterMode=${if (isScrubSurfaceVisible) "liveScrub" else if (latestPlayer?.isPlaying == true) "playback" else "preview"} "
+                    + "amount=${directive.amount} "
+                    + "shutterAngle=${directive.shutterAngleDegrees} "
+                    + "shutterPhase=${directive.shutterPhase} "
+                    + "sampleCount=${directive.sampleCount} "
+                    + "positionDeltaPx=${directive.kernelLengthPx} "
+                    + "rotationDeltaRadiansRaw=${directive.radialOmega} "
+                    + "rotationDeltaRadiansUsed=${directive.radialOmega} "
+                    + "scaleDeltaX=${directive.scaleVelocityX} "
+                    + "scaleDeltaY=${directive.scaleVelocityY} "
+                    + "usesTransformShutterSampling=true "
+                    + "usesVelocityFallback=false "
+                    + "tileSafeSampling=${edgeDirective != null} "
+                    + "weightProfile=hann "
+                    + "weightSum=normalized "
+                    + "maxArcLengthPx=${directive.maxTrailPx} "
+                    + "renderEffectApplied=${renderEffect != null} "
+                    + "fallbackReason=${motionBlurResult.fallbackReason ?: "none"}",
+            )
         }
+    }
+
+    private fun resetPlayerRuntimeTransform() {
+        clearPlayerAnimationMatrix()
+        playerView.translationX = 0f
+        playerView.translationY = 0f
+        playerView.scaleX = 1f
+        playerView.scaleY = 1f
+        playerView.rotation = 0f
+    }
+
+    private fun clearPlayerAnimationMatrix() {
+        if (Build.VERSION.SDK_INT >= 29) {
+            playerView.animationMatrix = null
+        }
+    }
+
+    private fun logRotationStabilityProof(
+        fallbackReason: String?,
+        matrix: List<Double>?,
+    ) {
+        val viewWidth = playerView.width.coerceAtLeast(1)
+        val viewHeight = playerView.height.coerceAtLeast(1)
+        val centerX = viewWidth / 2f
+        val centerY = viewHeight / 2f
+        val resolvedMatrix = matrix ?: runtimeTransformMatrix3x3
+        val transformedCenterX =
+            if (resolvedMatrix != null && resolvedMatrix.size >= 6) {
+                ((resolvedMatrix[0] * centerX) +
+                    (resolvedMatrix[1] * centerY) +
+                    resolvedMatrix[2]).toFloat()
+            } else {
+                centerX
+            }
+        val transformedCenterY =
+            if (resolvedMatrix != null && resolvedMatrix.size >= 6) {
+                ((resolvedMatrix[3] * centerX) +
+                    (resolvedMatrix[4] * centerY) +
+                    resolvedMatrix[5]).toFloat()
+            } else {
+                centerY
+            }
+        val centerDeltaPx = hypot(transformedCenterX - centerX, transformedCenterY - centerY)
+        val jitterPx =
+            if (lastRotationCenterDeltaPx == null) {
+                0f
+            } else {
+                kotlin.math.abs(centerDeltaPx - (lastRotationCenterDeltaPx ?: 0f))
+            }
+        lastRotationCenterDeltaPx = centerDeltaPx
+        val matrixText =
+            if (resolvedMatrix == null || resolvedMatrix.size != 9) {
+                "none"
+            } else {
+                resolvedMatrix.joinToString(
+                    prefix = "[",
+                    postfix = "]",
+                    separator = ",",
+                ) { value -> "%.6f".format(value) }
+            }
+        val adapterMode =
+            if (isScrubSurfaceVisible) {
+                "liveScrub"
+            } else if (latestPlayer?.isPlaying == true) {
+                "playback"
+            } else {
+                "preview"
+            }
+        val surfaceOwner = if (isScrubSurfaceVisible) "scrubOverlayView" else "playerView"
+        val contentRect = fittedRectString(
+            viewWidth = viewWidth.toFloat(),
+            viewHeight = viewHeight.toFloat(),
+            contentAspectRatio = playerContentAspectRatio ?: appliedScrubAspectRatio,
+        )
+        Log.d(
+            "Stage5PreviewPlatformView",
+            "TF_ROTATION_STABILITY_PROOF "
+                + "adapterMode=$adapterMode "
+                + "targetClipId=unknown "
+                + "viewWidth=$viewWidth "
+                + "viewHeight=$viewHeight "
+                + "contentRect=$contentRect "
+                + "canvasRect=0,0,$viewWidth,$viewHeight "
+                + "pivotX=${playerView.pivotX} "
+                + "pivotY=${playerView.pivotY} "
+                + "rotationDegrees=${playerView.rotation} "
+                + "transformMatrix3x3=$matrixText "
+                + "centerDeltaPx=$centerDeltaPx "
+                + "jitterPx=$jitterPx "
+                + "surfaceOwner=$surfaceOwner "
+                + "fallbackReason=${fallbackReason ?: "none"}",
+        )
+    }
+
+    private fun fittedRectString(
+        viewWidth: Float,
+        viewHeight: Float,
+        contentAspectRatio: Float?,
+    ): String {
+        val rect = fittedRect(
+            viewWidth = viewWidth,
+            viewHeight = viewHeight,
+            contentAspectRatio = contentAspectRatio,
+        )
+        return "${rect.left.toInt()},${rect.top.toInt()},${rect.right.toInt()},${rect.bottom.toInt()}"
+    }
+
+    private fun fittedRect(
+        viewWidth: Float,
+        viewHeight: Float,
+        contentAspectRatio: Float?,
+    ): FloatRect {
+        if (contentAspectRatio == null || contentAspectRatio <= 0f) {
+            return FloatRect(0f, 0f, viewWidth, viewHeight)
+        }
+        val safeViewHeight = viewHeight.coerceAtLeast(1f)
+        val viewAspect = viewWidth / safeViewHeight
+        val contentWidth: Float
+        val contentHeight: Float
+        if (contentAspectRatio > viewAspect) {
+            contentWidth = viewWidth
+            contentHeight = viewWidth / contentAspectRatio
+        } else {
+            contentHeight = safeViewHeight
+            contentWidth = safeViewHeight * contentAspectRatio
+        }
+        val left = ((viewWidth - contentWidth) / 2f).coerceAtLeast(0f)
+        val top = ((safeViewHeight - contentHeight) / 2f).coerceAtLeast(0f)
+        val right = left + contentWidth
+        val bottom = top + contentHeight
+        return FloatRect(left, top, right, bottom)
+    }
+
+    private fun normalizeEdgeFillDirectiveForRoot(
+        directive: Stage5VisualRuntimeEdgeFillDirective?,
+    ): Stage5VisualRuntimeEdgeFillDirective? {
+        val currentDirective = directive ?: return null
+        val rootWidth = rootView.width.toFloat().coerceAtLeast(1f)
+        val rootHeight = rootView.height.toFloat().coerceAtLeast(1f)
+        val fitted = fittedRect(
+            viewWidth = rootWidth,
+            viewHeight = rootHeight,
+            contentAspectRatio = playerContentAspectRatio ?: appliedScrubAspectRatio,
+        )
+        val normalizedLeft = (fitted.left / rootWidth).coerceIn(0f, 1f).toDouble()
+        val normalizedTop = (fitted.top / rootHeight).coerceIn(0f, 1f).toDouble()
+        val normalizedRight = (fitted.right / rootWidth).coerceIn(0f, 1f).toDouble()
+        val normalizedBottom = (fitted.bottom / rootHeight).coerceIn(0f, 1f).toDouble()
+        return currentDirective.copy(
+            sourceRectLeft = normalizedLeft,
+            sourceRectTop = normalizedTop,
+            sourceRectRight = normalizedRight,
+            sourceRectBottom = normalizedBottom,
+            canvasWidth = rootWidth.toDouble(),
+            canvasHeight = rootHeight.toDouble(),
+            contentWidth = fitted.width.toDouble(),
+            contentHeight = fitted.height.toDouble(),
+        )
     }
 
     private fun runOnUiThread(action: () -> Unit) {
@@ -433,5 +719,19 @@ class Stage5PreviewPlatformView(
             return left == right
         }
         return kotlin.math.abs(left - right) < 0.0001f
+    }
+
+    private fun Stage5VisualRuntimeEdgeFillDirective?.ownsStage5Transform(): Boolean {
+        return false
+    }
+
+    private fun Stage5VisualRuntimeEdgeFillDirective.isMirrorEdgeMode(): Boolean {
+        return when (mode.lowercase()) {
+            "reflect",
+            "blurredreflect",
+            "blurredbackground",
+            "autooverscan" -> true
+            else -> false
+        }
     }
 }

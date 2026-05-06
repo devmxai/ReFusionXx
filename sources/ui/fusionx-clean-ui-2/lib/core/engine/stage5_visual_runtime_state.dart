@@ -100,6 +100,8 @@ class Stage5VisualRuntimeEdgeFillDirective {
     required this.canvasHeight,
     required this.maxExpansionPx,
     required this.quality,
+    required this.transformMatrix3x3,
+    required this.inverseTransformMatrix3x3,
     this.fallbackReason,
   });
 
@@ -119,6 +121,8 @@ class Stage5VisualRuntimeEdgeFillDirective {
   final double canvasHeight;
   final double maxExpansionPx;
   final String quality;
+  final List<double> transformMatrix3x3;
+  final List<double> inverseTransformMatrix3x3;
   final String? fallbackReason;
 
   Map<String, Object?> toMap() {
@@ -139,6 +143,8 @@ class Stage5VisualRuntimeEdgeFillDirective {
       'canvasHeight': canvasHeight,
       'maxExpansionPx': maxExpansionPx,
       'quality': quality,
+      'transformMatrix3x3': transformMatrix3x3,
+      'inverseTransformMatrix3x3': inverseTransformMatrix3x3,
       'fallbackReason': fallbackReason,
     };
   }
@@ -194,6 +200,7 @@ class Stage5VisualRuntimeState {
     required this.revision,
     required this.timelineTimeMs,
     required this.mode,
+    this.framePacket,
     this.transitionId,
     this.primaryTargetClipId,
     this.transitionProgress,
@@ -205,6 +212,7 @@ class Stage5VisualRuntimeState {
   final int revision;
   final int timelineTimeMs;
   final String mode;
+  final Stage5VisualFramePacket? framePacket;
   final String? transitionId;
   final String? primaryTargetClipId;
   final double? transitionProgress;
@@ -219,12 +227,58 @@ class Stage5VisualRuntimeState {
       'revision': revision,
       'timelineTimeMs': timelineTimeMs,
       'mode': mode,
+      'framePacket': framePacket?.toMap(),
       'transitionId': transitionId,
       'primaryTargetClipId': primaryTargetClipId,
       'transitionProgress': transitionProgress,
       'surfaces': surfaces.map((surface) => surface.toMap()).toList(),
       'blockers': blockers,
       'diagnostics': diagnostics,
+    };
+  }
+}
+
+@immutable
+class Stage5VisualFramePacket {
+  const Stage5VisualFramePacket({
+    required this.timelineTimeMs,
+    required this.frameIndex,
+    required this.mode,
+    required this.revision,
+    required this.targetClipId,
+    required this.sourceId,
+    required this.transformMatrix3x3,
+    this.motionBlurDirective,
+    this.edgeFillDirective,
+    this.gaussianBlurSigmaPx = 0,
+    this.effectValuesHash = 0,
+  });
+
+  final int timelineTimeMs;
+  final int frameIndex;
+  final String mode;
+  final int revision;
+  final String targetClipId;
+  final String sourceId;
+  final List<double> transformMatrix3x3;
+  final Stage5VisualRuntimeMotionBlurDirective? motionBlurDirective;
+  final Stage5VisualRuntimeEdgeFillDirective? edgeFillDirective;
+  final double gaussianBlurSigmaPx;
+  final int effectValuesHash;
+
+  Map<String, Object?> toMap() {
+    return <String, Object?>{
+      'timelineTimeMs': timelineTimeMs,
+      'frameIndex': frameIndex,
+      'mode': mode,
+      'revision': revision,
+      'targetClipId': targetClipId,
+      'sourceId': sourceId,
+      'transformMatrix3x3': transformMatrix3x3,
+      'motionBlurDirective': motionBlurDirective?.toMap(),
+      'edgeFillDirective': edgeFillDirective?.toMap(),
+      'gaussianBlurSigmaPx': gaussianBlurSigmaPx,
+      'effectValuesHash': effectValuesHash,
     };
   }
 }

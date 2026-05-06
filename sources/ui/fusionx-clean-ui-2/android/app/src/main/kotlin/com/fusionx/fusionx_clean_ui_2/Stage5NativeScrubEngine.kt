@@ -118,6 +118,8 @@ data class Stage5VisualRuntimeEdgeFillDirective(
     val canvasHeight: Double,
     val maxExpansionPx: Double,
     val quality: String,
+    val transformMatrix3x3: List<Double> = listOf(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+    val inverseTransformMatrix3x3: List<Double> = listOf(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
     val fallbackReason: String? = null,
 )
 
@@ -125,6 +127,7 @@ data class Stage5VisualRuntimeState(
     val revision: Long,
     val timelineTimeMs: Long,
     val mode: String,
+    val framePacket: Stage5VisualFramePacket? = null,
     val transitionId: String? = null,
     val primaryTargetClipId: String? = null,
     val transitionProgress: Double? = null,
@@ -158,6 +161,20 @@ data class Stage5VisualRuntimeState(
         return surfaces.firstOrNull()
     }
 }
+
+data class Stage5VisualFramePacket(
+    val timelineTimeMs: Long,
+    val frameIndex: Long,
+    val mode: String,
+    val revision: Long,
+    val targetClipId: String,
+    val sourceId: String,
+    val transformMatrix3x3: List<Double> = listOf(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
+    val motionBlurDirective: Stage5VisualRuntimeMotionBlurDirective? = null,
+    val edgeFillDirective: Stage5VisualRuntimeEdgeFillDirective? = null,
+    val gaussianBlurSigmaPx: Double = 0.0,
+    val effectValuesHash: Long = 0L,
+)
 
 fun interface Stage5ScrubFrameRenderListener {
     fun onFrameRendered(timelinePositionMs: Long)
@@ -235,6 +252,7 @@ class Stage5NativeScrubEngine(
         val sourcePositionMs: Long,
         val generation: Long,
         val forceSeekBeforeRender: Boolean,
+        val frameIndex: Long,
     )
 
     private data class OutputTarget(
@@ -256,6 +274,7 @@ class Stage5NativeScrubEngine(
     private val diagnostics = Diagnostics()
     private val frameRenderListeners = LinkedHashSet<Stage5ScrubFrameRenderListener>()
     private var diagnosticsStartedAtMs = SystemClock.elapsedRealtime()
+    private var renderRequestFrameIndex: Long = 0L
     private val proxyReadyListener =
         object : Stage5ScrubPreviewProxyListener {
             override fun onProxyReady(sourceUri: String) {
@@ -285,6 +304,7 @@ class Stage5NativeScrubEngine(
     @Volatile
     private var lastRenderAwaitingProxy = false
     private var latestVisualRuntimeState: Stage5VisualRuntimeState? = null
+    private var latestAcceptedVisualRuntimeRevision: Long = Long.MIN_VALUE
 
     init {
         scrubPreviewProxyManager.addListener(proxyReadyListener)
@@ -772,6 +792,7 @@ class Stage5NativeScrubEngine(
                         generation = targetGeneration,
                         forceSeekBeforeRender =
                             pendingDecoderForceSeekStoreKey == descriptor.scrubStoreKey,
+                        frameIndex = ++renderRequestFrameIndex,
                     )
                 }
             val rendered = renderSnapshot(snapshot)
@@ -843,7 +864,13 @@ class Stage5NativeScrubEngine(
         outputTarget.host.setScrubContentAspectRatio(
             resolveDescriptorAspectRatio(snapshot.descriptor),
         )
-        val visualState = resolveVisualStateForDescriptor(snapshot.descriptor)
+        val visualState =
+            resolveVisualStateForDescriptor(
+                descriptor = snapshot.descriptor,
+                renderedTimelineTimeMs = snapshot.timelinePositionMs,
+                frameIndex = snapshot.frameIndex,
+                adapterMode = if (snapshot.timelinePositionMs == null) "playback" else "liveScrub",
+            )
         val decoderConfigureStartMs = SystemClock.elapsedRealtime()
         if (
             !surfaceScrubDecoder.ensureConfigured(
@@ -965,7 +992,13 @@ class Stage5NativeScrubEngine(
             outputTarget.host.setScrubContentAspectRatio(
                 resolveDescriptorAspectRatio(target.descriptor),
             )
-            val visualState = resolveVisualStateForDescriptor(target.descriptor)
+            val visualState =
+                resolveVisualStateForDescriptor(
+                    descriptor = target.descriptor,
+                    renderedTimelineTimeMs = target.descriptor.timelineStartMs,
+                    frameIndex = ++renderRequestFrameIndex,
+                    adapterMode = "readiness",
+                )
             outputTarget.host.setScrubVisualState(
                 transformMatrix3x3 = visualState.transformMatrix3x3,
                 opacity = visualState.opacity,
@@ -1071,15 +1104,81 @@ class Stage5NativeScrubEngine(
             descriptor.scrubStoreKey == scrubStoreKey
         }
 
+    private data class FramePacketAcceptance(
+        val accepted: Boolean,
+        val rejectionReason: String?,
+        val timeDeltaMs: Long,
+    )
+
     private fun resolveVisualStateForDescriptor(
         descriptor: Stage5NativeScrubSourceDescriptor,
+        renderedTimelineTimeMs: Long?,
+        frameIndex: Long,
+        adapterMode: String,
     ): Stage5VisualRuntimeSurfaceState {
         val runtimeState =
             synchronized(this) {
                 latestVisualRuntimeState
             }
         if (runtimeState == null || runtimeState.surfaces.isEmpty()) {
+            logFramePacketProof(
+                adapterMode = adapterMode,
+                requestedTimelineTimeMs = latestTargetTimelinePositionMs,
+                renderedTimelineTimeMs = renderedTimelineTimeMs
+                    ?: latestKnownTimelinePositionMs
+                    ?: 0L,
+                packet = null,
+                descriptor = descriptor,
+                frameIndex = frameIndex,
+                accepted = false,
+                rejectionReason = "runtime_state_missing",
+                timeDeltaMs = null,
+                effectValuesHash = null,
+            )
             return cachedOrDescriptorVisualSurface(descriptor)
+        }
+        val packet =
+            runtimeState.framePacket ?: Stage5VisualFramePacket(
+                timelineTimeMs = runtimeState.timelineTimeMs,
+                frameIndex = runtimeState.timelineTimeMs / 33L,
+                mode = runtimeState.mode,
+                revision = runtimeState.revision,
+                targetClipId = runtimeState.primaryTargetClipId ?: descriptor.clipId,
+                sourceId = runtimeState.primaryTargetClipId ?: descriptor.clipId,
+                transformMatrix3x3 = descriptor.transformMatrix3x3,
+                motionBlurDirective = null,
+                edgeFillDirective = null,
+                gaussianBlurSigmaPx = 0.0,
+                effectValuesHash = 0L,
+            )
+        val renderedTimelineMs =
+            (renderedTimelineTimeMs
+                ?: latestTargetTimelinePositionMs
+                ?: latestKnownTimelinePositionMs
+                ?: runtimeState.timelineTimeMs).coerceAtLeast(0L)
+        val acceptance =
+            acceptFramePacket(
+                packet = packet,
+                descriptor = descriptor,
+                renderedTimelineTimeMs = renderedTimelineMs,
+            )
+        logFramePacketProof(
+            adapterMode = adapterMode,
+            requestedTimelineTimeMs = latestTargetTimelinePositionMs,
+            renderedTimelineTimeMs = renderedTimelineMs,
+            packet = packet,
+            descriptor = descriptor,
+            frameIndex = frameIndex,
+            accepted = acceptance.accepted,
+            rejectionReason = acceptance.rejectionReason,
+            timeDeltaMs = acceptance.timeDeltaMs,
+            effectValuesHash = packet.effectValuesHash,
+        )
+        if (!acceptance.accepted) {
+            return cachedOrDescriptorVisualSurface(
+                descriptor = descriptor,
+                runtimeFallbackBlockers = listOfNotNull(acceptance.rejectionReason),
+            )
         }
         val runtimeSurface = runtimeState.resolveSurfaceForExactClipId(descriptor.clipId)
         if (runtimeSurface == null || runtimeSurface.blockers.isNotEmpty()) {
@@ -1088,6 +1187,7 @@ class Stage5NativeScrubEngine(
                 runtimeFallbackBlockers = runtimeSurface?.blockers ?: emptyList(),
             )
         }
+        latestAcceptedVisualRuntimeRevision = packet.revision
         cacheStableVisualSurface(runtimeSurface)
         return runtimeSurface
     }
@@ -1106,7 +1206,13 @@ class Stage5NativeScrubEngine(
                         ?: runtimeState.timelineTimeMs).coerceAtLeast(0L),
                 )
                 ?: return
-        val surface = resolveVisualStateForDescriptor(descriptor)
+        val surface =
+            resolveVisualStateForDescriptor(
+                descriptor = descriptor,
+                renderedTimelineTimeMs = latestTargetTimelinePositionMs,
+                frameIndex = ++renderRequestFrameIndex,
+                adapterMode = "preview",
+            )
         val transformMatrix = surface.transformMatrix3x3
         val opacity = surface.opacity
         val gaussianBlurSigmaPx = surface.gaussianBlurSigmaPx()
@@ -1202,7 +1308,76 @@ class Stage5NativeScrubEngine(
         if (!directive.overscanScale.isFinite() || directive.overscanScale <= 1.0001) {
             return null
         }
+        if (directive.transformMatrix3x3.size != 9 || directive.inverseTransformMatrix3x3.size != 9) {
+            return null
+        }
         return directive
+    }
+
+    private fun acceptFramePacket(
+        packet: Stage5VisualFramePacket,
+        descriptor: Stage5NativeScrubSourceDescriptor,
+        renderedTimelineTimeMs: Long,
+    ): FramePacketAcceptance {
+        val frameDurationMs = 33L
+        val maxTimeDeltaMs = (frameDurationMs / 2L).coerceAtLeast(8L)
+        val timeDeltaMs = kotlin.math.abs(packet.timelineTimeMs - renderedTimelineTimeMs)
+        if (packet.revision < latestAcceptedVisualRuntimeRevision) {
+            return FramePacketAcceptance(
+                accepted = false,
+                rejectionReason = "stale_revision",
+                timeDeltaMs = timeDeltaMs,
+            )
+        }
+        if (packet.targetClipId.isNotBlank() && packet.targetClipId != descriptor.clipId) {
+            return FramePacketAcceptance(
+                accepted = false,
+                rejectionReason = "target_clip_mismatch",
+                timeDeltaMs = timeDeltaMs,
+            )
+        }
+        if (timeDeltaMs > maxTimeDeltaMs) {
+            return FramePacketAcceptance(
+                accepted = false,
+                rejectionReason = "timeline_time_mismatch",
+                timeDeltaMs = timeDeltaMs,
+            )
+        }
+        return FramePacketAcceptance(
+            accepted = true,
+            rejectionReason = null,
+            timeDeltaMs = timeDeltaMs,
+        )
+    }
+
+    private fun logFramePacketProof(
+        adapterMode: String,
+        requestedTimelineTimeMs: Long?,
+        renderedTimelineTimeMs: Long,
+        packet: Stage5VisualFramePacket?,
+        descriptor: Stage5NativeScrubSourceDescriptor,
+        frameIndex: Long,
+        accepted: Boolean,
+        rejectionReason: String?,
+        timeDeltaMs: Long?,
+        effectValuesHash: Long?,
+    ) {
+        android.util.Log.d(
+            "Stage5NativeScrubEngine",
+            "TF_STAGE5_FRAME_PACKET_PROOF "
+                + "adapterMode=$adapterMode "
+                + "requestedTimelineTimeMs=${requestedTimelineTimeMs ?: -1L} "
+                + "renderedTimelineTimeMs=$renderedTimelineTimeMs "
+                + "packetTimelineTimeMs=${packet?.timelineTimeMs ?: -1L} "
+                + "frameIndex=$frameIndex "
+                + "targetClipId=${packet?.targetClipId ?: "none"} "
+                + "descriptorClipId=${descriptor.clipId} "
+                + "packetRevision=${packet?.revision ?: -1L} "
+                + "accepted=$accepted "
+                + "rejectionReason=${rejectionReason ?: "none"} "
+                + "timeDeltaMs=${timeDeltaMs ?: -1L} "
+                + "effectValuesHash=${effectValuesHash ?: -1L}",
+        )
     }
 
     private fun handleProxyReady(sourceUri: String) {

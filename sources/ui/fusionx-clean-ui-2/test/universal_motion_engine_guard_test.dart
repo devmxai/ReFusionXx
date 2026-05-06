@@ -81,6 +81,9 @@ void main() {
   final edgeFillDirectiveCompilerFile = File(
     'lib/features/editor/domain/services/edge_fill_directive_compiler.dart',
   );
+  final manualTransitionLaneAdapterFile = File(
+    'lib/features/editor/presentation/services/manual_transition_lane_to_motion_channel_adapter.dart',
+  );
 
   test('master evaluation path uses universal evaluation service', () async {
     final source = await screenFile.readAsString();
@@ -657,12 +660,22 @@ void main() {
 
     expect(edgePassSource.contains('RenderEffect.createRuntimeShaderEffect'),
         isTrue);
+    expect(edgePassSource.contains('viewToCanvas(float2 coord)'), isTrue);
+    expect(edgePassSource.contains('canvasToView(float2 coord)'), isTrue);
+    expect(edgePassSource.contains('seamFeatherPx'), isTrue);
+    expect(edgePassSource.contains('return mix(edgeColor, filled'), isTrue);
     expect(chainSource.contains('edgeFill->motionBlur->gaussian'), isTrue);
     expect(
       compilerSource.contains('edge_fill_context_not_full_canvas'),
       isTrue,
       reason:
           'Edge Fill compiler must explicitly gate contexts where full-canvas coverage is not required.',
+    );
+    final previewSource = await stage5PreviewPlatformViewFile.readAsString();
+    expect(previewSource.contains('ownsStage5Transform()'), isTrue);
+    expect(
+      previewSource.contains('transform_owned_by_edge_fill_shader'),
+      isTrue,
     );
   });
 
@@ -675,6 +688,55 @@ void main() {
     expect(source.contains('MotionPropertyCatalog.edgeFillMode'), isTrue);
     expect(
       source.contains('MotionPropertyCatalog.edgeFillAffectMotionBlur'),
+      isTrue,
+    );
+  });
+
+  test('manual transition supports Motion Tile lane and value controls',
+      () async {
+    final screenSource = await screenFile.readAsString();
+    final transitionLaneLibraryStart = screenSource.indexOf(
+      "static const Map<String, _TransitionFocusLaneSpec> _transitionLaneLibrary =",
+    );
+    expect(transitionLaneLibraryStart, isNonNegative);
+    final transitionLaneLibraryEnd = screenSource.indexOf(
+      "static const Set<String> _legacyManualMotionBlurSettingLaneIds",
+      transitionLaneLibraryStart,
+    );
+    expect(transitionLaneLibraryEnd, greaterThan(transitionLaneLibraryStart));
+    final transitionLaneLibraryBody = screenSource.substring(
+      transitionLaneLibraryStart,
+      transitionLaneLibraryEnd,
+    );
+    expect(
+        transitionLaneLibraryBody
+            .contains("'edge_fill': _TransitionFocusLaneSpec("),
+        isTrue);
+    expect(transitionLaneLibraryBody.contains("label: 'Motion Tile'"), isTrue);
+    expect(screenSource.contains("if (lane.id == 'edge_fill') {"), isTrue);
+    expect(screenSource.contains("'edgeFillAmount'"), isTrue);
+    expect(screenSource.contains("'edgeFillMode'"), isTrue);
+    expect(screenSource.contains("_edgeFillSettingControlKey"), isTrue);
+  });
+
+  test('manual transition lane adapter maps edge_fill to Motion Tile channels',
+      () async {
+    final adapterSource = await manualTransitionLaneAdapterFile.readAsString();
+    expect(adapterSource.contains("case 'edge_fill':"), isTrue);
+    expect(
+        adapterSource.contains('MotionPropertyCatalog.edgeFillAmount'), isTrue);
+    expect(
+      adapterSource.contains('MotionPropertyCatalog.edgeFillEnabled'),
+      isFalse,
+      reason:
+          'Transition Motion Tile must activate from amount > 0; a constant false enabled channel makes the effect look editable while staying disabled.',
+    );
+    expect(
+      adapterSource.contains('MotionPropertyCatalog.edgeFillOverscanScale'),
+      isTrue,
+    );
+    expect(
+      adapterSource.contains('_constantEdgeFillChannels('),
       isTrue,
     );
   });
@@ -1037,5 +1099,54 @@ void main() {
     expect(source.contains('proofBackedPixelRenderer'), isTrue);
     expect(source.contains('production_texture_renderer_not_ready'), isTrue);
     expect(source.contains('"realFrameProof" to realFrameProof'), isTrue);
+  });
+
+  test('stage5 runtime shader emits slider and tile gap diagnostics', () async {
+    final source = await stage5PreviewPlatformViewFile.readAsString();
+    expect(source.contains('TF_VELOCITY_MB_SLIDER_PROOF'), isTrue);
+    expect(source.contains('TF_VELOCITY_MB_PROOF'), isTrue);
+    expect(source.contains('weightProfile=hann'), isTrue);
+    expect(source.contains('TF_MOTION_TILE_GAP_PROOF'), isTrue);
+    expect(source.contains('seamOverlapPx='), isTrue);
+    expect(source.contains('bitmapAllocationCount=0'), isTrue);
+    expect(source.contains('mediaMetadataRetrieverUsed=false'), isTrue);
+  });
+
+  test('stage5 native scrub engine enforces frame packet acceptance', () async {
+    final source = await stage5NativeScrubEngineFile.readAsString();
+    expect(source.contains('TF_STAGE5_FRAME_PACKET_PROOF'), isTrue);
+    expect(source.contains('acceptFramePacket('), isTrue);
+    expect(source.contains('timeline_time_mismatch'), isTrue);
+    expect(source.contains('target_clip_mismatch'), isTrue);
+    expect(source.contains('stale_revision'), isTrue);
+  });
+
+  test('transition slider edits lock the visible frame time', () async {
+    final source = await screenFile.readAsString();
+    expect(source.contains('TF_SLIDER_EDIT_FRAME_LOCK_PROOF'), isTrue);
+    expect(source.contains('_lockTransitionFocusVisibleFrame('), isTrue);
+    expect(source.contains('previewTime: beforeVisibleGlobalTime'), isTrue);
+  });
+
+  test('edge fill shader uses pixel-safe source bounds and no overscan shrink',
+      () async {
+    final source = await stage5EdgeFillShaderPassFile.readAsString();
+    expect(source.contains('validSourceMinPx'), isTrue);
+    expect(source.contains('validSourceMaxPx'), isTrue);
+    expect(
+        source.contains('tileHalf = max(float2(0.5), sourceHalf * overscan)'),
+        isTrue);
+    expect(source.contains('sourceHalf / overscan'), isFalse);
+    expect(source.contains('sourceMin = (sourceCenter - sourceHalf)'), isFalse);
+  });
+
+  test('stage5 preview logs source-rect proof and transform-shutter proof',
+      () async {
+    final source = await stage5PreviewPlatformViewFile.readAsString();
+    expect(source.contains('TF_STAGE5_SOURCE_RECT_PROOF'), isTrue);
+    expect(source.contains('TF_TRANSFORM_SHUTTER_MB_PROOF'), isTrue);
+    expect(source.contains('sampledOutsideSource=false'), isTrue);
+    expect(source.contains('edgeBlendUsesBlack=false'), isTrue);
+    expect(source.contains('overscanShrinksSource=false'), isTrue);
   });
 }
