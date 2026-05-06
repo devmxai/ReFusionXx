@@ -26,8 +26,7 @@ class MotionBlurVelocityCompiler {
       return _disabledDirective(policy,
           fallbackReason: 'motion_blur_amount_zero');
     }
-    final clampedAmount = policy.amount.clamp(0.0, 1.0);
-    final shutterScale = (policy.shutterAngleDegrees / 180.0).clamp(0.0, 4.0);
+    final shutterScale = (policy.shutterAngleDegrees / 360.0).clamp(0.0, 4.0);
     final dx =
         policy.affectPosition ? (current.positionX - previous.positionX) : 0.0;
     final dy =
@@ -42,26 +41,25 @@ class MotionBlurVelocityCompiler {
         policy.affectScale ? (current.scaleX - previous.scaleX) : 0.0;
     final scaleDeltaY =
         policy.affectScale ? (current.scaleY - previous.scaleY) : 0.0;
-    final radialOmega = rotationDelta * shutterScale;
-    final scaleVelocityX = scaleDeltaX * shutterScale;
-    final scaleVelocityY = scaleDeltaY * shutterScale;
+    final clampedAmount = policy.amount.clamp(0.0, 1.0);
+    final radialOmega = rotationDelta * clampedAmount;
+    final scaleVelocityX = scaleDeltaX * clampedAmount;
+    final scaleVelocityY = scaleDeltaY * clampedAmount;
     final minCanvas = math.max(1.0, math.min(canvasWidth, canvasHeight));
-    final linearTrail = (motionMagnitude * shutterScale) * clampedAmount;
-    final rotationTrail = radialOmega.abs() * minCanvas * 0.35 * clampedAmount;
-    final scaleTrail = math.max(scaleVelocityX.abs(), scaleVelocityY.abs()) *
-        minCanvas *
-        0.25 *
-        clampedAmount;
-    final kernelLengthPx = linearTrail.clamp(0.0, policy.maxTrailPx);
-    final hasMeaningfulVelocity =
-        kernelLengthPx > 0.5 || rotationTrail > 0.5 || scaleTrail > 0.5;
+    final rotationTrail = radialOmega.abs() * minCanvas * 0.35;
+    final scaleTrail =
+        math.max(scaleVelocityX.abs(), scaleVelocityY.abs()) * minCanvas * 0.25;
+    final requestedKernelLength =
+        (motionMagnitude + rotationTrail + scaleTrail) *
+            shutterScale *
+            clampedAmount;
+    final kernelLengthPx = requestedKernelLength.clamp(0.0, policy.maxTrailPx);
+    final hasMeaningfulVelocity = kernelLengthPx > 0.5;
     final sampleCount = _sampleCountFor(
       quality: quality,
       requested: policy.samples,
       adaptiveLimit: policy.adaptiveSampleLimit,
       hasMeaningfulVelocity: hasMeaningfulVelocity,
-      kernelLengthPx: kernelLengthPx,
-      maxTrailPx: policy.maxTrailPx,
     );
     final fallbackReason =
         hasMeaningfulVelocity ? null : 'motion_blur_velocity_zero';
@@ -114,39 +112,17 @@ class MotionBlurVelocityCompiler {
     required int requested,
     required int adaptiveLimit,
     required bool hasMeaningfulVelocity,
-    required double kernelLengthPx,
-    required double maxTrailPx,
   }) {
     if (!hasMeaningfulVelocity) {
       return 1;
     }
     final boundedRequested = requested.clamp(1, math.max(1, adaptiveLimit));
     final qualityFloor = switch (quality) {
-      MotionBlurDirectiveQuality.liveScrub => 6,
-      MotionBlurDirectiveQuality.playback => 8,
-      MotionBlurDirectiveQuality.preview => 12,
-      MotionBlurDirectiveQuality.export => 16,
+      MotionBlurDirectiveQuality.liveScrub => 4,
+      MotionBlurDirectiveQuality.playback => 6,
+      MotionBlurDirectiveQuality.preview => 8,
+      MotionBlurDirectiveQuality.export => 8,
     };
-    final maxByQuality = switch (quality) {
-      MotionBlurDirectiveQuality.liveScrub => 8,
-      MotionBlurDirectiveQuality.playback => 16,
-      MotionBlurDirectiveQuality.preview => 24,
-      MotionBlurDirectiveQuality.export => 24,
-    };
-    final adaptiveCeiling = adaptiveLimit.clamp(1, maxByQuality);
-    final trailRatio = maxTrailPx <= 0.0 ? 0.0 : (kernelLengthPx / maxTrailPx);
-    final adaptiveBoost = switch (quality) {
-      MotionBlurDirectiveQuality.liveScrub => trailRatio > 0.35 ? 1 : 0,
-      MotionBlurDirectiveQuality.playback =>
-        trailRatio > 0.35 ? 2 : (trailRatio > 0.2 ? 1 : 0),
-      MotionBlurDirectiveQuality.preview =>
-        trailRatio > 0.45 ? 4 : (trailRatio > 0.25 ? 2 : 0),
-      MotionBlurDirectiveQuality.export =>
-        trailRatio > 0.45 ? 6 : (trailRatio > 0.25 ? 3 : 0),
-    };
-    final requestedWithBoost =
-        (boundedRequested + adaptiveBoost).clamp(1, adaptiveCeiling).toInt();
-    final unclamped = math.max(qualityFloor, requestedWithBoost);
-    return unclamped.clamp(1, maxByQuality).toInt();
+    return math.max(qualityFloor, boundedRequested).clamp(1, 12).toInt();
   }
 }

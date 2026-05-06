@@ -7,7 +7,7 @@ import kotlin.math.max
 
 class Stage5MotionBlurShaderPass {
     companion object {
-        private const val MAX_SAMPLES = 24
+        private const val MAX_SAMPLES = 12
 
         // language=AGSL
         private const val MOTION_BLUR_SHADER = """
@@ -19,56 +19,35 @@ class Stage5MotionBlurShaderPass {
             uniform float radialOmega;
             uniform float2 scaleVelocity;
             uniform float2 anchorNorm;
-            uniform float shutterAngleDegrees;
             uniform float shutterPhase;
             uniform float sampleCount;
-            uniform float weightProfile;
-
-            float sampleWeight(float x) {
-                // Hann window with a tiny floor to avoid overly hard endpoints.
-                float hann = 0.5 - (0.5 * cos(6.2831853 * x));
-                return max(0.0001, hann);
-            }
 
             half4 main(float2 coord) {
-                float count = clamp(sampleCount, 1.0, 24.0);
+                float count = clamp(sampleCount, 1.0, 12.0);
                 float2 anchor = anchorNorm * resolution;
-                float2 linearDelta = direction * kernelLengthPx;
-                float shutterScale = clamp(shutterAngleDegrees / 180.0, 0.0, 4.0);
+                float2 fromAnchor = coord - anchor;
+                float2 linearVelocity = direction * kernelLengthPx;
+                float2 radialVelocity = float2(-fromAnchor.y, fromAnchor.x) * radialOmega;
+                float2 zoomVelocity = fromAnchor * scaleVelocity;
+                float2 velocity = (linearVelocity + radialVelocity + zoomVelocity) * amount;
 
                 half4 accum = half4(0.0);
                 float weightAccum = 0.0;
-                for (int i = 0; i < 24; i++) {
+                for (int i = 0; i < 12; i++) {
                     if (float(i) >= count) {
                         break;
                     }
-                    float samplePosition = ((float(i) + 0.5) / count) - 0.5;
+                    float normalized = (count <= 1.0) ? 0.0 : (float(i) / (count - 1.0)) - 0.5;
                     float phase = clamp(shutterPhase, -1.0, 1.0) * 0.5;
-                    float t = samplePosition + phase;
-                    float scaledT = t * clamp(amount, 0.0, 1.0) * max(0.001, shutterScale);
-                    float theta = radialOmega * scaledT;
-                    float c = cos(-theta);
-                    float s = sin(-theta);
-                    float2 translated = coord - (linearDelta * scaledT);
-                    float2 centered = translated - anchor;
-                    float scaleX = max(0.01, 1.0 + (scaleVelocity.x * scaledT));
-                    float scaleY = max(0.01, 1.0 + (scaleVelocity.y * scaledT));
-                    float2 unscaled = float2(centered.x / scaleX, centered.y / scaleY);
-                    float2 unrotated =
-                        float2(
-                            (unscaled.x * c) - (unscaled.y * s),
-                            (unscaled.x * s) + (unscaled.y * c)
-                        );
-                    float2 sampleCoord = anchor + unrotated;
-                    float x = (float(i) + 0.5) / count;
-                    float weight = sampleWeight(x);
-                    accum += sourceImage.eval(sampleCoord) * half(weight);
+                    float t = normalized + phase;
+                    float weight = 1.0 / count;
+                    accum += sourceImage.eval(coord + (velocity * t)) * half(weight);
                     weightAccum += weight;
                 }
                 if (weightAccum <= 0.0) {
                     return sourceImage.eval(coord);
                 }
-                return accum / half(weightAccum);
+                return accum;
             }
         """
     }
@@ -131,16 +110,11 @@ class Stage5MotionBlurShaderPass {
                     normalizedDirective.anchorXNormalized.toFloat().coerceIn(0f, 1f),
                     normalizedDirective.anchorYNormalized.toFloat().coerceIn(0f, 1f),
                 )
-                setFloatUniform(
-                    "shutterAngleDegrees",
-                    normalizedDirective.shutterAngleDegrees.toFloat().coerceIn(0f, 720f),
-                )
                 setFloatUniform("shutterPhase", normalizedDirective.shutterPhase.toFloat())
                 setFloatUniform(
                     "sampleCount",
                     normalizedDirective.sampleCount.coerceIn(1, MAX_SAMPLES).toFloat(),
                 )
-                setFloatUniform("weightProfile", 1f)
             }
             val motionBlurEffect =
                 RenderEffect.createRuntimeShaderEffect(shader, "sourceImage")

@@ -4,6 +4,7 @@ import android.graphics.RenderEffect
 import android.graphics.RuntimeShader
 import android.os.Build
 import kotlin.math.max
+import kotlin.math.min
 
 class Stage5EdgeFillShaderPass {
     companion object {
@@ -11,16 +12,10 @@ class Stage5EdgeFillShaderPass {
         private const val EDGE_FILL_SHADER = """
             uniform shader sourceImage;
             uniform float2 resolution;
-            uniform float2 canvasSize;
             uniform float amount;
             uniform float mode;
-            uniform float seamFeatherPx;
-            uniform float seamOverlapPx;
-            uniform float overscanScale;
-            uniform float2 validSourceMinPx;
-            uniform float2 validSourceMaxPx;
-            uniform float3 inverseRow0;
-            uniform float3 inverseRow1;
+            uniform float2 sourceRectMin;
+            uniform float2 sourceRectMax;
 
             float mirrorCoord(float value, float low, float high) {
                 float span = max(0.00001, high - low);
@@ -40,63 +35,38 @@ class Stage5EdgeFillShaderPass {
                 return low + wrapped;
             }
 
-            float2 viewToCanvas(float2 coord) { return coord * (canvasSize / max(resolution, float2(1.0))); }
-            float2 canvasToView(float2 coord) { return coord * (resolution / max(canvasSize, float2(1.0))); }
-
-            float2 applyInverse(float2 coord) {
-                float x = dot(inverseRow0, float3(coord, 1.0));
-                float y = dot(inverseRow1, float3(coord, 1.0));
-                return float2(x, y);
-            }
-
             half4 main(float2 coord) {
-                float2 canvasCoord = viewToCanvas(coord);
-                float2 remappedCanvasCoord = applyInverse(canvasCoord);
-                float2 sourceMin = validSourceMinPx;
-                float2 sourceMax = validSourceMaxPx;
-                float2 sourceCenter = (sourceMin + sourceMax) * 0.5;
-                float2 sourceHalf = max(float2(0.5), (sourceMax - sourceMin) * 0.5);
-                float overscan = max(1.0, overscanScale);
-                float2 tileHalf = max(float2(0.5), sourceHalf * overscan);
-                float2 tileMin = sourceCenter - tileHalf;
-                float2 tileMax = sourceCenter + tileHalf;
-
-                bool inX = remappedCanvasCoord.x >= sourceMin.x && remappedCanvasCoord.x <= sourceMax.x;
-                bool inY = remappedCanvasCoord.y >= sourceMin.y && remappedCanvasCoord.y <= sourceMax.y;
+                float2 uv = coord / max(resolution, float2(1.0));
+                float2 sourceMin = sourceRectMin;
+                float2 sourceMax = sourceRectMax;
+                bool inX = uv.x >= sourceMin.x && uv.x <= sourceMax.x;
+                bool inY = uv.y >= sourceMin.y && uv.y <= sourceMax.y;
                 if (inX && inY) {
-                    return sourceImage.eval(canvasToView(remappedCanvasCoord));
+                    return sourceImage.eval(coord);
                 }
 
                 float fillMode = mode;
-                float sx = remappedCanvasCoord.x;
-                float sy = remappedCanvasCoord.y;
+                float sx = uv.x;
+                float sy = uv.y;
 
                 if (fillMode < 0.5) {
                     // reflect
-                    sx = mirrorCoord(remappedCanvasCoord.x, tileMin.x, tileMax.x);
-                    sy = mirrorCoord(remappedCanvasCoord.y, tileMin.y, tileMax.y);
+                    sx = mirrorCoord(uv.x, sourceMin.x, sourceMax.x);
+                    sy = mirrorCoord(uv.y, sourceMin.y, sourceMax.y);
                 } else if (fillMode < 1.5) {
                     // replicate/clamp
-                    sx = clamp(remappedCanvasCoord.x, tileMin.x, tileMax.x);
-                    sy = clamp(remappedCanvasCoord.y, tileMin.y, tileMax.y);
+                    sx = clamp(uv.x, sourceMin.x, sourceMax.x);
+                    sy = clamp(uv.y, sourceMin.y, sourceMax.y);
                 } else {
                     // wrap
-                    sx = wrapCoord(remappedCanvasCoord.x, tileMin.x, tileMax.x);
-                    sy = wrapCoord(remappedCanvasCoord.y, tileMin.y, tileMax.y);
+                    sx = wrapCoord(uv.x, sourceMin.x, sourceMax.x);
+                    sy = wrapCoord(uv.y, sourceMin.y, sourceMax.y);
                 }
 
-                float2 sampleCoord = canvasToView(float2(sx, sy));
+                float2 sampleCoord = float2(sx, sy) * resolution;
                 half4 filled = sourceImage.eval(sampleCoord);
-                float2 edgeCoord = clamp(remappedCanvasCoord, sourceMin, sourceMax);
-                half4 edgeColor = sourceImage.eval(canvasToView(edgeCoord));
-                float outsideDistancePx = max(
-                    max(sourceMin.x - remappedCanvasCoord.x, remappedCanvasCoord.x - sourceMax.x),
-                    max(sourceMin.y - remappedCanvasCoord.y, remappedCanvasCoord.y - sourceMax.y)
-                );
-                float seamStartPx = max(0.0, seamOverlapPx);
-                float seamEndPx = seamStartPx + max(0.001, seamFeatherPx);
-                float seamT = smoothstep(seamStartPx, seamEndPx, max(0.0, outsideDistancePx));
-                return mix(edgeColor, filled, half(seamT));
+                half4 original = sourceImage.eval(coord);
+                return mix(original, filled, half(clamp(amount, 0.0, 1.0)));
             }
         """
     }
@@ -120,13 +90,6 @@ class Stage5EdgeFillShaderPass {
                 shaderAllocationCount = 0,
             )
         }
-        if (normalizedDirective.mode.equals("off", ignoreCase = true)) {
-            return RenderEffectResult(
-                renderEffect = null,
-                fallbackReason = "edge_fill_mode_off",
-                shaderAllocationCount = 0,
-            )
-        }
         if (Build.VERSION.SDK_INT < 33) {
             return RenderEffectResult(
                 renderEffect = null,
@@ -141,51 +104,18 @@ class Stage5EdgeFillShaderPass {
                     max(1f, targetWidthPx),
                     max(1f, targetHeightPx),
                 )
-                setFloatUniform(
-                    "canvasSize",
-                    max(1f, normalizedDirective.canvasWidth.toFloat()),
-                    max(1f, normalizedDirective.canvasHeight.toFloat()),
-                )
                 setFloatUniform("amount", normalizedDirective.amount.toFloat().coerceIn(0f, 1f))
                 setFloatUniform("mode", modeValue(normalizedDirective.mode))
                 setFloatUniform(
-                    "seamFeatherPx",
-                    max(0.5f, normalizedDirective.softnessPx.toFloat().coerceIn(0f, 64f)),
-                )
-                setFloatUniform("seamOverlapPx", 1.0f)
-                setFloatUniform(
-                    "overscanScale",
-                    max(1f, normalizedDirective.overscanScale.toFloat()),
-                )
-                val safeCanvasWidth = max(1f, normalizedDirective.canvasWidth.toFloat())
-                val safeCanvasHeight = max(1f, normalizedDirective.canvasHeight.toFloat())
-                val minX = (normalizedDirective.sourceRectLeft.toFloat() * safeCanvasWidth)
-                val minY = (normalizedDirective.sourceRectTop.toFloat() * safeCanvasHeight)
-                val maxX = (normalizedDirective.sourceRectRight.toFloat() * safeCanvasWidth)
-                val maxY = (normalizedDirective.sourceRectBottom.toFloat() * safeCanvasHeight)
-                val pixelSafeMinX = (minX + 0.5f).coerceAtMost(maxX - 0.5f)
-                val pixelSafeMinY = (minY + 0.5f).coerceAtMost(maxY - 0.5f)
-                val pixelSafeMaxX = (maxX - 0.5f).coerceAtLeast(minX + 0.5f)
-                val pixelSafeMaxY = (maxY - 0.5f).coerceAtLeast(minY + 0.5f)
-                setFloatUniform(
-                    "validSourceMinPx",
-                    pixelSafeMinX,
-                    pixelSafeMinY,
+                    "sourceRectMin",
+                    normalizedDirective.sourceRectLeft.toFloat().coerceIn(0f, 1f),
+                    normalizedDirective.sourceRectTop.toFloat().coerceIn(0f, 1f),
                 )
                 setFloatUniform(
-                    "validSourceMaxPx",
-                    pixelSafeMaxX,
-                    pixelSafeMaxY,
+                    "sourceRectMax",
+                    normalizedDirective.sourceRectRight.toFloat().coerceIn(0f, 1f),
+                    normalizedDirective.sourceRectBottom.toFloat().coerceIn(0f, 1f),
                 )
-                val inverse = normalizedDirective.inverseTransformMatrix3x3
-                val inverse00 = inverse.getOrElse(0) { 1.0 }.toFloat()
-                val inverse01 = inverse.getOrElse(1) { 0.0 }.toFloat()
-                val inverse02 = inverse.getOrElse(2) { 0.0 }.toFloat()
-                val inverse10 = inverse.getOrElse(3) { 0.0 }.toFloat()
-                val inverse11 = inverse.getOrElse(4) { 1.0 }.toFloat()
-                val inverse12 = inverse.getOrElse(5) { 0.0 }.toFloat()
-                setFloatUniform("inverseRow0", inverse00, inverse01, inverse02)
-                setFloatUniform("inverseRow1", inverse10, inverse11, inverse12)
             }
             RenderEffectResult(
                 renderEffect = RenderEffect.createRuntimeShaderEffect(shader, "sourceImage"),
@@ -203,13 +133,8 @@ class Stage5EdgeFillShaderPass {
 
     private fun modeValue(mode: String): Float {
         return when (mode.lowercase()) {
-            "reflect" -> 0f
-            "blurredreflect" -> 0f
-            "blurredbackground" -> 0f
-            "autooverscan" -> 0f
             "replicate" -> 1f
             "wrap" -> 2f
-            "color" -> 1f
             else -> 0f
         }
     }

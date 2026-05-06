@@ -999,51 +999,6 @@ class MainActivity: FlutterActivity() {
         val revision = (map["revision"] as? Number)?.toLong() ?: return null
         val timelineTimeMs = (map["timelineTimeMs"] as? Number)?.toLong() ?: 0L
         val mode = map["mode"]?.toString().orEmpty().ifBlank { "preview" }
-        val framePacket =
-            (map["framePacket"] as? Map<*, *>)
-                ?.mapKeys { (key, _) -> key.toString() }
-                ?.let { packetMap ->
-                    val packetTargetClipId =
-                        packetMap["targetClipId"]?.toString().orEmpty()
-                    if (packetTargetClipId.isBlank()) {
-                        null
-                    } else {
-                        Stage5VisualFramePacket(
-                            timelineTimeMs =
-                                (packetMap["timelineTimeMs"] as? Number)?.toLong()
-                                    ?: timelineTimeMs,
-                            frameIndex =
-                                (packetMap["frameIndex"] as? Number)?.toLong()
-                                    ?: (timelineTimeMs / 33L),
-                            mode = packetMap["mode"]?.toString().orEmpty().ifBlank { mode },
-                            revision =
-                                (packetMap["revision"] as? Number)?.toLong() ?: revision,
-                            targetClipId = packetTargetClipId,
-                            sourceId = packetMap["sourceId"]?.toString().orEmpty().ifBlank {
-                                packetTargetClipId
-                            },
-                            transformMatrix3x3 =
-                                (packetMap["transformMatrix3x3"] as? List<*>)
-                                    ?.mapNotNull { value -> (value as? Number)?.toDouble() }
-                                    ?.takeIf { values -> values.size == 9 }
-                                    ?: listOf(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
-                            motionBlurDirective =
-                                parseMotionBlurDirective(
-                                    (packetMap["motionBlurDirective"] as? Map<*, *>)
-                                        ?.mapKeys { (key, _) -> key.toString() },
-                                ),
-                            edgeFillDirective =
-                                parseEdgeFillDirective(
-                                    (packetMap["edgeFillDirective"] as? Map<*, *>)
-                                        ?.mapKeys { (key, _) -> key.toString() },
-                                ),
-                            gaussianBlurSigmaPx =
-                                (packetMap["gaussianBlurSigmaPx"] as? Number)?.toDouble() ?: 0.0,
-                            effectValuesHash =
-                                (packetMap["effectValuesHash"] as? Number)?.toLong() ?: 0L,
-                        )
-                    }
-                }
         val transitionId = map["transitionId"]?.toString()
         val primaryTargetClipId = map["primaryTargetClipId"]?.toString()
         val transitionProgress = (map["transitionProgress"] as? Number)?.toDouble()
@@ -1173,16 +1128,6 @@ class MainActivity: FlutterActivity() {
                                 quality = directiveMap["quality"]?.toString().orEmpty().ifBlank {
                                     "preview"
                                 },
-                                transformMatrix3x3 =
-                                    (directiveMap["transformMatrix3x3"] as? List<*>)
-                                        ?.mapNotNull { value -> (value as? Number)?.toDouble() }
-                                        ?.takeIf { values -> values.size == 9 }
-                                        ?: listOf(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
-                                inverseTransformMatrix3x3 =
-                                    (directiveMap["inverseTransformMatrix3x3"] as? List<*>)
-                                        ?.mapNotNull { value -> (value as? Number)?.toDouble() }
-                                        ?.takeIf { values -> values.size == 9 }
-                                        ?: listOf(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
                                 fallbackReason = directiveMap["fallbackReason"]?.toString(),
                             )
                         }
@@ -1207,72 +1152,12 @@ class MainActivity: FlutterActivity() {
             revision = revision,
             timelineTimeMs = timelineTimeMs.coerceAtLeast(0L),
             mode = mode,
-            framePacket = framePacket,
             transitionId = transitionId,
             primaryTargetClipId = primaryTargetClipId,
             transitionProgress = transitionProgress,
             surfaces = surfaces,
             blockers = blockers,
             diagnostics = diagnostics,
-        )
-    }
-
-    private fun parseMotionBlurDirective(
-        directiveMap: Map<String, Any?>?,
-    ): Stage5VisualRuntimeMotionBlurDirective? {
-        val map = directiveMap ?: return null
-        return Stage5VisualRuntimeMotionBlurDirective(
-            enabled = map["enabled"] as? Boolean ?: false,
-            amount = (map["amount"] as? Number)?.toDouble() ?: 0.0,
-            kernelLengthPx = (map["kernelLengthPx"] as? Number)?.toDouble() ?: 0.0,
-            directionX = (map["directionX"] as? Number)?.toDouble() ?: 0.0,
-            directionY = (map["directionY"] as? Number)?.toDouble() ?: 0.0,
-            radialOmega = (map["radialOmega"] as? Number)?.toDouble() ?: 0.0,
-            scaleVelocityX = (map["scaleVelocityX"] as? Number)?.toDouble() ?: 0.0,
-            scaleVelocityY = (map["scaleVelocityY"] as? Number)?.toDouble() ?: 0.0,
-            anchorXNormalized = (map["anchorXNormalized"] as? Number)?.toDouble() ?: 0.5,
-            anchorYNormalized = (map["anchorYNormalized"] as? Number)?.toDouble() ?: 0.5,
-            shutterAngleDegrees = (map["shutterAngleDegrees"] as? Number)?.toDouble() ?: 180.0,
-            shutterPhase = (map["shutterPhase"] as? Number)?.toDouble() ?: 0.0,
-            sampleCount = (map["sampleCount"] as? Number)?.toInt() ?: 1,
-            maxTrailPx = (map["maxTrailPx"] as? Number)?.toDouble() ?: 240.0,
-            mode = map["mode"]?.toString().orEmpty().ifBlank { "transformVelocity" },
-            fallbackReason = map["fallbackReason"]?.toString(),
-        )
-    }
-
-    private fun parseEdgeFillDirective(
-        directiveMap: Map<String, Any?>?,
-    ): Stage5VisualRuntimeEdgeFillDirective? {
-        val map = directiveMap ?: return null
-        return Stage5VisualRuntimeEdgeFillDirective(
-            enabled = map["enabled"] as? Boolean ?: false,
-            mode = map["mode"]?.toString().orEmpty().ifBlank { "reflect" },
-            amount = (map["amount"] as? Number)?.toDouble() ?: 0.0,
-            overscanScale = (map["overscanScale"] as? Number)?.toDouble() ?: 1.0,
-            softnessPx = (map["softnessPx"] as? Number)?.toDouble() ?: 0.0,
-            blurSigmaPx = (map["blurSigmaPx"] as? Number)?.toDouble() ?: 0.0,
-            sourceRectLeft = (map["sourceRectLeft"] as? Number)?.toDouble() ?: 0.0,
-            sourceRectTop = (map["sourceRectTop"] as? Number)?.toDouble() ?: 0.0,
-            sourceRectRight = (map["sourceRectRight"] as? Number)?.toDouble() ?: 1.0,
-            sourceRectBottom = (map["sourceRectBottom"] as? Number)?.toDouble() ?: 1.0,
-            contentWidth = (map["contentWidth"] as? Number)?.toDouble() ?: 0.0,
-            contentHeight = (map["contentHeight"] as? Number)?.toDouble() ?: 0.0,
-            canvasWidth = (map["canvasWidth"] as? Number)?.toDouble() ?: 0.0,
-            canvasHeight = (map["canvasHeight"] as? Number)?.toDouble() ?: 0.0,
-            maxExpansionPx = (map["maxExpansionPx"] as? Number)?.toDouble() ?: 0.0,
-            quality = map["quality"]?.toString().orEmpty().ifBlank { "preview" },
-            transformMatrix3x3 =
-                (map["transformMatrix3x3"] as? List<*>)
-                    ?.mapNotNull { value -> (value as? Number)?.toDouble() }
-                    ?.takeIf { values -> values.size == 9 }
-                    ?: listOf(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
-            inverseTransformMatrix3x3 =
-                (map["inverseTransformMatrix3x3"] as? List<*>)
-                    ?.mapNotNull { value -> (value as? Number)?.toDouble() }
-                    ?.takeIf { values -> values.size == 9 }
-                    ?: listOf(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
-            fallbackReason = map["fallbackReason"]?.toString(),
         )
     }
 
