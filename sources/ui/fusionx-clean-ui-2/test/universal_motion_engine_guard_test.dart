@@ -566,6 +566,73 @@ void main() {
     );
   });
 
+  test('manual temporal blur binds native pixel output before presentation',
+      () async {
+    final source = await professionalTransitionCompositorFile.readAsString();
+    final frameBufferStart =
+        source.lastIndexOf('fun planTransitionPixelFrameBuffer(');
+    expect(frameBufferStart, isNonNegative);
+    final frameBufferBody = source.substring(
+      frameBufferStart,
+      (frameBufferStart + 7000).clamp(0, source.length),
+    );
+    expect(frameBufferBody.contains('writerBackedPixelOutput'), isTrue);
+    expect(
+      frameBufferBody.contains(
+        'if (writerBackedPixelOutput) {\n'
+        '                mapOf(',
+      ),
+      isTrue,
+    );
+    expect(
+      frameBufferBody.contains(
+        '"outputTarget" to "nativeTransitionCanvasSurface"',
+      ),
+      isTrue,
+    );
+    expect(
+      frameBufferBody
+          .contains('"outputFramebufferBound" to outputFramebufferBound'),
+      isTrue,
+    );
+
+    final writerStart =
+        source.lastIndexOf('fun planTransitionPixelFrameBufferWriter(');
+    expect(writerStart, isNonNegative);
+    final writerEnd = source.indexOf(
+        'private fun writeTemporalVideoPixelsToFrameBuffer(', writerStart);
+    expect(writerEnd, greaterThan(writerStart));
+    final writerBody = source.substring(writerStart, writerEnd);
+    expect(writerBody.contains('"writerCreated" to writerCreated'), isTrue);
+    expect(writerBody.contains('"writerBound" to writerBoundToFrameBuffer'),
+        isTrue);
+
+    final interactiveStart = source.indexOf('fun renderInteractiveFrame(');
+    expect(interactiveStart, isNonNegative);
+    final interactiveEnd =
+        source.indexOf('private fun hasRequiredField(', interactiveStart);
+    expect(interactiveEnd, greaterThan(interactiveStart));
+    final interactiveBody = source.substring(interactiveStart, interactiveEnd);
+    expect(
+      interactiveBody.contains(
+        'native_transition_motion_blur_pixel_delta_missing',
+      ),
+      isTrue,
+    );
+    expect(
+        interactiveBody.contains('"writerCreated" to writerCreated'), isTrue);
+    expect(interactiveBody.contains('"writerBound" to writerBound'), isTrue);
+    expect(
+      interactiveBody
+          .contains('"outputFramebufferBound" to outputFramebufferBound'),
+      isTrue,
+    );
+    expect(interactiveBody.contains('"rendererSampleCount" to sampleCount'),
+        isTrue);
+    expect(interactiveBody.contains('"rendererAmount" to motionBlurAmount'),
+        isTrue);
+  });
+
   test('scene layer scope enables track animate/fx controls including shape',
       () async {
     final source = await screenFile.readAsString();

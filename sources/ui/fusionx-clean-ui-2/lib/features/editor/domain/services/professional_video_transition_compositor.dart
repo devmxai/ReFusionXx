@@ -6691,6 +6691,9 @@ class ProfessionalVideoTransitionInteractiveFrameRenderResult {
     required this.transitionStartTime,
     required this.transitionEndTime,
     required this.pixelOutputReady,
+    this.writerCreated = false,
+    this.writerBound = false,
+    this.outputFramebufferBound = false,
     required this.frameDelivered,
     required this.framePresented,
     required this.frameByteCount,
@@ -6700,17 +6703,20 @@ class ProfessionalVideoTransitionInteractiveFrameRenderResult {
     required this.renderOwner,
     required this.motionBlurEnabled,
     required this.sampleCount,
+    this.rendererSampleCount = 0,
     required this.outgoingContributionCount,
     required this.incomingContributionCount,
     required this.centerContributionCount,
     required this.trailContributionCount,
     required this.motionBlurAmount,
+    this.rendererAmount = 0,
     required this.forcedVisualTestPattern,
     required this.forcedSyntheticMotionBlur,
     required this.sampleTransformDelta,
     required this.rendererConsumedSamples,
     required this.renderPassIncludesTemporalMotionBlur,
     required this.fallbackUsed,
+    this.fallbackReason = '',
     required this.checksumBefore,
     required this.checksumAfter,
     required this.checksumDelta,
@@ -6774,6 +6780,9 @@ class ProfessionalVideoTransitionInteractiveFrameRenderResult {
   final TimelineTime? transitionStartTime;
   final TimelineTime? transitionEndTime;
   final bool pixelOutputReady;
+  final bool writerCreated;
+  final bool writerBound;
+  final bool outputFramebufferBound;
   final bool frameDelivered;
   final bool framePresented;
   final int frameByteCount;
@@ -6783,17 +6792,20 @@ class ProfessionalVideoTransitionInteractiveFrameRenderResult {
   final String renderOwner;
   final bool motionBlurEnabled;
   final int sampleCount;
+  final int rendererSampleCount;
   final int outgoingContributionCount;
   final int incomingContributionCount;
   final int centerContributionCount;
   final int trailContributionCount;
   final double motionBlurAmount;
+  final double rendererAmount;
   final bool forcedVisualTestPattern;
   final bool forcedSyntheticMotionBlur;
   final double sampleTransformDelta;
   final bool rendererConsumedSamples;
   final bool renderPassIncludesTemporalMotionBlur;
   final bool fallbackUsed;
+  final String fallbackReason;
   final int checksumBefore;
   final int checksumAfter;
   final bool checksumDelta;
@@ -6831,6 +6843,9 @@ class ProfessionalVideoTransitionInteractiveFrameRenderResultMapper {
       transitionStartTime: _readTimelineTime(map['transitionStartMs']),
       transitionEndTime: _readTimelineTime(map['transitionEndMs']),
       pixelOutputReady: _readBool(map['pixelOutputReady']),
+      writerCreated: _readBool(map['writerCreated']),
+      writerBound: _readBool(map['writerBound']),
+      outputFramebufferBound: _readBool(map['outputFramebufferBound']),
       frameDelivered: _readBool(map['frameDelivered']),
       framePresented: _readBool(map['framePresented']),
       frameByteCount: _readInt(map['frameByteCount']),
@@ -6840,11 +6855,13 @@ class ProfessionalVideoTransitionInteractiveFrameRenderResultMapper {
       renderOwner: map['renderOwner']?.toString() ?? '',
       motionBlurEnabled: _readBool(map['motionBlurEnabled']),
       sampleCount: _readInt(map['sampleCount']),
+      rendererSampleCount: _readInt(map['rendererSampleCount']),
       outgoingContributionCount: _readInt(map['outgoingContributionCount']),
       incomingContributionCount: _readInt(map['incomingContributionCount']),
       centerContributionCount: _readInt(map['centerContributionCount']),
       trailContributionCount: _readInt(map['trailContributionCount']),
       motionBlurAmount: _readDouble(map['motionBlurAmount']),
+      rendererAmount: _readDouble(map['rendererAmount']),
       forcedVisualTestPattern: _readBool(map['forcedVisualTestPattern']),
       forcedSyntheticMotionBlur: _readBool(map['forcedSyntheticMotionBlur']),
       sampleTransformDelta: _readDouble(map['sampleTransformDelta']),
@@ -6852,6 +6869,7 @@ class ProfessionalVideoTransitionInteractiveFrameRenderResultMapper {
       renderPassIncludesTemporalMotionBlur:
           _readBool(map['renderPassIncludesTemporalMotionBlur']),
       fallbackUsed: _readBool(map['fallbackUsed']),
+      fallbackReason: map['fallbackReason']?.toString() ?? '',
       checksumBefore: _readInt(map['checksumBefore']),
       checksumAfter: _readInt(map['checksumAfter']),
       checksumDelta: _readBool(map['checksumDelta']),

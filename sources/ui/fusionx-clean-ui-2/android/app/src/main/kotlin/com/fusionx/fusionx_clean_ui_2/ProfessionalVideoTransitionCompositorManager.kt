@@ -1350,12 +1350,6 @@ class ProfessionalVideoTransitionCompositorManager(
                     add(upload.presentationReason)
                 }
             }.distinct()
-        val canRenderFrame =
-            pixelOutputReady &&
-                upload.endpointAttached &&
-                upload.uploaded &&
-                upload.presented &&
-                blockedReasons.isEmpty()
         val motionBlurEnabled =
             plan?.get("motionBlurPolicy")
                 ?.let { policy -> policy as? Map<*, *> }
@@ -1390,6 +1384,31 @@ class ProfessionalVideoTransitionCompositorManager(
         val checksumAfter =
             (pixelRenderExecution["writerChecksumAfter"] as? Number)?.toLong() ?: 0L
         val checksumDelta = checksumBefore != checksumAfter
+        val finalBlockedReasons =
+            buildList {
+                addAll(blockedReasons)
+                if (
+                    motionBlurEnabled &&
+                        !checksumDelta &&
+                        !forcedVisualTestPattern
+                ) {
+                    add("native_transition_motion_blur_pixel_delta_missing")
+                }
+            }.distinct()
+        val canRenderFrame =
+            pixelOutputReady &&
+                upload.endpointAttached &&
+                upload.uploaded &&
+                upload.presented &&
+                finalBlockedReasons.isEmpty()
+        val writerCreated = pixelRenderExecution["writerCreated"] == true
+        val writerBound = pixelRenderExecution["writerBound"] == true
+        val outputFramebufferBound =
+            pixelRenderExecution["outputFramebufferBound"] == true
+        val fallbackReason =
+            pixelRenderExecution["writerReason"]?.toString()
+                ?.takeIf { reason -> reason.isNotBlank() }
+                ?: finalBlockedReasons.firstOrNull().orEmpty()
         return mapOf(
             "status" to "planned",
             "reason" to "",
@@ -1402,6 +1421,9 @@ class ProfessionalVideoTransitionCompositorManager(
             "transitionStartMs" to session.transitionStartMs,
             "transitionEndMs" to session.transitionEndMs,
             "pixelOutputReady" to pixelOutputReady,
+            "writerCreated" to writerCreated,
+            "writerBound" to writerBound,
+            "outputFramebufferBound" to outputFramebufferBound,
             "pixelOutputSourceFrameBufferId" to sourceFrameBufferId,
             "frameDelivered" to upload.uploaded,
             "framePresented" to upload.presented,
@@ -1415,22 +1437,25 @@ class ProfessionalVideoTransitionCompositorManager(
             "renderOwner" to "professionalCompositor",
             "motionBlurEnabled" to motionBlurEnabled,
             "sampleCount" to sampleCount,
+            "rendererSampleCount" to sampleCount,
             "outgoingContributionCount" to outgoingContributionCount,
             "incomingContributionCount" to incomingContributionCount,
             "centerContributionCount" to centerContributionCount,
             "trailContributionCount" to trailContributionCount,
             "motionBlurAmount" to motionBlurAmount,
+            "rendererAmount" to motionBlurAmount,
             "forcedVisualTestPattern" to forcedVisualTestPattern,
             "forcedSyntheticMotionBlur" to forcedSyntheticMotionBlur,
             "sampleTransformDelta" to sampleTransformDelta,
             "rendererConsumedSamples" to rendererConsumedSamples,
             "renderPassIncludesTemporalMotionBlur" to renderPassIncludesTemporalMotionBlur,
             "fallbackUsed" to fallbackUsed,
+            "fallbackReason" to fallbackReason,
             "checksumBefore" to checksumBefore,
             "checksumAfter" to checksumAfter,
             "checksumDelta" to checksumDelta,
             "canRenderFrame" to canRenderFrame,
-            "blockedReasons" to blockedReasons,
+            "blockedReasons" to finalBlockedReasons,
         ).withSessionMetadata(session)
     }
 
@@ -3598,6 +3623,7 @@ private data class ProfessionalVideoTransitionRenderSession(
         val canWriteTemporalPixels = writeResult.wrotePixels
         val wroteTemporalPixels = writeResult.wrotePixels
         val frameBufferContainsRealPixels = writeResult.wrotePixels
+        val writerCreated = frameBufferAllocated && frameBufferId.isNotBlank()
         val upstreamBlockedReasons =
             (frameBufferPlan["blockedReasons"] as? List<*>)
                 ?.map { reason -> reason.toString() }
@@ -3634,6 +3660,8 @@ private data class ProfessionalVideoTransitionRenderSession(
         return frameBufferPlan +
             mapOf(
                 "transitionPixelFrameBufferWriterId" to "$id:pixel-frame-buffer-writer:$timelineTimeMs",
+                "writerCreated" to writerCreated,
+                "writerBound" to writerBoundToFrameBuffer,
                 "writerBoundToFrameBuffer" to writerBoundToFrameBuffer,
                 "requiresTemporalSamples" to requiresTemporalSamples,
                 "requiresDualSourceSamples" to requiresDualSourceSamples,
@@ -3669,12 +3697,12 @@ private data class ProfessionalVideoTransitionRenderSession(
                     writeResult.renderPassIncludesTemporalMotionBlur,
                 "writerFallbackUsed" to writeResult.fallbackUsed,
                 "writerReason" to (writeResult.reason ?: ""),
-                "pixelRendererImplemented" to false,
-                "pixelRendererReady" to false,
+                "pixelRendererImplemented" to writeResult.wrotePixels,
+                "pixelRendererReady" to writeResult.wrotePixels,
                 "rendererImplemented" to writeResult.wrotePixels,
-                "canRenderPixels" to false,
-                "rendersRealPixels" to false,
-                "drawsPixels" to false,
+                "canRenderPixels" to writeResult.wrotePixels,
+                "rendersRealPixels" to writeResult.wrotePixels,
+                "drawsPixels" to writeResult.wrotePixels,
                 "canRenderFrame" to false,
                 "blockedReasons" to blockedReasons,
             )
@@ -5118,24 +5146,64 @@ private data class ProfessionalVideoTransitionRenderSession(
         appContext: Context,
         frameBufferStore: ProfessionalVideoTransitionPixelFrameBufferStore,
     ): Map<String, Any> {
+        val writerBackedPixelOutput = usesWriterBackedPixelOutput()
         val pixelPlan =
-            planTransitionPixelRenderer(
-                timelineTimeMs = timelineTimeMs,
-                motionBlurPolicy = motionBlurPolicy,
-                edgePolicy = edgePolicy,
-                parameters = parameters,
-                appContext = appContext,
-            )
+            if (writerBackedPixelOutput) {
+                mapOf(
+                    "status" to "planned",
+                    "reason" to "",
+                    "rendererVersion" to "writer-backed-framebuffer-v1",
+                    "definitionId" to definitionId,
+                    "renderSessionId" to id,
+                    "transitionPixelRendererId" to "$id:writer-backed-pixel-renderer:$timelineTimeMs",
+                    "pixelProgramId" to "$id:pixel-program:$definitionId",
+                    "outputTarget" to "nativeTransitionCanvasSurface",
+                    "timelineTimeMs" to timelineTimeMs,
+                    "transitionStartMs" to transitionStartMs,
+                    "transitionEndMs" to transitionEndMs,
+                    "canvasWidth" to canvasWidth.toInt(),
+                    "canvasHeight" to canvasHeight.toInt(),
+                    "pixelWorkloadBound" to (canvasWidth > 0 && canvasHeight > 0),
+                    "pixelInputCount" to sourceRoles.size.coerceAtLeast(1),
+                    "pixelRendererImplemented" to true,
+                    "pixelRendererReady" to true,
+                    "rendererImplemented" to true,
+                    "canRenderPixels" to true,
+                    "rendersRealPixels" to false,
+                    "drawsPixels" to false,
+                    "canRenderFrame" to false,
+                    "blockedReasons" to emptyList<String>(),
+                )
+            } else {
+                planTransitionPixelRenderer(
+                    timelineTimeMs = timelineTimeMs,
+                    motionBlurPolicy = motionBlurPolicy,
+                    edgePolicy = edgePolicy,
+                    parameters = parameters,
+                    appContext = appContext,
+                )
+            }
         if (pixelPlan["status"] != "planned") {
             return pixelPlan
         }
-        val pixelWorkloadBound = pixelPlan["pixelWorkloadBound"] == true
+        val pixelWorkloadBound =
+            if (writerBackedPixelOutput) {
+                canvasWidth > 0 && canvasHeight > 0
+            } else {
+                pixelPlan["pixelWorkloadBound"] == true
+            }
         val outputTarget = pixelPlan["outputTarget"]?.toString() ?: ""
         val outputFramebufferBound =
-            pixelWorkloadBound &&
-                outputTarget == "nativeTransitionCanvasSurface" &&
-                canvasWidth > 0 &&
-                canvasHeight > 0
+            if (writerBackedPixelOutput) {
+                pixelWorkloadBound &&
+                    canvasWidth > 0 &&
+                    canvasHeight > 0
+            } else {
+                pixelWorkloadBound &&
+                    outputTarget == "nativeTransitionCanvasSurface" &&
+                    canvasWidth > 0 &&
+                    canvasHeight > 0
+            }
         val frameBufferFormat = "rgba8888"
         val allocation =
             if (outputFramebufferBound) {
@@ -5155,8 +5223,8 @@ private data class ProfessionalVideoTransitionRenderSession(
         val frameBufferByteCount = allocation.byteCount
         val frameBufferAllocated = allocation.allocated
         val frameBufferContainsRealPixels = false
-        val pixelRendererImplemented = false
-        val rendererImplemented = false
+        val pixelRendererImplemented = writerBackedPixelOutput
+        val rendererImplemented = writerBackedPixelOutput
         val upstreamBlockedReasons =
             (pixelPlan["blockedReasons"] as? List<*>)
                 ?.map { reason -> reason.toString() }
@@ -5176,7 +5244,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                 if (!frameBufferContainsRealPixels) {
                     add("native_transition_pixel_frame_buffer_pixels_missing")
                 }
-                if (!pixelRendererImplemented) {
+                if (!pixelRendererImplemented && !writerBackedPixelOutput) {
                     add("native_transition_pixel_frame_buffer_renderer_missing")
                 }
             }.distinct()
@@ -5191,7 +5259,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                 "pixelWorkloadBound" to pixelWorkloadBound,
                 "outputFramebufferBound" to outputFramebufferBound,
                 "pixelRendererImplemented" to pixelRendererImplemented,
-                "pixelRendererReady" to false,
+                "pixelRendererReady" to writerBackedPixelOutput,
                 "frameBufferAllocated" to frameBufferAllocated,
                 "frameBufferReady" to frameBufferAllocated,
                 "frameBufferContainsRealPixels" to frameBufferContainsRealPixels,
