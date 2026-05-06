@@ -677,6 +677,12 @@ void main() {
       previewSource.contains('transform_owned_by_edge_fill_shader'),
       isTrue,
     );
+    expect(
+      previewSource.contains('directive.inverseTransformMatrix3x3.size == 9'),
+      isTrue,
+      reason:
+          'When Motion Tile is active, Stage5 must not also apply the same rotation as a PlayerView transform.',
+    );
   });
 
   test('scene-layer FX authoring exposes edge fill channels', () async {
@@ -1134,7 +1140,18 @@ void main() {
     expect(source.contains('validSourceMinPx'), isTrue);
     expect(source.contains('validSourceMaxPx'), isTrue);
     expect(
-        source.contains('tileHalf = max(float2(0.5), sourceHalf * overscan)'),
+      source.contains('tileHalf = max(float2(0.5), sourceHalf * overscan)'),
+      isFalse,
+      reason:
+          'Overscan may enable/fade Motion Tile, but mirror sampling must stay inside the true source bounds.',
+    );
+    expect(
+        source.contains(
+            'mirrorCoord(remappedCanvasCoord.x, sourceMin.x, sourceMax.x)'),
+        isTrue);
+    expect(
+        source.contains(
+            'mirrorCoord(remappedCanvasCoord.y, sourceMin.y, sourceMax.y)'),
         isTrue);
     expect(source.contains('sourceHalf / overscan'), isFalse);
     expect(source.contains('sourceMin = (sourceCenter - sourceHalf)'), isFalse);

@@ -722,7 +722,11 @@ class Stage5PreviewPlatformView(
     }
 
     private fun Stage5VisualRuntimeEdgeFillDirective?.ownsStage5Transform(): Boolean {
-        return false
+        val directive = this ?: return false
+        return directive.enabled &&
+            directive.amount > 0.001 &&
+            !directive.mode.equals("off", ignoreCase = true) &&
+            directive.inverseTransformMatrix3x3.size == 9
     }
 
     private fun Stage5VisualRuntimeEdgeFillDirective.isMirrorEdgeMode(): Boolean {

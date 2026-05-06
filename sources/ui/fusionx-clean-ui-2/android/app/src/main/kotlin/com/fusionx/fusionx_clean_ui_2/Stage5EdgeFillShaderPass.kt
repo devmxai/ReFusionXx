@@ -54,13 +54,6 @@ class Stage5EdgeFillShaderPass {
                 float2 remappedCanvasCoord = applyInverse(canvasCoord);
                 float2 sourceMin = validSourceMinPx;
                 float2 sourceMax = validSourceMaxPx;
-                float2 sourceCenter = (sourceMin + sourceMax) * 0.5;
-                float2 sourceHalf = max(float2(0.5), (sourceMax - sourceMin) * 0.5);
-                float overscan = max(1.0, overscanScale);
-                float2 tileHalf = max(float2(0.5), sourceHalf * overscan);
-                float2 tileMin = sourceCenter - tileHalf;
-                float2 tileMax = sourceCenter + tileHalf;
-
                 bool inX = remappedCanvasCoord.x >= sourceMin.x && remappedCanvasCoord.x <= sourceMax.x;
                 bool inY = remappedCanvasCoord.y >= sourceMin.y && remappedCanvasCoord.y <= sourceMax.y;
                 if (inX && inY) {
@@ -73,16 +66,16 @@ class Stage5EdgeFillShaderPass {
 
                 if (fillMode < 0.5) {
                     // reflect
-                    sx = mirrorCoord(remappedCanvasCoord.x, tileMin.x, tileMax.x);
-                    sy = mirrorCoord(remappedCanvasCoord.y, tileMin.y, tileMax.y);
+                    sx = mirrorCoord(remappedCanvasCoord.x, sourceMin.x, sourceMax.x);
+                    sy = mirrorCoord(remappedCanvasCoord.y, sourceMin.y, sourceMax.y);
                 } else if (fillMode < 1.5) {
                     // replicate/clamp
-                    sx = clamp(remappedCanvasCoord.x, tileMin.x, tileMax.x);
-                    sy = clamp(remappedCanvasCoord.y, tileMin.y, tileMax.y);
+                    sx = clamp(remappedCanvasCoord.x, sourceMin.x, sourceMax.x);
+                    sy = clamp(remappedCanvasCoord.y, sourceMin.y, sourceMax.y);
                 } else {
                     // wrap
-                    sx = wrapCoord(remappedCanvasCoord.x, tileMin.x, tileMax.x);
-                    sy = wrapCoord(remappedCanvasCoord.y, tileMin.y, tileMax.y);
+                    sx = wrapCoord(remappedCanvasCoord.x, sourceMin.x, sourceMax.x);
+                    sy = wrapCoord(remappedCanvasCoord.y, sourceMin.y, sourceMax.y);
                 }
 
                 float2 sampleCoord = canvasToView(float2(sx, sy));
@@ -96,7 +89,7 @@ class Stage5EdgeFillShaderPass {
                 float seamStartPx = max(0.0, seamOverlapPx);
                 float seamEndPx = seamStartPx + max(0.001, seamFeatherPx);
                 float seamT = smoothstep(seamStartPx, seamEndPx, max(0.0, outsideDistancePx));
-                return mix(edgeColor, filled, half(seamT));
+                return mix(edgeColor, filled, half(seamT * clamp(amount, 0.0, 1.0)));
             }
         """
     }

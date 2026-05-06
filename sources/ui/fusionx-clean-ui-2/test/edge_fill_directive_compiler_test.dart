@@ -102,6 +102,36 @@ void main() {
     expect(directive.fallbackReason, isNull);
   });
 
+  test('rotation transform keeps canvas center fixed', () {
+    final directive = compiler.compile(
+      policy: const MasterEdgeFillPolicy(
+        enabled: true,
+        amount: 1.0,
+        mode: MasterEdgeFillMode.reflect,
+      ),
+      transform: const LiveScrubSurfaceTransform(
+        rotationRadians: math.pi / 3,
+      ),
+      quality: EdgeFillDirectiveQuality.playback,
+      canvasWidth: 1080,
+      canvasHeight: 1920,
+      sourceWidth: 1080,
+      sourceHeight: 1920,
+      requiresFullCanvasCoverage: true,
+    );
+
+    final matrix = directive.transformMatrix3x3;
+    final centerX = directive.canvasWidth / 2.0;
+    final centerY = directive.canvasHeight / 2.0;
+    final transformedCenterX =
+        (matrix[0] * centerX) + (matrix[1] * centerY) + matrix[2];
+    final transformedCenterY =
+        (matrix[3] * centerX) + (matrix[4] * centerY) + matrix[5];
+
+    expect(transformedCenterX, closeTo(centerX, 1e-6));
+    expect(transformedCenterY, closeTo(centerY, 1e-6));
+  });
+
   test('keeps motion tile active at quarter turns', () {
     final directive = compiler.compile(
       policy: const MasterEdgeFillPolicy(
