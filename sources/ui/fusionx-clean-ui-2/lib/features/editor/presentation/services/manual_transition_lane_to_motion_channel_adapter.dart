@@ -278,43 +278,6 @@ class ManualTransitionLaneToMotionChannelAdapter {
               ),
             ),
         ];
-      case 'edge_fill':
-        return <MotionPropertyChannelModel>[
-          for (final laneTargetId in laneTargetIds)
-            MotionPropertyChannelModel(
-              id: 'manual-transition-${transition.id}-${lane.id}-$laneTargetId-edge-fill-amount',
-              target: _elementTargetFor(
-                projectId: projectId,
-                targetId: laneTargetId,
-              ),
-              definition: MotionPropertyCatalog.edgeFillAmount,
-              activeRange: activeRange,
-              baseValue: MotionPropertyValue.scalar(
-                (transition
-                            .parameterValue(
-                              lane.id,
-                              fallback: _defaultFallbackValueForLane(lane.id),
-                            )
-                            .clamp(0.0, 100.0) /
-                        100.0)
-                    .toDouble(),
-              ),
-              keyframes: _mapKeyframes(
-                keyframes,
-                valueResolver: (value) =>
-                    (value.clamp(0.0, 100.0) / 100.0).toDouble(),
-                channelId:
-                    'manual-transition-${transition.id}-${lane.id}-$laneTargetId-edge-fill-amount',
-              ),
-            ),
-          ..._constantEdgeFillChannels(
-            transition: transition,
-            laneId: lane.id,
-            laneTargetIds: laneTargetIds,
-            projectId: projectId,
-            activeRange: activeRange,
-          ),
-        ];
       case 'motion_blur':
       case 'transform.motion_blur':
       case 'position.motion_blur':
@@ -357,153 +320,6 @@ class ManualTransitionLaneToMotionChannelAdapter {
       default:
         return null;
     }
-  }
-
-  List<MotionPropertyChannelModel> _constantEdgeFillChannels({
-    required TimelineTrackTransitionData transition,
-    required String laneId,
-    required List<String> laneTargetIds,
-    required String projectId,
-    required TimelineTimeRange activeRange,
-  }) {
-    final specs = <({
-      String key,
-      MotionPropertyDefinition definition,
-      String suffix,
-      double fallback,
-      double min,
-      double max,
-      bool integerValue,
-    })>[
-      (
-        key: 'edge_fill_mode',
-        definition: MotionPropertyCatalog.edgeFillMode,
-        suffix: 'edge-fill-mode',
-        fallback: 1.0,
-        min: 0.0,
-        max: 7.0,
-        integerValue: true,
-      ),
-      (
-        key: 'edge_fill_overscan_scale',
-        definition: MotionPropertyCatalog.edgeFillOverscanScale,
-        suffix: 'edge-fill-overscan-scale',
-        fallback: 1.2,
-        min: 1.0,
-        max: 10.0,
-        integerValue: false,
-      ),
-      (
-        key: 'edge_fill_softness_px',
-        definition: MotionPropertyCatalog.edgeFillSoftnessPx,
-        suffix: 'edge-fill-softness-px',
-        fallback: 0.0,
-        min: 0.0,
-        max: 512.0,
-        integerValue: false,
-      ),
-      (
-        key: 'edge_fill_blur_sigma_px',
-        definition: MotionPropertyCatalog.edgeFillBlurSigmaPx,
-        suffix: 'edge-fill-blur-sigma-px',
-        fallback: 0.0,
-        min: 0.0,
-        max: 512.0,
-        integerValue: false,
-      ),
-      (
-        key: 'edge_fill_max_expansion_px',
-        definition: MotionPropertyCatalog.edgeFillMaxExpansionPx,
-        suffix: 'edge-fill-max-expansion-px',
-        fallback: 320.0,
-        min: 0.0,
-        max: 8192.0,
-        integerValue: false,
-      ),
-    ];
-    final boolSpecs = <({
-      String key,
-      MotionPropertyDefinition definition,
-      String suffix,
-      bool fallback,
-    })>[
-      (
-        key: 'edge_fill_affect_rotation',
-        definition: MotionPropertyCatalog.edgeFillAffectRotation,
-        suffix: 'edge-fill-affect-rotation',
-        fallback: true,
-      ),
-      (
-        key: 'edge_fill_affect_scale',
-        definition: MotionPropertyCatalog.edgeFillAffectScale,
-        suffix: 'edge-fill-affect-scale',
-        fallback: true,
-      ),
-      (
-        key: 'edge_fill_affect_position',
-        definition: MotionPropertyCatalog.edgeFillAffectPosition,
-        suffix: 'edge-fill-affect-position',
-        fallback: true,
-      ),
-      (
-        key: 'edge_fill_affect_motion_blur',
-        definition: MotionPropertyCatalog.edgeFillAffectMotionBlur,
-        suffix: 'edge-fill-affect-motion-blur',
-        fallback: true,
-      ),
-    ];
-    return <MotionPropertyChannelModel>[
-      for (final laneTargetId in laneTargetIds)
-        for (final spec in specs)
-          MotionPropertyChannelModel(
-            id: 'manual-transition-${transition.id}-$laneId-$laneTargetId-${spec.suffix}',
-            target: _elementTargetFor(
-              projectId: projectId,
-              targetId: laneTargetId,
-            ),
-            definition: spec.definition,
-            activeRange: activeRange,
-            baseValue: spec.integerValue
-                ? MotionPropertyValue.integer(
-                    transition
-                        .parameterValue(
-                          _edgeFillSettingKeyForLane(laneId, spec.key),
-                          fallback: spec.fallback,
-                        )
-                        .clamp(spec.min, spec.max)
-                        .round(),
-                  )
-                : MotionPropertyValue.scalar(
-                    transition
-                        .parameterValue(
-                          _edgeFillSettingKeyForLane(laneId, spec.key),
-                          fallback: spec.fallback,
-                        )
-                        .clamp(spec.min, spec.max)
-                        .toDouble(),
-                  ),
-          ),
-      for (final laneTargetId in laneTargetIds)
-        for (final spec in boolSpecs)
-          MotionPropertyChannelModel(
-            id: 'manual-transition-${transition.id}-$laneId-$laneTargetId-${spec.suffix}',
-            target: _elementTargetFor(
-              projectId: projectId,
-              targetId: laneTargetId,
-            ),
-            definition: spec.definition,
-            activeRange: activeRange,
-            baseValue: MotionPropertyValue.boolean(
-              transition
-                      .parameterValue(
-                        _edgeFillSettingKeyForLane(laneId, spec.key),
-                        fallback: spec.fallback ? 1.0 : 0.0,
-                      )
-                      .round() >
-                  0,
-            ),
-          ),
-    ];
   }
 
   List<MotionPropertyChannelModel> _constantMotionBlurChannels({
@@ -643,13 +459,6 @@ class ManualTransitionLaneToMotionChannelAdapter {
     return '$laneId.$suffix';
   }
 
-  String _edgeFillSettingKeyForLane(String laneId, String settingKey) {
-    if (laneId == 'edge_fill') {
-      return settingKey;
-    }
-    return '$laneId.$settingKey';
-  }
-
   MotionPropertyChannelModel _constantMotionBlurBooleanChannel({
     required TimelineTrackTransitionData transition,
     required String laneId,
@@ -757,7 +566,6 @@ class ManualTransitionLaneToMotionChannelAdapter {
       'scale.motion_blur' ||
       'rotation.motion_blur' =>
         true,
-      'edge_fill' => true,
       _ => false,
     };
   }
@@ -871,7 +679,6 @@ class ManualTransitionLaneToMotionChannelAdapter {
       'position' => 0.0,
       'rotation' => 0.0,
       'gaussian_blur' => 0.0,
-      'edge_fill' => 0.0,
       'motion_blur' => 0.0,
       'transform.motion_blur' => 0.0,
       'position.motion_blur' => 0.0,

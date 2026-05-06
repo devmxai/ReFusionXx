@@ -168,9 +168,9 @@ enum MasterEdgeFillMode {
 @immutable
 class MasterEdgeFillPolicy {
   const MasterEdgeFillPolicy({
-    this.enabled = false,
+    this.enabled = true,
     this.mode = MasterEdgeFillMode.reflect,
-    this.amount = 0.0,
+    this.amount = 1.0,
     this.overscanScale = 1.0,
     this.softnessPx = 0.0,
     this.blurSigmaPx = 0.0,
