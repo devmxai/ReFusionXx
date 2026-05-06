@@ -177,28 +177,15 @@ void main() {
     expect(source.contains('Stage5VisualRuntimeEffectBinding('), isTrue);
     expect(source.contains('rendererValue: effect.rendererValue'), isTrue);
     expect(source.contains('rendererUnit: effect.rendererUnit.name'), isTrue);
-    expect(source.contains('Stage5VisualRuntimeMotionBlurPolicy('), isTrue);
-    expect(source.contains('amount: surface.motionBlur.amount'), isTrue);
     expect(
       source.contains(
-        'shutterAngleDegrees: surface.motionBlur.shutterAngleDegrees',
-      ),
+          'motionBlurDirective: _stage5MotionBlurDirectiveForSurface('),
       isTrue,
     );
-    expect(
-        source.contains('_stage5TemporalMotionBlurSamplesForSurface('), isTrue);
-    expect(
-      source.contains(
-        'motionBlurSamples: _stage5TemporalMotionBlurSamplesForSurface(',
-      ),
-      isTrue,
-    );
-    expect(
-      source.contains(
-        'motionBlurSamples: const <Stage5VisualRuntimeMotionBlurSample>[]',
-      ),
-      isFalse,
-    );
+    expect(source.contains('_motionBlurVelocityCompiler.compile('), isTrue);
+    expect(source.contains('_stage5TemporalMotionBlurSamplesForSurface('),
+        isFalse);
+    expect(source.contains('motionBlurSamples:'), isFalse);
   });
 
   test('stage5 does not use snapshot overlay for temporal Motion Blur',
@@ -491,11 +478,8 @@ void main() {
     );
   });
 
-  test('manual temporal blur suppresses Stage5 only after first surface frame',
-      () async {
+  test('manual motion blur stays Stage5-owned in realtime', () async {
     final source = await screenFile.readAsString();
-    final surfaceSource =
-        await professionalTransitionSurfaceFile.readAsString();
     final nativePreviewStart =
         source.indexOf('Widget _buildNativePreviewSurface({');
     expect(nativePreviewStart, isNonNegative);
@@ -504,17 +488,15 @@ void main() {
     expect(nativePreviewEnd, greaterThan(nativePreviewStart));
     final nativePreviewBody =
         source.substring(nativePreviewStart, nativePreviewEnd);
+    expect(nativePreviewBody.contains('hasTemporalMotionBlur: false'), isTrue);
     expect(
-      nativePreviewBody.contains(
-        '_manualTransitionTemporalMotionBlurPlanIsActive(',
-      ),
+      nativePreviewBody.contains('hasProductionTextureRenderer: false'),
       isTrue,
     );
     expect(
-      nativePreviewBody.contains(
-        '_professionalTransitionSurfaceHasPresented(',
-      ),
-      isTrue,
+      nativePreviewBody
+          .contains('_manualTransitionTemporalMotionBlurPlanIsActive('),
+      isFalse,
     );
 
     final previewOverlayStart =
@@ -527,21 +509,10 @@ void main() {
     expect(previewOverlayEnd, greaterThan(previewOverlayStart));
     final previewOverlayBody =
         source.substring(previewOverlayStart, previewOverlayEnd);
+    expect(previewOverlayBody.contains('hasTemporalMotionBlur: false'), isTrue);
     expect(
-      previewOverlayBody.contains(
-        '_handleProfessionalTransitionSurfacePresentationChanged(',
-      ),
+      previewOverlayBody.contains('hasProductionTextureRenderer: false'),
       isTrue,
-    );
-    expect(
-      surfaceSource.contains(
-        'professionalTransitionSurfaceOpacityForPresentedState(',
-      ),
-      isTrue,
-    );
-    expect(
-      surfaceSource.contains('opacity: _hasPresentedFrame ? 1.0 : 0.0'),
-      isFalse,
     );
   });
 
@@ -637,25 +608,11 @@ void main() {
       () async {
     final source = await screenFile.readAsString();
     final gateStart = source.indexOf('TRUEFRAME_DEBUG_VISUAL_GATE_ENABLED');
-    expect(gateStart, isNonNegative);
-    final gateBody = source.substring(
-      gateStart,
-      (gateStart + 900).clamp(0, source.length),
-    );
-    expect(gateBody.contains('TRUEFRAME_DEBUG_VISUAL_GATE_ENABLED'), isTrue);
+    expect(gateStart, isNegative);
     expect(
-      gateBody.contains('TRUEFRAME_FORCE_SYNTHETIC_MOTION_BLUR_ENABLED'),
-      isTrue,
-    );
-    expect(
-      gateBody.contains('TRUEFRAME_PRODUCTION_TEXTURE_MOTION_BLUR_ENABLED'),
-      isTrue,
-    );
-    expect(gateBody.contains("'rendererPath': 'productionTexture'"), isFalse);
-    expect(
-        gateBody.contains("'sourceProviderMode': 'decodedTexture'"), isFalse);
-    expect(gateBody.contains("'forcedVisualTestPattern': true,"), isFalse);
-    expect(gateBody.contains("'forcedSyntheticMotionBlur': true,"), isFalse);
+        source.contains("parameters['motionBlurVisibilityGate'] ="), isFalse);
+    expect(source.contains('forcedVisualTestPattern'), isFalse);
+    expect(source.contains('forcedSyntheticMotionBlur'), isFalse);
   });
 
   test('scene layer scope enables track animate/fx controls including shape',
@@ -957,16 +914,24 @@ void main() {
   });
 
   test(
-      'trueframe backend requires production texture readiness for manual temporal blur',
+      'trueframe backend routes manual transition to Stage5 velocity shader owner',
       () async {
     final source = await trueFrameRenderBackendFile.readAsString();
     expect(
-      source.contains(
-          'manual_temporal_blur_production_texture_renderer_not_ready'),
+      source.contains('manual_transition_stage5_velocity_shader_owner'),
       isTrue,
     );
+    expect(
+      source.contains(
+          'manual_temporal_blur_production_texture_renderer_not_ready'),
+      isFalse,
+    );
+    expect(
+      source.contains(
+          'manual_temporal_blur_realtime_professional_surface_presented'),
+      isFalse,
+    );
     expect(source.contains('hasProductionTextureRenderer'), isTrue);
-    expect(source.contains('hasRealFrameProof'), isTrue);
     expect(source.contains('hasPresentedFirstFrame'), isFalse);
   });
 

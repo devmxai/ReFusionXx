@@ -11,7 +11,7 @@ interface Stage5ScrubRenderHost {
         transformMatrix3x3: List<Double>?,
         opacity: Double?,
         gaussianBlurSigmaPx: Float? = null,
-        motionBlurSamples: List<Stage5VisualRuntimeMotionBlurSample> = emptyList(),
+        motionBlurDirective: Stage5VisualRuntimeMotionBlurDirective? = null,
     ) = Unit
 
     fun hasScrubOutputSurface(): Boolean = false

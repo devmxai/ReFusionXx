@@ -1050,52 +1050,47 @@ class MainActivity: FlutterActivity() {
                             rendererUnit = rendererUnit,
                         )
                     } ?: emptyList()
-                val motionBlurPolicy =
-                    (surfaceMap["motionBlurPolicy"] as? Map<*, *>)
+                val motionBlurDirective =
+                    (surfaceMap["motionBlurDirective"] as? Map<*, *>)
                         ?.mapKeys { (key, _) -> key.toString() }
-                        ?.let { policyMap ->
-                            Stage5VisualRuntimeMotionBlurPolicy(
-                                enabled = policyMap["enabled"] as? Boolean ?: false,
-                                amount = (policyMap["amount"] as? Number)?.toDouble() ?: 0.0,
+                        ?.let { directiveMap ->
+                            Stage5VisualRuntimeMotionBlurDirective(
+                                enabled = directiveMap["enabled"] as? Boolean ?: false,
+                                amount = (directiveMap["amount"] as? Number)?.toDouble() ?: 0.0,
+                                kernelLengthPx =
+                                    (directiveMap["kernelLengthPx"] as? Number)?.toDouble()
+                                        ?: 0.0,
+                                directionX =
+                                    (directiveMap["directionX"] as? Number)?.toDouble() ?: 0.0,
+                                directionY =
+                                    (directiveMap["directionY"] as? Number)?.toDouble() ?: 0.0,
+                                radialOmega =
+                                    (directiveMap["radialOmega"] as? Number)?.toDouble() ?: 0.0,
+                                scaleVelocityX =
+                                    (directiveMap["scaleVelocityX"] as? Number)?.toDouble() ?: 0.0,
+                                scaleVelocityY =
+                                    (directiveMap["scaleVelocityY"] as? Number)?.toDouble() ?: 0.0,
+                                anchorXNormalized =
+                                    (directiveMap["anchorXNormalized"] as? Number)?.toDouble()
+                                        ?: 0.5,
+                                anchorYNormalized =
+                                    (directiveMap["anchorYNormalized"] as? Number)?.toDouble()
+                                        ?: 0.5,
                                 shutterAngleDegrees =
-                                    (policyMap["shutterAngleDegrees"] as? Number)?.toDouble()
+                                    (directiveMap["shutterAngleDegrees"] as? Number)?.toDouble()
                                         ?: 180.0,
-                                shutterPhaseDegrees =
-                                    (policyMap["shutterPhaseDegrees"] as? Number)?.toDouble()
-                                        ?: -90.0,
-                                samples = (policyMap["samples"] as? Number)?.toInt() ?: 8,
-                                adaptiveSampleLimit =
-                                    (policyMap["adaptiveSampleLimit"] as? Number)?.toInt() ?: 16,
+                                shutterPhase =
+                                    (directiveMap["shutterPhase"] as? Number)?.toDouble() ?: 0.0,
+                                sampleCount =
+                                    (directiveMap["sampleCount"] as? Number)?.toInt() ?: 1,
                                 maxTrailPx =
-                                    (policyMap["maxTrailPx"] as? Number)?.toDouble() ?: 240.0,
-                                affectPosition =
-                                    policyMap["affectPosition"] as? Boolean ?: true,
-                                affectScale = policyMap["affectScale"] as? Boolean ?: true,
-                                affectRotation =
-                                    policyMap["affectRotation"] as? Boolean ?: true,
+                                    (directiveMap["maxTrailPx"] as? Number)?.toDouble() ?: 240.0,
+                                mode = directiveMap["mode"]?.toString().orEmpty().ifBlank {
+                                    "transformVelocity"
+                                },
+                                fallbackReason = directiveMap["fallbackReason"]?.toString(),
                             )
                         }
-                val motionBlurSamples =
-                    (surfaceMap["motionBlurSamples"] as? List<*>)?.mapNotNull { entry ->
-                        val sampleMap =
-                            (entry as? Map<*, *>)?.mapKeys { (key, _) -> key.toString() }
-                                ?: return@mapNotNull null
-                        val timelineTimeMs =
-                            (sampleMap["timelineTimeMs"] as? Number)?.toLong()
-                                ?: return@mapNotNull null
-                        val sampleMatrix =
-                            (sampleMap["transformMatrix3x3"] as? List<*>)?.mapNotNull { value ->
-                                (value as? Number)?.toDouble()
-                            }?.takeIf { values -> values.size == 9 }
-                                ?: return@mapNotNull null
-                        val sampleOpacity =
-                            (sampleMap["opacity"] as? Number)?.toDouble() ?: 1.0
-                        Stage5VisualRuntimeMotionBlurSample(
-                            timelineTimeMs = timelineTimeMs.coerceAtLeast(0L),
-                            transformMatrix3x3 = sampleMatrix,
-                            opacity = sampleOpacity,
-                        )
-                    } ?: emptyList()
                 val surfaceBlockers =
                     (surfaceMap["blockers"] as? List<*>)?.mapNotNull { value ->
                         value?.toString()
@@ -1108,8 +1103,7 @@ class MainActivity: FlutterActivity() {
                     transitionProgress = (surfaceMap["transitionProgress"] as? Number)?.toDouble(),
                     effectProgramIds = effectProgramIds,
                     effectBindings = effectBindings,
-                    motionBlurPolicy = motionBlurPolicy,
-                    motionBlurSamples = motionBlurSamples,
+                    motionBlurDirective = motionBlurDirective,
                     blockers = surfaceBlockers,
                 )
             } ?: emptyList()

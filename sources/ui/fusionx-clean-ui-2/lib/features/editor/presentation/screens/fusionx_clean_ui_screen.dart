@@ -44,6 +44,7 @@ import '../../domain/services/normal_transition_command_history.dart';
 import '../../domain/services/layer_scope_composition_adapter.dart';
 import '../../domain/services/master_live_scrub_descriptor_projection.dart';
 import '../../domain/services/master_live_scrub_program_adapter.dart';
+import '../../domain/services/motion_blur_velocity_compiler.dart';
 import '../../domain/services/master_clock_native_bridge.dart';
 import '../../domain/services/professional_video_transition_compositor.dart';
 import '../../domain/services/refusion_motion_patch_applicator.dart';
@@ -203,6 +204,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       TimelineMediaProgramTimeMapper();
   static const NativePreviewIdentityResolver _nativePreviewIdentityResolver =
       NativePreviewIdentityResolver();
+  static const MotionBlurVelocityCompiler _motionBlurVelocityCompiler =
+      MotionBlurVelocityCompiler();
   static const SceneScopeSessionResolver _sceneScopeSessionResolver =
       SceneScopeSessionResolver();
   static const SceneScopeChannelTimeMapper _sceneScopeChannelTimeMapper =
@@ -1414,33 +1417,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           blockers.add('trueframe_export_missing_render_plan:${transition.id}');
           continue;
         }
-        final temporalPlans = plan.parameters['temporalMotionBlurSamplePlans'];
-        if (temporalPlans is! List || temporalPlans.isEmpty) {
-          diagnostics.add('trueframe_export_no_temporal_plan:${transition.id}');
-          continue;
-        }
-        for (final temporalPlan in temporalPlans) {
-          if (temporalPlan is! Map) {
-            continue;
-          }
-          final temporalGraphRevision = temporalPlan['graphRevision'];
-          if (temporalGraphRevision != null &&
-              temporalGraphRevision.toString().isNotEmpty) {
-            graphRevision = temporalGraphRevision.toString();
-          }
-          final sampleTimes = temporalPlan['sampleTimesMs'];
-          final sampleCount = sampleTimes is List ? sampleTimes.length : 0;
-          if (sampleCount > 1) {
-            temporalMotionBlurTransitionCount += 1;
-            if (sampleCount > maxTemporalSampleCount) {
-              maxTemporalSampleCount = sampleCount;
-            }
+        final amountValue = transition.parameterValues['motionBlurAmount'];
+        final amount = (amountValue ?? 0.0).toDouble();
+        if (amount > 0.001) {
+          temporalMotionBlurTransitionCount += 1;
+          if (maxTemporalSampleCount < 8) {
+            maxTemporalSampleCount = 8;
           }
         }
       }
-    }
-    if (manualTransitionCount > 0 && temporalMotionBlurTransitionCount <= 0) {
-      blockers.add('trueframe_export_manual_transition_temporal_plan_missing');
     }
     diagnostics.add('trueframe_export_transition_count:$transitionCount');
     diagnostics
@@ -22228,61 +22213,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     };
     if (transition.preset == TimelineTransitionPreset.manual &&
         activeTransition != null) {
-      final previewTime = activeTransition.timelineTime;
-      final evaluation = _masterFrameEvaluationForMode(
-        mode,
-        previewTimeOverride: previewTime,
-      );
-      final program = _manualTransitionLiveScrubProgram(
-        evaluation: evaluation,
-        activeTransition: activeTransition,
-        mode: mode,
-        includeAllTransitionSourcesForTemporalPlan: true,
-      );
-      if (program != null) {
-        final temporalPlans = _temporalMotionBlurSamplePlansForManualTransition(
-          previewTime: previewTime,
-          mode: mode,
-          activeTransition: activeTransition,
-          baseEvaluation: evaluation,
-          baseProgram: program,
-        );
-        parameters['temporalMotionBlurSamplePlans'] = temporalPlans
-            .map((plan) => plan.toPlatformMap())
-            .toList(growable: false);
-        if (temporalPlans.isNotEmpty) {
-          final firstPlan = temporalPlans.first;
-          const trueframeDebugVisualGateEnabled = bool.fromEnvironment(
-            'TRUEFRAME_DEBUG_VISUAL_GATE_ENABLED',
-          );
-          const trueframeForceSyntheticMotionBlurEnabled = bool.fromEnvironment(
-            'TRUEFRAME_FORCE_SYNTHETIC_MOTION_BLUR_ENABLED',
-          );
-          const trueframeProductionTextureMotionBlurEnabled =
-              bool.fromEnvironment(
-            'TRUEFRAME_PRODUCTION_TEXTURE_MOTION_BLUR_ENABLED',
-          );
-          parameters['motionBlurVisibilityGate'] = <String, Object?>{
-            'enabled': true,
-            'forcedVisualTestPattern': trueframeDebugVisualGateEnabled,
-            'forcedSyntheticMotionBlur': trueframeDebugVisualGateEnabled &&
-                trueframeForceSyntheticMotionBlurEnabled,
-            'pixelDeltaProof': true,
-            'rendererPath': trueframeProductionTextureMotionBlurEnabled
-                ? 'productionTexture'
-                : 'debugBitmapProof',
-            'sourceProviderMode': trueframeProductionTextureMotionBlurEnabled
-                ? 'decodedTexture'
-                : 'bitmapProof',
-            'amount': firstPlan.amount,
-            'sampleCount': firstPlan.sampleTimesMs.length,
-            'contributionCount': firstPlan.sampleContributions.length,
-            'sampleTransformDelta':
-                _motionBlurVisibilityGateTransformDelta(firstPlan),
-            'mode': mode,
-          };
-        }
-      }
+      // Realtime manual motion blur now executes on Stage5 as a velocity
+      // shader pass. The professional compositor path remains transition-only
+      // and must not receive realtime temporal sample plans.
+      parameters.remove('temporalMotionBlurSamplePlans');
+      parameters.remove('motionBlurVisibilityGate');
     }
     return const ProfessionalVideoTransitionRenderPlanAdapter().build(
       ProfessionalVideoTransitionRenderPlanRequest(
@@ -22644,24 +22579,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                   ),
                 )
                 .toList(growable: false),
-            motionBlurPolicy: Stage5VisualRuntimeMotionBlurPolicy(
-              enabled: surface.motionBlur.isEnabled,
-              amount: surface.motionBlur.amount,
-              shutterAngleDegrees: surface.motionBlur.shutterAngleDegrees,
-              shutterPhaseDegrees: surface.motionBlur.shutterPhaseDegrees,
-              samples: surface.motionBlur.samples,
-              adaptiveSampleLimit: surface.motionBlur.adaptiveSampleLimit,
-              maxTrailPx: surface.motionBlur.maxTrailPx,
-              affectPosition: surface.motionBlur.affectPosition,
-              affectScale: surface.motionBlur.affectScale,
-              affectRotation: surface.motionBlur.affectRotation,
-            ),
-            motionBlurSamples: _stage5TemporalMotionBlurSamplesForSurface(
+            motionBlurDirective: _stage5MotionBlurDirectiveForSurface(
               previewTime: previewTime,
               mode: mode,
               activeTransition: activeTransition,
               baseProgram: program,
-              targetId: surface.targetId,
+              baseSurface: surface,
               policy: surface.motionBlur,
             ),
             blockers: <String>[...surface.blockers],
@@ -22689,85 +22612,73 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           .take(6)
           .map((value) => value.toStringAsFixed(4))
           .join(',');
-      final samplesDigest = surface.motionBlurSamples.map((sample) {
-        final sampleMatrix = sample.transformMatrix3x3
-            .take(6)
-            .map((value) => value.toStringAsFixed(3))
-            .join(',');
-        return '${sample.timelineTimeMs}:$sampleMatrix:${sample.opacity.toStringAsFixed(3)}';
-      }).join(';');
-      return '${surface.targetClipId}:${surface.role}:$matrix:${surface.opacity.toStringAsFixed(4)}:$samplesDigest';
+      final directive = surface.motionBlurDirective;
+      final directiveDigest = directive == null
+          ? 'none'
+          : '${directive.enabled ? 1 : 0}:'
+              '${directive.amount.toStringAsFixed(3)}:'
+              '${directive.kernelLengthPx.toStringAsFixed(3)}:'
+              '${directive.directionX.toStringAsFixed(3)},${directive.directionY.toStringAsFixed(3)}:'
+              '${directive.radialOmega.toStringAsFixed(3)}:'
+              '${directive.scaleVelocityX.toStringAsFixed(3)},${directive.scaleVelocityY.toStringAsFixed(3)}:'
+              '${directive.sampleCount}:'
+              '${directive.mode}';
+      return '${surface.targetClipId}:${surface.role}:$matrix:${surface.opacity.toStringAsFixed(4)}:$directiveDigest';
     }).join('|');
     return '$transitionId:${state.mode}:$primary:$bucket:$surfacesDigest:${state.surfaces.length}';
   }
 
-  List<Stage5VisualRuntimeMotionBlurSample>
-      _stage5TemporalMotionBlurSamplesForSurface({
+  Stage5VisualRuntimeMotionBlurDirective? _stage5MotionBlurDirectiveForSurface({
     required TimelineTime previewTime,
     required String mode,
     required _ActiveTimelineTransitionPreview activeTransition,
     required LiveScrubVisualProgram baseProgram,
-    required String targetId,
+    required LiveScrubVisualSurface baseSurface,
     required MasterMotionBlurPolicy policy,
   }) {
-    if (!policy.isEnabled) {
-      return const <Stage5VisualRuntimeMotionBlurSample>[];
+    if (!policy.isEnabled || baseSurface.blockers.isNotEmpty) {
+      return null;
     }
-    final coreSamplingPlan = _coreMotionBlurSamplingPlanForManualTransition(
-      previewTime: previewTime,
-      mode: mode,
-      activeTransition: activeTransition,
-      baseProgram: baseProgram,
-      targetId: targetId,
-      includeAllTransitionSources: false,
+    final shutterDurationSeconds =
+        ((policy.shutterAngleDegrees / 360.0) / _timelineFps).clamp(0.0, 0.25);
+    final previousTime = TimelineTime.fromMilliseconds(
+      (previewTime.inMilliseconds - (shutterDurationSeconds * 1000.0).round())
+          .clamp(0, _timelineDurationTime.inMilliseconds),
     );
-    if (coreSamplingPlan == null || coreSamplingPlan.sampleCount <= 1) {
-      return const <Stage5VisualRuntimeMotionBlurSample>[];
-    }
-    final samples = <Stage5VisualRuntimeMotionBlurSample>[];
-    for (var sampleIndex = 0;
-        sampleIndex < coreSamplingPlan.sampleTimesMs.length;
-        sampleIndex++) {
-      final sampleTime = TimelineTime.fromMilliseconds(
-        coreSamplingPlan.sampleTimesMs[sampleIndex],
-      ).clamp(TimelineTime.zero, _timelineDurationTime);
-      final sampleEvaluation = _masterFrameEvaluationForMode(
-        mode,
-        previewTimeOverride: sampleTime,
-      );
-      final sampleProgram = _manualTransitionLiveScrubProgram(
-        evaluation: sampleEvaluation,
-        activeTransition: activeTransition,
-        mode: mode,
-      );
-      LiveScrubVisualSurface? sampleSurface;
-      for (final surface
-          in sampleProgram?.surfaces ?? const <LiveScrubVisualSurface>[]) {
-        if (surface.targetId == targetId) {
-          sampleSurface = surface;
+    final previousEvaluation = _masterFrameEvaluationForMode(
+      mode,
+      previewTimeOverride: previousTime,
+    );
+    final previousProgram = _manualTransitionLiveScrubProgram(
+      evaluation: previousEvaluation,
+      activeTransition: activeTransition,
+      mode: mode,
+      includeAllTransitionSourcesForTemporalPlan: false,
+    );
+    LiveScrubVisualSurface? previousSurface;
+    if (previousProgram != null) {
+      for (final candidate in previousProgram.surfaces) {
+        if (candidate.targetId == baseSurface.targetId &&
+            candidate.blockers.isEmpty) {
+          previousSurface = candidate;
           break;
         }
       }
-      if (sampleSurface == null || sampleSurface.blockers.isNotEmpty) {
-        continue;
-      }
-      samples.add(
-        Stage5VisualRuntimeMotionBlurSample(
-          timelineTimeMs: sampleTime.inMilliseconds,
-          transformMatrix3x3: List<double>.from(
-            coreSamplingPlan.sampleTransforms[sampleIndex],
-            growable: false,
-          ),
-          opacity: coreSamplingPlan.sampleNodeStates[sampleIndex].opacity
-              .clamp(0.0, 1.0)
-              .toDouble(),
-        ),
-      );
     }
-    if (samples.length <= 1) {
-      return const <Stage5VisualRuntimeMotionBlurSample>[];
-    }
-    return List<Stage5VisualRuntimeMotionBlurSample>.unmodifiable(samples);
+    final quality = switch (mode) {
+      'liveScrub' => MotionBlurDirectiveQuality.liveScrub,
+      'playback' => MotionBlurDirectiveQuality.playback,
+      'export' => MotionBlurDirectiveQuality.export,
+      _ => MotionBlurDirectiveQuality.preview,
+    };
+    return _motionBlurVelocityCompiler.compile(
+      policy: policy,
+      current: baseSurface.transform,
+      previous: previousSurface?.transform ?? baseSurface.transform,
+      quality: quality,
+      canvasWidth: _motionProjectFormat.canvasSize.width,
+      canvasHeight: _motionProjectFormat.canvasSize.height,
+    );
   }
 
   TrueFrameSamplingQualityMode _trueFrameSamplingQualityModeForTransitionMode(
@@ -23813,7 +23724,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required String mode,
   }) {
     if (preset == TimelineTransitionPreset.manual) {
-      return true;
+      return false;
     }
     // The current Distortion Zoom V1 native path decodes source frames and
     // writes a full transition bitmap per request. Keep it out of playback and
@@ -24196,14 +24107,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                     mode: professionalTransitionMode,
                     surfaceId: professionalTransitionSurfaceId,
                   );
-        final hasManualTemporalMotionBlur = activeTransition != null &&
-            professionalTransitionSurfaceId != null &&
-            professionalTransitionPlan != null &&
-            activeTransition.transition.preset ==
-                TimelineTransitionPreset.manual &&
-            _manualTransitionTemporalMotionBlurPlanIsActive(
-              professionalTransitionPlan,
-            );
         final routeDecision = _trueFrameRenderBackend.routeNodeFamilies(
           mode: switch (professionalTransitionMode) {
             'liveScrub' => TrueFrameRenderBackendMode.liveScrub,
@@ -24217,17 +24120,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           hasRenderablePlan: activeTransition != null &&
               professionalTransitionSurfaceId != null &&
               professionalTransitionPlan != null,
-          hasTemporalMotionBlur: hasManualTemporalMotionBlur,
+          hasTemporalMotionBlur: false,
           hasRealFrameProof: activeTransition != null &&
               professionalTransitionSurfaceId != null &&
               _professionalTransitionSurfaceHasPresented(
                 surfaceId: professionalTransitionSurfaceId,
                 mode: professionalTransitionMode,
               ),
-          hasProductionTextureRenderer:
-              _manualTransitionTemporalMotionBlurProductionTextureReady(
-            professionalTransitionPlan,
-          ),
+          hasProductionTextureRenderer: false,
           isManualTransition: activeTransition?.transition.preset ==
               TimelineTransitionPreset.manual,
         );
@@ -24339,14 +24239,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                         mode: professionalTransitionMode,
                         surfaceId: professionalTransitionSurfaceId,
                       );
-                final hasManualTemporalMotionBlur = activeTransition != null &&
-                    professionalTransitionSurfaceId != null &&
-                    professionalTransitionPlan != null &&
-                    activeTransition.transition.preset ==
-                        TimelineTransitionPreset.manual &&
-                    _manualTransitionTemporalMotionBlurPlanIsActive(
-                      professionalTransitionPlan,
-                    );
                 final professionalRouteDecision =
                     _trueFrameRenderBackend.routeNodeFamilies(
                   mode: switch (professionalTransitionMode) {
@@ -24363,17 +24255,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                   hasRenderablePlan: activeTransition != null &&
                       professionalTransitionSurfaceId != null &&
                       professionalTransitionPlan != null,
-                  hasTemporalMotionBlur: hasManualTemporalMotionBlur,
+                  hasTemporalMotionBlur: false,
                   hasRealFrameProof: activeTransition != null &&
                       professionalTransitionSurfaceId != null &&
                       _professionalTransitionSurfaceHasPresented(
                         surfaceId: professionalTransitionSurfaceId,
                         mode: professionalTransitionMode,
                       ),
-                  hasProductionTextureRenderer:
-                      _manualTransitionTemporalMotionBlurProductionTextureReady(
-                    professionalTransitionPlan,
-                  ),
+                  hasProductionTextureRenderer: false,
                   isManualTransition: activeTransition?.transition.preset ==
                       TimelineTransitionPreset.manual,
                 );

@@ -8,6 +8,7 @@ import android.graphics.Shader
 import android.os.Handler
 import android.os.Looper
 import android.os.Build
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.Surface
 import android.view.View
@@ -34,6 +35,8 @@ class Stage5PreviewPlatformView(
     private var runtimeTransformMatrix3x3: List<Double>? = null
     private var runtimeOpacity = 1.0
     private var runtimeGaussianBlurSigmaPx: Float? = null
+    private var runtimeMotionBlurDirective: Stage5VisualRuntimeMotionBlurDirective? = null
+    private val motionBlurShaderPass = Stage5MotionBlurShaderPass()
     @Volatile
     private var appliedScrubAspectRatio: Float? = null
     @Volatile
@@ -160,15 +163,12 @@ class Stage5PreviewPlatformView(
         transformMatrix3x3: List<Double>?,
         opacity: Double?,
         gaussianBlurSigmaPx: Float?,
-        motionBlurSamples: List<Stage5VisualRuntimeMotionBlurSample>,
+        motionBlurDirective: Stage5VisualRuntimeMotionBlurDirective?,
     ) {
         runtimeTransformMatrix3x3 = transformMatrix3x3
         runtimeOpacity = ((opacity ?: 1.0).coerceIn(0.0, 1.0))
         runtimeGaussianBlurSigmaPx = gaussianBlurSigmaPx?.takeIf { it.isFinite() && it > 0.05f }
-        // Motion blur rendering belongs to the professional transition
-        // compositor path. Stage5 stays a fast direct preview path.
-        @Suppress("UNUSED_VARIABLE")
-        val ignoredMotionBlurSamples = motionBlurSamples
+        runtimeMotionBlurDirective = motionBlurDirective
         runOnUiThreadIfActive(waitForCompletion = true) {
             scrubOverlayView.setRuntimeVisualState(
                 transformMatrix3x3 = transformMatrix3x3,
@@ -323,7 +323,7 @@ class Stage5PreviewPlatformView(
             return
         }
         val sigma = (runtimeGaussianBlurSigmaPx ?: 0f).coerceIn(0f, 80f)
-        val renderEffect =
+        val gaussianEffect =
             if (sigma > 0.05f) {
                 RenderEffect.createBlurEffect(
                     sigma,
@@ -332,9 +332,42 @@ class Stage5PreviewPlatformView(
                 )
             } else {
                 null
-        }
+            }
+        val directive = runtimeMotionBlurDirective
+        val effectResult = motionBlurShaderPass.buildRenderEffect(
+            gaussianBlur = gaussianEffect,
+            directive = directive,
+            targetWidthPx = rootView.width.toFloat(),
+            targetHeightPx = rootView.height.toFloat(),
+        )
+        val renderEffect = effectResult.renderEffect
         playerView.setRenderEffect(renderEffect)
         scrubOverlayView.setRenderEffect(renderEffect)
+        if (directive != null) {
+            val overlayConflict = isScrubSurfaceVisible && !isPreviewOutputSuppressed
+            Log.d(
+                "Stage5PreviewPlatformView",
+                "TF_VELOCITY_MB_PROOF "
+                    + "enabled=${directive.enabled} "
+                    + "amount=${directive.amount} "
+                    + "kernelLengthPx=${directive.kernelLengthPx} "
+                    + "directionX=${directive.directionX} "
+                    + "directionY=${directive.directionY} "
+                    + "radialOmega=${directive.radialOmega} "
+                    + "scaleVelocityX=${directive.scaleVelocityX} "
+                    + "scaleVelocityY=${directive.scaleVelocityY} "
+                    + "sampleCount=${directive.sampleCount} "
+                    + "rendererPath=stage5VelocityShader "
+                    + "sourceProviderMode=currentVisibleSurface "
+                    + "stage5Visible=true "
+                    + "professionalSurfaceVisible=false "
+                    + "overlayConflict=$overlayConflict "
+                    + "bitmapAllocationCount=0 "
+                    + "mediaMetadataRetrieverUsed=false "
+                    + "renderEffectApplied=${renderEffect != null} "
+                    + "fallbackReason=${effectResult.fallbackReason ?: "none"}",
+            )
+        }
     }
 
     private fun runOnUiThread(action: () -> Unit) {

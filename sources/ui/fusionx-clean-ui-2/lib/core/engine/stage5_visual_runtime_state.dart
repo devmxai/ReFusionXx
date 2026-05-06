@@ -22,64 +22,61 @@ class Stage5VisualRuntimeEffectBinding {
 }
 
 @immutable
-class Stage5VisualRuntimeMotionBlurPolicy {
-  const Stage5VisualRuntimeMotionBlurPolicy({
+class Stage5VisualRuntimeMotionBlurDirective {
+  const Stage5VisualRuntimeMotionBlurDirective({
     required this.enabled,
     required this.amount,
+    required this.kernelLengthPx,
+    required this.directionX,
+    required this.directionY,
+    required this.radialOmega,
+    required this.scaleVelocityX,
+    required this.scaleVelocityY,
+    required this.anchorXNormalized,
+    required this.anchorYNormalized,
     required this.shutterAngleDegrees,
-    required this.shutterPhaseDegrees,
-    required this.samples,
-    required this.adaptiveSampleLimit,
+    required this.shutterPhase,
+    required this.sampleCount,
     required this.maxTrailPx,
-    required this.affectPosition,
-    required this.affectScale,
-    required this.affectRotation,
+    required this.mode,
+    this.fallbackReason,
   });
 
   final bool enabled;
   final double amount;
+  final double kernelLengthPx;
+  final double directionX;
+  final double directionY;
+  final double radialOmega;
+  final double scaleVelocityX;
+  final double scaleVelocityY;
+  final double anchorXNormalized;
+  final double anchorYNormalized;
   final double shutterAngleDegrees;
-  final double shutterPhaseDegrees;
-  final int samples;
-  final int adaptiveSampleLimit;
+  final double shutterPhase;
+  final int sampleCount;
   final double maxTrailPx;
-  final bool affectPosition;
-  final bool affectScale;
-  final bool affectRotation;
+  final String mode;
+  final String? fallbackReason;
 
   Map<String, Object?> toMap() {
     return <String, Object?>{
       'enabled': enabled,
       'amount': amount,
+      'kernelLengthPx': kernelLengthPx,
+      'directionX': directionX,
+      'directionY': directionY,
+      'radialOmega': radialOmega,
+      'scaleVelocityX': scaleVelocityX,
+      'scaleVelocityY': scaleVelocityY,
+      'anchorXNormalized': anchorXNormalized,
+      'anchorYNormalized': anchorYNormalized,
       'shutterAngleDegrees': shutterAngleDegrees,
-      'shutterPhaseDegrees': shutterPhaseDegrees,
-      'samples': samples,
-      'adaptiveSampleLimit': adaptiveSampleLimit,
+      'shutterPhase': shutterPhase,
+      'sampleCount': sampleCount,
       'maxTrailPx': maxTrailPx,
-      'affectPosition': affectPosition,
-      'affectScale': affectScale,
-      'affectRotation': affectRotation,
-    };
-  }
-}
-
-@immutable
-class Stage5VisualRuntimeMotionBlurSample {
-  const Stage5VisualRuntimeMotionBlurSample({
-    required this.timelineTimeMs,
-    required this.transformMatrix3x3,
-    required this.opacity,
-  });
-
-  final int timelineTimeMs;
-  final List<double> transformMatrix3x3;
-  final double opacity;
-
-  Map<String, Object?> toMap() {
-    return <String, Object?>{
-      'timelineTimeMs': timelineTimeMs,
-      'transformMatrix3x3': transformMatrix3x3,
-      'opacity': opacity,
+      'mode': mode,
+      'fallbackReason': fallbackReason,
     };
   }
 }
@@ -94,8 +91,7 @@ class Stage5VisualRuntimeSurfaceState {
     this.transitionProgress,
     this.effectProgramIds = const <String>[],
     this.effectBindings = const <Stage5VisualRuntimeEffectBinding>[],
-    this.motionBlurPolicy,
-    this.motionBlurSamples = const <Stage5VisualRuntimeMotionBlurSample>[],
+    this.motionBlurDirective,
     this.blockers = const <String>[],
   });
 
@@ -106,8 +102,7 @@ class Stage5VisualRuntimeSurfaceState {
   final double? transitionProgress;
   final List<String> effectProgramIds;
   final List<Stage5VisualRuntimeEffectBinding> effectBindings;
-  final Stage5VisualRuntimeMotionBlurPolicy? motionBlurPolicy;
-  final List<Stage5VisualRuntimeMotionBlurSample> motionBlurSamples;
+  final Stage5VisualRuntimeMotionBlurDirective? motionBlurDirective;
   final List<String> blockers;
 
   Map<String, Object?> toMap() {
@@ -121,10 +116,7 @@ class Stage5VisualRuntimeSurfaceState {
       'effectBindings': effectBindings
           .map((effect) => effect.toMap())
           .toList(growable: false),
-      'motionBlurPolicy': motionBlurPolicy?.toMap(),
-      'motionBlurSamples': motionBlurSamples
-          .map((sample) => sample.toMap())
-          .toList(growable: false),
+      'motionBlurDirective': motionBlurDirective?.toMap(),
       'blockers': blockers,
     };
   }

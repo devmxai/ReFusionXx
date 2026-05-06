@@ -71,8 +71,7 @@ data class Stage5VisualRuntimeSurfaceState(
     val transitionProgress: Double? = null,
     val effectProgramIds: List<String> = emptyList(),
     val effectBindings: List<Stage5VisualRuntimeEffectBinding> = emptyList(),
-    val motionBlurPolicy: Stage5VisualRuntimeMotionBlurPolicy? = null,
-    val motionBlurSamples: List<Stage5VisualRuntimeMotionBlurSample> = emptyList(),
+    val motionBlurDirective: Stage5VisualRuntimeMotionBlurDirective? = null,
     val blockers: List<String> = emptyList(),
 )
 
@@ -82,23 +81,23 @@ data class Stage5VisualRuntimeEffectBinding(
     val rendererUnit: String,
 )
 
-data class Stage5VisualRuntimeMotionBlurPolicy(
+data class Stage5VisualRuntimeMotionBlurDirective(
     val enabled: Boolean,
     val amount: Double,
+    val kernelLengthPx: Double,
+    val directionX: Double,
+    val directionY: Double,
+    val radialOmega: Double,
+    val scaleVelocityX: Double,
+    val scaleVelocityY: Double,
+    val anchorXNormalized: Double,
+    val anchorYNormalized: Double,
     val shutterAngleDegrees: Double,
-    val shutterPhaseDegrees: Double,
-    val samples: Int,
-    val adaptiveSampleLimit: Int,
+    val shutterPhase: Double,
+    val sampleCount: Int,
     val maxTrailPx: Double,
-    val affectPosition: Boolean,
-    val affectScale: Boolean,
-    val affectRotation: Boolean,
-)
-
-data class Stage5VisualRuntimeMotionBlurSample(
-    val timelineTimeMs: Long,
-    val transformMatrix3x3: List<Double>,
-    val opacity: Double,
+    val mode: String,
+    val fallbackReason: String? = null,
 )
 
 data class Stage5VisualRuntimeState(
@@ -831,7 +830,7 @@ class Stage5NativeScrubEngine(
             transformMatrix3x3 = visualState.transformMatrix3x3,
             opacity = visualState.opacity,
             gaussianBlurSigmaPx = visualState.gaussianBlurSigmaPx(),
-            motionBlurSamples = visualState.validMotionBlurSamples(),
+            motionBlurDirective = visualState.validMotionBlurDirective(),
         )
         if (snapshot.forceSeekBeforeRender) {
             surfaceScrubDecoder.forceSeekOnNextRender()
@@ -936,7 +935,7 @@ class Stage5NativeScrubEngine(
                 transformMatrix3x3 = visualState.transformMatrix3x3,
                 opacity = visualState.opacity,
                 gaussianBlurSigmaPx = visualState.gaussianBlurSigmaPx(),
-                motionBlurSamples = visualState.validMotionBlurSamples(),
+                motionBlurDirective = visualState.validMotionBlurDirective(),
             )
             surfaceScrubDecoder.forceSeekOnNextRender()
             val rendered =
@@ -1052,8 +1051,7 @@ class Stage5NativeScrubEngine(
                 transitionProgress = descriptor.transitionProgress,
                 effectProgramIds = descriptor.effectProgramIds,
                 effectBindings = emptyList(),
-                motionBlurPolicy = null,
-                motionBlurSamples = emptyList(),
+                motionBlurDirective = null,
                 blockers = descriptor.runtimeBlockers,
             )
         }
@@ -1067,8 +1065,7 @@ class Stage5NativeScrubEngine(
                 transitionProgress = descriptor.transitionProgress,
                 effectProgramIds = emptyList(),
                 effectBindings = emptyList(),
-                motionBlurPolicy = null,
-                motionBlurSamples = emptyList(),
+                motionBlurDirective = null,
                 blockers = runtimeSurface?.blockers ?: emptyList(),
             )
         }
@@ -1105,18 +1102,18 @@ class Stage5NativeScrubEngine(
             } else {
                 surface.gaussianBlurSigmaPx()
             }
-        val motionBlurSamples =
+        val motionBlurDirective =
             if (surface == null || surface.blockers.isNotEmpty()) {
-                emptyList()
+                null
             } else {
-                surface.validMotionBlurSamples()
+                surface.validMotionBlurDirective()
             }
         renderHosts.forEach { host ->
             host.setScrubVisualState(
                 transformMatrix3x3 = transformMatrix,
                 opacity = opacity,
                 gaussianBlurSigmaPx = gaussianBlurSigmaPx,
-                motionBlurSamples = motionBlurSamples,
+                motionBlurDirective = motionBlurDirective,
             )
         }
     }
@@ -1135,38 +1132,19 @@ class Stage5NativeScrubEngine(
         return rendererValue.coerceIn(0.0, 80.0).toFloat()
     }
 
-    private fun Stage5VisualRuntimeSurfaceState.validMotionBlurSamples():
-        List<Stage5VisualRuntimeMotionBlurSample> {
-        val policy = motionBlurPolicy ?: return emptyList()
-        if (!policy.enabled || policy.amount <= 0.0001 || motionBlurSamples.size <= 1) {
-            return emptyList()
+    private fun Stage5VisualRuntimeSurfaceState.validMotionBlurDirective():
+        Stage5VisualRuntimeMotionBlurDirective? {
+        val directive = motionBlurDirective ?: return null
+        if (!directive.enabled || directive.amount <= 0.0001) {
+            return null
         }
-        val validSamples = motionBlurSamples
-            .filter { sample ->
-                sample.transformMatrix3x3.size == 9 &&
-                    sample.transformMatrix3x3.all { value -> value.isFinite() } &&
-                    sample.opacity.isFinite()
-            }
-            .take(policy.adaptiveSampleLimit.coerceIn(2, 64))
-        return if (hasTemporalTransformDelta(validSamples)) {
-            validSamples
-        } else {
-            emptyList()
+        if (!directive.kernelLengthPx.isFinite() || directive.kernelLengthPx <= 0.5) {
+            return null
         }
-    }
-
-    private fun hasTemporalTransformDelta(
-        samples: List<Stage5VisualRuntimeMotionBlurSample>,
-    ): Boolean {
-        if (samples.size <= 1) {
-            return false
+        if (!directive.directionX.isFinite() || !directive.directionY.isFinite()) {
+            return null
         }
-        val first = samples.first().transformMatrix3x3
-        return samples.drop(1).any { sample ->
-            sample.transformMatrix3x3.indices.any { index ->
-                kotlin.math.abs(sample.transformMatrix3x3[index] - first[index]) > 0.001
-            }
-        }
+        return directive
     }
 
     private fun handleProxyReady(sourceUri: String) {

@@ -119,39 +119,11 @@ class TrueFrameManualTransitionRenderBackend extends TrueFrameRenderBackend {
       );
     }
 
-    if (!hasTemporalMotionBlur) {
-      return _TransitionSurfaceRouteDecision(
-        mode: mode,
-        usesProfessionalSurface: false,
-        suppressesStage5Preview: false,
-        reason: 'manual_transition_no_temporal_blur_stage5_presenter_owner',
-      );
-    }
-
-    if (!hasProductionTextureRenderer) {
-      return _TransitionSurfaceRouteDecision(
-        mode: mode,
-        usesProfessionalSurface: false,
-        suppressesStage5Preview: false,
-        reason: 'manual_temporal_blur_production_texture_renderer_not_ready',
-      );
-    }
-
     return _TransitionSurfaceRouteDecision(
       mode: mode,
-      usesProfessionalSurface: true,
-      suppressesStage5Preview: hasRealFrameProof,
-      reason: switch (mode) {
-        TrueFrameRenderBackendMode.preview ||
-        TrueFrameRenderBackendMode.liveScrub ||
-        TrueFrameRenderBackendMode.playback =>
-          hasRealFrameProof
-              ? 'manual_temporal_blur_realtime_professional_surface_presented'
-              : 'manual_temporal_blur_realtime_waiting_real_frame',
-        TrueFrameRenderBackendMode.export => hasRealFrameProof
-            ? 'manual_temporal_blur_professional_surface_presented'
-            : 'manual_temporal_blur_waiting_first_frame',
-      },
+      usesProfessionalSurface: false,
+      suppressesStage5Preview: false,
+      reason: 'manual_transition_stage5_velocity_shader_owner',
     );
   }
 
