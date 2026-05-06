@@ -144,9 +144,33 @@ void main() {
         framePresented: true,
         surfaceAttached: true,
         motionBlurEnabled: true,
+        sampleCount: 8,
+        trailContributionCount: 3,
+        motionBlurAmount: 0.65,
+        sampleTransformDelta: 0.08,
+        rendererConsumedSamples: true,
+        renderPassIncludesTemporalMotionBlur: true,
         checksumDelta: true,
       );
       expect(professionalTransitionRealFramePresented(realMotionBlur), isTrue);
+
+      final staticMotionBlur = _result(
+        canRenderFrame: true,
+        pixelOutputReady: true,
+        frameDelivered: true,
+        framePresented: true,
+        surfaceAttached: true,
+        motionBlurEnabled: true,
+        sampleCount: 8,
+        trailContributionCount: 0,
+        motionBlurAmount: 0.65,
+        sampleTransformDelta: 0,
+        rendererConsumedSamples: true,
+        renderPassIncludesTemporalMotionBlur: true,
+        checksumDelta: true,
+      );
+      expect(
+          professionalTransitionRealFramePresented(staticMotionBlur), isFalse);
     });
   });
 }
@@ -160,6 +184,12 @@ ProfessionalVideoTransitionInteractiveFrameRenderResult _result({
   bool motionBlurEnabled = false,
   bool forcedVisualTestPattern = false,
   bool forcedSyntheticMotionBlur = false,
+  int sampleCount = 0,
+  int trailContributionCount = 0,
+  double motionBlurAmount = 0,
+  double sampleTransformDelta = 0,
+  bool rendererConsumedSamples = false,
+  bool renderPassIncludesTemporalMotionBlur = false,
   bool? checksumDelta,
   List<String> blockedReasons = const <String>[],
 }) {
@@ -183,17 +213,17 @@ ProfessionalVideoTransitionInteractiveFrameRenderResult _result({
     surfaceKind: surfaceAttached ? 'interactiveNativeTransitionSurface' : '',
     renderOwner: 'professionalCompositor',
     motionBlurEnabled: motionBlurEnabled,
-    sampleCount: 0,
+    sampleCount: sampleCount,
     outgoingContributionCount: 0,
     incomingContributionCount: 0,
     centerContributionCount: 0,
-    trailContributionCount: 0,
-    motionBlurAmount: 0,
+    trailContributionCount: trailContributionCount,
+    motionBlurAmount: motionBlurAmount,
     forcedVisualTestPattern: forcedVisualTestPattern,
     forcedSyntheticMotionBlur: forcedSyntheticMotionBlur,
-    sampleTransformDelta: 0,
-    rendererConsumedSamples: false,
-    renderPassIncludesTemporalMotionBlur: false,
+    sampleTransformDelta: sampleTransformDelta,
+    rendererConsumedSamples: rendererConsumedSamples,
+    renderPassIncludesTemporalMotionBlur: renderPassIncludesTemporalMotionBlur,
     fallbackUsed: false,
     checksumBefore: 0,
     checksumAfter: frameDelivered ? 7 : 0,

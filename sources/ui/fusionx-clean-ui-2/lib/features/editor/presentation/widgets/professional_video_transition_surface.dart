@@ -91,7 +91,13 @@ bool professionalTransitionRealFramePresented(
   if (!result.motionBlurEnabled) {
     return true;
   }
-  return result.checksumDelta &&
+  return result.motionBlurAmount > 0.0001 &&
+      result.sampleCount > 1 &&
+      result.trailContributionCount > 0 &&
+      result.sampleTransformDelta > 0.0001 &&
+      result.rendererConsumedSamples &&
+      result.renderPassIncludesTemporalMotionBlur &&
+      result.checksumDelta &&
       !result.forcedVisualTestPattern &&
       !result.forcedSyntheticMotionBlur;
 }
@@ -235,10 +241,17 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
       if (realFramePresented && !_hasReportedRealPresentedFrame) {
         _hasReportedRealPresentedFrame = true;
         widget.onPresentationChanged?.call(true);
+      } else if (!realFramePresented && _hasReportedRealPresentedFrame) {
+        _hasReportedRealPresentedFrame = false;
+        widget.onPresentationChanged?.call(false);
       }
       return;
     }
     _debugRenderIssue(result);
+    if (_hasReportedRealPresentedFrame) {
+      _hasReportedRealPresentedFrame = false;
+      widget.onPresentationChanged?.call(false);
+    }
     if (shouldRetryInteractiveRenderResult(
       result,
       retryCount: _registrationRetryCount,
