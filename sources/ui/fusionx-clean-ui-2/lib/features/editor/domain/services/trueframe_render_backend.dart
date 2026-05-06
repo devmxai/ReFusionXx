@@ -126,24 +126,21 @@ class TrueFrameManualTransitionRenderBackend extends TrueFrameRenderBackend {
       );
     }
 
-    if (mode == TrueFrameRenderBackendMode.preview ||
-        mode == TrueFrameRenderBackendMode.liveScrub ||
-        mode == TrueFrameRenderBackendMode.playback) {
-      return _TransitionSurfaceRouteDecision(
-        mode: mode,
-        usesProfessionalSurface: false,
-        suppressesStage5Preview: false,
-        reason: 'manual_temporal_blur_realtime_backend_quarantined',
-      );
-    }
-
     return _TransitionSurfaceRouteDecision(
       mode: mode,
       usesProfessionalSurface: true,
       suppressesStage5Preview: hasPresentedFirstFrame,
-      reason: hasPresentedFirstFrame
-          ? 'manual_temporal_blur_professional_surface_presented'
-          : 'manual_temporal_blur_waiting_first_frame',
+      reason: switch (mode) {
+        TrueFrameRenderBackendMode.preview ||
+        TrueFrameRenderBackendMode.liveScrub ||
+        TrueFrameRenderBackendMode.playback =>
+          hasPresentedFirstFrame
+              ? 'manual_temporal_blur_realtime_professional_surface_presented'
+              : 'manual_temporal_blur_realtime_waiting_real_frame',
+        TrueFrameRenderBackendMode.export => hasPresentedFirstFrame
+            ? 'manual_temporal_blur_professional_surface_presented'
+            : 'manual_temporal_blur_waiting_first_frame',
+      },
     );
   }
 

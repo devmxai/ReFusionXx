@@ -116,6 +116,7 @@ class ProfessionalVideoTransitionSurfaceOverlay extends StatefulWidget {
     required this.timelineTime,
     required this.mode,
     required this.surfaceId,
+    this.showPresentedFrame = false,
     this.onPresentationChanged,
     this.client =
         const MethodChannelProfessionalVideoTransitionCompositorCapabilityProvider(),
@@ -128,6 +129,7 @@ class ProfessionalVideoTransitionSurfaceOverlay extends StatefulWidget {
   final TimelineTime timelineTime;
   final String mode;
   final String surfaceId;
+  final bool showPresentedFrame;
   final ValueChanged<bool>? onPresentationChanged;
   final ProfessionalVideoTransitionCompositorClient client;
 
@@ -171,6 +173,9 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
       _hasReportedRealPresentedFrame = false;
       _renderTimer?.cancel();
       return;
+    }
+    if (!widget.showPresentedFrame && _hasPresentedFrame) {
+      _hasPresentedFrame = false;
     }
     _scheduleRender();
   }
@@ -233,9 +238,9 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
       _registrationRetryCount = 0;
       final realFramePresented =
           professionalTransitionRealFramePresented(result);
-      if (!_hasPresentedFrame) {
+      if (_hasPresentedFrame != realFramePresented) {
         setState(() {
-          _hasPresentedFrame = true;
+          _hasPresentedFrame = realFramePresented;
         });
       }
       if (realFramePresented && !_hasReportedRealPresentedFrame) {
@@ -392,7 +397,7 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
     return IgnorePointer(
       child: Opacity(
         opacity: professionalTransitionSurfaceOpacityForPresentedState(
-          _hasPresentedFrame,
+          _hasPresentedFrame && widget.showPresentedFrame,
         ),
         child: AndroidView(
           key: ValueKey<String>(widget.surfaceId),

@@ -24386,6 +24386,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                           timelineTime: activeTransition!.timelineTime,
                           mode: professionalTransitionMode,
                           surfaceId: professionalTransitionSurfaceId,
+                          showPresentedFrame:
+                              professionalRouteDecision.suppressesStage5Preview,
                           onPresentationChanged: (hasPresented) {
                             _handleProfessionalTransitionSurfacePresentationChanged(
                               surfaceId: professionalTransitionSurfaceId,

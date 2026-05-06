@@ -39,7 +39,7 @@ void main() {
     );
   });
 
-  test('quarantines manual temporal blur realtime backend on stage5', () {
+  test('routes manual temporal blur realtime through professional gate', () {
     final decision = backend.routeNodeFamilies(
       mode: TrueFrameRenderBackendMode.liveScrub,
       resolvedLayerFamilies: const <String>['videoLayer'],
@@ -49,16 +49,15 @@ void main() {
       isManualTransition: true,
     );
 
-    expect(decision.owner, TrueFrameRenderOwner.stage5Presenter);
+    expect(decision.owner, TrueFrameRenderOwner.professionalCompositor);
     expect(decision.suppressesStage5Preview, isFalse);
     expect(
       decision.reason,
-      contains('manual_temporal_blur_realtime_backend_quarantined'),
+      contains('manual_temporal_blur_realtime_waiting_real_frame'),
     );
   });
 
-  test('does not suppress stage5 from quarantined manual temporal blur frames',
-      () {
+  test('suppresses stage5 only after a real manual temporal blur frame', () {
     final decision = backend.routeNodeFamilies(
       mode: TrueFrameRenderBackendMode.playback,
       resolvedLayerFamilies: const <String>['videoLayer'],
@@ -68,11 +67,11 @@ void main() {
       isManualTransition: true,
     );
 
-    expect(decision.owner, TrueFrameRenderOwner.stage5Presenter);
-    expect(decision.suppressesStage5Preview, isFalse);
+    expect(decision.owner, TrueFrameRenderOwner.professionalCompositor);
+    expect(decision.suppressesStage5Preview, isTrue);
     expect(
       decision.reason,
-      contains('manual_temporal_blur_realtime_backend_quarantined'),
+      contains('manual_temporal_blur_realtime_professional_surface_presented'),
     );
   });
 

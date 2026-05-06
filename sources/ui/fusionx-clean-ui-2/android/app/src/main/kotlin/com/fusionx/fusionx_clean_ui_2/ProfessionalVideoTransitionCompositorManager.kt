@@ -3901,6 +3901,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                     reason = "native_transition_pixel_frame_buffer_bitmap_allocation_failed",
                 )
         var extractedFrameCount = 0
+        val reusableFramesBySourceKey = mutableMapOf<String, Bitmap>()
         try {
             val canvas = Canvas(canvasBitmap)
             canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
@@ -3968,6 +3969,30 @@ private data class ProfessionalVideoTransitionRenderSession(
                 centerSamples.associateBy { sample ->
                     sample.sourceRole.takeIf { it.isNotBlank() } ?: sample.sourceClipId
                 }
+            fun sampleSourceKey(sample: ManualTemporalMotionBlurSample): String =
+                sample.sourceRole.takeIf { it.isNotBlank() } ?: sample.sourceClipId
+
+            fun reusableCenterFrameForSample(sample: ManualTemporalMotionBlurSample): Bitmap? {
+                val sourceKey = sampleSourceKey(sample)
+                reusableFramesBySourceKey[sourceKey]?.let { return it }
+                val centerSample = centerBySource[sourceKey] ?: centerSamples.firstOrNull()
+                    ?: sample
+                val source = sourceForManualTemporalSample(centerSample)
+                    ?: sourceForManualTemporalSample(sample)
+                    ?: return null
+                if (!source.coversTimelineTime(sample.timelineTimeMs)) {
+                    return null
+                }
+                val frame =
+                    extractVideoFrameBitmap(
+                        appContext,
+                        source.sourceUri,
+                        centerSample.sourcePositionMs
+                            ?: source.sourceTimeForTimelineTime(centerSample.timelineTimeMs),
+                    ) ?: return null
+                reusableFramesBySourceKey[sourceKey] = frame
+                return frame
+            }
             val trailSamples =
                 if (motionBlurAmount <= 0.0001) {
                     emptyList()
@@ -3992,13 +4017,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                 if (!source.coversTimelineTime(sample.timelineTimeMs)) {
                     return@forEach
                 }
-                val frame =
-                    extractVideoFrameBitmap(
-                        appContext,
-                        source.sourceUri,
-                        sample.sourcePositionMs
-                            ?: source.sourceTimeForTimelineTime(sample.timelineTimeMs),
-                    )
+                val frame = reusableCenterFrameForSample(sample)
                 if (frame != null) {
                     val sampleAlpha =
                         (sample.opacity * 255.0).roundToInt().coerceIn(0, 255)
@@ -4018,7 +4037,6 @@ private data class ProfessionalVideoTransitionRenderSession(
                     }
                     centerContributionCount += 1
                     extractedFrameCount += 1
-                    frame.recycle()
                 }
             }
             trailSamples.forEach { sample ->
@@ -4026,13 +4044,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                 if (!source.coversTimelineTime(sample.timelineTimeMs)) {
                     return@forEach
                 }
-                val frame =
-                    extractVideoFrameBitmap(
-                        appContext,
-                        source.sourceUri,
-                        sample.sourcePositionMs
-                            ?: source.sourceTimeForTimelineTime(sample.timelineTimeMs),
-                    )
+                val frame = reusableCenterFrameForSample(sample)
                 if (frame != null) {
                     val normalizedTrailWeight = sample.weight.coerceAtLeast(0.0) / trailWeightTotal
                     val sampleAlpha =
@@ -4055,7 +4067,6 @@ private data class ProfessionalVideoTransitionRenderSession(
                         "incoming" -> incomingContributionCount += 1
                     }
                     extractedFrameCount += 1
-                    frame.recycle()
                 }
             }
             var syntheticMotionBlurRendered = false
@@ -4149,6 +4160,9 @@ private data class ProfessionalVideoTransitionRenderSession(
                 checksumAfter = writeResult.checksum,
             )
         } finally {
+            reusableFramesBySourceKey.values.forEach { frame ->
+                runCatching { frame.recycle() }
+            }
             canvasBitmap.recycle()
         }
     }
