@@ -1384,11 +1384,16 @@ class ProfessionalVideoTransitionCompositorManager(
         val checksumAfter =
             (pixelRenderExecution["writerChecksumAfter"] as? Number)?.toLong() ?: 0L
         val checksumDelta = checksumBefore != checksumAfter
+        val requiresMotionBlurPixelDelta =
+            motionBlurEnabled &&
+                motionBlurAmount > 0.0001 &&
+                sampleCount > 1 &&
+                sampleTransformDelta > 0.0001
         val finalBlockedReasons =
             buildList {
                 addAll(blockedReasons)
                 if (
-                    motionBlurEnabled &&
+                    requiresMotionBlurPixelDelta &&
                         !checksumDelta &&
                         !forcedVisualTestPattern
                 ) {
@@ -3900,7 +3905,6 @@ private data class ProfessionalVideoTransitionRenderSession(
                     extractedFrameCount = 0,
                     reason = "native_transition_pixel_frame_buffer_bitmap_allocation_failed",
                 )
-        var extractedFrameCount = 0
         val reusableFramesBySourceKey = mutableMapOf<String, Bitmap>()
         try {
             val canvas = Canvas(canvasBitmap)
@@ -3965,6 +3969,8 @@ private data class ProfessionalVideoTransitionRenderSession(
                         } ?: validSamples.first(),
                     )
                 }
+            val centerTimes =
+                centerSamples.map { sample -> sample.timelineTimeMs }.toSet()
             val centerBySource =
                 centerSamples.associateBy { sample ->
                     sample.sourceRole.takeIf { it.isNotBlank() } ?: sample.sourceClipId
@@ -3993,80 +3999,59 @@ private data class ProfessionalVideoTransitionRenderSession(
                 reusableFramesBySourceKey[sourceKey] = frame
                 return frame
             }
-            val trailSamples =
-                if (motionBlurAmount <= 0.0001) {
-                    emptyList()
-                } else {
-                    validSamples.filter { sample ->
-                        val sourceKey = sample.sourceRole.takeIf { it.isNotBlank() } ?: sample.sourceClipId
-                        val centerSample = centerBySource[sourceKey] ?: centerSamples.firstOrNull()
-                        centerSample == null ||
-                            sample !== centerSample &&
-                            manualMotionBlurSampleHasVisibleTrailDelta(sample, centerSample)
-                    }
-                }
-            val trailWeightTotal =
-                trailSamples.sumOf { sample -> sample.weight.coerceAtLeast(0.0) }
-                    .takeIf { weight -> weight.isFinite() && weight > 0.0 } ?: 1.0
+            val totalWeight =
+                validSamples.sumOf { sample -> sample.weight.coerceAtLeast(0.0) }
+                    .takeIf { weight -> weight.isFinite() && weight > 0.0 }
+                    ?: validSamples.size.toDouble().coerceAtLeast(1.0)
             var outgoingContributionCount = 0
             var incomingContributionCount = 0
             var centerContributionCount = 0
             var trailContributionCount = 0
-            centerSamples.forEach { sample ->
+            var consumedContributionCount = 0
+            var rendererExtractedFrameCount = 0
+            validSamples.sortedBy { sample -> sample.timelineTimeMs }.forEach { sample ->
                 val source = sourceForManualTemporalSample(sample) ?: return@forEach
                 if (!source.coversTimelineTime(sample.timelineTimeMs)) {
                     return@forEach
                 }
                 val frame = reusableCenterFrameForSample(sample)
                 if (frame != null) {
+                    val sampleWeight = sample.weight.coerceAtLeast(0.0)
+                    val normalizedWeight = (sampleWeight / totalWeight).coerceIn(0.0, 1.0)
+                    val blendAmount = motionBlurAmount.coerceIn(0.0, 1.0)
+                    val centerBoost =
+                        if (centerTimes.contains(sample.timelineTimeMs)) {
+                            1.0 - blendAmount
+                        } else {
+                            0.0
+                        }
+                    val temporalMix = blendAmount * normalizedWeight
                     val sampleAlpha =
-                        (sample.opacity * 255.0).roundToInt().coerceIn(0, 255)
-                    if (sampleAlpha > 0) {
-                        drawBitmapCenterCropMatrixTransform(
-                            canvas = canvas,
-                            bitmap = frame,
-                            alpha = sampleAlpha,
-                            canvasWidth = width,
-                            canvasHeight = height,
-                            transformMatrix3x3 = sample.transformMatrix3x3,
-                        )
-                    }
-                    when (sample.sourceRole) {
-                        "outgoing" -> outgoingContributionCount += 1
-                        "incoming" -> incomingContributionCount += 1
-                    }
-                    centerContributionCount += 1
-                    extractedFrameCount += 1
-                }
-            }
-            trailSamples.forEach { sample ->
-                val source = sourceForManualTemporalSample(sample) ?: return@forEach
-                if (!source.coversTimelineTime(sample.timelineTimeMs)) {
-                    return@forEach
-                }
-                val frame = reusableCenterFrameForSample(sample)
-                if (frame != null) {
-                    val normalizedTrailWeight = sample.weight.coerceAtLeast(0.0) / trailWeightTotal
-                    val sampleAlpha =
-                        (sample.opacity * motionBlurAmount * normalizedTrailWeight * 255.0)
+                        (sample.opacity.coerceIn(0.0, 1.0) * (centerBoost + temporalMix) * 255.0)
                             .roundToInt()
                             .coerceIn(0, 255)
-                    if (sampleAlpha > 0) {
-                        drawBitmapCenterCropMatrixTransform(
-                            canvas = canvas,
-                            bitmap = frame,
-                            alpha = sampleAlpha,
-                            canvasWidth = width,
-                            canvasHeight = height,
-                            transformMatrix3x3 = sample.transformMatrix3x3,
-                        )
-                        trailContributionCount += 1
+                    if (sampleAlpha <= 0) {
+                        return@forEach
                     }
+                    drawBitmapCenterCropMatrixTransform(
+                        canvas = canvas,
+                        bitmap = frame,
+                        alpha = sampleAlpha,
+                        canvasWidth = width,
+                        canvasHeight = height,
+                        transformMatrix3x3 = sample.transformMatrix3x3,
+                    )
                     when (sample.sourceRole) {
                         "outgoing" -> outgoingContributionCount += 1
                         "incoming" -> incomingContributionCount += 1
                     }
-                    extractedFrameCount += 1
+                    if (centerTimes.contains(sample.timelineTimeMs)) {
+                        centerContributionCount += 1
+                    } else {
+                        trailContributionCount += 1
+                    }
+                    consumedContributionCount += 1
+                    rendererExtractedFrameCount += 1
                 }
             }
             var syntheticMotionBlurRendered = false
@@ -4096,7 +4081,7 @@ private data class ProfessionalVideoTransitionRenderSession(
                     sampleTransformDelta = sampleTransformDelta,
                 )
             }
-            if (extractedFrameCount <= 0) {
+            if (consumedContributionCount <= 0) {
                 if (forcedVisualTestPattern || syntheticMotionBlurRendered) {
                     val checksumBefore = frameBufferStore.checksum(frameBufferId)
                     val writeResult = frameBufferStore.writeBitmap(
@@ -4140,8 +4125,8 @@ private data class ProfessionalVideoTransitionRenderSession(
             val writeResult = frameBufferStore.writeBitmap(
                 frameBufferId = frameBufferId,
                 bitmap = canvasBitmap,
-                sampleCount = manualTemporalSamples.size,
-                extractedFrameCount = extractedFrameCount,
+                sampleCount = validSamples.size,
+                extractedFrameCount = rendererExtractedFrameCount,
             )
             return writeResult.copy(
                 outgoingContributionCount = outgoingContributionCount,
@@ -4198,19 +4183,6 @@ private data class ProfessionalVideoTransitionRenderSession(
                     incoming
                 }
         }
-    }
-
-    private fun manualMotionBlurSampleHasVisibleTrailDelta(
-        sample: ManualTemporalMotionBlurSample,
-        centerSample: ManualTemporalMotionBlurSample,
-    ): Boolean {
-        if (sample.sourceRole != centerSample.sourceRole || sample.sourceClipId != centerSample.sourceClipId) {
-            return true
-        }
-        val matrixDelta =
-            sample.transformMatrix3x3.zip(centerSample.transformMatrix3x3)
-                .sumOf { (sampleValue, centerValue) -> abs(sampleValue - centerValue) }
-        return matrixDelta > 0.0001
     }
 
     private fun manualMotionBlurSampleTransformDelta(
@@ -7525,14 +7497,26 @@ private class ProfessionalVideoTransitionPixelFrameBufferStore(
         buffer: ByteBuffer,
         byteCount: Int,
     ): Long {
+        if (byteCount <= 0) {
+            return 0L
+        }
         val duplicate = buffer.duplicate()
+        val boundedByteCount = byteCount.coerceAtMost(duplicate.capacity())
         duplicate.position(0)
-        duplicate.limit(byteCount.coerceAtMost(duplicate.capacity()))
+        duplicate.limit(boundedByteCount)
         var checksum = -3750763034362895579L
-        var remaining = minOf(duplicate.remaining(), 4096)
-        while (remaining > 0) {
-            checksum = (checksum xor (duplicate.get().toLong() and 0xffL)) * 1099511628211L
-            remaining -= 1
+        val sampleBudget = minOf(boundedByteCount, 8192)
+        if (sampleBudget <= 0) {
+            buffer.rewind()
+            return checksum
+        }
+        val step = boundedByteCount.toDouble() / sampleBudget.toDouble()
+        var index = 0
+        repeat(sampleBudget) {
+            val safeIndex = index.coerceIn(0, boundedByteCount - 1)
+            val value = duplicate.get(safeIndex).toLong() and 0xffL
+            checksum = (checksum xor value) * 1099511628211L
+            index = (index + step).roundToInt()
         }
         buffer.rewind()
         return checksum

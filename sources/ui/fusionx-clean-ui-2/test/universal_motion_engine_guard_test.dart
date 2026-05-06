@@ -552,12 +552,12 @@ void main() {
       isTrue,
     );
     expect(
-      source.contains('manualMotionBlurSampleHasVisibleTrailDelta('),
+      source.contains('val normalizedWeight = (sampleWeight / totalWeight)'),
       isTrue,
     );
     expect(
-      source.contains('baseWeight * weightedAmount'),
-      isFalse,
+      source.contains('val temporalMix = blendAmount * normalizedWeight'),
+      isTrue,
     );
     expect(
       source.contains(
