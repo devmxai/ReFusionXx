@@ -948,4 +948,39 @@ void main() {
     expect(source.contains('MasterRenderGraphAdapter'), isTrue);
     expect(source.contains('MasterRendererFrameAdapters'), isTrue);
   });
+
+  test(
+      'trueframe backend requires production texture readiness for manual temporal blur',
+      () async {
+    final source = await trueFrameRenderBackendFile.readAsString();
+    expect(
+      source.contains(
+          'manual_temporal_blur_production_texture_renderer_not_ready'),
+      isTrue,
+    );
+    expect(source.contains('hasProductionTextureRenderer'), isTrue);
+    expect(source.contains('hasRealFrameProof'), isTrue);
+    expect(source.contains('hasPresentedFirstFrame'), isFalse);
+  });
+
+  test('professional surface enforces production real-frame proof contract',
+      () async {
+    final source = await professionalTransitionSurfaceFile.readAsString();
+    expect(source.contains('result.rendererPath == \'productionTexture\''),
+        isTrue);
+    expect(source.contains('result.sourceProviderMode == \'decodedTexture\''),
+        isTrue);
+    expect(source.contains('result.realFrameProof'), isTrue);
+    expect(source.contains('TF_MB_REALTIME_OWNER_PROOF'), isTrue);
+  });
+
+  test(
+      'native interactive renderer marks proof path and blocks production ownership',
+      () async {
+    final source = await professionalTransitionCompositorFile.readAsString();
+    expect(source.contains('rendererPath = "debugBitmapProof"'), isTrue);
+    expect(source.contains('sourceProviderMode = "bitmapProof"'), isTrue);
+    expect(source.contains('production_texture_renderer_not_ready'), isTrue);
+    expect(source.contains('"realFrameProof" to realFrameProof'), isTrue);
+  });
 }

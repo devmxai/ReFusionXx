@@ -1207,6 +1207,7 @@ class ProfessionalVideoTransitionCompositorManager(
         mode: String?,
         surfaceId: String?,
     ): Map<String, Any> {
+        val renderStartNs = System.nanoTime()
         val missingFields = requiredRenderPlanFields.filter { field ->
             !hasRequiredField(plan, field)
         }
@@ -1355,6 +1356,8 @@ class ProfessionalVideoTransitionCompositorManager(
                 ?.let { policy -> policy as? Map<*, *> }
                 ?.get("mode")
                 ?.toString() == "temporalShutter"
+        val rendererPath = "debugBitmapProof"
+        val sourceProviderMode = "bitmapProof"
         val sampleCount =
             (pixelRenderExecution["writerTemporalSampleCount"] as? Number)?.toInt() ?: 0
         val outgoingContributionCount =
@@ -1399,6 +1402,14 @@ class ProfessionalVideoTransitionCompositorManager(
                 ) {
                     add("native_transition_motion_blur_pixel_delta_missing")
                 }
+                if (
+                    motionBlurEnabled &&
+                        motionBlurAmount > 0.0001 &&
+                        sampleCount > 1 &&
+                        rendererPath != "productionTexture"
+                ) {
+                    add("production_texture_renderer_not_ready")
+                }
             }.distinct()
         val proofOnlyBlockedReasons =
             setOf(
@@ -1412,15 +1423,41 @@ class ProfessionalVideoTransitionCompositorManager(
                 upload.uploaded &&
                 upload.presented &&
                 renderBlockingReasons.isEmpty()
+        val frameBudgetMs =
+            when (safeMode) {
+                "liveScrub", "playback" -> 16
+                "preview" -> 33
+                else -> 33
+            }
+        val renderTimeMs = ((System.nanoTime() - renderStartNs) / 1_000_000L).toInt()
+        val droppedFrames = renderTimeMs > frameBudgetMs
         val writerCreated = pixelRenderExecution["writerCreated"] == true
         val writerBound = pixelRenderExecution["writerBound"] == true
         val outputFramebufferBound =
             pixelRenderExecution["outputFramebufferBound"] == true
         val fallbackReason =
-            pixelRenderExecution["writerReason"]?.toString()
-                ?.takeIf { reason -> reason.isNotBlank() }
-                ?: renderBlockingReasons.firstOrNull()
-                ?: finalBlockedReasons.firstOrNull().orEmpty()
+            if (finalBlockedReasons.contains("production_texture_renderer_not_ready")) {
+                "production_texture_renderer_not_ready"
+            } else {
+                pixelRenderExecution["writerReason"]?.toString()
+                    ?.takeIf { reason -> reason.isNotBlank() }
+                    ?: renderBlockingReasons.firstOrNull()
+                    ?: finalBlockedReasons.firstOrNull().orEmpty()
+            }
+        val realFrameProof =
+            rendererPath == "productionTexture" &&
+                sourceProviderMode == "decodedTexture" &&
+                canRenderFrame &&
+                motionBlurAmount > 0.0001 &&
+                sampleCount > 1 &&
+                rendererConsumedSamples &&
+                renderPassIncludesTemporalMotionBlur &&
+                checksumDelta &&
+                !forcedVisualTestPattern &&
+                !forcedSyntheticMotionBlur &&
+                !fallbackUsed &&
+                !droppedFrames &&
+                renderTimeMs <= frameBudgetMs
         return mapOf(
             "status" to "planned",
             "reason" to "",
@@ -1433,6 +1470,12 @@ class ProfessionalVideoTransitionCompositorManager(
             "transitionStartMs" to session.transitionStartMs,
             "transitionEndMs" to session.transitionEndMs,
             "pixelOutputReady" to pixelOutputReady,
+            "rendererPath" to rendererPath,
+            "sourceProviderMode" to sourceProviderMode,
+            "realFrameProof" to realFrameProof,
+            "renderTimeMs" to renderTimeMs,
+            "frameBudgetMs" to frameBudgetMs,
+            "droppedFrames" to droppedFrames,
             "writerCreated" to writerCreated,
             "writerBound" to writerBound,
             "outputFramebufferBound" to outputFramebufferBound,

@@ -23917,6 +23917,21 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return hasVisibleAmount && contributionCount > 1;
   }
 
+  bool _manualTransitionTemporalMotionBlurProductionTextureReady(
+    ProfessionalVideoTransitionRenderPlan? plan,
+  ) {
+    if (plan == null) {
+      return false;
+    }
+    final visibilityGate =
+        plan.parameters['motionBlurVisibilityGate'] as Map<Object?, Object?>?;
+    final rendererPath = visibilityGate?['rendererPath']?.toString();
+    final sourceProviderMode =
+        visibilityGate?['sourceProviderMode']?.toString();
+    return rendererPath == 'productionTexture' &&
+        sourceProviderMode == 'decodedTexture';
+  }
+
   String? _motionBlurProofSelectedPropertyPath(
     TimelineTrackTransitionData transition,
   ) {
@@ -24193,12 +24208,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
               professionalTransitionSurfaceId != null &&
               professionalTransitionPlan != null,
           hasTemporalMotionBlur: hasManualTemporalMotionBlur,
-          hasPresentedFirstFrame: activeTransition != null &&
+          hasRealFrameProof: activeTransition != null &&
               professionalTransitionSurfaceId != null &&
               _professionalTransitionSurfaceHasPresented(
                 surfaceId: professionalTransitionSurfaceId,
                 mode: professionalTransitionMode,
               ),
+          hasProductionTextureRenderer:
+              _manualTransitionTemporalMotionBlurProductionTextureReady(
+            professionalTransitionPlan,
+          ),
           isManualTransition: activeTransition?.transition.preset ==
               TimelineTransitionPreset.manual,
         );
@@ -24335,12 +24354,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                       professionalTransitionSurfaceId != null &&
                       professionalTransitionPlan != null,
                   hasTemporalMotionBlur: hasManualTemporalMotionBlur,
-                  hasPresentedFirstFrame: activeTransition != null &&
+                  hasRealFrameProof: activeTransition != null &&
                       professionalTransitionSurfaceId != null &&
                       _professionalTransitionSurfaceHasPresented(
                         surfaceId: professionalTransitionSurfaceId,
                         mode: professionalTransitionMode,
                       ),
+                  hasProductionTextureRenderer:
+                      _manualTransitionTemporalMotionBlurProductionTextureReady(
+                    professionalTransitionPlan,
+                  ),
                   isManualTransition: activeTransition?.transition.preset ==
                       TimelineTransitionPreset.manual,
                 );

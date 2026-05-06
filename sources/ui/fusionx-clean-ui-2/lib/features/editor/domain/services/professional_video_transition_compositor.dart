@@ -6691,6 +6691,12 @@ class ProfessionalVideoTransitionInteractiveFrameRenderResult {
     required this.transitionStartTime,
     required this.transitionEndTime,
     required this.pixelOutputReady,
+    this.rendererPath = '',
+    this.sourceProviderMode = '',
+    this.realFrameProof = false,
+    this.renderTimeMs = 0,
+    this.frameBudgetMs = 0,
+    this.droppedFrames = false,
     this.writerCreated = false,
     this.writerBound = false,
     this.outputFramebufferBound = false,
@@ -6741,6 +6747,12 @@ class ProfessionalVideoTransitionInteractiveFrameRenderResult {
       transitionStartTime: null,
       transitionEndTime: null,
       pixelOutputReady: false,
+      rendererPath: '',
+      sourceProviderMode: '',
+      realFrameProof: false,
+      renderTimeMs: 0,
+      frameBudgetMs: 0,
+      droppedFrames: false,
       frameDelivered: false,
       framePresented: false,
       frameByteCount: 0,
@@ -6780,6 +6792,12 @@ class ProfessionalVideoTransitionInteractiveFrameRenderResult {
   final TimelineTime? transitionStartTime;
   final TimelineTime? transitionEndTime;
   final bool pixelOutputReady;
+  final String rendererPath;
+  final String sourceProviderMode;
+  final bool realFrameProof;
+  final int renderTimeMs;
+  final int frameBudgetMs;
+  final bool droppedFrames;
   final bool writerCreated;
   final bool writerBound;
   final bool outputFramebufferBound;
@@ -6843,6 +6861,12 @@ class ProfessionalVideoTransitionInteractiveFrameRenderResultMapper {
       transitionStartTime: _readTimelineTime(map['transitionStartMs']),
       transitionEndTime: _readTimelineTime(map['transitionEndMs']),
       pixelOutputReady: _readBool(map['pixelOutputReady']),
+      rendererPath: map['rendererPath']?.toString() ?? '',
+      sourceProviderMode: map['sourceProviderMode']?.toString() ?? '',
+      realFrameProof: _readBool(map['realFrameProof']),
+      renderTimeMs: _readInt(map['renderTimeMs']),
+      frameBudgetMs: _readInt(map['frameBudgetMs']),
+      droppedFrames: _readBool(map['droppedFrames']),
       writerCreated: _readBool(map['writerCreated']),
       writerBound: _readBool(map['writerBound']),
       outputFramebufferBound: _readBool(map['outputFramebufferBound']),

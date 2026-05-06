@@ -56,7 +56,8 @@ abstract class TrueFrameRenderBackend {
     required List<String> resolvedLayerFamilies,
     required bool hasRenderablePlan,
     required bool hasTemporalMotionBlur,
-    required bool hasPresentedFirstFrame,
+    required bool hasRealFrameProof,
+    required bool hasProductionTextureRenderer,
     required bool isManualTransition,
   });
 }
@@ -97,7 +98,8 @@ class TrueFrameManualTransitionRenderBackend extends TrueFrameRenderBackend {
     required bool hasRenderablePlan,
     required bool isManualTransition,
     required bool hasTemporalMotionBlur,
-    required bool hasPresentedFirstFrame,
+    required bool hasRealFrameProof,
+    required bool hasProductionTextureRenderer,
   }) {
     if (!hasRenderablePlan) {
       return _TransitionSurfaceRouteDecision(
@@ -126,18 +128,27 @@ class TrueFrameManualTransitionRenderBackend extends TrueFrameRenderBackend {
       );
     }
 
+    if (!hasProductionTextureRenderer) {
+      return _TransitionSurfaceRouteDecision(
+        mode: mode,
+        usesProfessionalSurface: false,
+        suppressesStage5Preview: false,
+        reason: 'manual_temporal_blur_production_texture_renderer_not_ready',
+      );
+    }
+
     return _TransitionSurfaceRouteDecision(
       mode: mode,
       usesProfessionalSurface: true,
-      suppressesStage5Preview: hasPresentedFirstFrame,
+      suppressesStage5Preview: hasRealFrameProof,
       reason: switch (mode) {
         TrueFrameRenderBackendMode.preview ||
         TrueFrameRenderBackendMode.liveScrub ||
         TrueFrameRenderBackendMode.playback =>
-          hasPresentedFirstFrame
+          hasRealFrameProof
               ? 'manual_temporal_blur_realtime_professional_surface_presented'
               : 'manual_temporal_blur_realtime_waiting_real_frame',
-        TrueFrameRenderBackendMode.export => hasPresentedFirstFrame
+        TrueFrameRenderBackendMode.export => hasRealFrameProof
             ? 'manual_temporal_blur_professional_surface_presented'
             : 'manual_temporal_blur_waiting_first_frame',
       },
@@ -150,7 +161,8 @@ class TrueFrameManualTransitionRenderBackend extends TrueFrameRenderBackend {
     required List<String> resolvedLayerFamilies,
     required bool hasRenderablePlan,
     required bool hasTemporalMotionBlur,
-    required bool hasPresentedFirstFrame,
+    required bool hasRealFrameProof,
+    required bool hasProductionTextureRenderer,
     required bool isManualTransition,
   }) {
     if (!hasRenderablePlan) {
@@ -197,7 +209,8 @@ class TrueFrameManualTransitionRenderBackend extends TrueFrameRenderBackend {
       hasRenderablePlan: hasRenderablePlan,
       isManualTransition: isManualTransition,
       hasTemporalMotionBlur: hasTemporalMotionBlur,
-      hasPresentedFirstFrame: hasPresentedFirstFrame,
+      hasRealFrameProof: hasRealFrameProof,
+      hasProductionTextureRenderer: hasProductionTextureRenderer,
     );
     if (transitionRoute.usesProfessionalSurface) {
       return TrueFrameNodeRenderRouteDecision(

@@ -91,13 +91,19 @@ bool professionalTransitionRealFramePresented(
   if (!result.motionBlurEnabled) {
     return true;
   }
-  return result.motionBlurAmount > 0.0001 &&
+  return result.rendererPath == 'productionTexture' &&
+      result.sourceProviderMode == 'decodedTexture' &&
+      result.realFrameProof &&
+      result.motionBlurAmount > 0.0001 &&
       result.sampleCount > 1 &&
       result.trailContributionCount > 0 &&
       result.sampleTransformDelta > 0.0001 &&
       result.rendererConsumedSamples &&
       result.renderPassIncludesTemporalMotionBlur &&
       result.checksumDelta &&
+      !result.droppedFrames &&
+      (result.frameBudgetMs <= 0 ||
+          result.renderTimeMs <= result.frameBudgetMs) &&
       !result.forcedVisualTestPattern &&
       !result.forcedSyntheticMotionBlur;
 }
@@ -293,7 +299,9 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
     if (!_hasReportedRealPresentedFrame) {
       return false;
     }
-    if (!result.pixelOutputReady || !result.frameDelivered || !result.framePresented) {
+    if (!result.pixelOutputReady ||
+        !result.frameDelivered ||
+        !result.framePresented) {
       return false;
     }
     final hasHardSurfaceLoss = result.blockedReasons.any(
@@ -309,10 +317,9 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
     if (result.blockedReasons.isEmpty) {
       return true;
     }
-    final hasProofOnlyIssue =
-        result.blockedReasons.length == 1 &&
-            result.blockedReasons.first ==
-                'native_transition_motion_blur_pixel_delta_missing';
+    final hasProofOnlyIssue = result.blockedReasons.length == 1 &&
+        result.blockedReasons.first ==
+            'native_transition_motion_blur_pixel_delta_missing';
     if (hasProofOnlyIssue) {
       return _ownershipFailureStreak < _maxOwnershipFailureStreak;
     }
@@ -371,9 +378,16 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
       'temporalPass=${result.renderPassIncludesTemporalMotionBlur}, '
       'fallbackUsed=${result.fallbackUsed}, '
       'fallbackReason=${result.fallbackReason}, '
+      'rendererPath=${result.rendererPath}, '
+      'sourceProviderMode=${result.sourceProviderMode}, '
+      'realFrameProof=${result.realFrameProof}, '
+      'renderTimeMs=${result.renderTimeMs}, '
+      'frameBudgetMs=${result.frameBudgetMs}, '
+      'droppedFrames=${result.droppedFrames}, '
       'checksumDelta=${result.checksumDelta}, '
       'blockedReasons=${result.blockedReasons}, reason=${result.reason}',
     );
+    _debugRealtimeOwnerProof(result: result, event: 'blocked');
   }
 
   void _debugRenderSuccess(
@@ -420,9 +434,47 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
       'temporalPass=${result.renderPassIncludesTemporalMotionBlur}, '
       'fallbackUsed=${result.fallbackUsed}, '
       'fallbackReason=${result.fallbackReason}, '
+      'rendererPath=${result.rendererPath}, '
+      'sourceProviderMode=${result.sourceProviderMode}, '
+      'realFrameProof=${result.realFrameProof}, '
+      'renderTimeMs=${result.renderTimeMs}, '
+      'frameBudgetMs=${result.frameBudgetMs}, '
+      'droppedFrames=${result.droppedFrames}, '
       'checksumBefore=${result.checksumBefore}, '
       'checksumAfter=${result.checksumAfter}, '
       'checksumDelta=${result.checksumDelta}',
+    );
+    _debugRealtimeOwnerProof(result: result, event: 'passed');
+  }
+
+  void _debugRealtimeOwnerProof({
+    required ProfessionalVideoTransitionInteractiveFrameRenderResult result,
+    required String event,
+  }) {
+    final stage5Visible = !widget.showPresentedFrame;
+    final professionalSurfaceVisible =
+        widget.showPresentedFrame && _hasPresentedFrame;
+    final overlayConflict = stage5Visible && professionalSurfaceVisible;
+    debugPrint(
+      'TF_MB_REALTIME_OWNER_PROOF: '
+      'event=$event, '
+      'adapterMode=${widget.mode}, '
+      'rendererPath=${result.rendererPath}, '
+      'sourceProviderMode=${result.sourceProviderMode}, '
+      'realFrameProof=${result.realFrameProof}, '
+      'stage5Visible=$stage5Visible, '
+      'professionalSurfaceVisible=$professionalSurfaceVisible, '
+      'overlayConflict=$overlayConflict, '
+      'renderTimeMs=${result.renderTimeMs}, '
+      'frameBudgetMs=${result.frameBudgetMs}, '
+      'droppedFrames=${result.droppedFrames}, '
+      'rendererConsumed=${result.rendererConsumedSamples}, '
+      'temporalPass=${result.renderPassIncludesTemporalMotionBlur}, '
+      'rendererSampleCount=${result.rendererSampleCount}, '
+      'rendererAmount=${result.rendererAmount}, '
+      'checksumDelta=${result.checksumDelta}, '
+      'fallbackUsed=${result.fallbackUsed}, '
+      'fallbackReason=${result.fallbackReason}',
     );
   }
 

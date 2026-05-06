@@ -39,31 +39,36 @@ void main() {
     );
   });
 
-  test('routes manual temporal blur realtime through professional gate', () {
+  test(
+      'keeps manual temporal blur on stage5 when production renderer is not ready',
+      () {
     final decision = backend.routeNodeFamilies(
       mode: TrueFrameRenderBackendMode.liveScrub,
       resolvedLayerFamilies: const <String>['videoLayer'],
       hasRenderablePlan: true,
       hasTemporalMotionBlur: true,
-      hasPresentedFirstFrame: false,
+      hasRealFrameProof: false,
+      hasProductionTextureRenderer: false,
       isManualTransition: true,
     );
 
-    expect(decision.owner, TrueFrameRenderOwner.professionalCompositor);
+    expect(decision.owner, TrueFrameRenderOwner.stage5Presenter);
     expect(decision.suppressesStage5Preview, isFalse);
     expect(
       decision.reason,
-      contains('manual_temporal_blur_realtime_waiting_real_frame'),
+      contains('manual_temporal_blur_production_texture_renderer_not_ready'),
     );
   });
 
-  test('suppresses stage5 only after a real manual temporal blur frame', () {
+  test('suppresses stage5 only after real frame proof on production renderer',
+      () {
     final decision = backend.routeNodeFamilies(
       mode: TrueFrameRenderBackendMode.playback,
       resolvedLayerFamilies: const <String>['videoLayer'],
       hasRenderablePlan: true,
       hasTemporalMotionBlur: true,
-      hasPresentedFirstFrame: true,
+      hasRealFrameProof: true,
+      hasProductionTextureRenderer: true,
       isManualTransition: true,
     );
 
@@ -82,7 +87,8 @@ void main() {
       resolvedLayerFamilies: const <String>['videoLayer'],
       hasRenderablePlan: true,
       hasTemporalMotionBlur: false,
-      hasPresentedFirstFrame: false,
+      hasRealFrameProof: false,
+      hasProductionTextureRenderer: false,
       isManualTransition: true,
     );
 
@@ -100,7 +106,8 @@ void main() {
       resolvedLayerFamilies: const <String>['videoLayer'],
       hasRenderablePlan: true,
       hasTemporalMotionBlur: false,
-      hasPresentedFirstFrame: false,
+      hasRealFrameProof: false,
+      hasProductionTextureRenderer: false,
       isManualTransition: false,
     );
 
@@ -115,7 +122,8 @@ void main() {
       resolvedLayerFamilies: const <String>['videoLayer', 'shapeLayer'],
       hasRenderablePlan: true,
       hasTemporalMotionBlur: false,
-      hasPresentedFirstFrame: false,
+      hasRealFrameProof: false,
+      hasProductionTextureRenderer: false,
       isManualTransition: false,
     );
 
@@ -131,7 +139,8 @@ void main() {
       resolvedLayerFamilies: const <String>['cameraLayer'],
       hasRenderablePlan: true,
       hasTemporalMotionBlur: false,
-      hasPresentedFirstFrame: false,
+      hasRealFrameProof: false,
+      hasProductionTextureRenderer: false,
       isManualTransition: false,
     );
 
@@ -148,7 +157,8 @@ void main() {
       resolvedLayerFamilies: const <String>['textLayer'],
       hasRenderablePlan: true,
       hasTemporalMotionBlur: false,
-      hasPresentedFirstFrame: false,
+      hasRealFrameProof: false,
+      hasProductionTextureRenderer: false,
       isManualTransition: false,
     );
 
