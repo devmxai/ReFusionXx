@@ -222,37 +222,38 @@ void main() {
   });
 
   test(
-      'manual temporal motion blur plans include explicit sample contributions',
+      'manual motion blur runtime no longer lowers temporal sample contributions',
       () async {
     final source = await screenFile.readAsString();
-    expect(source.contains('sampleContributions'), isTrue);
-    expect(source.contains("'sourceRole':"), isFalse);
+    expect(source.contains('sampleContributions'), isFalse);
+    expect(source.contains("parameters['temporalMotionBlurSamplePlans'] ="),
+        isFalse);
     expect(
-        source.contains('_sourcePositionMsForWindowAndTimelineTime('), isTrue);
+        source.contains("parameters.remove('temporalMotionBlurSamplePlans')"),
+        isTrue);
     expect(
-        source.contains('_manualTransitionProgressForTimelineTimeMs('), isTrue);
+        source.contains('_sourcePositionMsForWindowAndTimelineTime('), isFalse);
+    expect(source.contains('_manualTransitionProgressForTimelineTimeMs('),
+        isFalse);
   });
 
-  test('manual temporal motion blur plans read trueframe core sampling plan',
+  test('manual motion blur runtime compiles stage5 velocity directives',
       () async {
     final source = await screenFile.readAsString();
     expect(
-      source.contains('_coreMotionBlurSamplingPlanForManualTransition('),
+      source.contains('_stage5MotionBlurDirectiveForSurface('),
       isTrue,
     );
     expect(
-      source.contains('_trueFrameCoreRuntimeEvaluator.buildSamplingPlan('),
+      source.contains('_motionBlurVelocityCompiler.compile('),
       isTrue,
     );
     expect(
-      source.contains('trueframe_core_motion_blur_plan_mode:'),
+      source.contains(
+          'motionBlurDirective: _stage5MotionBlurDirectiveForSurface('),
       isTrue,
     );
     expect(source.contains('_stage5MotionBlurSampleOffsetsMs('), isFalse);
-    expect(
-        source.contains(
-            'coreSamplingPlan == null\n        ? _stage5MotionBlurSampleOffsetsMs(policy)'),
-        isFalse);
   });
 
   test('stage6 export requires trueframe execution contract for transitions',

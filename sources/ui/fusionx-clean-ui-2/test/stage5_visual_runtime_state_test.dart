@@ -2,7 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:refusion_app/core/engine/stage5_visual_runtime_state.dart';
 
 void main() {
-  test('serializes effect renderer bindings for native Stage5 runtime', () {
+  test('serializes Stage5 runtime effect bindings and motion blur directive',
+      () {
     const state = Stage5VisualRuntimeState(
       revision: 7,
       timelineTimeMs: 1200,
@@ -31,50 +32,23 @@ void main() {
               rendererUnit: 'shaderSigmaPx',
             ),
           ],
-          motionBlurPolicy: Stage5VisualRuntimeMotionBlurPolicy(
+          motionBlurDirective: Stage5VisualRuntimeMotionBlurDirective(
             enabled: true,
             amount: 0.8,
+            kernelLengthPx: 36,
+            directionX: 1,
+            directionY: 0,
+            radialOmega: 0.12,
+            scaleVelocityX: 0.04,
+            scaleVelocityY: 0.03,
+            anchorXNormalized: 0.5,
+            anchorYNormalized: 0.5,
             shutterAngleDegrees: 270,
-            shutterPhaseDegrees: -135,
-            samples: 12,
-            adaptiveSampleLimit: 24,
+            shutterPhase: -0.5,
+            sampleCount: 8,
             maxTrailPx: 360,
-            affectPosition: true,
-            affectScale: true,
-            affectRotation: true,
+            mode: 'transformVelocity',
           ),
-          motionBlurSamples: <Stage5VisualRuntimeMotionBlurSample>[
-            Stage5VisualRuntimeMotionBlurSample(
-              timelineTimeMs: 1184,
-              transformMatrix3x3: <double>[
-                1,
-                0,
-                -18,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-              ],
-              opacity: 1,
-            ),
-            Stage5VisualRuntimeMotionBlurSample(
-              timelineTimeMs: 1200,
-              transformMatrix3x3: <double>[
-                1,
-                0,
-                0,
-                0,
-                1,
-                0,
-                0,
-                0,
-                1,
-              ],
-              opacity: 1,
-            ),
-          ],
         ),
       ],
     );
@@ -90,29 +64,22 @@ void main() {
     expect(binding['rendererValue'], 5.75);
     expect(binding['rendererUnit'], 'shaderSigmaPx');
 
-    final motionBlurPolicy =
-        surface['motionBlurPolicy'] as Map<String, Object?>;
-    expect(motionBlurPolicy['enabled'], isTrue);
-    expect(motionBlurPolicy['amount'], 0.8);
-    expect(motionBlurPolicy['shutterAngleDegrees'], 270);
-    expect(motionBlurPolicy['samples'], 12);
-    expect(motionBlurPolicy['maxTrailPx'], 360);
-
-    final motionBlurSamples = surface['motionBlurSamples'] as List<Object?>;
-    expect(motionBlurSamples, hasLength(2));
-    final firstSample = motionBlurSamples.first as Map<String, Object?>;
-    expect(firstSample['timelineTimeMs'], 1184);
-    expect(firstSample['opacity'], 1);
-    expect(firstSample['transformMatrix3x3'], <double>[
-      1,
-      0,
-      -18,
-      0,
-      1,
-      0,
-      0,
-      0,
-      1,
-    ]);
+    final motionBlurDirective =
+        surface['motionBlurDirective'] as Map<String, Object?>;
+    expect(motionBlurDirective['enabled'], isTrue);
+    expect(motionBlurDirective['amount'], 0.8);
+    expect(motionBlurDirective['kernelLengthPx'], 36.0);
+    expect(motionBlurDirective['directionX'], 1.0);
+    expect(motionBlurDirective['directionY'], 0.0);
+    expect(motionBlurDirective['radialOmega'], 0.12);
+    expect(motionBlurDirective['scaleVelocityX'], 0.04);
+    expect(motionBlurDirective['scaleVelocityY'], 0.03);
+    expect(motionBlurDirective['anchorXNormalized'], 0.5);
+    expect(motionBlurDirective['anchorYNormalized'], 0.5);
+    expect(motionBlurDirective['shutterAngleDegrees'], 270.0);
+    expect(motionBlurDirective['shutterPhase'], -0.5);
+    expect(motionBlurDirective['sampleCount'], 8);
+    expect(motionBlurDirective['maxTrailPx'], 360.0);
+    expect(motionBlurDirective['mode'], 'transformVelocity');
   });
 }
