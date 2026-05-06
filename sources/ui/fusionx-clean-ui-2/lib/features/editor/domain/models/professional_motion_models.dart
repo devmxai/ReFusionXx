@@ -848,7 +848,7 @@ class MotionPropertyCatalog {
       MotionTargetKind.layer,
       MotionTargetKind.element,
     ],
-    defaultValue: const MotionPropertyValue.boolean(true),
+    defaultValue: const MotionPropertyValue.boolean(false),
   );
 
   static final MotionPropertyDefinition edgeFillAmount =
@@ -864,7 +864,7 @@ class MotionPropertyCatalog {
       MotionTargetKind.layer,
       MotionTargetKind.element,
     ],
-    defaultValue: const MotionPropertyValue.scalar(100),
+    defaultValue: const MotionPropertyValue.scalar(0),
   );
 
   static final MotionPropertyDefinition edgeFillMode = MotionPropertyDefinition(
