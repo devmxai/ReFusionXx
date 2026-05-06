@@ -975,11 +975,14 @@ void main() {
   });
 
   test(
-      'native interactive renderer marks proof path and blocks production ownership',
+      'native interactive renderer reads production ownership path and keeps debug fallback',
       () async {
     final source = await professionalTransitionCompositorFile.readAsString();
-    expect(source.contains('rendererPath = "debugBitmapProof"'), isTrue);
-    expect(source.contains('sourceProviderMode = "bitmapProof"'), isTrue);
+    expect(source.contains('motionBlurVisibilityGate'), isTrue);
+    expect(source.contains('stringValue("rendererPath")'), isTrue);
+    expect(source.contains('?: "debugBitmapProof"'), isTrue);
+    expect(source.contains('stringValue("sourceProviderMode")'), isTrue);
+    expect(source.contains('?: "bitmapProof"'), isTrue);
     expect(source.contains('production_texture_renderer_not_ready'), isTrue);
     expect(source.contains('"realFrameProof" to realFrameProof'), isTrue);
   });

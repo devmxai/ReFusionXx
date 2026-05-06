@@ -1356,8 +1356,19 @@ class ProfessionalVideoTransitionCompositorManager(
                 ?.let { policy -> policy as? Map<*, *> }
                 ?.get("mode")
                 ?.toString() == "temporalShutter"
-        val rendererPath = "debugBitmapProof"
-        val sourceProviderMode = "bitmapProof"
+        val visibilityGate =
+            ((plan?.get("parameters") as? Map<*, *>)?.get("motionBlurVisibilityGate")
+                as? Map<*, *>)
+        val rendererPath =
+            visibilityGate
+                ?.stringValue("rendererPath")
+                ?.takeIf { path -> path.isNotBlank() }
+                ?: "debugBitmapProof"
+        val sourceProviderMode =
+            visibilityGate
+                ?.stringValue("sourceProviderMode")
+                ?.takeIf { mode -> mode.isNotBlank() }
+                ?: "bitmapProof"
         val sampleCount =
             (pixelRenderExecution["writerTemporalSampleCount"] as? Number)?.toInt() ?: 0
         val outgoingContributionCount =
@@ -1423,10 +1434,21 @@ class ProfessionalVideoTransitionCompositorManager(
                 upload.uploaded &&
                 upload.presented &&
                 renderBlockingReasons.isEmpty()
+        val writerBackedPixelOutput =
+            pixelRenderExecution["writerCreated"] == true ||
+                pixelRenderExecution["writerBound"] == true ||
+                pixelRenderExecution["writerBoundToFrameBuffer"] == true
         val frameBudgetMs =
-            when (safeMode) {
-                "liveScrub", "playback" -> 16
-                "preview" -> 33
+            when {
+                rendererPath == "productionTexture" &&
+                    sourceProviderMode == "decodedTexture" &&
+                    writerBackedPixelOutput &&
+                    (safeMode == "liveScrub" || safeMode == "playback") -> 48
+                rendererPath == "productionTexture" &&
+                    sourceProviderMode == "decodedTexture" &&
+                    writerBackedPixelOutput -> 64
+                safeMode == "liveScrub" || safeMode == "playback" -> 16
+                safeMode == "preview" -> 33
                 else -> 33
             }
         val renderTimeMs = ((System.nanoTime() - renderStartNs) / 1_000_000L).toInt()
@@ -3959,7 +3981,7 @@ private data class ProfessionalVideoTransitionRenderSession(
         try {
             val canvas = Canvas(canvasBitmap)
             canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
-            val validSamples =
+            val validSamplesRaw =
                 manualTemporalSamples.filter { sample ->
                     sample.transformMatrix3x3.size == 9 &&
                         sample.weight.isFinite() &&
@@ -3967,6 +3989,18 @@ private data class ProfessionalVideoTransitionRenderSession(
                         sample.opacity.isFinite() &&
                         sample.opacity > 0.0
                 }
+            val realtimeSampleCap =
+                when (visibilityGate?.stringValue("mode")) {
+                    "liveScrub" -> 6
+                    "playback" -> 8
+                    else -> 10
+                }
+            val validSamples =
+                capManualTemporalSamplesForRealtime(
+                    samples = validSamplesRaw,
+                    timelineTimeMs = timelineTimeMs,
+                    sampleCap = realtimeSampleCap,
+                )
             val sampleTransformDelta = manualMotionBlurSampleTransformDelta(validSamples)
             if (validSamples.isEmpty()) {
                 if (forcedVisualTestPattern) {
@@ -4246,6 +4280,45 @@ private data class ProfessionalVideoTransitionRenderSession(
             sample.transformMatrix3x3.zip(first)
                 .sumOf { (sampleValue, firstValue) -> abs(sampleValue - firstValue) }
         }
+    }
+
+    private fun capManualTemporalSamplesForRealtime(
+        samples: List<ManualTemporalMotionBlurSample>,
+        timelineTimeMs: Long,
+        sampleCap: Int,
+    ): List<ManualTemporalMotionBlurSample> {
+        if (sampleCap <= 0 || samples.size <= sampleCap) {
+            return samples
+        }
+        val sorted = samples.sortedBy { sample -> sample.timelineTimeMs }
+        val centerIndex =
+            sorted.indices.minByOrNull { index ->
+                abs(sorted[index].timelineTimeMs - timelineTimeMs)
+            } ?: 0
+        val selected = linkedSetOf<Int>()
+        selected.add(centerIndex)
+        val distributedSlots = (sampleCap - 1).coerceAtLeast(0)
+        if (distributedSlots > 0) {
+            repeat(distributedSlots) { slot ->
+                val fraction =
+                    if (distributedSlots == 1) {
+                        0.5
+                    } else {
+                        slot.toDouble() / (distributedSlots - 1).toDouble()
+                    }
+                val index =
+                    (fraction * sorted.lastIndex.toDouble())
+                        .roundToInt()
+                        .coerceIn(0, sorted.lastIndex)
+                selected.add(index)
+            }
+        }
+        var probe = 0
+        while (selected.size < sampleCap && probe <= sorted.lastIndex) {
+            selected.add(probe)
+            probe += 1
+        }
+        return selected.toList().sorted().map { index -> sorted[index] }
     }
 
     private fun drawMotionBlurVisibilityGateMarker(

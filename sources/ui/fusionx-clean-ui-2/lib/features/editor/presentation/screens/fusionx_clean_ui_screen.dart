@@ -22264,6 +22264,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             'forcedSyntheticMotionBlur': trueframeDebugVisualGateEnabled &&
                 trueframeForceSyntheticMotionBlurEnabled,
             'pixelDeltaProof': true,
+            'rendererPath': 'productionTexture',
+            'sourceProviderMode': 'decodedTexture',
             'amount': firstPlan.amount,
             'sampleCount': firstPlan.sampleTimesMs.length,
             'contributionCount': firstPlan.sampleContributions.length,
