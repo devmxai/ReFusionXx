@@ -80,6 +80,39 @@ class MasterValueTruthRegistry {
     if (key == 'effect.motionBlur.affectRotation') {
       return _definitions['motionBlurAffectRotation'];
     }
+    if (key == 'effect.edgeFill.enabled') {
+      return _definitions['edgeFillEnabled'];
+    }
+    if (key == 'effect.edgeFill.amount') {
+      return _definitions['edgeFillAmount'];
+    }
+    if (key == 'effect.edgeFill.mode') {
+      return _definitions['edgeFillMode'];
+    }
+    if (key == 'effect.edgeFill.overscanScale') {
+      return _definitions['edgeFillOverscanScale'];
+    }
+    if (key == 'effect.edgeFill.softnessPx') {
+      return _definitions['edgeFillSoftnessPx'];
+    }
+    if (key == 'effect.edgeFill.blurSigmaPx') {
+      return _definitions['edgeFillBlurSigmaPx'];
+    }
+    if (key == 'effect.edgeFill.maxExpansionPx') {
+      return _definitions['edgeFillMaxExpansionPx'];
+    }
+    if (key == 'effect.edgeFill.affectRotation') {
+      return _definitions['edgeFillAffectRotation'];
+    }
+    if (key == 'effect.edgeFill.affectScale') {
+      return _definitions['edgeFillAffectScale'];
+    }
+    if (key == 'effect.edgeFill.affectPosition') {
+      return _definitions['edgeFillAffectPosition'];
+    }
+    if (key == 'effect.edgeFill.affectMotionBlur') {
+      return _definitions['edgeFillAffectMotionBlur'];
+    }
     if (key == 'effect.shadow.opacity') {
       return _definitions['shadowOpacity'];
     }
@@ -1061,6 +1094,248 @@ class MasterValueTruthRegistry {
       ),
       'motionBlurAffectRotation': const MasterPropertyDefinition(
         id: 'motionBlurAffectRotation',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.boolean,
+        uiUnit: MasterValueUnit.enumToken,
+        engineUnit: MasterValueUnit.enumToken,
+        rendererUnit: MasterValueUnit.enumToken,
+        defaultValue: MotionPropertyValue.boolean(true),
+        minValue: 0,
+        maxValue: 1,
+        mapper: _mapBoolean,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.layer,
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'edgeFillEnabled': const MasterPropertyDefinition(
+        id: 'edgeFillEnabled',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.boolean,
+        uiUnit: MasterValueUnit.enumToken,
+        engineUnit: MasterValueUnit.enumToken,
+        rendererUnit: MasterValueUnit.enumToken,
+        defaultValue: MotionPropertyValue.boolean(true),
+        minValue: 0,
+        maxValue: 1,
+        mapper: _mapBoolean,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.layer,
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'edgeFillAmount': const MasterPropertyDefinition(
+        id: 'edgeFillAmount',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.percent,
+        uiUnit: MasterValueUnit.percentUi,
+        engineUnit: MasterValueUnit.normalized01,
+        rendererUnit: MasterValueUnit.normalized01,
+        defaultValue: MotionPropertyValue.scalar(100),
+        minValue: 0,
+        maxValue: 100,
+        mapper: _mapPercent01,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.layer,
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'edgeFillMode': const MasterPropertyDefinition(
+        id: 'edgeFillMode',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.scalar,
+        uiUnit: MasterValueUnit.enumToken,
+        engineUnit: MasterValueUnit.enumToken,
+        rendererUnit: MasterValueUnit.enumToken,
+        defaultValue: MotionPropertyValue.integer(1),
+        minValue: 0,
+        maxValue: 7,
+        mapper: _mapScalar,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.layer,
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'edgeFillOverscanScale': const MasterPropertyDefinition(
+        id: 'edgeFillOverscanScale',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.scalar,
+        uiUnit: MasterValueUnit.multiplier,
+        engineUnit: MasterValueUnit.multiplier,
+        rendererUnit: MasterValueUnit.multiplier,
+        defaultValue: MotionPropertyValue.scalar(1),
+        minValue: 1,
+        maxValue: 10,
+        mapper: _mapPositiveScalar,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.layer,
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'edgeFillSoftnessPx': const MasterPropertyDefinition(
+        id: 'edgeFillSoftnessPx',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.dimension,
+        uiUnit: MasterValueUnit.canvasPx,
+        engineUnit: MasterValueUnit.canvasPx,
+        rendererUnit: MasterValueUnit.devicePx,
+        defaultValue: MotionPropertyValue.scalar(0),
+        minValue: 0,
+        maxValue: 512,
+        mapper: _mapPositiveDimension,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.layer,
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'edgeFillBlurSigmaPx': const MasterPropertyDefinition(
+        id: 'edgeFillBlurSigmaPx',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.dimension,
+        uiUnit: MasterValueUnit.canvasPx,
+        engineUnit: MasterValueUnit.canvasPx,
+        rendererUnit: MasterValueUnit.devicePx,
+        defaultValue: MotionPropertyValue.scalar(0),
+        minValue: 0,
+        maxValue: 512,
+        mapper: _mapPositiveDimension,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.layer,
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'edgeFillMaxExpansionPx': const MasterPropertyDefinition(
+        id: 'edgeFillMaxExpansionPx',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.dimension,
+        uiUnit: MasterValueUnit.canvasPx,
+        engineUnit: MasterValueUnit.canvasPx,
+        rendererUnit: MasterValueUnit.devicePx,
+        defaultValue: MotionPropertyValue.scalar(320),
+        minValue: 0,
+        maxValue: 8192,
+        mapper: _mapPositiveDimension,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.layer,
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'edgeFillAffectRotation': const MasterPropertyDefinition(
+        id: 'edgeFillAffectRotation',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.boolean,
+        uiUnit: MasterValueUnit.enumToken,
+        engineUnit: MasterValueUnit.enumToken,
+        rendererUnit: MasterValueUnit.enumToken,
+        defaultValue: MotionPropertyValue.boolean(true),
+        minValue: 0,
+        maxValue: 1,
+        mapper: _mapBoolean,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.layer,
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'edgeFillAffectScale': const MasterPropertyDefinition(
+        id: 'edgeFillAffectScale',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.boolean,
+        uiUnit: MasterValueUnit.enumToken,
+        engineUnit: MasterValueUnit.enumToken,
+        rendererUnit: MasterValueUnit.enumToken,
+        defaultValue: MotionPropertyValue.boolean(true),
+        minValue: 0,
+        maxValue: 1,
+        mapper: _mapBoolean,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.layer,
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'edgeFillAffectPosition': const MasterPropertyDefinition(
+        id: 'edgeFillAffectPosition',
+        category: MasterPropertyCategory.effect,
+        valueType: MasterValueType.boolean,
+        uiUnit: MasterValueUnit.enumToken,
+        engineUnit: MasterValueUnit.enumToken,
+        rendererUnit: MasterValueUnit.enumToken,
+        defaultValue: MotionPropertyValue.boolean(true),
+        minValue: 0,
+        maxValue: 1,
+        mapper: _mapBoolean,
+        supportedTargets: <MotionTargetKind>[
+          MotionTargetKind.layer,
+          MotionTargetKind.element,
+        ],
+        supportedRenderModes: <MasterRenderCapability>[
+          MasterRenderCapability.preview,
+          MasterRenderCapability.playback,
+          MasterRenderCapability.liveScrub,
+          MasterRenderCapability.export,
+        ],
+      ),
+      'edgeFillAffectMotionBlur': const MasterPropertyDefinition(
+        id: 'edgeFillAffectMotionBlur',
         category: MasterPropertyCategory.effect,
         valueType: MasterValueType.boolean,
         uiUnit: MasterValueUnit.enumToken,

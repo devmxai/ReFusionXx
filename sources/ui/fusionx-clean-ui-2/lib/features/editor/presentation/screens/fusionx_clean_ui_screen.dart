@@ -476,6 +476,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       summary: 'Add shutter-based blur driven by authored layer motion.',
       keywords: <String>['motion', 'blur', 'shutter', 'speed', 'temporal'],
     ),
+    AnimateBrowserItem(
+      id: 'edge_fill',
+      label: 'Edge Fill',
+      category: 'FX',
+      summary: 'Fill blank bounds during rotation, scale, and motion blur.',
+      keywords: <String>['edge', 'fill', 'mirror', 'bounds', 'tile'],
+    ),
   ];
   static const List<AnimateBrowserItem> _scopedImageFxItems =
       <AnimateBrowserItem>[
@@ -492,6 +499,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       category: 'FX',
       summary: 'Add shutter-based blur driven by authored image motion.',
       keywords: <String>['motion', 'blur', 'shutter', 'speed', 'temporal'],
+    ),
+    AnimateBrowserItem(
+      id: 'edge_fill',
+      label: 'Edge Fill',
+      category: 'FX',
+      summary: 'Fill blank bounds during rotation, scale, and motion blur.',
+      keywords: <String>['edge', 'fill', 'mirror', 'bounds', 'tile'],
     ),
   ];
   static const List<AnimateBrowserItem> _scopedVideoFxItems =
@@ -524,6 +538,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         'temporal',
         'video',
       ],
+    ),
+    AnimateBrowserItem(
+      id: 'edge_fill',
+      label: 'Edge Fill',
+      category: 'FX',
+      summary: 'Fill blank bounds during rotation, scale, and motion blur.',
+      keywords: <String>['edge', 'fill', 'mirror', 'bounds', 'tile', 'video'],
     ),
   ];
   static const List<AnimateBrowserItem> _manualTransitionAnimateItems =
@@ -562,6 +583,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       category: 'FX',
       summary: 'Add shutter-based blur driven by authored shape motion.',
       keywords: <String>['motion', 'blur', 'shutter', 'speed', 'temporal'],
+    ),
+    AnimateBrowserItem(
+      id: 'edge_fill',
+      label: 'Edge Fill',
+      category: 'FX',
+      summary: 'Fill blank bounds during rotation, scale, and motion blur.',
+      keywords: <String>['edge', 'fill', 'mirror', 'bounds', 'tile'],
     ),
     AnimateBrowserItem(
       id: 'shadow',
@@ -6647,6 +6675,19 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           MotionPropertyCatalog.motionBlurAffectScale,
           MotionPropertyCatalog.motionBlurAffectRotation,
         ],
+      'edge_fill' => <MotionPropertyDefinition>[
+          MotionPropertyCatalog.edgeFillEnabled,
+          MotionPropertyCatalog.edgeFillAmount,
+          MotionPropertyCatalog.edgeFillMode,
+          MotionPropertyCatalog.edgeFillOverscanScale,
+          MotionPropertyCatalog.edgeFillSoftnessPx,
+          MotionPropertyCatalog.edgeFillBlurSigmaPx,
+          MotionPropertyCatalog.edgeFillMaxExpansionPx,
+          MotionPropertyCatalog.edgeFillAffectRotation,
+          MotionPropertyCatalog.edgeFillAffectScale,
+          MotionPropertyCatalog.edgeFillAffectPosition,
+          MotionPropertyCatalog.edgeFillAffectMotionBlur,
+        ],
       'shape.size' => <MotionPropertyDefinition>[
           MotionPropertyCatalog.width,
           MotionPropertyCatalog.height,
@@ -6701,7 +6742,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         definition == MotionPropertyCatalog.motionBlurMaxTrailPx ||
         definition == MotionPropertyCatalog.motionBlurAffectPosition ||
         definition == MotionPropertyCatalog.motionBlurAffectScale ||
-        definition == MotionPropertyCatalog.motionBlurAffectRotation;
+        definition == MotionPropertyCatalog.motionBlurAffectRotation ||
+        definition == MotionPropertyCatalog.edgeFillEnabled ||
+        definition == MotionPropertyCatalog.edgeFillAmount ||
+        definition == MotionPropertyCatalog.edgeFillMode ||
+        definition == MotionPropertyCatalog.edgeFillOverscanScale ||
+        definition == MotionPropertyCatalog.edgeFillSoftnessPx ||
+        definition == MotionPropertyCatalog.edgeFillBlurSigmaPx ||
+        definition == MotionPropertyCatalog.edgeFillMaxExpansionPx ||
+        definition == MotionPropertyCatalog.edgeFillAffectRotation ||
+        definition == MotionPropertyCatalog.edgeFillAffectScale ||
+        definition == MotionPropertyCatalog.edgeFillAffectPosition ||
+        definition == MotionPropertyCatalog.edgeFillAffectMotionBlur;
     if (elementKind == MotionElementKind.text) {
       return isSharedVisual ||
           definition == MotionPropertyCatalog.revealProgress ||
@@ -7498,8 +7550,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         propertyId == MotionPropertyCatalog.blurMix.id ||
         propertyId == MotionPropertyCatalog.motionBlurAmount.id ||
         propertyId == MotionPropertyCatalog.motionBlurShutterAngle.id ||
-        propertyId == MotionPropertyCatalog.motionBlurMaxTrailPx.id) {
+        propertyId == MotionPropertyCatalog.motionBlurMaxTrailPx.id ||
+        propertyId == MotionPropertyCatalog.edgeFillAmount.id ||
+        propertyId == MotionPropertyCatalog.edgeFillSoftnessPx.id ||
+        propertyId == MotionPropertyCatalog.edgeFillBlurSigmaPx.id ||
+        propertyId == MotionPropertyCatalog.edgeFillMaxExpansionPx.id) {
       return 0;
+    }
+    if (propertyId == MotionPropertyCatalog.edgeFillMode.id) {
+      return 0;
+    }
+    if (propertyId == MotionPropertyCatalog.edgeFillOverscanScale.id) {
+      return 1;
     }
     if (propertyId == MotionPropertyCatalog.motionBlurSamples.id ||
         propertyId == MotionPropertyCatalog.motionBlurAdaptiveSampleLimit.id) {
@@ -7549,6 +7611,22 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (propertyId == MotionPropertyCatalog.motionBlurMaxTrailPx.id) {
       return 4096;
     }
+    if (propertyId == MotionPropertyCatalog.edgeFillAmount.id) {
+      return 100;
+    }
+    if (propertyId == MotionPropertyCatalog.edgeFillMode.id) {
+      return 7;
+    }
+    if (propertyId == MotionPropertyCatalog.edgeFillOverscanScale.id) {
+      return 10;
+    }
+    if (propertyId == MotionPropertyCatalog.edgeFillSoftnessPx.id ||
+        propertyId == MotionPropertyCatalog.edgeFillBlurSigmaPx.id) {
+      return 512;
+    }
+    if (propertyId == MotionPropertyCatalog.edgeFillMaxExpansionPx.id) {
+      return 8192;
+    }
     if (propertyId == MotionPropertyCatalog.scaleX.id ||
         propertyId == MotionPropertyCatalog.scaleY.id) {
       return 800;
@@ -7582,12 +7660,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         propertyId == MotionPropertyCatalog.revealProgress.id ||
         propertyId == MotionPropertyCatalog.blurMix.id ||
         propertyId == MotionPropertyCatalog.blurAmount.id ||
-        propertyId == MotionPropertyCatalog.motionBlurAmount.id) {
+        propertyId == MotionPropertyCatalog.motionBlurAmount.id ||
+        propertyId == MotionPropertyCatalog.edgeFillAmount.id) {
       return 100;
     }
     if (propertyId == MotionPropertyCatalog.scaleX.id ||
         propertyId == MotionPropertyCatalog.scaleY.id) {
       return 780;
+    }
+    if (propertyId == MotionPropertyCatalog.edgeFillMode.id) {
+      return 7;
     }
     if (propertyId == MotionPropertyCatalog.rotationDegrees.id) {
       return 1440;
@@ -7599,6 +7681,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     MotionPropertyChannelModel channel,
   ) {
     if (channel.definition.valueKind != MotionPropertyValueKind.boolean) {
+      if (channel.definition.id == MotionPropertyCatalog.edgeFillMode.id) {
+        return const <LayerScopeValueOption>[
+          LayerScopeValueOption(label: 'Off', value: 0),
+          LayerScopeValueOption(label: 'Reflect', value: 1),
+          LayerScopeValueOption(label: 'Replicate', value: 2),
+          LayerScopeValueOption(label: 'Wrap', value: 3),
+          LayerScopeValueOption(label: 'Blur Reflect', value: 4),
+          LayerScopeValueOption(label: 'Blur Background', value: 5),
+          LayerScopeValueOption(label: 'Auto Overscan', value: 6),
+          LayerScopeValueOption(label: 'Color', value: 7),
+        ];
+      }
       return const <LayerScopeValueOption>[];
     }
     return const <LayerScopeValueOption>[
@@ -7619,6 +7713,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         propertyId == MotionPropertyCatalog.revealProgress.id ||
         propertyId == MotionPropertyCatalog.blurMix.id ||
         propertyId == MotionPropertyCatalog.motionBlurAmount.id ||
+        propertyId == MotionPropertyCatalog.edgeFillAmount.id ||
         propertyId == MotionPropertyCatalog.scaleX.id ||
         propertyId == MotionPropertyCatalog.scaleY.id) {
       return '${value.round()}%';
@@ -7629,8 +7724,35 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return '${value.round()} deg';
     }
     if (propertyId == MotionPropertyCatalog.blurAmount.id ||
-        propertyId == MotionPropertyCatalog.motionBlurMaxTrailPx.id) {
+        propertyId == MotionPropertyCatalog.motionBlurMaxTrailPx.id ||
+        propertyId == MotionPropertyCatalog.edgeFillSoftnessPx.id ||
+        propertyId == MotionPropertyCatalog.edgeFillBlurSigmaPx.id ||
+        propertyId == MotionPropertyCatalog.edgeFillMaxExpansionPx.id) {
       return '${value.round()}px';
+    }
+    if (propertyId == MotionPropertyCatalog.edgeFillOverscanScale.id) {
+      return '${value.toStringAsFixed(2)}x';
+    }
+    if (propertyId == MotionPropertyCatalog.edgeFillMode.id) {
+      final mode = value.round().clamp(0, 7);
+      switch (mode) {
+        case 0:
+          return 'Off';
+        case 1:
+          return 'Reflect';
+        case 2:
+          return 'Replicate';
+        case 3:
+          return 'Wrap';
+        case 4:
+          return 'Blur Reflect';
+        case 5:
+          return 'Blur Background';
+        case 6:
+          return 'Auto Overscan';
+        default:
+          return 'Color';
+      }
     }
     if (propertyId == MotionPropertyCatalog.motionBlurSamples.id ||
         propertyId == MotionPropertyCatalog.motionBlurAdaptiveSampleLimit.id) {

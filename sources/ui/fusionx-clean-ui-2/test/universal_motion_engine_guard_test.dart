@@ -156,7 +156,8 @@ void main() {
     expect(body.contains('frame: evaluation.copyWith('), isTrue);
   });
 
-  test('manual transition FX catalog exposes Gaussian and Motion Blur',
+  test(
+      'manual transition FX catalog exposes Gaussian, Motion Blur, and Edge Fill',
       () async {
     final source = await screenFile.readAsString();
     final videoFxStart = source.indexOf(
@@ -172,6 +173,7 @@ void main() {
 
     expect(videoFxBody.contains("id: 'gaussian_blur'"), isTrue);
     expect(videoFxBody.contains("id: 'motion_blur'"), isTrue);
+    expect(videoFxBody.contains("id: 'edge_fill'"), isTrue);
     expect(
       source.contains(
         'static const List<AnimateBrowserItem> _manualTransitionFxItems =\n'
@@ -661,6 +663,19 @@ void main() {
       isTrue,
       reason:
           'Edge Fill compiler must explicitly gate contexts where full-canvas coverage is not required.',
+    );
+  });
+
+  test('scene-layer FX authoring exposes edge fill channels', () async {
+    final source = await screenFile.readAsString();
+    expect(
+        source.contains("'edge_fill' => <MotionPropertyDefinition>["), isTrue);
+    expect(source.contains('MotionPropertyCatalog.edgeFillEnabled'), isTrue);
+    expect(source.contains('MotionPropertyCatalog.edgeFillAmount'), isTrue);
+    expect(source.contains('MotionPropertyCatalog.edgeFillMode'), isTrue);
+    expect(
+      source.contains('MotionPropertyCatalog.edgeFillAffectMotionBlur'),
+      isTrue,
     );
   });
 

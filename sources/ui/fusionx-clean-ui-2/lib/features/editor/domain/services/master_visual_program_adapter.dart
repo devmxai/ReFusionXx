@@ -25,6 +25,20 @@ class MasterVisualProgramAdapter {
     'tileOutputScale',
   };
 
+  static const Set<String> _edgeFillPropertyIds = <String>{
+    'edgeFillEnabled',
+    'edgeFillAmount',
+    'edgeFillMode',
+    'edgeFillOverscanScale',
+    'edgeFillSoftnessPx',
+    'edgeFillBlurSigmaPx',
+    'edgeFillMaxExpansionPx',
+    'edgeFillAffectRotation',
+    'edgeFillAffectScale',
+    'edgeFillAffectPosition',
+    'edgeFillAffectMotionBlur',
+  };
+
   static const Set<String> _motionBlurPropertyIds = <String>{
     'motionBlurEnabled',
     'motionBlurAmount',
@@ -88,6 +102,8 @@ class MasterVisualProgramAdapter {
       var opacity = 1.0;
       var motionBlur = const MasterMotionBlurPolicy();
       var motionBlurEnabledWasAuthored = false;
+      var edgeFill = const MasterEdgeFillPolicy();
+      var edgeFillEnabledWasAuthored = false;
 
       for (final value in values) {
         final rendererScalar = value.mapping.renderer.scalar;
@@ -289,6 +305,42 @@ class MasterVisualProgramAdapter {
               propertyId: value.propertyDefinitionId,
               rendererBool: rendererBool,
             );
+          case 'edgeFillEnabled':
+          case 'edgeFillAffectRotation':
+          case 'edgeFillAffectScale':
+          case 'edgeFillAffectPosition':
+          case 'edgeFillAffectMotionBlur':
+            final rendererBool = value.mapping.renderer.booleanValue;
+            if (rendererBool == null) {
+              blockers
+                  .add('invalid_effect_value:${value.propertyDefinitionId}');
+              continue;
+            }
+            if (value.propertyDefinitionId == 'edgeFillEnabled') {
+              edgeFillEnabledWasAuthored = true;
+            }
+            edgeFill = _applyEdgeFillBoolean(
+              edgeFill,
+              propertyId: value.propertyDefinitionId,
+              rendererBool: rendererBool,
+            );
+          case 'edgeFillAmount':
+          case 'edgeFillMode':
+          case 'edgeFillOverscanScale':
+          case 'edgeFillSoftnessPx':
+          case 'edgeFillBlurSigmaPx':
+          case 'edgeFillMaxExpansionPx':
+            if (rendererScalar == null || !rendererScalar.isFinite) {
+              blockers
+                  .add('invalid_effect_value:${value.propertyDefinitionId}');
+              continue;
+            }
+            edgeFill = _applyEdgeFillScalar(
+              edgeFill,
+              propertyId: value.propertyDefinitionId,
+              rendererScalar: rendererScalar,
+              enabledWasAuthored: edgeFillEnabledWasAuthored,
+            );
           case 'tileOutputScale':
             if (rendererScalar == null || !rendererScalar.isFinite) {
               blockers
@@ -368,6 +420,45 @@ class MasterVisualProgramAdapter {
           );
           continue;
         }
+        if (_edgeFillPropertyIds.contains(effectId)) {
+          final mapping = frame.effectParameters[effectId];
+          if (mapping == null) {
+            blockers.add('invalid_effect_value:$effectId');
+            continue;
+          }
+          final rendererScalar = mapping.renderer.scalar;
+          final rendererBool = mapping.renderer.booleanValue;
+          if (effectId == 'edgeFillEnabled' ||
+              effectId == 'edgeFillAffectRotation' ||
+              effectId == 'edgeFillAffectScale' ||
+              effectId == 'edgeFillAffectPosition' ||
+              effectId == 'edgeFillAffectMotionBlur') {
+            if (rendererBool == null) {
+              blockers.add('invalid_effect_value:$effectId');
+              continue;
+            }
+            if (effectId == 'edgeFillEnabled') {
+              edgeFillEnabledWasAuthored = true;
+            }
+            edgeFill = _applyEdgeFillBoolean(
+              edgeFill,
+              propertyId: effectId,
+              rendererBool: rendererBool,
+            );
+            continue;
+          }
+          if (rendererScalar == null || !rendererScalar.isFinite) {
+            blockers.add('invalid_effect_value:$effectId');
+            continue;
+          }
+          edgeFill = _applyEdgeFillScalar(
+            edgeFill,
+            propertyId: effectId,
+            rendererScalar: rendererScalar,
+            enabledWasAuthored: edgeFillEnabledWasAuthored,
+          );
+          continue;
+        }
         if (_supportedEffectIds.contains(effectId)) {
           final mapping = frame.effectParameters[effectId];
           final rendererScalar = mapping?.renderer.scalar;
@@ -408,6 +499,7 @@ class MasterVisualProgramAdapter {
           shapeStyle: shapeStyle,
           opacity: opacity,
           motionBlur: motionBlur,
+          edgeFill: edgeFill,
           effects: effectsById.values.toList(growable: false),
           blockers: blockers,
         ),
@@ -488,6 +580,66 @@ class MasterVisualProgramAdapter {
         return policy.copyWith(affectScale: rendererBool);
       case 'motionBlurAffectRotation':
         return policy.copyWith(affectRotation: rendererBool);
+      default:
+        return policy;
+    }
+  }
+
+  MasterEdgeFillPolicy _applyEdgeFillScalar(
+    MasterEdgeFillPolicy policy, {
+    required String propertyId,
+    required double rendererScalar,
+    required bool enabledWasAuthored,
+  }) {
+    switch (propertyId) {
+      case 'edgeFillAmount':
+        final amount = rendererScalar.clamp(0.0, 1.0).toDouble();
+        return policy.copyWith(
+          amount: amount,
+          enabled: enabledWasAuthored ? policy.enabled : amount > 0.0001,
+        );
+      case 'edgeFillMode':
+        final modeIndex = rendererScalar.round().clamp(0, 7);
+        return policy.copyWith(
+          mode: MasterEdgeFillMode.values[modeIndex],
+        );
+      case 'edgeFillOverscanScale':
+        return policy.copyWith(
+          overscanScale: rendererScalar.clamp(1.0, 10.0).toDouble(),
+        );
+      case 'edgeFillSoftnessPx':
+        return policy.copyWith(
+          softnessPx: rendererScalar.clamp(0.0, 1024.0).toDouble(),
+        );
+      case 'edgeFillBlurSigmaPx':
+        return policy.copyWith(
+          blurSigmaPx: rendererScalar.clamp(0.0, 512.0).toDouble(),
+        );
+      case 'edgeFillMaxExpansionPx':
+        return policy.copyWith(
+          maxExpansionPx: rendererScalar.clamp(0.0, 8192.0).toDouble(),
+        );
+      default:
+        return policy;
+    }
+  }
+
+  MasterEdgeFillPolicy _applyEdgeFillBoolean(
+    MasterEdgeFillPolicy policy, {
+    required String propertyId,
+    required bool rendererBool,
+  }) {
+    switch (propertyId) {
+      case 'edgeFillEnabled':
+        return policy.copyWith(enabled: rendererBool);
+      case 'edgeFillAffectRotation':
+        return policy.copyWith(affectRotation: rendererBool);
+      case 'edgeFillAffectScale':
+        return policy.copyWith(affectScale: rendererBool);
+      case 'edgeFillAffectPosition':
+        return policy.copyWith(affectPosition: rendererBool);
+      case 'edgeFillAffectMotionBlur':
+        return policy.copyWith(affectMotionBlur: rendererBool);
       default:
         return policy;
     }

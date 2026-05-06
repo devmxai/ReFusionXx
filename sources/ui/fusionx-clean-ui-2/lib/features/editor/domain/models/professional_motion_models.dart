@@ -835,6 +835,181 @@ class MotionPropertyCatalog {
     defaultValue: const MotionPropertyValue.boolean(true),
   );
 
+  static final MotionPropertyDefinition edgeFillEnabled =
+      MotionPropertyDefinition(
+    id: 'effect.edgeFill.enabled',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.effect,
+      name: 'edgeFill',
+      component: 'enabled',
+    ),
+    valueKind: MotionPropertyValueKind.boolean,
+    supportedTargets: const <MotionTargetKind>[
+      MotionTargetKind.layer,
+      MotionTargetKind.element,
+    ],
+    defaultValue: const MotionPropertyValue.boolean(true),
+  );
+
+  static final MotionPropertyDefinition edgeFillAmount =
+      MotionPropertyDefinition(
+    id: 'effect.edgeFill.amount',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.effect,
+      name: 'edgeFill',
+      component: 'amount',
+    ),
+    valueKind: MotionPropertyValueKind.scalar,
+    supportedTargets: const <MotionTargetKind>[
+      MotionTargetKind.layer,
+      MotionTargetKind.element,
+    ],
+    defaultValue: const MotionPropertyValue.scalar(100),
+  );
+
+  static final MotionPropertyDefinition edgeFillMode = MotionPropertyDefinition(
+    id: 'effect.edgeFill.mode',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.effect,
+      name: 'edgeFill',
+      component: 'mode',
+    ),
+    valueKind: MotionPropertyValueKind.integer,
+    supportedTargets: const <MotionTargetKind>[
+      MotionTargetKind.layer,
+      MotionTargetKind.element,
+    ],
+    defaultValue: const MotionPropertyValue.integer(1),
+  );
+
+  static final MotionPropertyDefinition edgeFillOverscanScale =
+      MotionPropertyDefinition(
+    id: 'effect.edgeFill.overscanScale',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.effect,
+      name: 'edgeFill',
+      component: 'overscanScale',
+    ),
+    valueKind: MotionPropertyValueKind.scalar,
+    supportedTargets: const <MotionTargetKind>[
+      MotionTargetKind.layer,
+      MotionTargetKind.element,
+    ],
+    defaultValue: const MotionPropertyValue.scalar(1),
+  );
+
+  static final MotionPropertyDefinition edgeFillSoftnessPx =
+      MotionPropertyDefinition(
+    id: 'effect.edgeFill.softnessPx',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.effect,
+      name: 'edgeFill',
+      component: 'softnessPx',
+    ),
+    valueKind: MotionPropertyValueKind.scalar,
+    supportedTargets: const <MotionTargetKind>[
+      MotionTargetKind.layer,
+      MotionTargetKind.element,
+    ],
+    defaultValue: const MotionPropertyValue.scalar(0),
+  );
+
+  static final MotionPropertyDefinition edgeFillBlurSigmaPx =
+      MotionPropertyDefinition(
+    id: 'effect.edgeFill.blurSigmaPx',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.effect,
+      name: 'edgeFill',
+      component: 'blurSigmaPx',
+    ),
+    valueKind: MotionPropertyValueKind.scalar,
+    supportedTargets: const <MotionTargetKind>[
+      MotionTargetKind.layer,
+      MotionTargetKind.element,
+    ],
+    defaultValue: const MotionPropertyValue.scalar(0),
+  );
+
+  static final MotionPropertyDefinition edgeFillMaxExpansionPx =
+      MotionPropertyDefinition(
+    id: 'effect.edgeFill.maxExpansionPx',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.effect,
+      name: 'edgeFill',
+      component: 'maxExpansionPx',
+    ),
+    valueKind: MotionPropertyValueKind.scalar,
+    supportedTargets: const <MotionTargetKind>[
+      MotionTargetKind.layer,
+      MotionTargetKind.element,
+    ],
+    defaultValue: const MotionPropertyValue.scalar(320),
+  );
+
+  static final MotionPropertyDefinition edgeFillAffectRotation =
+      MotionPropertyDefinition(
+    id: 'effect.edgeFill.affectRotation',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.effect,
+      name: 'edgeFill',
+      component: 'affectRotation',
+    ),
+    valueKind: MotionPropertyValueKind.boolean,
+    supportedTargets: const <MotionTargetKind>[
+      MotionTargetKind.layer,
+      MotionTargetKind.element,
+    ],
+    defaultValue: const MotionPropertyValue.boolean(true),
+  );
+
+  static final MotionPropertyDefinition edgeFillAffectScale =
+      MotionPropertyDefinition(
+    id: 'effect.edgeFill.affectScale',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.effect,
+      name: 'edgeFill',
+      component: 'affectScale',
+    ),
+    valueKind: MotionPropertyValueKind.boolean,
+    supportedTargets: const <MotionTargetKind>[
+      MotionTargetKind.layer,
+      MotionTargetKind.element,
+    ],
+    defaultValue: const MotionPropertyValue.boolean(true),
+  );
+
+  static final MotionPropertyDefinition edgeFillAffectPosition =
+      MotionPropertyDefinition(
+    id: 'effect.edgeFill.affectPosition',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.effect,
+      name: 'edgeFill',
+      component: 'affectPosition',
+    ),
+    valueKind: MotionPropertyValueKind.boolean,
+    supportedTargets: const <MotionTargetKind>[
+      MotionTargetKind.layer,
+      MotionTargetKind.element,
+    ],
+    defaultValue: const MotionPropertyValue.boolean(true),
+  );
+
+  static final MotionPropertyDefinition edgeFillAffectMotionBlur =
+      MotionPropertyDefinition(
+    id: 'effect.edgeFill.affectMotionBlur',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.effect,
+      name: 'edgeFill',
+      component: 'affectMotionBlur',
+    ),
+    valueKind: MotionPropertyValueKind.boolean,
+    supportedTargets: const <MotionTargetKind>[
+      MotionTargetKind.layer,
+      MotionTargetKind.element,
+    ],
+    defaultValue: const MotionPropertyValue.boolean(true),
+  );
+
   static final MotionPropertyDefinition shadowOpacity =
       MotionPropertyDefinition(
     id: 'effect.shadow.opacity',
@@ -1188,6 +1363,17 @@ class MotionPropertyCatalog {
     motionBlurAffectPosition,
     motionBlurAffectScale,
     motionBlurAffectRotation,
+    edgeFillEnabled,
+    edgeFillAmount,
+    edgeFillMode,
+    edgeFillOverscanScale,
+    edgeFillSoftnessPx,
+    edgeFillBlurSigmaPx,
+    edgeFillMaxExpansionPx,
+    edgeFillAffectRotation,
+    edgeFillAffectScale,
+    edgeFillAffectPosition,
+    edgeFillAffectMotionBlur,
     shadowOpacity,
     shadowBlur,
     shadowOffsetX,
