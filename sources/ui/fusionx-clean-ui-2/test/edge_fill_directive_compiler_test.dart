@@ -26,7 +26,10 @@ void main() {
 
   test('disables edge fill when source dimensions are missing', () {
     final directive = compiler.compile(
-      policy: const MasterEdgeFillPolicy(),
+      policy: const MasterEdgeFillPolicy(
+        enabled: true,
+        amount: 1.0,
+      ),
       transform: const LiveScrubSurfaceTransform(),
       quality: EdgeFillDirectiveQuality.preview,
       canvasWidth: 1080,
@@ -62,12 +65,72 @@ void main() {
 
     expect(directive.enabled, isTrue);
     expect(directive.overscanScale, greaterThan(1.0));
+    expect(directive.sourceRectLeft, closeTo(0.0, 1e-6));
+    expect(directive.sourceRectTop, closeTo(0.0, 1e-6));
+    expect(directive.sourceRectRight, closeTo(1.0, 1e-6));
+    expect(directive.sourceRectBottom, closeTo(1.0, 1e-6));
+    expect(directive.transformMatrix3x3, hasLength(9));
+    expect(directive.inverseTransformMatrix3x3, hasLength(9));
+    expect(directive.fallbackReason, isNull);
+  });
+
+  test('keeps motion tile active for rotated full-canvas content', () {
+    final directive = compiler.compile(
+      policy: const MasterEdgeFillPolicy(
+        enabled: true,
+        amount: 1.0,
+        mode: MasterEdgeFillMode.reflect,
+      ),
+      transform: const LiveScrubSurfaceTransform(
+        rotationRadians: math.pi / 4,
+      ),
+      quality: EdgeFillDirectiveQuality.liveScrub,
+      canvasWidth: 1080,
+      canvasHeight: 1920,
+      sourceWidth: 1080,
+      sourceHeight: 1920,
+      requiresFullCanvasCoverage: true,
+    );
+
+    expect(directive.enabled, isTrue);
+    expect(directive.mode, MasterEdgeFillMode.reflect.name);
+    expect(directive.overscanScale, greaterThan(1.0001));
+    expect(directive.sourceRectLeft, closeTo(0.0, 1e-6));
+    expect(directive.sourceRectTop, closeTo(0.0, 1e-6));
+    expect(directive.sourceRectRight, closeTo(1.0, 1e-6));
+    expect(directive.sourceRectBottom, closeTo(1.0, 1e-6));
+    expect(directive.fallbackReason, isNull);
+  });
+
+  test('keeps motion tile active at quarter turns', () {
+    final directive = compiler.compile(
+      policy: const MasterEdgeFillPolicy(
+        enabled: true,
+        amount: 1.0,
+        mode: MasterEdgeFillMode.reflect,
+      ),
+      transform: const LiveScrubSurfaceTransform(
+        rotationRadians: math.pi / 2,
+      ),
+      quality: EdgeFillDirectiveQuality.playback,
+      canvasWidth: 1080,
+      canvasHeight: 1920,
+      sourceWidth: 1080,
+      sourceHeight: 1920,
+      requiresFullCanvasCoverage: true,
+    );
+
+    expect(directive.enabled, isTrue);
+    expect(directive.overscanScale, greaterThan(1.0001));
     expect(directive.fallbackReason, isNull);
   });
 
   test('disables edge fill when content already covers canvas', () {
     final directive = compiler.compile(
-      policy: const MasterEdgeFillPolicy(),
+      policy: const MasterEdgeFillPolicy(
+        enabled: true,
+        amount: 1.0,
+      ),
       transform: const LiveScrubSurfaceTransform(
         scaleX: 1.4,
         scaleY: 1.4,
@@ -82,5 +145,31 @@ void main() {
 
     expect(directive.enabled, isFalse);
     expect(directive.fallbackReason, 'edge_fill_bounds_already_covered');
+  });
+
+  test('explicit overscan keeps motion tile active and bounded', () {
+    final directive = compiler.compile(
+      policy: const MasterEdgeFillPolicy(
+        enabled: true,
+        amount: 1.0,
+        mode: MasterEdgeFillMode.reflect,
+        overscanScale: 1.4,
+      ),
+      transform: const LiveScrubSurfaceTransform(),
+      quality: EdgeFillDirectiveQuality.preview,
+      canvasWidth: 1080,
+      canvasHeight: 1920,
+      sourceWidth: 1080,
+      sourceHeight: 1920,
+      requiresFullCanvasCoverage: true,
+    );
+
+    expect(directive.enabled, isTrue);
+    expect(directive.overscanScale, greaterThanOrEqualTo(1.4));
+    expect(directive.sourceRectLeft, inInclusiveRange(0.0, 1.0));
+    expect(directive.sourceRectTop, inInclusiveRange(0.0, 1.0));
+    expect(directive.sourceRectRight, inInclusiveRange(0.0, 1.0));
+    expect(directive.sourceRectBottom, inInclusiveRange(0.0, 1.0));
+    expect(directive.fallbackReason, isNull);
   });
 }
