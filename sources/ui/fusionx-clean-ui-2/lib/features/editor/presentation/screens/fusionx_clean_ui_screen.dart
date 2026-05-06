@@ -22252,10 +22252,17 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             .toList(growable: false);
         if (temporalPlans.isNotEmpty) {
           final firstPlan = temporalPlans.first;
+          const trueframeDebugVisualGateEnabled = bool.fromEnvironment(
+            'TRUEFRAME_DEBUG_VISUAL_GATE_ENABLED',
+          );
+          const trueframeForceSyntheticMotionBlurEnabled = bool.fromEnvironment(
+            'TRUEFRAME_FORCE_SYNTHETIC_MOTION_BLUR_ENABLED',
+          );
           parameters['motionBlurVisibilityGate'] = <String, Object?>{
             'enabled': true,
-            'forcedVisualTestPattern': true,
-            'forcedSyntheticMotionBlur': true,
+            'forcedVisualTestPattern': trueframeDebugVisualGateEnabled,
+            'forcedSyntheticMotionBlur': trueframeDebugVisualGateEnabled &&
+                trueframeForceSyntheticMotionBlurEnabled,
             'pixelDeltaProof': true,
             'amount': firstPlan.amount,
             'sampleCount': firstPlan.sampleTimesMs.length,

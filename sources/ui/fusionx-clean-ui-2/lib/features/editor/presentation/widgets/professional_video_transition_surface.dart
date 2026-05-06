@@ -79,6 +79,24 @@ String interactiveRenderDiagnosticKey(
 }
 
 @visibleForTesting
+bool professionalTransitionRealFramePresented(
+  ProfessionalVideoTransitionInteractiveFrameRenderResult result,
+) {
+  if (!result.canRenderFrame ||
+      !result.pixelOutputReady ||
+      !result.surfaceAttached ||
+      !result.framePresented) {
+    return false;
+  }
+  if (!result.motionBlurEnabled) {
+    return true;
+  }
+  return result.checksumDelta &&
+      !result.forcedVisualTestPattern &&
+      !result.forcedSyntheticMotionBlur;
+}
+
+@visibleForTesting
 double professionalTransitionSurfaceOpacityForPresentedState(
   bool hasPresentedFrame,
 ) {
@@ -128,6 +146,7 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
   String? _lastReportedRenderSuccessKey;
   Timer? _renderTimer;
   bool _hasPresentedFrame = false;
+  bool _hasReportedRealPresentedFrame = false;
 
   @override
   void didUpdateWidget(
@@ -143,6 +162,7 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
       _lastReportedRenderSuccessKey = null;
       widget.onPresentationChanged?.call(false);
       _hasPresentedFrame = false;
+      _hasReportedRealPresentedFrame = false;
       _renderTimer?.cancel();
       return;
     }
@@ -152,6 +172,7 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
   @override
   void dispose() {
     widget.onPresentationChanged?.call(false);
+    _hasReportedRealPresentedFrame = false;
     _renderTimer?.cancel();
     super.dispose();
   }
@@ -204,10 +225,15 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
       _debugRenderSuccess(result);
       _lastRenderedKey = renderKey;
       _registrationRetryCount = 0;
+      final realFramePresented =
+          professionalTransitionRealFramePresented(result);
       if (!_hasPresentedFrame) {
         setState(() {
           _hasPresentedFrame = true;
         });
+      }
+      if (realFramePresented && !_hasReportedRealPresentedFrame) {
+        _hasReportedRealPresentedFrame = true;
         widget.onPresentationChanged?.call(true);
       }
       return;

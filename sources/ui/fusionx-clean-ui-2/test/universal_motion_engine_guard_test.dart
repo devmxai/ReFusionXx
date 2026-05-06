@@ -633,6 +633,24 @@ void main() {
         isTrue);
   });
 
+  test('manual motion blur debug gate is disabled in production by default',
+      () async {
+    final source = await screenFile.readAsString();
+    final gateStart = source.indexOf('TRUEFRAME_DEBUG_VISUAL_GATE_ENABLED');
+    expect(gateStart, isNonNegative);
+    final gateBody = source.substring(
+      gateStart,
+      (gateStart + 900).clamp(0, source.length),
+    );
+    expect(gateBody.contains('TRUEFRAME_DEBUG_VISUAL_GATE_ENABLED'), isTrue);
+    expect(
+      gateBody.contains('TRUEFRAME_FORCE_SYNTHETIC_MOTION_BLUR_ENABLED'),
+      isTrue,
+    );
+    expect(gateBody.contains("'forcedVisualTestPattern': true,"), isFalse);
+    expect(gateBody.contains("'forcedSyntheticMotionBlur': true,"), isFalse);
+  });
+
   test('scene layer scope enables track animate/fx controls including shape',
       () async {
     final source = await screenFile.readAsString();
