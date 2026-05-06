@@ -1091,6 +1091,46 @@ class MainActivity: FlutterActivity() {
                                 fallbackReason = directiveMap["fallbackReason"]?.toString(),
                             )
                         }
+                val edgeFillDirective =
+                    (surfaceMap["edgeFillDirective"] as? Map<*, *>)
+                        ?.mapKeys { (key, _) -> key.toString() }
+                        ?.let { directiveMap ->
+                            Stage5VisualRuntimeEdgeFillDirective(
+                                enabled = directiveMap["enabled"] as? Boolean ?: false,
+                                mode = directiveMap["mode"]?.toString().orEmpty().ifBlank {
+                                    "reflect"
+                                },
+                                amount = (directiveMap["amount"] as? Number)?.toDouble() ?: 0.0,
+                                overscanScale =
+                                    (directiveMap["overscanScale"] as? Number)?.toDouble() ?: 1.0,
+                                softnessPx =
+                                    (directiveMap["softnessPx"] as? Number)?.toDouble() ?: 0.0,
+                                blurSigmaPx =
+                                    (directiveMap["blurSigmaPx"] as? Number)?.toDouble() ?: 0.0,
+                                sourceRectLeft =
+                                    (directiveMap["sourceRectLeft"] as? Number)?.toDouble() ?: 0.0,
+                                sourceRectTop =
+                                    (directiveMap["sourceRectTop"] as? Number)?.toDouble() ?: 0.0,
+                                sourceRectRight =
+                                    (directiveMap["sourceRectRight"] as? Number)?.toDouble() ?: 1.0,
+                                sourceRectBottom =
+                                    (directiveMap["sourceRectBottom"] as? Number)?.toDouble() ?: 1.0,
+                                contentWidth =
+                                    (directiveMap["contentWidth"] as? Number)?.toDouble() ?: 0.0,
+                                contentHeight =
+                                    (directiveMap["contentHeight"] as? Number)?.toDouble() ?: 0.0,
+                                canvasWidth =
+                                    (directiveMap["canvasWidth"] as? Number)?.toDouble() ?: 0.0,
+                                canvasHeight =
+                                    (directiveMap["canvasHeight"] as? Number)?.toDouble() ?: 0.0,
+                                maxExpansionPx =
+                                    (directiveMap["maxExpansionPx"] as? Number)?.toDouble() ?: 0.0,
+                                quality = directiveMap["quality"]?.toString().orEmpty().ifBlank {
+                                    "preview"
+                                },
+                                fallbackReason = directiveMap["fallbackReason"]?.toString(),
+                            )
+                        }
                 val surfaceBlockers =
                     (surfaceMap["blockers"] as? List<*>)?.mapNotNull { value ->
                         value?.toString()
@@ -1104,6 +1144,7 @@ class MainActivity: FlutterActivity() {
                     effectProgramIds = effectProgramIds,
                     effectBindings = effectBindings,
                     motionBlurDirective = motionBlurDirective,
+                    edgeFillDirective = edgeFillDirective,
                     blockers = surfaceBlockers,
                 )
             } ?: emptyList()

@@ -154,6 +154,74 @@ class MasterMotionBlurPolicy {
   }
 }
 
+enum MasterEdgeFillMode {
+  off,
+  reflect,
+  replicate,
+  wrap,
+  blurredReflect,
+  blurredBackground,
+  autoOverscan,
+  color,
+}
+
+@immutable
+class MasterEdgeFillPolicy {
+  const MasterEdgeFillPolicy({
+    this.enabled = true,
+    this.mode = MasterEdgeFillMode.reflect,
+    this.amount = 1.0,
+    this.overscanScale = 1.0,
+    this.softnessPx = 0.0,
+    this.blurSigmaPx = 0.0,
+    this.maxExpansionPx = 320.0,
+    this.affectRotation = true,
+    this.affectScale = true,
+    this.affectPosition = true,
+    this.affectMotionBlur = true,
+  });
+
+  final bool enabled;
+  final MasterEdgeFillMode mode;
+  final double amount;
+  final double overscanScale;
+  final double softnessPx;
+  final double blurSigmaPx;
+  final double maxExpansionPx;
+  final bool affectRotation;
+  final bool affectScale;
+  final bool affectPosition;
+  final bool affectMotionBlur;
+
+  MasterEdgeFillPolicy copyWith({
+    bool? enabled,
+    MasterEdgeFillMode? mode,
+    double? amount,
+    double? overscanScale,
+    double? softnessPx,
+    double? blurSigmaPx,
+    double? maxExpansionPx,
+    bool? affectRotation,
+    bool? affectScale,
+    bool? affectPosition,
+    bool? affectMotionBlur,
+  }) {
+    return MasterEdgeFillPolicy(
+      enabled: enabled ?? this.enabled,
+      mode: mode ?? this.mode,
+      amount: amount ?? this.amount,
+      overscanScale: overscanScale ?? this.overscanScale,
+      softnessPx: softnessPx ?? this.softnessPx,
+      blurSigmaPx: blurSigmaPx ?? this.blurSigmaPx,
+      maxExpansionPx: maxExpansionPx ?? this.maxExpansionPx,
+      affectRotation: affectRotation ?? this.affectRotation,
+      affectScale: affectScale ?? this.affectScale,
+      affectPosition: affectPosition ?? this.affectPosition,
+      affectMotionBlur: affectMotionBlur ?? this.affectMotionBlur,
+    );
+  }
+}
+
 @immutable
 class MasterVisualCrop {
   const MasterVisualCrop({
@@ -339,6 +407,7 @@ class MasterVisualSurface {
     this.shapeStyle = const MasterVisualShapeStyle(),
     this.opacity = 1.0,
     this.motionBlur = const MasterMotionBlurPolicy(),
+    this.edgeFill = const MasterEdgeFillPolicy(),
     List<MasterVisualEffectBinding> effects =
         const <MasterVisualEffectBinding>[],
     List<String> blockers = const <String>[],
@@ -359,6 +428,7 @@ class MasterVisualSurface {
   final MasterVisualShapeStyle shapeStyle;
   final double opacity;
   final MasterMotionBlurPolicy motionBlur;
+  final MasterEdgeFillPolicy edgeFill;
   final List<MasterVisualEffectBinding> effects;
   final List<String> blockers;
 }

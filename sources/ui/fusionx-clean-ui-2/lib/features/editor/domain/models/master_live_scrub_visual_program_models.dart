@@ -93,6 +93,7 @@ class LiveScrubVisualSurface {
     this.transform = const LiveScrubSurfaceTransform(),
     this.opacity = 1.0,
     this.motionBlur = const MasterMotionBlurPolicy(),
+    this.edgeFill = const MasterEdgeFillPolicy(),
     List<LiveScrubEffectBinding> effects = const <LiveScrubEffectBinding>[],
     List<String> blockers = const <String>[],
   })  : effects = List.unmodifiable(effects),
@@ -105,6 +106,7 @@ class LiveScrubVisualSurface {
   final LiveScrubSurfaceTransform transform;
   final double opacity;
   final MasterMotionBlurPolicy motionBlur;
+  final MasterEdgeFillPolicy edgeFill;
   final List<LiveScrubEffectBinding> effects;
   final List<String> blockers;
 }

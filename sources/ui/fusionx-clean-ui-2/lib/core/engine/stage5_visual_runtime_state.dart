@@ -82,6 +82,69 @@ class Stage5VisualRuntimeMotionBlurDirective {
 }
 
 @immutable
+class Stage5VisualRuntimeEdgeFillDirective {
+  const Stage5VisualRuntimeEdgeFillDirective({
+    required this.enabled,
+    required this.mode,
+    required this.amount,
+    required this.overscanScale,
+    required this.softnessPx,
+    required this.blurSigmaPx,
+    required this.sourceRectLeft,
+    required this.sourceRectTop,
+    required this.sourceRectRight,
+    required this.sourceRectBottom,
+    required this.contentWidth,
+    required this.contentHeight,
+    required this.canvasWidth,
+    required this.canvasHeight,
+    required this.maxExpansionPx,
+    required this.quality,
+    this.fallbackReason,
+  });
+
+  final bool enabled;
+  final String mode;
+  final double amount;
+  final double overscanScale;
+  final double softnessPx;
+  final double blurSigmaPx;
+  final double sourceRectLeft;
+  final double sourceRectTop;
+  final double sourceRectRight;
+  final double sourceRectBottom;
+  final double contentWidth;
+  final double contentHeight;
+  final double canvasWidth;
+  final double canvasHeight;
+  final double maxExpansionPx;
+  final String quality;
+  final String? fallbackReason;
+
+  Map<String, Object?> toMap() {
+    return <String, Object?>{
+      'enabled': enabled,
+      'mode': mode,
+      'amount': amount,
+      'overscanScale': overscanScale,
+      'softnessPx': softnessPx,
+      'blurSigmaPx': blurSigmaPx,
+      'sourceRectLeft': sourceRectLeft,
+      'sourceRectTop': sourceRectTop,
+      'sourceRectRight': sourceRectRight,
+      'sourceRectBottom': sourceRectBottom,
+      'contentWidth': contentWidth,
+      'contentHeight': contentHeight,
+      'canvasWidth': canvasWidth,
+      'canvasHeight': canvasHeight,
+      'maxExpansionPx': maxExpansionPx,
+      'quality': quality,
+      'fallbackReason': fallbackReason,
+    };
+  }
+}
+
+@immutable
 class Stage5VisualRuntimeSurfaceState {
   const Stage5VisualRuntimeSurfaceState({
     required this.targetClipId,
@@ -92,6 +155,7 @@ class Stage5VisualRuntimeSurfaceState {
     this.effectProgramIds = const <String>[],
     this.effectBindings = const <Stage5VisualRuntimeEffectBinding>[],
     this.motionBlurDirective,
+    this.edgeFillDirective,
     this.blockers = const <String>[],
   });
 
@@ -103,6 +167,7 @@ class Stage5VisualRuntimeSurfaceState {
   final List<String> effectProgramIds;
   final List<Stage5VisualRuntimeEffectBinding> effectBindings;
   final Stage5VisualRuntimeMotionBlurDirective? motionBlurDirective;
+  final Stage5VisualRuntimeEdgeFillDirective? edgeFillDirective;
   final List<String> blockers;
 
   Map<String, Object?> toMap() {
@@ -117,6 +182,7 @@ class Stage5VisualRuntimeSurfaceState {
           .map((effect) => effect.toMap())
           .toList(growable: false),
       'motionBlurDirective': motionBlurDirective?.toMap(),
+      'edgeFillDirective': edgeFillDirective?.toMap(),
       'blockers': blockers,
     };
   }

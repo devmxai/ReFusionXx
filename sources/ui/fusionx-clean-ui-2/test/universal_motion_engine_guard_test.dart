@@ -48,6 +48,12 @@ void main() {
   final stage5PreviewPlatformViewFile = File(
     'android/app/src/main/kotlin/com/fusionx/fusionx_clean_ui_2/Stage5PreviewPlatformView.kt',
   );
+  final stage5EdgeFillShaderPassFile = File(
+    'android/app/src/main/kotlin/com/fusionx/fusionx_clean_ui_2/Stage5EdgeFillShaderPass.kt',
+  );
+  final stage5RuntimeEffectChainBuilderFile = File(
+    'android/app/src/main/kotlin/com/fusionx/fusionx_clean_ui_2/Stage5RuntimeEffectChainBuilder.kt',
+  );
   final stage5ScrubOverlayTextureViewFile = File(
     'android/app/src/main/kotlin/com/fusionx/fusionx_clean_ui_2/Stage5ScrubOverlayTextureView.kt',
   );
@@ -71,6 +77,9 @@ void main() {
   );
   final professionalTransitionCompositorFile = File(
     'android/app/src/main/kotlin/com/fusionx/fusionx_clean_ui_2/ProfessionalVideoTransitionCompositorManager.kt',
+  );
+  final edgeFillDirectiveCompilerFile = File(
+    'lib/features/editor/domain/services/edge_fill_directive_compiler.dart',
   );
 
   test('master evaluation path uses universal evaluation service', () async {
@@ -219,6 +228,19 @@ void main() {
     expect(scrubOverlay.contains('getBitmap('), isFalse);
     expect(scrubOverlay.contains('snapshotBitmap'), isFalse);
     expect(scrubOverlay.contains('setMotionCompositeSuppressed'), isFalse);
+  });
+
+  test('seam continuity keeps native visual fallback state non-identity',
+      () async {
+    final nativeEngine = await stage5NativeScrubEngineFile.readAsString();
+    expect(nativeEngine.contains('resolveSurfaceForExactClipId('), isTrue);
+    expect(nativeEngine.contains('cachedOrDescriptorVisualSurface('), isTrue);
+    expect(nativeEngine.contains('lastStableVisualSurfaceByClipId'), isTrue);
+    expect(
+      nativeEngine.contains(
+          'transformMatrix3x3 = listOf(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)'),
+      isFalse,
+    );
   });
 
   test(
@@ -605,6 +627,43 @@ void main() {
         isTrue);
   });
 
+  test('edge fill stays Stage5-owned in realtime path', () async {
+    final previewSource = await stage5PreviewPlatformViewFile.readAsString();
+    final nativeSource = await stage5NativeScrubEngineFile.readAsString();
+    final screenSource = await screenFile.readAsString();
+    final compositorSource =
+        await professionalTransitionCompositorFile.readAsString();
+
+    expect(previewSource.contains('Stage5EdgeFillShaderPass()'), isTrue);
+    expect(previewSource.contains('TF_EDGE_FILL_PROOF'), isTrue);
+    expect(nativeSource.contains('validEdgeFillDirective()'), isTrue);
+    expect(
+        screenSource.contains('_stage5EdgeFillDirectiveForSurface('), isTrue);
+    expect(
+      compositorSource.contains('edgeFill'),
+      isFalse,
+      reason:
+          'Edge Fill must stay on Stage5 visible surface path, not compositor overlay path.',
+    );
+  });
+
+  test('edge fill runtime chain order remains stage5 single-surface', () async {
+    final edgePassSource = await stage5EdgeFillShaderPassFile.readAsString();
+    final chainSource =
+        await stage5RuntimeEffectChainBuilderFile.readAsString();
+    final compilerSource = await edgeFillDirectiveCompilerFile.readAsString();
+
+    expect(edgePassSource.contains('RenderEffect.createRuntimeShaderEffect'),
+        isTrue);
+    expect(chainSource.contains('edgeFill->motionBlur->gaussian'), isTrue);
+    expect(
+      compilerSource.contains('edge_fill_context_not_full_canvas'),
+      isTrue,
+      reason:
+          'Edge Fill compiler must explicitly gate contexts where full-canvas coverage is not required.',
+    );
+  });
+
   test('manual motion blur debug gate is disabled in production by default',
       () async {
     final source = await screenFile.readAsString();
@@ -748,11 +807,11 @@ void main() {
       isTrue,
     );
     expect(
-      source.contains('final proof = submission.proof;'),
+      source.contains('final proof = bridgeSubmission.proof;'),
       isTrue,
     );
     expect(
-      source.contains('if (submission.isRenderableMatch) {'),
+      source.contains('if (bridgeSubmission.isRenderableMatch) {'),
       isTrue,
     );
   });

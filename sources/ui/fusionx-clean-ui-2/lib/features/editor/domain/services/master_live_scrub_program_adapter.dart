@@ -123,6 +123,7 @@ class MasterLiveScrubProgramAdapter {
             ),
             opacity: surface.opacity,
             motionBlur: surface.motionBlur,
+            edgeFill: surface.edgeFill,
             effects: <LiveScrubEffectBinding>[
               for (final effect in surface.effects)
                 LiveScrubEffectBinding(

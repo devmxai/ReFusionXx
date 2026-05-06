@@ -42,7 +42,9 @@ import '../../domain/services/normal_transition_command_history.dart';
 import '../../domain/services/layer_scope_composition_adapter.dart';
 import '../../domain/services/master_live_scrub_descriptor_projection.dart';
 import '../../domain/services/master_live_scrub_program_adapter.dart';
+import '../../domain/services/edge_fill_directive_compiler.dart';
 import '../../domain/services/motion_blur_velocity_compiler.dart';
+import '../../domain/services/seam_continuity_engine.dart';
 import '../../domain/services/master_clock_native_bridge.dart';
 import '../../domain/services/professional_video_transition_compositor.dart';
 import '../../domain/services/refusion_motion_patch_applicator.dart';
@@ -202,6 +204,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       NativePreviewIdentityResolver();
   static const MotionBlurVelocityCompiler _motionBlurVelocityCompiler =
       MotionBlurVelocityCompiler();
+  static const EdgeFillDirectiveCompiler _edgeFillDirectiveCompiler =
+      EdgeFillDirectiveCompiler();
+  static const SeamContinuityEngine _seamContinuityEngine =
+      SeamContinuityEngine();
   static const SceneScopeSessionResolver _sceneScopeSessionResolver =
       SceneScopeSessionResolver();
   static const SceneScopeChannelTimeMapper _sceneScopeChannelTimeMapper =
@@ -715,12 +721,22 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   bool _isNativePreviewRecoveryScheduled = false;
   String? _lastSubmittedLiveScrubRuntimeBridgeKey;
   bool _liveScrubRuntimeBridgeSubmissionInFlight = false;
+  _PendingLiveScrubRuntimeBridgeSubmission?
+      _pendingLiveScrubRuntimeBridgeSubmission;
   final Map<String, int> _liveScrubRuntimeBridgeRetryCountByKey =
       <String, int>{};
   static const int _maxLiveScrubRuntimeBridgeRetriesPerKey = 2;
   String? _lastSubmittedStage5VisualRuntimeKey;
   bool _stage5VisualRuntimeSubmissionInFlight = false;
+  Stage5VisualRuntimeState? _pendingStage5VisualRuntimeState;
+  String? _pendingStage5VisualRuntimeKey;
+  int? _pendingStage5VisualRuntimeToken;
   int _stage5VisualRuntimeRevision = 0;
+  int _stage5VisualRuntimeSubmissionToken = 0;
+  int _stage5VisualRuntimeLatestAppliedToken = 0;
+  int _stage5VisualRuntimeStaleRequestIgnoredCount = 0;
+  int _stage5VisualRuntimeLatestRequestAppliedCount = 0;
+  final SeamStateHistoryCache _seamStateHistoryCache = SeamStateHistoryCache();
 
   @override
   void initState() {
@@ -22428,13 +22444,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         _liveScrubSourcesByTargetIdForActiveTransition(activeTransition);
     final sourceWindows =
         _liveScrubSourceWindowsForActiveTransition(activeTransition);
-    final activeSourceIds = includeAllTransitionSourcesForTemporalPlan
-        ? allSourcesByTargetId.keys.toSet()
-        : _activeManualTransitionSourceIdsForTime(
+    final sourceResolution = includeAllTransitionSourcesForTemporalPlan
+        ? null
+        : _activeManualTransitionSourceResolutionForTime(
             rootTime: evaluation.time.rootTime,
             sourceWindowsByTargetId: sourceWindows,
             activeTransition: activeTransition,
           );
+    final activeSourceIds = includeAllTransitionSourcesForTemporalPlan
+        ? allSourcesByTargetId.keys.toSet()
+        : sourceResolution!.activeSourceIds;
     final sourcesByTargetId = <String, LiveScrubSurfaceSource>{
       for (final entry in allSourcesByTargetId.entries)
         if (activeSourceIds.contains(entry.key)) entry.key: entry.value,
@@ -22456,6 +22475,17 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           ...evaluationResult.diagnostics,
           'manual_transition_runtime_mode:$mode',
           'manual_transition_active_sources:${activeSourceIds.join(',')}',
+          if (sourceResolution != null)
+            _seamContinuityProofLine(
+              mode: mode,
+              rootTime: evaluation.time.rootTime,
+              sourceResolution: sourceResolution,
+              seamWindow: _seamContinuityWindowForActiveTransition(
+                activeTransition,
+              ),
+              historyResolved: true,
+              historyFallbackReason: null,
+            ),
         ],
       ),
       sourcesByTargetId: sourcesByTargetId,
@@ -22485,23 +22515,73 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required Map<String, LiveScrubTimelineSourceWindow> sourceWindowsByTargetId,
     required _ActiveTimelineTransitionPreview activeTransition,
   }) {
-    final rootTimeMs = rootTime.inMilliseconds;
-    final activeIds = <String>{
-      for (final entry in sourceWindowsByTargetId.entries)
-        if (rootTimeMs >= entry.value.timelineStartMs &&
-            rootTimeMs < entry.value.timelineEndMs)
-          entry.key,
-    };
-    if (activeIds.isNotEmpty) {
-      return activeIds;
-    }
-    return <String>{
-      _resolveStage5VisualRuntimePrimaryTargetClipId(
+    return _activeManualTransitionSourceResolutionForTime(
+      rootTime: rootTime,
+      sourceWindowsByTargetId: sourceWindowsByTargetId,
+      activeTransition: activeTransition,
+    ).activeSourceIds;
+  }
+
+  SeamSourceResolution _activeManualTransitionSourceResolutionForTime({
+    required TimelineTime rootTime,
+    required Map<String, LiveScrubTimelineSourceWindow> sourceWindowsByTargetId,
+    required _ActiveTimelineTransitionPreview activeTransition,
+  }) {
+    return _seamContinuityEngine.resolveActiveSourceResolution(
+      rootTime: rootTime,
+      sourceWindowsByTargetId: sourceWindowsByTargetId,
+      fallbackSourceId: _resolveStage5VisualRuntimePrimaryTargetClipId(
         previewTime: rootTime,
         sourceWindowsByTargetId: sourceWindowsByTargetId,
         activeTransition: activeTransition,
       ),
-    };
+      seamWindow: _seamContinuityWindowForActiveTransition(
+        activeTransition,
+      ),
+    );
+  }
+
+  String _seamContinuityProofLine({
+    required String mode,
+    required TimelineTime rootTime,
+    required SeamSourceResolution sourceResolution,
+    required SeamContinuityWindow seamWindow,
+    required bool historyResolved,
+    required String? historyFallbackReason,
+  }) {
+    return 'TF_SEAM_CONTINUITY_PROOF '
+        'transitionId=${seamWindow.transitionId} '
+        'windowId=${seamWindow.windowId} '
+        'adapterMode=$mode '
+        'rootTimeMs=${rootTime.inMilliseconds} '
+        'activeSourceIds=${sourceResolution.activeSourceIds.join(',')} '
+        'boundaryPolicy=${sourceResolution.boundaryPolicy.name} '
+        'sourceResolutionKind=${sourceResolution.kind.name} '
+        'leftParticipantPresent=${sourceResolution.leftParticipantPresent} '
+        'rightParticipantPresent=${sourceResolution.rightParticipantPresent} '
+        'historyResolved=$historyResolved '
+        'historyFallbackReason=${historyFallbackReason ?? 'none'} '
+        'staleRequestIgnored=$_stage5VisualRuntimeStaleRequestIgnoredCount '
+        'latestRequestApplied=$_stage5VisualRuntimeLatestRequestAppliedCount';
+  }
+
+  SeamContinuityWindow _seamContinuityWindowForActiveTransition(
+    _ActiveTimelineTransitionPreview activeTransition,
+  ) {
+    final rootWindow =
+        _manualTransitionRootWindowForActiveTransition(activeTransition);
+    final seamTime =
+        _manualTransitionRootSeamTimeForActiveTransition(activeTransition);
+    return SeamContinuityWindow(
+      windowId:
+          '${activeTransition.transition.id}:${activeTransition.leftClip.clip.id}:${activeTransition.rightClip.clip.id}',
+      transitionId: activeTransition.transition.id,
+      leftClipId: activeTransition.leftClip.clip.id,
+      rightClipId: activeTransition.rightClip.clip.id,
+      rootStartMs: rootWindow.start.inMilliseconds,
+      rootSeamMs: seamTime.inMilliseconds,
+      rootEndExclusiveMs: rootWindow.endExclusive.inMilliseconds,
+    );
   }
 
   Stage5VisualRuntimeState _buildStage5VisualRuntimeStateForPreviewTime({
@@ -22545,41 +22625,53 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       sourceWindowsByTargetId: sourceWindows,
       activeTransition: activeTransition,
     );
-    final surfaces = <Stage5VisualRuntimeSurfaceState>[
-      for (final surface in program.surfaces)
-        if (surface.sourceKind == LiveScrubSourceKind.video ||
-            surface.sourceKind == LiveScrubSourceKind.image)
-          Stage5VisualRuntimeSurfaceState(
-            targetClipId: surface.targetId,
-            role: surface.transitionRole.name,
-            transformMatrix3x3: _stage5VisualTransformMatrix3x3(
-              surface.transform,
-            ),
-            opacity: surface.opacity.clamp(0.0, 1.0).toDouble(),
-            transitionProgress: activeTransition.progress,
-            effectProgramIds: surface.effects.map((effect) => effect.id).toList(
-                  growable: false,
-                ),
-            effectBindings: surface.effects
-                .map(
-                  (effect) => Stage5VisualRuntimeEffectBinding(
-                    id: effect.id,
-                    rendererValue: effect.rendererValue,
-                    rendererUnit: effect.rendererUnit.name,
-                  ),
-                )
-                .toList(growable: false),
-            motionBlurDirective: _stage5MotionBlurDirectiveForSurface(
-              previewTime: previewTime,
-              mode: mode,
-              activeTransition: activeTransition,
-              baseProgram: program,
-              baseSurface: surface,
-              policy: surface.motionBlur,
-            ),
-            blockers: <String>[...surface.blockers],
+    final seamDiagnostics = <String>[];
+    final surfaces = <Stage5VisualRuntimeSurfaceState>[];
+    for (final surface in program.surfaces) {
+      if (surface.sourceKind != LiveScrubSourceKind.video &&
+          surface.sourceKind != LiveScrubSourceKind.image) {
+        continue;
+      }
+      surfaces.add(
+        Stage5VisualRuntimeSurfaceState(
+          targetClipId: surface.targetId,
+          role: surface.transitionRole.name,
+          transformMatrix3x3: _stage5VisualTransformMatrix3x3(
+            surface.transform,
           ),
-    ];
+          opacity: surface.opacity.clamp(0.0, 1.0).toDouble(),
+          transitionProgress: activeTransition.progress,
+          effectProgramIds: surface.effects.map((effect) => effect.id).toList(
+                growable: false,
+              ),
+          effectBindings: surface.effects
+              .map(
+                (effect) => Stage5VisualRuntimeEffectBinding(
+                  id: effect.id,
+                  rendererValue: effect.rendererValue,
+                  rendererUnit: effect.rendererUnit.name,
+                ),
+              )
+              .toList(growable: false),
+          motionBlurDirective: _stage5MotionBlurDirectiveForSurface(
+            previewTime: previewTime,
+            mode: mode,
+            activeTransition: activeTransition,
+            baseProgram: program,
+            baseSurface: surface,
+            policy: surface.motionBlur,
+            seamDiagnosticsCollector: seamDiagnostics,
+          ),
+          edgeFillDirective: _stage5EdgeFillDirectiveForSurface(
+            mode: mode,
+            baseSurface: surface,
+            policy: surface.edgeFill,
+            requiresFullCanvasCoverage: true,
+          ),
+          blockers: <String>[...surface.blockers],
+        ),
+      );
+    }
     return Stage5VisualRuntimeState(
       revision: ++_stage5VisualRuntimeRevision,
       timelineTimeMs: previewTime.inMilliseconds,
@@ -22589,7 +22681,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       transitionProgress: activeTransition.progress,
       surfaces: surfaces,
       blockers: program.blockers,
-      diagnostics: program.diagnostics,
+      diagnostics: <String>[
+        ...program.diagnostics,
+        ...seamDiagnostics,
+      ],
     );
   }
 
@@ -22625,10 +22720,31 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required LiveScrubVisualProgram baseProgram,
     required LiveScrubVisualSurface baseSurface,
     required MasterMotionBlurPolicy policy,
+    required List<String> seamDiagnosticsCollector,
   }) {
     if (!policy.isEnabled || baseSurface.blockers.isNotEmpty) {
       return null;
     }
+    final seamWindow =
+        _seamContinuityWindowForActiveTransition(activeTransition);
+    final seamResolution = _activeManualTransitionSourceResolutionForTime(
+      rootTime: previewTime,
+      sourceWindowsByTargetId:
+          _liveScrubSourceWindowsForActiveTransition(activeTransition),
+      activeTransition: activeTransition,
+    );
+    final seamContext = _seamContinuityEngine.buildEffectContext(
+      rootTime: previewTime,
+      seamWindow: seamWindow,
+      targetId: baseSurface.targetId,
+      activeSourceIds: seamResolution.activeSourceIds,
+    );
+    final historyKey = SeamEffectHistoryKey(
+      windowId: seamWindow.windowId,
+      targetId: baseSurface.targetId,
+      effectId: 'motionBlur',
+      mode: mode,
+    );
     final shutterDurationSeconds =
         ((policy.shutterAngleDegrees / 360.0) / _timelineFps).clamp(0.0, 0.25);
     final previousTime = TimelineTime.fromMilliseconds(
@@ -22655,20 +22771,81 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         }
       }
     }
+    final historyEntry = _seamStateHistoryCache.read(historyKey);
+    final historyResolved = previousSurface != null ||
+        historyEntry != null ||
+        !seamContext.isInsideWindow;
+    final historyFallbackReason = previousSurface != null
+        ? null
+        : historyEntry != null
+            ? 'seam_history_cache'
+            : seamContext.isInsideWindow
+                ? 'history_missing_in_seam_window'
+                : 'outside_seam_window';
+    final previousTransform = previousSurface?.transform ??
+        historyEntry?.transform ??
+        baseSurface.transform;
     final quality = switch (mode) {
       'liveScrub' => MotionBlurDirectiveQuality.liveScrub,
       'playback' => MotionBlurDirectiveQuality.playback,
       'export' => MotionBlurDirectiveQuality.export,
       _ => MotionBlurDirectiveQuality.preview,
     };
-    return _motionBlurVelocityCompiler.compile(
+    final directive = _motionBlurVelocityCompiler.compile(
       policy: policy,
       current: baseSurface.transform,
-      previous: previousSurface?.transform ?? baseSurface.transform,
+      previous: previousTransform,
       quality: quality,
       canvasWidth: _motionProjectFormat.canvasSize.width,
       canvasHeight: _motionProjectFormat.canvasSize.height,
     );
+    if (seamContext.isInsideWindow && seamContext.isSeamParticipant) {
+      _seamStateHistoryCache.write(
+        historyKey,
+        SeamEffectHistoryEntry(
+          rootTimeMs: previewTime.inMilliseconds,
+          transform: baseSurface.transform,
+        ),
+      );
+    }
+    seamDiagnosticsCollector.add(
+      _seamContinuityProofLine(
+        mode: mode,
+        rootTime: previewTime,
+        sourceResolution: seamResolution,
+        seamWindow: seamWindow,
+        historyResolved: historyResolved,
+        historyFallbackReason: historyFallbackReason,
+      ),
+    );
+    return directive;
+  }
+
+  Stage5VisualRuntimeEdgeFillDirective? _stage5EdgeFillDirectiveForSurface({
+    required String mode,
+    required LiveScrubVisualSurface baseSurface,
+    required MasterEdgeFillPolicy policy,
+    required bool requiresFullCanvasCoverage,
+  }) {
+    final sourceWidth = baseSurface.source?.sourceWidth?.toDouble();
+    final sourceHeight = baseSurface.source?.sourceHeight?.toDouble();
+    final quality = switch (mode) {
+      'liveScrub' => EdgeFillDirectiveQuality.liveScrub,
+      'playback' => EdgeFillDirectiveQuality.playback,
+      'export' => EdgeFillDirectiveQuality.export,
+      _ => EdgeFillDirectiveQuality.preview,
+    };
+    final directive = _edgeFillDirectiveCompiler.compile(
+      policy: policy,
+      transform: baseSurface.transform,
+      quality: quality,
+      canvasWidth: _motionProjectFormat.canvasSize.width,
+      canvasHeight: _motionProjectFormat.canvasSize.height,
+      sourceWidth: sourceWidth,
+      sourceHeight: sourceHeight,
+      requiresFullCanvasCoverage: requiresFullCanvasCoverage,
+    );
+    return directive;
   }
 
   void _scheduleStage5VisualRuntimeSubmission({
@@ -22680,10 +22857,29 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       mode: mode,
     );
     final key = _stage5VisualRuntimeSubmissionKey(runtimeState);
-    if (_stage5VisualRuntimeSubmissionInFlight ||
-        _lastSubmittedStage5VisualRuntimeKey == key) {
+    final token = ++_stage5VisualRuntimeSubmissionToken;
+    if (_stage5VisualRuntimeSubmissionInFlight) {
+      _pendingStage5VisualRuntimeState = runtimeState;
+      _pendingStage5VisualRuntimeKey = key;
+      _pendingStage5VisualRuntimeToken = token;
       return;
     }
+    if (_lastSubmittedStage5VisualRuntimeKey == key) {
+      _stage5VisualRuntimeStaleRequestIgnoredCount += 1;
+      return;
+    }
+    _submitStage5VisualRuntimeState(
+      runtimeState: runtimeState,
+      key: key,
+      token: token,
+    );
+  }
+
+  void _submitStage5VisualRuntimeState({
+    required Stage5VisualRuntimeState runtimeState,
+    required String key,
+    required int token,
+  }) {
     _stage5VisualRuntimeSubmissionInFlight = true;
     _lastSubmittedStage5VisualRuntimeKey = key;
     unawaited(
@@ -22695,7 +22891,29 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         } catch (_) {
           // Keep runtime visual state submission nonblocking for UI updates.
         } finally {
+          if (token >= _stage5VisualRuntimeLatestAppliedToken) {
+            _stage5VisualRuntimeLatestAppliedToken = token;
+            _stage5VisualRuntimeLatestRequestAppliedCount += 1;
+          } else {
+            _stage5VisualRuntimeStaleRequestIgnoredCount += 1;
+          }
           _stage5VisualRuntimeSubmissionInFlight = false;
+          final pendingState = _pendingStage5VisualRuntimeState;
+          final pendingKey = _pendingStage5VisualRuntimeKey;
+          final pendingToken = _pendingStage5VisualRuntimeToken;
+          _pendingStage5VisualRuntimeState = null;
+          _pendingStage5VisualRuntimeKey = null;
+          _pendingStage5VisualRuntimeToken = null;
+          if (pendingState != null &&
+              pendingKey != null &&
+              pendingToken != null &&
+              pendingKey != _lastSubmittedStage5VisualRuntimeKey) {
+            _submitStage5VisualRuntimeState(
+              runtimeState: pendingState,
+              key: pendingKey,
+              token: pendingToken,
+            );
+          }
         }
       }),
     );
@@ -22982,17 +23200,31 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required String mode,
     required ProfessionalVideoTransitionRenderPlan plan,
   }) {
-    final key = _liveScrubRuntimeBridgeSubmissionKey(
+    final submission = _PendingLiveScrubRuntimeBridgeSubmission(
       activeTransition: activeTransition,
       mode: mode,
       plan: plan,
+      key: _liveScrubRuntimeBridgeSubmissionKey(
+        activeTransition: activeTransition,
+        mode: mode,
+        plan: plan,
+      ),
     );
-    if (_liveScrubRuntimeBridgeSubmissionInFlight ||
-        _lastSubmittedLiveScrubRuntimeBridgeKey == key) {
+    if (_liveScrubRuntimeBridgeSubmissionInFlight) {
+      _pendingLiveScrubRuntimeBridgeSubmission = submission;
       return;
     }
+    if (_lastSubmittedLiveScrubRuntimeBridgeKey == submission.key) {
+      return;
+    }
+    _submitLiveScrubRuntimeBridgeSubmission(submission);
+  }
+
+  void _submitLiveScrubRuntimeBridgeSubmission(
+    _PendingLiveScrubRuntimeBridgeSubmission request,
+  ) {
     _liveScrubRuntimeBridgeSubmissionInFlight = true;
-    _lastSubmittedLiveScrubRuntimeBridgeKey = key;
+    _lastSubmittedLiveScrubRuntimeBridgeKey = request.key;
     unawaited(
       Future<void>(() async {
         var retryRequested = false;
@@ -23002,50 +23234,51 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           final performanceSnapshot =
               await _transportController.getLiveScrubPerformanceSnapshot();
           final universalEvaluation = _evaluateUniversalMasterFrameForMode(
-            mode,
-            previewTimeOverride: activeTransition.timelineTime,
+            request.mode,
+            previewTimeOverride: request.activeTransition.timelineTime,
           );
           final evaluation = universalEvaluation.frame;
           final program = _liveScrubVisualProgramForTransitionRuntimeBridge(
             evaluation: evaluation,
             universalEvaluation: universalEvaluation,
-            activeTransition: activeTransition,
-            plan: plan,
-            mode: mode,
+            activeTransition: request.activeTransition,
+            plan: request.plan,
+            mode: request.mode,
           );
           final projection = _masterLiveScrubDescriptorProjection.project(
             program: program,
             sourceWindowsByTargetId: _liveScrubSourceWindowsForTransitionPlan(
-              activeTransition: activeTransition,
-              plan: plan,
+              activeTransition: request.activeTransition,
+              plan: request.plan,
             ),
             transitionWindowsByTargetId:
                 _liveScrubTransitionWindowsForTransition(
-              activeTransition: activeTransition,
+              activeTransition: request.activeTransition,
             ),
             capabilities: capabilities.toDescriptorCapabilities(),
             performanceSnapshot: performanceSnapshot,
           );
-          final submission =
+          final bridgeSubmission =
               await _transportController.submitLiveScrubRuntimeBridgeSnapshot(
             projection,
           );
-          final proof = submission.proof;
+          final proof = bridgeSubmission.proof;
           _debugLiveScrubRuntimeBridgeProof(
             proof: proof,
-            transitionId: activeTransition.transition.id,
-            mode: mode,
+            transitionId: request.activeTransition.transition.id,
+            mode: request.mode,
           );
-          if (submission.isRenderableMatch) {
-            _liveScrubRuntimeBridgeRetryCountByKey.remove(key);
+          if (bridgeSubmission.isRenderableMatch) {
+            _liveScrubRuntimeBridgeRetryCountByKey.remove(request.key);
             return;
           }
-          final retries = _liveScrubRuntimeBridgeRetryCountByKey[key] ?? 0;
+          final retries =
+              _liveScrubRuntimeBridgeRetryCountByKey[request.key] ?? 0;
           if (retries < _maxLiveScrubRuntimeBridgeRetriesPerKey) {
             if (_liveScrubRuntimeBridgeRetryCountByKey.length > 512) {
               _liveScrubRuntimeBridgeRetryCountByKey.clear();
             }
-            _liveScrubRuntimeBridgeRetryCountByKey[key] = retries + 1;
+            _liveScrubRuntimeBridgeRetryCountByKey[request.key] = retries + 1;
             _lastSubmittedLiveScrubRuntimeBridgeKey = null;
             retryRequested = true;
           }
@@ -23053,11 +23286,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           // Keep runtime bridge submission nonblocking for the editor path.
         } finally {
           _liveScrubRuntimeBridgeSubmissionInFlight = false;
-          if (retryRequested) {
-            _scheduleLiveScrubRuntimeBridgeSubmission(
-              activeTransition: activeTransition,
-              mode: mode,
-              plan: plan,
+          if (retryRequested &&
+              _pendingLiveScrubRuntimeBridgeSubmission == null) {
+            _pendingLiveScrubRuntimeBridgeSubmission = request;
+          }
+          final pending = _pendingLiveScrubRuntimeBridgeSubmission;
+          _pendingLiveScrubRuntimeBridgeSubmission = null;
+          if (pending != null &&
+              pending.key != _lastSubmittedLiveScrubRuntimeBridgeKey) {
+            _submitLiveScrubRuntimeBridgeSubmission(
+              pending,
             );
           }
         }
@@ -25478,6 +25716,20 @@ class _ActiveTimelineTransitionPreview {
   final double progress;
   final double manualLaneProgress;
   final double manualSeamProgress;
+}
+
+class _PendingLiveScrubRuntimeBridgeSubmission {
+  const _PendingLiveScrubRuntimeBridgeSubmission({
+    required this.activeTransition,
+    required this.mode,
+    required this.plan,
+    required this.key,
+  });
+
+  final _ActiveTimelineTransitionPreview activeTransition;
+  final String mode;
+  final ProfessionalVideoTransitionRenderPlan plan;
+  final String key;
 }
 
 class _TransitionFocusSession {

@@ -12,6 +12,7 @@ interface Stage5ScrubRenderHost {
         opacity: Double?,
         gaussianBlurSigmaPx: Float? = null,
         motionBlurDirective: Stage5VisualRuntimeMotionBlurDirective? = null,
+        edgeFillDirective: Stage5VisualRuntimeEdgeFillDirective? = null,
     ) = Unit
 
     fun hasScrubOutputSurface(): Boolean = false

@@ -36,7 +36,10 @@ class Stage5PreviewPlatformView(
     private var runtimeOpacity = 1.0
     private var runtimeGaussianBlurSigmaPx: Float? = null
     private var runtimeMotionBlurDirective: Stage5VisualRuntimeMotionBlurDirective? = null
+    private var runtimeEdgeFillDirective: Stage5VisualRuntimeEdgeFillDirective? = null
     private val motionBlurShaderPass = Stage5MotionBlurShaderPass()
+    private val edgeFillShaderPass = Stage5EdgeFillShaderPass()
+    private val runtimeEffectChainBuilder = Stage5RuntimeEffectChainBuilder()
     @Volatile
     private var appliedScrubAspectRatio: Float? = null
     @Volatile
@@ -164,11 +167,13 @@ class Stage5PreviewPlatformView(
         opacity: Double?,
         gaussianBlurSigmaPx: Float?,
         motionBlurDirective: Stage5VisualRuntimeMotionBlurDirective?,
+        edgeFillDirective: Stage5VisualRuntimeEdgeFillDirective?,
     ) {
         runtimeTransformMatrix3x3 = transformMatrix3x3
         runtimeOpacity = ((opacity ?: 1.0).coerceIn(0.0, 1.0))
         runtimeGaussianBlurSigmaPx = gaussianBlurSigmaPx?.takeIf { it.isFinite() && it > 0.05f }
         runtimeMotionBlurDirective = motionBlurDirective
+        runtimeEdgeFillDirective = edgeFillDirective
         runOnUiThreadIfActive(waitForCompletion = true) {
             scrubOverlayView.setRuntimeVisualState(
                 transformMatrix3x3 = transformMatrix3x3,
@@ -280,6 +285,12 @@ class Stage5PreviewPlatformView(
         val viewHeight = playerView.height.toFloat().coerceAtLeast(1f)
         val centerX = viewWidth / 2f
         val centerY = viewHeight / 2f
+        val overscanScale = runtimeEdgeFillDirective
+            ?.takeIf { it.enabled && it.overscanScale.isFinite() && it.overscanScale > 1.0001 }
+            ?.overscanScale
+            ?.toFloat()
+            ?.coerceIn(1f, 1.6f)
+            ?: 1f
         val matrix =
             Matrix().apply {
                 setValues(
@@ -295,6 +306,9 @@ class Stage5PreviewPlatformView(
                         1f,
                     ),
                 )
+                if (overscanScale > 1.0001f) {
+                    postScale(overscanScale, overscanScale, centerX, centerY)
+                }
                 postTranslate(
                     centerX - (m00 * centerX + m01 * centerY),
                     centerY - (m10 * centerX + m11 * centerY),
@@ -334,15 +348,47 @@ class Stage5PreviewPlatformView(
                 null
             }
         val directive = runtimeMotionBlurDirective
-        val effectResult = motionBlurShaderPass.buildRenderEffect(
+        val edgeFillResult = edgeFillShaderPass.buildRenderEffect(
+            directive = runtimeEdgeFillDirective,
+            targetWidthPx = rootView.width.toFloat(),
+            targetHeightPx = rootView.height.toFloat(),
+        )
+        val motionBlurResult = motionBlurShaderPass.buildRenderEffect(
             gaussianBlur = gaussianEffect,
             directive = directive,
             targetWidthPx = rootView.width.toFloat(),
             targetHeightPx = rootView.height.toFloat(),
         )
-        val renderEffect = effectResult.renderEffect
+        val chainedResult = runtimeEffectChainBuilder.buildChain(
+            edgeFillEffect = edgeFillResult.renderEffect,
+            motionThenGaussianEffect = motionBlurResult.renderEffect,
+        )
+        val renderEffect = chainedResult.renderEffect
         playerView.setRenderEffect(renderEffect)
         scrubOverlayView.setRenderEffect(renderEffect)
+        val edgeDirective = runtimeEdgeFillDirective
+        if (edgeDirective != null) {
+            val overlayConflict = isScrubSurfaceVisible && !isPreviewOutputSuppressed
+            Log.d(
+                "Stage5PreviewPlatformView",
+                "TF_EDGE_FILL_PROOF "
+                    + "enabled=${edgeDirective.enabled} "
+                    + "mode=${edgeDirective.mode} "
+                    + "amount=${edgeDirective.amount} "
+                    + "overscanScale=${edgeDirective.overscanScale} "
+                    + "rendererPath=stage5RuntimeShader "
+                    + "sourceProviderMode=currentVisibleSurface "
+                    + "renderEffectApplied=${edgeFillResult.renderEffect != null} "
+                    + "chainOrder=${chainedResult.chainOrder} "
+                    + "stage5Visible=true "
+                    + "professionalSurfaceVisible=false "
+                    + "overlayConflict=$overlayConflict "
+                    + "bitmapAllocationCount=0 "
+                    + "mediaMetadataRetrieverUsed=false "
+                    + "shaderAllocationCount=${edgeFillResult.shaderAllocationCount} "
+                    + "fallbackReason=${edgeFillResult.fallbackReason ?: "none"}",
+            )
+        }
         if (directive != null) {
             val overlayConflict = isScrubSurfaceVisible && !isPreviewOutputSuppressed
             Log.d(
@@ -365,7 +411,8 @@ class Stage5PreviewPlatformView(
                     + "bitmapAllocationCount=0 "
                     + "mediaMetadataRetrieverUsed=false "
                     + "renderEffectApplied=${renderEffect != null} "
-                    + "fallbackReason=${effectResult.fallbackReason ?: "none"}",
+                    + "chainOrder=${chainedResult.chainOrder} "
+                    + "fallbackReason=${motionBlurResult.fallbackReason ?: "none"}",
             )
         }
     }

@@ -72,6 +72,7 @@ data class Stage5VisualRuntimeSurfaceState(
     val effectProgramIds: List<String> = emptyList(),
     val effectBindings: List<Stage5VisualRuntimeEffectBinding> = emptyList(),
     val motionBlurDirective: Stage5VisualRuntimeMotionBlurDirective? = null,
+    val edgeFillDirective: Stage5VisualRuntimeEdgeFillDirective? = null,
     val blockers: List<String> = emptyList(),
 )
 
@@ -100,6 +101,26 @@ data class Stage5VisualRuntimeMotionBlurDirective(
     val fallbackReason: String? = null,
 )
 
+data class Stage5VisualRuntimeEdgeFillDirective(
+    val enabled: Boolean,
+    val mode: String,
+    val amount: Double,
+    val overscanScale: Double,
+    val softnessPx: Double,
+    val blurSigmaPx: Double,
+    val sourceRectLeft: Double,
+    val sourceRectTop: Double,
+    val sourceRectRight: Double,
+    val sourceRectBottom: Double,
+    val contentWidth: Double,
+    val contentHeight: Double,
+    val canvasWidth: Double,
+    val canvasHeight: Double,
+    val maxExpansionPx: Double,
+    val quality: String,
+    val fallbackReason: String? = null,
+)
+
 data class Stage5VisualRuntimeState(
     val revision: Long,
     val timelineTimeMs: Long,
@@ -111,6 +132,15 @@ data class Stage5VisualRuntimeState(
     val blockers: List<String> = emptyList(),
     val diagnostics: List<String> = emptyList(),
 ) {
+    fun resolveSurfaceForExactClipId(clipId: String?): Stage5VisualRuntimeSurfaceState? {
+        if (surfaces.isEmpty() || clipId.isNullOrBlank()) {
+            return null
+        }
+        return surfaces.firstOrNull { surface ->
+            surface.targetClipId == clipId
+        }
+    }
+
     fun resolveSurfaceForClipId(clipId: String?): Stage5VisualRuntimeSurfaceState? {
         if (surfaces.isEmpty()) {
             return null
@@ -250,6 +280,8 @@ class Stage5NativeScrubEngine(
     private var lastBoundaryWarmupKey: String? = null
     private var pendingDecoderForceSeekStoreKey: String? = null
     private val resolvedAspectRatioBySourceUri = HashMap<String, Float>()
+    private val lastStableVisualSurfaceByClipId =
+        LinkedHashMap<String, Stage5VisualRuntimeSurfaceState>()
     @Volatile
     private var lastRenderAwaitingProxy = false
     private var latestVisualRuntimeState: Stage5VisualRuntimeState? = null
@@ -422,6 +454,7 @@ class Stage5NativeScrubEngine(
         if (!previewSourcesChanged) {
             return
         }
+        lastStableVisualSurfaceByClipId.clear()
         configurationGeneration += 1
         val generation = configurationGeneration
         val prioritizedDescriptors =
@@ -622,6 +655,7 @@ class Stage5NativeScrubEngine(
         latestTargetSourcePositionMs = null
         latestTargetTimelinePositionMs = null
         pendingDecoderForceSeekStoreKey = null
+        lastStableVisualSurfaceByClipId.clear()
         targetGeneration += 1
         renderHosts.forEach { host ->
             host.setScrubSurfaceVisible(false)
@@ -831,6 +865,7 @@ class Stage5NativeScrubEngine(
             opacity = visualState.opacity,
             gaussianBlurSigmaPx = visualState.gaussianBlurSigmaPx(),
             motionBlurDirective = visualState.validMotionBlurDirective(),
+            edgeFillDirective = visualState.validEdgeFillDirective(),
         )
         if (snapshot.forceSeekBeforeRender) {
             surfaceScrubDecoder.forceSeekOnNextRender()
@@ -936,6 +971,7 @@ class Stage5NativeScrubEngine(
                 opacity = visualState.opacity,
                 gaussianBlurSigmaPx = visualState.gaussianBlurSigmaPx(),
                 motionBlurDirective = visualState.validMotionBlurDirective(),
+                edgeFillDirective = visualState.validEdgeFillDirective(),
             )
             surfaceScrubDecoder.forceSeekOnNextRender()
             val rendered =
@@ -1043,32 +1079,16 @@ class Stage5NativeScrubEngine(
                 latestVisualRuntimeState
             }
         if (runtimeState == null || runtimeState.surfaces.isEmpty()) {
-            return Stage5VisualRuntimeSurfaceState(
-                targetClipId = descriptor.clipId,
-                role = descriptor.transitionRole,
-                transformMatrix3x3 = descriptor.transformMatrix3x3,
-                opacity = descriptor.opacity,
-                transitionProgress = descriptor.transitionProgress,
-                effectProgramIds = descriptor.effectProgramIds,
-                effectBindings = emptyList(),
-                motionBlurDirective = null,
-                blockers = descriptor.runtimeBlockers,
-            )
+            return cachedOrDescriptorVisualSurface(descriptor)
         }
-        val runtimeSurface = runtimeState.resolveSurfaceForClipId(descriptor.clipId)
+        val runtimeSurface = runtimeState.resolveSurfaceForExactClipId(descriptor.clipId)
         if (runtimeSurface == null || runtimeSurface.blockers.isNotEmpty()) {
-            return Stage5VisualRuntimeSurfaceState(
-                targetClipId = descriptor.clipId,
-                role = descriptor.transitionRole,
-                transformMatrix3x3 = listOf(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
-                opacity = 1.0,
-                transitionProgress = descriptor.transitionProgress,
-                effectProgramIds = emptyList(),
-                effectBindings = emptyList(),
-                motionBlurDirective = null,
-                blockers = runtimeSurface?.blockers ?: emptyList(),
+            return cachedOrDescriptorVisualSurface(
+                descriptor = descriptor,
+                runtimeFallbackBlockers = runtimeSurface?.blockers ?: emptyList(),
             )
         }
+        cacheStableVisualSurface(runtimeSurface)
         return runtimeSurface
     }
 
@@ -1078,44 +1098,70 @@ class Stage5NativeScrubEngine(
         if (renderHosts.isEmpty()) {
             return
         }
-        val timelinePositionMs =
-            runtimeState.timelineTimeMs.coerceAtLeast(0L)
-        val descriptor = resolveDescriptorForPosition(timelinePositionMs)
-        val surface =
-            runtimeState.resolveSurfaceForClipId(descriptor?.clipId)
-                ?: runtimeState.resolveSurfaceForClipId(null)
-        val transformMatrix =
-            if (surface == null || surface.blockers.isNotEmpty()) {
-                null
-            } else {
-                surface.transformMatrix3x3
-            }
-        val opacity =
-            if (surface == null || surface.blockers.isNotEmpty()) {
-                null
-            } else {
-                surface.opacity
-            }
-        val gaussianBlurSigmaPx =
-            if (surface == null || surface.blockers.isNotEmpty()) {
-                null
-            } else {
-                surface.gaussianBlurSigmaPx()
-            }
-        val motionBlurDirective =
-            if (surface == null || surface.blockers.isNotEmpty()) {
-                null
-            } else {
-                surface.validMotionBlurDirective()
-            }
+        val descriptor =
+            activeDescriptor
+                ?: resolveDescriptorForPosition(
+                    (latestTargetTimelinePositionMs
+                        ?: latestKnownTimelinePositionMs
+                        ?: runtimeState.timelineTimeMs).coerceAtLeast(0L),
+                )
+                ?: return
+        val surface = resolveVisualStateForDescriptor(descriptor)
+        val transformMatrix = surface.transformMatrix3x3
+        val opacity = surface.opacity
+        val gaussianBlurSigmaPx = surface.gaussianBlurSigmaPx()
+        val motionBlurDirective = surface.validMotionBlurDirective()
+        val edgeFillDirective = surface.validEdgeFillDirective()
         renderHosts.forEach { host ->
             host.setScrubVisualState(
                 transformMatrix3x3 = transformMatrix,
                 opacity = opacity,
                 gaussianBlurSigmaPx = gaussianBlurSigmaPx,
                 motionBlurDirective = motionBlurDirective,
+                edgeFillDirective = edgeFillDirective,
             )
         }
+    }
+
+    private fun cacheStableVisualSurface(surface: Stage5VisualRuntimeSurfaceState) {
+        if (surface.targetClipId.isBlank() || surface.blockers.isNotEmpty()) {
+            return
+        }
+        if (lastStableVisualSurfaceByClipId.size > 128 &&
+            !lastStableVisualSurfaceByClipId.containsKey(surface.targetClipId)
+        ) {
+            val oldestKey = lastStableVisualSurfaceByClipId.keys.firstOrNull()
+            if (oldestKey != null) {
+                lastStableVisualSurfaceByClipId.remove(oldestKey)
+            }
+        }
+        lastStableVisualSurfaceByClipId[surface.targetClipId] = surface
+    }
+
+    private fun cachedOrDescriptorVisualSurface(
+        descriptor: Stage5NativeScrubSourceDescriptor,
+        runtimeFallbackBlockers: List<String> = emptyList(),
+    ): Stage5VisualRuntimeSurfaceState {
+        val cachedSurface = lastStableVisualSurfaceByClipId[descriptor.clipId]
+        if (cachedSurface != null && cachedSurface.blockers.isEmpty()) {
+            return cachedSurface.copy(
+                targetClipId = descriptor.clipId,
+                role = descriptor.transitionRole,
+                transitionProgress = descriptor.transitionProgress,
+            )
+        }
+        return Stage5VisualRuntimeSurfaceState(
+            targetClipId = descriptor.clipId,
+            role = descriptor.transitionRole,
+            transformMatrix3x3 = descriptor.transformMatrix3x3,
+            opacity = descriptor.opacity,
+            transitionProgress = descriptor.transitionProgress,
+            effectProgramIds = descriptor.effectProgramIds,
+            effectBindings = emptyList(),
+            motionBlurDirective = null,
+            edgeFillDirective = null,
+            blockers = runtimeFallbackBlockers.ifEmpty { descriptor.runtimeBlockers },
+        )
     }
 
     private fun Stage5VisualRuntimeSurfaceState.gaussianBlurSigmaPx(): Float? {
@@ -1142,6 +1188,18 @@ class Stage5NativeScrubEngine(
             return null
         }
         if (!directive.directionX.isFinite() || !directive.directionY.isFinite()) {
+            return null
+        }
+        return directive
+    }
+
+    private fun Stage5VisualRuntimeSurfaceState.validEdgeFillDirective():
+        Stage5VisualRuntimeEdgeFillDirective? {
+        val directive = edgeFillDirective ?: return null
+        if (!directive.enabled || directive.amount <= 0.0001) {
+            return null
+        }
+        if (!directive.overscanScale.isFinite() || directive.overscanScale <= 1.0001) {
             return null
         }
         return directive
