@@ -1373,6 +1373,18 @@ class ProfessionalVideoTransitionCompositorManager(
             (pixelRenderExecution["writerTrailContributionCount"] as? Number)?.toInt() ?: 0
         val motionBlurAmount =
             (pixelRenderExecution["writerMotionBlurAmount"] as? Number)?.toDouble() ?: 0.0
+        val forcedVisualTestPattern =
+            pixelRenderExecution["writerForcedVisualTestPattern"] == true
+        val forcedSyntheticMotionBlur =
+            pixelRenderExecution["writerForcedSyntheticMotionBlur"] == true
+        val sampleTransformDelta =
+            (pixelRenderExecution["writerSampleTransformDelta"] as? Number)?.toDouble() ?: 0.0
+        val rendererConsumedSamples =
+            pixelRenderExecution["writerRendererConsumedSamples"] == true
+        val renderPassIncludesTemporalMotionBlur =
+            pixelRenderExecution["writerRenderPassIncludesTemporalMotionBlur"] == true
+        val fallbackUsed =
+            pixelRenderExecution["writerFallbackUsed"] == true
         val checksumBefore =
             (pixelRenderExecution["writerChecksumBefore"] as? Number)?.toLong() ?: 0L
         val checksumAfter =
@@ -1408,6 +1420,12 @@ class ProfessionalVideoTransitionCompositorManager(
             "centerContributionCount" to centerContributionCount,
             "trailContributionCount" to trailContributionCount,
             "motionBlurAmount" to motionBlurAmount,
+            "forcedVisualTestPattern" to forcedVisualTestPattern,
+            "forcedSyntheticMotionBlur" to forcedSyntheticMotionBlur,
+            "sampleTransformDelta" to sampleTransformDelta,
+            "rendererConsumedSamples" to rendererConsumedSamples,
+            "renderPassIncludesTemporalMotionBlur" to renderPassIncludesTemporalMotionBlur,
+            "fallbackUsed" to fallbackUsed,
             "checksumBefore" to checksumBefore,
             "checksumAfter" to checksumAfter,
             "checksumDelta" to checksumDelta,
@@ -3643,6 +3661,13 @@ private data class ProfessionalVideoTransitionRenderSession(
                 "writerCenterContributionCount" to writeResult.centerContributionCount,
                 "writerTrailContributionCount" to writeResult.trailContributionCount,
                 "writerMotionBlurAmount" to writeResult.motionBlurAmount,
+                "writerForcedVisualTestPattern" to writeResult.forcedVisualTestPattern,
+                "writerForcedSyntheticMotionBlur" to writeResult.forcedSyntheticMotionBlur,
+                "writerSampleTransformDelta" to writeResult.sampleTransformDelta,
+                "writerRendererConsumedSamples" to writeResult.rendererConsumedSamples,
+                "writerRenderPassIncludesTemporalMotionBlur" to
+                    writeResult.renderPassIncludesTemporalMotionBlur,
+                "writerFallbackUsed" to writeResult.fallbackUsed,
                 "writerReason" to (writeResult.reason ?: ""),
                 "pixelRendererImplemented" to false,
                 "pixelRendererReady" to false,
@@ -3821,6 +3846,14 @@ private data class ProfessionalVideoTransitionRenderSession(
                 reason = "native_transition_temporal_samples_missing",
             )
         }
+        val visibilityGate =
+            parameters?.get("motionBlurVisibilityGate") as? Map<*, *>
+        val forcedVisualTestPattern =
+            visibilityGate?.booleanValue("forcedVisualTestPattern") == true
+        val forcedSyntheticMotionBlur =
+            visibilityGate?.booleanValue("forcedSyntheticMotionBlur") == true
+        val renderPassIncludesTemporalMotionBlur =
+            motionBlurPolicy?.stringValue("mode") == "temporalShutter"
         val manualTemporalSamples =
             readManualTemporalMotionBlurSamples(
                 parameters = parameters,
@@ -3851,7 +3884,35 @@ private data class ProfessionalVideoTransitionRenderSession(
                         sample.opacity.isFinite() &&
                         sample.opacity > 0.0
                 }
+            val sampleTransformDelta = manualMotionBlurSampleTransformDelta(validSamples)
             if (validSamples.isEmpty()) {
+                if (forcedVisualTestPattern) {
+                    drawMotionBlurVisibilityGateMarker(
+                        canvas = canvas,
+                        canvasWidth = width,
+                        canvasHeight = height,
+                        amount = 0.0,
+                        sampleCount = 0,
+                        sampleTransformDelta = 0.0,
+                    )
+                    val checksumBefore = frameBufferStore.checksum(frameBufferId)
+                    val writeResult = frameBufferStore.writeBitmap(
+                        frameBufferId = frameBufferId,
+                        bitmap = canvasBitmap,
+                        sampleCount = timelineSamples.size,
+                        extractedFrameCount = 0,
+                    )
+                    return writeResult.copy(
+                        forcedVisualTestPattern = true,
+                        forcedSyntheticMotionBlur = false,
+                        sampleTransformDelta = 0.0,
+                        rendererConsumedSamples = false,
+                        renderPassIncludesTemporalMotionBlur = renderPassIncludesTemporalMotionBlur,
+                        fallbackUsed = true,
+                        checksumBefore = checksumBefore,
+                        checksumAfter = writeResult.checksum,
+                    )
+                }
                 return ProfessionalVideoTransitionPixelFrameBufferWriteResult(
                     wrotePixels = false,
                     byteCount = 0,
@@ -3969,7 +4030,59 @@ private data class ProfessionalVideoTransitionRenderSession(
                     frame.recycle()
                 }
             }
+            var syntheticMotionBlurRendered = false
+            if (
+                forcedSyntheticMotionBlur &&
+                    motionBlurAmount > 0.0001 &&
+                    validSamples.size > 1 &&
+                    sampleTransformDelta > 0.0001
+            ) {
+                drawForcedSyntheticMotionBlurGate(
+                    canvas = canvas,
+                    canvasWidth = width,
+                    canvasHeight = height,
+                    amount = motionBlurAmount,
+                    sampleCount = validSamples.size,
+                    sampleTransformDelta = sampleTransformDelta,
+                )
+                syntheticMotionBlurRendered = true
+            }
+            if (forcedVisualTestPattern) {
+                drawMotionBlurVisibilityGateMarker(
+                    canvas = canvas,
+                    canvasWidth = width,
+                    canvasHeight = height,
+                    amount = motionBlurAmount,
+                    sampleCount = validSamples.size,
+                    sampleTransformDelta = sampleTransformDelta,
+                )
+            }
             if (extractedFrameCount <= 0) {
+                if (forcedVisualTestPattern || syntheticMotionBlurRendered) {
+                    val checksumBefore = frameBufferStore.checksum(frameBufferId)
+                    val writeResult = frameBufferStore.writeBitmap(
+                        frameBufferId = frameBufferId,
+                        bitmap = canvasBitmap,
+                        sampleCount = validSamples.size,
+                        extractedFrameCount = 0,
+                    )
+                    return writeResult.copy(
+                        outgoingContributionCount = outgoingContributionCount,
+                        incomingContributionCount = incomingContributionCount,
+                        centerContributionCount = centerContributionCount,
+                        trailContributionCount = trailContributionCount,
+                        motionBlurAmount = motionBlurAmount,
+                        forcedVisualTestPattern = forcedVisualTestPattern,
+                        forcedSyntheticMotionBlur = syntheticMotionBlurRendered,
+                        sampleTransformDelta = sampleTransformDelta,
+                        rendererConsumedSamples = validSamples.size > 1,
+                        renderPassIncludesTemporalMotionBlur =
+                            renderPassIncludesTemporalMotionBlur,
+                        fallbackUsed = true,
+                        checksumBefore = checksumBefore,
+                        checksumAfter = writeResult.checksum,
+                    )
+                }
                 return ProfessionalVideoTransitionPixelFrameBufferWriteResult(
                     wrotePixels = false,
                     byteCount = 0,
@@ -3997,6 +4110,13 @@ private data class ProfessionalVideoTransitionRenderSession(
                 centerContributionCount = centerContributionCount,
                 trailContributionCount = trailContributionCount,
                 motionBlurAmount = motionBlurAmount,
+                forcedVisualTestPattern = forcedVisualTestPattern,
+                forcedSyntheticMotionBlur = syntheticMotionBlurRendered,
+                sampleTransformDelta = sampleTransformDelta,
+                rendererConsumedSamples = validSamples.size > 1,
+                renderPassIncludesTemporalMotionBlur =
+                    renderPassIncludesTemporalMotionBlur,
+                fallbackUsed = false,
                 checksumBefore = checksumBefore,
                 checksumAfter = writeResult.checksum,
             )
@@ -4049,6 +4169,119 @@ private data class ProfessionalVideoTransitionRenderSession(
             sample.transformMatrix3x3.zip(centerSample.transformMatrix3x3)
                 .sumOf { (sampleValue, centerValue) -> abs(sampleValue - centerValue) }
         return matrixDelta > 0.0001
+    }
+
+    private fun manualMotionBlurSampleTransformDelta(
+        samples: List<ManualTemporalMotionBlurSample>,
+    ): Double {
+        if (samples.size <= 1) {
+            return 0.0
+        }
+        val first = samples.first().transformMatrix3x3
+        return samples.drop(1).maxOf { sample ->
+            sample.transformMatrix3x3.zip(first)
+                .sumOf { (sampleValue, firstValue) -> abs(sampleValue - firstValue) }
+        }
+    }
+
+    private fun drawMotionBlurVisibilityGateMarker(
+        canvas: Canvas,
+        canvasWidth: Int,
+        canvasHeight: Int,
+        amount: Double,
+        sampleCount: Int,
+        sampleTransformDelta: Double,
+    ) {
+        val markerWidth = min(canvasWidth, max(96, canvasWidth / 5))
+        val markerHeight = min(canvasHeight, max(48, canvasHeight / 16))
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        paint.style = Paint.Style.FILL
+        paint.color = Color.argb(230, 0, 220, 90)
+        canvas.drawRect(
+            0f,
+            0f,
+            markerWidth.toFloat(),
+            markerHeight.toFloat(),
+            paint,
+        )
+        paint.color = Color.argb(245, 255, 40, 120)
+        val amountWidth =
+            (markerWidth * amount.coerceIn(0.0, 1.0)).toFloat().coerceAtLeast(8f)
+        canvas.drawRect(
+            0f,
+            markerHeight * 0.68f,
+            amountWidth,
+            markerHeight.toFloat(),
+            paint,
+        )
+        paint.color = Color.argb(245, 255, 255, 255)
+        val sampleRadius = (min(markerWidth, markerHeight) * 0.12f)
+            .coerceAtLeast(5f)
+        val sampleDots = sampleCount.coerceIn(1, 12)
+        for (index in 0 until sampleDots) {
+            canvas.drawCircle(
+                markerWidth - sampleRadius - index * sampleRadius * 2.2f,
+                markerHeight * 0.35f,
+                sampleRadius,
+                paint,
+            )
+        }
+        if (sampleTransformDelta > 0.0001) {
+            paint.color = Color.argb(245, 60, 120, 255)
+            canvas.drawCircle(
+                markerWidth * 0.18f,
+                markerHeight * 0.35f,
+                markerHeight * 0.22f,
+                paint,
+            )
+        }
+    }
+
+    private fun drawForcedSyntheticMotionBlurGate(
+        canvas: Canvas,
+        canvasWidth: Int,
+        canvasHeight: Int,
+        amount: Double,
+        sampleCount: Int,
+        sampleTransformDelta: Double,
+    ) {
+        val centerX = canvasWidth * 0.5f
+        val centerY = canvasHeight * 0.5f
+        val radius = min(canvasWidth, canvasHeight) * 0.28f
+        val normalizedAmount = amount.coerceIn(0.0, 1.0).toFloat()
+        val normalizedDelta = sampleTransformDelta.coerceIn(0.0, 8.0).toFloat()
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        paint.style = Paint.Style.STROKE
+        paint.strokeCap = Paint.Cap.ROUND
+        val strokeWidth = (6f + normalizedAmount * 22f).coerceAtMost(32f)
+        paint.strokeWidth = strokeWidth
+        val arcBounds = RectF(
+            centerX - radius,
+            centerY - radius,
+            centerX + radius,
+            centerY + radius,
+        )
+        val rings = sampleCount.coerceIn(3, 14)
+        for (index in 0 until rings) {
+            val fraction = index / max(1f, (rings - 1).toFloat())
+            paint.color = Color.argb(
+                (42 + normalizedAmount * 120f).roundToInt().coerceIn(32, 190),
+                70,
+                (180 + 60 * fraction).roundToInt().coerceIn(0, 255),
+                255,
+            )
+            val sweep = 16f + normalizedAmount * 110f + normalizedDelta * 4f
+            canvas.drawArc(
+                arcBounds,
+                -80f + fraction * 210f,
+                sweep,
+                false,
+                paint,
+            )
+        }
+        paint.style = Paint.Style.FILL
+        paint.color = Color.argb(210, 255, 255, 255)
+        canvas.drawCircle(centerX, centerY, 8f + normalizedAmount * 12f, paint)
     }
 
     private fun readManualTemporalMotionBlurSamples(
@@ -6665,6 +6898,12 @@ private data class ProfessionalVideoTransitionPixelFrameBufferWriteResult(
     val centerContributionCount: Int = 0,
     val trailContributionCount: Int = 0,
     val motionBlurAmount: Double = 0.0,
+    val forcedVisualTestPattern: Boolean = false,
+    val forcedSyntheticMotionBlur: Boolean = false,
+    val sampleTransformDelta: Double = 0.0,
+    val rendererConsumedSamples: Boolean = false,
+    val renderPassIncludesTemporalMotionBlur: Boolean = false,
+    val fallbackUsed: Boolean = false,
     val checksumBefore: Long = 0L,
     val checksumAfter: Long = 0L,
 )

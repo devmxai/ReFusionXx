@@ -22248,6 +22248,21 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         parameters['temporalMotionBlurSamplePlans'] = temporalPlans
             .map((plan) => plan.toPlatformMap())
             .toList(growable: false);
+        if (temporalPlans.isNotEmpty) {
+          final firstPlan = temporalPlans.first;
+          parameters['motionBlurVisibilityGate'] = <String, Object?>{
+            'enabled': true,
+            'forcedVisualTestPattern': true,
+            'forcedSyntheticMotionBlur': true,
+            'pixelDeltaProof': true,
+            'amount': firstPlan.amount,
+            'sampleCount': firstPlan.sampleTimesMs.length,
+            'contributionCount': firstPlan.sampleContributions.length,
+            'sampleTransformDelta':
+                _motionBlurVisibilityGateTransformDelta(firstPlan),
+            'mode': mode,
+          };
+        }
       }
     }
     return const ProfessionalVideoTransitionRenderPlanAdapter().build(
@@ -23687,6 +23702,22 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
     }
     return hasVisibleAmount && contributionCount > 1;
+  }
+
+  double _motionBlurVisibilityGateTransformDelta(
+    TemporalMotionBlurSamplePlan plan,
+  ) {
+    if (plan.sampleTransforms.length <= 1) {
+      return 0;
+    }
+    final first = plan.sampleTransforms.first;
+    final last = plan.sampleTransforms.last;
+    final length = math.min(first.length, last.length);
+    var delta = 0.0;
+    for (var index = 0; index < length; index++) {
+      delta += (last[index] - first[index]).abs();
+    }
+    return delta;
   }
 
   List<String> _trueFrameLayerFamiliesForActiveTransition(

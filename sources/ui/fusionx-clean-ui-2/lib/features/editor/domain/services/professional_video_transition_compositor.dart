@@ -6705,6 +6705,12 @@ class ProfessionalVideoTransitionInteractiveFrameRenderResult {
     required this.centerContributionCount,
     required this.trailContributionCount,
     required this.motionBlurAmount,
+    required this.forcedVisualTestPattern,
+    required this.forcedSyntheticMotionBlur,
+    required this.sampleTransformDelta,
+    required this.rendererConsumedSamples,
+    required this.renderPassIncludesTemporalMotionBlur,
+    required this.fallbackUsed,
     required this.checksumBefore,
     required this.checksumAfter,
     required this.checksumDelta,
@@ -6743,6 +6749,12 @@ class ProfessionalVideoTransitionInteractiveFrameRenderResult {
       centerContributionCount: 0,
       trailContributionCount: 0,
       motionBlurAmount: 0,
+      forcedVisualTestPattern: false,
+      forcedSyntheticMotionBlur: false,
+      sampleTransformDelta: 0,
+      rendererConsumedSamples: false,
+      renderPassIncludesTemporalMotionBlur: false,
+      fallbackUsed: false,
       checksumBefore: 0,
       checksumAfter: 0,
       checksumDelta: false,
@@ -6776,6 +6788,12 @@ class ProfessionalVideoTransitionInteractiveFrameRenderResult {
   final int centerContributionCount;
   final int trailContributionCount;
   final double motionBlurAmount;
+  final bool forcedVisualTestPattern;
+  final bool forcedSyntheticMotionBlur;
+  final double sampleTransformDelta;
+  final bool rendererConsumedSamples;
+  final bool renderPassIncludesTemporalMotionBlur;
+  final bool fallbackUsed;
   final int checksumBefore;
   final int checksumAfter;
   final bool checksumDelta;
@@ -6827,6 +6845,13 @@ class ProfessionalVideoTransitionInteractiveFrameRenderResultMapper {
       centerContributionCount: _readInt(map['centerContributionCount']),
       trailContributionCount: _readInt(map['trailContributionCount']),
       motionBlurAmount: _readDouble(map['motionBlurAmount']),
+      forcedVisualTestPattern: _readBool(map['forcedVisualTestPattern']),
+      forcedSyntheticMotionBlur: _readBool(map['forcedSyntheticMotionBlur']),
+      sampleTransformDelta: _readDouble(map['sampleTransformDelta']),
+      rendererConsumedSamples: _readBool(map['rendererConsumedSamples']),
+      renderPassIncludesTemporalMotionBlur:
+          _readBool(map['renderPassIncludesTemporalMotionBlur']),
+      fallbackUsed: _readBool(map['fallbackUsed']),
       checksumBefore: _readInt(map['checksumBefore']),
       checksumAfter: _readInt(map['checksumAfter']),
       checksumDelta: _readBool(map['checksumDelta']),

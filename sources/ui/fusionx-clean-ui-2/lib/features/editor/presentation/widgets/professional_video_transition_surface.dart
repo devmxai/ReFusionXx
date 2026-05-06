@@ -125,6 +125,7 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
   int _registrationRetryCount = 0;
   String? _lastRenderedKey;
   String? _lastReportedRenderIssueKey;
+  String? _lastReportedRenderSuccessKey;
   Timer? _renderTimer;
   bool _hasPresentedFrame = false;
 
@@ -139,6 +140,7 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
       _registrationRetryCount = 0;
       _lastRenderedKey = null;
       _lastReportedRenderIssueKey = null;
+      _lastReportedRenderSuccessKey = null;
       widget.onPresentationChanged?.call(false);
       _hasPresentedFrame = false;
       _renderTimer?.cancel();
@@ -199,6 +201,7 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
       _scheduleRender();
     }
     if (result.canRenderFrame) {
+      _debugRenderSuccess(result);
       _lastRenderedKey = renderKey;
       _registrationRetryCount = 0;
       if (!_hasPresentedFrame) {
@@ -241,8 +244,58 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
       'center=${result.centerContributionCount}, '
       'trails=${result.trailContributionCount}, '
       'amount=${result.motionBlurAmount}, '
+      'forcedMarker=${result.forcedVisualTestPattern}, '
+      'forcedSynthetic=${result.forcedSyntheticMotionBlur}, '
+      'transformDelta=${result.sampleTransformDelta}, '
+      'rendererConsumed=${result.rendererConsumedSamples}, '
+      'temporalPass=${result.renderPassIncludesTemporalMotionBlur}, '
+      'fallbackUsed=${result.fallbackUsed}, '
       'checksumDelta=${result.checksumDelta}, '
       'blockedReasons=${result.blockedReasons}, reason=${result.reason}',
+    );
+  }
+
+  void _debugRenderSuccess(
+    ProfessionalVideoTransitionInteractiveFrameRenderResult result,
+  ) {
+    if (!result.motionBlurEnabled) {
+      return;
+    }
+    final successKey = [
+      result.definitionId,
+      result.mode,
+      result.surfaceId,
+      result.timelineTime?.inMilliseconds,
+      result.sampleCount,
+      result.motionBlurAmount,
+      result.sampleTransformDelta,
+      result.checksumDelta,
+    ].join('|');
+    if (_lastReportedRenderSuccessKey == successKey) {
+      return;
+    }
+    _lastReportedRenderSuccessKey = successKey;
+    debugPrint(
+      'Motion Blur visibility gate passed: '
+      'definition=${result.definitionId}, mode=${result.mode}, '
+      'surface=${result.surfaceId}, time=${result.timelineTime?.inMilliseconds}, '
+      'pixelOutputReady=${result.pixelOutputReady}, '
+      'frameDelivered=${result.frameDelivered}, '
+      'framePresented=${result.framePresented}, '
+      'surfaceAttached=${result.surfaceAttached}, '
+      'amount=${result.motionBlurAmount}, '
+      'samples=${result.sampleCount}, '
+      'center=${result.centerContributionCount}, '
+      'trails=${result.trailContributionCount}, '
+      'forcedMarker=${result.forcedVisualTestPattern}, '
+      'forcedSynthetic=${result.forcedSyntheticMotionBlur}, '
+      'transformDelta=${result.sampleTransformDelta}, '
+      'rendererConsumed=${result.rendererConsumedSamples}, '
+      'temporalPass=${result.renderPassIncludesTemporalMotionBlur}, '
+      'fallbackUsed=${result.fallbackUsed}, '
+      'checksumBefore=${result.checksumBefore}, '
+      'checksumAfter=${result.checksumAfter}, '
+      'checksumDelta=${result.checksumDelta}',
     );
   }
 
