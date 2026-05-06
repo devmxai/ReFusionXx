@@ -1359,16 +1359,36 @@ class ProfessionalVideoTransitionCompositorManager(
         val visibilityGate =
             ((plan?.get("parameters") as? Map<*, *>)?.get("motionBlurVisibilityGate")
                 as? Map<*, *>)
-        val rendererPath =
+        val requestedRendererPath =
             visibilityGate
                 ?.stringValue("rendererPath")
                 ?.takeIf { path -> path.isNotBlank() }
                 ?: "debugBitmapProof"
-        val sourceProviderMode =
+        val requestedSourceProviderMode =
             visibilityGate
                 ?.stringValue("sourceProviderMode")
                 ?.takeIf { mode -> mode.isNotBlank() }
                 ?: "bitmapProof"
+        val proofBackedPixelRenderer =
+            pixelRenderExecution["writerSourceFrameExtractor"]
+                ?.toString()
+                ?.contains("MediaMetadataRetriever") == true ||
+                pixelRenderExecution["writerRendererPath"] == "debugBitmapProof" ||
+                pixelRenderExecution["writerSourceProviderMode"] == "bitmapProof" ||
+                pixelRenderExecution["pixelOutputWriteMode"] == "offscreenTemporalFrameBuffer" ||
+                pixelRenderExecution["outputFramebufferTarget"] == "nativeTransitionCanvasSurface"
+        val rendererPath =
+            if (proofBackedPixelRenderer) {
+                "debugBitmapProof"
+            } else {
+                requestedRendererPath
+            }
+        val sourceProviderMode =
+            if (proofBackedPixelRenderer) {
+                "bitmapProof"
+            } else {
+                requestedSourceProviderMode
+            }
         val sampleCount =
             (pixelRenderExecution["writerTemporalSampleCount"] as? Number)?.toInt() ?: 0
         val outgoingContributionCount =
@@ -1494,6 +1514,9 @@ class ProfessionalVideoTransitionCompositorManager(
             "pixelOutputReady" to pixelOutputReady,
             "rendererPath" to rendererPath,
             "sourceProviderMode" to sourceProviderMode,
+            "requestedRendererPath" to requestedRendererPath,
+            "requestedSourceProviderMode" to requestedSourceProviderMode,
+            "proofBackedPixelRenderer" to proofBackedPixelRenderer,
             "realFrameProof" to realFrameProof,
             "renderTimeMs" to renderTimeMs,
             "frameBudgetMs" to frameBudgetMs,
@@ -3759,6 +3782,8 @@ private data class ProfessionalVideoTransitionRenderSession(
                 "writerChecksumBefore" to writeResult.checksumBefore,
                 "writerChecksumAfter" to writeResult.checksumAfter,
                 "writerChecksumDelta" to (writeResult.checksumAfter != writeResult.checksumBefore),
+                "writerRendererPath" to "debugBitmapProof",
+                "writerSourceProviderMode" to "bitmapProof",
                 "writerSourceFrameExtractor" to "MediaMetadataRetriever.getFrameAtTime",
                 "writerCanvasFillMode" to "centerCropFill",
                 "writerOutgoingContributionCount" to writeResult.outgoingContributionCount,

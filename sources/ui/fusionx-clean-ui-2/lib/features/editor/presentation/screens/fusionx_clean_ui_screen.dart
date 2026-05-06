@@ -22258,14 +22258,22 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           const trueframeForceSyntheticMotionBlurEnabled = bool.fromEnvironment(
             'TRUEFRAME_FORCE_SYNTHETIC_MOTION_BLUR_ENABLED',
           );
+          const trueframeProductionTextureMotionBlurEnabled =
+              bool.fromEnvironment(
+            'TRUEFRAME_PRODUCTION_TEXTURE_MOTION_BLUR_ENABLED',
+          );
           parameters['motionBlurVisibilityGate'] = <String, Object?>{
             'enabled': true,
             'forcedVisualTestPattern': trueframeDebugVisualGateEnabled,
             'forcedSyntheticMotionBlur': trueframeDebugVisualGateEnabled &&
                 trueframeForceSyntheticMotionBlurEnabled,
             'pixelDeltaProof': true,
-            'rendererPath': 'productionTexture',
-            'sourceProviderMode': 'decodedTexture',
+            'rendererPath': trueframeProductionTextureMotionBlurEnabled
+                ? 'productionTexture'
+                : 'debugBitmapProof',
+            'sourceProviderMode': trueframeProductionTextureMotionBlurEnabled
+                ? 'decodedTexture'
+                : 'bitmapProof',
             'amount': firstPlan.amount,
             'sampleCount': firstPlan.sampleTimesMs.length,
             'contributionCount': firstPlan.sampleContributions.length,

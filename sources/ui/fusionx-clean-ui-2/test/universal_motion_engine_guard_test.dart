@@ -647,6 +647,13 @@ void main() {
       gateBody.contains('TRUEFRAME_FORCE_SYNTHETIC_MOTION_BLUR_ENABLED'),
       isTrue,
     );
+    expect(
+      gateBody.contains('TRUEFRAME_PRODUCTION_TEXTURE_MOTION_BLUR_ENABLED'),
+      isTrue,
+    );
+    expect(gateBody.contains("'rendererPath': 'productionTexture'"), isFalse);
+    expect(
+        gateBody.contains("'sourceProviderMode': 'decodedTexture'"), isFalse);
     expect(gateBody.contains("'forcedVisualTestPattern': true,"), isFalse);
     expect(gateBody.contains("'forcedSyntheticMotionBlur': true,"), isFalse);
   });
@@ -983,6 +990,11 @@ void main() {
     expect(source.contains('?: "debugBitmapProof"'), isTrue);
     expect(source.contains('stringValue("sourceProviderMode")'), isTrue);
     expect(source.contains('?: "bitmapProof"'), isTrue);
+    expect(
+        source.contains('"writerRendererPath" to "debugBitmapProof"'), isTrue);
+    expect(
+        source.contains('"writerSourceProviderMode" to "bitmapProof"'), isTrue);
+    expect(source.contains('proofBackedPixelRenderer'), isTrue);
     expect(source.contains('production_texture_renderer_not_ready'), isTrue);
     expect(source.contains('"realFrameProof" to realFrameProof'), isTrue);
   });
