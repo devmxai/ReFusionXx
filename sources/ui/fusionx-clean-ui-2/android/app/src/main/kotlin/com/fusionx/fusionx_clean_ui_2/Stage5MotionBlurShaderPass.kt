@@ -11,7 +11,7 @@ class Stage5MotionBlurShaderPass {
 
         // language=AGSL
         private const val MOTION_BLUR_SHADER = """
-            uniform shader input;
+            uniform shader sourceImage;
             uniform float2 resolution;
             uniform float amount;
             uniform float kernelLengthPx;
@@ -41,11 +41,11 @@ class Stage5MotionBlurShaderPass {
                     float phase = clamp(shutterPhase, -1.0, 1.0) * 0.5;
                     float t = normalized + phase;
                     float weight = 1.0 / count;
-                    accum += input.eval(coord + (velocity * t)) * half(weight);
+                    accum += sourceImage.eval(coord + (velocity * t)) * half(weight);
                     weightAccum += weight;
                 }
                 if (weightAccum <= 0.0) {
-                    return input.eval(coord);
+                    return sourceImage.eval(coord);
                 }
                 return accum;
             }
@@ -82,49 +82,57 @@ class Stage5MotionBlurShaderPass {
                 fallbackReason = "motion_blur_velocity_zero",
             )
         }
-        val shader = RuntimeShader(MOTION_BLUR_SHADER).apply {
-            setFloatUniform(
-                "resolution",
-                max(1f, targetWidthPx),
-                max(1f, targetHeightPx),
+        return try {
+            val shader = RuntimeShader(MOTION_BLUR_SHADER).apply {
+                setFloatUniform(
+                    "resolution",
+                    max(1f, targetWidthPx),
+                    max(1f, targetHeightPx),
+                )
+                setFloatUniform("amount", normalizedDirective.amount.toFloat())
+                setFloatUniform(
+                    "kernelLengthPx",
+                    normalizedDirective.kernelLengthPx.toFloat().coerceAtLeast(0f),
+                )
+                setFloatUniform(
+                    "direction",
+                    normalizedDirective.directionX.toFloat(),
+                    normalizedDirective.directionY.toFloat(),
+                )
+                setFloatUniform("radialOmega", normalizedDirective.radialOmega.toFloat())
+                setFloatUniform(
+                    "scaleVelocity",
+                    normalizedDirective.scaleVelocityX.toFloat(),
+                    normalizedDirective.scaleVelocityY.toFloat(),
+                )
+                setFloatUniform(
+                    "anchorNorm",
+                    normalizedDirective.anchorXNormalized.toFloat().coerceIn(0f, 1f),
+                    normalizedDirective.anchorYNormalized.toFloat().coerceIn(0f, 1f),
+                )
+                setFloatUniform("shutterPhase", normalizedDirective.shutterPhase.toFloat())
+                setFloatUniform(
+                    "sampleCount",
+                    normalizedDirective.sampleCount.coerceIn(1, MAX_SAMPLES).toFloat(),
+                )
+            }
+            val motionBlurEffect =
+                RenderEffect.createRuntimeShaderEffect(shader, "sourceImage")
+            val combinedEffect =
+                if (gaussianBlur != null) {
+                    RenderEffect.createChainEffect(gaussianBlur, motionBlurEffect)
+                } else {
+                    motionBlurEffect
+                }
+            RenderEffectResult(
+                renderEffect = combinedEffect,
+                fallbackReason = normalizedDirective.fallbackReason,
             )
-            setFloatUniform("amount", normalizedDirective.amount.toFloat())
-            setFloatUniform(
-                "kernelLengthPx",
-                normalizedDirective.kernelLengthPx.toFloat().coerceAtLeast(0f),
-            )
-            setFloatUniform(
-                "direction",
-                normalizedDirective.directionX.toFloat(),
-                normalizedDirective.directionY.toFloat(),
-            )
-            setFloatUniform("radialOmega", normalizedDirective.radialOmega.toFloat())
-            setFloatUniform(
-                "scaleVelocity",
-                normalizedDirective.scaleVelocityX.toFloat(),
-                normalizedDirective.scaleVelocityY.toFloat(),
-            )
-            setFloatUniform(
-                "anchorNorm",
-                normalizedDirective.anchorXNormalized.toFloat().coerceIn(0f, 1f),
-                normalizedDirective.anchorYNormalized.toFloat().coerceIn(0f, 1f),
-            )
-            setFloatUniform("shutterPhase", normalizedDirective.shutterPhase.toFloat())
-            setFloatUniform(
-                "sampleCount",
-                normalizedDirective.sampleCount.coerceIn(1, MAX_SAMPLES).toFloat(),
+        } catch (_: IllegalArgumentException) {
+            RenderEffectResult(
+                renderEffect = gaussianBlur,
+                fallbackReason = "runtime_shader_compile_failed",
             )
         }
-        val motionBlurEffect = RenderEffect.createRuntimeShaderEffect(shader, "input")
-        val combinedEffect =
-            if (gaussianBlur != null) {
-                RenderEffect.createChainEffect(gaussianBlur, motionBlurEffect)
-            } else {
-                motionBlurEffect
-            }
-        return RenderEffectResult(
-            renderEffect = combinedEffect,
-            fallbackReason = normalizedDirective.fallbackReason,
-        )
     }
 }
