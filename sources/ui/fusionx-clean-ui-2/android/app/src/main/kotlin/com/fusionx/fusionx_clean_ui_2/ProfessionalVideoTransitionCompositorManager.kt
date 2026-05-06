@@ -1400,12 +1400,18 @@ class ProfessionalVideoTransitionCompositorManager(
                     add("native_transition_motion_blur_pixel_delta_missing")
                 }
             }.distinct()
+        val proofOnlyBlockedReasons =
+            setOf(
+                "native_transition_motion_blur_pixel_delta_missing",
+            )
+        val renderBlockingReasons =
+            finalBlockedReasons.filterNot { reason -> proofOnlyBlockedReasons.contains(reason) }
         val canRenderFrame =
             pixelOutputReady &&
                 upload.endpointAttached &&
                 upload.uploaded &&
                 upload.presented &&
-                finalBlockedReasons.isEmpty()
+                renderBlockingReasons.isEmpty()
         val writerCreated = pixelRenderExecution["writerCreated"] == true
         val writerBound = pixelRenderExecution["writerBound"] == true
         val outputFramebufferBound =
@@ -1413,6 +1419,7 @@ class ProfessionalVideoTransitionCompositorManager(
         val fallbackReason =
             pixelRenderExecution["writerReason"]?.toString()
                 ?.takeIf { reason -> reason.isNotBlank() }
+                ?: renderBlockingReasons.firstOrNull()
                 ?: finalBlockedReasons.firstOrNull().orEmpty()
         return mapOf(
             "status" to "planned",

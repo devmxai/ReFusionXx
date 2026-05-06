@@ -143,6 +143,7 @@ class ProfessionalVideoTransitionSurfaceOverlay extends StatefulWidget {
 class _ProfessionalVideoTransitionSurfaceOverlayState
     extends State<ProfessionalVideoTransitionSurfaceOverlay> {
   static const int _maxRenderRetryCount = 4;
+  static const int _maxOwnershipFailureStreak = 4;
 
   bool _platformViewReady = false;
   bool _renderInFlight = false;
@@ -155,6 +156,7 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
   Timer? _renderTimer;
   bool _hasPresentedFrame = false;
   bool _hasReportedRealPresentedFrame = false;
+  int _ownershipFailureStreak = 0;
 
   @override
   void didUpdateWidget(
@@ -171,6 +173,7 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
       widget.onPresentationChanged?.call(false);
       _hasPresentedFrame = false;
       _hasReportedRealPresentedFrame = false;
+      _ownershipFailureStreak = 0;
       _renderTimer?.cancel();
       return;
     }
@@ -238,23 +241,40 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
       _registrationRetryCount = 0;
       final realFramePresented =
           professionalTransitionRealFramePresented(result);
-      if (_hasPresentedFrame != realFramePresented) {
+      final keepPresentedOwnership = _shouldKeepPresentedOwnership(result);
+      final nextPresented = realFramePresented || keepPresentedOwnership;
+      if (_hasPresentedFrame != nextPresented) {
         setState(() {
-          _hasPresentedFrame = realFramePresented;
+          _hasPresentedFrame = nextPresented;
         });
       }
       if (realFramePresented && !_hasReportedRealPresentedFrame) {
         _hasReportedRealPresentedFrame = true;
+        _ownershipFailureStreak = 0;
         widget.onPresentationChanged?.call(true);
-      } else if (!realFramePresented && _hasReportedRealPresentedFrame) {
+      } else if (!realFramePresented &&
+          _hasReportedRealPresentedFrame &&
+          !keepPresentedOwnership) {
         _hasReportedRealPresentedFrame = false;
+        _ownershipFailureStreak = 0;
         widget.onPresentationChanged?.call(false);
+      } else if (!realFramePresented && keepPresentedOwnership) {
+        _ownershipFailureStreak += 1;
+      } else if (realFramePresented) {
+        _ownershipFailureStreak = 0;
       }
       return;
     }
     _debugRenderIssue(result);
-    if (_hasReportedRealPresentedFrame) {
+    if (_hasReportedRealPresentedFrame &&
+        _shouldDropPresentedOwnershipOnBlocked(result)) {
       _hasReportedRealPresentedFrame = false;
+      _ownershipFailureStreak = 0;
+      if (_hasPresentedFrame) {
+        setState(() {
+          _hasPresentedFrame = false;
+        });
+      }
       widget.onPresentationChanged?.call(false);
     }
     if (shouldRetryInteractiveRenderResult(
@@ -265,6 +285,57 @@ class _ProfessionalVideoTransitionSurfaceOverlayState
       _registrationRetryCount += 1;
       _scheduleRender(_retryDelayForAttempt(_registrationRetryCount));
     }
+  }
+
+  bool _shouldKeepPresentedOwnership(
+    ProfessionalVideoTransitionInteractiveFrameRenderResult result,
+  ) {
+    if (!_hasReportedRealPresentedFrame) {
+      return false;
+    }
+    if (!result.pixelOutputReady || !result.frameDelivered || !result.framePresented) {
+      return false;
+    }
+    final hasHardSurfaceLoss = result.blockedReasons.any(
+      (reason) =>
+          reason.endsWith('_production_surface_missing') ||
+          reason.endsWith('_interactive_surface_frame_missing') ||
+          reason.endsWith('_interactive_surface_presentation_missing') ||
+          reason == 'native_transition_interactive_surface_not_registered',
+    );
+    if (hasHardSurfaceLoss) {
+      return false;
+    }
+    if (result.blockedReasons.isEmpty) {
+      return true;
+    }
+    final hasProofOnlyIssue =
+        result.blockedReasons.length == 1 &&
+            result.blockedReasons.first ==
+                'native_transition_motion_blur_pixel_delta_missing';
+    if (hasProofOnlyIssue) {
+      return _ownershipFailureStreak < _maxOwnershipFailureStreak;
+    }
+    return false;
+  }
+
+  bool _shouldDropPresentedOwnershipOnBlocked(
+    ProfessionalVideoTransitionInteractiveFrameRenderResult result,
+  ) {
+    if (_shouldKeepPresentedOwnership(result)) {
+      return false;
+    }
+    if (!result.pixelOutputReady || !result.surfaceAttached) {
+      return true;
+    }
+    final hasHardSurfaceLoss = result.blockedReasons.any(
+      (reason) =>
+          reason.endsWith('_production_surface_missing') ||
+          reason.endsWith('_interactive_surface_frame_missing') ||
+          reason.endsWith('_interactive_surface_presentation_missing') ||
+          reason == 'native_transition_interactive_surface_not_registered',
+    );
+    return hasHardSurfaceLoss;
   }
 
   void _debugRenderIssue(
