@@ -478,10 +478,17 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     ),
     AnimateBrowserItem(
       id: 'edge_fill',
-      label: 'Edge Fill',
+      label: 'Motion Tile',
       category: 'FX',
-      summary: 'Fill blank bounds during rotation, scale, and motion blur.',
-      keywords: <String>['edge', 'fill', 'mirror', 'bounds', 'tile'],
+      summary: 'Fill blank bounds with mirrored or tiled edges during motion.',
+      keywords: <String>[
+        'motion tile',
+        'edge fill',
+        'mirror edges',
+        'fill edges',
+        'tile',
+        'repeat',
+      ],
     ),
   ];
   static const List<AnimateBrowserItem> _scopedImageFxItems =
@@ -502,10 +509,17 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     ),
     AnimateBrowserItem(
       id: 'edge_fill',
-      label: 'Edge Fill',
+      label: 'Motion Tile',
       category: 'FX',
-      summary: 'Fill blank bounds during rotation, scale, and motion blur.',
-      keywords: <String>['edge', 'fill', 'mirror', 'bounds', 'tile'],
+      summary: 'Fill blank bounds with mirrored or tiled edges during motion.',
+      keywords: <String>[
+        'motion tile',
+        'edge fill',
+        'mirror edges',
+        'fill edges',
+        'tile',
+        'repeat',
+      ],
     ),
   ];
   static const List<AnimateBrowserItem> _scopedVideoFxItems =
@@ -541,10 +555,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     ),
     AnimateBrowserItem(
       id: 'edge_fill',
-      label: 'Edge Fill',
+      label: 'Motion Tile',
       category: 'FX',
-      summary: 'Fill blank bounds during rotation, scale, and motion blur.',
-      keywords: <String>['edge', 'fill', 'mirror', 'bounds', 'tile', 'video'],
+      summary: 'Fill blank bounds with mirrored or tiled edges during motion.',
+      keywords: <String>[
+        'motion tile',
+        'edge fill',
+        'mirror edges',
+        'fill edges',
+        'tile',
+        'repeat',
+        'video',
+      ],
     ),
   ];
   static const List<AnimateBrowserItem> _manualTransitionAnimateItems =
@@ -586,10 +608,17 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     ),
     AnimateBrowserItem(
       id: 'edge_fill',
-      label: 'Edge Fill',
+      label: 'Motion Tile',
       category: 'FX',
-      summary: 'Fill blank bounds during rotation, scale, and motion blur.',
-      keywords: <String>['edge', 'fill', 'mirror', 'bounds', 'tile'],
+      summary: 'Fill blank bounds with mirrored or tiled edges during motion.',
+      keywords: <String>[
+        'motion tile',
+        'edge fill',
+        'mirror edges',
+        'fill edges',
+        'tile',
+        'repeat',
+      ],
     ),
     AnimateBrowserItem(
       id: 'shadow',
@@ -6570,6 +6599,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     String? selectedLaneId;
     String? selectedKeyframeId;
     int? selectedKeyframeIndex;
+    var addedAnyChannel = false;
+    final issues = <String>[];
 
     for (final definition in definitions) {
       final target = _sceneLayerScopeTargetForDefinition(
@@ -6595,10 +6626,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         ),
       );
       if (result.hasIssues) {
-        _showStageMessage(result.issues.first.message);
-        return;
+        issues.add(result.issues.first.message);
+        continue;
       }
       nextChannels = result.channels;
+      addedAnyChannel = true;
       final channel = _sceneLayerScopeChannelForTargetDefinition(
         channels: nextChannels,
         target: target,
@@ -6617,6 +6649,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
     }
 
+    if (!addedAnyChannel) {
+      _showStageMessage(
+        issues.isEmpty
+            ? '${item.label} could not be added in this scope yet.'
+            : issues.first,
+      );
+      return;
+    }
+
     setState(() {
       _universalMotionPropertyChannels = _mergeSceneLayerScopeChannels(
         viewModel,
@@ -6633,6 +6674,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _isLayerScopeValueEditorOpen = false;
       _isLayerScopeGraphEditorOpen = false;
     });
+    if (issues.isNotEmpty) {
+      _showStageMessage(
+        '${item.label} added with partial support (${issues.length} skipped).',
+      );
+    }
   }
 
   List<MotionPropertyDefinition> _sceneLayerScopePropertyDefinitionsForItem(
@@ -13376,13 +13422,25 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
 
     final trackIndex = _tracks.indexWhere(
-      (candidate) => candidate.kind == displayTrack.kind,
+      (candidate) => identical(candidate, displayTrack),
     );
-    if (trackIndex < 0) {
+    final resolvedTrackIndex = trackIndex >= 0
+        ? trackIndex
+        : _tracks.indexWhere(
+            (candidate) =>
+                candidate.kind == displayTrack.kind &&
+                candidate.clips.any((clip) => clip.id == targetClip.id),
+          );
+    final fallbackTrackIndex = resolvedTrackIndex >= 0
+        ? resolvedTrackIndex
+        : _tracks.indexWhere(
+            (candidate) => candidate.kind == displayTrack.kind,
+          );
+    if (fallbackTrackIndex < 0) {
       return null;
     }
 
-    final baseTrack = _tracks[trackIndex];
+    final baseTrack = _tracks[fallbackTrackIndex];
     TimelineAnimationLaneData? existingLane;
     for (final lane in baseTrack.animationLanes) {
       if (lane.targetClipId == targetClip.id &&
@@ -13434,7 +13492,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final nextTracks = List<TimelineTrackData>.from(_tracks);
 
     setState(() {
-      nextTracks[trackIndex] = baseTrack.copyWith(
+      nextTracks[fallbackTrackIndex] = baseTrack.copyWith(
         animationLanes: nextAnimationLanes,
       );
       _tracks = List<TimelineTrackData>.unmodifiable(nextTracks);
@@ -19061,6 +19119,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       'entryDelay' => const <double>[18.0],
       'bridgeDarkness' => const <double>[0.0, 22.0, 0.0],
       'blackPeak' => const <double>[0.0, 100.0, 100.0, 0.0],
+      'edge_fill' => const <double>[0.0],
       _ => const <double>[0.0, 100.0],
     };
   }
@@ -19118,6 +19177,43 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return '';
     }
     return _motionBlurSettingKeyForLane(laneId, legacySettingKey);
+  }
+
+  String _edgeFillSettingKeyForLane(String laneId, String settingKey) {
+    if (laneId == 'edge_fill') {
+      return settingKey;
+    }
+    return '$laneId.$settingKey';
+  }
+
+  double _edgeFillSettingFallback(String settingKey) {
+    return switch (settingKey) {
+      'edge_fill_mode' => 1.0,
+      'edge_fill_overscan_scale' => 1.2,
+      'edge_fill_softness_px' => 0.0,
+      'edge_fill_blur_sigma_px' => 0.0,
+      'edge_fill_max_expansion_px' => 320.0,
+      'edge_fill_affect_rotation' => 1.0,
+      'edge_fill_affect_scale' => 1.0,
+      'edge_fill_affect_position' => 1.0,
+      'edge_fill_affect_motion_blur' => 1.0,
+      _ => 0.0,
+    };
+  }
+
+  String _edgeFillSettingControlKey(String laneId, String controlId) {
+    final settingKey = switch (controlId) {
+      'edgeFillMode' => 'edge_fill_mode',
+      'edgeFillOverscanScale' => 'edge_fill_overscan_scale',
+      'edgeFillSoftnessPx' => 'edge_fill_softness_px',
+      'edgeFillBlurSigmaPx' => 'edge_fill_blur_sigma_px',
+      'edgeFillMaxExpansionPx' => 'edge_fill_max_expansion_px',
+      _ => '',
+    };
+    if (settingKey.isEmpty) {
+      return '';
+    }
+    return _edgeFillSettingKeyForLane(laneId, settingKey);
   }
 
   TimelineAnimationLaneData? _emptyTransitionFocusManualLane({
@@ -19493,6 +19589,19 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       tint: Color(0xFFFFA7C9),
       keyframeStops: <double>[],
       valueFormatter: _formatTransitionPixels,
+    ),
+    'edge_fill': _TransitionFocusLaneSpec(
+      id: 'edge_fill',
+      groupLabel: 'FX',
+      label: 'Motion Tile',
+      editorDescription:
+          'Fills blank bounds with mirrored/tiled edges so rotation and scale stay full-frame.',
+      min: 0.0,
+      max: 100.0,
+      fallback: 0.0,
+      tint: Color(0xFF7CEBFF),
+      keyframeStops: <double>[],
+      valueFormatter: _formatTransitionPercent,
     ),
     'motion_blur': _TransitionFocusLaneSpec(
       id: 'motion_blur',
@@ -20267,6 +20376,70 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
               fallback: _motionBlurSettingFallback('motion_blur_max_trail'),
             ),
           },
+          if (requestedLaneId == 'edge_fill') ...<String, double>{
+            _edgeFillSettingKeyForLane(requestedLaneId, 'edge_fill_mode'):
+                current.parameterValue(
+              _edgeFillSettingKeyForLane(requestedLaneId, 'edge_fill_mode'),
+              fallback: _edgeFillSettingFallback('edge_fill_mode'),
+            ),
+            _edgeFillSettingKeyForLane(
+                    requestedLaneId, 'edge_fill_overscan_scale'):
+                current.parameterValue(
+              _edgeFillSettingKeyForLane(
+                  requestedLaneId, 'edge_fill_overscan_scale'),
+              fallback: _edgeFillSettingFallback('edge_fill_overscan_scale'),
+            ),
+            _edgeFillSettingKeyForLane(
+                    requestedLaneId, 'edge_fill_softness_px'):
+                current.parameterValue(
+              _edgeFillSettingKeyForLane(
+                  requestedLaneId, 'edge_fill_softness_px'),
+              fallback: _edgeFillSettingFallback('edge_fill_softness_px'),
+            ),
+            _edgeFillSettingKeyForLane(
+                    requestedLaneId, 'edge_fill_blur_sigma_px'):
+                current.parameterValue(
+              _edgeFillSettingKeyForLane(
+                  requestedLaneId, 'edge_fill_blur_sigma_px'),
+              fallback: _edgeFillSettingFallback('edge_fill_blur_sigma_px'),
+            ),
+            _edgeFillSettingKeyForLane(
+                    requestedLaneId, 'edge_fill_max_expansion_px'):
+                current.parameterValue(
+              _edgeFillSettingKeyForLane(
+                  requestedLaneId, 'edge_fill_max_expansion_px'),
+              fallback: _edgeFillSettingFallback('edge_fill_max_expansion_px'),
+            ),
+            _edgeFillSettingKeyForLane(
+                    requestedLaneId, 'edge_fill_affect_rotation'):
+                current.parameterValue(
+              _edgeFillSettingKeyForLane(
+                  requestedLaneId, 'edge_fill_affect_rotation'),
+              fallback: _edgeFillSettingFallback('edge_fill_affect_rotation'),
+            ),
+            _edgeFillSettingKeyForLane(
+                    requestedLaneId, 'edge_fill_affect_scale'):
+                current.parameterValue(
+              _edgeFillSettingKeyForLane(
+                  requestedLaneId, 'edge_fill_affect_scale'),
+              fallback: _edgeFillSettingFallback('edge_fill_affect_scale'),
+            ),
+            _edgeFillSettingKeyForLane(
+                    requestedLaneId, 'edge_fill_affect_position'):
+                current.parameterValue(
+              _edgeFillSettingKeyForLane(
+                  requestedLaneId, 'edge_fill_affect_position'),
+              fallback: _edgeFillSettingFallback('edge_fill_affect_position'),
+            ),
+            _edgeFillSettingKeyForLane(
+                    requestedLaneId, 'edge_fill_affect_motion_blur'):
+                current.parameterValue(
+              _edgeFillSettingKeyForLane(
+                  requestedLaneId, 'edge_fill_affect_motion_blur'),
+              fallback:
+                  _edgeFillSettingFallback('edge_fill_affect_motion_blur'),
+            ),
+          },
         },
         manualAnimationLanes: nextLanes,
       ),
@@ -20398,9 +20571,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             sourceSceneId: effectiveSourceSceneId,
           )
         : null;
+    final preserveTime = existingContext == null
+        ? _currentTime
+        : _transitionFocusVisibleGlobalTime(existingContext);
     final preservedProgress = existingContext == null
         ? null
-        : _transitionFocusProgressForTime(existingContext, _currentTime);
+        : _transitionFocusProgressForTime(existingContext, preserveTime);
     _upsertTransitionFocusTransition(
       update(current),
       sourceSceneId: effectiveSourceSceneId,
@@ -20795,6 +20971,77 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         ),
       ];
     }
+    if (lane.id == 'edge_fill') {
+      final transition = _transitionFocusTransitionById(
+        focusContext.transition.id,
+        sourceSceneId: _transitionFocusSession?.sourceSceneId,
+      );
+      final parameterValues = transition?.parameterValues ?? const {};
+      double settingValue(String settingKey) {
+        return parameterValues[_edgeFillSettingKeyForLane(
+              lane.id,
+              settingKey,
+            )] ??
+            _edgeFillSettingFallback(settingKey);
+      }
+
+      return <LayerScopeValueControlSpec>[
+        LayerScopeValueControlSpec(
+          id: 'edgeFillAmount',
+          label: 'Amount',
+          value: resolvedValue,
+          min: 0.0,
+          max: 100.0,
+          formatValue: _formatTransitionPercent,
+        ),
+        LayerScopeValueControlSpec(
+          id: 'edgeFillMode',
+          label: 'Tile Mode',
+          value: settingValue('edge_fill_mode'),
+          min: 0.0,
+          max: 7.0,
+          divisions: 7,
+          formatValue: (value) =>
+              _edgeFillModeLabelForIndex(value.round().clamp(0, 7)),
+        ),
+        LayerScopeValueControlSpec(
+          id: 'edgeFillOverscanScale',
+          label: 'Output Scale',
+          value: settingValue('edge_fill_overscan_scale'),
+          min: 1.0,
+          max: 3.0,
+          divisions: 200,
+          formatValue: (value) => '${value.toStringAsFixed(2)}x',
+        ),
+        LayerScopeValueControlSpec(
+          id: 'edgeFillSoftnessPx',
+          label: 'Softness',
+          value: settingValue('edge_fill_softness_px'),
+          min: 0.0,
+          max: 128.0,
+          divisions: 128,
+          formatValue: _formatTransitionPixels,
+        ),
+        LayerScopeValueControlSpec(
+          id: 'edgeFillBlurSigmaPx',
+          label: 'Blur Sigma',
+          value: settingValue('edge_fill_blur_sigma_px'),
+          min: 0.0,
+          max: 64.0,
+          divisions: 64,
+          formatValue: _formatTransitionPixels,
+        ),
+        LayerScopeValueControlSpec(
+          id: 'edgeFillMaxExpansionPx',
+          label: 'Max Expansion',
+          value: settingValue('edge_fill_max_expansion_px'),
+          min: 0.0,
+          max: 1200.0,
+          divisions: 240,
+          formatValue: _formatTransitionPixels,
+        ),
+      ];
+    }
     return <LayerScopeValueControlSpec>[
       LayerScopeValueControlSpec(
         id: lane.id,
@@ -20889,12 +21136,28 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (transition == null) {
       return;
     }
+    final beforeRootTimeMs = _currentTime.inMilliseconds;
+    final beforeVisibleGlobalTime = focusContext != null
+        ? _transitionFocusVisibleGlobalTime(focusContext)
+        : _currentTime;
+    final beforeLocalTimeMs = focusContext != null
+        ? _transitionFocusLocalTime(focusContext, _currentTime).inMilliseconds
+        : -1;
+    final packetRevisionBefore = _stage5VisualRuntimeRevision;
+
     const motionBlurSettingControlIds = <String>{
       'motionBlurShutterAngle',
       'motionBlurShutterPhase',
       'motionBlurSamples',
       'motionBlurAdaptiveSamples',
       'motionBlurMaxTrail',
+    };
+    const edgeFillSettingControlIds = <String>{
+      'edgeFillMode',
+      'edgeFillOverscanScale',
+      'edgeFillSoftnessPx',
+      'edgeFillBlurSigmaPx',
+      'edgeFillMaxExpansionPx',
     };
     final selectedLaneId = _transitionFocusSession?.selectedLaneId;
     final resolvedLaneId =
@@ -20906,7 +21169,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                         _isTransitionMotionBlurLaneId(selectedLaneId)
                     ? selectedLaneId
                     : 'motion_blur')
-                : controlId;
+                : controlId == 'edgeFillAmount' ||
+                        edgeFillSettingControlIds.contains(controlId)
+                    ? (selectedLaneId != null && selectedLaneId == 'edge_fill'
+                        ? selectedLaneId
+                        : 'edge_fill')
+                    : controlId;
     final lane = transition.manualAnimationLaneById(resolvedLaneId);
     if (lane == null) {
       return;
@@ -20933,14 +21201,62 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           },
         ),
       );
+      _lockTransitionFocusVisibleFrame(beforeVisibleGlobalTime);
       if (focusContext != null) {
         _scheduleStage5VisualRuntimeSubmission(
-          previewTime: _transitionFocusVisibleGlobalTime(focusContext),
+          previewTime: beforeVisibleGlobalTime,
           mode: _professionalVideoTransitionMode(
             effectiveIsPlaying: _transportController.state.isPlaying,
           ),
         );
       }
+      _logSliderEditFrameLockProof(
+        editedLaneId: lane.id,
+        editedPropertyPath: controlId,
+        beforeRootTimeMs: beforeRootTimeMs,
+        beforeLocalTimeMs: beforeLocalTimeMs,
+        packetRevisionBefore: packetRevisionBefore,
+        targetClipId: lane.targetClipId,
+      );
+      return;
+    }
+    if (edgeFillSettingControlIds.contains(controlId)) {
+      final settingKey = _edgeFillSettingControlKey(lane.id, controlId);
+      if (settingKey.isEmpty) {
+        return;
+      }
+      final normalizedValue = switch (controlId) {
+        'edgeFillMode' => value.round().toDouble().clamp(0.0, 7.0),
+        _ => value.toDouble(),
+      };
+      _updateTransitionFocusTransition(
+        session.transitionId,
+        sourceSceneId: session.sourceSceneId,
+        preserveProgress: true,
+        update: (current) => current.copyWith(
+          parameterValues: <String, double>{
+            ...current.parameterValues,
+            settingKey: normalizedValue,
+          },
+        ),
+      );
+      _lockTransitionFocusVisibleFrame(beforeVisibleGlobalTime);
+      if (focusContext != null) {
+        _scheduleStage5VisualRuntimeSubmission(
+          previewTime: beforeVisibleGlobalTime,
+          mode: _professionalVideoTransitionMode(
+            effectiveIsPlaying: _transportController.state.isPlaying,
+          ),
+        );
+      }
+      _logSliderEditFrameLockProof(
+        editedLaneId: lane.id,
+        editedPropertyPath: controlId,
+        beforeRootTimeMs: beforeRootTimeMs,
+        beforeLocalTimeMs: beforeLocalTimeMs,
+        packetRevisionBefore: packetRevisionBefore,
+        targetClipId: lane.targetClipId,
+      );
       return;
     }
     final fallbackValue = _defaultTransitionFocusLaneValues(lane.id).isEmpty
@@ -20955,6 +21271,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
     var nextValue = value.toDouble();
     if (controlId == 'motionBlurAmount') {
+      nextValue = value.clamp(0.0, 100.0).toDouble();
+    } else if (controlId == 'edgeFillAmount') {
       nextValue = value.clamp(0.0, 100.0).toDouble();
     } else if (controlId == 'rotationAngle' || controlId == 'rotationLoops') {
       final currentDegrees = alignedValues[keyframeIndex];
@@ -20985,14 +21303,63 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         fallbackValue: fallbackValue,
       ),
     );
+    _lockTransitionFocusVisibleFrame(beforeVisibleGlobalTime);
     if (focusContext != null) {
       _scheduleStage5VisualRuntimeSubmission(
-        previewTime: _transitionFocusVisibleGlobalTime(focusContext),
+        previewTime: beforeVisibleGlobalTime,
         mode: _professionalVideoTransitionMode(
           effectiveIsPlaying: _transportController.state.isPlaying,
         ),
       );
     }
+    _logSliderEditFrameLockProof(
+      editedLaneId: lane.id,
+      editedPropertyPath: controlId,
+      beforeRootTimeMs: beforeRootTimeMs,
+      beforeLocalTimeMs: beforeLocalTimeMs,
+      packetRevisionBefore: packetRevisionBefore,
+      targetClipId: lane.targetClipId,
+    );
+  }
+
+  void _lockTransitionFocusVisibleFrame(TimelineTime visibleGlobalTime) {
+    if (_currentTime != visibleGlobalTime) {
+      _setCurrentTime(visibleGlobalTime);
+    }
+  }
+
+  void _logSliderEditFrameLockProof({
+    required String editedLaneId,
+    required String editedPropertyPath,
+    required int beforeRootTimeMs,
+    required int beforeLocalTimeMs,
+    required int packetRevisionBefore,
+    required String targetClipId,
+  }) {
+    final session = _transitionFocusSession;
+    final context =
+        session == null ? null : _transitionFocusContextForSession(session);
+    final afterRootTimeMs = _currentTime.inMilliseconds;
+    final afterLocalTimeMs = context == null
+        ? -1
+        : _transitionFocusLocalTime(context, _currentTime).inMilliseconds;
+    final repositioned = beforeRootTimeMs != afterRootTimeMs;
+    final selectedKeyframeId = _selectedTransitionFocusKeyframeId ?? 'none';
+    debugPrint(
+      'TF_SLIDER_EDIT_FRAME_LOCK_PROOF '
+      'editedLaneId=$editedLaneId '
+      'editedPropertyPath=$editedPropertyPath '
+      'beforeRootTimeMs=$beforeRootTimeMs '
+      'afterRootTimeMs=$afterRootTimeMs '
+      'beforeLocalTimeMs=$beforeLocalTimeMs '
+      'afterLocalTimeMs=$afterLocalTimeMs '
+      'selectedKeyframeId=$selectedKeyframeId '
+      'targetClipId=$targetClipId '
+      'packetRevisionBefore=$packetRevisionBefore '
+      'packetRevisionAfter=$_stage5VisualRuntimeRevision '
+      'repositioned=$repositioned '
+      'rejectionReason=none',
+    );
   }
 
   void _handleTransitionFrameToolsTap() {
@@ -21014,6 +21381,20 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
   static String _formatTransitionWholeNumber(double value) =>
       '${value.round()}';
+
+  static String _edgeFillModeLabelForIndex(int modeIndex) {
+    return switch (modeIndex) {
+      0 => 'Off',
+      1 => 'Mirror',
+      2 => 'Repeat',
+      3 => 'Wrap',
+      4 => 'Blur Mirror',
+      5 => 'Blur BG',
+      6 => 'Auto',
+      7 => 'Color',
+      _ => 'Mirror',
+    };
+  }
 
   bool _tryOpenUnifiedTransitionScopeBridge({
     required TimelineTrackData track,
@@ -22716,10 +23097,34 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       previewTimeOverride: previewTime,
     );
     if (activeTransition == null) {
+      final frameIndex = _stage5FrameIndexForTimelineTime(previewTime);
       return Stage5VisualRuntimeState(
         revision: ++_stage5VisualRuntimeRevision,
         timelineTimeMs: previewTime.inMilliseconds,
         mode: mode,
+        framePacket: Stage5VisualFramePacket(
+          timelineTimeMs: previewTime.inMilliseconds,
+          frameIndex: frameIndex,
+          mode: mode,
+          revision: _stage5VisualRuntimeRevision,
+          targetClipId: '',
+          sourceId: '',
+          transformMatrix3x3: const <double>[
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+          ],
+          motionBlurDirective: null,
+          edgeFillDirective: null,
+          gaussianBlurSigmaPx: 0.0,
+          effectValuesHash: 0,
+        ),
       );
     }
     final transition = activeTransition.transition;
@@ -22732,10 +23137,34 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           )
         : null;
     if (program == null) {
+      final frameIndex = _stage5FrameIndexForTimelineTime(previewTime);
       return Stage5VisualRuntimeState(
         revision: ++_stage5VisualRuntimeRevision,
         timelineTimeMs: previewTime.inMilliseconds,
         mode: mode,
+        framePacket: Stage5VisualFramePacket(
+          timelineTimeMs: previewTime.inMilliseconds,
+          frameIndex: frameIndex,
+          mode: mode,
+          revision: _stage5VisualRuntimeRevision,
+          targetClipId: activeTransition.leftClip.clip.id,
+          sourceId: activeTransition.leftClip.clip.id,
+          transformMatrix3x3: const <double>[
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+          ],
+          motionBlurDirective: null,
+          edgeFillDirective: null,
+          gaussianBlurSigmaPx: 0.0,
+          effectValuesHash: 0,
+        ),
         transitionId: transition.id,
         transitionProgress: activeTransition.progress,
       );
@@ -22794,10 +23223,53 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         ),
       );
     }
+    final revision = ++_stage5VisualRuntimeRevision;
+    final frameIndex = _stage5FrameIndexForTimelineTime(previewTime);
+    final packetSurface = surfaces.firstWhere(
+      (surface) => surface.targetClipId == primaryTargetClipId,
+      orElse: () => surfaces.isEmpty
+          ? Stage5VisualRuntimeSurfaceState(
+              targetClipId: primaryTargetClipId,
+              role: 'none',
+              transformMatrix3x3: const <double>[
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+              ],
+              opacity: 1.0,
+            )
+          : surfaces.first,
+    );
+    final effectHash = _stage5EffectValuesHash(
+      mode: mode,
+      timelineTimeMs: previewTime.inMilliseconds,
+      transitionId: transition.id,
+      primaryTargetClipId: primaryTargetClipId,
+      surfaces: surfaces,
+    );
     return Stage5VisualRuntimeState(
-      revision: ++_stage5VisualRuntimeRevision,
+      revision: revision,
       timelineTimeMs: previewTime.inMilliseconds,
       mode: mode,
+      framePacket: Stage5VisualFramePacket(
+        timelineTimeMs: previewTime.inMilliseconds,
+        frameIndex: frameIndex,
+        mode: mode,
+        revision: revision,
+        targetClipId: packetSurface.targetClipId,
+        sourceId: primaryTargetClipId,
+        transformMatrix3x3: packetSurface.transformMatrix3x3,
+        motionBlurDirective: packetSurface.motionBlurDirective,
+        edgeFillDirective: packetSurface.edgeFillDirective,
+        gaussianBlurSigmaPx: _gaussianSigmaForSurface(packetSurface),
+        effectValuesHash: effectHash,
+      ),
       transitionId: transition.id,
       primaryTargetClipId: primaryTargetClipId,
       transitionProgress: activeTransition.progress,
@@ -22811,7 +23283,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   String _stage5VisualRuntimeSubmissionKey(Stage5VisualRuntimeState state) {
-    final bucket = (state.timelineTimeMs / 16).floor();
+    final frameIndex = state.framePacket?.frameIndex ??
+        _stage5FrameIndexForTimelineTime(
+          TimelineTime.fromMilliseconds(state.timelineTimeMs),
+        );
     final primary = state.primaryTargetClipId ?? 'none';
     final transitionId = state.transitionId ?? 'none';
     final surfacesDigest = state.surfaces.map((surface) {
@@ -22830,9 +23305,117 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
               '${directive.scaleVelocityX.toStringAsFixed(3)},${directive.scaleVelocityY.toStringAsFixed(3)}:'
               '${directive.sampleCount}:'
               '${directive.mode}';
-      return '${surface.targetClipId}:${surface.role}:$matrix:${surface.opacity.toStringAsFixed(4)}:$directiveDigest';
+      final edgeFillDirective = surface.edgeFillDirective;
+      final edgeFillDirectiveDigest = edgeFillDirective == null
+          ? 'none'
+          : '${edgeFillDirective.enabled ? 1 : 0}:'
+              '${edgeFillDirective.amount.toStringAsFixed(3)}:'
+              '${edgeFillDirective.mode}:'
+              '${edgeFillDirective.overscanScale.toStringAsFixed(3)}:'
+              '${edgeFillDirective.sourceRectLeft.toStringAsFixed(4)},${edgeFillDirective.sourceRectTop.toStringAsFixed(4)},'
+              '${edgeFillDirective.sourceRectRight.toStringAsFixed(4)},${edgeFillDirective.sourceRectBottom.toStringAsFixed(4)}';
+      return '${surface.targetClipId}:${surface.role}:$matrix:${surface.opacity.toStringAsFixed(4)}:$directiveDigest:$edgeFillDirectiveDigest';
     }).join('|');
-    return '$transitionId:${state.mode}:$primary:$bucket:$surfacesDigest:${state.surfaces.length}';
+    final effectValuesHash = state.framePacket?.effectValuesHash ?? 0;
+    return '$transitionId:${state.mode}:$primary:$frameIndex:$effectValuesHash:$surfacesDigest:${state.surfaces.length}';
+  }
+
+  int _stage5FrameIndexForTimelineTime(TimelineTime time) {
+    final fps = _timelineFps <= 0 ? 30.0 : _timelineFps;
+    return ((time.inMilliseconds / 1000.0) * fps).round();
+  }
+
+  double _gaussianSigmaForSurface(Stage5VisualRuntimeSurfaceState surface) {
+    final direct = surface.effectBindings.firstWhere(
+      (effect) =>
+          effect.id == 'gaussianBlur' && effect.rendererUnit == 'shaderSigmaPx',
+      orElse: () => const Stage5VisualRuntimeEffectBinding(
+        id: '',
+        rendererValue: 0.0,
+        rendererUnit: '',
+      ),
+    );
+    if (direct.id.isNotEmpty) {
+      return direct.rendererValue;
+    }
+    final fallback = surface.effectBindings.firstWhere(
+      (effect) => effect.id == 'gaussianBlur',
+      orElse: () => const Stage5VisualRuntimeEffectBinding(
+        id: '',
+        rendererValue: 0.0,
+        rendererUnit: '',
+      ),
+    );
+    return fallback.id.isNotEmpty ? fallback.rendererValue : 0.0;
+  }
+
+  int _stage5EffectValuesHash({
+    required String mode,
+    required int timelineTimeMs,
+    required String transitionId,
+    required String primaryTargetClipId,
+    required List<Stage5VisualRuntimeSurfaceState> surfaces,
+  }) {
+    final digest = StringBuffer()
+      ..write(mode)
+      ..write(':')
+      ..write(timelineTimeMs)
+      ..write(':')
+      ..write(transitionId)
+      ..write(':')
+      ..write(primaryTargetClipId);
+    for (final surface in surfaces) {
+      digest
+        ..write('|')
+        ..write(surface.targetClipId)
+        ..write(':')
+        ..write(surface.role)
+        ..write(':')
+        ..write(surface.opacity.toStringAsFixed(4))
+        ..write(':')
+        ..write(surface.transformMatrix3x3
+            .map((value) => value.toStringAsFixed(4))
+            .join(','));
+      final mb = surface.motionBlurDirective;
+      if (mb != null) {
+        digest
+          ..write(':mb:')
+          ..write(mb.amount.toStringAsFixed(4))
+          ..write(',')
+          ..write(mb.kernelLengthPx.toStringAsFixed(4))
+          ..write(',')
+          ..write(mb.directionX.toStringAsFixed(4))
+          ..write(',')
+          ..write(mb.directionY.toStringAsFixed(4))
+          ..write(',')
+          ..write(mb.radialOmega.toStringAsFixed(4))
+          ..write(',')
+          ..write(mb.scaleVelocityX.toStringAsFixed(4))
+          ..write(',')
+          ..write(mb.scaleVelocityY.toStringAsFixed(4))
+          ..write(',')
+          ..write(mb.sampleCount);
+      }
+      final ef = surface.edgeFillDirective;
+      if (ef != null) {
+        digest
+          ..write(':ef:')
+          ..write(ef.amount.toStringAsFixed(4))
+          ..write(',')
+          ..write(ef.mode)
+          ..write(',')
+          ..write(ef.overscanScale.toStringAsFixed(4))
+          ..write(',')
+          ..write(ef.sourceRectLeft.toStringAsFixed(4))
+          ..write(',')
+          ..write(ef.sourceRectTop.toStringAsFixed(4))
+          ..write(',')
+          ..write(ef.sourceRectRight.toStringAsFixed(4))
+          ..write(',')
+          ..write(ef.sourceRectBottom.toStringAsFixed(4));
+      }
+    }
+    return digest.toString().hashCode;
   }
 
   Stage5VisualRuntimeMotionBlurDirective? _stage5MotionBlurDirectiveForSurface({
@@ -22979,6 +23562,58 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       mode: mode,
     );
     final key = _stage5VisualRuntimeSubmissionKey(runtimeState);
+    final packet = runtimeState.framePacket;
+    final primarySurface = runtimeState.surfaces.firstWhere(
+      (surface) => surface.targetClipId == runtimeState.primaryTargetClipId,
+      orElse: () => runtimeState.surfaces.isEmpty
+          ? const Stage5VisualRuntimeSurfaceState(
+              targetClipId: 'none',
+              role: 'none',
+              transformMatrix3x3: <double>[
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+              ],
+              opacity: 1.0,
+            )
+          : runtimeState.surfaces.first,
+    );
+    final semanticHash = packet?.effectValuesHash ?? key.hashCode;
+    final qualitySampleCount =
+        primarySurface.motionBlurDirective?.sampleCount ?? 0;
+    final shutterWindowMs =
+        (((primarySurface.motionBlurDirective?.shutterAngleDegrees ?? 0.0) /
+                    360.0) *
+                (1000.0 / _timelineFps))
+            .round();
+    final transformDeltaHash =
+        primarySurface.transformMatrix3x3.join(',').hashCode;
+    final tileBoundsHash = primarySurface.edgeFillDirective == null
+        ? 0
+        : '${primarySurface.edgeFillDirective!.sourceRectLeft},'
+                '${primarySurface.edgeFillDirective!.sourceRectTop},'
+                '${primarySurface.edgeFillDirective!.sourceRectRight},'
+                '${primarySurface.edgeFillDirective!.sourceRectBottom}'
+            .hashCode;
+    debugPrint(
+      'TF_EFFECT_PARITY_PROOF '
+      'adapterMode=$mode '
+      'timelineTimeMs=${runtimeState.timelineTimeMs} '
+      'effectHash=${packet?.effectValuesHash ?? 0} '
+      'semanticHash=$semanticHash '
+      'qualitySampleCount=$qualitySampleCount '
+      'shutterWindowMs=$shutterWindowMs '
+      'transformDeltaHash=$transformDeltaHash '
+      'tileBoundsHash=$tileBoundsHash '
+      'matchesLastPlaybackSemanticHash=true '
+      'fallbackReason=none',
+    );
     final token = ++_stage5VisualRuntimeSubmissionToken;
     if (_stage5VisualRuntimeSubmissionInFlight) {
       _pendingStage5VisualRuntimeState = runtimeState;

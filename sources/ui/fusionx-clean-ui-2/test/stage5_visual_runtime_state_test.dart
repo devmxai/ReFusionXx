@@ -8,6 +8,27 @@ void main() {
       revision: 7,
       timelineTimeMs: 1200,
       mode: 'manualTransition',
+      framePacket: Stage5VisualFramePacket(
+        timelineTimeMs: 1200,
+        frameIndex: 36,
+        mode: 'playback',
+        revision: 7,
+        targetClipId: 'clip-a',
+        sourceId: 'clip-a',
+        transformMatrix3x3: <double>[
+          1,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          1,
+        ],
+        gaussianBlurSigmaPx: 5.75,
+        effectValuesHash: 12345,
+      ),
       surfaces: <Stage5VisualRuntimeSurfaceState>[
         Stage5VisualRuntimeSurfaceState(
           targetClipId: 'clip-a',
@@ -54,6 +75,11 @@ void main() {
     );
 
     final map = state.toMap();
+    final framePacket = map['framePacket'] as Map<String, Object?>;
+    expect(framePacket['timelineTimeMs'], 1200);
+    expect(framePacket['frameIndex'], 36);
+    expect(framePacket['targetClipId'], 'clip-a');
+    expect(framePacket['effectValuesHash'], 12345);
     final surfaces = map['surfaces'] as List<Object?>;
     final surface = surfaces.single as Map<String, Object?>;
     expect(surface['effectProgramIds'], <String>['gaussianBlur']);
