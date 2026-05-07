@@ -205,4 +205,96 @@ void main() {
     expect(directive.enabled, isTrue);
     expect(directive.sampleCount, 24);
   });
+
+  test('authored velocity overrides transform delta when provided', () {
+    final directive = compiler.compile(
+      policy: const MasterMotionBlurPolicy(
+        enabled: true,
+        amount: 1.0,
+        shutterAngleDegrees: 180,
+        maxTrailPx: 240,
+      ),
+      current: const LiveScrubSurfaceTransform(positionX: 40, positionY: 0),
+      previous: const LiveScrubSurfaceTransform(positionX: 0, positionY: 0),
+      quality: MotionBlurDirectiveQuality.playback,
+      canvasWidth: 1080,
+      canvasHeight: 1920,
+      authoredDirectionX: 0.0,
+      authoredDirectionY: 1.0,
+      authoredPositionVelocityPx: 120.0,
+    );
+
+    expect(directive.enabled, isTrue);
+    expect(directive.kernelLengthPx, closeTo(120.0, 1e-6));
+    expect(directive.directionX, closeTo(0.0, 1e-6));
+    expect(directive.directionY, closeTo(1.0, 1e-6));
+  });
+
+  test('graph velocity profile shapes blur strength across timeline', () {
+    const policy = MasterMotionBlurPolicy(
+      enabled: true,
+      amount: 1.0,
+      shutterAngleDegrees: 180,
+      maxTrailPx: 240,
+    );
+    const current = LiveScrubSurfaceTransform();
+    const previous = LiveScrubSurfaceTransform();
+    final start = compiler.compile(
+      policy: policy,
+      current: current,
+      previous: previous,
+      quality: MotionBlurDirectiveQuality.playback,
+      canvasWidth: 1080,
+      canvasHeight: 1920,
+      authoredPositionVelocityPx: 18.0,
+      authoredDirectionX: 1.0,
+      authoredDirectionY: 0.0,
+    );
+    final middle = compiler.compile(
+      policy: policy,
+      current: current,
+      previous: previous,
+      quality: MotionBlurDirectiveQuality.playback,
+      canvasWidth: 1080,
+      canvasHeight: 1920,
+      authoredPositionVelocityPx: 140.0,
+      authoredDirectionX: 1.0,
+      authoredDirectionY: 0.0,
+    );
+    final end = compiler.compile(
+      policy: policy,
+      current: current,
+      previous: previous,
+      quality: MotionBlurDirectiveQuality.playback,
+      canvasWidth: 1080,
+      canvasHeight: 1920,
+      authoredPositionVelocityPx: 16.0,
+      authoredDirectionX: 1.0,
+      authoredDirectionY: 0.0,
+    );
+
+    expect(start.kernelLengthPx, lessThan(middle.kernelLengthPx));
+    expect(end.kernelLengthPx, lessThan(middle.kernelLengthPx));
+    expect((start.kernelLengthPx - end.kernelLengthPx).abs(), lessThan(4.0));
+  });
+
+  test('authored angular velocity drives radial motion blur', () {
+    final directive = compiler.compile(
+      policy: const MasterMotionBlurPolicy(
+        enabled: true,
+        amount: 1.0,
+        shutterAngleDegrees: 180,
+      ),
+      current: const LiveScrubSurfaceTransform(rotationRadians: 0.0),
+      previous: const LiveScrubSurfaceTransform(rotationRadians: 0.0),
+      quality: MotionBlurDirectiveQuality.preview,
+      canvasWidth: 1080,
+      canvasHeight: 1920,
+      authoredAngularVelocity: 0.78,
+    );
+
+    expect(directive.enabled, isTrue);
+    expect(directive.radialOmega, closeTo(0.78, 1e-6));
+    expect(directive.sampleCount, greaterThanOrEqualTo(12));
+  });
 }
