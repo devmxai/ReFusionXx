@@ -1,4 +1,4 @@
-# Professional Animation Flosity Contracts
+# Professional Animation Velocity Contracts
 
 Status: official implementation plan  
 Package: `com.refusion.app`  
@@ -8,7 +8,8 @@ Scope: animation smoothness, keyframe velocity, Easy Ease, Speed Graph, preview/
 
 ## 0. Name And Intent
 
-`Flosity` is the ReFusion term for the professional combination of:
+`Animation Velocity Contracts` is the ReFusion engine plan for the professional
+combination of:
 
 ```text
 flow + velocity + temporal influence
@@ -65,17 +66,17 @@ Checkpoint commit names must be sequential and date-stamped.
 Format:
 
 ```text
-checkpoint: YYYY-MM-DD professional animation flosity contracts NN - short description
+checkpoint: YYYY-MM-DD professional animation velocity contracts NN - short description
 ```
 
 Examples:
 
 ```text
-checkpoint: 2026-05-07 professional animation flosity contracts 01 - domain velocity model
-checkpoint: 2026-05-07 professional animation flosity contracts 02 - curve evaluator parity
-checkpoint: 2026-05-07 professional animation flosity contracts 03 - easy ease operations
-checkpoint: 2026-05-07 professional animation flosity contracts 04 - speed graph ui contract
-checkpoint: 2026-05-07 professional animation flosity contracts 05 - motion blur velocity integration
+checkpoint: 2026-05-07 professional animation velocity contracts 01 - domain velocity model
+checkpoint: 2026-05-07 professional animation velocity contracts 02 - curve evaluator parity
+checkpoint: 2026-05-07 professional animation velocity contracts 03 - easy ease operations
+checkpoint: 2026-05-07 professional animation velocity contracts 04 - speed graph ui contract
+checkpoint: 2026-05-07 professional animation velocity contracts 05 - motion blur velocity integration
 ```
 
 Rules:
@@ -204,7 +205,7 @@ Required canonical path:
 authoring command
 -> MotionPropertyChannelModel
 -> MotionKeyframeModel
--> MotionFlosityVelocityContract
+-> MotionAnimationVelocityContract
 -> MotionCurveSegment
 -> ProfessionalMotionCurveEvaluator
 -> valueAt(time)
@@ -255,7 +256,7 @@ effect amount: units/sec based on property definition
 color: component/sec or normalized progress derivative
 ```
 
-### 6.2 New Contract: MotionFlosityPreset
+### 6.2 New Contract: MotionVelocityPreset
 
 The engine must support named professional speed presets.
 
@@ -517,7 +518,7 @@ Required JSON shape:
     { "timeMs": 0, "value": 0 },
     { "timeMs": 600, "value": 360 }
   ],
-  "flosity": {
+  "velocity": {
     "preset": "slowFastSlow",
     "outInfluence": 85,
     "inInfluence": 85,
@@ -575,7 +576,7 @@ export_composition_builder_test.dart
 Checkpoint:
 
 ```text
-checkpoint: YYYY-MM-DD professional animation flosity contracts 01 - domain velocity model
+checkpoint: YYYY-MM-DD professional animation velocity contracts 01 - domain velocity model
 ```
 
 ### Phase 02: Curve Evaluator With Velocity
@@ -610,7 +611,7 @@ Acceptance:
 Checkpoint:
 
 ```text
-checkpoint: YYYY-MM-DD professional animation flosity contracts 02 - curve evaluator velocity
+checkpoint: YYYY-MM-DD professional animation velocity contracts 02 - curve evaluator velocity
 ```
 
 ### Phase 03: Easy Ease Authoring Operations
@@ -638,7 +639,7 @@ Acceptance:
 Checkpoint:
 
 ```text
-checkpoint: YYYY-MM-DD professional animation flosity contracts 03 - easy ease operations
+checkpoint: YYYY-MM-DD professional animation velocity contracts 03 - easy ease operations
 ```
 
 ### Phase 04: Speed Graph UI Contract
@@ -672,7 +673,7 @@ Acceptance:
 Checkpoint:
 
 ```text
-checkpoint: YYYY-MM-DD professional animation flosity contracts 04 - speed graph controls
+checkpoint: YYYY-MM-DD professional animation velocity contracts 04 - speed graph controls
 ```
 
 ### Phase 05: Runtime Parity Bridge
@@ -693,7 +694,7 @@ propertyPath
 valueAtTime
 velocityAtTime
 curveHash
-flosityHash
+velocityHash
 matchesPreview
 matchesPlayback
 matchesLiveScrub
@@ -709,14 +710,14 @@ Acceptance:
 Checkpoint:
 
 ```text
-checkpoint: YYYY-MM-DD professional animation flosity contracts 05 - runtime parity bridge
+checkpoint: YYYY-MM-DD professional animation velocity contracts 05 - runtime parity bridge
 ```
 
 ### Phase 06: Motion Blur Velocity Integration
 
 Goal:
 
-- make Motion Blur consume `velocityAt(time)` from Flosity contracts,
+- make Motion Blur consume `velocityAt(time)` from Velocity contracts,
 - stop deriving professional blur from approximate adjacent-frame deltas when
   authored velocity is available.
 
@@ -743,14 +744,14 @@ Acceptance:
 Checkpoint:
 
 ```text
-checkpoint: YYYY-MM-DD professional animation flosity contracts 06 - motion blur velocity integration
+checkpoint: YYYY-MM-DD professional animation velocity contracts 06 - motion blur velocity integration
 ```
 
 ### Phase 07: Agent And Scene Program Integration
 
 Goal:
 
-- allow agents and scene programs to author Flosity presets directly,
+- allow agents and scene programs to author Velocity presets directly,
 - validate and lower into editable keyframes.
 
 Likely files:
@@ -770,7 +771,7 @@ Acceptance:
 Checkpoint:
 
 ```text
-checkpoint: YYYY-MM-DD professional animation flosity contracts 07 - agent flosity authoring
+checkpoint: YYYY-MM-DD professional animation velocity contracts 07 - agent velocity authoring
 ```
 
 ### Phase 08: Export Parity
@@ -784,19 +785,19 @@ Acceptance:
 
 - exported spin transition matches preview timing,
 - Easy Ease and Speed Graph survive export,
-- export contract reports all used Flosity kinds.
+- export contract reports all used Velocity kinds.
 
 Checkpoint:
 
 ```text
-checkpoint: YYYY-MM-DD professional animation flosity contracts 08 - export parity
+checkpoint: YYYY-MM-DD professional animation velocity contracts 08 - export parity
 ```
 
 ## 13. Acceptance Criteria
 
 The plan is complete only when:
 
-- every animated property can use Flosity contracts,
+- every animated property can use Velocity contracts,
 - Easy Ease F9 works as real velocity/influence data,
 - Speed Graph edits engine state, not only UI display,
 - slow-fast-slow transition motion is available as a preset,
@@ -816,7 +817,7 @@ Do not:
 - make Speed Graph a display-only graph,
 - let Motion Blur ignore authored velocity,
 - silently downgrade unsupported curves,
-- mix Motion Blur, Motion Tile, and Flosity in one checkpoint,
+- mix Motion Blur, Motion Tile, and Velocity in one checkpoint,
 - commit untracked diagnostics or unrelated user work.
 
 ## 15. First Build Instruction For Codex 5.3
@@ -830,8 +831,7 @@ Do not touch Live Scrub native files.
 Implement the domain contract and tests, then checkpoint:
 
 ```text
-checkpoint: YYYY-MM-DD professional animation flosity contracts 01 - domain velocity model
+checkpoint: YYYY-MM-DD professional animation velocity contracts 01 - domain velocity model
 ```
 
 Only after Phase 01 is verified and pushed should Phase 02 begin.
-
