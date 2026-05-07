@@ -794,6 +794,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   int _stage5VisualRuntimeLatestAppliedToken = 0;
   int _stage5VisualRuntimeStaleRequestIgnoredCount = 0;
   int _stage5VisualRuntimeLatestRequestAppliedCount = 0;
+  final Map<int, Map<String, int>> _velocityParitySemanticHashesByTimeMs =
+      <int, Map<String, int>>{};
   final SeamStateHistoryCache _seamStateHistoryCache = SeamStateHistoryCache();
 
   @override
@@ -24275,10 +24277,57 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                 '${primarySurface.edgeFillDirective!.sourceRectRight},'
                 '${primarySurface.edgeFillDirective!.sourceRectBottom}'
             .hashCode;
+    final timeMs = runtimeState.timelineTimeMs;
+    final parityByMode = _velocityParitySemanticHashesByTimeMs.putIfAbsent(
+      timeMs,
+      () => <String, int>{},
+    );
+    parityByMode[mode] = semanticHash;
+    if (_velocityParitySemanticHashesByTimeMs.length > 160) {
+      final oldest = _velocityParitySemanticHashesByTimeMs.keys.reduce(
+        (left, right) => left < right ? left : right,
+      );
+      _velocityParitySemanticHashesByTimeMs.remove(oldest);
+    }
+    final referenceHash = parityByMode['playback'] ??
+        parityByMode['preview'] ??
+        parityByMode['liveScrub'] ??
+        parityByMode['export'] ??
+        semanticHash;
+    final matchesPreview = parityByMode['preview'] == null
+        ? false
+        : parityByMode['preview'] == referenceHash;
+    final matchesPlayback = parityByMode['playback'] == null
+        ? false
+        : parityByMode['playback'] == referenceHash;
+    final matchesLiveScrub = parityByMode['liveScrub'] == null
+        ? false
+        : parityByMode['liveScrub'] == referenceHash;
+    final mismatch = !matchesPreview || !matchesPlayback || !matchesLiveScrub;
+    final fallbackReason = mismatch
+        ? 'semantic_mismatch_across_modes'
+        : (parityByMode.length < 3 ? 'parity_reference_incomplete' : 'none');
+    debugPrint(
+      'TF_VELOCITY_PARITY_PROOF '
+      'adapterMode=$mode '
+      'timelineTimeMs=$timeMs '
+      'channelId=${runtimeState.primaryTargetClipId} '
+      'propertyPath=transform.composite '
+      'valueAtTime=${primarySurface.opacity} '
+      'velocityAtTime=${primarySurface.motionBlurDirective?.kernelLengthPx ?? 0.0} '
+      'curveHash=$semanticHash '
+      'velocityHash=$velocityHash '
+      'matchesPreview=$matchesPreview '
+      'matchesPlayback=$matchesPlayback '
+      'matchesLiveScrub=$matchesLiveScrub '
+      'fallbackReason=$fallbackReason',
+    );
+    // TODO(velocity-contracts-05): remove legacy TF_EFFECT_PARITY_PROOF
+    // compatibility after parity dashboards consume TF_VELOCITY_PARITY_PROOF.
     debugPrint(
       'TF_EFFECT_PARITY_PROOF '
       'adapterMode=$mode '
-      'timelineTimeMs=${runtimeState.timelineTimeMs} '
+      'timelineTimeMs=$timeMs '
       'effectHash=${packet?.effectValuesHash ?? 0} '
       'semanticHash=$semanticHash '
       'velocityHash=$velocityHash '
@@ -24286,8 +24335,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       'shutterWindowMs=$shutterWindowMs '
       'transformDeltaHash=$transformDeltaHash '
       'tileBoundsHash=$tileBoundsHash '
-      'matchesLastPlaybackSemanticHash=true '
-      'fallbackReason=none',
+      'matchesLastPlaybackSemanticHash=$matchesPlayback '
+      'fallbackReason=$fallbackReason',
     );
     final token = ++_stage5VisualRuntimeSubmissionToken;
     if (_stage5VisualRuntimeSubmissionInFlight) {

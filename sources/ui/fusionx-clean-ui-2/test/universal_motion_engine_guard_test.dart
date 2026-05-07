@@ -1232,6 +1232,17 @@ void main() {
     expect(source.contains('TF_FLOSITY_GRAPH_EDIT_PROOF'), isFalse);
   });
 
+  test('stage5 runtime emits velocity parity proof across modes', () async {
+    final source = await screenFile.readAsString();
+    expect(source.contains('TF_VELOCITY_PARITY_PROOF'), isTrue);
+    expect(source.contains('matchesPreview='), isTrue);
+    expect(source.contains('matchesPlayback='), isTrue);
+    expect(source.contains('matchesLiveScrub='), isTrue);
+    expect(source.contains('curveHash='), isTrue);
+    expect(source.contains('velocityHash='), isTrue);
+    expect(source.contains('fallbackReason='), isTrue);
+  });
+
   test('graph editor is wired for all supported scopes', () async {
     final source = await screenFile.readAsString();
     expect(source.contains('_handleUnifiedTransitionScopeGraphToolTap()'),
