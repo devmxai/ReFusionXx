@@ -23685,6 +23685,34 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       canvasWidth: _motionProjectFormat.canvasSize.width,
       canvasHeight: _motionProjectFormat.canvasSize.height,
     );
+    debugPrint(
+      'TF_FLOSITY_MB_VELOCITY_PROOF '
+      'timelineTimeMs=${previewTime.inMilliseconds} '
+      'propertyPath=transform '
+      'targetId=${baseSurface.targetId} '
+      'valueAtTime=${baseSurface.transform.rotationRadians} '
+      'velocityAtTime=${directive.kernelLengthPx} '
+      'angularVelocityAtTime=${directive.radialOmega} '
+      'scaleVelocityAtTime=${directive.scaleVelocityX},${directive.scaleVelocityY} '
+      'speedGraphPreset=unknown '
+      'sampleCount=${directive.sampleCount} '
+      'shutterAngle=${directive.shutterAngleDegrees} '
+      'motionBlurDirectiveHash=${Object.hashAll(<Object?>[
+            directive.enabled,
+            directive.amount,
+            directive.kernelLengthPx,
+            directive.directionX,
+            directive.directionY,
+            directive.radialOmega,
+            directive.scaleVelocityX,
+            directive.scaleVelocityY,
+            directive.sampleCount,
+            directive.shutterAngleDegrees,
+            directive.shutterPhase,
+            directive.maxTrailPx,
+          ]).toUnsigned(32)} '
+      'fallbackReason=${directive.fallbackReason ?? 'none'}',
+    );
     if (seamContext.isInsideWindow && seamContext.isSeamParticipant) {
       _seamStateHistoryCache.write(
         historyKey,
