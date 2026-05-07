@@ -137,8 +137,72 @@ void main() {
       canvasHeight: 1920,
     );
 
-    expect(playback.sampleCount, inInclusiveRange(8, 16));
-    expect(export.sampleCount, inInclusiveRange(16, 24));
+    expect(playback.sampleCount, inInclusiveRange(12, 24));
+    expect(export.sampleCount, inInclusiveRange(16, 32));
     expect(export.sampleCount, greaterThanOrEqualTo(playback.sampleCount));
+  });
+
+  test('strong rotation keeps live scrub and preview sample parity', () {
+    final policy = const MasterMotionBlurPolicy(
+      enabled: true,
+      amount: 1.0,
+      shutterAngleDegrees: 632,
+      samples: 24,
+      adaptiveSampleLimit: 24,
+      maxTrailPx: 600,
+    );
+    const current = LiveScrubSurfaceTransform(rotationRadians: 0.61);
+    const previous = LiveScrubSurfaceTransform(rotationRadians: 0.0);
+
+    final liveScrub = compiler.compile(
+      policy: policy,
+      current: current,
+      previous: previous,
+      quality: MotionBlurDirectiveQuality.liveScrub,
+      canvasWidth: 1080,
+      canvasHeight: 1920,
+    );
+    final playback = compiler.compile(
+      policy: policy,
+      current: current,
+      previous: previous,
+      quality: MotionBlurDirectiveQuality.playback,
+      canvasWidth: 1080,
+      canvasHeight: 1920,
+    );
+    final preview = compiler.compile(
+      policy: policy,
+      current: current,
+      previous: previous,
+      quality: MotionBlurDirectiveQuality.preview,
+      canvasWidth: 1080,
+      canvasHeight: 1920,
+    );
+
+    expect(liveScrub.sampleCount, 24);
+    expect(playback.sampleCount, liveScrub.sampleCount);
+    expect(preview.sampleCount, liveScrub.sampleCount);
+  });
+
+  test('strong rotation cannot fall back to proof-level live scrub samples',
+      () {
+    final directive = compiler.compile(
+      policy: const MasterMotionBlurPolicy(
+        enabled: true,
+        amount: 1.0,
+        shutterAngleDegrees: 632,
+        samples: 8,
+        adaptiveSampleLimit: 8,
+        maxTrailPx: 600,
+      ),
+      current: const LiveScrubSurfaceTransform(rotationRadians: 0.61),
+      previous: const LiveScrubSurfaceTransform(rotationRadians: 0.0),
+      quality: MotionBlurDirectiveQuality.liveScrub,
+      canvasWidth: 1080,
+      canvasHeight: 1920,
+    );
+
+    expect(directive.enabled, isTrue);
+    expect(directive.sampleCount, 24);
   });
 }

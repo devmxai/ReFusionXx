@@ -119,34 +119,52 @@ class MotionBlurVelocityCompiler {
     if (!hasMeaningfulVelocity) {
       return 1;
     }
-    final boundedRequested = requested.clamp(1, math.max(1, adaptiveLimit));
+    final interactiveQuality = quality != MotionBlurDirectiveQuality.export;
+    final strongTrailSampleFloor = _strongTrailSampleFloor(
+      effectiveTrailPx: effectiveTrailPx,
+      maxTrailPx: maxTrailPx,
+      exportQuality: !interactiveQuality,
+    );
     final qualityFloor = switch (quality) {
-      MotionBlurDirectiveQuality.liveScrub => 6,
-      MotionBlurDirectiveQuality.playback => 8,
+      MotionBlurDirectiveQuality.liveScrub => 12,
+      MotionBlurDirectiveQuality.playback => 12,
       MotionBlurDirectiveQuality.preview => 12,
       MotionBlurDirectiveQuality.export => 16,
     };
     final maxByQuality = switch (quality) {
-      MotionBlurDirectiveQuality.liveScrub => 8,
-      MotionBlurDirectiveQuality.playback => 16,
+      MotionBlurDirectiveQuality.liveScrub => 24,
+      MotionBlurDirectiveQuality.playback => 24,
       MotionBlurDirectiveQuality.preview => 24,
-      MotionBlurDirectiveQuality.export => 24,
+      MotionBlurDirectiveQuality.export => 32,
     };
-    final adaptiveCeiling = adaptiveLimit.clamp(1, maxByQuality);
+    final adaptiveCeiling =
+        math.max(adaptiveLimit, strongTrailSampleFloor).clamp(1, maxByQuality);
+    final boundedRequested = requested.clamp(1, adaptiveCeiling);
     final trailRatio =
         maxTrailPx <= 0.0 ? 0.0 : (effectiveTrailPx / maxTrailPx);
-    final adaptiveBoost = switch (quality) {
-      MotionBlurDirectiveQuality.liveScrub => trailRatio > 0.35 ? 1 : 0,
-      MotionBlurDirectiveQuality.playback =>
-        trailRatio > 0.35 ? 2 : (trailRatio > 0.2 ? 1 : 0),
-      MotionBlurDirectiveQuality.preview =>
-        trailRatio > 0.45 ? 4 : (trailRatio > 0.25 ? 2 : 0),
-      MotionBlurDirectiveQuality.export =>
-        trailRatio > 0.45 ? 6 : (trailRatio > 0.25 ? 3 : 0),
-    };
+    final adaptiveBoost = interactiveQuality
+        ? (trailRatio > 0.45 ? 4 : (trailRatio > 0.25 ? 2 : 0))
+        : (trailRatio > 0.45 ? 6 : (trailRatio > 0.25 ? 3 : 0));
     final requestedWithBoost =
         (boundedRequested + adaptiveBoost).clamp(1, adaptiveCeiling).toInt();
-    final unclamped = math.max(qualityFloor, requestedWithBoost);
+    final unclamped = math.max(
+        math.max(qualityFloor, strongTrailSampleFloor), requestedWithBoost);
     return unclamped.clamp(1, maxByQuality).toInt();
+  }
+
+  int _strongTrailSampleFloor({
+    required double effectiveTrailPx,
+    required double maxTrailPx,
+    required bool exportQuality,
+  }) {
+    final trailRatio =
+        maxTrailPx <= 0.0 ? 0.0 : (effectiveTrailPx / maxTrailPx);
+    if (effectiveTrailPx >= 144.0 || trailRatio >= 0.32) {
+      return exportQuality ? 32 : 24;
+    }
+    if (effectiveTrailPx >= 96.0 || trailRatio >= 0.22) {
+      return exportQuality ? 24 : 16;
+    }
+    return exportQuality ? 16 : 12;
   }
 }
