@@ -9,6 +9,7 @@ import '../../domain/models/professional_motion_interpolation_evaluator.dart';
 import '../../domain/services/motion_interpolation_truth_compiler.dart';
 import '../../domain/services/professional_speed_graph_preset_catalog.dart';
 import '../../domain/services/speed_graph_custom_preset_persistence_service.dart';
+import '../../domain/services/speed_graph_scope_guard.dart';
 import 'professional_speed_graph_preset_grid.dart';
 
 enum LayerScopeGraphMode {
@@ -80,6 +81,7 @@ class _LayerScopeGraphBottomSheetState
       MotionInterpolationTruthCompiler();
   static const ProfessionalSpeedGraphPresetCatalog _presetCatalog =
       ProfessionalSpeedGraphPresetCatalog();
+  static const SpeedGraphScopeGuard _scopeGuard = SpeedGraphScopeGuard();
 
   static const MotionBezierControlPoints _defaultBezier =
       MotionBezierControlPoints(
@@ -661,6 +663,9 @@ class _LayerScopeGraphBottomSheetState
   }
 
   MotionInterpolationSpec _currentInterpolationSpec() {
+    if (!_isTemporalGraphAllowed()) {
+      return const MotionInterpolationSpec.linear();
+    }
     final preset = _graphPresetForVelocity(_velocity);
     final fallback = _interpolationForGraphPreset(
       preset == LayerScopeGraphSpeedPreset.linear
@@ -727,6 +732,9 @@ class _LayerScopeGraphBottomSheetState
     required MotionInterpolationSpec interpolation,
     required String editType,
   }) {
+    if (!_isTemporalGraphAllowed()) {
+      return;
+    }
     final compiled = _truthCompiler.compileFromInterpolation(
       interpolation: _sanitizeInterpolationForProperty(interpolation),
       inputMode: MotionInterpolationCompileInputMode.existingSpec,
@@ -877,6 +885,9 @@ class _LayerScopeGraphBottomSheetState
     required _GraphHandleDragTarget target,
     required String editType,
   }) {
+    if (!_isTemporalGraphAllowed()) {
+      return;
+    }
     final before = _currentInterpolationSpec();
     final currentBezier = before.bezier ?? _defaultBezier;
     final nx =
@@ -989,6 +1000,9 @@ class _LayerScopeGraphBottomSheetState
     MotionKeyframeVelocity velocity, {
     required String editType,
   }) {
+    if (!_isTemporalGraphAllowed()) {
+      return;
+    }
     final fallback =
         _sanitizeInterpolationForProperty(_currentInterpolationSpec());
     final safeVelocity = !_supportsOvershootForProperty()
@@ -1044,6 +1058,14 @@ class _LayerScopeGraphBottomSheetState
       return false;
     }
     return true;
+  }
+
+  bool _isTemporalGraphAllowed() {
+    final request = SpeedGraphScopeGuardRequest(
+      requestKind: SpeedGraphScopeRequestKind.temporalGraph,
+      propertyPath: widget.propertyPath ?? 'unknown',
+    );
+    return _scopeGuard.evaluate(request).accepted;
   }
 
   String _speedUnitLabelForProperty() {
