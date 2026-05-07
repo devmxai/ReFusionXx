@@ -4892,8 +4892,17 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         removeBottom: true,
         child: LayerScopeGraphBottomSheet(
           easyEaseEnabled: easyEaseEnabled,
+          selectedPreset: easyEaseEnabled
+              ? LayerScopeGraphSpeedPreset.easyEase
+              : LayerScopeGraphSpeedPreset.linear,
           onDone: () => Navigator.of(sheetContext).maybePop(),
-          onEasyEaseChanged: _handleUnifiedTransitionScopeEasyEaseChanged,
+          onEasyEaseChanged: (enabled) =>
+              _handleUnifiedTransitionScopeGraphPresetChanged(
+            enabled
+                ? LayerScopeGraphSpeedPreset.easyEase
+                : LayerScopeGraphSpeedPreset.linear,
+          ),
+          onPresetSelected: _handleUnifiedTransitionScopeGraphPresetChanged,
         ),
       ),
     ).whenComplete(() {
@@ -4906,7 +4915,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     });
   }
 
-  void _handleUnifiedTransitionScopeEasyEaseChanged(bool enabled) {
+  void _handleUnifiedTransitionScopeGraphPresetChanged(
+    LayerScopeGraphSpeedPreset preset,
+  ) {
     final session = _unifiedTransitionScopeSession;
     final viewModel = _unifiedTransitionScopeViewModel;
     final lane = _unifiedTransitionScopeSelectedAnimationLane(viewModel);
@@ -4940,9 +4951,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (channelKeyframeIndex < 0) {
       return;
     }
-    final interpolation = enabled
-        ? _afterEffectsEasyEaseInterpolation
-        : const MotionInterpolationSpec.linear();
+    final interpolation = _interpolationForGraphPreset(preset);
     var workingSession = session;
     TransitionUnifiedScopeKeyframeOperationResult? lastResult;
     final keyframeIdsToUpdate = <String>{
@@ -4974,6 +4983,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _applyUnifiedTransitionScopeKeyframeResult(
       lastResult,
       preserveGraphEditor: true,
+    );
+    _logGraphEditProof(
+      laneId: lane.id,
+      keyframeId: selectedKeyframeId,
+      preset: preset,
+      interpolation: interpolation,
+      scope: 'transition',
     );
   }
 
@@ -8040,8 +8056,17 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         removeBottom: true,
         child: LayerScopeGraphBottomSheet(
           easyEaseEnabled: easyEaseEnabled,
+          selectedPreset: easyEaseEnabled
+              ? LayerScopeGraphSpeedPreset.easyEase
+              : LayerScopeGraphSpeedPreset.linear,
           onDone: () => Navigator.of(sheetContext).maybePop(),
-          onEasyEaseChanged: _handleSceneLayerScopeEasyEaseChanged,
+          onEasyEaseChanged: (enabled) =>
+              _handleSceneLayerScopeGraphPresetChanged(
+            enabled
+                ? LayerScopeGraphSpeedPreset.easyEase
+                : LayerScopeGraphSpeedPreset.linear,
+          ),
+          onPresetSelected: _handleSceneLayerScopeGraphPresetChanged,
         ),
       ),
     ).whenComplete(() {
@@ -8054,7 +8079,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     });
   }
 
-  void _handleSceneLayerScopeEasyEaseChanged(bool enabled) {
+  void _handleSceneLayerScopeGraphPresetChanged(
+    LayerScopeGraphSpeedPreset preset,
+  ) {
     final viewModel = _activeSceneLayerScopeViewModel;
     if (viewModel == null) {
       return;
@@ -8073,9 +8100,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return;
     }
     final selectedKeyframeId = keyframeId ?? lane.keyframeIds[keyframeIndex];
-    final interpolation = enabled
-        ? _afterEffectsEasyEaseInterpolation
-        : const MotionInterpolationSpec.linear();
+    final interpolation = _interpolationForGraphPreset(preset);
     var channelKeyframeIndex = channel.keyframes.indexWhere(
       (keyframe) => keyframe.id == selectedKeyframeId,
     );
@@ -8139,6 +8164,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _selectedLayerScopeKeyframeIndex = keyframeIndex;
       _selectedLayerScopeKeyframeId = selectedKeyframeId;
     });
+    _logGraphEditProof(
+      laneId: lane.id,
+      keyframeId: selectedKeyframeId,
+      preset: preset,
+      interpolation: interpolation,
+      scope: 'scene',
+    );
   }
 
   MotionPropertyChannelModel? _channelById(
@@ -10604,8 +10636,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         removeBottom: true,
         child: LayerScopeGraphBottomSheet(
           easyEaseEnabled: easyEaseEnabled,
+          selectedPreset: easyEaseEnabled
+              ? LayerScopeGraphSpeedPreset.easyEase
+              : LayerScopeGraphSpeedPreset.linear,
           onDone: () => Navigator.of(sheetContext).maybePop(),
-          onEasyEaseChanged: _handleLayerScopeEasyEaseChanged,
+          onEasyEaseChanged: (enabled) => _handleLayerScopeGraphPresetChanged(
+            enabled
+                ? LayerScopeGraphSpeedPreset.easyEase
+                : LayerScopeGraphSpeedPreset.linear,
+          ),
+          onPresetSelected: _handleLayerScopeGraphPresetChanged,
         ),
       ),
     ).whenComplete(() {
@@ -10751,7 +10791,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     });
   }
 
-  void _handleLayerScopeEasyEaseChanged(bool enabled) {
+  void _handleLayerScopeGraphPresetChanged(
+    LayerScopeGraphSpeedPreset preset,
+  ) {
     final scopeContext = _activeLayerScopeContext;
     final keyframeIndex = _selectedLayerScopeKeyframeIndex;
     if (scopeContext == null || keyframeIndex == null) {
@@ -10765,9 +10807,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       context: scopeContext,
       lane: lane,
       keyframeIndex: keyframeIndex,
-      interpolation: enabled
-          ? _afterEffectsEasyEaseInterpolation
-          : const MotionInterpolationSpec.linear(),
+      interpolation: _interpolationForGraphPreset(preset),
     );
     if (syncedChannels == null) {
       return;
@@ -10776,6 +10816,147 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _universalMotionPropertyChannels = syncedChannels;
       _markMotionAuthoringChanged();
     });
+    _logGraphEditProof(
+      laneId: lane.id,
+      keyframeId: _selectedLayerScopeKeyframeId,
+      preset: preset,
+      interpolation: _interpolationForGraphPreset(preset),
+      scope: 'layer',
+    );
+  }
+
+  MotionInterpolationSpec _interpolationForGraphPreset(
+    LayerScopeGraphSpeedPreset preset,
+  ) {
+    switch (preset) {
+      case LayerScopeGraphSpeedPreset.linear:
+        return const MotionInterpolationSpec.linear();
+      case LayerScopeGraphSpeedPreset.easyEase:
+        return _afterEffectsEasyEaseInterpolation.copyWith(
+          velocity: const MotionKeyframeVelocity(
+            incomingSpeed: 0.0,
+            outgoingSpeed: 0.0,
+            incomingInfluence: 33.333,
+            outgoingInfluence: 33.333,
+            continuous: true,
+            presetId: 'easyEase',
+          ),
+        );
+      case LayerScopeGraphSpeedPreset.easeIn:
+        return const MotionInterpolationSpec.easeIn().copyWith(
+          velocity: MotionKeyframeVelocity(
+            incomingSpeed: 0.0,
+            incomingInfluence: 33.333,
+            continuous: true,
+            presetId: 'easyEaseIn',
+          ),
+        );
+      case LayerScopeGraphSpeedPreset.easeOut:
+        return const MotionInterpolationSpec.easeOut().copyWith(
+          velocity: MotionKeyframeVelocity(
+            outgoingSpeed: 0.0,
+            outgoingInfluence: 33.333,
+            continuous: true,
+            presetId: 'easyEaseOut',
+          ),
+        );
+      case LayerScopeGraphSpeedPreset.slowFastSlow:
+        return const MotionInterpolationSpec.cubicBezier(
+          bezier: MotionBezierControlPoints(
+            x1: 0.2,
+            y1: 0.0,
+            x2: 0.8,
+            y2: 1.0,
+          ),
+        ).copyWith(
+          velocity: const MotionKeyframeVelocity(
+            incomingInfluence: 85.0,
+            outgoingInfluence: 85.0,
+            continuous: true,
+            presetId: 'slowFastSlow',
+          ),
+        );
+      case LayerScopeGraphSpeedPreset.fastSlow:
+        return const MotionInterpolationSpec.cubicBezier(
+          bezier: MotionBezierControlPoints(
+            x1: 0.05,
+            y1: 0.9,
+            x2: 0.35,
+            y2: 1.0,
+          ),
+        ).copyWith(
+          velocity: const MotionKeyframeVelocity(
+            incomingInfluence: 15.0,
+            outgoingInfluence: 75.0,
+            continuous: true,
+            presetId: 'fastSlow',
+          ),
+        );
+      case LayerScopeGraphSpeedPreset.slowFast:
+        return const MotionInterpolationSpec.cubicBezier(
+          bezier: MotionBezierControlPoints(
+            x1: 0.65,
+            y1: 0.0,
+            x2: 0.95,
+            y2: 0.1,
+          ),
+        ).copyWith(
+          velocity: const MotionKeyframeVelocity(
+            incomingInfluence: 75.0,
+            outgoingInfluence: 15.0,
+            continuous: true,
+            presetId: 'slowFast',
+          ),
+        );
+      case LayerScopeGraphSpeedPreset.whip:
+        return const MotionInterpolationSpec.cubicBezier(
+          bezier: MotionBezierControlPoints(
+            x1: 0.05,
+            y1: 0.0,
+            x2: 0.25,
+            y2: 1.0,
+          ),
+        ).copyWith(
+          velocity: const MotionKeyframeVelocity(
+            incomingInfluence: 10.0,
+            outgoingInfluence: 95.0,
+            continuous: false,
+            presetId: 'whipSnap',
+          ),
+        );
+      case LayerScopeGraphSpeedPreset.custom:
+        return _afterEffectsEasyEaseInterpolation.copyWith(
+          velocity: const MotionKeyframeVelocity(
+            continuous: false,
+            presetId: 'customSpeedGraph',
+          ),
+        );
+    }
+  }
+
+  void _logGraphEditProof({
+    required String laneId,
+    required LayerScopeGraphSpeedPreset preset,
+    required MotionInterpolationSpec interpolation,
+    required String scope,
+    String? keyframeId,
+  }) {
+    final velocity = interpolation.velocity;
+    debugPrint(
+      'TF_FLOSITY_GRAPH_EDIT_PROOF '
+      'scope=$scope '
+      'laneId=$laneId '
+      'keyframeId=${keyframeId ?? 'unknown'} '
+      'graphMode=speed '
+      'presetId=${preset.name} '
+      'incomingSpeed=${velocity?.incomingSpeed ?? 'null'} '
+      'outgoingSpeed=${velocity?.outgoingSpeed ?? 'null'} '
+      'incomingInfluence=${velocity?.incomingInfluence ?? 'null'} '
+      'outgoingInfluence=${velocity?.outgoingInfluence ?? 'null'} '
+      'continuous=${velocity?.continuous ?? false} '
+      'previewRevision=unknown '
+      'fallbackReason=null',
+    );
   }
 
   void _handleLayerScopeDockAddTap() {

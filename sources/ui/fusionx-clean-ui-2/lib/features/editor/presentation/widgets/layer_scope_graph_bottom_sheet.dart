@@ -2,16 +2,41 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
 
+enum LayerScopeGraphMode {
+  value,
+  speed,
+}
+
+enum LayerScopeGraphSpeedPreset {
+  linear,
+  easyEase,
+  easeIn,
+  easeOut,
+  slowFastSlow,
+  fastSlow,
+  slowFast,
+  whip,
+  custom,
+}
+
 class LayerScopeGraphBottomSheet extends StatefulWidget {
   const LayerScopeGraphBottomSheet({
     super.key,
     required this.easyEaseEnabled,
     required this.onEasyEaseChanged,
+    this.initialMode = LayerScopeGraphMode.speed,
+    this.selectedPreset = LayerScopeGraphSpeedPreset.easyEase,
+    this.onModeChanged,
+    this.onPresetSelected,
     required this.onDone,
   });
 
   final bool easyEaseEnabled;
   final ValueChanged<bool> onEasyEaseChanged;
+  final LayerScopeGraphMode initialMode;
+  final LayerScopeGraphSpeedPreset selectedPreset;
+  final ValueChanged<LayerScopeGraphMode>? onModeChanged;
+  final ValueChanged<LayerScopeGraphSpeedPreset>? onPresetSelected;
   final VoidCallback onDone;
 
   @override
@@ -22,11 +47,15 @@ class LayerScopeGraphBottomSheet extends StatefulWidget {
 class _LayerScopeGraphBottomSheetState
     extends State<LayerScopeGraphBottomSheet> {
   late bool _easyEaseEnabled;
+  late LayerScopeGraphMode _mode;
+  late LayerScopeGraphSpeedPreset _selectedPreset;
 
   @override
   void initState() {
     super.initState();
     _easyEaseEnabled = widget.easyEaseEnabled;
+    _mode = widget.initialMode;
+    _selectedPreset = widget.selectedPreset;
   }
 
   @override
@@ -88,18 +117,40 @@ class _LayerScopeGraphBottomSheetState
                       ],
                     ),
                     const SizedBox(height: 12),
-                    _GraphActionCard(
-                      icon: Icons.auto_graph_rounded,
-                      label: 'Easy Ease',
-                      detail: 'F9-style smooth in and out',
-                      isActive: _easyEaseEnabled,
-                      onTap: () {
-                        final nextValue = !_easyEaseEnabled;
+                    _GraphModeSelector(
+                      mode: _mode,
+                      onChanged: (nextMode) {
                         setState(() {
-                          _easyEaseEnabled = nextValue;
+                          _mode = nextMode;
                         });
-                        widget.onEasyEaseChanged(nextValue);
+                        widget.onModeChanged?.call(nextMode);
                       },
+                    ),
+                    const SizedBox(height: 10),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            for (final preset
+                                in LayerScopeGraphSpeedPreset.values)
+                              _PresetChip(
+                                preset: preset,
+                                isSelected: _selectedPreset == preset,
+                                onTap: () {
+                                  setState(() {
+                                    _selectedPreset = preset;
+                                    _easyEaseEnabled = preset !=
+                                        LayerScopeGraphSpeedPreset.linear;
+                                  });
+                                  widget.onEasyEaseChanged(_easyEaseEnabled);
+                                  widget.onPresetSelected?.call(preset);
+                                },
+                              ),
+                          ],
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -112,92 +163,143 @@ class _LayerScopeGraphBottomSheetState
   }
 }
 
-class _GraphActionCard extends StatelessWidget {
-  const _GraphActionCard({
-    required this.icon,
+class _GraphModeSelector extends StatelessWidget {
+  const _GraphModeSelector({
+    required this.mode,
+    required this.onChanged,
+  });
+
+  final LayerScopeGraphMode mode;
+  final ValueChanged<LayerScopeGraphMode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: _ModePill(
+            label: 'Value Graph',
+            isSelected: mode == LayerScopeGraphMode.value,
+            onTap: () => onChanged(LayerScopeGraphMode.value),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _ModePill(
+            label: 'Speed Graph',
+            isSelected: mode == LayerScopeGraphMode.speed,
+            onTap: () => onChanged(LayerScopeGraphMode.speed),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ModePill extends StatelessWidget {
+  const _ModePill({
     required this.label,
-    required this.detail,
-    required this.isActive,
+    required this.isSelected,
     required this.onTap,
   });
 
-  final IconData icon;
   final String label;
-  final String detail;
-  final bool isActive;
+  final bool isSelected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(18),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        height: 38,
+        alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: isActive
-              ? FxPalette.surfaceRaised.withOpacity(0.98)
-              : FxPalette.surfaceRaised.withOpacity(0.9),
-          borderRadius: BorderRadius.circular(18),
+          color: isSelected
+              ? FxPalette.accent.withOpacity(0.16)
+              : FxPalette.surfaceRaised.withOpacity(0.72),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isActive
+            color: isSelected
                 ? FxPalette.accent.withOpacity(0.65)
                 : Colors.white.withOpacity(0.08),
           ),
         ),
-        child: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: isActive
-                    ? FxPalette.accent.withOpacity(0.16)
-                    : Colors.white.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                icon,
-                color: isActive ? FxPalette.accent : FxPalette.textPrimary,
-                size: 18,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      color: FxPalette.textPrimary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    detail,
-                    style: const TextStyle(
-                      color: FxPalette.textMuted,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              isActive
-                  ? Icons.check_circle_rounded
-                  : Icons.radio_button_unchecked_rounded,
-              color: isActive ? FxPalette.accent : FxPalette.textMuted,
-              size: 20,
-            ),
-          ],
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? FxPalette.accent : FxPalette.textPrimary,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
     );
+  }
+}
+
+class _PresetChip extends StatelessWidget {
+  const _PresetChip({
+    required this.preset,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final LayerScopeGraphSpeedPreset preset;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? FxPalette.accent.withOpacity(0.16)
+              : FxPalette.surfaceRaised.withOpacity(0.72),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected
+                ? FxPalette.accent.withOpacity(0.65)
+                : Colors.white.withOpacity(0.08),
+          ),
+        ),
+        child: Text(
+          _labelForPreset(preset),
+          style: TextStyle(
+            color: isSelected ? FxPalette.accent : FxPalette.textPrimary,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+    );
+  }
+
+  static String _labelForPreset(LayerScopeGraphSpeedPreset preset) {
+    switch (preset) {
+      case LayerScopeGraphSpeedPreset.linear:
+        return 'Linear';
+      case LayerScopeGraphSpeedPreset.easyEase:
+        return 'Easy Ease';
+      case LayerScopeGraphSpeedPreset.easeIn:
+        return 'Ease In';
+      case LayerScopeGraphSpeedPreset.easeOut:
+        return 'Ease Out';
+      case LayerScopeGraphSpeedPreset.slowFastSlow:
+        return 'Slow-Fast-Slow';
+      case LayerScopeGraphSpeedPreset.fastSlow:
+        return 'Fast-Slow';
+      case LayerScopeGraphSpeedPreset.slowFast:
+        return 'Slow-Fast';
+      case LayerScopeGraphSpeedPreset.whip:
+        return 'Whip';
+      case LayerScopeGraphSpeedPreset.custom:
+        return 'Custom';
+    }
   }
 }
