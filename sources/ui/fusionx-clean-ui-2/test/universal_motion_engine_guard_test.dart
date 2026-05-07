@@ -1234,9 +1234,11 @@ void main() {
   test('stage5 runtime emits velocity parity proof across modes', () async {
     final source = await screenFile.readAsString();
     expect(source.contains('TF_VELOCITY_PARITY_PROOF'), isTrue);
+    expect(source.contains('TF_SPEED_GRAPH_RUNTIME_PARITY_PROOF'), isTrue);
     expect(source.contains('matchesPreview='), isTrue);
     expect(source.contains('matchesPlayback='), isTrue);
     expect(source.contains('matchesLiveScrub='), isTrue);
+    expect(source.contains('matchesExport='), isTrue);
     expect(source.contains('curveHash='), isTrue);
     expect(source.contains('velocityHash='), isTrue);
     expect(source.contains('fallbackReason='), isTrue);

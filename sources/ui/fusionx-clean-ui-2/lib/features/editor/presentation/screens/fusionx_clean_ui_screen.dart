@@ -24516,6 +24516,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final matchesLiveScrub = parityByMode['liveScrub'] == null
         ? false
         : parityByMode['liveScrub'] == referenceHash;
+    final matchesExport = parityByMode['export'] == null
+        ? false
+        : parityByMode['export'] == referenceHash;
     final mismatch = !matchesPreview || !matchesPlayback || !matchesLiveScrub;
     final fallbackReason = mismatch
         ? 'semantic_mismatch_across_modes'
@@ -24533,6 +24536,26 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       'matchesPreview=$matchesPreview '
       'matchesPlayback=$matchesPlayback '
       'matchesLiveScrub=$matchesLiveScrub '
+      'fallbackReason=$fallbackReason',
+    );
+    debugPrint(
+      'TF_SPEED_GRAPH_RUNTIME_PARITY_PROOF '
+      'adapterMode=$mode '
+      'timelineTimeMs=$timeMs '
+      'targetKind=clip '
+      'targetId=${runtimeState.primaryTargetClipId} '
+      'propertyPath=transform.composite '
+      'channelId=${runtimeState.primaryTargetClipId} '
+      'keyframeId=unknown '
+      'segmentId=unknown '
+      'curveHash=$semanticHash '
+      'velocityHash=$velocityHash '
+      'valueAtTime=${primarySurface.opacity} '
+      'velocityAtTime=${primarySurface.motionBlurDirective?.kernelLengthPx ?? 0.0} '
+      'matchesPreview=$matchesPreview '
+      'matchesLiveScrub=$matchesLiveScrub '
+      'matchesPlayback=$matchesPlayback '
+      'matchesExport=$matchesExport '
       'fallbackReason=$fallbackReason',
     );
     final token = ++_stage5VisualRuntimeSubmissionToken;
