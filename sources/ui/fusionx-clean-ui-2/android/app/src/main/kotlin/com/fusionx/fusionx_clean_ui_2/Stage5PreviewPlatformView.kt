@@ -761,6 +761,21 @@ class Stage5PreviewPlatformView(
         val normalizedTop = (fitted.top / rootHeight).coerceIn(0f, 1f).toDouble()
         val normalizedRight = (fitted.right / rootWidth).coerceIn(0f, 1f).toDouble()
         val normalizedBottom = (fitted.bottom / rootHeight).coerceIn(0f, 1f).toDouble()
+        val rootTransformMatrix = edgeFillRootSpaceTransformMatrix(
+            matrixValues = currentDirective.transformMatrix3x3,
+            originalCanvasWidth = currentDirective.canvasWidth.toFloat().coerceAtLeast(1f),
+            originalCanvasHeight = currentDirective.canvasHeight.toFloat().coerceAtLeast(1f),
+            fitted = fitted,
+        )
+        val rootInverseMatrix =
+            rootTransformMatrix?.let(::inverseAffine3x3)
+                ?: edgeFillRootSpaceTransformMatrix(
+                    matrixValues = currentDirective.inverseTransformMatrix3x3,
+                    originalCanvasWidth = currentDirective.canvasWidth.toFloat().coerceAtLeast(1f),
+                    originalCanvasHeight = currentDirective.canvasHeight.toFloat().coerceAtLeast(1f),
+                    fitted = fitted,
+                )
+                ?: currentDirective.inverseTransformMatrix3x3
         return currentDirective.copy(
             sourceRectLeft = normalizedLeft,
             sourceRectTop = normalizedTop,
@@ -770,7 +785,93 @@ class Stage5PreviewPlatformView(
             canvasHeight = rootHeight.toDouble(),
             contentWidth = fitted.width.toDouble(),
             contentHeight = fitted.height.toDouble(),
+            transformMatrix3x3 = rootTransformMatrix ?: currentDirective.transformMatrix3x3,
+            inverseTransformMatrix3x3 = rootInverseMatrix,
         )
+    }
+
+    private fun edgeFillRootSpaceTransformMatrix(
+        matrixValues: List<Double>,
+        originalCanvasWidth: Float,
+        originalCanvasHeight: Float,
+        fitted: FloatRect,
+    ): List<Double>? {
+        if (!isRuntimeMatrixFinite(matrixValues) ||
+            originalCanvasWidth <= 0f ||
+            originalCanvasHeight <= 0f ||
+            fitted.width <= 0f ||
+            fitted.height <= 0f
+        ) {
+            return null
+        }
+        val sx = fitted.width / originalCanvasWidth
+        val sy = fitted.height / originalCanvasHeight
+        if (!sx.isFinite() || !sy.isFinite() || sx <= 0f || sy <= 0f) {
+            return null
+        }
+        val a = matrixValues[0]
+        val b = matrixValues[1]
+        val tx = matrixValues[2]
+        val c = matrixValues[3]
+        val d = matrixValues[4]
+        val ty = matrixValues[5]
+        val left = fitted.left.toDouble()
+        val top = fitted.top.toDouble()
+        val scaleX = sx.toDouble()
+        val scaleY = sy.toDouble()
+        val rootA = a
+        val rootB = b * (scaleX / scaleY)
+        val rootC = c * (scaleY / scaleX)
+        val rootD = d
+        val rootTx = left + (scaleX * tx) - (rootA * left) - (rootB * top)
+        val rootTy = top + (scaleY * ty) - (rootC * left) - (rootD * top)
+        val rootMatrix = listOf(
+            rootA,
+            rootB,
+            rootTx,
+            rootC,
+            rootD,
+            rootTy,
+            0.0,
+            0.0,
+            1.0,
+        )
+        return rootMatrix.takeIf { values -> values.take(6).all { value -> value.isFinite() } }
+    }
+
+    private fun inverseAffine3x3(matrixValues: List<Double>): List<Double>? {
+        if (!isRuntimeMatrixFinite(matrixValues)) {
+            return null
+        }
+        val a = matrixValues[0]
+        val b = matrixValues[1]
+        val tx = matrixValues[2]
+        val c = matrixValues[3]
+        val d = matrixValues[4]
+        val ty = matrixValues[5]
+        val determinant = (a * d) - (b * c)
+        if (!determinant.isFinite() || kotlin.math.abs(determinant) < 1e-9) {
+            return null
+        }
+        val invDeterminant = 1.0 / determinant
+        val ia = d * invDeterminant
+        val ib = -b * invDeterminant
+        val ic = -c * invDeterminant
+        val id = a * invDeterminant
+        val itx = ((b * ty) - (d * tx)) * invDeterminant
+        val ity = ((c * tx) - (a * ty)) * invDeterminant
+        val inverse = listOf(
+            ia,
+            ib,
+            itx,
+            ic,
+            id,
+            ity,
+            0.0,
+            0.0,
+            1.0,
+        )
+        return inverse.takeIf { values -> values.take(6).all { value -> value.isFinite() } }
     }
 
     private fun runOnUiThread(action: () -> Unit) {

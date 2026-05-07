@@ -684,6 +684,18 @@ void main() {
           'When Motion Tile is active, Stage5 must not also apply the same rotation as a PlayerView transform.',
     );
     expect(
+      previewSource.contains('edgeFillRootSpaceTransformMatrix('),
+      isTrue,
+      reason:
+          'Motion Tile may own the transform only after converting the canvas-space matrix into fitted root-view coordinates.',
+    );
+    expect(
+      previewSource.contains('rootTransformMatrix?.let(::inverseAffine3x3)'),
+      isTrue,
+      reason:
+          'Motion Tile must use a root-space inverse matrix so it fills gaps without changing the authored rotation pivot.',
+    );
+    expect(
       previewSource.contains('buildCenteredRuntimeTransformMatrix('),
       isTrue,
       reason:
