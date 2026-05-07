@@ -23847,6 +23847,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             previewTime: previewTime,
             mode: mode,
             activeTransition: activeTransition,
+            currentEvaluation: evaluation,
             baseProgram: program,
             baseSurface: surface,
             policy: surface.motionBlur,
@@ -24057,26 +24058,109 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return digest.toString().hashCode;
   }
 
+  double? _evaluatedVelocityForTargetProperty({
+    required MasterFrameEvaluation evaluation,
+    required String targetId,
+    required String sourcePropertyDefinitionId,
+  }) {
+    for (final value in evaluation.evaluatedChannels) {
+      if (value.targetId != targetId) {
+        continue;
+      }
+      if (value.sourcePropertyDefinitionId != sourcePropertyDefinitionId) {
+        continue;
+      }
+      final velocity = value.rawVelocity;
+      if (velocity == null || !velocity.isFinite) {
+        continue;
+      }
+      return velocity;
+    }
+    return null;
+  }
+
+  String? _evaluatedVelocityPresetForTarget({
+    required MasterFrameEvaluation evaluation,
+    required String targetId,
+  }) {
+    for (final value in evaluation.evaluatedChannels) {
+      if (value.targetId != targetId) {
+        continue;
+      }
+      final preset = value.velocityPresetId;
+      if (preset == null || preset.isEmpty) {
+        continue;
+      }
+      return preset;
+    }
+    return null;
+  }
+
   _AuthoredMotionVelocityProbe _buildAuthoredMotionVelocityProbe({
+    required MasterFrameEvaluation currentEvaluation,
+    required String targetId,
     required LiveScrubSurfaceTransform current,
     required LiveScrubSurfaceTransform previous,
     required double frameIntervalSeconds,
   }) {
     final safeDt = frameIntervalSeconds <= 0 ? 1.0 : frameIntervalSeconds;
-    final dx = current.positionX - previous.positionX;
-    final dy = current.positionY - previous.positionY;
+    final authoredVelocityX = _evaluatedVelocityForTargetProperty(
+      evaluation: currentEvaluation,
+      targetId: targetId,
+      sourcePropertyDefinitionId: MotionPropertyCatalog.positionX.id,
+    );
+    final authoredVelocityY = _evaluatedVelocityForTargetProperty(
+      evaluation: currentEvaluation,
+      targetId: targetId,
+      sourcePropertyDefinitionId: MotionPropertyCatalog.positionY.id,
+    );
+    final authoredRotationVelocityDegreesPerSecond =
+        _evaluatedVelocityForTargetProperty(
+      evaluation: currentEvaluation,
+      targetId: targetId,
+      sourcePropertyDefinitionId: MotionPropertyCatalog.rotationDegrees.id,
+    );
+    final authoredScaleVelocityX = _evaluatedVelocityForTargetProperty(
+      evaluation: currentEvaluation,
+      targetId: targetId,
+      sourcePropertyDefinitionId: MotionPropertyCatalog.scaleX.id,
+    );
+    final authoredScaleVelocityY = _evaluatedVelocityForTargetProperty(
+      evaluation: currentEvaluation,
+      targetId: targetId,
+      sourcePropertyDefinitionId: MotionPropertyCatalog.scaleY.id,
+    );
+    final dx = authoredVelocityX != null
+        ? authoredVelocityX * safeDt
+        : (current.positionX - previous.positionX);
+    final dy = authoredVelocityY != null
+        ? authoredVelocityY * safeDt
+        : (current.positionY - previous.positionY);
     final positionVelocityPx = math.sqrt((dx * dx) + (dy * dy));
-    final directionX = positionVelocityPx > 0.00001 ? (dx / positionVelocityPx) : 0.0;
-    final directionY = positionVelocityPx > 0.00001 ? (dy / positionVelocityPx) : 0.0;
+    final directionX =
+        positionVelocityPx > 0.00001 ? (dx / positionVelocityPx) : 0.0;
+    final directionY =
+        positionVelocityPx > 0.00001 ? (dy / positionVelocityPx) : 0.0;
     final angularVelocityAtTime =
-        (current.rotationRadians - previous.rotationRadians) / safeDt;
-    final scaleVelocityX = (current.scaleX - previous.scaleX) / safeDt;
-    final scaleVelocityY = (current.scaleY - previous.scaleY) / safeDt;
+        authoredRotationVelocityDegreesPerSecond != null
+            ? (authoredRotationVelocityDegreesPerSecond * safeDt) *
+                (math.pi / 180.0)
+            : (current.rotationRadians - previous.rotationRadians);
+    final scaleVelocityX = authoredScaleVelocityX != null
+        ? authoredScaleVelocityX * safeDt
+        : (current.scaleX - previous.scaleX);
+    final scaleVelocityY = authoredScaleVelocityY != null
+        ? authoredScaleVelocityY * safeDt
+        : (current.scaleY - previous.scaleY);
+    final authoredPreset = _evaluatedVelocityPresetForTarget(
+      evaluation: currentEvaluation,
+      targetId: targetId,
+    );
     final speedGraphPreset = (positionVelocityPx > 0.00001 ||
             angularVelocityAtTime.abs() > 0.00001 ||
             scaleVelocityX.abs() > 0.00001 ||
             scaleVelocityY.abs() > 0.00001)
-        ? 'authoredVelocityFromMasterEvaluator'
+        ? (authoredPreset ?? 'authoredVelocityFromMasterEvaluator')
         : 'none';
     return _AuthoredMotionVelocityProbe(
       positionVelocityPx: positionVelocityPx,
@@ -24093,6 +24177,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required TimelineTime previewTime,
     required String mode,
     required _ActiveTimelineTransitionPreview activeTransition,
+    required MasterFrameEvaluation currentEvaluation,
     required LiveScrubVisualProgram baseProgram,
     required LiveScrubVisualSurface baseSurface,
     required MasterMotionBlurPolicy policy,
@@ -24168,6 +24253,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _ => MotionBlurDirectiveQuality.preview,
     };
     final velocityProbe = _buildAuthoredMotionVelocityProbe(
+      currentEvaluation: currentEvaluation,
+      targetId: baseSurface.targetId,
       current: baseSurface.transform,
       previous: previousTransform,
       frameIntervalSeconds: (1.0 / _timelineFps).clamp(0.0001, 1.0),
@@ -24202,23 +24289,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     ]).toUnsigned(32);
     debugPrint(
       'TF_VELOCITY_MB_VELOCITY_PROOF '
-      'timelineTimeMs=${previewTime.inMilliseconds} '
-      'propertyPath=transform '
-      'targetId=${baseSurface.targetId} '
-      'valueAtTime=${baseSurface.transform.rotationRadians} '
-      'velocityAtTime=${velocityProbe.positionVelocityPx} '
-      'angularVelocityAtTime=${velocityProbe.angularVelocityAtTime} '
-      'scaleVelocityAtTime=${velocityProbe.scaleVelocityX},${velocityProbe.scaleVelocityY} '
-      'speedGraphPreset=${velocityProbe.speedGraphPreset} '
-      'sampleCount=${directive.sampleCount} '
-      'shutterAngle=${directive.shutterAngleDegrees} '
-      'motionBlurDirectiveHash=$motionBlurDirectiveHash '
-      'fallbackReason=${directive.fallbackReason ?? 'none'}',
-    );
-    // TODO(velocity-contracts-05): remove legacy TF_FLOSITY_* compatibility
-    // after runtime parity bridge.
-    debugPrint(
-      'TF_FLOSITY_MB_VELOCITY_PROOF '
       'timelineTimeMs=${previewTime.inMilliseconds} '
       'propertyPath=transform '
       'targetId=${baseSurface.targetId} '
@@ -24313,15 +24383,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           : runtimeState.surfaces.first,
     );
     final semanticHash = packet?.effectValuesHash ?? key.hashCode;
-    final qualitySampleCount =
-        primarySurface.motionBlurDirective?.sampleCount ?? 0;
-    final shutterWindowMs =
-        (((primarySurface.motionBlurDirective?.shutterAngleDegrees ?? 0.0) /
-                    360.0) *
-                (1000.0 / _timelineFps))
-            .round();
-    final transformDeltaHash =
-        primarySurface.transformMatrix3x3.join(',').hashCode;
     final velocityHash = primarySurface.motionBlurDirective == null
         ? 0
         : '${primarySurface.motionBlurDirective!.kernelLengthPx},'
@@ -24330,13 +24391,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                 '${primarySurface.motionBlurDirective!.radialOmega},'
                 '${primarySurface.motionBlurDirective!.scaleVelocityX},'
                 '${primarySurface.motionBlurDirective!.scaleVelocityY}'
-            .hashCode;
-    final tileBoundsHash = primarySurface.edgeFillDirective == null
-        ? 0
-        : '${primarySurface.edgeFillDirective!.sourceRectLeft},'
-                '${primarySurface.edgeFillDirective!.sourceRectTop},'
-                '${primarySurface.edgeFillDirective!.sourceRectRight},'
-                '${primarySurface.edgeFillDirective!.sourceRectBottom}'
             .hashCode;
     final timeMs = runtimeState.timelineTimeMs;
     final parityByMode = _velocityParitySemanticHashesByTimeMs.putIfAbsent(
@@ -24381,22 +24435,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       'matchesPreview=$matchesPreview '
       'matchesPlayback=$matchesPlayback '
       'matchesLiveScrub=$matchesLiveScrub '
-      'fallbackReason=$fallbackReason',
-    );
-    // TODO(velocity-contracts-05): remove legacy TF_EFFECT_PARITY_PROOF
-    // compatibility after parity dashboards consume TF_VELOCITY_PARITY_PROOF.
-    debugPrint(
-      'TF_EFFECT_PARITY_PROOF '
-      'adapterMode=$mode '
-      'timelineTimeMs=$timeMs '
-      'effectHash=${packet?.effectValuesHash ?? 0} '
-      'semanticHash=$semanticHash '
-      'velocityHash=$velocityHash '
-      'qualitySampleCount=$qualitySampleCount '
-      'shutterWindowMs=$shutterWindowMs '
-      'transformDeltaHash=$transformDeltaHash '
-      'tileBoundsHash=$tileBoundsHash '
-      'matchesLastPlaybackSemanticHash=$matchesPlayback '
       'fallbackReason=$fallbackReason',
     );
     final token = ++_stage5VisualRuntimeSubmissionToken;
@@ -25493,7 +25531,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     var availabilityEnabled = false;
     var availabilityReason = 'no_active_scope';
     if (transitionFocusContext != null) {
-      final lane = _transitionFocusSelectedAnimationLane(transitionFocusContext);
+      final lane =
+          _transitionFocusSelectedAnimationLane(transitionFocusContext);
       availabilityScope = 'transitionFocus';
       availabilityLaneId = lane?.id;
       availabilityKeyframeId = _selectedTransitionFocusKeyframeId;
@@ -25507,8 +25546,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                   ? 'none'
                   : 'missing_keyframe_selection';
     } else if (isUnifiedTransitionScopeActive) {
-      final lane =
-          _unifiedTransitionScopeSelectedAnimationLane(unifiedTransitionScopeViewModel);
+      final lane = _unifiedTransitionScopeSelectedAnimationLane(
+          unifiedTransitionScopeViewModel);
       availabilityScope = 'unifiedTransition';
       availabilityLaneId = lane?.id;
       availabilityKeyframeId = _selectedLayerScopeKeyframeId;
@@ -25522,7 +25561,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                   ? 'none'
                   : 'missing_keyframe_selection';
     } else if (isSceneLayerScopeActive) {
-      final lane = _sceneLayerScopeSelectedAnimationLane(sceneLayerScopeViewModel);
+      final lane =
+          _sceneLayerScopeSelectedAnimationLane(sceneLayerScopeViewModel);
       availabilityScope = 'scene';
       availabilityLaneId = lane?.id;
       availabilityKeyframeId = _selectedLayerScopeKeyframeId;

@@ -12,6 +12,10 @@ class MasterEvaluatedPropertyValue {
     required this.mapping,
     required this.sourceChannelId,
     required this.status,
+    this.sourcePropertyDefinitionId,
+    this.rawVelocity,
+    this.rawAcceleration,
+    this.velocityPresetId,
   });
 
   final String targetId;
@@ -20,6 +24,10 @@ class MasterEvaluatedPropertyValue {
   final MasterPropertyValueMapping mapping;
   final String sourceChannelId;
   final String status;
+  final String? sourcePropertyDefinitionId;
+  final double? rawVelocity;
+  final double? rawAcceleration;
+  final String? velocityPresetId;
 }
 
 @immutable

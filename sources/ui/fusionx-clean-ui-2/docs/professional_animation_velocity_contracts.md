@@ -405,7 +405,7 @@ Custom
 Every edited graph operation must be able to log:
 
 ```text
-TF_FLOSITY_GRAPH_EDIT_PROOF
+TF_VELOCITY_GRAPH_EDIT_PROOF
 channelId
 propertyPath
 selectedKeyframeIds
@@ -483,7 +483,7 @@ less cinematic.
 Diagnostics:
 
 ```text
-TF_FLOSITY_MB_VELOCITY_PROOF
+TF_VELOCITY_MB_VELOCITY_PROOF
 timelineTimeMs
 propertyPath
 valueAtTime
@@ -686,7 +686,7 @@ Goal:
 Diagnostics:
 
 ```text
-TF_FLOSITY_PARITY_PROOF
+TF_VELOCITY_PARITY_PROOF
 adapterMode
 timelineTimeMs
 channelId

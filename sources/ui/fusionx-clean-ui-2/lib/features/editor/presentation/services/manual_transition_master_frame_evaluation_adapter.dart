@@ -139,6 +139,10 @@ class ManualTransitionMasterFrameEvaluationAdapter {
           mapping: result.mapping!,
           sourceChannelId: channel.id,
           status: result.status.name,
+          sourcePropertyDefinitionId: channel.definition.id,
+          rawVelocity: result.rawVelocity,
+          rawAcceleration: result.rawAcceleration,
+          velocityPresetId: result.interpolation?.velocity?.presetId,
         ),
       );
     }

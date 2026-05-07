@@ -108,7 +108,6 @@ enum ExportBaselineBlockerCode {
   multipleVisualTracks,
   multipleAudioTracks,
   unsupportedTrackKind,
-  curveSpeed,
   unsupportedInterpolationKind,
 }
 
@@ -124,7 +123,6 @@ enum ExportParityLimitationCode {
   multiAudioParity,
   textTrackParity,
   lipSyncTrackParity,
-  curveSpeedParity,
 }
 
 enum ExportCompositionIssueCode {
@@ -1450,9 +1448,6 @@ class ExportComposition {
         limitations.add(ExportParityLimitationCode.lipSyncTrackParity);
       }
     }
-    if (hasCurveSpeedClips) {
-      limitations.add(ExportParityLimitationCode.curveSpeedParity);
-    }
     return limitations.toSet().toList(growable: false);
   }
 
@@ -1521,11 +1516,6 @@ class ExportComposition {
           track.kind != ExportTrackKind.image &&
           track.kind != ExportTrackKind.audio) {
         reasons.add(ExportBaselineBlockerCode.unsupportedTrackKind);
-      }
-      for (final clip in track.clips) {
-        if (clip.speedMode == ExportClipSpeedMode.curve) {
-          reasons.add(ExportBaselineBlockerCode.curveSpeed);
-        }
       }
     }
     if (hasUnsupportedInterpolationKinds) {
@@ -3545,8 +3535,6 @@ String _baselineBlockerMessage(ExportBaselineBlockerCode code) {
       return 'multiple audio tracks are not in the first export baseline';
     case ExportBaselineBlockerCode.unsupportedTrackKind:
       return 'non-baseline track content exists in the export composition';
-    case ExportBaselineBlockerCode.curveSpeed:
-      return 'curve speed is not in the first export baseline';
     case ExportBaselineBlockerCode.unsupportedInterpolationKind:
       return 'encountered interpolation kinds are not registered for export';
   }
@@ -3576,8 +3564,6 @@ String _parityLimitationMessage(ExportParityLimitationCode code) {
       return 'text track parity is not implemented';
     case ExportParityLimitationCode.lipSyncTrackParity:
       return 'lipSync track parity is not implemented';
-    case ExportParityLimitationCode.curveSpeedParity:
-      return 'curve speed export parity is not implemented';
   }
 }
 

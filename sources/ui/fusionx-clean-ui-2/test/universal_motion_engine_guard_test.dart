@@ -1229,7 +1229,6 @@ void main() {
     expect(source.contains('incomingInfluence='), isTrue);
     expect(source.contains('outgoingInfluence='), isTrue);
     expect(source.contains('repositioned='), isTrue);
-    expect(source.contains('TF_FLOSITY_GRAPH_EDIT_PROOF'), isFalse);
   });
 
   test('stage5 runtime emits velocity parity proof across modes', () async {
@@ -1248,22 +1247,18 @@ void main() {
     expect(source.contains('TF_VELOCITY_MB_VELOCITY_PROOF'), isTrue);
     expect(source.contains('speedGraphPreset='), isTrue);
     expect(source.contains('motionBlurDirectiveHash='), isTrue);
-    expect(
-      source.contains(
-        'TODO(velocity-contracts-05): remove legacy TF_FLOSITY_* compatibility',
-      ),
-      isTrue,
-    );
+    expect(source.contains('TF_EFFECT_PARITY_PROOF'), isFalse);
   });
 
   test('graph editor is wired for all supported scopes', () async {
     final source = await screenFile.readAsString();
-    expect(source.contains('_handleUnifiedTransitionScopeGraphToolTap()'),
-        isTrue);
+    expect(
+        source.contains('_handleUnifiedTransitionScopeGraphToolTap()'), isTrue);
     expect(source.contains('_handleSceneLayerScopeGraphToolTap()'), isTrue);
     expect(source.contains('_handleLayerScopeGraphToolTap()'), isTrue);
     expect(source.contains('_handleTransitionFocusGraphToolTap()'), isTrue);
-    expect(source.contains('onVelocityChanged: (velocity, {required editType})'),
+    expect(
+        source.contains('onVelocityChanged: (velocity, {required editType})'),
         isTrue);
   });
 }

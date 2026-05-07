@@ -105,6 +105,10 @@ void main() {
     expect(frame.evaluatedChannels, isNotEmpty);
     final opacity = frame.evaluatedChannels.first;
     expect(opacity.propertyDefinitionId, 'opacity');
+    expect(
+        opacity.sourcePropertyDefinitionId, MotionPropertyCatalog.opacity.id);
+    expect(opacity.rawVelocity, closeTo(33.3333, 0.1));
+    expect(opacity.velocityPresetId, isNull);
     expect(opacity.mapping.renderer.scalar, closeTo(0.6666, 0.02));
     expect(frame.diagnostics, isEmpty);
   });

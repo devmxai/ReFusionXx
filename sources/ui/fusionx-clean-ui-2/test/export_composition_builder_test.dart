@@ -198,11 +198,11 @@ void main() {
     );
     expect(
       composition.firstBaselineBlockingReasons,
-      contains('curve speed is not in the first export baseline'),
+      isNot(contains('curve speed is not in the first export baseline')),
     );
     expect(
       composition.currentParityLimitations,
-      contains('curve speed export parity is not implemented'),
+      isNot(contains('curve speed export parity is not implemented')),
     );
   });
 

@@ -61,6 +61,8 @@ void main() {
           value.propertyDefinitionId == 'scale' && value.targetId == 'clip-a',
     );
     expect(scaleX.targetId, 'clip-a');
+    expect(scaleX.sourcePropertyDefinitionId, 'transform.scale.x');
+    expect(scaleX.rawVelocity, isNotNull);
     expect(scaleX.mapping.renderer.scalar, closeTo(1.5, 0.0001));
     expect(scaleX.domain, const MasterTimeDomain.transition('transition-1'));
     final incomingScaleX = result.evaluatedChannels.firstWhere(
