@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_animation_models.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_interpolation_evaluator.dart';
+import 'package:refusion_app/features/editor/domain/services/motion_interpolation_truth_compiler.dart';
 import 'package:refusion_app/features/editor/presentation/widgets/layer_scope_graph_bottom_sheet.dart';
 
 void main() {
@@ -46,5 +50,98 @@ void main() {
     expect(editTypes.contains('paste'), isTrue);
     expect(editTypes.contains('pasteSelected'), isTrue);
     expect(editTypes.contains('pasteLane'), isTrue);
+  });
+
+  testWidgets('custom curve drag updates curve truth through velocity bridge',
+      (tester) async {
+    const initialVelocity = MotionKeyframeVelocity(
+      incomingSpeed: 0,
+      outgoingSpeed: 0,
+      incomingInfluence: 33.333,
+      outgoingInfluence: 33.333,
+      presetId: 'easyEase',
+      continuous: false,
+    );
+    final velocities = <MotionKeyframeVelocity>[];
+    final compiler = MotionInterpolationTruthCompiler();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: LayerScopeGraphBottomSheet(
+            easyEaseEnabled: true,
+            selectedPreset: LayerScopeGraphSpeedPreset.easyEase,
+            initialVelocity: initialVelocity,
+            onDone: () {},
+            onEasyEaseChanged: (_) {},
+            onVelocityChanged: (velocity, {required editType}) {
+              if (editType.startsWith('drag')) {
+                velocities.add(velocity);
+              }
+            },
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Custom Curve'));
+    await tester.pumpAndSettle();
+
+    final canvas = find.byWidgetPredicate(
+      (widget) =>
+          widget is CustomPaint &&
+          widget.painter != null &&
+          widget.painter.runtimeType.toString().contains('_SpeedGraphPainter'),
+    );
+    expect(canvas, findsOneWidget);
+    final rect = tester.getRect(canvas);
+    final start = Offset(rect.left + rect.width * 0.333, rect.bottom - 18);
+    final end =
+        Offset(rect.left + rect.width * 0.2, rect.top + rect.height * 0.4);
+    final gesture = await tester.startGesture(start);
+    await gesture.moveTo(end);
+    await gesture.up();
+    await tester.pumpAndSettle();
+
+    expect(velocities, isNotEmpty);
+    final before = compiler.compileFromVelocity(
+      velocity: initialVelocity,
+      fallback: const MotionInterpolationSpec.cubicBezier(
+        bezier: MotionBezierControlPoints(
+          x1: 0.333,
+          y1: 0.0,
+          x2: 0.667,
+          y2: 1.0,
+        ),
+      ),
+      inputMode: MotionInterpolationCompileInputMode.velocityNumbers,
+    );
+    final after = compiler.compileFromVelocity(
+      velocity: velocities.last,
+      fallback: const MotionInterpolationSpec.cubicBezier(
+        bezier: MotionBezierControlPoints(
+          x1: 0.333,
+          y1: 0.0,
+          x2: 0.667,
+          y2: 1.0,
+        ),
+      ),
+      inputMode: MotionInterpolationCompileInputMode.velocityNumbers,
+    );
+    expect(after.curveHash, isNot(equals(before.curveHash)));
+    expect(
+      evaluateMotionCurveProgress(after.interpolation, 0.25),
+      isNot(closeTo(
+          evaluateMotionCurveProgress(before.interpolation, 0.25), 1e-6)),
+    );
+  });
+
+  test('speed graph canvas uses evaluator sampling and Bezier truth proof', () {
+    final source = File(
+      '/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/lib/features/editor/presentation/widgets/layer_scope_graph_bottom_sheet.dart',
+    ).readAsStringSync();
+    expect(source.contains('TF_SPEED_GRAPH_CANVAS_PROOF'), isTrue);
+    expect(source.contains('evaluateMotionCurveProgress(interpolation, t)'),
+        isTrue);
+    expect(source.contains('wroteBezierTruth=true'), isTrue);
   });
 }

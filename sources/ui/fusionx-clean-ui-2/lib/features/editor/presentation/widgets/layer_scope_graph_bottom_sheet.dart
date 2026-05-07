@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../domain/models/professional_motion_animation_models.dart';
+import '../../domain/models/professional_motion_interpolation_evaluator.dart';
 import '../../domain/services/motion_interpolation_truth_compiler.dart';
 import '../../domain/services/professional_speed_graph_preset_catalog.dart';
 import 'professional_speed_graph_preset_grid.dart';
@@ -251,6 +252,7 @@ class _LayerScopeGraphBottomSheetState
   }
 
   Widget _buildCustomCurveTab() {
+    final interpolation = _currentInterpolationSpec();
     return Column(
       children: [
         _GraphModeSelector(
@@ -292,8 +294,10 @@ class _LayerScopeGraphBottomSheetState
                 constraints.maxWidth,
                 math.max(160, constraints.maxHeight - 72),
               );
-              final incoming = _incomingHandlePosition(canvasRect);
-              final outgoing = _outgoingHandlePosition(canvasRect);
+              final incoming =
+                  _incomingHandlePosition(canvasRect, interpolation);
+              final outgoing =
+                  _outgoingHandlePosition(canvasRect, interpolation);
               return Column(
                 children: [
                   Expanded(
@@ -310,25 +314,15 @@ class _LayerScopeGraphBottomSheetState
                         if (_activeHandle == null) {
                           return;
                         }
-                        final editType = _activeHandle ==
-                                _GraphHandleDragTarget.incoming
-                            ? 'dragIncoming'
-                            : _activeHandle == _GraphHandleDragTarget.outgoing
-                                ? 'dragOutgoing'
-                                : 'dragBoth';
-                        final next = _velocityFromDrag(
+                        final editType = switch (_activeHandle!) {
+                          _GraphHandleDragTarget.incoming => 'dragIncoming',
+                          _GraphHandleDragTarget.outgoing => 'dragOutgoing',
+                          _GraphHandleDragTarget.both => 'dragBoth',
+                        };
+                        _applyBezierHandleDrag(
                           details.localPosition,
                           canvasRect,
                           target: _activeHandle!,
-                        );
-                        setState(() {
-                          _selectedPreset = LayerScopeGraphSpeedPreset.custom;
-                          _velocity = next.copyWith(
-                            presetId: 'customSpeedGraph',
-                          );
-                        });
-                        widget.onVelocityChanged?.call(
-                          _velocity,
                           editType: editType,
                         );
                       },
@@ -336,6 +330,7 @@ class _LayerScopeGraphBottomSheetState
                       child: CustomPaint(
                         painter: _SpeedGraphPainter(
                           mode: _mode,
+                          interpolation: interpolation,
                           velocity: _velocity,
                         ),
                         child: const SizedBox.expand(),
@@ -745,19 +740,39 @@ class _LayerScopeGraphBottomSheetState
     );
   }
 
-  Offset _incomingHandlePosition(Rect canvasRect) {
-    final influence = (_velocity.incomingInfluence ?? 33.333).clamp(0.0, 200.0);
-    final speed = (_velocity.incomingSpeed ?? 0.0).abs().clamp(0.0, 200.0);
-    final x = canvasRect.left + canvasRect.width * (0.5 - (influence / 400.0));
-    final y = canvasRect.bottom - canvasRect.height * (speed / 220.0);
+  Offset _incomingHandlePosition(
+    Rect canvasRect,
+    MotionInterpolationSpec interpolation,
+  ) {
+    final bezier = interpolation.bezier ??
+        const MotionBezierControlPoints(
+          x1: 0.333,
+          y1: 0.0,
+          x2: 0.667,
+          y2: 1.0,
+        );
+    final clampedX = bezier.x1.clamp(0.0, 1.0);
+    final clampedY = bezier.y1.clamp(-1.0, 2.0);
+    final x = canvasRect.left + canvasRect.width * clampedX;
+    final y = canvasRect.bottom - canvasRect.height * clampedY;
     return Offset(x, y);
   }
 
-  Offset _outgoingHandlePosition(Rect canvasRect) {
-    final influence = (_velocity.outgoingInfluence ?? 33.333).clamp(0.0, 200.0);
-    final speed = (_velocity.outgoingSpeed ?? 0.0).abs().clamp(0.0, 200.0);
-    final x = canvasRect.left + canvasRect.width * (0.5 + (influence / 400.0));
-    final y = canvasRect.bottom - canvasRect.height * (speed / 220.0);
+  Offset _outgoingHandlePosition(
+    Rect canvasRect,
+    MotionInterpolationSpec interpolation,
+  ) {
+    final bezier = interpolation.bezier ??
+        const MotionBezierControlPoints(
+          x1: 0.333,
+          y1: 0.0,
+          x2: 0.667,
+          y2: 1.0,
+        );
+    final clampedX = bezier.x2.clamp(0.0, 1.0);
+    final clampedY = bezier.y2.clamp(-1.0, 2.0);
+    final x = canvasRect.left + canvasRect.width * clampedX;
+    final y = canvasRect.bottom - canvasRect.height * clampedY;
     return Offset(x, y);
   }
 
@@ -766,45 +781,142 @@ class _LayerScopeGraphBottomSheetState
     required Offset incoming,
     required Offset outgoing,
   }) {
+    const handleHitRadius = 24.0; // 48dp touch-safe target
     final incomingDistance = (position - incoming).distance;
     final outgoingDistance = (position - outgoing).distance;
+    final incomingHit = incomingDistance <= handleHitRadius;
+    final outgoingHit = outgoingDistance <= handleHitRadius;
     if (_velocity.continuous) {
+      if (incomingHit || outgoingHit) {
+        return _GraphHandleDragTarget.both;
+      }
       return _GraphHandleDragTarget.both;
+    }
+    if (incomingHit && !outgoingHit) {
+      return _GraphHandleDragTarget.incoming;
+    }
+    if (outgoingHit && !incomingHit) {
+      return _GraphHandleDragTarget.outgoing;
     }
     return incomingDistance <= outgoingDistance
         ? _GraphHandleDragTarget.incoming
         : _GraphHandleDragTarget.outgoing;
   }
 
-  MotionKeyframeVelocity _velocityFromDrag(
+  void _applyBezierHandleDrag(
     Offset position,
     Rect canvasRect, {
     required _GraphHandleDragTarget target,
+    required String editType,
   }) {
-    final clampedX =
+    final before = _currentInterpolationSpec();
+    final currentBezier = before.bezier ??
+        const MotionBezierControlPoints(
+          x1: 0.333,
+          y1: 0.0,
+          x2: 0.667,
+          y2: 1.0,
+        );
+    final nx =
         ((position.dx - canvasRect.left) / canvasRect.width).clamp(0.0, 1.0);
-    final clampedY =
-        ((position.dy - canvasRect.top) / canvasRect.height).clamp(0.0, 1.0);
-    final influenceFromCenter =
-        ((clampedX - 0.5).abs() * 400.0).clamp(0.0, 200.0);
-    final speed = ((1.0 - clampedY) * 220.0).clamp(0.0, 220.0);
-    if (target == _GraphHandleDragTarget.both) {
-      return _velocity.copyWith(
-        incomingInfluence: influenceFromCenter,
-        outgoingInfluence: influenceFromCenter,
-        incomingSpeed: speed,
-        outgoingSpeed: speed,
-      );
+    final ny =
+        (1.0 - ((position.dy - canvasRect.top) / canvasRect.height)).clamp(
+      -1.0,
+      2.0,
+    );
+    MotionBezierControlPoints nextBezier;
+    switch (target) {
+      case _GraphHandleDragTarget.incoming:
+        nextBezier = MotionBezierControlPoints(
+          x1: nx.clamp(0.0, currentBezier.x2),
+          y1: ny,
+          x2: currentBezier.x2,
+          y2: currentBezier.y2,
+        );
+        break;
+      case _GraphHandleDragTarget.outgoing:
+        nextBezier = MotionBezierControlPoints(
+          x1: currentBezier.x1,
+          y1: currentBezier.y1,
+          x2: nx.clamp(currentBezier.x1, 1.0),
+          y2: ny,
+        );
+        break;
+      case _GraphHandleDragTarget.both:
+        final mirroredX = (1.0 - nx).clamp(0.0, 1.0);
+        final mirroredY = (1.0 - ny).clamp(-1.0, 2.0);
+        final inX = math.min(nx, mirroredX);
+        final outX = math.max(nx, mirroredX);
+        nextBezier = MotionBezierControlPoints(
+          x1: inX,
+          y1: ny,
+          x2: outX,
+          y2: mirroredY,
+        );
+        break;
     }
-    if (target == _GraphHandleDragTarget.incoming) {
-      return _velocity.copyWith(
-        incomingInfluence: influenceFromCenter,
-        incomingSpeed: speed,
-      );
-    }
-    return _velocity.copyWith(
-      outgoingInfluence: influenceFromCenter,
-      outgoingSpeed: speed,
+    final compiled = _truthCompiler.compileFromInterpolation(
+      interpolation: MotionInterpolationSpec.cubicBezier(
+        bezier: nextBezier,
+      ),
+      inputMode: MotionInterpolationCompileInputMode.existingSpec,
+    );
+    final nextVelocity =
+        (compiled.interpolation.velocity ?? _velocity).copyWith(
+      presetId: 'customSpeedGraph',
+    );
+    setState(() {
+      _selectedPreset = LayerScopeGraphSpeedPreset.custom;
+      _velocity = nextVelocity;
+    });
+    widget.onVelocityChanged?.call(nextVelocity, editType: editType);
+    _emitCanvasProof(
+      before: before,
+      after: compiled.interpolation,
+      editType: editType,
+    );
+  }
+
+  void _emitCanvasProof({
+    required MotionInterpolationSpec before,
+    required MotionInterpolationSpec after,
+    required String editType,
+  }) {
+    final beforeCompiled = _truthCompiler.compileFromInterpolation(
+      interpolation: before,
+      inputMode: MotionInterpolationCompileInputMode.existingSpec,
+    );
+    final afterCompiled = _truthCompiler.compileFromInterpolation(
+      interpolation: after,
+      inputMode: MotionInterpolationCompileInputMode.existingSpec,
+    );
+    final beforeBezier = beforeCompiled.interpolation.bezier;
+    final afterBezier = afterCompiled.interpolation.bezier;
+    developer.log(
+      'TF_SPEED_GRAPH_CANVAS_PROOF '
+      'scope=layer_scope_graph '
+      'graphMode=${_mode.name} '
+      'selectedLaneId=unknown '
+      'selectedKeyframeId=unknown '
+      'selectedSegmentId=unknown '
+      'editType=$editType '
+      'beforeBezier='
+      '${beforeBezier?.x1.toStringAsFixed(4) ?? 'na'},'
+      '${beforeBezier?.y1.toStringAsFixed(4) ?? 'na'},'
+      '${beforeBezier?.x2.toStringAsFixed(4) ?? 'na'},'
+      '${beforeBezier?.y2.toStringAsFixed(4) ?? 'na'} '
+      'afterBezier='
+      '${afterBezier?.x1.toStringAsFixed(4) ?? 'na'},'
+      '${afterBezier?.y1.toStringAsFixed(4) ?? 'na'},'
+      '${afterBezier?.x2.toStringAsFixed(4) ?? 'na'},'
+      '${afterBezier?.y2.toStringAsFixed(4) ?? 'na'} '
+      'curveHashBefore=${beforeCompiled.curveHash} '
+      'curveHashAfter=${afterCompiled.curveHash} '
+      'sampledFromEvaluator=true '
+      'wroteBezierTruth=true '
+      'repositioned=false '
+      'fallbackReason=none',
+      name: 'ReFusionXx.SpeedGraph',
     );
   }
 
@@ -1082,10 +1194,12 @@ class _GraphToolbar extends StatelessWidget {
 class _SpeedGraphPainter extends CustomPainter {
   const _SpeedGraphPainter({
     required this.mode,
+    required this.interpolation,
     required this.velocity,
   });
 
   final LayerScopeGraphMode mode;
+  final MotionInterpolationSpec interpolation;
   final MotionKeyframeVelocity velocity;
 
   @override
@@ -1128,22 +1242,31 @@ class _SpeedGraphPainter extends CustomPainter {
       playheadPaint,
     );
 
-    final incomingInfluence =
-        (velocity.incomingInfluence ?? 33.333).clamp(0.0, 200.0);
-    final outgoingInfluence =
-        (velocity.outgoingInfluence ?? 33.333).clamp(0.0, 200.0);
-    final incomingSpeed =
-        (velocity.incomingSpeed ?? 0.0).abs().clamp(0.0, 220.0);
-    final outgoingSpeed =
-        (velocity.outgoingSpeed ?? 0.0).abs().clamp(0.0, 220.0);
-    final incomingX = size.width * (0.5 - incomingInfluence / 400.0);
-    final outgoingX = size.width * (0.5 + outgoingInfluence / 400.0);
-    final incomingY = size.height * (1.0 - incomingSpeed / 220.0);
-    final outgoingY = size.height * (1.0 - outgoingSpeed / 220.0);
+    final bezier = interpolation.bezier ??
+        const MotionBezierControlPoints(
+          x1: 0.333,
+          y1: 0.0,
+          x2: 0.667,
+          y2: 1.0,
+        );
+    final incomingX = size.width * bezier.x1.clamp(0.0, 1.0);
+    final outgoingX = size.width * bezier.x2.clamp(0.0, 1.0);
+    final incomingY = size.height * (1.0 - bezier.y1.clamp(-1.0, 2.0));
+    final outgoingY = size.height * (1.0 - bezier.y2.clamp(-1.0, 2.0));
 
-    final path = Path()
-      ..moveTo(incomingX, incomingY)
-      ..quadraticBezierTo(centerX, size.height * 0.5, outgoingX, outgoingY);
+    final path = Path();
+    const samples = 72;
+    for (var i = 0; i <= samples; i++) {
+      final t = i / samples;
+      final progress = evaluateMotionCurveProgress(interpolation, t);
+      final x = size.width * t;
+      final y = size.height * (1.0 - progress.clamp(-1.0, 2.0));
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
     final curvePaint = Paint()
       ..color = mode == LayerScopeGraphMode.speed
           ? FxPalette.accent
@@ -1155,10 +1278,10 @@ class _SpeedGraphPainter extends CustomPainter {
     final guidePaint = Paint()
       ..color = Colors.white.withOpacity(0.35)
       ..strokeWidth = 1.4;
-    canvas.drawLine(Offset(centerX, size.height * 0.5),
-        Offset(incomingX, incomingY), guidePaint);
-    canvas.drawLine(Offset(centerX, size.height * 0.5),
-        Offset(outgoingX, outgoingY), guidePaint);
+    final start = Offset(0, size.height);
+    final end = Offset(size.width, 0);
+    canvas.drawLine(start, Offset(incomingX, incomingY), guidePaint);
+    canvas.drawLine(end, Offset(outgoingX, outgoingY), guidePaint);
 
     final inHandlePaint = Paint()..color = Colors.cyanAccent;
     final outHandlePaint = Paint()..color = Colors.pinkAccent;
@@ -1173,7 +1296,9 @@ class _SpeedGraphPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _SpeedGraphPainter oldDelegate) {
-    return oldDelegate.mode != mode || oldDelegate.velocity != velocity;
+    return oldDelegate.mode != mode ||
+        oldDelegate.velocity != velocity ||
+        oldDelegate.interpolation != interpolation;
   }
 }
 
