@@ -204,6 +204,14 @@ void main() {
       composition.currentParityLimitations,
       isNot(contains('curve speed export parity is not implemented')),
     );
+    final curveSpeedCapability = composition.capabilityMatrix.singleWhere(
+      (entry) => entry.id == 'property.curve_speed',
+    );
+    expect(curveSpeedCapability.status, ExportCapabilityStatus.supported);
+    expect(
+      curveSpeedCapability.detail.toLowerCase(),
+      isNot(contains('not implemented')),
+    );
   });
 
   test('accepts a single audio track alongside a single visual baseline track',

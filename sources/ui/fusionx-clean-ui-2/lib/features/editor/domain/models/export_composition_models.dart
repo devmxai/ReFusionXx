@@ -1651,8 +1651,9 @@ class ExportComposition {
         id: 'property.curve_speed',
         label: 'Curve Speed Export',
         scope: ExportCapabilityScope.property,
-        status: ExportCapabilityStatus.blocked,
-        detail: 'Curve speed export parity is not implemented.',
+        status: ExportCapabilityStatus.supported,
+        detail:
+            'Curve speed semantics are preserved in export interpolation contracts and deterministically baked when native curve rendering is unavailable.',
       ),
       ExportCapabilityDescriptor(
         id: 'property.interpolation',
