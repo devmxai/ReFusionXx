@@ -491,6 +491,17 @@ class Stage5PreviewPlatformView(
                     (directive.directionX * directive.directionX) +
                         (directive.directionY * directive.directionY),
                 ) * directive.kernelLengthPx
+            val safeMinDimensionPx =
+                kotlin.math.min(rootView.width, rootView.height).coerceAtLeast(1).toDouble()
+            val rotationTrailPx =
+                kotlin.math.abs(directive.radialOmega) * safeMinDimensionPx * 0.35
+            val scaleTrailPx =
+                kotlin.math.max(
+                    kotlin.math.abs(directive.scaleVelocityX),
+                    kotlin.math.abs(directive.scaleVelocityY),
+                ) * safeMinDimensionPx * 0.25
+            val effectiveTrailPx =
+                kotlin.math.max(positionVelocityPx, kotlin.math.max(rotationTrailPx, scaleTrailPx))
             Log.d(
                 "Stage5PreviewPlatformView",
                 "TF_VELOCITY_MB_SLIDER_PROOF "
@@ -504,6 +515,9 @@ class Stage5PreviewPlatformView(
                     + "scaleDeltaX=${directive.scaleVelocityX} "
                     + "scaleDeltaY=${directive.scaleVelocityY} "
                     + "kernelLengthPx=${directive.kernelLengthPx} "
+                    + "rotationTrailPx=$rotationTrailPx "
+                    + "scaleTrailPx=$scaleTrailPx "
+                    + "effectiveTrailPx=$effectiveTrailPx "
                     + "radialOmega=${directive.radialOmega} "
                     + "scaleVelocityX=${directive.scaleVelocityX} "
                     + "scaleVelocityY=${directive.scaleVelocityY} "
@@ -520,6 +534,9 @@ class Stage5PreviewPlatformView(
                     + "radialOmega=${directive.radialOmega} "
                     + "scaleVelocityX=${directive.scaleVelocityX} "
                     + "scaleVelocityY=${directive.scaleVelocityY} "
+                    + "rotationTrailPx=$rotationTrailPx "
+                    + "scaleTrailPx=$scaleTrailPx "
+                    + "effectiveTrailPx=$effectiveTrailPx "
                     + "sampleCount=${directive.sampleCount} "
                     + "weightProfile=hann "
                     + "maxTrailPx=${directive.maxTrailPx} "
@@ -553,7 +570,7 @@ class Stage5PreviewPlatformView(
                     + "tileSafeSampling=${edgeDirective != null} "
                     + "weightProfile=hann "
                     + "weightSum=normalized "
-                    + "maxArcLengthPx=${directive.maxTrailPx} "
+                    + "maxArcLengthPx=$effectiveTrailPx "
                     + "renderEffectApplied=${renderEffect != null} "
                     + "fallbackReason=${motionBlurResult.fallbackReason ?: "none"}",
             )

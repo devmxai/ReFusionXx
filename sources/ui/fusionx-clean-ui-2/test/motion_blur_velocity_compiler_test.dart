@@ -78,7 +78,9 @@ void main() {
     );
 
     expect(directive.enabled, isTrue);
+    expect(directive.kernelLengthPx, 0.0);
     expect(directive.radialOmega.abs(), greaterThan(6.0));
+    expect(directive.sampleCount, greaterThanOrEqualTo(12));
   });
 
   test('amount is not double applied to radial and scale channels', () {
@@ -105,9 +107,9 @@ void main() {
       canvasHeight: 1920,
     );
 
-    expect(directive.radialOmega, closeTo(0.4, 1e-6));
-    expect(directive.scaleVelocityX, closeTo(0.2, 1e-6));
-    expect(directive.scaleVelocityY, closeTo(0.1, 1e-6));
+    expect(directive.radialOmega, closeTo(0.2, 1e-6));
+    expect(directive.scaleVelocityX, closeTo(0.1, 1e-6));
+    expect(directive.scaleVelocityY, closeTo(0.05, 1e-6));
   });
 
   test('quality tiers raise sample counts for playback and export', () {

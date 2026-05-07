@@ -1294,7 +1294,18 @@ class Stage5NativeScrubEngine(
         if (!directive.enabled || directive.amount <= 0.0001) {
             return null
         }
-        if (!directive.kernelLengthPx.isFinite() || directive.kernelLengthPx <= 0.5) {
+        val hasLinearMotion =
+            directive.kernelLengthPx.isFinite() && directive.kernelLengthPx > 0.5
+        val hasRotationMotion =
+            directive.radialOmega.isFinite() && kotlin.math.abs(directive.radialOmega) > 0.0005
+        val hasScaleMotion =
+            directive.scaleVelocityX.isFinite() &&
+                directive.scaleVelocityY.isFinite() &&
+                kotlin.math.max(
+                    kotlin.math.abs(directive.scaleVelocityX),
+                    kotlin.math.abs(directive.scaleVelocityY),
+                ) > 0.0005
+        if (!hasLinearMotion && !hasRotationMotion && !hasScaleMotion) {
             return null
         }
         if (!directive.directionX.isFinite() || !directive.directionY.isFinite()) {

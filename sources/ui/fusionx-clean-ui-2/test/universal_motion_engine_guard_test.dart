@@ -51,6 +51,9 @@ void main() {
   final stage5EdgeFillShaderPassFile = File(
     'android/app/src/main/kotlin/com/fusionx/fusionx_clean_ui_2/Stage5EdgeFillShaderPass.kt',
   );
+  final stage5MotionBlurShaderPassFile = File(
+    'android/app/src/main/kotlin/com/fusionx/fusionx_clean_ui_2/Stage5MotionBlurShaderPass.kt',
+  );
   final stage5RuntimeEffectChainBuilderFile = File(
     'android/app/src/main/kotlin/com/fusionx/fusionx_clean_ui_2/Stage5RuntimeEffectChainBuilder.kt',
   );
@@ -1138,10 +1141,23 @@ void main() {
     expect(source.contains('TF_VELOCITY_MB_SLIDER_PROOF'), isTrue);
     expect(source.contains('TF_VELOCITY_MB_PROOF'), isTrue);
     expect(source.contains('weightProfile=hann'), isTrue);
+    expect(source.contains('effectiveTrailPx='), isTrue);
     expect(source.contains('TF_MOTION_TILE_GAP_PROOF'), isTrue);
     expect(source.contains('seamOverlapPx='), isTrue);
     expect(source.contains('bitmapAllocationCount=0'), isTrue);
     expect(source.contains('mediaMetadataRetrieverUsed=false'), isTrue);
+  });
+
+  test('stage5 motion blur accepts pure rotation and avoids double scaling',
+      () async {
+    final motionSource = await stage5MotionBlurShaderPassFile.readAsString();
+    final engineSource = await stage5NativeScrubEngineFile.readAsString();
+    expect(motionSource.contains('effectiveTrailPx('), isTrue);
+    expect(motionSource.contains('float scaledT = t;'), isTrue);
+    expect(motionSource.contains('kernelLengthPx <= 0.5'), isFalse);
+    expect(engineSource.contains('hasRotationMotion'), isTrue);
+    expect(engineSource.contains('hasScaleMotion'), isTrue);
+    expect(engineSource.contains('directive.kernelLengthPx <= 0.5'), isFalse);
   });
 
   test('stage5 native scrub engine enforces frame packet acceptance', () async {

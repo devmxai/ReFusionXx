@@ -42,25 +42,24 @@ class MotionBlurVelocityCompiler {
         policy.affectScale ? (current.scaleX - previous.scaleX) : 0.0;
     final scaleDeltaY =
         policy.affectScale ? (current.scaleY - previous.scaleY) : 0.0;
-    final radialOmega = rotationDelta * shutterScale;
-    final scaleVelocityX = scaleDeltaX * shutterScale;
-    final scaleVelocityY = scaleDeltaY * shutterScale;
+    final radialOmega = rotationDelta * shutterScale * clampedAmount;
+    final scaleVelocityX = scaleDeltaX * shutterScale * clampedAmount;
+    final scaleVelocityY = scaleDeltaY * shutterScale * clampedAmount;
     final minCanvas = math.max(1.0, math.min(canvasWidth, canvasHeight));
     final linearTrail = (motionMagnitude * shutterScale) * clampedAmount;
-    final rotationTrail = radialOmega.abs() * minCanvas * 0.35 * clampedAmount;
-    final scaleTrail = math.max(scaleVelocityX.abs(), scaleVelocityY.abs()) *
-        minCanvas *
-        0.25 *
-        clampedAmount;
+    final rotationTrail = radialOmega.abs() * minCanvas * 0.35;
+    final scaleTrail =
+        math.max(scaleVelocityX.abs(), scaleVelocityY.abs()) * minCanvas * 0.25;
     final kernelLengthPx = linearTrail.clamp(0.0, policy.maxTrailPx);
-    final hasMeaningfulVelocity =
-        kernelLengthPx > 0.5 || rotationTrail > 0.5 || scaleTrail > 0.5;
+    final effectiveTrailPx =
+        math.max(kernelLengthPx, math.max(rotationTrail, scaleTrail));
+    final hasMeaningfulVelocity = effectiveTrailPx > 0.5;
     final sampleCount = _sampleCountFor(
       quality: quality,
       requested: policy.samples,
       adaptiveLimit: policy.adaptiveSampleLimit,
       hasMeaningfulVelocity: hasMeaningfulVelocity,
-      kernelLengthPx: kernelLengthPx,
+      effectiveTrailPx: effectiveTrailPx,
       maxTrailPx: policy.maxTrailPx,
     );
     final fallbackReason =
@@ -114,7 +113,7 @@ class MotionBlurVelocityCompiler {
     required int requested,
     required int adaptiveLimit,
     required bool hasMeaningfulVelocity,
-    required double kernelLengthPx,
+    required double effectiveTrailPx,
     required double maxTrailPx,
   }) {
     if (!hasMeaningfulVelocity) {
@@ -134,7 +133,8 @@ class MotionBlurVelocityCompiler {
       MotionBlurDirectiveQuality.export => 24,
     };
     final adaptiveCeiling = adaptiveLimit.clamp(1, maxByQuality);
-    final trailRatio = maxTrailPx <= 0.0 ? 0.0 : (kernelLengthPx / maxTrailPx);
+    final trailRatio =
+        maxTrailPx <= 0.0 ? 0.0 : (effectiveTrailPx / maxTrailPx);
     final adaptiveBoost = switch (quality) {
       MotionBlurDirectiveQuality.liveScrub => trailRatio > 0.35 ? 1 : 0,
       MotionBlurDirectiveQuality.playback =>

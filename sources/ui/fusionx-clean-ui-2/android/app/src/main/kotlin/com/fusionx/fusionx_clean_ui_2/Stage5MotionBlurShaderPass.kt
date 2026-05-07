@@ -3,11 +3,13 @@ package com.refusion.app
 import android.graphics.RenderEffect
 import android.graphics.RuntimeShader
 import android.os.Build
+import kotlin.math.abs
 import kotlin.math.max
+import kotlin.math.min
 
 class Stage5MotionBlurShaderPass {
     companion object {
-        private const val MAX_SAMPLES = 24
+        private const val MAX_SAMPLES = 32
 
         // language=AGSL
         private const val MOTION_BLUR_SHADER = """
@@ -31,21 +33,23 @@ class Stage5MotionBlurShaderPass {
             }
 
             half4 main(float2 coord) {
-                float count = clamp(sampleCount, 1.0, 24.0);
+                float count = clamp(sampleCount, 1.0, 32.0);
                 float2 anchor = anchorNorm * resolution;
                 float2 linearDelta = direction * kernelLengthPx;
-                float shutterScale = clamp(shutterAngleDegrees / 180.0, 0.0, 4.0);
 
                 half4 accum = half4(0.0);
                 float weightAccum = 0.0;
-                for (int i = 0; i < 24; i++) {
+                for (int i = 0; i < 32; i++) {
                     if (float(i) >= count) {
                         break;
                     }
                     float samplePosition = ((float(i) + 0.5) / count) - 0.5;
                     float phase = clamp(shutterPhase, -1.0, 1.0) * 0.5;
                     float t = samplePosition + phase;
-                    float scaledT = t * clamp(amount, 0.0, 1.0) * max(0.001, shutterScale);
+                    // Dart sends calibrated transform deltas with amount and
+                    // shutter already applied exactly once. The shader only
+                    // distributes those deltas over the shutter samples.
+                    float scaledT = t;
                     float theta = radialOmega * scaledT;
                     float c = cos(-theta);
                     float s = sin(-theta);
@@ -97,7 +101,13 @@ class Stage5MotionBlurShaderPass {
                 fallbackReason = "runtime_shader_api_not_available",
             )
         }
-        if (normalizedDirective.kernelLengthPx <= 0.5) {
+        val effectiveTrailPx =
+            effectiveTrailPx(
+                directive = normalizedDirective,
+                targetWidthPx = targetWidthPx,
+                targetHeightPx = targetHeightPx,
+            )
+        if (effectiveTrailPx <= 0.5f) {
             return RenderEffectResult(
                 renderEffect = gaussianBlur,
                 fallbackReason = "motion_blur_velocity_zero",
@@ -160,5 +170,21 @@ class Stage5MotionBlurShaderPass {
                 fallbackReason = "runtime_shader_compile_failed",
             )
         }
+    }
+
+    private fun effectiveTrailPx(
+        directive: Stage5VisualRuntimeMotionBlurDirective,
+        targetWidthPx: Float,
+        targetHeightPx: Float,
+    ): Float {
+        val minDimensionPx = max(1f, min(targetWidthPx, targetHeightPx))
+        val linearTrailPx = directive.kernelLengthPx.toFloat().coerceAtLeast(0f)
+        val rotationTrailPx = abs(directive.radialOmega.toFloat()) * minDimensionPx * 0.35f
+        val scaleTrailPx =
+            max(
+                abs(directive.scaleVelocityX.toFloat()),
+                abs(directive.scaleVelocityY.toFloat()),
+            ) * minDimensionPx * 0.25f
+        return max(linearTrailPx, max(rotationTrailPx, scaleTrailPx))
     }
 }
