@@ -1,5 +1,6 @@
 import '../../domain/models/professional_motion_animation_models.dart';
 import '../../domain/models/professional_motion_models.dart';
+import '../../domain/services/motion_interpolation_truth_compiler.dart';
 import '../models/timeline_mock_models.dart';
 import '../models/timeline_time.dart';
 import 'transition_focus_value_write_adapter.dart';
@@ -55,6 +56,9 @@ class ManualTransitionLaneChannelProjectionRequest {
 
 class ManualTransitionLaneToMotionChannelAdapter {
   const ManualTransitionLaneToMotionChannelAdapter();
+
+  static const MotionInterpolationTruthCompiler _truthCompiler =
+      MotionInterpolationTruthCompiler();
 
   ManualTransitionLaneChannelProjection projectChannels({
     required ManualTransitionLaneChannelProjectionRequest request,
@@ -888,130 +892,17 @@ class ManualTransitionLaneToMotionChannelAdapter {
       keyframeId: keyframeId,
       fallback: presetInterpolation.velocity,
     );
-    return presetInterpolation.copyWith(velocity: velocity);
+    return _truthCompiler
+        .compileFromVelocity(
+          velocity: velocity,
+          fallback: presetInterpolation,
+          inputMode: MotionInterpolationCompileInputMode.velocityNumbers,
+        )
+        .interpolation;
   }
 
   MotionInterpolationSpec _interpolationForGraphPresetIndex(int presetIndex) {
-    switch (presetIndex.clamp(0, 8)) {
-      case 0:
-        return const MotionInterpolationSpec.linear();
-      case 1:
-        return const MotionInterpolationSpec.cubicBezier(
-          bezier: MotionBezierControlPoints(
-            x1: 0.3333,
-            y1: 0.0,
-            x2: 0.6667,
-            y2: 1.0,
-          ),
-        ).copyWith(
-          velocity: const MotionKeyframeVelocity(
-            incomingSpeed: 0.0,
-            outgoingSpeed: 0.0,
-            incomingInfluence: 33.333,
-            outgoingInfluence: 33.333,
-            continuous: true,
-            presetId: 'easyEase',
-          ),
-        );
-      case 2:
-        return const MotionInterpolationSpec.easeIn().copyWith(
-          velocity: const MotionKeyframeVelocity(
-            incomingSpeed: 0.0,
-            incomingInfluence: 33.333,
-            continuous: true,
-            presetId: 'easyEaseIn',
-          ),
-        );
-      case 3:
-        return const MotionInterpolationSpec.easeOut().copyWith(
-          velocity: const MotionKeyframeVelocity(
-            outgoingSpeed: 0.0,
-            outgoingInfluence: 33.333,
-            continuous: true,
-            presetId: 'easyEaseOut',
-          ),
-        );
-      case 4:
-        return const MotionInterpolationSpec.cubicBezier(
-          bezier: MotionBezierControlPoints(
-            x1: 0.2,
-            y1: 0.0,
-            x2: 0.8,
-            y2: 1.0,
-          ),
-        ).copyWith(
-          velocity: const MotionKeyframeVelocity(
-            incomingInfluence: 85.0,
-            outgoingInfluence: 85.0,
-            continuous: true,
-            presetId: 'slowFastSlow',
-          ),
-        );
-      case 5:
-        return const MotionInterpolationSpec.cubicBezier(
-          bezier: MotionBezierControlPoints(
-            x1: 0.05,
-            y1: 0.9,
-            x2: 0.35,
-            y2: 1.0,
-          ),
-        ).copyWith(
-          velocity: const MotionKeyframeVelocity(
-            incomingInfluence: 15.0,
-            outgoingInfluence: 75.0,
-            continuous: true,
-            presetId: 'fastSlow',
-          ),
-        );
-      case 6:
-        return const MotionInterpolationSpec.cubicBezier(
-          bezier: MotionBezierControlPoints(
-            x1: 0.65,
-            y1: 0.0,
-            x2: 0.95,
-            y2: 0.1,
-          ),
-        ).copyWith(
-          velocity: const MotionKeyframeVelocity(
-            incomingInfluence: 75.0,
-            outgoingInfluence: 15.0,
-            continuous: true,
-            presetId: 'slowFast',
-          ),
-        );
-      case 7:
-        return const MotionInterpolationSpec.cubicBezier(
-          bezier: MotionBezierControlPoints(
-            x1: 0.05,
-            y1: 0.0,
-            x2: 0.25,
-            y2: 1.0,
-          ),
-        ).copyWith(
-          velocity: const MotionKeyframeVelocity(
-            incomingInfluence: 10.0,
-            outgoingInfluence: 95.0,
-            continuous: false,
-            presetId: 'whipSnap',
-          ),
-        );
-      case 8:
-        return const MotionInterpolationSpec.cubicBezier(
-          bezier: MotionBezierControlPoints(
-            x1: 0.3333,
-            y1: 0.0,
-            x2: 0.6667,
-            y2: 1.0,
-          ),
-        ).copyWith(
-          velocity: const MotionKeyframeVelocity(
-            continuous: false,
-            presetId: 'customSpeedGraph',
-          ),
-        );
-      default:
-        return const MotionInterpolationSpec.linear();
-    }
+    return _truthCompiler.compileFromGraphPresetIndex(presetIndex).interpolation;
   }
 
   double _defaultFallbackValueForLane(String laneId) {

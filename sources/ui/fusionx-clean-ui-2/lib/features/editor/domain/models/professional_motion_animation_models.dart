@@ -35,9 +35,9 @@ class MotionKeyframeVelocity {
     this.roving = false,
     this.presetId,
   })  : assert(incomingInfluence == null ||
-            (incomingInfluence >= 0.0 && incomingInfluence <= 100.0)),
+            (incomingInfluence >= 0.0 && incomingInfluence <= 200.0)),
         assert(outgoingInfluence == null ||
-            (outgoingInfluence >= 0.0 && outgoingInfluence <= 100.0));
+            (outgoingInfluence >= 0.0 && outgoingInfluence <= 200.0));
 
   final double? incomingSpeed;
   final double? outgoingSpeed;

@@ -44,6 +44,7 @@ import '../../domain/services/master_live_scrub_descriptor_projection.dart';
 import '../../domain/services/master_live_scrub_program_adapter.dart';
 import '../../domain/services/edge_fill_directive_compiler.dart';
 import '../../domain/services/motion_blur_velocity_compiler.dart';
+import '../../domain/services/motion_interpolation_truth_compiler.dart';
 import '../../domain/services/seam_continuity_engine.dart';
 import '../../domain/services/master_clock_native_bridge.dart';
 import '../../domain/services/professional_video_transition_compositor.dart';
@@ -204,6 +205,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       NativePreviewIdentityResolver();
   static const MotionBlurVelocityCompiler _motionBlurVelocityCompiler =
       MotionBlurVelocityCompiler();
+  static const MotionInterpolationTruthCompiler
+      _motionInterpolationTruthCompiler = MotionInterpolationTruthCompiler();
   static const EdgeFillDirectiveCompiler _edgeFillDirectiveCompiler =
       EdgeFillDirectiveCompiler();
   static const SeamContinuityEngine _seamContinuityEngine =
@@ -10956,110 +10959,21 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   MotionInterpolationSpec _interpolationForGraphPreset(
     LayerScopeGraphSpeedPreset preset,
   ) {
-    switch (preset) {
-      case LayerScopeGraphSpeedPreset.linear:
-        return const MotionInterpolationSpec.linear();
-      case LayerScopeGraphSpeedPreset.easyEase:
-        return _afterEffectsEasyEaseInterpolation.copyWith(
-          velocity: const MotionKeyframeVelocity(
-            incomingSpeed: 0.0,
-            outgoingSpeed: 0.0,
-            incomingInfluence: 33.333,
-            outgoingInfluence: 33.333,
-            continuous: true,
-            presetId: 'easyEase',
-          ),
-        );
-      case LayerScopeGraphSpeedPreset.easeIn:
-        return const MotionInterpolationSpec.easeIn().copyWith(
-          velocity: MotionKeyframeVelocity(
-            incomingSpeed: 0.0,
-            incomingInfluence: 33.333,
-            continuous: true,
-            presetId: 'easyEaseIn',
-          ),
-        );
-      case LayerScopeGraphSpeedPreset.easeOut:
-        return const MotionInterpolationSpec.easeOut().copyWith(
-          velocity: MotionKeyframeVelocity(
-            outgoingSpeed: 0.0,
-            outgoingInfluence: 33.333,
-            continuous: true,
-            presetId: 'easyEaseOut',
-          ),
-        );
-      case LayerScopeGraphSpeedPreset.slowFastSlow:
-        return const MotionInterpolationSpec.cubicBezier(
-          bezier: MotionBezierControlPoints(
-            x1: 0.2,
-            y1: 0.0,
-            x2: 0.8,
-            y2: 1.0,
-          ),
-        ).copyWith(
-          velocity: const MotionKeyframeVelocity(
-            incomingInfluence: 85.0,
-            outgoingInfluence: 85.0,
-            continuous: true,
-            presetId: 'slowFastSlow',
-          ),
-        );
-      case LayerScopeGraphSpeedPreset.fastSlow:
-        return const MotionInterpolationSpec.cubicBezier(
-          bezier: MotionBezierControlPoints(
-            x1: 0.05,
-            y1: 0.9,
-            x2: 0.35,
-            y2: 1.0,
-          ),
-        ).copyWith(
-          velocity: const MotionKeyframeVelocity(
-            incomingInfluence: 15.0,
-            outgoingInfluence: 75.0,
-            continuous: true,
-            presetId: 'fastSlow',
-          ),
-        );
-      case LayerScopeGraphSpeedPreset.slowFast:
-        return const MotionInterpolationSpec.cubicBezier(
-          bezier: MotionBezierControlPoints(
-            x1: 0.65,
-            y1: 0.0,
-            x2: 0.95,
-            y2: 0.1,
-          ),
-        ).copyWith(
-          velocity: const MotionKeyframeVelocity(
-            incomingInfluence: 75.0,
-            outgoingInfluence: 15.0,
-            continuous: true,
-            presetId: 'slowFast',
-          ),
-        );
-      case LayerScopeGraphSpeedPreset.whip:
-        return const MotionInterpolationSpec.cubicBezier(
-          bezier: MotionBezierControlPoints(
-            x1: 0.05,
-            y1: 0.0,
-            x2: 0.25,
-            y2: 1.0,
-          ),
-        ).copyWith(
-          velocity: const MotionKeyframeVelocity(
-            incomingInfluence: 10.0,
-            outgoingInfluence: 95.0,
-            continuous: false,
-            presetId: 'whipSnap',
-          ),
-        );
-      case LayerScopeGraphSpeedPreset.custom:
-        return _afterEffectsEasyEaseInterpolation.copyWith(
-          velocity: const MotionKeyframeVelocity(
-            continuous: false,
-            presetId: 'customSpeedGraph',
-          ),
-        );
-    }
+    final presetId = switch (preset) {
+      LayerScopeGraphSpeedPreset.linear => 'linear',
+      LayerScopeGraphSpeedPreset.easyEase => 'easyEase',
+      LayerScopeGraphSpeedPreset.easeIn => 'easyEaseIn',
+      LayerScopeGraphSpeedPreset.easeOut => 'easyEaseOut',
+      LayerScopeGraphSpeedPreset.slowFastSlow => 'slowFastSlow',
+      LayerScopeGraphSpeedPreset.fastSlow => 'fastSlow',
+      LayerScopeGraphSpeedPreset.slowFast => 'slowFast',
+      LayerScopeGraphSpeedPreset.whip => 'whipSnap',
+      LayerScopeGraphSpeedPreset.custom => 'customSpeedGraph',
+      LayerScopeGraphSpeedPreset.fastSlowFast => 'fastSlowFast',
+    };
+    return _motionInterpolationTruthCompiler
+        .compileFromPresetId(presetId)
+        .interpolation;
   }
 
   LayerScopeGraphSpeedPreset _graphPresetForVelocity(
@@ -11082,6 +10996,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         return LayerScopeGraphSpeedPreset.whip;
       case 'customSpeedGraph':
         return LayerScopeGraphSpeedPreset.custom;
+      case 'fastSlowFast':
+        return LayerScopeGraphSpeedPreset.fastSlowFast;
       default:
         return LayerScopeGraphSpeedPreset.linear;
     }
@@ -11091,21 +11007,20 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     MotionKeyframeVelocity velocity,
   ) {
     final preset = _graphPresetForVelocity(velocity);
-    final base = preset == LayerScopeGraphSpeedPreset.linear
-        ? const MotionInterpolationSpec.cubicBezier(
-            bezier: MotionBezierControlPoints(
-              x1: 0.3333,
-              y1: 0.0,
-              x2: 0.6667,
-              y2: 1.0,
-            ),
-          )
-        : _interpolationForGraphPreset(preset);
-    return base.copyWith(
-      velocity: velocity.copyWith(
-        presetId: velocity.presetId ?? 'customSpeedGraph',
-      ),
+    final base = _interpolationForGraphPreset(
+      preset == LayerScopeGraphSpeedPreset.linear
+          ? LayerScopeGraphSpeedPreset.custom
+          : preset,
     );
+    return _motionInterpolationTruthCompiler
+        .compileFromVelocity(
+          velocity: velocity.copyWith(
+            presetId: velocity.presetId ?? 'customSpeedGraph',
+          ),
+          fallback: base,
+          inputMode: MotionInterpolationCompileInputMode.velocityNumbers,
+        )
+        .interpolation;
   }
 
   void _logGraphEditProof({

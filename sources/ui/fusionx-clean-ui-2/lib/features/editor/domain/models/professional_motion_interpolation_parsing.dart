@@ -1,10 +1,14 @@
 import 'professional_motion_animation_models.dart';
+import '../services/motion_interpolation_truth_compiler.dart';
 
 class MotionInterpolationParseException implements Exception {
   const MotionInterpolationParseException(this.message);
 
   final String message;
 }
+
+final MotionInterpolationTruthCompiler _truthCompiler =
+    MotionInterpolationTruthCompiler();
 
 MotionInterpolationKind? tryParseCanonicalMotionInterpolationKind(String raw) {
   switch (_normalizeInterpolationToken(raw)) {
@@ -80,8 +84,11 @@ MotionInterpolationSpec? tryParseNamedMotionInterpolationSpec(String raw) {
     'speedgraph',
     'velocitygraph',
     'customspeedgraph',
+    'fastslowfast',
+    'plateau',
+    'holdmiddle',
   }.contains(normalized)) {
-    return _presetInterpolationFromToken(normalized);
+    return _truthCompiler.compileFromPresetId(raw).interpolation;
   }
   final kind = tryParseCanonicalMotionInterpolationKind(raw);
   if (kind == null) {
@@ -94,12 +101,39 @@ MotionInterpolationSpec parseCanonicalMotionInterpolationObject(
   Map<String, dynamic> json,
 ) {
   final velocity = _readOptionalVelocityContract(json);
-  final rawKind = _readRequiredStringAlias(json, const <String>['kind']);
+  final rawKind = _readOptionalStringAlias(json, const <String>['kind']);
+  if ((rawKind == null || rawKind.trim().isEmpty) && velocity != null) {
+    return _truthCompiler
+        .compileFromVelocity(
+          velocity: velocity.copyWith(
+            presetId: velocity.presetId ?? 'customSpeedGraph',
+          ),
+          inputMode: MotionInterpolationCompileInputMode.aiScript,
+        )
+        .interpolation;
+  }
+  if (rawKind == null || rawKind.trim().isEmpty) {
+    throw MotionInterpolationParseException(
+      'Missing required `kind`.',
+    );
+  }
   final normalizedKind = _normalizeInterpolationToken(rawKind);
   final named = tryParseNamedMotionInterpolationSpec(normalizedKind);
   if (named != null &&
       tryParseCanonicalMotionInterpolationKind(normalizedKind) == null) {
-    return velocity == null ? named : named.copyWith(velocity: velocity);
+    if (velocity == null) {
+      return named;
+    }
+    return _truthCompiler
+        .compileFromVelocity(
+          velocity: velocity.copyWith(
+            presetId: velocity.presetId ??
+                MotionInterpolationTruthCompiler.canonicalPresetId(rawKind),
+          ),
+          fallback: named,
+          inputMode: MotionInterpolationCompileInputMode.aiScript,
+        )
+        .interpolation;
   }
   final kind = tryParseCanonicalMotionInterpolationKind(rawKind);
   if (kind == null) {
@@ -109,14 +143,29 @@ MotionInterpolationSpec parseCanonicalMotionInterpolationObject(
   }
   switch (kind) {
     case MotionInterpolationKind.cubicBezier:
-      return MotionInterpolationSpec.cubicBezier(
+      final interpolation = MotionInterpolationSpec.cubicBezier(
         bezier: MotionBezierControlPoints(
           x1: _readRequiredDoubleAlias(json, const <String>['x1']),
           y1: _readRequiredDoubleAlias(json, const <String>['y1']),
           x2: _readRequiredDoubleAlias(json, const <String>['x2']),
           y2: _readRequiredDoubleAlias(json, const <String>['y2']),
         ),
-      ).copyWith(velocity: velocity);
+      );
+      if (velocity == null) {
+        return _truthCompiler
+            .compileFromInterpolation(
+              interpolation: interpolation,
+              inputMode: MotionInterpolationCompileInputMode.aiScript,
+            )
+            .interpolation;
+      }
+      return _truthCompiler
+          .compileFromVelocity(
+            velocity: velocity,
+            fallback: interpolation,
+            inputMode: MotionInterpolationCompileInputMode.aiScript,
+          )
+          .interpolation;
     case MotionInterpolationKind.spring:
       return MotionInterpolationSpec.spring(
         spring: MotionSpringSpec(
@@ -168,151 +217,6 @@ MotionInterpolationSpec parseCanonicalMotionInterpolationObject(
     case MotionInterpolationKind.easeInOut:
       return canonicalInterpolationSpecFromKind(kind).copyWith(
         velocity: velocity,
-      );
-  }
-}
-
-MotionInterpolationSpec _presetInterpolationFromToken(String normalizedToken) {
-  switch (normalizedToken) {
-    case 'easyease':
-    case 'f9':
-    case 'cinematicease':
-      return const MotionInterpolationSpec.cubicBezier(
-        bezier: MotionBezierControlPoints(
-          x1: 0.3333,
-          y1: 0.0,
-          x2: 0.6667,
-          y2: 1.0,
-        ),
-      ).copyWith(
-        velocity: const MotionKeyframeVelocity(
-          incomingSpeed: 0.0,
-          outgoingSpeed: 0.0,
-          incomingInfluence: 33.333,
-          outgoingInfluence: 33.333,
-          continuous: true,
-          presetId: 'easyEase',
-        ),
-      );
-    case 'easyeasein':
-      return const MotionInterpolationSpec.easeIn().copyWith(
-        velocity: const MotionKeyframeVelocity(
-          incomingSpeed: 0.0,
-          incomingInfluence: 33.333,
-          continuous: true,
-          presetId: 'easyEaseIn',
-        ),
-      );
-    case 'easyeaseout':
-      return const MotionInterpolationSpec.easeOut().copyWith(
-        velocity: const MotionKeyframeVelocity(
-          outgoingSpeed: 0.0,
-          outgoingInfluence: 33.333,
-          continuous: true,
-          presetId: 'easyEaseOut',
-        ),
-      );
-    case 'slowfastslow':
-      return const MotionInterpolationSpec.cubicBezier(
-        bezier: MotionBezierControlPoints(
-          x1: 0.2,
-          y1: 0.0,
-          x2: 0.8,
-          y2: 1.0,
-        ),
-      ).copyWith(
-        velocity: const MotionKeyframeVelocity(
-          incomingInfluence: 85.0,
-          outgoingInfluence: 85.0,
-          continuous: true,
-          presetId: 'slowFastSlow',
-        ),
-      );
-    case 'fastslow':
-      return const MotionInterpolationSpec.cubicBezier(
-        bezier: MotionBezierControlPoints(
-          x1: 0.05,
-          y1: 0.9,
-          x2: 0.35,
-          y2: 1.0,
-        ),
-      ).copyWith(
-        velocity: const MotionKeyframeVelocity(
-          incomingInfluence: 15.0,
-          outgoingInfluence: 75.0,
-          continuous: true,
-          presetId: 'fastSlow',
-        ),
-      );
-    case 'slowfast':
-      return const MotionInterpolationSpec.cubicBezier(
-        bezier: MotionBezierControlPoints(
-          x1: 0.65,
-          y1: 0.0,
-          x2: 0.95,
-          y2: 0.1,
-        ),
-      ).copyWith(
-        velocity: const MotionKeyframeVelocity(
-          incomingInfluence: 75.0,
-          outgoingInfluence: 15.0,
-          continuous: true,
-          presetId: 'slowFast',
-        ),
-      );
-    case 'whip':
-    case 'whipsnap':
-      return const MotionInterpolationSpec.cubicBezier(
-        bezier: MotionBezierControlPoints(
-          x1: 0.05,
-          y1: 0.0,
-          x2: 0.25,
-          y2: 1.0,
-        ),
-      ).copyWith(
-        velocity: const MotionKeyframeVelocity(
-          incomingInfluence: 10.0,
-          outgoingInfluence: 95.0,
-          continuous: false,
-          presetId: 'whipSnap',
-        ),
-      );
-    case 'smoothstart':
-      return const MotionInterpolationSpec.easeIn().copyWith(
-        velocity: const MotionKeyframeVelocity(
-          presetId: 'smoothStart',
-        ),
-      );
-    case 'smoothstop':
-      return const MotionInterpolationSpec.easeOut().copyWith(
-        velocity: const MotionKeyframeVelocity(
-          presetId: 'smoothStop',
-        ),
-      );
-    case 'speedgraph':
-    case 'velocitygraph':
-    case 'customspeedgraph':
-      return const MotionInterpolationSpec.cubicBezier(
-        bezier: MotionBezierControlPoints(
-          x1: 0.3333,
-          y1: 0.0,
-          x2: 0.6667,
-          y2: 1.0,
-        ),
-      ).copyWith(
-        velocity: const MotionKeyframeVelocity(
-          continuous: false,
-          presetId: 'customSpeedGraph',
-        ),
-      );
-    default:
-      return const MotionInterpolationSpec.cubicBezier(
-        bezier: MotionBezierControlPoints(
-          x1: 0.3333,
-          y1: 0.0,
-          x2: 0.6667,
-          y2: 1.0,
-        ),
       );
   }
 }

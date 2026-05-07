@@ -13,14 +13,14 @@ String transitionFocusGraphPresetParameterKey({
 }
 
 double transitionFocusGraphPresetParameterValue(int presetIndex) {
-  return presetIndex.clamp(0, 8).toDouble();
+  return presetIndex.clamp(0, 9).toDouble();
 }
 
 int transitionFocusGraphPresetIndex(double? parameterValue) {
   if (parameterValue == null) {
     return 0;
   }
-  return parameterValue.round().clamp(0, 8);
+  return parameterValue.round().clamp(0, 9);
 }
 
 String transitionFocusGraphVelocityParameterKey({

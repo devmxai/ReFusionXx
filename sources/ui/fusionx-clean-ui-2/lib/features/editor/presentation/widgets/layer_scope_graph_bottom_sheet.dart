@@ -1,9 +1,13 @@
 import 'dart:math' as math;
+import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_theme.dart';
 import '../../domain/models/professional_motion_animation_models.dart';
+import '../../domain/services/motion_interpolation_truth_compiler.dart';
+import '../../domain/services/professional_speed_graph_preset_catalog.dart';
+import 'professional_speed_graph_preset_grid.dart';
 
 enum LayerScopeGraphMode {
   value,
@@ -20,6 +24,13 @@ enum LayerScopeGraphSpeedPreset {
   slowFast,
   whip,
   custom,
+  fastSlowFast,
+}
+
+enum _GraphEditorTab {
+  presets,
+  customCurve,
+  numeric,
 }
 
 typedef GraphVelocityChanged = void Function(
@@ -58,9 +69,15 @@ class LayerScopeGraphBottomSheet extends StatefulWidget {
 
 class _LayerScopeGraphBottomSheetState
     extends State<LayerScopeGraphBottomSheet> {
+  static const MotionInterpolationTruthCompiler _truthCompiler =
+      MotionInterpolationTruthCompiler();
+  static const ProfessionalSpeedGraphPresetCatalog _presetCatalog =
+      ProfessionalSpeedGraphPresetCatalog();
+
   late bool _easyEaseEnabled;
   late LayerScopeGraphMode _mode;
   late LayerScopeGraphSpeedPreset _selectedPreset;
+  late _GraphEditorTab _selectedTab;
   late MotionKeyframeVelocity _velocity;
   _GraphHandleDragTarget? _activeHandle;
 
@@ -70,6 +87,7 @@ class _LayerScopeGraphBottomSheetState
     _easyEaseEnabled = widget.easyEaseEnabled;
     _mode = widget.initialMode;
     _selectedPreset = widget.selectedPreset;
+    _selectedTab = _GraphEditorTab.presets;
     _velocity = widget.initialVelocity ??
         _velocityForPreset(widget.selectedPreset).copyWith(
           incomingHandleLocked: true,
@@ -137,135 +155,21 @@ class _LayerScopeGraphBottomSheetState
                       ],
                     ),
                     const SizedBox(height: 10),
-                    _GraphModeSelector(
-                      mode: _mode,
-                      onChanged: (nextMode) {
+                    _GraphEditorTabSelector(
+                      selectedTab: _selectedTab,
+                      onTabSelected: (tab) {
                         setState(() {
-                          _mode = nextMode;
+                          _selectedTab = tab;
                         });
-                        widget.onModeChanged?.call(nextMode);
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                    _GraphToolbar(
-                      velocity: _velocity,
-                      onContinuousChanged: (value) {
-                        final next = _velocity.copyWith(
-                          continuous: value,
-                          incomingHandleLocked: value,
-                          outgoingHandleLocked: value,
-                          presetId: 'customSpeedGraph',
-                        );
-                        setState(() {
-                          _selectedPreset = LayerScopeGraphSpeedPreset.custom;
-                          _velocity = next;
-                        });
-                        widget.onVelocityChanged?.call(
-                          next,
-                          editType: 'toggleContinuous',
-                        );
                       },
                     ),
                     const SizedBox(height: 10),
                     Expanded(
-                      child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          final canvasRect = Rect.fromLTWH(
-                            0,
-                            0,
-                            constraints.maxWidth,
-                            math.max(160, constraints.maxHeight - 72),
-                          );
-                          final incoming = _incomingHandlePosition(canvasRect);
-                          final outgoing = _outgoingHandlePosition(canvasRect);
-                          return Column(
-                            children: [
-                              Expanded(
-                                child: GestureDetector(
-                                  behavior: HitTestBehavior.opaque,
-                                  onPanStart: (details) {
-                                    _activeHandle = _resolveHandle(
-                                      details.localPosition,
-                                      incoming: incoming,
-                                      outgoing: outgoing,
-                                    );
-                                  },
-                                  onPanUpdate: (details) {
-                                    if (_activeHandle == null) {
-                                      return;
-                                    }
-                                    final editType = _activeHandle ==
-                                            _GraphHandleDragTarget.incoming
-                                        ? 'dragIncoming'
-                                        : _activeHandle ==
-                                                _GraphHandleDragTarget.outgoing
-                                            ? 'dragOutgoing'
-                                            : 'dragBoth';
-                                    final next = _velocityFromDrag(
-                                      details.localPosition,
-                                      canvasRect,
-                                      target: _activeHandle!,
-                                    );
-                                    setState(() {
-                                      _selectedPreset =
-                                          LayerScopeGraphSpeedPreset.custom;
-                                      _velocity = next.copyWith(
-                                        presetId: 'customSpeedGraph',
-                                      );
-                                    });
-                                    widget.onVelocityChanged?.call(
-                                      _velocity,
-                                      editType: editType,
-                                    );
-                                  },
-                                  onPanEnd: (_) => _activeHandle = null,
-                                  child: CustomPaint(
-                                    painter: _SpeedGraphPainter(
-                                      mode: _mode,
-                                      velocity: _velocity,
-                                    ),
-                                    child: const SizedBox.expand(),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              _VelocityReadout(velocity: _velocity),
-                            ],
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      height: 92,
-                      child: SingleChildScrollView(
-                        child: Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            for (final preset in LayerScopeGraphSpeedPreset.values)
-                              _PresetChip(
-                                preset: preset,
-                                isSelected: _selectedPreset == preset,
-                                onTap: () {
-                                  final nextVelocity = _velocityForPreset(preset);
-                                  setState(() {
-                                    _selectedPreset = preset;
-                                    _velocity = nextVelocity;
-                                    _easyEaseEnabled =
-                                        preset != LayerScopeGraphSpeedPreset.linear;
-                                  });
-                                  widget.onEasyEaseChanged(_easyEaseEnabled);
-                                  widget.onPresetSelected?.call(preset);
-                                  widget.onVelocityChanged?.call(
-                                    nextVelocity,
-                                    editType: 'preset',
-                                  );
-                                },
-                              ),
-                          ],
-                        ),
-                      ),
+                      child: switch (_selectedTab) {
+                        _GraphEditorTab.presets => _buildPresetsTab(),
+                        _GraphEditorTab.customCurve => _buildCustomCurveTab(),
+                        _GraphEditorTab.numeric => _buildNumericTab(),
+                      },
                     ),
                   ],
                 ),
@@ -277,18 +181,328 @@ class _LayerScopeGraphBottomSheetState
     );
   }
 
+  Widget _buildPresetsTab() {
+    final presetCards = <ProfessionalSpeedGraphPreset>[
+      _presetCatalog.findById('easyEase')!,
+      _presetCatalog.findById('slowFastSlow')!,
+      _presetCatalog.findById('fastSlowFast')!,
+      _presetCatalog.findById('slowFast')!,
+      _presetCatalog.findById('fastSlow')!,
+      _presetCatalog.findById('customSpeedGraph')!,
+    ];
+    return ProfessionalSpeedGraphPresetGrid(
+      presets: presetCards,
+      selectedPresetId: MotionInterpolationTruthCompiler.canonicalPresetId(
+          _velocity.presetId),
+      onPresetTap: (preset) {
+        final mapped = _presetFromId(preset.id);
+        final nextVelocity = _velocityForPreset(mapped);
+        setState(() {
+          _selectedPreset = mapped;
+          _velocity = nextVelocity;
+          _easyEaseEnabled = mapped != LayerScopeGraphSpeedPreset.linear;
+        });
+        widget.onEasyEaseChanged(_easyEaseEnabled);
+        widget.onPresetSelected?.call(mapped);
+        widget.onVelocityChanged?.call(
+          nextVelocity,
+          editType: 'preset',
+        );
+        _emitPresetProof(preset.id, nextVelocity);
+      },
+      onPresetDoubleTap: (_) {
+        setState(() {
+          _selectedTab = _GraphEditorTab.customCurve;
+        });
+      },
+      onPresetLongPress: (_) {},
+    );
+  }
+
+  Widget _buildCustomCurveTab() {
+    return Column(
+      children: [
+        _GraphModeSelector(
+          mode: _mode,
+          onChanged: (nextMode) {
+            setState(() {
+              _mode = nextMode;
+            });
+            widget.onModeChanged?.call(nextMode);
+          },
+        ),
+        const SizedBox(height: 10),
+        _GraphToolbar(
+          velocity: _velocity,
+          onContinuousChanged: (value) {
+            final next = _velocity.copyWith(
+              continuous: value,
+              incomingHandleLocked: value,
+              outgoingHandleLocked: value,
+              presetId: 'customSpeedGraph',
+            );
+            setState(() {
+              _selectedPreset = LayerScopeGraphSpeedPreset.custom;
+              _velocity = next;
+            });
+            widget.onVelocityChanged?.call(
+              next,
+              editType: 'toggleContinuous',
+            );
+          },
+        ),
+        const SizedBox(height: 10),
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final canvasRect = Rect.fromLTWH(
+                0,
+                0,
+                constraints.maxWidth,
+                math.max(160, constraints.maxHeight - 72),
+              );
+              final incoming = _incomingHandlePosition(canvasRect);
+              final outgoing = _outgoingHandlePosition(canvasRect);
+              return Column(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onPanStart: (details) {
+                        _activeHandle = _resolveHandle(
+                          details.localPosition,
+                          incoming: incoming,
+                          outgoing: outgoing,
+                        );
+                      },
+                      onPanUpdate: (details) {
+                        if (_activeHandle == null) {
+                          return;
+                        }
+                        final editType = _activeHandle ==
+                                _GraphHandleDragTarget.incoming
+                            ? 'dragIncoming'
+                            : _activeHandle == _GraphHandleDragTarget.outgoing
+                                ? 'dragOutgoing'
+                                : 'dragBoth';
+                        final next = _velocityFromDrag(
+                          details.localPosition,
+                          canvasRect,
+                          target: _activeHandle!,
+                        );
+                        setState(() {
+                          _selectedPreset = LayerScopeGraphSpeedPreset.custom;
+                          _velocity = next.copyWith(
+                            presetId: 'customSpeedGraph',
+                          );
+                        });
+                        widget.onVelocityChanged?.call(
+                          _velocity,
+                          editType: editType,
+                        );
+                      },
+                      onPanEnd: (_) => _activeHandle = null,
+                      child: CustomPaint(
+                        painter: _SpeedGraphPainter(
+                          mode: _mode,
+                          velocity: _velocity,
+                        ),
+                        child: const SizedBox.expand(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  _VelocityReadout(velocity: _velocity),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNumericTab() {
+    Widget slider({
+      required String label,
+      required double value,
+      required double min,
+      required double max,
+      required ValueChanged<double> onChanged,
+    }) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$label: ${value.toStringAsFixed(1)}',
+            style: const TextStyle(
+              color: FxPalette.textPrimary,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          Slider(
+            value: value.clamp(min, max),
+            min: min,
+            max: max,
+            onChanged: onChanged,
+            activeColor: FxPalette.accent,
+          ),
+        ],
+      );
+    }
+
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          slider(
+            label: 'Incoming Speed',
+            value: _velocity.incomingSpeed ?? 0.0,
+            min: 0,
+            max: 220,
+            onChanged: (next) {
+              final updated = _velocity.copyWith(
+                incomingSpeed: next,
+                presetId: 'customSpeedGraph',
+              );
+              setState(() {
+                _selectedPreset = LayerScopeGraphSpeedPreset.custom;
+                _velocity = updated;
+              });
+              widget.onVelocityChanged?.call(updated, editType: 'dragIncoming');
+            },
+          ),
+          slider(
+            label: 'Outgoing Speed',
+            value: _velocity.outgoingSpeed ?? 0.0,
+            min: 0,
+            max: 220,
+            onChanged: (next) {
+              final updated = _velocity.copyWith(
+                outgoingSpeed: next,
+                presetId: 'customSpeedGraph',
+              );
+              setState(() {
+                _selectedPreset = LayerScopeGraphSpeedPreset.custom;
+                _velocity = updated;
+              });
+              widget.onVelocityChanged?.call(updated, editType: 'dragOutgoing');
+            },
+          ),
+          slider(
+            label: 'Incoming Influence',
+            value: _velocity.incomingInfluence ?? 33.333,
+            min: 0,
+            max: 200,
+            onChanged: (next) {
+              final updated = _velocity.copyWith(
+                incomingInfluence: next,
+                presetId: 'customSpeedGraph',
+              );
+              setState(() {
+                _selectedPreset = LayerScopeGraphSpeedPreset.custom;
+                _velocity = updated;
+              });
+              widget.onVelocityChanged?.call(updated, editType: 'dragIncoming');
+            },
+          ),
+          slider(
+            label: 'Outgoing Influence',
+            value: _velocity.outgoingInfluence ?? 33.333,
+            min: 0,
+            max: 200,
+            onChanged: (next) {
+              final updated = _velocity.copyWith(
+                outgoingInfluence: next,
+                presetId: 'customSpeedGraph',
+              );
+              setState(() {
+                _selectedPreset = LayerScopeGraphSpeedPreset.custom;
+                _velocity = updated;
+              });
+              widget.onVelocityChanged?.call(updated, editType: 'dragOutgoing');
+            },
+          ),
+          const SizedBox(height: 8),
+          _GraphToolbar(
+            velocity: _velocity,
+            onContinuousChanged: (value) {
+              final next = _velocity.copyWith(
+                continuous: value,
+                incomingHandleLocked: value,
+                outgoingHandleLocked: value,
+                presetId: 'customSpeedGraph',
+              );
+              setState(() {
+                _velocity = next;
+                _selectedPreset = LayerScopeGraphSpeedPreset.custom;
+              });
+              widget.onVelocityChanged
+                  ?.call(next, editType: 'toggleContinuous');
+            },
+          ),
+          const SizedBox(height: 8),
+          _VelocityReadout(velocity: _velocity),
+        ],
+      ),
+    );
+  }
+
+  LayerScopeGraphSpeedPreset _presetFromId(String presetId) {
+    return switch (
+        MotionInterpolationTruthCompiler.canonicalPresetId(presetId)) {
+      'linear' => LayerScopeGraphSpeedPreset.linear,
+      'easyEase' => LayerScopeGraphSpeedPreset.easyEase,
+      'easyEaseIn' => LayerScopeGraphSpeedPreset.easeIn,
+      'easyEaseOut' => LayerScopeGraphSpeedPreset.easeOut,
+      'slowFastSlow' => LayerScopeGraphSpeedPreset.slowFastSlow,
+      'fastSlow' => LayerScopeGraphSpeedPreset.fastSlow,
+      'slowFast' => LayerScopeGraphSpeedPreset.slowFast,
+      'whipSnap' => LayerScopeGraphSpeedPreset.whip,
+      'fastSlowFast' => LayerScopeGraphSpeedPreset.fastSlowFast,
+      _ => LayerScopeGraphSpeedPreset.custom,
+    };
+  }
+
+  void _emitPresetProof(String presetId, MotionKeyframeVelocity velocity) {
+    final canonical = MotionInterpolationTruthCompiler.canonicalPresetId(
+      presetId,
+    );
+    final compiled = _truthCompiler.compileFromPresetId(canonical);
+    developer.log(
+      'TF_SPEED_GRAPH_PRESET_PROOF '
+      'scope=layer_scope_graph '
+      'presetId=$canonical '
+      'aliasesResolved=true '
+      'selectedLaneId=unknown '
+      'selectedKeyframeId=unknown '
+      'bezier='
+      '${compiled.interpolation.bezier?.x1.toStringAsFixed(4) ?? 'na'},'
+      '${compiled.interpolation.bezier?.y1.toStringAsFixed(4) ?? 'na'},'
+      '${compiled.interpolation.bezier?.x2.toStringAsFixed(4) ?? 'na'},'
+      '${compiled.interpolation.bezier?.y2.toStringAsFixed(4) ?? 'na'} '
+      'curveHash=${compiled.curveHash} '
+      'velocityHash=${compiled.velocityHash} '
+      'applied=true '
+      'fallbackReason=none '
+      'velocityPreset=${velocity.presetId ?? 'none'}',
+      name: 'ReFusionXx.SpeedGraph',
+    );
+  }
+
   Offset _incomingHandlePosition(Rect canvasRect) {
-    final influence = (_velocity.incomingInfluence ?? 33.333).clamp(0.0, 100.0);
+    final influence = (_velocity.incomingInfluence ?? 33.333).clamp(0.0, 200.0);
     final speed = (_velocity.incomingSpeed ?? 0.0).abs().clamp(0.0, 200.0);
-    final x = canvasRect.left + canvasRect.width * (0.5 - (influence / 200.0));
+    final x = canvasRect.left + canvasRect.width * (0.5 - (influence / 400.0));
     final y = canvasRect.bottom - canvasRect.height * (speed / 220.0);
     return Offset(x, y);
   }
 
   Offset _outgoingHandlePosition(Rect canvasRect) {
-    final influence = (_velocity.outgoingInfluence ?? 33.333).clamp(0.0, 100.0);
+    final influence = (_velocity.outgoingInfluence ?? 33.333).clamp(0.0, 200.0);
     final speed = (_velocity.outgoingSpeed ?? 0.0).abs().clamp(0.0, 200.0);
-    final x = canvasRect.left + canvasRect.width * (0.5 + (influence / 200.0));
+    final x = canvasRect.left + canvasRect.width * (0.5 + (influence / 400.0));
     final y = canvasRect.bottom - canvasRect.height * (speed / 220.0);
     return Offset(x, y);
   }
@@ -317,7 +531,8 @@ class _LayerScopeGraphBottomSheetState
         ((position.dx - canvasRect.left) / canvasRect.width).clamp(0.0, 1.0);
     final clampedY =
         ((position.dy - canvasRect.top) / canvasRect.height).clamp(0.0, 1.0);
-    final influenceFromCenter = ((clampedX - 0.5).abs() * 200.0).clamp(0.0, 100.0);
+    final influenceFromCenter =
+        ((clampedX - 0.5).abs() * 400.0).clamp(0.0, 200.0);
     final speed = ((1.0 - clampedY) * 220.0).clamp(0.0, 220.0);
     if (target == _GraphHandleDragTarget.both) {
       return _velocity.copyWith(
@@ -421,6 +636,15 @@ class _LayerScopeGraphBottomSheetState
         );
       case LayerScopeGraphSpeedPreset.custom:
         return _velocity.copyWith(presetId: 'customSpeedGraph');
+      case LayerScopeGraphSpeedPreset.fastSlowFast:
+        return const MotionKeyframeVelocity(
+          incomingSpeed: 95.0,
+          outgoingSpeed: 95.0,
+          incomingInfluence: 88.0,
+          outgoingInfluence: 88.0,
+          continuous: false,
+          presetId: 'fastSlowFast',
+        );
     }
   }
 }
@@ -453,6 +677,65 @@ class _GraphModeSelector extends StatelessWidget {
             onTap: () => onChanged(LayerScopeGraphMode.speed),
           ),
         ),
+      ],
+    );
+  }
+}
+
+class _GraphEditorTabSelector extends StatelessWidget {
+  const _GraphEditorTabSelector({
+    required this.selectedTab,
+    required this.onTabSelected,
+  });
+
+  final _GraphEditorTab selectedTab;
+  final ValueChanged<_GraphEditorTab> onTabSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget tab({
+      required _GraphEditorTab tab,
+      required String label,
+    }) {
+      final selected = selectedTab == tab;
+      return Expanded(
+        child: InkWell(
+          onTap: () => onTabSelected(tab),
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            height: 36,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: selected
+                  ? FxPalette.accent.withOpacity(0.16)
+                  : FxPalette.surfaceRaised.withOpacity(0.72),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: selected
+                    ? FxPalette.accent.withOpacity(0.65)
+                    : Colors.white.withOpacity(0.08),
+              ),
+            ),
+            child: Text(
+              label,
+              style: TextStyle(
+                color: selected ? FxPalette.accent : FxPalette.textPrimary,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        tab(tab: _GraphEditorTab.presets, label: 'Presets'),
+        const SizedBox(width: 8),
+        tab(tab: _GraphEditorTab.customCurve, label: 'Custom Curve'),
+        const SizedBox(width: 8),
+        tab(tab: _GraphEditorTab.numeric, label: 'Numeric'),
       ],
     );
   }
@@ -578,7 +861,8 @@ class _SpeedGraphPainter extends CustomPainter {
     final selectedPaint = Paint()
       ..color = FxPalette.accent.withOpacity(0.6)
       ..strokeWidth = 1.8;
-    canvas.drawLine(Offset(centerX, 0), Offset(centerX, size.height), selectedPaint);
+    canvas.drawLine(
+        Offset(centerX, 0), Offset(centerX, size.height), selectedPaint);
 
     final playheadPaint = Paint()
       ..color = Colors.white.withOpacity(0.45)
@@ -590,12 +874,16 @@ class _SpeedGraphPainter extends CustomPainter {
       playheadPaint,
     );
 
-    final incomingInfluence = (velocity.incomingInfluence ?? 33.333).clamp(0.0, 100.0);
-    final outgoingInfluence = (velocity.outgoingInfluence ?? 33.333).clamp(0.0, 100.0);
-    final incomingSpeed = (velocity.incomingSpeed ?? 0.0).abs().clamp(0.0, 220.0);
-    final outgoingSpeed = (velocity.outgoingSpeed ?? 0.0).abs().clamp(0.0, 220.0);
-    final incomingX = size.width * (0.5 - incomingInfluence / 200.0);
-    final outgoingX = size.width * (0.5 + outgoingInfluence / 200.0);
+    final incomingInfluence =
+        (velocity.incomingInfluence ?? 33.333).clamp(0.0, 200.0);
+    final outgoingInfluence =
+        (velocity.outgoingInfluence ?? 33.333).clamp(0.0, 200.0);
+    final incomingSpeed =
+        (velocity.incomingSpeed ?? 0.0).abs().clamp(0.0, 220.0);
+    final outgoingSpeed =
+        (velocity.outgoingSpeed ?? 0.0).abs().clamp(0.0, 220.0);
+    final incomingX = size.width * (0.5 - incomingInfluence / 400.0);
+    final outgoingX = size.width * (0.5 + outgoingInfluence / 400.0);
     final incomingY = size.height * (1.0 - incomingSpeed / 220.0);
     final outgoingY = size.height * (1.0 - outgoingSpeed / 220.0);
 
@@ -613,8 +901,10 @@ class _SpeedGraphPainter extends CustomPainter {
     final guidePaint = Paint()
       ..color = Colors.white.withOpacity(0.35)
       ..strokeWidth = 1.4;
-    canvas.drawLine(Offset(centerX, size.height * 0.5), Offset(incomingX, incomingY), guidePaint);
-    canvas.drawLine(Offset(centerX, size.height * 0.5), Offset(outgoingX, outgoingY), guidePaint);
+    canvas.drawLine(Offset(centerX, size.height * 0.5),
+        Offset(incomingX, incomingY), guidePaint);
+    canvas.drawLine(Offset(centerX, size.height * 0.5),
+        Offset(outgoingX, outgoingY), guidePaint);
 
     final inHandlePaint = Paint()..color = Colors.cyanAccent;
     final outHandlePaint = Paint()..color = Colors.pinkAccent;
@@ -677,71 +967,6 @@ class _VelocityReadout extends StatelessWidget {
         ],
       ),
     );
-  }
-}
-
-class _PresetChip extends StatelessWidget {
-  const _PresetChip({
-    required this.preset,
-    required this.isSelected,
-    required this.onTap,
-  });
-
-  final LayerScopeGraphSpeedPreset preset;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? FxPalette.accent.withOpacity(0.16)
-              : FxPalette.surfaceRaised.withOpacity(0.72),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isSelected
-                ? FxPalette.accent.withOpacity(0.65)
-                : Colors.white.withOpacity(0.08),
-          ),
-        ),
-        child: Text(
-          _labelForPreset(preset),
-          style: TextStyle(
-            color: isSelected ? FxPalette.accent : FxPalette.textPrimary,
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
-    );
-  }
-
-  static String _labelForPreset(LayerScopeGraphSpeedPreset preset) {
-    switch (preset) {
-      case LayerScopeGraphSpeedPreset.linear:
-        return 'Linear';
-      case LayerScopeGraphSpeedPreset.easyEase:
-        return 'Easy Ease';
-      case LayerScopeGraphSpeedPreset.easeIn:
-        return 'Ease In';
-      case LayerScopeGraphSpeedPreset.easeOut:
-        return 'Ease Out';
-      case LayerScopeGraphSpeedPreset.slowFastSlow:
-        return 'Slow-Fast-Slow';
-      case LayerScopeGraphSpeedPreset.fastSlow:
-        return 'Fast-Slow';
-      case LayerScopeGraphSpeedPreset.slowFast:
-        return 'Slow-Fast';
-      case LayerScopeGraphSpeedPreset.whip:
-        return 'Whip';
-      case LayerScopeGraphSpeedPreset.custom:
-        return 'Custom';
-    }
   }
 }
 
