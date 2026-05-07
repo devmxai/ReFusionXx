@@ -107,6 +107,22 @@ void main() {
     expect(parsed.velocity!.presetId, 'easyEase');
   });
 
+  test('named interpolation aliases map to professional velocity presets', () {
+    final f9 = tryParseNamedMotionInterpolationSpec('f9');
+    final slowFastSlow = tryParseNamedMotionInterpolationSpec('slowFastSlow');
+    final whip = tryParseNamedMotionInterpolationSpec('whip');
+    final custom = tryParseNamedMotionInterpolationSpec('velocityGraph');
+
+    expect(f9, isNotNull);
+    expect(f9!.velocity?.presetId, 'easyEase');
+    expect(slowFastSlow, isNotNull);
+    expect(slowFastSlow!.velocity?.presetId, 'slowFastSlow');
+    expect(whip, isNotNull);
+    expect(whip!.velocity?.presetId, 'whipSnap');
+    expect(custom, isNotNull);
+    expect(custom!.velocity?.presetId, 'customSpeedGraph');
+  });
+
   test('export interpolation bridge preserves bounce and elastic params', () {
     const interpolation = ExportMotionInterpolationSpec(
       kind: 'bounce',

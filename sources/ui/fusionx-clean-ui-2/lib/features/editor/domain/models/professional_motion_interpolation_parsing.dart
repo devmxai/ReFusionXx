@@ -64,15 +64,26 @@ MotionInterpolationSpec canonicalInterpolationSpecFromKind(
 
 MotionInterpolationSpec? tryParseNamedMotionInterpolationSpec(String raw) {
   final normalized = _normalizeInterpolationToken(raw);
-  if (normalized == 'easyease') {
-    return const MotionInterpolationSpec.cubicBezier(
-      bezier: MotionBezierControlPoints(
-        x1: 0.3333,
-        y1: 0.0,
-        x2: 0.6667,
-        y2: 1.0,
-      ),
-    );
+  if (const <String>{
+    'easyease',
+    'f9',
+    'slowfastslow',
+    'cinematicease',
+    'easyeasein',
+    'easein',
+    'easyeaseout',
+    'easeout',
+    'fastslow',
+    'slowfast',
+    'whip',
+    'whipsnap',
+    'smoothstart',
+    'smoothstop',
+    'speedgraph',
+    'velocitygraph',
+    'customspeedgraph',
+  }.contains(normalized)) {
+    return _presetInterpolationFromToken(normalized);
   }
   final kind = tryParseCanonicalMotionInterpolationKind(raw);
   if (kind == null) {
@@ -87,15 +98,10 @@ MotionInterpolationSpec parseCanonicalMotionInterpolationObject(
   final velocity = _readOptionalVelocityContract(json);
   final rawKind = _readRequiredStringAlias(json, const <String>['kind']);
   final normalizedKind = _normalizeInterpolationToken(rawKind);
-  if (normalizedKind == 'easyease') {
-    return MotionInterpolationSpec.cubicBezier(
-      bezier: MotionBezierControlPoints(
-        x1: 0.3333,
-        y1: 0.0,
-        x2: 0.6667,
-        y2: 1.0,
-      ),
-    ).copyWith(velocity: velocity);
+  final named = tryParseNamedMotionInterpolationSpec(normalizedKind);
+  if (named != null &&
+      tryParseCanonicalMotionInterpolationKind(normalizedKind) == null) {
+    return velocity == null ? named : named.copyWith(velocity: velocity);
   }
   final kind = tryParseCanonicalMotionInterpolationKind(rawKind);
   if (kind == null) {
@@ -164,6 +170,151 @@ MotionInterpolationSpec parseCanonicalMotionInterpolationObject(
     case MotionInterpolationKind.easeInOut:
       return canonicalInterpolationSpecFromKind(kind).copyWith(
         velocity: velocity,
+      );
+  }
+}
+
+MotionInterpolationSpec _presetInterpolationFromToken(String normalizedToken) {
+  switch (normalizedToken) {
+    case 'easyease':
+    case 'f9':
+    case 'cinematicease':
+      return const MotionInterpolationSpec.cubicBezier(
+        bezier: MotionBezierControlPoints(
+          x1: 0.3333,
+          y1: 0.0,
+          x2: 0.6667,
+          y2: 1.0,
+        ),
+      ).copyWith(
+        velocity: const MotionKeyframeVelocity(
+          incomingSpeed: 0.0,
+          outgoingSpeed: 0.0,
+          incomingInfluence: 33.333,
+          outgoingInfluence: 33.333,
+          continuous: true,
+          presetId: 'easyEase',
+        ),
+      );
+    case 'easyeasein':
+      return const MotionInterpolationSpec.easeIn().copyWith(
+        velocity: const MotionKeyframeVelocity(
+          incomingSpeed: 0.0,
+          incomingInfluence: 33.333,
+          continuous: true,
+          presetId: 'easyEaseIn',
+        ),
+      );
+    case 'easyeaseout':
+      return const MotionInterpolationSpec.easeOut().copyWith(
+        velocity: const MotionKeyframeVelocity(
+          outgoingSpeed: 0.0,
+          outgoingInfluence: 33.333,
+          continuous: true,
+          presetId: 'easyEaseOut',
+        ),
+      );
+    case 'slowfastslow':
+      return const MotionInterpolationSpec.cubicBezier(
+        bezier: MotionBezierControlPoints(
+          x1: 0.2,
+          y1: 0.0,
+          x2: 0.8,
+          y2: 1.0,
+        ),
+      ).copyWith(
+        velocity: const MotionKeyframeVelocity(
+          incomingInfluence: 85.0,
+          outgoingInfluence: 85.0,
+          continuous: true,
+          presetId: 'slowFastSlow',
+        ),
+      );
+    case 'fastslow':
+      return const MotionInterpolationSpec.cubicBezier(
+        bezier: MotionBezierControlPoints(
+          x1: 0.05,
+          y1: 0.9,
+          x2: 0.35,
+          y2: 1.0,
+        ),
+      ).copyWith(
+        velocity: const MotionKeyframeVelocity(
+          incomingInfluence: 15.0,
+          outgoingInfluence: 75.0,
+          continuous: true,
+          presetId: 'fastSlow',
+        ),
+      );
+    case 'slowfast':
+      return const MotionInterpolationSpec.cubicBezier(
+        bezier: MotionBezierControlPoints(
+          x1: 0.65,
+          y1: 0.0,
+          x2: 0.95,
+          y2: 0.1,
+        ),
+      ).copyWith(
+        velocity: const MotionKeyframeVelocity(
+          incomingInfluence: 75.0,
+          outgoingInfluence: 15.0,
+          continuous: true,
+          presetId: 'slowFast',
+        ),
+      );
+    case 'whip':
+    case 'whipsnap':
+      return const MotionInterpolationSpec.cubicBezier(
+        bezier: MotionBezierControlPoints(
+          x1: 0.05,
+          y1: 0.0,
+          x2: 0.25,
+          y2: 1.0,
+        ),
+      ).copyWith(
+        velocity: const MotionKeyframeVelocity(
+          incomingInfluence: 10.0,
+          outgoingInfluence: 95.0,
+          continuous: false,
+          presetId: 'whipSnap',
+        ),
+      );
+    case 'smoothstart':
+      return const MotionInterpolationSpec.easeIn().copyWith(
+        velocity: const MotionKeyframeVelocity(
+          presetId: 'smoothStart',
+        ),
+      );
+    case 'smoothstop':
+      return const MotionInterpolationSpec.easeOut().copyWith(
+        velocity: const MotionKeyframeVelocity(
+          presetId: 'smoothStop',
+        ),
+      );
+    case 'speedgraph':
+    case 'velocitygraph':
+    case 'customspeedgraph':
+      return const MotionInterpolationSpec.cubicBezier(
+        bezier: MotionBezierControlPoints(
+          x1: 0.3333,
+          y1: 0.0,
+          x2: 0.6667,
+          y2: 1.0,
+        ),
+      ).copyWith(
+        velocity: const MotionKeyframeVelocity(
+          continuous: false,
+          presetId: 'customSpeedGraph',
+        ),
+      );
+    default:
+      return const MotionInterpolationSpec.cubicBezier(
+        bezier: MotionBezierControlPoints(
+          x1: 0.3333,
+          y1: 0.0,
+          x2: 0.6667,
+          y2: 1.0,
+        ),
       );
   }
 }
