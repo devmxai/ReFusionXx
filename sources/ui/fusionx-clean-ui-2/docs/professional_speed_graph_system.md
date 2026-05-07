@@ -5,7 +5,7 @@ Internal product name: `SpeedyGraph`
 Package: `com.refusion.app`  
 Branch: `codex/unified-keyframe-ops-foundation-20260426`  
 Date opened: 2026-05-07  
-Scope: Bezier truth, Speed Graph, preset cards, numeric velocity editing, AI-authored motion, preview/liveScrub/playback/export parity, and Motion Blur velocity consumption
+Scope: central animation timing truth, Bezier truth, Speed Graph, preset cards, numeric velocity editing, AI-authored motion, property eligibility, temporal/spatial separation, preview/liveScrub/playback/export parity, and Motion Blur velocity consumption
 
 ## 0. Purpose
 
@@ -33,6 +33,33 @@ The system must support:
 
 This is not a decorative graph. The graph must control the actual pixels.
 
+## 0.1 100% Professional Bar
+
+This plan reaches 100% only when SpeedyGraph is not merely a bottom-dock tool.
+
+It must be the official timing system for every supported animation writer in the app:
+
+```text
+Layer Scope
+Transition Focus
+Unified Transition Scope
+Scene Layer Scope
+Scene Program lowerer
+AI motion patch import
+Scoped text motion script
+Effect parameter keyframes
+Export/import bridges
+Motion Blur velocity compiler
+```
+
+The app must have one rule:
+
+```text
+No animation write is allowed to bypass MotionInterpolationTruthCompiler.
+```
+
+If a property or scope cannot consume SpeedyGraph, it must be explicitly blocked with a reason. Silent linear fallback is forbidden.
+
 ## 1. Non-Negotiable Principle
 
 ```text
@@ -54,6 +81,11 @@ Preset Card
 or Speed Graph drag
 or Numeric velocity values
 or AI script velocity
+or Scene Program easing
+or Motion Patch easing
+        |
+        v
+MotionInterpolationTruthCompiler
         |
         v
 MotionBezierVelocityBridge
@@ -130,6 +162,159 @@ MotionInterpolationSpec.syncBezierAndVelocity(...)
 ```
 
 This makes every truth conversion auditable and testable.
+
+### 2.4 Central Truth Compiler
+
+Add a single application-wide compiler:
+
+```text
+MotionInterpolationTruthCompiler
+```
+
+This compiler is the only allowed entry point for converting authoring intent into executable motion timing.
+
+Required inputs:
+
+```text
+preset id
+direct Bezier
+velocity numbers
+numeric speed/influence
+graph handle positions
+AI script interpolation object
+legacy easing string
+existing MotionInterpolationSpec
+```
+
+Required output:
+
+```text
+MotionInterpolationCompileResult
+  - interpolation: MotionInterpolationSpec
+  - executionTruth: bezier | spring | bounce | elastic | hold | linear
+  - mirroredVelocity: MotionKeyframeVelocity?
+  - curveHash
+  - velocityHash
+  - targetEligibility
+  - fallbackReason
+```
+
+Forbidden:
+
+```text
+UI path creates Bezier directly while AI path creates velocity metadata.
+Transition path uses one preset table while Layer path uses another.
+Export path serializes a different curve from preview.
+```
+
+Every writer must call the compiler:
+
+```text
+Layer Scope Graph
+Transition Focus Graph
+Unified Transition Scope Graph
+Scene Layer Scope Graph
+Transition Focus value adapter
+Manual transition lane adapter
+UnifiedKeyframeOperations
+Refusion Scene Program lowerer
+Motion Patch import service
+Scoped Text Motion Script import
+Export composition builder
+```
+
+### 2.5 Motion Graph Is Not Clip Speed Ramp
+
+Do not mix these two systems:
+
+```text
+Motion Graph / Easing Curve:
+  controls property value over time
+  examples: position, rotation, opacity, effect amount
+
+Clip Speed Ramp / Time Remapping:
+  controls media playback time over timeline time
+  examples: slow motion, speed ramp, reverse, freeze
+```
+
+SpeedyGraph owns Motion Graph / Easing Curve only.
+
+If a future Clip Speed Ramp UI uses similar curves, it must have its own explicit time-remap contract and must not reuse motion property easing by accident.
+
+### 2.6 Temporal And Spatial Separation
+
+Professional tools separate:
+
+```text
+Temporal interpolation:
+  how a value changes over time
+
+Spatial interpolation:
+  how a position path moves through canvas space
+```
+
+SpeedyGraph is the temporal graph truth.
+
+For spatial properties such as Position:
+
+```text
+position.x and position.y can use SpeedyGraph for temporal timing
+spatial path shape must be a separate future Spatial Bezier path contract
+```
+
+Do not fake spatial path editing by abusing temporal Bezier handles.
+
+### 2.7 Property Eligibility Matrix
+
+SpeedyGraph must apply to every property that can be represented as scalar graph channels.
+
+Create a formal eligibility matrix:
+
+```text
+Property kind                         Support
+position.x / position.y               supported scalar lanes
+scale.x / scale.y                     supported scalar lanes
+rotation                              supported scalar lane
+opacity                               supported scalar lane, overshoot blocked
+effect amount                         supported if scalar, overshoot policy per effect
+blur radius                           supported scalar lane, negative overshoot blocked
+color.r/g/b/a                         supported only after channel decomposition
+shape size width/height               supported scalar lanes
+shadow offset x/y                     supported scalar lanes
+boolean                               unsupported
+string/text content                   unsupported
+enum/mode                             unsupported
+rect                                  supported only after explicit decomposition
+```
+
+Rules:
+
+```text
+If property can decompose to scalar lanes, SpeedyGraph can support it.
+If property cannot decompose safely, graph button must be disabled with reason.
+```
+
+### 2.8 Segment-Based Truth
+
+The graph edits the segment between two keyframes:
+
+```text
+keyframe A -> keyframe B
+```
+
+It does not edit an isolated keyframe without context.
+
+The UI must clearly show:
+
+```text
+selected segment
+previous keyframe
+next keyframe
+selected keyframe role: outgoing | incoming | both
+neighbor keyframes faded
+```
+
+Internal storage can remain `interpolationToNext`, but the user-facing model must be segment-based.
 
 ## 3. Mandatory Project Rules
 
@@ -212,7 +397,8 @@ handles: Color(0xFF24E574)
 curve stroke: 2.5px
 handle stroke: 1.5px
 handle visual radius: 8px
-touch hit area: 24px minimum
+touch hit area: 48dp minimum
+minimum spacing between touch targets: 8dp
 ```
 
 ### 5.2 Graph Meaning
@@ -242,6 +428,27 @@ y = normalized velocity magnitude
 ```
 
 The visible curve must match what the engine renders.
+
+### 5.3 Performance Budget
+
+Graph editing must stay responsive on mobile.
+
+Rules:
+
+```text
+drag updates may be coalesced to frame budget
+thumbnail samples must be cached by curveHash
+graph samples must be cached by curveHash + graphMode + canvasSize
+Motion Blur preview may use a lower sample tier while dragging
+semantic curve values must not change because preview quality changed
+```
+
+Targets:
+
+```text
+graph drag UI response: <= 16.67ms on capable devices
+fallback: throttle visual preview, never change canonical curve
+```
 
 ## 6. Preset Card System
 
@@ -413,6 +620,18 @@ checkmark
 accessible label
 ```
 
+Required preset operations:
+
+```text
+Copy Curve
+Paste Curve
+Paste Curve To Selected Keyframes
+Paste Curve To All Keyframes In Lane
+Recent Curves
+```
+
+These must be available before full custom preset persistence, because mobile editing needs fast reuse even before the preset library is complete.
+
 ### 7.2 Custom Curve Tab
 
 Displays the professional curve editor.
@@ -427,8 +646,12 @@ Required:
 - keyframe dots
 - current playhead marker
 - selected keyframe marker
+- selected segment highlight
+- previous/next keyframe context
 - touch-safe drag areas
 - snap-to-horizontal option for Easy Ease style handles
+- split/locked handle toggle
+- continuous tangent toggle
 - reset button
 - apply to selected keyframes
 
@@ -443,9 +666,22 @@ outgoingInfluence
 incomingInfluence
 continuous
 lockedHandles
+propertyUnits
+overshootPolicy
 ```
 
 Any numeric edit must compile through the same Bezier bridge.
+
+Units must be explicit:
+
+```text
+position: px/sec
+rotation: deg/sec
+scale: percent/sec
+opacity: percent/sec
+effect amount: effect-defined units/sec
+blur radius: px/sec
+```
 
 ## 8. Bezier Velocity Bridge
 
@@ -527,6 +763,46 @@ blur radius: disallow negative overshoot
 
 ## 9. Engine Integration
 
+### 9.0 Universal Write Path
+
+All animation timing writes must use:
+
+```text
+MotionInterpolationTruthCompiler
+```
+
+Required consumers:
+
+```text
+Layer Scope Graph UI
+Transition Focus Graph UI
+Unified Transition Scope Graph UI
+Scene Layer Scope Graph UI
+Transition Focus value write adapter
+Manual transition lane adapter
+UnifiedKeyframeOperations
+Refusion Scene Program lowerer
+Refusion Motion Patch import service
+Scoped Text Motion Script import service
+Export composition builder/import bridge
+Motion Blur velocity compiler
+```
+
+No scope may maintain its own preset truth table.
+
+Every consumer must pass:
+
+```text
+target kind
+target id
+property path
+channel id
+keyframe id
+segment start/end time
+property units
+overshoot policy
+```
+
 ### 9.1 Applying A Preset
 
 ```text
@@ -580,6 +856,40 @@ Allowed input shapes:
 
 All velocity inputs must compile to real `MotionInterpolationSpec` execution data.
 
+### 9.5 Scene Program And Agent Schema
+
+Scene Program / Agent-authored motion must support both legacy shorthand and the full professional contract.
+
+Allowed:
+
+```json
+{"easing": "slowFastSlow"}
+```
+
+```json
+{"interpolation": {"kind": "cubicBezier", "bezier": {"x1": 0.2, "y1": 0.0, "x2": 0.8, "y2": 1.0}}}
+```
+
+```json
+{"velocity": {"preset": "slowFastSlow"}}
+```
+
+```json
+{"velocity": {"incomingInfluence": 75, "outgoingInfluence": 75}}
+```
+
+Compiler rules:
+
+```text
+legacy easing string -> preset catalog -> Bezier truth
+velocity object -> bridge -> Bezier truth
+direct Bezier -> Bezier truth
+spring/bounce/elastic -> physics truth
+unsupported object -> explicit rejection
+```
+
+The lowerer must output normal editable keyframes. Agent-authored animation must be editable in the same Graph Editor as manual UI keyframes.
+
 ## 10. Diagnostics
 
 ### 10.1 Preset Proof
@@ -627,6 +937,60 @@ bezier
 overshootPolicy
 normalizedFallbackUsed
 fallbackReason
+```
+
+### 10.2.1 Truth Compiler Proof
+
+Add:
+
+```text
+TF_SPEED_GRAPH_TRUTH_COMPILER_PROOF
+```
+
+Fields:
+
+```text
+inputMode
+scope
+targetKind
+targetId
+propertyPath
+channelId
+keyframeId
+segmentStartTimeMs
+segmentEndTimeMs
+propertyUnits
+eligibility
+overshootPolicy
+executionTruth
+bezier
+curveHash
+velocityHash
+compiled
+fallbackReason
+```
+
+### 10.2.2 Property Eligibility Proof
+
+Add:
+
+```text
+TF_SPEED_GRAPH_PROPERTY_ELIGIBILITY_PROOF
+```
+
+Fields:
+
+```text
+scope
+targetKind
+targetId
+propertyPath
+propertyKind
+decomposedChannels
+supportsSpeedGraph
+supportsValueGraph
+supportsOvershoot
+disabledReason
 ```
 
 ### 10.3 Graph Edit Proof
@@ -682,12 +1046,68 @@ fallbackReason
 
 ## 11. Implementation Phases
 
-### Phase SG-01 - Foundation Bridge
+### Phase SG-01 - Truth Compiler Foundation
 
 Checkpoint:
 
 ```text
-checkpoint: 2026-05-07 professional speed graph system 01 - bezier velocity bridge foundation
+checkpoint: 2026-05-07 professional speed graph system 01 - truth compiler foundation
+```
+
+Required:
+
+- Add `MotionInterpolationTruthCompiler`.
+- Add `MotionInterpolationCompileResult`.
+- Route no UI yet.
+- Define accepted input modes:
+  - preset
+  - velocity numbers
+  - direct Bezier
+  - existing spec
+  - legacy easing string
+  - AI script interpolation object
+- Add `TF_SPEED_GRAPH_TRUTH_COMPILER_PROOF`.
+- Add tests proving unsupported inputs reject explicitly.
+
+Acceptance:
+
+```text
+One compiler exists as the planned central write gate.
+No scope-specific writer is changed yet.
+Focused tests pass.
+```
+
+### Phase SG-02 - Property Eligibility Matrix
+
+Checkpoint:
+
+```text
+checkpoint: 2026-05-07 professional speed graph system 02 - property eligibility matrix
+```
+
+Required:
+
+- Add formal property eligibility model.
+- Define scalar/decomposed/unsupported property handling.
+- Add `MotionPropertyOvershootPolicy`.
+- Add `TF_SPEED_GRAPH_PROPERTY_ELIGIBILITY_PROOF`.
+- Do not change graph UI yet.
+
+Acceptance:
+
+```text
+Graph availability can explain every enabled/disabled property.
+Boolean/string/enum paths are explicitly blocked.
+Color/rect require decomposition before support.
+Focused tests pass.
+```
+
+### Phase SG-03 - Bezier Velocity Bridge
+
+Checkpoint:
+
+```text
+checkpoint: 2026-05-07 professional speed graph system 03 - bezier velocity bridge foundation
 ```
 
 Required:
@@ -698,6 +1118,7 @@ Required:
 - Do not delete `velocity` field yet.
 - Prove velocity input can generate Bezier.
 - Prove Bezier can generate display velocity.
+- Connect bridge to `MotionInterpolationTruthCompiler`.
 
 Tests:
 
@@ -717,12 +1138,12 @@ No UI behavior changes yet.
 Focused tests pass.
 ```
 
-### Phase SG-02 - Preset Catalog
+### Phase SG-04 - Preset Catalog
 
 Checkpoint:
 
 ```text
-checkpoint: 2026-05-07 professional speed graph system 02 - preset catalog truth
+checkpoint: 2026-05-07 professional speed graph system 04 - preset catalog truth
 ```
 
 Required:
@@ -741,17 +1162,21 @@ Every alias resolves to same preset.
 No duplicate preset truth tables.
 ```
 
-### Phase SG-03 - Parser And AI Compilation
+### Phase SG-05 - Parser And AI Compilation
 
 Checkpoint:
 
 ```text
-checkpoint: 2026-05-07 professional speed graph system 03 - ai velocity parser compilation
+checkpoint: 2026-05-07 professional speed graph system 05 - ai velocity parser compilation
 ```
 
 Required:
 
 - Update interpolation parser so velocity numbers compile to Bezier.
+- Update Scene Program schema/lowering to accept:
+  - `easing: string`
+  - `interpolation: object`
+  - `velocity: object`
 - Preserve direct Bezier parsing.
 - Preserve spring/bounce/elastic parsing.
 - Add `TF_VELOCITY_AI_SCRIPT_PROOF`.
@@ -765,12 +1190,12 @@ AI direct Bezier input remains exact.
 No silent linear fallback.
 ```
 
-### Phase SG-04 - Preset Cards UI
+### Phase SG-06 - Preset Cards UI
 
 Checkpoint:
 
 ```text
-checkpoint: 2026-05-07 professional speed graph system 04 - preset cards ui
+checkpoint: 2026-05-07 professional speed graph system 06 - preset cards ui
 ```
 
 Required:
@@ -780,22 +1205,28 @@ Required:
 - Integrate into Graph bottom sheet `Presets` tab.
 - Tap applies Bezier truth.
 - Keep playhead and selected keyframe stable.
+- Add copy/paste curve operations:
+  - Copy Curve
+  - Paste Curve
+  - Paste Curve To Selected Keyframes
+  - Recent Curves
 
 Acceptance:
 
 ```text
 Preset cards are visible.
 Tap applies curve.
+Copy/paste curve reuses the same Bezier truth.
 Current frame updates in place.
 No playhead jump.
 ```
 
-### Phase SG-05 - Mini Graph Thumbnails
+### Phase SG-07 - Mini Graph Thumbnails
 
 Checkpoint:
 
 ```text
-checkpoint: 2026-05-07 professional speed graph system 05 - preset thumbnail previews
+checkpoint: 2026-05-07 professional speed graph system 07 - preset thumbnail previews
 ```
 
 Required:
@@ -811,19 +1242,20 @@ Thumbnail curve matches engine samples.
 Long press preview communicates motion feel.
 ```
 
-### Phase SG-06 - Custom Curve Canvas
+### Phase SG-08 - Custom Curve Canvas
 
 Checkpoint:
 
 ```text
-checkpoint: 2026-05-07 professional speed graph system 06 - custom curve canvas
+checkpoint: 2026-05-07 professional speed graph system 08 - custom curve canvas
 ```
 
 Required:
 
 - Add professional graph painter.
 - Add graph canvas widget.
-- Add touch-safe handle dragging.
+- Add 48dp touch-safe handle dragging.
+- Show selected segment and neighbor keyframes.
 - Draw from evaluator samples.
 - Drag updates Bezier directly.
 
@@ -836,12 +1268,12 @@ Evaluator output changes immediately.
 No decorative graph path.
 ```
 
-### Phase SG-07 - Numeric Panel
+### Phase SG-09 - Numeric Panel
 
 Checkpoint:
 
 ```text
-checkpoint: 2026-05-07 professional speed graph system 07 - numeric velocity panel
+checkpoint: 2026-05-07 professional speed graph system 09 - numeric velocity panel
 ```
 
 Required:
@@ -849,6 +1281,7 @@ Required:
 - Add numeric panel.
 - Edits compile through bridge.
 - Display values are computed from Bezier.
+- Show explicit property units and overshoot policy.
 
 Acceptance:
 
@@ -858,17 +1291,24 @@ Bezier edits update numeric values.
 No mismatch between panel and curve.
 ```
 
-### Phase SG-08 - Runtime Parity
+### Phase SG-10 - Runtime Parity
 
 Checkpoint:
 
 ```text
-checkpoint: 2026-05-07 professional speed graph system 08 - runtime curve parity
+checkpoint: 2026-05-07 professional speed graph system 10 - runtime curve parity
 ```
 
 Required:
 
 - Prove same curve hash in preview/liveScrub/playback/export.
+- Prove parity at:
+  - target kind
+  - target id
+  - property path
+  - channel id
+  - keyframe id
+  - segment id
 - Do not touch protected Stage5 files unless explicitly approved.
 - Use existing adapters where possible.
 
@@ -879,12 +1319,12 @@ Same keyframe curve produces same valueAt and velocityAt across paths.
 No silent fallback.
 ```
 
-### Phase SG-09 - Motion Blur Velocity Consumption
+### Phase SG-11 - Motion Blur Velocity Consumption
 
 Checkpoint:
 
 ```text
-checkpoint: 2026-05-07 professional speed graph system 09 - motion blur speed graph consumption
+checkpoint: 2026-05-07 professional speed graph system 11 - motion blur speed graph consumption
 ```
 
 Required:
@@ -903,12 +1343,12 @@ No overlay path.
 No bitmap/proof path.
 ```
 
-### Phase SG-10 - Save Custom Presets
+### Phase SG-12 - Save Custom Presets
 
 Checkpoint:
 
 ```text
-checkpoint: 2026-05-07 professional speed graph system 10 - custom preset persistence
+checkpoint: 2026-05-07 professional speed graph system 12 - custom preset persistence
 ```
 
 Required:
@@ -924,12 +1364,36 @@ Saved custom preset applies identical curve to another keyframe.
 Export/import preserves Bezier.
 ```
 
-### Phase SG-11 - Closure QA
+### Phase SG-13 - Temporal And Spatial Separation Prep
 
 Checkpoint:
 
 ```text
-checkpoint: 2026-05-07 professional speed graph system 11 - closure qa
+checkpoint: 2026-05-07 professional speed graph system 13 - temporal spatial separation prep
+```
+
+Required:
+
+- Document and test that SpeedyGraph controls temporal interpolation only.
+- Add blockers/diagnostics for spatial path editing requests.
+- Ensure Position uses decomposed scalar temporal lanes while spatial path editing remains a separate future contract.
+- Add explicit distinction from Clip Speed Ramp / Time Remapping.
+
+Acceptance:
+
+```text
+Motion Graph is not confused with Clip Speed Ramp.
+Temporal graph is not confused with Spatial Bezier path.
+Position timing remains editable through scalar lanes.
+Spatial path editing has explicit future blocker.
+```
+
+### Phase SG-14 - Closure QA
+
+Checkpoint:
+
+```text
+checkpoint: 2026-05-07 professional speed graph system 14 - closure qa
 ```
 
 Required:
@@ -954,6 +1418,8 @@ Preset cards, custom graph, numeric panel, AI scripts, Motion Blur, and export s
 Add or update tests for:
 
 ```text
+motion_interpolation_truth_compiler_test.dart
+speed_graph_property_eligibility_test.dart
 motion_bezier_velocity_bridge_test.dart
 professional_speed_graph_preset_catalog_test.dart
 motion_interpolation_contract_test.dart
@@ -969,13 +1435,17 @@ universal_motion_engine_guard_test.dart
 Critical assertions:
 
 ```text
+Every animation writer routes through MotionInterpolationTruthCompiler.
+Unsupported properties are blocked with explicit reasons.
+Motion Graph and Clip Speed Ramp are separate contracts.
+Temporal interpolation and Spatial interpolation are not conflated.
 UI handle drag changes Bezier.
 Bezier change changes valueAt and velocityAt.
 Preset card applies expected Bezier.
 Velocity numbers compile to Bezier.
 Direct Bezier remains exact.
 Motion Blur directive changes when curve velocity changes.
-Preview/liveScrub/playback/export curve hashes match.
+Preview/liveScrub/playback/export curve hashes match per target/property/channel/keyframe/segment.
 No TF_FLOSITY_* diagnostics remain.
 No silent linear fallback.
 ```
@@ -1007,9 +1477,12 @@ On device:
 
 Do not:
 
-- Build more graph UI before SG-01 bridge exists.
+- Allow any animation timing write to bypass MotionInterpolationTruthCompiler.
+- Build more graph UI before SG-01 truth compiler and SG-03 bridge exist.
 - Store velocity as a second execution truth.
 - Put hidden solver behavior inside generic `copyWith()`.
+- Mix Motion Graph with Clip Speed Ramp / Time Remapping.
+- Mix Temporal interpolation with Spatial path editing.
 - Use UI-only easing labels.
 - Add fake preset names without exact Bezier.
 - Draw graph curves from decorative approximations.
@@ -1025,6 +1498,11 @@ Do not:
 The Professional Speed Graph System is complete only when:
 
 ```text
+MotionInterpolationTruthCompiler is the only official animation timing write gate.
+Every supported node/property/scope routes through the compiler.
+Unsupported properties are explicitly blocked with reasons.
+Motion Graph is separated from Clip Speed Ramp.
+Temporal interpolation is separated from Spatial interpolation.
 Bezier is the execution truth.
 Velocity inputs compile to Bezier.
 Preset Cards apply real Bezier curves.
@@ -1032,7 +1510,7 @@ Custom Curve drag writes real Bezier.
 Numeric panel reads/writes through the bridge.
 AI scripts compile to the same curve truth.
 Motion Blur consumes evaluator-derived velocity.
-Preview/liveScrub/playback/export share curve semantics.
+Preview/liveScrub/playback/export share curve semantics per target/property/channel/keyframe/segment.
 Graph visuals are sampled from the real evaluator.
 No decorative graph path remains.
 No silent fallback remains.
