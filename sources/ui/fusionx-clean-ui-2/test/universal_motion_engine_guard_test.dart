@@ -1154,6 +1154,9 @@ void main() {
     final engineSource = await stage5NativeScrubEngineFile.readAsString();
     expect(motionSource.contains('effectiveTrailPx('), isTrue);
     expect(motionSource.contains('float scaledT = t;'), isTrue);
+    expect(motionSource.contains('tileSafeSampling'), isTrue);
+    expect(motionSource.contains('sampleSource(sampleCoord)'), isTrue);
+    expect(motionSource.contains('sourceImage.eval(sampleCoord)'), isFalse);
     expect(motionSource.contains('kernelLengthPx <= 0.5'), isFalse);
     expect(engineSource.contains('hasRotationMotion'), isTrue);
     expect(engineSource.contains('hasScaleMotion'), isTrue);

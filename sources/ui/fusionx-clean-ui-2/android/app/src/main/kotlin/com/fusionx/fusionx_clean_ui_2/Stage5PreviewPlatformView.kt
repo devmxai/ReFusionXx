@@ -374,6 +374,7 @@ class Stage5PreviewPlatformView(
             directive = directive,
             targetWidthPx = rootView.width.toFloat(),
             targetHeightPx = rootView.height.toFloat(),
+            tileSafeSampling = edgeDirective != null,
         )
         val chainedResult = runtimeEffectChainBuilder.buildChain(
             edgeFillEffect = edgeFillResult.renderEffect,
@@ -540,6 +541,7 @@ class Stage5PreviewPlatformView(
                     + "sampleCount=${directive.sampleCount} "
                     + "weightProfile=hann "
                     + "maxTrailPx=${directive.maxTrailPx} "
+                    + "tileSafeSampling=${edgeDirective != null} "
                     + "shaderPath=stage5RuntimeShader "
                     + "rendererPath=stage5RuntimeShader "
                     + "sourceProviderMode=currentVisibleSurface "

@@ -25,11 +25,38 @@ class Stage5MotionBlurShaderPass {
             uniform float shutterPhase;
             uniform float sampleCount;
             uniform float weightProfile;
+            uniform float tileSafeSampling;
 
             float sampleWeight(float x) {
                 // Hann window with a tiny floor to avoid overly hard endpoints.
                 float hann = 0.5 - (0.5 * cos(6.2831853 * x));
                 return max(0.0001, hann);
+            }
+
+            float mirrorCoord(float value, float low, float high) {
+                float span = max(0.00001, high - low);
+                float shifted = value - low;
+                float period = span * 2.0;
+                float wrapped = mod(shifted, period);
+                if (wrapped < 0.0) wrapped += period;
+                float mirrored = (wrapped <= span) ? wrapped : (period - wrapped);
+                return low + mirrored;
+            }
+
+            float2 safeSampleCoord(float2 coord) {
+                float2 low = float2(0.5, 0.5);
+                float2 high = max(low, resolution - float2(0.5, 0.5));
+                if (tileSafeSampling > 0.5) {
+                    return float2(
+                        mirrorCoord(coord.x, low.x, high.x),
+                        mirrorCoord(coord.y, low.y, high.y)
+                    );
+                }
+                return clamp(coord, low, high);
+            }
+
+            half4 sampleSource(float2 coord) {
+                return sourceImage.eval(safeSampleCoord(coord));
             }
 
             half4 main(float2 coord) {
@@ -66,11 +93,11 @@ class Stage5MotionBlurShaderPass {
                     float2 sampleCoord = anchor + unrotated;
                     float x = (float(i) + 0.5) / count;
                     float weight = sampleWeight(x);
-                    accum += sourceImage.eval(sampleCoord) * half(weight);
+                    accum += sampleSource(sampleCoord) * half(weight);
                     weightAccum += weight;
                 }
                 if (weightAccum <= 0.0) {
-                    return sourceImage.eval(coord);
+                    return sampleSource(coord);
                 }
                 return accum / half(weightAccum);
             }
@@ -87,6 +114,7 @@ class Stage5MotionBlurShaderPass {
         directive: Stage5VisualRuntimeMotionBlurDirective?,
         targetWidthPx: Float,
         targetHeightPx: Float,
+        tileSafeSampling: Boolean = false,
     ): RenderEffectResult {
         val normalizedDirective = directive?.takeIf { it.enabled && it.amount > 0.001 }
         if (normalizedDirective == null) {
@@ -151,6 +179,7 @@ class Stage5MotionBlurShaderPass {
                     normalizedDirective.sampleCount.coerceIn(1, MAX_SAMPLES).toFloat(),
                 )
                 setFloatUniform("weightProfile", 1f)
+                setFloatUniform("tileSafeSampling", if (tileSafeSampling) 1f else 0f)
             }
             val motionBlurEffect =
                 RenderEffect.createRuntimeShaderEffect(shader, "sourceImage")
