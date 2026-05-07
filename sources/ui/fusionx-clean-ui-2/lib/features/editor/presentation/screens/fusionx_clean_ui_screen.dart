@@ -4898,6 +4898,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         removeBottom: true,
         child: LayerScopeGraphBottomSheet(
           easyEaseEnabled: easyEaseEnabled,
+          propertyPath: lane.id,
           selectedPreset: easyEaseEnabled
               ? LayerScopeGraphSpeedPreset.easyEase
               : LayerScopeGraphSpeedPreset.linear,
@@ -8105,6 +8106,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         removeBottom: true,
         child: LayerScopeGraphBottomSheet(
           easyEaseEnabled: easyEaseEnabled,
+          propertyPath: lane.id,
           selectedPreset: easyEaseEnabled
               ? LayerScopeGraphSpeedPreset.easyEase
               : LayerScopeGraphSpeedPreset.linear,
@@ -10841,6 +10843,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         removeBottom: true,
         child: LayerScopeGraphBottomSheet(
           easyEaseEnabled: easyEaseEnabled,
+          propertyPath: lane.id,
           selectedPreset: easyEaseEnabled
               ? LayerScopeGraphSpeedPreset.easyEase
               : LayerScopeGraphSpeedPreset.linear,
@@ -21676,6 +21679,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         removeBottom: true,
         child: LayerScopeGraphBottomSheet(
           easyEaseEnabled: selectedPreset != LayerScopeGraphSpeedPreset.linear,
+          propertyPath: lane.id,
           selectedPreset: selectedPreset,
           initialVelocity: _transitionFocusGraphVelocityForSelection(
             transition: transition,

@@ -144,4 +144,37 @@ void main() {
         isTrue);
     expect(source.contains('wroteBezierTruth=true'), isTrue);
   });
+
+  testWidgets('numeric panel clamps overshoot for opacity lanes',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: LayerScopeGraphBottomSheet(
+            easyEaseEnabled: true,
+            propertyPath: 'transform.opacity',
+            selectedPreset: LayerScopeGraphSpeedPreset.easyEase,
+            initialVelocity: const MotionKeyframeVelocity(
+              incomingSpeed: 0,
+              outgoingSpeed: 0,
+              incomingInfluence: 33.333,
+              outgoingInfluence: 33.333,
+              presetId: 'easyEase',
+            ),
+            onDone: () {},
+            onEasyEaseChanged: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Numeric'));
+    await tester.pumpAndSettle();
+
+    final sliders = tester.widgetList<Slider>(find.byType(Slider)).toList();
+    expect(sliders.length, greaterThanOrEqualTo(4));
+    expect(sliders[2].max, 100);
+    expect(sliders[3].max, 100);
+    expect(find.textContaining('%/sec'), findsWidgets);
+  });
 }

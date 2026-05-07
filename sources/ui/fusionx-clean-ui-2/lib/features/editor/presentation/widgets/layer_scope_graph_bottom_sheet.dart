@@ -50,6 +50,7 @@ class LayerScopeGraphBottomSheet extends StatefulWidget {
     this.onModeChanged,
     this.onPresetSelected,
     this.onVelocityChanged,
+    this.propertyPath,
     required this.onDone,
   });
 
@@ -61,6 +62,7 @@ class LayerScopeGraphBottomSheet extends StatefulWidget {
   final ValueChanged<LayerScopeGraphMode>? onModeChanged;
   final ValueChanged<LayerScopeGraphSpeedPreset>? onPresetSelected;
   final GraphVelocityChanged? onVelocityChanged;
+  final String? propertyPath;
   final VoidCallback onDone;
 
   @override
@@ -74,6 +76,14 @@ class _LayerScopeGraphBottomSheetState
       MotionInterpolationTruthCompiler();
   static const ProfessionalSpeedGraphPresetCatalog _presetCatalog =
       ProfessionalSpeedGraphPresetCatalog();
+
+  static const MotionBezierControlPoints _defaultBezier =
+      MotionBezierControlPoints(
+    x1: 0.333,
+    y1: 0.0,
+    x2: 0.667,
+    y2: 1.0,
+  );
 
   late bool _easyEaseEnabled;
   late LayerScopeGraphMode _mode;
@@ -338,7 +348,10 @@ class _LayerScopeGraphBottomSheetState
                     ),
                   ),
                   const SizedBox(height: 10),
-                  _VelocityReadout(velocity: _velocity),
+                  _VelocityReadout(
+                    velocity: _velocity,
+                    unitLabel: _speedUnitLabelForProperty(),
+                  ),
                 ],
               );
             },
@@ -392,11 +405,7 @@ class _LayerScopeGraphBottomSheetState
                 incomingSpeed: next,
                 presetId: 'customSpeedGraph',
               );
-              setState(() {
-                _selectedPreset = LayerScopeGraphSpeedPreset.custom;
-                _velocity = updated;
-              });
-              widget.onVelocityChanged?.call(updated, editType: 'dragIncoming');
+              _applyNumericVelocityEdit(updated, editType: 'dragIncoming');
             },
           ),
           slider(
@@ -409,45 +418,33 @@ class _LayerScopeGraphBottomSheetState
                 outgoingSpeed: next,
                 presetId: 'customSpeedGraph',
               );
-              setState(() {
-                _selectedPreset = LayerScopeGraphSpeedPreset.custom;
-                _velocity = updated;
-              });
-              widget.onVelocityChanged?.call(updated, editType: 'dragOutgoing');
+              _applyNumericVelocityEdit(updated, editType: 'dragOutgoing');
             },
           ),
           slider(
             label: 'Incoming Influence',
             value: _velocity.incomingInfluence ?? 33.333,
             min: 0,
-            max: 200,
+            max: _supportsOvershootForProperty() ? 200 : 100,
             onChanged: (next) {
               final updated = _velocity.copyWith(
                 incomingInfluence: next,
                 presetId: 'customSpeedGraph',
               );
-              setState(() {
-                _selectedPreset = LayerScopeGraphSpeedPreset.custom;
-                _velocity = updated;
-              });
-              widget.onVelocityChanged?.call(updated, editType: 'dragIncoming');
+              _applyNumericVelocityEdit(updated, editType: 'dragIncoming');
             },
           ),
           slider(
             label: 'Outgoing Influence',
             value: _velocity.outgoingInfluence ?? 33.333,
             min: 0,
-            max: 200,
+            max: _supportsOvershootForProperty() ? 200 : 100,
             onChanged: (next) {
               final updated = _velocity.copyWith(
                 outgoingInfluence: next,
                 presetId: 'customSpeedGraph',
               );
-              setState(() {
-                _selectedPreset = LayerScopeGraphSpeedPreset.custom;
-                _velocity = updated;
-              });
-              widget.onVelocityChanged?.call(updated, editType: 'dragOutgoing');
+              _applyNumericVelocityEdit(updated, editType: 'dragOutgoing');
             },
           ),
           const SizedBox(height: 8),
@@ -469,7 +466,10 @@ class _LayerScopeGraphBottomSheetState
             },
           ),
           const SizedBox(height: 8),
-          _VelocityReadout(velocity: _velocity),
+          _VelocityReadout(
+            velocity: _velocity,
+            unitLabel: _speedUnitLabelForProperty(),
+          ),
         ],
       ),
     );
@@ -604,7 +604,7 @@ class _LayerScopeGraphBottomSheetState
           velocity: _velocity.copyWith(
             presetId: _velocity.presetId ?? 'customSpeedGraph',
           ),
-          fallback: fallback,
+          fallback: _sanitizeInterpolationForProperty(fallback),
           inputMode: MotionInterpolationCompileInputMode.velocityNumbers,
         )
         .interpolation;
@@ -660,7 +660,7 @@ class _LayerScopeGraphBottomSheetState
     required String editType,
   }) {
     final compiled = _truthCompiler.compileFromInterpolation(
-      interpolation: interpolation,
+      interpolation: _sanitizeInterpolationForProperty(interpolation),
       inputMode: MotionInterpolationCompileInputMode.existingSpec,
     );
     final nextVelocity = compiled.interpolation.velocity ?? _velocity;
@@ -678,7 +678,7 @@ class _LayerScopeGraphBottomSheetState
 
   void _recordRecentCurve(MotionInterpolationSpec interpolation) {
     final normalized = _truthCompiler.compileFromInterpolation(
-      interpolation: interpolation,
+      interpolation: _sanitizeInterpolationForProperty(interpolation),
       inputMode: MotionInterpolationCompileInputMode.existingSpec,
     );
     final signature = normalized.curveHash;
@@ -810,20 +810,17 @@ class _LayerScopeGraphBottomSheetState
     required String editType,
   }) {
     final before = _currentInterpolationSpec();
-    final currentBezier = before.bezier ??
-        const MotionBezierControlPoints(
-          x1: 0.333,
-          y1: 0.0,
-          x2: 0.667,
-          y2: 1.0,
-        );
+    final currentBezier = before.bezier ?? _defaultBezier;
     final nx =
         ((position.dx - canvasRect.left) / canvasRect.width).clamp(0.0, 1.0);
-    final ny =
+    final rawNy =
         (1.0 - ((position.dy - canvasRect.top) / canvasRect.height)).clamp(
       -1.0,
       2.0,
     );
+    final ny = _supportsOvershootForProperty()
+        ? rawNy
+        : rawNy.clamp(0.0, 1.0).toDouble();
     MotionBezierControlPoints nextBezier;
     switch (target) {
       case _GraphHandleDragTarget.incoming:
@@ -856,8 +853,8 @@ class _LayerScopeGraphBottomSheetState
         break;
     }
     final compiled = _truthCompiler.compileFromInterpolation(
-      interpolation: MotionInterpolationSpec.cubicBezier(
-        bezier: nextBezier,
+      interpolation: _sanitizeInterpolationForProperty(
+        MotionInterpolationSpec.cubicBezier(bezier: nextBezier),
       ),
       inputMode: MotionInterpolationCompileInputMode.existingSpec,
     );
@@ -918,6 +915,89 @@ class _LayerScopeGraphBottomSheetState
       'fallbackReason=none',
       name: 'ReFusionXx.SpeedGraph',
     );
+  }
+
+  void _applyNumericVelocityEdit(
+    MotionKeyframeVelocity velocity, {
+    required String editType,
+  }) {
+    final fallback =
+        _sanitizeInterpolationForProperty(_currentInterpolationSpec());
+    final safeVelocity = !_supportsOvershootForProperty()
+        ? velocity.copyWith(
+            incomingInfluence:
+                (velocity.incomingInfluence ?? 0.0).clamp(0.0, 100.0),
+            outgoingInfluence:
+                (velocity.outgoingInfluence ?? 0.0).clamp(0.0, 100.0),
+          )
+        : velocity;
+    final compiled = _truthCompiler.compileFromVelocity(
+      velocity: safeVelocity,
+      fallback: fallback,
+      inputMode: MotionInterpolationCompileInputMode.velocityNumbers,
+    );
+    final nextVelocity =
+        (compiled.interpolation.velocity ?? safeVelocity).copyWith(
+      presetId: 'customSpeedGraph',
+    );
+    setState(() {
+      _selectedPreset = LayerScopeGraphSpeedPreset.custom;
+      _velocity = nextVelocity;
+    });
+    widget.onVelocityChanged?.call(nextVelocity, editType: editType);
+  }
+
+  MotionInterpolationSpec _sanitizeInterpolationForProperty(
+    MotionInterpolationSpec interpolation,
+  ) {
+    if (_supportsOvershootForProperty()) {
+      return interpolation;
+    }
+    final bezier = interpolation.bezier;
+    if (bezier == null) {
+      return interpolation;
+    }
+    return interpolation.copyWith(
+      bezier: MotionBezierControlPoints(
+        x1: bezier.x1.clamp(0.0, 1.0),
+        y1: bezier.y1.clamp(0.0, 1.0),
+        x2: bezier.x2.clamp(0.0, 1.0),
+        y2: bezier.y2.clamp(0.0, 1.0),
+      ),
+    );
+  }
+
+  bool _supportsOvershootForProperty() {
+    final path = widget.propertyPath?.toLowerCase() ?? '';
+    if (path.contains('opacity')) {
+      return false;
+    }
+    if (path.contains('blur')) {
+      return false;
+    }
+    return true;
+  }
+
+  String _speedUnitLabelForProperty() {
+    final path = widget.propertyPath?.toLowerCase() ?? '';
+    if (path.contains('position') ||
+        path.endsWith('.x') ||
+        path.endsWith('.y')) {
+      return 'px/sec';
+    }
+    if (path.contains('rotation') || path.contains('angle')) {
+      return 'deg/sec';
+    }
+    if (path.contains('scale')) {
+      return '%/sec';
+    }
+    if (path.contains('opacity')) {
+      return '%/sec';
+    }
+    if (path.contains('blur')) {
+      return 'px/sec';
+    }
+    return 'units/sec';
   }
 
   MotionKeyframeVelocity _velocityForPreset(LayerScopeGraphSpeedPreset preset) {
@@ -1305,9 +1385,11 @@ class _SpeedGraphPainter extends CustomPainter {
 class _VelocityReadout extends StatelessWidget {
   const _VelocityReadout({
     required this.velocity,
+    required this.unitLabel,
   });
 
   final MotionKeyframeVelocity velocity;
+  final String unitLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -1324,7 +1406,7 @@ class _VelocityReadout extends StatelessWidget {
         children: [
           Expanded(
             child: Text(
-              'In ${fmt(velocity.incomingSpeed)} | ${fmt(velocity.incomingInfluence)}%',
+              'In ${fmt(velocity.incomingSpeed)} $unitLabel | ${fmt(velocity.incomingInfluence)}%',
               style: const TextStyle(
                 color: FxPalette.textPrimary,
                 fontSize: 11,
@@ -1334,7 +1416,7 @@ class _VelocityReadout extends StatelessWidget {
           ),
           Expanded(
             child: Text(
-              'Out ${fmt(velocity.outgoingSpeed)} | ${fmt(velocity.outgoingInfluence)}%',
+              'Out ${fmt(velocity.outgoingSpeed)} $unitLabel | ${fmt(velocity.outgoingInfluence)}%',
               textAlign: TextAlign.end,
               style: const TextStyle(
                 color: FxPalette.textPrimary,
