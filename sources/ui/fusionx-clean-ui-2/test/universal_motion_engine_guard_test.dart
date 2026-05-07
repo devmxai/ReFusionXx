@@ -1243,6 +1243,19 @@ void main() {
     expect(source.contains('fallbackReason='), isTrue);
   });
 
+  test('motion blur velocity proof uses velocity contracts naming', () async {
+    final source = await screenFile.readAsString();
+    expect(source.contains('TF_VELOCITY_MB_VELOCITY_PROOF'), isTrue);
+    expect(source.contains('speedGraphPreset='), isTrue);
+    expect(source.contains('motionBlurDirectiveHash='), isTrue);
+    expect(
+      source.contains(
+        'TODO(velocity-contracts-05): remove legacy TF_FLOSITY_* compatibility',
+      ),
+      isTrue,
+    );
+  });
+
   test('graph editor is wired for all supported scopes', () async {
     final source = await screenFile.readAsString();
     expect(source.contains('_handleUnifiedTransitionScopeGraphToolTap()'),

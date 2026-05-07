@@ -24057,6 +24057,38 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return digest.toString().hashCode;
   }
 
+  _AuthoredMotionVelocityProbe _buildAuthoredMotionVelocityProbe({
+    required LiveScrubSurfaceTransform current,
+    required LiveScrubSurfaceTransform previous,
+    required double frameIntervalSeconds,
+  }) {
+    final safeDt = frameIntervalSeconds <= 0 ? 1.0 : frameIntervalSeconds;
+    final dx = current.positionX - previous.positionX;
+    final dy = current.positionY - previous.positionY;
+    final positionVelocityPx = math.sqrt((dx * dx) + (dy * dy));
+    final directionX = positionVelocityPx > 0.00001 ? (dx / positionVelocityPx) : 0.0;
+    final directionY = positionVelocityPx > 0.00001 ? (dy / positionVelocityPx) : 0.0;
+    final angularVelocityAtTime =
+        (current.rotationRadians - previous.rotationRadians) / safeDt;
+    final scaleVelocityX = (current.scaleX - previous.scaleX) / safeDt;
+    final scaleVelocityY = (current.scaleY - previous.scaleY) / safeDt;
+    final speedGraphPreset = (positionVelocityPx > 0.00001 ||
+            angularVelocityAtTime.abs() > 0.00001 ||
+            scaleVelocityX.abs() > 0.00001 ||
+            scaleVelocityY.abs() > 0.00001)
+        ? 'authoredVelocityFromMasterEvaluator'
+        : 'none';
+    return _AuthoredMotionVelocityProbe(
+      positionVelocityPx: positionVelocityPx,
+      directionX: directionX,
+      directionY: directionY,
+      angularVelocityAtTime: angularVelocityAtTime,
+      scaleVelocityX: scaleVelocityX,
+      scaleVelocityY: scaleVelocityY,
+      speedGraphPreset: speedGraphPreset,
+    );
+  }
+
   Stage5VisualRuntimeMotionBlurDirective? _stage5MotionBlurDirectiveForSurface({
     required TimelineTime previewTime,
     required String mode,
@@ -24135,6 +24167,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       'export' => MotionBlurDirectiveQuality.export,
       _ => MotionBlurDirectiveQuality.preview,
     };
+    final velocityProbe = _buildAuthoredMotionVelocityProbe(
+      current: baseSurface.transform,
+      previous: previousTransform,
+      frameIntervalSeconds: (1.0 / _timelineFps).clamp(0.0001, 1.0),
+    );
     final directive = _motionBlurVelocityCompiler.compile(
       policy: policy,
       current: baseSurface.transform,
@@ -24142,33 +24179,57 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       quality: quality,
       canvasWidth: _motionProjectFormat.canvasSize.width,
       canvasHeight: _motionProjectFormat.canvasSize.height,
+      authoredDirectionX: velocityProbe.directionX,
+      authoredDirectionY: velocityProbe.directionY,
+      authoredPositionVelocityPx: velocityProbe.positionVelocityPx,
+      authoredAngularVelocity: velocityProbe.angularVelocityAtTime,
+      authoredScaleVelocityX: velocityProbe.scaleVelocityX,
+      authoredScaleVelocityY: velocityProbe.scaleVelocityY,
     );
+    final motionBlurDirectiveHash = Object.hashAll(<Object?>[
+      directive.enabled,
+      directive.amount,
+      directive.kernelLengthPx,
+      directive.directionX,
+      directive.directionY,
+      directive.radialOmega,
+      directive.scaleVelocityX,
+      directive.scaleVelocityY,
+      directive.sampleCount,
+      directive.shutterAngleDegrees,
+      directive.shutterPhase,
+      directive.maxTrailPx,
+    ]).toUnsigned(32);
+    debugPrint(
+      'TF_VELOCITY_MB_VELOCITY_PROOF '
+      'timelineTimeMs=${previewTime.inMilliseconds} '
+      'propertyPath=transform '
+      'targetId=${baseSurface.targetId} '
+      'valueAtTime=${baseSurface.transform.rotationRadians} '
+      'velocityAtTime=${velocityProbe.positionVelocityPx} '
+      'angularVelocityAtTime=${velocityProbe.angularVelocityAtTime} '
+      'scaleVelocityAtTime=${velocityProbe.scaleVelocityX},${velocityProbe.scaleVelocityY} '
+      'speedGraphPreset=${velocityProbe.speedGraphPreset} '
+      'sampleCount=${directive.sampleCount} '
+      'shutterAngle=${directive.shutterAngleDegrees} '
+      'motionBlurDirectiveHash=$motionBlurDirectiveHash '
+      'fallbackReason=${directive.fallbackReason ?? 'none'}',
+    );
+    // TODO(velocity-contracts-05): remove legacy TF_FLOSITY_* compatibility
+    // after runtime parity bridge.
     debugPrint(
       'TF_FLOSITY_MB_VELOCITY_PROOF '
       'timelineTimeMs=${previewTime.inMilliseconds} '
       'propertyPath=transform '
       'targetId=${baseSurface.targetId} '
       'valueAtTime=${baseSurface.transform.rotationRadians} '
-      'velocityAtTime=${directive.kernelLengthPx} '
-      'angularVelocityAtTime=${directive.radialOmega} '
-      'scaleVelocityAtTime=${directive.scaleVelocityX},${directive.scaleVelocityY} '
-      'speedGraphPreset=unknown '
+      'velocityAtTime=${velocityProbe.positionVelocityPx} '
+      'angularVelocityAtTime=${velocityProbe.angularVelocityAtTime} '
+      'scaleVelocityAtTime=${velocityProbe.scaleVelocityX},${velocityProbe.scaleVelocityY} '
+      'speedGraphPreset=${velocityProbe.speedGraphPreset} '
       'sampleCount=${directive.sampleCount} '
       'shutterAngle=${directive.shutterAngleDegrees} '
-      'motionBlurDirectiveHash=${Object.hashAll(<Object?>[
-            directive.enabled,
-            directive.amount,
-            directive.kernelLengthPx,
-            directive.directionX,
-            directive.directionY,
-            directive.radialOmega,
-            directive.scaleVelocityX,
-            directive.scaleVelocityY,
-            directive.sampleCount,
-            directive.shutterAngleDegrees,
-            directive.shutterPhase,
-            directive.maxTrailPx,
-          ]).toUnsigned(32)} '
+      'motionBlurDirectiveHash=$motionBlurDirectiveHash '
       'fallbackReason=${directive.fallbackReason ?? 'none'}',
     );
     if (seamContext.isInsideWindow && seamContext.isSeamParticipant) {
@@ -28639,4 +28700,24 @@ class _CompositionCreateButton extends StatelessWidget {
       ),
     );
   }
+}
+
+class _AuthoredMotionVelocityProbe {
+  const _AuthoredMotionVelocityProbe({
+    required this.positionVelocityPx,
+    required this.directionX,
+    required this.directionY,
+    required this.angularVelocityAtTime,
+    required this.scaleVelocityX,
+    required this.scaleVelocityY,
+    required this.speedGraphPreset,
+  });
+
+  final double positionVelocityPx;
+  final double directionX;
+  final double directionY;
+  final double angularVelocityAtTime;
+  final double scaleVelocityX;
+  final double scaleVelocityY;
+  final String speedGraphPreset;
 }

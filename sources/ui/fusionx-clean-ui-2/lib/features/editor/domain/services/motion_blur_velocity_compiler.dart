@@ -21,6 +21,12 @@ class MotionBlurVelocityCompiler {
     required MotionBlurDirectiveQuality quality,
     required double canvasWidth,
     required double canvasHeight,
+    double? authoredDirectionX,
+    double? authoredDirectionY,
+    double? authoredPositionVelocityPx,
+    double? authoredAngularVelocity,
+    double? authoredScaleVelocityX,
+    double? authoredScaleVelocityY,
   }) {
     if (!policy.enabled || policy.amount <= 0.001) {
       return _disabledDirective(policy,
@@ -32,16 +38,36 @@ class MotionBlurVelocityCompiler {
         policy.affectPosition ? (current.positionX - previous.positionX) : 0.0;
     final dy =
         policy.affectPosition ? (current.positionY - previous.positionY) : 0.0;
-    final motionMagnitude = math.sqrt((dx * dx) + (dy * dy));
-    final directionX = motionMagnitude > 0.00001 ? (dx / motionMagnitude) : 0.0;
-    final directionY = motionMagnitude > 0.00001 ? (dy / motionMagnitude) : 0.0;
-    final rotationDelta = policy.affectRotation
+    final computedMagnitude = math.sqrt((dx * dx) + (dy * dy));
+    final computedDirectionX =
+        computedMagnitude > 0.00001 ? (dx / computedMagnitude) : 0.0;
+    final computedDirectionY =
+        computedMagnitude > 0.00001 ? (dy / computedMagnitude) : 0.0;
+    final motionMagnitude = policy.affectPosition
+        ? (authoredPositionVelocityPx ?? computedMagnitude)
+        : 0.0;
+    final directionX = policy.affectPosition
+        ? (authoredDirectionX ?? computedDirectionX)
+        : 0.0;
+    final directionY = policy.affectPosition
+        ? (authoredDirectionY ?? computedDirectionY)
+        : 0.0;
+    final computedRotationDelta = policy.affectRotation
         ? (current.rotationRadians - previous.rotationRadians)
         : 0.0;
-    final scaleDeltaX =
+    final computedScaleDeltaX =
         policy.affectScale ? (current.scaleX - previous.scaleX) : 0.0;
-    final scaleDeltaY =
+    final computedScaleDeltaY =
         policy.affectScale ? (current.scaleY - previous.scaleY) : 0.0;
+    final rotationDelta = policy.affectRotation
+        ? (authoredAngularVelocity ?? computedRotationDelta)
+        : 0.0;
+    final scaleDeltaX = policy.affectScale
+        ? (authoredScaleVelocityX ?? computedScaleDeltaX)
+        : 0.0;
+    final scaleDeltaY = policy.affectScale
+        ? (authoredScaleVelocityY ?? computedScaleDeltaY)
+        : 0.0;
     final radialOmega = rotationDelta * shutterScale * clampedAmount;
     final scaleVelocityX = scaleDeltaX * shutterScale * clampedAmount;
     final scaleVelocityY = scaleDeltaY * shutterScale * clampedAmount;
