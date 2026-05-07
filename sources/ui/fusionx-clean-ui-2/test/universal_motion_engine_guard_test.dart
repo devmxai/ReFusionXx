@@ -1217,4 +1217,29 @@ void main() {
     expect(source.contains('edgeBlendUsesBlack=false'), isTrue);
     expect(source.contains('overscanShrinksSource=false'), isTrue);
   });
+
+  test('graph editor emits velocity diagnostics and availability proof',
+      () async {
+    final source = await screenFile.readAsString();
+    expect(source.contains('TF_GRAPH_BUTTON_AVAILABILITY_PROOF'), isTrue);
+    expect(source.contains('TF_VELOCITY_GRAPH_EDIT_PROOF'), isTrue);
+    expect(source.contains('editType='), isTrue);
+    expect(source.contains('incomingSpeed='), isTrue);
+    expect(source.contains('outgoingSpeed='), isTrue);
+    expect(source.contains('incomingInfluence='), isTrue);
+    expect(source.contains('outgoingInfluence='), isTrue);
+    expect(source.contains('repositioned='), isTrue);
+    expect(source.contains('TF_FLOSITY_GRAPH_EDIT_PROOF'), isFalse);
+  });
+
+  test('graph editor is wired for all supported scopes', () async {
+    final source = await screenFile.readAsString();
+    expect(source.contains('_handleUnifiedTransitionScopeGraphToolTap()'),
+        isTrue);
+    expect(source.contains('_handleSceneLayerScopeGraphToolTap()'), isTrue);
+    expect(source.contains('_handleLayerScopeGraphToolTap()'), isTrue);
+    expect(source.contains('_handleTransitionFocusGraphToolTap()'), isTrue);
+    expect(source.contains('onVelocityChanged: (velocity, {required editType})'),
+        isTrue);
+  });
 }

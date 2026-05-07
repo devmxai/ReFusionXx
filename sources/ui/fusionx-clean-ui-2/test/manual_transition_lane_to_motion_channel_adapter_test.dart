@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_animation_models.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_models.dart';
 import 'package:refusion_app/features/editor/presentation/models/timeline_mock_models.dart';
 import 'package:refusion_app/features/editor/presentation/models/timeline_time.dart';
@@ -523,5 +524,107 @@ void main() {
       ManualTransitionLaneChannelIssueCode.unsupportedLane,
     );
     expect(result.issues.single.laneId, 'unsupported_lane');
+  });
+
+  test('applies transition focus graph preset interpolation per keyframe', () {
+    final transition = TimelineTrackTransitionData(
+      id: 'transition-graph-1',
+      leftClipId: 'clip-a',
+      rightClipId: 'clip-b',
+      preset: TimelineTransitionPreset.manual,
+      durationTime: TimelineTime.fromMilliseconds(1200),
+      parameterValues: const <String, double>{
+        '__tf_graph_preset__rotation::k0': 1.0,
+      },
+      manualEffectIds: const <String>['rotation'],
+      manualAnimationLanes: const <TimelineAnimationLaneData>[
+        TimelineAnimationLaneData(
+          id: 'rotation',
+          label: 'Rotation',
+          targetClipId: 'clip-a',
+          normalizedKeyframeStops: <double>[0.0, 1.0],
+          keyframeIds: <String>['k0', 'k1'],
+          keyframeValues: <double>[0.0, 360.0],
+        ),
+      ],
+    );
+
+    final result = adapter.projectChannels(
+      request: ManualTransitionLaneChannelProjectionRequest(
+        transition: transition,
+        seamTime: TimelineTime.fromMilliseconds(3000),
+        projectId: 'project-1',
+      ),
+    );
+
+    expect(result.issues, isEmpty);
+    final rotation = result.channels.firstWhere(
+      (channel) =>
+          channel.definition.id == MotionPropertyCatalog.rotationDegrees.id &&
+          channel.target.targetId == 'clip-a',
+    );
+    expect(
+      rotation.keyframes.first.interpolationToNext.kind,
+      MotionInterpolationKind.cubicBezier,
+    );
+    expect(
+      rotation.keyframes.first.interpolationToNext.velocity?.presetId,
+      'easyEase',
+    );
+  });
+
+  test('maps persisted custom graph velocity into interpolation contract', () {
+    final transition = TimelineTrackTransitionData(
+      id: 'transition-graph-2',
+      leftClipId: 'clip-a',
+      rightClipId: 'clip-b',
+      preset: TimelineTransitionPreset.manual,
+      durationTime: TimelineTime.fromMilliseconds(1200),
+      parameterValues: const <String, double>{
+        '__tf_graph_preset__rotation::k0': 8.0,
+        '__tf_graph_velocity__rotation::k0::incomingSpeed': 91.0,
+        '__tf_graph_velocity__rotation::k0::outgoingSpeed': 42.0,
+        '__tf_graph_velocity__rotation::k0::incomingInfluence': 84.0,
+        '__tf_graph_velocity__rotation::k0::outgoingInfluence': 62.0,
+        '__tf_graph_velocity__rotation::k0::incomingHandleLocked': 1.0,
+        '__tf_graph_velocity__rotation::k0::outgoingHandleLocked': 0.0,
+        '__tf_graph_velocity__rotation::k0::continuous': 0.0,
+      },
+      manualEffectIds: const <String>['rotation'],
+      manualAnimationLanes: const <TimelineAnimationLaneData>[
+        TimelineAnimationLaneData(
+          id: 'rotation',
+          label: 'Rotation',
+          targetClipId: 'clip-a',
+          normalizedKeyframeStops: <double>[0.0, 1.0],
+          keyframeIds: <String>['k0', 'k1'],
+          keyframeValues: <double>[0.0, 360.0],
+        ),
+      ],
+    );
+
+    final result = adapter.projectChannels(
+      request: ManualTransitionLaneChannelProjectionRequest(
+        transition: transition,
+        seamTime: TimelineTime.fromMilliseconds(3000),
+        projectId: 'project-1',
+      ),
+    );
+
+    expect(result.issues, isEmpty);
+    final rotation = result.channels.firstWhere(
+      (channel) =>
+          channel.definition.id == MotionPropertyCatalog.rotationDegrees.id &&
+          channel.target.targetId == 'clip-a',
+    );
+    final velocity = rotation.keyframes.first.interpolationToNext.velocity;
+    expect(velocity?.presetId, 'customSpeedGraph');
+    expect(velocity?.incomingSpeed, 91.0);
+    expect(velocity?.outgoingSpeed, 42.0);
+    expect(velocity?.incomingInfluence, 84.0);
+    expect(velocity?.outgoingInfluence, 62.0);
+    expect(velocity?.incomingHandleLocked, isTrue);
+    expect(velocity?.outgoingHandleLocked, isFalse);
+    expect(velocity?.continuous, isFalse);
   });
 }

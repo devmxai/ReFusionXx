@@ -706,6 +706,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   bool _isLayerScopeGraphEditorOpen = false;
   bool _isTransitionFocusValueEditorOpen = false;
   bool _isTransitionFocusGraphEditorOpen = false;
+  String? _lastGraphAvailabilityProof;
   String? _previewAssetId;
   PreviewViewportState _previewViewportState = PreviewViewportState.identity;
   double? _lockedWorkspaceAspectRatio;
@@ -4895,6 +4896,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           selectedPreset: easyEaseEnabled
               ? LayerScopeGraphSpeedPreset.easyEase
               : LayerScopeGraphSpeedPreset.linear,
+          initialVelocity: _interpolationForGraphPreset(
+            easyEaseEnabled
+                ? LayerScopeGraphSpeedPreset.easyEase
+                : LayerScopeGraphSpeedPreset.linear,
+          ).velocity,
           onDone: () => Navigator.of(sheetContext).maybePop(),
           onEasyEaseChanged: (enabled) =>
               _handleUnifiedTransitionScopeGraphPresetChanged(
@@ -4903,6 +4909,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                 : LayerScopeGraphSpeedPreset.linear,
           ),
           onPresetSelected: _handleUnifiedTransitionScopeGraphPresetChanged,
+          onVelocityChanged: (velocity, {required editType}) =>
+              _handleUnifiedTransitionScopeGraphVelocityChanged(
+            velocity,
+            editType: editType,
+          ),
         ),
       ),
     ).whenComplete(() {
@@ -4918,6 +4929,31 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   void _handleUnifiedTransitionScopeGraphPresetChanged(
     LayerScopeGraphSpeedPreset preset,
   ) {
+    _applyUnifiedTransitionScopeGraphInterpolation(
+      interpolation: _interpolationForGraphPreset(preset),
+      preset: preset,
+      editType: 'preset',
+    );
+  }
+
+  void _handleUnifiedTransitionScopeGraphVelocityChanged(
+    MotionKeyframeVelocity velocity, {
+    required String editType,
+  }) {
+    _applyUnifiedTransitionScopeGraphInterpolation(
+      interpolation: _interpolationForGraphVelocity(
+        velocity.copyWith(presetId: 'customSpeedGraph'),
+      ),
+      preset: LayerScopeGraphSpeedPreset.custom,
+      editType: editType,
+    );
+  }
+
+  void _applyUnifiedTransitionScopeGraphInterpolation({
+    required MotionInterpolationSpec interpolation,
+    required LayerScopeGraphSpeedPreset preset,
+    required String editType,
+  }) {
     final session = _unifiedTransitionScopeSession;
     final viewModel = _unifiedTransitionScopeViewModel;
     final lane = _unifiedTransitionScopeSelectedAnimationLane(viewModel);
@@ -4951,7 +4987,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (channelKeyframeIndex < 0) {
       return;
     }
-    final interpolation = _interpolationForGraphPreset(preset);
     var workingSession = session;
     TransitionUnifiedScopeKeyframeOperationResult? lastResult;
     final keyframeIdsToUpdate = <String>{
@@ -4990,6 +5025,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       preset: preset,
       interpolation: interpolation,
       scope: 'transition',
+      editType: editType,
     );
   }
 
@@ -8059,6 +8095,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           selectedPreset: easyEaseEnabled
               ? LayerScopeGraphSpeedPreset.easyEase
               : LayerScopeGraphSpeedPreset.linear,
+          initialVelocity: _interpolationForGraphPreset(
+            easyEaseEnabled
+                ? LayerScopeGraphSpeedPreset.easyEase
+                : LayerScopeGraphSpeedPreset.linear,
+          ).velocity,
           onDone: () => Navigator.of(sheetContext).maybePop(),
           onEasyEaseChanged: (enabled) =>
               _handleSceneLayerScopeGraphPresetChanged(
@@ -8067,6 +8108,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                 : LayerScopeGraphSpeedPreset.linear,
           ),
           onPresetSelected: _handleSceneLayerScopeGraphPresetChanged,
+          onVelocityChanged: (velocity, {required editType}) =>
+              _handleSceneLayerScopeGraphVelocityChanged(
+            velocity,
+            editType: editType,
+          ),
         ),
       ),
     ).whenComplete(() {
@@ -8082,6 +8128,31 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   void _handleSceneLayerScopeGraphPresetChanged(
     LayerScopeGraphSpeedPreset preset,
   ) {
+    _applySceneLayerScopeGraphInterpolation(
+      interpolation: _interpolationForGraphPreset(preset),
+      preset: preset,
+      editType: 'preset',
+    );
+  }
+
+  void _handleSceneLayerScopeGraphVelocityChanged(
+    MotionKeyframeVelocity velocity, {
+    required String editType,
+  }) {
+    _applySceneLayerScopeGraphInterpolation(
+      interpolation: _interpolationForGraphVelocity(
+        velocity.copyWith(presetId: 'customSpeedGraph'),
+      ),
+      preset: LayerScopeGraphSpeedPreset.custom,
+      editType: editType,
+    );
+  }
+
+  void _applySceneLayerScopeGraphInterpolation({
+    required MotionInterpolationSpec interpolation,
+    required LayerScopeGraphSpeedPreset preset,
+    required String editType,
+  }) {
     final viewModel = _activeSceneLayerScopeViewModel;
     if (viewModel == null) {
       return;
@@ -8100,7 +8171,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return;
     }
     final selectedKeyframeId = keyframeId ?? lane.keyframeIds[keyframeIndex];
-    final interpolation = _interpolationForGraphPreset(preset);
     var channelKeyframeIndex = channel.keyframes.indexWhere(
       (keyframe) => keyframe.id == selectedKeyframeId,
     );
@@ -8170,6 +8240,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       preset: preset,
       interpolation: interpolation,
       scope: 'scene',
+      editType: editType,
     );
   }
 
@@ -8655,6 +8726,25 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             _selectedTransitionFocusKeyframeIndex! <
                 lane.normalizedKeyframeStops.length) ||
         lane.normalizedKeyframeStops.isNotEmpty;
+  }
+
+  bool _canOpenTransitionFocusGraphEditor(
+    _TransitionFocusContext? context,
+  ) {
+    if (context == null) {
+      return false;
+    }
+    final lane = _transitionFocusSelectedAnimationLane(context);
+    if (lane == null || lane.normalizedKeyframeStops.length < 2) {
+      return false;
+    }
+    final keyframeIndex = _selectedTransitionFocusKeyframeIndex ??
+        (lane.normalizedKeyframeStops.isEmpty ? null : 0);
+    if (keyframeIndex == null) {
+      return false;
+    }
+    return keyframeIndex >= 0 &&
+        keyframeIndex < lane.normalizedKeyframeStops.length;
   }
 
   bool _canMoveTransitionFocusSelectedKeyframe(
@@ -10639,6 +10729,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           selectedPreset: easyEaseEnabled
               ? LayerScopeGraphSpeedPreset.easyEase
               : LayerScopeGraphSpeedPreset.linear,
+          initialVelocity: _interpolationForGraphPreset(
+            easyEaseEnabled
+                ? LayerScopeGraphSpeedPreset.easyEase
+                : LayerScopeGraphSpeedPreset.linear,
+          ).velocity,
           onDone: () => Navigator.of(sheetContext).maybePop(),
           onEasyEaseChanged: (enabled) => _handleLayerScopeGraphPresetChanged(
             enabled
@@ -10646,6 +10741,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                 : LayerScopeGraphSpeedPreset.linear,
           ),
           onPresetSelected: _handleLayerScopeGraphPresetChanged,
+          onVelocityChanged: (velocity, {required editType}) =>
+              _handleLayerScopeGraphVelocityChanged(
+            velocity,
+            editType: editType,
+          ),
         ),
       ),
     ).whenComplete(() {
@@ -10794,6 +10894,31 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   void _handleLayerScopeGraphPresetChanged(
     LayerScopeGraphSpeedPreset preset,
   ) {
+    _applyLayerScopeGraphInterpolation(
+      interpolation: _interpolationForGraphPreset(preset),
+      preset: preset,
+      editType: 'preset',
+    );
+  }
+
+  void _handleLayerScopeGraphVelocityChanged(
+    MotionKeyframeVelocity velocity, {
+    required String editType,
+  }) {
+    _applyLayerScopeGraphInterpolation(
+      interpolation: _interpolationForGraphVelocity(
+        velocity.copyWith(presetId: 'customSpeedGraph'),
+      ),
+      preset: LayerScopeGraphSpeedPreset.custom,
+      editType: editType,
+    );
+  }
+
+  void _applyLayerScopeGraphInterpolation({
+    required MotionInterpolationSpec interpolation,
+    required LayerScopeGraphSpeedPreset preset,
+    required String editType,
+  }) {
     final scopeContext = _activeLayerScopeContext;
     final keyframeIndex = _selectedLayerScopeKeyframeIndex;
     if (scopeContext == null || keyframeIndex == null) {
@@ -10807,7 +10932,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       context: scopeContext,
       lane: lane,
       keyframeIndex: keyframeIndex,
-      interpolation: _interpolationForGraphPreset(preset),
+      interpolation: interpolation,
     );
     if (syncedChannels == null) {
       return;
@@ -10820,8 +10945,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       laneId: lane.id,
       keyframeId: _selectedLayerScopeKeyframeId,
       preset: preset,
-      interpolation: _interpolationForGraphPreset(preset),
+      interpolation: interpolation,
       scope: 'layer',
+      editType: editType,
     );
   }
 
@@ -10934,29 +11060,110 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
   }
 
+  LayerScopeGraphSpeedPreset _graphPresetForVelocity(
+    MotionKeyframeVelocity? velocity,
+  ) {
+    switch (velocity?.presetId) {
+      case 'easyEase':
+        return LayerScopeGraphSpeedPreset.easyEase;
+      case 'easyEaseIn':
+        return LayerScopeGraphSpeedPreset.easeIn;
+      case 'easyEaseOut':
+        return LayerScopeGraphSpeedPreset.easeOut;
+      case 'slowFastSlow':
+        return LayerScopeGraphSpeedPreset.slowFastSlow;
+      case 'fastSlow':
+        return LayerScopeGraphSpeedPreset.fastSlow;
+      case 'slowFast':
+        return LayerScopeGraphSpeedPreset.slowFast;
+      case 'whipSnap':
+        return LayerScopeGraphSpeedPreset.whip;
+      case 'customSpeedGraph':
+        return LayerScopeGraphSpeedPreset.custom;
+      default:
+        return LayerScopeGraphSpeedPreset.linear;
+    }
+  }
+
+  MotionInterpolationSpec _interpolationForGraphVelocity(
+    MotionKeyframeVelocity velocity,
+  ) {
+    final preset = _graphPresetForVelocity(velocity);
+    final base = preset == LayerScopeGraphSpeedPreset.linear
+        ? const MotionInterpolationSpec.cubicBezier(
+            bezier: MotionBezierControlPoints(
+              x1: 0.3333,
+              y1: 0.0,
+              x2: 0.6667,
+              y2: 1.0,
+            ),
+          )
+        : _interpolationForGraphPreset(preset);
+    return base.copyWith(
+      velocity: velocity.copyWith(
+        presetId: velocity.presetId ?? 'customSpeedGraph',
+      ),
+    );
+  }
+
   void _logGraphEditProof({
     required String laneId,
     required LayerScopeGraphSpeedPreset preset,
     required MotionInterpolationSpec interpolation,
     required String scope,
     String? keyframeId,
+    String editType = 'preset',
+    bool repositioned = false,
   }) {
     final velocity = interpolation.velocity;
-    debugPrint(
-      'TF_FLOSITY_GRAPH_EDIT_PROOF '
-      'scope=$scope '
-      'laneId=$laneId '
-      'keyframeId=${keyframeId ?? 'unknown'} '
-      'graphMode=speed '
-      'presetId=${preset.name} '
-      'incomingSpeed=${velocity?.incomingSpeed ?? 'null'} '
-      'outgoingSpeed=${velocity?.outgoingSpeed ?? 'null'} '
-      'incomingInfluence=${velocity?.incomingInfluence ?? 'null'} '
-      'outgoingInfluence=${velocity?.outgoingInfluence ?? 'null'} '
-      'continuous=${velocity?.continuous ?? false} '
-      'previewRevision=unknown '
-      'fallbackReason=null',
-    );
+    final payload = 'scope=$scope '
+        'laneId=$laneId '
+        'keyframeId=${keyframeId ?? 'unknown'} '
+        'graphMode=speed '
+        'editType=$editType '
+        'presetId=${preset.name} '
+        'incomingSpeed=${velocity?.incomingSpeed ?? 'null'} '
+        'outgoingSpeed=${velocity?.outgoingSpeed ?? 'null'} '
+        'incomingInfluence=${velocity?.incomingInfluence ?? 'null'} '
+        'outgoingInfluence=${velocity?.outgoingInfluence ?? 'null'} '
+        'incomingHandleLocked=${velocity?.incomingHandleLocked ?? false} '
+        'outgoingHandleLocked=${velocity?.outgoingHandleLocked ?? false} '
+        'continuous=${velocity?.continuous ?? false} '
+        'valueAtBefore=unknown '
+        'valueAtAfter=unknown '
+        'velocityAtBefore=unknown '
+        'velocityAtAfter=unknown '
+        'previewRevision=unknown '
+        'repositioned=$repositioned '
+        'fallbackReason=null';
+    debugPrint('TF_VELOCITY_GRAPH_EDIT_PROOF $payload');
+  }
+
+  void _logGraphAvailabilityProof({
+    required String scope,
+    required String? selectedLaneId,
+    required String? selectedKeyframeId,
+    required int keyframeCount,
+    required bool graphEnabled,
+    required String disabledReason,
+    required bool hasMotionChannelBinding,
+    required bool supportsSpeedGraph,
+    required bool supportsValueGraph,
+  }) {
+    final payload = 'scope=$scope '
+        'selectedLaneId=${selectedLaneId ?? 'none'} '
+        'selectedKeyframeId=${selectedKeyframeId ?? 'none'} '
+        'keyframeCount=$keyframeCount '
+        'graphEnabled=$graphEnabled '
+        'disabledReason=$disabledReason '
+        'hasMotionChannelBinding=$hasMotionChannelBinding '
+        'supportsSpeedGraph=$supportsSpeedGraph '
+        'supportsValueGraph=$supportsValueGraph';
+    if (_lastGraphAvailabilityProof == payload) {
+      return;
+    }
+    _lastGraphAvailabilityProof = payload;
+    debugPrint('TF_GRAPH_BUTTON_AVAILABILITY_PROOF $payload');
   }
 
   void _handleLayerScopeDockAddTap() {
@@ -21300,6 +21507,255 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     });
   }
 
+  LayerScopeGraphSpeedPreset _transitionFocusGraphPresetForSelection({
+    required TimelineTrackTransitionData transition,
+    required TimelineAnimationLaneData lane,
+    required int keyframeIndex,
+  }) {
+    if (keyframeIndex < 0 ||
+        keyframeIndex >= lane.normalizedKeyframeStops.length) {
+      return LayerScopeGraphSpeedPreset.linear;
+    }
+    final keyframeId = keyframeIndex < lane.keyframeIds.length
+        ? lane.keyframeIds[keyframeIndex]
+        : '${lane.id}#$keyframeIndex';
+    final parameterKey = transitionFocusGraphPresetParameterKey(
+      laneId: lane.id,
+      keyframeId: keyframeId,
+    );
+    final presetIndex = transitionFocusGraphPresetIndex(
+        transition.parameterValues[parameterKey]);
+    if (presetIndex < 0 ||
+        presetIndex >= LayerScopeGraphSpeedPreset.values.length) {
+      return LayerScopeGraphSpeedPreset.linear;
+    }
+    return LayerScopeGraphSpeedPreset.values[presetIndex];
+  }
+
+  MotionKeyframeVelocity _transitionFocusGraphVelocityForSelection({
+    required TimelineTrackTransitionData transition,
+    required TimelineAnimationLaneData lane,
+    required int keyframeIndex,
+  }) {
+    final keyframeId = keyframeIndex < lane.keyframeIds.length
+        ? lane.keyframeIds[keyframeIndex]
+        : '${lane.id}#$keyframeIndex';
+    final preset = _transitionFocusGraphPresetForSelection(
+      transition: transition,
+      lane: lane,
+      keyframeIndex: keyframeIndex,
+    );
+    return transitionFocusGraphVelocityFromParameters(
+      transition: transition,
+      laneId: lane.id,
+      keyframeId: keyframeId,
+      fallback: _interpolationForGraphPreset(preset).velocity,
+    );
+  }
+
+  Future<void> _handleTransitionFocusGraphToolTap() async {
+    if (_isLayerScopeGraphEditorOpen) {
+      return;
+    }
+    final session = _transitionFocusSession;
+    if (session == null) {
+      return;
+    }
+    final focusContext = _transitionFocusContextForSession(session);
+    final transition = _transitionFocusTransitionById(
+      session.transitionId,
+      sourceSceneId: session.sourceSceneId,
+    );
+    if (focusContext == null || transition == null) {
+      return;
+    }
+    final lane = _transitionFocusSelectedAnimationLane(focusContext);
+    if (lane == null || lane.normalizedKeyframeStops.length < 2) {
+      return;
+    }
+    final resolvedKeyframeIndex = _selectedTransitionFocusKeyframeIndex ??
+        (lane.normalizedKeyframeStops.isEmpty ? null : 0);
+    if (resolvedKeyframeIndex == null ||
+        resolvedKeyframeIndex < 0 ||
+        resolvedKeyframeIndex >= lane.normalizedKeyframeStops.length) {
+      return;
+    }
+    final selectedPreset = _transitionFocusGraphPresetForSelection(
+      transition: transition,
+      lane: lane,
+      keyframeIndex: resolvedKeyframeIndex,
+    );
+    setState(() {
+      _selectedTransitionFocusKeyframeIndex = resolvedKeyframeIndex;
+      _selectedTransitionFocusKeyframeId =
+          resolvedKeyframeIndex < lane.keyframeIds.length
+              ? lane.keyframeIds[resolvedKeyframeIndex]
+              : '${lane.id}#$resolvedKeyframeIndex';
+      _isLayerScopeGraphEditorOpen = true;
+      _isTransitionFocusGraphEditorOpen = true;
+    });
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => MediaQuery.removeViewInsets(
+        context: sheetContext,
+        removeBottom: true,
+        child: LayerScopeGraphBottomSheet(
+          easyEaseEnabled: selectedPreset != LayerScopeGraphSpeedPreset.linear,
+          selectedPreset: selectedPreset,
+          initialVelocity: _transitionFocusGraphVelocityForSelection(
+            transition: transition,
+            lane: lane,
+            keyframeIndex: resolvedKeyframeIndex,
+          ),
+          onDone: () => Navigator.of(sheetContext).maybePop(),
+          onEasyEaseChanged: (enabled) =>
+              _handleTransitionFocusGraphPresetChanged(
+            enabled
+                ? LayerScopeGraphSpeedPreset.easyEase
+                : LayerScopeGraphSpeedPreset.linear,
+          ),
+          onPresetSelected: _handleTransitionFocusGraphPresetChanged,
+          onVelocityChanged: (velocity, {required editType}) =>
+              _handleTransitionFocusGraphVelocityChanged(
+            velocity,
+            editType: editType,
+          ),
+        ),
+      ),
+    ).whenComplete(() {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _isLayerScopeGraphEditorOpen = false;
+        _isTransitionFocusGraphEditorOpen = false;
+      });
+    });
+  }
+
+  void _handleTransitionFocusGraphPresetChanged(
+    LayerScopeGraphSpeedPreset preset,
+  ) {
+    final session = _transitionFocusSession;
+    final keyframeIndex = _selectedTransitionFocusKeyframeIndex;
+    if (session == null || keyframeIndex == null) {
+      return;
+    }
+    final focusContext = _transitionFocusContextForSession(session);
+    final transition = _transitionFocusTransitionById(
+      session.transitionId,
+      sourceSceneId: session.sourceSceneId,
+    );
+    if (focusContext == null || transition == null) {
+      return;
+    }
+    final lane = _transitionFocusSelectedAnimationLane(focusContext);
+    if (lane == null || keyframeIndex >= lane.normalizedKeyframeStops.length) {
+      return;
+    }
+    final beforeVisibleGlobalTime =
+        _transitionFocusVisibleGlobalTime(focusContext);
+    _updateTransitionFocusTransition(
+      session.transitionId,
+      sourceSceneId: session.sourceSceneId,
+      preserveProgress: true,
+      update: (current) =>
+          _transitionFocusValueWriteAdapter.writeLaneKeyframeGraphPreset(
+        transition: current,
+        laneId: lane.id,
+        keyframeIndex: keyframeIndex,
+        presetIndex: preset.index,
+      ),
+    );
+    _lockTransitionFocusVisibleFrame(beforeVisibleGlobalTime);
+    _scheduleStage5VisualRuntimeSubmission(
+      previewTime: beforeVisibleGlobalTime,
+      mode: _professionalVideoTransitionMode(
+        effectiveIsPlaying: _transportController.state.isPlaying,
+      ),
+    );
+    _logGraphEditProof(
+      laneId: lane.id,
+      keyframeId: _selectedTransitionFocusKeyframeId,
+      preset: preset,
+      interpolation: _interpolationForGraphPreset(preset),
+      scope: 'transitionFocus',
+      editType: 'preset',
+      repositioned: _currentTime != beforeVisibleGlobalTime,
+    );
+  }
+
+  void _handleTransitionFocusGraphVelocityChanged(
+    MotionKeyframeVelocity velocity, {
+    required String editType,
+  }) {
+    final session = _transitionFocusSession;
+    final keyframeIndex = _selectedTransitionFocusKeyframeIndex;
+    if (session == null || keyframeIndex == null) {
+      return;
+    }
+    final focusContext = _transitionFocusContextForSession(session);
+    final transition = _transitionFocusTransitionById(
+      session.transitionId,
+      sourceSceneId: session.sourceSceneId,
+    );
+    if (focusContext == null || transition == null) {
+      return;
+    }
+    final lane = _transitionFocusSelectedAnimationLane(focusContext);
+    if (lane == null || keyframeIndex >= lane.normalizedKeyframeStops.length) {
+      return;
+    }
+    final beforeVisibleGlobalTime =
+        _transitionFocusVisibleGlobalTime(focusContext);
+    _updateTransitionFocusTransition(
+      session.transitionId,
+      sourceSceneId: session.sourceSceneId,
+      preserveProgress: true,
+      update: (current) {
+        final withPreset =
+            _transitionFocusValueWriteAdapter.writeLaneKeyframeGraphPreset(
+          transition: current,
+          laneId: lane.id,
+          keyframeIndex: keyframeIndex,
+          presetIndex: LayerScopeGraphSpeedPreset.custom.index,
+        );
+        return _transitionFocusValueWriteAdapter.writeLaneKeyframeGraphVelocity(
+          transition: withPreset,
+          laneId: lane.id,
+          keyframeIndex: keyframeIndex,
+          velocity: velocity.copyWith(
+            presetId: 'customSpeedGraph',
+            continuous: velocity.continuous,
+          ),
+        );
+      },
+    );
+    _lockTransitionFocusVisibleFrame(beforeVisibleGlobalTime);
+    _scheduleStage5VisualRuntimeSubmission(
+      previewTime: beforeVisibleGlobalTime,
+      mode: _professionalVideoTransitionMode(
+        effectiveIsPlaying: _transportController.state.isPlaying,
+      ),
+    );
+    final interpolation = _interpolationForGraphVelocity(
+      velocity.copyWith(presetId: 'customSpeedGraph'),
+    );
+    _logGraphEditProof(
+      laneId: lane.id,
+      keyframeId: _selectedTransitionFocusKeyframeId,
+      preset: LayerScopeGraphSpeedPreset.custom,
+      interpolation: interpolation,
+      scope: 'transitionFocus',
+      editType: editType,
+      repositioned: _currentTime != beforeVisibleGlobalTime,
+    );
+  }
+
   void _handleTransitionFocusValueControlChanged(
     String controlId,
     double value,
@@ -24871,6 +25327,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         _canAddTransitionFocusKeyframe(transitionFocusContext);
     final canOpenTransitionFocusValueEditor =
         _canOpenTransitionFocusValueEditor(transitionFocusContext);
+    final canOpenTransitionFocusGraphEditor =
+        _canOpenTransitionFocusGraphEditor(transitionFocusContext);
     final canMoveTransitionFocusSelectedKeyframe =
         _canMoveTransitionFocusSelectedKeyframe(transitionFocusContext);
     final canMoveLayerScopeSelectedKeyframe =
@@ -24918,6 +25376,83 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         isSceneLayerScopeActive;
     final isTextLayerScopeActive =
         layerScopeContext?.track.kind == TimelineTrackKind.text;
+    String availabilityScope = 'none';
+    String? availabilityLaneId;
+    String? availabilityKeyframeId;
+    var availabilityKeyframeCount = 0;
+    var availabilityEnabled = false;
+    var availabilityReason = 'no_active_scope';
+    if (transitionFocusContext != null) {
+      final lane = _transitionFocusSelectedAnimationLane(transitionFocusContext);
+      availabilityScope = 'transitionFocus';
+      availabilityLaneId = lane?.id;
+      availabilityKeyframeId = _selectedTransitionFocusKeyframeId;
+      availabilityKeyframeCount = lane?.normalizedKeyframeStops.length ?? 0;
+      availabilityEnabled = canOpenTransitionFocusGraphEditor;
+      availabilityReason = lane == null
+          ? 'missing_lane'
+          : lane.normalizedKeyframeStops.length < 2
+              ? 'insufficient_keyframes'
+              : canOpenTransitionFocusGraphEditor
+                  ? 'none'
+                  : 'missing_keyframe_selection';
+    } else if (isUnifiedTransitionScopeActive) {
+      final lane =
+          _unifiedTransitionScopeSelectedAnimationLane(unifiedTransitionScopeViewModel);
+      availabilityScope = 'unifiedTransition';
+      availabilityLaneId = lane?.id;
+      availabilityKeyframeId = _selectedLayerScopeKeyframeId;
+      availabilityKeyframeCount = lane?.normalizedKeyframeStops.length ?? 0;
+      availabilityEnabled = canOpenUnifiedTransitionScopeGraphEditor;
+      availabilityReason = lane == null
+          ? 'missing_lane'
+          : lane.normalizedKeyframeStops.length < 2
+              ? 'insufficient_keyframes'
+              : canOpenUnifiedTransitionScopeGraphEditor
+                  ? 'none'
+                  : 'missing_keyframe_selection';
+    } else if (isSceneLayerScopeActive) {
+      final lane = _sceneLayerScopeSelectedAnimationLane(sceneLayerScopeViewModel);
+      availabilityScope = 'scene';
+      availabilityLaneId = lane?.id;
+      availabilityKeyframeId = _selectedLayerScopeKeyframeId;
+      availabilityKeyframeCount = lane?.normalizedKeyframeStops.length ?? 0;
+      availabilityEnabled = canOpenSceneLayerScopeGraphEditor;
+      availabilityReason = lane == null
+          ? 'missing_lane'
+          : lane.normalizedKeyframeStops.length < 2
+              ? 'insufficient_keyframes'
+              : canOpenSceneLayerScopeGraphEditor
+                  ? 'none'
+                  : 'missing_keyframe_selection';
+    } else if (layerScopeContext != null) {
+      final lane = _layerScopeSelectedAnimationLane(layerScopeContext);
+      availabilityScope = 'layer';
+      availabilityLaneId = lane?.id;
+      availabilityKeyframeId = _selectedLayerScopeKeyframeId;
+      availabilityKeyframeCount = lane?.normalizedKeyframeStops.length ?? 0;
+      availabilityEnabled = canOpenLayerScopeGraphEditor;
+      availabilityReason = lane == null
+          ? 'missing_lane'
+          : lane.normalizedKeyframeStops.length < 2
+              ? 'insufficient_keyframes'
+              : !_layerScopeLaneSupportsValueControls(lane)
+                  ? 'lane_not_supported'
+                  : canOpenLayerScopeGraphEditor
+                      ? 'none'
+                      : 'missing_keyframe_selection';
+    }
+    _logGraphAvailabilityProof(
+      scope: availabilityScope,
+      selectedLaneId: availabilityLaneId,
+      selectedKeyframeId: availabilityKeyframeId,
+      keyframeCount: availabilityKeyframeCount,
+      graphEnabled: availabilityEnabled,
+      disabledReason: availabilityReason,
+      hasMotionChannelBinding: availabilityLaneId != null,
+      supportsSpeedGraph: true,
+      supportsValueGraph: true,
+    );
     return Scaffold(
       resizeToAvoidBottomInset: !_isAnimateBrowserOpen,
       body: SafeArea(
@@ -25893,12 +26428,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                         canAddTransitionFocusKeyframe,
                                     valueEnabled:
                                         canOpenTransitionFocusValueEditor,
-                                    graphEnabled: false,
+                                    graphEnabled:
+                                        canOpenTransitionFocusGraphEditor,
                                     isValueActive:
                                         _isTransitionFocusValueEditorOpen &&
                                             canOpenTransitionFocusValueEditor,
                                     isGraphActive:
-                                        _isTransitionFocusGraphEditorOpen,
+                                        _isTransitionFocusGraphEditorOpen &&
+                                            canOpenTransitionFocusGraphEditor,
                                     onAddTap: () => _openTransitionFocusAddMenu(
                                       transitionFocusContext.transition.id,
                                     ),
@@ -25910,7 +26447,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                         canOpenTransitionFocusValueEditor
                                             ? _handleTransitionFocusValueToolTap
                                             : null,
-                                    onGraphTap: null,
+                                    onGraphTap:
+                                        canOpenTransitionFocusGraphEditor
+                                            ? _handleTransitionFocusGraphToolTap
+                                            : null,
                                     embedded: true,
                                     addLabel: 'Add',
                                     addIcon: Icons.auto_awesome_motion_rounded,
