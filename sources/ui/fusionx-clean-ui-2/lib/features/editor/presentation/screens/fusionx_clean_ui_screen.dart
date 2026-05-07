@@ -4945,12 +4945,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     MotionKeyframeVelocity velocity, {
     required String editType,
   }) {
+    final interpolation = _interpolationForGraphVelocity(
+      velocity.copyWith(presetId: 'customSpeedGraph'),
+    );
     _applyUnifiedTransitionScopeGraphInterpolation(
-      interpolation: _interpolationForGraphVelocity(
-        velocity.copyWith(presetId: 'customSpeedGraph'),
-      ),
+      interpolation: interpolation,
       preset: LayerScopeGraphSpeedPreset.custom,
       editType: editType,
+      applyToLane: editType == 'pasteLane',
     );
   }
 
@@ -4958,6 +4960,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required MotionInterpolationSpec interpolation,
     required LayerScopeGraphSpeedPreset preset,
     required String editType,
+    bool applyToLane = false,
   }) {
     final session = _unifiedTransitionScopeSession;
     final viewModel = _unifiedTransitionScopeViewModel;
@@ -4994,12 +4997,17 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
     var workingSession = session;
     TransitionUnifiedScopeKeyframeOperationResult? lastResult;
-    final keyframeIdsToUpdate = <String>{
-      if (channelKeyframeIndex > 0)
-        channel.keyframes[channelKeyframeIndex - 1].id,
-      if (channelKeyframeIndex < channel.keyframes.length - 1)
-        channel.keyframes[channelKeyframeIndex].id,
-    };
+    final keyframeIdsToUpdate = applyToLane
+        ? <String>{
+            for (var index = 0; index < channel.keyframes.length - 1; index++)
+              channel.keyframes[index].id,
+          }
+        : <String>{
+            if (channelKeyframeIndex > 0)
+              channel.keyframes[channelKeyframeIndex - 1].id,
+            if (channelKeyframeIndex < channel.keyframes.length - 1)
+              channel.keyframes[channelKeyframeIndex].id,
+          };
     for (final keyframeId in keyframeIdsToUpdate) {
       final result =
           _transitionUnifiedScopeKeyframeAdapter.setKeyframeInterpolation(
@@ -8144,10 +8152,19 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     MotionKeyframeVelocity velocity, {
     required String editType,
   }) {
+    final interpolation = _interpolationForGraphVelocity(
+      velocity.copyWith(presetId: 'customSpeedGraph'),
+    );
+    if (editType == 'pasteLane') {
+      _applySceneLayerScopeGraphInterpolationToLane(
+        interpolation: interpolation,
+        preset: LayerScopeGraphSpeedPreset.custom,
+        editType: editType,
+      );
+      return;
+    }
     _applySceneLayerScopeGraphInterpolation(
-      interpolation: _interpolationForGraphVelocity(
-        velocity.copyWith(presetId: 'customSpeedGraph'),
-      ),
+      interpolation: interpolation,
       preset: LayerScopeGraphSpeedPreset.custom,
       editType: editType,
     );
@@ -8242,6 +8259,56 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _logGraphEditProof(
       laneId: lane.id,
       keyframeId: selectedKeyframeId,
+      preset: preset,
+      interpolation: interpolation,
+      scope: 'scene',
+      editType: editType,
+    );
+  }
+
+  void _applySceneLayerScopeGraphInterpolationToLane({
+    required MotionInterpolationSpec interpolation,
+    required LayerScopeGraphSpeedPreset preset,
+    required String editType,
+  }) {
+    final viewModel = _activeSceneLayerScopeViewModel;
+    if (viewModel == null) {
+      return;
+    }
+    final lane = _sceneLayerScopeSelectedAnimationLane(viewModel);
+    if (lane == null || lane.keyframeIds.length < 2) {
+      return;
+    }
+    final channel = _sceneLayerScopeChannelForLane(viewModel, lane);
+    if (channel == null || channel.keyframes.length < 2) {
+      return;
+    }
+    var nextChannels = viewModel.projection.channels;
+    for (var index = 0; index < channel.keyframes.length - 1; index++) {
+      final result = _layerScopeCompositionAdapter.setKeyframeInterpolation(
+        LayerScopeCompositionKeyframeInterpolationRequest(
+          channels: nextChannels,
+          channelId: channel.id,
+          keyframeId: channel.keyframes[index].id,
+          interpolation: interpolation,
+        ),
+      );
+      if (result.hasIssues) {
+        _showStageMessage(result.issues.first.message);
+        return;
+      }
+      nextChannels = result.channels;
+    }
+    setState(() {
+      _universalMotionPropertyChannels = _mergeSceneLayerScopeChannels(
+        viewModel,
+        nextChannels,
+      );
+      _markMotionAuthoringChanged();
+    });
+    _logGraphEditProof(
+      laneId: lane.id,
+      keyframeId: _selectedLayerScopeKeyframeId,
       preset: preset,
       interpolation: interpolation,
       scope: 'scene',
@@ -10232,6 +10299,49 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return changedAny ? nextChannels : null;
   }
 
+  List<MotionPropertyChannelModel>? _setLayerScopeLaneInterpolationToGraph({
+    required _LayerScopeContext context,
+    required TimelineAnimationLaneData lane,
+    required MotionInterpolationSpec interpolation,
+  }) {
+    if (context.track.kind != TimelineTrackKind.text) {
+      return null;
+    }
+    final definitions = _layerScopeDefinitionsForLane(lane);
+    if (definitions == null) {
+      return null;
+    }
+    final service = _buildCanvasTimelineAuthoringService();
+    var nextChannels = _universalMotionPropertyChannels;
+    var changedAny = false;
+    for (final definition in definitions) {
+      final channel = _propertyChannelForElementInChannels(
+        nextChannels,
+        context.clip.id,
+        definition,
+      );
+      if (channel == null || channel.keyframes.length < 2) {
+        continue;
+      }
+      for (var index = 0; index < channel.keyframes.length - 1; index++) {
+        final result = service.setKeyframeInterpolation(
+          CanvasTimelineKeyframeInterpolationRequest(
+            channels: nextChannels,
+            channelId: channel.id,
+            keyframeId: channel.keyframes[index].id,
+            interpolation: interpolation,
+          ),
+        );
+        if (result.hasIssues) {
+          return null;
+        }
+        nextChannels = result.channels;
+        changedAny = true;
+      }
+    }
+    return changedAny ? nextChannels : null;
+  }
+
   _SelectedTimelineClipContext? _activePreviewVisualClipContextForTime(
     TimelineTime timelineTime,
   ) {
@@ -10910,10 +11020,19 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     MotionKeyframeVelocity velocity, {
     required String editType,
   }) {
+    final interpolation = _interpolationForGraphVelocity(
+      velocity.copyWith(presetId: 'customSpeedGraph'),
+    );
+    if (editType == 'pasteLane') {
+      _applyLayerScopeGraphInterpolationToLane(
+        interpolation: interpolation,
+        preset: LayerScopeGraphSpeedPreset.custom,
+        editType: editType,
+      );
+      return;
+    }
     _applyLayerScopeGraphInterpolation(
-      interpolation: _interpolationForGraphVelocity(
-        velocity.copyWith(presetId: 'customSpeedGraph'),
-      ),
+      interpolation: interpolation,
       preset: LayerScopeGraphSpeedPreset.custom,
       editType: editType,
     );
@@ -10937,6 +11056,41 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       context: scopeContext,
       lane: lane,
       keyframeIndex: keyframeIndex,
+      interpolation: interpolation,
+    );
+    if (syncedChannels == null) {
+      return;
+    }
+    setState(() {
+      _universalMotionPropertyChannels = syncedChannels;
+      _markMotionAuthoringChanged();
+    });
+    _logGraphEditProof(
+      laneId: lane.id,
+      keyframeId: _selectedLayerScopeKeyframeId,
+      preset: preset,
+      interpolation: interpolation,
+      scope: 'layer',
+      editType: editType,
+    );
+  }
+
+  void _applyLayerScopeGraphInterpolationToLane({
+    required MotionInterpolationSpec interpolation,
+    required LayerScopeGraphSpeedPreset preset,
+    required String editType,
+  }) {
+    final scopeContext = _activeLayerScopeContext;
+    if (scopeContext == null) {
+      return;
+    }
+    final lane = _layerScopeSelectedAnimationLane(scopeContext);
+    if (lane == null || lane.normalizedKeyframeStops.length < 2) {
+      return;
+    }
+    final syncedChannels = _setLayerScopeLaneInterpolationToGraph(
+      context: scopeContext,
+      lane: lane,
       interpolation: interpolation,
     );
     if (syncedChannels == null) {
@@ -21634,9 +21788,34 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       sourceSceneId: session.sourceSceneId,
       preserveProgress: true,
       update: (current) {
+        var working = current;
+        if (editType == 'pasteLane') {
+          for (var index = 0;
+              index < lane.normalizedKeyframeStops.length;
+              index++) {
+            working =
+                _transitionFocusValueWriteAdapter.writeLaneKeyframeGraphPreset(
+              transition: working,
+              laneId: lane.id,
+              keyframeIndex: index,
+              presetIndex: LayerScopeGraphSpeedPreset.custom.index,
+            );
+            working = _transitionFocusValueWriteAdapter
+                .writeLaneKeyframeGraphVelocity(
+              transition: working,
+              laneId: lane.id,
+              keyframeIndex: index,
+              velocity: velocity.copyWith(
+                presetId: 'customSpeedGraph',
+                continuous: velocity.continuous,
+              ),
+            );
+          }
+          return working;
+        }
         final withPreset =
             _transitionFocusValueWriteAdapter.writeLaneKeyframeGraphPreset(
-          transition: current,
+          transition: working,
           laneId: lane.id,
           keyframeIndex: keyframeIndex,
           presetIndex: LayerScopeGraphSpeedPreset.custom.index,

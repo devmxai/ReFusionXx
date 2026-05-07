@@ -79,6 +79,9 @@ class _LayerScopeGraphBottomSheetState
   late LayerScopeGraphSpeedPreset _selectedPreset;
   late _GraphEditorTab _selectedTab;
   late MotionKeyframeVelocity _velocity;
+  MotionInterpolationSpec? _curveClipboard;
+  final List<MotionInterpolationSpec> _recentCurves =
+      <MotionInterpolationSpec>[];
   _GraphHandleDragTarget? _activeHandle;
 
   @override
@@ -190,32 +193,60 @@ class _LayerScopeGraphBottomSheetState
       _presetCatalog.findById('fastSlow')!,
       _presetCatalog.findById('customSpeedGraph')!,
     ];
-    return ProfessionalSpeedGraphPresetGrid(
-      presets: presetCards,
-      selectedPresetId: MotionInterpolationTruthCompiler.canonicalPresetId(
-          _velocity.presetId),
-      onPresetTap: (preset) {
-        final mapped = _presetFromId(preset.id);
-        final nextVelocity = _velocityForPreset(mapped);
-        setState(() {
-          _selectedPreset = mapped;
-          _velocity = nextVelocity;
-          _easyEaseEnabled = mapped != LayerScopeGraphSpeedPreset.linear;
-        });
-        widget.onEasyEaseChanged(_easyEaseEnabled);
-        widget.onPresetSelected?.call(mapped);
-        widget.onVelocityChanged?.call(
-          nextVelocity,
-          editType: 'preset',
-        );
-        _emitPresetProof(preset.id, nextVelocity);
-      },
-      onPresetDoubleTap: (_) {
-        setState(() {
-          _selectedTab = _GraphEditorTab.customCurve;
-        });
-      },
-      onPresetLongPress: (_) {},
+    return Column(
+      children: [
+        _buildPresetOperationsBar(),
+        const SizedBox(height: 8),
+        Expanded(
+          child: ProfessionalSpeedGraphPresetGrid(
+            presets: presetCards,
+            selectedPresetId:
+                MotionInterpolationTruthCompiler.canonicalPresetId(
+                    _velocity.presetId),
+            onPresetTap: (preset) {
+              final mapped = _presetFromId(preset.id);
+              final nextVelocity = _velocityForPreset(mapped);
+              setState(() {
+                _selectedPreset = mapped;
+                _velocity = nextVelocity;
+                _easyEaseEnabled = mapped != LayerScopeGraphSpeedPreset.linear;
+              });
+              widget.onEasyEaseChanged(_easyEaseEnabled);
+              widget.onPresetSelected?.call(mapped);
+              widget.onVelocityChanged?.call(
+                nextVelocity,
+                editType: 'preset',
+              );
+              _recordRecentCurve(_currentInterpolationSpec());
+              _emitPresetProof(preset.id, nextVelocity);
+            },
+            onPresetDoubleTap: (_) {
+              setState(() {
+                _selectedTab = _GraphEditorTab.customCurve;
+              });
+            },
+            onPresetLongPress: (_) {
+              _recordRecentCurve(_currentInterpolationSpec());
+            },
+          ),
+        ),
+        if (_recentCurves.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          _RecentCurvesStrip(
+            recentCurves: _recentCurves,
+            onSelect: (index) {
+              if (index < 0 || index >= _recentCurves.length) {
+                return;
+              }
+              final interpolation = _recentCurves[index];
+              _applyInterpolationClipboard(
+                interpolation: interpolation,
+                editType: 'recentCurve',
+              );
+            },
+          ),
+        ],
+      ],
     );
   }
 
@@ -447,6 +478,229 @@ class _LayerScopeGraphBottomSheetState
         ],
       ),
     );
+  }
+
+  Widget _buildPresetOperationsBar() {
+    Widget actionButton({
+      required String label,
+      required IconData icon,
+      required VoidCallback onTap,
+      bool enabled = true,
+    }) {
+      return InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          height: 30,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: enabled
+                ? FxPalette.surfaceRaised.withOpacity(0.82)
+                : FxPalette.surfaceRaised.withOpacity(0.35),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white.withOpacity(0.08)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 13,
+                color: enabled
+                    ? FxPalette.textPrimary
+                    : FxPalette.textFaint.withOpacity(0.6),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: enabled
+                      ? FxPalette.textPrimary
+                      : FxPalette.textFaint.withOpacity(0.6),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final canPaste = _curveClipboard != null;
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          actionButton(
+            label: 'Copy Curve',
+            icon: Icons.copy_rounded,
+            onTap: () {
+              final current = _currentInterpolationSpec();
+              setState(() {
+                _curveClipboard = current;
+              });
+              _recordRecentCurve(current);
+            },
+          ),
+          const SizedBox(width: 8),
+          actionButton(
+            label: 'Paste Curve',
+            icon: Icons.paste_rounded,
+            enabled: canPaste,
+            onTap: () {
+              final interpolation = _curveClipboard;
+              if (interpolation == null) {
+                return;
+              }
+              _applyInterpolationClipboard(
+                interpolation: interpolation,
+                editType: 'paste',
+              );
+            },
+          ),
+          const SizedBox(width: 8),
+          actionButton(
+            label: 'Paste Selected',
+            icon: Icons.playlist_add_check_rounded,
+            enabled: canPaste,
+            onTap: () {
+              final interpolation = _curveClipboard;
+              if (interpolation == null) {
+                return;
+              }
+              _applyInterpolationClipboard(
+                interpolation: interpolation,
+                editType: 'pasteSelected',
+              );
+            },
+          ),
+          const SizedBox(width: 8),
+          actionButton(
+            label: 'Paste Lane',
+            icon: Icons.view_stream_rounded,
+            enabled: canPaste,
+            onTap: () {
+              final interpolation = _curveClipboard;
+              if (interpolation == null) {
+                return;
+              }
+              _applyInterpolationClipboard(
+                interpolation: interpolation,
+                editType: 'pasteLane',
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  MotionInterpolationSpec _currentInterpolationSpec() {
+    final preset = _graphPresetForVelocity(_velocity);
+    final fallback = _interpolationForGraphPreset(
+      preset == LayerScopeGraphSpeedPreset.linear
+          ? LayerScopeGraphSpeedPreset.custom
+          : preset,
+    );
+    return _truthCompiler
+        .compileFromVelocity(
+          velocity: _velocity.copyWith(
+            presetId: _velocity.presetId ?? 'customSpeedGraph',
+          ),
+          fallback: fallback,
+          inputMode: MotionInterpolationCompileInputMode.velocityNumbers,
+        )
+        .interpolation;
+  }
+
+  MotionInterpolationSpec _interpolationForGraphPreset(
+    LayerScopeGraphSpeedPreset preset,
+  ) {
+    final presetId = switch (preset) {
+      LayerScopeGraphSpeedPreset.linear => 'linear',
+      LayerScopeGraphSpeedPreset.easyEase => 'easyEase',
+      LayerScopeGraphSpeedPreset.easeIn => 'easyEaseIn',
+      LayerScopeGraphSpeedPreset.easeOut => 'easyEaseOut',
+      LayerScopeGraphSpeedPreset.slowFastSlow => 'slowFastSlow',
+      LayerScopeGraphSpeedPreset.fastSlow => 'fastSlow',
+      LayerScopeGraphSpeedPreset.slowFast => 'slowFast',
+      LayerScopeGraphSpeedPreset.whip => 'whipSnap',
+      LayerScopeGraphSpeedPreset.custom => 'customSpeedGraph',
+      LayerScopeGraphSpeedPreset.fastSlowFast => 'fastSlowFast',
+    };
+    return _truthCompiler.compileFromPresetId(presetId).interpolation;
+  }
+
+  LayerScopeGraphSpeedPreset _graphPresetForVelocity(
+    MotionKeyframeVelocity? velocity,
+  ) {
+    switch (velocity?.presetId) {
+      case 'easyEase':
+        return LayerScopeGraphSpeedPreset.easyEase;
+      case 'easyEaseIn':
+        return LayerScopeGraphSpeedPreset.easeIn;
+      case 'easyEaseOut':
+        return LayerScopeGraphSpeedPreset.easeOut;
+      case 'slowFastSlow':
+        return LayerScopeGraphSpeedPreset.slowFastSlow;
+      case 'fastSlow':
+        return LayerScopeGraphSpeedPreset.fastSlow;
+      case 'slowFast':
+        return LayerScopeGraphSpeedPreset.slowFast;
+      case 'whipSnap':
+        return LayerScopeGraphSpeedPreset.whip;
+      case 'customSpeedGraph':
+        return LayerScopeGraphSpeedPreset.custom;
+      case 'fastSlowFast':
+        return LayerScopeGraphSpeedPreset.fastSlowFast;
+      default:
+        return LayerScopeGraphSpeedPreset.linear;
+    }
+  }
+
+  void _applyInterpolationClipboard({
+    required MotionInterpolationSpec interpolation,
+    required String editType,
+  }) {
+    final compiled = _truthCompiler.compileFromInterpolation(
+      interpolation: interpolation,
+      inputMode: MotionInterpolationCompileInputMode.existingSpec,
+    );
+    final nextVelocity = compiled.interpolation.velocity ?? _velocity;
+    setState(() {
+      _velocity = nextVelocity.copyWith(
+        presetId: nextVelocity.presetId ?? 'customSpeedGraph',
+      );
+      _selectedPreset = _presetFromId(
+        nextVelocity.presetId ?? 'customSpeedGraph',
+      );
+    });
+    widget.onVelocityChanged?.call(_velocity, editType: editType);
+    _recordRecentCurve(compiled.interpolation);
+  }
+
+  void _recordRecentCurve(MotionInterpolationSpec interpolation) {
+    final normalized = _truthCompiler.compileFromInterpolation(
+      interpolation: interpolation,
+      inputMode: MotionInterpolationCompileInputMode.existingSpec,
+    );
+    final signature = normalized.curveHash;
+    _recentCurves.removeWhere((candidate) {
+      final compiled = _truthCompiler.compileFromInterpolation(
+        interpolation: candidate,
+        inputMode: MotionInterpolationCompileInputMode.existingSpec,
+      );
+      return compiled.curveHash == signature;
+    });
+    _recentCurves.insert(0, normalized.interpolation);
+    if (_recentCurves.length > 8) {
+      _recentCurves.removeRange(8, _recentCurves.length);
+    }
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   LayerScopeGraphSpeedPreset _presetFromId(String presetId) {
@@ -964,6 +1218,52 @@ class _VelocityReadout extends StatelessWidget {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RecentCurvesStrip extends StatelessWidget {
+  const _RecentCurvesStrip({
+    required this.recentCurves,
+    required this.onSelect,
+  });
+
+  final List<MotionInterpolationSpec> recentCurves;
+  final ValueChanged<int> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (var index = 0; index < recentCurves.length; index++) ...[
+            if (index > 0) const SizedBox(width: 6),
+            InkWell(
+              onTap: () => onSelect(index),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                height: 28,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: FxPalette.surfaceRaised.withOpacity(0.8),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.white.withOpacity(0.08)),
+                ),
+                child: Text(
+                  'Recent ${index + 1}',
+                  style: const TextStyle(
+                    color: FxPalette.textPrimary,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
