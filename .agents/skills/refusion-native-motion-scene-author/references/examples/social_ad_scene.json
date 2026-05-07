@@ -1,0 +1,91 @@
+{
+  "directorPlan": {
+    "schemaVersion": "refusion.motion-director/v1",
+    "name": "Premium Social Product Reveal",
+    "durationMs": 3200,
+    "frameRate": 30,
+    "canvasWidth": 1080,
+    "canvasHeight": 1920,
+    "beats": [
+      {
+        "id": "beat-bg",
+        "label": "Establish background",
+        "startMs": 0,
+        "endMs": 500,
+        "intent": "Set premium dark visual atmosphere.",
+        "componentRefs": ["background"]
+      },
+      {
+        "id": "beat-card",
+        "label": "Hero card enters",
+        "startMs": 240,
+        "endMs": 1050,
+        "intent": "Bring the product card into focus with cinematic easing.",
+        "componentRefs": ["hero-card"]
+      },
+      {
+        "id": "beat-title",
+        "label": "Headline reveals",
+        "startMs": 900,
+        "endMs": 1800,
+        "intent": "Reveal the message after the product is visible.",
+        "componentRefs": ["headline"]
+      },
+      {
+        "id": "beat-cta",
+        "label": "CTA settles",
+        "startMs": 1720,
+        "endMs": 2350,
+        "intent": "Add a clear final action without stealing focus.",
+        "componentRefs": ["cta"]
+      },
+      {
+        "id": "beat-hold",
+        "label": "Readable hold",
+        "startMs": 2350,
+        "endMs": 3200,
+        "intent": "Hold the final composition for comprehension.",
+        "componentRefs": ["hero-card", "headline", "cta"]
+      }
+    ],
+    "components": [
+      {"id": "background", "role": "background", "label": "Dark premium backdrop"},
+      {"id": "hero-card", "role": "productCard", "label": "Main product card"},
+      {"id": "headline", "role": "headline", "label": "Main headline"},
+      {"id": "cta", "role": "callToAction", "label": "CTA pill"}
+    ],
+    "primitives": [
+      {
+        "id": "card-enter-y",
+        "beatId": "beat-card",
+        "targetComponentId": "hero-card",
+        "kind": "move",
+        "property": "transform.position.y",
+        "fromValue": 130,
+        "toValue": 0,
+        "startMs": 240,
+        "endMs": 1050,
+        "easing": "slowFastSlow"
+      },
+      {
+        "id": "headline-type",
+        "beatId": "beat-title",
+        "targetComponentId": "headline",
+        "kind": "typewriter",
+        "property": "typewriterProgress",
+        "fromValue": 0,
+        "toValue": 1,
+        "startMs": 900,
+        "endMs": 1800,
+        "easing": "linear"
+      }
+    ]
+  },
+  "sceneProgram": {
+    "schemaVersion": "refusion.scene-program/v1",
+    "name": "Premium Social Product Reveal",
+    "durationMs": 3200,
+    "frameRate": 30,
+    "layers": []
+  }
+}
