@@ -36,6 +36,8 @@ class MasterKeyframeEvaluationResult {
   const MasterKeyframeEvaluationResult({
     required this.status,
     this.rawValue,
+    this.rawVelocity,
+    this.rawAcceleration,
     this.mapping,
     this.interpolation,
     required this.reason,
@@ -43,6 +45,8 @@ class MasterKeyframeEvaluationResult {
 
   final MasterKeyframeEvaluationStatus status;
   final MotionPropertyValue? rawValue;
+  final double? rawVelocity;
+  final double? rawAcceleration;
   final MasterPropertyValueMapping? mapping;
   final MotionInterpolationSpec? interpolation;
   final String reason;
@@ -95,6 +99,8 @@ class MasterKeyframeValueEvaluator {
     return MasterKeyframeEvaluationResult(
       status: MasterKeyframeEvaluationStatus.resolved,
       rawValue: value.value,
+      rawVelocity: value.rawVelocity,
+      rawAcceleration: value.rawAcceleration,
       mapping: registry.mapValue(
         definition: definition,
         value: value.value,
@@ -116,6 +122,8 @@ class MasterKeyframeValueEvaluator {
     if (keyframes.length == 1) {
       return _SampledMotionValue(
         value: keyframes.first.value,
+        rawVelocity: null,
+        rawAcceleration: null,
         interpolation: keyframes.first.interpolationToNext,
         reason: 'single_keyframe_value',
       );
@@ -132,6 +140,8 @@ class MasterKeyframeValueEvaluator {
       if (next == null || projectedTime <= current.time) {
         return _SampledMotionValue(
           value: current.value,
+          rawVelocity: null,
+          rawAcceleration: null,
           interpolation: current.interpolationToNext,
           reason: 'keyframe_hold_or_before',
         );
@@ -143,6 +153,8 @@ class MasterKeyframeValueEvaluator {
           next.value.kind != MotionPropertyValueKind.scalar) {
         return _SampledMotionValue(
           value: current.value,
+          rawVelocity: null,
+          rawAcceleration: null,
           interpolation: current.interpolationToNext,
           reason: 'non_scalar_interpolation_fallback',
         );
@@ -152,6 +164,8 @@ class MasterKeyframeValueEvaluator {
       if (duration <= 0) {
         return _SampledMotionValue(
           value: current.value,
+          rawVelocity: null,
+          rawAcceleration: null,
           interpolation: current.interpolationToNext,
           reason: 'zero_duration_keyframe_pair',
         );
@@ -167,8 +181,22 @@ class MasterKeyframeValueEvaluator {
       final from = current.value.rawValue as double;
       final to = next.value.rawValue as double;
       final resolved = from + ((to - from) * curveProgress);
+      final curveVelocity = evaluateMotionCurveVelocity(
+        current.interpolationToNext,
+        transitionProgress ?? normalized,
+      );
+      final curveAcceleration = evaluateMotionCurveAcceleration(
+        current.interpolationToNext,
+        transitionProgress ?? normalized,
+      );
+      final delta = to - from;
+      final velocityPerSecond = (delta / duration) * curveVelocity;
+      final accelerationPerSecond2 =
+          (delta / (duration * duration)) * curveAcceleration;
       return _SampledMotionValue(
         value: MotionPropertyValue.scalar(resolved),
+        rawVelocity: velocityPerSecond,
+        rawAcceleration: accelerationPerSecond2,
         interpolation: current.interpolationToNext,
         reason: 'interpolated_scalar_value',
       );
@@ -177,6 +205,8 @@ class MasterKeyframeValueEvaluator {
     final last = keyframes.last;
     return _SampledMotionValue(
       value: last.value,
+      rawVelocity: null,
+      rawAcceleration: null,
       interpolation: last.interpolationToNext,
       reason: 'after_last_keyframe_hold',
     );
@@ -187,11 +217,15 @@ class MasterKeyframeValueEvaluator {
 class _SampledMotionValue {
   const _SampledMotionValue({
     required this.value,
+    required this.rawVelocity,
+    required this.rawAcceleration,
     required this.interpolation,
     required this.reason,
   });
 
   final MotionPropertyValue value;
+  final double? rawVelocity;
+  final double? rawAcceleration;
   final MotionInterpolationSpec interpolation;
   final String reason;
 }

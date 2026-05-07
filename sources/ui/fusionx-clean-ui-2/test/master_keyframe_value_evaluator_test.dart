@@ -118,6 +118,8 @@ void main() {
     expect(result.rawValue, isNotNull);
     expect(result.rawValue!.kind, MotionPropertyValueKind.scalar);
     expect(result.rawValue!.rawValue as double, closeTo(50.0, 0.001));
+    expect(result.rawVelocity, closeTo(100.0, 0.001));
+    expect(result.rawAcceleration, closeTo(0.0, 0.001));
     expect(result.mapping!.renderer.scalar, closeTo(0.5, 0.001));
   });
 
@@ -166,5 +168,67 @@ void main() {
       ),
     );
     expect(result.rawValue!.rawValue as double, closeTo(75, 0.001));
+  });
+
+  test(
+      'easeInOut interpolation reports higher midpoint velocity than endpoints',
+      () {
+    final channel = MotionPropertyChannelModel(
+      id: 'rotation.channel',
+      target: const MotionPropertyTarget(
+        kind: MotionTargetKind.element,
+        targetId: 'element-1',
+        projectId: 'project-1',
+        sceneId: 'scene-1',
+        layerId: 'layer-1',
+        elementId: 'element-1',
+      ),
+      definition: MotionPropertyCatalog.rotationDegrees,
+      activeRange: TimelineTimeRange(start: ms(0), endExclusive: ms(1000)),
+      keyframes: <MotionKeyframeModel>[
+        MotionKeyframeModel(
+          id: 'r0',
+          channelId: 'rotation.channel',
+          time: ms(0),
+          value: const MotionPropertyValue.scalar(0),
+          interpolationToNext: const MotionInterpolationSpec.easeInOut(),
+        ),
+        MotionKeyframeModel(
+          id: 'r1',
+          channelId: 'rotation.channel',
+          time: ms(1000),
+          value: const MotionPropertyValue.scalar(360),
+          interpolationToNext: const MotionInterpolationSpec.linear(),
+        ),
+      ],
+    );
+
+    final early = evaluator.evaluate(
+      MasterKeyframeEvaluationRequest(
+        channel: channel,
+        time: snapshotAt(50),
+        domainProjection: projectionAt(50),
+      ),
+    );
+    final mid = evaluator.evaluate(
+      MasterKeyframeEvaluationRequest(
+        channel: channel,
+        time: snapshotAt(500),
+        domainProjection: projectionAt(500),
+      ),
+    );
+    final late = evaluator.evaluate(
+      MasterKeyframeEvaluationRequest(
+        channel: channel,
+        time: snapshotAt(950),
+        domainProjection: projectionAt(950),
+      ),
+    );
+
+    expect(early.rawVelocity, isNotNull);
+    expect(mid.rawVelocity, isNotNull);
+    expect(late.rawVelocity, isNotNull);
+    expect(mid.rawVelocity!.abs(), greaterThan(early.rawVelocity!.abs()));
+    expect(mid.rawVelocity!.abs(), greaterThan(late.rawVelocity!.abs()));
   });
 }

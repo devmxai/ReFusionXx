@@ -2,6 +2,47 @@ import 'dart:math' as math;
 
 import 'professional_motion_animation_models.dart';
 
+class MotionCurveSample {
+  const MotionCurveSample({
+    required this.progress,
+    required this.value,
+    required this.velocity,
+    required this.acceleration,
+  });
+
+  final double progress;
+  final double value;
+  final double velocity;
+  final double acceleration;
+}
+
+MotionCurveSample evaluateMotionCurveSample(
+  MotionInterpolationSpec interpolation,
+  double progress,
+) {
+  final clampedProgress = progress.clamp(0.0, 1.0).toDouble();
+  return MotionCurveSample(
+    progress: clampedProgress,
+    value: evaluateMotionCurveProgress(interpolation, clampedProgress),
+    velocity: evaluateMotionCurveVelocity(interpolation, clampedProgress),
+    acceleration:
+        evaluateMotionCurveAcceleration(interpolation, clampedProgress),
+  );
+}
+
+List<MotionCurveSample> sampleMotionCurve(
+  MotionInterpolationSpec interpolation, {
+  int sampleCount = 30,
+}) {
+  final count = sampleCount < 2 ? 2 : sampleCount;
+  return List<MotionCurveSample>.unmodifiable(
+    List<MotionCurveSample>.generate(count, (index) {
+      final progress = index / (count - 1);
+      return evaluateMotionCurveSample(interpolation, progress);
+    }),
+  );
+}
+
 double evaluateMotionCurveProgress(
   MotionInterpolationSpec interpolation,
   double progress,
@@ -43,6 +84,62 @@ double evaluateMotionCurveProgress(
       return _evaluateElasticProgress(
         interpolation.elastic ?? kDefaultMotionElasticSpec,
         clampedProgress,
+      );
+  }
+}
+
+double evaluateMotionCurveVelocity(
+  MotionInterpolationSpec interpolation,
+  double progress,
+) {
+  final clampedProgress = progress.clamp(0.0, 1.0).toDouble();
+  switch (interpolation.kind) {
+    case MotionInterpolationKind.hold:
+      return 0.0;
+    case MotionInterpolationKind.linear:
+      return 1.0;
+    case MotionInterpolationKind.easeIn:
+      return 2.0 * clampedProgress;
+    case MotionInterpolationKind.easeOut:
+      return 2.0 - (2.0 * clampedProgress);
+    case MotionInterpolationKind.easeInOut:
+      if (clampedProgress < 0.5) {
+        return 4.0 * clampedProgress;
+      }
+      return 4.0 - (4.0 * clampedProgress);
+    case MotionInterpolationKind.cubicBezier:
+    case MotionInterpolationKind.spring:
+    case MotionInterpolationKind.bounce:
+    case MotionInterpolationKind.elastic:
+      return _finiteDifferenceVelocity(
+        interpolation: interpolation,
+        progress: clampedProgress,
+      );
+  }
+}
+
+double evaluateMotionCurveAcceleration(
+  MotionInterpolationSpec interpolation,
+  double progress,
+) {
+  final clampedProgress = progress.clamp(0.0, 1.0).toDouble();
+  switch (interpolation.kind) {
+    case MotionInterpolationKind.hold:
+    case MotionInterpolationKind.linear:
+      return 0.0;
+    case MotionInterpolationKind.easeIn:
+      return 2.0;
+    case MotionInterpolationKind.easeOut:
+      return -2.0;
+    case MotionInterpolationKind.easeInOut:
+      return clampedProgress < 0.5 ? 4.0 : -4.0;
+    case MotionInterpolationKind.cubicBezier:
+    case MotionInterpolationKind.spring:
+    case MotionInterpolationKind.bounce:
+    case MotionInterpolationKind.elastic:
+      return _finiteDifferenceAcceleration(
+        interpolation: interpolation,
+        progress: clampedProgress,
       );
   }
 }
@@ -105,8 +202,7 @@ double _evaluateSpringProgress(
     final dampedFrequency =
         naturalFrequency * math.sqrt(1 - (dampingRatio * dampingRatio));
     final c =
-        ((dampingRatio * naturalFrequency) - initialVelocity) /
-        dampedFrequency;
+        ((dampingRatio * naturalFrequency) - initialVelocity) / dampedFrequency;
     final envelope = math.exp(-dampingRatio * naturalFrequency * progress);
     return 1 -
         (envelope *
@@ -139,8 +235,7 @@ double _evaluateBounceProgress(
   if (bounce.amplitude <= 0 || bounce.bounces <= 0) {
     return base;
   }
-  final oscillation =
-      bounce.amplitude *
+  final oscillation = bounce.amplitude *
       math.pow(1 - progress, 0.65).toDouble() *
       math.exp(-bounce.decay * progress) *
       math.sin(math.pi * bounce.bounces * progress).abs();
@@ -159,13 +254,11 @@ double _evaluateElasticProgress(
     return base;
   }
   final period = elastic.period <= 0 ? 0.0001 : elastic.period;
-  final raw =
-      base +
+  final raw = base +
       (elastic.amplitude *
           math.sin((2 * math.pi / period) * progress) *
           math.exp(-elastic.decay * progress));
-  final endRaw =
-      1 +
+  final endRaw = 1 +
       (elastic.amplitude *
           math.sin((2 * math.pi / period)) *
           math.exp(-elastic.decay));
@@ -202,4 +295,41 @@ double _cubicDerivative(
   return (3.0 * inverse * inverse * (p1 - p0)) +
       (6.0 * inverse * t * (p2 - p1)) +
       (3.0 * t * t * (p3 - p2));
+}
+
+double _finiteDifferenceVelocity({
+  required MotionInterpolationSpec interpolation,
+  required double progress,
+}) {
+  final epsilon = _finiteDifferenceEpsilon(progress);
+  final left = (progress - epsilon).clamp(0.0, 1.0).toDouble();
+  final right = (progress + epsilon).clamp(0.0, 1.0).toDouble();
+  if ((right - left).abs() <= 0.0000001) {
+    return 0.0;
+  }
+  final leftProgress = evaluateMotionCurveProgress(interpolation, left);
+  final rightProgress = evaluateMotionCurveProgress(interpolation, right);
+  return (rightProgress - leftProgress) / (right - left);
+}
+
+double _finiteDifferenceAcceleration({
+  required MotionInterpolationSpec interpolation,
+  required double progress,
+}) {
+  final epsilon = _finiteDifferenceEpsilon(progress);
+  final left = (progress - epsilon).clamp(0.0, 1.0).toDouble();
+  final right = (progress + epsilon).clamp(0.0, 1.0).toDouble();
+  if ((right - left).abs() <= 0.0000001) {
+    return 0.0;
+  }
+  final leftVelocity = evaluateMotionCurveVelocity(interpolation, left);
+  final rightVelocity = evaluateMotionCurveVelocity(interpolation, right);
+  return (rightVelocity - leftVelocity) / (right - left);
+}
+
+double _finiteDifferenceEpsilon(double progress) {
+  if (progress <= 0.02 || progress >= 0.98) {
+    return 0.001;
+  }
+  return 0.0005;
 }
