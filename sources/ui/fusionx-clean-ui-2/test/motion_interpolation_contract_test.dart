@@ -108,54 +108,84 @@ void main() {
   });
 
   test('named interpolation aliases map to professional velocity presets', () {
+    final easyEase = tryParseNamedMotionInterpolationSpec('easyEase');
     final f9 = tryParseNamedMotionInterpolationSpec('f9');
     final slowFastSlow = tryParseNamedMotionInterpolationSpec('slowFastSlow');
+    final cinematicEase =
+        tryParseNamedMotionInterpolationSpec('cinematicEase');
     final whip = tryParseNamedMotionInterpolationSpec('whip');
+    final smoothStart = tryParseNamedMotionInterpolationSpec('smoothStart');
+    final smoothStop = tryParseNamedMotionInterpolationSpec('smoothStop');
     final custom = tryParseNamedMotionInterpolationSpec('velocityGraph');
 
+    expect(easyEase, isNotNull);
+    expect(easyEase!.velocity?.presetId, 'easyEase');
     expect(f9, isNotNull);
     expect(f9!.velocity?.presetId, 'easyEase');
     expect(slowFastSlow, isNotNull);
     expect(slowFastSlow!.velocity?.presetId, 'slowFastSlow');
+    expect(cinematicEase, isNotNull);
+    expect(cinematicEase!.velocity?.presetId, 'easyEase');
     expect(whip, isNotNull);
     expect(whip!.velocity?.presetId, 'whipSnap');
+    expect(smoothStart, isNotNull);
+    expect(smoothStart!.velocity?.presetId, 'smoothStart');
+    expect(smoothStop, isNotNull);
+    expect(smoothStop!.velocity?.presetId, 'smoothStop');
     expect(custom, isNotNull);
     expect(custom!.velocity?.presetId, 'customSpeedGraph');
   });
 
+  test('canonical easeIn/easeOut remain interpolation kinds', () {
+    final easeIn = tryParseNamedMotionInterpolationSpec('easeIn');
+    final easeOut = tryParseNamedMotionInterpolationSpec('easeOut');
+
+    expect(easeIn, isNotNull);
+    expect(easeIn!.kind, MotionInterpolationKind.easeIn);
+    expect(easeIn.velocity, isNull);
+    expect(easeOut, isNotNull);
+    expect(easeOut!.kind, MotionInterpolationKind.easeOut);
+    expect(easeOut.velocity, isNull);
+  });
+
   test('named velocity presets survive export interpolation bridge', () {
-    final parsed = tryParseNamedMotionInterpolationSpec('slowFastSlow');
-    expect(parsed, isNotNull);
-    final export = ExportMotionInterpolationSpec(
-      kind: parsed!.kind.name,
-      bezier: parsed.bezier == null
-          ? null
-          : ExportMotionBezierControlPoints(
-              x1: parsed.bezier!.x1,
-              y1: parsed.bezier!.y1,
-              x2: parsed.bezier!.x2,
-              y2: parsed.bezier!.y2,
-            ),
-      velocity: parsed.velocity == null
-          ? null
-          : ExportMotionVelocitySpec(
-              incomingSpeed: parsed.velocity!.incomingSpeed,
-              outgoingSpeed: parsed.velocity!.outgoingSpeed,
-              incomingInfluence: parsed.velocity!.incomingInfluence,
-              outgoingInfluence: parsed.velocity!.outgoingInfluence,
-              incomingHandleLocked: parsed.velocity!.incomingHandleLocked,
-              outgoingHandleLocked: parsed.velocity!.outgoingHandleLocked,
-              continuous: parsed.velocity!.continuous,
-              roving: parsed.velocity!.roving,
-              presetId: parsed.velocity!.presetId,
-            ),
-    );
-    final map = export.toBridgeMap();
-    final velocity = map['velocity'] as Map<String, Object?>?;
-    expect(velocity, isNotNull);
-    expect(velocity!['presetId'], 'slowFastSlow');
-    expect(velocity['incomingInfluence'], 85.0);
-    expect(velocity['outgoingInfluence'], 85.0);
+    const aliases = <String, String>{
+      'easyEase': 'easyEase',
+      'slowFastSlow': 'slowFastSlow',
+      'customSpeedGraph': 'customSpeedGraph',
+    };
+    for (final entry in aliases.entries) {
+      final parsed = tryParseNamedMotionInterpolationSpec(entry.key);
+      expect(parsed, isNotNull, reason: entry.key);
+      final export = ExportMotionInterpolationSpec(
+        kind: parsed!.kind.name,
+        bezier: parsed.bezier == null
+            ? null
+            : ExportMotionBezierControlPoints(
+                x1: parsed.bezier!.x1,
+                y1: parsed.bezier!.y1,
+                x2: parsed.bezier!.x2,
+                y2: parsed.bezier!.y2,
+              ),
+        velocity: parsed.velocity == null
+            ? null
+            : ExportMotionVelocitySpec(
+                incomingSpeed: parsed.velocity!.incomingSpeed,
+                outgoingSpeed: parsed.velocity!.outgoingSpeed,
+                incomingInfluence: parsed.velocity!.incomingInfluence,
+                outgoingInfluence: parsed.velocity!.outgoingInfluence,
+                incomingHandleLocked: parsed.velocity!.incomingHandleLocked,
+                outgoingHandleLocked: parsed.velocity!.outgoingHandleLocked,
+                continuous: parsed.velocity!.continuous,
+                roving: parsed.velocity!.roving,
+                presetId: parsed.velocity!.presetId,
+              ),
+      );
+      final map = export.toBridgeMap();
+      final velocity = map['velocity'] as Map<String, Object?>?;
+      expect(velocity, isNotNull, reason: entry.key);
+      expect(velocity!['presetId'], entry.value, reason: entry.key);
+    }
   });
 
   test('export interpolation bridge preserves bounce and elastic params', () {

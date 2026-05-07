@@ -128,6 +128,71 @@ void main() {
       positionY.keyframes.first.interpolationToNext.kind,
       MotionInterpolationKind.easeOut,
     );
+    expect(positionY.keyframes.first.interpolationToNext.velocity, isNull);
+  });
+
+  test('scene-program easing aliases lower into editable velocity contracts', () {
+    const aliasExpectations = <String, String>{
+      'easyEase': 'easyEase',
+      'f9': 'easyEase',
+      'slowFastSlow': 'slowFastSlow',
+      'speedGraph': 'customSpeedGraph',
+      'velocityGraph': 'customSpeedGraph',
+      'cinematicEase': 'easyEase',
+      'whip': 'whipSnap',
+      'smoothStart': 'smoothStart',
+      'smoothStop': 'smoothStop',
+    };
+
+    for (final entry in aliasExpectations.entries) {
+      final importResult = importService.validate(
+        source: '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "name": "Velocity Alias ${entry.key}",
+  "durationMs": 1200,
+  "frameRate": 30,
+  "layers": [
+    {
+      "id": "layer-1",
+      "kind": "text",
+      "startMs": 0,
+      "durationMs": 1200,
+      "elements": [
+        {
+          "id": "title",
+          "kind": "text",
+          "text": "Alias",
+          "channels": [
+            {
+              "property": "opacity",
+              "keyframes": [
+                { "timeMs": 0, "value": 0.0, "easing": "${entry.key}" },
+                { "timeMs": 600, "value": 1.0, "easing": "linear" }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+''',
+      );
+      expect(importResult.isValid, isTrue, reason: entry.key);
+
+      final result = lowerer.lower(
+        ReFusionSceneProgramLoweringRequest(program: importResult.program!),
+      );
+      expect(result.hasErrors, isFalse, reason: entry.key);
+
+      final opacity = result.channels.singleWhere(
+        (channel) => channel.definition.id == MotionPropertyCatalog.opacity.id,
+      );
+      final velocity = opacity.keyframes.first.interpolationToNext.velocity;
+      expect(velocity, isNotNull, reason: entry.key);
+      expect(velocity!.presetId, entry.value, reason: entry.key);
+    }
   });
 
   test('offsets delayed layer keyframes into project time before runtime eval',
