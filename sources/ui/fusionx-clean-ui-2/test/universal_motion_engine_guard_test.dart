@@ -1248,6 +1248,8 @@ void main() {
     final source = await screenFile.readAsString();
     expect(source.contains('TF_VELOCITY_MB_VELOCITY_PROOF'), isTrue);
     expect(source.contains('speedGraphPreset='), isTrue);
+    expect(source.contains('curveHash='), isTrue);
+    expect(source.contains('velocityHash='), isTrue);
     expect(source.contains('motionBlurDirectiveHash='), isTrue);
     expect(source.contains('TF_EFFECT_PARITY_PROOF'), isFalse);
   });

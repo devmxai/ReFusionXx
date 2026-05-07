@@ -24260,6 +24260,24 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             scaleVelocityY.abs() > 0.00001)
         ? (authoredPreset ?? 'authoredVelocityFromMasterEvaluator')
         : 'none';
+    final curveHash = Object.hashAll(<Object?>[
+      targetId,
+      authoredPreset ?? 'none',
+      authoredVelocityX ?? dx / safeDt,
+      authoredVelocityY ?? dy / safeDt,
+      authoredRotationVelocityDegreesPerSecond ?? angularVelocityAtTime,
+      authoredScaleVelocityX ?? scaleVelocityX / safeDt,
+      authoredScaleVelocityY ?? scaleVelocityY / safeDt,
+    ]).toUnsigned(32);
+    final velocityHash = Object.hashAll(<Object?>[
+      positionVelocityPx,
+      directionX,
+      directionY,
+      angularVelocityAtTime,
+      scaleVelocityX,
+      scaleVelocityY,
+      speedGraphPreset,
+    ]).toUnsigned(32);
     return _AuthoredMotionVelocityProbe(
       positionVelocityPx: positionVelocityPx,
       directionX: directionX,
@@ -24268,6 +24286,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       scaleVelocityX: scaleVelocityX,
       scaleVelocityY: scaleVelocityY,
       speedGraphPreset: speedGraphPreset,
+      curveHash: curveHash,
+      velocityHash: velocityHash,
     );
   }
 
@@ -24395,6 +24415,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       'angularVelocityAtTime=${velocityProbe.angularVelocityAtTime} '
       'scaleVelocityAtTime=${velocityProbe.scaleVelocityX},${velocityProbe.scaleVelocityY} '
       'speedGraphPreset=${velocityProbe.speedGraphPreset} '
+      'curveHash=${velocityProbe.curveHash} '
+      'velocityHash=${velocityProbe.velocityHash} '
       'sampleCount=${directive.sampleCount} '
       'shutterAngle=${directive.shutterAngleDegrees} '
       'motionBlurDirectiveHash=$motionBlurDirectiveHash '
@@ -28872,6 +28894,8 @@ class _AuthoredMotionVelocityProbe {
     required this.scaleVelocityX,
     required this.scaleVelocityY,
     required this.speedGraphPreset,
+    required this.curveHash,
+    required this.velocityHash,
   });
 
   final double positionVelocityPx;
@@ -28881,4 +28905,6 @@ class _AuthoredMotionVelocityProbe {
   final double scaleVelocityX;
   final double scaleVelocityY;
   final String speedGraphPreset;
+  final int curveHash;
+  final int velocityHash;
 }
