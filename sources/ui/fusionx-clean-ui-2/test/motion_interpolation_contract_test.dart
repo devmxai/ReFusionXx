@@ -123,6 +123,41 @@ void main() {
     expect(custom!.velocity?.presetId, 'customSpeedGraph');
   });
 
+  test('named velocity presets survive export interpolation bridge', () {
+    final parsed = tryParseNamedMotionInterpolationSpec('slowFastSlow');
+    expect(parsed, isNotNull);
+    final export = ExportMotionInterpolationSpec(
+      kind: parsed!.kind.name,
+      bezier: parsed.bezier == null
+          ? null
+          : ExportMotionBezierControlPoints(
+              x1: parsed.bezier!.x1,
+              y1: parsed.bezier!.y1,
+              x2: parsed.bezier!.x2,
+              y2: parsed.bezier!.y2,
+            ),
+      velocity: parsed.velocity == null
+          ? null
+          : ExportMotionVelocitySpec(
+              incomingSpeed: parsed.velocity!.incomingSpeed,
+              outgoingSpeed: parsed.velocity!.outgoingSpeed,
+              incomingInfluence: parsed.velocity!.incomingInfluence,
+              outgoingInfluence: parsed.velocity!.outgoingInfluence,
+              incomingHandleLocked: parsed.velocity!.incomingHandleLocked,
+              outgoingHandleLocked: parsed.velocity!.outgoingHandleLocked,
+              continuous: parsed.velocity!.continuous,
+              roving: parsed.velocity!.roving,
+              presetId: parsed.velocity!.presetId,
+            ),
+    );
+    final map = export.toBridgeMap();
+    final velocity = map['velocity'] as Map<String, Object?>?;
+    expect(velocity, isNotNull);
+    expect(velocity!['presetId'], 'slowFastSlow');
+    expect(velocity['incomingInfluence'], 85.0);
+    expect(velocity['outgoingInfluence'], 85.0);
+  });
+
   test('export interpolation bridge preserves bounce and elastic params', () {
     const interpolation = ExportMotionInterpolationSpec(
       kind: 'bounce',
