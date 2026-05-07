@@ -23775,6 +23775,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             .round();
     final transformDeltaHash =
         primarySurface.transformMatrix3x3.join(',').hashCode;
+    final velocityHash = primarySurface.motionBlurDirective == null
+        ? 0
+        : '${primarySurface.motionBlurDirective!.kernelLengthPx},'
+                '${primarySurface.motionBlurDirective!.directionX},'
+                '${primarySurface.motionBlurDirective!.directionY},'
+                '${primarySurface.motionBlurDirective!.radialOmega},'
+                '${primarySurface.motionBlurDirective!.scaleVelocityX},'
+                '${primarySurface.motionBlurDirective!.scaleVelocityY}'
+            .hashCode;
     final tileBoundsHash = primarySurface.edgeFillDirective == null
         ? 0
         : '${primarySurface.edgeFillDirective!.sourceRectLeft},'
@@ -23788,6 +23797,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       'timelineTimeMs=${runtimeState.timelineTimeMs} '
       'effectHash=${packet?.effectValuesHash ?? 0} '
       'semanticHash=$semanticHash '
+      'velocityHash=$velocityHash '
       'qualitySampleCount=$qualitySampleCount '
       'shutterWindowMs=$shutterWindowMs '
       'transformDeltaHash=$transformDeltaHash '
