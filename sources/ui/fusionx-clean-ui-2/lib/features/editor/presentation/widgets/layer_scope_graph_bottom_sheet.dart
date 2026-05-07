@@ -8,6 +8,7 @@ import '../../domain/models/professional_motion_animation_models.dart';
 import '../../domain/models/professional_motion_interpolation_evaluator.dart';
 import '../../domain/services/motion_interpolation_truth_compiler.dart';
 import '../../domain/services/professional_speed_graph_preset_catalog.dart';
+import '../../domain/services/speed_graph_custom_preset_persistence_service.dart';
 import 'professional_speed_graph_preset_grid.dart';
 
 enum LayerScopeGraphMode {
@@ -51,6 +52,7 @@ class LayerScopeGraphBottomSheet extends StatefulWidget {
     this.onPresetSelected,
     this.onVelocityChanged,
     this.propertyPath,
+    this.customPresetPersistenceService,
     required this.onDone,
   });
 
@@ -63,6 +65,8 @@ class LayerScopeGraphBottomSheet extends StatefulWidget {
   final ValueChanged<LayerScopeGraphSpeedPreset>? onPresetSelected;
   final GraphVelocityChanged? onVelocityChanged;
   final String? propertyPath;
+  final SpeedGraphCustomPresetPersistenceService?
+      customPresetPersistenceService;
   final VoidCallback onDone;
 
   @override
@@ -90,9 +94,12 @@ class _LayerScopeGraphBottomSheetState
   late LayerScopeGraphSpeedPreset _selectedPreset;
   late _GraphEditorTab _selectedTab;
   late MotionKeyframeVelocity _velocity;
+  late final SpeedGraphCustomPresetPersistenceService _customPresetService;
   MotionInterpolationSpec? _curveClipboard;
   final List<MotionInterpolationSpec> _recentCurves =
       <MotionInterpolationSpec>[];
+  List<SpeedGraphCustomPresetRecord> _myPresets =
+      <SpeedGraphCustomPresetRecord>[];
   _GraphHandleDragTarget? _activeHandle;
 
   @override
@@ -102,12 +109,15 @@ class _LayerScopeGraphBottomSheetState
     _mode = widget.initialMode;
     _selectedPreset = widget.selectedPreset;
     _selectedTab = _GraphEditorTab.presets;
+    _customPresetService = widget.customPresetPersistenceService ??
+        SpeedGraphCustomPresetPersistenceService.instance;
     _velocity = widget.initialVelocity ??
         _velocityForPreset(widget.selectedPreset).copyWith(
           incomingHandleLocked: true,
           outgoingHandleLocked: true,
           continuous: true,
         );
+    _myPresets = _customPresetService.listPresets();
   }
 
   @override
@@ -254,6 +264,46 @@ class _LayerScopeGraphBottomSheetState
                 interpolation: interpolation,
                 editType: 'recentCurve',
               );
+            },
+          ),
+        ],
+        if (_myPresets.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          const Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'My Presets',
+              style: TextStyle(
+                color: FxPalette.textFaint,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          _MyPresetStrip(
+            presets: _myPresets,
+            onApply: (preset) {
+              final interpolation =
+                  _customPresetService.loadInterpolationByPresetId(
+                preset.presetId,
+              );
+              if (interpolation == null) {
+                return;
+              }
+              _applyInterpolationClipboard(
+                interpolation: interpolation,
+                editType: 'apply',
+              );
+              setState(() {
+                _myPresets = _customPresetService.listPresets();
+              });
+            },
+            onDelete: (preset) {
+              _customPresetService.deletePreset(preset.presetId);
+              setState(() {
+                _myPresets = _customPresetService.listPresets();
+              });
             },
           ),
         ],
@@ -585,6 +635,24 @@ class _LayerScopeGraphBottomSheetState
                 interpolation: interpolation,
                 editType: 'pasteLane',
               );
+            },
+          ),
+          const SizedBox(width: 8),
+          actionButton(
+            label: 'Save Preset',
+            icon: Icons.bookmark_add_rounded,
+            onTap: () {
+              final saved = _customPresetService.saveInterpolation(
+                interpolation: _currentInterpolationSpec(),
+                selectedLaneId: 'unknown',
+                selectedKeyframeId: 'unknown',
+              );
+              if (saved == null) {
+                return;
+              }
+              setState(() {
+                _myPresets = _customPresetService.listPresets();
+              });
             },
           ),
         ],
@@ -1467,6 +1535,72 @@ class _RecentCurvesStrip extends StatelessWidget {
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
                   ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MyPresetStrip extends StatelessWidget {
+  const _MyPresetStrip({
+    required this.presets,
+    required this.onApply,
+    required this.onDelete,
+  });
+
+  final List<SpeedGraphCustomPresetRecord> presets;
+  final ValueChanged<SpeedGraphCustomPresetRecord> onApply;
+  final ValueChanged<SpeedGraphCustomPresetRecord> onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (var index = 0; index < presets.length; index++) ...[
+            if (index > 0) const SizedBox(width: 6),
+            InkWell(
+              onTap: () => onApply(presets[index]),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                height: 30,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: FxPalette.surfaceRaised.withOpacity(0.82),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.white.withOpacity(0.1)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      presets[index].label,
+                      style: const TextStyle(
+                        color: FxPalette.textPrimary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    InkWell(
+                      onTap: () => onDelete(presets[index]),
+                      borderRadius: BorderRadius.circular(999),
+                      child: const Padding(
+                        padding: EdgeInsets.all(2),
+                        child: Icon(
+                          Icons.close_rounded,
+                          size: 12,
+                          color: FxPalette.textFaint,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
