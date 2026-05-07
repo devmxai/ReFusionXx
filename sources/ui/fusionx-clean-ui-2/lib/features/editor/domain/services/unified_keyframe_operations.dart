@@ -31,6 +31,13 @@ enum UnifiedKeyframeAddCollisionPolicy {
   reject,
 }
 
+enum UnifiedEasyEaseMode {
+  easyEase,
+  easyEaseIn,
+  easyEaseOut,
+  removeEase,
+}
+
 @immutable
 class UnifiedKeyframeIssue {
   const UnifiedKeyframeIssue({
@@ -171,6 +178,23 @@ class UnifiedKeyframeDeleteRequest {
 }
 
 @immutable
+class UnifiedKeyframeEasyEaseRequest {
+  UnifiedKeyframeEasyEaseRequest({
+    required List<MotionPropertyChannelModel> channels,
+    required Set<String> keyframeIds,
+    required this.mode,
+    Set<String> selection = const <String>{},
+  })  : channels = List.unmodifiable(channels),
+        keyframeIds = Set.unmodifiable(keyframeIds),
+        selection = Set.unmodifiable(selection);
+
+  final List<MotionPropertyChannelModel> channels;
+  final Set<String> keyframeIds;
+  final UnifiedEasyEaseMode mode;
+  final Set<String> selection;
+}
+
+@immutable
 class UnifiedKeyframeSelectionResult {
   const UnifiedKeyframeSelectionResult({
     required this.selectedKeyframeIds,
@@ -190,6 +214,27 @@ class UnifiedKeyframeOperations {
 
   final UnifiedKeyframeChannelIdFactory _channelIdFactory;
   final UnifiedKeyframeIdFactory _keyframeIdFactory;
+  static const MotionInterpolationSpec _afterEffectsEasyEaseInterpolation =
+      MotionInterpolationSpec.cubicBezier(
+    bezier: MotionBezierControlPoints(
+      x1: 0.3333,
+      y1: 0.0,
+      x2: 0.6667,
+      y2: 1.0,
+    ),
+  );
+  static const MotionKeyframeVelocity _easyEaseVelocity =
+      MotionKeyframeVelocity(
+    incomingSpeed: 0.0,
+    outgoingSpeed: 0.0,
+    incomingInfluence: 33.333,
+    outgoingInfluence: 33.333,
+    incomingHandleLocked: false,
+    outgoingHandleLocked: false,
+    continuous: true,
+    roving: false,
+    presetId: 'easyEase',
+  );
 
   UnifiedKeyframeOperationResult addKeyframe(
     UnifiedKeyframeAddRequest request,
@@ -557,6 +602,60 @@ class UnifiedKeyframeOperations {
     );
   }
 
+  UnifiedKeyframeOperationResult applyEasyEase(
+    UnifiedKeyframeEasyEaseRequest request,
+  ) {
+    if (request.keyframeIds.isEmpty) {
+      return UnifiedKeyframeOperationResult(
+        channels: request.channels,
+        issues: const <UnifiedKeyframeIssue>[
+          UnifiedKeyframeIssue(
+            code: UnifiedKeyframeIssueCode.emptySelection,
+            message: 'No keyframes were selected.',
+          ),
+        ],
+      );
+    }
+    final located = _locateKeyframes(
+      request.channels,
+      keyframeIds: request.keyframeIds,
+    );
+    if (located.issues.isNotEmpty) {
+      return UnifiedKeyframeOperationResult(
+        channels: request.channels,
+        issues: located.issues,
+      );
+    }
+    final changedIds = <String>{};
+    final nextChannels = <MotionPropertyChannelModel>[];
+    for (final channel in request.channels) {
+      var updated = false;
+      final nextKeyframes = channel.keyframes.map((keyframe) {
+        if (!request.keyframeIds.contains(keyframe.id)) {
+          return keyframe;
+        }
+        updated = true;
+        changedIds.add(keyframe.id);
+        return keyframe.copyWith(
+          interpolationToNext: _interpolationForEasyEase(
+            original: keyframe.interpolationToNext,
+            mode: request.mode,
+          ),
+        );
+      }).toList(growable: false);
+      nextChannels.add(
+        updated ? channel.copyWith(keyframes: nextKeyframes) : channel,
+      );
+    }
+
+    return UnifiedKeyframeOperationResult(
+      channels: nextChannels,
+      selectedKeyframeIds:
+          request.selection.isEmpty ? request.keyframeIds : request.selection,
+      changedKeyframeIds: changedIds,
+    );
+  }
+
   UnifiedKeyframeSelectionResult selectKeyframe({
     required Iterable<MotionPropertyChannelModel> channels,
     required String keyframeId,
@@ -756,6 +855,38 @@ class UnifiedKeyframeOperations {
     final upperTick = endTick > startTick ? endTick - 1 : startTick;
     final upper = TimelineTime.fromProjectTicks(upperTick);
     return time.clamp(activeRange.start, upper);
+  }
+
+  MotionInterpolationSpec _interpolationForEasyEase({
+    required MotionInterpolationSpec original,
+    required UnifiedEasyEaseMode mode,
+  }) {
+    switch (mode) {
+      case UnifiedEasyEaseMode.easyEase:
+        return _afterEffectsEasyEaseInterpolation.copyWith(
+          velocity: _easyEaseVelocity,
+        );
+      case UnifiedEasyEaseMode.easyEaseIn:
+        final currentVelocity = original.velocity;
+        return _afterEffectsEasyEaseInterpolation.copyWith(
+          velocity: (currentVelocity ?? _easyEaseVelocity).copyWith(
+            incomingSpeed: 0.0,
+            incomingInfluence: 33.333,
+            presetId: 'easyEaseIn',
+          ),
+        );
+      case UnifiedEasyEaseMode.easyEaseOut:
+        final currentVelocity = original.velocity;
+        return _afterEffectsEasyEaseInterpolation.copyWith(
+          velocity: (currentVelocity ?? _easyEaseVelocity).copyWith(
+            outgoingSpeed: 0.0,
+            outgoingInfluence: 33.333,
+            presetId: 'easyEaseOut',
+          ),
+        );
+      case UnifiedEasyEaseMode.removeEase:
+        return const MotionInterpolationSpec.linear();
+    }
   }
 
   TimelineTimeRange _rangeForChannel(MotionPropertyChannelModel channel) {

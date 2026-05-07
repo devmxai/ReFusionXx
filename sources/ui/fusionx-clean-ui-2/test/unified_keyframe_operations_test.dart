@@ -251,4 +251,60 @@ void main() {
     expect(selection.selectedKeyframeIds, <String>{keyframe.id});
     expect(deleted.channels.single.keyframes, isEmpty);
   });
+
+  test('apply Easy Ease writes velocity contract without moving keyframes', () {
+    final first = addScalar(
+      channels: const <MotionPropertyChannelModel>[],
+      definition: MotionPropertyCatalog.opacity,
+      time: 1,
+      value: 0.1,
+    );
+    final second = addScalar(
+      channels: first.channels,
+      definition: MotionPropertyCatalog.opacity,
+      time: 3,
+      value: 0.9,
+    );
+    final channel = second.channels.single;
+    final firstKeyframe = channel.keyframes.first;
+    final secondKeyframe = channel.keyframes.last;
+
+    final eased = operations.applyEasyEase(
+      UnifiedKeyframeEasyEaseRequest(
+        channels: second.channels,
+        keyframeIds: <String>{firstKeyframe.id},
+        mode: UnifiedEasyEaseMode.easyEase,
+      ),
+    );
+
+    expect(eased.hasIssues, isFalse);
+    final easedChannel = eased.channels.single;
+    expect(easedChannel.keyframes.first.time, firstKeyframe.time);
+    expect(easedChannel.keyframes.first.value.rawValue,
+        firstKeyframe.value.rawValue);
+    expect(easedChannel.keyframes.last.time, secondKeyframe.time);
+    expect(
+      easedChannel.keyframes.first.interpolationToNext.kind,
+      MotionInterpolationKind.cubicBezier,
+    );
+    final velocity = easedChannel.keyframes.first.interpolationToNext.velocity;
+    expect(velocity, isNotNull);
+    expect(velocity!.incomingSpeed, 0.0);
+    expect(velocity.outgoingSpeed, 0.0);
+    expect(velocity.incomingInfluence, closeTo(33.333, 0.001));
+    expect(velocity.outgoingInfluence, closeTo(33.333, 0.001));
+    expect(velocity.presetId, 'easyEase');
+
+    final removed = operations.applyEasyEase(
+      UnifiedKeyframeEasyEaseRequest(
+        channels: eased.channels,
+        keyframeIds: <String>{firstKeyframe.id},
+        mode: UnifiedEasyEaseMode.removeEase,
+      ),
+    );
+    expect(
+      removed.channels.single.keyframes.first.interpolationToNext.kind,
+      MotionInterpolationKind.linear,
+    );
+  });
 }
