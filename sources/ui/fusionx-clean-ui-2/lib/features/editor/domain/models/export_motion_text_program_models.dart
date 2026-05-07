@@ -100,6 +100,7 @@ class ExportMotionInterpolationSpec {
     this.spring,
     this.bounce,
     this.elastic,
+    this.velocity,
   });
 
   final String kind;
@@ -107,6 +108,7 @@ class ExportMotionInterpolationSpec {
   final ExportMotionSpringSpec? spring;
   final ExportMotionBounceSpec? bounce;
   final ExportMotionElasticSpec? elastic;
+  final ExportMotionVelocitySpec? velocity;
 
   Map<String, Object?> toBridgeMap() => <String, Object?>{
         'kind': kind,
@@ -114,6 +116,44 @@ class ExportMotionInterpolationSpec {
         'spring': spring?.toBridgeMap(),
         'bounce': bounce?.toBridgeMap(),
         'elastic': elastic?.toBridgeMap(),
+        'velocity': velocity?.toBridgeMap(),
+      };
+}
+
+@immutable
+class ExportMotionVelocitySpec {
+  const ExportMotionVelocitySpec({
+    this.incomingSpeed,
+    this.outgoingSpeed,
+    this.incomingInfluence,
+    this.outgoingInfluence,
+    this.incomingHandleLocked = false,
+    this.outgoingHandleLocked = false,
+    this.continuous = false,
+    this.roving = false,
+    this.presetId,
+  });
+
+  final double? incomingSpeed;
+  final double? outgoingSpeed;
+  final double? incomingInfluence;
+  final double? outgoingInfluence;
+  final bool incomingHandleLocked;
+  final bool outgoingHandleLocked;
+  final bool continuous;
+  final bool roving;
+  final String? presetId;
+
+  Map<String, Object?> toBridgeMap() => <String, Object?>{
+        'incomingSpeed': incomingSpeed,
+        'outgoingSpeed': outgoingSpeed,
+        'incomingInfluence': incomingInfluence,
+        'outgoingInfluence': outgoingInfluence,
+        'incomingHandleLocked': incomingHandleLocked,
+        'outgoingHandleLocked': outgoingHandleLocked,
+        'continuous': continuous,
+        'roving': roving,
+        'presetId': presetId,
       };
 }
 
@@ -617,6 +657,19 @@ ExportMotionInterpolationSpec _exportInterpolationFromMotion(
             amplitude: interpolation.elastic!.amplitude,
             period: interpolation.elastic!.period,
             decay: interpolation.elastic!.decay,
+          ),
+    velocity: interpolation.velocity == null
+        ? null
+        : ExportMotionVelocitySpec(
+            incomingSpeed: interpolation.velocity!.incomingSpeed,
+            outgoingSpeed: interpolation.velocity!.outgoingSpeed,
+            incomingInfluence: interpolation.velocity!.incomingInfluence,
+            outgoingInfluence: interpolation.velocity!.outgoingInfluence,
+            incomingHandleLocked: interpolation.velocity!.incomingHandleLocked,
+            outgoingHandleLocked: interpolation.velocity!.outgoingHandleLocked,
+            continuous: interpolation.velocity!.continuous,
+            roving: interpolation.velocity!.roving,
+            presetId: interpolation.velocity!.presetId,
           ),
   );
 }

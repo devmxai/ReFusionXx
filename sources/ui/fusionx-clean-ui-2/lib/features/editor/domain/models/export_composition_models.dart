@@ -3883,6 +3883,21 @@ Map<String, Object?> _motionInterpolationBridgeMap(
             'period': interpolation.elastic!.period,
             'decay': interpolation.elastic!.decay,
           },
+    'velocity': interpolation.velocity == null
+        ? null
+        : <String, Object?>{
+            'incomingSpeed': interpolation.velocity!.incomingSpeed,
+            'outgoingSpeed': interpolation.velocity!.outgoingSpeed,
+            'incomingInfluence': interpolation.velocity!.incomingInfluence,
+            'outgoingInfluence': interpolation.velocity!.outgoingInfluence,
+            'incomingHandleLocked':
+                interpolation.velocity!.incomingHandleLocked,
+            'outgoingHandleLocked':
+                interpolation.velocity!.outgoingHandleLocked,
+            'continuous': interpolation.velocity!.continuous,
+            'roving': interpolation.velocity!.roving,
+            'presetId': interpolation.velocity!.presetId,
+          },
   };
 }
 

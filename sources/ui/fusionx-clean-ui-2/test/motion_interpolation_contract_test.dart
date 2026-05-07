@@ -4,6 +4,7 @@ import 'package:refusion_app/features/editor/domain/models/export_motion_text_pr
 import 'package:refusion_app/features/editor/domain/models/professional_motion_animation_models.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_compilation_models.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_interpolation_evaluator.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_interpolation_parsing.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_models.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_text_preset_serialization.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_text_models.dart';
@@ -38,6 +39,74 @@ void main() {
     expect(elastic.elastic!.period, 0.3);
   });
 
+  test('interpolation spec preserves keyframe velocity contract payload', () {
+    const interpolation = MotionInterpolationSpec.cubicBezier(
+      bezier: MotionBezierControlPoints(
+        x1: 0.3333,
+        y1: 0.0,
+        x2: 0.6667,
+        y2: 1.0,
+      ),
+    );
+    final withVelocity = interpolation.copyWith(
+      velocity: const MotionKeyframeVelocity(
+        incomingSpeed: 0.0,
+        outgoingSpeed: 120.0,
+        incomingInfluence: 33.333,
+        outgoingInfluence: 85.0,
+        incomingHandleLocked: true,
+        outgoingHandleLocked: false,
+        continuous: true,
+        roving: false,
+        presetId: 'slowFastSlow',
+      ),
+    );
+
+    expect(withVelocity.velocity, isNotNull);
+    expect(withVelocity.velocity!.incomingSpeed, 0.0);
+    expect(withVelocity.velocity!.outgoingSpeed, 120.0);
+    expect(withVelocity.velocity!.incomingInfluence, closeTo(33.333, 1e-6));
+    expect(withVelocity.velocity!.outgoingInfluence, 85.0);
+    expect(withVelocity.velocity!.incomingHandleLocked, isTrue);
+    expect(withVelocity.velocity!.continuous, isTrue);
+    expect(withVelocity.velocity!.presetId, 'slowFastSlow');
+  });
+
+  test('canonical interpolation parser reads velocity contract object', () {
+    final parsed = parseCanonicalMotionInterpolationObject(
+      <String, dynamic>{
+        'kind': 'cubicBezier',
+        'x1': 0.25,
+        'y1': 0.1,
+        'x2': 0.25,
+        'y2': 1.0,
+        'velocity': <String, dynamic>{
+          'incomingSpeed': 12.0,
+          'outgoingSpeed': 98.5,
+          'incomingInfluence': 40.0,
+          'outgoingInfluence': 80.0,
+          'incomingHandleLocked': true,
+          'outgoingHandleLocked': false,
+          'continuous': true,
+          'roving': true,
+          'presetId': 'easyEase',
+        },
+      },
+    );
+
+    expect(parsed.kind, MotionInterpolationKind.cubicBezier);
+    expect(parsed.velocity, isNotNull);
+    expect(parsed.velocity!.incomingSpeed, 12.0);
+    expect(parsed.velocity!.outgoingSpeed, 98.5);
+    expect(parsed.velocity!.incomingInfluence, 40.0);
+    expect(parsed.velocity!.outgoingInfluence, 80.0);
+    expect(parsed.velocity!.incomingHandleLocked, isTrue);
+    expect(parsed.velocity!.outgoingHandleLocked, isFalse);
+    expect(parsed.velocity!.continuous, isTrue);
+    expect(parsed.velocity!.roving, isTrue);
+    expect(parsed.velocity!.presetId, 'easyEase');
+  });
+
   test('export interpolation bridge preserves bounce and elastic params', () {
     const interpolation = ExportMotionInterpolationSpec(
       kind: 'bounce',
@@ -66,6 +135,41 @@ void main() {
     expect((elasticMap['elastic'] as Map<Object?, Object?>)['amplitude'], 0.14);
     expect((elasticMap['elastic'] as Map<Object?, Object?>)['period'], 0.28);
     expect((elasticMap['elastic'] as Map<Object?, Object?>)['decay'], 7.25);
+  });
+
+  test('export interpolation bridge preserves velocity params', () {
+    const interpolation = ExportMotionInterpolationSpec(
+      kind: 'cubicBezier',
+      bezier: ExportMotionBezierControlPoints(
+        x1: 0.3333,
+        y1: 0.0,
+        x2: 0.6667,
+        y2: 1.0,
+      ),
+      velocity: ExportMotionVelocitySpec(
+        incomingSpeed: 0.0,
+        outgoingSpeed: 124.0,
+        incomingInfluence: 33.333,
+        outgoingInfluence: 86.0,
+        incomingHandleLocked: true,
+        outgoingHandleLocked: false,
+        continuous: true,
+        roving: false,
+        presetId: 'slowFastSlow',
+      ),
+    );
+
+    final map = interpolation.toBridgeMap();
+    final velocity = map['velocity'] as Map<Object?, Object?>;
+    expect(velocity['incomingSpeed'], 0.0);
+    expect(velocity['outgoingSpeed'], 124.0);
+    expect(velocity['incomingInfluence'], closeTo(33.333, 1e-6));
+    expect(velocity['outgoingInfluence'], 86.0);
+    expect(velocity['incomingHandleLocked'], isTrue);
+    expect(velocity['outgoingHandleLocked'], isFalse);
+    expect(velocity['continuous'], isTrue);
+    expect(velocity['roving'], isFalse);
+    expect(velocity['presetId'], 'slowFastSlow');
   });
 
   test('spring evaluator produces a non-linear overshoot for underdamped specs',

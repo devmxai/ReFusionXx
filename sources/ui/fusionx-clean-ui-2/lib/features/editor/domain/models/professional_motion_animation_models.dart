@@ -23,6 +23,69 @@ enum MotionChannelExtrapolationMode {
 }
 
 @immutable
+class MotionKeyframeVelocity {
+  const MotionKeyframeVelocity({
+    this.incomingSpeed,
+    this.outgoingSpeed,
+    this.incomingInfluence,
+    this.outgoingInfluence,
+    this.incomingHandleLocked = false,
+    this.outgoingHandleLocked = false,
+    this.continuous = false,
+    this.roving = false,
+    this.presetId,
+  })  : assert(incomingInfluence == null ||
+            (incomingInfluence >= 0.0 && incomingInfluence <= 100.0)),
+        assert(outgoingInfluence == null ||
+            (outgoingInfluence >= 0.0 && outgoingInfluence <= 100.0));
+
+  final double? incomingSpeed;
+  final double? outgoingSpeed;
+  final double? incomingInfluence;
+  final double? outgoingInfluence;
+  final bool incomingHandleLocked;
+  final bool outgoingHandleLocked;
+  final bool continuous;
+  final bool roving;
+  final String? presetId;
+
+  MotionKeyframeVelocity copyWith({
+    double? incomingSpeed,
+    bool clearIncomingSpeed = false,
+    double? outgoingSpeed,
+    bool clearOutgoingSpeed = false,
+    double? incomingInfluence,
+    bool clearIncomingInfluence = false,
+    double? outgoingInfluence,
+    bool clearOutgoingInfluence = false,
+    bool? incomingHandleLocked,
+    bool? outgoingHandleLocked,
+    bool? continuous,
+    bool? roving,
+    String? presetId,
+    bool clearPresetId = false,
+  }) {
+    return MotionKeyframeVelocity(
+      incomingSpeed:
+          clearIncomingSpeed ? null : (incomingSpeed ?? this.incomingSpeed),
+      outgoingSpeed:
+          clearOutgoingSpeed ? null : (outgoingSpeed ?? this.outgoingSpeed),
+      incomingInfluence: clearIncomingInfluence
+          ? null
+          : (incomingInfluence ?? this.incomingInfluence),
+      outgoingInfluence: clearOutgoingInfluence
+          ? null
+          : (outgoingInfluence ?? this.outgoingInfluence),
+      incomingHandleLocked: incomingHandleLocked ?? this.incomingHandleLocked,
+      outgoingHandleLocked: outgoingHandleLocked ?? this.outgoingHandleLocked,
+      continuous: continuous ?? this.continuous,
+      roving: roving ?? this.roving,
+      presetId: clearPresetId ? null : (presetId ?? this.presetId),
+    );
+  }
+}
+
+@immutable
 class MotionBezierControlPoints {
   const MotionBezierControlPoints({
     required this.x1,
@@ -44,9 +107,9 @@ class MotionSpringSpec {
     required this.damping,
     this.mass = 1.0,
     this.initialVelocity = 0.0,
-  }) : assert(stiffness > 0),
-       assert(damping >= 0),
-       assert(mass > 0);
+  })  : assert(stiffness > 0),
+        assert(damping >= 0),
+        assert(mass > 0);
 
   final double stiffness;
   final double damping;
@@ -60,9 +123,9 @@ class MotionBounceSpec {
     required this.amplitude,
     required this.bounces,
     this.decay = 8.0,
-  }) : assert(amplitude >= 0),
-       assert(bounces >= 0),
-       assert(decay >= 0);
+  })  : assert(amplitude >= 0),
+        assert(bounces >= 0),
+        assert(decay >= 0);
 
   final double amplitude;
   final int bounces;
@@ -75,9 +138,9 @@ class MotionElasticSpec {
     required this.amplitude,
     required this.period,
     this.decay = 8.0,
-  }) : assert(amplitude >= 0),
-       assert(period > 0),
-       assert(decay >= 0);
+  })  : assert(amplitude >= 0),
+        assert(period > 0),
+        assert(decay >= 0);
 
   final double amplitude;
   final double period;
@@ -109,56 +172,81 @@ class MotionInterpolationSpec {
     this.spring,
     this.bounce,
     this.elastic,
+    this.velocity,
   });
 
   const MotionInterpolationSpec.hold()
-    : this(kind: MotionInterpolationKind.hold);
+      : this(kind: MotionInterpolationKind.hold);
 
   const MotionInterpolationSpec.linear()
-    : this(kind: MotionInterpolationKind.linear);
+      : this(kind: MotionInterpolationKind.linear);
 
   const MotionInterpolationSpec.easeIn()
-    : this(kind: MotionInterpolationKind.easeIn);
+      : this(kind: MotionInterpolationKind.easeIn);
 
   const MotionInterpolationSpec.easeOut()
-    : this(kind: MotionInterpolationKind.easeOut);
+      : this(kind: MotionInterpolationKind.easeOut);
 
   const MotionInterpolationSpec.easeInOut()
-    : this(kind: MotionInterpolationKind.easeInOut);
+      : this(kind: MotionInterpolationKind.easeInOut);
 
   const MotionInterpolationSpec.cubicBezier({
     required MotionBezierControlPoints bezier,
   }) : this(
-         kind: MotionInterpolationKind.cubicBezier,
-         bezier: bezier,
-       );
+          kind: MotionInterpolationKind.cubicBezier,
+          bezier: bezier,
+        );
 
   const MotionInterpolationSpec.spring({
     MotionSpringSpec spring = kDefaultMotionSpringSpec,
   }) : this(
-         kind: MotionInterpolationKind.spring,
-         spring: spring,
-       );
+          kind: MotionInterpolationKind.spring,
+          spring: spring,
+        );
 
   const MotionInterpolationSpec.bounce({
     MotionBounceSpec bounce = kDefaultMotionBounceSpec,
   }) : this(
-         kind: MotionInterpolationKind.bounce,
-         bounce: bounce,
-       );
+          kind: MotionInterpolationKind.bounce,
+          bounce: bounce,
+        );
 
   const MotionInterpolationSpec.elastic({
     MotionElasticSpec elastic = kDefaultMotionElasticSpec,
   }) : this(
-         kind: MotionInterpolationKind.elastic,
-         elastic: elastic,
-       );
+          kind: MotionInterpolationKind.elastic,
+          elastic: elastic,
+        );
 
   final MotionInterpolationKind kind;
   final MotionBezierControlPoints? bezier;
   final MotionSpringSpec? spring;
   final MotionBounceSpec? bounce;
   final MotionElasticSpec? elastic;
+  final MotionKeyframeVelocity? velocity;
+
+  MotionInterpolationSpec copyWith({
+    MotionInterpolationKind? kind,
+    MotionBezierControlPoints? bezier,
+    bool clearBezier = false,
+    MotionSpringSpec? spring,
+    bool clearSpring = false,
+    MotionBounceSpec? bounce,
+    bool clearBounce = false,
+    MotionElasticSpec? elastic,
+    bool clearElastic = false,
+    MotionKeyframeVelocity? velocity,
+    bool clearVelocity = false,
+  }) {
+    return MotionInterpolationSpec(
+      kind: kind ?? this.kind,
+      bezier: clearBezier ? null : (bezier ?? this.bezier),
+      spring: clearSpring ? null : (spring ?? this.spring),
+      bounce: clearBounce ? null : (bounce ?? this.bounce),
+      elastic: clearElastic ? null : (elastic ?? this.elastic),
+      velocity: clearVelocity ? null : (velocity ?? this.velocity),
+    );
+  }
 }
 
 @immutable

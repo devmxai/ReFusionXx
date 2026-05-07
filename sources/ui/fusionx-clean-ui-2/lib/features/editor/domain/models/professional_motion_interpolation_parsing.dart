@@ -84,17 +84,18 @@ MotionInterpolationSpec? tryParseNamedMotionInterpolationSpec(String raw) {
 MotionInterpolationSpec parseCanonicalMotionInterpolationObject(
   Map<String, dynamic> json,
 ) {
+  final velocity = _readOptionalVelocityContract(json);
   final rawKind = _readRequiredStringAlias(json, const <String>['kind']);
   final normalizedKind = _normalizeInterpolationToken(rawKind);
   if (normalizedKind == 'easyease') {
-    return const MotionInterpolationSpec.cubicBezier(
+    return MotionInterpolationSpec.cubicBezier(
       bezier: MotionBezierControlPoints(
         x1: 0.3333,
         y1: 0.0,
         x2: 0.6667,
         y2: 1.0,
       ),
-    );
+    ).copyWith(velocity: velocity);
   }
   final kind = tryParseCanonicalMotionInterpolationKind(rawKind);
   if (kind == null) {
@@ -111,65 +112,118 @@ MotionInterpolationSpec parseCanonicalMotionInterpolationObject(
           x2: _readRequiredDoubleAlias(json, const <String>['x2']),
           y2: _readRequiredDoubleAlias(json, const <String>['y2']),
         ),
-      );
+      ).copyWith(velocity: velocity);
     case MotionInterpolationKind.spring:
       return MotionInterpolationSpec.spring(
         spring: MotionSpringSpec(
           stiffness:
               _readOptionalDoubleAlias(json, const <String>['stiffness']) ??
-              kDefaultMotionSpringSpec.stiffness,
-          damping:
-              _readOptionalDoubleAlias(json, const <String>['damping']) ??
+                  kDefaultMotionSpringSpec.stiffness,
+          damping: _readOptionalDoubleAlias(json, const <String>['damping']) ??
               kDefaultMotionSpringSpec.damping,
-          mass:
-              _readOptionalDoubleAlias(json, const <String>['mass']) ??
+          mass: _readOptionalDoubleAlias(json, const <String>['mass']) ??
               kDefaultMotionSpringSpec.mass,
-          initialVelocity:
-              _readOptionalDoubleAlias(
+          initialVelocity: _readOptionalDoubleAlias(
                 json,
                 const <String>['initialVelocity', 'initial_velocity'],
               ) ??
               kDefaultMotionSpringSpec.initialVelocity,
         ),
-      );
+      ).copyWith(velocity: velocity);
     case MotionInterpolationKind.bounce:
       return MotionInterpolationSpec.bounce(
         bounce: MotionBounceSpec(
           amplitude:
               _readOptionalDoubleAlias(json, const <String>['amplitude']) ??
-              kDefaultMotionBounceSpec.amplitude,
-          bounces:
-              _readOptionalIntAlias(
+                  kDefaultMotionBounceSpec.amplitude,
+          bounces: _readOptionalIntAlias(
                 json,
                 const <String>['bounces', 'bounceCount', 'bounce_count'],
               ) ??
               kDefaultMotionBounceSpec.bounces,
-          decay:
-              _readOptionalDoubleAlias(json, const <String>['decay']) ??
+          decay: _readOptionalDoubleAlias(json, const <String>['decay']) ??
               kDefaultMotionBounceSpec.decay,
         ),
-      );
+      ).copyWith(velocity: velocity);
     case MotionInterpolationKind.elastic:
       return MotionInterpolationSpec.elastic(
         elastic: MotionElasticSpec(
           amplitude:
               _readOptionalDoubleAlias(json, const <String>['amplitude']) ??
-              kDefaultMotionElasticSpec.amplitude,
-          period:
-              _readOptionalDoubleAlias(json, const <String>['period']) ??
+                  kDefaultMotionElasticSpec.amplitude,
+          period: _readOptionalDoubleAlias(json, const <String>['period']) ??
               kDefaultMotionElasticSpec.period,
-          decay:
-              _readOptionalDoubleAlias(json, const <String>['decay']) ??
+          decay: _readOptionalDoubleAlias(json, const <String>['decay']) ??
               kDefaultMotionElasticSpec.decay,
         ),
-      );
+      ).copyWith(velocity: velocity);
     case MotionInterpolationKind.hold:
     case MotionInterpolationKind.linear:
     case MotionInterpolationKind.easeIn:
     case MotionInterpolationKind.easeOut:
     case MotionInterpolationKind.easeInOut:
-      return canonicalInterpolationSpecFromKind(kind);
+      return canonicalInterpolationSpecFromKind(kind).copyWith(
+        velocity: velocity,
+      );
   }
+}
+
+MotionKeyframeVelocity? _readOptionalVelocityContract(
+  Map<String, dynamic> json,
+) {
+  final dynamic rawVelocity = json['velocity'] ?? json['velocityContract'];
+  if (rawVelocity is! Map<Object?, Object?>) {
+    return null;
+  }
+  final velocity = <String, dynamic>{};
+  for (final entry in rawVelocity.entries) {
+    final key = entry.key;
+    if (key is String) {
+      velocity[key] = entry.value;
+    }
+  }
+  return MotionKeyframeVelocity(
+    incomingSpeed: _readOptionalDoubleAlias(velocity, const <String>[
+      'incomingSpeed',
+      'inSpeed',
+      'in_speed',
+    ]),
+    outgoingSpeed: _readOptionalDoubleAlias(velocity, const <String>[
+      'outgoingSpeed',
+      'outSpeed',
+      'out_speed',
+    ]),
+    incomingInfluence: _readOptionalDoubleAlias(velocity, const <String>[
+      'incomingInfluence',
+      'inInfluence',
+      'in_influence',
+    ]),
+    outgoingInfluence: _readOptionalDoubleAlias(velocity, const <String>[
+      'outgoingInfluence',
+      'outInfluence',
+      'out_influence',
+    ]),
+    incomingHandleLocked: _readOptionalBoolAlias(velocity, const <String>[
+          'incomingHandleLocked',
+          'inHandleLocked',
+          'in_handle_locked',
+        ]) ??
+        false,
+    outgoingHandleLocked: _readOptionalBoolAlias(velocity, const <String>[
+          'outgoingHandleLocked',
+          'outHandleLocked',
+          'out_handle_locked',
+        ]) ??
+        false,
+    continuous:
+        _readOptionalBoolAlias(velocity, const <String>['continuous']) ?? false,
+    roving: _readOptionalBoolAlias(velocity, const <String>['roving']) ?? false,
+    presetId: _readOptionalStringAlias(velocity, const <String>[
+      'presetId',
+      'preset',
+      'profile',
+    ]),
+  );
 }
 
 String _normalizeInterpolationToken(String raw) =>
@@ -239,6 +293,44 @@ int? _readOptionalIntAlias(
       if (parsed != null) {
         return parsed;
       }
+    }
+  }
+  return null;
+}
+
+bool? _readOptionalBoolAlias(
+  Map<String, dynamic> json,
+  List<String> keys,
+) {
+  for (final key in keys) {
+    final value = json[key];
+    if (value is bool) {
+      return value;
+    }
+    if (value is String) {
+      final normalized = value.trim().toLowerCase();
+      if (normalized == 'true' || normalized == '1' || normalized == 'yes') {
+        return true;
+      }
+      if (normalized == 'false' || normalized == '0' || normalized == 'no') {
+        return false;
+      }
+    }
+    if (value is num) {
+      return value != 0;
+    }
+  }
+  return null;
+}
+
+String? _readOptionalStringAlias(
+  Map<String, dynamic> json,
+  List<String> keys,
+) {
+  for (final key in keys) {
+    final value = json[key];
+    if (value is String && value.trim().isNotEmpty) {
+      return value.trim();
     }
   }
   return null;
