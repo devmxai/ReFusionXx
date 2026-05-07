@@ -87,6 +87,9 @@ void main() {
   final manualTransitionLaneAdapterFile = File(
     'lib/features/editor/presentation/services/manual_transition_lane_to_motion_channel_adapter.dart',
   );
+  final professionalInterpolationParsingFile = File(
+    'lib/features/editor/domain/models/professional_motion_interpolation_parsing.dart',
+  );
 
   test('master evaluation path uses universal evaluation service', () async {
     final source = await screenFile.readAsString();
@@ -284,6 +287,12 @@ void main() {
       isTrue,
     );
     expect(source.contains('_stage5MotionBlurSampleOffsetsMs('), isFalse);
+  });
+
+  test('speed graph AI parsing emits velocity proof diagnostics', () async {
+    final source = await professionalInterpolationParsingFile.readAsString();
+    expect(source.contains('TF_VELOCITY_AI_SCRIPT_PROOF'), isTrue);
+    expect(source.contains('compiledToExecutionTruth='), isTrue);
   });
 
   test('stage6 export requires trueframe execution contract for transitions',

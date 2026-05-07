@@ -1351,6 +1351,13 @@ Checkpoint:
 checkpoint: 2026-05-07 professional speed graph system 12 - custom preset persistence
 ```
 
+Status:
+
+```text
+completed
+commit: bfda29c
+```
+
 Required:
 
 - Save custom preset as Bezier truth.
@@ -1370,6 +1377,13 @@ Checkpoint:
 
 ```text
 checkpoint: 2026-05-07 professional speed graph system 13 - temporal spatial separation prep
+```
+
+Status:
+
+```text
+completed
+commit: 95ebe7a
 ```
 
 Required:
@@ -1396,6 +1410,13 @@ Checkpoint:
 checkpoint: 2026-05-07 professional speed graph system 14 - closure qa
 ```
 
+Status:
+
+```text
+completed
+commit: pending (set by SG-14 closure commit)
+```
+
 Required:
 
 - Run focused tests.
@@ -1411,6 +1432,14 @@ All phases verified.
 No TF_FLOSITY_* remains.
 Graph controls real engine motion.
 Preset cards, custom graph, numeric panel, AI scripts, Motion Blur, and export share one curve truth.
+```
+
+SG-05 diagnostic closure note:
+
+```text
+TF_VELOCITY_AI_SCRIPT_PROOF is the active AI/script velocity proof.
+It is emitted in professional_motion_interpolation_parsing.dart on all compile paths.
+No TF_FLOSITY_* diagnostic remains in the SpeedyGraph runtime path.
 ```
 
 ## 12. Required Tests

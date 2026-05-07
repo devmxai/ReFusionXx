@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'professional_motion_animation_models.dart';
 import '../services/motion_interpolation_truth_compiler.dart';
 
@@ -103,7 +105,7 @@ MotionInterpolationSpec parseCanonicalMotionInterpolationObject(
   final velocity = _readOptionalVelocityContract(json);
   final rawKind = _readOptionalStringAlias(json, const <String>['kind']);
   if ((rawKind == null || rawKind.trim().isEmpty) && velocity != null) {
-    return _truthCompiler
+    final interpolation = _truthCompiler
         .compileFromVelocity(
           velocity: velocity.copyWith(
             presetId: velocity.presetId ?? 'customSpeedGraph',
@@ -111,6 +113,12 @@ MotionInterpolationSpec parseCanonicalMotionInterpolationObject(
           inputMode: MotionInterpolationCompileInputMode.aiScript,
         )
         .interpolation;
+    _emitVelocityAiScriptProof(
+      inputShape: 'velocity_only',
+      presetId: interpolation.velocity?.presetId,
+      interpolation: interpolation,
+    );
+    return interpolation;
   }
   if (rawKind == null || rawKind.trim().isEmpty) {
     throw MotionInterpolationParseException(
@@ -122,9 +130,14 @@ MotionInterpolationSpec parseCanonicalMotionInterpolationObject(
   if (named != null &&
       tryParseCanonicalMotionInterpolationKind(normalizedKind) == null) {
     if (velocity == null) {
+      _emitVelocityAiScriptProof(
+        inputShape: 'named_preset',
+        presetId: MotionInterpolationTruthCompiler.canonicalPresetId(rawKind),
+        interpolation: named,
+      );
       return named;
     }
-    return _truthCompiler
+    final interpolation = _truthCompiler
         .compileFromVelocity(
           velocity: velocity.copyWith(
             presetId: velocity.presetId ??
@@ -134,6 +147,12 @@ MotionInterpolationSpec parseCanonicalMotionInterpolationObject(
           inputMode: MotionInterpolationCompileInputMode.aiScript,
         )
         .interpolation;
+    _emitVelocityAiScriptProof(
+      inputShape: 'named_preset_with_velocity',
+      presetId: interpolation.velocity?.presetId,
+      interpolation: interpolation,
+    );
+    return interpolation;
   }
   final kind = tryParseCanonicalMotionInterpolationKind(rawKind);
   if (kind == null) {
@@ -152,22 +171,34 @@ MotionInterpolationSpec parseCanonicalMotionInterpolationObject(
         ),
       );
       if (velocity == null) {
-        return _truthCompiler
+        final compiled = _truthCompiler
             .compileFromInterpolation(
               interpolation: interpolation,
               inputMode: MotionInterpolationCompileInputMode.aiScript,
             )
             .interpolation;
+        _emitVelocityAiScriptProof(
+          inputShape: 'direct_bezier',
+          presetId: compiled.velocity?.presetId,
+          interpolation: compiled,
+        );
+        return compiled;
       }
-      return _truthCompiler
+      final compiled = _truthCompiler
           .compileFromVelocity(
             velocity: velocity,
             fallback: interpolation,
             inputMode: MotionInterpolationCompileInputMode.aiScript,
           )
           .interpolation;
+      _emitVelocityAiScriptProof(
+        inputShape: 'direct_bezier_with_velocity',
+        presetId: compiled.velocity?.presetId,
+        interpolation: compiled,
+      );
+      return compiled;
     case MotionInterpolationKind.spring:
-      return MotionInterpolationSpec.spring(
+      final spring = MotionInterpolationSpec.spring(
         spring: MotionSpringSpec(
           stiffness:
               _readOptionalDoubleAlias(json, const <String>['stiffness']) ??
@@ -183,8 +214,14 @@ MotionInterpolationSpec parseCanonicalMotionInterpolationObject(
               kDefaultMotionSpringSpec.initialVelocity,
         ),
       ).copyWith(velocity: velocity);
+      _emitVelocityAiScriptProof(
+        inputShape: 'spring',
+        presetId: spring.velocity?.presetId,
+        interpolation: spring,
+      );
+      return spring;
     case MotionInterpolationKind.bounce:
-      return MotionInterpolationSpec.bounce(
+      final bounce = MotionInterpolationSpec.bounce(
         bounce: MotionBounceSpec(
           amplitude:
               _readOptionalDoubleAlias(json, const <String>['amplitude']) ??
@@ -198,8 +235,14 @@ MotionInterpolationSpec parseCanonicalMotionInterpolationObject(
               kDefaultMotionBounceSpec.decay,
         ),
       ).copyWith(velocity: velocity);
+      _emitVelocityAiScriptProof(
+        inputShape: 'bounce',
+        presetId: bounce.velocity?.presetId,
+        interpolation: bounce,
+      );
+      return bounce;
     case MotionInterpolationKind.elastic:
-      return MotionInterpolationSpec.elastic(
+      final elastic = MotionInterpolationSpec.elastic(
         elastic: MotionElasticSpec(
           amplitude:
               _readOptionalDoubleAlias(json, const <String>['amplitude']) ??
@@ -210,15 +253,57 @@ MotionInterpolationSpec parseCanonicalMotionInterpolationObject(
               kDefaultMotionElasticSpec.decay,
         ),
       ).copyWith(velocity: velocity);
+      _emitVelocityAiScriptProof(
+        inputShape: 'elastic',
+        presetId: elastic.velocity?.presetId,
+        interpolation: elastic,
+      );
+      return elastic;
     case MotionInterpolationKind.hold:
     case MotionInterpolationKind.linear:
     case MotionInterpolationKind.easeIn:
     case MotionInterpolationKind.easeOut:
     case MotionInterpolationKind.easeInOut:
-      return canonicalInterpolationSpecFromKind(kind).copyWith(
+      final temporal = canonicalInterpolationSpecFromKind(kind).copyWith(
         velocity: velocity,
       );
+      _emitVelocityAiScriptProof(
+        inputShape: 'canonical_kind',
+        presetId: temporal.velocity?.presetId,
+        interpolation: temporal,
+      );
+      return temporal;
   }
+}
+
+void _emitVelocityAiScriptProof({
+  required String inputShape,
+  required MotionInterpolationSpec interpolation,
+  String? presetId,
+  List<String> unsupportedKeys = const <String>[],
+  String fallbackReason = 'none',
+}) {
+  final compiled = _truthCompiler.compileFromInterpolation(
+    interpolation: interpolation,
+    inputMode: MotionInterpolationCompileInputMode.aiScript,
+  );
+  final bezier = compiled.interpolation.bezier;
+  developer.log(
+    'TF_VELOCITY_AI_SCRIPT_PROOF '
+    'inputShape=$inputShape '
+    'presetId=${presetId ?? compiled.interpolation.velocity?.presetId ?? 'none'} '
+    'parsedKind=${compiled.interpolation.kind.name} '
+    'bezier='
+    '${bezier?.x1.toStringAsFixed(4) ?? 'na'},'
+    '${bezier?.y1.toStringAsFixed(4) ?? 'na'},'
+    '${bezier?.x2.toStringAsFixed(4) ?? 'na'},'
+    '${bezier?.y2.toStringAsFixed(4) ?? 'na'} '
+    'curveHash=${compiled.curveHash} '
+    'unsupportedKeys=${unsupportedKeys.join("|")} '
+    'compiledToExecutionTruth=${compiled.executionTruth} '
+    'fallbackReason=$fallbackReason',
+    name: 'ReFusionXx.SpeedGraph',
+  );
 }
 
 MotionKeyframeVelocity? _readOptionalVelocityContract(
