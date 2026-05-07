@@ -6,6 +6,22 @@ Branch: `codex/unified-keyframe-ops-foundation-20260426`
 Date opened: 2026-05-07  
 Scope: animation smoothness, keyframe velocity, Easy Ease, Speed Graph, preview/liveScrub/playback/export parity
 
+## Closure Status (2026-05-07)
+
+Velocity contracts are now the runtime source of truth across Graph editing,
+evaluation parity diagnostics, Motion Blur velocity bridging, and export
+interpolation payloads.
+
+Completed closure checkpoints on this branch:
+
+- `09` legacy cleanup and evaluator velocity bridge (`65c2f3e`)
+- `10` motion blur visual velocity polish (`140140e`)
+- `11` agent scene velocity authoring (`036c7c0`)
+- `12` export velocity parity (`75d4a10`)
+
+This plan is now in closure QA mode. Any follow-up work must build on these
+checkpoints with the same sequential policy from Section 1.
+
 ## 0. Name And Intent
 
 `Animation Velocity Contracts` is the ReFusion engine plan for the professional
