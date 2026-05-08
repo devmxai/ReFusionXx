@@ -20,9 +20,12 @@ Scope: agent-authored native scenes, DirectorPlan, SceneProgram, semantic compon
 - `NSI-v2-01` Design Token Registry is completed in this checkpoint with a
   deterministic token resolver, strict unknown-token errors, and
   `TF_SCENE_TOKEN_REGISTRY_PROOF`.
+- `NSI-v2-02` Semantic Scene Blueprint Schema is completed in this checkpoint
+  with schema validation, unsupported-field diagnostics, and PromptInputBar
+  lowering proof via `TF_SCENE_BLUEPRINT_COMPILER_PROOF`.
 - Strategic extension accepted: `Closed Vocabulary + Visual Closure Loop` is
   the official v2 direction after `NSI-12`. Active work has started with
-  `NSI-v2-01` complete; next is `NSI-v2-02`.
+  `NSI-v2-01` and `NSI-v2-02` complete; next is `NSI-v2-03`.
 
 ## 0. Purpose
 
@@ -1364,6 +1367,8 @@ Acceptance:
 
 ### NSI-v2-02 - Semantic Scene Blueprint Schema
 
+Status: completed in this checkpoint.
+
 Checkpoint:
 
 ```text
@@ -1687,6 +1692,7 @@ Immediate active order (v2 only):
 1. `NSI-v2-01` Design Token Registry
    status: completed
 2. `NSI-v2-02` Semantic Scene Blueprint Schema
+   status: completed
 3. `NSI-v2-03` Component Registry v2
 4. `NSI-v2-04` Constraint Layout Solver
 5. `NSI-v2-05` Beat Grammar Engine
