@@ -91,6 +91,12 @@ ReFusion remains a native motion graphics application. VERSION 2 must not turn t
   - Semantic diagnostics now emit `TF_SCENE_LAYOUT_SOLVER_PROOF` with
     deterministic layout hash proof.
 
+- `NSI-v2-05` Beat Grammar Engine is completed as MVP.
+  - Semantic validation now enforces beat timing sanity, readable hold minima,
+    overlap-policy requirements, and component-ref integrity.
+  - Overlapping beats without explicit policy now fail closed.
+  - Semantic diagnostics now emit `TF_SCENE_BEAT_GRAMMAR_PROOF`.
+
 ### 2.3 SpeedyGraph Foundation Status
 
 SpeedyGraph foundation is already implemented as a separate system and must not be rebuilt inside NSI:

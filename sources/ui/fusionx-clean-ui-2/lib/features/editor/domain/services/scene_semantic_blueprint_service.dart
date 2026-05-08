@@ -3,6 +3,7 @@ import 'dart:collection';
 import '../models/refusion_scene_program_models.dart';
 import '../models/scene_semantic_blueprint_models.dart';
 import 'motion_interpolation_truth_compiler.dart';
+import 'scene_semantic_beat_grammar_validator.dart';
 import 'scene_semantic_component_registry.dart';
 import 'scene_semantic_constraint_layout_solver.dart';
 import 'scene_semantic_token_registry.dart';
@@ -51,18 +52,22 @@ class SceneSemanticBlueprintService {
     MotionInterpolationTruthCompiler? truthCompiler,
     SceneSemanticComponentRegistry? componentRegistry,
     SceneSemanticConstraintLayoutSolver? layoutSolver,
+    SceneSemanticBeatGrammarValidator? beatGrammarValidator,
   })  : _tokenRegistry = tokenRegistry ?? SceneSemanticTokenRegistry(),
         _truthCompiler =
             truthCompiler ?? const MotionInterpolationTruthCompiler(),
         _componentRegistry =
             componentRegistry ?? SceneSemanticComponentRegistry(),
         _layoutSolver =
-            layoutSolver ?? const SceneSemanticConstraintLayoutSolver();
+            layoutSolver ?? const SceneSemanticConstraintLayoutSolver(),
+        _beatGrammarValidator =
+            beatGrammarValidator ?? const SceneSemanticBeatGrammarValidator();
 
   final SceneSemanticTokenRegistry _tokenRegistry;
   final MotionInterpolationTruthCompiler _truthCompiler;
   final SceneSemanticComponentRegistry _componentRegistry;
   final SceneSemanticConstraintLayoutSolver _layoutSolver;
+  final SceneSemanticBeatGrammarValidator _beatGrammarValidator;
   static const Set<String> _allowedOverflowPolicies = <String>{
     'error',
     'ellipsis',
@@ -134,6 +139,13 @@ class SceneSemanticBlueprintService {
     );
 
     final beats = _readBeats(payload['beats'], issues);
+    issues.addAll(
+      _beatGrammarValidator.validate(
+        beats: beats,
+        sceneDurationMs: durationMs,
+        components: components,
+      ),
+    );
     final blueprint = SemanticSceneBlueprint(
       schemaVersion: schema,
       name: name,
@@ -516,6 +528,8 @@ class SceneSemanticBlueprintService {
       final intent = _readString(entry['intent']);
       final startMs = _readInt(entry['startMs'], fallback: 0);
       final endMs = _readInt(entry['endMs'], fallback: 0);
+      final overlapPolicy = _readString(entry['overlapPolicy']);
+      final componentRefs = _readStringList(entry['componentRefs']);
       if (id == null || intent == null) {
         issues.add(
           ReFusionSceneProgramIssue(
@@ -532,6 +546,8 @@ class SceneSemanticBlueprintService {
           startMs: startMs,
           endMs: endMs,
           intent: intent,
+          overlapPolicy: overlapPolicy,
+          componentRefs: componentRefs,
         ),
       );
     }
@@ -585,6 +601,19 @@ class SceneSemanticBlueprintService {
       return UnmodifiableMapView<String, Object?>(next);
     }
     return null;
+  }
+
+  List<String> _readStringList(Object? value) {
+    if (value is! List) {
+      return const <String>[];
+    }
+    final items = <String>[];
+    for (final entry in value) {
+      if (entry is String && entry.trim().isNotEmpty) {
+        items.add(entry.trim());
+      }
+    }
+    return List.unmodifiable(items);
   }
 
   String _buildProof({

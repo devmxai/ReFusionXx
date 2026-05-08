@@ -489,4 +489,68 @@ void main() {
       isTrue,
     );
   });
+
+  test('fails closed when beat overlap policy is missing', () {
+    final service = SceneSemanticBlueprintService();
+    final validation = service.validate(<String, Object?>{
+      'schemaVersion': 'refusion.semantic-blueprint/v1',
+      'name': 'Beat overlap',
+      'durationMs': 2600,
+      'frameRate': 30,
+      'components': <Object?>[
+        <String, Object?>{
+          'id': 'panel',
+          'type': 'DashboardPanel',
+          'slots': <String, Object?>{
+            'header': <String, Object?>{
+              'text': 'Header',
+              'textFrame': <String, Object?>{
+                'width': 320,
+                'height': 56,
+                'maxLines': 1,
+                'overflow': 'ellipsis',
+                'fitPolicy': 'none',
+              },
+            },
+            'body': <String, Object?>{
+              'text': 'Body',
+              'textFrame': <String, Object?>{
+                'width': 420,
+                'height': 160,
+                'maxLines': 3,
+                'overflow': 'ellipsis',
+                'fitPolicy': 'wrapToLines',
+              },
+            },
+          },
+        },
+      ],
+      'beats': <Object?>[
+        <String, Object?>{
+          'id': 'a',
+          'startMs': 0,
+          'endMs': 1400,
+          'intent': 'panel intro',
+          'componentRefs': <String>['panel'],
+        },
+        <String, Object?>{
+          'id': 'b',
+          'startMs': 1200,
+          'endMs': 2400,
+          'intent': 'panel follow',
+          'componentRefs': <String>['panel'],
+        },
+      ],
+    });
+
+    expect(validation.isValid, isFalse);
+    expect(
+      validation.issues.any(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+            issue.message.contains('without explicit overlap policy'),
+      ),
+      isTrue,
+    );
+  });
 }

@@ -45,15 +45,19 @@ class SemanticSceneBlueprintComponent {
 }
 
 class SemanticSceneBlueprintBeat {
-  const SemanticSceneBlueprintBeat({
+  SemanticSceneBlueprintBeat({
     required this.id,
     required this.startMs,
     required this.endMs,
     required this.intent,
-  });
+    List<String> componentRefs = const <String>[],
+    this.overlapPolicy,
+  }) : componentRefs = List.unmodifiable(componentRefs);
 
   final String id;
   final int startMs;
   final int endMs;
   final String intent;
+  final List<String> componentRefs;
+  final String? overlapPolicy;
 }
