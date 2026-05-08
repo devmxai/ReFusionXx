@@ -52,7 +52,11 @@ void main() {
       ),
     );
 
-    expect(result.isValid, isTrue);
+    expect(
+      result.isValid,
+      isTrue,
+      reason: result.issues.map((issue) => issue.message).join('\n'),
+    );
     expect(
       result.issues.any(
         (issue) => issue.message.contains('TF_SCENE_VISUAL_FRAME_QA_PROOF'),
@@ -419,10 +423,12 @@ void main() {
       ),
     );
 
-    expect(result.isValid, isTrue);
+    expect(result.isValid, isFalse);
     expect(
       result.issues.any(
-        (issue) => issue.message.contains('desynced from parent'),
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+            issue.message.contains('desynced from parent'),
       ),
       isTrue,
     );

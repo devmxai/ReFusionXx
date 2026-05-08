@@ -7,6 +7,7 @@ import 'package:refusion_app/features/editor/domain/models/professional_motion_m
 import 'package:refusion_app/features/editor/domain/services/refusion_scene_program_authoring_service.dart';
 import 'package:refusion_app/features/editor/domain/services/scene_program_apply_transaction.dart';
 import 'package:refusion_app/features/editor/presentation/models/timeline_time.dart';
+import 'package:refusion_app/features/editor/domain/models/refusion_scene_program_models.dart';
 
 void main() {
   const authoringService = ReFusionSceneProgramAuthoringService();
@@ -97,6 +98,42 @@ void main() {
     expect(result.isValid, isTrue);
     expect(result.textAnimationBindings, hasLength(1));
     return result;
+  }
+
+  ReFusionSceneProgram _badSaasProgram() {
+    return ReFusionSceneProgram(
+      schemaVersion: 'refusion.scene-program/v1',
+      name: 'Bad SaaS',
+      durationMs: 1600,
+      frameRate: 30,
+      layers: <ReFusionSceneProgramLayer>[
+        ReFusionSceneProgramLayer(
+          id: 'ui-layer',
+          kind: 'text',
+          startMs: 0,
+          durationMs: 1600,
+          elements: <ReFusionSceneProgramElement>[
+            ReFusionSceneProgramElement(
+              id: 'prompt-title',
+              kind: 'text',
+              text: 'Generate new offer for my business right now',
+              properties: const <String, Object?>{
+                'x': 120,
+                'y': 360,
+                'fontSize': 56,
+                'textFrame': <String, Object?>{
+                  'width': 360,
+                  'height': 72,
+                  'maxLines': 1,
+                  'overflow': 'clip',
+                  'fitPolicy': 'none',
+                },
+              },
+            ),
+          ],
+        ),
+      ],
+    );
   }
 
   test('applies scene program as one root scene clip and one nested source',
@@ -269,6 +306,43 @@ void main() {
       SceneProgramApplyTransactionRequest(
         baseProject: baseProject(),
         authoringResult: invalidAuthoring,
+        rootSceneId: 'root-scene',
+      ),
+    );
+
+    expect(result, isNull);
+  });
+
+  test('blocks apply at pre-render sanity gate when visual defects slip in',
+      () {
+    final bypassedAuthoring = ReFusionSceneProgramAuthoringResult(
+      issues: const <ReFusionSceneProgramIssue>[],
+      program: _badSaasProgram(),
+      project: MotionProjectModel(
+        id: 'bypass-project',
+        name: 'Bypass Project',
+        format: const MotionProjectFormat(
+          canvasSize: MotionSize2D(width: 1080, height: 1920),
+        ),
+        frameRate: const MotionFrameRate(numerator: 30, denominator: 1),
+        scenes: <MotionSceneModel>[
+          MotionSceneModel(
+            id: 'bypass-scene',
+            name: 'Bypass Scene',
+            projectRange: TimelineTimeRange(
+              start: TimelineTime.zero,
+              endExclusive: TimelineTime.fromMilliseconds(1600),
+            ),
+            layers: const <MotionLayerModel>[],
+          ),
+        ],
+      ),
+    );
+
+    final result = transaction.apply(
+      SceneProgramApplyTransactionRequest(
+        baseProject: baseProject(scenes: <MotionSceneModel>[rootScene()]),
+        authoringResult: bypassedAuthoring,
         rootSceneId: 'root-scene',
       ),
     );

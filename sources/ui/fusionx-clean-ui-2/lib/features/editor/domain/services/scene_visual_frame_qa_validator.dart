@@ -19,7 +19,7 @@ class SceneVisualFrameQaValidationResult {
 
 class SceneVisualFrameQaValidator {
   const SceneVisualFrameQaValidator({
-    this.enforceOverflowAsError = false,
+    this.enforceOverflowAsError = true,
     SceneRuntimeTransformComposer? transformComposer,
   }) : _transformComposer =
             transformComposer ?? const SceneRuntimeTransformComposer();
@@ -233,22 +233,86 @@ class SceneVisualFrameQaValidator {
 
     for (final record in activeRecords) {
       if (_normalizeToken(record.element.kind) != 'text') {
+        final geometryCritical = _isGeometryCritical(record);
+        final clippingPx =
+            geometryCritical ? _clippingPixels(record.worldBounds) : 0.0;
+        final clipped = geometryCritical && clippingPx > 0.0;
+        final safeAreaViolation = geometryCritical &&
+            !_isCanvasBackground(record) &&
+            _violatesSafeArea(record.worldBounds);
+        final overlap = geometryCritical && overlapKeys.contains(record.nodeId);
+        final parentChildDesync = _detectParentChildDesync(
+          record: record,
+          baselineOffsets: baselineOffsets,
+        );
+        final passed =
+            !clipped && !safeAreaViolation && !overlap && !parentChildDesync;
+        if (clipped) {
+          issues.add(
+            ReFusionSceneProgramIssue(
+              severity: _visualDefectSeverity(),
+              message:
+                  '${record.element.kind} `${record.element.id}` is clipped at frame ${snapshot.timelineTimeMs}ms.',
+              path:
+                  'layers[${record.layerIndex}].elements[${record.elementIndex}]',
+            ),
+          );
+        }
+        if (safeAreaViolation) {
+          issues.add(
+            ReFusionSceneProgramIssue(
+              severity: _visualDefectSeverity(),
+              message:
+                  '${record.element.kind} `${record.element.id}` violates safe area at frame ${snapshot.timelineTimeMs}ms.',
+              path:
+                  'layers[${record.layerIndex}].elements[${record.elementIndex}]',
+            ),
+          );
+        }
+        if (overlap) {
+          issues.add(
+            ReFusionSceneProgramIssue(
+              severity: _visualDefectSeverity(),
+              message:
+                  '${record.element.kind} `${record.element.id}` overlaps sibling elements at frame ${snapshot.timelineTimeMs}ms.',
+              path:
+                  'layers[${record.layerIndex}].elements[${record.elementIndex}]',
+            ),
+          );
+        }
+        if (parentChildDesync) {
+          issues.add(
+            ReFusionSceneProgramIssue(
+              severity: _visualDefectSeverity(),
+              message:
+                  '${record.element.kind} `${record.element.id}` is desynced from parent at frame ${snapshot.timelineTimeMs}ms.',
+              path:
+                  'layers[${record.layerIndex}].elements[${record.elementIndex}]',
+            ),
+          );
+        }
         _emitProbeProof(
           record: record,
           probeIndex: probeIndex,
           probeCount: probeCount,
           textOverflow: false,
           overflowPx: 0.0,
-          clippingPx: _clippingPixels(record.worldBounds),
-          overlapDetected: overlapKeys.contains(record.nodeId),
-          safeAreaViolation: _violatesSafeArea(record.worldBounds),
-          parentChildDesync: _detectParentChildDesync(
-            record: record,
-            baselineOffsets: baselineOffsets,
-          ),
-          passed: true,
-          failureReason: 'none',
-          severity: ReFusionSceneProgramIssueSeverity.info,
+          clippingPx: clippingPx,
+          overlapDetected: overlap,
+          safeAreaViolation: safeAreaViolation,
+          parentChildDesync: parentChildDesync,
+          passed: passed,
+          failureReason: passed
+              ? 'none'
+              : _firstFailureReasonForNonText(
+                  clipped: clipped,
+                  overlap: overlap,
+                  safeAreaViolation: safeAreaViolation,
+                  parentChildDesync: parentChildDesync,
+                ),
+          severity: passed
+              ? ReFusionSceneProgramIssueSeverity.info
+              : _visualDefectSeverity(),
           fallbackReason:
               perfExceeded ? 'probe_budget_exceeded' : fallbackReason,
           timelineTimeMs: snapshot.timelineTimeMs,
@@ -309,15 +373,13 @@ class SceneVisualFrameQaValidator {
       final overflowY = math.max(0.0, estimatedHeight - frameHeight);
       final overflowPx = math.max(overflowX, overflowY).toDouble();
       final overflowDetected = overflowPx > 1.0;
-      final permissiveLegacyPolicy =
-          !enforceOverflowAsError && normalizedFitPolicy == 'none';
-      final overflowSeverity = (supportedFitPolicy || permissiveLegacyPolicy)
-          ? ReFusionSceneProgramIssueSeverity.warning
-          : ReFusionSceneProgramIssueSeverity.error;
-      if (overflowDetected) {
+      final fitPolicyCanResolveOverflow =
+          supportedFitPolicy && normalizedFitPolicy != 'none';
+      final overflowBlocking = overflowDetected && !fitPolicyCanResolveOverflow;
+      if (overflowBlocking) {
         issues.add(
           ReFusionSceneProgramIssue(
-            severity: overflowSeverity,
+            severity: _visualDefectSeverity(),
             message: 'Text element `${record.element.id}` '
                 '${hasTypewriter ? 'reveal' : 'static'} bounded frame overflow detected. '
                 'fitPolicy=$fitPolicy '
@@ -333,9 +395,12 @@ class SceneVisualFrameQaValidator {
       }
 
       final clippingPx = _clippingPixels(record.worldBounds);
-      final clipped = clippingPx > 0.0;
-      final safeAreaViolation = _violatesSafeArea(record.worldBounds);
-      final overlap = overlapKeys.contains(record.nodeId);
+      final geometryCritical = _isGeometryCritical(record);
+      final clipped = geometryCritical && clippingPx > 0.0;
+      final safeAreaViolation = geometryCritical &&
+          !_isCanvasBackground(record) &&
+          _violatesSafeArea(record.worldBounds);
+      final overlap = geometryCritical && overlapKeys.contains(record.nodeId);
       final parentChildDesync = _detectParentChildDesync(
         record: record,
         baselineOffsets: baselineOffsets,
@@ -347,11 +412,17 @@ class SceneVisualFrameQaValidator {
         typewriterProgress: record.state.typewriterProgress,
       );
       final contrastPass = _contrastPass(record.effectiveOpacity);
+      final enforceReadableHold = _isReadableHoldFrame(
+        probeIndex: probeIndex,
+        probeCount: probeCount,
+        hasReveal: hasTypewriter,
+        typewriterProgress: record.state.typewriterProgress,
+      );
 
       if (clipped) {
         issues.add(
           ReFusionSceneProgramIssue(
-            severity: ReFusionSceneProgramIssueSeverity.warning,
+            severity: _visualDefectSeverity(),
             message:
                 'Text element `${record.element.id}` is clipped at frame ${snapshot.timelineTimeMs}ms.',
             path:
@@ -362,7 +433,7 @@ class SceneVisualFrameQaValidator {
       if (safeAreaViolation) {
         issues.add(
           ReFusionSceneProgramIssue(
-            severity: ReFusionSceneProgramIssueSeverity.warning,
+            severity: _visualDefectSeverity(),
             message:
                 'Text element `${record.element.id}` violates safe area at frame ${snapshot.timelineTimeMs}ms.',
             path:
@@ -373,7 +444,7 @@ class SceneVisualFrameQaValidator {
       if (overlap) {
         issues.add(
           ReFusionSceneProgramIssue(
-            severity: ReFusionSceneProgramIssueSeverity.warning,
+            severity: _visualDefectSeverity(),
             message:
                 'Text element `${record.element.id}` overlaps sibling elements at frame ${snapshot.timelineTimeMs}ms.',
             path:
@@ -384,7 +455,7 @@ class SceneVisualFrameQaValidator {
       if (parentChildDesync) {
         issues.add(
           ReFusionSceneProgramIssue(
-            severity: ReFusionSceneProgramIssueSeverity.warning,
+            severity: _visualDefectSeverity(),
             message:
                 'Text element `${record.element.id}` is desynced from parent at frame ${snapshot.timelineTimeMs}ms.',
             path:
@@ -392,18 +463,40 @@ class SceneVisualFrameQaValidator {
           ),
         );
       }
+      if (enforceReadableHold && !contrastPass) {
+        issues.add(
+          ReFusionSceneProgramIssue(
+            severity: _visualDefectSeverity(),
+            message:
+                'Text element `${record.element.id}` is unreadable at frame ${snapshot.timelineTimeMs}ms (effectiveOpacity=${record.effectiveOpacity.toStringAsFixed(2)}).',
+            path:
+                'layers[${record.layerIndex}].elements[${record.elementIndex}]',
+          ),
+        );
+      }
+      if (unfinishedMotion) {
+        issues.add(
+          ReFusionSceneProgramIssue(
+            severity: _visualDefectSeverity(),
+            message:
+                'Text element `${record.element.id}` has unreadable hold timing near scene boundary at frame ${snapshot.timelineTimeMs}ms.',
+            path:
+                'layers[${record.layerIndex}].elements[${record.elementIndex}]',
+          ),
+        );
+      }
 
-      final passed = !overflowDetected &&
+      final passed = !overflowBlocking &&
           !clipped &&
           !safeAreaViolation &&
           !overlap &&
           !parentChildDesync &&
-          contrastPass &&
+          (!enforceReadableHold || contrastPass) &&
           !unfinishedMotion;
       final failureReason = passed
           ? 'none'
           : _firstFailureReason(
-              textOverflow: overflowDetected,
+              textOverflow: overflowBlocking,
               clipped: clipped,
               overlap: overlap,
               safeAreaViolation: safeAreaViolation,
@@ -414,7 +507,7 @@ class SceneVisualFrameQaValidator {
         record: record,
         probeIndex: probeIndex,
         probeCount: probeCount,
-        textOverflow: overflowDetected,
+        textOverflow: overflowBlocking,
         overflowPx: overflowPx,
         clippingPx: clippingPx,
         overlapDetected: overlap,
@@ -424,7 +517,7 @@ class SceneVisualFrameQaValidator {
         failureReason: failureReason,
         severity: passed
             ? ReFusionSceneProgramIssueSeverity.info
-            : ReFusionSceneProgramIssueSeverity.error,
+            : _visualDefectSeverity(),
         fallbackReason: perfExceeded ? 'probe_budget_exceeded' : fallbackReason,
         timelineTimeMs: snapshot.timelineTimeMs,
         issues: issues,
@@ -946,6 +1039,89 @@ class SceneVisualFrameQaValidator {
       return 'unfinished_motion';
     }
     return 'unknown';
+  }
+
+  String _firstFailureReasonForNonText({
+    required bool clipped,
+    required bool overlap,
+    required bool safeAreaViolation,
+    required bool parentChildDesync,
+  }) {
+    if (clipped) {
+      return 'clipped';
+    }
+    if (safeAreaViolation) {
+      return 'safe_area_violation';
+    }
+    if (overlap) {
+      return 'overlap';
+    }
+    if (parentChildDesync) {
+      return 'parent_child_desync';
+    }
+    return 'unknown';
+  }
+
+  ReFusionSceneProgramIssueSeverity _visualDefectSeverity() =>
+      enforceOverflowAsError
+          ? ReFusionSceneProgramIssueSeverity.error
+          : ReFusionSceneProgramIssueSeverity.warning;
+
+  bool _isGeometryCritical(_EvaluatedNodeRecord record) {
+    if (_isCanvasBackground(record)) {
+      return false;
+    }
+    final hasParent = record.parentNodeId != null &&
+        !_isLayerRootNodeId(record.parentNodeId!);
+    final slotId = _slotIdFromElement(record.element);
+    if (slotId != null && slotId.trim().isNotEmpty) {
+      return true;
+    }
+    final layout = _mapFromProperties(
+      record.element.properties,
+      const <String>['layout'],
+    );
+    final hasLayoutMetadata = layout != null && layout.isNotEmpty;
+    if (_normalizeToken(record.element.kind) == 'text') {
+      final hasExplicitPosition =
+          _readPosition(record.element.properties, 'x') != null ||
+              _readPosition(record.element.properties, 'y') != null;
+      return hasParent || hasLayoutMetadata || hasExplicitPosition;
+    }
+    return hasParent || hasLayoutMetadata;
+  }
+
+  bool _isLayerRootNodeId(String nodeId) =>
+      nodeId.startsWith('__layer__') && nodeId.endsWith('__root');
+
+  bool _isReadableHoldFrame({
+    required int probeIndex,
+    required int probeCount,
+    required bool hasReveal,
+    required double typewriterProgress,
+  }) {
+    if (probeCount <= 2) {
+      return true;
+    }
+    final isBoundary = probeIndex == 0 || probeIndex == probeCount - 1;
+    if (isBoundary) {
+      return false;
+    }
+    if (!hasReveal) {
+      return true;
+    }
+    return typewriterProgress >= 0.95;
+  }
+
+  bool _isCanvasBackground(_EvaluatedNodeRecord record) {
+    if (_normalizeToken(record.element.kind) != 'shape') {
+      return false;
+    }
+    final rect = record.worldBounds;
+    return rect.x <= 1.0 &&
+        rect.y <= 1.0 &&
+        rect.width >= _defaultCanvasWidth - 2.0 &&
+        rect.height >= _defaultCanvasHeight - 2.0;
   }
 
   double _clippingPixels(_Rect rect) {

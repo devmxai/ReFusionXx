@@ -347,7 +347,7 @@ void main() {
   });
 
   test(
-      'emits continuity and visual QA proof diagnostics for premium prompt scene',
+      'strict visual gate rejects premium prompt scene when frame QA defects remain',
       () {
     final source = File(
       'assets/scene_programs/premium_app_promo_prompt_bar_scene.json',
@@ -364,8 +364,18 @@ void main() {
       ),
     );
 
-    expect(result.isValid, isTrue,
+    expect(result.isValid, isFalse,
         reason: result.issues.map((issue) => issue.message).join('\n'));
+    expect(
+      result.issues.any(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+            (issue.message.contains('clipped') ||
+                issue.message.contains('safe area') ||
+                issue.message.contains('desynced')),
+      ),
+      isTrue,
+    );
     expect(
       result.issues.any(
         (issue) => issue.message.contains('TF_SCENE_MOTION_CONTINUITY_PROOF'),

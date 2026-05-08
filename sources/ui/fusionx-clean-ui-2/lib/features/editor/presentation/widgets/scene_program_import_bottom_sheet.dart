@@ -3110,20 +3110,22 @@ class _SceneProgramResultCard extends StatelessWidget {
       children: [
         _SceneProgramInfoCard(
           icon: Icons.verified_rounded,
-          title: value.hasWarnings ? 'Valid with warnings' : 'Ready',
+          title: value.hasWarnings ? 'Ready with notes' : 'Ready',
           message:
-              '${value.program?.name ?? 'Scene'} -> ${value.project?.scenes.single.layers.length ?? 0} layers, ${value.channels.length} channels. Tap the check mark to place it on the editable timeline.',
+              '${value.program?.name ?? 'Scene'} -> ${value.project?.scenes.single.layers.length ?? 0} layers, ${value.channels.length} channels. '
+              '${value.hasWarnings ? 'Only non-blocking notes remain.' : 'Geometry and readability checks passed.'} '
+              'Tap the check mark to place it on the editable timeline.',
           accent: value.hasWarnings
-              ? const Color(0xFFFFC857)
+              ? const Color(0xFF9BC1FF)
               : const Color(0xFF45D483),
         ),
         if (warnings.isNotEmpty) ...[
           const SizedBox(height: 10),
           _SceneProgramIssueList(
             icon: Icons.warning_amber_rounded,
-            title: 'Warnings',
+            title: 'Non-blocking notes',
             issues: warnings,
-            accent: const Color(0xFFFFC857),
+            accent: const Color(0xFF9BC1FF),
           ),
         ],
       ],

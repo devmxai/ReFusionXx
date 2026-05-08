@@ -6,6 +6,7 @@ import '../models/professional_motion_animation_models.dart';
 import '../models/professional_motion_models.dart';
 import '../models/professional_motion_text_models.dart';
 import 'refusion_scene_program_authoring_service.dart';
+import 'scene_pre_render_sanity_gate.dart';
 
 enum SceneProgramApplyIssueCode {
   invalidAuthoringResult,
@@ -85,13 +86,34 @@ class SceneProgramApplyTransactionResult {
 }
 
 class SceneProgramApplyTransaction {
-  const SceneProgramApplyTransaction();
+  const SceneProgramApplyTransaction({
+    ScenePreRenderSanityGate preRenderSanityGate =
+        const ScenePreRenderSanityGate(),
+  }) : _preRenderSanityGate = preRenderSanityGate;
+
+  final ScenePreRenderSanityGate _preRenderSanityGate;
 
   SceneProgramApplyTransactionResult? apply(
     SceneProgramApplyTransactionRequest request,
   ) {
     final authoring = request.authoringResult;
     if (!authoring.isValid || authoring.project == null) {
+      return null;
+    }
+    final preRenderGate = _preRenderSanityGate.validate(
+      authoringResult: authoring,
+      sceneId: request.rootSceneId,
+    );
+    if (preRenderGate.blocked) {
+      if (kDebugMode) {
+        debugPrint(
+          'SceneProgramApplyTransaction blocked by pre-render gate: '
+          '${preRenderGate.fallbackReason}',
+        );
+        for (final issue in preRenderGate.issues.take(6)) {
+          debugPrint(' - ${issue.message}');
+        }
+      }
       return null;
     }
     final importedProject = authoring.project!;
