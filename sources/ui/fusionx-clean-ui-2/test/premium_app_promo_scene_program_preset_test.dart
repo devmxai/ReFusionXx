@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -35,6 +36,94 @@ void main() {
     expect(result.program?.name, 'Premium App Promo Prompt Bar');
     expect(result.program?.durationMs, 9200);
     expect(result.channels.length, greaterThan(8));
+  });
+
+  test('premium app promo keeps prompt text inside fixed input frame at hold',
+      () {
+    final source = File(
+      'assets/scene_programs/premium_app_promo_prompt_bar_scene.json',
+    ).readAsStringSync();
+    final payload = jsonDecode(source) as Map<String, Object?>;
+    final directorPlan = payload['directorPlan'] as Map<String, Object?>;
+    final sceneProgram = payload['sceneProgram'] as Map<String, Object?>;
+    final layers = sceneProgram['layers'] as List<Object?>;
+    final promptLayer = layers.cast<Map<String, Object?>>().singleWhere(
+          (layer) => layer['id'] == 'prompt-layer',
+        );
+    final elements = promptLayer['elements'] as List<Object?>;
+    final promptShell = elements.cast<Map<String, Object?>>().singleWhere(
+          (element) => element['id'] == 'prompt-shell',
+        );
+    final promptText = elements.cast<Map<String, Object?>>().singleWhere(
+          (element) => element['id'] == 'prompt-text',
+        );
+
+    final shellProperties = promptShell['properties'] as Map<String, Object?>;
+    final textProperties = promptText['properties'] as Map<String, Object?>;
+    final contentInsets =
+        shellProperties['contentInsets'] as Map<String, Object?>;
+    final textFrame = textProperties['textFrame'] as Map<String, Object?>;
+    final textChannels = promptText['channels'] as List<Object?>;
+    final typewriterChannel =
+        textChannels.cast<Map<String, Object?>>().singleWhere(
+              (channel) => channel['property'] == 'typewriterProgress',
+            );
+    final keyframes = typewriterChannel['keyframes'] as List<Object?>;
+    final typewriterEnd =
+        keyframes.cast<Map<String, Object?>>().last['timeMs'] as int;
+    final layerStartMs = promptLayer['startMs'] as int;
+    final beats = directorPlan['beats'] as List<Object?>;
+    final promptHoldBeat = beats.cast<Map<String, Object?>>().singleWhere(
+          (beat) => beat['id'] == 'prompt-readable-hold',
+        );
+
+    expect(shellProperties['layoutRole'], 'container');
+    expect(textProperties['parentId'], 'prompt-shell');
+    expect((textProperties['layout'] as Map<String, Object?>)['slot'],
+        'primaryText');
+    expect(textFrame['maxLines'], 1);
+    expect(textFrame['fitPolicy'], 'shrinkToFit');
+    expect(textFrame['measure'], 'fullText');
+
+    final shellWidth = shellProperties['width'] as num;
+    final reservedInsets =
+        (contentInsets['left'] as num) + (contentInsets['right'] as num);
+    expect(textFrame['width'] as num,
+        lessThanOrEqualTo(shellWidth - reservedInsets));
+
+    expect(layerStartMs + typewriterEnd,
+        lessThanOrEqualTo(promptHoldBeat['startMs'] as int));
+
+    final extracted = KieSceneProgramAgentService()
+        .extractSceneProgramPayloadFromContent(content: source);
+    final result =
+        const ReFusionSceneProgramAuthoringService().importSceneProgram(
+      ReFusionSceneProgramAuthoringRequest(
+        source: extracted.sceneProgramJson,
+        fileName: 'premium_app_promo_prompt_bar_scene.json',
+        projectId: 'premium-app-promo-test',
+        sceneId: 'premium-app-promo-scene',
+      ),
+    );
+
+    expect(result.isValid, isTrue,
+        reason: result.issues.map((issue) => issue.message).join('\n'));
+    expect(
+      result.issues.any(
+        (issue) =>
+            issue.message.contains('TF_SCENE_LAYOUT_GEOMETRY_PROOF') &&
+            issue.message.contains('insideContent=true'),
+      ),
+      isTrue,
+    );
+    expect(
+      result.issues.any(
+        (issue) =>
+            issue.message.contains('TF_SCENE_TEXT_FIT_PROOF') &&
+            issue.message.contains('accepted=true'),
+      ),
+      isTrue,
+    );
   });
 
   testWidgets('present sheet applies premium app promo wrapper asset',
