@@ -126,7 +126,43 @@ void main() {
     );
   });
 
-  testWidgets('present sheet applies premium app promo wrapper asset',
+  test('saas launch match cut preset imports through scene authoring pipeline',
+      () {
+    final source = File(
+      'assets/scene_programs/saas_launch_match_cut_scene.json',
+    ).readAsStringSync();
+
+    final extracted = KieSceneProgramAgentService()
+        .extractSceneProgramPayloadFromContent(content: source);
+    final result =
+        const ReFusionSceneProgramAuthoringService().importSceneProgram(
+      ReFusionSceneProgramAuthoringRequest(
+        source: extracted.sceneProgramJson,
+        fileName: 'saas_launch_match_cut_scene.json',
+        projectId: 'saas-launch-test',
+        sceneId: 'saas-launch-scene',
+      ),
+    );
+
+    expect(
+      result.isValid,
+      isTrue,
+      reason: result.issues
+          .map((issue) => '${issue.severity} ${issue.path}: ${issue.message}')
+          .join('\n'),
+    );
+    expect(result.program?.name, 'SaaS Launch Match Cut');
+    expect(result.program?.durationMs, 16000);
+    expect(result.channels.length, greaterThan(24));
+    expect(
+      result.issues.any(
+        (issue) => issue.message.contains('TF_SCENE_VISUAL_FRAME_QA_PROOF'),
+      ),
+      isTrue,
+    );
+  });
+
+  testWidgets('present sheet applies saas launch match cut wrapper asset',
       (tester) async {
     SceneProgramImportSheetResult? appliedResult;
 
@@ -140,8 +176,8 @@ void main() {
                     await showModalBottomSheet<SceneProgramImportSheetResult>(
                   context: context,
                   builder: (_) => const SceneProgramPresentBottomSheet(
-                    projectId: 'premium-app-promo-test',
-                    sceneId: 'premium-app-promo-scene',
+                    projectId: 'saas-launch-test',
+                    sceneId: 'saas-launch-scene',
                     canvasSize: MotionSize2D(width: 1080, height: 1920),
                   ),
                 );
@@ -157,17 +193,18 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
-      find.text('Premium App Promo'),
+      find.text('SaaS Launch Match Cut'),
       180,
       scrollable: find.byType(Scrollable),
     );
-    expect(find.text('Premium App Promo'), findsOneWidget);
+    expect(find.text('SaaS Launch Match Cut'), findsOneWidget);
+    expect(find.text('Premium App Promo'), findsNothing);
 
-    await tester.tap(find.text('Premium App Promo'));
+    await tester.tap(find.text('SaaS Launch Match Cut'));
     await tester.pumpAndSettle();
 
     expect(appliedResult, isNotNull);
-    expect(appliedResult!.name, 'Premium App Promo Prompt Bar');
-    expect(appliedResult!.authoringResult.program?.durationMs, 9200);
+    expect(appliedResult!.name, 'SaaS Launch Match Cut');
+    expect(appliedResult!.authoringResult.program?.durationMs, 16000);
   });
 }

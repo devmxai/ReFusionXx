@@ -3,7 +3,7 @@ import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart' show Clipboard, rootBundle;
 
 import '../../../../core/theme/app_theme.dart';
 import '../../domain/models/professional_motion_animation_models.dart';
@@ -96,65 +96,13 @@ class SceneProgramPresentBottomSheet extends StatelessWidget {
   static const List<_SceneProgramPresentPreset> _presets =
       <_SceneProgramPresentPreset>[
     _SceneProgramPresentPreset(
-      title: 'Design Reveal Study',
+      title: 'SaaS Launch Match Cut',
       subtitle:
-          'Tutorial 001: red ramp field, shape-led title reveal, dot morph, and soft shadow study.',
-      source: _SceneProgramImportBottomSheetState._designRevealSceneProgram,
-      icon: Icons.motion_photos_auto_rounded,
-      status: 'Tutorial 001',
-    ),
-    _SceneProgramPresentPreset(
-      title: 'Codex Intro',
-      subtitle:
-          'Mac-style icon, prompt bar, typewriter text, send action, and reveal.',
-      source: _SceneProgramImportBottomSheetState._codexIntroSceneProgram,
-      icon: Icons.terminal_rounded,
-      status: 'UI Promo Pack',
-    ),
-    _SceneProgramPresentPreset(
-      title: 'Codex Prompt Bloom',
-      subtitle:
-          'D11 timing demo: welcome title, black icon morph, prompt typing, send press, and white cover resolve.',
-      source: _SceneProgramImportBottomSheetState._codexPromptBloomSceneProgram,
-      icon: Icons.keyboard_command_key_rounded,
-      status: 'Timing D11',
-    ),
-    _SceneProgramPresentPreset(
-      title: 'Line Reveal',
-      subtitle: 'Typography line reveal baseline for scene-clip validation.',
-      source: _SceneProgramImportBottomSheetState._lineRevealSceneProgram,
-      icon: Icons.horizontal_rule_rounded,
-      status: 'Typography',
-    ),
-    _SceneProgramPresentPreset(
-      title: 'Shape Text Wipe',
-      subtitle: 'Shape-led text wipe choreography with editable channels.',
-      source: _SceneProgramImportBottomSheetState._shapeTextWipeSceneProgram,
-      icon: Icons.auto_awesome_motion_rounded,
-      status: 'Shape/Text',
-    ),
-    _SceneProgramPresentPreset(
-      title: 'Premium App Promo',
-      subtitle:
-          'Revival prompt-to-offer showcase with app icon, premium prompt bar, send action, and result card.',
-      assetPath: _SceneProgramImportBottomSheetState
-          ._premiumAppPromoSceneProgramAssetPath,
+          'Native three-scene SaaS promo: hire card click, scattered feedback cards, and Revival hub resolve.',
+      assetPath:
+          _SceneProgramImportBottomSheetState._saasLaunchSceneProgramAssetPath,
       icon: Icons.workspace_premium_rounded,
-      status: 'Premium Demo',
-    ),
-    _SceneProgramPresentPreset(
-      title: 'Prompt Bar',
-      subtitle: 'Core Pack prompt input bar with icons and typewriter reveal.',
-      source: _SceneProgramImportBottomSheetState._promptInputSceneProgram,
-      icon: Icons.chat_bubble_outline_rounded,
-      status: 'Core Pack',
-    ),
-    _SceneProgramPresentPreset(
-      title: 'Basic Text',
-      subtitle: 'Minimal generated text scene for graph/layer sanity checks.',
-      source: _SceneProgramImportBottomSheetState._basicSceneProgram,
-      icon: Icons.text_fields_rounded,
-      status: 'Baseline',
+      status: 'SaaS Demo',
     ),
   ];
 
@@ -454,6 +402,8 @@ class _SceneProgramImportBottomSheetState
     extends State<SceneProgramImportBottomSheet> {
   static const String _premiumAppPromoSceneProgramAssetPath =
       'assets/scene_programs/premium_app_promo_prompt_bar_scene.json';
+  static const String _saasLaunchSceneProgramAssetPath =
+      'assets/scene_programs/saas_launch_match_cut_scene.json';
 
   final ReFusionSceneProgramAuthoringService _authoringService =
       const ReFusionSceneProgramAuthoringService();
@@ -2341,14 +2291,13 @@ class _SceneProgramImportBottomSheetState
     _sceneAgentService = KieSceneProgramAgentService(
       catalog: _sceneAgentCatalog,
     );
-    _controller = TextEditingController(text: _codexIntroSceneProgram);
+    _controller = TextEditingController();
     _promptController = TextEditingController(
       text:
-          'Create a cinematic Codex intro on a white canvas. A black Mac-style app icon appears, morphs into a prompt input bar, types "Build up for my business", presses send, then the send circle expands into a clean white screen with "Welcome to Codex".',
+          'Create a cinematic native SaaS product launch promo with three beats: a premium hire-card click, scattered feedback cards, then a dark Revival hub that brings projects, feedback, files, and communication into one place.',
     );
     _selectedSceneAgentProfile =
         ReFusionSceneAgentProviderCatalog.profiles.first;
-    _result = _importCurrentSource(_codexIntroSceneProgram);
   }
 
   @override
@@ -2427,7 +2376,35 @@ class _SceneProgramImportBottomSheetState
   void _loadPreset(String source, {String? fileName}) {
     setState(() {
       _fileName = fileName;
-      _controller.text = source;
+      _controller.value = TextEditingValue(
+        text: source,
+        selection: TextSelection.collapsed(offset: source.length),
+      );
+      _result = _importCurrentSource(source);
+      _selectedTab = _SceneProgramSheetTab.script;
+    });
+  }
+
+  Future<void> _pasteSceneProgramFromClipboard() async {
+    final clipboard = await Clipboard.getData(Clipboard.kTextPlain);
+    final source = clipboard?.text?.trim();
+    if (!mounted) {
+      return;
+    }
+    if (source == null || source.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Clipboard is empty. Copy a Scene Program JSON first.'),
+        ),
+      );
+      return;
+    }
+    setState(() {
+      _fileName = null;
+      _controller.value = TextEditingValue(
+        text: source,
+        selection: TextSelection.collapsed(offset: source.length),
+      );
       _result = _importCurrentSource(source);
       _selectedTab = _SceneProgramSheetTab.script;
     });
@@ -2493,7 +2470,12 @@ class _SceneProgramImportBottomSheetState
       setState(() {
         _isGenerating = false;
         _fileName = null;
-        _controller.text = generated.sceneProgramJson;
+        _controller.value = TextEditingValue(
+          text: generated.sceneProgramJson,
+          selection: TextSelection.collapsed(
+            offset: generated.sceneProgramJson.length,
+          ),
+        );
         _result = imported;
         _selectedTab = _SceneProgramSheetTab.script;
       });
@@ -2559,7 +2541,10 @@ class _SceneProgramImportBottomSheetState
       final text = utf8.decode(bytes, allowMalformed: true);
       setState(() {
         _fileName = file.name;
-        _controller.text = text;
+        _controller.value = TextEditingValue(
+          text: text,
+          selection: TextSelection.collapsed(offset: text.length),
+        );
         _result = _importCurrentSource(text);
       });
     } finally {
@@ -2659,6 +2644,12 @@ class _SceneProgramImportBottomSheetState
                     ),
                     if (_selectedTab == _SceneProgramSheetTab.script) ...[
                       _SceneProgramActionButton(
+                        icon: Icons.content_paste_rounded,
+                        label: 'Paste',
+                        onTap: _pasteSceneProgramFromClipboard,
+                      ),
+                      const SizedBox(width: 8),
+                      _SceneProgramActionButton(
                         icon: _isUploading ? null : Icons.upload_file_rounded,
                         label: _isUploading ? 'Loading' : 'Upload',
                         onTap: _isUploading ? null : _uploadSceneProgram,
@@ -2730,36 +2721,11 @@ class _SceneProgramImportBottomSheetState
                       runSpacing: 8,
                       children: [
                         _SceneProgramActionButton(
-                          icon: Icons.terminal_rounded,
-                          label: 'Codex Intro',
-                          onTap: () => _loadPreset(_codexIntroSceneProgram),
-                        ),
-                        _SceneProgramActionButton(
-                          icon: Icons.horizontal_rule_rounded,
-                          label: 'Line Reveal',
-                          onTap: () => _loadPreset(_lineRevealSceneProgram),
-                        ),
-                        _SceneProgramActionButton(
-                          icon: Icons.auto_awesome_motion_rounded,
-                          label: 'Shape Text Wipe',
-                          onTap: () => _loadPreset(_shapeTextWipeSceneProgram),
-                        ),
-                        _SceneProgramActionButton(
                           icon: Icons.workspace_premium_rounded,
-                          label: 'Premium App Promo',
+                          label: 'SaaS Launch Match Cut',
                           onTap: () => _loadAssetPreset(
-                            _premiumAppPromoSceneProgramAssetPath,
+                            _saasLaunchSceneProgramAssetPath,
                           ),
-                        ),
-                        _SceneProgramActionButton(
-                          icon: Icons.chat_bubble_outline_rounded,
-                          label: 'Prompt Bar',
-                          onTap: () => _loadPreset(_promptInputSceneProgram),
-                        ),
-                        _SceneProgramActionButton(
-                          icon: Icons.text_fields_rounded,
-                          label: 'Basic Text',
-                          onTap: () => _loadPreset(_basicSceneProgram),
                         ),
                       ],
                     ),
