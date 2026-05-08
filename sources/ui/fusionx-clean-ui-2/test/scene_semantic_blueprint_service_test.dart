@@ -225,6 +225,98 @@ void main() {
     );
   });
 
+  test('accepts canonical SpeedyGraph semantic presets through truth compiler',
+      () {
+    const presets = <String>[
+      'easyEase',
+      'slowFastSlow',
+      'fastSlow',
+      'slowFast',
+      'fastSlowFast',
+    ];
+    final service = SceneSemanticBlueprintService();
+    for (final preset in presets) {
+      final validation = service.validate(<String, Object?>{
+        'schemaVersion': 'refusion.semantic-blueprint/v1',
+        'name': 'SpeedGraph preset $preset',
+        'durationMs': 2600,
+        'frameRate': 30,
+        'components': <Object?>[
+          <String, Object?>{
+            'id': 'prompt-$preset',
+            'type': 'PromptInputBar',
+            'motionIntents': <String, Object?>{
+              'enter': <String, Object?>{
+                'easing': preset,
+              },
+            },
+            'slots': <String, Object?>{
+              'primaryText': r'$typography.input',
+              'trailingAccessory': 'send',
+            },
+          },
+        ],
+      });
+      expect(validation.isValid, isTrue);
+      final lowered = service.lowerToSceneProgram(validation.blueprint!);
+      expect(
+        lowered.isValid,
+        isTrue,
+        reason:
+            'preset=$preset\n${lowered.issues.map((i) => i.message).join('\n')}',
+      );
+      expect(
+        lowered.issues.any(
+          (issue) =>
+              issue.severity == ReFusionSceneProgramIssueSeverity.info &&
+              issue.message.contains(kSceneSpeedyGraphDependencyProofTag) &&
+              issue.message.contains('canonicalPreset=$preset') &&
+              issue.message.contains('routedThroughTruthCompiler=true'),
+        ),
+        isTrue,
+      );
+    }
+  });
+
+  test('fails closed for unknown SpeedyGraph semantic preset', () {
+    final service = SceneSemanticBlueprintService();
+    final validation = service.validate(<String, Object?>{
+      'schemaVersion': 'refusion.semantic-blueprint/v1',
+      'name': 'Unknown speed preset',
+      'durationMs': 2600,
+      'frameRate': 30,
+      'components': <Object?>[
+        <String, Object?>{
+          'id': 'prompt',
+          'type': 'PromptInputBar',
+          'motionIntents': <String, Object?>{
+            'enter': <String, Object?>{
+              'easing': 'agentMagicPreset',
+            },
+          },
+          'slots': <String, Object?>{
+            'primaryText': r'$typography.input',
+            'trailingAccessory': 'send',
+          },
+        },
+      ],
+    });
+    expect(validation.isValid, isTrue);
+    final lowered = service.lowerToSceneProgram(validation.blueprint!);
+    expect(lowered.isValid, isFalse);
+    expect(
+      lowered.issues.any(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+            (issue.path?.contains(
+                    'components.prompt.motionIntents.enter.easing') ??
+                false) &&
+            issue.message.contains('Unknown SpeedyGraph preset'),
+      ),
+      isTrue,
+    );
+  });
+
   test('fails closed for unsupported PromptInputBar variant', () {
     final service = SceneSemanticBlueprintService();
     final validation = service.validate(<String, Object?>{
