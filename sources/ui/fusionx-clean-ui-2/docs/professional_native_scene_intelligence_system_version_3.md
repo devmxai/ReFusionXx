@@ -14,6 +14,41 @@ tree layout, beat-local time, frame-evaluated QA, strict enforcement,
 blueprint entry, legacy migration, determinism, visual closure, and
 professional taste grammar.
 
+## 0.1 Execution Status Update (2026-05-08)
+
+VERSION 3 implementation is now closed through the planned checkpoints:
+
+- `NSI-v3-00` — completed (`c6dcf7ad`)
+- `NSI-v3-01` — completed (`f9771b69`)
+- `NSI-v3-02` — completed (`c7c4212c`)
+- `NSI-v3-03` — completed (`12b91c97`)
+- `NSI-v3-04` — completed (`aad5b521`)
+- `NSI-v3-05` — completed (`aa84247f`)
+- `NSI-v3-06` — completed (`81e194ae`)
+- `NSI-v3-07` — completed (`31e76136`)
+- `NSI-v3-08` — completed (`c9190898`)
+- `NSI-v3-09` — completed (`50d79f2d`)
+- `NSI-v3-10` — completed (`7dbcb8c0`)
+- `NSI-v3-11` — completed (`f748d7d3`)
+- `NSI-v3-12` — completed (`18a28449`)
+- `NSI-v3-13` — completed (`3cbd2a95`)
+- `NSI-v3-14` — closure QA completed (this checkpoint)
+
+Closure verification summary:
+
+- Focused NSI/SpeedyGraph test suite passed.
+- `flutter build apk --debug` passed.
+- Wireless device install was not executed in this run because `adb devices`
+  returned no connected targets.
+
+Known residual risks:
+
+- Full production scene-quality uplift depends on continued expansion of
+  component exemplars and `refusion-skills` taste packs beyond the first v3
+  grammar baseline.
+- Device-install parity must be re-verified once a wireless Android target is
+  connected.
+
 ## 1. Why VERSION 3 Exists
 
 VERSION 1 and VERSION 2 built the first serious Native Scene Intelligence
@@ -1254,4 +1289,3 @@ bad scenes through legacy paths.
 Do not author another proof scene as a substitute for runtime hierarchy. New
 scenes become meaningful only after HCT, frame-evaluated QA, and strict gates
 are active.
-
