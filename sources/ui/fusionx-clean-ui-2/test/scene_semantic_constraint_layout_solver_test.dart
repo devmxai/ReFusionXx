@@ -134,5 +134,94 @@ void main() {
       ),
       isTrue,
     );
+    expect(
+      result.issues.any(
+        (issue) => issue.message.contains(kSceneTreeLayoutSolverProofTag),
+      ),
+      isTrue,
+    );
+  });
+
+  test('computes deterministic slot bounds for PromptInputBar text slot', () {
+    final result = solver.solve(
+      components: <SemanticSceneBlueprintComponent>[
+        SemanticSceneBlueprintComponent(
+          id: 'prompt',
+          type: 'PromptInputBar',
+          properties: const <String, Object?>{
+            'width': 860,
+            'height': 112,
+            'anchor': <String, Object?>{'x': 0, 'y': 0},
+            'contentInsets': <String, Object?>{
+              'left': 44,
+              'right': 124,
+              'top': 16,
+              'bottom': 16,
+            },
+          },
+          slots: const <String, Object?>{
+            'primaryText': <String, Object?>{
+              'nodeType': 'text',
+              'text': 'generate new offer',
+              'textFrame': <String, Object?>{'width': 420, 'height': 44},
+            },
+            'trailingAccessory': <String, Object?>{
+              'nodeType': 'icon',
+              'icon': 'send',
+            },
+          },
+        ),
+      ],
+      tokenRegistry: tokenRegistry,
+      profile: SceneSemanticCanvasProfile.story916,
+    );
+    expect(
+      result.issues.where((it) => it.severity.name == 'error'),
+      isEmpty,
+      reason: result.issues.map((it) => it.message).join('\n'),
+    );
+    final textSlot = result.boundsBySlot['prompt::primaryText'];
+    final accessorySlot = result.boundsBySlot['prompt::trailingAccessory'];
+    expect(textSlot, isNotNull);
+    expect(accessorySlot, isNotNull);
+    expect(textSlot!.width, greaterThan(0));
+    expect(accessorySlot!.width, greaterThan(0));
+    expect(textSlot.right, lessThanOrEqualTo(accessorySlot.right));
+  });
+
+  test('fails closed when content insets collapse slot content bounds', () {
+    final result = solver.solve(
+      components: <SemanticSceneBlueprintComponent>[
+        SemanticSceneBlueprintComponent(
+          id: 'bad',
+          type: 'PromptInputBar',
+          properties: const <String, Object?>{
+            'width': 120,
+            'height': 60,
+            'anchor': <String, Object?>{'x': 0, 'y': 0},
+            'contentInsets': <String, Object?>{
+              'left': 100,
+              'right': 100,
+              'top': 40,
+              'bottom': 40,
+            },
+          },
+          slots: const <String, Object?>{
+            'primaryText': <String, Object?>{'nodeType': 'text'},
+            'trailingAccessory': <String, Object?>{'nodeType': 'icon'},
+          },
+        ),
+      ],
+      tokenRegistry: tokenRegistry,
+      profile: SceneSemanticCanvasProfile.story916,
+    );
+    expect(
+      result.issues.any(
+        (issue) =>
+            issue.severity.name == 'error' &&
+            issue.message.contains('invalid content bounds'),
+      ),
+      isTrue,
+    );
   });
 }

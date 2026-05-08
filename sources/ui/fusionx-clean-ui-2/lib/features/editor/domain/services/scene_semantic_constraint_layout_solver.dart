@@ -1,10 +1,14 @@
 import 'dart:collection';
+import 'dart:math' as math;
 
 import '../models/refusion_scene_program_models.dart';
 import '../models/scene_semantic_blueprint_models.dart';
+import 'scene_semantic_component_registry.dart';
 import 'scene_semantic_token_registry.dart';
 
 const String kSceneLayoutSolverProofTag = 'TF_SCENE_LAYOUT_SOLVER_PROOF';
+const String kSceneTreeLayoutSolverProofTag =
+    'TF_SCENE_TREE_LAYOUT_SOLVER_PROOF';
 
 enum SceneSemanticCanvasProfile {
   story916,
@@ -47,15 +51,20 @@ class SceneSemanticConstraintLayoutResult {
   SceneSemanticConstraintLayoutResult({
     required List<ReFusionSceneProgramIssue> issues,
     required Map<String, SceneSemanticLayoutBounds> boundsByComponent,
+    required Map<String, SceneSemanticLayoutBounds> boundsBySlot,
     required this.deterministicLayoutHash,
   })  : issues = List.unmodifiable(issues),
         boundsByComponent =
             UnmodifiableMapView<String, SceneSemanticLayoutBounds>(
           boundsByComponent,
+        ),
+        boundsBySlot = UnmodifiableMapView<String, SceneSemanticLayoutBounds>(
+          boundsBySlot,
         );
 
   final List<ReFusionSceneProgramIssue> issues;
   final Map<String, SceneSemanticLayoutBounds> boundsByComponent;
+  final Map<String, SceneSemanticLayoutBounds> boundsBySlot;
   final String deterministicLayoutHash;
 }
 
@@ -65,10 +74,13 @@ class SceneSemanticConstraintLayoutSolver {
   SceneSemanticConstraintLayoutResult solve({
     required List<SemanticSceneBlueprintComponent> components,
     required SceneSemanticTokenRegistry tokenRegistry,
+    SceneSemanticComponentRegistry? componentRegistry,
     SceneSemanticCanvasProfile profile = SceneSemanticCanvasProfile.story916,
   }) {
+    final registry = componentRegistry ?? SceneSemanticComponentRegistry();
     final issues = <ReFusionSceneProgramIssue>[];
     final boundsByComponent = <String, SceneSemanticLayoutBounds>{};
+    final boundsBySlot = <String, SceneSemanticLayoutBounds>{};
     final canvas = _canvasForProfile(profile);
     final safe = _safeForProfile(profile);
     var horizontalCursor = safe.left;
@@ -138,6 +150,47 @@ class SceneSemanticConstraintLayoutSolver {
         );
       }
       boundsByComponent[component.id] = bounds;
+      final insets = _readInsets(properties['contentInsets']);
+      final contentBounds = SceneSemanticLayoutBounds(
+        left: bounds.left + insets.left,
+        top: bounds.top + insets.top,
+        right: bounds.right - insets.right,
+        bottom: bounds.bottom - insets.bottom,
+      );
+      final validContentBounds = contentBounds.width > 0 &&
+          contentBounds.height > 0 &&
+          contentBounds.width.isFinite &&
+          contentBounds.height.isFinite;
+      if (!validContentBounds) {
+        issues.add(
+          ReFusionSceneProgramIssue(
+            severity: ReFusionSceneProgramIssueSeverity.error,
+            message:
+                'Component `${component.id}` produced invalid content bounds after contentInsets.',
+            path: 'components[$index].properties.contentInsets',
+          ),
+        );
+      } else {
+        final slotLayout = _solveSlotBounds(
+          component: component,
+          contentBounds: contentBounds,
+          componentRegistry: registry,
+          issues: issues,
+          componentPath: 'components[$index]',
+        );
+        boundsBySlot.addAll(slotLayout);
+      }
+      issues.add(
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.info,
+          message: '$kSceneTreeLayoutSolverProofTag '
+              'componentId=${component.id} '
+              'contentBounds=${contentBounds.toString()} '
+              'slotCount=${component.slots.length} '
+              'contentBoundsValid=${validContentBounds.toString()}',
+          path: 'components[$index].slots',
+        ),
+      );
 
       final fullBleed = _readBool(properties['fullBleed']) ?? false;
       final insideSafe = fullBleed ||
@@ -194,14 +247,183 @@ class SceneSemanticConstraintLayoutSolver {
     }
 
     final sortedIds = ids.toList(growable: false)..sort();
+    final sortedSlots = boundsBySlot.keys.toList(growable: false)..sort();
     final hash = sortedIds
         .map((id) => '$id:${boundsByComponent[id].toString()}')
+        .followedBy(
+          sortedSlots.map((id) => '$id:${boundsBySlot[id].toString()}'),
+        )
         .join('|');
     return SceneSemanticConstraintLayoutResult(
       issues: issues,
       boundsByComponent: boundsByComponent,
+      boundsBySlot: boundsBySlot,
       deterministicLayoutHash: hash.toString(),
     );
+  }
+
+  Map<String, SceneSemanticLayoutBounds> _solveSlotBounds({
+    required SemanticSceneBlueprintComponent component,
+    required SceneSemanticLayoutBounds contentBounds,
+    required SceneSemanticComponentRegistry componentRegistry,
+    required List<ReFusionSceneProgramIssue> issues,
+    required String componentPath,
+  }) {
+    final definition = componentRegistry.findByType(component.type);
+    if (definition == null) {
+      return const <String, SceneSemanticLayoutBounds>{};
+    }
+    final slotIds = component.slots.keys.toList(growable: false)..sort();
+    if (slotIds.isEmpty) {
+      return const <String, SceneSemanticLayoutBounds>{};
+    }
+    final bounds = <String, SceneSemanticLayoutBounds>{};
+    final normalizedSlotIds = slotIds.map(_normalize).toSet();
+
+    if (definition.id == 'PromptInputBar' &&
+        normalizedSlotIds.contains('primarytext') &&
+        normalizedSlotIds.contains('trailingaccessory')) {
+      final trailingWidth = math.min(124.0, contentBounds.width * 0.32);
+      final textRight = contentBounds.right - trailingWidth;
+      final textBounds = SceneSemanticLayoutBounds(
+        left: contentBounds.left,
+        top: contentBounds.top,
+        right: textRight,
+        bottom: contentBounds.bottom,
+      );
+      final trailingBounds = SceneSemanticLayoutBounds(
+        left: textRight,
+        top: contentBounds.top,
+        right: contentBounds.right,
+        bottom: contentBounds.bottom,
+      );
+      bounds['${component.id}::primaryText'] = textBounds;
+      bounds['${component.id}::trailingAccessory'] = trailingBounds;
+      if (normalizedSlotIds.contains('leadingaccessory')) {
+        final leadingWidth = math.min(92.0, contentBounds.width * 0.22);
+        bounds['${component.id}::leadingAccessory'] = SceneSemanticLayoutBounds(
+          left: contentBounds.left,
+          top: contentBounds.top,
+          right: contentBounds.left + leadingWidth,
+          bottom: contentBounds.bottom,
+        );
+      }
+      _emitSlotProofs(
+        componentPath: componentPath,
+        componentId: component.id,
+        boundsBySlot: bounds,
+        issues: issues,
+      );
+      return bounds;
+    }
+
+    if (normalizedSlotIds.contains('title') &&
+        normalizedSlotIds.contains('body')) {
+      final headerHeight = contentBounds.height * 0.34;
+      final titleBounds = SceneSemanticLayoutBounds(
+        left: contentBounds.left,
+        top: contentBounds.top,
+        right: contentBounds.right,
+        bottom: contentBounds.top + headerHeight,
+      );
+      final bodyBounds = SceneSemanticLayoutBounds(
+        left: contentBounds.left,
+        top: contentBounds.top + headerHeight,
+        right: contentBounds.right,
+        bottom: contentBounds.bottom,
+      );
+      for (final slotId in slotIds) {
+        final normalizedSlot = _normalize(slotId);
+        if (normalizedSlot == 'title') {
+          bounds['${component.id}::$slotId'] = titleBounds;
+        } else if (normalizedSlot == 'body') {
+          bounds['${component.id}::$slotId'] = bodyBounds;
+        } else {
+          bounds['${component.id}::$slotId'] = _defaultBadgeBounds(
+            contentBounds: contentBounds,
+          );
+        }
+      }
+      _emitSlotProofs(
+        componentPath: componentPath,
+        componentId: component.id,
+        boundsBySlot: bounds,
+        issues: issues,
+      );
+      return bounds;
+    }
+
+    final columns = math.max(1, math.sqrt(slotIds.length).ceil());
+    final rows = (slotIds.length / columns).ceil();
+    final cellWidth = contentBounds.width / columns;
+    final cellHeight = contentBounds.height / rows;
+    for (var i = 0; i < slotIds.length; i += 1) {
+      final col = i % columns;
+      final row = i ~/ columns;
+      final left = contentBounds.left + (col * cellWidth);
+      final top = contentBounds.top + (row * cellHeight);
+      bounds['${component.id}::${slotIds[i]}'] = SceneSemanticLayoutBounds(
+        left: left,
+        top: top,
+        right: left + cellWidth,
+        bottom: top + cellHeight,
+      );
+    }
+    _emitSlotProofs(
+      componentPath: componentPath,
+      componentId: component.id,
+      boundsBySlot: bounds,
+      issues: issues,
+    );
+    return bounds;
+  }
+
+  SceneSemanticLayoutBounds _defaultBadgeBounds({
+    required SceneSemanticLayoutBounds contentBounds,
+  }) {
+    final width = math.min(180.0, contentBounds.width * 0.42);
+    final height = math.min(52.0, contentBounds.height * 0.28);
+    return SceneSemanticLayoutBounds(
+      left: contentBounds.right - width,
+      top: contentBounds.top,
+      right: contentBounds.right,
+      bottom: contentBounds.top + height,
+    );
+  }
+
+  void _emitSlotProofs({
+    required String componentPath,
+    required String componentId,
+    required Map<String, SceneSemanticLayoutBounds> boundsBySlot,
+    required List<ReFusionSceneProgramIssue> issues,
+  }) {
+    for (final entry in boundsBySlot.entries) {
+      final slotBounds = entry.value;
+      final valid = slotBounds.width > 0 &&
+          slotBounds.height > 0 &&
+          slotBounds.width.isFinite &&
+          slotBounds.height.isFinite;
+      if (!valid) {
+        issues.add(
+          ReFusionSceneProgramIssue(
+            severity: ReFusionSceneProgramIssueSeverity.error,
+            message: 'Slot `${entry.key}` produced invalid tree layout bounds.',
+            path: '$componentPath.slots',
+          ),
+        );
+      }
+      issues.add(
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.info,
+          message: '$kSceneTreeLayoutSolverProofTag '
+              'componentId=$componentId '
+              'slotKey=${entry.key} '
+              'slotBounds=${slotBounds.toString()} '
+              'valid=${valid.toString()}',
+          path: '$componentPath.slots',
+        ),
+      );
+    }
   }
 
   SceneSemanticLayoutBounds _canvasForProfile(
@@ -314,5 +536,23 @@ class SceneSemanticConstraintLayoutSolver {
       }
     }
     return null;
+  }
+
+  ({double left, double top, double right, double bottom}) _readInsets(
+    Object? rawInsets,
+  ) {
+    final map = _readMap(rawInsets);
+    if (map == null) {
+      return (left: 0.0, top: 0.0, right: 0.0, bottom: 0.0);
+    }
+    final all = _readDouble(map['all'], fallback: 0.0);
+    final horizontal = _readDouble(map['horizontal'], fallback: all);
+    final vertical = _readDouble(map['vertical'], fallback: all);
+    return (
+      left: _readDouble(map['left'], fallback: horizontal),
+      top: _readDouble(map['top'], fallback: vertical),
+      right: _readDouble(map['right'], fallback: horizontal),
+      bottom: _readDouble(map['bottom'], fallback: vertical),
+    );
   }
 }
