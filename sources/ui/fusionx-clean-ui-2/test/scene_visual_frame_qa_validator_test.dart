@@ -159,4 +159,124 @@ void main() {
       isTrue,
     );
   });
+
+  test('bad SaaS style card text is detected by visual QA probes', () {
+    final result = validator.validate(
+      ReFusionSceneProgram(
+        schemaVersion: 'refusion.scene-program/v1',
+        name: 'Bad SaaS Cards',
+        durationMs: 3000,
+        frameRate: 30,
+        layers: <ReFusionSceneProgramLayer>[
+          ReFusionSceneProgramLayer(
+            id: 'feedback-card-1',
+            kind: 'shape',
+            startMs: 0,
+            durationMs: 3000,
+            elements: <ReFusionSceneProgramElement>[
+              ReFusionSceneProgramElement(
+                id: 'feedback-text-1',
+                kind: 'text',
+                text:
+                    'Really strong pacing overall, this body intentionally exceeds the card text frame.',
+                properties: const <String, Object?>{
+                  'x': 120,
+                  'y': 220,
+                  'fontSize': 44,
+                  'lineHeight': 1.2,
+                  'textFrame': <String, Object?>{
+                    'width': 340,
+                    'height': 72,
+                    'maxLines': 1,
+                    'overflow': 'clip',
+                    'fitPolicy': 'none',
+                  },
+                },
+              ),
+            ],
+            channels: <ReFusionSceneProgramChannel>[
+              ReFusionSceneProgramChannel(
+                target: 'feedback-text-1',
+                property: 'opacity',
+                keyframes: const <ReFusionSceneProgramKeyframe>[
+                  ReFusionSceneProgramKeyframe(timeMs: 0, value: 0.0),
+                  ReFusionSceneProgramKeyframe(timeMs: 300, value: 1.0),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    expect(result.isValid, isFalse);
+    expect(
+      result.issues.any(
+        (issue) =>
+            issue.message.contains('TF_SCENE_VISUAL_FRAME_QA_PROOF') &&
+            issue.message.contains('textOverflow=true'),
+      ),
+      isTrue,
+    );
+  });
+
+  test('repaired SaaS style card text passes visual QA probes', () {
+    final result = validator.validate(
+      ReFusionSceneProgram(
+        schemaVersion: 'refusion.scene-program/v1',
+        name: 'Repaired SaaS Cards',
+        durationMs: 3000,
+        frameRate: 30,
+        layers: <ReFusionSceneProgramLayer>[
+          ReFusionSceneProgramLayer(
+            id: 'feedback-card-1',
+            kind: 'shape',
+            startMs: 0,
+            durationMs: 3000,
+            elements: <ReFusionSceneProgramElement>[
+              ReFusionSceneProgramElement(
+                id: 'feedback-text-1',
+                kind: 'text',
+                text: 'Strong pacing and clean feedback summary.',
+                properties: const <String, Object?>{
+                  'x': 120,
+                  'y': 220,
+                  'fontSize': 20,
+                  'lineHeight': 1.2,
+                  'textFrame': <String, Object?>{
+                    'width': 620,
+                    'height': 110,
+                    'maxLines': 2,
+                    'overflow': 'ellipsis',
+                    'fitPolicy': 'shrinkToFit',
+                  },
+                },
+              ),
+            ],
+            channels: <ReFusionSceneProgramChannel>[
+              ReFusionSceneProgramChannel(
+                target: 'feedback-text-1',
+                property: 'opacity',
+                keyframes: const <ReFusionSceneProgramKeyframe>[
+                  ReFusionSceneProgramKeyframe(timeMs: 0, value: 0.0),
+                  ReFusionSceneProgramKeyframe(timeMs: 300, value: 1.0),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    expect(result.isValid, isTrue);
+    expect(
+      result.issues.any(
+        (issue) =>
+            issue.message.contains('TF_SCENE_VISUAL_FRAME_QA_PROOF') &&
+            issue.message.contains('passed=true') &&
+            issue.message.contains('probeCount='),
+      ),
+      isTrue,
+    );
+  });
 }

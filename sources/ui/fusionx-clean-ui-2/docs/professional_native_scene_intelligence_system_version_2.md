@@ -106,6 +106,15 @@ ReFusion remains a native motion graphics application. VERSION 2 must not turn t
     `blueprintHash`, `sceneProgramHash`, `tokenResolutionHash`, and pass/fail
     status.
 
+- `NSI-v2-07` Visual QA Thumbnail Renderer is completed as MVP (render-proxy).
+  - Visual QA probe analysis now runs with explicit probe budgets:
+    full (up to 9) and heavy-scene fallback (up to 5).
+  - Probe diagnostics now emit detailed
+    `TF_SCENE_VISUAL_FRAME_QA_PROOF` fields including frame index/count,
+    overflow/clipping/overlap/safe-area outcomes, timing, and pass/fail status.
+  - Added SaaS regression tests proving bad bounded-card text fails and repaired
+    bounded-card text passes.
+
 ### 2.3 SpeedyGraph Foundation Status
 
 SpeedyGraph foundation is already implemented as a separate system and must not be rebuilt inside NSI:
