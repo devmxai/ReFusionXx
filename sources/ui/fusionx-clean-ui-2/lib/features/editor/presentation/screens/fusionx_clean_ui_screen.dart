@@ -1871,6 +1871,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       anchor: node.anchor,
       blendMode: node.blendMode,
       zIndex: node.zIndex,
+      textFrame: node.textFrame,
       name: node.name,
       presetId: node.presetId,
     );

@@ -56,6 +56,7 @@ class MotionTextRenderNode {
     required this.anchor,
     required this.blendMode,
     required this.zIndex,
+    this.textFrame,
     this.name,
     this.presetId,
   })  : animationKinds = List.unmodifiable(animationKinds),
@@ -97,6 +98,7 @@ class MotionTextRenderNode {
   final String anchor;
   final MotionBlendMode blendMode;
   final int zIndex;
+  final MotionTextFrameContract? textFrame;
   final String? name;
   final String? presetId;
 }
@@ -199,6 +201,7 @@ class BasicMotionTextRenderAdapter implements MotionTextRenderAdapter {
             anchor: kMotionTextCanonicalAnchor,
             blendMode: node.blendMode,
             zIndex: node.zIndex,
+            textFrame: node.textFrame,
             name: node.name,
             presetId: node.presetId,
           ),

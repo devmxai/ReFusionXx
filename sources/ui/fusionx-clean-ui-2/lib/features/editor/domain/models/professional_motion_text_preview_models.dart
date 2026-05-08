@@ -82,6 +82,7 @@ class MotionTextPreviewNode {
     this.presetId,
     this.textAnimationId,
     this.revealProgress,
+    this.textFrame,
     this.zIndex = 0,
     this.blendMode = MotionBlendMode.normal,
   }) : animationKinds = List.unmodifiable(animationKinds);
@@ -102,6 +103,7 @@ class MotionTextPreviewNode {
   final String? presetId;
   final String? textAnimationId;
   final double? revealProgress;
+  final MotionTextFrameContract? textFrame;
   final int zIndex;
   final MotionBlendMode blendMode;
   final List<MotionTextAnimationKind> animationKinds;
@@ -266,6 +268,7 @@ class BasicMotionTextPreviewBinder implements MotionTextPreviewBinder {
               blendMode: layer.blendMode,
               animationKinds: textAnimation?.animationKinds ??
                   const <MotionTextAnimationKind>[],
+              textFrame: _resolveTextFrame(resolvedElement),
               transform: MotionTextPreviewTransformState(
                 positionX: _scalarPropertyOrDefault(
                   element.properties,
@@ -368,6 +371,53 @@ class BasicMotionTextPreviewBinder implements MotionTextPreviewBinder {
       nodes: nodes,
       diagnostics: diagnostics,
     );
+  }
+
+  MotionTextFrameContract? _resolveTextFrame(
+    MotionResolvedElementModel element,
+  ) {
+    final metadata = element.sourceBinding?.metadata;
+    if (metadata == null || metadata.isEmpty) {
+      return null;
+    }
+    final width = _doubleFromMetadata(metadata, 'textFrame.width');
+    final height = _doubleFromMetadata(metadata, 'textFrame.height');
+    final maxLines = _intFromMetadata(metadata, 'textFrame.maxLines');
+    final overflow = metadata['textFrame.overflow'];
+    final fitPolicy = metadata['textFrame.fitPolicy'];
+    final frame = MotionTextFrameContract(
+      width: width,
+      height: height,
+      maxLines: maxLines,
+      overflow: overflow,
+      fitPolicy: fitPolicy,
+    );
+    return frame.hasBounds ? frame : null;
+  }
+
+  double? _doubleFromMetadata(Map<String, String> metadata, String key) {
+    final raw = metadata[key];
+    if (raw == null) {
+      return null;
+    }
+    final value = double.tryParse(raw.trim());
+    if (value == null || !value.isFinite || value <= 0) {
+      return null;
+    }
+    return value;
+  }
+
+  int? _intFromMetadata(Map<String, String> metadata, String key) {
+    final raw = metadata[key];
+    if (raw == null) {
+      return null;
+    }
+    final value = num.tryParse(raw.trim());
+    if (value == null || !value.isFinite) {
+      return null;
+    }
+    final rounded = value.round();
+    return rounded <= 0 ? null : rounded;
   }
 
   String _resolveFullText({

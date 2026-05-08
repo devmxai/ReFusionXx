@@ -16,6 +16,7 @@ void main() {
     double blurCrop = 0,
     double fontSize = 20,
     double letterSpacing = 4,
+    MotionTextFrameContract? textFrame,
   }) {
     return MotionTextRenderNode(
       id: 'node-1',
@@ -53,6 +54,7 @@ void main() {
       fontStyle: 'normal',
       lineHeight: 1.0,
       textAlignment: 'center',
+      textFrame: textFrame,
       anchor: 'center',
       blendMode: MotionBlendMode.normal,
       zIndex: 10,
@@ -122,6 +124,43 @@ void main() {
     expect(metrics.blurSigma, closeTo(2.7, 0.0001));
     expect(metrics.blurKernelSpreadPx, closeTo(8.1, 0.0001));
     expect(metrics.layoutPaddingPx, 9.0);
+  });
+
+  test('preserves bounded text frame truth for renderer bridge', () {
+    final rasterNode = const BasicMotionTextRasterContractAdapter()
+        .adapt(
+          snapshot: MotionTextRenderSnapshot(
+            projectId: 'project-1',
+            time: TimelineTime.fromMilliseconds(400),
+            canvasSize: const MotionSize2D(width: 1080, height: 1920),
+            nodes: <MotionTextRenderNode>[
+              buildRenderNode(
+                textFrame: const MotionTextFrameContract(
+                  width: 320,
+                  height: 72,
+                  maxLines: 2,
+                  overflow: 'ellipsis',
+                  fitPolicy: 'shrinkToFit',
+                ),
+              ),
+            ],
+          ),
+        )
+        .nodes
+        .single;
+
+    expect(rasterNode.textFrame, isNotNull);
+    expect(rasterNode.textFrame!.width, 320);
+    expect(rasterNode.textFrame!.height, 72);
+    expect(rasterNode.textFrame!.maxLines, 2);
+
+    final bridgeMap = rasterNode.toBridgeMap();
+    final frameMap = bridgeMap['textFrame'] as Map<String, Object?>;
+    expect(frameMap['width'], 320);
+    expect(frameMap['height'], 72);
+    expect(frameMap['maxLines'], 2);
+    expect(frameMap['overflow'], 'ellipsis');
+    expect(frameMap['fitPolicy'], 'shrinkToFit');
   });
 
   test('keeps standard gaussian blur isotropic and stable', () {

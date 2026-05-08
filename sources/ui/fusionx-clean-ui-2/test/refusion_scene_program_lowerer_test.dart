@@ -131,7 +131,8 @@ void main() {
     expect(positionY.keyframes.first.interpolationToNext.velocity, isNull);
   });
 
-  test('scene-program easing aliases lower into editable velocity contracts', () {
+  test('scene-program easing aliases lower into editable velocity contracts',
+      () {
     const aliasExpectations = <String, String>{
       'easyEase': 'easyEase',
       'f9': 'easyEase',
@@ -1223,6 +1224,14 @@ void main() {
               "role": "content",
               "align": "centerLeft",
               "padding": 24
+            },
+            "textFrame": {
+              "width": 620,
+              "height": 64,
+              "maxLines": 1,
+              "overflow": "ellipsis",
+              "fitPolicy": "shrinkToFit",
+              "measure": "fullText"
             }
           }
         }
@@ -1254,5 +1263,11 @@ void main() {
     expect(text.sourceBinding!.metadata['layout.role'], 'content');
     expect(text.sourceBinding!.metadata['layout.align'], 'centerLeft');
     expect(text.sourceBinding!.metadata['layout.padding'], '24');
+    expect(text.sourceBinding!.metadata['textFrame.width'], '620');
+    expect(text.sourceBinding!.metadata['textFrame.height'], '64');
+    expect(text.sourceBinding!.metadata['textFrame.maxLines'], '1');
+    expect(text.sourceBinding!.metadata['textFrame.overflow'], 'ellipsis');
+    expect(text.sourceBinding!.metadata['textFrame.fitPolicy'], 'shrinkToFit');
+    expect(text.sourceBinding!.metadata['textFrame.measure'], 'fullText');
   });
 }

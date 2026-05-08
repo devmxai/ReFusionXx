@@ -126,7 +126,8 @@ void main() {
     );
   });
 
-  test('revival native intelligence preset imports through scene authoring pipeline',
+  test(
+      'revival native intelligence preset imports through scene authoring pipeline',
       () {
     final source = File(
       'assets/scene_programs/saas_launch_match_cut_scene.json',
@@ -159,6 +160,91 @@ void main() {
         (issue) => issue.message.contains('TF_SCENE_VISUAL_FRAME_QA_PROOF'),
       ),
       isTrue,
+    );
+  });
+
+  test('revival native intelligence result card text waits for card entrance',
+      () {
+    final source = File(
+      'assets/scene_programs/saas_launch_match_cut_scene.json',
+    ).readAsStringSync();
+    final payload = jsonDecode(source) as Map<String, Object?>;
+    final sceneProgram = payload['sceneProgram'] as Map<String, Object?>;
+    final layers =
+        (sceneProgram['layers'] as List<Object?>).cast<Map<String, Object?>>();
+
+    void expectOpacityHold({
+      required String layerId,
+      required String elementId,
+      required int holdTimeMs,
+      required int revealTimeMs,
+    }) {
+      final layer = layers.singleWhere((layer) => layer['id'] == layerId);
+      final elements =
+          (layer['elements'] as List<Object?>).cast<Map<String, Object?>>();
+      final element =
+          elements.singleWhere((element) => element['id'] == elementId);
+      final channels =
+          (element['channels'] as List<Object?>).cast<Map<String, Object?>>();
+      final opacity = channels.singleWhere(
+        (channel) => channel['property'] == 'opacity',
+      );
+      final keyframes =
+          (opacity['keyframes'] as List<Object?>).cast<Map<String, Object?>>();
+
+      expect(
+        keyframes.any(
+          (keyframe) =>
+              keyframe['timeMs'] == holdTimeMs && keyframe['value'] == 0,
+        ),
+        isTrue,
+        reason: '$elementId must stay hidden until its card exists.',
+      );
+      expect(
+        keyframes.any(
+          (keyframe) =>
+              keyframe['timeMs'] == revealTimeMs && keyframe['value'] == 1,
+        ),
+        isTrue,
+        reason: '$elementId must reveal after the card entrance begins.',
+      );
+    }
+
+    expectOpacityHold(
+      layerId: 'result-cards-layer',
+      elementId: 'story-title',
+      holdTimeMs: 6500,
+      revealTimeMs: 6600,
+    );
+    expectOpacityHold(
+      layerId: 'result-cards-layer',
+      elementId: 'story-copy',
+      holdTimeMs: 6650,
+      revealTimeMs: 6750,
+    );
+    expectOpacityHold(
+      layerId: 'result-cards-layer',
+      elementId: 'motion-title',
+      holdTimeMs: 6900,
+      revealTimeMs: 7000,
+    );
+    expectOpacityHold(
+      layerId: 'result-cards-layer',
+      elementId: 'motion-copy',
+      holdTimeMs: 7050,
+      revealTimeMs: 7150,
+    );
+    expectOpacityHold(
+      layerId: 'result-cards-layer',
+      elementId: 'export-title',
+      holdTimeMs: 7200,
+      revealTimeMs: 7300,
+    );
+    expectOpacityHold(
+      layerId: 'result-cards-layer',
+      elementId: 'export-copy',
+      holdTimeMs: 7350,
+      revealTimeMs: 7450,
     );
   });
 

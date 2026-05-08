@@ -349,6 +349,7 @@ class MotionTextRasterNode {
     required this.typography,
     required this.effects,
     required this.layout,
+    this.textFrame,
     this.name,
     this.presetId,
   })  : animationKinds = List.unmodifiable(animationKinds),
@@ -371,6 +372,7 @@ class MotionTextRasterNode {
   final MotionTextTypographyContract typography;
   final MotionTextEffectsContract effects;
   final MotionTextLayoutContract layout;
+  final MotionTextFrameContract? textFrame;
   final String? name;
   final String? presetId;
 
@@ -453,6 +455,14 @@ class MotionTextRasterNode {
         'typography': typography.toBridgeMap(),
         'effects': effects.toBridgeMap(),
         'layout': layout.toBridgeMap(),
+        if (textFrame != null)
+          'textFrame': <String, Object?>{
+            'width': textFrame!.width,
+            'height': textFrame!.height,
+            'maxLines': textFrame!.maxLines,
+            'overflow': textFrame!.overflow,
+            'fitPolicy': textFrame!.fitPolicy,
+          },
         'name': name,
         'presetId': presetId,
       };
@@ -560,6 +570,7 @@ class BasicMotionTextRasterContractAdapter
                 anchor: node.anchor,
                 zIndex: node.zIndex,
               ),
+              textFrame: node.textFrame,
               name: node.name,
               presetId: node.presetId,
             ),

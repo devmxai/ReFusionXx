@@ -41,6 +41,40 @@ enum MotionTextRevealDirection {
   reverse,
 }
 
+@immutable
+class MotionTextFrameContract {
+  const MotionTextFrameContract({
+    this.width,
+    this.height,
+    this.maxLines,
+    this.overflow,
+    this.fitPolicy,
+  });
+
+  final double? width;
+  final double? height;
+  final int? maxLines;
+  final String? overflow;
+  final String? fitPolicy;
+
+  bool get hasBoundedWidth => width != null && width! > 0;
+  bool get hasBoundedHeight => height != null && height! > 0;
+  bool get hasBounds => hasBoundedWidth || hasBoundedHeight;
+
+  MotionTextFrameContract scaled({
+    required double scaleX,
+    required double scaleY,
+  }) {
+    return MotionTextFrameContract(
+      width: width == null ? null : width! * scaleX,
+      height: height == null ? null : height! * scaleY,
+      maxLines: maxLines,
+      overflow: overflow,
+      fitPolicy: fitPolicy,
+    );
+  }
+}
+
 enum MotionTextPresetKind {
   hiWord,
   reviewGen,

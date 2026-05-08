@@ -518,6 +518,7 @@
                 "property": "opacity",
                 "keyframes": [
                   {"timeMs": 0, "value": 0, "easing": "linear"},
+                  {"timeMs": 6500, "value": 0, "easing": "linear"},
                   {"timeMs": 6600, "value": 1, "easing": "fastSlow"},
                   {"timeMs": 10600, "value": 0, "easing": "fastSlow"}
                 ]
@@ -551,6 +552,7 @@
                 "property": "opacity",
                 "keyframes": [
                   {"timeMs": 0, "value": 0, "easing": "linear"},
+                  {"timeMs": 6650, "value": 0, "easing": "linear"},
                   {"timeMs": 6750, "value": 1, "easing": "fastSlow"},
                   {"timeMs": 10600, "value": 0, "easing": "fastSlow"}
                 ]
@@ -622,6 +624,7 @@
                 "property": "opacity",
                 "keyframes": [
                   {"timeMs": 0, "value": 0, "easing": "linear"},
+                  {"timeMs": 6900, "value": 0, "easing": "linear"},
                   {"timeMs": 7000, "value": 1, "easing": "fastSlow"},
                   {"timeMs": 10600, "value": 0, "easing": "fastSlow"}
                 ]
@@ -655,6 +658,7 @@
                 "property": "opacity",
                 "keyframes": [
                   {"timeMs": 0, "value": 0, "easing": "linear"},
+                  {"timeMs": 7050, "value": 0, "easing": "linear"},
                   {"timeMs": 7150, "value": 1, "easing": "fastSlow"},
                   {"timeMs": 10600, "value": 0, "easing": "fastSlow"}
                 ]
@@ -726,6 +730,7 @@
                 "property": "opacity",
                 "keyframes": [
                   {"timeMs": 0, "value": 0, "easing": "linear"},
+                  {"timeMs": 7200, "value": 0, "easing": "linear"},
                   {"timeMs": 7300, "value": 1, "easing": "fastSlow"},
                   {"timeMs": 10600, "value": 0, "easing": "fastSlow"}
                 ]
@@ -759,6 +764,7 @@
                 "property": "opacity",
                 "keyframes": [
                   {"timeMs": 0, "value": 0, "easing": "linear"},
+                  {"timeMs": 7350, "value": 0, "easing": "linear"},
                   {"timeMs": 7450, "value": 1, "easing": "fastSlow"},
                   {"timeMs": 10600, "value": 0, "easing": "fastSlow"}
                 ]

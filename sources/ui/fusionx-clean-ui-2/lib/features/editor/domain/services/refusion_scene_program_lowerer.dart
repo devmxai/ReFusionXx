@@ -1372,8 +1372,38 @@ class ReFusionSceneProgramLowerer {
           'uri': '${element.properties['uri']}',
         ..._maskMetadataFor(element.properties),
         ..._layoutMetadataFor(element.properties),
+        ..._textFrameMetadataFor(element.properties),
       },
     );
+  }
+
+  Map<String, String> _textFrameMetadataFor(Map<String, Object?> properties) {
+    final textFrame = _propertyByNormalizedKey(properties, 'textFrame') ??
+        _propertyByNormalizedKey(properties, 'layoutTextFrame');
+    if (textFrame is! Map) {
+      return const <String, String>{};
+    }
+    final frameProperties = Map<String, Object?>.from(textFrame);
+    final metadata = <String, String>{};
+    void add(String metadataKey, String key) {
+      final value = _propertyByNormalizedKey(frameProperties, key);
+      if (value == null) {
+        return;
+      }
+      final normalized = '$value'.trim();
+      if (normalized.isEmpty) {
+        return;
+      }
+      metadata[metadataKey] = normalized;
+    }
+
+    add('textFrame.width', 'width');
+    add('textFrame.height', 'height');
+    add('textFrame.maxLines', 'maxLines');
+    add('textFrame.overflow', 'overflow');
+    add('textFrame.fitPolicy', 'fitPolicy');
+    add('textFrame.measure', 'measure');
+    return metadata;
   }
 
   Map<String, String> _layoutMetadataFor(Map<String, Object?> properties) {
