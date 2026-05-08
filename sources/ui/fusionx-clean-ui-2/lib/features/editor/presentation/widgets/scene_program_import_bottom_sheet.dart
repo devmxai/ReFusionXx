@@ -90,6 +90,8 @@ class SceneProgramPresentBottomSheet extends StatelessWidget {
 
   static const ReFusionSceneProgramAuthoringService _authoringService =
       ReFusionSceneProgramAuthoringService();
+  static final KieSceneProgramAgentService _sceneAgentService =
+      KieSceneProgramAgentService();
 
   static const List<_SceneProgramPresentPreset> _presets =
       <_SceneProgramPresentPreset>[
@@ -162,7 +164,7 @@ class SceneProgramPresentBottomSheet extends StatelessWidget {
   ) async {
     final String source;
     try {
-      source = await preset.loadSource();
+      source = _sceneProgramSourceForImport(await preset.loadSource());
     } catch (error) {
       if (!context.mounted) {
         return;
@@ -204,6 +206,33 @@ class SceneProgramPresentBottomSheet extends StatelessWidget {
     Navigator.of(context).pop(
       SceneProgramImportSheetResult.fromAuthoringResult(result),
     );
+  }
+
+  static String _sceneProgramSourceForImport(String source) {
+    final trimmed = source.trim();
+    if (trimmed.isEmpty) {
+      return trimmed;
+    }
+    try {
+      final decoded = jsonDecode(trimmed);
+      if (decoded is! Map) {
+        return trimmed;
+      }
+      final hasSceneWrapper = decoded.containsKey('directorPlan') ||
+          decoded.containsKey('motionDirector') ||
+          decoded.containsKey('sceneProgram') ||
+          decoded.containsKey('program');
+      if (!hasSceneWrapper) {
+        return trimmed;
+      }
+      return _sceneAgentService
+          .extractSceneProgramPayloadFromContent(content: trimmed)
+          .sceneProgramJson;
+    } on KieSceneProgramAgentException {
+      rethrow;
+    } catch (_) {
+      return trimmed;
+    }
   }
 
   @override
