@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 
 import '../../../../core/theme/app_theme.dart';
 import '../../domain/models/professional_motion_animation_models.dart';
@@ -131,6 +132,15 @@ class SceneProgramPresentBottomSheet extends StatelessWidget {
       status: 'Shape/Text',
     ),
     _SceneProgramPresentPreset(
+      title: 'Premium App Promo',
+      subtitle:
+          'Revival prompt-to-offer showcase with app icon, premium prompt bar, send action, and result card.',
+      assetPath: _SceneProgramImportBottomSheetState
+          ._premiumAppPromoSceneProgramAssetPath,
+      icon: Icons.workspace_premium_rounded,
+      status: 'Premium Demo',
+    ),
+    _SceneProgramPresentPreset(
       title: 'Prompt Bar',
       subtitle: 'Core Pack prompt input bar with icons and typewriter reveal.',
       source: _SceneProgramImportBottomSheetState._promptInputSceneProgram,
@@ -146,17 +156,37 @@ class SceneProgramPresentBottomSheet extends StatelessWidget {
     ),
   ];
 
-  void _applyPreset(BuildContext context, _SceneProgramPresentPreset preset) {
+  Future<void> _applyPreset(
+    BuildContext context,
+    _SceneProgramPresentPreset preset,
+  ) async {
+    final String source;
+    try {
+      source = await preset.loadSource();
+    } catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Present preset could not be loaded: $error'),
+        ),
+      );
+      return;
+    }
     final result = _authoringService.importSceneProgram(
       ReFusionSceneProgramAuthoringRequest(
-        source: preset.source,
-        fileName: '${preset.title}.json',
+        source: source,
+        fileName: preset.fileName,
         projectId: projectId,
         sceneId: sceneId,
         canvasSize: canvasSize,
       ),
     );
     if (!result.isValid) {
+      if (!context.mounted) {
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -166,6 +196,9 @@ class SceneProgramPresentBottomSheet extends StatelessWidget {
           ),
         ),
       );
+      return;
+    }
+    if (!context.mounted) {
       return;
     }
     Navigator.of(context).pop(
@@ -243,16 +276,38 @@ class _SceneProgramPresentPreset {
   const _SceneProgramPresentPreset({
     required this.title,
     required this.subtitle,
-    required this.source,
     required this.icon,
     required this.status,
+    this.source,
+    this.assetPath,
   });
 
   final String title;
   final String subtitle;
-  final String source;
   final IconData icon;
   final String status;
+  final String? source;
+  final String? assetPath;
+
+  String get fileName {
+    final path = assetPath;
+    if (path == null) {
+      return '$title.json';
+    }
+    return path.split('/').last;
+  }
+
+  Future<String> loadSource() async {
+    final inlineSource = source;
+    if (inlineSource != null) {
+      return inlineSource;
+    }
+    final path = assetPath;
+    if (path == null) {
+      throw StateError('Preset `$title` has no scene source.');
+    }
+    return rootBundle.loadString(path);
+  }
 }
 
 class _SceneProgramPresentCard extends StatelessWidget {
@@ -368,6 +423,9 @@ enum _SceneProgramSheetTab {
 
 class _SceneProgramImportBottomSheetState
     extends State<SceneProgramImportBottomSheet> {
+  static const String _premiumAppPromoSceneProgramAssetPath =
+      'assets/scene_programs/premium_app_promo_prompt_bar_scene.json';
+
   final ReFusionSceneProgramAuthoringService _authoringService =
       const ReFusionSceneProgramAuthoringService();
   final ReFusionSceneAgentProviderCatalog _sceneAgentCatalog =
@@ -2337,13 +2395,21 @@ class _SceneProgramImportBottomSheetState
     });
   }
 
-  void _loadPreset(String source) {
+  void _loadPreset(String source, {String? fileName}) {
     setState(() {
-      _fileName = null;
+      _fileName = fileName;
       _controller.text = source;
       _result = _importCurrentSource(source);
       _selectedTab = _SceneProgramSheetTab.script;
     });
+  }
+
+  Future<void> _loadAssetPreset(String assetPath) async {
+    final source = await rootBundle.loadString(assetPath);
+    if (!mounted) {
+      return;
+    }
+    _loadPreset(source, fileName: assetPath.split('/').last);
   }
 
   void _selectTab(_SceneProgramSheetTab tab) {
@@ -2648,6 +2714,13 @@ class _SceneProgramImportBottomSheetState
                           icon: Icons.auto_awesome_motion_rounded,
                           label: 'Shape Text Wipe',
                           onTap: () => _loadPreset(_shapeTextWipeSceneProgram),
+                        ),
+                        _SceneProgramActionButton(
+                          icon: Icons.workspace_premium_rounded,
+                          label: 'Premium App Promo',
+                          onTap: () => _loadAssetPreset(
+                            _premiumAppPromoSceneProgramAssetPath,
+                          ),
                         ),
                         _SceneProgramActionButton(
                           icon: Icons.chat_bubble_outline_rounded,
