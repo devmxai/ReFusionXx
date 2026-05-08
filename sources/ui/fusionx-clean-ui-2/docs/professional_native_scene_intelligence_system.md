@@ -1652,7 +1652,7 @@ The v2 extension is complete only when:
 - failed visual QA returns structured repair instructions;
 - the old direct SceneProgram path remains valid for backward compatibility.
 
-## 11. Agent Writer Instruction
+## 11. Agent Writer Instruction (v2 Active Track)
 
 When implementing this plan:
 
@@ -1672,30 +1672,45 @@ When implementing this plan:
 9. Push the branch.
 10. Report files, tests, build/install result, risks, and rollback command.
 
-Immediate remaining order:
+v1 closure status:
 
-1. Close `NSI-10` in `/Users/mx/Documents/refusion-skills`.
-2. Close `NSI-11` in `/Users/mx/Documents/ReFusionXx`.
-3. Close `NSI-12` in `/Users/mx/Documents/ReFusionXx`.
-4. Only after `NSI-12`, start `NSI-v2-01`.
+- `NSI-01` through `NSI-12` are complete and closed.
+- Do not reopen v1 checkpoints unless a specific regression requires it.
 
-For `NSI-10`, the writer must update skills with the accepted strategic
-refinement:
+Immediate active order (v2 only):
 
-- Closed Vocabulary as agent-facing authoring guidance;
-- PromptInputBar component rules;
-- Beat Grammar rules;
-- Visual Closure Loop preparation and QA self-check rules;
-- corrected Premium App Promo example;
-- no HTML/CSS/JS/React output;
-- no requirement that the lowered SceneProgram keep every value as a token.
+1. `NSI-v2-01` Design Token Registry
+2. `NSI-v2-02` Semantic Scene Blueprint Schema
+3. `NSI-v2-03` Component Registry v2
+4. `NSI-v2-04` Constraint Layout Solver
+5. `NSI-v2-05` Beat Grammar Engine
+6. `NSI-v2-06` Blueprint To SceneProgram Compiler
+7. `NSI-v2-07` Visual QA Thumbnail Renderer MVP
+8. `NSI-v2-08` Structured Repair Feedback Loop
+9. `NSI-v2-09` Skills And Exemplar Expansion
+10. `NSI-v2-10` Closure QA
 
-For `NSI-v2`, the writer must treat `SceneProgram` compatibility as protected:
+Phase gating rules:
+
+- implement exactly one phase per checkpoint;
+- run focused tests for that phase only, then broaden in `NSI-v2-10`;
+- stage only related files;
+- do not mix FX/timeline/native Stage5 work into NSI-v2 checkpoints;
+- if a phase depends on a missing contract, add the contract first and stop.
+
+Compatibility rule for all v2 phases:
 
 - direct SceneProgram import remains supported;
 - semantic blueprint is additive;
 - tokens compile to concrete native values;
 - unsupported tokens/components/beats fail with explicit reasons.
+
+Quality rule for all v2 phases:
+
+- no HTML/CSS/JS/React/Remotion output;
+- no UI-only quality claims;
+- no Visual Closure completion claims before probe evidence plus repair payloads
+  exist.
 
 Rollback format:
 
