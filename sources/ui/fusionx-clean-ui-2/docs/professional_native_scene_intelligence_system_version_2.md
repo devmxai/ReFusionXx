@@ -119,8 +119,14 @@ ReFusion remains a native motion graphics application. VERSION 2 must not turn t
   - Added `SceneSemanticRepairLoopService` to map scene issues into structured
     machine-readable repair payloads with stable error codes.
   - Added loop orchestration with hard max attempts (default 3) and convergence
-    reporting.
+  reporting.
   - Added repair-loop diagnostic `TF_SCENE_REPAIR_LOOP_PROOF`.
+
+- `NSI-v2-09` Skills, Exemplars, Migration is completed.
+  - `refusion-skills` was updated with v2 deterministic/repair/migration rules.
+  - Added explicit v1->v2 migration rule and rebuilt
+    `REFUSION_SCENE_SKILL_FULL.md`.
+  - Ran skill-side validator successfully on premium and revival examples.
 
 ### 2.3 SpeedyGraph Foundation Status
 
