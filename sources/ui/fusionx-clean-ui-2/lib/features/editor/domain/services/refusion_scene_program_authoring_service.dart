@@ -7,6 +7,7 @@ import '../models/refusion_scene_program_models.dart';
 import 'professional_scene_timing_contract.dart';
 import 'refusion_scene_program_import_service.dart';
 import 'refusion_scene_program_lowerer.dart';
+import 'scene_program_component_contract.dart';
 import 'scene_program_layout_contract.dart';
 
 @immutable
@@ -66,15 +67,19 @@ class ReFusionSceneProgramAuthoringService {
         const ProfessionalSceneTimingContractValidator(),
     SceneProgramLayoutContractValidator layoutContractValidator =
         const SceneProgramLayoutContractValidator(),
+    SceneProgramComponentContractValidator componentContractValidator =
+        const SceneProgramComponentContractValidator(),
     ReFusionSceneProgramLowerer lowerer = const ReFusionSceneProgramLowerer(),
   })  : _importService = importService,
         _timingContractValidator = timingContractValidator,
         _layoutContractValidator = layoutContractValidator,
+        _componentContractValidator = componentContractValidator,
         _lowerer = lowerer;
 
   final ReFusionSceneProgramImportService _importService;
   final ProfessionalSceneTimingContractValidator _timingContractValidator;
   final SceneProgramLayoutContractValidator _layoutContractValidator;
+  final SceneProgramComponentContractValidator _componentContractValidator;
   final ReFusionSceneProgramLowerer _lowerer;
 
   ReFusionSceneProgramAuthoringResult importSceneProgram(
@@ -118,6 +123,21 @@ class ReFusionSceneProgramAuthoringService {
       );
     }
 
+    final componentResult = _componentContractValidator.validate(
+      importResult.program!,
+    );
+    if (!componentResult.isValid) {
+      return ReFusionSceneProgramAuthoringResult(
+        program: importResult.program,
+        issues: <ReFusionSceneProgramIssue>[
+          ...importResult.issues,
+          ...timingResult.issues,
+          ...layoutResult.issues,
+          ...componentResult.issues,
+        ],
+      );
+    }
+
     final loweringResult = _lowerer.lower(
       ReFusionSceneProgramLoweringRequest(
         program: importResult.program!,
@@ -135,6 +155,7 @@ class ReFusionSceneProgramAuthoringService {
         ...importResult.issues,
         ...timingResult.issues,
         ...layoutResult.issues,
+        ...componentResult.issues,
         ...loweringResult.issues,
       ],
     );

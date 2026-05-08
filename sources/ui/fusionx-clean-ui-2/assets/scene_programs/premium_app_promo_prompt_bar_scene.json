@@ -535,6 +535,7 @@
             "id": "prompt-shell",
             "kind": "shape",
             "properties": {
+              "layoutRole": "container",
               "shapeKind": "roundedRectangle",
               "position": {
                 "x": 0,
@@ -551,7 +552,13 @@
                 "x": 0,
                 "y": 26
               },
-              "shadowColor": "#000000"
+              "shadowColor": "#000000",
+              "contentInsets": {
+                "left": 44,
+                "right": 124,
+                "top": 16,
+                "bottom": 16
+              }
             },
             "channels": [
               {
@@ -611,11 +618,31 @@
             "kind": "text",
             "text": "generate new offer for my business",
             "properties": {
-              "position": {
-                "x": -135,
-                "y": -28
+              "parentId": "prompt-shell",
+              "layoutRole": "content",
+              "layout": {
+                "slot": "primaryText",
+                "anchor": "centerLeft",
+                "maxWidth": 680,
+                "maxLines": 1,
+                "overflow": "clip"
               },
-              "fontSize": 38,
+              "textFrame": {
+                "width": 680,
+                "height": 60,
+                "anchor": "centerLeft",
+                "maxLines": 1,
+                "overflow": "clip",
+                "fitPolicy": "shrinkToFit",
+                "minFontSize": 24,
+                "maxFontSize": 32,
+                "measure": "fullText"
+              },
+              "position": {
+                "x": -76,
+                "y": -40
+              },
+              "fontSize": 32,
               "fontWeight": 650,
               "letterSpacing": 0,
               "lineHeight": 1.0,
@@ -671,6 +698,12 @@
             "id": "send-button",
             "kind": "shape",
             "properties": {
+              "parentId": "prompt-shell",
+              "layoutRole": "trailingAccessory",
+              "layout": {
+                "slot": "trailingAccessory",
+                "anchor": "centerRight"
+              },
               "shapeKind": "circle",
               "position": {
                 "x": 355,
@@ -743,6 +776,8 @@
             "id": "send-icon",
             "kind": "icon",
             "properties": {
+              "parentId": "send-button",
+              "layoutRole": "icon",
               "icon": "send",
               "position": {
                 "x": 355,

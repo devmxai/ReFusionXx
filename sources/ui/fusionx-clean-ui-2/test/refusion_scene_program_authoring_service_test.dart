@@ -277,4 +277,71 @@ void main() {
       isNotEmpty,
     );
   });
+
+  test('rejects PromptInputBar scenes that violate component-safe text rules',
+      () {
+    final result = service.importSceneProgram(
+      const ReFusionSceneProgramAuthoringRequest(
+        source: '''
+{
+  "schemaVersion": "refusion.scene-program/v1",
+  "name": "Broken Prompt Input",
+  "durationMs": 2400,
+  "frameRate": 30,
+  "layers": [
+    {
+      "id": "prompt-layer",
+      "kind": "shape",
+      "startMs": 0,
+      "durationMs": 2400,
+      "elements": [
+        {
+          "id": "prompt-shell",
+          "kind": "shape",
+          "properties": {
+            "shapeKind": "roundedRectangle",
+            "position": { "x": 0, "y": -40 },
+            "width": 860,
+            "height": 118
+          }
+        },
+        {
+          "id": "prompt-text",
+          "kind": "text",
+          "text": "generate new offer for my business",
+          "properties": {
+            "position": { "x": -135, "y": -28 },
+            "fontSize": 38,
+            "textAlign": "left"
+          }
+        },
+        {
+          "id": "send-button",
+          "kind": "shape",
+          "properties": {
+            "position": { "x": 355, "y": -40 },
+            "width": 76,
+            "height": 76
+          }
+        }
+      ]
+    }
+  ]
+}
+''',
+      ),
+    );
+
+    expect(result.isValid, isFalse);
+    expect(result.project, isNull);
+    expect(result.channels, isEmpty);
+    expect(
+      result.issues.where(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+            issue.message.contains('PromptInputBar'),
+      ),
+      isNotEmpty,
+    );
+  });
 }
