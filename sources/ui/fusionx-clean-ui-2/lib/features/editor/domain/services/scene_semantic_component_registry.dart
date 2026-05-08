@@ -2,6 +2,7 @@ import 'dart:collection';
 
 import '../models/refusion_scene_program_models.dart';
 import '../models/scene_semantic_blueprint_models.dart';
+import '../models/scene_runtime_node.dart';
 
 const String kSceneComponentRegistryProofTag =
     'TF_SCENE_COMPONENT_REGISTRY_PROOF';
@@ -130,6 +131,22 @@ class SceneSemanticComponentDefinition {
   }
 }
 
+class SceneSemanticRuntimeTemplateResult {
+  const SceneSemanticRuntimeTemplateResult({
+    required this.issues,
+    this.nodes,
+  });
+
+  final List<ReFusionSceneProgramIssue> issues;
+  final List<SceneRuntimeNode>? nodes;
+
+  bool get isValid =>
+      nodes != null &&
+      !issues.any(
+        (issue) => issue.severity == ReFusionSceneProgramIssueSeverity.error,
+      );
+}
+
 class SceneSemanticComponentRegistry {
   SceneSemanticComponentRegistry({
     Map<String, SceneSemanticComponentDefinition>? definitions,
@@ -139,6 +156,87 @@ class SceneSemanticComponentRegistry {
         );
 
   final Map<String, SceneSemanticComponentDefinition> _definitions;
+
+  SceneSemanticRuntimeTemplateResult instantiateRuntimeTemplate({
+    required SemanticSceneBlueprintComponent component,
+    int index = 0,
+  }) {
+    final issues = validateComponent(component: component, index: index);
+    if (issues.any(
+      (issue) => issue.severity == ReFusionSceneProgramIssueSeverity.error,
+    )) {
+      return SceneSemanticRuntimeTemplateResult(
+        issues: List.unmodifiable(issues),
+      );
+    }
+    final definition = findByType(component.type);
+    if (definition == null) {
+      return SceneSemanticRuntimeTemplateResult(
+        issues: List.unmodifiable(issues),
+      );
+    }
+
+    final rootNode = SceneRuntimeNode(
+      id: component.id,
+      nodeType: _toRuntimeNodeType(definition.runtimeNodeType),
+      metadata: <String, Object?>{
+        'componentType': definition.id,
+        'variant': component.variant ?? 'default',
+        'boundsPolicy': definition.boundsPolicy.name,
+        'transformPolicy': definition.transformPolicy.name,
+        'lifecyclePolicy': definition.lifecyclePolicy.name,
+        'zOrderPolicy': definition.zOrderPolicy.name,
+        'textFitPolicy': definition.textFitPolicy.name,
+        'motionOwnershipPolicy': definition.motionOwnershipPolicy.name,
+      },
+      sourceComponentId: component.id,
+    );
+
+    final nodes = <SceneRuntimeNode>[rootNode];
+    final slots = <String>{
+      ...definition.requiredSlots,
+      ...definition.optionalSlots,
+    }..retainAll(component.slots.keys);
+    final orderedSlots = slots.toList(growable: false)..sort();
+    for (final slotId in orderedSlots) {
+      final slotDefinition = definition.slotDefinitionFor(slotId);
+      if (slotDefinition == null) {
+        continue;
+      }
+      nodes.add(
+        SceneRuntimeNode(
+          id: '${component.id}::slot::$slotId',
+          parentId: component.id,
+          nodeType: SceneRuntimeNodeType.slot,
+          slotId: slotId,
+          sourceComponentId: component.id,
+          metadata: <String, Object?>{
+            'componentType': definition.id,
+            'slotId': slotId,
+            'acceptsText': slotDefinition.acceptsText,
+            'requiresBoundedText': slotDefinition.requiresBoundedText,
+            'allowedNodeTypes': slotDefinition.allowedNodeTypes
+                .map((nodeType) => nodeType.name)
+                .toList(growable: false),
+          },
+        ),
+      );
+    }
+    issues.add(
+      ReFusionSceneProgramIssue(
+        severity: ReFusionSceneProgramIssueSeverity.info,
+        message: '$kSceneComponentHierarchyProofTag '
+            'componentId=${component.id} '
+            'instantiatedRuntimeTemplate=true '
+            'slotNodeCount=${nodes.length - 1}',
+        path: 'components[$index]',
+      ),
+    );
+    return SceneSemanticRuntimeTemplateResult(
+      issues: List.unmodifiable(issues),
+      nodes: List.unmodifiable(nodes),
+    );
+  }
 
   SceneSemanticComponentDefinition? findByType(String type) {
     final normalizedType = normalizeToken(type);
@@ -387,6 +485,25 @@ class SceneSemanticComponentRegistry {
 
   static String normalizeToken(String value) =>
       value.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '');
+
+  SceneRuntimeNodeType _toRuntimeNodeType(
+    SceneSemanticRuntimeNodeType value,
+  ) {
+    return switch (value) {
+      SceneSemanticRuntimeNodeType.sceneRoot => SceneRuntimeNodeType.sceneRoot,
+      SceneSemanticRuntimeNodeType.beatScope => SceneRuntimeNodeType.beatScope,
+      SceneSemanticRuntimeNodeType.group => SceneRuntimeNodeType.group,
+      SceneSemanticRuntimeNodeType.component => SceneRuntimeNodeType.component,
+      SceneSemanticRuntimeNodeType.slot => SceneRuntimeNodeType.slot,
+      SceneSemanticRuntimeNodeType.shape => SceneRuntimeNodeType.shape,
+      SceneSemanticRuntimeNodeType.text => SceneRuntimeNodeType.text,
+      SceneSemanticRuntimeNodeType.icon => SceneRuntimeNodeType.icon,
+      SceneSemanticRuntimeNodeType.image => SceneRuntimeNodeType.image,
+      SceneSemanticRuntimeNodeType.video => SceneRuntimeNodeType.video,
+      SceneSemanticRuntimeNodeType.effectAttachment =>
+        SceneRuntimeNodeType.effectAttachment,
+    };
+  }
 }
 
 const Set<String> _defaultVariants = <String>{

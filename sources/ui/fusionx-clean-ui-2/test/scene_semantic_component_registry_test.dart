@@ -185,4 +185,49 @@ void main() {
       isTrue,
     );
   });
+
+  test('instantiates executable runtime template for valid component', () {
+    final runtime = registry.instantiateRuntimeTemplate(
+      component: SemanticSceneBlueprintComponent(
+        id: 'prompt-1',
+        type: 'PromptInputBar',
+        variant: 'focused',
+        slots: const <String, Object?>{
+          'primaryText': <String, Object?>{
+            'nodeType': 'text',
+            'text': 'Generate new offer',
+            'textFrame': <String, Object?>{
+              'width': 480.0,
+              'height': 44.0,
+            },
+          },
+          'trailingAccessory': <String, Object?>{
+            'nodeType': 'icon',
+            'icon': 'send',
+          },
+        },
+      ),
+      index: 0,
+    );
+
+    expect(runtime.isValid, isTrue,
+        reason: runtime.issues.map((issue) => issue.message).join('\n'));
+    expect(runtime.nodes, isNotNull);
+    final nodes = runtime.nodes!;
+    expect(nodes.first.id, 'prompt-1');
+    expect(nodes.first.parentId, isNull);
+    expect(
+      nodes.where((node) => node.nodeType.name == 'slot').length,
+      2,
+    );
+    expect(
+      runtime.issues.any(
+        (issue) =>
+            issue.severity.name == 'info' &&
+            issue.message.contains(kSceneComponentHierarchyProofTag) &&
+            issue.message.contains('instantiatedRuntimeTemplate=true'),
+      ),
+      isTrue,
+    );
+  });
 }
