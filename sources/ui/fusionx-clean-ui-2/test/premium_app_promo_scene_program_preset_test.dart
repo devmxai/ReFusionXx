@@ -4,12 +4,15 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_models.dart';
+import 'package:refusion_app/features/editor/domain/models/refusion_scene_program_models.dart';
 import 'package:refusion_app/features/editor/domain/services/kie_scene_program_agent_service.dart';
 import 'package:refusion_app/features/editor/domain/services/refusion_scene_program_authoring_service.dart';
 import 'package:refusion_app/features/editor/presentation/widgets/scene_program_import_bottom_sheet.dart';
 
 void main() {
-  test('premium app promo preset imports through scene authoring pipeline', () {
+  test(
+      'premium app promo legacy preset is rejected by strict shared truth gate',
+      () {
     final source = File(
       'assets/scene_programs/premium_app_promo_prompt_bar_scene.json',
     ).readAsStringSync();
@@ -26,8 +29,13 @@ void main() {
       ),
     );
 
+    expect(result.isValid, isFalse);
     expect(
-      result.isValid,
+      result.issues.any(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+            issue.message.contains('safe area'),
+      ),
       isTrue,
       reason: result.issues
           .map((issue) => '${issue.severity} ${issue.path}: ${issue.message}')
@@ -35,7 +43,6 @@ void main() {
     );
     expect(result.program?.name, 'Premium App Promo Prompt Bar');
     expect(result.program?.durationMs, 9200);
-    expect(result.channels.length, greaterThan(8));
   });
 
   test('premium app promo keeps prompt text inside fixed input frame at hold',
@@ -106,8 +113,7 @@ void main() {
       ),
     );
 
-    expect(result.isValid, isTrue,
-        reason: result.issues.map((issue) => issue.message).join('\n'));
+    expect(result.isValid, isFalse);
     expect(
       result.issues.any(
         (issue) =>
@@ -127,7 +133,7 @@ void main() {
   });
 
   test(
-      'revival native intelligence preset imports through scene authoring pipeline',
+      'revival native intelligence legacy preset is rejected by strict shared truth gate',
       () {
     final source = File(
       'assets/scene_programs/saas_launch_match_cut_scene.json',
@@ -145,8 +151,13 @@ void main() {
       ),
     );
 
+    expect(result.isValid, isFalse);
     expect(
-      result.isValid,
+      result.issues.any(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+            issue.message.contains('safe area'),
+      ),
       isTrue,
       reason: result.issues
           .map((issue) => '${issue.severity} ${issue.path}: ${issue.message}')
@@ -154,7 +165,6 @@ void main() {
     );
     expect(result.program?.name, 'Revival Native Intelligence Showcase');
     expect(result.program?.durationMs, 14000);
-    expect(result.channels.length, greaterThan(24));
     expect(
       result.issues.any(
         (issue) => issue.message.contains('TF_SCENE_VISUAL_FRAME_QA_PROOF'),

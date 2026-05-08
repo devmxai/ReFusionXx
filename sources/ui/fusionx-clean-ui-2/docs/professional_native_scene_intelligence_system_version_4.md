@@ -14,6 +14,32 @@ Scope: coordinate-system canon, single evaluated-frame truth pipeline, render
 truth alignment, executable HCT parity, visual QA/renderer parity, strict
 pre-render enforcement, scene regression fixtures, and skills guidance updates.
 
+## Execution Status (2026-05-09)
+
+All VERSION 4 phases are now executed.
+
+| Phase | Status | Commit |
+|---|---|---|
+| NSI-v4-00 | completed | `33c405da` |
+| NSI-v4-01 | completed | `0d9e2249` |
+| NSI-v4-02 | completed | `2615b12b` |
+| NSI-v4-03 | completed | `482de925` |
+| NSI-v4-04 | completed | `2f84a7e3` |
+| NSI-v4-05 | completed | `2f0fe73d` |
+| NSI-v4-06 | completed | `53b5de94` |
+| NSI-v4-07 | completed | `576d09f4` |
+| NSI-v4-08 | completed | `refusion-skills: bcf957b` |
+| NSI-v4-09 | completed | `pending current checkpoint commit` |
+
+Closure notes:
+
+- Added `scene_prompt_burst_regression_test.dart` for canonical prompt-burst
+  containment and strict authoring validity.
+- Legacy presets `premium_app_promo_prompt_bar_scene.json` and
+  `saas_launch_match_cut_scene.json` are now intentionally asserted as strict
+  gate rejections until canonical rewrites land; this prevents low-quality
+  scenes from passing import/apply under shared truth enforcement.
+
 ## 0. Executive Summary
 
 VERSION 3 built the correct professional infrastructure: typed components,
