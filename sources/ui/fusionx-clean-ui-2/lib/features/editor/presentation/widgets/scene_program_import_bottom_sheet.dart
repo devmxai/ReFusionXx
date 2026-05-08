@@ -13,6 +13,9 @@ import '../../domain/models/refusion_scene_program_models.dart';
 import '../../domain/services/kie_scene_program_agent_service.dart';
 import '../../domain/services/refusion_scene_agent_provider_catalog.dart';
 import '../../domain/services/refusion_scene_program_authoring_service.dart';
+import '../../domain/services/scene_legacy_to_blueprint_migrator.dart';
+import '../../domain/services/scene_semantic_blueprint_compiler.dart';
+import '../../domain/services/scene_semantic_blueprint_service.dart';
 
 class SceneProgramImportBottomSheet extends StatefulWidget {
   const SceneProgramImportBottomSheet({
@@ -398,8 +401,20 @@ enum _SceneProgramSheetTab {
   generate,
 }
 
+class _SceneImportPayload {
+  const _SceneImportPayload({
+    required this.inputKind,
+    required this.payload,
+  });
+
+  final String inputKind;
+  final Map<String, Object?>? payload;
+}
+
 class _SceneProgramImportBottomSheetState
     extends State<SceneProgramImportBottomSheet> {
+  static const String _blueprintEntryProofTag =
+      'TF_SCENE_BLUEPRINT_ENTRY_PROOF';
   static const String _premiumAppPromoSceneProgramAssetPath =
       'assets/scene_programs/premium_app_promo_prompt_bar_scene.json';
   static const String _saasLaunchSceneProgramAssetPath =
@@ -407,6 +422,10 @@ class _SceneProgramImportBottomSheetState
 
   final ReFusionSceneProgramAuthoringService _authoringService =
       const ReFusionSceneProgramAuthoringService();
+  final SceneSemanticBlueprintCompiler _semanticBlueprintCompiler =
+      SceneSemanticBlueprintCompiler();
+  final SceneLegacyToBlueprintMigrator _legacyToBlueprintMigrator =
+      const SceneLegacyToBlueprintMigrator();
   final ReFusionSceneAgentProviderCatalog _sceneAgentCatalog =
       const ReFusionSceneAgentProviderCatalog();
   late final KieSceneProgramAgentService _sceneAgentService;
@@ -418,6 +437,7 @@ class _SceneProgramImportBottomSheetState
   ReFusionSceneProgramAuthoringResult? _result;
   bool _isUploading = false;
   bool _isGenerating = false;
+  bool _legacyImportMode = false;
   String? _generationErrorMessage;
   ReFusionSceneAgentRequestPreview? _generationPreview;
 
@@ -2308,23 +2328,205 @@ class _SceneProgramImportBottomSheetState
   }
 
   ReFusionSceneProgramAuthoringResult _importCurrentSource(String source) {
-    final String normalizedSource;
-    try {
-      normalizedSource = _sceneProgramSourceForImport(source);
-    } on KieSceneProgramAgentException catch (error) {
+    final trimmed = source.trim();
+    if (trimmed.isEmpty) {
       return ReFusionSceneProgramAuthoringResult(
         issues: <ReFusionSceneProgramIssue>[
           ReFusionSceneProgramIssue(
             severity: ReFusionSceneProgramIssueSeverity.error,
-            message: error.message,
+            message: 'Scene source is empty.',
             path: 'source',
           ),
         ],
       );
     }
+
+    final extracted = _extractCandidatePayload(trimmed);
+    if (extracted.payload != null &&
+        _looksLikeBlueprintMap(extracted.payload!)) {
+      return _compileBlueprintPayload(
+        blueprintPayload: extracted.payload!,
+        inputKind: extracted.inputKind,
+        legacyMode: _legacyImportMode,
+        migrationTier: 'none',
+      );
+    }
+
+    if (!_legacyImportMode) {
+      return ReFusionSceneProgramAuthoringResult(
+        issues: <ReFusionSceneProgramIssue>[
+          const ReFusionSceneProgramIssue(
+            severity: ReFusionSceneProgramIssueSeverity.error,
+            message:
+                'Professional import expects Semantic Blueprint input. Enable Legacy mode only for manual debug migration of old raw SceneProgram payloads.',
+            path: 'source',
+          ),
+          _buildBlueprintEntryIssue(
+            inputKind: extracted.inputKind,
+            parsedAsBlueprint: false,
+            legacyMode: false,
+            migrationTier: 'tierD',
+            blocked: true,
+            reason: 'raw_scene_program_blocked',
+            severity: ReFusionSceneProgramIssueSeverity.error,
+          ),
+        ],
+      );
+    }
+
+    if (extracted.payload == null) {
+      final legacyResult = _importLegacySceneProgram(trimmed);
+      return ReFusionSceneProgramAuthoringResult(
+        program: legacyResult.program,
+        project: legacyResult.project,
+        channels: legacyResult.channels,
+        textAnimationBindings: legacyResult.textAnimationBindings,
+        issues: <ReFusionSceneProgramIssue>[
+          ...legacyResult.issues,
+          _buildBlueprintEntryIssue(
+            inputKind: extracted.inputKind,
+            parsedAsBlueprint: false,
+            legacyMode: true,
+            migrationTier: 'tierC',
+            blocked: !legacyResult.isValid,
+            reason:
+                legacyResult.isValid ? 'legacy_raw_mode' : 'legacy_raw_invalid',
+            severity: legacyResult.isValid
+                ? ReFusionSceneProgramIssueSeverity.info
+                : ReFusionSceneProgramIssueSeverity.error,
+          ),
+        ],
+      );
+    }
+
+    final migration = _legacyToBlueprintMigrator.migrate(
+      legacyPayload: extracted.payload!,
+    );
+    if (migration.blueprintPayload != null &&
+        migration.tier != SceneLegacyBlueprintMigrationTier.tierD) {
+      final migratedBlueprintResult = _compileBlueprintPayload(
+        blueprintPayload: migration.blueprintPayload!,
+        inputKind: extracted.inputKind,
+        legacyMode: true,
+        migrationTier: _migrationTierLabel(migration.tier),
+      );
+      return ReFusionSceneProgramAuthoringResult(
+        program: migratedBlueprintResult.program,
+        project: migratedBlueprintResult.project,
+        channels: migratedBlueprintResult.channels,
+        textAnimationBindings: migratedBlueprintResult.textAnimationBindings,
+        issues: <ReFusionSceneProgramIssue>[
+          ...migration.issues,
+          ...migratedBlueprintResult.issues,
+        ],
+      );
+    }
+
+    if (migration.tier == SceneLegacyBlueprintMigrationTier.tierD) {
+      return ReFusionSceneProgramAuthoringResult(
+        issues: <ReFusionSceneProgramIssue>[
+          ...migration.issues,
+          _buildBlueprintEntryIssue(
+            inputKind: extracted.inputKind,
+            parsedAsBlueprint: false,
+            legacyMode: true,
+            migrationTier: _migrationTierLabel(migration.tier),
+            blocked: true,
+            reason: migration.reason,
+            severity: ReFusionSceneProgramIssueSeverity.error,
+          ),
+        ],
+      );
+    }
+
+    final rawSource = jsonEncode(extracted.payload);
+    final legacyResult = _importLegacySceneProgram(rawSource);
+    return ReFusionSceneProgramAuthoringResult(
+      program: legacyResult.program,
+      project: legacyResult.project,
+      channels: legacyResult.channels,
+      textAnimationBindings: legacyResult.textAnimationBindings,
+      issues: <ReFusionSceneProgramIssue>[
+        ...migration.issues,
+        ...legacyResult.issues,
+        _buildBlueprintEntryIssue(
+          inputKind: extracted.inputKind,
+          parsedAsBlueprint: false,
+          legacyMode: true,
+          migrationTier: _migrationTierLabel(migration.tier),
+          blocked: !legacyResult.isValid,
+          reason:
+              legacyResult.isValid ? 'legacy_raw_mode' : 'legacy_raw_invalid',
+          severity: legacyResult.isValid
+              ? ReFusionSceneProgramIssueSeverity.info
+              : ReFusionSceneProgramIssueSeverity.error,
+        ),
+      ],
+    );
+  }
+
+  ReFusionSceneProgramAuthoringResult _compileBlueprintPayload({
+    required Map<String, Object?> blueprintPayload,
+    required String inputKind,
+    required bool legacyMode,
+    required String migrationTier,
+  }) {
+    final compile =
+        _semanticBlueprintCompiler.compile(payload: blueprintPayload);
+    if (!compile.isValid || compile.program == null) {
+      return ReFusionSceneProgramAuthoringResult(
+        issues: <ReFusionSceneProgramIssue>[
+          ...compile.issues,
+          _buildBlueprintEntryIssue(
+            inputKind: inputKind,
+            parsedAsBlueprint: true,
+            legacyMode: legacyMode,
+            migrationTier: migrationTier,
+            blocked: true,
+            reason: 'blueprint_compile_failed',
+            severity: ReFusionSceneProgramIssueSeverity.error,
+          ),
+        ],
+      );
+    }
+    final compiledProgramSource =
+        jsonEncode(_sceneProgramToMap(compile.program!));
+    final authored = _authoringService.importSceneProgram(
+      ReFusionSceneProgramAuthoringRequest(
+        source: compiledProgramSource,
+        fileName: _fileName,
+        projectId: widget.projectId,
+        sceneId: widget.sceneId,
+        canvasSize: widget.canvasSize,
+      ),
+    );
+    return ReFusionSceneProgramAuthoringResult(
+      program: authored.program,
+      project: authored.project,
+      channels: authored.channels,
+      textAnimationBindings: authored.textAnimationBindings,
+      issues: <ReFusionSceneProgramIssue>[
+        ...compile.issues,
+        ...authored.issues,
+        _buildBlueprintEntryIssue(
+          inputKind: inputKind,
+          parsedAsBlueprint: true,
+          legacyMode: legacyMode,
+          migrationTier: migrationTier,
+          blocked: !authored.isValid,
+          reason: authored.isValid ? 'accepted' : 'authoring_validation_failed',
+          severity: authored.isValid
+              ? ReFusionSceneProgramIssueSeverity.info
+              : ReFusionSceneProgramIssueSeverity.error,
+        ),
+      ],
+    );
+  }
+
+  ReFusionSceneProgramAuthoringResult _importLegacySceneProgram(String source) {
     return _authoringService.importSceneProgram(
       ReFusionSceneProgramAuthoringRequest(
-        source: normalizedSource,
+        source: source,
         fileName: _fileName,
         projectId: widget.projectId,
         sceneId: widget.sceneId,
@@ -2333,38 +2535,160 @@ class _SceneProgramImportBottomSheetState
     );
   }
 
-  String _sceneProgramSourceForImport(String source) {
-    final trimmed = source.trim();
-    if (trimmed.isEmpty) {
-      return trimmed;
+  ReFusionSceneProgramIssue _buildBlueprintEntryIssue({
+    required String inputKind,
+    required bool parsedAsBlueprint,
+    required bool legacyMode,
+    required String migrationTier,
+    required bool blocked,
+    required String reason,
+    required ReFusionSceneProgramIssueSeverity severity,
+  }) {
+    return ReFusionSceneProgramIssue(
+      severity: severity,
+      message: '$_blueprintEntryProofTag '
+          'inputKind=$inputKind '
+          'parsedAsBlueprint=${parsedAsBlueprint.toString()} '
+          'legacyMode=${legacyMode.toString()} '
+          'migrationTier=$migrationTier '
+          'blocked=${blocked.toString()} '
+          'reason=$reason '
+          'severity=${severity.name}',
+      path: 'source',
+    );
+  }
+
+  _SceneImportPayload _extractCandidatePayload(String source) {
+    final decoded = _decodeJsonMap(source);
+    if (decoded == null) {
+      return const _SceneImportPayload(
+        inputKind: 'text.raw',
+        payload: null,
+      );
     }
-    if (!_looksLikeScenePayloadWrapper(trimmed)) {
-      return trimmed;
+    final semantic = decoded['semanticBlueprint'];
+    if (semantic is Map<String, Object?>) {
+      return _SceneImportPayload(
+        inputKind: 'wrapper.semanticBlueprint',
+        payload: semantic,
+      );
     }
+    final blueprint = decoded['blueprint'];
+    if (blueprint is Map<String, Object?>) {
+      return _SceneImportPayload(
+        inputKind: 'wrapper.blueprint',
+        payload: blueprint,
+      );
+    }
+    final sceneProgram = decoded['sceneProgram'];
+    if (sceneProgram is Map<String, Object?>) {
+      return _SceneImportPayload(
+        inputKind: 'wrapper.sceneProgram',
+        payload: sceneProgram,
+      );
+    }
+    final program = decoded['program'];
+    if (program is Map<String, Object?>) {
+      return _SceneImportPayload(
+        inputKind: 'wrapper.program',
+        payload: program,
+      );
+    }
+    return _SceneImportPayload(inputKind: 'map.root', payload: decoded);
+  }
+
+  Map<String, Object?>? _decodeJsonMap(String source) {
     try {
-      return _sceneAgentService
-          .extractSceneProgramPayloadFromContent(content: trimmed)
-          .sceneProgramJson;
-    } on KieSceneProgramAgentException {
-      rethrow;
+      final decoded = jsonDecode(source);
+      if (decoded is Map<String, Object?>) {
+        return decoded;
+      }
+      return null;
     } catch (_) {
-      return trimmed;
+      return null;
     }
   }
 
-  bool _looksLikeScenePayloadWrapper(String source) {
-    try {
-      final decoded = jsonDecode(source);
-      if (decoded is! Map) {
-        return false;
-      }
-      return decoded.containsKey('directorPlan') ||
-          decoded.containsKey('motionDirector') ||
-          decoded.containsKey('sceneProgram') ||
-          decoded.containsKey('program');
-    } catch (_) {
-      return false;
+  bool _looksLikeBlueprintMap(Map<String, Object?> map) {
+    final schemaVersion = map['schemaVersion'];
+    if (schemaVersion is String &&
+        schemaVersion.trim() == SceneSemanticBlueprintService.schemaVersion) {
+      return true;
     }
+    final hasComponents = map['components'] is List;
+    final hasLayers = map['layers'] is List;
+    final hasBeats = map['beats'] is List;
+    return hasComponents && hasBeats && !hasLayers;
+  }
+
+  String _migrationTierLabel(SceneLegacyBlueprintMigrationTier tier) {
+    switch (tier) {
+      case SceneLegacyBlueprintMigrationTier.tierA:
+        return 'tierA';
+      case SceneLegacyBlueprintMigrationTier.tierB:
+        return 'tierB';
+      case SceneLegacyBlueprintMigrationTier.tierC:
+        return 'tierC';
+      case SceneLegacyBlueprintMigrationTier.tierD:
+        return 'tierD';
+    }
+  }
+
+  Map<String, Object?> _sceneProgramToMap(ReFusionSceneProgram program) {
+    return <String, Object?>{
+      'schemaVersion': program.schemaVersion,
+      'name': program.name,
+      'durationMs': program.durationMs,
+      'frameRate': program.frameRate,
+      'layers': program.layers
+          .map((layer) => <String, Object?>{
+                'id': layer.id,
+                if (layer.name != null) 'name': layer.name,
+                'kind': layer.kind,
+                'startMs': layer.startMs,
+                'durationMs': layer.durationMs,
+                'elements': layer.elements
+                    .map((element) => <String, Object?>{
+                          'id': element.id,
+                          if (element.name != null) 'name': element.name,
+                          'kind': element.kind,
+                          if (element.text != null) 'text': element.text,
+                          'properties': element.properties,
+                          if (element.channels.isNotEmpty)
+                            'channels': element.channels
+                                .map((channel) => <String, Object?>{
+                                      'target': channel.target,
+                                      'property': channel.property,
+                                      'keyframes': channel.keyframes
+                                          .map((keyframe) => <String, Object?>{
+                                                'timeMs': keyframe.timeMs,
+                                                'value': keyframe.value,
+                                                if (keyframe.easing != 'linear')
+                                                  'easing': keyframe.easing,
+                                              })
+                                          .toList(growable: false),
+                                    })
+                                .toList(growable: false),
+                        })
+                    .toList(growable: false),
+                if (layer.channels.isNotEmpty)
+                  'channels': layer.channels
+                      .map((channel) => <String, Object?>{
+                            'target': channel.target,
+                            'property': channel.property,
+                            'keyframes': channel.keyframes
+                                .map((keyframe) => <String, Object?>{
+                                      'timeMs': keyframe.timeMs,
+                                      'value': keyframe.value,
+                                      if (keyframe.easing != 'linear')
+                                        'easing': keyframe.easing,
+                                    })
+                                .toList(growable: false),
+                          })
+                      .toList(growable: false),
+              })
+          .toList(growable: false),
+    };
   }
 
   void _validate() {
@@ -2699,7 +3023,7 @@ class _SceneProgramImportBottomSheetState
                     _selectedTab == _SceneProgramSheetTab.generate
                         ? 'Generate a full editable scene with Codex or Claude Opus. The generated JSON appears in Script after completion.'
                         : _fileName == null
-                            ? 'JSON only. Validate, then tap the check mark to apply editable scene layers.'
+                            ? 'Semantic Blueprint is the professional path. Enable Legacy mode only for raw SceneProgram debug/migration.'
                             : 'File: $_fileName',
                     style: const TextStyle(
                       color: FxPalette.textMuted,
@@ -2710,6 +3034,35 @@ class _SceneProgramImportBottomSheetState
                   ),
                 ),
               ),
+              if (_selectedTab == _SceneProgramSheetTab.script) ...[
+                const SizedBox(height: 6),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Legacy mode (raw SceneProgram debug only)',
+                          style: TextStyle(
+                            color: FxPalette.textMuted,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      Switch.adaptive(
+                        value: _legacyImportMode,
+                        onChanged: (value) {
+                          setState(() {
+                            _legacyImportMode = value;
+                            _result = null;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               if (_selectedTab == _SceneProgramSheetTab.script) ...[
                 const SizedBox(height: 10),
                 Padding(
