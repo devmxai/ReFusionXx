@@ -10,6 +10,7 @@ const String kSceneBlueprintCompilerProofTag =
     'TF_SCENE_BLUEPRINT_COMPILER_PROOF';
 const String kSceneSpeedyGraphDependencyProofTag =
     'TF_SCENE_SPEEDYGRAPH_DEPENDENCY_PROOF';
+const String kSceneTextGeometryProofTag = 'TF_SCENE_TEXT_GEOMETRY_PROOF';
 
 class SceneSemanticBlueprintValidationResult {
   SceneSemanticBlueprintValidationResult({
@@ -57,6 +58,20 @@ class SceneSemanticBlueprintService {
   final SceneSemanticTokenRegistry _tokenRegistry;
   final MotionInterpolationTruthCompiler _truthCompiler;
   final SceneSemanticComponentRegistry _componentRegistry;
+  static const Set<String> _allowedOverflowPolicies = <String>{
+    'error',
+    'ellipsis',
+    'clip',
+  };
+  static const Set<String> _allowedFitPolicies = <String>{
+    'none',
+    'shrinktofit',
+    'wraptolines',
+    'ellipsisaftermaxlines',
+    'cliptoframe',
+    'shorten',
+    'scalexfornumericonly',
+  };
 
   static const String schemaVersion = 'refusion.semantic-blueprint/v1';
 
@@ -105,6 +120,7 @@ class SceneSemanticBlueprintService {
       );
     }
     _validateComponentContracts(components, issues);
+    _validateTextGeometryContracts(components, issues);
 
     final beats = _readBeats(payload['beats'], issues);
     final blueprint = SemanticSceneBlueprint(
@@ -583,6 +599,344 @@ class SceneSemanticBlueprintService {
       );
     }
   }
+
+  void _validateTextGeometryContracts(
+    List<SemanticSceneBlueprintComponent> components,
+    List<ReFusionSceneProgramIssue> issues,
+  ) {
+    for (var index = 0; index < components.length; index += 1) {
+      final component = components[index];
+      final definition = _componentRegistry.findByType(component.type);
+      if (definition == null) {
+        continue;
+      }
+      final resolvedProperties =
+          _tokenRegistry.resolveBlueprintValue(component.properties);
+      final resolvedSlots =
+          _tokenRegistry.resolveBlueprintValue(component.slots);
+      final properties = resolvedProperties.value is Map<String, Object?>
+          ? resolvedProperties.value as Map<String, Object?>
+          : const <String, Object?>{};
+      final slots = resolvedSlots.value is Map<String, Object?>
+          ? resolvedSlots.value as Map<String, Object?>
+          : const <String, Object?>{};
+      for (final slotName in _textSlotsForComponent(definition.id)) {
+        if (!slots.containsKey(slotName)) {
+          continue;
+        }
+        _validateTextSlotContract(
+          component: component,
+          componentIndex: index,
+          definitionId: definition.id,
+          slotName: slotName,
+          slotValue: slots[slotName],
+          properties: properties,
+          issues: issues,
+        );
+      }
+    }
+  }
+
+  Set<String> _textSlotsForComponent(String definitionId) {
+    switch (definitionId) {
+      case 'PromptInputBar':
+        return const <String>{'primaryText'};
+      case 'FeedbackCard':
+        return const <String>{'title', 'body'};
+      case 'FeatureCard':
+        return const <String>{'title', 'body'};
+      case 'ResultCard':
+        return const <String>{'title', 'summary'};
+      case 'DashboardPanel':
+        return const <String>{'header', 'body'};
+      case 'CTAButton':
+        return const <String>{'label'};
+      case 'MotionTextBlock':
+        return const <String>{'text', 'subtitle'};
+      case 'FloatingWindowCard':
+        return const <String>{'title', 'body'};
+      case 'OrbitalFeatureRing':
+        return const <String>{'centerLabel', 'orbitNodeA', 'orbitNodeB'};
+      default:
+        return const <String>{};
+    }
+  }
+
+  void _validateTextSlotContract({
+    required SemanticSceneBlueprintComponent component,
+    required int componentIndex,
+    required String definitionId,
+    required String slotName,
+    required Object? slotValue,
+    required Map<String, Object?> properties,
+    required List<ReFusionSceneProgramIssue> issues,
+  }) {
+    final pathPrefix = 'components[$componentIndex].slots.$slotName';
+    final textValue = _extractSlotText(
+      definitionId: definitionId,
+      slotName: slotName,
+      slotValue: slotValue,
+      properties: properties,
+    );
+    final textFrame = _extractTextFrame(
+      definitionId: definitionId,
+      slotName: slotName,
+      slotValue: slotValue,
+      properties: properties,
+    );
+    if (textFrame == null) {
+      issues.add(
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message:
+              'Text slot `$slotName` in `${component.type}` requires a `textFrame` contract with finite bounds.',
+          path: '$pathPrefix.textFrame',
+        ),
+      );
+      return;
+    }
+    final frameWidth = _doubleFromMap(textFrame, const <String>['width']);
+    final frameHeight = _doubleFromMap(textFrame, const <String>['height']);
+    final maxLines =
+        _doubleFromMap(textFrame, const <String>['maxLines']) ?? 1.0;
+    final overflow = (_stringFromMap(
+              textFrame,
+              const <String>['overflow', 'overflowPolicy'],
+            ) ??
+            'ellipsis')
+        .trim();
+    final fitPolicy = (_stringFromMap(
+              textFrame,
+              const <String>['fitPolicy'],
+            ) ??
+            'none')
+        .trim();
+    final normalizedOverflow = _normalizeToken(overflow);
+    final normalizedFitPolicy = _normalizeToken(fitPolicy);
+
+    if (frameWidth == null || frameWidth <= 0) {
+      issues.add(
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message:
+              'Text slot `$slotName` in `${component.type}` must define `textFrame.width > 0`.',
+          path: '$pathPrefix.textFrame.width',
+        ),
+      );
+    }
+    if (frameHeight == null || frameHeight <= 0) {
+      issues.add(
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message:
+              'Text slot `$slotName` in `${component.type}` must define `textFrame.height > 0`.',
+          path: '$pathPrefix.textFrame.height',
+        ),
+      );
+    }
+    if (maxLines < 1) {
+      issues.add(
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message:
+              'Text slot `$slotName` in `${component.type}` must define `textFrame.maxLines >= 1`.',
+          path: '$pathPrefix.textFrame.maxLines',
+        ),
+      );
+    }
+    if (!_allowedOverflowPolicies.contains(normalizedOverflow)) {
+      issues.add(
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message:
+              'Unsupported overflow policy `$overflow` in `${component.type}` text slot `$slotName`.',
+          path: '$pathPrefix.textFrame.overflow',
+        ),
+      );
+    }
+    if (!_allowedFitPolicies.contains(normalizedFitPolicy)) {
+      issues.add(
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message:
+              'Unsupported fit policy `$fitPolicy` in `${component.type}` text slot `$slotName`.',
+          path: '$pathPrefix.textFrame.fitPolicy',
+        ),
+      );
+    }
+
+    final fontSize = _readDouble(
+      textFrame['fontSize'],
+      fallback: _readDouble(properties['fontSize'], fallback: 32.0),
+    );
+    final lineHeight = _readDouble(
+      textFrame['lineHeight'],
+      fallback: 1.0,
+    );
+    final estimatedWidth = _estimateTextWidth(
+      text: textValue,
+      fontSize: fontSize,
+      letterSpacing: _readDouble(textFrame['letterSpacing'], fallback: 0.0),
+    );
+    final estimatedHeight = fontSize * lineHeight * maxLines;
+    final overflowDetected = frameWidth != null &&
+            frameHeight != null &&
+            (estimatedWidth > frameWidth + 1.0 ||
+                estimatedHeight > frameHeight + 1.0)
+        ? true
+        : false;
+
+    if (overflowDetected && normalizedFitPolicy == 'none') {
+      issues.add(
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message:
+              'Text slot `$slotName` in `${component.type}` overflows frame and `fitPolicy` is `none`.',
+          path: '$pathPrefix.textFrame.fitPolicy',
+        ),
+      );
+    }
+
+    issues.add(
+      ReFusionSceneProgramIssue(
+        severity: ReFusionSceneProgramIssueSeverity.info,
+        message: '$kSceneTextGeometryProofTag '
+            'componentId=${component.id} '
+            'componentType=${component.type} '
+            'slotId=$slotName '
+            'frameWidth=${frameWidth?.toStringAsFixed(2) ?? 'null'} '
+            'frameHeight=${frameHeight?.toStringAsFixed(2) ?? 'null'} '
+            'maxLines=${maxLines.toStringAsFixed(2)} '
+            'overflowPolicy=$normalizedOverflow '
+            'fitPolicy=$normalizedFitPolicy '
+            'estimatedWidth=${estimatedWidth.toStringAsFixed(2)} '
+            'estimatedHeight=${estimatedHeight.toStringAsFixed(2)} '
+            'overflowDetected=$overflowDetected',
+        path: pathPrefix,
+      ),
+    );
+  }
+
+  String _extractSlotText({
+    required String definitionId,
+    required String slotName,
+    required Object? slotValue,
+    required Map<String, Object?> properties,
+  }) {
+    if (slotValue is String && slotValue.trim().isNotEmpty) {
+      return slotValue.trim();
+    }
+    if (slotValue is Map<String, Object?>) {
+      final fromText = _readString(slotValue['text']);
+      if (fromText != null) {
+        return fromText;
+      }
+      final fromValue = _readString(slotValue['value']);
+      if (fromValue != null) {
+        return fromValue;
+      }
+      final fromContent = _readString(slotValue['content']);
+      if (fromContent != null) {
+        return fromContent;
+      }
+    }
+    if (definitionId == 'PromptInputBar' && slotName == 'primaryText') {
+      return _readString(properties['promptText']) ??
+          'generate new offer for my business';
+    }
+    return '';
+  }
+
+  Map<String, Object?>? _extractTextFrame({
+    required String definitionId,
+    required String slotName,
+    required Object? slotValue,
+    required Map<String, Object?> properties,
+  }) {
+    if (slotValue is Map<String, Object?>) {
+      final fromSlot = _readMap(slotValue['textFrame']);
+      if (fromSlot != null) {
+        return fromSlot;
+      }
+    }
+    final fromNamedProperty = _readMap(properties['${slotName}TextFrame']);
+    if (fromNamedProperty != null) {
+      return fromNamedProperty;
+    }
+    final fromGeneric = _readMap(properties['textFrame']);
+    if (fromGeneric != null) {
+      return fromGeneric;
+    }
+    if (definitionId == 'PromptInputBar' && slotName == 'primaryText') {
+      final width = _readDouble(properties['textFrameWidth'],
+          fallback: _readDouble(properties['width'], fallback: 860.0) - 180.0);
+      final height = _readDouble(
+        properties['textFrameHeight'],
+        fallback: 60.0,
+      );
+      return <String, Object?>{
+        'width': width,
+        'height': height,
+        'maxLines': 1.0,
+        'overflow': 'ellipsis',
+        'fitPolicy': 'shrinkToFit',
+      };
+    }
+    return null;
+  }
+
+  String? _stringFromMap(Map<String, Object?>? map, List<String> keys) {
+    if (map == null) {
+      return null;
+    }
+    final normalized = keys.map(_normalizeToken).toSet();
+    for (final entry in map.entries) {
+      if (!normalized.contains(_normalizeToken(entry.key))) {
+        continue;
+      }
+      if (entry.value is String) {
+        final value = (entry.value as String).trim();
+        if (value.isNotEmpty) {
+          return value;
+        }
+      }
+    }
+    return null;
+  }
+
+  double? _doubleFromMap(Map<String, Object?>? map, List<String> keys) {
+    if (map == null) {
+      return null;
+    }
+    final normalized = keys.map(_normalizeToken).toSet();
+    for (final entry in map.entries) {
+      if (!normalized.contains(_normalizeToken(entry.key))) {
+        continue;
+      }
+      if (entry.value is num) {
+        return (entry.value as num).toDouble();
+      }
+    }
+    return null;
+  }
+
+  double _estimateTextWidth({
+    required String text,
+    required double fontSize,
+    required double letterSpacing,
+  }) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) {
+      return 0.0;
+    }
+    final glyphCount = trimmed.runes.length;
+    final glyphWidth = fontSize * 0.56;
+    final spacing = (glyphCount > 1 ? (glyphCount - 1) : 0) * letterSpacing;
+    return (glyphWidth * glyphCount) + spacing;
+  }
+
+  String _normalizeToken(String value) =>
+      value.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '');
 
   void _validateSpeedGraphDependency({
     required String componentId,

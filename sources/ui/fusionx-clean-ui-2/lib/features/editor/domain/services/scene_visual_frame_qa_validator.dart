@@ -55,26 +55,38 @@ class SceneVisualFrameQaValidator {
         element: element,
       );
       if (!hasReveal) {
+        final textFrame = _mapFromProperties(
+          element.properties,
+          const <String>['textFrame', 'layoutTextFrame'],
+        );
+        if (textFrame == null) {
+          continue;
+        }
+        _lintBoundedTextElement(
+          layerIndex: layerIndex,
+          elementIndex: elementIndex,
+          element: element,
+          textFrame: textFrame,
+          issues: issues,
+          revealMode: false,
+        );
         continue;
       }
       final textFrame = _mapFromProperties(
         element.properties,
         const <String>['textFrame', 'layoutTextFrame'],
       );
-      final frameWidth =
-          _doubleFromMap(textFrame, const <String>['width', 'maxWidth']);
-      final estimatedWidth = _estimateTextWidth(element);
-      if (frameWidth != null && estimatedWidth > frameWidth + 1.0) {
-        issues.add(
-          ReFusionSceneProgramIssue(
-            severity: ReFusionSceneProgramIssueSeverity.warning,
-            message:
-                'Text element `${element.id}` may overflow its fixed reveal frame at QA probes. Increase frame width or use shrinkToFit.',
-            path:
-                'layers[$layerIndex].elements[$elementIndex].properties.textFrame.width',
-          ),
-        );
+      if (textFrame == null) {
+        continue;
       }
+      _lintBoundedTextElement(
+        layerIndex: layerIndex,
+        elementIndex: elementIndex,
+        element: element,
+        textFrame: textFrame,
+        issues: issues,
+        revealMode: true,
+      );
     }
 
     final proof = StringBuffer()
@@ -88,6 +100,69 @@ class SceneVisualFrameQaValidator {
         severity: ReFusionSceneProgramIssueSeverity.info,
         message: proof.toString(),
         path: 'layers[$layerIndex]',
+      ),
+    );
+  }
+
+  void _lintBoundedTextElement({
+    required int layerIndex,
+    required int elementIndex,
+    required ReFusionSceneProgramElement element,
+    required Map<String, Object?> textFrame,
+    required List<ReFusionSceneProgramIssue> issues,
+    required bool revealMode,
+  }) {
+    final frameWidth =
+        _doubleFromMap(textFrame, const <String>['width', 'maxWidth']);
+    final frameHeight =
+        _doubleFromMap(textFrame, const <String>['height', 'maxHeight']);
+    final maxLines =
+        _doubleFromMap(textFrame, const <String>['maxLines']) ?? 1.0;
+    final overflowPolicy = (_stringFromMap(
+              textFrame,
+              const <String>['overflow', 'overflowPolicy'],
+            ) ??
+            'ellipsis')
+        .trim();
+    final fitPolicy = (_stringFromMap(
+              textFrame,
+              const <String>['fitPolicy'],
+            ) ??
+            'none')
+        .trim();
+    final normalizedFitPolicy = _normalizeToken(fitPolicy);
+    final estimatedWidth = _estimateTextWidth(element);
+    final estimatedHeight = _estimateTextHeight(element) * maxLines;
+    final widthOverflow =
+        frameWidth != null && estimatedWidth > frameWidth + 1.0;
+    final heightOverflow =
+        frameHeight != null && estimatedHeight > frameHeight + 1.0;
+    final overflowDetected = widthOverflow || heightOverflow;
+    if (!overflowDetected) {
+      return;
+    }
+
+    final supportedFitPolicy = normalizedFitPolicy == 'shrinktofit' ||
+        normalizedFitPolicy == 'wraptolines' ||
+        normalizedFitPolicy == 'ellipsisaftermaxlines' ||
+        normalizedFitPolicy == 'cliptoframe' ||
+        normalizedFitPolicy == 'shorten' ||
+        normalizedFitPolicy == 'scalexfornumericonly';
+    final severity = supportedFitPolicy
+        ? ReFusionSceneProgramIssueSeverity.warning
+        : ReFusionSceneProgramIssueSeverity.error;
+    issues.add(
+      ReFusionSceneProgramIssue(
+        severity: severity,
+        message: 'Text element `${element.id}` '
+            '${revealMode ? 'reveal' : 'static'} bounded frame overflow detected. '
+            'overflowPolicy=$overflowPolicy fitPolicy=$fitPolicy '
+            'estimatedWidth=${estimatedWidth.toStringAsFixed(2)} '
+            'estimatedHeight=${estimatedHeight.toStringAsFixed(2)} '
+            'frameWidth=${frameWidth?.toStringAsFixed(2) ?? 'null'} '
+            'frameHeight=${frameHeight?.toStringAsFixed(2) ?? 'null'}',
+        path:
+            'layers[$layerIndex].elements[$elementIndex].properties.textFrame',
       ),
     );
   }
@@ -187,6 +262,26 @@ class SceneVisualFrameQaValidator {
     return null;
   }
 
+  String? _stringFromMap(Map<String, Object?>? map, List<String> keys) {
+    if (map == null) {
+      return null;
+    }
+    final normalized = keys.map(_normalizeToken).toSet();
+    for (final entry in map.entries) {
+      if (!normalized.contains(_normalizeToken(entry.key))) {
+        continue;
+      }
+      final value = entry.value;
+      if (value is String) {
+        final trimmed = value.trim();
+        if (trimmed.isNotEmpty) {
+          return trimmed;
+        }
+      }
+    }
+    return null;
+  }
+
   double _estimateTextWidth(ReFusionSceneProgramElement element) {
     final text = (element.text ?? '').trim();
     if (text.isEmpty) {
@@ -206,6 +301,20 @@ class SceneVisualFrameQaValidator {
     final glyphCount = text.runes.length;
     final spacing = math.max(0, glyphCount - 1) * letterSpacing;
     return (estimatedGlyphWidth * glyphCount) + spacing;
+  }
+
+  double _estimateTextHeight(ReFusionSceneProgramElement element) {
+    final fontSize = _readScalar(
+          element.properties,
+          const <String>['fontSize', 'fontsize'],
+        ) ??
+        16;
+    final lineHeight = _readScalar(
+          element.properties,
+          const <String>['lineHeight', 'lineheight'],
+        ) ??
+        1.0;
+    return fontSize * lineHeight;
   }
 
   double? _readScalar(Map<String, Object?> map, List<String> keys) {

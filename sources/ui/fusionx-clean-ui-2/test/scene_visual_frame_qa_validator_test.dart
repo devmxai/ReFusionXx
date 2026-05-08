@@ -27,8 +27,10 @@ void main() {
                   'fontSize': 32,
                   'textFrame': <String, Object?>{
                     'width': 520,
+                    'height': 56,
                     'maxLines': 1,
                     'overflow': 'clip',
+                    'fitPolicy': 'shrinkToFit',
                   },
                 },
               ),
@@ -57,7 +59,7 @@ void main() {
     );
   });
 
-  test('warns when reveal text likely overflows fixed frame', () {
+  test('errors when reveal text overflows with no supported fit policy', () {
     final result = validator.validate(
       ReFusionSceneProgram(
         schemaVersion: 'refusion.scene-program/v1',
@@ -81,6 +83,7 @@ void main() {
                     'width': 300,
                     'maxLines': 1,
                     'overflow': 'clip',
+                    'fitPolicy': 'none',
                   },
                 },
               ),
@@ -103,8 +106,55 @@ void main() {
     expect(
       result.issues.any(
         (issue) =>
-            issue.severity == ReFusionSceneProgramIssueSeverity.warning &&
-            issue.message.contains('may overflow'),
+            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+            issue.message.contains('bounded frame overflow detected'),
+      ),
+      isTrue,
+    );
+  });
+
+  test('checks static bounded text overflow without reveal channel', () {
+    final result = validator.validate(
+      ReFusionSceneProgram(
+        schemaVersion: 'refusion.scene-program/v1',
+        name: 'QA static overflow',
+        durationMs: 2400,
+        frameRate: 30,
+        layers: <ReFusionSceneProgramLayer>[
+          ReFusionSceneProgramLayer(
+            id: 'card-layer',
+            kind: 'shape',
+            startMs: 0,
+            durationMs: 2400,
+            elements: <ReFusionSceneProgramElement>[
+              ReFusionSceneProgramElement(
+                id: 'feedback-body',
+                kind: 'text',
+                text:
+                    'Very long static text body that should trigger bounded overflow checks in visual QA.',
+                properties: const <String, Object?>{
+                  'fontSize': 32,
+                  'lineHeight': 1.2,
+                  'textFrame': <String, Object?>{
+                    'width': 260,
+                    'height': 64,
+                    'maxLines': 1,
+                    'overflow': 'ellipsis',
+                    'fitPolicy': 'none',
+                  },
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    expect(
+      result.issues.any(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+            issue.message.contains('static bounded frame overflow detected'),
       ),
       isTrue,
     );

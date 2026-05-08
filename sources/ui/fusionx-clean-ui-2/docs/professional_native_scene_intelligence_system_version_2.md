@@ -73,6 +73,16 @@ ReFusion remains a native motion graphics application. VERSION 2 must not turn t
   - Semantic blueprint validation now emits
     `TF_SCENE_COMPONENT_REGISTRY_PROOF`.
 
+- `NSI-v2-03B` Generic Text Geometry + Multi-Policy Text Fit is completed.
+  - Semantic blueprint validation now enforces bounded text contracts with
+    finite `textFrame` dimensions, `maxLines`, `overflowPolicy`, and
+    `fitPolicy`.
+  - Unsupported `fitPolicy`/`overflowPolicy` now fail closed.
+  - PromptInputBar fallback text-frame defaults remain deterministic.
+  - Visual frame QA now checks bounded static text and reveal text, not reveal
+    text only.
+  - Semantic diagnostics now emit `TF_SCENE_TEXT_GEOMETRY_PROOF`.
+
 ### 2.3 SpeedyGraph Foundation Status
 
 SpeedyGraph foundation is already implemented as a separate system and must not be rebuilt inside NSI:

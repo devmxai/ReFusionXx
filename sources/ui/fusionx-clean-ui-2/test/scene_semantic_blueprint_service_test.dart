@@ -317,4 +317,86 @@ void main() {
       isTrue,
     );
   });
+
+  test('fails closed for unsupported text fit policy', () {
+    final service = SceneSemanticBlueprintService();
+    final validation = service.validate(<String, Object?>{
+      'schemaVersion': 'refusion.semantic-blueprint/v1',
+      'name': 'Bad Text Policy',
+      'durationMs': 2000,
+      'frameRate': 30,
+      'components': <Object?>[
+        <String, Object?>{
+          'id': 'feedback-card',
+          'type': 'FeedbackCard',
+          'slots': <String, Object?>{
+            'leadingIcon': 'gmail',
+            'title': <String, Object?>{
+              'text': 'Gmail',
+              'textFrame': <String, Object?>{
+                'width': 220,
+                'height': 48,
+                'maxLines': 1,
+                'overflow': 'ellipsis',
+                'fitPolicy': 'autoMagic',
+              },
+            },
+            'body': <String, Object?>{
+              'text': 'This body text should fit inside the card frame.',
+              'textFrame': <String, Object?>{
+                'width': 420,
+                'height': 160,
+                'maxLines': 4,
+                'overflow': 'ellipsis',
+                'fitPolicy': 'wrapToLines',
+              },
+            },
+          },
+        },
+      ],
+    });
+
+    expect(validation.isValid, isFalse);
+    expect(
+      validation.issues.any(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+            (issue.path?.contains('fitPolicy') ?? false) &&
+            issue.message.contains('Unsupported fit policy'),
+      ),
+      isTrue,
+    );
+  });
+
+  test('fails closed when bounded text slot misses textFrame contract', () {
+    final service = SceneSemanticBlueprintService();
+    final validation = service.validate(<String, Object?>{
+      'schemaVersion': 'refusion.semantic-blueprint/v1',
+      'name': 'Missing Text Frame',
+      'durationMs': 2000,
+      'frameRate': 30,
+      'components': <Object?>[
+        <String, Object?>{
+          'id': 'feedback-card',
+          'type': 'FeedbackCard',
+          'slots': <String, Object?>{
+            'leadingIcon': 'gmail',
+            'title': 'Gmail',
+            'body': 'Body text without frame should fail.',
+          },
+        },
+      ],
+    });
+
+    expect(validation.isValid, isFalse);
+    expect(
+      validation.issues.any(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+            (issue.path?.contains('textFrame') ?? false) &&
+            issue.message.contains('requires a `textFrame` contract'),
+      ),
+      isTrue,
+    );
+  });
 }
