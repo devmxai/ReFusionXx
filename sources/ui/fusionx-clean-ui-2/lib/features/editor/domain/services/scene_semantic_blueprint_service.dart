@@ -3,6 +3,7 @@ import 'dart:collection';
 import '../models/refusion_scene_program_models.dart';
 import '../models/scene_semantic_blueprint_models.dart';
 import 'motion_interpolation_truth_compiler.dart';
+import 'scene_semantic_component_registry.dart';
 import 'scene_semantic_token_registry.dart';
 
 const String kSceneBlueprintCompilerProofTag =
@@ -46,12 +47,16 @@ class SceneSemanticBlueprintService {
   SceneSemanticBlueprintService({
     SceneSemanticTokenRegistry? tokenRegistry,
     MotionInterpolationTruthCompiler? truthCompiler,
+    SceneSemanticComponentRegistry? componentRegistry,
   })  : _tokenRegistry = tokenRegistry ?? SceneSemanticTokenRegistry(),
         _truthCompiler =
-            truthCompiler ?? const MotionInterpolationTruthCompiler();
+            truthCompiler ?? const MotionInterpolationTruthCompiler(),
+        _componentRegistry =
+            componentRegistry ?? SceneSemanticComponentRegistry();
 
   final SceneSemanticTokenRegistry _tokenRegistry;
   final MotionInterpolationTruthCompiler _truthCompiler;
+  final SceneSemanticComponentRegistry _componentRegistry;
 
   static const String schemaVersion = 'refusion.semantic-blueprint/v1';
 
@@ -99,6 +104,7 @@ class SceneSemanticBlueprintService {
         ),
       );
     }
+    _validateComponentContracts(components, issues);
 
     final beats = _readBeats(payload['beats'], issues);
     final blueprint = SemanticSceneBlueprint(
@@ -124,13 +130,15 @@ class SceneSemanticBlueprintService {
     var loweredComponents = 0;
 
     for (final component in blueprint.components) {
-      final normalizedType = component.type.trim().toLowerCase();
+      final definition = _componentRegistry.findByType(component.type);
+      final canonicalType = definition?.id ?? component.type;
+      final normalizedType = canonicalType.trim().toLowerCase();
       if (normalizedType != 'promptinputbar') {
         issues.add(
           ReFusionSceneProgramIssue(
             severity: ReFusionSceneProgramIssueSeverity.error,
             message:
-                'Unsupported semantic component `${component.type}` in v2-02 lowerer.',
+                'Unsupported semantic component `${canonicalType}` in v2-03a lowerer.',
             path: 'components.${component.id}.type',
           ),
         );
@@ -452,6 +460,7 @@ class SceneSemanticBlueprintService {
         SemanticSceneBlueprintComponent(
           id: id,
           type: type,
+          variant: _readString(entry['variant']),
           properties:
               _readMap(entry['properties']) ?? const <String, Object?>{},
           slots: _readMap(entry['slots']) ?? const <String, Object?>{},
@@ -558,6 +567,21 @@ class SceneSemanticBlueprintService {
   }) {
     return '$kSceneBlueprintCompilerProofTag '
         'componentCount=$componentCount loweredCount=$loweredCount errorCount=$errorCount';
+  }
+
+  void _validateComponentContracts(
+    List<SemanticSceneBlueprintComponent> components,
+    List<ReFusionSceneProgramIssue> issues,
+  ) {
+    for (var index = 0; index < components.length; index += 1) {
+      final component = components[index];
+      issues.addAll(
+        _componentRegistry.validateComponent(
+          component: component,
+          index: index,
+        ),
+      );
+    }
   }
 
   void _validateSpeedGraphDependency({

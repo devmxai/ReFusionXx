@@ -66,6 +66,13 @@ ReFusion remains a native motion graphics application. VERSION 2 must not turn t
   - Initial PromptInputBar lowering exists.
   - `TF_SCENE_BLUEPRINT_COMPILER_PROOF` exists.
 
+- `NSI-v2-03A` Component Registry v2 + Variants is completed.
+  - Closed component vocabulary now validates component type aliases,
+    required slots, optional slots, and unsupported slot rejection.
+  - Variant contracts now fail closed for unsupported variants.
+  - Semantic blueprint validation now emits
+    `TF_SCENE_COMPONENT_REGISTRY_PROOF`.
+
 ### 2.3 SpeedyGraph Foundation Status
 
 SpeedyGraph foundation is already implemented as a separate system and must not be rebuilt inside NSI:

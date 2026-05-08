@@ -19,6 +19,10 @@ void main() {
             'promptText': 'generate a premium promo scene',
             'anchor': r'$anchor.goldenTop',
           },
+          'slots': <String, Object?>{
+            'primaryText': r'$typography.input',
+            'trailingAccessory': 'send',
+          },
         },
       ],
       'extraField': true,
@@ -60,6 +64,7 @@ void main() {
           },
           'slots': <String, Object?>{
             'primaryText': r'$typography.input',
+            'trailingAccessory': 'send',
           },
         },
       ],
@@ -117,6 +122,9 @@ void main() {
         <String, Object?>{
           'id': 'unsupported',
           'type': 'UnknownCard',
+          'slots': <String, Object?>{
+            'body': 'text',
+          },
         },
       ],
     });
@@ -148,6 +156,10 @@ void main() {
             'enter': <String, Object?>{
               'easing': r'$easing.slowFastSlow',
             },
+          },
+          'slots': <String, Object?>{
+            'primaryText': r'$typography.input',
+            'trailingAccessory': 'send',
           },
         },
       ],
@@ -190,6 +202,10 @@ void main() {
               },
             },
           },
+          'slots': <String, Object?>{
+            'primaryText': r'$typography.input',
+            'trailingAccessory': 'send',
+          },
         },
       ],
     });
@@ -204,6 +220,99 @@ void main() {
             (issue.path?.contains('components.prompt.motionIntents') ??
                 false) &&
             issue.message.contains('rejected direct bezier literals'),
+      ),
+      isTrue,
+    );
+  });
+
+  test('fails closed for unsupported PromptInputBar variant', () {
+    final service = SceneSemanticBlueprintService();
+    final validation = service.validate(<String, Object?>{
+      'schemaVersion': 'refusion.semantic-blueprint/v1',
+      'name': 'Bad Variant',
+      'durationMs': 2000,
+      'frameRate': 30,
+      'components': <Object?>[
+        <String, Object?>{
+          'id': 'prompt',
+          'type': 'PromptInputBar',
+          'variant': 'hoveredGlow',
+          'slots': <String, Object?>{
+            'primaryText': r'$typography.input',
+            'trailingAccessory': 'send',
+          },
+        },
+      ],
+    });
+
+    expect(validation.isValid, isFalse);
+    expect(
+      validation.issues.any(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+            (issue.path?.contains('components[0].variant') ?? false) &&
+            issue.message.contains('Unsupported variant'),
+      ),
+      isTrue,
+    );
+  });
+
+  test('fails closed for unsupported PromptInputBar slot', () {
+    final service = SceneSemanticBlueprintService();
+    final validation = service.validate(<String, Object?>{
+      'schemaVersion': 'refusion.semantic-blueprint/v1',
+      'name': 'Bad Slot',
+      'durationMs': 2000,
+      'frameRate': 30,
+      'components': <Object?>[
+        <String, Object?>{
+          'id': 'prompt',
+          'type': 'PromptInputBar',
+          'slots': <String, Object?>{
+            'primaryText': r'$typography.input',
+            'trailingAccessory': 'send',
+            'randomSlot': 'not-allowed',
+          },
+        },
+      ],
+    });
+
+    expect(validation.isValid, isFalse);
+    expect(
+      validation.issues.any(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+            (issue.path?.contains('components[0].slots.randomSlot') ?? false) &&
+            issue.message.contains('is not supported'),
+      ),
+      isTrue,
+    );
+  });
+
+  test('accepts supported PromptInputBar variants', () {
+    final service = SceneSemanticBlueprintService();
+    final validation = service.validate(<String, Object?>{
+      'schemaVersion': 'refusion.semantic-blueprint/v1',
+      'name': 'Focused Prompt',
+      'durationMs': 2000,
+      'frameRate': 30,
+      'components': <Object?>[
+        <String, Object?>{
+          'id': 'prompt',
+          'type': 'PromptInputBar',
+          'variant': 'focused',
+          'slots': <String, Object?>{
+            'primaryText': r'$typography.input',
+            'trailingAccessory': 'send',
+          },
+        },
+      ],
+    });
+
+    expect(validation.isValid, isTrue);
+    expect(
+      validation.issues.any(
+        (issue) => issue.message.contains('TF_SCENE_COMPONENT_REGISTRY_PROOF'),
       ),
       isTrue,
     );

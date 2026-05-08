@@ -28,6 +28,7 @@ class SemanticSceneBlueprintComponent {
   SemanticSceneBlueprintComponent({
     required this.id,
     required this.type,
+    this.variant,
     Map<String, Object?> properties = const <String, Object?>{},
     Map<String, Object?> slots = const <String, Object?>{},
     Map<String, Object?> motionIntents = const <String, Object?>{},
@@ -37,6 +38,7 @@ class SemanticSceneBlueprintComponent {
 
   final String id;
   final String type;
+  final String? variant;
   final Map<String, Object?> properties;
   final Map<String, Object?> slots;
   final Map<String, Object?> motionIntents;
