@@ -211,37 +211,37 @@ void main() {
     }
 
     expectOpacityHold(
-      layerId: 'result-cards-layer',
+      layerId: 'result-copy-layer',
       elementId: 'story-title',
       holdTimeMs: 6500,
       revealTimeMs: 6600,
     );
     expectOpacityHold(
-      layerId: 'result-cards-layer',
+      layerId: 'result-copy-layer',
       elementId: 'story-copy',
       holdTimeMs: 6650,
       revealTimeMs: 6750,
     );
     expectOpacityHold(
-      layerId: 'result-cards-layer',
+      layerId: 'result-copy-layer',
       elementId: 'motion-title',
       holdTimeMs: 6900,
       revealTimeMs: 7000,
     );
     expectOpacityHold(
-      layerId: 'result-cards-layer',
+      layerId: 'result-copy-layer',
       elementId: 'motion-copy',
       holdTimeMs: 7050,
       revealTimeMs: 7150,
     );
     expectOpacityHold(
-      layerId: 'result-cards-layer',
+      layerId: 'result-copy-layer',
       elementId: 'export-title',
       holdTimeMs: 7200,
       revealTimeMs: 7300,
     );
     expectOpacityHold(
-      layerId: 'result-cards-layer',
+      layerId: 'result-copy-layer',
       elementId: 'export-copy',
       holdTimeMs: 7350,
       revealTimeMs: 7450,

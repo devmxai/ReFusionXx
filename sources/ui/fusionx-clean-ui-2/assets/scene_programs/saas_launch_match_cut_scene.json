@@ -1,119 +1,84 @@
 {
   "directorPlan": {
     "schemaVersion": "refusion.motion-director/v1",
-    "name": "Revival Native Intelligence Showcase Plan",
+    "name": "Revival Native Intelligence Showcase",
     "durationMs": 14000,
     "frameRate": 30,
     "canvasWidth": 1080,
     "canvasHeight": 1920,
     "components": [
       {
-        "id": "app-icon",
-        "role": "brand.appIcon",
-        "label": "Revival app icon",
-        "layerId": "prompt-flow-layer",
-        "elementId": "app-icon-shell"
-      },
-      {
-        "id": "prompt-input",
+        "id": "hero-card",
         "role": "component.PromptInputBar",
-        "label": "Prompt input bar",
-        "layerId": "prompt-flow-layer",
+        "label": "Large prompt input hero",
+        "layerId": "hero-shapes-layer",
         "elementId": "prompt-shell"
       },
       {
         "id": "prompt-copy",
         "role": "text.promptCopy",
         "label": "Prompt input text",
-        "layerId": "prompt-flow-layer",
+        "layerId": "hero-text-layer",
         "elementId": "prompt-text"
       },
       {
         "id": "result-cards",
         "role": "component.FeatureCardGrid",
-        "label": "Generated creative plan cards",
+        "label": "Three generated native cards",
         "layerId": "result-cards-layer",
         "elementId": "story-card"
       },
       {
-        "id": "revival-hub",
+        "id": "final-hub",
         "role": "brand.finalHub",
-        "label": "Final Revival native scene intelligence hub",
+        "label": "Final Revival promise",
         "layerId": "final-hub-layer",
-        "elementId": "final-hub-panel"
+        "elementId": "final-panel"
       }
     ],
     "beats": [
       {
-        "id": "icon-establish",
-        "label": "App icon establishes trust",
+        "id": "brand-intro",
+        "label": "Brand and prompt establish",
         "startMs": 0,
-        "endMs": 1800,
-        "intent": "A clean Revival icon settles in the center with calm premium motion.",
-        "componentRefs": ["app-icon"]
-      },
-      {
-        "id": "prompt-handoff",
-        "label": "Icon hands off to input",
-        "startMs": 1800,
-        "endMs": 4300,
-        "intent": "The icon yields to a native prompt input; text types inside a fixed frame.",
-        "componentRefs": ["app-icon", "prompt-input", "prompt-copy"]
+        "endMs": 3000,
+        "intent": "A clean app mark and prompt input establish the product.",
+        "componentRefs": ["hero-card", "prompt-copy"]
       },
       {
         "id": "prompt-readable-hold",
-        "label": "Prompt readable hold",
-        "startMs": 4300,
-        "endMs": 4800,
-        "intent": "The completed prompt remains readable before the send press.",
-        "componentRefs": ["prompt-input", "prompt-copy"]
-      },
-      {
-        "id": "generate-press",
-        "label": "Send press resolves",
-        "startMs": 4800,
-        "endMs": 6100,
-        "intent": "The send button presses inward and the prompt resolves into generated structure.",
-        "componentRefs": ["prompt-input"]
+        "label": "Prompt text readable hold",
+        "startMs": 3000,
+        "endMs": 5200,
+        "intent": "The prompt remains readable inside the input frame.",
+        "componentRefs": ["hero-card", "prompt-copy"]
       },
       {
         "id": "cards-assemble",
-        "label": "Professional output cards assemble",
+        "label": "Generated cards assemble",
         "startMs": 6100,
         "endMs": 9800,
-        "intent": "Three readable cards assemble with clear spacing and no loose text.",
+        "intent": "Three cards enter with visible text locked to card bounds.",
         "componentRefs": ["result-cards"]
       },
       {
-        "id": "final-hold",
-        "label": "Final product promise",
+        "id": "final-resolve",
+        "label": "Final resolve",
         "startMs": 9800,
         "endMs": 14000,
-        "intent": "A dark final hub holds long enough to read the product promise.",
-        "componentRefs": ["revival-hub"]
+        "intent": "The system promise resolves on a dark premium panel.",
+        "componentRefs": ["final-hub"]
       }
     ],
     "primitives": [
       {
-        "id": "icon-pop",
-        "beatId": "icon-establish",
-        "targetComponentId": "app-icon",
-        "kind": "scale",
-        "property": "scale",
-        "startMs": 0,
-        "endMs": 1100,
-        "fromValue": 0.72,
-        "toValue": 1,
-        "easing": "slowFastSlow"
-      },
-      {
         "id": "prompt-type",
-        "beatId": "prompt-handoff",
+        "beatId": "brand-intro",
         "targetComponentId": "prompt-copy",
         "kind": "typewriter",
         "property": "typewriterProgress",
-        "startMs": 2800,
-        "endMs": 4300,
+        "startMs": 1600,
+        "endMs": 3000,
         "fromValue": 0,
         "toValue": 1,
         "easing": "linear"
@@ -122,19 +87,14 @@
         "id": "cards-enter",
         "beatId": "cards-assemble",
         "targetComponentId": "result-cards",
-        "kind": "staggeredCardRise",
+        "kind": "position",
         "property": "position",
         "startMs": 6100,
-        "endMs": 8500,
-        "fromValue": "below",
-        "toValue": "grid",
+        "endMs": 7800,
+        "fromValue": {"x": 0, "y": 260},
+        "toValue": {"x": 0, "y": 0},
         "easing": "slowFastSlow"
       }
-    ],
-    "notes": [
-      "Native ReFusion scene only: no HTML, no JS, no external assets.",
-      "Prompt text uses a fixed PromptInputBar contract with parent, slot, contentInsets, and textFrame.",
-      "Motion uses SpeedyGraph names for professional timing."
     ]
   },
   "sceneProgram": {
@@ -146,60 +106,58 @@
       {
         "id": "background-layer",
         "kind": "shape",
-        "name": "Premium soft studio background",
+        "name": "Soft editorial background",
         "startMs": 0,
         "durationMs": 14000,
         "elements": [
           {
-            "id": "background-base",
-            "kind": "shape",
+            "id": "bg-solid",
+            "kind": "solid",
             "properties": {
-              "shapeKind": "rectangle",
               "width": 1080,
               "height": 1920,
-              "position": {"x": 0, "y": 0},
-              "color": "#F5F7FB",
+              "color": "#F6F8FC",
               "opacity": 1
             }
           },
           {
-            "id": "cool-wash",
+            "id": "blue-orb",
             "kind": "shape",
             "properties": {
-              "shapeKind": "circle",
-              "width": 980,
-              "height": 980,
-              "position": {"x": 330, "y": -520},
-              "color": "#D6E6FF",
-              "opacity": 0.62
+              "shapeKind": "ellipse",
+              "width": 680,
+              "height": 680,
+              "position": {"x": 300, "y": -520},
+              "color": "#DCEBFF",
+              "opacity": 0.75
             },
             "channels": [
               {
                 "property": "position",
                 "keyframes": [
-                  {"timeMs": 0, "value": {"x": 330, "y": -520}, "easing": "linear"},
-                  {"timeMs": 14000, "value": {"x": 220, "y": -440}, "easing": "linear"}
+                  {"timeMs": 0, "value": {"x": 300, "y": -520}, "easing": "linear"},
+                  {"timeMs": 14000, "value": {"x": 220, "y": -470}, "easing": "linear"}
                 ]
               }
             ]
           },
           {
-            "id": "warm-wash",
+            "id": "pink-orb",
             "kind": "shape",
             "properties": {
-              "shapeKind": "circle",
-              "width": 780,
-              "height": 780,
-              "position": {"x": -430, "y": 560},
-              "color": "#FFE8EC",
-              "opacity": 0.58
+              "shapeKind": "ellipse",
+              "width": 760,
+              "height": 760,
+              "position": {"x": -320, "y": 650},
+              "color": "#F9E8EF",
+              "opacity": 0.7
             },
             "channels": [
               {
                 "property": "position",
                 "keyframes": [
-                  {"timeMs": 0, "value": {"x": -430, "y": 560}, "easing": "linear"},
-                  {"timeMs": 14000, "value": {"x": -330, "y": 640}, "easing": "linear"}
+                  {"timeMs": 0, "value": {"x": -320, "y": 650}, "easing": "linear"},
+                  {"timeMs": 14000, "value": {"x": -260, "y": 590}, "easing": "linear"}
                 ]
               }
             ]
@@ -207,95 +165,44 @@
         ]
       },
       {
-        "id": "prompt-flow-layer",
+        "id": "hero-shapes-layer",
         "kind": "shape",
-        "name": "Icon to prompt input",
+        "name": "Prompt input component shapes",
         "startMs": 0,
-        "durationMs": 7000,
+        "durationMs": 6100,
         "elements": [
           {
             "id": "app-icon-shell",
             "kind": "shape",
             "properties": {
               "shapeKind": "roundedRectangle",
-              "width": 220,
-              "height": 220,
-              "cornerRadius": 56,
-              "position": {"x": 0, "y": -130},
+              "width": 148,
+              "height": 148,
+              "cornerRadius": 42,
+              "position": {"x": 0, "y": -280},
               "color": "#111827",
               "opacity": 1,
-              "shadowOpacity": 0.18,
-              "shadowBlur": 32,
-              "shadowOffset": {"x": 0, "y": 20}
+              "shadowOpacity": 0.16,
+              "shadowBlur": 26,
+              "shadowOffset": {"x": 0, "y": 16}
             },
             "channels": [
               {
                 "property": "scale",
                 "keyframes": [
-                  {"timeMs": 0, "value": 0.72, "easing": "fastSlow"},
-                  {"timeMs": 1100, "value": 1.0, "easing": "slowFastSlow"},
-                  {"timeMs": 1800, "value": 1.0, "easing": "linear"},
-                  {"timeMs": 2500, "value": 0.52, "easing": "slowFast"},
-                  {"timeMs": 3300, "value": 0.52, "easing": "linear"}
-                ]
-              },
-              {
-                "property": "position",
-                "keyframes": [
-                  {"timeMs": 0, "value": {"x": 0, "y": -80}, "easing": "fastSlow"},
-                  {"timeMs": 1100, "value": {"x": 0, "y": -130}, "easing": "slowFastSlow"},
-                  {"timeMs": 1800, "value": {"x": 0, "y": -130}, "easing": "linear"},
-                  {"timeMs": 2500, "value": {"x": -348, "y": 0}, "easing": "slowFastSlow"},
-                  {"timeMs": 3300, "value": {"x": -348, "y": 0}, "easing": "linear"}
+                  {"timeMs": 0, "value": 0.72, "easing": "slowFastSlow"},
+                  {"timeMs": 900, "value": 1, "easing": "slowFastSlow"},
+                  {"timeMs": 4300, "value": 1, "easing": "linear"},
+                  {"timeMs": 5200, "value": 0.86, "easing": "slowFast"}
                 ]
               },
               {
                 "property": "opacity",
                 "keyframes": [
-                  {"timeMs": 0, "value": 1, "easing": "linear"},
-                  {"timeMs": 4300, "value": 1, "easing": "linear"},
-                  {"timeMs": 5600, "value": 0, "easing": "fastSlow"}
-                ]
-              }
-            ]
-          },
-          {
-            "id": "app-icon-mark",
-            "kind": "text",
-            "text": "R",
-            "properties": {
-              "fontSize": 102,
-              "fontWeight": "900",
-              "color": "#FFFFFF",
-              "position": {"x": 0, "y": -132},
-              "opacity": 1,
-              "textFrame": {"width": 120, "height": 120, "maxLines": 1, "overflow": "ellipsis", "fitPolicy": "shrinkToFit"}
-            },
-            "channels": [
-              {
-                "property": "position",
-                "keyframes": [
-                  {"timeMs": 0, "value": {"x": 0, "y": -82}, "easing": "fastSlow"},
-                  {"timeMs": 1100, "value": {"x": 0, "y": -132}, "easing": "slowFastSlow"},
-                  {"timeMs": 1800, "value": {"x": 0, "y": -132}, "easing": "linear"},
-                  {"timeMs": 2500, "value": {"x": -348, "y": 0}, "easing": "slowFastSlow"},
-                  {"timeMs": 3300, "value": {"x": -348, "y": 0}, "easing": "linear"}
-                ]
-              },
-              {
-                "property": "scale",
-                "keyframes": [
-                  {"timeMs": 0, "value": 0.72, "easing": "fastSlow"},
-                  {"timeMs": 1100, "value": 1.0, "easing": "slowFastSlow"},
-                  {"timeMs": 2500, "value": 0.52, "easing": "slowFast"}
-                ]
-              },
-              {
-                "property": "opacity",
-                "keyframes": [
-                  {"timeMs": 0, "value": 1, "easing": "linear"},
-                  {"timeMs": 4300, "value": 1, "easing": "linear"},
-                  {"timeMs": 5600, "value": 0, "easing": "fastSlow"}
+                  {"timeMs": 0, "value": 0, "easing": "fastSlow"},
+                  {"timeMs": 450, "value": 1, "easing": "fastSlow"},
+                  {"timeMs": 5200, "value": 1, "easing": "linear"},
+                  {"timeMs": 6100, "value": 0, "easing": "fastSlow"}
                 ]
               }
             ]
@@ -306,83 +213,49 @@
             "properties": {
               "shapeKind": "roundedRectangle",
               "layoutRole": "container",
-              "width": 860,
-              "height": 118,
-              "cornerRadius": 59,
-              "position": {"x": 0, "y": 0},
-              "contentInsets": {"left": 140, "right": 132, "top": 24, "bottom": 24},
+              "width": 820,
+              "height": 132,
+              "cornerRadius": 58,
+              "position": {"x": 0, "y": 60},
               "color": "#FFFFFF",
               "opacity": 1,
-              "shadowOpacity": 0.14,
-              "shadowBlur": 30,
-              "shadowOffset": {"x": 0, "y": 22}
+              "shadowOpacity": 0.12,
+              "shadowBlur": 32,
+              "shadowOffset": {"x": 0, "y": 18},
+              "contentInsets": {"left": 86, "right": 104, "top": 26, "bottom": 26}
             },
             "channels": [
               {
-                "property": "scale",
+                "property": "position",
                 "keyframes": [
-                  {"timeMs": 0, "value": 0.18, "easing": "linear"},
-                  {"timeMs": 1800, "value": 0.18, "easing": "linear"},
-                  {"timeMs": 2850, "value": 1.0, "easing": "slowFastSlow"},
-                  {"timeMs": 5200, "value": 1.0, "easing": "linear"},
-                  {"timeMs": 6100, "value": 0.94, "easing": "fastSlow"}
+                  {"timeMs": 0, "value": {"x": 0, "y": 200}, "easing": "linear"},
+                  {"timeMs": 1100, "value": {"x": 0, "y": 200}, "easing": "linear"},
+                  {"timeMs": 1900, "value": {"x": 0, "y": 60}, "easing": "slowFastSlow"},
+                  {"timeMs": 5200, "value": {"x": 0, "y": 60}, "easing": "linear"},
+                  {"timeMs": 6100, "value": {"x": -720, "y": 60}, "easing": "slowFast"}
                 ]
               },
               {
                 "property": "opacity",
                 "keyframes": [
                   {"timeMs": 0, "value": 0, "easing": "linear"},
-                  {"timeMs": 1900, "value": 0, "easing": "linear"},
-                  {"timeMs": 2450, "value": 1, "easing": "fastSlow"},
-                  {"timeMs": 5800, "value": 1, "easing": "linear"},
-                  {"timeMs": 6500, "value": 0, "easing": "fastSlow"}
-                ]
-              }
-            ]
-          },
-          {
-            "id": "prompt-text",
-            "kind": "text",
-            "text": "Create launch video",
-            "properties": {
-              "parentId": "prompt-shell",
-              "layout": {"role": "content", "slot": "primaryText", "align": "centerLeft"},
-              "fontSize": 32,
-              "fontWeight": "700",
-              "lineHeight": 1.0,
-              "color": "#111827",
-              "position": {"x": -48, "y": 0},
-              "opacity": 1,
-              "textFrame": {"width": 540, "height": 54, "maxLines": 1, "overflow": "ellipsis", "fitPolicy": "shrinkToFit", "measure": "fullText"}
-            },
-            "channels": [
-              {
-                "property": "typewriterProgress",
-                "keyframes": [
-                  {"timeMs": 2800, "value": 0, "easing": "linear"},
-                  {"timeMs": 4300, "value": 1, "easing": "linear"}
-                ]
-              },
-              {
-                "property": "opacity",
-                "keyframes": [
-                  {"timeMs": 0, "value": 0, "easing": "linear"},
-                  {"timeMs": 2800, "value": 0, "easing": "linear"},
-                  {"timeMs": 2980, "value": 1, "easing": "fastSlow"},
-                  {"timeMs": 5800, "value": 1, "easing": "linear"},
-                  {"timeMs": 6500, "value": 0, "easing": "fastSlow"}
+                  {"timeMs": 1100, "value": 0, "easing": "linear"},
+                  {"timeMs": 1700, "value": 1, "easing": "fastSlow"},
+                  {"timeMs": 5200, "value": 1, "easing": "linear"},
+                  {"timeMs": 6100, "value": 0, "easing": "fastSlow"}
                 ]
               }
             ]
           },
           {
             "id": "send-button",
-            "kind": "shape",
+            "kind": "icon",
             "properties": {
-              "shapeKind": "circle",
-              "width": 76,
-              "height": 76,
-              "position": {"x": 350, "y": 0},
+              "parentId": "prompt-shell",
+              "icon": "send",
+              "width": 52,
+              "height": 52,
+              "position": {"x": 320, "y": 60},
               "color": "#2563EB",
               "opacity": 1
             },
@@ -390,56 +263,86 @@
               {
                 "property": "scale",
                 "keyframes": [
-                  {"timeMs": 2500, "value": 0.88, "easing": "fastSlow"},
-                  {"timeMs": 3000, "value": 1.0, "easing": "slowFastSlow"},
-                  {"timeMs": 4800, "value": 1.0, "easing": "linear"},
-                  {"timeMs": 4960, "value": 0.86, "easing": "fastSlowFast"},
-                  {"timeMs": 5250, "value": 1.0, "easing": "fastSlow"}
+                  {"timeMs": 0, "value": 1, "easing": "linear"},
+                  {"timeMs": 4700, "value": 1, "easing": "linear"},
+                  {"timeMs": 4880, "value": 0.82, "easing": "slowFast"},
+                  {"timeMs": 5100, "value": 1, "easing": "fastSlow"}
                 ]
               },
               {
                 "property": "opacity",
                 "keyframes": [
                   {"timeMs": 0, "value": 0, "easing": "linear"},
-                  {"timeMs": 2450, "value": 0, "easing": "linear"},
-                  {"timeMs": 3000, "value": 1, "easing": "fastSlow"},
-                  {"timeMs": 5800, "value": 1, "easing": "linear"},
-                  {"timeMs": 6500, "value": 0, "easing": "fastSlow"}
+                  {"timeMs": 1800, "value": 1, "easing": "fastSlow"},
+                  {"timeMs": 5200, "value": 1, "easing": "linear"},
+                  {"timeMs": 6100, "value": 0, "easing": "fastSlow"}
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "hero-text-layer",
+        "kind": "text",
+        "name": "Prompt input component text",
+        "startMs": 0,
+        "durationMs": 6100,
+        "elements": [
+          {
+            "id": "brand-title",
+            "kind": "text",
+            "text": "Revival",
+            "properties": {
+              "fontSize": 52,
+              "fontWeight": "900",
+              "color": "#0F172A",
+              "position": {"x": 0, "y": -94},
+              "opacity": 1,
+              "textFrame": {"width": 480, "height": 72, "maxLines": 1, "overflow": "ellipsis"}
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {"timeMs": 0, "value": 0, "easing": "linear"},
+                  {"timeMs": 700, "value": 1, "easing": "fastSlow"},
+                  {"timeMs": 5200, "value": 1, "easing": "linear"},
+                  {"timeMs": 6100, "value": 0, "easing": "fastSlow"}
                 ]
               }
             ]
           },
           {
-            "id": "send-icon",
-            "kind": "icon",
+            "id": "prompt-text",
+            "kind": "text",
+            "text": "Build a premium SaaS launch video",
             "properties": {
-              "icon": "send",
-              "parentId": "send-button",
-              "width": 34,
-              "height": 34,
-              "position": {"x": 350, "y": 0},
-              "color": "#FFFFFF",
-              "opacity": 1
+              "parentId": "prompt-shell",
+              "layout": {"slot": "primaryText", "role": "content"},
+              "fontSize": 30,
+              "fontWeight": "700",
+              "color": "#111827",
+              "position": {"x": -74, "y": 60},
+              "opacity": 1,
+              "textFrame": {"width": 560, "height": 54, "maxLines": 1, "overflow": "ellipsis", "measure": "fullText"}
             },
             "channels": [
               {
-                "property": "scale",
+                "property": "typewriterProgress",
                 "keyframes": [
-                  {"timeMs": 2500, "value": 0.88, "easing": "fastSlow"},
-                  {"timeMs": 3000, "value": 1.0, "easing": "slowFastSlow"},
-                  {"timeMs": 4800, "value": 1.0, "easing": "linear"},
-                  {"timeMs": 4960, "value": 0.78, "easing": "fastSlowFast"},
-                  {"timeMs": 5250, "value": 1.0, "easing": "fastSlow"}
+                  {"timeMs": 0, "value": 0, "easing": "linear"},
+                  {"timeMs": 1600, "value": 0, "easing": "linear"},
+                  {"timeMs": 3000, "value": 1, "easing": "linear"}
                 ]
               },
               {
                 "property": "opacity",
                 "keyframes": [
                   {"timeMs": 0, "value": 0, "easing": "linear"},
-                  {"timeMs": 2450, "value": 0, "easing": "linear"},
-                  {"timeMs": 3000, "value": 1, "easing": "fastSlow"},
-                  {"timeMs": 5800, "value": 1, "easing": "linear"},
-                  {"timeMs": 6500, "value": 0, "easing": "fastSlow"}
+                  {"timeMs": 1600, "value": 1, "easing": "fastSlow"},
+                  {"timeMs": 5200, "value": 1, "easing": "linear"},
+                  {"timeMs": 6100, "value": 0, "easing": "fastSlow"}
                 ]
               }
             ]
@@ -449,7 +352,7 @@
       {
         "id": "result-cards-layer",
         "kind": "shape",
-        "name": "Generated output cards",
+        "name": "Generated output card shapes",
         "startMs": 0,
         "durationMs": 11200,
         "elements": [
@@ -460,24 +363,24 @@
               "shapeKind": "roundedRectangle",
               "layoutRole": "container",
               "width": 760,
-              "height": 190,
-              "cornerRadius": 38,
-              "position": {"x": 0, "y": -280},
+              "height": 208,
+              "cornerRadius": 40,
+              "position": {"x": 0, "y": -330},
               "color": "#FFFFFF",
               "opacity": 1,
-              "shadowOpacity": 0.12,
-              "shadowBlur": 24,
-              "shadowOffset": {"x": 0, "y": 14}
+              "shadowOpacity": 0.13,
+              "shadowBlur": 26,
+              "shadowOffset": {"x": 0, "y": 16}
             },
             "channels": [
               {
                 "property": "position",
                 "keyframes": [
-                  {"timeMs": 0, "value": {"x": 0, "y": 40}, "easing": "linear"},
-                  {"timeMs": 6100, "value": {"x": 0, "y": 40}, "easing": "linear"},
-                  {"timeMs": 7050, "value": {"x": 0, "y": -280}, "easing": "slowFastSlow"},
-                  {"timeMs": 9800, "value": {"x": 0, "y": -280}, "easing": "linear"},
-                  {"timeMs": 10600, "value": {"x": -900, "y": -360}, "easing": "slowFast"}
+                  {"timeMs": 0, "value": {"x": 0, "y": 0}, "easing": "linear"},
+                  {"timeMs": 6100, "value": {"x": 0, "y": 0}, "easing": "linear"},
+                  {"timeMs": 7050, "value": {"x": 0, "y": -330}, "easing": "slowFastSlow"},
+                  {"timeMs": 9800, "value": {"x": 0, "y": -330}, "easing": "linear"},
+                  {"timeMs": 10600, "value": {"x": -820, "y": -360}, "easing": "slowFast"}
                 ]
               },
               {
@@ -493,25 +396,112 @@
             ]
           },
           {
-            "id": "story-title",
-            "kind": "text",
-            "text": "Storyboard",
+            "id": "motion-card",
+            "kind": "shape",
             "properties": {
-              "parentId": "story-card",
-              "fontSize": 34,
-              "fontWeight": "800",
-              "color": "#111827",
-              "position": {"x": -235, "y": -302},
+              "shapeKind": "roundedRectangle",
+              "layoutRole": "container",
+              "width": 760,
+              "height": 208,
+              "cornerRadius": 40,
+              "position": {"x": 0, "y": -70},
+              "color": "#FFFFFF",
               "opacity": 1,
-              "textFrame": {"width": 250, "height": 48, "maxLines": 1, "overflow": "ellipsis", "fitPolicy": "shrinkToFit"}
+              "shadowOpacity": 0.13,
+              "shadowBlur": 26,
+              "shadowOffset": {"x": 0, "y": 16}
             },
             "channels": [
               {
                 "property": "position",
                 "keyframes": [
-                  {"timeMs": 6100, "value": {"x": -235, "y": 18}, "easing": "linear"},
-                  {"timeMs": 7050, "value": {"x": -235, "y": -302}, "easing": "slowFastSlow"},
-                  {"timeMs": 10600, "value": {"x": -1135, "y": -382}, "easing": "slowFast"}
+                  {"timeMs": 0, "value": {"x": 0, "y": 200}, "easing": "linear"},
+                  {"timeMs": 6350, "value": {"x": 0, "y": 200}, "easing": "linear"},
+                  {"timeMs": 7420, "value": {"x": 0, "y": -70}, "easing": "slowFastSlow"},
+                  {"timeMs": 9800, "value": {"x": 0, "y": -70}, "easing": "linear"},
+                  {"timeMs": 10600, "value": {"x": -820, "y": -100}, "easing": "slowFast"}
+                ]
+              },
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {"timeMs": 0, "value": 0, "easing": "linear"},
+                  {"timeMs": 6350, "value": 0, "easing": "linear"},
+                  {"timeMs": 6900, "value": 1, "easing": "fastSlow"},
+                  {"timeMs": 9800, "value": 1, "easing": "linear"},
+                  {"timeMs": 10600, "value": 0, "easing": "fastSlow"}
+                ]
+              }
+            ]
+          },
+          {
+            "id": "export-card",
+            "kind": "shape",
+            "properties": {
+              "shapeKind": "roundedRectangle",
+              "layoutRole": "container",
+              "width": 760,
+              "height": 208,
+              "cornerRadius": 40,
+              "position": {"x": 0, "y": 190},
+              "color": "#FFFFFF",
+              "opacity": 1,
+              "shadowOpacity": 0.13,
+              "shadowBlur": 26,
+              "shadowOffset": {"x": 0, "y": 16}
+            },
+            "channels": [
+              {
+                "property": "position",
+                "keyframes": [
+                  {"timeMs": 0, "value": {"x": 0, "y": 400}, "easing": "linear"},
+                  {"timeMs": 6600, "value": {"x": 0, "y": 400}, "easing": "linear"},
+                  {"timeMs": 7800, "value": {"x": 0, "y": 190}, "easing": "slowFastSlow"},
+                  {"timeMs": 9800, "value": {"x": 0, "y": 190}, "easing": "linear"},
+                  {"timeMs": 10600, "value": {"x": -820, "y": 160}, "easing": "slowFast"}
+                ]
+              },
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {"timeMs": 0, "value": 0, "easing": "linear"},
+                  {"timeMs": 6600, "value": 0, "easing": "linear"},
+                  {"timeMs": 7200, "value": 1, "easing": "fastSlow"},
+                  {"timeMs": 9800, "value": 1, "easing": "linear"},
+                  {"timeMs": 10600, "value": 0, "easing": "fastSlow"}
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "result-copy-layer",
+        "kind": "text",
+        "name": "Generated output card text",
+        "startMs": 0,
+        "durationMs": 11200,
+        "elements": [
+          {
+            "id": "story-title",
+            "kind": "text",
+            "text": "Storyboard",
+            "properties": {
+              "parentId": "story-card",
+              "fontSize": 32,
+              "fontWeight": "900",
+              "color": "#111827",
+              "position": {"x": -240, "y": -370},
+              "opacity": 1,
+              "textFrame": {"width": 250, "height": 44, "maxLines": 1, "overflow": "ellipsis"}
+            },
+            "channels": [
+              {
+                "property": "position",
+                "keyframes": [
+                  {"timeMs": 6100, "value": {"x": -240, "y": -40}, "easing": "linear"},
+                  {"timeMs": 7050, "value": {"x": -240, "y": -370}, "easing": "slowFastSlow"},
+                  {"timeMs": 10600, "value": {"x": -1060, "y": -400}, "easing": "slowFast"}
                 ]
               },
               {
@@ -528,24 +518,24 @@
           {
             "id": "story-copy",
             "kind": "text",
-            "text": "Beats, cards, and timing are planned first.",
+            "text": "Clear beats before any animation.",
             "properties": {
               "parentId": "story-card",
               "fontSize": 24,
-              "fontWeight": "500",
-              "lineHeight": 1.1,
+              "fontWeight": "600",
+              "lineHeight": 1.12,
               "color": "#6B7280",
-              "position": {"x": 50, "y": -252},
+              "position": {"x": 34, "y": -314},
               "opacity": 1,
-              "textFrame": {"width": 480, "height": 72, "maxLines": 2, "overflow": "ellipsis", "fitPolicy": "shrinkToFit"}
+              "textFrame": {"width": 500, "height": 70, "maxLines": 2, "overflow": "ellipsis"}
             },
             "channels": [
               {
                 "property": "position",
                 "keyframes": [
-                  {"timeMs": 6100, "value": {"x": 50, "y": 68}, "easing": "linear"},
-                  {"timeMs": 7050, "value": {"x": 50, "y": -252}, "easing": "slowFastSlow"},
-                  {"timeMs": 10600, "value": {"x": -850, "y": -332}, "easing": "slowFast"}
+                  {"timeMs": 6100, "value": {"x": 34, "y": 16}, "easing": "linear"},
+                  {"timeMs": 7050, "value": {"x": 34, "y": -314}, "easing": "slowFastSlow"},
+                  {"timeMs": 10600, "value": {"x": -786, "y": -344}, "easing": "slowFast"}
                 ]
               },
               {
@@ -560,64 +550,25 @@
             ]
           },
           {
-            "id": "motion-card",
-            "kind": "shape",
-            "properties": {
-              "shapeKind": "roundedRectangle",
-              "layoutRole": "container",
-              "width": 760,
-              "height": 190,
-              "cornerRadius": 38,
-              "position": {"x": 0, "y": -40},
-              "color": "#FFFFFF",
-              "opacity": 1,
-              "shadowOpacity": 0.12,
-              "shadowBlur": 24,
-              "shadowOffset": {"x": 0, "y": 14}
-            },
-            "channels": [
-              {
-                "property": "position",
-                "keyframes": [
-                  {"timeMs": 0, "value": {"x": 0, "y": 260}, "easing": "linear"},
-                  {"timeMs": 6350, "value": {"x": 0, "y": 260}, "easing": "linear"},
-                  {"timeMs": 7420, "value": {"x": 0, "y": -40}, "easing": "slowFastSlow"},
-                  {"timeMs": 9800, "value": {"x": 0, "y": -40}, "easing": "linear"},
-                  {"timeMs": 10600, "value": {"x": -900, "y": -120}, "easing": "slowFast"}
-                ]
-              },
-              {
-                "property": "opacity",
-                "keyframes": [
-                  {"timeMs": 0, "value": 0, "easing": "linear"},
-                  {"timeMs": 6350, "value": 0, "easing": "linear"},
-                  {"timeMs": 6900, "value": 1, "easing": "fastSlow"},
-                  {"timeMs": 9800, "value": 1, "easing": "linear"},
-                  {"timeMs": 10600, "value": 0, "easing": "fastSlow"}
-                ]
-              }
-            ]
-          },
-          {
             "id": "motion-title",
             "kind": "text",
             "text": "Motion",
             "properties": {
               "parentId": "motion-card",
-              "fontSize": 34,
-              "fontWeight": "800",
+              "fontSize": 32,
+              "fontWeight": "900",
               "color": "#111827",
-              "position": {"x": -255, "y": -62},
+              "position": {"x": -250, "y": -110},
               "opacity": 1,
-              "textFrame": {"width": 220, "height": 48, "maxLines": 1, "overflow": "ellipsis", "fitPolicy": "shrinkToFit"}
+              "textFrame": {"width": 230, "height": 44, "maxLines": 1, "overflow": "ellipsis"}
             },
             "channels": [
               {
                 "property": "position",
                 "keyframes": [
-                  {"timeMs": 6350, "value": {"x": -255, "y": 238}, "easing": "linear"},
-                  {"timeMs": 7420, "value": {"x": -255, "y": -62}, "easing": "slowFastSlow"},
-                  {"timeMs": 10600, "value": {"x": -1155, "y": -142}, "easing": "slowFast"}
+                  {"timeMs": 6350, "value": {"x": -250, "y": 160}, "easing": "linear"},
+                  {"timeMs": 7420, "value": {"x": -250, "y": -110}, "easing": "slowFastSlow"},
+                  {"timeMs": 10600, "value": {"x": -1070, "y": -140}, "easing": "slowFast"}
                 ]
               },
               {
@@ -634,24 +585,24 @@
           {
             "id": "motion-copy",
             "kind": "text",
-            "text": "SpeedyGraph gives every move a real curve.",
+            "text": "SpeedyGraph curves drive the feel.",
             "properties": {
               "parentId": "motion-card",
               "fontSize": 24,
-              "fontWeight": "500",
-              "lineHeight": 1.1,
+              "fontWeight": "600",
+              "lineHeight": 1.12,
               "color": "#6B7280",
-              "position": {"x": 55, "y": -12},
+              "position": {"x": 44, "y": -54},
               "opacity": 1,
-              "textFrame": {"width": 480, "height": 72, "maxLines": 2, "overflow": "ellipsis", "fitPolicy": "shrinkToFit"}
+              "textFrame": {"width": 500, "height": 70, "maxLines": 2, "overflow": "ellipsis"}
             },
             "channels": [
               {
                 "property": "position",
                 "keyframes": [
-                  {"timeMs": 6350, "value": {"x": 55, "y": 288}, "easing": "linear"},
-                  {"timeMs": 7420, "value": {"x": 55, "y": -12}, "easing": "slowFastSlow"},
-                  {"timeMs": 10600, "value": {"x": -845, "y": -92}, "easing": "slowFast"}
+                  {"timeMs": 6350, "value": {"x": 44, "y": 216}, "easing": "linear"},
+                  {"timeMs": 7420, "value": {"x": 44, "y": -54}, "easing": "slowFastSlow"},
+                  {"timeMs": 10600, "value": {"x": -776, "y": -84}, "easing": "slowFast"}
                 ]
               },
               {
@@ -666,64 +617,25 @@
             ]
           },
           {
-            "id": "export-card",
-            "kind": "shape",
-            "properties": {
-              "shapeKind": "roundedRectangle",
-              "layoutRole": "container",
-              "width": 760,
-              "height": 190,
-              "cornerRadius": 38,
-              "position": {"x": 0, "y": 200},
-              "color": "#FFFFFF",
-              "opacity": 1,
-              "shadowOpacity": 0.12,
-              "shadowBlur": 24,
-              "shadowOffset": {"x": 0, "y": 14}
-            },
-            "channels": [
-              {
-                "property": "position",
-                "keyframes": [
-                  {"timeMs": 0, "value": {"x": 0, "y": 500}, "easing": "linear"},
-                  {"timeMs": 6600, "value": {"x": 0, "y": 500}, "easing": "linear"},
-                  {"timeMs": 7800, "value": {"x": 0, "y": 200}, "easing": "slowFastSlow"},
-                  {"timeMs": 9800, "value": {"x": 0, "y": 200}, "easing": "linear"},
-                  {"timeMs": 10600, "value": {"x": -900, "y": 120}, "easing": "slowFast"}
-                ]
-              },
-              {
-                "property": "opacity",
-                "keyframes": [
-                  {"timeMs": 0, "value": 0, "easing": "linear"},
-                  {"timeMs": 6600, "value": 0, "easing": "linear"},
-                  {"timeMs": 7200, "value": 1, "easing": "fastSlow"},
-                  {"timeMs": 9800, "value": 1, "easing": "linear"},
-                  {"timeMs": 10600, "value": 0, "easing": "fastSlow"}
-                ]
-              }
-            ]
-          },
-          {
             "id": "export-title",
             "kind": "text",
             "text": "Export",
             "properties": {
               "parentId": "export-card",
-              "fontSize": 34,
-              "fontWeight": "800",
+              "fontSize": 32,
+              "fontWeight": "900",
               "color": "#111827",
-              "position": {"x": -255, "y": 178},
+              "position": {"x": -250, "y": 150},
               "opacity": 1,
-              "textFrame": {"width": 220, "height": 48, "maxLines": 1, "overflow": "ellipsis", "fitPolicy": "shrinkToFit"}
+              "textFrame": {"width": 230, "height": 44, "maxLines": 1, "overflow": "ellipsis"}
             },
             "channels": [
               {
                 "property": "position",
                 "keyframes": [
-                  {"timeMs": 6600, "value": {"x": -255, "y": 478}, "easing": "linear"},
-                  {"timeMs": 7800, "value": {"x": -255, "y": 178}, "easing": "slowFastSlow"},
-                  {"timeMs": 10600, "value": {"x": -1155, "y": 98}, "easing": "slowFast"}
+                  {"timeMs": 6600, "value": {"x": -250, "y": 360}, "easing": "linear"},
+                  {"timeMs": 7800, "value": {"x": -250, "y": 150}, "easing": "slowFastSlow"},
+                  {"timeMs": 10600, "value": {"x": -1070, "y": 120}, "easing": "slowFast"}
                 ]
               },
               {
@@ -740,24 +652,24 @@
           {
             "id": "export-copy",
             "kind": "text",
-            "text": "Preview, playback, and output share intent.",
+            "text": "Preview and output share intent.",
             "properties": {
               "parentId": "export-card",
               "fontSize": 24,
-              "fontWeight": "500",
-              "lineHeight": 1.1,
+              "fontWeight": "600",
+              "lineHeight": 1.12,
               "color": "#6B7280",
-              "position": {"x": 65, "y": 228},
+              "position": {"x": 44, "y": 206},
               "opacity": 1,
-              "textFrame": {"width": 480, "height": 72, "maxLines": 2, "overflow": "ellipsis", "fitPolicy": "shrinkToFit"}
+              "textFrame": {"width": 500, "height": 70, "maxLines": 2, "overflow": "ellipsis"}
             },
             "channels": [
               {
                 "property": "position",
                 "keyframes": [
-                  {"timeMs": 6600, "value": {"x": 65, "y": 528}, "easing": "linear"},
-                  {"timeMs": 7800, "value": {"x": 65, "y": 228}, "easing": "slowFastSlow"},
-                  {"timeMs": 10600, "value": {"x": -835, "y": 148}, "easing": "slowFast"}
+                  {"timeMs": 6600, "value": {"x": 44, "y": 416}, "easing": "linear"},
+                  {"timeMs": 7800, "value": {"x": 44, "y": 206}, "easing": "slowFastSlow"},
+                  {"timeMs": 10600, "value": {"x": -776, "y": 176}, "easing": "slowFast"}
                 ]
               },
               {
@@ -776,103 +688,69 @@
       {
         "id": "final-hub-layer",
         "kind": "shape",
-        "name": "Final brand hub",
+        "name": "Final resolve",
         "startMs": 0,
         "durationMs": 14000,
         "elements": [
           {
-            "id": "final-hub-panel",
+            "id": "final-panel",
             "kind": "shape",
             "properties": {
               "shapeKind": "roundedRectangle",
-              "layoutRole": "container",
-              "width": 840,
-              "height": 640,
-              "cornerRadius": 58,
-              "position": {"x": 0, "y": 20},
-              "color": "#111827",
+              "width": 860,
+              "height": 520,
+              "cornerRadius": 52,
+              "position": {"x": 0, "y": 0},
+              "color": "#0B1120",
               "opacity": 1,
               "shadowOpacity": 0.2,
-              "shadowBlur": 36,
-              "shadowOffset": {"x": 0, "y": 24}
+              "shadowBlur": 34,
+              "shadowOffset": {"x": 0, "y": 18}
             },
             "channels": [
               {
                 "property": "scale",
                 "keyframes": [
-                  {"timeMs": 0, "value": 0.88, "easing": "linear"},
-                  {"timeMs": 10000, "value": 0.88, "easing": "linear"},
-                  {"timeMs": 11200, "value": 1.0, "easing": "slowFastSlow"},
-                  {"timeMs": 14000, "value": 1.0, "easing": "linear"}
+                  {"timeMs": 0, "value": 0.94, "easing": "linear"},
+                  {"timeMs": 9800, "value": 0.94, "easing": "linear"},
+                  {"timeMs": 11000, "value": 1, "easing": "slowFastSlow"},
+                  {"timeMs": 14000, "value": 1, "easing": "linear"}
                 ]
               },
               {
                 "property": "opacity",
                 "keyframes": [
                   {"timeMs": 0, "value": 0, "easing": "linear"},
-                  {"timeMs": 10000, "value": 0, "easing": "linear"},
+                  {"timeMs": 9800, "value": 0, "easing": "linear"},
                   {"timeMs": 10800, "value": 1, "easing": "fastSlow"},
                   {"timeMs": 14000, "value": 1, "easing": "linear"}
                 ]
               }
             ]
-          },
-          {
-            "id": "final-spark-icon",
-            "kind": "icon",
-            "properties": {
-              "icon": "sparkles",
-              "parentId": "final-hub-panel",
-              "width": 82,
-              "height": 82,
-              "position": {"x": 0, "y": -170},
-              "color": "#93C5FD",
-              "opacity": 1
-            },
-            "channels": [
-              {
-                "property": "scale",
-                "keyframes": [
-                  {"timeMs": 0, "value": 0.72, "easing": "linear"},
-                  {"timeMs": 10400, "value": 0.72, "easing": "linear"},
-                  {"timeMs": 11400, "value": 1.0, "easing": "slowFastSlow"},
-                  {"timeMs": 14000, "value": 1.0, "easing": "linear"}
-                ]
-              },
-              {
-                "property": "opacity",
-                "keyframes": [
-                  {"timeMs": 0, "value": 0, "easing": "linear"},
-                  {"timeMs": 10400, "value": 0, "easing": "linear"},
-                  {"timeMs": 11200, "value": 1, "easing": "fastSlow"},
-                  {"timeMs": 14000, "value": 1, "easing": "linear"}
-                ]
-              }
-            ]
-          },
+          }
+        ]
+      },
+      {
+        "id": "final-text-layer",
+        "kind": "text",
+        "name": "Final resolve text",
+        "startMs": 0,
+        "durationMs": 14000,
+        "elements": [
           {
             "id": "final-title",
             "kind": "text",
-            "text": "Revival",
+            "text": "Native Scene Intelligence",
             "properties": {
-              "parentId": "final-hub-panel",
-              "fontSize": 76,
+              "parentId": "final-panel",
+              "fontSize": 46,
               "fontWeight": "900",
               "color": "#FFFFFF",
-              "position": {"x": 0, "y": -52},
+              "position": {"x": 0, "y": -76},
               "opacity": 1,
-              "textFrame": {"width": 520, "height": 92, "maxLines": 1, "overflow": "ellipsis", "fitPolicy": "shrinkToFit"}
+              "textFrame": {"width": 740, "height": 70, "maxLines": 1, "overflow": "ellipsis"}
             },
             "channels": [
-              {
-                "property": "position",
-                "keyframes": [
-                  {"timeMs": 0, "value": {"x": 0, "y": 0}, "easing": "linear"},
-                  {"timeMs": 10600, "value": {"x": 0, "y": 0}, "easing": "linear"},
-                  {"timeMs": 11600, "value": {"x": 0, "y": -52}, "easing": "slowFastSlow"},
-                  {"timeMs": 14000, "value": {"x": 0, "y": -52}, "easing": "linear"}
-                ]
-              },
               {
                 "property": "opacity",
                 "keyframes": [
@@ -885,49 +763,43 @@
             ]
           },
           {
-            "id": "final-subtitle",
+            "id": "final-copy",
             "kind": "text",
-            "text": "Native scenes. Smart motion.",
+            "text": "Components, text frames, beats, and SpeedyGraph all compile into one editable scene.",
             "properties": {
-              "parentId": "final-hub-panel",
-              "fontSize": 30,
+              "parentId": "final-panel",
+              "fontSize": 25,
               "fontWeight": "600",
+              "lineHeight": 1.18,
               "color": "#CBD5E1",
-              "position": {"x": 0, "y": 36},
+              "position": {"x": 0, "y": 28},
               "opacity": 1,
-              "textFrame": {"width": 620, "height": 54, "maxLines": 1, "overflow": "ellipsis", "fitPolicy": "shrinkToFit"}
+              "textFrame": {"width": 700, "height": 120, "maxLines": 3, "overflow": "ellipsis", "fitPolicy": "shrinkToFit"}
             },
             "channels": [
-              {
-                "property": "typewriterProgress",
-                "keyframes": [
-                  {"timeMs": 11600, "value": 0, "easing": "linear"},
-                  {"timeMs": 12600, "value": 1, "easing": "linear"}
-                ]
-              },
               {
                 "property": "opacity",
                 "keyframes": [
                   {"timeMs": 0, "value": 0, "easing": "linear"},
                   {"timeMs": 11200, "value": 0, "easing": "linear"},
-                  {"timeMs": 11750, "value": 1, "easing": "fastSlow"},
+                  {"timeMs": 12100, "value": 1, "easing": "fastSlow"},
                   {"timeMs": 14000, "value": 1, "easing": "linear"}
                 ]
               }
             ]
           },
           {
-            "id": "final-pill-one",
+            "id": "final-badge",
             "kind": "text",
-            "text": "Scenes",
+            "text": "No loose text. No decorative graph. Real native motion.",
             "properties": {
-              "parentId": "final-hub-panel",
-              "fontSize": 26,
+              "parentId": "final-panel",
+              "fontSize": 21,
               "fontWeight": "800",
-              "color": "#DBEAFE",
-              "position": {"x": -230, "y": 180},
+              "color": "#93C5FD",
+              "position": {"x": 0, "y": 164},
               "opacity": 1,
-              "textFrame": {"width": 180, "height": 42, "maxLines": 1, "overflow": "ellipsis", "fitPolicy": "shrinkToFit"}
+              "textFrame": {"width": 720, "height": 52, "maxLines": 1, "overflow": "ellipsis", "fitPolicy": "shrinkToFit"}
             },
             "channels": [
               {
@@ -935,57 +807,7 @@
                 "keyframes": [
                   {"timeMs": 0, "value": 0, "easing": "linear"},
                   {"timeMs": 12100, "value": 0, "easing": "linear"},
-                  {"timeMs": 12800, "value": 1, "easing": "fastSlow"},
-                  {"timeMs": 14000, "value": 1, "easing": "linear"}
-                ]
-              }
-            ]
-          },
-          {
-            "id": "final-pill-two",
-            "kind": "text",
-            "text": "Motion",
-            "properties": {
-              "parentId": "final-hub-panel",
-              "fontSize": 26,
-              "fontWeight": "800",
-              "color": "#DBEAFE",
-              "position": {"x": 0, "y": 180},
-              "opacity": 1,
-              "textFrame": {"width": 180, "height": 42, "maxLines": 1, "overflow": "ellipsis", "fitPolicy": "shrinkToFit"}
-            },
-            "channels": [
-              {
-                "property": "opacity",
-                "keyframes": [
-                  {"timeMs": 0, "value": 0, "easing": "linear"},
-                  {"timeMs": 12400, "value": 0, "easing": "linear"},
-                  {"timeMs": 13100, "value": 1, "easing": "fastSlow"},
-                  {"timeMs": 14000, "value": 1, "easing": "linear"}
-                ]
-              }
-            ]
-          },
-          {
-            "id": "final-pill-three",
-            "kind": "text",
-            "text": "Export",
-            "properties": {
-              "parentId": "final-hub-panel",
-              "fontSize": 26,
-              "fontWeight": "800",
-              "color": "#DBEAFE",
-              "position": {"x": 230, "y": 180},
-              "opacity": 1,
-              "textFrame": {"width": 180, "height": 42, "maxLines": 1, "overflow": "ellipsis", "fitPolicy": "shrinkToFit"}
-            },
-            "channels": [
-              {
-                "property": "opacity",
-                "keyframes": [
-                  {"timeMs": 0, "value": 0, "easing": "linear"},
-                  {"timeMs": 12700, "value": 0, "easing": "linear"},
-                  {"timeMs": 13400, "value": 1, "easing": "fastSlow"},
+                  {"timeMs": 12900, "value": 1, "easing": "fastSlow"},
                   {"timeMs": 14000, "value": 1, "easing": "linear"}
                 ]
               }
