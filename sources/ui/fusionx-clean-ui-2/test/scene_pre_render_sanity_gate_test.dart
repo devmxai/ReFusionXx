@@ -90,6 +90,7 @@ void main() {
         (issue) =>
             issue.severity == ReFusionSceneProgramIssueSeverity.info &&
             issue.message.contains('TF_SCENE_PRE_RENDER_GATE_PROOF') &&
+            issue.message.contains('renderTruthAligned=') &&
             issue.message.contains('blocked=true'),
       ),
       isTrue,
@@ -127,7 +128,9 @@ void main() {
     expect(gateResult.hctValid, isTrue);
     expect(
       gateResult.issues.any(
-        (issue) => issue.message.contains('TF_SCENE_PRE_RENDER_GATE_PROOF'),
+        (issue) =>
+            issue.message.contains('TF_SCENE_PRE_RENDER_GATE_PROOF') &&
+            issue.message.contains('renderTruthAligned='),
       ),
       isTrue,
     );
