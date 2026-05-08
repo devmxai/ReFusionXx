@@ -29,7 +29,7 @@ All VERSION 4 phases are now executed.
 | NSI-v4-06 | completed | `53b5de94` |
 | NSI-v4-07 | completed | `576d09f4` |
 | NSI-v4-08 | completed | `refusion-skills: bcf957b` |
-| NSI-v4-09 | completed | `pending current checkpoint commit` |
+| NSI-v4-09 | completed | `177940d4` |
 
 Closure notes:
 
@@ -39,6 +39,8 @@ Closure notes:
   `saas_launch_match_cut_scene.json` are now intentionally asserted as strict
   gate rejections until canonical rewrites land; this prevents low-quality
   scenes from passing import/apply under shared truth enforcement.
+- `flutter build apk --debug` succeeded during closure QA; wireless device
+  install was skipped because no ADB device was discoverable at run time.
 
 ## 0. Executive Summary
 
