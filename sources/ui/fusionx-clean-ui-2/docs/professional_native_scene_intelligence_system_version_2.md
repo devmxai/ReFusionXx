@@ -128,6 +128,11 @@ ReFusion remains a native motion graphics application. VERSION 2 must not turn t
     `REFUSION_SCENE_SKILL_FULL.md`.
   - Ran skill-side validator successfully on premium and revival examples.
 
+- `NSI-v2-10` Closure QA is completed.
+  - Focused v2 semantic/speedgraph/qa/repair/compatibility tests passed.
+  - `flutter build apk --debug` passed.
+  - Debug APK installed successfully on wireless Android device.
+
 ### 2.3 SpeedyGraph Foundation Status
 
 SpeedyGraph foundation is already implemented as a separate system and must not be rebuilt inside NSI:
@@ -845,6 +850,34 @@ Final plan update:
 - list commits;
 - list known risks;
 - list rollback commands.
+
+Closure status:
+
+- completed on 2026-05-08;
+- app branch checkpoints:
+  - `v2-06`: `23c8252c`
+  - `v2-07`: `c9012ade`
+  - `v2-08`: `e0c9c39c`
+  - `v2-09 sync`: `a39a8d7e`
+- skills repo checkpoint:
+  - `v2-09`: `23a5b77` on `devmxai/refusion-skills`.
+- final verification:
+  - focused tests: passed
+  - build: passed (`app-debug.apk`)
+  - install: passed (`192.168.0.149:34971`)
+- known risk:
+  - visual QA is currently render-proxy MVP and should be upgraded to fully
+    rendered probe parity in a future checkpoint if stricter cinematic
+    guarantees are required.
+
+Rollback commands:
+
+```bash
+git -C /Users/mx/Documents/ReFusionXx revert 23c8252c
+git -C /Users/mx/Documents/ReFusionXx revert c9012ade
+git -C /Users/mx/Documents/ReFusionXx revert e0c9c39c
+git -C /Users/mx/Documents/ReFusionXx revert a39a8d7e
+```
 
 ## 6. Integration Gates
 
