@@ -1,10 +1,17 @@
 import '../models/refusion_scene_program_models.dart';
 import '../models/scene_semantic_blueprint_models.dart';
+import 'scene_runtime_time_scope.dart';
 
 const String kSceneBeatGrammarProofTag = 'TF_SCENE_BEAT_GRAMMAR_PROOF';
+const String kSceneBeatTimeScopeProofTag = 'TF_SCENE_BEAT_TIME_SCOPE_PROOF';
 
 class SceneSemanticBeatGrammarValidator {
-  const SceneSemanticBeatGrammarValidator();
+  const SceneSemanticBeatGrammarValidator({
+    SceneRuntimeTimeScopeService? timeScopeService,
+  }) : _timeScopeService =
+            timeScopeService ?? const SceneRuntimeTimeScopeService();
+
+  final SceneRuntimeTimeScopeService _timeScopeService;
 
   List<ReFusionSceneProgramIssue> validate({
     required List<SemanticSceneBlueprintBeat> beats,
@@ -126,6 +133,35 @@ class SceneSemanticBeatGrammarValidator {
               'holdMs=$duration '
               'readable=${(duration >= recommendedMinHold).toString()} '
               'overlapPolicy=${beat.overlapPolicy ?? 'none'}',
+          path: path,
+        ),
+      );
+      final midTime = beat.startMs + (duration ~/ 2);
+      final scopeStart = _timeScopeService.evaluateBeat(
+        beat: beat,
+        timelineTimeMs: beat.startMs,
+      );
+      final scopeMid = _timeScopeService.evaluateBeat(
+        beat: beat,
+        timelineTimeMs: midTime,
+      );
+      final scopeEnd = _timeScopeService.evaluateBeat(
+        beat: beat,
+        timelineTimeMs: beat.endMs,
+      );
+      issues.add(
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.info,
+          message: '$kSceneBeatTimeScopeProofTag '
+              'beatId=${beat.id} '
+              'startLocal=${scopeStart.localTime.toStringAsFixed(3)} '
+              'midLocal=${scopeMid.localTime.toStringAsFixed(3)} '
+              'endLocal=${scopeEnd.localTime.toStringAsFixed(3)} '
+              'startPhase=${scopeStart.phase.name} '
+              'midPhase=${scopeMid.phase.name} '
+              'endPhase=${scopeEnd.phase.name} '
+              'enterBoundary=${scopeMid.enterBoundary.toStringAsFixed(3)} '
+              'holdBoundary=${scopeMid.holdBoundary.toStringAsFixed(3)}',
           path: path,
         ),
       );

@@ -122,5 +122,10 @@ void main() {
       issues.any((issue) => issue.message.contains(kSceneBeatGrammarProofTag)),
       isTrue,
     );
+    expect(
+      issues
+          .any((issue) => issue.message.contains(kSceneBeatTimeScopeProofTag)),
+      isTrue,
+    );
   });
 }
