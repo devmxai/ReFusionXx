@@ -8,12 +8,18 @@ Scope: agent-authored native scenes, DirectorPlan, SceneProgram, semantic compon
 
 ## Implementation Status Snapshot (2026-05-08)
 
-- Completed: `NSI-01` through `NSI-09` (core app-side contract and QA gates).
-- In progress next: `NSI-10` (`refusion-skills` repository upgrade).
-- Remaining after that: `NSI-11` (Premium App Promo rewrite final polish fixture) and `NSI-12` (closure QA).
-- Strategic extension accepted: add `Closed Vocabulary + Visual Closure Loop`
-  as the official v2 direction after `NSI-12`, while folding the agent-facing
-  rules into `NSI-10` immediately.
+- Completed: `NSI-01` through `NSI-12`.
+- `NSI-10` updated and pushed `devmxai/refusion-skills` with Native Scene
+  Intelligence, PromptInputBar, Closed Vocabulary, Beat Grammar, Visual Closure
+  preparation, validation updates, and corrected Premium App Promo examples.
+- `NSI-11` closed the app-side Premium App Promo fixture with an explicit
+  PromptInputBar fixed-frame/text-fit hold assertion.
+- `NSI-12` closure QA passed focused tests and debug APK build. Device install
+  was attempted, but no wireless Android device was connected (`adb devices`
+  empty; known wireless ports timed out).
+- Strategic extension accepted: `Closed Vocabulary + Visual Closure Loop` is
+  the official v2 direction after `NSI-12`. `NSI-v2` is not started in this
+  checkpoint.
 
 ## 0. Purpose
 
@@ -1172,6 +1178,8 @@ Tests:
 
 ### NSI-10 - Skills Repository Upgrade
 
+Status: completed and pushed to `devmxai/refusion-skills` as commit `ebb1de7`.
+
 Checkpoint:
 
 ```text
@@ -1212,6 +1220,8 @@ Verification:
 
 ### NSI-11 - Premium App Promo Rewrite
 
+Status: completed as commit `96eb1015`.
+
 Checkpoint:
 
 ```text
@@ -1246,6 +1256,8 @@ Install connected Android device when available.
 
 ### NSI-12 - Closure QA
 
+Status: completed in this checkpoint.
+
 Checkpoint:
 
 ```text
@@ -1276,12 +1288,35 @@ flutter test test/universal_motion_engine_guard_test.dart
 Add new tests as created:
 
 ```text
-scene_semantic_component_registry_test.dart
-scene_layout_geometry_validator_test.dart
-scene_text_fit_validator_test.dart
+scene_program_component_contract_test.dart
 scene_typewriter_fixed_frame_test.dart
 scene_motion_continuity_validator_test.dart
 scene_visual_frame_qa_validator_test.dart
+```
+
+Closure verification run:
+
+```text
+flutter test test/scene_program_layout_contract_test.dart
+flutter test test/refusion_scene_program_lowerer_test.dart
+flutter test test/refusion_scene_program_import_service_test.dart
+flutter test test/premium_app_promo_scene_program_preset_test.dart
+flutter test test/professional_scene_timing_contract_test.dart
+flutter test test/universal_motion_engine_guard_test.dart
+flutter test test/scene_typewriter_fixed_frame_test.dart
+flutter test test/scene_motion_continuity_validator_test.dart
+flutter test test/scene_visual_frame_qa_validator_test.dart
+flutter test test/scene_program_component_contract_test.dart
+flutter build apk --debug
+```
+
+Install status:
+
+```text
+Not installed during NSI-12 because no Android device was connected.
+adb devices returned an empty list.
+adb connect 192.168.0.149:39047 timed out.
+adb connect 192.168.0.149:34775 timed out.
 ```
 
 ## 7.1 Professional Native Scene Intelligence v2
