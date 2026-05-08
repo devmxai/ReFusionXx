@@ -2,10 +2,13 @@ import 'dart:collection';
 
 import '../models/refusion_scene_program_models.dart';
 import '../models/scene_semantic_blueprint_models.dart';
+import 'motion_interpolation_truth_compiler.dart';
 import 'scene_semantic_token_registry.dart';
 
 const String kSceneBlueprintCompilerProofTag =
     'TF_SCENE_BLUEPRINT_COMPILER_PROOF';
+const String kSceneSpeedyGraphDependencyProofTag =
+    'TF_SCENE_SPEEDYGRAPH_DEPENDENCY_PROOF';
 
 class SceneSemanticBlueprintValidationResult {
   SceneSemanticBlueprintValidationResult({
@@ -42,9 +45,13 @@ class SceneSemanticBlueprintLoweringResult {
 class SceneSemanticBlueprintService {
   SceneSemanticBlueprintService({
     SceneSemanticTokenRegistry? tokenRegistry,
-  }) : _tokenRegistry = tokenRegistry ?? SceneSemanticTokenRegistry();
+    MotionInterpolationTruthCompiler? truthCompiler,
+  })  : _tokenRegistry = tokenRegistry ?? SceneSemanticTokenRegistry(),
+        _truthCompiler =
+            truthCompiler ?? const MotionInterpolationTruthCompiler();
 
   final SceneSemanticTokenRegistry _tokenRegistry;
+  final MotionInterpolationTruthCompiler _truthCompiler;
 
   static const String schemaVersion = 'refusion.semantic-blueprint/v1';
 
@@ -182,6 +189,8 @@ class SceneSemanticBlueprintService {
     final resolvedProperties =
         _tokenRegistry.resolveBlueprintValue(component.properties);
     final resolvedSlots = _tokenRegistry.resolveBlueprintValue(component.slots);
+    final resolvedMotionIntents =
+        _tokenRegistry.resolveBlueprintValue(component.motionIntents);
     for (final error in resolvedProperties.errors) {
       issues.add(
         ReFusionSceneProgramIssue(
@@ -200,8 +209,18 @@ class SceneSemanticBlueprintService {
         ),
       );
     }
+    for (final error in resolvedMotionIntents.errors) {
+      issues.add(
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message: error.message,
+          path: 'components.${component.id}.motionIntents${error.path}',
+        ),
+      );
+    }
     if (resolvedProperties.errors.isNotEmpty ||
-        resolvedSlots.errors.isNotEmpty) {
+        resolvedSlots.errors.isNotEmpty ||
+        resolvedMotionIntents.errors.isNotEmpty) {
       return null;
     }
 
@@ -211,6 +230,21 @@ class SceneSemanticBlueprintService {
     final slots = resolvedSlots.value is Map<String, Object?>
         ? resolvedSlots.value as Map<String, Object?>
         : const <String, Object?>{};
+    final motionIntents = resolvedMotionIntents.value is Map<String, Object?>
+        ? resolvedMotionIntents.value as Map<String, Object?>
+        : const <String, Object?>{};
+
+    _validateSpeedGraphDependency(
+      componentId: component.id,
+      motionIntents: motionIntents,
+      issues: issues,
+    );
+    if (issues.any((issue) =>
+        issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+        (issue.path?.startsWith('components.${component.id}.motionIntents') ??
+            false))) {
+      return null;
+    }
 
     final promptText = _readString(properties['promptText']) ??
         _readString(slots['primaryText']) ??
@@ -524,5 +558,140 @@ class SceneSemanticBlueprintService {
   }) {
     return '$kSceneBlueprintCompilerProofTag '
         'componentCount=$componentCount loweredCount=$loweredCount errorCount=$errorCount';
+  }
+
+  void _validateSpeedGraphDependency({
+    required String componentId,
+    required Map<String, Object?> motionIntents,
+    required List<ReFusionSceneProgramIssue> issues,
+  }) {
+    if (motionIntents.isEmpty) {
+      return;
+    }
+    _walkMotionIntents(
+      node: motionIntents,
+      path: 'components.$componentId.motionIntents',
+      componentId: componentId,
+      issues: issues,
+    );
+  }
+
+  void _walkMotionIntents({
+    required Object? node,
+    required String path,
+    required String componentId,
+    required List<ReFusionSceneProgramIssue> issues,
+  }) {
+    if (node is Map<String, Object?>) {
+      if (_looksLikeBezierLiteral(node)) {
+        issues.add(
+          ReFusionSceneProgramIssue(
+            severity: ReFusionSceneProgramIssueSeverity.error,
+            message:
+                'SpeedyGraph dependency gate rejected direct bezier literals in semantic motion intents. Use easing or preset tokens so interpolation compiles through MotionInterpolationTruthCompiler.',
+            path: path,
+          ),
+        );
+        return;
+      }
+      for (final entry in node.entries) {
+        final childPath = '$path.${entry.key}';
+        if (_isSpeedGraphKey(entry.key) && entry.value is String) {
+          _compileSpeedGraphCandidate(
+            componentId: componentId,
+            candidate: entry.value as String,
+            path: childPath,
+            issues: issues,
+          );
+        } else {
+          _walkMotionIntents(
+            node: entry.value,
+            path: childPath,
+            componentId: componentId,
+            issues: issues,
+          );
+        }
+      }
+      return;
+    }
+    if (node is List) {
+      for (var index = 0; index < node.length; index += 1) {
+        _walkMotionIntents(
+          node: node[index],
+          path: '$path[$index]',
+          componentId: componentId,
+          issues: issues,
+        );
+      }
+    }
+  }
+
+  void _compileSpeedGraphCandidate({
+    required String componentId,
+    required String candidate,
+    required String path,
+    required List<ReFusionSceneProgramIssue> issues,
+  }) {
+    final raw = candidate.trim();
+    if (raw.isEmpty) {
+      return;
+    }
+    final canonical = MotionInterpolationTruthCompiler.canonicalPresetId(raw);
+    final compileResult = _truthCompiler.compileFromPresetId(canonical);
+    final unknownPreset = canonical == 'linear' && !_isLinearAlias(raw);
+    if (unknownPreset) {
+      issues.add(
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message:
+              'Unknown SpeedyGraph preset `$raw` in semantic motion intent. Use a known preset token so motion compiles through MotionInterpolationTruthCompiler.',
+          path: path,
+        ),
+      );
+      return;
+    }
+    issues.add(
+      ReFusionSceneProgramIssue(
+        severity: ReFusionSceneProgramIssueSeverity.info,
+        message: '$kSceneSpeedyGraphDependencyProofTag '
+            'componentId=$componentId '
+            'path=$path '
+            'rawPreset=$raw '
+            'canonicalPreset=${compileResult.presetId ?? canonical} '
+            'executionTruth=${compileResult.executionTruth} '
+            'curveHash=${compileResult.curveHash} '
+            'velocityHash=${compileResult.velocityHash} '
+            'routedThroughTruthCompiler=true',
+        path: path,
+      ),
+    );
+  }
+
+  bool _looksLikeBezierLiteral(Map<String, Object?> map) {
+    final keys = map.keys.map((it) => it.toLowerCase()).toSet();
+    return keys.contains('x1') &&
+        keys.contains('y1') &&
+        keys.contains('x2') &&
+        keys.contains('y2');
+  }
+
+  bool _isSpeedGraphKey(String key) {
+    final normalized = key.trim().toLowerCase();
+    return normalized == 'easing' ||
+        normalized == 'preset' ||
+        normalized == 'speedgraph' ||
+        normalized == 'speed_graph' ||
+        normalized == 'curve';
+  }
+
+  bool _isLinearAlias(String value) {
+    final normalized = value.trim().toLowerCase().replaceAll(
+          RegExp(r'[^a-z0-9]+'),
+          '',
+        );
+    return normalized == 'linear' ||
+        normalized == 'line' ||
+        normalized == 'none' ||
+        normalized == 'nolinearease';
   }
 }

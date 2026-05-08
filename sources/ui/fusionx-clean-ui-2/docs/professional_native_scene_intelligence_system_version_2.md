@@ -49,6 +49,12 @@ ReFusion remains a native motion graphics application. VERSION 2 must not turn t
 
 ### 2.2 Completed In Active v2 Track
 
+- `NSI-v2-00` SpeedyGraph Foundation Dependency Gate is completed.
+  - Semantic motion intent easing now routes through
+    `MotionInterpolationTruthCompiler`.
+  - Direct bezier literals in semantic motion intents are rejected as bypass.
+  - `TF_SCENE_SPEEDYGRAPH_DEPENDENCY_PROOF` exists in lowering diagnostics.
+
 - `NSI-v2-01` Design Token Registry is completed.
   - Token resolver exists.
   - Strict unknown-token errors exist.

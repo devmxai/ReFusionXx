@@ -132,4 +132,80 @@ void main() {
       isTrue,
     );
   });
+
+  test('motion intent easing compiles through speedgraph truth compiler', () {
+    final service = SceneSemanticBlueprintService();
+    final validation = service.validate(<String, Object?>{
+      'schemaVersion': 'refusion.semantic-blueprint/v1',
+      'name': 'SpeedGraph Dependency Gate',
+      'durationMs': 2600,
+      'frameRate': 30,
+      'components': <Object?>[
+        <String, Object?>{
+          'id': 'prompt',
+          'type': 'PromptInputBar',
+          'motionIntents': <String, Object?>{
+            'enter': <String, Object?>{
+              'easing': r'$easing.slowFastSlow',
+            },
+          },
+        },
+      ],
+    });
+    expect(validation.isValid, isTrue);
+
+    final lowered = service.lowerToSceneProgram(validation.blueprint!);
+    expect(lowered.isValid, isTrue,
+        reason: lowered.issues.map((issue) => issue.message).join('\n'));
+    expect(
+      lowered.issues.any(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.info &&
+            issue.message.contains(kSceneSpeedyGraphDependencyProofTag) &&
+            issue.message.contains('canonicalPreset=slowFastSlow') &&
+            issue.message.contains('routedThroughTruthCompiler=true'),
+      ),
+      isTrue,
+    );
+  });
+
+  test('rejects direct bezier literals in semantic motion intents', () {
+    final service = SceneSemanticBlueprintService();
+    final validation = service.validate(<String, Object?>{
+      'schemaVersion': 'refusion.semantic-blueprint/v1',
+      'name': 'SpeedGraph Bypass Rejection',
+      'durationMs': 2600,
+      'frameRate': 30,
+      'components': <Object?>[
+        <String, Object?>{
+          'id': 'prompt',
+          'type': 'PromptInputBar',
+          'motionIntents': <String, Object?>{
+            'enter': <String, Object?>{
+              'bezier': <String, Object?>{
+                'x1': 0.2,
+                'y1': 0.0,
+                'x2': 0.8,
+                'y2': 1.0,
+              },
+            },
+          },
+        },
+      ],
+    });
+    expect(validation.isValid, isTrue);
+
+    final lowered = service.lowerToSceneProgram(validation.blueprint!);
+    expect(lowered.isValid, isFalse);
+    expect(
+      lowered.issues.any(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+            (issue.path?.contains('components.prompt.motionIntents') ??
+                false) &&
+            issue.message.contains('rejected direct bezier literals'),
+      ),
+      isTrue,
+    );
+  });
 }
