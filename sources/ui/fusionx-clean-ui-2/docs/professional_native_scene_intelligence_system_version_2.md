@@ -862,6 +862,8 @@ Closure status:
   - `v2-07`: `c9012ade`
   - `v2-08`: `e0c9c39c`
   - `v2-09 sync`: `a39a8d7e`
+  - `v2-10`: `c6cff97a`
+  - `v2-10b` (strict-vs-compat QA compatibility): `d9515f31`
 - skills repo checkpoint:
   - `v2-09`: `23a5b77` on `devmxai/refusion-skills`.
 - final verification:
@@ -880,6 +882,8 @@ git -C /Users/mx/Documents/ReFusionXx revert 23c8252c
 git -C /Users/mx/Documents/ReFusionXx revert c9012ade
 git -C /Users/mx/Documents/ReFusionXx revert e0c9c39c
 git -C /Users/mx/Documents/ReFusionXx revert a39a8d7e
+git -C /Users/mx/Documents/ReFusionXx revert c6cff97a
+git -C /Users/mx/Documents/ReFusionXx revert d9515f31
 ```
 
 ## 6. Integration Gates
