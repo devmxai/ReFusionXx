@@ -7,6 +7,7 @@ import 'scene_semantic_blueprint_service.dart';
 import 'scene_semantic_component_registry.dart';
 import 'scene_semantic_constraint_layout_solver.dart';
 import 'scene_semantic_token_registry.dart';
+import 'scene_determinism_validator.dart';
 import 'scene_runtime_component_tree.dart';
 
 const String kSceneDeterminismProofTag = 'TF_SCENE_DETERMINISM_PROOF';
@@ -71,17 +72,21 @@ class SceneSemanticBlueprintCompiler {
     SceneSemanticTokenRegistry? tokenRegistry,
     SceneSemanticComponentRegistry? componentRegistry,
     SceneSemanticConstraintLayoutSolver? layoutSolver,
+    SceneDeterminismValidator? determinismValidator,
   })  : _service = service ?? SceneSemanticBlueprintService(),
         _tokenRegistry = tokenRegistry ?? SceneSemanticTokenRegistry(),
         _componentRegistry =
             componentRegistry ?? SceneSemanticComponentRegistry(),
         _layoutSolver =
-            layoutSolver ?? const SceneSemanticConstraintLayoutSolver();
+            layoutSolver ?? const SceneSemanticConstraintLayoutSolver(),
+        _determinismValidator =
+            determinismValidator ?? const SceneDeterminismValidator();
 
   final SceneSemanticBlueprintService _service;
   final SceneSemanticTokenRegistry _tokenRegistry;
   final SceneSemanticComponentRegistry _componentRegistry;
   final SceneSemanticConstraintLayoutSolver _layoutSolver;
+  final SceneDeterminismValidator _determinismValidator;
 
   SceneSemanticBlueprintCompileResult compile({
     required Map<String, Object?> payload,
@@ -135,6 +140,11 @@ class SceneSemanticBlueprintCompiler {
     final firstProgramHash =
         _hashCanonical(_programToCanonicalMap(lowered.program!));
     final firstHctHash = runtimeArtifacts.hctHash;
+    final firstTraversalHash =
+        _determinismValidator.hashTraversalOrder(runtimeArtifacts.tree);
+    final firstGeometrySnapshot =
+        _determinismValidator.geometrySnapshot(lowered.program!);
+    final firstGeometryHashes = firstGeometrySnapshot.probeHashes;
     final sourceMaps = _withLayerSourceMap(
       runtimeArtifacts.sourceMaps,
       _buildLayerMap(lowered.program!),
@@ -142,6 +152,8 @@ class SceneSemanticBlueprintCompiler {
 
     var deterministic = true;
     var failureReason = 'none';
+    var drift = 0.0;
+    const maxAllowedDrift = 0.01;
     for (var iteration = 0; iteration < determinismIterations; iteration += 1) {
       final replayValidation = _service.validate(payload);
       if (!replayValidation.isValid || replayValidation.blueprint == null) {
@@ -178,6 +190,43 @@ class SceneSemanticBlueprintCompiler {
         failureReason = 'hct_hash_mismatch:${replayRuntime.hctHash}';
         break;
       }
+      final replayTraversalHash =
+          _determinismValidator.hashTraversalOrder(replayRuntime.tree);
+      if (replayTraversalHash != firstTraversalHash) {
+        deterministic = false;
+        failureReason = 'traversal_hash_mismatch:$replayTraversalHash';
+        break;
+      }
+      final replayGeometrySnapshot =
+          _determinismValidator.geometrySnapshot(replayLowered.program!);
+      if (!_sameStringList(
+        replayGeometrySnapshot.probeHashes,
+        firstGeometryHashes,
+      )) {
+        deterministic = false;
+        final mismatch = _firstGeometryHashMismatch(
+          firstGeometryHashes,
+          replayGeometrySnapshot.probeHashes,
+        );
+        failureReason = 'geometry_hash_mismatch:$mismatch';
+        break;
+      }
+      final replayDrift = _determinismValidator.normalizedDrift(
+        baseline: firstGeometrySnapshot,
+        candidate: replayGeometrySnapshot,
+      );
+      if (replayDrift.isInfinite) {
+        deterministic = false;
+        failureReason = 'geometry_probe_shape_mismatch';
+        break;
+      }
+      if (replayDrift > drift) {
+        drift = replayDrift;
+      }
+    }
+    if (drift > maxAllowedDrift) {
+      deterministic = false;
+      failureReason = 'geometry_drift_exceeded:${drift.toStringAsFixed(4)}';
     }
     if (rawScan.rawValuesDetected && !allowRawValueOverride) {
       deterministic = false;
@@ -199,6 +248,9 @@ class SceneSemanticBlueprintCompiler {
             'rawValuesDetected=${rawScan.rawValuesDetected} '
             'rawValueOverrides=${allowRawValueOverride.toString()} '
             'tokenResolutionHash=$tokenResolutionHash '
+            'traversalHash=$firstTraversalHash '
+            'geometryProbeHashes=${firstGeometryHashes.join(',')} '
+            'drift=${drift.toStringAsFixed(4)} '
             'deterministic=${deterministic.toString()} '
             'passed=${passed.toString()} '
             'failureReason=$failureReason',
@@ -395,39 +447,11 @@ class SceneSemanticBlueprintCompiler {
       runtimeNodeToLayerId: const <String, String>{},
     );
     final tree = treeResult.tree!;
-    final hctHash = _hashCanonical(_runtimeTreeToCanonicalMap(tree));
+    final hctHash = _determinismValidator.hashRuntimeTree(tree);
     return _RuntimeCompileArtifacts(
       tree: tree,
       sourceMaps: sourceMaps,
       hctHash: hctHash,
-    );
-  }
-
-  Map<String, Object?> _runtimeTreeToCanonicalMap(
-    SceneRuntimeComponentTree tree,
-  ) {
-    final sortedIds = tree.nodeById.keys.toList(growable: false)..sort();
-    final nodes = <Object?>[];
-    for (final id in sortedIds) {
-      final node = tree.nodeById[id]!;
-      nodes.add(
-        <String, Object?>{
-          'id': node.id,
-          'nodeType': node.nodeType.name,
-          'parentId': node.parentId,
-          'zOrder': node.zOrder,
-          'sourceComponentId': node.sourceComponentId,
-          'sourceLayerId': node.sourceLayerId,
-          'slotId': node.slotId,
-          'metadata': _canonicalizeValue(node.metadata),
-        },
-      );
-    }
-    return _canonicalizeMap(
-      <String, Object?>{
-        'rootNodeId': tree.rootNodeId,
-        'nodes': nodes,
-      },
     );
   }
 
@@ -792,6 +816,33 @@ class SceneSemanticBlueprintCompiler {
 
   String _normalize(String value) =>
       value.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '');
+
+  bool _sameStringList(List<String> left, List<String> right) {
+    if (left.length != right.length) {
+      return false;
+    }
+    for (var index = 0; index < left.length; index += 1) {
+      if (left[index] != right[index]) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  String _firstGeometryHashMismatch(
+      List<String> expected, List<String> actual) {
+    final count =
+        expected.length < actual.length ? expected.length : actual.length;
+    for (var index = 0; index < count; index += 1) {
+      if (expected[index] != actual[index]) {
+        return '${index + 1}:${expected[index]}!=${actual[index]}';
+      }
+    }
+    if (expected.length != actual.length) {
+      return 'length:${expected.length}!=${actual.length}';
+    }
+    return 'unknown';
+  }
 }
 
 class _RawScanResult {

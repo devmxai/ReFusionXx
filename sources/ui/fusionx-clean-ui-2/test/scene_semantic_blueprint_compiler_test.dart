@@ -94,6 +94,9 @@ void main() {
             issue.message.contains(kSceneDeterminismProofTag) &&
             issue.message.contains('deterministic=true') &&
             issue.message.contains('tokenResolutionHash=') &&
+            issue.message.contains('traversalHash=') &&
+            issue.message.contains('geometryProbeHashes=') &&
+            issue.message.contains('drift=') &&
             issue.message.contains('passed=true'),
       ),
       isTrue,
