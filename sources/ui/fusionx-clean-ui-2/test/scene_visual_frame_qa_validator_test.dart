@@ -281,4 +281,158 @@ void main() {
       isTrue,
     );
   });
+
+  test('detects midpoint-only text overflow from animated font sizing', () {
+    final result = validator.validate(
+      ReFusionSceneProgram(
+        schemaVersion: 'refusion.scene-program/v1',
+        name: 'Midpoint Overflow',
+        durationMs: 2400,
+        frameRate: 30,
+        layers: <ReFusionSceneProgramLayer>[
+          ReFusionSceneProgramLayer(
+            id: 'title-layer',
+            kind: 'text',
+            startMs: 0,
+            durationMs: 2400,
+            elements: <ReFusionSceneProgramElement>[
+              ReFusionSceneProgramElement(
+                id: 'headline',
+                kind: 'text',
+                text: 'Professional launch sequence',
+                properties: const <String, Object?>{
+                  'x': 120,
+                  'y': 320,
+                  'fontSize': 20,
+                  'textFrame': <String, Object?>{
+                    'width': 360,
+                    'height': 80,
+                    'maxLines': 1,
+                    'overflow': 'clip',
+                    'fitPolicy': 'none',
+                  },
+                },
+              ),
+            ],
+            channels: <ReFusionSceneProgramChannel>[
+              ReFusionSceneProgramChannel(
+                target: 'headline',
+                property: 'fontSize',
+                keyframes: const <ReFusionSceneProgramKeyframe>[
+                  ReFusionSceneProgramKeyframe(timeMs: 0, value: 20),
+                  ReFusionSceneProgramKeyframe(timeMs: 1200, value: 62),
+                  ReFusionSceneProgramKeyframe(timeMs: 2400, value: 20),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    expect(result.isValid, isFalse);
+    expect(
+      result.issues.any(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+            issue.message.contains('bounded frame overflow detected'),
+      ),
+      isTrue,
+    );
+    expect(
+      result.issues.any(
+        (issue) =>
+            issue.message.contains('TF_SCENE_VISUAL_FRAME_QA_PROOF') &&
+            issue.message.contains('timelineTimeMs=1200') &&
+            issue.message.contains('textOverflow=true'),
+      ),
+      isTrue,
+    );
+  });
+
+  test('detects parent-child desync when child drifts away from card shell',
+      () {
+    final result = validator.validate(
+      ReFusionSceneProgram(
+        schemaVersion: 'refusion.scene-program/v1',
+        name: 'Parent Child Desync',
+        durationMs: 2200,
+        frameRate: 30,
+        layers: <ReFusionSceneProgramLayer>[
+          ReFusionSceneProgramLayer(
+            id: 'card-layer',
+            kind: 'shape',
+            startMs: 0,
+            durationMs: 2200,
+            elements: <ReFusionSceneProgramElement>[
+              ReFusionSceneProgramElement(
+                id: 'card-shell',
+                kind: 'shape',
+                properties: const <String, Object?>{
+                  'x': 120,
+                  'y': 300,
+                  'width': 640,
+                  'height': 220,
+                },
+                channels: <ReFusionSceneProgramChannel>[
+                  ReFusionSceneProgramChannel(
+                    target: 'card-shell',
+                    property: 'x',
+                    keyframes: <ReFusionSceneProgramKeyframe>[
+                      ReFusionSceneProgramKeyframe(timeMs: 0, value: 120),
+                      ReFusionSceneProgramKeyframe(timeMs: 1800, value: 420),
+                    ],
+                  ),
+                ],
+              ),
+              ReFusionSceneProgramElement(
+                id: 'card-text',
+                kind: 'text',
+                text: 'Refusion premium analysis',
+                properties: const <String, Object?>{
+                  'parentId': 'card-shell',
+                  'x': 44,
+                  'y': 64,
+                  'fontSize': 24,
+                  'textFrame': <String, Object?>{
+                    'width': 420,
+                    'height': 52,
+                    'maxLines': 1,
+                    'overflow': 'ellipsis',
+                    'fitPolicy': 'shrinkToFit',
+                  },
+                },
+                channels: <ReFusionSceneProgramChannel>[
+                  ReFusionSceneProgramChannel(
+                    target: 'card-text',
+                    property: 'x',
+                    keyframes: const <ReFusionSceneProgramKeyframe>[
+                      ReFusionSceneProgramKeyframe(timeMs: 0, value: 44),
+                      ReFusionSceneProgramKeyframe(timeMs: 1800, value: 260),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    expect(result.isValid, isTrue);
+    expect(
+      result.issues.any(
+        (issue) => issue.message.contains('desynced from parent'),
+      ),
+      isTrue,
+    );
+    expect(
+      result.issues.any(
+        (issue) =>
+            issue.message.contains('TF_SCENE_VISUAL_FRAME_QA_PROOF') &&
+            issue.message.contains('parentChildDesync=true'),
+      ),
+      isTrue,
+    );
+  });
 }
