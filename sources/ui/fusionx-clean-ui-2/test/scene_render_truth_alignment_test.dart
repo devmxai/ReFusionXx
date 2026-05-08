@@ -78,7 +78,8 @@ void main() {
     expect(proofIssue.message.contains('qaUsedSharedPipeline=true'), isTrue);
   });
 
-  test('prompt-burst fixture is rejected by shared visual truth before rewrite',
+  test(
+      'prompt-burst fixture passes shared visual truth after canonical rewrite',
       () {
     final source = File(
       'assets/scene_programs/revival_prompt_burst_feature_cards_scene.json',
@@ -95,16 +96,18 @@ void main() {
       ),
     );
 
-    expect(authored.isValid, isFalse);
     expect(
-      authored.issues.any(
-        (issue) => issue.severity == ReFusionSceneProgramIssueSeverity.error,
-      ),
+      authored.isValid,
       isTrue,
+      reason: authored.issues
+          .map((issue) => '${issue.severity} ${issue.path}: ${issue.message}')
+          .join('\n'),
     );
     expect(
       authored.issues.any(
-        (issue) => issue.message.contains('TF_SCENE_VISUAL_FRAME_QA_PROOF'),
+        (issue) =>
+            issue.message.contains('TF_SCENE_VISUAL_FRAME_QA_PROOF') &&
+            issue.message.contains('passed=true'),
       ),
       isTrue,
     );
