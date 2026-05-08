@@ -96,13 +96,13 @@ class SceneProgramPresentBottomSheet extends StatelessWidget {
   static const List<_SceneProgramPresentPreset> _presets =
       <_SceneProgramPresentPreset>[
     _SceneProgramPresentPreset(
-      title: 'SaaS Launch Match Cut',
+      title: 'Revival Native Intelligence',
       subtitle:
-          'Native three-scene SaaS promo: hire card click, scattered feedback cards, and Revival hub resolve.',
+          'Native showcase: app icon, prompt input, generated cards, and final Revival hub.',
       assetPath:
           _SceneProgramImportBottomSheetState._saasLaunchSceneProgramAssetPath,
       icon: Icons.workspace_premium_rounded,
-      status: 'SaaS Demo',
+      status: 'V2 Demo',
     ),
   ];
 

@@ -126,7 +126,7 @@ void main() {
     );
   });
 
-  test('saas launch match cut preset imports through scene authoring pipeline',
+  test('revival native intelligence preset imports through scene authoring pipeline',
       () {
     final source = File(
       'assets/scene_programs/saas_launch_match_cut_scene.json',
@@ -139,8 +139,8 @@ void main() {
       ReFusionSceneProgramAuthoringRequest(
         source: extracted.sceneProgramJson,
         fileName: 'saas_launch_match_cut_scene.json',
-        projectId: 'saas-launch-test',
-        sceneId: 'saas-launch-scene',
+        projectId: 'revival-native-intelligence-test',
+        sceneId: 'revival-native-intelligence-scene',
       ),
     );
 
@@ -151,8 +151,8 @@ void main() {
           .map((issue) => '${issue.severity} ${issue.path}: ${issue.message}')
           .join('\n'),
     );
-    expect(result.program?.name, 'SaaS Launch Match Cut');
-    expect(result.program?.durationMs, 16000);
+    expect(result.program?.name, 'Revival Native Intelligence Showcase');
+    expect(result.program?.durationMs, 14000);
     expect(result.channels.length, greaterThan(24));
     expect(
       result.issues.any(
@@ -162,7 +162,7 @@ void main() {
     );
   });
 
-  testWidgets('present sheet applies saas launch match cut wrapper asset',
+  testWidgets('present sheet applies revival native intelligence wrapper asset',
       (tester) async {
     SceneProgramImportSheetResult? appliedResult;
 
@@ -176,8 +176,8 @@ void main() {
                     await showModalBottomSheet<SceneProgramImportSheetResult>(
                   context: context,
                   builder: (_) => const SceneProgramPresentBottomSheet(
-                    projectId: 'saas-launch-test',
-                    sceneId: 'saas-launch-scene',
+                    projectId: 'revival-native-intelligence-test',
+                    sceneId: 'revival-native-intelligence-scene',
                     canvasSize: MotionSize2D(width: 1080, height: 1920),
                   ),
                 );
@@ -193,18 +193,18 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
-      find.text('SaaS Launch Match Cut'),
+      find.text('Revival Native Intelligence'),
       180,
       scrollable: find.byType(Scrollable),
     );
-    expect(find.text('SaaS Launch Match Cut'), findsOneWidget);
+    expect(find.text('Revival Native Intelligence'), findsOneWidget);
     expect(find.text('Premium App Promo'), findsNothing);
 
-    await tester.tap(find.text('SaaS Launch Match Cut'));
+    await tester.tap(find.text('Revival Native Intelligence'));
     await tester.pumpAndSettle();
 
     expect(appliedResult, isNotNull);
-    expect(appliedResult!.name, 'SaaS Launch Match Cut');
-    expect(appliedResult!.authoringResult.program?.durationMs, 16000);
+    expect(appliedResult!.name, 'Revival Native Intelligence Showcase');
+    expect(appliedResult!.authoringResult.program?.durationMs, 14000);
   });
 }
