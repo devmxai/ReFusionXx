@@ -1,9 +1,8 @@
 import 'dart:math' as math;
 
 import '../models/refusion_scene_program_models.dart';
-import '../models/scene_runtime_node.dart';
-import 'scene_runtime_component_tree.dart';
-import 'scene_runtime_transform_composer.dart';
+import 'evaluated_frame_truth.dart';
+import 'scene_evaluation_pipeline.dart';
 
 class SceneVisualFrameQaValidationResult {
   SceneVisualFrameQaValidationResult({
@@ -20,9 +19,9 @@ class SceneVisualFrameQaValidationResult {
 class SceneVisualFrameQaValidator {
   const SceneVisualFrameQaValidator({
     this.enforceOverflowAsError = true,
-    SceneRuntimeTransformComposer? transformComposer,
-  }) : _transformComposer =
-            transformComposer ?? const SceneRuntimeTransformComposer();
+    SceneEvaluationPipeline? evaluationPipeline,
+  }) : _evaluationPipeline =
+            evaluationPipeline ?? const SceneEvaluationPipeline();
 
   static const int _fullProbeBudget = 9;
   static const int _fallbackProbeBudget = 5;
@@ -33,7 +32,7 @@ class SceneVisualFrameQaValidator {
   static const String _proofTag = 'TF_SCENE_VISUAL_FRAME_QA_PROOF';
 
   final bool enforceOverflowAsError;
-  final SceneRuntimeTransformComposer _transformComposer;
+  final SceneEvaluationPipeline _evaluationPipeline;
 
   SceneVisualFrameQaValidationResult validate(ReFusionSceneProgram program) {
     final stopwatch = Stopwatch()..start();
@@ -80,139 +79,83 @@ class SceneVisualFrameQaValidator {
     required int timelineTimeMs,
     required List<ReFusionSceneProgramIssue> issues,
   }) {
-    final records = <_EvaluatedNodeRecord>[];
+    final evaluation = _evaluationPipeline.evaluate(
+      SceneEvaluationPipelineRequest(
+        program: program,
+        globalTimeMs: timelineTimeMs,
+      ),
+    );
+    issues.addAll(evaluation.issues);
+
+    final layerLookup =
+        <String, (int index, ReFusionSceneProgramLayer layer)>{};
+    final elementLookup =
+        <String, (int index, ReFusionSceneProgramElement element)>{};
     for (var layerIndex = 0;
         layerIndex < program.layers.length;
         layerIndex += 1) {
       final layer = program.layers[layerIndex];
-      final layerStart = layer.startMs;
-      final layerEnd = layer.startMs + layer.durationMs;
-      if (timelineTimeMs < layerStart || timelineTimeMs > layerEnd) {
-        continue;
-      }
-      final nodes = <SceneRuntimeNode>[
-        SceneRuntimeNode(
-          id: '__layer__${layer.id}__root',
-          nodeType: SceneRuntimeNodeType.group,
-          metadata: const <String, Object?>{
-            'x': 0.0,
-            'y': 0.0,
-            'width': _defaultCanvasWidth,
-            'height': _defaultCanvasHeight,
-            'localLeft': 0.0,
-            'localTop': 0.0,
-          },
-        ),
-      ];
-      final elementByRuntimeId = <String, ReFusionSceneProgramElement>{};
-      final elementIndexByRuntimeId = <String, int>{};
-      final stateByRuntimeId = <String, _ElementEvaluationState>{};
-
+      layerLookup[layer.id] = (layerIndex, layer);
       for (var elementIndex = 0;
           elementIndex < layer.elements.length;
           elementIndex += 1) {
         final element = layer.elements[elementIndex];
-        final runtimeId = _runtimeNodeId(layer.id, element.id);
-        final parentId = _resolveRuntimeParentId(
-          layerId: layer.id,
-          element: element,
-        );
-        final state = _evaluateElementState(
-          layer: layer,
-          element: element,
-          timelineTimeMs: timelineTimeMs,
-        );
-        stateByRuntimeId[runtimeId] = state;
-        elementByRuntimeId[runtimeId] = element;
-        elementIndexByRuntimeId[runtimeId] = elementIndex;
-        nodes.add(
-          SceneRuntimeNode(
-            id: runtimeId,
-            nodeType: _runtimeTypeForElementKind(element.kind),
-            parentId: parentId,
-            sourceLayerId: layer.id,
-            metadata: <String, Object?>{
-              'x': state.x,
-              'y': state.y,
-              'scaleX': state.scaleX,
-              'scaleY': state.scaleY,
-              'rotationDeg': state.rotationDeg,
-              'opacity': state.opacity,
-              'width': state.width,
-              'height': state.height,
-              'localLeft': 0.0,
-              'localTop': 0.0,
-              'startMs': layer.startMs,
-              'endMs': layer.startMs + layer.durationMs,
-              'typewriterProgress': state.typewriterProgress,
-            },
-          ),
-        );
+        elementLookup['${layer.id}::${element.id}'] = (elementIndex, element);
       }
+    }
 
-      final treeResult = SceneRuntimeComponentTree.build(nodes);
-      if (!treeResult.isValid || treeResult.tree == null) {
-        for (final issue in treeResult.issues) {
-          issues.add(
-            ReFusionSceneProgramIssue(
-              severity: ReFusionSceneProgramIssueSeverity.error,
-              message:
-                  'Runtime probe tree invalid for layer `${layer.id}`: ${issue.message}',
-              path: issue.path ?? 'layers[$layerIndex]',
-            ),
-          );
-        }
+    final records = <_EvaluatedNodeRecord>[];
+    final nodes = evaluation.truth.nodesById.values.toList(growable: false)
+      ..sort((left, right) => left.zOrder.compareTo(right.zOrder));
+    for (final node in nodes) {
+      final layerId = node.sourceLayerId;
+      final elementId = node.sourceElementId;
+      if (layerId == null || elementId == null) {
         continue;
       }
-
-      final composition = _transformComposer.compose(
-        tree: treeResult.tree!,
-        timelineTimeMs: timelineTimeMs,
-      );
-      for (final entry in composition.recordsByNodeId.entries) {
-        final nodeId = entry.key;
-        final element = elementByRuntimeId[nodeId];
-        if (element == null) {
-          continue;
-        }
-        final elementIndex = elementIndexByRuntimeId[nodeId] ?? 0;
-        final state = stateByRuntimeId[nodeId]!;
-        final record = entry.value;
-        final parentId = treeResult.tree!.parentOf[nodeId];
-        final parentRecord =
-            parentId == null ? null : composition.recordsByNodeId[parentId];
-        records.add(
-          _EvaluatedNodeRecord(
-            layerIndex: layerIndex,
-            elementIndex: elementIndex,
-            layer: layer,
-            element: element,
-            nodeId: nodeId,
-            parentNodeId: parentId,
-            state: state,
-            worldBounds: _Rect(
-              x: record.worldBounds.left,
-              y: record.worldBounds.top,
-              width: record.worldBounds.width,
-              height: record.worldBounds.height,
-            ),
-            parentWorldBounds: parentRecord == null
-                ? null
-                : _Rect(
-                    x: parentRecord.worldBounds.left,
-                    y: parentRecord.worldBounds.top,
-                    width: parentRecord.worldBounds.width,
-                    height: parentRecord.worldBounds.height,
-                  ),
-            active: record.active,
-            effectiveOpacity: record.effectiveOpacity,
-          ),
-        );
+      final layerMeta = layerLookup[layerId];
+      final elementMeta = elementLookup['$layerId::$elementId'];
+      if (layerMeta == null || elementMeta == null) {
+        continue;
       }
+      final parentViewport = node.parentNodeId == null
+          ? null
+          : evaluation.truth.nodesById[node.parentNodeId!]?.viewportBounds;
+      records.add(
+        _EvaluatedNodeRecord(
+          layerIndex: layerMeta.$1,
+          elementIndex: elementMeta.$1,
+          layer: layerMeta.$2,
+          element: elementMeta.$2,
+          nodeId: node.nodeId,
+          parentNodeId: node.parentNodeId,
+          state: _stateFromEvaluatedNode(node, elementMeta.$2),
+          worldBounds: _Rect(
+            x: node.viewportBounds.left,
+            y: node.viewportBounds.top,
+            width: node.viewportBounds.width,
+            height: node.viewportBounds.height,
+          ),
+          parentWorldBounds: parentViewport == null
+              ? null
+              : _Rect(
+                  x: parentViewport.left,
+                  y: parentViewport.top,
+                  width: parentViewport.width,
+                  height: parentViewport.height,
+                ),
+          active: node.active,
+          effectiveOpacity: node.effectiveOpacity,
+        ),
+      );
     }
     return _ProgramProbeSnapshot(
       timelineTimeMs: timelineTimeMs,
       records: records,
+      geometryHash: evaluation.truth.geometryHash,
+      frameTruthHash: evaluation.truth.frameHash,
+      coordinateSystem: evaluation.truth.coordinateSystem.name,
+      usedSharedPipeline: true,
     );
   }
 
@@ -293,6 +236,7 @@ class SceneVisualFrameQaValidator {
         }
         _emitProbeProof(
           record: record,
+          snapshot: snapshot,
           probeIndex: probeIndex,
           probeCount: probeCount,
           textOverflow: false,
@@ -505,6 +449,7 @@ class SceneVisualFrameQaValidator {
             );
       _emitProbeProof(
         record: record,
+        snapshot: snapshot,
         probeIndex: probeIndex,
         probeCount: probeCount,
         textOverflow: overflowBlocking,
@@ -527,6 +472,7 @@ class SceneVisualFrameQaValidator {
 
   void _emitProbeProof({
     required _EvaluatedNodeRecord record,
+    required _ProgramProbeSnapshot snapshot,
     required int probeIndex,
     required int probeCount,
     required bool textOverflow,
@@ -557,6 +503,10 @@ class SceneVisualFrameQaValidator {
         'worldBounds=${_rectAsText(record.worldBounds)} ',
       )
       ..write('slotBounds=${_rectAsText(slotBounds)} ')
+      ..write('geometryHash=${snapshot.geometryHash} ')
+      ..write('evaluatedFrameTruthHash=${snapshot.frameTruthHash} ')
+      ..write('coordinateSystem=${snapshot.coordinateSystem} ')
+      ..write('qaUsedSharedPipeline=${snapshot.usedSharedPipeline.toString()} ')
       ..write('textOverflow=${textOverflow.toString()} ')
       ..write('overflowPx=${overflowPx.toStringAsFixed(2)} ')
       ..write('clippingPx=${clippingPx.toStringAsFixed(2)} ')
@@ -622,6 +572,34 @@ class SceneVisualFrameQaValidator {
       math.min(parent.width, parent.height) * 0.12,
     );
     return drift > threshold;
+  }
+
+  _ElementEvaluationState _stateFromEvaluatedNode(
+    EvaluatedSceneNode node,
+    ReFusionSceneProgramElement element,
+  ) {
+    final metrics = node.textMetrics;
+    final fontSize = metrics?.fontSize ??
+        _readScalar(
+            element.properties, const <String>['fontSize', 'fontsize']) ??
+        16.0;
+    final lineHeight = metrics?.lineHeight ??
+        _readScalar(
+            element.properties, const <String>['lineHeight', 'lineheight']) ??
+        1.0;
+    final letterSpacing = metrics?.letterSpacing ??
+        _readScalar(
+            element.properties, const <String>['letterSpacing', 'tracking']) ??
+        0.0;
+    final typewriterProgress = metrics?.typewriterProgress ??
+        _readScalar(element.properties, const <String>['typewriterProgress']) ??
+        1.0;
+    return _ElementEvaluationState(
+      fontSize: fontSize,
+      lineHeight: lineHeight,
+      letterSpacing: letterSpacing,
+      typewriterProgress: typewriterProgress.clamp(0.0, 1.0),
+    );
   }
 
   _Rect _slotBounds(_EvaluatedNodeRecord record) {
@@ -725,245 +703,6 @@ class SceneVisualFrameQaValidator {
     );
     return layerCount > 8 || elementCount > 24 || channelCount > 48;
   }
-
-  _ElementEvaluationState _evaluateElementState({
-    required ReFusionSceneProgramLayer layer,
-    required ReFusionSceneProgramElement element,
-    required int timelineTimeMs,
-  }) {
-    var x = _readPosition(element.properties, 'x');
-    var y = _readPosition(element.properties, 'y');
-    var width = _readScalar(
-      element.properties,
-      const <String>['width', 'w'],
-    );
-    var height = _readScalar(
-      element.properties,
-      const <String>['height', 'h'],
-    );
-    final textFrame = _mapFromProperties(
-      element.properties,
-      const <String>['textFrame', 'layoutTextFrame'],
-    );
-    width ??= _doubleFromMap(textFrame, const <String>['width', 'maxWidth']);
-    height ??= _doubleFromMap(textFrame, const <String>['height', 'maxHeight']);
-    var scaleX = _readScalar(
-          element.properties,
-          const <String>['scaleX'],
-        ) ??
-        _readScalar(
-          element.properties,
-          const <String>['scale'],
-        ) ??
-        1.0;
-    var scaleY = _readScalar(
-          element.properties,
-          const <String>['scaleY'],
-        ) ??
-        _readScalar(
-          element.properties,
-          const <String>['scale'],
-        ) ??
-        1.0;
-    var rotationDeg = _readScalar(
-          element.properties,
-          const <String>['rotationDeg', 'rotation'],
-        ) ??
-        0.0;
-    var opacity = _readScalar(
-          element.properties,
-          const <String>['opacity', 'alpha'],
-        ) ??
-        1.0;
-    var fontSize = _readScalar(
-          element.properties,
-          const <String>['fontSize', 'fontsize'],
-        ) ??
-        16.0;
-    var lineHeight = _readScalar(
-          element.properties,
-          const <String>['lineHeight', 'lineheight'],
-        ) ??
-        1.0;
-    var letterSpacing = _readScalar(
-          element.properties,
-          const <String>['letterSpacing', 'tracking'],
-        ) ??
-        0.0;
-    var typewriterProgress = _readScalar(
-          element.properties,
-          const <String>['typewriterProgress'],
-        ) ??
-        1.0;
-
-    final allChannels = <ReFusionSceneProgramChannel>[
-      ...layer.channels.where(
-        (channel) =>
-            _normalizeToken(channel.target) == _normalizeToken(element.id),
-      ),
-      ...element.channels,
-    ];
-    for (final channel in allChannels) {
-      final property = _normalizeToken(channel.property);
-      final value = _evaluateChannel(channel, timelineTimeMs);
-      if (value == null) {
-        continue;
-      }
-      if (property == 'x' ||
-          property == 'left' ||
-          property == 'positionx' ||
-          property == 'position.x') {
-        x = value;
-      } else if (property == 'y' ||
-          property == 'top' ||
-          property == 'positiony' ||
-          property == 'position.y') {
-        y = value;
-      } else if (property == 'width' || property == 'w') {
-        width = value;
-      } else if (property == 'height' || property == 'h') {
-        height = value;
-      } else if (property == 'scale' || property == 'scalex') {
-        scaleX = value;
-      } else if (property == 'scaley') {
-        scaleY = value;
-      } else if (property == 'rotation' || property == 'rotationdeg') {
-        rotationDeg = value;
-      } else if (property == 'opacity' || property == 'alpha') {
-        opacity = value;
-      } else if (property == 'fontsize') {
-        fontSize = value;
-      } else if (property == 'lineheight') {
-        lineHeight = value;
-      } else if (property == 'letterspacing' || property == 'tracking') {
-        letterSpacing = value;
-      } else if (property == 'typewriterprogress') {
-        typewriterProgress = value.clamp(0.0, 1.0);
-      }
-    }
-
-    width ??= _estimateTextWidth(
-      element,
-      fontSize: fontSize,
-      letterSpacing: letterSpacing,
-      typewriterProgress: 1.0,
-    );
-    height ??= _estimateTextHeight(
-      element,
-      fontSize: fontSize,
-      lineHeight: lineHeight,
-    );
-
-    return _ElementEvaluationState(
-      x: x ?? 0.0,
-      y: y ?? 0.0,
-      width: math.max(1.0, width ?? 1.0),
-      height: math.max(1.0, height ?? 1.0),
-      scaleX: scaleX,
-      scaleY: scaleY,
-      rotationDeg: rotationDeg,
-      opacity: opacity,
-      fontSize: fontSize,
-      lineHeight: lineHeight,
-      letterSpacing: letterSpacing,
-      typewriterProgress: typewriterProgress.clamp(0.0, 1.0),
-    );
-  }
-
-  double? _evaluateChannel(
-    ReFusionSceneProgramChannel channel,
-    int timelineTimeMs,
-  ) {
-    if (channel.keyframes.isEmpty) {
-      return null;
-    }
-    final keyframes = channel.keyframes.toList(growable: false)
-      ..sort((left, right) => left.timeMs.compareTo(right.timeMs));
-    if (timelineTimeMs <= keyframes.first.timeMs) {
-      return _asDouble(keyframes.first.value);
-    }
-    if (timelineTimeMs >= keyframes.last.timeMs) {
-      return _asDouble(keyframes.last.value);
-    }
-    for (var index = 1; index < keyframes.length; index += 1) {
-      final left = keyframes[index - 1];
-      final right = keyframes[index];
-      if (timelineTimeMs < left.timeMs || timelineTimeMs > right.timeMs) {
-        continue;
-      }
-      final leftValue = _asDouble(left.value);
-      final rightValue = _asDouble(right.value);
-      if (leftValue == null || rightValue == null) {
-        return leftValue ?? rightValue;
-      }
-      final span = right.timeMs - left.timeMs;
-      if (span <= 0) {
-        return rightValue;
-      }
-      final rawT = (timelineTimeMs - left.timeMs) / span;
-      final easedT = _applyEasing(
-        easing: right.easing ?? left.easing ?? 'linear',
-        t: rawT.clamp(0.0, 1.0),
-      );
-      return leftValue + ((rightValue - leftValue) * easedT);
-    }
-    return null;
-  }
-
-  double _applyEasing({required String easing, required double t}) {
-    final normalized = _normalizeToken(easing);
-    if (normalized == 'linear') {
-      return t;
-    }
-    if (normalized == 'easein' || normalized == 'slowfast') {
-      return t * t;
-    }
-    if (normalized == 'easeout' || normalized == 'fastslow') {
-      final inv = 1.0 - t;
-      return 1.0 - (inv * inv);
-    }
-    if (normalized == 'easeinout' ||
-        normalized == 'easyease' ||
-        normalized == 'cinematicease' ||
-        normalized == 'slowfastslow') {
-      return t * t * (3 - (2 * t));
-    }
-    if (normalized == 'fastslowfast') {
-      return 0.5 - (math.cos(math.pi * t) / 2.0);
-    }
-    return t;
-  }
-
-  String _resolveRuntimeParentId({
-    required String layerId,
-    required ReFusionSceneProgramElement element,
-  }) {
-    final parentValue = element.properties['parentId'];
-    if (parentValue is! String || parentValue.trim().isEmpty) {
-      return '__layer__${layerId}__root';
-    }
-    return _runtimeNodeId(layerId, parentValue.trim());
-  }
-
-  SceneRuntimeNodeType _runtimeTypeForElementKind(String kind) {
-    final normalized = _normalizeToken(kind);
-    switch (normalized) {
-      case 'text':
-        return SceneRuntimeNodeType.text;
-      case 'icon':
-        return SceneRuntimeNodeType.icon;
-      case 'image':
-        return SceneRuntimeNodeType.image;
-      case 'video':
-        return SceneRuntimeNodeType.video;
-      case 'shape':
-      default:
-        return SceneRuntimeNodeType.shape;
-    }
-  }
-
-  String _runtimeNodeId(String layerId, String elementId) =>
-      '__layer__${layerId}__element__${elementId}';
 
   double _estimateTextWidth(
     ReFusionSceneProgramElement element, {
@@ -1114,7 +853,10 @@ class SceneVisualFrameQaValidator {
   }
 
   bool _isCanvasBackground(_EvaluatedNodeRecord record) {
-    if (_normalizeToken(record.element.kind) != 'shape') {
+    final normalizedKind = _normalizeToken(record.element.kind);
+    if (normalizedKind != 'shape' &&
+        normalizedKind != 'solid' &&
+        normalizedKind != 'background') {
       return false;
     }
     final rect = record.worldBounds;
@@ -1275,10 +1017,18 @@ class _ProgramProbeSnapshot {
   const _ProgramProbeSnapshot({
     required this.timelineTimeMs,
     required this.records,
+    required this.geometryHash,
+    required this.frameTruthHash,
+    required this.coordinateSystem,
+    required this.usedSharedPipeline,
   });
 
   final int timelineTimeMs;
   final List<_EvaluatedNodeRecord> records;
+  final String geometryHash;
+  final String frameTruthHash;
+  final String coordinateSystem;
+  final bool usedSharedPipeline;
 }
 
 class _EvaluatedNodeRecord {
@@ -1311,28 +1061,12 @@ class _EvaluatedNodeRecord {
 
 class _ElementEvaluationState {
   const _ElementEvaluationState({
-    required this.x,
-    required this.y,
-    required this.width,
-    required this.height,
-    required this.scaleX,
-    required this.scaleY,
-    required this.rotationDeg,
-    required this.opacity,
     required this.fontSize,
     required this.lineHeight,
     required this.letterSpacing,
     required this.typewriterProgress,
   });
 
-  final double x;
-  final double y;
-  final double width;
-  final double height;
-  final double scaleX;
-  final double scaleY;
-  final double rotationDeg;
-  final double opacity;
   final double fontSize;
   final double lineHeight;
   final double letterSpacing;

@@ -25,7 +25,13 @@ void main() {
       ),
     );
 
-    expect(result.isValid, isTrue);
+    expect(
+      result.isValid,
+      isTrue,
+      reason: result.issues
+          .map((issue) => '${issue.severity} ${issue.path}: ${issue.message}')
+          .join('\n'),
+    );
     expect(result.program!.name, 'First Generated Scene');
     expect(result.project!.id, 'agent-scene-project');
     expect(result.project!.scenes.single.id, 'agent-scene');

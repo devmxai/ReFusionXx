@@ -146,16 +146,11 @@ void main() {
     );
   });
 
-  test(
-    'TODO(v4): visual QA source should stop using implicit top-left layer roots',
-    () {
-      final source = File(
-        'lib/features/editor/domain/services/scene_visual_frame_qa_validator.dart',
-      ).readAsStringSync();
-      expect(source.contains("'localLeft': 0.0"), isFalse);
-      expect(source.contains("'localTop': 0.0"), isFalse);
-    },
-    skip:
-        'NSI-v4-04 will remove QA-only top-left-like root initialization and use shared evaluated-frame truth.',
-  );
+  test('visual QA source has no implicit top-left layer roots', () {
+    final source = File(
+      'lib/features/editor/domain/services/scene_visual_frame_qa_validator.dart',
+    ).readAsStringSync();
+    expect(source.contains("'localLeft': 0.0"), isFalse);
+    expect(source.contains("'localTop': 0.0"), isFalse);
+  });
 }

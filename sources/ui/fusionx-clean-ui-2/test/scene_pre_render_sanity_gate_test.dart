@@ -109,7 +109,13 @@ void main() {
       ),
     );
 
-    expect(validResult.isValid, isTrue);
+    expect(
+      validResult.isValid,
+      isTrue,
+      reason: validResult.issues
+          .map((issue) => '${issue.severity} ${issue.path}: ${issue.message}')
+          .join('\n'),
+    );
 
     final gateResult = gate.validate(
       authoringResult: validResult,

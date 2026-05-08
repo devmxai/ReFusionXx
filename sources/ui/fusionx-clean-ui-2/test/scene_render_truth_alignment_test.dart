@@ -58,8 +58,7 @@ void main() {
     );
   }
 
-  test('reproduces visual QA vs center-origin render drift in current pipeline',
-      () {
+  test('aligns visual QA bounds with center-origin viewport mapping', () {
     final result = visualQa.validate(_singleNodeCoordinateDriftProgram());
     final proofIssue = result.issues.firstWhere(
       (issue) =>
@@ -74,36 +73,12 @@ void main() {
     const expectedViewportLeftFromCenterOrigin = 540 + 452 - (176 / 2);
     const expectedViewportTopFromCenterOrigin = 960 + 640 - (176 / 2);
 
-    expect((bounds.left - expectedViewportLeftFromCenterOrigin).abs(),
-        greaterThan(100));
-    expect(
-      (bounds.top - expectedViewportTopFromCenterOrigin).abs(),
-      greaterThan(100),
-    );
+    expect(bounds.left, closeTo(expectedViewportLeftFromCenterOrigin, 0.5));
+    expect(bounds.top, closeTo(expectedViewportTopFromCenterOrigin, 0.5));
+    expect(proofIssue.message.contains('qaUsedSharedPipeline=true'), isTrue);
   });
 
-  test(
-    'TODO(v4): visual QA world bounds should match center-origin viewport mapping',
-    () {
-      final result = visualQa.validate(_singleNodeCoordinateDriftProgram());
-      final proofIssue = result.issues.firstWhere(
-        (issue) =>
-            issue.message.contains('TF_SCENE_VISUAL_FRAME_QA_PROOF') &&
-            issue.message.contains('componentId=probe-node'),
-      );
-      final bounds = _parseWorldBoundsProof(proofIssue.message);
-
-      const expectedViewportLeftFromCenterOrigin = 540 + 452 - (176 / 2);
-      const expectedViewportTopFromCenterOrigin = 960 + 640 - (176 / 2);
-
-      expect(bounds.left, closeTo(expectedViewportLeftFromCenterOrigin, 0.5));
-      expect(bounds.top, closeTo(expectedViewportTopFromCenterOrigin, 0.5));
-    },
-    skip:
-        'NSI-v4-01..v4-05 not complete yet: QA and preview do not share one coordinate/evaluation truth.',
-  );
-
-  test('documents current prompt-burst acceptance gap before render-truth fix',
+  test('prompt-burst fixture is rejected by shared visual truth before rewrite',
       () {
     final source = File(
       'assets/scene_programs/revival_prompt_burst_feature_cards_scene.json',
@@ -120,12 +95,18 @@ void main() {
       ),
     );
 
+    expect(authored.isValid, isFalse);
     expect(
-      authored.isValid,
+      authored.issues.any(
+        (issue) => issue.severity == ReFusionSceneProgramIssueSeverity.error,
+      ),
       isTrue,
-      reason: authored.issues
-          .map((issue) => '${issue.severity} ${issue.path}: ${issue.message}')
-          .join('\n'),
+    );
+    expect(
+      authored.issues.any(
+        (issue) => issue.message.contains('TF_SCENE_VISUAL_FRAME_QA_PROOF'),
+      ),
+      isTrue,
     );
   });
 }

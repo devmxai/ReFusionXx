@@ -59,7 +59,11 @@ void main() {
     );
     expect(
       result.issues.any(
-        (issue) => issue.message.contains('TF_SCENE_VISUAL_FRAME_QA_PROOF'),
+        (issue) =>
+            issue.message.contains('TF_SCENE_VISUAL_FRAME_QA_PROOF') &&
+            issue.message.contains('qaUsedSharedPipeline=true') &&
+            issue.message.contains('geometryHash=') &&
+            issue.message.contains('evaluatedFrameTruthHash='),
       ),
       isTrue,
     );
