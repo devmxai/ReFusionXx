@@ -11,6 +11,9 @@ Scope: agent-authored native scenes, DirectorPlan, SceneProgram, semantic compon
 - Completed: `NSI-01` through `NSI-09` (core app-side contract and QA gates).
 - In progress next: `NSI-10` (`refusion-skills` repository upgrade).
 - Remaining after that: `NSI-11` (Premium App Promo rewrite final polish fixture) and `NSI-12` (closure QA).
+- Strategic extension accepted: add `Closed Vocabulary + Visual Closure Loop`
+  as the official v2 direction after `NSI-12`, while folding the agent-facing
+  rules into `NSI-10` immediately.
 
 ## 0. Purpose
 
@@ -59,7 +62,101 @@ This passes basic import because the JSON is valid, but it fails professionally 
 
 This plan fixes the root cause: scene generation must become component-aware and contract-validated, not coordinate-guessing.
 
-## 0.2 External Professional Patterns To Adopt
+## 0.2 Strategic Refinement: Closed Vocabulary + Visual Closure Loop
+
+The accepted long-term architecture is:
+
+```text
+Closed Vocabulary + Constraint-Solved Layout + Beat Grammar + Visual Closure Loop
+```
+
+This is not a replacement for the current plan. It is the professional direction
+that the current plan prepares for.
+
+The immediate plan (`NSI-01` through `NSI-12`) builds the first app-side safety
+gates:
+
+- component-aware prompt bars;
+- text frames;
+- geometry and text-fit checks;
+- fixed-frame typewriter reveal;
+- motion continuity checks;
+- visual frame QA probes;
+- skills repository rules.
+
+The v2 plan then turns those gates into a full authoring compiler:
+
+```text
+Semantic Blueprint
+-> Closed Vocabulary tokens
+-> Component Registry
+-> Constraint Layout Solver
+-> Beat Grammar
+-> Blueprint-to-SceneProgram Compiler
+-> Visual Closure Loop
+-> Approved native SceneProgram
+```
+
+### 0.2.1 Principle
+
+Agents should not guess raw geometry, typography, timing, or motion.
+
+They should choose from a controlled professional vocabulary:
+
+```text
+$component.PromptInputBar
+$spacing.lg
+$typography.input
+$duration.medium
+$easing.slowFastSlow
+$motion.morphFromIcon
+$beat.featureIntro
+```
+
+The app is still allowed to lower those references into concrete native values
+such as pixels, milliseconds, colors, and keyframes. The rule is:
+
+```text
+Agent-facing semantic blueprints prefer tokens.
+Lowered SceneProgram may contain resolved numeric execution values.
+```
+
+This distinction is mandatory. Requiring every lowered SceneProgram value to
+remain a token would make runtime execution brittle and would block existing
+valid scenes.
+
+### 0.2.2 What Must Be Adopted
+
+Adopt these parts of the recommendation:
+
+- closed vocabulary for agent-facing scene authoring;
+- design tokens for spacing, typography, color, radius, shadow, duration,
+  easing, canvas anchors, components, beats, and motion recipes;
+- component-first authoring before coordinates;
+- constraint-solved layout for components such as prompt bars, cards, panels,
+  controls, badges, and text blocks;
+- beat-driven temporal grammar with `enter`, `hold`, and `exit` phases;
+- structured validation errors that are readable by both humans and agents;
+- visual QA probes that can grow into rendered thumbnail QA;
+- a refinement loop where failed scenes produce machine-readable repair
+  instructions.
+
+### 0.2.3 What Must Not Be Adopted Literally
+
+Do not make these strict rules in the current phase:
+
+- do not forbid all raw numbers in the lowered `SceneProgram`;
+- do not require 100 percent token coverage before the compiler exists;
+- do not claim pixel-perfect preview/export hash equality as the first target;
+- do not build 30 components before proving 6 to 10 core components;
+- do not mix this scene intelligence work with Motion Tile, Motion Blur,
+  Stage5 native shader work, or Live Scrub internals;
+- do not delay `NSI-10` waiting for the full visual closure system.
+
+The first quality bar is semantic parity and visible safety. Pixel-level parity
+and full thumbnail-based self-repair are v2/v3 goals.
+
+## 0.3 External Professional Patterns To Adopt
 
 Use external systems as architecture references, not execution surfaces.
 
@@ -1086,6 +1183,20 @@ Required:
 - update `/Users/mx/Documents/refusion-skills`;
 - add native scene intelligence rules;
 - add PromptInputBar component rules;
+- add Closed Vocabulary rules for agent-facing authoring:
+  - components must be chosen from named component recipes;
+  - important spacing, typography, timing, easing, and motion should use
+    vocabulary names/tokens when authoring semantic blueprints;
+  - lowered SceneProgram JSON may contain resolved native values after compile.
+- add Beat Grammar rules:
+  - every important animation belongs to a named beat;
+  - each beat should have `enter`, `hold`, and `exit` intent;
+  - professional motion should use SpeedyGraph easing names rather than silent
+    linear fallback.
+- add Visual Closure Loop preparation rules:
+  - agents must self-check generated scenes against layout, text fit, timing,
+    contrast, and continuity before final output;
+  - skills examples must include QA notes and common repair actions.
 - update validation rules;
 - add corrected Premium App Promo example;
 - rebuild `REFUSION_SCENE_SKILL_FULL.md`;
@@ -1096,6 +1207,8 @@ Verification:
 - rule files exist;
 - full bundle includes new rules;
 - example validates with repository validator.
+- full bundle contains `Closed Vocabulary`, `PromptInputBar`, `Beat Grammar`,
+  `Visual Closure`, and `SpeedyGraph` guidance.
 
 ### NSI-11 - Premium App Promo Rewrite
 
@@ -1111,6 +1224,8 @@ Required:
 - use stable text frame;
 - use real icon-to-prompt continuity;
 - use SpeedyGraph curves;
+- document which parts are v1 resolved SceneProgram values and which parts
+  would become v2 semantic blueprint tokens later;
 - add visual QA fixture test.
 
 Tests:
@@ -1119,6 +1234,7 @@ Tests:
 - broken old geometry fails validator;
 - new geometry passes validator;
 - current frame around prompt hold has contained text.
+- prompt beat timing has a readable enter/hold/exit rhythm.
 
 Build:
 
@@ -1142,6 +1258,8 @@ Required:
 - build debug APK;
 - install on wireless device;
 - update this plan with completed phases;
+- explicitly mark the v2 `Closed Vocabulary + Visual Closure Loop` work as the
+  next official plan, not an untracked idea;
 - report remaining risks.
 
 Required focused tests:
@@ -1163,8 +1281,273 @@ scene_layout_geometry_validator_test.dart
 scene_text_fit_validator_test.dart
 scene_typewriter_fixed_frame_test.dart
 scene_motion_continuity_validator_test.dart
-scene_visual_frame_qa_test.dart
+scene_visual_frame_qa_validator_test.dart
 ```
+
+## 7.1 Professional Native Scene Intelligence v2
+
+The following phases are the official continuation after `NSI-12`. They should
+not be mixed into the v1 closure checkpoints unless a specific item is required
+to close a bug.
+
+### NSI-v2-01 - Design Token Registry
+
+Checkpoint:
+
+```text
+checkpoint: 2026-05-08 professional native scene intelligence v2 01 - design token registry
+```
+
+Required:
+
+- add token registry models for:
+  - spacing;
+  - typography;
+  - colors;
+  - radius;
+  - shadows;
+  - duration;
+  - easing;
+  - canvas anchors;
+  - motion recipes;
+  - beat presets.
+- add resolver from `$token.path` to native values;
+- support project/theme overrides later without changing the SceneProgram
+  runtime format;
+- forbid unknown token names in semantic blueprints.
+
+Acceptance:
+
+- semantic blueprint tokens resolve deterministically;
+- invalid token references fail with structured errors;
+- lowered SceneProgram receives concrete values.
+
+### NSI-v2-02 - Semantic Scene Blueprint Schema
+
+Checkpoint:
+
+```text
+checkpoint: 2026-05-08 professional native scene intelligence v2 02 - semantic blueprint schema
+```
+
+Required:
+
+- add a `SemanticSceneBlueprint` schema above SceneProgram;
+- support component declarations, slots, tokens, beats, and motion intents;
+- keep SceneProgram as the editable native execution output;
+- add import/compile diagnostics for unsupported blueprint fields.
+
+Acceptance:
+
+- agents can author components without raw coordinates;
+- compiler can lower a simple PromptInputBar blueprint to valid SceneProgram;
+- existing SceneProgram import remains backward compatible.
+
+### NSI-v2-03 - Component Registry v2
+
+Checkpoint:
+
+```text
+checkpoint: 2026-05-08 professional native scene intelligence v2 03 - component registry v2
+```
+
+Required:
+
+- add first stable component recipes:
+  - `PromptInputBar`;
+  - `FeatureCard`;
+  - `AppIconIntro`;
+  - `ResultCard`;
+  - `MotionTextBlock`;
+  - `IconButton`;
+  - `DashboardPanel`;
+  - `TimelineStrip`;
+  - `AudioWaveform`;
+  - `ColorGradePanel`.
+- define required slots, allowed children, sizing modes, and defaults;
+- emit `TF_SCENE_COMPONENT_REGISTRY_PROOF`.
+
+Acceptance:
+
+- unsupported component names fail closed;
+- required slots are enforced;
+- each recipe can lower into editable native shapes/text/icons.
+
+### NSI-v2-04 - Constraint Layout Solver
+
+Checkpoint:
+
+```text
+checkpoint: 2026-05-08 professional native scene intelligence v2 04 - constraint layout solver
+```
+
+Required:
+
+- implement native layout primitives:
+  - horizontal stack;
+  - vertical stack;
+  - fixed;
+  - hug content;
+  - fill container;
+  - padding;
+  - gap;
+  - alignment;
+  - safe area;
+  - slots.
+- solve layout to deterministic bounds;
+- emit structured overlap/out-of-bounds errors;
+- emit `TF_SCENE_NATIVE_COMPOSER_PROOF` when lowering succeeds.
+
+Acceptance:
+
+- prompt text cannot overlap send button;
+- children cannot escape parent content rect;
+- layouts adapt to 9:16, 16:9, 1:1, and 4:5 canvas formats.
+
+### NSI-v2-05 - Beat Grammar Engine
+
+Checkpoint:
+
+```text
+checkpoint: 2026-05-08 professional native scene intelligence v2 05 - beat grammar engine
+```
+
+Required:
+
+- define beat models with `enter`, `hold`, and `exit` phases;
+- enforce readable hold durations for important text;
+- cap excessive overlaps;
+- require SpeedyGraph timing for professional movement;
+- add repair diagnostics for motion without a beat.
+
+Acceptance:
+
+- important motion is attached to a beat;
+- typewriter and feature reveal scenes contain readable holds;
+- icon-to-prompt handoff is represented as one beat, not unrelated fades.
+
+### NSI-v2-06 - Blueprint To SceneProgram Compiler
+
+Checkpoint:
+
+```text
+checkpoint: 2026-05-08 professional native scene intelligence v2 06 - blueprint compiler
+```
+
+Required:
+
+- compile semantic blueprints into SceneProgram;
+- preserve stable IDs and editability;
+- lower tokens, components, slots, beats, and motion recipes;
+- preserve source metadata for inspector/debugging.
+
+Acceptance:
+
+- blueprint output imports through the existing authoring pipeline;
+- generated SceneProgram passes v1 validators;
+- no HTML/CSS/JS/React output is introduced.
+
+### NSI-v2-07 - Visual QA Thumbnail Renderer MVP
+
+Checkpoint:
+
+```text
+checkpoint: 2026-05-08 professional native scene intelligence v2 07 - visual qa thumbnail mvp
+```
+
+Required:
+
+- produce low-resolution QA probes at first:
+  - start;
+  - important beat midpoint;
+  - final hold.
+- later expand to 9 canonical probes;
+- collect text bounds, element bounds, canvas bounds, contrast estimates, and
+  motion continuity summaries.
+
+Acceptance:
+
+- obvious text overflow is detected visually;
+- clipped elements are reported with frame time;
+- probe generation does not require user inspection.
+
+### NSI-v2-08 - Structured Repair Feedback Loop
+
+Checkpoint:
+
+```text
+checkpoint: 2026-05-08 professional native scene intelligence v2 08 - structured repair feedback loop
+```
+
+Required:
+
+- convert validator/probe failures into machine-readable repair payloads;
+- include:
+  - error code;
+  - component id;
+  - frame time;
+  - violated rect/value;
+  - suggested action;
+  - suggested token/component replacement when possible.
+- support up to three agent repair attempts in future orchestration;
+- do not auto-retry inside the mobile app until orchestration is explicitly
+  designed.
+
+Acceptance:
+
+- bad scenes return actionable structured errors;
+- skills can teach agents how to repair those errors;
+- the system fails closed if repair cannot produce a valid scene.
+
+### NSI-v2-09 - Skills And Exemplar Expansion
+
+Checkpoint:
+
+```text
+checkpoint: 2026-05-08 professional native scene intelligence v2 09 - skills and exemplar expansion
+```
+
+Required:
+
+- update `refusion-skills` with v2 blueprint authoring rules;
+- add good/bad examples for:
+  - prompt input;
+  - feature cards;
+  - dashboards;
+  - app promo scenes;
+  - text-heavy scenes;
+  - color/effect scenes.
+- add an exemplar QA checklist.
+
+Acceptance:
+
+- external agents can author blueprints using components/tokens/beats;
+- examples compile and validate;
+- common mistakes are represented with repair guidance.
+
+### NSI-v2-10 - Closure QA
+
+Checkpoint:
+
+```text
+checkpoint: 2026-05-08 professional native scene intelligence v2 10 - closure qa
+```
+
+Required:
+
+- run focused tests for token registry, blueprint compiler, components,
+  layout solver, beat grammar, visual QA, and repair feedback;
+- build APK if app behavior changed;
+- install on connected Android device when available;
+- update this plan with final status.
+
+Acceptance:
+
+- v1 SceneProgram path remains compatible;
+- v2 semantic blueprint path produces valid native SceneProgram;
+- no decorative graph/layout path exists;
+- unsupported component, token, beat, or motion request fails with a clear
+  reason.
 
 ## 8. Diagnostics Summary
 
@@ -1178,6 +1561,10 @@ TF_SCENE_MOTION_CONTINUITY_PROOF
 TF_SCENE_VISUAL_FRAME_QA_PROOF
 TF_SCENE_COMPONENT_REGISTRY_PROOF
 TF_SCENE_NATIVE_COMPOSER_PROOF
+TF_SCENE_TOKEN_REGISTRY_PROOF
+TF_SCENE_BLUEPRINT_COMPILER_PROOF
+TF_SCENE_BEAT_GRAMMAR_PROOF
+TF_SCENE_VISUAL_REPAIR_PROOF
 ```
 
 ## 9. Stop List
@@ -1190,6 +1577,13 @@ Do not:
 - allow prompt/input/card children without parent/slot metadata;
 - allow typewriter to shift origin while typing;
 - claim morph when elements only crossfade;
+- let agents guess prompt bars, cards, panels, or important text blocks from
+  loose coordinates when a component contract exists;
+- introduce semantic blueprint tokens without a deterministic resolver;
+- mix spatial path editing, clip speed ramp, Motion Tile, Motion Blur, or
+  Stage5 shader changes into Scene Intelligence checkpoints;
+- claim Visual Closure Loop is complete before rendered probes and structured
+  repair payloads exist;
 - add HTML/CSS/JS/React/Remotion output;
 - bypass SpeedyGraph for professional motion;
 - silently downgrade unsupported effects;
@@ -1213,6 +1607,16 @@ The system is complete only when:
 - all focused tests pass;
 - debug APK builds and installs.
 
+The v2 extension is complete only when:
+
+- agents can author semantic blueprints using closed vocabulary tokens;
+- tokens resolve into deterministic native SceneProgram values;
+- component layouts are solved by constraints rather than guessed coordinates;
+- beats own important timing and readable holds;
+- visual QA can produce thumbnail/probe evidence;
+- failed visual QA returns structured repair instructions;
+- the old direct SceneProgram path remains valid for backward compatibility.
+
 ## 11. Agent Writer Instruction
 
 When implementing this plan:
@@ -1232,6 +1636,31 @@ When implementing this plan:
 8. Commit with the exact checkpoint name for that phase.
 9. Push the branch.
 10. Report files, tests, build/install result, risks, and rollback command.
+
+Immediate remaining order:
+
+1. Close `NSI-10` in `/Users/mx/Documents/refusion-skills`.
+2. Close `NSI-11` in `/Users/mx/Documents/ReFusionXx`.
+3. Close `NSI-12` in `/Users/mx/Documents/ReFusionXx`.
+4. Only after `NSI-12`, start `NSI-v2-01`.
+
+For `NSI-10`, the writer must update skills with the accepted strategic
+refinement:
+
+- Closed Vocabulary as agent-facing authoring guidance;
+- PromptInputBar component rules;
+- Beat Grammar rules;
+- Visual Closure Loop preparation and QA self-check rules;
+- corrected Premium App Promo example;
+- no HTML/CSS/JS/React output;
+- no requirement that the lowered SceneProgram keep every value as a token.
+
+For `NSI-v2`, the writer must treat `SceneProgram` compatibility as protected:
+
+- direct SceneProgram import remains supported;
+- semantic blueprint is additive;
+- tokens compile to concrete native values;
+- unsupported tokens/components/beats fail with explicit reasons.
 
 Rollback format:
 
