@@ -3,7 +3,9 @@ import 'package:refusion_app/features/editor/domain/models/refusion_scene_progra
 import 'package:refusion_app/features/editor/domain/services/scene_visual_frame_qa_validator.dart';
 
 void main() {
-  const validator = SceneVisualFrameQaValidator();
+  const validator = SceneVisualFrameQaValidator(
+    enforceOverflowAsError: true,
+  );
 
   test('emits frame probe proof for reveal channels', () {
     final result = validator.validate(

@@ -15,13 +15,16 @@ class SceneVisualFrameQaValidationResult {
 }
 
 class SceneVisualFrameQaValidator {
-  const SceneVisualFrameQaValidator();
+  const SceneVisualFrameQaValidator({
+    this.enforceOverflowAsError = false,
+  });
   static const int _fullProbeBudget = 9;
   static const int _fallbackProbeBudget = 5;
   static const int _probeTimeBudgetMs = 800;
   static const double _defaultCanvasWidth = 1080;
   static const double _defaultCanvasHeight = 1920;
   static const double _safeAreaInset = 24;
+  final bool enforceOverflowAsError;
 
   SceneVisualFrameQaValidationResult validate(ReFusionSceneProgram program) {
     final stopwatch = Stopwatch()..start();
@@ -197,7 +200,9 @@ class SceneVisualFrameQaValidator {
     final budgetExceeded = elapsedMsProvider() > _probeTimeBudgetMs;
 
     if (overflowDetected) {
-      final severity = supportedFitPolicy
+      final permissiveLegacyPolicy =
+          !enforceOverflowAsError && normalizedFitPolicy == 'none';
+      final severity = (supportedFitPolicy || permissiveLegacyPolicy)
           ? ReFusionSceneProgramIssueSeverity.warning
           : ReFusionSceneProgramIssueSeverity.error;
       issues.add(

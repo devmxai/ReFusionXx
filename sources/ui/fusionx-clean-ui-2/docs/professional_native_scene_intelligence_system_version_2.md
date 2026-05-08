@@ -114,6 +114,9 @@ ReFusion remains a native motion graphics application. VERSION 2 must not turn t
     overflow/clipping/overlap/safe-area outcomes, timing, and pass/fail status.
   - Added SaaS regression tests proving bad bounded-card text fails and repaired
     bounded-card text passes.
+  - Added strict-vs-compatibility overflow handling:
+    strict mode for semantic/professional gates, compatibility mode for legacy
+    direct SceneProgram imports to avoid breaking existing presets.
 
 - `NSI-v2-08` Structured Repair Loop is completed as MVP.
   - Added `SceneSemanticRepairLoopService` to map scene issues into structured
