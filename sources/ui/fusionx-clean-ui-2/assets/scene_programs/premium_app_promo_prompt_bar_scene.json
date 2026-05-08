@@ -553,6 +553,10 @@
                 "y": 26
               },
               "shadowColor": "#000000",
+              "continuity": {
+                "kind": "dissolve",
+                "sourceId": "app-icon"
+              },
               "contentInsets": {
                 "left": 44,
                 "right": 124,

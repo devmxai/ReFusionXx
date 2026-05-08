@@ -7,8 +7,10 @@ import '../models/refusion_scene_program_models.dart';
 import 'professional_scene_timing_contract.dart';
 import 'refusion_scene_program_import_service.dart';
 import 'refusion_scene_program_lowerer.dart';
+import 'scene_motion_continuity_validator.dart';
 import 'scene_program_component_contract.dart';
 import 'scene_program_layout_contract.dart';
+import 'scene_visual_frame_qa_validator.dart';
 
 @immutable
 class ReFusionSceneProgramAuthoringRequest {
@@ -69,17 +71,25 @@ class ReFusionSceneProgramAuthoringService {
         const SceneProgramLayoutContractValidator(),
     SceneProgramComponentContractValidator componentContractValidator =
         const SceneProgramComponentContractValidator(),
+    SceneMotionContinuityValidator motionContinuityValidator =
+        const SceneMotionContinuityValidator(),
+    SceneVisualFrameQaValidator visualFrameQaValidator =
+        const SceneVisualFrameQaValidator(),
     ReFusionSceneProgramLowerer lowerer = const ReFusionSceneProgramLowerer(),
   })  : _importService = importService,
         _timingContractValidator = timingContractValidator,
         _layoutContractValidator = layoutContractValidator,
         _componentContractValidator = componentContractValidator,
+        _motionContinuityValidator = motionContinuityValidator,
+        _visualFrameQaValidator = visualFrameQaValidator,
         _lowerer = lowerer;
 
   final ReFusionSceneProgramImportService _importService;
   final ProfessionalSceneTimingContractValidator _timingContractValidator;
   final SceneProgramLayoutContractValidator _layoutContractValidator;
   final SceneProgramComponentContractValidator _componentContractValidator;
+  final SceneMotionContinuityValidator _motionContinuityValidator;
+  final SceneVisualFrameQaValidator _visualFrameQaValidator;
   final ReFusionSceneProgramLowerer _lowerer;
 
   ReFusionSceneProgramAuthoringResult importSceneProgram(
@@ -138,6 +148,39 @@ class ReFusionSceneProgramAuthoringService {
       );
     }
 
+    final continuityResult = _motionContinuityValidator.validate(
+      importResult.program!,
+    );
+    if (!continuityResult.isValid) {
+      return ReFusionSceneProgramAuthoringResult(
+        program: importResult.program,
+        issues: <ReFusionSceneProgramIssue>[
+          ...importResult.issues,
+          ...timingResult.issues,
+          ...layoutResult.issues,
+          ...componentResult.issues,
+          ...continuityResult.issues,
+        ],
+      );
+    }
+
+    final visualQaResult = _visualFrameQaValidator.validate(
+      importResult.program!,
+    );
+    if (!visualQaResult.isValid) {
+      return ReFusionSceneProgramAuthoringResult(
+        program: importResult.program,
+        issues: <ReFusionSceneProgramIssue>[
+          ...importResult.issues,
+          ...timingResult.issues,
+          ...layoutResult.issues,
+          ...componentResult.issues,
+          ...continuityResult.issues,
+          ...visualQaResult.issues,
+        ],
+      );
+    }
+
     final loweringResult = _lowerer.lower(
       ReFusionSceneProgramLoweringRequest(
         program: importResult.program!,
@@ -156,6 +199,8 @@ class ReFusionSceneProgramAuthoringService {
         ...timingResult.issues,
         ...layoutResult.issues,
         ...componentResult.issues,
+        ...continuityResult.issues,
+        ...visualQaResult.issues,
         ...loweringResult.issues,
       ],
     );

@@ -6,6 +6,12 @@ Branch: `codex/unified-keyframe-ops-foundation-20260426`
 Date opened: 2026-05-08  
 Scope: agent-authored native scenes, DirectorPlan, SceneProgram, semantic components, layout intelligence, text fit, motion continuity, SpeedyGraph timing, visual frame QA, skills repository, preview/export parity
 
+## Implementation Status Snapshot (2026-05-08)
+
+- Completed: `NSI-01` through `NSI-09` (core app-side contract and QA gates).
+- In progress next: `NSI-10` (`refusion-skills` repository upgrade).
+- Remaining after that: `NSI-11` (Premium App Promo rewrite final polish fixture) and `NSI-12` (closure QA).
+
 ## 0. Purpose
 
 This plan defines the professional scene intelligence system for ReFusion.
@@ -1232,4 +1238,3 @@ Rollback format:
 ```bash
 git -C /Users/mx/Documents/ReFusionXx revert <commit-hash>
 ```
-

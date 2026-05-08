@@ -215,6 +215,35 @@ class BasicMotionTextPreviewBinder implements MotionTextPreviewBinder {
             animationKinds: textAnimation?.animationKinds ??
                 const <MotionTextAnimationKind>[],
           );
+          final hasRevealAnimation = (textAnimation?.animationKinds ??
+                      const <MotionTextAnimationKind>[])
+                  .contains(MotionTextAnimationKind.wordReveal) ||
+              (textAnimation?.animationKinds ??
+                      const <MotionTextAnimationKind>[])
+                  .contains(MotionTextAnimationKind.letterReveal) ||
+              (textAnimation?.animationKinds ??
+                      const <MotionTextAnimationKind>[])
+                  .contains(MotionTextAnimationKind.typewriter) ||
+              (revealUnit != MotionTextRevealUnit.wholeText &&
+                  revealProgress != null);
+          if (hasRevealAnimation) {
+            diagnostics.add(
+              MotionEvaluationDiagnostic(
+                code: 'TF_SCENE_TEXT_REVEAL_FRAME_PROOF',
+                message:
+                    'TF_SCENE_TEXT_REVEAL_FRAME_PROOF element=${element.id} '
+                    'fullLength=${fullText.runes.length} '
+                    'visibleLength=${visibleText.runes.length} '
+                    'revealUnit=${revealUnit.name} '
+                    'revealProgress=${(revealProgress ?? 1.0).toStringAsFixed(4)} '
+                    'fixedFrame=true',
+                sceneId: scene.id,
+                layerId: layer.id,
+                elementId: element.id,
+                propertyId: 'typewriterProgress',
+              ),
+            );
+          }
 
           nodes.add(
             MotionTextPreviewNode(

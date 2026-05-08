@@ -38,15 +38,30 @@ void warmMotionTextPreviewOverlayCaches({
       scaleY: scaleY,
       policy: rasterSnapshot.rasterizationPolicy,
     );
-    _motionTextLayoutForKey(
+    final revealFrameText = node.hasRevealAnimation && node.fullText.isNotEmpty
+        ? node.fullText
+        : node.text;
+    final revealFrameLayout = _motionTextLayoutForKey(
       _TextLayoutCacheKey(
-        text: node.text,
+        text: revealFrameText,
         style: _textStyleForMotionNode(node, metrics),
         letterSpacingPx: metrics.letterSpacingPx,
         lineHeightMultiplier: node.typography.lineHeight,
         textAlignment: node.typography.textAlignment,
       ),
     );
+    if (node.hasRevealAnimation) {
+      _motionTextLayoutForKey(
+        _TextLayoutCacheKey(
+          text: node.text,
+          style: _textStyleForMotionNode(node, metrics),
+          letterSpacingPx: metrics.letterSpacingPx,
+          lineHeightMultiplier: node.typography.lineHeight,
+          textAlignment: node.typography.textAlignment,
+          maxWidth: revealFrameLayout.contentWidth,
+        ),
+      );
+    }
   }
 }
 
@@ -139,21 +154,40 @@ class _MotionTextPreviewNodeWidgetState
     );
     final compositeOpacity = node.effects.opacity.clamp(0.0, 1.0);
     final baseStyle = _textStyleForMotionNode(node, metrics);
+    final revealFrameText = node.hasRevealAnimation && node.fullText.isNotEmpty
+        ? node.fullText
+        : node.text;
+    final revealFrameLayout = _motionTextLayoutForKey(
+      _TextLayoutCacheKey(
+        text: revealFrameText,
+        style: baseStyle,
+        letterSpacingPx: metrics.letterSpacingPx,
+        lineHeightMultiplier: node.typography.lineHeight,
+        textAlignment: node.typography.textAlignment,
+      ),
+    );
     final layoutKey = _TextLayoutCacheKey(
       text: node.text,
       style: baseStyle,
       letterSpacingPx: metrics.letterSpacingPx,
       lineHeightMultiplier: node.typography.lineHeight,
       textAlignment: node.typography.textAlignment,
+      maxWidth: node.hasRevealAnimation ? revealFrameLayout.contentWidth : null,
     );
     final layout =
         _layoutKey == layoutKey ? _layout! : _buildAndCacheLayout(layoutKey);
+    final resolvedContentWidth = node.hasRevealAnimation
+        ? math.max(layout.contentWidth, revealFrameLayout.contentWidth)
+        : layout.contentWidth;
+    final resolvedContentHeight = node.hasRevealAnimation
+        ? math.max(layout.contentHeight, revealFrameLayout.contentHeight)
+        : layout.contentHeight;
     final layoutWidth = _paddedLayoutExtent(
-      layout.contentWidth,
+      resolvedContentWidth,
       metrics.layoutPaddingPx,
     );
     final layoutHeight = _paddedLayoutExtent(
-      layout.contentHeight,
+      resolvedContentHeight,
       metrics.layoutPaddingPx,
     );
     final paintOffset = Offset(
@@ -290,6 +324,7 @@ class _TextLayoutCacheKey {
     required this.letterSpacingPx,
     required this.lineHeightMultiplier,
     required this.textAlignment,
+    this.maxWidth,
   });
 
   final String text;
@@ -297,6 +332,7 @@ class _TextLayoutCacheKey {
   final double letterSpacingPx;
   final double lineHeightMultiplier;
   final String textAlignment;
+  final double? maxWidth;
 
   @override
   bool operator ==(Object other) {
@@ -306,7 +342,8 @@ class _TextLayoutCacheKey {
             other.style == style &&
             other.letterSpacingPx == letterSpacingPx &&
             other.lineHeightMultiplier == lineHeightMultiplier &&
-            other.textAlignment == textAlignment;
+            other.textAlignment == textAlignment &&
+            other.maxWidth == maxWidth;
   }
 
   @override
@@ -316,6 +353,7 @@ class _TextLayoutCacheKey {
         letterSpacingPx,
         lineHeightMultiplier,
         textAlignment,
+        maxWidth,
       );
 }
 
@@ -331,6 +369,7 @@ _MeasuredTextLayout _motionTextLayoutForKey(_TextLayoutCacheKey key) {
     letterSpacingPx: key.letterSpacingPx,
     lineHeightMultiplier: key.lineHeightMultiplier,
     textAlignment: key.textAlignment,
+    maxWidth: key.maxWidth,
   );
   _motionTextLayoutCache[key] = layout;
   while (_motionTextLayoutCache.length > _motionTextLayoutCacheCapacity) {
@@ -345,6 +384,7 @@ _MeasuredTextLayout _buildShapedTextLayout({
   required double letterSpacingPx,
   required double lineHeightMultiplier,
   required String textAlignment,
+  double? maxWidth,
 }) {
   final safeText = text.isEmpty ? ' ' : text;
   final shapedStyle = style.copyWith(
@@ -366,8 +406,11 @@ _MeasuredTextLayout _buildShapedTextLayout({
     textWidthBasis: TextWidthBasis.longestLine,
     textScaler: TextScaler.noScaling,
     strutStyle: strutStyle,
-  )..layout();
-  final contentWidth = math.max(1.0, painter.width);
+  );
+  final resolvedMaxWidth =
+      maxWidth == null ? null : math.max(1.0, maxWidth.ceilToDouble());
+  painter.layout(maxWidth: resolvedMaxWidth ?? double.infinity);
+  final contentWidth = resolvedMaxWidth ?? math.max(1.0, painter.width);
   painter.layout(maxWidth: contentWidth);
   return _MeasuredTextLayout(
     contentWidth: math.max(1.0, painter.width.ceilToDouble()),

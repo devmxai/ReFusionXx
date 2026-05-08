@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_models.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_text_models.dart';
 import 'package:refusion_app/features/editor/domain/models/refusion_scene_program_models.dart';
+import 'package:refusion_app/features/editor/domain/services/kie_scene_program_agent_service.dart';
 import 'package:refusion_app/features/editor/domain/services/refusion_scene_program_authoring_service.dart';
 
 void main() {
@@ -342,6 +343,40 @@ void main() {
             issue.message.contains('PromptInputBar'),
       ),
       isNotEmpty,
+    );
+  });
+
+  test(
+      'emits continuity and visual QA proof diagnostics for premium prompt scene',
+      () {
+    final source = File(
+      'assets/scene_programs/premium_app_promo_prompt_bar_scene.json',
+    ).readAsStringSync();
+    final extracted = KieSceneProgramAgentService()
+        .extractSceneProgramPayloadFromContent(content: source);
+
+    final result = service.importSceneProgram(
+      ReFusionSceneProgramAuthoringRequest(
+        source: extracted.sceneProgramJson,
+        fileName: 'premium_app_promo_prompt_bar_scene.json',
+        projectId: 'premium-app-promo-test',
+        sceneId: 'premium-app-promo-scene',
+      ),
+    );
+
+    expect(result.isValid, isTrue,
+        reason: result.issues.map((issue) => issue.message).join('\n'));
+    expect(
+      result.issues.any(
+        (issue) => issue.message.contains('TF_SCENE_MOTION_CONTINUITY_PROOF'),
+      ),
+      isTrue,
+    );
+    expect(
+      result.issues.any(
+        (issue) => issue.message.contains('TF_SCENE_VISUAL_FRAME_QA_PROOF'),
+      ),
+      isTrue,
     );
   });
 }
