@@ -83,6 +83,14 @@ ReFusion remains a native motion graphics application. VERSION 2 must not turn t
     text only.
   - Semantic diagnostics now emit `TF_SCENE_TEXT_GEOMETRY_PROOF`.
 
+- `NSI-v2-04` Constraint Layout Solver is completed as MVP.
+  - Semantic validation now runs deterministic constraint layout solving with
+    canvas profile awareness (`story_9_16`, `landscape_16_9`, `square_1_1`,
+    `portrait_4_5`).
+  - Overlap and safe-area violations now fail closed before lowering.
+  - Semantic diagnostics now emit `TF_SCENE_LAYOUT_SOLVER_PROOF` with
+    deterministic layout hash proof.
+
 ### 2.3 SpeedyGraph Foundation Status
 
 SpeedyGraph foundation is already implemented as a separate system and must not be rebuilt inside NSI:

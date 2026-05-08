@@ -4,6 +4,7 @@ import '../models/refusion_scene_program_models.dart';
 import '../models/scene_semantic_blueprint_models.dart';
 import 'motion_interpolation_truth_compiler.dart';
 import 'scene_semantic_component_registry.dart';
+import 'scene_semantic_constraint_layout_solver.dart';
 import 'scene_semantic_token_registry.dart';
 
 const String kSceneBlueprintCompilerProofTag =
@@ -49,15 +50,19 @@ class SceneSemanticBlueprintService {
     SceneSemanticTokenRegistry? tokenRegistry,
     MotionInterpolationTruthCompiler? truthCompiler,
     SceneSemanticComponentRegistry? componentRegistry,
+    SceneSemanticConstraintLayoutSolver? layoutSolver,
   })  : _tokenRegistry = tokenRegistry ?? SceneSemanticTokenRegistry(),
         _truthCompiler =
             truthCompiler ?? const MotionInterpolationTruthCompiler(),
         _componentRegistry =
-            componentRegistry ?? SceneSemanticComponentRegistry();
+            componentRegistry ?? SceneSemanticComponentRegistry(),
+        _layoutSolver =
+            layoutSolver ?? const SceneSemanticConstraintLayoutSolver();
 
   final SceneSemanticTokenRegistry _tokenRegistry;
   final MotionInterpolationTruthCompiler _truthCompiler;
   final SceneSemanticComponentRegistry _componentRegistry;
+  final SceneSemanticConstraintLayoutSolver _layoutSolver;
   static const Set<String> _allowedOverflowPolicies = <String>{
     'error',
     'ellipsis',
@@ -121,6 +126,12 @@ class SceneSemanticBlueprintService {
     }
     _validateComponentContracts(components, issues);
     _validateTextGeometryContracts(components, issues);
+    final metadata = _readMap(payload['metadata']) ?? const <String, Object?>{};
+    _validateConstraintLayoutContracts(
+      components: components,
+      metadata: metadata,
+      issues: issues,
+    );
 
     final beats = _readBeats(payload['beats'], issues);
     final blueprint = SemanticSceneBlueprint(
@@ -130,7 +141,7 @@ class SceneSemanticBlueprintService {
       frameRate: frameRate,
       components: components,
       beats: beats,
-      metadata: _readMap(payload['metadata']) ?? const <String, Object?>{},
+      metadata: metadata,
     );
     return SceneSemanticBlueprintValidationResult(
       blueprint: blueprint,
@@ -597,6 +608,51 @@ class SceneSemanticBlueprintService {
           index: index,
         ),
       );
+    }
+  }
+
+  void _validateConstraintLayoutContracts({
+    required List<SemanticSceneBlueprintComponent> components,
+    required Map<String, Object?> metadata,
+    required List<ReFusionSceneProgramIssue> issues,
+  }) {
+    final profile = _readCanvasProfile(metadata['canvasProfile']);
+    final result = _layoutSolver.solve(
+      components: components,
+      tokenRegistry: _tokenRegistry,
+      profile: profile,
+    );
+    issues.addAll(result.issues);
+    issues.add(
+      ReFusionSceneProgramIssue(
+        severity: ReFusionSceneProgramIssueSeverity.info,
+        message: '$kSceneLayoutSolverProofTag '
+            'canvasProfile=${profile.name} '
+            'deterministicLayoutHash=${result.deterministicLayoutHash}',
+        path: 'metadata.canvasProfile',
+      ),
+    );
+  }
+
+  SceneSemanticCanvasProfile _readCanvasProfile(Object? raw) {
+    final value = _readString(raw) ?? 'story_9_16';
+    final normalized = _normalizeToken(value);
+    switch (normalized) {
+      case 'landscape169':
+      case 'landscape':
+      case 'youtube':
+      case 'cinema':
+        return SceneSemanticCanvasProfile.landscape169;
+      case 'square11':
+      case 'square':
+        return SceneSemanticCanvasProfile.square11;
+      case 'portrait45':
+      case 'portrait':
+      case 'social':
+        return SceneSemanticCanvasProfile.portrait45;
+      case 'story916':
+      default:
+        return SceneSemanticCanvasProfile.story916;
     }
   }
 

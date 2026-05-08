@@ -399,4 +399,94 @@ void main() {
       isTrue,
     );
   });
+
+  test('fails closed when constraint layout solver detects overlap', () {
+    final service = SceneSemanticBlueprintService();
+    final validation = service.validate(<String, Object?>{
+      'schemaVersion': 'refusion.semantic-blueprint/v1',
+      'name': 'Overlap Layout',
+      'durationMs': 2200,
+      'frameRate': 30,
+      'components': <Object?>[
+        <String, Object?>{
+          'id': 'card-a',
+          'type': 'FeatureCard',
+          'properties': <String, Object?>{
+            'width': 360,
+            'height': 180,
+            'anchor': <String, Object?>{'x': 0, 'y': 0},
+          },
+          'slots': <String, Object?>{
+            'title': <String, Object?>{
+              'text': 'A',
+              'textFrame': <String, Object?>{
+                'width': 260,
+                'height': 48,
+                'maxLines': 1,
+                'overflow': 'ellipsis',
+                'fitPolicy': 'none',
+              },
+            },
+            'body': <String, Object?>{
+              'text': 'Body A',
+              'textFrame': <String, Object?>{
+                'width': 320,
+                'height': 120,
+                'maxLines': 3,
+                'overflow': 'ellipsis',
+                'fitPolicy': 'wrapToLines',
+              },
+            },
+          },
+        },
+        <String, Object?>{
+          'id': 'card-b',
+          'type': 'FeatureCard',
+          'properties': <String, Object?>{
+            'width': 360,
+            'height': 180,
+            'anchor': <String, Object?>{'x': 0, 'y': 0},
+          },
+          'slots': <String, Object?>{
+            'title': <String, Object?>{
+              'text': 'B',
+              'textFrame': <String, Object?>{
+                'width': 260,
+                'height': 48,
+                'maxLines': 1,
+                'overflow': 'ellipsis',
+                'fitPolicy': 'none',
+              },
+            },
+            'body': <String, Object?>{
+              'text': 'Body B',
+              'textFrame': <String, Object?>{
+                'width': 320,
+                'height': 120,
+                'maxLines': 3,
+                'overflow': 'ellipsis',
+                'fitPolicy': 'wrapToLines',
+              },
+            },
+          },
+        },
+      ],
+    });
+
+    expect(validation.isValid, isFalse);
+    expect(
+      validation.issues.any(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+            issue.message.contains('overlap detected'),
+      ),
+      isTrue,
+    );
+    expect(
+      validation.issues.any(
+        (issue) => issue.message.contains('TF_SCENE_LAYOUT_SOLVER_PROOF'),
+      ),
+      isTrue,
+    );
+  });
 }
