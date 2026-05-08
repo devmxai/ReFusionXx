@@ -89,8 +89,10 @@ class ScenePreRenderSanityGate {
     final hctValid = !strictErrors.any(
       (issue) => issue.message.contains('Runtime probe tree invalid'),
     );
-    final renderTruthAlignmentValidator =
-        _renderTruthAlignmentValidator ?? SceneRenderTruthAlignmentValidator();
+    final renderTruthAlignmentValidator = _renderTruthAlignmentValidator ??
+        SceneRenderTruthAlignmentValidator(
+          mismatchSeverity: ReFusionSceneProgramIssueSeverity.error,
+        );
     final renderTruthAlignment = authoringResult.project == null
         ? SceneRenderTruthAlignmentResult(
             issues: const <ReFusionSceneProgramIssue>[],
@@ -141,6 +143,10 @@ class ScenePreRenderSanityGate {
       final message = issue.message.toLowerCase();
       if (message.contains('runtime probe tree invalid')) {
         return 'hct_invalid';
+      }
+      if (message.contains(SceneRenderTruthAlignmentValidator.proofTag) &&
+          message.contains('matched=false')) {
+        return 'render_truth_alignment_mismatch';
       }
       if (message.contains('overflow')) {
         return 'text_overflow';

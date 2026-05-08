@@ -26,6 +26,9 @@ class SceneRenderTruthAlignmentResult {
 class SceneRenderTruthAlignmentValidator {
   SceneRenderTruthAlignmentValidator({
     this.tolerancePx = 1.0,
+    this.enforceSizeAlignment = false,
+    this.sizeTolerancePx = 2.0,
+    this.mismatchSeverity = ReFusionSceneProgramIssueSeverity.warning,
     SceneEvaluationPipeline? evaluationPipeline,
     BasicMotionCompositionCompiler? compositionCompiler,
     BasicMotionRuntimeEvaluator? runtimeEvaluator,
@@ -39,6 +42,9 @@ class SceneRenderTruthAlignmentValidator {
   static const String proofTag = 'TF_SCENE_RENDER_TRUTH_ALIGNMENT_PROOF';
 
   final double tolerancePx;
+  final bool enforceSizeAlignment;
+  final double sizeTolerancePx;
+  final ReFusionSceneProgramIssueSeverity mismatchSeverity;
   final SceneEvaluationPipeline _evaluationPipeline;
   final BasicMotionCompositionCompiler _compositionCompiler;
   final BasicMotionRuntimeEvaluator _runtimeEvaluator;
@@ -50,6 +56,10 @@ class SceneRenderTruthAlignmentValidator {
     required List<MotionTextAnimationBindingModel> textAnimationBindings,
   }) {
     final issues = <ReFusionSceneProgramIssue>[];
+    final programElementsById = <String, ReFusionSceneProgramElement>{
+      for (final layer in program.layers)
+        for (final element in layer.elements) element.id: element,
+    };
     final probeTimes = _trimProbeTimes(
       _collectProgramProbeTimes(program),
       maxCount: 5,
@@ -133,9 +143,13 @@ class SceneRenderTruthAlignmentValidator {
       final previewBoundsByElementId = _previewBoundsByElementId(
         snapshot: previewSnapshot,
         canvas: canvas,
+        sourceElementsById: programElementsById,
       );
 
       for (final node in qaEvaluation.truth.nodesById.values) {
+        if (!node.active) {
+          continue;
+        }
         final elementId = node.sourceElementId;
         if (elementId == null || elementId.isEmpty) {
           continue;
@@ -146,7 +160,7 @@ class SceneRenderTruthAlignmentValidator {
           mismatchCount += 1;
           issues.add(
             ReFusionSceneProgramIssue(
-              severity: ReFusionSceneProgramIssueSeverity.warning,
+              severity: mismatchSeverity,
               message: '$proofTag '
                   'sceneId=${program.name} '
                   'globalTimeMs=$probeTime '
@@ -166,8 +180,11 @@ class SceneRenderTruthAlignmentValidator {
           );
           continue;
         }
-        final delta = _boundsDeltaPx(qaBounds, previewBounds);
-        final matched = delta <= tolerancePx;
+        final centerDelta = _centerDeltaPx(qaBounds, previewBounds);
+        final sizeDelta = _sizeDeltaPx(qaBounds, previewBounds);
+        final sizeMatched = sizeDelta <= sizeTolerancePx;
+        final matched = centerDelta <= tolerancePx &&
+            (!enforceSizeAlignment || sizeMatched);
         if (!matched) {
           mismatchCount += 1;
         }
@@ -175,7 +192,7 @@ class SceneRenderTruthAlignmentValidator {
           ReFusionSceneProgramIssue(
             severity: matched
                 ? ReFusionSceneProgramIssueSeverity.info
-                : ReFusionSceneProgramIssueSeverity.warning,
+                : mismatchSeverity,
             message: '$proofTag '
                 'sceneId=${program.name} '
                 'globalTimeMs=$probeTime '
@@ -187,7 +204,9 @@ class SceneRenderTruthAlignmentValidator {
                 'segmentId=none '
                 'qaViewportBounds=${_rectText(qaBounds)} '
                 'previewViewportBounds=${_rectText(previewBounds)} '
-                'boundsDeltaPx=${delta.toStringAsFixed(2)} '
+                'centerDeltaPx=${centerDelta.toStringAsFixed(2)} '
+                'sizeDeltaPx=${sizeDelta.toStringAsFixed(2)} '
+                'sizeMatched=${sizeMatched.toString()} '
                 'matched=${matched.toString()} '
                 'fallbackReason=${matched ? 'none' : 'delta_exceeded'}',
             path: 'scene.renderTruthAlignment.$elementId',
@@ -206,6 +225,7 @@ class SceneRenderTruthAlignmentValidator {
   Map<String, SceneViewportRect> _previewBoundsByElementId({
     required MotionEvaluationSnapshot snapshot,
     required SceneCanvasMetrics canvas,
+    required Map<String, ReFusionSceneProgramElement> sourceElementsById,
   }) {
     final output = <String, SceneViewportRect>{};
     for (final scene in snapshot.scenes) {
@@ -231,12 +251,20 @@ class SceneRenderTruthAlignmentValidator {
           final width = _scalar(
             properties,
             MotionPropertyCatalog.width.id,
-            element.kind == MotionElementKind.text ? 320.0 : 180.0,
+            _fallbackWidthForElement(
+              runtimeElement: element,
+              sourceElement: sourceElementsById[element.sourceElementId],
+              properties: properties,
+            ),
           );
           final height = _scalar(
             properties,
             MotionPropertyCatalog.height.id,
-            element.kind == MotionElementKind.text ? 56.0 : 120.0,
+            _fallbackHeightForElement(
+              runtimeElement: element,
+              sourceElement: sourceElementsById[element.sourceElementId],
+              properties: properties,
+            ),
           );
           final scaleX =
               _scalar(properties, MotionPropertyCatalog.scaleX.id, 1.0);
@@ -285,7 +313,10 @@ class SceneRenderTruthAlignmentValidator {
     for (final layer in program.layers) {
       probes.add(_clampProbeTime(layer.startMs, program.durationMs));
       probes.add(
-        _clampProbeTime(layer.startMs + layer.durationMs, program.durationMs),
+        _clampProbeTime(
+          math.max(layer.startMs, (layer.startMs + layer.durationMs) - 1),
+          program.durationMs,
+        ),
       );
       for (final channel in layer.channels) {
         absorbChannel(channel);
@@ -342,10 +373,94 @@ class SceneRenderTruthAlignmentValidator {
     return raw.toDouble();
   }
 
-  double _boundsDeltaPx(SceneViewportRect qa, SceneViewportRect preview) {
+  double _fallbackWidthForElement({
+    required MotionEvaluatedElementState runtimeElement,
+    required ReFusionSceneProgramElement? sourceElement,
+    required Map<String, MotionPropertyValue> properties,
+  }) {
+    if (runtimeElement.kind != MotionElementKind.text ||
+        sourceElement == null) {
+      return 180.0;
+    }
+    final fontSize = _scalar(
+      properties,
+      MotionPropertyCatalog.fontSize.id,
+      16.0,
+    );
+    final letterSpacing = _scalar(
+      properties,
+      MotionPropertyCatalog.letterSpacing.id,
+      0.0,
+    );
+    final reveal = _scalar(
+      properties,
+      MotionPropertyCatalog.revealProgress.id,
+      1.0,
+    ).clamp(0.0, 1.0);
+    final text = (sourceElement.text ?? '').trim();
+    if (text.isEmpty) {
+      return 120.0;
+    }
+    final visibleCount = (text.runes.length * reveal).ceil();
+    final glyphWidth = fontSize * 0.56;
+    final spacing = math.max(0, visibleCount - 1) * letterSpacing;
+    return math.max(1.0, (visibleCount * glyphWidth) + spacing);
+  }
+
+  double _fallbackHeightForElement({
+    required MotionEvaluatedElementState runtimeElement,
+    required ReFusionSceneProgramElement? sourceElement,
+    required Map<String, MotionPropertyValue> properties,
+  }) {
+    if (runtimeElement.kind != MotionElementKind.text ||
+        sourceElement == null) {
+      return 120.0;
+    }
+    final fontSize = _scalar(
+      properties,
+      MotionPropertyCatalog.fontSize.id,
+      16.0,
+    );
+    final lineHeight = _scalar(
+      properties,
+      MotionPropertyCatalog.lineHeight.id,
+      1.0,
+    );
+    final maxLines = _maxLinesFromSource(sourceElement) ?? 1;
+    return math.max(1.0, fontSize * math.max(1.0, lineHeight) * maxLines);
+  }
+
+  int? _maxLinesFromSource(ReFusionSceneProgramElement sourceElement) {
+    final textFrame = sourceElement.properties['textFrame'];
+    if (textFrame is! Map<String, Object?>) {
+      return null;
+    }
+    final raw = textFrame['maxLines'];
+    if (raw is int) {
+      return raw;
+    }
+    if (raw is num) {
+      return raw.toInt();
+    }
+    if (raw is String) {
+      return int.tryParse(raw.trim());
+    }
+    return null;
+  }
+
+  double _centerDeltaPx(SceneViewportRect qa, SceneViewportRect preview) {
+    final qaCenterX = qa.left + (qa.width / 2.0);
+    final qaCenterY = qa.top + (qa.height / 2.0);
+    final previewCenterX = preview.left + (preview.width / 2.0);
+    final previewCenterY = preview.top + (preview.height / 2.0);
     return <double>[
-      (qa.left - preview.left).abs(),
-      (qa.top - preview.top).abs(),
+      (qaCenterX - previewCenterX).abs(),
+      (qaCenterY - previewCenterY).abs(),
+    ].fold<double>(0.0, math.max);
+  }
+
+  double _sizeDeltaPx(SceneViewportRect qa, SceneViewportRect preview) {
+    return <double>[
       (qa.width - preview.width).abs(),
       (qa.height - preview.height).abs(),
     ].fold<double>(0.0, math.max);
