@@ -58,7 +58,8 @@ void main() {
     };
   }
 
-  test('fails closed when raw numbers are present and override is disabled', () {
+  test('fails closed when raw numbers are present and override is disabled',
+      () {
     final result = compiler.compile(
       payload: buildPayload(),
       allowRawValueOverride: false,
@@ -83,7 +84,10 @@ void main() {
     );
     expect(result.isValid, isTrue);
     expect(result.blueprintHash, isNotNull);
+    expect(result.hctHash, isNotNull);
     expect(result.sceneProgramHash, isNotNull);
+    expect(result.runtimeTree, isNotNull);
+    expect(result.sourceMaps, isNotNull);
     expect(
       result.issues.any(
         (issue) =>
@@ -91,6 +95,14 @@ void main() {
             issue.message.contains('deterministic=true') &&
             issue.message.contains('tokenResolutionHash=') &&
             issue.message.contains('passed=true'),
+      ),
+      isTrue,
+    );
+    expect(
+      result.issues.any(
+        (issue) =>
+            issue.message.contains(kSceneHctBlueprintCompilerProofTag) &&
+            issue.message.contains('runtimeNodes='),
       ),
       isTrue,
     );
@@ -105,7 +117,9 @@ void main() {
         determinismIterations: 3,
       );
       expect(result.isValid, isTrue, reason: 'compile index=$index');
-      expect(result.sceneProgramHash, isNotNull, reason: 'compile index=$index');
+      expect(result.sceneProgramHash, isNotNull,
+          reason: 'compile index=$index');
+      expect(result.hctHash, isNotNull, reason: 'compile index=$index');
       baselineHash ??= result.sceneProgramHash;
       expect(
         result.sceneProgramHash,
@@ -113,5 +127,53 @@ void main() {
         reason: 'sceneProgram hash changed at compile index=$index',
       );
     }
+  });
+
+  test('compiles prompt input bar to runtime tree with slot and leaf nodes',
+      () {
+    final result = compiler.compile(
+      payload: buildPayload(),
+      allowRawValueOverride: true,
+      determinismIterations: 2,
+    );
+
+    expect(result.isValid, isTrue);
+    final tree = result.runtimeTree;
+    expect(tree, isNotNull);
+    final nodeIds = tree!.nodeById.keys.toSet();
+    expect(nodeIds.contains('__scene_root__'), isTrue);
+    expect(nodeIds.contains('prompt'), isTrue);
+    expect(nodeIds.contains('prompt::slot::primaryText'), isTrue);
+    expect(nodeIds.contains('prompt::slot::trailingAccessory'), isTrue);
+    expect(nodeIds.contains('prompt::slot::primaryText::leaf'), isTrue);
+    expect(nodeIds.contains('prompt::slot::trailingAccessory::leaf'), isTrue);
+    expect(tree.parentOf['prompt'], startsWith('__beat__'));
+    expect(tree.parentOf['prompt::slot::primaryText'], 'prompt');
+    expect(
+      tree.parentOf['prompt::slot::primaryText::leaf'],
+      'prompt::slot::primaryText',
+    );
+  });
+
+  test('builds source maps from blueprint ids to runtime nodes and layers', () {
+    final result = compiler.compile(
+      payload: buildPayload(),
+      allowRawValueOverride: true,
+      determinismIterations: 2,
+    );
+
+    expect(result.isValid, isTrue);
+    final maps = result.sourceMaps!;
+    final runtimeNodes = maps.runtimeNodeIdsByComponentId['prompt'];
+    expect(runtimeNodes, isNotNull);
+    expect(runtimeNodes!.contains('prompt'), isTrue);
+    expect(runtimeNodes.contains('prompt::slot::primaryText'), isTrue);
+    expect(
+        maps.runtimeNodeToComponentId['prompt::slot::primaryText'], 'prompt');
+    expect(maps.runtimeNodeToLayerId['prompt'], 'prompt-layer');
+    expect(
+      maps.runtimeNodeToLayerId['prompt::slot::primaryText::leaf'],
+      'prompt-layer',
+    );
   });
 }
