@@ -97,6 +97,15 @@ ReFusion remains a native motion graphics application. VERSION 2 must not turn t
   - Overlapping beats without explicit policy now fail closed.
   - Semantic diagnostics now emit `TF_SCENE_BEAT_GRAMMAR_PROOF`.
 
+- `NSI-v2-06` Deterministic Blueprint Compiler is completed as MVP.
+  - Added `SceneSemanticBlueprintCompiler` to compile semantic blueprints
+    through validation + lowering with deterministic hash checks.
+  - Enforced raw-value rejection by default for agent-facing blueprints, with
+    explicit `rawValueOverride` escape hatch.
+  - Added determinism proof diagnostic `TF_SCENE_DETERMINISM_PROOF` including
+    `blueprintHash`, `sceneProgramHash`, `tokenResolutionHash`, and pass/fail
+    status.
+
 ### 2.3 SpeedyGraph Foundation Status
 
 SpeedyGraph foundation is already implemented as a separate system and must not be rebuilt inside NSI:
