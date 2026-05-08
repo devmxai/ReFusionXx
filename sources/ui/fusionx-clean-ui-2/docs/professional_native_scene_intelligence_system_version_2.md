@@ -115,6 +115,13 @@ ReFusion remains a native motion graphics application. VERSION 2 must not turn t
   - Added SaaS regression tests proving bad bounded-card text fails and repaired
     bounded-card text passes.
 
+- `NSI-v2-08` Structured Repair Loop is completed as MVP.
+  - Added `SceneSemanticRepairLoopService` to map scene issues into structured
+    machine-readable repair payloads with stable error codes.
+  - Added loop orchestration with hard max attempts (default 3) and convergence
+    reporting.
+  - Added repair-loop diagnostic `TF_SCENE_REPAIR_LOOP_PROOF`.
+
 ### 2.3 SpeedyGraph Foundation Status
 
 SpeedyGraph foundation is already implemented as a separate system and must not be rebuilt inside NSI:
