@@ -163,6 +163,36 @@ void main() {
     );
   });
 
+  test('refusion prompt burst preset imports through scene authoring pipeline',
+      () {
+    final source = File(
+      'assets/scene_programs/revival_prompt_burst_feature_cards_scene.json',
+    ).readAsStringSync();
+
+    final extracted = KieSceneProgramAgentService()
+        .extractSceneProgramPayloadFromContent(content: source);
+    final result =
+        const ReFusionSceneProgramAuthoringService().importSceneProgram(
+      ReFusionSceneProgramAuthoringRequest(
+        source: extracted.sceneProgramJson,
+        fileName: 'revival_prompt_burst_feature_cards_scene.json',
+        projectId: 'refusion-prompt-burst-test',
+        sceneId: 'refusion-prompt-burst-scene',
+      ),
+    );
+
+    expect(
+      result.isValid,
+      isTrue,
+      reason: result.issues
+          .map((issue) => '${issue.severity} ${issue.path}: ${issue.message}')
+          .join('\n'),
+    );
+    expect(result.program?.name, 'ReFusion Prompt Burst Feature Cards');
+    expect(result.program?.durationMs, 12800);
+    expect(result.channels.length, greaterThan(16));
+  });
+
   test('revival native intelligence result card text waits for card entrance',
       () {
     final source = File(
@@ -248,7 +278,7 @@ void main() {
     );
   });
 
-  testWidgets('present sheet applies revival native intelligence wrapper asset',
+  testWidgets('present sheet applies refusion prompt burst wrapper asset',
       (tester) async {
     SceneProgramImportSheetResult? appliedResult;
 
@@ -279,18 +309,18 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
-      find.text('Revival Native Intelligence'),
+      find.text('ReFusion Prompt Burst'),
       180,
       scrollable: find.byType(Scrollable),
     );
-    expect(find.text('Revival Native Intelligence'), findsOneWidget);
+    expect(find.text('ReFusion Prompt Burst'), findsOneWidget);
     expect(find.text('Premium App Promo'), findsNothing);
 
-    await tester.tap(find.text('Revival Native Intelligence'));
+    await tester.tap(find.text('ReFusion Prompt Burst'));
     await tester.pumpAndSettle();
 
     expect(appliedResult, isNotNull);
-    expect(appliedResult!.name, 'Revival Native Intelligence Showcase');
-    expect(appliedResult!.authoringResult.program?.durationMs, 14000);
+    expect(appliedResult!.name, 'ReFusion Prompt Burst Feature Cards');
+    expect(appliedResult!.authoringResult.program?.durationMs, 12800);
   });
 }

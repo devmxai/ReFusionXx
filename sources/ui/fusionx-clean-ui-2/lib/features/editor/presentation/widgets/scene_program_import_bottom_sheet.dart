@@ -99,13 +99,13 @@ class SceneProgramPresentBottomSheet extends StatelessWidget {
   static const List<_SceneProgramPresentPreset> _presets =
       <_SceneProgramPresentPreset>[
     _SceneProgramPresentPreset(
-      title: 'Revival Native Intelligence',
+      title: 'ReFusion Prompt Burst',
       subtitle:
-          'Native showcase: app icon, prompt input, generated cards, and final Revival hub.',
-      assetPath:
-          _SceneProgramImportBottomSheetState._saasLaunchSceneProgramAssetPath,
+          'White-canvas icon-to-prompt morph, typed request, burst transition, then four premium feature cards.',
+      assetPath: _SceneProgramImportBottomSheetState
+          ._revivalPromptBurstFeatureCardsAssetPath,
       icon: Icons.workspace_premium_rounded,
-      status: 'V2 Demo',
+      status: 'V3 Demo',
     ),
   ];
 
@@ -417,8 +417,8 @@ class _SceneProgramImportBottomSheetState
       'TF_SCENE_BLUEPRINT_ENTRY_PROOF';
   static const String _premiumAppPromoSceneProgramAssetPath =
       'assets/scene_programs/premium_app_promo_prompt_bar_scene.json';
-  static const String _saasLaunchSceneProgramAssetPath =
-      'assets/scene_programs/saas_launch_match_cut_scene.json';
+  static const String _revivalPromptBurstFeatureCardsAssetPath =
+      'assets/scene_programs/revival_prompt_burst_feature_cards_scene.json';
 
   final ReFusionSceneProgramAuthoringService _authoringService =
       const ReFusionSceneProgramAuthoringService();
@@ -3075,9 +3075,9 @@ class _SceneProgramImportBottomSheetState
                       children: [
                         _SceneProgramActionButton(
                           icon: Icons.workspace_premium_rounded,
-                          label: 'SaaS Launch Match Cut',
+                          label: 'ReFusion Prompt Burst',
                           onTap: () => _loadAssetPreset(
-                            _saasLaunchSceneProgramAssetPath,
+                            _revivalPromptBurstFeatureCardsAssetPath,
                           ),
                         ),
                       ],
