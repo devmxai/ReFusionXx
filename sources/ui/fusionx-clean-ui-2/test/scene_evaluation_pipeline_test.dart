@@ -49,6 +49,56 @@ void main() {
     );
   }
 
+  ReFusionSceneProgram _crossLayerParentProgram() {
+    return ReFusionSceneProgram(
+      schemaVersion: 'refusion.scene-program/v1',
+      name: 'Cross Layer Parent Program',
+      durationMs: 1000,
+      frameRate: 30,
+      layers: <ReFusionSceneProgramLayer>[
+        ReFusionSceneProgramLayer(
+          id: 'shell-layer',
+          kind: 'shape',
+          startMs: 0,
+          durationMs: 1000,
+          elements: <ReFusionSceneProgramElement>[
+            ReFusionSceneProgramElement(
+              id: 'shell',
+              kind: 'shape',
+              properties: const <String, Object?>{
+                'position': <String, Object?>{'x': 100.0, 'y': 40.0},
+                'width': 300.0,
+                'height': 120.0,
+                'opacity': 0.8,
+              },
+            ),
+          ],
+        ),
+        ReFusionSceneProgramLayer(
+          id: 'text-layer',
+          kind: 'text',
+          startMs: 0,
+          durationMs: 1000,
+          elements: <ReFusionSceneProgramElement>[
+            ReFusionSceneProgramElement(
+              id: 'shell-text',
+              kind: 'text',
+              text: 'hello',
+              properties: const <String, Object?>{
+                'parentId': 'shell',
+                'position': <String, Object?>{'x': 20.0, 'y': 10.0},
+                'width': 100.0,
+                'height': 24.0,
+                'opacity': 1.0,
+                'fontSize': 22.0,
+              },
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   test('evaluates parent-child world bounds in one shared frame truth', () {
     final result = pipeline.evaluate(
       SceneEvaluationPipelineRequest(
@@ -67,6 +117,25 @@ void main() {
     expect(child.worldBoundsCenter.centerY, closeTo(60, 1e-6));
     expect(child.viewportBounds.left, closeTo(610, 1e-6));
     expect(child.viewportBounds.top, closeTo(1010, 1e-6));
+  });
+
+  test('resolves cross-layer parentId as runtime parent and inherits transform',
+      () {
+    final result = pipeline.evaluate(
+      SceneEvaluationPipelineRequest(
+        program: _crossLayerParentProgram(),
+        globalTimeMs: 0,
+        canvas: canvas,
+      ),
+    );
+
+    expect(result.isValid, isTrue);
+    final child =
+        result.truth.nodesById['__layer__text-layer__element__shell-text']!;
+    expect(child.parentNodeId, '__layer__shell-layer__element__shell');
+    expect(child.worldBoundsCenter.centerX, closeTo(120, 1e-6));
+    expect(child.worldBoundsCenter.centerY, closeTo(50, 1e-6));
+    expect(child.effectiveOpacity, closeTo(0.8, 1e-6));
   });
 
   test('center-origin sample position maps to expected viewport bounds', () {

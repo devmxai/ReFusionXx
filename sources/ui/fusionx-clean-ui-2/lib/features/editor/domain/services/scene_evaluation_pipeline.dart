@@ -5,6 +5,7 @@ import '../models/scene_runtime_node.dart';
 import 'evaluated_frame_truth.dart';
 import 'scene_coordinate_system.dart';
 import 'scene_evaluation_diagnostics.dart';
+import 'scene_global_parent_graph.dart';
 import 'scene_runtime_component_tree.dart';
 import 'scene_runtime_transform_composer.dart';
 
@@ -39,10 +40,15 @@ class SceneEvaluationPipelineResult {
 class SceneEvaluationPipeline {
   const SceneEvaluationPipeline({
     SceneRuntimeTransformComposer? transformComposer,
-  }) : _transformComposer =
-            transformComposer ?? const SceneRuntimeTransformComposer();
+    SceneGlobalParentGraph? globalParentGraph,
+  })  : _transformComposer =
+            transformComposer ?? const SceneRuntimeTransformComposer(),
+        _globalParentGraph =
+            globalParentGraph ?? const SceneGlobalParentGraph();
 
   final SceneRuntimeTransformComposer _transformComposer;
+  final SceneGlobalParentGraph _globalParentGraph;
+  static const String _parentGraphProofTag = 'TF_SCENE_PARENT_GRAPH_PROOF';
 
   SceneEvaluationPipelineResult evaluate(
       SceneEvaluationPipelineRequest request) {
@@ -68,6 +74,36 @@ class SceneEvaluationPipeline {
     final runtimeNodeById = <String, SceneRuntimeNode>{};
     final sourceMaps = <String, Object?>{};
     final stateByNodeId = <String, _ElementEvaluationState>{};
+    final parentGraph = _globalParentGraph.build(request.program);
+    for (final graphIssue in parentGraph.issues) {
+      issues.add(
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.warning,
+          message: 'Scene global parent graph: ${graphIssue.message}',
+          path: graphIssue.path,
+        ),
+      );
+    }
+
+    for (var layerIndex = 0;
+        layerIndex < request.program.layers.length;
+        layerIndex += 1) {
+      final layer = request.program.layers[layerIndex];
+      for (var elementIndex = 0;
+          elementIndex < layer.elements.length;
+          elementIndex += 1) {
+        final element = layer.elements[elementIndex];
+        final runtimeNodeId = _runtimeNodeId(
+          layerId: layer.id,
+          elementId: element.id,
+        );
+        stateByNodeId[runtimeNodeId] = _evaluateElementState(
+          layer: layer,
+          element: element,
+          timelineTimeMs: safeTime,
+        );
+      }
+    }
 
     for (var layerIndex = 0;
         layerIndex < request.program.layers.length;
@@ -83,15 +119,16 @@ class SceneEvaluationPipeline {
           layerId: layer.id,
           elementId: element.id,
         );
-        final state = _evaluateElementState(
-          layer: layer,
-          element: element,
-          timelineTimeMs: safeTime,
-        );
-        final parentNodeId = _resolveRuntimeParentId(
-          layer: layer,
-          element: element,
-          runtimeNodeById: runtimeNodeById,
+        final parentNodeId = parentGraph.parentByRuntimeNodeId[runtimeNodeId] ??
+            SceneGlobalParentGraph.sceneRootNodeId;
+        final baseState = stateByNodeId[runtimeNodeId]!;
+        final parentState =
+            parentNodeId == _sceneRootId ? null : stateByNodeId[parentNodeId];
+        final normalizedState = _normalizeLegacyAbsoluteChildState(
+          childState: baseState,
+          parentState: parentState,
+          crossLayerParent: parentNodeId != _sceneRootId &&
+              !parentNodeId.startsWith('__layer__${layer.id}__element__'),
         );
 
         final runtimeNode = SceneRuntimeNode(
@@ -101,17 +138,17 @@ class SceneEvaluationPipeline {
           zOrder: (layerIndex * 1000) + elementIndex,
           sourceLayerId: layer.id,
           metadata: <String, Object?>{
-            'x': state.x,
-            'y': state.y,
-            'scaleX': state.scaleX,
-            'scaleY': state.scaleY,
-            'rotationDeg': state.rotationDeg,
-            'opacity': state.opacity,
-            'width': state.width,
-            'height': state.height,
+            'x': normalizedState.x,
+            'y': normalizedState.y,
+            'scaleX': normalizedState.scaleX,
+            'scaleY': normalizedState.scaleY,
+            'rotationDeg': normalizedState.rotationDeg,
+            'opacity': normalizedState.opacity,
+            'width': normalizedState.width,
+            'height': normalizedState.height,
             // Center-origin truth: x/y represent element center.
-            'localLeft': -(state.width / 2.0),
-            'localTop': -(state.height / 2.0),
+            'localLeft': -(normalizedState.width / 2.0),
+            'localTop': -(normalizedState.height / 2.0),
             'startMs': layerStart,
             'endMs': layerEnd,
           },
@@ -123,7 +160,6 @@ class SceneEvaluationPipeline {
           'elementId': element.id,
           'parentNodeId': parentNodeId,
         };
-        stateByNodeId[runtimeNodeId] = state;
       }
     }
 
@@ -232,6 +268,21 @@ class SceneEvaluationPipeline {
       sourceMaps: sourceMaps,
     );
     final diagnostics = SceneEvaluationDiagnostics(events: const []).append(
+      tag: _parentGraphProofTag,
+      fields: <String, Object?>{
+        'sceneId': request.program.name,
+        'globalTimeMs': safeTime,
+        'issueCount': parentGraph.issues.length,
+        'missingParentCount': parentGraph.issues
+            .where((issue) => issue.code == 'missing_parent')
+            .length,
+        'ambiguousParentCount': parentGraph.issues
+            .where((issue) => issue.code == 'ambiguous_parent')
+            .length,
+        'fallbackReason':
+            parentGraph.issues.isEmpty ? 'none' : parentGraph.issues.first.code,
+      },
+    ).append(
       tag: SceneEvaluationDiagnostics.frameTruthProofTag,
       fields: <String, Object?>{
         'sceneId': request.program.name,
@@ -258,25 +309,6 @@ class SceneEvaluationPipeline {
     required String elementId,
   }) {
     return '__layer__${layerId}__element__${elementId}';
-  }
-
-  String _resolveRuntimeParentId({
-    required ReFusionSceneProgramLayer layer,
-    required ReFusionSceneProgramElement element,
-    required Map<String, SceneRuntimeNode> runtimeNodeById,
-  }) {
-    final parentValue = element.properties['parentId'];
-    if (parentValue is! String || parentValue.trim().isEmpty) {
-      return _sceneRootId;
-    }
-    final parentNodeId = _runtimeNodeId(
-      layerId: layer.id,
-      elementId: parentValue.trim(),
-    );
-    if (!runtimeNodeById.containsKey(parentNodeId)) {
-      return _sceneRootId;
-    }
-    return parentNodeId;
   }
 
   SceneRuntimeNodeType _runtimeTypeForElementKind(String kind) {
@@ -421,6 +453,36 @@ class SceneEvaluationPipeline {
       letterSpacing: letterSpacing,
       maxLines: math.max(1, maxLines),
       typewriterProgress: typewriterProgress.clamp(0.0, 1.0),
+    );
+  }
+
+  _ElementEvaluationState _normalizeLegacyAbsoluteChildState({
+    required _ElementEvaluationState childState,
+    required _ElementEvaluationState? parentState,
+    required bool crossLayerParent,
+  }) {
+    if (!crossLayerParent || parentState == null) {
+      return childState;
+    }
+    final parentWidth =
+        math.max(1.0, parentState.width * parentState.scaleX.abs());
+    final parentHeight =
+        math.max(1.0, parentState.height * parentState.scaleY.abs());
+    final childLooksGlobalX = childState.x.abs() > parentWidth;
+    final childLooksGlobalY = childState.y.abs() > parentHeight;
+    final canResolveAsLocalX =
+        (childState.x - parentState.x).abs() <= parentWidth;
+    final canResolveAsLocalY =
+        (childState.y - parentState.y).abs() <= parentHeight;
+    final shouldNormalize = (childLooksGlobalX || childLooksGlobalY) &&
+        canResolveAsLocalX &&
+        canResolveAsLocalY;
+    if (!shouldNormalize) {
+      return childState;
+    }
+    return childState.withPosition(
+      x: childState.x - parentState.x,
+      y: childState.y - parentState.y,
     );
   }
 
@@ -641,4 +703,25 @@ class _ElementEvaluationState {
   final double letterSpacing;
   final int maxLines;
   final double typewriterProgress;
+
+  _ElementEvaluationState withPosition({
+    required double x,
+    required double y,
+  }) {
+    return _ElementEvaluationState(
+      x: x,
+      y: y,
+      width: width,
+      height: height,
+      scaleX: scaleX,
+      scaleY: scaleY,
+      rotationDeg: rotationDeg,
+      opacity: opacity,
+      fontSize: fontSize,
+      lineHeight: lineHeight,
+      letterSpacing: letterSpacing,
+      maxLines: maxLines,
+      typewriterProgress: typewriterProgress,
+    );
+  }
 }
