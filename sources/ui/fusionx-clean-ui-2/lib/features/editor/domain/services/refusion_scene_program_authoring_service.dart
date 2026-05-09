@@ -8,6 +8,7 @@ import 'professional_scene_timing_contract.dart';
 import 'refusion_scene_program_import_service.dart';
 import 'refusion_scene_program_lowerer.dart';
 import 'scene_motion_continuity_validator.dart';
+import 'scene_icon_alignment_validator.dart';
 import 'scene_program_component_contract.dart';
 import 'scene_program_layout_contract.dart';
 import 'scene_visual_frame_qa_validator.dart';
@@ -71,6 +72,8 @@ class ReFusionSceneProgramAuthoringService {
         const SceneProgramLayoutContractValidator(),
     SceneProgramComponentContractValidator componentContractValidator =
         const SceneProgramComponentContractValidator(),
+    SceneIconAlignmentValidator iconAlignmentValidator =
+        const SceneIconAlignmentValidator(),
     SceneMotionContinuityValidator motionContinuityValidator =
         const SceneMotionContinuityValidator(),
     SceneVisualFrameQaValidator visualFrameQaValidator =
@@ -80,6 +83,7 @@ class ReFusionSceneProgramAuthoringService {
         _timingContractValidator = timingContractValidator,
         _layoutContractValidator = layoutContractValidator,
         _componentContractValidator = componentContractValidator,
+        _iconAlignmentValidator = iconAlignmentValidator,
         _motionContinuityValidator = motionContinuityValidator,
         _visualFrameQaValidator = visualFrameQaValidator,
         _lowerer = lowerer;
@@ -88,6 +92,7 @@ class ReFusionSceneProgramAuthoringService {
   final ProfessionalSceneTimingContractValidator _timingContractValidator;
   final SceneProgramLayoutContractValidator _layoutContractValidator;
   final SceneProgramComponentContractValidator _componentContractValidator;
+  final SceneIconAlignmentValidator _iconAlignmentValidator;
   final SceneMotionContinuityValidator _motionContinuityValidator;
   final SceneVisualFrameQaValidator _visualFrameQaValidator;
   final ReFusionSceneProgramLowerer _lowerer;
@@ -148,6 +153,22 @@ class ReFusionSceneProgramAuthoringService {
       );
     }
 
+    final iconAlignmentResult = _iconAlignmentValidator.validate(
+      importResult.program!,
+    );
+    if (!iconAlignmentResult.isValid) {
+      return ReFusionSceneProgramAuthoringResult(
+        program: importResult.program,
+        issues: <ReFusionSceneProgramIssue>[
+          ...importResult.issues,
+          ...timingResult.issues,
+          ...layoutResult.issues,
+          ...componentResult.issues,
+          ...iconAlignmentResult.issues,
+        ],
+      );
+    }
+
     final continuityResult = _motionContinuityValidator.validate(
       importResult.program!,
     );
@@ -159,6 +180,7 @@ class ReFusionSceneProgramAuthoringService {
           ...timingResult.issues,
           ...layoutResult.issues,
           ...componentResult.issues,
+          ...iconAlignmentResult.issues,
           ...continuityResult.issues,
         ],
       );
@@ -175,6 +197,7 @@ class ReFusionSceneProgramAuthoringService {
           ...timingResult.issues,
           ...layoutResult.issues,
           ...componentResult.issues,
+          ...iconAlignmentResult.issues,
           ...continuityResult.issues,
           ...visualQaResult.issues,
         ],
@@ -199,6 +222,7 @@ class ReFusionSceneProgramAuthoringService {
         ...timingResult.issues,
         ...layoutResult.issues,
         ...componentResult.issues,
+        ...iconAlignmentResult.issues,
         ...continuityResult.issues,
         ...visualQaResult.issues,
         ...loweringResult.issues,
