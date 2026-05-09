@@ -1,6 +1,6 @@
 # Professional Native Scene Intelligence System - VERSION 5
 
-Status: official VERSION 5 execution plan  
+Status: VERSION 5 execution active (v5-18 QA/build complete, device install pending connection)  
 Package: `com.refusion.app`  
 Branch: `codex/unified-keyframe-ops-foundation-20260426`  
 Date opened: 2026-05-09  
@@ -841,6 +841,30 @@ Authoritative VERSION 5 phase order:
 
 The detailed sections below are the implementation requirements.
 
+Execution status snapshot (2026-05-09):
+
+| Phase | Status | Checkpoint |
+|---|---|---|
+| NSI-v5-00 | Completed | baseline fixtures and v4 truth checks integrated in test suite |
+| NSI-v5-01 | Completed | shared text layout contract active in validators and compiler defaults |
+| NSI-v5-02 | Completed | `d076bd0c` |
+| NSI-v5-03 | Completed | `73559205` |
+| NSI-v5-04 | Completed | `efa2cbe0` |
+| NSI-v5-05 | Completed | `8d42c1d0` |
+| NSI-v5-06 | Completed | `02d8442b` |
+| NSI-v5-07 | Completed | `5d67f3d0` |
+| NSI-v5-08 | Completed | `93ddf444` |
+| NSI-v5-09 | Completed | `a0f06187`, `2ce6f04e` |
+| NSI-v5-10 | Completed | `ff8e1d32` |
+| NSI-v5-11 | Completed | `6e3b13cd` |
+| NSI-v5-12 | Completed | `983a6e22` |
+| NSI-v5-13 | Completed | `51b2b49d` |
+| NSI-v5-14 | Completed | `2c01bafe` |
+| NSI-v5-15 | Completed | `5ba4487b` |
+| NSI-v5-16 | Completed | `refusion-skills: 03aac27` |
+| NSI-v5-17 | Completed | `d0b9f0fd` |
+| NSI-v5-18 | Completed (install pending device attach) | current checkpoint (this update) |
+
 ### NSI-v5-00 - Failure Fixtures And Professional Quality Baselines
 
 Goal: capture the current visible failures as tests before building new
@@ -1649,6 +1673,50 @@ Checkpoint:
 ```text
 checkpoint: professional native scene intelligence v5 18 - closure qa
 ```
+
+Execution result (2026-05-09):
+
+- Focused closure tests executed and passed:
+  - `scene_program_layout_contract_test.dart`
+  - `scene_semantic_constraint_layout_solver_test.dart`
+  - `scene_icon_registry_test.dart`
+  - `scene_icon_alignment_validator_test.dart`
+  - `scene_motion_recipe_compiler_test.dart`
+  - `scene_component_choreography_engine_test.dart`
+  - `scene_inter_component_choreography_test.dart`
+  - `scene_composition_solver_test.dart`
+  - `scene_rhythm_density_validator_test.dart`
+  - `scene_professional_taste_grammar_test.dart`
+  - `scene_visual_closure_loop_service_test.dart`
+  - `scene_semantic_repair_loop_service_test.dart`
+  - `scene_prompt_burst_regression_test.dart`
+  - `scene_render_truth_alignment_test.dart`
+  - `scene_render_truth_alignment_validator_test.dart`
+  - `scene_director_brief_templates_regression_test.dart`
+  - `motion_bezier_velocity_bridge_test.dart`
+  - `professional_speed_graph_preset_catalog_test.dart`
+- Build executed and passed:
+  - `flutter build apk --debug`
+  - artifact: `build/app/outputs/flutter-apk/app-debug.apk`
+- Device install status:
+  - `adb devices -l` returned no attached devices at execution time.
+  - install step is pending device reconnect.
+
+Commits in this final stretch:
+
+- App repo:
+  - `5ba4487b` - v5-15 visual closure loop v2
+  - `d0b9f0fd` - v5-17 templates and regression fixtures
+- Skills repo:
+  - `03aac27` - v5-16 refusion-skills v5 update
+
+Remaining risks:
+
+1. No connected Android device was available for live install verification in
+   this checkpoint.
+2. Existing preset scene visual style can still be improved artistically; core
+   enforcement and director-first pipeline now block structural quality
+   regressions, but curated preset polish remains an iterative content task.
 
 ## 7. Integration Gates
 
