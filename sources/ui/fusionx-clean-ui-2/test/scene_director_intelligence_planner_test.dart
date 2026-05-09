@@ -68,6 +68,22 @@ void main() {
           .length,
       greaterThanOrEqualTo(16),
     );
+    final primitiveKinds =
+        result.plan!.primitives.map((primitive) => primitive.kind).toSet();
+    expect(primitiveKinds.contains('scale'), isTrue);
+    expect(
+      result.plan!.primitives.any((primitive) => primitive.kind == 'slide'),
+      isTrue,
+    );
+
+    final bodyComponent = result.plan!.components.firstWhere(
+      (component) => component.id.endsWith('-body'),
+    );
+    final textFrame =
+        bodyComponent.properties['textFrame'] as Map<String, Object?>?;
+    expect(textFrame, isNotNull);
+    expect(textFrame!['fitPolicy'], 'shrinkToFit');
+    expect(textFrame['overflow'], 'ellipsis');
   });
 
   test('maps widescreen aspect to 1920x1080 canvas', () {

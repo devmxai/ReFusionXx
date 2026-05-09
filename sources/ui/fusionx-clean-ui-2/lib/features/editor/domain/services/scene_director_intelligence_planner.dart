@@ -1,5 +1,7 @@
 import '../models/refusion_motion_director_models.dart';
 import '../models/scene_director_brief_models.dart';
+import 'scene_motion_recipe_compiler.dart';
+import 'scene_motion_recipe_models.dart';
 
 class SceneDirectorIntelligencePlanResult {
   const SceneDirectorIntelligencePlanResult({
@@ -18,7 +20,12 @@ class SceneDirectorIntelligencePlanResult {
 }
 
 class SceneDirectorIntelligencePlanner {
-  const SceneDirectorIntelligencePlanner();
+  const SceneDirectorIntelligencePlanner({
+    SceneMotionRecipeCompiler recipeCompiler =
+        const SceneMotionRecipeCompiler(),
+  }) : _recipeCompiler = recipeCompiler;
+
+  final SceneMotionRecipeCompiler _recipeCompiler;
 
   SceneDirectorIntelligencePlanResult planFromBrief(
     SceneDirectorBrief brief,
@@ -51,7 +58,7 @@ class SceneDirectorIntelligencePlanner {
         endMs: 1,
         fromValue: 1.0,
         toValue: 1.0,
-        easing: 'linear',
+        easing: 'fastSlow',
       ),
     ];
 
@@ -80,39 +87,18 @@ class SceneDirectorIntelligencePlanner {
             },
           ),
         );
-        primitives.addAll(
-          <ReFusionMotionDirectorPrimitive>[
-            ReFusionMotionDirectorPrimitive(
-              id: '$id-enter-opacity',
-              beatId: 'intro',
-              targetComponentId: id,
-              kind: 'enter',
-              property: 'opacity',
-              startMs: 0,
-              endMs: (introEnd * 0.55).round(),
-              fromValue: 0.0,
-              toValue: 1.0,
-              easing: 'slowFastSlow',
-            ),
-            ReFusionMotionDirectorPrimitive(
-              id: '$id-enter-position',
-              beatId: 'intro',
-              targetComponentId: id,
-              kind: 'slide',
-              property: 'position',
-              startMs: 0,
-              endMs: (introEnd * 0.55).round(),
-              fromValue: <String, double>{
-                'x': 0,
-                'y': -(canvas.height * 0.27),
-              },
-              toValue: <String, double>{
-                'x': 0,
-                'y': -(canvas.height * 0.31),
-              },
-              easing: 'slowFastSlow',
-            ),
-          ],
+        _appendRecipe(
+          primitives: primitives,
+          issues: issues,
+          request: SceneMotionRecipeCompileRequest(
+            recipeId: r'$motion.headlineBlurSettle',
+            targetComponentId: id,
+            targetScope: 'title',
+            beatId: 'intro',
+            startMs: 0,
+            endMs: (introEnd * 0.62).round(),
+            idPrefix: '$id-enter',
+          ),
         );
         continue;
       }
@@ -134,18 +120,17 @@ class SceneDirectorIntelligencePlanner {
             },
           ),
         );
-        primitives.add(
-          ReFusionMotionDirectorPrimitive(
-            id: '$id-enter-opacity',
-            beatId: 'intro',
+        _appendRecipe(
+          primitives: primitives,
+          issues: issues,
+          request: SceneMotionRecipeCompileRequest(
+            recipeId: r'$motion.wordCascadeUp',
             targetComponentId: id,
-            kind: 'enter',
-            property: 'opacity',
+            targetScope: 'body',
+            beatId: 'intro',
             startMs: (introEnd * 0.28).round(),
-            endMs: (introEnd * 0.7).round(),
-            fromValue: 0.0,
-            toValue: 1.0,
-            easing: 'fastSlow',
+            endMs: (introEnd * 0.72).round(),
+            idPrefix: '$id-enter',
           ),
         );
         continue;
@@ -185,6 +170,12 @@ class SceneDirectorIntelligencePlanner {
           final enterEnd = (enterStart + (durationMs * 0.18).round())
               .clamp(enterStart + 120, featuresEnd - 100);
 
+          final cardWidth = canvas.width >= 1500 ? 520.0 : 430.0;
+          final cardHeight = canvas.width >= 1500 ? 280.0 : 236.0;
+          final labelFrameWidth = (cardWidth - 196).clamp(120.0, 420.0);
+          final bodyFrameWidth = (cardWidth - 84).clamp(220.0, 500.0);
+          final bodyFrameHeight = (cardHeight - 106).clamp(88.0, 160.0);
+
           components.addAll(
             <ReFusionMotionDirectorComponent>[
               ReFusionMotionDirectorComponent(
@@ -193,8 +184,8 @@ class SceneDirectorIntelligencePlanner {
                 label: 'Feature Card Shell',
                 properties: <String, Object?>{
                   'shapeKind': 'roundedRectangle',
-                  'width': canvas.width >= 1500 ? 520 : 430,
-                  'height': canvas.width >= 1500 ? 280 : 236,
+                  'width': cardWidth,
+                  'height': cardHeight,
                   'cornerRadius': 36,
                   'x': center.x,
                   'y': center.y,
@@ -227,6 +218,13 @@ class SceneDirectorIntelligencePlanner {
                   'y': center.y - 72,
                   'color': '#FFFFFF',
                   'opacity': 0.0,
+                  'textFrame': <String, Object?>{
+                    'width': labelFrameWidth,
+                    'height': 48,
+                    'maxLines': 1,
+                    'overflow': 'ellipsis',
+                    'fitPolicy': 'shrinkToFit',
+                  },
                 },
               ),
               ReFusionMotionDirectorComponent(
@@ -240,122 +238,124 @@ class SceneDirectorIntelligencePlanner {
                   'y': center.y - 20,
                   'color': '#B4BED2',
                   'opacity': 0.0,
+                  'textFrame': <String, Object?>{
+                    'width': bodyFrameWidth,
+                    'height': bodyFrameHeight,
+                    'maxLines': 3,
+                    'overflow': 'ellipsis',
+                    'fitPolicy': 'shrinkToFit',
+                  },
                 },
               ),
             ],
           );
 
-          primitives.addAll(
-            <ReFusionMotionDirectorPrimitive>[
-              ReFusionMotionDirectorPrimitive(
-                id: '$shellId-enter-scale',
-                beatId: 'features',
-                targetComponentId: shellId,
-                kind: 'scale',
-                property: 'scale',
-                startMs: enterStart,
-                endMs: enterEnd,
-                fromValue: 0.88,
-                toValue: 1.0,
-                easing: index.isEven ? 'slowFastSlow' : 'fastSlow',
-              ),
-              ReFusionMotionDirectorPrimitive(
-                id: '$shellId-enter-opacity',
-                beatId: 'features',
-                targetComponentId: shellId,
-                kind: 'enter',
-                property: 'opacity',
-                startMs: enterStart,
-                endMs: enterEnd,
-                fromValue: 0.0,
-                toValue: 1.0,
-                easing: 'fastSlow',
-              ),
-              ReFusionMotionDirectorPrimitive(
-                id: '$iconId-enter-opacity',
-                beatId: 'features',
-                targetComponentId: iconId,
-                kind: 'enter',
-                property: 'opacity',
-                startMs: enterStart + 70,
-                endMs: enterEnd,
-                fromValue: 0.0,
-                toValue: 1.0,
-                easing: 'fastSlow',
-              ),
-              ReFusionMotionDirectorPrimitive(
-                id: '$labelId-enter-opacity',
-                beatId: 'features',
-                targetComponentId: labelId,
-                kind: 'enter',
-                property: 'opacity',
-                startMs: enterStart + 110,
-                endMs: enterEnd + 80,
-                fromValue: 0.0,
-                toValue: 1.0,
-                easing: 'fastSlow',
-              ),
-              ReFusionMotionDirectorPrimitive(
-                id: '$bodyId-enter-opacity',
-                beatId: 'features',
-                targetComponentId: bodyId,
-                kind: 'enter',
-                property: 'opacity',
-                startMs: enterStart + 170,
-                endMs: enterEnd + 140,
-                fromValue: 0.0,
-                toValue: 1.0,
-                easing: 'fastSlow',
-              ),
-              ReFusionMotionDirectorPrimitive(
-                id: '$shellId-exit',
-                beatId: 'outro',
-                targetComponentId: shellId,
-                kind: 'fade',
-                property: 'opacity',
-                startMs: featuresEnd,
-                endMs: durationMs,
-                fromValue: 1.0,
-                toValue: 0.0,
-                easing: 'fastSlow',
-              ),
-              ReFusionMotionDirectorPrimitive(
-                id: '$iconId-exit',
-                beatId: 'outro',
-                targetComponentId: iconId,
-                kind: 'fade',
-                property: 'opacity',
-                startMs: featuresEnd,
-                endMs: durationMs,
-                fromValue: 1.0,
-                toValue: 0.0,
-                easing: 'fastSlow',
-              ),
-              ReFusionMotionDirectorPrimitive(
-                id: '$labelId-exit',
-                beatId: 'outro',
-                targetComponentId: labelId,
-                kind: 'fade',
-                property: 'opacity',
-                startMs: featuresEnd,
-                endMs: durationMs,
-                fromValue: 1.0,
-                toValue: 0.0,
-                easing: 'fastSlow',
-              ),
-              ReFusionMotionDirectorPrimitive(
-                id: '$bodyId-exit',
-                beatId: 'outro',
-                targetComponentId: bodyId,
-                kind: 'fade',
-                property: 'opacity',
-                startMs: featuresEnd,
-                endMs: durationMs,
-                fromValue: 1.0,
-                toValue: 0.0,
-                easing: 'fastSlow',
-              ),
-            ],
+          _appendRecipe(
+            primitives: primitives,
+            issues: issues,
+            request: SceneMotionRecipeCompileRequest(
+              recipeId: _featureShellEnterRecipeFor(index),
+              targetComponentId: shellId,
+              targetScope: 'cardShell',
+              beatId: 'features',
+              startMs: enterStart,
+              endMs: enterEnd,
+              index: index,
+              staggerMs: 0,
+              idPrefix: '$shellId-enter',
+            ),
+          );
+          _appendRecipe(
+            primitives: primitives,
+            issues: issues,
+            request: SceneMotionRecipeCompileRequest(
+              recipeId: r'$motion.iconPop',
+              targetComponentId: iconId,
+              targetScope: 'icon',
+              beatId: 'features',
+              startMs: enterStart + 70,
+              endMs: enterEnd,
+              idPrefix: '$iconId-enter',
+            ),
+          );
+          _appendRecipe(
+            primitives: primitives,
+            issues: issues,
+            request: SceneMotionRecipeCompileRequest(
+              recipeId: r'$motion.wordCascadeUp',
+              targetComponentId: labelId,
+              targetScope: 'body',
+              beatId: 'features',
+              startMs: enterStart + 110,
+              endMs: enterEnd + 80,
+              idPrefix: '$labelId-enter',
+            ),
+          );
+          _appendRecipe(
+            primitives: primitives,
+            issues: issues,
+            request: SceneMotionRecipeCompileRequest(
+              recipeId: r'$motion.wordCascadeUp',
+              targetComponentId: bodyId,
+              targetScope: 'body',
+              beatId: 'features',
+              startMs: enterStart + 170,
+              endMs: enterEnd + 140,
+              idPrefix: '$bodyId-enter',
+            ),
+          );
+
+          _appendRecipe(
+            primitives: primitives,
+            issues: issues,
+            request: SceneMotionRecipeCompileRequest(
+              recipeId: _featureShellExitRecipeFor(index),
+              targetComponentId: shellId,
+              targetScope: 'cardShell',
+              beatId: 'outro',
+              startMs: featuresEnd,
+              endMs: durationMs,
+              idPrefix: '$shellId-exit',
+            ),
+          );
+          _appendRecipe(
+            primitives: primitives,
+            issues: issues,
+            request: SceneMotionRecipeCompileRequest(
+              recipeId: r'$motion.fadeCollapse',
+              targetComponentId: iconId,
+              targetScope: 'icon',
+              beatId: 'outro',
+              startMs: featuresEnd,
+              endMs: durationMs,
+              idPrefix: '$iconId-exit',
+            ),
+          );
+          _appendRecipe(
+            primitives: primitives,
+            issues: issues,
+            request: SceneMotionRecipeCompileRequest(
+              recipeId: r'$motion.fadeCollapse',
+              targetComponentId: labelId,
+              targetScope: 'body',
+              beatId: 'outro',
+              startMs: featuresEnd,
+              endMs: durationMs,
+              idPrefix: '$labelId-exit',
+            ),
+          );
+          _appendRecipe(
+            primitives: primitives,
+            issues: issues,
+            request: SceneMotionRecipeCompileRequest(
+              recipeId: r'$motion.fadeCollapse',
+              targetComponentId: bodyId,
+              targetScope: 'body',
+              beatId: 'outro',
+              startMs: featuresEnd,
+              endMs: durationMs,
+              idPrefix: '$bodyId-exit',
+            ),
           );
         }
         continue;
@@ -508,6 +508,32 @@ class SceneDirectorIntelligencePlanner {
     return 'sparkles';
   }
 
+  String _featureShellEnterRecipeFor(int index) {
+    switch (index % 4) {
+      case 0:
+        return r'$motion.cardSpringEntrance';
+      case 1:
+        return r'$motion.slideInFromLeft';
+      case 2:
+        return r'$motion.slideInFromRight';
+      default:
+        return r'$motion.popInSpring';
+    }
+  }
+
+  String _featureShellExitRecipeFor(int index) {
+    switch (index % 4) {
+      case 0:
+        return r'$motion.slideOutToBottom';
+      case 1:
+        return r'$motion.slideOutToLeft';
+      case 2:
+        return r'$motion.slideOutToRight';
+      default:
+        return r'$motion.pushBack';
+    }
+  }
+
   List<_Point> _featureGridCenters({
     required double canvasWidth,
     required double canvasHeight,
@@ -550,6 +576,16 @@ class SceneDirectorIntelligencePlanner {
 
   String _normalize(String value) {
     return value.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '');
+  }
+
+  void _appendRecipe({
+    required List<ReFusionMotionDirectorPrimitive> primitives,
+    required List<ReFusionMotionDirectorIssue> issues,
+    required SceneMotionRecipeCompileRequest request,
+  }) {
+    final result = _recipeCompiler.compile(request);
+    primitives.addAll(result.primitives);
+    issues.addAll(result.issues);
   }
 }
 
