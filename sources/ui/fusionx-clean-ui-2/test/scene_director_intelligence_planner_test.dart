@@ -190,4 +190,65 @@ void main() {
     );
     expect(shell.properties['brandMotionProfile'], r'$motion.brand.tech');
   });
+
+  test('keeps feature card shells inside canvas across canonical aspects', () {
+    const aspects = <String>[
+      r'$canvas.vertical9x16',
+      r'$canvas.widescreen16x9',
+      r'$canvas.square1x1',
+      r'$canvas.portrait4x5',
+    ];
+    for (final aspect in aspects) {
+      final brief = SceneDirectorBrief(
+        intent: 'Aspect layout check',
+        audience: 'general',
+        mood: 'professional',
+        primaryFocus: 'features',
+        rhythm: 'intro -> cascade -> outro',
+        aspect: aspect,
+        durationIntent: r'$duration.medium',
+        elements: <SceneDirectorBriefElement>[
+          SceneDirectorBriefElement(
+            kind: 'title',
+            importance: 'primary',
+            text: 'Feature Set',
+          ),
+          SceneDirectorBriefElement(
+            kind: 'featureCardGroup',
+            importance: 'supporting',
+            cards: const <SceneDirectorBriefCard>[
+              SceneDirectorBriefCard(label: 'Fast', body: 'Fast body'),
+              SceneDirectorBriefCard(label: 'Voice', body: 'Voice body'),
+              SceneDirectorBriefCard(label: 'Smart', body: 'Smart body'),
+              SceneDirectorBriefCard(label: 'Image+', body: 'Image body'),
+            ],
+          ),
+        ],
+      );
+      final result = planner.planFromBrief(brief);
+      expect(result.isValid, isTrue, reason: aspect);
+      final shells = result.plan!.components
+          .where((component) => component.id.endsWith('-shell'))
+          .toList(growable: false);
+      expect(shells, hasLength(4), reason: aspect);
+      final halfWidth = result.plan!.canvasWidth / 2.0;
+      final halfHeight = result.plan!.canvasHeight / 2.0;
+      const epsilon = 0.75;
+      for (final shell in shells) {
+        final width = (shell.properties['width'] as num).toDouble();
+        final height = (shell.properties['height'] as num).toDouble();
+        final centerX = (shell.properties['x'] as num).toDouble();
+        final centerY = (shell.properties['y'] as num).toDouble();
+        final left = centerX - (width / 2);
+        final right = centerX + (width / 2);
+        final top = centerY - (height / 2);
+        final bottom = centerY + (height / 2);
+        expect(left >= (-halfWidth - epsilon), isTrue, reason: '$aspect left');
+        expect(right <= (halfWidth + epsilon), isTrue, reason: '$aspect right');
+        expect(top >= (-halfHeight - epsilon), isTrue, reason: '$aspect top');
+        expect(bottom <= (halfHeight + epsilon), isTrue,
+            reason: '$aspect bottom');
+      }
+    }
+  });
 }

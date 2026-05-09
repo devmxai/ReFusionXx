@@ -1,9 +1,12 @@
+import 'dart:math' as math;
+
 import '../models/refusion_motion_director_models.dart';
 import '../models/scene_director_brief_models.dart';
 import 'scene_background_semantic_pairing.dart';
 import 'scene_brand_motion_mapping.dart';
 import 'scene_component_choreography_engine.dart';
 import 'scene_component_choreography_models.dart';
+import 'scene_composition_solver.dart';
 import 'scene_feature_visual_motifs.dart';
 import 'scene_icon_registry.dart';
 import 'scene_inter_component_choreography.dart';
@@ -41,13 +44,15 @@ class SceneDirectorIntelligencePlanner {
         const SceneBackgroundSemanticPairing(),
     SceneFeatureVisualMotifs featureVisualMotifs =
         const SceneFeatureVisualMotifs(),
+    SceneCompositionSolver compositionSolver = const SceneCompositionSolver(),
   })  : _recipeCompiler = recipeCompiler,
         _iconRegistry = iconRegistry,
         _brandMotionMapping = brandMotionMapping,
         _componentChoreographyEngine = componentChoreographyEngine,
         _interComponentSolver = interComponentSolver,
         _backgroundPairing = backgroundPairing,
-        _featureVisualMotifs = featureVisualMotifs;
+        _featureVisualMotifs = featureVisualMotifs,
+        _compositionSolver = compositionSolver;
 
   final SceneMotionRecipeCompiler _recipeCompiler;
   final SceneIconRegistry _iconRegistry;
@@ -56,6 +61,7 @@ class SceneDirectorIntelligencePlanner {
   final SceneInterComponentChoreographySolver _interComponentSolver;
   final SceneBackgroundSemanticPairing _backgroundPairing;
   final SceneFeatureVisualMotifs _featureVisualMotifs;
+  final SceneCompositionSolver _compositionSolver;
 
   SceneDirectorIntelligencePlanResult planFromBrief(
     SceneDirectorBrief brief,
@@ -65,7 +71,16 @@ class SceneDirectorIntelligencePlanner {
     final durationMs = _durationForIntent(brief.durationIntent);
     final introEnd = (durationMs * 0.25).round();
     final featuresEnd = (durationMs * 0.8).round();
+    final maxFeatureCards = brief.elements
+        .where((element) => _normalize(element.kind) == 'featurecardgroup')
+        .fold<int>(0, (max, element) => math.max(max, element.cards.length));
+    final composition = _compositionSolver.solve(
+      canvasWidth: canvas.width.toDouble(),
+      canvasHeight: canvas.height.toDouble(),
+      featureCardCount: maxFeatureCards,
+    );
     final backgroundPairing = _backgroundPairing.resolve(brief);
+    issues.addAll(composition.issues);
     issues.addAll(backgroundPairing.issues);
 
     final components = <ReFusionMotionDirectorComponent>[
@@ -164,7 +179,7 @@ class SceneDirectorIntelligencePlanner {
               'text': element.text ?? brief.intent,
               'fontSize': canvas.width >= 1500 ? 72 : 58,
               'x': 0.0,
-              'y': -(canvas.height * 0.31),
+              'y': composition.titleY,
               'color': '#FFFFFF',
             },
           ),
@@ -197,7 +212,7 @@ class SceneDirectorIntelligencePlanner {
               'text': element.text ?? '',
               'fontSize': 32,
               'x': 0.0,
-              'y': -(canvas.height * 0.21),
+              'y': composition.subtitleY,
               'color': '#C8CFDF',
             },
           ),
@@ -232,16 +247,26 @@ class SceneDirectorIntelligencePlanner {
           );
           continue;
         }
-        final grid = _featureGridCenters(
-          canvasWidth: canvas.width.toDouble(),
-          canvasHeight: canvas.height.toDouble(),
-          count: cards.length,
-        );
+        final grid = composition.featureCards;
         final staggerMs = (durationMs * 0.025).round().clamp(60, 120);
         for (var index = 0; index < cards.length; index += 1) {
           featureCardIndex += 1;
           final card = cards[index];
-          final center = grid[index % grid.length];
+          final center = grid.isEmpty
+              ? const SceneCompositionCardFrame(
+                  centerX: 0.0,
+                  centerY: 0.0,
+                  width: 420.0,
+                  height: 236.0,
+                  cornerRadius: 36.0,
+                  iconSize: 48.0,
+                  labelFontSize: 34.0,
+                  bodyFontSize: 24.0,
+                  labelFrameWidth: 224.0,
+                  bodyFrameWidth: 336.0,
+                  bodyFrameHeight: 110.0,
+                )
+              : grid[index % grid.length];
           final cardBaseId = 'feature-card-$featureCardIndex';
           final shellId = '$cardBaseId-shell';
           final iconId = '$cardBaseId-icon';
@@ -271,11 +296,11 @@ class SceneDirectorIntelligencePlanner {
           );
           issues.addAll(choreography.issues);
 
-          final cardWidth = canvas.width >= 1500 ? 520.0 : 430.0;
-          final cardHeight = canvas.width >= 1500 ? 280.0 : 236.0;
-          final labelFrameWidth = (cardWidth - 196).clamp(120.0, 420.0);
-          final bodyFrameWidth = (cardWidth - 84).clamp(220.0, 500.0);
-          final bodyFrameHeight = (cardHeight - 106).clamp(88.0, 160.0);
+          final cardWidth = center.width;
+          final cardHeight = center.height;
+          final labelFrameWidth = center.labelFrameWidth;
+          final bodyFrameWidth = center.bodyFrameWidth;
+          final bodyFrameHeight = center.bodyFrameHeight;
 
           components.addAll(
             <ReFusionMotionDirectorComponent>[
@@ -287,9 +312,9 @@ class SceneDirectorIntelligencePlanner {
                   'shapeKind': 'roundedRectangle',
                   'width': cardWidth,
                   'height': cardHeight,
-                  'cornerRadius': 36,
-                  'x': center.x,
-                  'y': center.y,
+                  'cornerRadius': center.cornerRadius.round(),
+                  'x': center.centerX,
+                  'y': center.centerY,
                   'color': '#161A23',
                   'opacity': 0.0,
                   'brandMotionProfile': motionProfile.id,
@@ -306,10 +331,10 @@ class SceneDirectorIntelligencePlanner {
                     fallbackText: card.label,
                     issues: issues,
                   ),
-                  'width': 48,
-                  'height': 48,
-                  'x': center.x - 140,
-                  'y': center.y - 72,
+                  'width': center.iconSize.round(),
+                  'height': center.iconSize.round(),
+                  'x': center.centerX - (cardWidth / 2) + 54,
+                  'y': center.centerY - (cardHeight / 2) + 48,
                   'color': '#FFFFFF',
                   'opacity': 0.0,
                 },
@@ -320,14 +345,18 @@ class SceneDirectorIntelligencePlanner {
                 label: 'Feature Label',
                 properties: <String, Object?>{
                   'text': card.label,
-                  'fontSize': 34,
-                  'x': center.x - 24,
-                  'y': center.y - 72,
+                  'fontSize': center.labelFontSize.round(),
+                  'x': center.centerX -
+                      (cardWidth / 2) +
+                      54 +
+                      center.iconSize +
+                      18,
+                  'y': center.centerY - (cardHeight / 2) + 48,
                   'color': '#FFFFFF',
                   'opacity': 0.0,
                   'textFrame': <String, Object?>{
                     'width': labelFrameWidth,
-                    'height': 48,
+                    'height': (center.iconSize + 6).round(),
                     'maxLines': 1,
                     'overflow': 'ellipsis',
                     'fitPolicy': 'shrinkToFit',
@@ -340,9 +369,9 @@ class SceneDirectorIntelligencePlanner {
                 label: 'Feature Body',
                 properties: <String, Object?>{
                   'text': card.body,
-                  'fontSize': 24,
-                  'x': center.x - 140,
-                  'y': center.y - 20,
+                  'fontSize': center.bodyFontSize.round(),
+                  'x': center.centerX - (cardWidth / 2) + 36,
+                  'y': center.centerY - (cardHeight / 2) + 96,
                   'color': '#B4BED2',
                   'opacity': 0.0,
                   'textFrame': <String, Object?>{
@@ -366,8 +395,8 @@ class SceneDirectorIntelligencePlanner {
                   ),
                   'width': 30,
                   'height': 30,
-                  'x': center.x + (cardWidth / 2) - 48,
-                  'y': center.y - (cardHeight / 2) + 44,
+                  'x': center.centerX + (cardWidth / 2) - 44,
+                  'y': center.centerY - (cardHeight / 2) + 38,
                   'color': '#FFFFFF',
                   'opacity': motifSpec.opacity,
                 },
@@ -550,46 +579,6 @@ class SceneDirectorIntelligencePlanner {
     return 3600;
   }
 
-  String _backgroundColorForMood(String mood) {
-    final token = _normalize(mood);
-    if (token.contains('light') || token.contains('clean')) {
-      return '#F4F6FA';
-    }
-    if (token.contains('luxury') || token.contains('minimal')) {
-      return '#0D1018';
-    }
-    return '#10141E';
-  }
-
-  List<_Point> _featureGridCenters({
-    required double canvasWidth,
-    required double canvasHeight,
-    required int count,
-  }) {
-    final twoColumn = count >= 4;
-    final horizontalGap = twoColumn ? canvasWidth * 0.34 : 0.0;
-    final verticalGap = canvasHeight * 0.18;
-    final baseY = canvasHeight * 0.08;
-    if (twoColumn) {
-      return <_Point>[
-        _Point(x: -horizontalGap / 2, y: baseY - (verticalGap / 2)),
-        _Point(x: horizontalGap / 2, y: baseY - (verticalGap / 2)),
-        _Point(x: -horizontalGap / 2, y: baseY + (verticalGap / 2)),
-        _Point(x: horizontalGap / 2, y: baseY + (verticalGap / 2)),
-      ];
-    }
-    final centers = <_Point>[];
-    for (var index = 0; index < count; index += 1) {
-      centers.add(
-        _Point(
-          x: 0.0,
-          y: baseY + ((index - ((count - 1) / 2.0)) * verticalGap),
-        ),
-      );
-    }
-    return centers;
-  }
-
   String _briefToName(String intent) {
     final cleaned = intent.trim();
     if (cleaned.isEmpty) {
@@ -654,14 +643,4 @@ class _CanvasSpec {
 
   final int width;
   final int height;
-}
-
-class _Point {
-  const _Point({
-    required this.x,
-    required this.y,
-  });
-
-  final double x;
-  final double y;
 }
