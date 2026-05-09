@@ -4,6 +4,7 @@ import 'scene_brand_motion_mapping.dart';
 import 'scene_component_choreography_engine.dart';
 import 'scene_component_choreography_models.dart';
 import 'scene_icon_registry.dart';
+import 'scene_inter_component_choreography.dart';
 import 'scene_motion_recipe_compiler.dart';
 import 'scene_motion_recipe_models.dart';
 
@@ -32,15 +33,19 @@ class SceneDirectorIntelligencePlanner {
         const SceneBrandMotionMapping(),
     SceneComponentChoreographyEngine componentChoreographyEngine =
         const SceneComponentChoreographyEngine(),
+    SceneInterComponentChoreographySolver interComponentSolver =
+        const SceneInterComponentChoreographySolver(),
   })  : _recipeCompiler = recipeCompiler,
         _iconRegistry = iconRegistry,
         _brandMotionMapping = brandMotionMapping,
-        _componentChoreographyEngine = componentChoreographyEngine;
+        _componentChoreographyEngine = componentChoreographyEngine,
+        _interComponentSolver = interComponentSolver;
 
   final SceneMotionRecipeCompiler _recipeCompiler;
   final SceneIconRegistry _iconRegistry;
   final SceneBrandMotionMapping _brandMotionMapping;
   final SceneComponentChoreographyEngine _componentChoreographyEngine;
+  final SceneInterComponentChoreographySolver _interComponentSolver;
 
   SceneDirectorIntelligencePlanResult planFromBrief(
     SceneDirectorBrief brief,
@@ -344,8 +349,18 @@ class SceneDirectorIntelligencePlanner {
       );
     }
 
+    final interResult = _interComponentSolver.solve(
+      components: components,
+      primitives: primitives,
+      featureBeatId: 'features',
+      outroBeatId: 'outro',
+    );
+    issues.addAll(interResult.issues);
+    final finalComponents = interResult.components;
+    final finalPrimitives = interResult.primitives;
+
     final refsByBeat = <String, Set<String>>{};
-    for (final primitive in primitives) {
+    for (final primitive in finalPrimitives) {
       refsByBeat.putIfAbsent(primitive.beatId, () => <String>{}).add(
             primitive.targetComponentId,
           );
@@ -389,8 +404,8 @@ class SceneDirectorIntelligencePlanner {
       canvasWidth: canvas.width,
       canvasHeight: canvas.height,
       beats: beats,
-      components: components,
-      primitives: primitives,
+      components: finalComponents,
+      primitives: finalPrimitives,
     );
 
     return SceneDirectorIntelligencePlanResult(
