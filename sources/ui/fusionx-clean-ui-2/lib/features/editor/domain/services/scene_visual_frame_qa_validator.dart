@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import '../models/refusion_scene_program_models.dart';
 import 'evaluated_frame_truth.dart';
 import 'scene_evaluation_pipeline.dart';
+import 'scene_shape_stroke_contract.dart';
 import 'scene_shared_text_layout_engine.dart';
 import 'scene_shared_text_layout_models.dart';
 
@@ -23,10 +24,12 @@ class SceneVisualFrameQaValidator {
     this.enforceOverflowAsError = true,
     SceneEvaluationPipeline? evaluationPipeline,
     SceneSharedTextLayoutEngine? textLayoutEngine,
+    SceneShapeStrokeContract? strokeContract,
   })  : _evaluationPipeline =
             evaluationPipeline ?? const SceneEvaluationPipeline(),
         _textLayoutEngine =
-            textLayoutEngine ?? const SceneSharedTextLayoutEngine();
+            textLayoutEngine ?? const SceneSharedTextLayoutEngine(),
+        _strokeContract = strokeContract ?? const SceneShapeStrokeContract();
 
   static const int _fullProbeBudget = 9;
   static const int _fallbackProbeBudget = 5;
@@ -41,6 +44,7 @@ class SceneVisualFrameQaValidator {
   final bool enforceOverflowAsError;
   final SceneEvaluationPipeline _evaluationPipeline;
   final SceneSharedTextLayoutEngine _textLayoutEngine;
+  final SceneShapeStrokeContract _strokeContract;
 
   SceneVisualFrameQaValidationResult validate(ReFusionSceneProgram program) {
     final stopwatch = Stopwatch()..start();
@@ -154,6 +158,12 @@ class SceneVisualFrameQaValidator {
                 ),
           active: node.active,
           effectiveOpacity: node.effectiveOpacity,
+          worldScaleX: math.sqrt(
+              (node.worldTransform.m00 * node.worldTransform.m00) +
+                  (node.worldTransform.m10 * node.worldTransform.m10)),
+          worldScaleY: math.sqrt(
+              (node.worldTransform.m01 * node.worldTransform.m01) +
+                  (node.worldTransform.m11 * node.worldTransform.m11)),
         ),
       );
     }
@@ -204,8 +214,24 @@ class SceneVisualFrameQaValidator {
           record: record,
           baselineOffsets: baselineOffsets,
         );
-        final passed =
-            !clipped && !safeAreaViolation && !overlap && !parentChildDesync;
+        final strokeContract = _strokeContract.evaluate(
+          SceneShapeStrokeContractRequest(
+            elementId: record.element.id,
+            elementKind: record.element.kind,
+            properties: record.element.properties,
+            scaleX: record.worldScaleX,
+            scaleY: record.worldScaleY,
+          ),
+        );
+        issues.addAll(strokeContract.issues);
+        final strokeFailure = strokeContract.issues.any(
+          (issue) => issue.severity == ReFusionSceneProgramIssueSeverity.error,
+        );
+        final passed = !clipped &&
+            !safeAreaViolation &&
+            !overlap &&
+            !parentChildDesync &&
+            !strokeFailure;
         if (clipped) {
           issues.add(
             ReFusionSceneProgramIssue(
@@ -269,6 +295,7 @@ class SceneVisualFrameQaValidator {
                   overlap: overlap,
                   safeAreaViolation: safeAreaViolation,
                   parentChildDesync: parentChildDesync,
+                  strokeFailure: strokeFailure,
                 ),
           severity: passed
               ? ReFusionSceneProgramIssueSeverity.info
@@ -854,6 +881,7 @@ class SceneVisualFrameQaValidator {
     required bool overlap,
     required bool safeAreaViolation,
     required bool parentChildDesync,
+    required bool strokeFailure,
   }) {
     if (clipped) {
       return 'clipped';
@@ -866,6 +894,9 @@ class SceneVisualFrameQaValidator {
     }
     if (parentChildDesync) {
       return 'parent_child_desync';
+    }
+    if (strokeFailure) {
+      return 'stroke_contract';
     }
     return 'unknown';
   }
@@ -1113,6 +1144,8 @@ class _EvaluatedNodeRecord {
     required this.parentWorldBounds,
     required this.active,
     required this.effectiveOpacity,
+    required this.worldScaleX,
+    required this.worldScaleY,
   });
 
   final int layerIndex;
@@ -1126,6 +1159,8 @@ class _EvaluatedNodeRecord {
   final _Rect? parentWorldBounds;
   final bool active;
   final double effectiveOpacity;
+  final double worldScaleX;
+  final double worldScaleY;
 }
 
 class _ElementEvaluationState {

@@ -510,6 +510,48 @@ void main() {
       isTrue,
     );
   });
+
+  test('rejects prompt shell when required border is visually too weak', () {
+    final result = validator.validate(
+      ReFusionSceneProgram(
+        schemaVersion: 'refusion.scene-program/v1',
+        name: 'Prompt weak border',
+        durationMs: 1600,
+        frameRate: 30,
+        layers: <ReFusionSceneProgramLayer>[
+          ReFusionSceneProgramLayer(
+            id: 'prompt-layer',
+            kind: 'shape',
+            startMs: 0,
+            durationMs: 1600,
+            elements: <ReFusionSceneProgramElement>[
+              ReFusionSceneProgramElement(
+                id: 'prompt-shell',
+                kind: 'shape',
+                properties: const <String, Object?>{
+                  'x': 0,
+                  'y': 0,
+                  'width': 860,
+                  'height': 118,
+                  'strokeWidth': 0.2,
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    expect(result.isValid, isFalse);
+    expect(
+      result.issues.any(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+            issue.message.contains('requires a visible border'),
+      ),
+      isTrue,
+    );
+  });
 }
 
 class _OutlivesParentFakePipeline extends SceneEvaluationPipeline {
