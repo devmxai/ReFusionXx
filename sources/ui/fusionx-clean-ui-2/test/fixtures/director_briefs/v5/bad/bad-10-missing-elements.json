@@ -1,0 +1,13 @@
+{
+  "expectedIssueContains": "at least one element",
+  "directorBrief": {
+    "intent": "show nothing",
+    "audience": "creators",
+    "mood": "professional",
+    "primaryFocus": "none",
+    "rhythm": "intro hold",
+    "aspect": "$canvas.vertical9x16",
+    "durationIntent": "$duration.medium",
+    "elements": []
+  }
+}

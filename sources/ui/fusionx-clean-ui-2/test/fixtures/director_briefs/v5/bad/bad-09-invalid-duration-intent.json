@@ -1,0 +1,16 @@
+{
+  "expectedIssueContains": "duration intent",
+  "directorBrief": {
+    "intent": "show title",
+    "audience": "creators",
+    "mood": "professional",
+    "primaryFocus": "title",
+    "rhythm": "intro hold",
+    "aspect": "$canvas.vertical9x16",
+    "durationIntent": "$duration.ultra",
+    "elements": [
+      {"kind": "title", "importance": "primary", "text": "Invalid duration"}
+    ]
+  }
+}
+

@@ -1,0 +1,16 @@
+{
+  "directorBrief": {
+    "intent": "show image retouch and grading capability",
+    "audience": "visual storytellers",
+    "mood": "cinematic precise",
+    "primaryFocus": "image feature card",
+    "rhythm": "soft reveal then texture hold then snap exit",
+    "aspect": "$canvas.portrait4x5",
+    "durationIntent": "$duration.medium",
+    "elements": [
+      {"kind": "title", "importance": "primary", "text": "Image+ Quality"},
+      {"kind": "subtitle", "importance": "supporting", "text": "Retouch, grade, and color"}
+    ]
+  }
+}
+

@@ -1,0 +1,16 @@
+{
+  "directorBrief": {
+    "intent": "show feedback from channels merged into one dashboard",
+    "audience": "product teams",
+    "mood": "minimal trusted professional",
+    "primaryFocus": "feedback wall",
+    "rhythm": "slow intro then layered cards and calm hold",
+    "aspect": "$canvas.widescreen16x9",
+    "durationIntent": "$duration.medium",
+    "elements": [
+      {"kind": "title", "importance": "primary", "text": "Feedback, unified"},
+      {"kind": "subtitle", "importance": "supporting", "text": "Email, chat, and review notes"}
+    ]
+  }
+}
+

@@ -1,0 +1,27 @@
+{
+  "directorBrief": {
+    "intent": "showcase four premium app capabilities in balanced card grid",
+    "audience": "content creators",
+    "mood": "clean premium confident",
+    "primaryFocus": "feature card group",
+    "rhythm": "title intro then mirrored card cascade then coherent exit",
+    "aspect": "$canvas.vertical9x16",
+    "durationIntent": "$duration.deliberate",
+    "elements": [
+      {
+        "kind": "featureCardGroup",
+        "importance": "primary",
+        "properties": {
+          "primaryCardIndex": 0
+        },
+        "cards": [
+          {"label": "Fast", "body": "Edit polished videos quickly"},
+          {"label": "Voice", "body": "Clean voiceovers with one pass"},
+          {"label": "Smart", "body": "Readable kinetic captions"},
+          {"label": "Image+", "body": "Retouch grade and color"}
+        ]
+      }
+    ]
+  }
+}
+

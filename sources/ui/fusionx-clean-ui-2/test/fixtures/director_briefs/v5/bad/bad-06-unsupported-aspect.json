@@ -1,0 +1,16 @@
+{
+  "expectedIssueContains": "not supported",
+  "directorBrief": {
+    "intent": "show product grid",
+    "audience": "creators",
+    "mood": "modern",
+    "primaryFocus": "grid",
+    "rhythm": "intro hold",
+    "aspect": "$canvas.panorama21x9",
+    "durationIntent": "$duration.medium",
+    "elements": [
+      {"kind": "title", "importance": "primary", "text": "Wide mode"}
+    ]
+  }
+}
+

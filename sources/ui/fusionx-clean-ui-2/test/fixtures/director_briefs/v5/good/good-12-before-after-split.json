@@ -1,0 +1,15 @@
+{
+  "directorBrief": {
+    "intent": "compare before and after quality with split layout",
+    "audience": "freelancers",
+    "mood": "clear demonstrative",
+    "primaryFocus": "before after split",
+    "rhythm": "left to right reveal then synced hold",
+    "aspect": "$canvas.widescreen16x9",
+    "durationIntent": "$duration.medium",
+    "elements": [
+      {"kind": "title", "importance": "primary", "text": "Before vs After"},
+      {"kind": "subtitle", "importance": "supporting", "text": "Color, voice, and motion clarity"}
+    ]
+  }
+}

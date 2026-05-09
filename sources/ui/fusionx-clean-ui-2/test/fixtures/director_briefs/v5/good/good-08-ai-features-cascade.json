@@ -1,0 +1,25 @@
+{
+  "directorBrief": {
+    "intent": "present ai workflow stages with directional cascade",
+    "audience": "operators",
+    "mood": "smart efficient",
+    "primaryFocus": "ai feature cascade",
+    "rhythm": "deliberate intro then staggered steps",
+    "aspect": "$canvas.vertical9x16",
+    "durationIntent": "$duration.deliberate",
+    "elements": [
+      {
+        "kind": "featureCardGroup",
+        "importance": "primary",
+        "properties": {"primaryCardIndex": 1},
+        "cards": [
+          {"label": "Draft", "body": "Generate first cut instantly"},
+          {"label": "Refine", "body": "Tune timing with SpeedyGraph"},
+          {"label": "Review", "body": "Visual QA before publish"},
+          {"label": "Ship", "body": "Export with confidence"}
+        ]
+      }
+    ]
+  }
+}
+

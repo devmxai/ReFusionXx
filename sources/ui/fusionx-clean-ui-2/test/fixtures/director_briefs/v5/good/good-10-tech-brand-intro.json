@@ -1,0 +1,16 @@
+{
+  "directorBrief": {
+    "intent": "introduce enterprise tech brand with restrained motion",
+    "audience": "enterprise buyers",
+    "mood": "minimal trustworthy",
+    "primaryFocus": "brand lockup",
+    "rhythm": "slow reveal and elegant exit",
+    "aspect": "$canvas.widescreen16x9",
+    "durationIntent": "$duration.deliberate",
+    "elements": [
+      {"kind": "title", "importance": "primary", "text": "Built for Scale"},
+      {"kind": "subtitle", "importance": "supporting", "text": "Security, speed, and reliability"}
+    ]
+  }
+}
+

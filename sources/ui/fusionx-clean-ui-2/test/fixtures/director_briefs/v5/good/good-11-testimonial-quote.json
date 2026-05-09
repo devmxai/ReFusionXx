@@ -1,0 +1,16 @@
+{
+  "directorBrief": {
+    "intent": "show one testimonial quote with elegant pacing",
+    "audience": "decision makers",
+    "mood": "calm premium",
+    "primaryFocus": "quote card",
+    "rhythm": "quote reveal then long readable hold",
+    "aspect": "$canvas.vertical9x16",
+    "durationIntent": "$duration.slow",
+    "elements": [
+      {"kind": "title", "importance": "primary", "text": "\"This changed our production speed\""},
+      {"kind": "subtitle", "importance": "supporting", "text": "Head of Content, Arc Labs"}
+    ]
+  }
+}
+

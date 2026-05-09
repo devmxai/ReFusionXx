@@ -1,0 +1,21 @@
+{
+  "expectedIssueContains": "high-energy",
+  "directorBrief": {
+    "intent": "premium finance report reveal",
+    "audience": "executives",
+    "mood": "calm luxury minimal",
+    "primaryFocus": "report title",
+    "rhythm": "slow reveal",
+    "aspect": "$canvas.widescreen16x9",
+    "durationIntent": "$duration.deliberate",
+    "elements": [
+      {
+        "kind": "title",
+        "importance": "primary",
+        "text": "Q4 Outlook",
+        "motionHint": "shake bounce pop whip"
+      }
+    ]
+  }
+}
+

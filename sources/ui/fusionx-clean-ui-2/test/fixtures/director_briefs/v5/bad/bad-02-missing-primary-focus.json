@@ -1,0 +1,16 @@
+{
+  "expectedIssueContains": "must include `primaryFocus`",
+  "directorBrief": {
+    "intent": "show feature cards",
+    "audience": "creators",
+    "mood": "professional",
+    "primaryFocus": "",
+    "rhythm": "intro hold outro",
+    "aspect": "$canvas.vertical9x16",
+    "durationIntent": "$duration.medium",
+    "elements": [
+      {"kind": "title", "importance": "primary", "text": "Launch faster"}
+    ]
+  }
+}
+

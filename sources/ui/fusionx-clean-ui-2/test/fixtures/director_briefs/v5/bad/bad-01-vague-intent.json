@@ -1,0 +1,16 @@
+{
+  "expectedIssueContains": "too vague",
+  "directorBrief": {
+    "intent": "make something cool",
+    "audience": "everyone",
+    "mood": "energetic",
+    "primaryFocus": "headline",
+    "rhythm": "intro outro",
+    "aspect": "$canvas.vertical9x16",
+    "durationIntent": "$duration.medium",
+    "elements": [
+      {"kind": "title", "importance": "primary", "text": "Hi"}
+    ]
+  }
+}
+

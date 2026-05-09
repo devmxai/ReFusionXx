@@ -1,0 +1,16 @@
+{
+  "directorBrief": {
+    "intent": "prove composition adapts cleanly across aspect targets",
+    "audience": "creative agencies",
+    "mood": "structured premium",
+    "primaryFocus": "adaptive layout",
+    "rhythm": "stable intro and balanced transitions",
+    "aspect": "$canvas.square1x1",
+    "durationIntent": "$duration.medium",
+    "elements": [
+      {"kind": "title", "importance": "primary", "text": "One scene, many formats"},
+      {"kind": "subtitle", "importance": "supporting", "text": "9:16, 16:9, 1:1, and 4:5"}
+    ]
+  }
+}
+

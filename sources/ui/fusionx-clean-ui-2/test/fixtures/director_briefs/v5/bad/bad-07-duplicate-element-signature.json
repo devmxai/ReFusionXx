@@ -1,0 +1,17 @@
+{
+  "expectedIssueContains": "duplicated elements",
+  "directorBrief": {
+    "intent": "show duplicated content",
+    "audience": "creators",
+    "mood": "professional",
+    "primaryFocus": "headline",
+    "rhythm": "intro hold",
+    "aspect": "$canvas.vertical9x16",
+    "durationIntent": "$duration.medium",
+    "elements": [
+      {"kind": "title", "importance": "primary", "text": "Same"},
+      {"kind": "title", "importance": "primary", "text": "Same", "properties": {"allowDuplicate": false}}
+    ]
+  }
+}
+

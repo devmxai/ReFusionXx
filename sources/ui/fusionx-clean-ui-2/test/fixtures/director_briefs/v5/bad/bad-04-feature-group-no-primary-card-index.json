@@ -1,0 +1,25 @@
+{
+  "expectedIssueContains": "primaryCardIndex",
+  "directorBrief": {
+    "intent": "show four features",
+    "audience": "operators",
+    "mood": "clean",
+    "primaryFocus": "feature cards",
+    "rhythm": "intro then cascade",
+    "aspect": "$canvas.vertical9x16",
+    "durationIntent": "$duration.medium",
+    "elements": [
+      {
+        "kind": "featureCardGroup",
+        "importance": "primary",
+        "cards": [
+          {"label": "Fast", "body": "Quick edits"},
+          {"label": "Voice", "body": "Noise cleanup"},
+          {"label": "Smart", "body": "Readable captions"},
+          {"label": "Image+", "body": "Color polish"}
+        ]
+      }
+    ]
+  }
+}
+

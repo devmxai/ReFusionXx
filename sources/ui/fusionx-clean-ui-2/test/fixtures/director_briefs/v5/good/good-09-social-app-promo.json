@@ -1,0 +1,16 @@
+{
+  "directorBrief": {
+    "intent": "launch social app with polished mobile storytelling",
+    "audience": "gen z creators",
+    "mood": "playful polished",
+    "primaryFocus": "app flow",
+    "rhythm": "quick icon punch then smooth sequence",
+    "aspect": "$canvas.vertical9x16",
+    "durationIntent": "$duration.medium",
+    "elements": [
+      {"kind": "title", "importance": "primary", "text": "Create. Post. Grow."},
+      {"kind": "subtitle", "importance": "supporting", "text": "Everything in one native flow"}
+    ]
+  }
+}
+

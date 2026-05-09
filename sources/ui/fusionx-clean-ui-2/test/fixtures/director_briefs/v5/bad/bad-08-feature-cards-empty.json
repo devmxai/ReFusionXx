@@ -1,0 +1,21 @@
+{
+  "expectedIssueContains": "non-empty `cards` payloads",
+  "directorBrief": {
+    "intent": "show feature cards",
+    "audience": "creators",
+    "mood": "professional",
+    "primaryFocus": "feature cards",
+    "rhythm": "intro cascade",
+    "aspect": "$canvas.vertical9x16",
+    "durationIntent": "$duration.medium",
+    "elements": [
+      {
+        "kind": "featureCardGroup",
+        "importance": "primary",
+        "properties": {"primaryCardIndex": 0},
+        "cards": []
+      }
+    ]
+  }
+}
+

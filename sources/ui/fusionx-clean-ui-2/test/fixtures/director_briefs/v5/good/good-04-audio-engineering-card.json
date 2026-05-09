@@ -1,0 +1,25 @@
+{
+  "directorBrief": {
+    "intent": "present audio engineering quality with clear premium card",
+    "audience": "podcasters",
+    "mood": "focused technical refined",
+    "primaryFocus": "audio feature card",
+    "rhythm": "single hero card then readable hold",
+    "aspect": "$canvas.vertical9x16",
+    "durationIntent": "$duration.medium",
+    "elements": [
+      {
+        "kind": "featureCardGroup",
+        "importance": "primary",
+        "properties": {"primaryCardIndex": 0},
+        "cards": [
+          {"label": "Voice", "body": "Remove noise and level speech cleanly"},
+          {"label": "Mix", "body": "Balance music and narration"},
+          {"label": "Cut", "body": "Tight edits without artifacts"},
+          {"label": "Export", "body": "Broadcast-ready output"}
+        ]
+      }
+    ]
+  }
+}
+

@@ -1,0 +1,25 @@
+{
+  "directorBrief": {
+    "intent": "demonstrate kinetic captions that stay readable",
+    "audience": "short-form editors",
+    "mood": "energetic controlled",
+    "primaryFocus": "captions feature card",
+    "rhythm": "headline pop then word cascade then hold",
+    "aspect": "$canvas.vertical9x16",
+    "durationIntent": "$duration.medium",
+    "elements": [
+      {
+        "kind": "featureCardGroup",
+        "importance": "primary",
+        "properties": {"primaryCardIndex": 2},
+        "cards": [
+          {"label": "Sync", "body": "Frame-locked subtitle timing"},
+          {"label": "Style", "body": "Branded caption presets"},
+          {"label": "Smart", "body": "Readable kinetic emphasis"},
+          {"label": "Burn", "body": "Export hard or soft captions"}
+        ]
+      }
+    ]
+  }
+}
+

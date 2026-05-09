@@ -156,6 +156,35 @@ class SceneMotionRecipeLibrary {
       tasteNotes: 'Quiet entrance for supporting elements.',
     ),
     SceneMotionRecipeDefinition(
+      id: 'fadeRaise',
+      category: SceneMotionRecipeCategory.entrance,
+      channels: <SceneMotionRecipeChannel>[
+        SceneMotionRecipeChannel(
+          kind: 'slide',
+          property: 'position',
+          fromValue: <String, double>{'x': 0, 'y': 20},
+          toValue: <String, double>{'x': 0, 'y': 0},
+          startFraction: 0.0,
+          endFraction: 1.0,
+          easing: 'fastSlow',
+        ),
+        SceneMotionRecipeChannel(
+          kind: 'enter',
+          property: 'opacity',
+          fromValue: 0.0,
+          toValue: 1.0,
+          startFraction: 0.0,
+          endFraction: 1.0,
+          easing: 'fastSlow',
+        ),
+      ],
+      defaultDurationToken: r'$duration.fast',
+      easingToken: r'$easing.standard',
+      speedyGraphPreset: 'fastSlow',
+      allowedTargets: <String>{'component', 'body', 'label', 'cardShell'},
+      tasteNotes: 'Minimal rise-and-fade entrance for restrained compositions.',
+    ),
+    SceneMotionRecipeDefinition(
       id: 'scaleIn',
       category: SceneMotionRecipeCategory.entrance,
       channels: <SceneMotionRecipeChannel>[

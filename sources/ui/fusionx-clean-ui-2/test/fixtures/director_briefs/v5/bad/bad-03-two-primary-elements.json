@@ -1,0 +1,17 @@
+{
+  "expectedIssueContains": "multiple primary elements",
+  "directorBrief": {
+    "intent": "show two competing hero ideas",
+    "audience": "founders",
+    "mood": "modern",
+    "primaryFocus": "headline",
+    "rhythm": "intro hold outro",
+    "aspect": "$canvas.vertical9x16",
+    "durationIntent": "$duration.medium",
+    "elements": [
+      {"kind": "title", "importance": "primary", "text": "One"},
+      {"kind": "subtitle", "importance": "primary", "text": "Two"}
+    ]
+  }
+}
+
