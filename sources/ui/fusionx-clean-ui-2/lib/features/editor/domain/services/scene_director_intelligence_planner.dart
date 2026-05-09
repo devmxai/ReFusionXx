@@ -1,5 +1,6 @@
 import '../models/refusion_motion_director_models.dart';
 import '../models/scene_director_brief_models.dart';
+import 'scene_brand_motion_mapping.dart';
 import 'scene_icon_registry.dart';
 import 'scene_motion_recipe_compiler.dart';
 import 'scene_motion_recipe_models.dart';
@@ -25,11 +26,15 @@ class SceneDirectorIntelligencePlanner {
     SceneMotionRecipeCompiler recipeCompiler =
         const SceneMotionRecipeCompiler(),
     SceneIconRegistry iconRegistry = const SceneIconRegistry(),
+    SceneBrandMotionMapping brandMotionMapping =
+        const SceneBrandMotionMapping(),
   })  : _recipeCompiler = recipeCompiler,
-        _iconRegistry = iconRegistry;
+        _iconRegistry = iconRegistry,
+        _brandMotionMapping = brandMotionMapping;
 
   final SceneMotionRecipeCompiler _recipeCompiler;
   final SceneIconRegistry _iconRegistry;
+  final SceneBrandMotionMapping _brandMotionMapping;
 
   SceneDirectorIntelligencePlanResult planFromBrief(
     SceneDirectorBrief brief,
@@ -173,6 +178,14 @@ class SceneDirectorIntelligencePlanner {
           final enterStart = introEnd + (index * staggerMs);
           final enterEnd = (enterStart + (durationMs * 0.18).round())
               .clamp(enterStart + 120, featuresEnd - 100);
+          final motionMapping = _brandMotionMapping.resolve(
+            brandToken: card.brandToken,
+            mood: brief.mood,
+            label: card.label,
+            body: card.body,
+          );
+          issues.addAll(motionMapping.issues);
+          final motionProfile = motionMapping.profile;
 
           final cardWidth = canvas.width >= 1500 ? 520.0 : 430.0;
           final cardHeight = canvas.width >= 1500 ? 280.0 : 236.0;
@@ -195,6 +208,7 @@ class SceneDirectorIntelligencePlanner {
                   'y': center.y,
                   'color': '#161A23',
                   'opacity': 0.0,
+                  'brandMotionProfile': motionProfile.id,
                 },
               ),
               ReFusionMotionDirectorComponent(
@@ -263,7 +277,7 @@ class SceneDirectorIntelligencePlanner {
             primitives: primitives,
             issues: issues,
             request: SceneMotionRecipeCompileRequest(
-              recipeId: _featureShellEnterRecipeFor(index),
+              recipeId: _featureShellEnterRecipeFor(index, motionProfile.style),
               targetComponentId: shellId,
               targetScope: 'cardShell',
               beatId: 'features',
@@ -278,7 +292,7 @@ class SceneDirectorIntelligencePlanner {
             primitives: primitives,
             issues: issues,
             request: SceneMotionRecipeCompileRequest(
-              recipeId: r'$motion.iconPop',
+              recipeId: motionProfile.iconEnterRecipe,
               targetComponentId: iconId,
               targetScope: 'icon',
               beatId: 'features',
@@ -291,7 +305,7 @@ class SceneDirectorIntelligencePlanner {
             primitives: primitives,
             issues: issues,
             request: SceneMotionRecipeCompileRequest(
-              recipeId: r'$motion.wordCascadeUp',
+              recipeId: motionProfile.labelEnterRecipe,
               targetComponentId: labelId,
               targetScope: 'body',
               beatId: 'features',
@@ -304,7 +318,7 @@ class SceneDirectorIntelligencePlanner {
             primitives: primitives,
             issues: issues,
             request: SceneMotionRecipeCompileRequest(
-              recipeId: r'$motion.wordCascadeUp',
+              recipeId: motionProfile.bodyEnterRecipe,
               targetComponentId: bodyId,
               targetScope: 'body',
               beatId: 'features',
@@ -318,7 +332,7 @@ class SceneDirectorIntelligencePlanner {
             primitives: primitives,
             issues: issues,
             request: SceneMotionRecipeCompileRequest(
-              recipeId: _featureShellExitRecipeFor(index),
+              recipeId: _featureShellExitRecipeFor(index, motionProfile.style),
               targetComponentId: shellId,
               targetScope: 'cardShell',
               beatId: 'outro',
@@ -494,7 +508,16 @@ class SceneDirectorIntelligencePlanner {
     return '#10141E';
   }
 
-  String _featureShellEnterRecipeFor(int index) {
+  String _featureShellEnterRecipeFor(int index, String style) {
+    if (style == 'minimal') {
+      return r'$motion.fadeRaise';
+    }
+    if (style == 'cinematic') {
+      return r'$motion.cardSpringEntrance';
+    }
+    if (style == 'audio') {
+      return r'$motion.slideInFromRight';
+    }
     switch (index % 4) {
       case 0:
         return r'$motion.cardSpringEntrance';
@@ -507,7 +530,13 @@ class SceneDirectorIntelligencePlanner {
     }
   }
 
-  String _featureShellExitRecipeFor(int index) {
+  String _featureShellExitRecipeFor(int index, String style) {
+    if (style == 'minimal') {
+      return r'$motion.fadeCollapse';
+    }
+    if (style == 'audio') {
+      return r'$motion.slideOutToRight';
+    }
     switch (index % 4) {
       case 0:
         return r'$motion.slideOutToBottom';

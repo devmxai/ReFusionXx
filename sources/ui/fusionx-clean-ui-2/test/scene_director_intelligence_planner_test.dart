@@ -141,4 +141,41 @@ void main() {
       isTrue,
     );
   });
+
+  test('injects brand-aware motion profile on branded feature cards', () {
+    final brief = SceneDirectorBrief(
+      intent: 'Brand profile check',
+      audience: 'general',
+      mood: 'energetic professional',
+      primaryFocus: 'cards',
+      rhythm: 'intro -> cascade -> outro',
+      aspect: r'$canvas.vertical9x16',
+      durationIntent: r'$duration.medium',
+      elements: <SceneDirectorBriefElement>[
+        SceneDirectorBriefElement(
+          kind: 'title',
+          importance: 'primary',
+          text: 'Brands',
+        ),
+        SceneDirectorBriefElement(
+          kind: 'featureCardGroup',
+          importance: 'supporting',
+          cards: const <SceneDirectorBriefCard>[
+            SceneDirectorBriefCard(
+              label: 'ChatGPT',
+              body: 'AI workflow',
+              brandToken: r'$brand.chatgpt',
+            ),
+          ],
+        ),
+      ],
+    );
+
+    final result = planner.planFromBrief(brief);
+    expect(result.isValid, isTrue);
+    final shell = result.plan!.components.firstWhere(
+      (component) => component.id.endsWith('-shell'),
+    );
+    expect(shell.properties['brandMotionProfile'], r'$motion.brand.tech');
+  });
 }
