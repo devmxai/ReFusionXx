@@ -269,7 +269,7 @@ void main() {
     );
   });
 
-  testWidgets('present sheet applies refusion prompt burst wrapper asset',
+  testWidgets('present sheet is clean after removing stale scene presets',
       (tester) async {
     SceneProgramImportSheetResult? appliedResult;
 
@@ -299,26 +299,16 @@ void main() {
     await tester.tap(find.text('Open Present'));
     await tester.pumpAndSettle();
 
-    await tester.scrollUntilVisible(
-      find.text('ReFusion Prompt Burst'),
-      180,
-      scrollable: find.byType(Scrollable),
+    expect(find.text('No clean present scene yet'), findsOneWidget);
+    expect(
+      find.text(
+        'The mixed preset was removed. The next scene will be added fresh after the new screen-by-screen brief.',
+      ),
+      findsOneWidget,
     );
-    expect(find.text('ReFusion Prompt Burst'), findsOneWidget);
     expect(find.text('Premium App Promo'), findsNothing);
-
-    await tester.tap(find.text('ReFusion Prompt Burst'));
-    await tester.runAsync(() async {
-      for (var attempt = 0;
-          attempt < 40 && appliedResult == null;
-          attempt += 1) {
-        await Future<void>.delayed(const Duration(milliseconds: 250));
-      }
-    });
-    await tester.pumpAndSettle();
-
-    expect(appliedResult, isNotNull);
-    expect(appliedResult!.name, 'ReFusion Prompt Burst Feature Cards');
-    expect(appliedResult!.authoringResult.program?.durationMs, 12800);
+    expect(find.text('ReFusion Prompt Burst'), findsNothing);
+    expect(find.text('Professional Test'), findsNothing);
+    expect(appliedResult, isNull);
   });
 }

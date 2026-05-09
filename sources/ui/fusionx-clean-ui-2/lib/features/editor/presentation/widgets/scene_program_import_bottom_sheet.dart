@@ -97,17 +97,7 @@ class SceneProgramPresentBottomSheet extends StatelessWidget {
       KieSceneProgramAgentService();
 
   static const List<_SceneProgramPresentPreset> _presets =
-      <_SceneProgramPresentPreset>[
-    _SceneProgramPresentPreset(
-      title: 'ReFusion Prompt Burst',
-      subtitle:
-          'White-canvas icon-to-prompt morph, typed request, burst transition, then four premium feature cards.',
-      assetPath: _SceneProgramImportBottomSheetState
-          ._revivalPromptBurstFeatureCardsAssetPath,
-      icon: Icons.workspace_premium_rounded,
-      status: 'V3 Demo',
-    ),
-  ];
+      <_SceneProgramPresentPreset>[];
 
   Future<void> _applyPreset(
     BuildContext context,
@@ -233,19 +223,79 @@ class SceneProgramPresentBottomSheet extends StatelessWidget {
             ),
             const SizedBox(height: 18),
             Expanded(
-              child: ListView.separated(
-                itemCount: _presets.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
-                itemBuilder: (context, index) {
-                  final preset = _presets[index];
-                  return _SceneProgramPresentCard(
-                    preset: preset,
-                    onTap: () => _applyPreset(context, preset),
-                  );
-                },
-              ),
+              child: _presets.isEmpty
+                  ? const _SceneProgramPresentEmptyState()
+                  : ListView.separated(
+                      itemCount: _presets.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (context, index) {
+                        final preset = _presets[index];
+                        return _SceneProgramPresentCard(
+                          preset: preset,
+                          onTap: () => _applyPreset(context, preset),
+                        );
+                      },
+                    ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SceneProgramPresentEmptyState extends StatelessWidget {
+  const _SceneProgramPresentEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 360),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 54,
+                height: 54,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.12),
+                  ),
+                ),
+                child: Icon(
+                  Icons.movie_filter_rounded,
+                  color: FxPalette.textMuted.withOpacity(0.86),
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                'No clean present scene yet',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: FxPalette.textPrimary,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'The mixed preset was removed. The next scene will be added fresh after the new screen-by-screen brief.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: FxPalette.textMuted.withOpacity(0.86),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  height: 1.35,
+                  letterSpacing: 0,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -419,11 +469,6 @@ class _SceneProgramImportBottomSheetState
     extends State<SceneProgramImportBottomSheet> {
   static const String _blueprintEntryProofTag =
       'TF_SCENE_BLUEPRINT_ENTRY_PROOF';
-  static const String _premiumAppPromoSceneProgramAssetPath =
-      'assets/scene_programs/premium_app_promo_prompt_bar_scene.json';
-  static const String _revivalPromptBurstFeatureCardsAssetPath =
-      'assets/scene_programs/revival_prompt_burst_feature_cards_scene.json';
-
   final ReFusionSceneProgramAuthoringService _authoringService =
       const ReFusionSceneProgramAuthoringService();
   final SceneSemanticBlueprintCompiler _semanticBlueprintCompiler =
@@ -3064,28 +3109,6 @@ class _SceneProgramImportBottomSheetState
                         },
                       ),
                     ],
-                  ),
-                ),
-              ],
-              if (_selectedTab == _SceneProgramSheetTab.script) ...[
-                const SizedBox(height: 10),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 18),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _SceneProgramActionButton(
-                          icon: Icons.workspace_premium_rounded,
-                          label: 'ReFusion Prompt Burst',
-                          onTap: () => _loadAssetPreset(
-                            _revivalPromptBurstFeatureCardsAssetPath,
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
                 ),
               ],
