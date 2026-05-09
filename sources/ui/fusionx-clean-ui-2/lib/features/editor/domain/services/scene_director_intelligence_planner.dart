@@ -1,8 +1,10 @@
 import '../models/refusion_motion_director_models.dart';
 import '../models/scene_director_brief_models.dart';
+import 'scene_background_semantic_pairing.dart';
 import 'scene_brand_motion_mapping.dart';
 import 'scene_component_choreography_engine.dart';
 import 'scene_component_choreography_models.dart';
+import 'scene_feature_visual_motifs.dart';
 import 'scene_icon_registry.dart';
 import 'scene_inter_component_choreography.dart';
 import 'scene_motion_recipe_compiler.dart';
@@ -35,17 +37,25 @@ class SceneDirectorIntelligencePlanner {
         const SceneComponentChoreographyEngine(),
     SceneInterComponentChoreographySolver interComponentSolver =
         const SceneInterComponentChoreographySolver(),
+    SceneBackgroundSemanticPairing backgroundPairing =
+        const SceneBackgroundSemanticPairing(),
+    SceneFeatureVisualMotifs featureVisualMotifs =
+        const SceneFeatureVisualMotifs(),
   })  : _recipeCompiler = recipeCompiler,
         _iconRegistry = iconRegistry,
         _brandMotionMapping = brandMotionMapping,
         _componentChoreographyEngine = componentChoreographyEngine,
-        _interComponentSolver = interComponentSolver;
+        _interComponentSolver = interComponentSolver,
+        _backgroundPairing = backgroundPairing,
+        _featureVisualMotifs = featureVisualMotifs;
 
   final SceneMotionRecipeCompiler _recipeCompiler;
   final SceneIconRegistry _iconRegistry;
   final SceneBrandMotionMapping _brandMotionMapping;
   final SceneComponentChoreographyEngine _componentChoreographyEngine;
   final SceneInterComponentChoreographySolver _interComponentSolver;
+  final SceneBackgroundSemanticPairing _backgroundPairing;
+  final SceneFeatureVisualMotifs _featureVisualMotifs;
 
   SceneDirectorIntelligencePlanResult planFromBrief(
     SceneDirectorBrief brief,
@@ -55,6 +65,8 @@ class SceneDirectorIntelligencePlanner {
     final durationMs = _durationForIntent(brief.durationIntent);
     final introEnd = (durationMs * 0.25).round();
     final featuresEnd = (durationMs * 0.8).round();
+    final backgroundPairing = _backgroundPairing.resolve(brief);
+    issues.addAll(backgroundPairing.issues);
 
     final components = <ReFusionMotionDirectorComponent>[
       ReFusionMotionDirectorComponent(
@@ -62,7 +74,9 @@ class SceneDirectorIntelligencePlanner {
         role: 'background',
         label: 'Background',
         properties: <String, Object?>{
-          'color': _backgroundColorForMood(brief.mood),
+          'color': backgroundPairing.spec.backgroundColor,
+          'accentColor': backgroundPairing.spec.accentColor,
+          'topic': backgroundPairing.spec.topic,
           'opacity': 1.0,
         },
       ),
@@ -81,6 +95,54 @@ class SceneDirectorIntelligencePlanner {
         easing: 'fastSlow',
       ),
     ];
+    final microScene = backgroundPairing.microScene;
+    if (microScene != null) {
+      final backgroundMotifId = 'background-micro-scene';
+      components.add(
+        ReFusionMotionDirectorComponent(
+          id: backgroundMotifId,
+          role: 'background.motif',
+          label: 'Background Micro Scene',
+          properties: <String, Object?>{
+            'shapeKind': 'roundedRectangle',
+            'width': microScene.width,
+            'height': microScene.height,
+            'x': 0.0,
+            'y': canvas.height * 0.31,
+            'color': backgroundPairing.spec.accentColor,
+            'opacity': microScene.opacity,
+            'microSceneKind': microScene.kind,
+            'microSceneId': microScene.id,
+          },
+        ),
+      );
+      _appendRecipe(
+        primitives: primitives,
+        issues: issues,
+        request: SceneMotionRecipeCompileRequest(
+          recipeId: microScene.motionRecipe,
+          targetComponentId: backgroundMotifId,
+          targetScope: 'background',
+          beatId: 'intro',
+          startMs: (introEnd * 0.15).round(),
+          endMs: featuresEnd,
+          idPrefix: '$backgroundMotifId-enter',
+        ),
+      );
+      _appendRecipe(
+        primitives: primitives,
+        issues: issues,
+        request: SceneMotionRecipeCompileRequest(
+          recipeId: r'$motion.fadeCollapse',
+          targetComponentId: backgroundMotifId,
+          targetScope: 'background',
+          beatId: 'outro',
+          startMs: featuresEnd,
+          endMs: durationMs,
+          idPrefix: '$backgroundMotifId-exit',
+        ),
+      );
+    }
 
     var hasTitle = false;
     var hasFeatureGroup = false;
@@ -185,6 +247,9 @@ class SceneDirectorIntelligencePlanner {
           final iconId = '$cardBaseId-icon';
           final labelId = '$cardBaseId-label';
           final bodyId = '$cardBaseId-body';
+          final motifId = '$cardBaseId-motif';
+          final motifSpec =
+              _featureVisualMotifs.resolve(label: card.label, body: card.body);
 
           final enterStart = introEnd + (index * staggerMs);
           final enterEnd = (enterStart + (durationMs * 0.18).round())
@@ -289,6 +354,24 @@ class SceneDirectorIntelligencePlanner {
                   },
                 },
               ),
+              ReFusionMotionDirectorComponent(
+                id: motifId,
+                role: 'feature.motif',
+                label: 'Feature Motif',
+                properties: <String, Object?>{
+                  'icon': _iconRegistry.resolveIconName(
+                    iconToken: motifSpec.iconToken,
+                    fallbackText: card.label,
+                    issues: issues,
+                  ),
+                  'width': 30,
+                  'height': 30,
+                  'x': center.x + (cardWidth / 2) - 48,
+                  'y': center.y - (cardHeight / 2) + 44,
+                  'color': '#FFFFFF',
+                  'opacity': motifSpec.opacity,
+                },
+              ),
             ],
           );
 
@@ -313,6 +396,32 @@ class SceneDirectorIntelligencePlanner {
             issues: issues,
             componentIdsByRole: componentIdsByRole,
             index: index,
+          );
+          _appendRecipe(
+            primitives: primitives,
+            issues: issues,
+            request: SceneMotionRecipeCompileRequest(
+              recipeId: motifSpec.recipeId,
+              targetComponentId: motifId,
+              targetScope: 'icon',
+              beatId: 'features',
+              startMs: enterStart + 120,
+              endMs: enterEnd + 60,
+              idPrefix: '$motifId-enter',
+            ),
+          );
+          _appendRecipe(
+            primitives: primitives,
+            issues: issues,
+            request: SceneMotionRecipeCompileRequest(
+              recipeId: r'$motion.fadeCollapse',
+              targetComponentId: motifId,
+              targetScope: 'icon',
+              beatId: 'outro',
+              startMs: featuresEnd,
+              endMs: durationMs,
+              idPrefix: '$motifId-exit',
+            ),
           );
         }
         continue;

@@ -63,10 +63,22 @@ void main() {
       isTrue,
     );
     expect(
+      result.plan!.components.any(
+        (component) => component.id == 'background-micro-scene',
+      ),
+      isTrue,
+    );
+    expect(
       result.plan!.components
           .where((component) => component.id.contains('feature-card-'))
           .length,
       greaterThanOrEqualTo(16),
+    );
+    expect(
+      result.plan!.components
+          .where((component) => component.id.endsWith('-motif'))
+          .length,
+      4,
     );
     final primitiveKinds =
         result.plan!.primitives.map((primitive) => primitive.kind).toSet();
