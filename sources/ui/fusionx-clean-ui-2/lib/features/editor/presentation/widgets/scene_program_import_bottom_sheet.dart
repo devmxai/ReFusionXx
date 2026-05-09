@@ -335,14 +335,18 @@ class _SceneProgramPresentCard extends StatelessWidget {
                     Row(
                       children: [
                         Expanded(
-                          child: Text(
-                            preset.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: FxPalette.textPrimary,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w800,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.translucent,
+                            onTap: onTap,
+                            child: Text(
+                              preset.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: FxPalette.textPrimary,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
                           ),
                         ),

@@ -1,306 +1,184 @@
 {
   "directorPlan": {
     "schemaVersion": "refusion.motion-director/v1",
-    "name": "ReFusion Prompt Burst Feature Cards Plan",
+    "name": "ReFusion Prompt Burst Feature Cards",
     "durationMs": 12800,
     "frameRate": 30,
     "canvasWidth": 1080,
     "canvasHeight": 1920,
+    "components": [
+      {
+        "id": "prompt-shell",
+        "role": "promptInputBar.shell",
+        "label": "Morphing app tile and prompt shell"
+      },
+      {
+        "id": "app-icon-letter",
+        "role": "brand.mark",
+        "label": "ReFusion R brand mark"
+      },
+      {
+        "id": "plus-icon",
+        "role": "button.attachIcon",
+        "label": "Prompt attach plus"
+      },
+      {
+        "id": "prompt-text",
+        "role": "text.typewriter",
+        "label": "Typed prompt"
+      },
+      {
+        "id": "send-button",
+        "role": "button.send",
+        "label": "Send button"
+      },
+      {
+        "id": "stage-reveal-panel",
+        "role": "shape.revealPanel",
+        "label": "Full-canvas feature scene reveal panel"
+      },
+      {
+        "id": "feature-grid",
+        "role": "featureGrid",
+        "label": "Four-feature product grid"
+      }
+    ],
     "beats": [
       {
-        "id": "icon-intro",
-        "label": "Icon intro",
+        "id": "icon-pop",
+        "label": "Icon pop",
         "startMs": 0,
-        "endMs": 1200,
-        "intent": "White canvas with centered R icon and a premium pop.",
-        "componentRefs": [
-          "background",
-          "app-icon",
-          "app-icon-letter",
-          "tap-ring"
-        ]
-      },
-      {
-        "id": "icon-to-prompt",
-        "label": "Icon to prompt morph",
-        "startMs": 1200,
-        "endMs": 3000,
-        "intent": "Icon morphs into chatbot prompt input with polished spring timing.",
+        "endMs": 1720,
+        "intent": "Rounded app tile bounces into focus, then receives a press.",
         "componentRefs": [
           "prompt-shell",
-          "prompt-text",
-          "plus-icon",
-          "send-button",
-          "send-arrow"
+          "app-icon-letter"
         ]
       },
       {
-        "id": "prompt-type",
-        "label": "Type prompt",
-        "startMs": 3000,
-        "endMs": 5000,
-        "intent": "Type `build a new app for my business` with readable cadence.",
+        "id": "prompt-morph",
+        "label": "Tile morphs to prompt",
+        "startMs": 1720,
+        "endMs": 3150,
+        "intent": "The same shell stretches into a chatbot prompt input and reveals controls.",
+        "componentRefs": [
+          "prompt-shell",
+          "plus-icon",
+          "send-button"
+        ]
+      },
+      {
+        "id": "keyboard-type",
+        "label": "Keyboard typewriter",
+        "startMs": 3150,
+        "endMs": 5120,
+        "intent": "Prompt text is typed with readable keyboard rhythm.",
         "componentRefs": [
           "prompt-text"
         ]
       },
       {
         "id": "prompt-readable-hold",
-        "label": "Prompt readable hold",
-        "startMs": 5000,
-        "endMs": 5600,
-        "intent": "Hold the full prompt for readability before submit.",
+        "label": "Readable prompt hold",
+        "startMs": 5120,
+        "endMs": 5900,
+        "intent": "Hold the fully typed prompt long enough to read before submit.",
         "componentRefs": [
-          "prompt-shell",
-          "prompt-text",
-          "plus-icon",
+          "prompt-text"
+        ]
+      },
+      {
+        "id": "submit-open",
+        "label": "Send opens scene",
+        "startMs": 5900,
+        "endMs": 7050,
+        "intent": "Send button press expands into the feature-card scene.",
+        "componentRefs": [
           "send-button",
-          "send-arrow"
+          "stage-reveal-panel"
         ]
       },
       {
-        "id": "press-and-burst",
-        "label": "Plus tap and burst transition",
-        "startMs": 5600,
-        "endMs": 7600,
-        "intent": "Tap interaction, then send circle bursts to reveal the next scene.",
-        "componentRefs": [
-          "plus-icon",
-          "send-button",
-          "send-arrow",
-          "stage-two-overlay"
-        ]
-      },
-      {
-        "id": "cards-enter",
-        "label": "Feature cards enter",
-        "startMs": 7600,
-        "endMs": 10800,
-        "intent": "Four feature cards land with spring pop-up timing.",
-        "componentRefs": [
-          "cards-title",
-          "card-1",
-          "card-2",
-          "card-3",
-          "card-4"
-        ]
-      },
-      {
-        "id": "cards-readable-hold",
-        "label": "Cards readable hold",
-        "startMs": 10800,
+        "id": "feature-cards",
+        "label": "Feature cards",
+        "startMs": 7100,
         "endMs": 12800,
-        "intent": "Keep feature cards stable for reading.",
+        "intent": "Four professional feature cards appear with measured stagger and readable holds.",
         "componentRefs": [
-          "cards-title",
-          "card-1",
-          "card-2",
-          "card-3",
-          "card-4"
+          "feature-grid"
         ]
-      }
-    ],
-    "components": [
-      {
-        "id": "background",
-        "role": "background.canvas",
-        "label": "Base white background",
-        "layerId": "background-layer",
-        "elementId": "bg-white"
-      },
-      {
-        "id": "stage-two-overlay",
-        "role": "background.transition",
-        "label": "Stage two overlay",
-        "layerId": "background-layer",
-        "elementId": "bg-stage-two"
-      },
-      {
-        "id": "app-icon",
-        "role": "shape.appIcon",
-        "label": "ReFusion icon shell",
-        "layerId": "icon-layer",
-        "elementId": "app-icon"
-      },
-      {
-        "id": "app-icon-letter",
-        "role": "text.brandMark",
-        "label": "Letter R",
-        "layerId": "icon-letter-layer",
-        "elementId": "app-icon-letter"
-      },
-      {
-        "id": "tap-ring",
-        "role": "shape.tapRing",
-        "label": "Tap pulse ring",
-        "layerId": "icon-layer",
-        "elementId": "tap-ring"
-      },
-      {
-        "id": "prompt-shell",
-        "role": "component.PromptInputBar",
-        "label": "Prompt shell",
-        "layerId": "prompt-layer",
-        "elementId": "prompt-shell"
-      },
-      {
-        "id": "prompt-text",
-        "role": "text.prompt",
-        "label": "Prompt content text",
-        "layerId": "prompt-text-layer",
-        "elementId": "prompt-text"
-      },
-      {
-        "id": "plus-icon",
-        "role": "icon.leadingAccessory",
-        "label": "Plus action",
-        "layerId": "plus-layer",
-        "elementId": "plus-icon"
-      },
-      {
-        "id": "send-button",
-        "role": "shape.trailingAction",
-        "label": "Send button",
-        "layerId": "send-button-layer",
-        "elementId": "send-button"
-      },
-      {
-        "id": "send-arrow",
-        "role": "icon.trailingAction",
-        "label": "Send arrow",
-        "layerId": "send-arrow-layer",
-        "elementId": "send-arrow"
-      },
-      {
-        "id": "cards-title",
-        "role": "text.sectionTitle",
-        "label": "Cards heading",
-        "layerId": "cards-title-layer",
-        "elementId": "cards-title"
-      },
-      {
-        "id": "card-1",
-        "role": "component.FeatureCard",
-        "label": "Fast montage card",
-        "layerId": "card-1-layer",
-        "elementId": "card-1"
-      },
-      {
-        "id": "card-2",
-        "role": "component.FeatureCard",
-        "label": "AI dubbing card",
-        "layerId": "card-2-layer",
-        "elementId": "card-2"
-      },
-      {
-        "id": "card-3",
-        "role": "component.FeatureCard",
-        "label": "Pro captions card",
-        "layerId": "card-3-layer",
-        "elementId": "card-3"
-      },
-      {
-        "id": "card-4",
-        "role": "component.FeatureCard",
-        "label": "Color control card",
-        "layerId": "card-4-layer",
-        "elementId": "card-4"
       }
     ],
     "primitives": [
       {
-        "id": "icon-pop",
-        "beatId": "icon-intro",
-        "targetComponentId": "app-icon",
+        "id": "shell-pop-scale",
+        "beatId": "icon-pop",
+        "targetComponentId": "prompt-shell",
         "kind": "scale",
         "property": "scale",
         "startMs": 0,
-        "endMs": 900,
-        "fromValue": 0.62,
+        "endMs": 780,
+        "fromValue": 0.72,
         "toValue": 1,
         "easing": "slowFastSlow"
       },
       {
-        "id": "prompt-typewriter",
-        "beatId": "prompt-type",
+        "id": "shell-morph-width",
+        "beatId": "prompt-morph",
+        "targetComponentId": "prompt-shell",
+        "kind": "widthGrow",
+        "property": "width",
+        "startMs": 1720,
+        "endMs": 2460,
+        "fromValue": 176,
+        "toValue": 900,
+        "easing": "slowFastSlow"
+      },
+      {
+        "id": "shell-morph-height",
+        "beatId": "prompt-morph",
+        "targetComponentId": "prompt-shell",
+        "kind": "heightSettle",
+        "property": "height",
+        "startMs": 1720,
+        "endMs": 2460,
+        "fromValue": 176,
+        "toValue": 128,
+        "easing": "slowFastSlow"
+      },
+      {
+        "id": "text-type-on",
+        "beatId": "keyboard-type",
         "targetComponentId": "prompt-text",
         "kind": "typewriter",
         "property": "typewriterProgress",
-        "startMs": 3000,
-        "endMs": 5000,
+        "startMs": 3150,
+        "endMs": 5120,
         "fromValue": 0,
         "toValue": 1,
         "easing": "linear"
       },
       {
-        "id": "plus-press",
-        "beatId": "press-and-burst",
-        "targetComponentId": "plus-icon",
-        "kind": "scale",
-        "property": "scale",
-        "startMs": 5600,
-        "endMs": 6000,
-        "fromValue": 1,
-        "toValue": 1,
-        "easing": "fastSlow"
-      },
-      {
-        "id": "send-burst",
-        "beatId": "press-and-burst",
+        "id": "send-press-scale",
+        "beatId": "submit-open",
         "targetComponentId": "send-button",
-        "kind": "scale",
+        "kind": "press",
         "property": "scale",
-        "startMs": 5600,
-        "endMs": 7000,
+        "startMs": 5900,
+        "endMs": 6460,
         "fromValue": 1,
-        "toValue": 8,
-        "easing": "slowFastSlow"
-      },
-      {
-        "id": "card-1-pop",
-        "beatId": "cards-enter",
-        "targetComponentId": "card-1",
-        "kind": "scale",
-        "property": "scale",
-        "startMs": 7600,
-        "endMs": 8600,
-        "fromValue": 0.8,
         "toValue": 1,
         "easing": "slowFastSlow"
       },
       {
-        "id": "card-2-pop",
-        "beatId": "cards-enter",
-        "targetComponentId": "card-2",
-        "kind": "scale",
-        "property": "scale",
-        "startMs": 7800,
-        "endMs": 8800,
-        "fromValue": 0.8,
-        "toValue": 1,
-        "easing": "slowFastSlow"
-      },
-      {
-        "id": "card-3-pop",
-        "beatId": "cards-enter",
-        "targetComponentId": "card-3",
-        "kind": "scale",
-        "property": "scale",
-        "startMs": 8000,
-        "endMs": 9000,
-        "fromValue": 0.8,
-        "toValue": 1,
-        "easing": "slowFastSlow"
-      },
-      {
-        "id": "card-4-pop",
-        "beatId": "cards-enter",
-        "targetComponentId": "card-4",
-        "kind": "scale",
-        "property": "scale",
-        "startMs": 8200,
-        "endMs": 9200,
-        "fromValue": 0.8,
+        "id": "cover-expand",
+        "beatId": "submit-open",
+        "targetComponentId": "stage-reveal-panel",
+        "kind": "opacityReveal",
+        "property": "opacity",
+        "startMs": 6040,
+        "endMs": 6760,
+        "fromValue": 0,
         "toValue": 1,
         "easing": "slowFastSlow"
       }
@@ -314,7 +192,7 @@
     "layers": [
       {
         "id": "background-layer",
-        "name": "Background",
+        "name": "White to soft workspace background",
         "kind": "shape",
         "startMs": 0,
         "durationMs": 12800,
@@ -345,7 +223,7 @@
               },
               "width": 1080,
               "height": 1920,
-              "color": "#F4F7FF",
+              "color": "#F6F8FC",
               "opacity": 0
             },
             "channels": [
@@ -358,19 +236,14 @@
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 6800,
+                    "timeMs": 6500,
                     "value": 0,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 7600,
+                    "timeMs": 7050,
                     "value": 1,
                     "easing": "fastSlow"
-                  },
-                  {
-                    "timeMs": 12800,
-                    "value": 1,
-                    "easing": "linear"
                   }
                 ]
               }
@@ -379,34 +252,46 @@
         ]
       },
       {
-        "id": "icon-layer",
-        "name": "Icon intro",
+        "id": "morph-shell-layer",
+        "name": "App tile morphs into prompt input",
         "kind": "shape",
         "startMs": 0,
-        "durationMs": 3000,
+        "durationMs": 7050,
         "elements": [
           {
-            "id": "app-icon",
+            "id": "prompt-shell",
             "kind": "shape",
             "properties": {
-              "layoutRole": "group",
+              "componentId": "heroPrompt",
+              "layoutRole": "container",
               "shapeKind": "roundedRectangle",
               "position": {
                 "x": 0,
-                "y": -120
+                "y": -150
               },
               "width": 176,
               "height": 176,
               "cornerRadius": 52,
-              "color": "#111111",
-              "opacity": 1,
-              "shadowOpacity": 0.16,
-              "shadowBlur": 28,
+              "color": "#0B0F17",
+              "opacity": 0,
+              "scale": 0.72,
+              "shadowOpacity": 0.2,
+              "shadowBlur": 34,
               "shadowOffset": {
                 "x": 0,
-                "y": 16
+                "y": 18
               },
-              "shadowColor": "#000000"
+              "shadowColor": "#111827",
+              "contentInsets": {
+                "left": 108,
+                "right": 124,
+                "top": 28,
+                "bottom": 28
+              },
+              "continuity": {
+                "kind": "morphFromIcon",
+                "sourceId": "prompt-shell"
+              }
             },
             "channels": [
               {
@@ -420,15 +305,15 @@
                   {
                     "timeMs": 260,
                     "value": 1,
-                    "easing": "fastSlow"
+                    "easing": "slowFastSlow"
                   },
                   {
-                    "timeMs": 2200,
+                    "timeMs": 6100,
                     "value": 1,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 3000,
+                    "timeMs": 6900,
                     "value": 0,
                     "easing": "fastSlow"
                   }
@@ -439,61 +324,151 @@
                 "keyframes": [
                   {
                     "timeMs": 0,
-                    "value": 0.62,
+                    "value": 0.72,
+                    "easing": "slowFast"
+                  },
+                  {
+                    "timeMs": 520,
+                    "value": 1.12,
                     "easing": "slowFastSlow"
                   },
                   {
-                    "timeMs": 760,
-                    "value": 1.06,
-                    "easing": "slowFastSlow"
-                  },
-                  {
-                    "timeMs": 980,
+                    "timeMs": 780,
                     "value": 1,
                     "easing": "fastSlow"
                   },
                   {
-                    "timeMs": 1800,
+                    "timeMs": 1420,
                     "value": 1,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 2100,
-                    "value": 0.92,
+                    "timeMs": 1580,
+                    "value": 0.9,
                     "easing": "fastSlow"
                   },
                   {
-                    "timeMs": 2460,
+                    "timeMs": 1740,
+                    "value": 1.03,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 1940,
                     "value": 1,
-                    "easing": "slowFast"
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 5800,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 6000,
+                    "value": 0.96,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 6200,
+                    "value": 1.02,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 6380,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 0,
+                    "value": -150,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1720,
+                    "value": -150,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 2460,
+                    "value": -90,
+                    "easing": "slowFastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "width",
+                "keyframes": [
+                  {
+                    "timeMs": 0,
+                    "value": 176,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1720,
+                    "value": 176,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 2460,
+                    "value": 900,
+                    "easing": "slowFastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "height",
+                "keyframes": [
+                  {
+                    "timeMs": 0,
+                    "value": 176,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1720,
+                    "value": 176,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 2460,
+                    "value": 128,
+                    "easing": "slowFastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "cornerRadius",
+                "keyframes": [
+                  {
+                    "timeMs": 0,
+                    "value": 52,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1720,
+                    "value": 52,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 2460,
+                    "value": 64,
+                    "easing": "slowFastSlow"
                   }
                 ]
               }
             ]
-          },
-          {
-            "id": "tap-ring",
-            "kind": "shape",
-            "properties": {
-              "shapeKind": "circle",
-              "position": {
-                "x": -480,
-                "y": -860
-              },
-              "width": 20,
-              "height": 20,
-              "color": "#111111",
-              "opacity": 0
-            }
           }
         ]
       },
       {
-        "id": "icon-letter-layer",
-        "name": "Icon brand letter",
+        "id": "app-letter-layer",
+        "name": "ReFusion app mark",
         "kind": "text",
         "startMs": 0,
-        "durationMs": 3000,
+        "durationMs": 2600,
         "elements": [
           {
             "id": "app-icon-letter",
@@ -502,15 +477,26 @@
             "properties": {
               "position": {
                 "x": 0,
-                "y": -120
+                "y": -150
               },
-              "fontSize": 92,
-              "fontWeight": 800,
+              "fontSize": 82,
+              "fontWeight": 820,
               "lineHeight": 1,
               "letterSpacing": 0,
               "textAlign": "center",
               "color": "#FFFFFF",
-              "opacity": 1
+              "opacity": 0,
+              "scale": 0.92,
+              "textFrame": {
+                "width": 120,
+                "height": 96,
+                "maxLines": 1,
+                "overflow": "clip",
+                "fitPolicy": "shrinkToFit",
+                "minFontSize": 54,
+                "maxFontSize": 82,
+                "measure": "fullText"
+              }
             },
             "channels": [
               {
@@ -524,16 +510,51 @@
                   {
                     "timeMs": 320,
                     "value": 1,
-                    "easing": "fastSlow"
+                    "easing": "slowFastSlow"
                   },
                   {
-                    "timeMs": 2200,
+                    "timeMs": 1420,
                     "value": 1,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 3000,
+                    "timeMs": 1780,
                     "value": 0,
+                    "easing": "fastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 0,
+                    "value": 0.86,
+                    "easing": "slowFast"
+                  },
+                  {
+                    "timeMs": 560,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 1420,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1580,
+                    "value": 0.86,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 1740,
+                    "value": 1.02,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 1900,
+                    "value": 0.92,
                     "easing": "fastSlow"
                   }
                 ]
@@ -543,39 +564,95 @@
         ]
       },
       {
-        "id": "prompt-layer",
-        "name": "Prompt shell and text",
+        "id": "icon-press-ring-layer",
+        "name": "Icon tap feedback ring",
         "kind": "shape",
-        "startMs": 1200,
-        "durationMs": 6400,
+        "startMs": 980,
+        "durationMs": 1800,
         "elements": [
           {
-            "id": "prompt-shell",
+            "id": "icon-press-ring",
             "kind": "shape",
             "properties": {
-              "layoutRole": "container",
-              "shapeKind": "roundedRectangle",
+              "shapeKind": "circle",
               "position": {
                 "x": 0,
-                "y": 120
+                "y": -150
               },
-              "width": 900,
-              "height": 128,
-              "cornerRadius": 64,
-              "color": "#0E111A",
-              "opacity": 1,
-              "shadowOpacity": 0.2,
-              "shadowBlur": 30,
-              "shadowOffset": {
-                "x": 0,
-                "y": 14
+              "width": 214,
+              "height": 214,
+              "color": "#0B0F17",
+              "opacity": 0,
+              "scale": 0.72
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 0,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 420,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 610,
+                    "value": 0.16,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 920,
+                    "value": 0,
+                    "easing": "linear"
+                  }
+                ]
               },
-              "shadowColor": "#000000",
-              "contentInsets": {
-                "left": 108,
-                "right": 120,
-                "top": 26,
-                "bottom": 26
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 420,
+                    "value": 0.72,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 920,
+                    "value": 1.18,
+                    "easing": "slowFastSlow"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "prompt-plus-layer",
+        "name": "Prompt attach plus icon",
+        "kind": "shape",
+        "startMs": 0,
+        "durationMs": 7050,
+        "elements": [
+          {
+            "id": "plus-icon",
+            "kind": "icon",
+            "properties": {
+              "icon": "plus",
+              "position": {
+                "x": -360,
+                "y": -90
+              },
+              "width": 42,
+              "height": 42,
+              "color": "#FFFFFF",
+              "opacity": 0,
+              "scale": 0.76,
+              "layout": {
+                "slot": "leadingAccessory"
               }
             },
             "channels": [
@@ -588,18 +665,58 @@
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 820,
-                    "value": 1,
-                    "easing": "fastSlow"
+                    "timeMs": 2450,
+                    "value": 0,
+                    "easing": "linear"
                   },
                   {
-                    "timeMs": 5600,
+                    "timeMs": 2920,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 6000,
                     "value": 1,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 6400,
+                    "timeMs": 6800,
                     "value": 0,
+                    "easing": "fastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 2450,
+                    "value": 0.76,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 2920,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 5200,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 5360,
+                    "value": 0.82,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 5540,
+                    "value": 1.12,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 5720,
+                    "value": 1,
                     "easing": "fastSlow"
                   }
                 ]
@@ -610,38 +727,42 @@
       },
       {
         "id": "prompt-text-layer",
-        "name": "Prompt text",
+        "name": "Keyboard typed prompt",
         "kind": "text",
-        "startMs": 1200,
-        "durationMs": 6400,
+        "startMs": 0,
+        "durationMs": 7050,
         "elements": [
           {
             "id": "prompt-text",
             "kind": "text",
             "text": "build a new app for my business",
             "properties": {
+              "componentId": "heroPrompt",
               "layoutRole": "content",
+              "layout": {
+                "slot": "textSlot"
+              },
+              "position": {
+                "x": -28,
+                "y": -90
+              },
+              "fontSize": 31,
+              "fontWeight": 600,
+              "lineHeight": 1,
+              "letterSpacing": 0,
+              "textAlign": "left",
+              "color": "#F7F9FC",
+              "opacity": 0,
               "textFrame": {
-                "width": 560,
+                "width": 588,
                 "height": 58,
                 "maxLines": 1,
                 "overflow": "clip",
                 "fitPolicy": "shrinkToFit",
                 "minFontSize": 20,
-                "maxFontSize": 34,
+                "maxFontSize": 31,
                 "measure": "fullText"
-              },
-              "position": {
-                "x": 0,
-                "y": 120
-              },
-              "fontSize": 32,
-              "fontWeight": 600,
-              "lineHeight": 1,
-              "letterSpacing": 0,
-              "textAlign": "left",
-              "color": "#F3F5FA",
-              "opacity": 0
+              }
             },
             "channels": [
               {
@@ -653,17 +774,22 @@
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 1800,
+                    "timeMs": 3000,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3260,
                     "value": 1,
                     "easing": "fastSlow"
                   },
                   {
-                    "timeMs": 5600,
+                    "timeMs": 6100,
                     "value": 1,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 6400,
+                    "timeMs": 6800,
                     "value": 0,
                     "easing": "fastSlow"
                   }
@@ -673,68 +799,14 @@
                 "property": "typewriterProgress",
                 "keyframes": [
                   {
-                    "timeMs": 1800,
+                    "timeMs": 3150,
                     "value": 0,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 3800,
+                    "timeMs": 5120,
                     "value": 1,
                     "easing": "linear"
-                  }
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      {
-        "id": "plus-layer",
-        "name": "Plus action",
-        "kind": "text",
-        "startMs": 1200,
-        "durationMs": 6400,
-        "elements": [
-          {
-            "id": "plus-icon",
-            "kind": "text",
-            "text": "+",
-            "properties": {
-              "position": {
-                "x": -360,
-                "y": 120
-              },
-              "fontSize": 54,
-              "fontWeight": 700,
-              "lineHeight": 1,
-              "letterSpacing": 0,
-              "textAlign": "center",
-              "color": "#FFFFFF",
-              "opacity": 0
-            },
-            "channels": [
-              {
-                "property": "opacity",
-                "keyframes": [
-                  {
-                    "timeMs": 0,
-                    "value": 0,
-                    "easing": "linear"
-                  },
-                  {
-                    "timeMs": 1700,
-                    "value": 1,
-                    "easing": "fastSlow"
-                  },
-                  {
-                    "timeMs": 5600,
-                    "value": 1,
-                    "easing": "linear"
-                  },
-                  {
-                    "timeMs": 6400,
-                    "value": 0,
-                    "easing": "fastSlow"
                   }
                 ]
               }
@@ -744,25 +816,27 @@
       },
       {
         "id": "send-button-layer",
-        "name": "Send button",
+        "name": "Submit button circle",
         "kind": "shape",
-        "startMs": 1200,
-        "durationMs": 6400,
+        "startMs": 0,
+        "durationMs": 7050,
         "elements": [
           {
             "id": "send-button",
             "kind": "shape",
             "properties": {
+              "componentId": "sendButton",
+              "layoutRole": "container",
               "shapeKind": "circle",
               "position": {
                 "x": 360,
-                "y": 120
+                "y": -90
               },
               "width": 82,
               "height": 82,
               "color": "#FFFFFF",
               "opacity": 0,
-              "layoutRole": "container"
+              "scale": 0.72
             },
             "channels": [
               {
@@ -774,14 +848,54 @@
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 1900,
+                    "timeMs": 2520,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3060,
                     "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 7000,
+                    "value": 1,
+                    "easing": "linear"
+                  }
+                ]
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 2520,
+                    "value": 0.72,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3060,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 5900,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 6100,
+                    "value": 0.84,
                     "easing": "fastSlow"
                   },
                   {
-                    "timeMs": 6400,
+                    "timeMs": 6280,
+                    "value": 1.12,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 6460,
                     "value": 1,
-                    "easing": "linear"
+                    "easing": "fastSlow"
                   }
                 ]
               }
@@ -790,27 +904,114 @@
         ]
       },
       {
-        "id": "send-arrow-layer",
-        "name": "Send arrow",
-        "kind": "text",
-        "startMs": 1200,
-        "durationMs": 5600,
+        "id": "send-icon-layer",
+        "name": "Submit arrow icon",
+        "kind": "shape",
+        "startMs": 0,
+        "durationMs": 7050,
         "elements": [
           {
             "id": "send-arrow",
-            "kind": "text",
-            "text": "↑",
+            "kind": "icon",
             "properties": {
+              "icon": "arrow-up",
               "position": {
                 "x": 360,
-                "y": 120
+                "y": -90
               },
-              "fontSize": 44,
-              "fontWeight": 700,
-              "lineHeight": 1,
-              "letterSpacing": 0,
-              "textAlign": "center",
-              "color": "#111111",
+              "width": 34,
+              "height": 34,
+              "color": "#0B0F17",
+              "opacity": 0,
+              "scale": 0.82,
+              "layout": {
+                "slot": "accessorySlot"
+              }
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 0,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 2600,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3160,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 6800,
+                    "value": 1,
+                    "easing": "linear"
+                  }
+                ]
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 2600,
+                    "value": 0.82,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3160,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 5900,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 6100,
+                    "value": 0.82,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 6280,
+                    "value": 1.08,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 6460,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "submit-cover-layer",
+        "name": "Submit opens feature scene panel",
+        "kind": "shape",
+        "startMs": 0,
+        "durationMs": 12800,
+        "elements": [
+          {
+            "id": "stage-reveal-panel",
+            "kind": "shape",
+            "properties": {
+              "shapeKind": "rectangle",
+              "position": {
+                "x": 0,
+                "y": 0
+              },
+              "width": 1080,
+              "height": 1920,
+              "color": "#F6F8FC",
               "opacity": 0
             },
             "channels": [
@@ -823,19 +1024,19 @@
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 2000,
-                    "value": 1,
-                    "easing": "fastSlow"
-                  },
-                  {
-                    "timeMs": 5200,
-                    "value": 1,
+                    "timeMs": 6040,
+                    "value": 0,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 5600,
-                    "value": 0,
-                    "easing": "fastSlow"
+                    "timeMs": 6760,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 12800,
+                    "value": 1,
+                    "easing": "linear"
                   }
                 ]
               }
@@ -845,35 +1046,36 @@
       },
       {
         "id": "cards-title-layer",
-        "name": "Cards title",
+        "name": "Feature scene title",
         "kind": "text",
-        "startMs": 7600,
-        "durationMs": 5200,
+        "startMs": 7000,
+        "durationMs": 5800,
         "elements": [
           {
             "id": "cards-title",
             "kind": "text",
-            "text": "Built for speed and precision",
+            "text": "Everything your launch needs",
             "properties": {
               "position": {
                 "x": 0,
-                "y": -360
+                "y": -505
               },
-              "fontSize": 44,
-              "fontWeight": 760,
-              "lineHeight": 1.05,
+              "fontSize": 48,
+              "fontWeight": 820,
+              "lineHeight": 1.02,
               "letterSpacing": 0,
-              "textAlign": "left",
+              "textAlign": "center",
               "color": "#0F172A",
               "opacity": 0,
               "textFrame": {
-                "width": 520,
-                "height": 96,
-                "maxLines": 2,
+                "width": 760,
+                "height": 70,
+                "maxLines": 1,
                 "overflow": "clip",
                 "fitPolicy": "shrinkToFit",
-                "minFontSize": 28,
-                "maxFontSize": 44
+                "minFontSize": 32,
+                "maxFontSize": 48,
+                "measure": "fullText"
               }
             },
             "channels": [
@@ -886,7 +1088,76 @@
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 900,
+                    "timeMs": 520,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 0,
+                    "value": -465,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 720,
+                    "value": -505,
+                    "easing": "slowFastSlow"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "cards-subtitle-layer",
+        "name": "Feature scene subtitle",
+        "kind": "text",
+        "startMs": 7100,
+        "durationMs": 5700,
+        "elements": [
+          {
+            "id": "cards-subtitle",
+            "kind": "text",
+            "text": "A native motion workspace for editing, voice, captions, and visuals.",
+            "properties": {
+              "position": {
+                "x": 0,
+                "y": -430
+              },
+              "fontSize": 25,
+              "fontWeight": 520,
+              "lineHeight": 1.12,
+              "letterSpacing": 0,
+              "textAlign": "center",
+              "color": "#64748B",
+              "opacity": 0,
+              "textFrame": {
+                "width": 720,
+                "height": 70,
+                "maxLines": 2,
+                "overflow": "clip",
+                "fitPolicy": "shrinkToFit",
+                "minFontSize": 20,
+                "maxFontSize": 25,
+                "measure": "fullText"
+              }
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 0,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 560,
                     "value": 1,
                     "easing": "fastSlow"
                   }
@@ -897,34 +1168,34 @@
         ]
       },
       {
-        "id": "card-1-layer",
-        "name": "Card 1",
+        "id": "card-1-shell-layer",
+        "name": "Feature card 1 shell",
         "kind": "shape",
-        "startMs": 7600,
-        "durationMs": 5200,
+        "startMs": 7000,
+        "durationMs": 5800,
         "elements": [
           {
             "id": "card-1",
             "kind": "shape",
             "properties": {
-              "layoutRole": "container",
               "shapeKind": "roundedRectangle",
               "position": {
                 "x": -230,
-                "y": 120
+                "y": -145
               },
-              "width": 430,
-              "height": 240,
-              "cornerRadius": 40,
+              "width": 410,
+              "height": 222,
+              "cornerRadius": 34,
               "color": "#FFFFFF",
               "opacity": 0,
+              "scale": 0.9,
               "shadowOpacity": 0.12,
-              "shadowBlur": 22,
+              "shadowBlur": 24,
               "shadowOffset": {
                 "x": 0,
-                "y": 10
+                "y": 14
               },
-              "shadowColor": "#1E293B"
+              "shadowColor": "#CBD5E1"
             },
             "channels": [
               {
@@ -936,60 +1207,32 @@
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 780,
-                    "value": 1,
-                    "easing": "fastSlow"
-                  }
-                ]
-              }
-            ]
-          }
-        ]
-      },
-      {
-        "id": "card-1-text-layer",
-        "name": "Card 1 text",
-        "kind": "text",
-        "startMs": 7600,
-        "durationMs": 5200,
-        "elements": [
-          {
-            "id": "card-1-text",
-            "kind": "text",
-            "text": "Fast Montage",
-            "properties": {
-              "position": {
-                "x": -230,
-                "y": 120
-              },
-              "fontSize": 32,
-              "fontWeight": 760,
-              "lineHeight": 1,
-              "letterSpacing": 0,
-              "textAlign": "left",
-              "color": "#0F172A",
-              "opacity": 0,
-              "textFrame": {
-                "width": 320,
-                "height": 56,
-                "maxLines": 1,
-                "overflow": "clip",
-                "fitPolicy": "shrinkToFit",
-                "minFontSize": 22,
-                "maxFontSize": 32
-              }
-            },
-            "channels": [
-              {
-                "property": "opacity",
-                "keyframes": [
-                  {
-                    "timeMs": 520,
+                    "timeMs": 470,
                     "value": 0,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 980,
+                    "timeMs": 890,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 470,
+                    "value": 0.9,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 890,
+                    "value": 1.02,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 1090,
                     "value": 1,
                     "easing": "fastSlow"
                   }
@@ -1000,49 +1243,298 @@
         ]
       },
       {
-        "id": "card-2-text-layer",
-        "name": "Card 2 text",
-        "kind": "text",
-        "startMs": 7600,
-        "durationMs": 5200,
+        "id": "card-1-icon-bg-layer",
+        "name": "Feature card 1 icon bg",
+        "kind": "shape",
+        "startMs": 7000,
+        "durationMs": 5800,
         "elements": [
           {
-            "id": "card-2-text",
+            "id": "card-1-icon-bg",
+            "kind": "shape",
+            "properties": {
+              "shapeKind": "circle",
+              "position": {
+                "x": -360,
+                "y": -199
+              },
+              "width": 66,
+              "height": 66,
+              "color": "#2563EB",
+              "opacity": 0,
+              "scale": 0.86
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 570,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 950,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 570,
+                    "value": 0.86,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 950,
+                    "value": 1.04,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 1130,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "card-1-icon-layer",
+        "name": "Feature card 1 icon",
+        "kind": "shape",
+        "startMs": 7000,
+        "durationMs": 5800,
+        "elements": [
+          {
+            "id": "card-1-icon",
+            "kind": "icon",
+            "properties": {
+              "icon": "video",
+              "position": {
+                "x": -360,
+                "y": -199
+              },
+              "width": 34,
+              "height": 34,
+              "color": "#FFFFFF",
+              "opacity": 0,
+              "scale": 0.86
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 630,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 990,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 630,
+                    "value": 0.86,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 990,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "card-1-title-layer",
+        "name": "Feature card 1 title",
+        "kind": "text",
+        "startMs": 7000,
+        "durationMs": 5800,
+        "elements": [
+          {
+            "id": "card-1-title",
             "kind": "text",
-            "text": "AI Voice Dubbing",
+            "text": "Fast Montage",
             "properties": {
               "position": {
-                "x": 230,
-                "y": 120
+                "x": -186,
+                "y": -203
               },
-              "fontSize": 32,
-              "fontWeight": 760,
+              "fontSize": 30,
+              "fontWeight": 780,
               "lineHeight": 1,
               "letterSpacing": 0,
               "textAlign": "left",
-              "color": "#0F172A",
+              "color": "#111827",
               "opacity": 0,
               "textFrame": {
-                "width": 320,
-                "height": 56,
+                "width": 255,
+                "height": 44,
                 "maxLines": 1,
                 "overflow": "clip",
                 "fitPolicy": "shrinkToFit",
                 "minFontSize": 22,
-                "maxFontSize": 32
+                "maxFontSize": 30,
+                "measure": "fullText"
               }
             },
             "channels": [
               {
                 "property": "opacity",
                 "keyframes": [
+                  {
+                    "timeMs": 690,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1050,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "card-1-body-layer",
+        "name": "Feature card 1 body",
+        "kind": "text",
+        "startMs": 7000,
+        "durationMs": 5800,
+        "elements": [
+          {
+            "id": "card-1-body",
+            "kind": "text",
+            "text": "Edit polished reels and product videos in minutes.",
+            "properties": {
+              "position": {
+                "x": -230,
+                "y": -97
+              },
+              "fontSize": 23,
+              "fontWeight": 500,
+              "lineHeight": 1.18,
+              "letterSpacing": 0,
+              "textAlign": "center",
+              "color": "#64748B",
+              "opacity": 0,
+              "textFrame": {
+                "width": 315,
+                "height": 72,
+                "maxLines": 2,
+                "overflow": "clip",
+                "fitPolicy": "shrinkToFit",
+                "minFontSize": 18,
+                "maxFontSize": 23,
+                "measure": "fullText"
+              }
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 770,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1170,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "card-2-shell-layer",
+        "name": "Feature card 2 shell",
+        "kind": "shape",
+        "startMs": 7000,
+        "durationMs": 5800,
+        "elements": [
+          {
+            "id": "card-2",
+            "kind": "shape",
+            "properties": {
+              "shapeKind": "roundedRectangle",
+              "position": {
+                "x": 230,
+                "y": -145
+              },
+              "width": 410,
+              "height": 222,
+              "cornerRadius": 34,
+              "color": "#FFFFFF",
+              "opacity": 0,
+              "scale": 0.9,
+              "shadowOpacity": 0.12,
+              "shadowBlur": 24,
+              "shadowOffset": {
+                "x": 0,
+                "y": 14
+              },
+              "shadowColor": "#CBD5E1"
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 0,
+                    "value": 0,
+                    "easing": "linear"
+                  },
                   {
                     "timeMs": 640,
                     "value": 0,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 1100,
+                    "timeMs": 1060,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 640,
+                    "value": 0.9,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1060,
+                    "value": 1.02,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 1260,
                     "value": 1,
                     "easing": "fastSlow"
                   }
@@ -1053,99 +1545,55 @@
         ]
       },
       {
-        "id": "card-3-text-layer",
-        "name": "Card 3 text",
-        "kind": "text",
-        "startMs": 7600,
-        "durationMs": 5200,
+        "id": "card-2-icon-bg-layer",
+        "name": "Feature card 2 icon bg",
+        "kind": "shape",
+        "startMs": 7000,
+        "durationMs": 5800,
         "elements": [
           {
-            "id": "card-3-text",
-            "kind": "text",
-            "text": "Pro Captions",
+            "id": "card-2-icon-bg",
+            "kind": "shape",
             "properties": {
+              "shapeKind": "circle",
               "position": {
-                "x": -230,
-                "y": 400
+                "x": 100,
+                "y": -199
               },
-              "fontSize": 32,
-              "fontWeight": 760,
-              "lineHeight": 1,
-              "letterSpacing": 0,
-              "textAlign": "left",
-              "color": "#0F172A",
+              "width": 66,
+              "height": 66,
+              "color": "#7C3AED",
               "opacity": 0,
-              "textFrame": {
-                "width": 320,
-                "height": 56,
-                "maxLines": 1,
-                "overflow": "clip",
-                "fitPolicy": "shrinkToFit",
-                "minFontSize": 22,
-                "maxFontSize": 32
-              }
+              "scale": 0.86
             },
             "channels": [
               {
                 "property": "opacity",
                 "keyframes": [
                   {
-                    "timeMs": 760,
+                    "timeMs": 740,
                     "value": 0,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 1200,
+                    "timeMs": 1120,
                     "value": 1,
-                    "easing": "fastSlow"
+                    "easing": "slowFastSlow"
                   }
                 ]
-              }
-            ]
-          }
-        ]
-      },
-      {
-        "id": "card-4-text-layer",
-        "name": "Card 4 text",
-        "kind": "text",
-        "startMs": 7600,
-        "durationMs": 5200,
-        "elements": [
-          {
-            "id": "card-4-text",
-            "kind": "text",
-            "text": "Color Precision",
-            "properties": {
-              "position": {
-                "x": 230,
-                "y": 400
               },
-              "fontSize": 32,
-              "fontWeight": 760,
-              "lineHeight": 1,
-              "letterSpacing": 0,
-              "textAlign": "left",
-              "color": "#0F172A",
-              "opacity": 0,
-              "textFrame": {
-                "width": 320,
-                "height": 56,
-                "maxLines": 1,
-                "overflow": "clip",
-                "fitPolicy": "shrinkToFit",
-                "minFontSize": 22,
-                "maxFontSize": 32
-              }
-            },
-            "channels": [
               {
-                "property": "opacity",
+                "property": "scale",
                 "keyframes": [
                   {
-                    "timeMs": 900,
-                    "value": 0,
+                    "timeMs": 740,
+                    "value": 0.86,
                     "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1120,
+                    "value": 1.04,
+                    "easing": "slowFastSlow"
                   },
                   {
                     "timeMs": 1300,
@@ -1159,46 +1607,107 @@
         ]
       },
       {
-        "id": "card-2-layer",
-        "name": "Card 2",
+        "id": "card-2-icon-layer",
+        "name": "Feature card 2 icon",
         "kind": "shape",
-        "startMs": 7600,
-        "durationMs": 5200,
+        "startMs": 7000,
+        "durationMs": 5800,
         "elements": [
           {
-            "id": "card-2",
-            "kind": "shape",
+            "id": "card-2-icon",
+            "kind": "icon",
             "properties": {
-              "layoutRole": "container",
-              "shapeKind": "roundedRectangle",
+              "icon": "mic",
               "position": {
-                "x": 230,
-                "y": 120
+                "x": 100,
+                "y": -199
               },
-              "width": 430,
-              "height": 240,
-              "cornerRadius": 40,
+              "width": 34,
+              "height": 34,
               "color": "#FFFFFF",
               "opacity": 0,
-              "shadowOpacity": 0.12,
-              "shadowBlur": 22,
-              "shadowOffset": {
-                "x": 0,
-                "y": 10
-              },
-              "shadowColor": "#1E293B"
+              "scale": 0.86
             },
             "channels": [
               {
                 "property": "opacity",
                 "keyframes": [
                   {
-                    "timeMs": 120,
+                    "timeMs": 800,
                     "value": 0,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 900,
+                    "timeMs": 1160,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 800,
+                    "value": 0.86,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1160,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "card-2-title-layer",
+        "name": "Feature card 2 title",
+        "kind": "text",
+        "startMs": 7000,
+        "durationMs": 5800,
+        "elements": [
+          {
+            "id": "card-2-title",
+            "kind": "text",
+            "text": "Voice Dubbing",
+            "properties": {
+              "position": {
+                "x": 274,
+                "y": -203
+              },
+              "fontSize": 30,
+              "fontWeight": 780,
+              "lineHeight": 1,
+              "letterSpacing": 0,
+              "textAlign": "left",
+              "color": "#111827",
+              "opacity": 0,
+              "textFrame": {
+                "width": 255,
+                "height": 44,
+                "maxLines": 1,
+                "overflow": "clip",
+                "fitPolicy": "shrinkToFit",
+                "minFontSize": 22,
+                "maxFontSize": 30,
+                "measure": "fullText"
+              }
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 860,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1220,
                     "value": 1,
                     "easing": "fastSlow"
                   }
@@ -1209,46 +1718,125 @@
         ]
       },
       {
-        "id": "card-3-layer",
-        "name": "Card 3",
+        "id": "card-2-body-layer",
+        "name": "Feature card 2 body",
+        "kind": "text",
+        "startMs": 7000,
+        "durationMs": 5800,
+        "elements": [
+          {
+            "id": "card-2-body",
+            "kind": "text",
+            "text": "Clean voiceovers, timing, and multilingual delivery.",
+            "properties": {
+              "position": {
+                "x": 230,
+                "y": -97
+              },
+              "fontSize": 23,
+              "fontWeight": 500,
+              "lineHeight": 1.18,
+              "letterSpacing": 0,
+              "textAlign": "center",
+              "color": "#64748B",
+              "opacity": 0,
+              "textFrame": {
+                "width": 315,
+                "height": 72,
+                "maxLines": 2,
+                "overflow": "clip",
+                "fitPolicy": "shrinkToFit",
+                "minFontSize": 18,
+                "maxFontSize": 23,
+                "measure": "fullText"
+              }
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 940,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1340,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "card-3-shell-layer",
+        "name": "Feature card 3 shell",
         "kind": "shape",
-        "startMs": 7600,
-        "durationMs": 5200,
+        "startMs": 7000,
+        "durationMs": 5800,
         "elements": [
           {
             "id": "card-3",
             "kind": "shape",
             "properties": {
-              "layoutRole": "container",
               "shapeKind": "roundedRectangle",
               "position": {
                 "x": -230,
-                "y": 400
+                "y": 160
               },
-              "width": 430,
-              "height": 240,
-              "cornerRadius": 40,
+              "width": 410,
+              "height": 222,
+              "cornerRadius": 34,
               "color": "#FFFFFF",
               "opacity": 0,
+              "scale": 0.9,
               "shadowOpacity": 0.12,
-              "shadowBlur": 22,
+              "shadowBlur": 24,
               "shadowOffset": {
                 "x": 0,
-                "y": 10
+                "y": 14
               },
-              "shadowColor": "#1E293B"
+              "shadowColor": "#CBD5E1"
             },
             "channels": [
               {
                 "property": "opacity",
                 "keyframes": [
                   {
-                    "timeMs": 240,
+                    "timeMs": 0,
                     "value": 0,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 1020,
+                    "timeMs": 810,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1230,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 810,
+                    "value": 0.9,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1230,
+                    "value": 1.02,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 1430,
                     "value": 1,
                     "easing": "fastSlow"
                   }
@@ -1259,46 +1847,525 @@
         ]
       },
       {
-        "id": "card-4-layer",
-        "name": "Card 4",
+        "id": "card-3-icon-bg-layer",
+        "name": "Feature card 3 icon bg",
         "kind": "shape",
-        "startMs": 7600,
-        "durationMs": 5200,
+        "startMs": 7000,
+        "durationMs": 5800,
         "elements": [
           {
-            "id": "card-4",
+            "id": "card-3-icon-bg",
             "kind": "shape",
             "properties": {
-              "layoutRole": "container",
-              "shapeKind": "roundedRectangle",
+              "shapeKind": "circle",
               "position": {
-                "x": 230,
-                "y": 400
+                "x": -360,
+                "y": 106
               },
-              "width": 430,
-              "height": 240,
-              "cornerRadius": 40,
-              "color": "#FFFFFF",
+              "width": 66,
+              "height": 66,
+              "color": "#059669",
               "opacity": 0,
-              "shadowOpacity": 0.12,
-              "shadowBlur": 22,
-              "shadowOffset": {
-                "x": 0,
-                "y": 10
-              },
-              "shadowColor": "#1E293B"
+              "scale": 0.86
             },
             "channels": [
               {
                 "property": "opacity",
                 "keyframes": [
                   {
-                    "timeMs": 360,
+                    "timeMs": 910,
                     "value": 0,
                     "easing": "linear"
                   },
                   {
+                    "timeMs": 1290,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 910,
+                    "value": 0.86,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1290,
+                    "value": 1.04,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 1470,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "card-3-icon-layer",
+        "name": "Feature card 3 icon",
+        "kind": "shape",
+        "startMs": 7000,
+        "durationMs": 5800,
+        "elements": [
+          {
+            "id": "card-3-icon",
+            "kind": "icon",
+            "properties": {
+              "icon": "text",
+              "position": {
+                "x": -360,
+                "y": 106
+              },
+              "width": 34,
+              "height": 34,
+              "color": "#FFFFFF",
+              "opacity": 0,
+              "scale": 0.86
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 970,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1330,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 970,
+                    "value": 0.86,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1330,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "card-3-title-layer",
+        "name": "Feature card 3 title",
+        "kind": "text",
+        "startMs": 7000,
+        "durationMs": 5800,
+        "elements": [
+          {
+            "id": "card-3-title",
+            "kind": "text",
+            "text": "Smart Captions",
+            "properties": {
+              "position": {
+                "x": -186,
+                "y": 102
+              },
+              "fontSize": 30,
+              "fontWeight": 780,
+              "lineHeight": 1,
+              "letterSpacing": 0,
+              "textAlign": "left",
+              "color": "#111827",
+              "opacity": 0,
+              "textFrame": {
+                "width": 255,
+                "height": 44,
+                "maxLines": 1,
+                "overflow": "clip",
+                "fitPolicy": "shrinkToFit",
+                "minFontSize": 22,
+                "maxFontSize": 30,
+                "measure": "fullText"
+              }
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 1030,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1390,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "card-3-body-layer",
+        "name": "Feature card 3 body",
+        "kind": "text",
+        "startMs": 7000,
+        "durationMs": 5800,
+        "elements": [
+          {
+            "id": "card-3-body",
+            "kind": "text",
+            "text": "Readable kinetic captions with professional pacing.",
+            "properties": {
+              "position": {
+                "x": -230,
+                "y": 208
+              },
+              "fontSize": 23,
+              "fontWeight": 500,
+              "lineHeight": 1.18,
+              "letterSpacing": 0,
+              "textAlign": "center",
+              "color": "#64748B",
+              "opacity": 0,
+              "textFrame": {
+                "width": 315,
+                "height": 72,
+                "maxLines": 2,
+                "overflow": "clip",
+                "fitPolicy": "shrinkToFit",
+                "minFontSize": 18,
+                "maxFontSize": 23,
+                "measure": "fullText"
+              }
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 1110,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1510,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "card-4-shell-layer",
+        "name": "Feature card 4 shell",
+        "kind": "shape",
+        "startMs": 7000,
+        "durationMs": 5800,
+        "elements": [
+          {
+            "id": "card-4",
+            "kind": "shape",
+            "properties": {
+              "shapeKind": "roundedRectangle",
+              "position": {
+                "x": 230,
+                "y": 160
+              },
+              "width": 410,
+              "height": 222,
+              "cornerRadius": 34,
+              "color": "#FFFFFF",
+              "opacity": 0,
+              "scale": 0.9,
+              "shadowOpacity": 0.12,
+              "shadowBlur": 24,
+              "shadowOffset": {
+                "x": 0,
+                "y": 14
+              },
+              "shadowColor": "#CBD5E1"
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 0,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 980,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1400,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 980,
+                    "value": 0.9,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1400,
+                    "value": 1.02,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 1600,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "card-4-icon-bg-layer",
+        "name": "Feature card 4 icon bg",
+        "kind": "shape",
+        "startMs": 7000,
+        "durationMs": 5800,
+        "elements": [
+          {
+            "id": "card-4-icon-bg",
+            "kind": "shape",
+            "properties": {
+              "shapeKind": "circle",
+              "position": {
+                "x": 100,
+                "y": 106
+              },
+              "width": 66,
+              "height": 66,
+              "color": "#EA580C",
+              "opacity": 0,
+              "scale": 0.86
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 1080,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1460,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 1080,
+                    "value": 0.86,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1460,
+                    "value": 1.04,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 1640,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "card-4-icon-layer",
+        "name": "Feature card 4 icon",
+        "kind": "shape",
+        "startMs": 7000,
+        "durationMs": 5800,
+        "elements": [
+          {
+            "id": "card-4-icon",
+            "kind": "icon",
+            "properties": {
+              "icon": "image",
+              "position": {
+                "x": 100,
+                "y": 106
+              },
+              "width": 34,
+              "height": 34,
+              "color": "#FFFFFF",
+              "opacity": 0,
+              "scale": 0.86
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
                     "timeMs": 1140,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1500,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 1140,
+                    "value": 0.86,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1500,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "card-4-title-layer",
+        "name": "Feature card 4 title",
+        "kind": "text",
+        "startMs": 7000,
+        "durationMs": 5800,
+        "elements": [
+          {
+            "id": "card-4-title",
+            "kind": "text",
+            "text": "Image + Color AI",
+            "properties": {
+              "position": {
+                "x": 274,
+                "y": 102
+              },
+              "fontSize": 30,
+              "fontWeight": 780,
+              "lineHeight": 1,
+              "letterSpacing": 0,
+              "textAlign": "left",
+              "color": "#111827",
+              "opacity": 0,
+              "textFrame": {
+                "width": 255,
+                "height": 44,
+                "maxLines": 1,
+                "overflow": "clip",
+                "fitPolicy": "shrinkToFit",
+                "minFontSize": 22,
+                "maxFontSize": 30,
+                "measure": "fullText"
+              }
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 1200,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1560,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "card-4-body-layer",
+        "name": "Feature card 4 body",
+        "kind": "text",
+        "startMs": 7000,
+        "durationMs": 5800,
+        "elements": [
+          {
+            "id": "card-4-body",
+            "kind": "text",
+            "text": "Retouch, grade, and enhance visuals for every scene.",
+            "properties": {
+              "position": {
+                "x": 230,
+                "y": 208
+              },
+              "fontSize": 23,
+              "fontWeight": 500,
+              "lineHeight": 1.18,
+              "letterSpacing": 0,
+              "textAlign": "center",
+              "color": "#64748B",
+              "opacity": 0,
+              "textFrame": {
+                "width": 315,
+                "height": 72,
+                "maxLines": 2,
+                "overflow": "clip",
+                "fitPolicy": "shrinkToFit",
+                "minFontSize": 18,
+                "maxFontSize": 23,
+                "measure": "fullText"
+              }
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 1280,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1680,
                     "value": 1,
                     "easing": "fastSlow"
                   }

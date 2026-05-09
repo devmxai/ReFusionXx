@@ -308,6 +308,13 @@ void main() {
     expect(find.text('Premium App Promo'), findsNothing);
 
     await tester.tap(find.text('ReFusion Prompt Burst'));
+    await tester.runAsync(() async {
+      for (var attempt = 0;
+          attempt < 40 && appliedResult == null;
+          attempt += 1) {
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+      }
+    });
     await tester.pumpAndSettle();
 
     expect(appliedResult, isNotNull);
