@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import '../models/refusion_scene_program_models.dart';
 import 'evaluated_frame_truth.dart';
 import 'scene_evaluation_pipeline.dart';
+import 'scene_shared_text_layout_engine.dart';
+import 'scene_shared_text_layout_models.dart';
 
 class SceneVisualFrameQaValidationResult {
   SceneVisualFrameQaValidationResult({
@@ -20,8 +22,11 @@ class SceneVisualFrameQaValidator {
   const SceneVisualFrameQaValidator({
     this.enforceOverflowAsError = true,
     SceneEvaluationPipeline? evaluationPipeline,
-  }) : _evaluationPipeline =
-            evaluationPipeline ?? const SceneEvaluationPipeline();
+    SceneSharedTextLayoutEngine? textLayoutEngine,
+  })  : _evaluationPipeline =
+            evaluationPipeline ?? const SceneEvaluationPipeline(),
+        _textLayoutEngine =
+            textLayoutEngine ?? const SceneSharedTextLayoutEngine();
 
   static const int _fullProbeBudget = 9;
   static const int _fallbackProbeBudget = 5;
@@ -35,6 +40,7 @@ class SceneVisualFrameQaValidator {
 
   final bool enforceOverflowAsError;
   final SceneEvaluationPipeline _evaluationPipeline;
+  final SceneSharedTextLayoutEngine _textLayoutEngine;
 
   SceneVisualFrameQaValidationResult validate(ReFusionSceneProgram program) {
     final stopwatch = Stopwatch()..start();
@@ -302,34 +308,28 @@ class SceneVisualFrameQaValidator {
               ) ??
               'none')
           .trim();
-      final normalizedFitPolicy = _normalizeToken(fitPolicy);
-      final supportedFitPolicy = normalizedFitPolicy == 'shrinktofit' ||
-          normalizedFitPolicy == 'wraptolines' ||
-          normalizedFitPolicy == 'ellipsisaftermaxlines' ||
-          normalizedFitPolicy == 'cliptoframe' ||
-          normalizedFitPolicy == 'shorten' ||
-          normalizedFitPolicy == 'scalexfornumericonly';
       final maxLines =
-          _doubleFromMap(textFrame, const <String>['maxLines']) ?? 1.0;
-      final estimatedWidth = _estimateTextWidth(
-        record.element,
-        fontSize: record.state.fontSize,
-        letterSpacing: record.state.letterSpacing,
-        typewriterProgress: record.state.typewriterProgress,
+          (_doubleFromMap(textFrame, const <String>['maxLines']) ?? 1.0)
+              .round();
+      final layout = _textLayoutEngine.layout(
+        SceneSharedTextLayoutRequest(
+          text: record.element.text ?? '',
+          frameWidth: frameWidth,
+          frameHeight: frameHeight,
+          fontSize: record.state.fontSize,
+          lineHeight: record.state.lineHeight,
+          letterSpacing: record.state.letterSpacing,
+          maxLines: maxLines,
+          fitPolicy: fitPolicy,
+          minFontSize:
+              _doubleFromMap(textFrame, const <String>['minFontSize']) ?? 12.0,
+        ),
       );
-      final estimatedHeight = _estimateTextHeight(
-            record.element,
-            fontSize: record.state.fontSize,
-            lineHeight: record.state.lineHeight,
-          ) *
-          maxLines;
-      final overflowX = math.max(0.0, estimatedWidth - frameWidth);
-      final overflowY = math.max(0.0, estimatedHeight - frameHeight);
-      final overflowPx = math.max(overflowX, overflowY).toDouble();
+      final estimatedWidth = layout.measuredWidth;
+      final estimatedHeight = layout.measuredHeight;
+      final overflowPx = layout.overflowPx;
       final overflowDetected = overflowPx > 1.0;
-      final fitPolicyCanResolveOverflow =
-          supportedFitPolicy && normalizedFitPolicy != 'none';
-      final overflowBlocking = overflowDetected && !fitPolicyCanResolveOverflow;
+      final overflowBlocking = overflowDetected && !layout.fits;
       if (overflowBlocking) {
         issues.add(
           ReFusionSceneProgramIssue(
@@ -341,6 +341,10 @@ class SceneVisualFrameQaValidator {
                 'estimatedHeight=${estimatedHeight.toStringAsFixed(2)} '
                 'frameWidth=${frameWidth.toStringAsFixed(2)} '
                 'frameHeight=${frameHeight.toStringAsFixed(2)} '
+                'effectiveFontSize=${layout.effectiveFontSize.toStringAsFixed(2)} '
+                '${SceneSharedTextLayoutEngine.proofTag} '
+                'policy=${layout.normalizedFitPolicy} '
+                'policyAllowsOverflow=${layout.policyAllowsOverflow.toString()} '
                 'timelineTimeMs=${snapshot.timelineTimeMs}',
             path:
                 'layers[${record.layerIndex}].elements[${record.elementIndex}].properties.textFrame',
@@ -372,6 +376,26 @@ class SceneVisualFrameQaValidator {
         hasReveal: hasTypewriter,
         typewriterProgress: record.state.typewriterProgress,
       );
+      if (!overflowBlocking) {
+        issues.add(
+          ReFusionSceneProgramIssue(
+            severity: ReFusionSceneProgramIssueSeverity.info,
+            message: '${SceneSharedTextLayoutEngine.proofTag} '
+                'text=${record.element.id} '
+                'fitPolicy=${layout.normalizedFitPolicy} '
+                'frameWidth=${frameWidth.toStringAsFixed(2)} '
+                'frameHeight=${frameHeight.toStringAsFixed(2)} '
+                'measuredWidth=${layout.measuredWidth.toStringAsFixed(2)} '
+                'measuredHeight=${layout.measuredHeight.toStringAsFixed(2)} '
+                'effectiveFontSize=${layout.effectiveFontSize.toStringAsFixed(2)} '
+                'estimatedLines=${layout.estimatedLines} '
+                'fits=${layout.fits.toString()} '
+                'timelineTimeMs=${snapshot.timelineTimeMs}',
+            path:
+                'layers[${record.layerIndex}].elements[${record.elementIndex}].properties.textFrame',
+          ),
+        );
+      }
 
       if (clipped) {
         issues.add(
