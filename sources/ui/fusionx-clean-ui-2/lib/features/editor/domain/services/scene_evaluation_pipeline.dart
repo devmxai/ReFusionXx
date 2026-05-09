@@ -49,6 +49,7 @@ class SceneEvaluationPipeline {
   final SceneRuntimeTransformComposer _transformComposer;
   final SceneGlobalParentGraph _globalParentGraph;
   static const String _parentGraphProofTag = 'TF_SCENE_PARENT_GRAPH_PROOF';
+  static const String _slotLayoutProofTag = 'TF_SCENE_SLOT_LAYOUT_PROOF';
 
   SceneEvaluationPipelineResult evaluate(
       SceneEvaluationPipelineRequest request) {
@@ -283,6 +284,25 @@ class SceneEvaluationPipeline {
             .length,
         'fallbackReason':
             parentGraph.issues.isEmpty ? 'none' : parentGraph.issues.first.code,
+      },
+    ).append(
+      tag: _slotLayoutProofTag,
+      fields: <String, Object?>{
+        'sceneId': request.program.name,
+        'globalTimeMs': safeTime,
+        'slotNodeCount': treeResult.tree!.nodeById.values
+            .where((node) => node.nodeType == SceneRuntimeNodeType.slot)
+            .length,
+        'componentNodeCount': treeResult.tree!.nodeById.values
+            .where((node) => node.nodeType == SceneRuntimeNodeType.component)
+            .length,
+        'nodesWithSlotId': treeResult.tree!.nodeById.values
+            .where(
+              (node) => (node.slotId?.trim().isNotEmpty ?? false),
+            )
+            .length,
+        'runtimeTreeHash': treeResult.tree!.deterministicHash,
+        'fallbackReason': 'none',
       },
     ).append(
       tag: SceneEvaluationDiagnostics.frameTruthProofTag,

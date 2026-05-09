@@ -230,5 +230,11 @@ void main() {
       ),
       isTrue,
     );
+    expect(
+      result.diagnostics.events.any(
+        (event) => event.tag == 'TF_SCENE_SLOT_LAYOUT_PROOF',
+      ),
+      isTrue,
+    );
   });
 }
