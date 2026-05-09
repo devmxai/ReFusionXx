@@ -135,7 +135,7 @@ class SceneDirectorIntelligencePlanner {
         request: SceneMotionRecipeCompileRequest(
           recipeId: r'$motion.fadeCollapse',
           targetComponentId: backgroundMotifId,
-          targetScope: 'background',
+          targetScope: 'component',
           beatId: 'outro',
           startMs: featuresEnd,
           endMs: durationMs,
