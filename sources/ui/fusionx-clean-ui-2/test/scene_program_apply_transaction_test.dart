@@ -5,6 +5,8 @@ import 'package:refusion_app/features/editor/domain/models/composition_scene_cli
 import 'package:refusion_app/features/editor/domain/models/professional_motion_animation_models.dart';
 import 'package:refusion_app/features/editor/domain/models/professional_motion_models.dart';
 import 'package:refusion_app/features/editor/domain/services/refusion_scene_program_authoring_service.dart';
+import 'package:refusion_app/features/editor/domain/services/kie_scene_program_agent_service.dart';
+import 'package:refusion_app/features/editor/domain/services/scene_pre_render_sanity_gate.dart';
 import 'package:refusion_app/features/editor/domain/services/scene_program_apply_transaction.dart';
 import 'package:refusion_app/features/editor/presentation/models/timeline_time.dart';
 import 'package:refusion_app/features/editor/domain/models/refusion_scene_program_models.dart';
@@ -100,6 +102,30 @@ void main() {
     return result;
   }
 
+  ReFusionSceneProgramAuthoringResult promptBurstAuthoringResult() {
+    final source = File(
+      'assets/scene_programs/revival_prompt_burst_feature_cards_scene.json',
+    ).readAsStringSync();
+    final extracted = KieSceneProgramAgentService()
+        .extractSceneProgramPayloadFromContent(content: source);
+    final result = authoringService.importSceneProgram(
+      ReFusionSceneProgramAuthoringRequest(
+        source: extracted.sceneProgramJson,
+        fileName: 'revival_prompt_burst_feature_cards_scene.json',
+        projectId: 'prompt-burst-project',
+        sceneId: 'prompt-burst-scene',
+      ),
+    );
+    expect(
+      result.isValid,
+      isTrue,
+      reason: result.issues
+          .map((issue) => '${issue.severity} ${issue.path}: ${issue.message}')
+          .join('\n'),
+    );
+    return result;
+  }
+
   ReFusionSceneProgram _badSaasProgram() {
     return ReFusionSceneProgram(
       schemaVersion: 'refusion.scene-program/v1',
@@ -172,6 +198,37 @@ void main() {
       'root-scene',
       'intro-source',
     ]);
+  });
+
+  test('applies present prompt burst preset as one scene clip', () {
+    final authoring = promptBurstAuthoringResult();
+    final preRenderGate = const ScenePreRenderSanityGate().validate(
+      authoringResult: authoring,
+      sceneId: 'root-scene',
+    );
+    expect(
+      preRenderGate.blocked,
+      isFalse,
+      reason: preRenderGate.issues
+          .where(
+            (issue) =>
+                issue.severity == ReFusionSceneProgramIssueSeverity.error,
+          )
+          .map((issue) => '${issue.path}: ${issue.message}')
+          .join('\n'),
+    );
+    final result = transaction.apply(
+      SceneProgramApplyTransactionRequest(
+        baseProject: baseProject(scenes: <MotionSceneModel>[rootScene()]),
+        authoringResult: authoring,
+        rootSceneId: 'root-scene',
+        clipName: 'ReFusion Prompt Burst Feature Cards',
+      ),
+    );
+
+    expect(result, isNotNull);
+    expect(result!.sceneClip.name, 'ReFusion Prompt Burst Feature Cards');
+    expect(result.sourceScene.layers, isNotEmpty);
   });
 
   test(

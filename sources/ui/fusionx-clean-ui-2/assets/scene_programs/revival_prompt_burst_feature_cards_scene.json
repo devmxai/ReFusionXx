@@ -13,7 +13,12 @@
         "startMs": 0,
         "endMs": 1200,
         "intent": "White canvas with centered R icon and a premium pop.",
-        "componentRefs": ["background", "app-icon", "app-icon-letter", "tap-ring"]
+        "componentRefs": [
+          "background",
+          "app-icon",
+          "app-icon-letter",
+          "tap-ring"
+        ]
       },
       {
         "id": "icon-to-prompt",
@@ -21,7 +26,13 @@
         "startMs": 1200,
         "endMs": 3000,
         "intent": "Icon morphs into chatbot prompt input with polished spring timing.",
-        "componentRefs": ["prompt-shell", "prompt-text", "plus-icon", "send-button", "send-arrow"]
+        "componentRefs": [
+          "prompt-shell",
+          "prompt-text",
+          "plus-icon",
+          "send-button",
+          "send-arrow"
+        ]
       },
       {
         "id": "prompt-type",
@@ -29,7 +40,9 @@
         "startMs": 3000,
         "endMs": 5000,
         "intent": "Type `build a new app for my business` with readable cadence.",
-        "componentRefs": ["prompt-text"]
+        "componentRefs": [
+          "prompt-text"
+        ]
       },
       {
         "id": "prompt-readable-hold",
@@ -37,7 +50,13 @@
         "startMs": 5000,
         "endMs": 5600,
         "intent": "Hold the full prompt for readability before submit.",
-        "componentRefs": ["prompt-shell", "prompt-text", "plus-icon", "send-button", "send-arrow"]
+        "componentRefs": [
+          "prompt-shell",
+          "prompt-text",
+          "plus-icon",
+          "send-button",
+          "send-arrow"
+        ]
       },
       {
         "id": "press-and-burst",
@@ -45,7 +64,12 @@
         "startMs": 5600,
         "endMs": 7600,
         "intent": "Tap interaction, then send circle bursts to reveal the next scene.",
-        "componentRefs": ["plus-icon", "send-button", "send-arrow", "stage-two-overlay"]
+        "componentRefs": [
+          "plus-icon",
+          "send-button",
+          "send-arrow",
+          "stage-two-overlay"
+        ]
       },
       {
         "id": "cards-enter",
@@ -53,7 +77,13 @@
         "startMs": 7600,
         "endMs": 10800,
         "intent": "Four feature cards land with spring pop-up timing.",
-        "componentRefs": ["cards-title", "card-1", "card-2", "card-3", "card-4"]
+        "componentRefs": [
+          "cards-title",
+          "card-1",
+          "card-2",
+          "card-3",
+          "card-4"
+        ]
       },
       {
         "id": "cards-readable-hold",
@@ -61,7 +91,13 @@
         "startMs": 10800,
         "endMs": 12800,
         "intent": "Keep feature cards stable for reading.",
-        "componentRefs": ["cards-title", "card-1", "card-2", "card-3", "card-4"]
+        "componentRefs": [
+          "cards-title",
+          "card-1",
+          "card-2",
+          "card-3",
+          "card-4"
+        ]
       }
     ],
     "components": [
@@ -90,7 +126,7 @@
         "id": "app-icon-letter",
         "role": "text.brandMark",
         "label": "Letter R",
-        "layerId": "icon-layer",
+        "layerId": "icon-letter-layer",
         "elementId": "app-icon-letter"
       },
       {
@@ -111,7 +147,7 @@
         "id": "prompt-text",
         "role": "text.prompt",
         "label": "Prompt content text",
-        "layerId": "prompt-layer",
+        "layerId": "prompt-text-layer",
         "elementId": "prompt-text"
       },
       {
@@ -288,7 +324,10 @@
             "kind": "shape",
             "properties": {
               "shapeKind": "rectangle",
-              "position": {"x": 0, "y": 0},
+              "position": {
+                "x": 0,
+                "y": 0
+              },
               "width": 1080,
               "height": 1920,
               "color": "#FFFFFF",
@@ -300,7 +339,10 @@
             "kind": "shape",
             "properties": {
               "shapeKind": "rectangle",
-              "position": {"x": 0, "y": 0},
+              "position": {
+                "x": 0,
+                "y": 0
+              },
               "width": 1080,
               "height": 1920,
               "color": "#F4F7FF",
@@ -310,10 +352,26 @@
               {
                 "property": "opacity",
                 "keyframes": [
-                  {"timeMs": 0, "value": 0, "easing": "linear"},
-                  {"timeMs": 6800, "value": 0, "easing": "linear"},
-                  {"timeMs": 7600, "value": 1, "easing": "fastSlow"},
-                  {"timeMs": 12800, "value": 1, "easing": "linear"}
+                  {
+                    "timeMs": 0,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 6800,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 7600,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 12800,
+                    "value": 1,
+                    "easing": "linear"
+                  }
                 ]
               }
             ]
@@ -333,7 +391,10 @@
             "properties": {
               "layoutRole": "group",
               "shapeKind": "roundedRectangle",
-              "position": {"x": 0, "y": -120},
+              "position": {
+                "x": 0,
+                "y": -120
+              },
               "width": 176,
               "height": 176,
               "cornerRadius": 52,
@@ -341,55 +402,71 @@
               "opacity": 1,
               "shadowOpacity": 0.16,
               "shadowBlur": 28,
-              "shadowOffset": {"x": 0, "y": 16},
+              "shadowOffset": {
+                "x": 0,
+                "y": 16
+              },
               "shadowColor": "#000000"
             },
             "channels": [
               {
                 "property": "opacity",
                 "keyframes": [
-                  {"timeMs": 0, "value": 0, "easing": "linear"},
-                  {"timeMs": 260, "value": 1, "easing": "fastSlow"},
-                  {"timeMs": 2200, "value": 1, "easing": "linear"},
-                  {"timeMs": 3000, "value": 0, "easing": "fastSlow"}
+                  {
+                    "timeMs": 0,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 260,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 2200,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3000,
+                    "value": 0,
+                    "easing": "fastSlow"
+                  }
                 ]
               },
               {
                 "property": "scale",
                 "keyframes": [
-                  {"timeMs": 0, "value": 0.62, "easing": "slowFastSlow"},
-                  {"timeMs": 760, "value": 1.06, "easing": "slowFastSlow"},
-                  {"timeMs": 980, "value": 1, "easing": "fastSlow"},
-                  {"timeMs": 1800, "value": 1, "easing": "linear"},
-                  {"timeMs": 2100, "value": 0.92, "easing": "fastSlow"},
-                  {"timeMs": 2460, "value": 1, "easing": "slowFast"}
-                ]
-              }
-            ]
-          },
-          {
-            "id": "app-icon-letter",
-            "kind": "text",
-            "text": "R",
-            "properties": {
-              "parentId": "app-icon",
-              "position": {"x": 0, "y": 0},
-              "fontSize": 92,
-              "fontWeight": 800,
-              "lineHeight": 1.0,
-              "letterSpacing": 0,
-              "textAlign": "center",
-              "color": "#FFFFFF",
-              "opacity": 1
-            },
-            "channels": [
-              {
-                "property": "opacity",
-                "keyframes": [
-                  {"timeMs": 0, "value": 0, "easing": "linear"},
-                  {"timeMs": 320, "value": 1, "easing": "fastSlow"},
-                  {"timeMs": 2200, "value": 1, "easing": "linear"},
-                  {"timeMs": 3000, "value": 0, "easing": "fastSlow"}
+                  {
+                    "timeMs": 0,
+                    "value": 0.62,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 760,
+                    "value": 1.06,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 980,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 1800,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 2100,
+                    "value": 0.92,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 2460,
+                    "value": 1,
+                    "easing": "slowFast"
+                  }
                 ]
               }
             ]
@@ -399,12 +476,69 @@
             "kind": "shape",
             "properties": {
               "shapeKind": "circle",
-              "position": {"x": -480, "y": -860},
+              "position": {
+                "x": -480,
+                "y": -860
+              },
               "width": 20,
               "height": 20,
               "color": "#111111",
               "opacity": 0
             }
+          }
+        ]
+      },
+      {
+        "id": "icon-letter-layer",
+        "name": "Icon brand letter",
+        "kind": "text",
+        "startMs": 0,
+        "durationMs": 3000,
+        "elements": [
+          {
+            "id": "app-icon-letter",
+            "kind": "text",
+            "text": "R",
+            "properties": {
+              "position": {
+                "x": 0,
+                "y": -120
+              },
+              "fontSize": 92,
+              "fontWeight": 800,
+              "lineHeight": 1,
+              "letterSpacing": 0,
+              "textAlign": "center",
+              "color": "#FFFFFF",
+              "opacity": 1
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 0,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 320,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 2200,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3000,
+                    "value": 0,
+                    "easing": "fastSlow"
+                  }
+                ]
+              }
+            ]
           }
         ]
       },
@@ -421,54 +555,72 @@
             "properties": {
               "layoutRole": "container",
               "shapeKind": "roundedRectangle",
-              "position": {"x": 0, "y": 120},
+              "position": {
+                "x": 0,
+                "y": 120
+              },
               "width": 900,
               "height": 128,
               "cornerRadius": 64,
               "color": "#0E111A",
-              "opacity": 0,
+              "opacity": 1,
               "shadowOpacity": 0.2,
               "shadowBlur": 30,
-              "shadowOffset": {"x": 0, "y": 14},
+              "shadowOffset": {
+                "x": 0,
+                "y": 14
+              },
               "shadowColor": "#000000",
-              "contentInsets": {"left": 108, "right": 120, "top": 26, "bottom": 26}
+              "contentInsets": {
+                "left": 108,
+                "right": 120,
+                "top": 26,
+                "bottom": 26
+              }
             },
             "channels": [
               {
                 "property": "opacity",
                 "keyframes": [
-                  {"timeMs": 0, "value": 0, "easing": "linear"},
-                  {"timeMs": 820, "value": 1, "easing": "fastSlow"},
-                  {"timeMs": 5600, "value": 1, "easing": "linear"},
-                  {"timeMs": 6400, "value": 0, "easing": "fastSlow"}
-                ]
-              },
-              {
-                "property": "position",
-                "keyframes": [
-                  {"timeMs": 0, "value": {"x": 0, "y": -120}, "easing": "linear"},
-                  {"timeMs": 1400, "value": {"x": 0, "y": 120}, "easing": "slowFastSlow"}
-                ]
-              },
-              {
-                "property": "scale",
-                "keyframes": [
-                  {"timeMs": 0, "value": 0.2, "easing": "slowFastSlow"},
-                  {"timeMs": 1400, "value": 1, "easing": "slowFastSlow"},
-                  {"timeMs": 5400, "value": 1, "easing": "linear"},
-                  {"timeMs": 6160, "value": 1, "easing": "slowFast"}
+                  {
+                    "timeMs": 0,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 820,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 5600,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 6400,
+                    "value": 0,
+                    "easing": "fastSlow"
+                  }
                 ]
               }
             ]
-          },
+          }
+        ]
+      },
+      {
+        "id": "prompt-text-layer",
+        "name": "Prompt text",
+        "kind": "text",
+        "startMs": 1200,
+        "durationMs": 6400,
+        "elements": [
           {
             "id": "prompt-text",
             "kind": "text",
             "text": "build a new app for my business",
             "properties": {
-              "parentId": "prompt-shell",
               "layoutRole": "content",
-              "layout": {"slot": "primaryText", "anchor": "centerLeft"},
               "textFrame": {
                 "width": 560,
                 "height": 58,
@@ -479,10 +631,13 @@
                 "maxFontSize": 34,
                 "measure": "fullText"
               },
-              "position": {"x": 0, "y": 0},
+              "position": {
+                "x": 0,
+                "y": 120
+              },
               "fontSize": 32,
               "fontWeight": 600,
-              "lineHeight": 1.0,
+              "lineHeight": 1,
               "letterSpacing": 0,
               "textAlign": "left",
               "color": "#F3F5FA",
@@ -492,17 +647,41 @@
               {
                 "property": "opacity",
                 "keyframes": [
-                  {"timeMs": 0, "value": 0, "easing": "linear"},
-                  {"timeMs": 1800, "value": 1, "easing": "fastSlow"},
-                  {"timeMs": 5600, "value": 1, "easing": "linear"},
-                  {"timeMs": 6400, "value": 0, "easing": "fastSlow"}
+                  {
+                    "timeMs": 0,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1800,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 5600,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 6400,
+                    "value": 0,
+                    "easing": "fastSlow"
+                  }
                 ]
               },
               {
                 "property": "typewriterProgress",
                 "keyframes": [
-                  {"timeMs": 1800, "value": 0, "easing": "linear"},
-                  {"timeMs": 3800, "value": 1, "easing": "linear"}
+                  {
+                    "timeMs": 1800,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3800,
+                    "value": 1,
+                    "easing": "linear"
+                  }
                 ]
               }
             ]
@@ -521,11 +700,13 @@
             "kind": "text",
             "text": "+",
             "properties": {
-              "parentId": "prompt-shell",
-              "position": {"x": -360, "y": 0},
+              "position": {
+                "x": -360,
+                "y": 120
+              },
               "fontSize": 54,
               "fontWeight": 700,
-              "lineHeight": 1.0,
+              "lineHeight": 1,
               "letterSpacing": 0,
               "textAlign": "center",
               "color": "#FFFFFF",
@@ -535,20 +716,26 @@
               {
                 "property": "opacity",
                 "keyframes": [
-                  {"timeMs": 0, "value": 0, "easing": "linear"},
-                  {"timeMs": 1700, "value": 1, "easing": "fastSlow"},
-                  {"timeMs": 5600, "value": 1, "easing": "linear"},
-                  {"timeMs": 6400, "value": 0, "easing": "fastSlow"}
-                ]
-              },
-              {
-                "property": "scale",
-                "keyframes": [
-                  {"timeMs": 1500, "value": 0.7, "easing": "slowFastSlow"},
-                  {"timeMs": 1900, "value": 1, "easing": "slowFastSlow"},
-                  {"timeMs": 4400, "value": 1, "easing": "linear"},
-                  {"timeMs": 4800, "value": 0.84, "easing": "fastSlow"},
-                  {"timeMs": 5200, "value": 1, "easing": "slowFast"}
+                  {
+                    "timeMs": 0,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1700,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 5600,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 6400,
+                    "value": 0,
+                    "easing": "fastSlow"
+                  }
                 ]
               }
             ]
@@ -566,33 +753,36 @@
             "id": "send-button",
             "kind": "shape",
             "properties": {
-              "parentId": "prompt-shell",
               "shapeKind": "circle",
-              "position": {"x": 360, "y": 0},
+              "position": {
+                "x": 360,
+                "y": 120
+              },
               "width": 82,
               "height": 82,
               "color": "#FFFFFF",
-              "opacity": 0
+              "opacity": 0,
+              "layoutRole": "container"
             },
             "channels": [
               {
                 "property": "opacity",
                 "keyframes": [
-                  {"timeMs": 0, "value": 0, "easing": "linear"},
-                  {"timeMs": 1900, "value": 1, "easing": "fastSlow"},
-                  {"timeMs": 6400, "value": 1, "easing": "linear"}
-                ]
-              },
-              {
-                "property": "scale",
-                "keyframes": [
-                  {"timeMs": 1500, "value": 0.7, "easing": "slowFastSlow"},
-                  {"timeMs": 2000, "value": 1, "easing": "slowFastSlow"},
-                  {"timeMs": 4400, "value": 1, "easing": "linear"},
-                  {"timeMs": 5000, "value": 0.92, "easing": "fastSlow"},
-                  {"timeMs": 5400, "value": 1.02, "easing": "slowFast"},
-                  {"timeMs": 6200, "value": 3, "easing": "slowFastSlow"},
-                  {"timeMs": 6400, "value": 3, "easing": "slowFast"}
+                  {
+                    "timeMs": 0,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1900,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 6400,
+                    "value": 1,
+                    "easing": "linear"
+                  }
                 ]
               }
             ]
@@ -611,11 +801,13 @@
             "kind": "text",
             "text": "↑",
             "properties": {
-              "parentId": "send-button",
-              "position": {"x": 0, "y": 0},
+              "position": {
+                "x": 360,
+                "y": 120
+              },
               "fontSize": 44,
               "fontWeight": 700,
-              "lineHeight": 1.0,
+              "lineHeight": 1,
               "letterSpacing": 0,
               "textAlign": "center",
               "color": "#111111",
@@ -625,10 +817,26 @@
               {
                 "property": "opacity",
                 "keyframes": [
-                  {"timeMs": 0, "value": 0, "easing": "linear"},
-                  {"timeMs": 2000, "value": 1, "easing": "fastSlow"},
-                  {"timeMs": 5200, "value": 1, "easing": "linear"},
-                  {"timeMs": 5600, "value": 0, "easing": "fastSlow"}
+                  {
+                    "timeMs": 0,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 2000,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 5200,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 5600,
+                    "value": 0,
+                    "easing": "fastSlow"
+                  }
                 ]
               }
             ]
@@ -647,7 +855,10 @@
             "kind": "text",
             "text": "Built for speed and precision",
             "properties": {
-              "position": {"x": 0, "y": -360},
+              "position": {
+                "x": 0,
+                "y": -360
+              },
               "fontSize": 44,
               "fontWeight": 760,
               "lineHeight": 1.05,
@@ -669,8 +880,16 @@
               {
                 "property": "opacity",
                 "keyframes": [
-                  {"timeMs": 0, "value": 0, "easing": "linear"},
-                  {"timeMs": 900, "value": 1, "easing": "fastSlow"}
+                  {
+                    "timeMs": 0,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 900,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  }
                 ]
               }
             ]
@@ -690,7 +909,10 @@
             "properties": {
               "layoutRole": "container",
               "shapeKind": "roundedRectangle",
-              "position": {"x": -230, "y": 120},
+              "position": {
+                "x": -230,
+                "y": 120
+              },
               "width": 430,
               "height": 240,
               "cornerRadius": 40,
@@ -698,33 +920,240 @@
               "opacity": 0,
               "shadowOpacity": 0.12,
               "shadowBlur": 22,
-              "shadowOffset": {"x": 0, "y": 10},
+              "shadowOffset": {
+                "x": 0,
+                "y": 10
+              },
               "shadowColor": "#1E293B"
             },
             "channels": [
-              {"property": "opacity", "keyframes": [{"timeMs": 0, "value": 0, "easing": "linear"}, {"timeMs": 780, "value": 1, "easing": "fastSlow"}]},
-              {"property": "position", "keyframes": [{"timeMs": 0, "value": {"x": -230, "y": 180}, "easing": "linear"}, {"timeMs": 860, "value": {"x": -230, "y": 120}, "easing": "slowFastSlow"}]},
-              {"property": "scale", "keyframes": [{"timeMs": 0, "value": 0.82, "easing": "slowFastSlow"}, {"timeMs": 860, "value": 1, "easing": "slowFastSlow"}]}
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 0,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 780,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  }
+                ]
+              }
             ]
-          },
+          }
+        ]
+      },
+      {
+        "id": "card-1-text-layer",
+        "name": "Card 1 text",
+        "kind": "text",
+        "startMs": 7600,
+        "durationMs": 5200,
+        "elements": [
           {
             "id": "card-1-text",
             "kind": "text",
             "text": "Fast Montage",
             "properties": {
-              "parentId": "card-1",
-              "position": {"x": 0, "y": 0},
+              "position": {
+                "x": -230,
+                "y": 120
+              },
               "fontSize": 32,
               "fontWeight": 760,
-              "lineHeight": 1.0,
+              "lineHeight": 1,
               "letterSpacing": 0,
               "textAlign": "left",
               "color": "#0F172A",
               "opacity": 0,
-              "textFrame": {"width": 320, "height": 56, "maxLines": 1, "overflow": "clip", "fitPolicy": "shrinkToFit", "minFontSize": 22, "maxFontSize": 32}
+              "textFrame": {
+                "width": 320,
+                "height": 56,
+                "maxLines": 1,
+                "overflow": "clip",
+                "fitPolicy": "shrinkToFit",
+                "minFontSize": 22,
+                "maxFontSize": 32
+              }
             },
             "channels": [
-              {"property": "opacity", "keyframes": [{"timeMs": 520, "value": 0, "easing": "linear"}, {"timeMs": 980, "value": 1, "easing": "fastSlow"}]}
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 520,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 980,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "card-2-text-layer",
+        "name": "Card 2 text",
+        "kind": "text",
+        "startMs": 7600,
+        "durationMs": 5200,
+        "elements": [
+          {
+            "id": "card-2-text",
+            "kind": "text",
+            "text": "AI Voice Dubbing",
+            "properties": {
+              "position": {
+                "x": 230,
+                "y": 120
+              },
+              "fontSize": 32,
+              "fontWeight": 760,
+              "lineHeight": 1,
+              "letterSpacing": 0,
+              "textAlign": "left",
+              "color": "#0F172A",
+              "opacity": 0,
+              "textFrame": {
+                "width": 320,
+                "height": 56,
+                "maxLines": 1,
+                "overflow": "clip",
+                "fitPolicy": "shrinkToFit",
+                "minFontSize": 22,
+                "maxFontSize": 32
+              }
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 640,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1100,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "card-3-text-layer",
+        "name": "Card 3 text",
+        "kind": "text",
+        "startMs": 7600,
+        "durationMs": 5200,
+        "elements": [
+          {
+            "id": "card-3-text",
+            "kind": "text",
+            "text": "Pro Captions",
+            "properties": {
+              "position": {
+                "x": -230,
+                "y": 400
+              },
+              "fontSize": 32,
+              "fontWeight": 760,
+              "lineHeight": 1,
+              "letterSpacing": 0,
+              "textAlign": "left",
+              "color": "#0F172A",
+              "opacity": 0,
+              "textFrame": {
+                "width": 320,
+                "height": 56,
+                "maxLines": 1,
+                "overflow": "clip",
+                "fitPolicy": "shrinkToFit",
+                "minFontSize": 22,
+                "maxFontSize": 32
+              }
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 760,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1200,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "card-4-text-layer",
+        "name": "Card 4 text",
+        "kind": "text",
+        "startMs": 7600,
+        "durationMs": 5200,
+        "elements": [
+          {
+            "id": "card-4-text",
+            "kind": "text",
+            "text": "Color Precision",
+            "properties": {
+              "position": {
+                "x": 230,
+                "y": 400
+              },
+              "fontSize": 32,
+              "fontWeight": 760,
+              "lineHeight": 1,
+              "letterSpacing": 0,
+              "textAlign": "left",
+              "color": "#0F172A",
+              "opacity": 0,
+              "textFrame": {
+                "width": 320,
+                "height": 56,
+                "maxLines": 1,
+                "overflow": "clip",
+                "fitPolicy": "shrinkToFit",
+                "minFontSize": 22,
+                "maxFontSize": 32
+              }
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 900,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1300,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  }
+                ]
+              }
             ]
           }
         ]
@@ -742,7 +1171,10 @@
             "properties": {
               "layoutRole": "container",
               "shapeKind": "roundedRectangle",
-              "position": {"x": 230, "y": 120},
+              "position": {
+                "x": 230,
+                "y": 120
+              },
               "width": 430,
               "height": 240,
               "cornerRadius": 40,
@@ -750,33 +1182,28 @@
               "opacity": 0,
               "shadowOpacity": 0.12,
               "shadowBlur": 22,
-              "shadowOffset": {"x": 0, "y": 10},
+              "shadowOffset": {
+                "x": 0,
+                "y": 10
+              },
               "shadowColor": "#1E293B"
             },
             "channels": [
-              {"property": "opacity", "keyframes": [{"timeMs": 120, "value": 0, "easing": "linear"}, {"timeMs": 900, "value": 1, "easing": "fastSlow"}]},
-              {"property": "position", "keyframes": [{"timeMs": 120, "value": {"x": 230, "y": 180}, "easing": "linear"}, {"timeMs": 980, "value": {"x": 230, "y": 120}, "easing": "slowFastSlow"}]},
-              {"property": "scale", "keyframes": [{"timeMs": 120, "value": 0.82, "easing": "slowFastSlow"}, {"timeMs": 980, "value": 1, "easing": "slowFastSlow"}]}
-            ]
-          },
-          {
-            "id": "card-2-text",
-            "kind": "text",
-            "text": "AI Voice Dubbing",
-            "properties": {
-              "parentId": "card-2",
-              "position": {"x": 0, "y": 0},
-              "fontSize": 32,
-              "fontWeight": 760,
-              "lineHeight": 1.0,
-              "letterSpacing": 0,
-              "textAlign": "left",
-              "color": "#0F172A",
-              "opacity": 0,
-              "textFrame": {"width": 320, "height": 56, "maxLines": 1, "overflow": "clip", "fitPolicy": "shrinkToFit", "minFontSize": 22, "maxFontSize": 32}
-            },
-            "channels": [
-              {"property": "opacity", "keyframes": [{"timeMs": 640, "value": 0, "easing": "linear"}, {"timeMs": 1100, "value": 1, "easing": "fastSlow"}]}
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 120,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 900,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  }
+                ]
+              }
             ]
           }
         ]
@@ -794,7 +1221,10 @@
             "properties": {
               "layoutRole": "container",
               "shapeKind": "roundedRectangle",
-              "position": {"x": -230, "y": 400},
+              "position": {
+                "x": -230,
+                "y": 400
+              },
               "width": 430,
               "height": 240,
               "cornerRadius": 40,
@@ -802,33 +1232,28 @@
               "opacity": 0,
               "shadowOpacity": 0.12,
               "shadowBlur": 22,
-              "shadowOffset": {"x": 0, "y": 10},
+              "shadowOffset": {
+                "x": 0,
+                "y": 10
+              },
               "shadowColor": "#1E293B"
             },
             "channels": [
-              {"property": "opacity", "keyframes": [{"timeMs": 240, "value": 0, "easing": "linear"}, {"timeMs": 1020, "value": 1, "easing": "fastSlow"}]},
-              {"property": "position", "keyframes": [{"timeMs": 240, "value": {"x": -230, "y": 460}, "easing": "linear"}, {"timeMs": 1100, "value": {"x": -230, "y": 400}, "easing": "slowFastSlow"}]},
-              {"property": "scale", "keyframes": [{"timeMs": 240, "value": 0.82, "easing": "slowFastSlow"}, {"timeMs": 1100, "value": 1, "easing": "slowFastSlow"}]}
-            ]
-          },
-          {
-            "id": "card-3-text",
-            "kind": "text",
-            "text": "Pro Captions",
-            "properties": {
-              "parentId": "card-3",
-              "position": {"x": 0, "y": 0},
-              "fontSize": 32,
-              "fontWeight": 760,
-              "lineHeight": 1.0,
-              "letterSpacing": 0,
-              "textAlign": "left",
-              "color": "#0F172A",
-              "opacity": 0,
-              "textFrame": {"width": 320, "height": 56, "maxLines": 1, "overflow": "clip", "fitPolicy": "shrinkToFit", "minFontSize": 22, "maxFontSize": 32}
-            },
-            "channels": [
-              {"property": "opacity", "keyframes": [{"timeMs": 760, "value": 0, "easing": "linear"}, {"timeMs": 1200, "value": 1, "easing": "fastSlow"}]}
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 240,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1020,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  }
+                ]
+              }
             ]
           }
         ]
@@ -846,7 +1271,10 @@
             "properties": {
               "layoutRole": "container",
               "shapeKind": "roundedRectangle",
-              "position": {"x": 230, "y": 400},
+              "position": {
+                "x": 230,
+                "y": 400
+              },
               "width": 430,
               "height": 240,
               "cornerRadius": 40,
@@ -854,33 +1282,28 @@
               "opacity": 0,
               "shadowOpacity": 0.12,
               "shadowBlur": 22,
-              "shadowOffset": {"x": 0, "y": 10},
+              "shadowOffset": {
+                "x": 0,
+                "y": 10
+              },
               "shadowColor": "#1E293B"
             },
             "channels": [
-              {"property": "opacity", "keyframes": [{"timeMs": 360, "value": 0, "easing": "linear"}, {"timeMs": 1140, "value": 1, "easing": "fastSlow"}]},
-              {"property": "position", "keyframes": [{"timeMs": 360, "value": {"x": 230, "y": 460}, "easing": "linear"}, {"timeMs": 1220, "value": {"x": 230, "y": 400}, "easing": "slowFastSlow"}]},
-              {"property": "scale", "keyframes": [{"timeMs": 360, "value": 0.82, "easing": "slowFastSlow"}, {"timeMs": 1220, "value": 1, "easing": "slowFastSlow"}]}
-            ]
-          },
-          {
-            "id": "card-4-text",
-            "kind": "text",
-            "text": "Color Precision",
-            "properties": {
-              "parentId": "card-4",
-              "position": {"x": 0, "y": 0},
-              "fontSize": 32,
-              "fontWeight": 760,
-              "lineHeight": 1.0,
-              "letterSpacing": 0,
-              "textAlign": "left",
-              "color": "#0F172A",
-              "opacity": 0,
-              "textFrame": {"width": 320, "height": 56, "maxLines": 1, "overflow": "clip", "fitPolicy": "shrinkToFit", "minFontSize": 22, "maxFontSize": 32}
-            },
-            "channels": [
-              {"property": "opacity", "keyframes": [{"timeMs": 900, "value": 0, "easing": "linear"}, {"timeMs": 1300, "value": 1, "easing": "fastSlow"}]}
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 360,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1140,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  }
+                ]
+              }
             ]
           }
         ]
