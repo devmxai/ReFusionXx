@@ -1,13 +1,20 @@
 import '../models/refusion_motion_director_models.dart';
 import 'scene_brand_asset_policy.dart';
+import 'scene_brand_asset_pipeline.dart';
 import 'scene_icon_token.dart';
 
 class SceneIconRegistry {
   const SceneIconRegistry({
     SceneBrandAssetPolicy brandPolicy = const SceneBrandAssetPolicy(),
-  }) : _brandPolicy = brandPolicy;
+    SceneBrandAssetPipeline? brandAssetPipeline,
+  })  : _brandPolicy = brandPolicy,
+        _brandAssetPipeline = brandAssetPipeline;
 
   final SceneBrandAssetPolicy _brandPolicy;
+  final SceneBrandAssetPipeline? _brandAssetPipeline;
+
+  static final SceneBrandAssetPipeline _defaultBrandAssetPipeline =
+      SceneBrandAssetPipeline();
 
   static const List<SceneIconToken> _semanticIcons = <SceneIconToken>[
     SceneIconToken(
@@ -538,30 +545,15 @@ class SceneIconRegistry {
         issues: List<ReFusionMotionDirectorIssue>.unmodifiable(issues),
       );
     }
-    if (!_brandPolicy.allowUnlicensedBrandInGeneratedScenes &&
-        !token.allowedInGeneratedScenes) {
-      issues.add(
-        ReFusionMotionDirectorIssue(
-          severity: ReFusionMotionDirectorIssueSeverity.warning,
-          message:
-              'Brand `${token.displayName}` is registry-backed but not marked legal-for-generated-scenes yet; semantic fallback applied.',
-          path: 'brandToken',
-        ),
-      );
-      final fallback = findIconToken(token.fallbackIconToken) ??
-          findIconToken(r'$icon.brandFallback');
-      issues.add(_proofIssue(
-        knownBrand: true,
-        brandToken: brandToken,
-        fallbackIcon: fallback?.id ?? 'none',
-      ));
-      return SceneBrandResolution(
-        brandToken: token,
-        fallbackIconToken: fallback,
-        issues: List<ReFusionMotionDirectorIssue>.unmodifiable(issues),
-      );
-    }
-    final fallback = findIconToken(token.fallbackIconToken);
+    final pipeline = _brandAssetPipeline ?? _defaultBrandAssetPipeline;
+    final assetResolution = pipeline.resolve(
+      brandToken: token,
+      policy: _brandPolicy,
+    );
+    issues.addAll(assetResolution.issues);
+    final fallback = findIconToken(
+      assetResolution.fallbackIconToken,
+    );
     issues.add(_proofIssue(
       knownBrand: true,
       brandToken: brandToken,
@@ -569,7 +561,7 @@ class SceneIconRegistry {
     ));
     return SceneBrandResolution(
       brandToken: token,
-      fallbackIconToken: fallback,
+      fallbackIconToken: fallback ?? findIconToken(r'$icon.brandFallback'),
       issues: List<ReFusionMotionDirectorIssue>.unmodifiable(issues),
     );
   }
