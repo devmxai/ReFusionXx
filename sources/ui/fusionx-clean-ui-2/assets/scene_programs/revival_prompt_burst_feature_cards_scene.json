@@ -376,6 +376,16 @@
                     "timeMs": 6380,
                     "value": 1,
                     "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 5900,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 6800,
+                    "value": 0.84,
+                    "easing": "slowFastSlow"
                   }
                 ]
               },
@@ -395,6 +405,16 @@
                   {
                     "timeMs": 2460,
                     "value": -90,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 5900,
+                    "value": -90,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 6800,
+                    "value": -240,
                     "easing": "slowFastSlow"
                   }
                 ]
@@ -720,6 +740,31 @@
                     "easing": "fastSlow"
                   }
                 ]
+              },
+              {
+                "property": "positionX",
+                "keyframes": [
+                  {
+                    "timeMs": 2920,
+                    "value": -360,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 5360,
+                    "value": -360,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 5720,
+                    "value": -384,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 6800,
+                    "value": -520,
+                    "easing": "slowFastSlow"
+                  }
+                ]
               }
             ]
           }
@@ -809,6 +854,26 @@
                     "easing": "linear"
                   }
                 ]
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 3260,
+                    "value": -90,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 5900,
+                    "value": -90,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 6800,
+                    "value": -160,
+                    "easing": "slowFastSlow"
+                  }
+                ]
               }
             ]
           }
@@ -896,6 +961,26 @@
                     "timeMs": 6460,
                     "value": 1,
                     "easing": "fastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 3060,
+                    "value": -90,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 5900,
+                    "value": -90,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 6800,
+                    "value": -240,
+                    "easing": "slowFastSlow"
                   }
                 ]
               }
@@ -988,6 +1073,26 @@
                     "easing": "fastSlow"
                   }
                 ]
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 3060,
+                    "value": -90,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 5900,
+                    "value": -90,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 6800,
+                    "value": -240,
+                    "easing": "slowFastSlow"
+                  }
+                ]
               }
             ]
           }
@@ -1060,7 +1165,7 @@
                 "x": 0,
                 "y": -505
               },
-              "fontSize": 48,
+              "fontSize": 42,
               "fontWeight": 820,
               "lineHeight": 1.02,
               "letterSpacing": 0,
@@ -1068,13 +1173,13 @@
               "color": "#0F172A",
               "opacity": 0,
               "textFrame": {
-                "width": 760,
-                "height": 70,
+                "width": 700,
+                "height": 62,
                 "maxLines": 1,
                 "overflow": "clip",
                 "fitPolicy": "shrinkToFit",
                 "minFontSize": 32,
-                "maxFontSize": 48,
+                "maxFontSize": 42,
                 "measure": "fullText"
               }
             },
@@ -1123,13 +1228,13 @@
           {
             "id": "cards-subtitle",
             "kind": "text",
-            "text": "A native motion workspace for editing, voice, captions, and visuals.",
+            "text": "Native motion for editing, voice, captions, and color.",
             "properties": {
               "position": {
                 "x": 0,
                 "y": -430
               },
-              "fontSize": 25,
+              "fontSize": 22,
               "fontWeight": 520,
               "lineHeight": 1.12,
               "letterSpacing": 0,
@@ -1137,13 +1242,13 @@
               "color": "#64748B",
               "opacity": 0,
               "textFrame": {
-                "width": 720,
-                "height": 70,
+                "width": 680,
+                "height": 58,
                 "maxLines": 2,
                 "overflow": "clip",
                 "fitPolicy": "shrinkToFit",
                 "minFontSize": 20,
-                "maxFontSize": 25,
+                "maxFontSize": 22,
                 "measure": "fullText"
               }
             },
@@ -1184,7 +1289,7 @@
                 "y": -145
               },
               "width": 410,
-              "height": 222,
+              "height": 236,
               "cornerRadius": 34,
               "color": "#FFFFFF",
               "opacity": 0,
@@ -1223,17 +1328,37 @@
                 "keyframes": [
                   {
                     "timeMs": 470,
-                    "value": 0.9,
+                    "value": 0.88,
                     "easing": "linear"
                   },
                   {
                     "timeMs": 890,
-                    "value": 1.02,
+                    "value": 1.03,
                     "easing": "slowFastSlow"
                   },
                   {
                     "timeMs": 1090,
                     "value": 1,
+                    "easing": "fastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 470,
+                    "value": -111,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 890,
+                    "value": -153,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 1090,
+                    "value": -145,
                     "easing": "fastSlow"
                   }
                 ]
@@ -1255,26 +1380,26 @@
             "properties": {
               "shapeKind": "circle",
               "position": {
-                "x": -360,
+                "x": -356,
                 "y": -199
               },
-              "width": 66,
-              "height": 66,
+              "width": 64,
+              "height": 64,
               "color": "#2563EB",
               "opacity": 0,
-              "scale": 0.86
+              "scale": 0.72
             },
             "channels": [
               {
                 "property": "opacity",
                 "keyframes": [
                   {
-                    "timeMs": 570,
+                    "timeMs": 560,
                     "value": 0,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 950,
+                    "timeMs": 900,
                     "value": 1,
                     "easing": "slowFastSlow"
                   }
@@ -1284,19 +1409,34 @@
                 "property": "scale",
                 "keyframes": [
                   {
-                    "timeMs": 570,
-                    "value": 0.86,
+                    "timeMs": 560,
+                    "value": 0.72,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 950,
-                    "value": 1.04,
+                    "timeMs": 900,
+                    "value": 1.08,
                     "easing": "slowFastSlow"
                   },
                   {
-                    "timeMs": 1130,
+                    "timeMs": 1090,
                     "value": 1,
                     "easing": "fastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 560,
+                    "value": -181,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 900,
+                    "value": -199,
+                    "easing": "slowFastSlow"
                   }
                 ]
               }
@@ -1317,26 +1457,26 @@
             "properties": {
               "icon": "video",
               "position": {
-                "x": -360,
+                "x": -356,
                 "y": -199
               },
-              "width": 34,
-              "height": 34,
+              "width": 32,
+              "height": 32,
               "color": "#FFFFFF",
               "opacity": 0,
-              "scale": 0.86
+              "scale": 0.78
             },
             "channels": [
               {
                 "property": "opacity",
                 "keyframes": [
                   {
-                    "timeMs": 630,
+                    "timeMs": 610,
                     "value": 0,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 990,
+                    "timeMs": 970,
                     "value": 1,
                     "easing": "slowFastSlow"
                   }
@@ -1346,14 +1486,19 @@
                 "property": "scale",
                 "keyframes": [
                   {
-                    "timeMs": 630,
-                    "value": 0.86,
+                    "timeMs": 610,
+                    "value": 0.78,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 990,
-                    "value": 1,
+                    "timeMs": 970,
+                    "value": 1.02,
                     "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 1130,
+                    "value": 1,
+                    "easing": "fastSlow"
                   }
                 ]
               }
@@ -1371,27 +1516,27 @@
           {
             "id": "card-1-title",
             "kind": "text",
-            "text": "Fast Montage",
+            "text": "Montage",
             "properties": {
               "position": {
-                "x": -186,
+                "x": -188,
                 "y": -203
               },
-              "fontSize": 30,
-              "fontWeight": 780,
+              "fontSize": 24,
+              "fontWeight": 800,
               "lineHeight": 1,
               "letterSpacing": 0,
               "textAlign": "left",
               "color": "#111827",
               "opacity": 0,
               "textFrame": {
-                "width": 255,
-                "height": 44,
+                "width": 245,
+                "height": 34,
                 "maxLines": 1,
                 "overflow": "clip",
                 "fitPolicy": "shrinkToFit",
-                "minFontSize": 22,
-                "maxFontSize": 30,
+                "minFontSize": 18,
+                "maxFontSize": 24,
                 "measure": "fullText"
               }
             },
@@ -1400,14 +1545,29 @@
                 "property": "opacity",
                 "keyframes": [
                   {
-                    "timeMs": 690,
+                    "timeMs": 680,
                     "value": 0,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 1050,
+                    "timeMs": 1030,
                     "value": 1,
                     "easing": "fastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "positionX",
+                "keyframes": [
+                  {
+                    "timeMs": 680,
+                    "value": -160,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1030,
+                    "value": -188,
+                    "easing": "slowFastSlow"
                   }
                 ]
               }
@@ -1416,36 +1576,36 @@
         ]
       },
       {
-        "id": "card-1-body-layer",
-        "name": "Feature card 1 body",
+        "id": "card-1-line-1-layer",
+        "name": "Feature card 1 copy line 1",
         "kind": "text",
         "startMs": 7000,
         "durationMs": 5800,
         "elements": [
           {
-            "id": "card-1-body",
+            "id": "card-1-line-1",
             "kind": "text",
-            "text": "Edit polished reels and product videos in minutes.",
+            "text": "Fast edits",
             "properties": {
               "position": {
                 "x": -230,
-                "y": -97
+                "y": -111
               },
-              "fontSize": 23,
-              "fontWeight": 500,
-              "lineHeight": 1.18,
+              "fontSize": 17,
+              "fontWeight": 640,
+              "lineHeight": 1,
               "letterSpacing": 0,
               "textAlign": "center",
               "color": "#64748B",
               "opacity": 0,
               "textFrame": {
-                "width": 315,
-                "height": 72,
-                "maxLines": 2,
+                "width": 270,
+                "height": 24,
+                "maxLines": 1,
                 "overflow": "clip",
                 "fitPolicy": "shrinkToFit",
-                "minFontSize": 18,
-                "maxFontSize": 23,
+                "minFontSize": 13,
+                "maxFontSize": 17,
                 "measure": "fullText"
               }
             },
@@ -1459,9 +1619,93 @@
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 1170,
+                    "timeMs": 1120,
                     "value": 1,
                     "easing": "fastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 770,
+                    "value": -93,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1120,
+                    "value": -111,
+                    "easing": "slowFastSlow"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "card-1-line-2-layer",
+        "name": "Feature card 1 copy line 2",
+        "kind": "text",
+        "startMs": 7000,
+        "durationMs": 5800,
+        "elements": [
+          {
+            "id": "card-1-line-2",
+            "kind": "text",
+            "text": "clean pacing",
+            "properties": {
+              "position": {
+                "x": -230,
+                "y": -75
+              },
+              "fontSize": 16,
+              "fontWeight": 560,
+              "lineHeight": 1,
+              "letterSpacing": 0,
+              "textAlign": "center",
+              "color": "#94A3B8",
+              "opacity": 0,
+              "textFrame": {
+                "width": 270,
+                "height": 24,
+                "maxLines": 1,
+                "overflow": "clip",
+                "fitPolicy": "shrinkToFit",
+                "minFontSize": 12,
+                "maxFontSize": 16,
+                "measure": "fullText"
+              }
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 850,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1230,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 850,
+                    "value": -57,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1230,
+                    "value": -75,
+                    "easing": "slowFastSlow"
                   }
                 ]
               }
@@ -1486,7 +1730,7 @@
                 "y": -145
               },
               "width": 410,
-              "height": 222,
+              "height": 236,
               "cornerRadius": 34,
               "color": "#FFFFFF",
               "opacity": 0,
@@ -1525,17 +1769,37 @@
                 "keyframes": [
                   {
                     "timeMs": 640,
-                    "value": 0.9,
+                    "value": 0.88,
                     "easing": "linear"
                   },
                   {
                     "timeMs": 1060,
-                    "value": 1.02,
+                    "value": 1.03,
                     "easing": "slowFastSlow"
                   },
                   {
                     "timeMs": 1260,
                     "value": 1,
+                    "easing": "fastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 640,
+                    "value": -111,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1060,
+                    "value": -153,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 1260,
+                    "value": -145,
                     "easing": "fastSlow"
                   }
                 ]
@@ -1557,26 +1821,26 @@
             "properties": {
               "shapeKind": "circle",
               "position": {
-                "x": 100,
+                "x": 104,
                 "y": -199
               },
-              "width": 66,
-              "height": 66,
+              "width": 64,
+              "height": 64,
               "color": "#7C3AED",
               "opacity": 0,
-              "scale": 0.86
+              "scale": 0.72
             },
             "channels": [
               {
                 "property": "opacity",
                 "keyframes": [
                   {
-                    "timeMs": 740,
+                    "timeMs": 730,
                     "value": 0,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 1120,
+                    "timeMs": 1070,
                     "value": 1,
                     "easing": "slowFastSlow"
                   }
@@ -1586,19 +1850,34 @@
                 "property": "scale",
                 "keyframes": [
                   {
-                    "timeMs": 740,
-                    "value": 0.86,
+                    "timeMs": 730,
+                    "value": 0.72,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 1120,
-                    "value": 1.04,
+                    "timeMs": 1070,
+                    "value": 1.08,
                     "easing": "slowFastSlow"
                   },
                   {
-                    "timeMs": 1300,
+                    "timeMs": 1260,
                     "value": 1,
                     "easing": "fastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 730,
+                    "value": -181,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1070,
+                    "value": -199,
+                    "easing": "slowFastSlow"
                   }
                 ]
               }
@@ -1619,26 +1898,26 @@
             "properties": {
               "icon": "mic",
               "position": {
-                "x": 100,
+                "x": 104,
                 "y": -199
               },
-              "width": 34,
-              "height": 34,
+              "width": 32,
+              "height": 32,
               "color": "#FFFFFF",
               "opacity": 0,
-              "scale": 0.86
+              "scale": 0.78
             },
             "channels": [
               {
                 "property": "opacity",
                 "keyframes": [
                   {
-                    "timeMs": 800,
+                    "timeMs": 780,
                     "value": 0,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 1160,
+                    "timeMs": 1140,
                     "value": 1,
                     "easing": "slowFastSlow"
                   }
@@ -1648,14 +1927,19 @@
                 "property": "scale",
                 "keyframes": [
                   {
-                    "timeMs": 800,
-                    "value": 0.86,
+                    "timeMs": 780,
+                    "value": 0.78,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 1160,
-                    "value": 1,
+                    "timeMs": 1140,
+                    "value": 1.02,
                     "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 1300,
+                    "value": 1,
+                    "easing": "fastSlow"
                   }
                 ]
               }
@@ -1673,27 +1957,27 @@
           {
             "id": "card-2-title",
             "kind": "text",
-            "text": "Voice Dubbing",
+            "text": "Dubbing",
             "properties": {
               "position": {
-                "x": 274,
+                "x": 272,
                 "y": -203
               },
-              "fontSize": 30,
-              "fontWeight": 780,
+              "fontSize": 24,
+              "fontWeight": 800,
               "lineHeight": 1,
               "letterSpacing": 0,
               "textAlign": "left",
               "color": "#111827",
               "opacity": 0,
               "textFrame": {
-                "width": 255,
-                "height": 44,
+                "width": 245,
+                "height": 34,
                 "maxLines": 1,
                 "overflow": "clip",
                 "fitPolicy": "shrinkToFit",
-                "minFontSize": 22,
-                "maxFontSize": 30,
+                "minFontSize": 18,
+                "maxFontSize": 24,
                 "measure": "fullText"
               }
             },
@@ -1702,14 +1986,29 @@
                 "property": "opacity",
                 "keyframes": [
                   {
-                    "timeMs": 860,
+                    "timeMs": 850,
                     "value": 0,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 1220,
+                    "timeMs": 1200,
                     "value": 1,
                     "easing": "fastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "positionX",
+                "keyframes": [
+                  {
+                    "timeMs": 850,
+                    "value": 300,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1200,
+                    "value": 272,
+                    "easing": "slowFastSlow"
                   }
                 ]
               }
@@ -1718,36 +2017,36 @@
         ]
       },
       {
-        "id": "card-2-body-layer",
-        "name": "Feature card 2 body",
+        "id": "card-2-line-1-layer",
+        "name": "Feature card 2 copy line 1",
         "kind": "text",
         "startMs": 7000,
         "durationMs": 5800,
         "elements": [
           {
-            "id": "card-2-body",
+            "id": "card-2-line-1",
             "kind": "text",
-            "text": "Clean voiceovers, timing, and multilingual delivery.",
+            "text": "Voice sync",
             "properties": {
               "position": {
                 "x": 230,
-                "y": -97
+                "y": -111
               },
-              "fontSize": 23,
-              "fontWeight": 500,
-              "lineHeight": 1.18,
+              "fontSize": 17,
+              "fontWeight": 640,
+              "lineHeight": 1,
               "letterSpacing": 0,
               "textAlign": "center",
               "color": "#64748B",
               "opacity": 0,
               "textFrame": {
-                "width": 315,
-                "height": 72,
-                "maxLines": 2,
+                "width": 270,
+                "height": 24,
+                "maxLines": 1,
                 "overflow": "clip",
                 "fitPolicy": "shrinkToFit",
-                "minFontSize": 18,
-                "maxFontSize": 23,
+                "minFontSize": 13,
+                "maxFontSize": 17,
                 "measure": "fullText"
               }
             },
@@ -1761,9 +2060,93 @@
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 1340,
+                    "timeMs": 1290,
                     "value": 1,
                     "easing": "fastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 940,
+                    "value": -93,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1290,
+                    "value": -111,
+                    "easing": "slowFastSlow"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "card-2-line-2-layer",
+        "name": "Feature card 2 copy line 2",
+        "kind": "text",
+        "startMs": 7000,
+        "durationMs": 5800,
+        "elements": [
+          {
+            "id": "card-2-line-2",
+            "kind": "text",
+            "text": "clean sound",
+            "properties": {
+              "position": {
+                "x": 230,
+                "y": -75
+              },
+              "fontSize": 16,
+              "fontWeight": 560,
+              "lineHeight": 1,
+              "letterSpacing": 0,
+              "textAlign": "center",
+              "color": "#94A3B8",
+              "opacity": 0,
+              "textFrame": {
+                "width": 270,
+                "height": 24,
+                "maxLines": 1,
+                "overflow": "clip",
+                "fitPolicy": "shrinkToFit",
+                "minFontSize": 12,
+                "maxFontSize": 16,
+                "measure": "fullText"
+              }
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 1020,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1400,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 1020,
+                    "value": -57,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1400,
+                    "value": -75,
+                    "easing": "slowFastSlow"
                   }
                 ]
               }
@@ -1788,7 +2171,7 @@
                 "y": 160
               },
               "width": 410,
-              "height": 222,
+              "height": 236,
               "cornerRadius": 34,
               "color": "#FFFFFF",
               "opacity": 0,
@@ -1827,17 +2210,37 @@
                 "keyframes": [
                   {
                     "timeMs": 810,
-                    "value": 0.9,
+                    "value": 0.88,
                     "easing": "linear"
                   },
                   {
                     "timeMs": 1230,
-                    "value": 1.02,
+                    "value": 1.03,
                     "easing": "slowFastSlow"
                   },
                   {
                     "timeMs": 1430,
                     "value": 1,
+                    "easing": "fastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 810,
+                    "value": 194,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1230,
+                    "value": 152,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 1430,
+                    "value": 160,
                     "easing": "fastSlow"
                   }
                 ]
@@ -1859,26 +2262,26 @@
             "properties": {
               "shapeKind": "circle",
               "position": {
-                "x": -360,
+                "x": -356,
                 "y": 106
               },
-              "width": 66,
-              "height": 66,
+              "width": 64,
+              "height": 64,
               "color": "#059669",
               "opacity": 0,
-              "scale": 0.86
+              "scale": 0.72
             },
             "channels": [
               {
                 "property": "opacity",
                 "keyframes": [
                   {
-                    "timeMs": 910,
+                    "timeMs": 900,
                     "value": 0,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 1290,
+                    "timeMs": 1240,
                     "value": 1,
                     "easing": "slowFastSlow"
                   }
@@ -1888,19 +2291,34 @@
                 "property": "scale",
                 "keyframes": [
                   {
-                    "timeMs": 910,
-                    "value": 0.86,
+                    "timeMs": 900,
+                    "value": 0.72,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 1290,
-                    "value": 1.04,
+                    "timeMs": 1240,
+                    "value": 1.08,
                     "easing": "slowFastSlow"
                   },
                   {
-                    "timeMs": 1470,
+                    "timeMs": 1430,
                     "value": 1,
                     "easing": "fastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 900,
+                    "value": 124,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1240,
+                    "value": 106,
+                    "easing": "slowFastSlow"
                   }
                 ]
               }
@@ -1921,26 +2339,26 @@
             "properties": {
               "icon": "text",
               "position": {
-                "x": -360,
+                "x": -356,
                 "y": 106
               },
-              "width": 34,
-              "height": 34,
+              "width": 32,
+              "height": 32,
               "color": "#FFFFFF",
               "opacity": 0,
-              "scale": 0.86
+              "scale": 0.78
             },
             "channels": [
               {
                 "property": "opacity",
                 "keyframes": [
                   {
-                    "timeMs": 970,
+                    "timeMs": 950,
                     "value": 0,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 1330,
+                    "timeMs": 1310,
                     "value": 1,
                     "easing": "slowFastSlow"
                   }
@@ -1950,14 +2368,19 @@
                 "property": "scale",
                 "keyframes": [
                   {
-                    "timeMs": 970,
-                    "value": 0.86,
+                    "timeMs": 950,
+                    "value": 0.78,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 1330,
-                    "value": 1,
+                    "timeMs": 1310,
+                    "value": 1.02,
                     "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 1470,
+                    "value": 1,
+                    "easing": "fastSlow"
                   }
                 ]
               }
@@ -1975,27 +2398,27 @@
           {
             "id": "card-3-title",
             "kind": "text",
-            "text": "Smart Captions",
+            "text": "Captions",
             "properties": {
               "position": {
-                "x": -186,
+                "x": -188,
                 "y": 102
               },
-              "fontSize": 30,
-              "fontWeight": 780,
+              "fontSize": 24,
+              "fontWeight": 800,
               "lineHeight": 1,
               "letterSpacing": 0,
               "textAlign": "left",
               "color": "#111827",
               "opacity": 0,
               "textFrame": {
-                "width": 255,
-                "height": 44,
+                "width": 245,
+                "height": 34,
                 "maxLines": 1,
                 "overflow": "clip",
                 "fitPolicy": "shrinkToFit",
-                "minFontSize": 22,
-                "maxFontSize": 30,
+                "minFontSize": 18,
+                "maxFontSize": 24,
                 "measure": "fullText"
               }
             },
@@ -2004,14 +2427,29 @@
                 "property": "opacity",
                 "keyframes": [
                   {
-                    "timeMs": 1030,
+                    "timeMs": 1020,
                     "value": 0,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 1390,
+                    "timeMs": 1370,
                     "value": 1,
                     "easing": "fastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "positionX",
+                "keyframes": [
+                  {
+                    "timeMs": 1020,
+                    "value": -160,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1370,
+                    "value": -188,
+                    "easing": "slowFastSlow"
                   }
                 ]
               }
@@ -2020,36 +2458,36 @@
         ]
       },
       {
-        "id": "card-3-body-layer",
-        "name": "Feature card 3 body",
+        "id": "card-3-line-1-layer",
+        "name": "Feature card 3 copy line 1",
         "kind": "text",
         "startMs": 7000,
         "durationMs": 5800,
         "elements": [
           {
-            "id": "card-3-body",
+            "id": "card-3-line-1",
             "kind": "text",
-            "text": "Readable kinetic captions with professional pacing.",
+            "text": "Kinetic text",
             "properties": {
               "position": {
                 "x": -230,
-                "y": 208
+                "y": 194
               },
-              "fontSize": 23,
-              "fontWeight": 500,
-              "lineHeight": 1.18,
+              "fontSize": 17,
+              "fontWeight": 640,
+              "lineHeight": 1,
               "letterSpacing": 0,
               "textAlign": "center",
               "color": "#64748B",
               "opacity": 0,
               "textFrame": {
-                "width": 315,
-                "height": 72,
-                "maxLines": 2,
+                "width": 270,
+                "height": 24,
+                "maxLines": 1,
                 "overflow": "clip",
                 "fitPolicy": "shrinkToFit",
-                "minFontSize": 18,
-                "maxFontSize": 23,
+                "minFontSize": 13,
+                "maxFontSize": 17,
                 "measure": "fullText"
               }
             },
@@ -2063,9 +2501,93 @@
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 1510,
+                    "timeMs": 1460,
                     "value": 1,
                     "easing": "fastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 1110,
+                    "value": 212,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1460,
+                    "value": 194,
+                    "easing": "slowFastSlow"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "card-3-line-2-layer",
+        "name": "Feature card 3 copy line 2",
+        "kind": "text",
+        "startMs": 7000,
+        "durationMs": 5800,
+        "elements": [
+          {
+            "id": "card-3-line-2",
+            "kind": "text",
+            "text": "readable",
+            "properties": {
+              "position": {
+                "x": -230,
+                "y": 230
+              },
+              "fontSize": 16,
+              "fontWeight": 560,
+              "lineHeight": 1,
+              "letterSpacing": 0,
+              "textAlign": "center",
+              "color": "#94A3B8",
+              "opacity": 0,
+              "textFrame": {
+                "width": 270,
+                "height": 24,
+                "maxLines": 1,
+                "overflow": "clip",
+                "fitPolicy": "shrinkToFit",
+                "minFontSize": 12,
+                "maxFontSize": 16,
+                "measure": "fullText"
+              }
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 1190,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1570,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 1190,
+                    "value": 248,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1570,
+                    "value": 230,
+                    "easing": "slowFastSlow"
                   }
                 ]
               }
@@ -2090,7 +2612,7 @@
                 "y": 160
               },
               "width": 410,
-              "height": 222,
+              "height": 236,
               "cornerRadius": 34,
               "color": "#FFFFFF",
               "opacity": 0,
@@ -2129,17 +2651,37 @@
                 "keyframes": [
                   {
                     "timeMs": 980,
-                    "value": 0.9,
+                    "value": 0.88,
                     "easing": "linear"
                   },
                   {
                     "timeMs": 1400,
-                    "value": 1.02,
+                    "value": 1.03,
                     "easing": "slowFastSlow"
                   },
                   {
                     "timeMs": 1600,
                     "value": 1,
+                    "easing": "fastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 980,
+                    "value": 194,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1400,
+                    "value": 152,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 1600,
+                    "value": 160,
                     "easing": "fastSlow"
                   }
                 ]
@@ -2161,26 +2703,26 @@
             "properties": {
               "shapeKind": "circle",
               "position": {
-                "x": 100,
+                "x": 104,
                 "y": 106
               },
-              "width": 66,
-              "height": 66,
+              "width": 64,
+              "height": 64,
               "color": "#EA580C",
               "opacity": 0,
-              "scale": 0.86
+              "scale": 0.72
             },
             "channels": [
               {
                 "property": "opacity",
                 "keyframes": [
                   {
-                    "timeMs": 1080,
+                    "timeMs": 1070,
                     "value": 0,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 1460,
+                    "timeMs": 1410,
                     "value": 1,
                     "easing": "slowFastSlow"
                   }
@@ -2190,19 +2732,34 @@
                 "property": "scale",
                 "keyframes": [
                   {
-                    "timeMs": 1080,
-                    "value": 0.86,
+                    "timeMs": 1070,
+                    "value": 0.72,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 1460,
-                    "value": 1.04,
+                    "timeMs": 1410,
+                    "value": 1.08,
                     "easing": "slowFastSlow"
                   },
                   {
-                    "timeMs": 1640,
+                    "timeMs": 1600,
                     "value": 1,
                     "easing": "fastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 1070,
+                    "value": 124,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1410,
+                    "value": 106,
+                    "easing": "slowFastSlow"
                   }
                 ]
               }
@@ -2223,26 +2780,26 @@
             "properties": {
               "icon": "image",
               "position": {
-                "x": 100,
+                "x": 104,
                 "y": 106
               },
-              "width": 34,
-              "height": 34,
+              "width": 32,
+              "height": 32,
               "color": "#FFFFFF",
               "opacity": 0,
-              "scale": 0.86
+              "scale": 0.78
             },
             "channels": [
               {
                 "property": "opacity",
                 "keyframes": [
                   {
-                    "timeMs": 1140,
+                    "timeMs": 1120,
                     "value": 0,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 1500,
+                    "timeMs": 1480,
                     "value": 1,
                     "easing": "slowFastSlow"
                   }
@@ -2252,14 +2809,19 @@
                 "property": "scale",
                 "keyframes": [
                   {
-                    "timeMs": 1140,
-                    "value": 0.86,
+                    "timeMs": 1120,
+                    "value": 0.78,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 1500,
-                    "value": 1,
+                    "timeMs": 1480,
+                    "value": 1.02,
                     "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 1640,
+                    "value": 1,
+                    "easing": "fastSlow"
                   }
                 ]
               }
@@ -2277,27 +2839,27 @@
           {
             "id": "card-4-title",
             "kind": "text",
-            "text": "Image + Color AI",
+            "text": "Color AI",
             "properties": {
               "position": {
-                "x": 274,
+                "x": 272,
                 "y": 102
               },
-              "fontSize": 30,
-              "fontWeight": 780,
+              "fontSize": 24,
+              "fontWeight": 800,
               "lineHeight": 1,
               "letterSpacing": 0,
               "textAlign": "left",
               "color": "#111827",
               "opacity": 0,
               "textFrame": {
-                "width": 255,
-                "height": 44,
+                "width": 245,
+                "height": 34,
                 "maxLines": 1,
                 "overflow": "clip",
                 "fitPolicy": "shrinkToFit",
-                "minFontSize": 22,
-                "maxFontSize": 30,
+                "minFontSize": 18,
+                "maxFontSize": 24,
                 "measure": "fullText"
               }
             },
@@ -2306,14 +2868,29 @@
                 "property": "opacity",
                 "keyframes": [
                   {
-                    "timeMs": 1200,
+                    "timeMs": 1190,
                     "value": 0,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 1560,
+                    "timeMs": 1540,
                     "value": 1,
                     "easing": "fastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "positionX",
+                "keyframes": [
+                  {
+                    "timeMs": 1190,
+                    "value": 300,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1540,
+                    "value": 272,
+                    "easing": "slowFastSlow"
                   }
                 ]
               }
@@ -2322,36 +2899,36 @@
         ]
       },
       {
-        "id": "card-4-body-layer",
-        "name": "Feature card 4 body",
+        "id": "card-4-line-1-layer",
+        "name": "Feature card 4 copy line 1",
         "kind": "text",
         "startMs": 7000,
         "durationMs": 5800,
         "elements": [
           {
-            "id": "card-4-body",
+            "id": "card-4-line-1",
             "kind": "text",
-            "text": "Retouch, grade, and enhance visuals for every scene.",
+            "text": "Retouch",
             "properties": {
               "position": {
                 "x": 230,
-                "y": 208
+                "y": 194
               },
-              "fontSize": 23,
-              "fontWeight": 500,
-              "lineHeight": 1.18,
+              "fontSize": 17,
+              "fontWeight": 640,
+              "lineHeight": 1,
               "letterSpacing": 0,
               "textAlign": "center",
               "color": "#64748B",
               "opacity": 0,
               "textFrame": {
-                "width": 315,
-                "height": 72,
-                "maxLines": 2,
+                "width": 270,
+                "height": 24,
+                "maxLines": 1,
                 "overflow": "clip",
                 "fitPolicy": "shrinkToFit",
-                "minFontSize": 18,
-                "maxFontSize": 23,
+                "minFontSize": 13,
+                "maxFontSize": 17,
                 "measure": "fullText"
               }
             },
@@ -2365,9 +2942,93 @@
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 1680,
+                    "timeMs": 1630,
                     "value": 1,
                     "easing": "fastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 1280,
+                    "value": 212,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1630,
+                    "value": 194,
+                    "easing": "slowFastSlow"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "card-4-line-2-layer",
+        "name": "Feature card 4 copy line 2",
+        "kind": "text",
+        "startMs": 7000,
+        "durationMs": 5800,
+        "elements": [
+          {
+            "id": "card-4-line-2",
+            "kind": "text",
+            "text": "color grade",
+            "properties": {
+              "position": {
+                "x": 230,
+                "y": 230
+              },
+              "fontSize": 16,
+              "fontWeight": 560,
+              "lineHeight": 1,
+              "letterSpacing": 0,
+              "textAlign": "center",
+              "color": "#94A3B8",
+              "opacity": 0,
+              "textFrame": {
+                "width": 270,
+                "height": 24,
+                "maxLines": 1,
+                "overflow": "clip",
+                "fitPolicy": "shrinkToFit",
+                "minFontSize": 12,
+                "maxFontSize": 16,
+                "measure": "fullText"
+              }
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 1360,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1740,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  }
+                ]
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 1360,
+                    "value": 248,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1740,
+                    "value": 230,
+                    "easing": "slowFastSlow"
                   }
                 ]
               }
