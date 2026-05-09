@@ -140,6 +140,102 @@ void main() {
     expect(moved.tree!.parentOf['label'], 'right');
     expect(moved.tree!.node('label')!.zOrder, 30);
   });
+
+  test('indexes component, slot, and source element maps', () {
+    final result = SceneRuntimeComponentTree.build(<SceneRuntimeNode>[
+      SceneRuntimeNode(
+        id: 'root',
+        nodeType: SceneRuntimeNodeType.sceneRoot,
+      ),
+      SceneRuntimeNode(
+        id: 'prompt-shell',
+        nodeType: SceneRuntimeNodeType.component,
+        parentId: 'root',
+        sourceComponentId: 'PromptInputBar',
+        sourceLayerId: 'layer-a',
+        sourceElementId: 'shell',
+      ),
+      SceneRuntimeNode(
+        id: 'prompt-text',
+        nodeType: SceneRuntimeNodeType.text,
+        parentId: 'prompt-shell',
+        sourceComponentId: 'PromptInputBar',
+        sourceLayerId: 'layer-a',
+        sourceElementId: 'shell-text',
+        slotId: 'text-slot',
+      ),
+    ]);
+    expect(result.isValid, isTrue, reason: _messages(result));
+    final tree = result.tree!;
+
+    expect(
+      tree.nodesForComponentId('PromptInputBar').map((node) => node.id).toSet(),
+      <String>{'prompt-shell', 'prompt-text'},
+    );
+    expect(
+      tree
+          .nodesForSourceElement(
+            sourceLayerId: 'layer-a',
+            sourceElementId: 'shell-text',
+          )
+          .map((node) => node.id)
+          .toList(growable: false),
+      <String>['prompt-text'],
+    );
+    expect(
+      tree.nodesForSlotId('text-slot').map((node) => node.id).toList(
+            growable: false,
+          ),
+      <String>['prompt-text'],
+    );
+  });
+
+  test('deterministic hash and traversal remain stable across 100 builds', () {
+    final nodes = <SceneRuntimeNode>[
+      SceneRuntimeNode(
+        id: 'root',
+        nodeType: SceneRuntimeNodeType.sceneRoot,
+      ),
+      SceneRuntimeNode(
+        id: 'component',
+        nodeType: SceneRuntimeNodeType.component,
+        parentId: 'root',
+        zOrder: 20,
+        sourceComponentId: 'PromptInputBar',
+        sourceLayerId: 'layer-main',
+        sourceElementId: 'shell',
+      ),
+      SceneRuntimeNode(
+        id: 'icon',
+        nodeType: SceneRuntimeNodeType.icon,
+        parentId: 'component',
+        zOrder: 10,
+        slotId: 'left-slot',
+      ),
+      SceneRuntimeNode(
+        id: 'text',
+        nodeType: SceneRuntimeNodeType.text,
+        parentId: 'component',
+        zOrder: 20,
+        slotId: 'text-slot',
+      ),
+    ];
+
+    final hashes = <String>{};
+    final traversalOrders = <List<String>>[];
+    for (var i = 0; i < 100; i += 1) {
+      final build = SceneRuntimeComponentTree.build(nodes);
+      expect(build.isValid, isTrue, reason: _messages(build));
+      hashes.add(build.tree!.deterministicHash);
+      traversalOrders.add(build.tree!.traversalNodeIds);
+    }
+
+    expect(hashes.length, 1);
+    final firstOrder = traversalOrders.first;
+    for (final order in traversalOrders.skip(1)) {
+      expect(order, firstOrder);
+    }
+  });
 }
 
 String _messages(SceneRuntimeComponentTreeBuildResult result) =>

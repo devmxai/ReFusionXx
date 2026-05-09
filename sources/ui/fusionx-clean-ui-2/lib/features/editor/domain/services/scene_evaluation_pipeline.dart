@@ -137,6 +137,7 @@ class SceneEvaluationPipeline {
           parentId: parentNodeId,
           zOrder: (layerIndex * 1000) + elementIndex,
           sourceLayerId: layer.id,
+          sourceElementId: element.id,
           metadata: <String, Object?>{
             'x': normalizedState.x,
             'y': normalizedState.y,
@@ -223,7 +224,8 @@ class SceneEvaluationPipeline {
       evaluatedNodes[nodeId] = EvaluatedSceneNode(
         nodeId: nodeId,
         sourceLayerId: runtimeNode.sourceLayerId,
-        sourceElementId: _sourceElementIdFromRuntimeNodeId(nodeId),
+        sourceElementId: runtimeNode.sourceElementId ??
+            _sourceElementIdFromRuntimeNodeId(nodeId),
         parentNodeId: runtimeNode.parentId,
         nodeType: runtimeNode.nodeType.name,
         slotId: runtimeNode.slotId,

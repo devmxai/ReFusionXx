@@ -1,4 +1,5 @@
 import 'dart:collection';
+import 'dart:convert';
 
 import '../models/scene_runtime_node.dart';
 
@@ -43,12 +44,68 @@ class SceneRuntimeComponentTree {
               List.unmodifiable(value),
             ),
           ),
-        );
+        ) {
+    final byComponent = <String, List<String>>{};
+    final bySourceElement = <String, List<String>>{};
+    final bySlot = <String, List<String>>{};
+    for (final node in nodeById.values) {
+      final componentId = node.sourceComponentId?.trim();
+      if (componentId != null && componentId.isNotEmpty) {
+        byComponent.putIfAbsent(componentId, () => <String>[]).add(node.id);
+      }
+      final sourceLayerId = node.sourceLayerId?.trim();
+      final sourceElementId = node.sourceElementId?.trim();
+      if (sourceLayerId != null &&
+          sourceLayerId.isNotEmpty &&
+          sourceElementId != null &&
+          sourceElementId.isNotEmpty) {
+        final sourceKey = '$sourceLayerId::$sourceElementId';
+        bySourceElement.putIfAbsent(sourceKey, () => <String>[]).add(node.id);
+      }
+      final slotId = node.slotId?.trim();
+      if (slotId != null && slotId.isNotEmpty) {
+        bySlot.putIfAbsent(slotId, () => <String>[]).add(node.id);
+      }
+    }
+    nodeIdsByComponentId = UnmodifiableMapView<String, List<String>>(
+      byComponent.map(
+        (key, value) => MapEntry<String, List<String>>(
+          key,
+          List.unmodifiable(_sortedIds(value)),
+        ),
+      ),
+    );
+    nodeIdsBySourceElement = UnmodifiableMapView<String, List<String>>(
+      bySourceElement.map(
+        (key, value) => MapEntry<String, List<String>>(
+          key,
+          List.unmodifiable(_sortedIds(value)),
+        ),
+      ),
+    );
+    nodeIdsBySlotId = UnmodifiableMapView<String, List<String>>(
+      bySlot.map(
+        (key, value) => MapEntry<String, List<String>>(
+          key,
+          List.unmodifiable(_sortedIds(value)),
+        ),
+      ),
+    );
+    traversalNodeIds = List.unmodifiable(
+      depthFirstNodes().map((node) => node.id).toList(growable: false),
+    );
+    deterministicHash = _computeTreeHash(this);
+  }
 
   final String rootNodeId;
   final Map<String, SceneRuntimeNode> nodeById;
   final Map<String, String?> parentOf;
   final Map<String, List<String>> childrenOf;
+  late final Map<String, List<String>> nodeIdsByComponentId;
+  late final Map<String, List<String>> nodeIdsBySourceElement;
+  late final Map<String, List<String>> nodeIdsBySlotId;
+  late final List<String> traversalNodeIds;
+  late final String deterministicHash;
 
   SceneRuntimeNode get root => nodeById[rootNodeId]!;
 
@@ -60,6 +117,27 @@ class SceneRuntimeComponentTree {
           .whereType<SceneRuntimeNode>()
           .toList(growable: false) ??
       const <SceneRuntimeNode>[];
+
+  List<SceneRuntimeNode> nodesForComponentId(String componentId) =>
+      _nodesForIds(nodeIdsByComponentId[componentId] ?? const <String>[]);
+
+  List<SceneRuntimeNode> nodesForSlotId(String slotId) =>
+      _nodesForIds(nodeIdsBySlotId[slotId] ?? const <String>[]);
+
+  List<SceneRuntimeNode> nodesForSourceElement({
+    required String sourceLayerId,
+    required String sourceElementId,
+  }) {
+    final key = '$sourceLayerId::$sourceElementId';
+    return _nodesForIds(nodeIdsBySourceElement[key] ?? const <String>[]);
+  }
+
+  List<SceneRuntimeNode> _nodesForIds(List<String> ids) {
+    return ids
+        .map((id) => nodeById[id])
+        .whereType<SceneRuntimeNode>()
+        .toList(growable: false);
+  }
 
   List<SceneRuntimeNode> depthFirstNodes() {
     final ordered = <SceneRuntimeNode>[];
@@ -313,5 +391,70 @@ class SceneRuntimeComponentTree {
       ),
       issues: const <SceneRuntimeComponentTreeIssue>[],
     );
+  }
+
+  static List<String> _sortedIds(List<String> ids) {
+    final sorted = ids.toList(growable: false)..sort();
+    return sorted;
+  }
+
+  static String _computeTreeHash(SceneRuntimeComponentTree tree) {
+    final lines = <String>[];
+    for (final nodeId in tree.traversalNodeIds) {
+      final node = tree.nodeById[nodeId]!;
+      final metadata = _stableJson(node.metadata);
+      lines.add(
+        [
+          node.id,
+          node.nodeType.name,
+          node.parentId ?? '',
+          node.zOrder.toString(),
+          node.sourceComponentId ?? '',
+          node.sourceLayerId ?? '',
+          node.sourceElementId ?? '',
+          node.slotId ?? '',
+          metadata,
+        ].join('|'),
+      );
+    }
+    final text = lines.join('\n');
+    return _fnv1a64Hex(text);
+  }
+
+  static String _stableJson(Object? value) {
+    if (value == null) {
+      return 'null';
+    }
+    if (value is num || value is bool || value is String) {
+      return jsonEncode(value);
+    }
+    if (value is List) {
+      return '[${value.map(_stableJson).join(',')}]';
+    }
+    if (value is Map) {
+      final normalized = <String, Object?>{};
+      for (final entry in value.entries) {
+        normalized[entry.key.toString()] = entry.value;
+      }
+      final keys = normalized.keys.toList(growable: false)..sort();
+      final entries = keys
+          .map((k) => '${jsonEncode(k)}:${_stableJson(normalized[k])}')
+          .join(',');
+      return '{$entries}';
+    }
+    return jsonEncode(value.toString());
+  }
+
+  static String _fnv1a64Hex(String text) {
+    const offset = 0xcbf29ce484222325;
+    const prime = 0x100000001b3;
+    const mask = 0xffffffffffffffff;
+    var hash = offset;
+    final bytes = utf8.encode(text);
+    for (final b in bytes) {
+      hash ^= b;
+      hash = (hash * prime) & mask;
+    }
+    return hash.toRadixString(16).padLeft(16, '0');
   }
 }

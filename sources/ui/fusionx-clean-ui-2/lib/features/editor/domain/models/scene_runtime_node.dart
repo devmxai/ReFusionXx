@@ -22,6 +22,7 @@ class SceneRuntimeNode {
     this.zOrder = 0,
     this.sourceComponentId,
     this.sourceLayerId,
+    this.sourceElementId,
     this.slotId,
     Map<String, Object?> metadata = const <String, Object?>{},
   }) : metadata = UnmodifiableMapView<String, Object?>(metadata);
@@ -32,6 +33,7 @@ class SceneRuntimeNode {
   final int zOrder;
   final String? sourceComponentId;
   final String? sourceLayerId;
+  final String? sourceElementId;
   final String? slotId;
   final Map<String, Object?> metadata;
 
@@ -45,6 +47,8 @@ class SceneRuntimeNode {
     bool clearSourceComponentId = false,
     String? sourceLayerId,
     bool clearSourceLayerId = false,
+    String? sourceElementId,
+    bool clearSourceElementId = false,
     String? slotId,
     bool clearSlotId = false,
     Map<String, Object?>? metadata,
@@ -59,6 +63,9 @@ class SceneRuntimeNode {
           : (sourceComponentId ?? this.sourceComponentId),
       sourceLayerId:
           clearSourceLayerId ? null : (sourceLayerId ?? this.sourceLayerId),
+      sourceElementId: clearSourceElementId
+          ? null
+          : (sourceElementId ?? this.sourceElementId),
       slotId: clearSlotId ? null : (slotId ?? this.slotId),
       metadata: metadata ?? this.metadata,
     );

@@ -1,5 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:refusion_app/features/editor/domain/models/refusion_scene_program_models.dart';
+import 'package:refusion_app/features/editor/domain/services/evaluated_frame_truth.dart';
+import 'package:refusion_app/features/editor/domain/services/scene_coordinate_system.dart';
+import 'package:refusion_app/features/editor/domain/services/scene_evaluation_diagnostics.dart';
+import 'package:refusion_app/features/editor/domain/services/scene_evaluation_pipeline.dart';
 import 'package:refusion_app/features/editor/domain/services/scene_visual_frame_qa_validator.dart';
 
 void main() {
@@ -445,4 +449,161 @@ void main() {
       isTrue,
     );
   });
+
+  test('rejects child that outlives hidden parent lifecycle', () {
+    final program = ReFusionSceneProgram(
+      schemaVersion: 'refusion.scene-program/v1',
+      name: 'Parent Cascade Guard',
+      durationMs: 1200,
+      frameRate: 30,
+      layers: <ReFusionSceneProgramLayer>[
+        ReFusionSceneProgramLayer(
+          id: 'layer-a',
+          kind: 'shape',
+          startMs: 0,
+          durationMs: 1200,
+          elements: <ReFusionSceneProgramElement>[
+            ReFusionSceneProgramElement(
+              id: 'parent-shell',
+              kind: 'shape',
+              properties: const <String, Object?>{
+                'width': 400,
+                'height': 120,
+              },
+            ),
+            ReFusionSceneProgramElement(
+              id: 'child-text',
+              kind: 'text',
+              text: 'still visible',
+              properties: const <String, Object?>{
+                'parentId': 'parent-shell',
+                'width': 200,
+                'height': 40,
+                'fontSize': 20,
+                'textFrame': <String, Object?>{
+                  'width': 200,
+                  'height': 40,
+                  'maxLines': 1,
+                  'overflow': 'ellipsis',
+                  'fitPolicy': 'shrinkToFit',
+                },
+              },
+            ),
+          ],
+        ),
+      ],
+    );
+
+    const validatorWithFakePipeline = SceneVisualFrameQaValidator(
+      enforceOverflowAsError: true,
+      evaluationPipeline: _OutlivesParentFakePipeline(),
+    );
+    final result = validatorWithFakePipeline.validate(program);
+
+    expect(result.isValid, isFalse);
+    expect(
+      result.issues.any(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+            issue.message.contains('TF_SCENE_PARENT_EXIT_CASCADE_PROOF'),
+      ),
+      isTrue,
+    );
+  });
+}
+
+class _OutlivesParentFakePipeline extends SceneEvaluationPipeline {
+  const _OutlivesParentFakePipeline();
+
+  @override
+  SceneEvaluationPipelineResult evaluate(
+    SceneEvaluationPipelineRequest request,
+  ) {
+    const parentId = '__layer__layer-a__element__parent-shell';
+    const childId = '__layer__layer-a__element__child-text';
+    final truth = EvaluatedFrameTruth(
+      coordinateSystem: SceneCoordinateSystem.canonical,
+      canvas: const SceneCanvasMetrics(width: 1080, height: 1920),
+      globalTimeMs: request.globalTimeMs,
+      sceneId: request.program.name,
+      nodesById: <String, EvaluatedSceneNode>{
+        parentId: const EvaluatedSceneNode(
+          nodeId: parentId,
+          sourceLayerId: 'layer-a',
+          sourceElementId: 'parent-shell',
+          parentNodeId: '__scene__root',
+          nodeType: 'shape',
+          localTransform: EvaluatedTransform2D.identity,
+          worldTransform: EvaluatedTransform2D.identity,
+          localBoundsCenter: SceneRectCenter(
+            centerX: 0,
+            centerY: 0,
+            width: 400,
+            height: 120,
+          ),
+          worldBoundsCenter: SceneRectCenter(
+            centerX: 0,
+            centerY: 0,
+            width: 400,
+            height: 120,
+          ),
+          viewportBounds: SceneViewportRect(
+            left: 340,
+            top: 900,
+            width: 400,
+            height: 120,
+          ),
+          effectiveOpacity: 0.0,
+          active: false,
+          visible: false,
+          zOrder: 1,
+        ),
+        childId: const EvaluatedSceneNode(
+          nodeId: childId,
+          sourceLayerId: 'layer-a',
+          sourceElementId: 'child-text',
+          parentNodeId: parentId,
+          nodeType: 'text',
+          localTransform: EvaluatedTransform2D.identity,
+          worldTransform: EvaluatedTransform2D.identity,
+          localBoundsCenter: SceneRectCenter(
+            centerX: 0,
+            centerY: 0,
+            width: 200,
+            height: 40,
+          ),
+          worldBoundsCenter: SceneRectCenter(
+            centerX: 0,
+            centerY: 0,
+            width: 200,
+            height: 40,
+          ),
+          viewportBounds: SceneViewportRect(
+            left: 440,
+            top: 940,
+            width: 200,
+            height: 40,
+          ),
+          effectiveOpacity: 1.0,
+          active: true,
+          visible: true,
+          textMetrics: EvaluatedTextMetrics(
+            fontSize: 20,
+            lineHeight: 1.1,
+            letterSpacing: 0,
+            maxLines: 1,
+            typewriterProgress: 1.0,
+          ),
+          zOrder: 2,
+        ),
+      },
+    );
+    return SceneEvaluationPipelineResult(
+      truth: truth,
+      issues: const <ReFusionSceneProgramIssue>[],
+      diagnostics: SceneEvaluationDiagnostics(
+        events: const <SceneEvaluationDiagnosticEvent>[],
+      ),
+    );
+  }
 }

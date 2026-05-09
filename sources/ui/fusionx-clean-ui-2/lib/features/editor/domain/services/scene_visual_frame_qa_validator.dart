@@ -30,6 +30,8 @@ class SceneVisualFrameQaValidator {
   static const double _defaultCanvasHeight = 1920;
   static const double _safeAreaInset = 24;
   static const String _proofTag = 'TF_SCENE_VISUAL_FRAME_QA_PROOF';
+  static const String _parentCascadeProofTag =
+      'TF_SCENE_PARENT_EXIT_CASCADE_PROOF';
 
   final bool enforceOverflowAsError;
   final SceneEvaluationPipeline _evaluationPipeline;
@@ -169,6 +171,14 @@ class SceneVisualFrameQaValidator {
     required Map<String, ({double dx, double dy})> baselineOffsets,
     required List<ReFusionSceneProgramIssue> issues,
   }) {
+    final recordsByNodeId = <String, _EvaluatedNodeRecord>{
+      for (final record in snapshot.records) record.nodeId: record,
+    };
+    _emitParentCascadeViolations(
+      snapshot: snapshot,
+      recordsByNodeId: recordsByNodeId,
+      issues: issues,
+    );
     final activeRecords =
         snapshot.records.where((record) => record.active).toList();
     final overlapKeys = _computeOverlapKeys(activeRecords);
@@ -466,6 +476,41 @@ class SceneVisualFrameQaValidator {
         fallbackReason: perfExceeded ? 'probe_budget_exceeded' : fallbackReason,
         timelineTimeMs: snapshot.timelineTimeMs,
         issues: issues,
+      );
+    }
+  }
+
+  void _emitParentCascadeViolations({
+    required _ProgramProbeSnapshot snapshot,
+    required Map<String, _EvaluatedNodeRecord> recordsByNodeId,
+    required List<ReFusionSceneProgramIssue> issues,
+  }) {
+    for (final child in recordsByNodeId.values) {
+      final parentNodeId = child.parentNodeId;
+      if (parentNodeId == null) {
+        continue;
+      }
+      final parent = recordsByNodeId[parentNodeId];
+      if (parent == null) {
+        continue;
+      }
+      final childVisible = child.active && child.effectiveOpacity > 0.001;
+      final parentVisible = parent.active && parent.effectiveOpacity > 0.001;
+      if (!childVisible || parentVisible) {
+        continue;
+      }
+      issues.add(
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message: 'Child `${child.element.id}` is visible while parent '
+              '`${parent.element.id}` is inactive/hidden at frame '
+              '${snapshot.timelineTimeMs}ms. $_parentCascadeProofTag '
+              'nodeId=${child.nodeId} parentNodeId=$parentNodeId '
+              'childActive=${child.active} parentActive=${parent.active} '
+              'childOpacity=${child.effectiveOpacity.toStringAsFixed(3)} '
+              'parentOpacity=${parent.effectiveOpacity.toStringAsFixed(3)}',
+          path: 'layers[${child.layerIndex}].elements[${child.elementIndex}]',
+        ),
       );
     }
   }
