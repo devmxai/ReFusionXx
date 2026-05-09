@@ -126,6 +126,30 @@ void main() {
     return result;
   }
 
+  ReFusionSceneProgramAuthoringResult professionalTestV2AuthoringResult() {
+    final source = File(
+      'assets/scene_programs/professional_test_version_2_scene.json',
+    ).readAsStringSync();
+    final extracted = KieSceneProgramAgentService()
+        .extractSceneProgramPayloadFromContent(content: source);
+    final result = authoringService.importSceneProgram(
+      ReFusionSceneProgramAuthoringRequest(
+        source: extracted.sceneProgramJson,
+        fileName: 'professional_test_version_2_scene.json',
+        projectId: 'professional-test-v2-project',
+        sceneId: 'professional-test-v2-scene',
+      ),
+    );
+    expect(
+      result.isValid,
+      isTrue,
+      reason: result.issues
+          .map((issue) => '${issue.severity} ${issue.path}: ${issue.message}')
+          .join('\n'),
+    );
+    return result;
+  }
+
   ReFusionSceneProgram _badSaasProgram() {
     return ReFusionSceneProgram(
       schemaVersion: 'refusion.scene-program/v1',
@@ -228,6 +252,38 @@ void main() {
 
     expect(result, isNotNull);
     expect(result!.sceneClip.name, 'ReFusion Prompt Burst Feature Cards');
+    expect(result.sourceScene.layers, isNotEmpty);
+  });
+
+  test('applies present professional test version 2 preset as one scene clip',
+      () {
+    final authoring = professionalTestV2AuthoringResult();
+    final preRenderGate = const ScenePreRenderSanityGate().validate(
+      authoringResult: authoring,
+      sceneId: 'root-scene',
+    );
+    expect(
+      preRenderGate.blocked,
+      isFalse,
+      reason: preRenderGate.issues
+          .where(
+            (issue) =>
+                issue.severity == ReFusionSceneProgramIssueSeverity.error,
+          )
+          .map((issue) => '${issue.path}: ${issue.message}')
+          .join('\n'),
+    );
+    final result = transaction.apply(
+      SceneProgramApplyTransactionRequest(
+        baseProject: baseProject(scenes: <MotionSceneModel>[rootScene()]),
+        authoringResult: authoring,
+        rootSceneId: 'root-scene',
+        clipName: 'Professional Test Version 2',
+      ),
+    );
+
+    expect(result, isNotNull);
+    expect(result!.sceneClip.name, 'Professional Test Version 2');
     expect(result.sourceScene.layers, isNotEmpty);
   });
 

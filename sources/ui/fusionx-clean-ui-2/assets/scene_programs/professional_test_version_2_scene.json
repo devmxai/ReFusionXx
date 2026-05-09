@@ -2807,8 +2807,8 @@
               "color": "#050506",
               "opacity": 0,
               "textFrame": {
-                "width": 480,
-                "height": 76,
+                "width": 451.36,
+                "height": 62,
                 "maxLines": 1,
                 "overflow": "clip",
                 "fitPolicy": "shrinkToFit",
@@ -2834,27 +2834,6 @@
                   {
                     "timeMs": 12800,
                     "value": 1,
-                    "easing": "linear"
-                  }
-                ],
-                "timeBasis": "project"
-              },
-              {
-                "property": "positionY",
-                "keyframes": [
-                  {
-                    "timeMs": 10480,
-                    "value": 42,
-                    "easing": "linear"
-                  },
-                  {
-                    "timeMs": 10860,
-                    "value": 10,
-                    "easing": "slowFastSlow"
-                  },
-                  {
-                    "timeMs": 12800,
-                    "value": 10,
                     "easing": "linear"
                   }
                 ],
