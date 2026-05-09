@@ -5,6 +5,7 @@ import '../models/refusion_scene_program_models.dart';
 import 'scene_director_blueprint_compiler.dart';
 import 'scene_director_plan_validator.dart';
 import 'scene_director_planner.dart';
+import 'scene_rhythm_density_validator.dart';
 
 class SceneDirectorIntelligenceResult {
   const SceneDirectorIntelligenceResult({
@@ -34,13 +35,17 @@ class SceneDirectorIntelligence {
     SceneDirectorPlanner planner = const SceneDirectorPlanner(),
     SceneDirectorBlueprintCompiler blueprintCompiler =
         const SceneDirectorBlueprintCompiler(),
+    SceneRhythmDensityValidator rhythmDensityValidator =
+        const SceneRhythmDensityValidator(),
   })  : _validator = validator,
         _planner = planner,
-        _blueprintCompiler = blueprintCompiler;
+        _blueprintCompiler = blueprintCompiler,
+        _rhythmDensityValidator = rhythmDensityValidator;
 
   final SceneDirectorPlanValidator _validator;
   final SceneDirectorPlanner _planner;
   final SceneDirectorBlueprintCompiler _blueprintCompiler;
+  final SceneRhythmDensityValidator _rhythmDensityValidator;
 
   SceneDirectorIntelligenceResult compileFromRawBrief(Object? rawBrief) {
     final validation = _validator.validate(rawBrief);
@@ -58,6 +63,15 @@ class SceneDirectorIntelligence {
     if (!planResult.isValid || planResult.plan == null) {
       return SceneDirectorIntelligenceResult(
         brief: validation.brief,
+        issues: List<ReFusionMotionDirectorIssue>.unmodifiable(issues),
+      );
+    }
+    final rhythmDensity = _rhythmDensityValidator.validate(planResult.plan!);
+    issues.addAll(rhythmDensity.issues);
+    if (!rhythmDensity.isValid) {
+      return SceneDirectorIntelligenceResult(
+        brief: validation.brief,
+        plan: planResult.plan,
         issues: List<ReFusionMotionDirectorIssue>.unmodifiable(issues),
       );
     }

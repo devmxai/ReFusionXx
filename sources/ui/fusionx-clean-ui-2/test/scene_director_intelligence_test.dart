@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:refusion_app/features/editor/domain/models/refusion_motion_director_models.dart';
 import 'package:refusion_app/features/editor/domain/services/scene_director_intelligence.dart';
 import 'package:refusion_app/features/editor/domain/services/scene_director_blueprint_compiler.dart';
+import 'package:refusion_app/features/editor/domain/services/scene_rhythm_density_validator.dart';
 
 void main() {
   const intelligence = SceneDirectorIntelligence();
@@ -49,7 +51,17 @@ void main() {
       },
     );
 
-    expect(result.isValid, isTrue);
+    expect(
+      result.isValid,
+      isTrue,
+      reason: result.issues
+          .where(
+            (issue) =>
+                issue.severity == ReFusionMotionDirectorIssueSeverity.error,
+          )
+          .map((issue) => '${issue.path}: ${issue.message}')
+          .join(' | '),
+    );
     expect(result.brief, isNotNull);
     expect(result.plan, isNotNull);
     expect(result.blueprint, isNotNull);
@@ -58,6 +70,12 @@ void main() {
     expect(
       result.issues.any(
         (issue) => issue.message.contains(kSceneDirectorPlannerProofTag),
+      ),
+      isTrue,
+    );
+    expect(
+      result.issues.any(
+        (issue) => issue.message.contains(kSceneRhythmDensityProofTag),
       ),
       isTrue,
     );
