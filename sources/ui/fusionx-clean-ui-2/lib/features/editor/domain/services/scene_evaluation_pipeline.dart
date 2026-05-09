@@ -7,6 +7,8 @@ import 'scene_coordinate_system.dart';
 import 'scene_evaluation_diagnostics.dart';
 import 'scene_global_parent_graph.dart';
 import 'scene_runtime_component_tree.dart';
+import 'scene_slot_layout_models.dart';
+import 'scene_slot_layout_solver.dart';
 import 'scene_runtime_transform_composer.dart';
 
 class SceneEvaluationPipelineRequest {
@@ -41,13 +43,16 @@ class SceneEvaluationPipeline {
   const SceneEvaluationPipeline({
     SceneRuntimeTransformComposer? transformComposer,
     SceneGlobalParentGraph? globalParentGraph,
+    SceneSlotLayoutSolver? slotLayoutSolver,
   })  : _transformComposer =
             transformComposer ?? const SceneRuntimeTransformComposer(),
         _globalParentGraph =
-            globalParentGraph ?? const SceneGlobalParentGraph();
+            globalParentGraph ?? const SceneGlobalParentGraph(),
+        _slotLayoutSolver = slotLayoutSolver ?? const SceneSlotLayoutSolver();
 
   final SceneRuntimeTransformComposer _transformComposer;
   final SceneGlobalParentGraph _globalParentGraph;
+  final SceneSlotLayoutSolver _slotLayoutSolver;
   static const String _parentGraphProofTag = 'TF_SCENE_PARENT_GRAPH_PROOF';
   static const String _slotLayoutProofTag = 'TF_SCENE_SLOT_LAYOUT_PROOF';
 
@@ -195,6 +200,19 @@ class SceneEvaluationPipeline {
       tree: treeResult.tree!,
       timelineTimeMs: safeTime,
     );
+    final slotLayout = _slotLayoutSolver.solve(
+      tree: treeResult.tree!,
+      composition: composition,
+    );
+    for (final issue in slotLayout.issues) {
+      issues.add(
+        ReFusionSceneProgramIssue(
+          severity: issue.severity,
+          message: issue.message,
+          path: issue.path ?? 'sceneSlotLayout',
+        ),
+      );
+    }
 
     final evaluatedNodes = <String, EvaluatedSceneNode>{};
     for (final entry in composition.recordsByNodeId.entries) {
@@ -207,21 +225,32 @@ class SceneEvaluationPipeline {
         continue;
       }
       final record = entry.value;
-      final worldCenterX =
-          record.worldBounds.left + (record.worldBounds.width / 2);
-      final worldCenterY =
-          record.worldBounds.top + (record.worldBounds.height / 2);
+      final resolvedBounds = slotLayout.slotBoundsByNodeId[nodeId] ??
+          _sceneRuntimeRectToSlotRect(record.worldBounds);
+      final worldCenterX = resolvedBounds.left + (resolvedBounds.width / 2);
+      final worldCenterY = resolvedBounds.top + (resolvedBounds.height / 2);
       final worldRectCenter = SceneRectCenter(
         centerX: worldCenterX,
         centerY: worldCenterY,
-        width: record.worldBounds.width,
-        height: record.worldBounds.height,
+        width: resolvedBounds.width,
+        height: resolvedBounds.height,
       );
       final viewportRect = SceneCoordinateSystem.centerRectToViewportRect(
         rect: worldRectCenter,
         canvas: request.canvas,
       );
       final state = stateByNodeId[nodeId];
+      final slotBoundsCenter = _slotBoundsCenterFor(
+        nodeId: nodeId,
+        runtimeNode: runtimeNode,
+        tree: treeResult.tree!,
+        slotLayout: slotLayout,
+      );
+      final contentBoundsCenter = _contentBoundsCenterFor(
+        runtimeNode: runtimeNode,
+        tree: treeResult.tree!,
+        slotLayout: slotLayout,
+      );
       evaluatedNodes[nodeId] = EvaluatedSceneNode(
         nodeId: nodeId,
         sourceLayerId: runtimeNode.sourceLayerId,
@@ -254,6 +283,8 @@ class SceneEvaluationPipeline {
         ),
         worldBoundsCenter: worldRectCenter,
         viewportBounds: viewportRect,
+        slotBoundsCenter: slotBoundsCenter,
+        contentBoundsCenter: contentBoundsCenter,
         effectiveOpacity: record.effectiveOpacity,
         active: record.active,
         visible: record.active && record.effectiveOpacity > 0.001,
@@ -302,6 +333,7 @@ class SceneEvaluationPipeline {
             )
             .length,
         'runtimeTreeHash': treeResult.tree!.deterministicHash,
+        'slotLayoutHash': slotLayout.deterministicLayoutHash,
         'fallbackReason': 'none',
       },
     ).append(
@@ -660,6 +692,81 @@ class SceneEvaluationPipeline {
       return runtimeId;
     }
     return runtimeId.substring(index + marker.length);
+  }
+
+  SceneSlotLayoutRect _sceneRuntimeRectToSlotRect(SceneRuntimeRect rect) {
+    return SceneSlotLayoutRect(
+      left: rect.left,
+      top: rect.top,
+      right: rect.right,
+      bottom: rect.bottom,
+    );
+  }
+
+  SceneRectCenter? _slotBoundsCenterFor({
+    required String nodeId,
+    required SceneRuntimeNode runtimeNode,
+    required SceneRuntimeComponentTree tree,
+    required SceneSlotLayoutSolveResult slotLayout,
+  }) {
+    SceneSlotLayoutRect? rect = slotLayout.slotBoundsByNodeId[nodeId];
+    if (rect == null && runtimeNode.parentId != null) {
+      final parent = tree.node(runtimeNode.parentId!);
+      if (parent != null && parent.nodeType == SceneRuntimeNodeType.slot) {
+        rect = slotLayout.slotBoundsByNodeId[parent.id];
+      }
+    }
+    if (rect == null) {
+      return null;
+    }
+    return SceneRectCenter(
+      centerX: rect.left + (rect.width / 2),
+      centerY: rect.top + (rect.height / 2),
+      width: rect.width,
+      height: rect.height,
+    );
+  }
+
+  SceneRectCenter? _contentBoundsCenterFor({
+    required SceneRuntimeNode runtimeNode,
+    required SceneRuntimeComponentTree tree,
+    required SceneSlotLayoutSolveResult slotLayout,
+  }) {
+    final componentNodeId = _componentNodeIdFor(runtimeNode, tree);
+    if (componentNodeId == null) {
+      return null;
+    }
+    final rect = slotLayout.contentBoundsByComponentNodeId[componentNodeId];
+    if (rect == null) {
+      return null;
+    }
+    return SceneRectCenter(
+      centerX: rect.left + (rect.width / 2),
+      centerY: rect.top + (rect.height / 2),
+      width: rect.width,
+      height: rect.height,
+    );
+  }
+
+  String? _componentNodeIdFor(
+    SceneRuntimeNode runtimeNode,
+    SceneRuntimeComponentTree tree,
+  ) {
+    if (runtimeNode.nodeType == SceneRuntimeNodeType.component) {
+      return runtimeNode.id;
+    }
+    var parentId = runtimeNode.parentId;
+    while (parentId != null) {
+      final parent = tree.node(parentId);
+      if (parent == null) {
+        return null;
+      }
+      if (parent.nodeType == SceneRuntimeNodeType.component) {
+        return parent.id;
+      }
+      parentId = parent.parentId;
+    }
+    return null;
   }
 
   String _normalizeToken(String value) {
