@@ -1,6 +1,8 @@
 import '../models/refusion_motion_director_models.dart';
 import '../models/scene_director_brief_models.dart';
 import 'scene_brand_motion_mapping.dart';
+import 'scene_component_choreography_engine.dart';
+import 'scene_component_choreography_models.dart';
 import 'scene_icon_registry.dart';
 import 'scene_motion_recipe_compiler.dart';
 import 'scene_motion_recipe_models.dart';
@@ -28,13 +30,17 @@ class SceneDirectorIntelligencePlanner {
     SceneIconRegistry iconRegistry = const SceneIconRegistry(),
     SceneBrandMotionMapping brandMotionMapping =
         const SceneBrandMotionMapping(),
+    SceneComponentChoreographyEngine componentChoreographyEngine =
+        const SceneComponentChoreographyEngine(),
   })  : _recipeCompiler = recipeCompiler,
         _iconRegistry = iconRegistry,
-        _brandMotionMapping = brandMotionMapping;
+        _brandMotionMapping = brandMotionMapping,
+        _componentChoreographyEngine = componentChoreographyEngine;
 
   final SceneMotionRecipeCompiler _recipeCompiler;
   final SceneIconRegistry _iconRegistry;
   final SceneBrandMotionMapping _brandMotionMapping;
+  final SceneComponentChoreographyEngine _componentChoreographyEngine;
 
   SceneDirectorIntelligencePlanResult planFromBrief(
     SceneDirectorBrief brief,
@@ -186,6 +192,14 @@ class SceneDirectorIntelligencePlanner {
           );
           issues.addAll(motionMapping.issues);
           final motionProfile = motionMapping.profile;
+          final choreography = _componentChoreographyEngine.planFeatureCard(
+            enterStartMs: enterStart,
+            enterEndMs: enterEnd,
+            outroStartMs: featuresEnd,
+            outroEndMs: durationMs,
+            motionProfile: motionProfile,
+          );
+          issues.addAll(choreography.issues);
 
           final cardWidth = canvas.width >= 1500 ? 520.0 : 430.0;
           final cardHeight = canvas.width >= 1500 ? 280.0 : 236.0;
@@ -273,112 +287,27 @@ class SceneDirectorIntelligencePlanner {
             ],
           );
 
-          _appendRecipe(
+          final componentIdsByRole = <String, String>{
+            'shell': shellId,
+            'icon': iconId,
+            'label': labelId,
+            'body': bodyId,
+          };
+          _appendChoreographySpans(
+            spans: choreography.enterSpans,
+            beatId: 'features',
             primitives: primitives,
             issues: issues,
-            request: SceneMotionRecipeCompileRequest(
-              recipeId: _featureShellEnterRecipeFor(index, motionProfile.style),
-              targetComponentId: shellId,
-              targetScope: 'cardShell',
-              beatId: 'features',
-              startMs: enterStart,
-              endMs: enterEnd,
-              index: index,
-              staggerMs: 0,
-              idPrefix: '$shellId-enter',
-            ),
+            componentIdsByRole: componentIdsByRole,
+            index: index,
           );
-          _appendRecipe(
+          _appendChoreographySpans(
+            spans: choreography.exitSpans,
+            beatId: 'outro',
             primitives: primitives,
             issues: issues,
-            request: SceneMotionRecipeCompileRequest(
-              recipeId: motionProfile.iconEnterRecipe,
-              targetComponentId: iconId,
-              targetScope: 'icon',
-              beatId: 'features',
-              startMs: enterStart + 70,
-              endMs: enterEnd,
-              idPrefix: '$iconId-enter',
-            ),
-          );
-          _appendRecipe(
-            primitives: primitives,
-            issues: issues,
-            request: SceneMotionRecipeCompileRequest(
-              recipeId: motionProfile.labelEnterRecipe,
-              targetComponentId: labelId,
-              targetScope: 'body',
-              beatId: 'features',
-              startMs: enterStart + 110,
-              endMs: enterEnd + 80,
-              idPrefix: '$labelId-enter',
-            ),
-          );
-          _appendRecipe(
-            primitives: primitives,
-            issues: issues,
-            request: SceneMotionRecipeCompileRequest(
-              recipeId: motionProfile.bodyEnterRecipe,
-              targetComponentId: bodyId,
-              targetScope: 'body',
-              beatId: 'features',
-              startMs: enterStart + 170,
-              endMs: enterEnd + 140,
-              idPrefix: '$bodyId-enter',
-            ),
-          );
-
-          _appendRecipe(
-            primitives: primitives,
-            issues: issues,
-            request: SceneMotionRecipeCompileRequest(
-              recipeId: _featureShellExitRecipeFor(index, motionProfile.style),
-              targetComponentId: shellId,
-              targetScope: 'cardShell',
-              beatId: 'outro',
-              startMs: featuresEnd,
-              endMs: durationMs,
-              idPrefix: '$shellId-exit',
-            ),
-          );
-          _appendRecipe(
-            primitives: primitives,
-            issues: issues,
-            request: SceneMotionRecipeCompileRequest(
-              recipeId: r'$motion.fadeCollapse',
-              targetComponentId: iconId,
-              targetScope: 'icon',
-              beatId: 'outro',
-              startMs: featuresEnd,
-              endMs: durationMs,
-              idPrefix: '$iconId-exit',
-            ),
-          );
-          _appendRecipe(
-            primitives: primitives,
-            issues: issues,
-            request: SceneMotionRecipeCompileRequest(
-              recipeId: r'$motion.fadeCollapse',
-              targetComponentId: labelId,
-              targetScope: 'body',
-              beatId: 'outro',
-              startMs: featuresEnd,
-              endMs: durationMs,
-              idPrefix: '$labelId-exit',
-            ),
-          );
-          _appendRecipe(
-            primitives: primitives,
-            issues: issues,
-            request: SceneMotionRecipeCompileRequest(
-              recipeId: r'$motion.fadeCollapse',
-              targetComponentId: bodyId,
-              targetScope: 'body',
-              beatId: 'outro',
-              startMs: featuresEnd,
-              endMs: durationMs,
-              idPrefix: '$bodyId-exit',
-            ),
+            componentIdsByRole: componentIdsByRole,
+            index: index,
           );
         }
         continue;
@@ -508,47 +437,6 @@ class SceneDirectorIntelligencePlanner {
     return '#10141E';
   }
 
-  String _featureShellEnterRecipeFor(int index, String style) {
-    if (style == 'minimal') {
-      return r'$motion.fadeRaise';
-    }
-    if (style == 'cinematic') {
-      return r'$motion.cardSpringEntrance';
-    }
-    if (style == 'audio') {
-      return r'$motion.slideInFromRight';
-    }
-    switch (index % 4) {
-      case 0:
-        return r'$motion.cardSpringEntrance';
-      case 1:
-        return r'$motion.slideInFromLeft';
-      case 2:
-        return r'$motion.slideInFromRight';
-      default:
-        return r'$motion.popInSpring';
-    }
-  }
-
-  String _featureShellExitRecipeFor(int index, String style) {
-    if (style == 'minimal') {
-      return r'$motion.fadeCollapse';
-    }
-    if (style == 'audio') {
-      return r'$motion.slideOutToRight';
-    }
-    switch (index % 4) {
-      case 0:
-        return r'$motion.slideOutToBottom';
-      case 1:
-        return r'$motion.slideOutToLeft';
-      case 2:
-        return r'$motion.slideOutToRight';
-      default:
-        return r'$motion.pushBack';
-    }
-  }
-
   List<_Point> _featureGridCenters({
     required double canvasWidth,
     required double canvasHeight,
@@ -601,6 +489,36 @@ class SceneDirectorIntelligencePlanner {
     final result = _recipeCompiler.compile(request);
     primitives.addAll(result.primitives);
     issues.addAll(result.issues);
+  }
+
+  void _appendChoreographySpans({
+    required List<SceneComponentChoreographySpan> spans,
+    required String beatId,
+    required List<ReFusionMotionDirectorPrimitive> primitives,
+    required List<ReFusionMotionDirectorIssue> issues,
+    required Map<String, String> componentIdsByRole,
+    required int index,
+  }) {
+    for (final span in spans) {
+      final componentId = componentIdsByRole[span.role];
+      if (componentId == null) {
+        continue;
+      }
+      _appendRecipe(
+        primitives: primitives,
+        issues: issues,
+        request: SceneMotionRecipeCompileRequest(
+          recipeId: span.recipeId,
+          targetComponentId: componentId,
+          targetScope: span.targetScope,
+          beatId: beatId,
+          startMs: span.startMs,
+          endMs: span.endMs,
+          index: index,
+          idPrefix: '$componentId-${span.phase}',
+        ),
+      );
+    }
   }
 }
 
