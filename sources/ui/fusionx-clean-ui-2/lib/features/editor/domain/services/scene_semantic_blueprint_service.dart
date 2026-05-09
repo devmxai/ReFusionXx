@@ -13,6 +13,8 @@ const String kSceneBlueprintCompilerProofTag =
 const String kSceneSpeedyGraphDependencyProofTag =
     'TF_SCENE_SPEEDYGRAPH_DEPENDENCY_PROOF';
 const String kSceneTextGeometryProofTag = 'TF_SCENE_TEXT_GEOMETRY_PROOF';
+const String kSceneBlueprintV5ContractProofTag =
+    'TF_SCENE_BLUEPRINT_V5_CONTRACT_PROOF';
 
 class SceneSemanticBlueprintValidationResult {
   SceneSemanticBlueprintValidationResult({
@@ -83,17 +85,21 @@ class SceneSemanticBlueprintService {
     'scalexfornumericonly',
   };
 
-  static const String schemaVersion = 'refusion.semantic-blueprint/v1';
+  static const String schemaVersion = 'refusion.semantic-blueprint/v5';
 
   static const Set<String> _allowedRootKeys = <String>{
     'schemaVersion',
     'name',
     'durationMs',
     'frameRate',
+    'compositionIntent',
+    'tasteProfile',
     'components',
     'beats',
     'metadata',
   };
+  static const String _schemaVersionV5 = schemaVersion;
+  static const String _schemaVersionV1Legacy = 'refusion.semantic-blueprint/v1';
 
   SceneSemanticBlueprintValidationResult validate(
     Map<String, Object?> payload,
@@ -102,14 +108,26 @@ class SceneSemanticBlueprintService {
     _warnUnsupportedRootFields(payload, issues);
 
     final rawSchema = payload['schemaVersion'];
-    final schema =
-        rawSchema is String && rawSchema.isNotEmpty ? rawSchema : schemaVersion;
-    if (schema != schemaVersion) {
+    final schema = rawSchema is String && rawSchema.isNotEmpty
+        ? rawSchema
+        : _schemaVersionV5;
+    final schemaAllowed =
+        schema == _schemaVersionV5 || schema == _schemaVersionV1Legacy;
+    if (!schemaAllowed) {
       issues.add(
         ReFusionSceneProgramIssue(
           severity: ReFusionSceneProgramIssueSeverity.error,
           message:
-              'Unsupported semantic blueprint schema `$schema`. Expected `$schemaVersion`.',
+              'Unsupported semantic blueprint schema `$schema`. Expected `$_schemaVersionV5`.',
+          path: 'schemaVersion',
+        ),
+      );
+    } else if (schema == _schemaVersionV1Legacy) {
+      issues.add(
+        const ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.warning,
+          message:
+              'Semantic blueprint schema v1 is legacy. Prefer `refusion.semantic-blueprint/v5`.',
           path: 'schemaVersion',
         ),
       );
@@ -118,6 +136,8 @@ class SceneSemanticBlueprintService {
     final durationMs = _readInt(payload['durationMs'], fallback: 3000);
     final frameRate = _readDouble(payload['frameRate'], fallback: 30);
     final name = _readString(payload['name']) ?? 'Untitled Semantic Blueprint';
+    final compositionIntent = _readString(payload['compositionIntent']);
+    final tasteProfile = _readString(payload['tasteProfile']);
 
     final components = _readComponents(payload['components'], issues);
     if (components.isEmpty) {
@@ -139,6 +159,13 @@ class SceneSemanticBlueprintService {
     );
 
     final beats = _readBeats(payload['beats'], issues);
+    _validateV5AgentContracts(
+      schema: schema,
+      blueprintCompositionIntent: compositionIntent,
+      blueprintTasteProfile: tasteProfile,
+      components: components,
+      issues: issues,
+    );
     issues.addAll(
       _beatGrammarValidator.validate(
         beats: beats,
@@ -151,6 +178,8 @@ class SceneSemanticBlueprintService {
       name: name,
       durationMs: durationMs,
       frameRate: frameRate,
+      compositionIntent: compositionIntent,
+      tasteProfile: tasteProfile,
       components: components,
       beats: beats,
       metadata: metadata,
@@ -195,6 +224,7 @@ class SceneSemanticBlueprintService {
     }
 
     final proof = _buildProof(
+      schemaVersion: blueprint.schemaVersion,
       componentCount: blueprint.components.length,
       loweredCount: loweredComponents,
       errorCount: issues
@@ -500,11 +530,20 @@ class SceneSemanticBlueprintService {
           id: id,
           type: type,
           variant: _readString(entry['variant']),
+          iconToken: _readString(entry['iconToken']),
+          brandToken: _readString(entry['brandToken']),
+          motionRecipe: _readString(entry['motionRecipe']),
+          fitPolicy: _readString(entry['fitPolicy']),
+          compositionIntent: _readString(entry['compositionIntent']),
+          microScene: _readString(entry['microScene']),
+          tasteProfile: _readString(entry['tasteProfile']),
           properties:
               _readMap(entry['properties']) ?? const <String, Object?>{},
           slots: _readMap(entry['slots']) ?? const <String, Object?>{},
           motionIntents:
               _readMap(entry['motionIntents']) ?? const <String, Object?>{},
+          componentChoreography: _readMap(entry['componentChoreography']) ??
+              const <String, Object?>{},
         ),
       );
     }
@@ -617,12 +656,220 @@ class SceneSemanticBlueprintService {
   }
 
   String _buildProof({
+    required String schemaVersion,
     required int componentCount,
     required int loweredCount,
     required int errorCount,
   }) {
     return '$kSceneBlueprintCompilerProofTag '
+        'schemaVersion=$schemaVersion '
         'componentCount=$componentCount loweredCount=$loweredCount errorCount=$errorCount';
+  }
+
+  void _validateV5AgentContracts({
+    required String schema,
+    required String? blueprintCompositionIntent,
+    required String? blueprintTasteProfile,
+    required List<SemanticSceneBlueprintComponent> components,
+    required List<ReFusionSceneProgramIssue> issues,
+  }) {
+    final enforce = schema == _schemaVersionV5;
+    if (enforce &&
+        !_isTokenReference(
+          blueprintCompositionIntent,
+          prefix: r'$composition.',
+        )) {
+      issues.add(
+        const ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message:
+              'Semantic Blueprint v5 requires tokenized `compositionIntent` with `\$composition.*`.',
+          path: 'compositionIntent',
+        ),
+      );
+    }
+    if (enforce &&
+        !_isTokenReference(
+          blueprintTasteProfile,
+          prefix: r'$taste.',
+        )) {
+      issues.add(
+        const ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message:
+              'Semantic Blueprint v5 requires tokenized `tasteProfile` with `\$taste.*`.',
+          path: 'tasteProfile',
+        ),
+      );
+    }
+
+    for (var index = 0; index < components.length; index += 1) {
+      final component = components[index];
+      final path = 'components[$index]';
+      _requireTokenField(
+        enforce: enforce,
+        value: component.iconToken,
+        prefix: r'$icon.',
+        path: '$path.iconToken',
+        fieldName: 'iconToken',
+        issues: issues,
+      );
+      _requireTokenField(
+        enforce: enforce,
+        value: component.brandToken,
+        prefix: r'$brand.',
+        path: '$path.brandToken',
+        fieldName: 'brandToken',
+        issues: issues,
+      );
+      _requireTokenField(
+        enforce: enforce,
+        value: component.motionRecipe,
+        prefix: r'$motion.',
+        path: '$path.motionRecipe',
+        fieldName: 'motionRecipe',
+        issues: issues,
+      );
+      _requireTokenField(
+        enforce: enforce,
+        value: component.fitPolicy,
+        prefix: r'$textFit.',
+        path: '$path.fitPolicy',
+        fieldName: 'fitPolicy',
+        issues: issues,
+      );
+      _requireTokenField(
+        enforce: enforce,
+        value: component.compositionIntent,
+        prefix: r'$composition.',
+        path: '$path.compositionIntent',
+        fieldName: 'compositionIntent',
+        issues: issues,
+      );
+      _requireTokenField(
+        enforce: enforce,
+        value: component.microScene,
+        prefix: r'$microScene.',
+        path: '$path.microScene',
+        fieldName: 'microScene',
+        issues: issues,
+      );
+      _requireTokenField(
+        enforce: enforce,
+        value: component.tasteProfile,
+        prefix: r'$taste.',
+        path: '$path.tasteProfile',
+        fieldName: 'tasteProfile',
+        issues: issues,
+      );
+
+      if (component.componentChoreography.isNotEmpty) {
+        final enter =
+            _readString(component.componentChoreography['enterRecipe']);
+        final exit = _readString(component.componentChoreography['exitRecipe']);
+        if (enter != null && !_isTokenReference(enter, prefix: r'$motion.')) {
+          issues.add(
+            ReFusionSceneProgramIssue(
+              severity: ReFusionSceneProgramIssueSeverity.error,
+              message:
+                  'Component choreography `enterRecipe` must reference `\$motion.*` token.',
+              path: '$path.componentChoreography.enterRecipe',
+            ),
+          );
+        }
+        if (exit != null && !_isTokenReference(exit, prefix: r'$motion.')) {
+          issues.add(
+            ReFusionSceneProgramIssue(
+              severity: ReFusionSceneProgramIssueSeverity.error,
+              message:
+                  'Component choreography `exitRecipe` must reference `\$motion.*` token.',
+              path: '$path.componentChoreography.exitRecipe',
+            ),
+          );
+        }
+      }
+
+      if (enforce) {
+        final rawIcon = _readString(component.properties['icon']);
+        if (rawIcon != null &&
+            rawIcon.isNotEmpty &&
+            (component.iconToken == null || component.iconToken!.isEmpty)) {
+          issues.add(
+            ReFusionSceneProgramIssue(
+              severity: ReFusionSceneProgramIssueSeverity.error,
+              message:
+                  'Semantic Blueprint v5 requires `iconToken` instead of loose `properties.icon` values.',
+              path: '$path.properties.icon',
+            ),
+          );
+        }
+        final rawBrand = _readString(component.properties['brand']);
+        if (rawBrand != null &&
+            rawBrand.isNotEmpty &&
+            (component.brandToken == null || component.brandToken!.isEmpty)) {
+          issues.add(
+            ReFusionSceneProgramIssue(
+              severity: ReFusionSceneProgramIssueSeverity.error,
+              message:
+                  'Semantic Blueprint v5 requires `brandToken` instead of loose `properties.brand` values.',
+              path: '$path.properties.brand',
+            ),
+          );
+        }
+      }
+    }
+    issues.add(
+      ReFusionSceneProgramIssue(
+        severity: ReFusionSceneProgramIssueSeverity.info,
+        message: '$kSceneBlueprintV5ContractProofTag '
+            'schema=$schema '
+            'componentCount=${components.length} '
+            'enforced=${enforce.toString()}',
+        path: 'semanticBlueprint',
+      ),
+    );
+  }
+
+  void _requireTokenField({
+    required bool enforce,
+    required String? value,
+    required String prefix,
+    required String path,
+    required String fieldName,
+    required List<ReFusionSceneProgramIssue> issues,
+  }) {
+    if (enforce && (value == null || value.trim().isEmpty)) {
+      issues.add(
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message:
+              'Semantic Blueprint v5 requires `$fieldName` as tokenized reference.',
+          path: path,
+        ),
+      );
+      return;
+    }
+    if (value == null || value.trim().isEmpty) {
+      return;
+    }
+    if (!_isTokenReference(value, prefix: prefix)) {
+      issues.add(
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message:
+              'Field `$fieldName` must use `$prefix*` token format, got `$value`.',
+          path: path,
+        ),
+      );
+    }
+  }
+
+  bool _isTokenReference(String? value, {required String prefix}) {
+    if (value == null) {
+      return false;
+    }
+    final trimmed = value.trim();
+    return trimmed.startsWith(prefix);
   }
 
   void _validateComponentContracts(

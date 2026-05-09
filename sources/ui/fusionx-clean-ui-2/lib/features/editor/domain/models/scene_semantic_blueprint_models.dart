@@ -6,6 +6,8 @@ class SemanticSceneBlueprint {
     required this.name,
     required this.durationMs,
     required this.frameRate,
+    this.compositionIntent,
+    this.tasteProfile,
     List<SemanticSceneBlueprintComponent> components =
         const <SemanticSceneBlueprintComponent>[],
     List<SemanticSceneBlueprintBeat> beats =
@@ -19,6 +21,8 @@ class SemanticSceneBlueprint {
   final String name;
   final int durationMs;
   final double frameRate;
+  final String? compositionIntent;
+  final String? tasteProfile;
   final List<SemanticSceneBlueprintComponent> components;
   final List<SemanticSceneBlueprintBeat> beats;
   final Map<String, Object?> metadata;
@@ -29,19 +33,37 @@ class SemanticSceneBlueprintComponent {
     required this.id,
     required this.type,
     this.variant,
+    this.iconToken,
+    this.brandToken,
+    this.motionRecipe,
+    this.fitPolicy,
+    this.compositionIntent,
+    this.microScene,
+    this.tasteProfile,
     Map<String, Object?> properties = const <String, Object?>{},
     Map<String, Object?> slots = const <String, Object?>{},
     Map<String, Object?> motionIntents = const <String, Object?>{},
+    Map<String, Object?> componentChoreography = const <String, Object?>{},
   })  : properties = UnmodifiableMapView<String, Object?>(properties),
         slots = UnmodifiableMapView<String, Object?>(slots),
-        motionIntents = UnmodifiableMapView<String, Object?>(motionIntents);
+        motionIntents = UnmodifiableMapView<String, Object?>(motionIntents),
+        componentChoreography =
+            UnmodifiableMapView<String, Object?>(componentChoreography);
 
   final String id;
   final String type;
   final String? variant;
+  final String? iconToken;
+  final String? brandToken;
+  final String? motionRecipe;
+  final String? fitPolicy;
+  final String? compositionIntent;
+  final String? microScene;
+  final String? tasteProfile;
   final Map<String, Object?> properties;
   final Map<String, Object?> slots;
   final Map<String, Object?> motionIntents;
+  final Map<String, Object?> componentChoreography;
 }
 
 class SemanticSceneBlueprintBeat {

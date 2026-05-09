@@ -53,10 +53,15 @@ void main() {
 
     final result = compiler.compile(plan: plan);
 
-    expect(result.blueprint.schemaVersion, 'refusion.semantic-blueprint/v1');
+    expect(result.blueprint.schemaVersion, 'refusion.semantic-blueprint/v5');
     expect(result.blueprint.components, hasLength(1));
     expect(result.blueprint.beats, hasLength(1));
     expect(result.blueprint.components.first.type, 'MotionTextBlock');
+    expect(result.blueprint.components.first.iconToken, startsWith(r'$icon.'));
+    expect(result.blueprint.components.first.motionRecipe,
+        startsWith(r'$motion.'));
+    expect(result.blueprint.compositionIntent, startsWith(r'$composition.'));
+    expect(result.blueprint.tasteProfile, startsWith(r'$taste.'));
     final timeline = result.blueprint.components.first.motionIntents['timeline']
         as List<Object?>;
     expect(timeline, hasLength(1));

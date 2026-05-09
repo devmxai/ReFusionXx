@@ -36,9 +36,19 @@ class SceneDirectorBlueprintCompiler {
         primitivesByComponent[component.id] ??
             const <ReFusionMotionDirectorPrimitive>[],
       );
+      final semanticType = _semanticTypeForRole(component.role);
       return SemanticSceneBlueprintComponent(
         id: component.id,
-        type: _semanticTypeForRole(component.role),
+        type: semanticType,
+        iconToken: _iconTokenForComponent(component, semanticType),
+        brandToken: _brandTokenForComponent(component),
+        motionRecipe: _motionRecipeForComponent(component, semanticType),
+        componentChoreography:
+            _defaultComponentChoreography(component, semanticType),
+        fitPolicy: _fitPolicyForComponent(component),
+        compositionIntent: _componentCompositionIntent(component, semanticType),
+        microScene: _microSceneTokenForComponent(component, semanticType),
+        tasteProfile: _tasteProfileForBrief(sourceBrief),
         properties: <String, Object?>{
           ...component.properties,
           'directorRole': component.role,
@@ -59,10 +69,12 @@ class SceneDirectorBlueprintCompiler {
     }).toList(growable: false);
 
     final blueprint = SemanticSceneBlueprint(
-      schemaVersion: 'refusion.semantic-blueprint/v1',
+      schemaVersion: 'refusion.semantic-blueprint/v5',
       name: plan.name,
       durationMs: plan.durationMs,
       frameRate: plan.frameRate,
+      compositionIntent: _compositionIntentForBrief(sourceBrief),
+      tasteProfile: _tasteProfileForBrief(sourceBrief),
       components: components,
       beats: beats,
       metadata: <String, Object?>{
@@ -139,6 +151,145 @@ class SceneDirectorBlueprintCompiler {
       return 'IconGlyph';
     }
     return 'GenericComponent';
+  }
+
+  String _iconTokenForComponent(
+    ReFusionMotionDirectorComponent component,
+    String semanticType,
+  ) {
+    final explicit = (component.properties['iconToken'] as String?)?.trim();
+    if (explicit != null && explicit.startsWith(r'$icon.')) {
+      return explicit;
+    }
+    if (semanticType == 'FeatureCard' || semanticType == 'IconGlyph') {
+      return r'$icon.module';
+    }
+    if (semanticType == 'SceneBackground') {
+      return r'$icon.grid';
+    }
+    return r'$icon.spark';
+  }
+
+  String _brandTokenForComponent(ReFusionMotionDirectorComponent component) {
+    final explicit = (component.properties['brandToken'] as String?)?.trim();
+    if (explicit != null && explicit.startsWith(r'$brand.')) {
+      return explicit;
+    }
+    return r'$brand.generic';
+  }
+
+  String _motionRecipeForComponent(
+    ReFusionMotionDirectorComponent component,
+    String semanticType,
+  ) {
+    final explicit = (component.properties['motionRecipe'] as String?)?.trim();
+    if (explicit != null && explicit.startsWith(r'$motion.')) {
+      return explicit;
+    }
+    if (semanticType == 'FeatureCard') {
+      return r'$motion.cardSpringEntrance';
+    }
+    if (semanticType == 'MotionTextBlock') {
+      return r'$motion.wordCascadeUp';
+    }
+    if (semanticType == 'SceneBackground') {
+      return r'$motion.softFadeUp';
+    }
+    return r'$motion.scaleIn';
+  }
+
+  Map<String, Object?> _defaultComponentChoreography(
+    ReFusionMotionDirectorComponent component,
+    String semanticType,
+  ) {
+    final raw = component.properties['componentChoreography'];
+    if (raw is Map<String, Object?>) {
+      return raw;
+    }
+    if (semanticType == 'FeatureCard') {
+      return const <String, Object?>{
+        'enterRecipe': r'$motion.cardSpringEntrance',
+        'exitRecipe': r'$motion.fadeCollapse',
+      };
+    }
+    if (semanticType == 'MotionTextBlock') {
+      return const <String, Object?>{
+        'enterRecipe': r'$motion.wordCascadeUp',
+        'exitRecipe': r'$motion.fadeCollapse',
+      };
+    }
+    return const <String, Object?>{
+      'enterRecipe': r'$motion.scaleIn',
+      'exitRecipe': r'$motion.fadeCollapse',
+    };
+  }
+
+  String _fitPolicyForComponent(ReFusionMotionDirectorComponent component) {
+    final explicit = (component.properties['fitPolicy'] as String?)?.trim();
+    if (explicit != null && explicit.startsWith(r'$textFit.')) {
+      return explicit;
+    }
+    return r'$textFit.wrapToLines';
+  }
+
+  String _componentCompositionIntent(
+    ReFusionMotionDirectorComponent component,
+    String semanticType,
+  ) {
+    final explicit =
+        (component.properties['compositionIntent'] as String?)?.trim();
+    if (explicit != null && explicit.startsWith(r'$composition.')) {
+      return explicit;
+    }
+    if (semanticType == 'SceneBackground') {
+      return r'$composition.backgroundSupport';
+    }
+    if (semanticType == 'FeatureCard') {
+      return r'$composition.featureGrid';
+    }
+    if (semanticType == 'MotionTextBlock') {
+      return r'$composition.heroFocus';
+    }
+    return r'$composition.supporting';
+  }
+
+  String _microSceneTokenForComponent(
+    ReFusionMotionDirectorComponent component,
+    String semanticType,
+  ) {
+    final explicit = (component.properties['microScene'] as String?)?.trim() ??
+        (component.properties['microSceneId'] as String?)?.trim();
+    if (explicit != null && explicit.startsWith(r'$microScene.')) {
+      return explicit;
+    }
+    if (semanticType == 'SceneBackground') {
+      return r'$microScene.gridSoft';
+    }
+    if (semanticType == 'FeatureCard') {
+      return r'$microScene.modulePulse';
+    }
+    return r'$microScene.none';
+  }
+
+  String _compositionIntentForBrief(SceneDirectorBrief? brief) {
+    final focus = (brief?.primaryFocus ?? '').toLowerCase();
+    if (focus.contains('feature')) {
+      return r'$composition.featureShowcase';
+    }
+    if (focus.contains('title') || focus.contains('hero')) {
+      return r'$composition.heroFocus';
+    }
+    return r'$composition.supporting';
+  }
+
+  String _tasteProfileForBrief(SceneDirectorBrief? brief) {
+    final mood = (brief?.mood ?? '').toLowerCase();
+    if (mood.contains('luxury') ||
+        mood.contains('minimal') ||
+        mood.contains('calm')) {
+      return r'$taste.luxuryCalm';
+    }
+    return r'$taste.modernProfessional';
   }
 
   String _token(String value) {

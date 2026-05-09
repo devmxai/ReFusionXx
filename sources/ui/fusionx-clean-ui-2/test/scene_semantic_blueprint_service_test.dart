@@ -645,4 +645,128 @@ void main() {
       isTrue,
     );
   });
+
+  test('v5 contract rejects loose non-token fields', () {
+    final service = SceneSemanticBlueprintService();
+    final validation = service.validate(<String, Object?>{
+      'schemaVersion': 'refusion.semantic-blueprint/v5',
+      'name': 'Loose v5 values',
+      'durationMs': 2600,
+      'frameRate': 30,
+      'compositionIntent': 'featureShowcase',
+      'tasteProfile': r'$taste.modernProfessional',
+      'components': <Object?>[
+        <String, Object?>{
+          'id': 'card',
+          'type': 'FeatureCard',
+          'iconToken': 'audioEngineering',
+          'brandToken': r'$brand.chatgpt',
+          'motionRecipe': r'$motion.cardSpringEntrance',
+          'fitPolicy': r'$textFit.wrapToLines',
+          'compositionIntent': r'$composition.featureGrid',
+          'microScene': r'$microScene.audioWaveform',
+          'tasteProfile': r'$taste.modernProfessional',
+          'properties': <String, Object?>{
+            'icon': 'gmail',
+          },
+          'slots': <String, Object?>{
+            'title': <String, Object?>{
+              'text': 'Audio',
+              'textFrame': <String, Object?>{
+                'width': 220,
+                'height': 48,
+                'maxLines': 1,
+                'overflow': 'ellipsis',
+                'fitPolicy': 'none',
+              },
+            },
+            'body': <String, Object?>{
+              'text': 'Body',
+              'textFrame': <String, Object?>{
+                'width': 320,
+                'height': 120,
+                'maxLines': 3,
+                'overflow': 'ellipsis',
+                'fitPolicy': 'wrapToLines',
+              },
+            },
+          },
+        },
+      ],
+      'beats': <Object?>[
+        <String, Object?>{
+          'id': 'features',
+          'startMs': 0,
+          'endMs': 1800,
+          'intent': 'show cards',
+          'componentRefs': <String>['card'],
+        },
+      ],
+    });
+
+    expect(validation.isValid, isFalse);
+    expect(
+      validation.issues.any(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+            (issue.path == 'compositionIntent' ||
+                issue.path == 'components[0].iconToken'),
+      ),
+      isTrue,
+    );
+  });
+
+  test('v5 contract accepts tokenized component vocabulary and emits proof',
+      () {
+    final service = SceneSemanticBlueprintService();
+    final validation = service.validate(<String, Object?>{
+      'schemaVersion': 'refusion.semantic-blueprint/v5',
+      'name': 'Tokenized v5 values',
+      'durationMs': 2600,
+      'frameRate': 30,
+      'compositionIntent': r'$composition.featureShowcase',
+      'tasteProfile': r'$taste.modernProfessional',
+      'components': <Object?>[
+        <String, Object?>{
+          'id': 'prompt',
+          'type': 'PromptInputBar',
+          'iconToken': r'$icon.audioEngineering',
+          'brandToken': r'$brand.chatgpt',
+          'motionRecipe': r'$motion.cardSpringEntrance',
+          'componentChoreography': <String, Object?>{
+            'enterRecipe': r'$motion.scaleIn',
+            'exitRecipe': r'$motion.fadeCollapse',
+          },
+          'fitPolicy': r'$textFit.wrapToLines',
+          'compositionIntent': r'$composition.heroFocus',
+          'microScene': r'$microScene.audioWaveform',
+          'tasteProfile': r'$taste.modernProfessional',
+          'properties': <String, Object?>{
+            'promptText': 'build a new app for my business',
+          },
+          'slots': <String, Object?>{
+            'primaryText': r'$typography.input',
+            'trailingAccessory': 'send',
+          },
+        },
+      ],
+      'beats': <Object?>[
+        <String, Object?>{
+          'id': 'prompt-enter',
+          'startMs': 0,
+          'endMs': 2200,
+          'intent': 'enter and type',
+          'componentRefs': <String>['prompt'],
+        },
+      ],
+    });
+
+    expect(validation.isValid, isTrue);
+    expect(
+      validation.issues.any(
+        (issue) => issue.message.contains(kSceneBlueprintV5ContractProofTag),
+      ),
+      isTrue,
+    );
+  });
 }
