@@ -1,5 +1,6 @@
 import '../models/refusion_motion_director_models.dart';
 import '../models/scene_director_brief_models.dart';
+import 'scene_icon_registry.dart';
 import 'scene_motion_recipe_compiler.dart';
 import 'scene_motion_recipe_models.dart';
 
@@ -23,9 +24,12 @@ class SceneDirectorIntelligencePlanner {
   const SceneDirectorIntelligencePlanner({
     SceneMotionRecipeCompiler recipeCompiler =
         const SceneMotionRecipeCompiler(),
-  }) : _recipeCompiler = recipeCompiler;
+    SceneIconRegistry iconRegistry = const SceneIconRegistry(),
+  })  : _recipeCompiler = recipeCompiler,
+        _iconRegistry = iconRegistry;
 
   final SceneMotionRecipeCompiler _recipeCompiler;
+  final SceneIconRegistry _iconRegistry;
 
   SceneDirectorIntelligencePlanResult planFromBrief(
     SceneDirectorBrief brief,
@@ -198,7 +202,12 @@ class SceneDirectorIntelligencePlanner {
                 role: 'icon',
                 label: 'Feature Icon',
                 properties: <String, Object?>{
-                  'icon': _iconNameFromCard(card),
+                  'icon': _iconRegistry.resolveIconName(
+                    iconToken: card.iconToken,
+                    brandToken: card.brandToken,
+                    fallbackText: card.label,
+                    issues: issues,
+                  ),
                   'width': 48,
                   'height': 48,
                   'x': center.x - 140,
@@ -483,29 +492,6 @@ class SceneDirectorIntelligencePlanner {
       return '#0D1018';
     }
     return '#10141E';
-  }
-
-  String _iconNameFromCard(SceneDirectorBriefCard card) {
-    final token = _normalize(card.iconToken ?? card.brandToken ?? card.label);
-    if (token.contains('audio') || token.contains('voice')) {
-      return 'mic';
-    }
-    if (token.contains('caption') || token.contains('text')) {
-      return 'title';
-    }
-    if (token.contains('color') || token.contains('grade')) {
-      return 'palette';
-    }
-    if (token.contains('image') || token.contains('retouch')) {
-      return 'image';
-    }
-    if (token.contains('chat') || token.contains('prompt')) {
-      return 'message';
-    }
-    if (token.contains('send')) {
-      return 'send';
-    }
-    return 'sparkles';
   }
 
   String _featureShellEnterRecipeFor(int index) {
