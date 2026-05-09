@@ -11,11 +11,12 @@ Primary predecessors:
 - `professional_native_scene_intelligence_system_version_3.md`
 - `professional_native_scene_intelligence_system_version_4.md`
 
-Scope: professional motion vocabulary, shared text layout enforcement, brand/icon
-intelligence, optical alignment, component choreography, scene composition
-intelligence, contextual micro-scenes, taste validation, and agent-facing skills
-so ReFusionXx can author native editable scenes with professional motion-design
-quality instead of one-off demo fixes.
+Scope: director-first authoring, professional motion vocabulary, shared text
+layout enforcement, brand/icon intelligence, optical alignment, component
+choreography, inter-component choreography, background semantic pairing, scene
+composition intelligence, contextual micro-scenes, taste validation, visual
+closure repair, and agent-facing skills so ReFusionXx can author native editable
+scenes with professional motion-design quality instead of one-off demo fixes.
 
 ## 0. Current Baseline
 
@@ -57,12 +58,17 @@ geometrically valid.
 The controlling decision:
 
 ```text
-Professional output must be generated from executable vocabularies:
-TextLayout + IconRegistry + MotionRecipes + ComponentChoreography + SceneTaste.
+The agent writes a Director Brief.
+The system translates that brief into professional native scene data through
+executable vocabularies:
+TextLayout + IconRegistry + MotionRecipes + ComponentChoreography
++ BackgroundPairing + SceneComposition + SceneTaste.
 ```
 
 The agent must not guess:
 
+- how to translate intent into a composition;
+- where the primary focus should live;
 - whether an icon is centered;
 - how large an icon should be inside a card;
 - whether body text can fit;
@@ -70,6 +76,7 @@ The agent must not guess:
 - how cards should cascade;
 - how children exit with their parent;
 - whether a brand logo can be used;
+- whether the background supports the foreground subject;
 - how a scene should adapt to portrait, square, or landscape.
 
 The system must provide those answers through contracts and validators.
@@ -127,13 +134,17 @@ unless a phase explicitly proves it is required and documents the reason.
 
 ```text
 Agent Prompt
+  -> Director Brief v5
+  -> Director Intelligence Planner
   -> Semantic Blueprint v5
   -> Token Resolver
   -> Brand/Icon Registry
   -> Component Registry
+  -> Background Semantic Pairing
   -> Shared Text Layout Engine
   -> Motion Recipe Compiler
   -> Component Choreography Compiler
+  -> Inter-Component Choreography Solver
   -> Scene Composition Solver
   -> SceneProgram
   -> EvaluatedFrameTruth
@@ -145,6 +156,82 @@ Every stage must be observable through diagnostics and testable through focused
 fixtures.
 
 ## 4. Core Contracts
+
+### 4.0 Director Brief Contract
+
+The highest-level agent-facing format is a Director Brief, not a loose element
+list. The brief describes intent, mood, rhythm, audience, feature hierarchy, and
+semantic content. The system then plans composition, motion, background, icons,
+and timing.
+
+Required shape:
+
+```text
+DirectorBrief
+  intent
+  audience
+  mood
+  primaryFocus
+  rhythm
+  aspect
+  durationIntent
+  brandContext
+  visualStyle
+  elements[]
+```
+
+Example:
+
+```json
+{
+  "directorBrief": {
+    "intent": "showcase 4 features of a native motion editor",
+    "audience": "content creators and small business owners",
+    "mood": "energetic professional modern",
+    "primaryFocus": "smart kinetic typography",
+    "rhythm": "intro slow -> feature cascade -> snap exit",
+    "aspect": "$canvas.vertical9x16",
+    "elements": [
+      {
+        "kind": "title",
+        "text": "Everything your launch needs",
+        "importance": "primary"
+      },
+      {
+        "kind": "featureCardGroup",
+        "importance": "primary",
+        "cards": [
+          {
+            "icon": "$icon.montage",
+            "label": "Fast",
+            "body": "Polish edits in minutes"
+          },
+          {
+            "icon": "$icon.audioEngineering",
+            "label": "Voice",
+            "body": "Clean voiceovers in one tap"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Director Intelligence must produce:
+
+- scene beat plan;
+- focal hierarchy;
+- aspect-aware composition;
+- component choices;
+- brand/icon choices;
+- background semantic pairing;
+- motion recipe assignments;
+- component and inter-component choreography;
+- repairable Semantic Blueprint v5.
+
+The Director Brief is not rendered directly. It is compiled into Semantic
+Blueprint v5, then into editable native SceneProgram data.
 
 ### 4.1 Shared Text Layout Contract
 
@@ -215,21 +302,48 @@ Initial registry groups:
   - OpenAI / ChatGPT
   - Claude
   - Gemini
+  - Perplexity
+  - Grok
+  - Copilot
+  - Mistral
+  - Llama
   - generic AI sparkle
 - Social and creator platforms:
   - Meta
   - Facebook
   - Instagram
   - TikTok
+  - Snapchat
+  - Threads
+  - Bluesky
   - X / Twitter
   - YouTube
   - LinkedIn
+  - Reddit
+  - Pinterest
   - generic social bubble
+- Tech giants:
+  - Apple
+  - Microsoft
+  - Amazon
+  - Oracle
+  - IBM
+  - Samsung
+- Cloud and storage:
+  - iCloud
+  - Google Drive
+  - Dropbox
+  - OneDrive
+  - AWS
+  - GitHub
 - Communication and collaboration:
   - Gmail / Google Mail
   - Slack
   - WhatsApp
+  - Telegram
   - Discord
+  - Signal
+  - Zoom
   - Teams
   - generic message
 - Creative and design:
@@ -237,6 +351,19 @@ Initial registry groups:
   - Canva
   - Adobe generic category token when allowed
   - generic vector/design tool
+- Productivity and commerce:
+  - Notion
+  - Trello
+  - Asana
+  - Shopify
+  - Stripe
+  - PayPal
+  - eBay
+- Creator and audio platforms:
+  - Twitch
+  - Spotify
+  - SoundCloud
+  - Apple Music
 - ReFusion semantic icons:
   - montage
   - captions
@@ -256,6 +383,17 @@ Do not bundle third-party brand logos unless the asset source and usage status
 are documented. For unclear brands, require user-provided asset or use generic
 semantic fallback.
 ```
+
+Brand identity rules:
+
+- brand colors may not be overridden unless the brand token declares an allowed
+  monochrome or inverse variant;
+- aspect ratio must be preserved;
+- wordmarks require explicit safe-zone and minimum-size metadata;
+- unsupported brand name must fail closed or fall back to a generic semantic
+  icon with a visible diagnostic;
+- AI may reference `$brand.chatgpt`; it may not write raw SVG paths, arbitrary
+  brand colors, or invented logo geometry.
 
 ### 4.3 Optical Alignment Contract
 
@@ -446,6 +584,96 @@ Minimum rules:
 - no more than five major simultaneous animations in one beat unless marked as
   deliberate climax.
 
+### 4.7 Background Semantic Pairing Contract
+
+Backgrounds must support the foreground subject. They are not random
+decoration. A background motif is chosen from the Director Brief topic,
+foreground components, and mood.
+
+Pairing map:
+
+| Topic | Background motif |
+|---|---|
+| Audio / Voice | subtle waveform pulses, EQ bars, low-opacity sound rings |
+| AI / Chatbot | particle network, prompt cursor glints, soft node links |
+| Video editing | timeline strips, cut markers, frame guides |
+| Color grading | gradient wash, color chips, wheel arcs |
+| Speed / Performance | directional motion lines, compressed streaks |
+| Cloud / Sync | small cloud dots, sync paths |
+| Code / Builder | subtle grid, monospace particles, module blocks |
+| Music | equalizer bars, beat ticks |
+| Photography / Retouch | focus rings, crop grid, before/after wipe |
+| Social | connection nodes, message bubbles |
+| Privacy | shield/lock pattern, calm safe zones |
+
+Rules:
+
+- background opacity must not compete with primary content;
+- background motion must be slower than foreground motion unless the beat is a
+  transition;
+- background elements must have lifecycle and density budgets;
+- background may be disabled only through explicit `noBackground` intent;
+- background motifs must be native editable shapes/text/icons when possible.
+
+### 4.8 Brand-Aware Motion Mapping Contract
+
+Brand and semantic categories influence default motion feel.
+
+| Category | Motion feel | Defaults |
+|---|---|---|
+| AI / Tech | precise, snappy, clean | `$motion.brand.tech` |
+| Social / Creator | playful, elastic, friendly | `$motion.brand.playful` |
+| Premium / Luxury | restrained, slow, minimal | `$motion.brand.minimal` |
+| Media / Cinematic | deliberate, deep, smooth | `$motion.brand.cinematic` |
+| Productivity | efficient, low-noise | `$motion.brand.productivity` |
+| Audio / Music | rhythmic, wave-like | `$motion.brand.rhythmic` |
+
+Rules:
+
+- if a card uses `$brand.chatgpt`, AI/tech recipes are preferred;
+- if a card uses a playful social platform, bouncy recipes are allowed;
+- if a scene mood is luxury/minimal, high-bounce recipes are blocked unless
+  explicitly justified;
+- brand-aware motion may suggest recipes, but final compiled channels still go
+  through the Motion Recipe Compiler and SpeedyGraph truth.
+
+### 4.9 Inter-Component Choreography Contract
+
+Components in the same scene must know each other. A feature-card group,
+feedback-wall, prompt-to-result transition, or hub scene is directed as a
+relationship, not as isolated independent elements.
+
+Rules:
+
+- more than two siblings of the same type must use stagger or a declared group
+  recipe;
+- mirrored cards should use counter-directional entrances when visually useful;
+- one beat may have only one primary focal element;
+- high-energy motion must be balanced by lower-energy neighbors;
+- group exits must be coherent unless the scene intentionally breaks apart;
+- z-order and focus are solved from importance, not from JSON order alone.
+
+### 4.10 Director Plan Validation Contract
+
+Director Briefs must be validated before blueprint compilation.
+
+Required:
+
+- `intent` is specific;
+- `mood` is from a known vocabulary or mapped to one;
+- `rhythm` describes intro/hold/transition/outro behavior;
+- every element has `importance`;
+- feature groups have no duplicate cards unless intentionally repeated;
+- mood, brand, and motion do not contradict each other;
+- duration and aspect are present or inferred through explicit defaults.
+
+Invalid brief examples:
+
+- "make something cool" without intent;
+- "luxury calm" plus all cards using `scaleInBounce`;
+- feature card group with four primary cards and no hierarchy;
+- brand references with missing registry tokens.
+
 ## 5. Diagnostics
 
 Add these diagnostics:
@@ -529,15 +757,102 @@ Fields:
 - `issues`
 - `passed`
 
+### `TF_SCENE_DIRECTOR_BRIEF_PROOF`
+
+Fields:
+
+- `briefHash`
+- `intent`
+- `mood`
+- `rhythm`
+- `aspect`
+- `primaryFocus`
+- `elementCount`
+- `validated`
+- `rejectionReason`
+- `fallbackReason`
+
+### `TF_SCENE_BACKGROUND_PAIRING_PROOF`
+
+Fields:
+
+- `sceneId`
+- `topic`
+- `selectedMotif`
+- `backgroundElements`
+- `opacityBudget`
+- `motionBudget`
+- `semanticMatchScore`
+- `fallbackReason`
+
+### `TF_SCENE_BRAND_ASSET_PROOF`
+
+Fields:
+
+- `brandId`
+- `assetPath`
+- `sourceKind`
+- `licenseStatus`
+- `colorVariant`
+- `aspectPreserved`
+- `safeZonePassed`
+- `fallbackIconId`
+- `fallbackReason`
+
+### `TF_SCENE_INTER_COMPONENT_CHOREOGRAPHY_PROOF`
+
+Fields:
+
+- `groupId`
+- `componentIds`
+- `primaryFocus`
+- `staggerMs`
+- `counterDirectionApplied`
+- `energyBalance`
+- `zOrderResolved`
+- `simultaneousMotionCount`
+- `fallbackReason`
+
 ## 6. Execution Phases
+
+Authoritative VERSION 5 phase order:
+
+| Phase | Name |
+|---|---|
+| NSI-v5-00 | Failure fixtures and VERSION 4 foundation verification |
+| NSI-v5-01 | Shared Text Layout Engine |
+| NSI-v5-02 | Brand/Icon Registry |
+| NSI-v5-03 | Brand Asset Pipeline and Legal Manifest |
+| NSI-v5-04 | Optical Icon and Glyph Alignment |
+| NSI-v5-05 | Motion Recipe Library v2 |
+| NSI-v5-06 | Brand-Aware Motion Mapping |
+| NSI-v5-07 | Component Internal Choreography |
+| NSI-v5-08 | Inter-Component Choreography Solver |
+| NSI-v5-09 | Background Semantic Pairing and Contextual Micro-Scenes |
+| NSI-v5-10 | Scene Composition Intelligence Solver |
+| NSI-v5-11 | Director Brief Schema and Director Plan Validator |
+| NSI-v5-12 | Director Intelligence Planner |
+| NSI-v5-13 | Rhythm, Density, Motion Variety, and Taste Validators |
+| NSI-v5-14 | Semantic Blueprint v5 Agent Contract |
+| NSI-v5-15 | Visual Closure Loop v2 |
+| NSI-v5-16 | refusion-skills VERSION 5 Update |
+| NSI-v5-17 | Comprehensive Director-Brief Templates and Regression Fixtures |
+| NSI-v5-18 | Closure QA, Build, Install, Status Update |
+
+The detailed sections below are the implementation requirements.
 
 ### NSI-v5-00 - Failure Fixtures And Professional Quality Baselines
 
 Goal: capture the current visible failures as tests before building new
-systems.
+systems, and verify that VERSION 4 truth alignment is still intact.
 
 Required:
 
+- Re-run VERSION 4 foundation checks:
+  - same blueprint evaluated repeatedly produces deterministic frame truth;
+  - QA and preview consume `EvaluatedFrameTruth`;
+  - coordinate-system canon remains center-origin;
+  - HCT parent/child transform truth is still active.
 - Add fixtures for:
   - app icon `R` shifted off-center;
   - card body text clipped or ending mid-phrase;
@@ -545,6 +860,8 @@ Required:
   - icon/text/card child choreography not synchronized;
   - brand icon missing and falling back incorrectly;
   - prompt icon-to-input morph with text starting too early.
+  - background motif missing or semantically mismatched;
+  - Director Brief with vague intent or contradictory mood/motion.
 - Add baseline assertions that fail before implementation.
 - Keep fixtures native SceneProgram/SemanticBlueprint only.
 
@@ -561,6 +878,7 @@ Acceptance:
 - At least one test reproduces the `R` optical centering failure.
 - At least one test reproduces clipped body text inside a card.
 - At least one test rejects fade-only repetitive card motion.
+- At least one test rejects vague Director Brief input.
 
 Checkpoint:
 
@@ -603,45 +921,90 @@ checkpoint: professional native scene intelligence v5 01 - shared text layout
 ### NSI-v5-02 - Brand And Icon Intelligence Registry
 
 Goal: provide professional icon and brand handling without illegal or random
-assets.
+assets, and create the asset pipeline that makes brand usage traceable.
 
 Create:
 
 - `scene_icon_registry.dart`
 - `scene_icon_token.dart`
 - `scene_brand_asset_policy.dart`
+- `scene_brand_asset_pipeline.dart`
 
 Required:
 
 - Register ReFusion semantic icons for editing, dubbing, captions, audio,
   retouching, color, presentations, upload, send, and app building.
-- Add brand token slots for major platforms and products:
+- Add Tier 1 brand token slots for major platforms and products:
   - OpenAI / ChatGPT
   - Claude
   - Gemini
+  - Perplexity
+  - Grok
+  - Copilot
+  - Mistral
+  - Llama
   - Meta
   - Facebook
   - Instagram
   - TikTok
+  - Snapchat
+  - Threads
+  - Bluesky
   - X / Twitter
   - YouTube
   - LinkedIn
+  - Reddit
+  - Pinterest
+  - Apple
+  - Microsoft
+  - Amazon
+  - Oracle
+  - IBM
+  - Samsung
+  - iCloud
+  - Google Drive
+  - Dropbox
+  - OneDrive
+  - AWS
+  - GitHub
   - Google / Gmail
   - Slack
   - WhatsApp
+  - Telegram
+  - Discord
+  - Signal
+  - Zoom
   - Figma
   - Canva
   - Notion
+  - Adobe generic category token when allowed
+  - Trello
+  - Asana
+  - Shopify
+  - Stripe
+  - PayPal
+  - eBay
+  - Twitch
+  - Spotify
+  - SoundCloud
+  - Apple Music
 - For third-party brands, store license/source status.
 - If an allowed bundled asset is not present, use a generic semantic fallback
   and emit a diagnostic.
 - Support color modes: full color, monochrome, inverse, duotone.
+- Load canonical SVG metadata when bundled assets are allowed.
+- Validate color override rules.
+- Generate or reference monochrome/inverse variants only when allowed by token
+  metadata.
+- Cache brand asset resolution.
 
 Acceptance:
 
 - Unknown brand does not create an invented logo.
 - Restricted/unknown brand asset falls back safely.
 - Registered generic semantic icons are available for native scenes.
+- Brand color override is blocked unless the brand token allows it.
+- `TF_SCENE_BRAND_ASSET_PROOF` is emitted for brand lookup and fallback.
 
 Checkpoint:
 
@@ -649,7 +1012,48 @@ Checkpoint:
 checkpoint: professional native scene intelligence v5 02 - brand icon registry
 ```
 
-### NSI-v5-03 - Optical Icon And Glyph Alignment
+### NSI-v5-03 - Brand Asset Pipeline And Legal Manifest
+
+Goal: make brand assets loadable, traceable, cacheable, and legally safe.
+
+Create:
+
+- `scene_brand_asset_pipeline.dart`
+- `scene_brand_asset_manifest.dart`
+- `scene_brand_asset_cache.dart`
+
+Required:
+
+- Define a manifest format for every bundled brand asset:
+  - brand id;
+  - asset paths;
+  - source;
+  - usage notes;
+  - license/trademark status;
+  - file hash;
+  - canonical colors;
+  - allowed variants;
+  - fallback token.
+- Load canonical SVGs only through the registry.
+- Block raw color override unless allowed.
+- Generate or reference monochrome/inverse variants only when allowed.
+- Support user-provided brand assets with explicit `sourceKind=userProvided`.
+- Emit `TF_SCENE_BRAND_ASSET_PROOF`.
+
+Acceptance:
+
+- Missing brand asset does not crash or invent a logo.
+- Unknown license status fails closed or falls back to a generic semantic icon.
+- Manifest hash mismatch is detected.
+- Brand color override is rejected unless explicitly allowed.
+
+Checkpoint:
+
+```text
+checkpoint: professional native scene intelligence v5 03 - brand asset pipeline
+```
+
+### NSI-v5-04 - Optical Icon And Glyph Alignment
 
 Goal: make icon/glyph placement visually centered and professional.
 
@@ -678,10 +1082,10 @@ Acceptance:
 Checkpoint:
 
 ```text
-checkpoint: professional native scene intelligence v5 03 - optical icon alignment
+checkpoint: professional native scene intelligence v5 04 - optical icon alignment
 ```
 
-### NSI-v5-04 - Motion Recipe Library v1
+### NSI-v5-05 - Motion Recipe Library v2
 
 Goal: give agents professional executable animation vocabulary.
 
@@ -694,6 +1098,8 @@ Create:
 Required:
 
 - Implement the minimum recipe set listed in section 4.4.
+- Add recipe categories, compatibility matrix, aspect bias, and taste notes.
+- Add recipe-to-SpeedyGraph mapping.
 - Every recipe compiles to real SceneProgram channels.
 - Recipes must use SpeedyGraph/Bezier truth.
 - Recipes must preserve editability.
@@ -718,10 +1124,42 @@ Acceptance:
 Checkpoint:
 
 ```text
-checkpoint: professional native scene intelligence v5 04 - motion recipe library
+checkpoint: professional native scene intelligence v5 05 - motion recipe library
 ```
 
-### NSI-v5-05 - Component Choreography Engine
+### NSI-v5-06 - Brand-Aware Motion Mapping
+
+Goal: map brand and semantic categories to professional motion feel.
+
+Create:
+
+- `scene_brand_motion_mapping.dart`
+- `scene_brand_motion_profile.dart`
+
+Required:
+
+- Map AI/tech brands to precise/snappy motion.
+- Map social/creator brands to playful/bouncy motion.
+- Map premium/luxury brands to restrained/minimal motion.
+- Map cinematic/media subjects to deliberate smooth motion.
+- Map productivity subjects to clean efficient motion.
+- Map audio/music subjects to rhythmic wave-like motion.
+- Ensure mapping selects defaults only; final output still compiles through
+  Motion Recipe Compiler and SpeedyGraph truth.
+
+Acceptance:
+
+- `$brand.chatgpt` prefers AI/tech recipe profile.
+- playful social brand cards may use elastic recipes.
+- luxury mood blocks excessive bounce unless explicitly justified.
+
+Checkpoint:
+
+```text
+checkpoint: professional native scene intelligence v5 06 - brand aware motion mapping
+```
+
+### NSI-v5-07 - Component Internal Choreography Engine
 
 Goal: make cards, prompt bars, buttons, and panels animate as directed
 components, not independent random layers.
@@ -757,10 +1195,83 @@ Acceptance:
 Checkpoint:
 
 ```text
-checkpoint: professional native scene intelligence v5 05 - component choreography
+checkpoint: professional native scene intelligence v5 07 - component choreography
 ```
 
-### NSI-v5-06 - Scene Composition Intelligence Solver
+### NSI-v5-08 - Inter-Component Choreography Solver
+
+Goal: coordinate sibling components so scenes feel directed, not independently
+animated.
+
+Create:
+
+- `scene_inter_component_choreography.dart`
+- `scene_group_choreography_solver.dart`
+
+Required:
+
+- Apply cascade stagger for groups of similar siblings.
+- Apply counter-direction entrances when useful for balance.
+- Resolve z-order from importance and focal hierarchy.
+- Apply energy conservation:
+  - high-energy primary element;
+  - calmer supporting neighbors.
+- Keep group exits coherent.
+- Prevent more than one primary focal element in the same beat.
+- Emit `TF_SCENE_INTER_COMPONENT_CHOREOGRAPHY_PROOF`.
+
+Acceptance:
+
+- Four feature cards enter as a planned group, not four unrelated animations.
+- Two opposing cards can mirror motion direction.
+- Group exit is coherent and does not leave orphan children.
+
+Checkpoint:
+
+```text
+checkpoint: professional native scene intelligence v5 08 - inter component choreography
+```
+
+### NSI-v5-09 - Background Semantic Pairing And Contextual Micro-Scenes
+
+Goal: connect the background and feature-card internal visuals to the semantic
+subject of the scene.
+
+Create:
+
+- `scene_background_semantic_pairing.dart`
+- `scene_micro_scene_registry.dart`
+- `scene_feature_visual_motifs.dart`
+
+Required:
+
+- Implement the background pairing map in section 4.7.
+- Add native editable motifs for:
+  - audio engineering: waveform, EQ bars, noise gate dots;
+  - captions: kinetic text lines, highlighted word pill;
+  - montage: timeline strips, cut markers, playhead;
+  - image retouch: before/after chip, sparkle retouch path;
+  - color grade: color wheels/chips, LUT slider;
+  - presentations: slide stack, chart bars;
+  - app builder: prompt bar, app tile, module blocks.
+- Motifs must be shapes/text/icons, not raster-only screenshots.
+- Motifs must have choreography hooks and parent lifecycle.
+- Emit `TF_SCENE_BACKGROUND_PAIRING_PROOF`.
+
+Acceptance:
+
+- A voice/audio scene gets a subtle waveform or EQ motif by default.
+- A code/app-builder scene gets grid/module motifs.
+- Background opacity and motion never compete with foreground content.
+- Feature-card motifs fit inside card bounds.
+
+Checkpoint:
+
+```text
+checkpoint: professional native scene intelligence v5 09 - background pairing micro scenes
+```
+
+### NSI-v5-10 - Scene Composition Intelligence Solver
 
 Goal: understand the whole canvas, not isolated components.
 
@@ -793,17 +1304,86 @@ Acceptance:
 Checkpoint:
 
 ```text
-checkpoint: professional native scene intelligence v5 06 - scene composition solver
+checkpoint: professional native scene intelligence v5 10 - scene composition solver
 ```
 
-### NSI-v5-07 - Motion Variety And Rhythm Validator
+### NSI-v5-11 - Director Brief Schema And Director Plan Validator
 
-Goal: reject visually boring or repetitive animation.
+Goal: make the highest-level authoring input explicit and reject vague,
+contradictory, or unprofessional briefs before planning.
+
+Create:
+
+- `scene_director_brief_models.dart`
+- `scene_director_plan_validator.dart`
+
+Required:
+
+- Validate `intent`, `audience`, `mood`, `rhythm`, `aspect`, `durationIntent`,
+  `primaryFocus`, and `elements`.
+- Require every element to declare `importance`.
+- Reject contradictory mood/motion/brand combinations.
+- Reject duplicate elements unless intentionally repeated.
+- Reject briefs with no clear focal hierarchy.
+- Emit `TF_SCENE_DIRECTOR_BRIEF_PROOF`.
+
+Acceptance:
+
+- "make something cool" is rejected.
+- "luxury calm" with all components bouncy is rejected or repaired.
+- Feature groups with four primary cards and no hierarchy are rejected.
+
+Checkpoint:
+
+```text
+checkpoint: professional native scene intelligence v5 11 - director brief validator
+```
+
+### NSI-v5-12 - Director Intelligence Planner
+
+Goal: compile `DirectorBrief -> SemanticBlueprint v5` with professional
+composition, rhythm, background, icon, and choreography decisions.
+
+Create:
+
+- `scene_director_intelligence.dart`
+- `scene_director_planner.dart`
+- `scene_director_blueprint_compiler.dart`
+
+Required:
+
+- Convert Director Brief to Semantic Blueprint v5.
+- Plan composition from importance and aspect ratio.
+- Plan beat structure from rhythm.
+- Assign motion recipes from mood, brand, and component role.
+- Attach background semantic pairing.
+- Attach component and inter-component choreography.
+- Preserve repairable paths back to the original brief.
+
+Acceptance:
+
+- A 30-line Director Brief can produce a complete editable scene blueprint.
+- Primary element receives stronger motion than supporting elements.
+- Background and motion choices match subject and mood.
+
+Checkpoint:
+
+```text
+checkpoint: professional native scene intelligence v5 12 - director intelligence planner
+```
+
+### NSI-v5-13 - Rhythm, Density, Motion Variety, And Taste Validators
+
+Goal: reject visually boring, crowded, under-composed, or proportionally weak
+scenes.
 
 Create:
 
 - `scene_motion_variety_validator.dart`
 - `scene_motion_rhythm_validator.dart`
+- `scene_rhythm_density_validator.dart`
+- `scene_professional_taste_validator.dart`
+- `scene_component_proportion_validator.dart`
 
 Required:
 
@@ -814,30 +1394,8 @@ Required:
 - Enforce readable holds after complex motion.
 - Enforce aspect-aware motion preferences.
 - Limit simultaneous major animations per beat.
-
-Acceptance:
-
-- Four feature cards all using opacity-only fade are rejected.
-- A professional grid stagger passes.
-- Enter/exit symmetry is accepted only when declared as a deliberate mirror.
-
-Checkpoint:
-
-```text
-checkpoint: professional native scene intelligence v5 07 - motion variety validator
-```
-
-### NSI-v5-08 - Professional Taste Validator
-
-Goal: enforce modern design taste through measurable rules.
-
-Create:
-
-- `scene_professional_taste_validator.dart`
-- `scene_component_proportion_validator.dart`
-
-Required:
-
+- Validate tempo, negative space, visual density, focal point count, and
+  simultaneous motion budget.
 - Validate:
   - card inner padding;
   - icon-to-card ratio;
@@ -854,6 +1412,9 @@ Required:
 
 Acceptance:
 
+- Four feature cards all using opacity-only fade are rejected.
+- A professional grid stagger passes.
+- Enter/exit symmetry is accepted only when declared as a deliberate mirror.
 - A card with huge title and tiny body is rejected.
 - A card with body outside its frame is rejected.
 - A prompt icon with shifted `R` is rejected.
@@ -863,44 +1424,10 @@ Acceptance:
 Checkpoint:
 
 ```text
-checkpoint: professional native scene intelligence v5 08 - professional taste validator
+checkpoint: professional native scene intelligence v5 13 - rhythm density taste validators
 ```
 
-### NSI-v5-09 - Contextual Micro-Scene Library
-
-Goal: give feature cards meaningful internal visuals instead of generic icons.
-
-Create:
-
-- `scene_micro_scene_registry.dart`
-- `scene_feature_visual_motifs.dart`
-
-Required:
-
-- Add native editable motifs for:
-  - audio engineering: waveform, EQ bars, noise gate dots;
-  - captions: kinetic text lines, highlighted word pill;
-  - montage: timeline strips, cut markers, playhead;
-  - image retouch: before/after chip, sparkle retouch path;
-  - color grade: color wheels/chips, LUT slider;
-  - presentations: slide stack, chart bars;
-  - app builder: prompt bar, app tile, module blocks.
-- Motifs must be shapes/text/icons, not raster-only screenshots.
-- Motifs must have their own choreography hooks.
-
-Acceptance:
-
-- An audio card can show a small waveform motif.
-- A captions card can show a highlighted text motif.
-- Motifs fit inside card bounds and obey parent lifecycle.
-
-Checkpoint:
-
-```text
-checkpoint: professional native scene intelligence v5 09 - contextual micro scenes
-```
-
-### NSI-v5-10 - Semantic Blueprint v5 Agent Contract
+### NSI-v5-14 - Semantic Blueprint v5 Agent Contract
 
 Goal: make agent authoring use the new vocabulary by default.
 
@@ -937,10 +1464,10 @@ and compiler produces editable native shapes, text, icons, and channels.
 Checkpoint:
 
 ```text
-checkpoint: professional native scene intelligence v5 10 - semantic blueprint v5
+checkpoint: professional native scene intelligence v5 14 - semantic blueprint v5
 ```
 
-### NSI-v5-11 - Visual Closure Repair Payloads v5
+### NSI-v5-15 - Visual Closure Loop v2 And Repair Payloads
 
 Goal: make the system capable of telling the agent exactly how to repair visual
 defects.
@@ -957,6 +1484,12 @@ Required:
   - density/layout problems;
   - unsafe simultaneous motion.
 - Include suggested token-level repairs, not vague prose.
+- Add loop orchestration:
+  - max 3 repair attempts;
+  - visual descriptions for each failed probe;
+  - suggested motion alternatives;
+  - suggested text/icon/layout token fixes;
+  - exemplar saving for approved scenes.
 
 Example:
 
@@ -978,14 +1511,16 @@ Acceptance:
 - Broken scenes produce actionable repair payloads.
 - Repair payloads refer to blueprint paths and token fixes.
 - The agent is not asked to guess pixel coordinates manually.
+- `MOTION_VARIETY_LOW` suggests specific replacement recipes per card.
+- `ICON_OPTICAL_CENTER_OFF` suggests optical correction, not manual x/y.
 
 Checkpoint:
 
 ```text
-checkpoint: professional native scene intelligence v5 11 - visual repair payloads
+checkpoint: professional native scene intelligence v5 15 - visual closure loop v2
 ```
 
-### NSI-v5-12 - refusion-skills VERSION 5 Update
+### NSI-v5-16 - refusion-skills VERSION 5 Update
 
 Repository:
 
@@ -999,11 +1534,18 @@ professional vocabulary.
 Required:
 
 - Add:
+  - Director Brief authoring guide;
+  - Director Plan validator rules;
   - motion recipe guide;
+  - brand-aware motion guide;
   - brand/icon usage guide;
+  - brand asset/legal fallback guide;
   - component choreography guide;
+  - inter-component choreography guide;
+  - background semantic pairing map;
   - text layout guide;
   - scene composition guide;
+  - rhythm/density principles;
   - professional taste checklist;
   - good/bad examples;
   - repair loop examples.
@@ -1016,14 +1558,16 @@ Acceptance:
 - Skills explain that brand logos require registry/source handling.
 - Skills forbid random raw coordinates for professional scenes.
 - Skills require motion variety and child choreography.
+- Skills teach that agents write Director Briefs first, not raw element lists.
+- Skills include at least 10 good examples and 10 rejected examples with reasons.
 
 Checkpoint:
 
 ```text
-checkpoint: professional native scene intelligence v5 12 - refusion skills v5
+checkpoint: professional native scene intelligence v5 16 - refusion skills v5
 ```
 
-### NSI-v5-13 - Professional Scene Examples And Regression Fixtures
+### NSI-v5-17 - Comprehensive Director-Brief Templates And Regression Fixtures
 
 Goal: prove the system with real examples.
 
@@ -1036,9 +1580,16 @@ Required examples:
 5. Captions kinetic text feature card.
 6. Image retouch/color-grade feature card.
 7. Multi-aspect adaptation test scene.
+8. AI features cascade.
+9. Social app promo.
+10. Tech brand intro.
+11. Testimonial quote.
+12. Before/after split.
 
 Required:
 
+- Add Director Brief-only templates where possible.
+- Add good/bad pairs with rejection reasons.
 - Add fixtures to assets or tests as appropriate.
 - Old weak scenes must either be migrated or intentionally rejected.
 - New examples must pass strict QA.
@@ -1054,10 +1605,10 @@ Acceptance:
 Checkpoint:
 
 ```text
-checkpoint: professional native scene intelligence v5 13 - professional examples
+checkpoint: professional native scene intelligence v5 17 - professional examples
 ```
 
-### NSI-v5-14 - Closure QA, Build, Install, Status Update
+### NSI-v5-18 - Closure QA, Build, Install, Status Update
 
 Required tests:
 
@@ -1096,7 +1647,7 @@ Documentation:
 Checkpoint:
 
 ```text
-checkpoint: professional native scene intelligence v5 14 - closure qa
+checkpoint: professional native scene intelligence v5 18 - closure qa
 ```
 
 ## 7. Integration Gates
@@ -1107,25 +1658,49 @@ Gate after v5-01:
 
 Gate after v5-03:
 
-- App icon `R`, plus icon, and send icon are optically centered.
+- brand assets resolve through manifest, license status, fallback, and hash.
 
 Gate after v5-04:
 
-- At least 12 motion recipes compile to editable channels.
+- App icon `R`, plus icon, and send icon are optically centered.
 
 Gate after v5-05:
 
-- `FeatureCard` and `PromptInputBar` demonstrate child choreography.
+- At least 12 motion recipes compile to editable channels.
+
+Gate after v5-06:
+
+- brand category maps to motion feel without bypassing SpeedyGraph truth.
 
 Gate after v5-07:
 
-- Fade-only scenes are rejected.
+- `FeatureCard` and `PromptInputBar` demonstrate child choreography.
 
 Gate after v5-08:
 
-- bad proportions and bad icon/text/card ratios are rejected.
+- sibling components demonstrate cascade, counter-direction, or coherent group
+  timing.
+
+Gate after v5-09:
+
+- background semantic pairing and micro-scenes match scene topic without
+  competing with foreground.
+
+Gate after v5-11:
+
+- vague or contradictory Director Briefs are rejected.
+
+Gate after v5-12:
+
+- Director Brief compiles to Semantic Blueprint with composition, motion,
+  background, and choreography decisions.
 
 Gate after v5-13:
+
+- Fade-only scenes are rejected.
+- bad proportions and bad icon/text/card ratios are rejected.
+
+Gate after v5-17:
 
 - professional examples pass on device or screenshot review.
 
@@ -1160,9 +1735,14 @@ Preview:
 
 Do not:
 
+- allow agent-facing professional authoring to bypass Director Brief when a
+  Director Brief path exists;
 - add raw random coordinates when component/layout contract exists;
 - bundle unlicensed third-party brand logos;
 - invent brand logos;
+- allow raw brand color override when a brand token forbids it;
+- allow background decoration that is not semantically paired unless explicitly
+  disabled;
 - accept an icon that is visibly off-center;
 - accept card body text that is clipped;
 - accept sentence fragments as final displayed body text;
@@ -1178,11 +1758,19 @@ Do not:
 
 VERSION 5 is complete only when:
 
+- Director Brief is the preferred agent-facing authoring layer;
+- Director Brief validator rejects vague, contradictory, or hierarchy-free
+  briefs;
+- Director Intelligence compiles brief intent into Semantic Blueprint v5;
 - any text inside a professional component is laid out by the shared text engine;
 - app icon glyphs and button icons are optically centered;
 - brand/generic icons are resolved through the icon registry;
+- brand assets are source/usage/fallback traceable;
+- background semantic pairing supports scene intent;
 - motion recipes are executable and editable;
+- brand-aware motion maps category to feel without bypassing recipe compilation;
 - feature cards have internal choreography;
+- component groups have inter-component choreography;
 - scene composition solver controls card placement and density;
 - motion variety validator rejects repetitive fade-only scenes;
 - professional taste validator catches childish proportions;
@@ -1226,15 +1814,21 @@ Plan:
 Current baseline:
  - VERSION 4 completed render-truth alignment.
  - Current remaining weakness is professional scene intelligence:
-   text layout, icon alignment, motion vocabulary, component choreography,
-   scene composition, taste validation, and skills.
+   Director Brief planning, text layout, brand/icon assets, optical alignment,
+   motion vocabulary, background pairing, component choreography,
+   inter-component choreography, scene composition, taste validation, visual
+   closure, and skills.
 
 Rules:
  - Do not rewrite one demo scene as the solution.
+ - Do not leave Director Intelligence as documentation only; implement
+   DirectorBrief -> SemanticBlueprint planning as a real phase.
  - Do not create a second render/easing system.
  - Motion recipes compile to real SceneProgram channels and SpeedyGraph truth.
  - Text fit must be shared by QA/preview/export.
  - Brand icons must be registry-backed and legally traceable.
+ - Brand assets must be legal/source/fallback traceable.
+ - Background motifs must be semantically paired or explicitly disabled.
  - Do not touch Stage5/Live Scrub/native protected files unless explicitly
    required and documented.
  - Commit and push each phase separately.
@@ -1243,5 +1837,5 @@ Start:
  NSI-v5-00
 
 Then continue in order through:
- NSI-v5-01 ... NSI-v5-14
+ NSI-v5-01 ... NSI-v5-18
 ```
