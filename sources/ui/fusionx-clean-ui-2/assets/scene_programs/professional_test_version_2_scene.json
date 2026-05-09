@@ -1,0 +1,2944 @@
+{
+  "directorPlan": {
+    "schemaVersion": "refusion.motion-director/v1",
+    "name": "Professional Test Version 2",
+    "durationMs": 12800,
+    "frameRate": 30,
+    "canvasWidth": 1080,
+    "canvasHeight": 1920,
+    "beats": [
+      {
+        "id": "prompt-bar-build",
+        "label": "Prompt bar builds",
+        "startMs": 0,
+        "endMs": 2320,
+        "intent": "A clean white prompt bar springs in, reveals controls one by one, then types the prompt.",
+        "componentRefs": [
+          "promptShell",
+          "promptText"
+        ]
+      },
+      {
+        "id": "prompt-readable-hold",
+        "label": "Prompt readable hold",
+        "startMs": 2340,
+        "endMs": 2840,
+        "intent": "Hold the completed prompt before the bar leaves.",
+        "componentRefs": [
+          "promptText"
+        ]
+      },
+      {
+        "id": "prompt-bar-exit",
+        "label": "Prompt bar exits",
+        "startMs": 2840,
+        "endMs": 3300,
+        "intent": "The completed prompt bar lifts and dissolves before the text statement arrives.",
+        "componentRefs": [
+          "promptShell"
+        ]
+      },
+      {
+        "id": "think-deeper",
+        "label": "Think deeper",
+        "startMs": 3300,
+        "endMs": 4800,
+        "intent": "Two words enter from opposite directions with soft spring energy."
+      },
+      {
+        "id": "think-faster",
+        "label": "Think faster",
+        "startMs": 4800,
+        "endMs": 6300,
+        "intent": "The accent word swaps from deeper to faster in the same optical center."
+      },
+      {
+        "id": "file-analysis-cards",
+        "label": "File analysis cards",
+        "startMs": 6300,
+        "endMs": 9800,
+        "intent": "Three professional file cards cascade in, each with internal icon/title/status choreography.",
+        "componentRefs": [
+          "fileCardStack"
+        ]
+      },
+      {
+        "id": "available-now-cta",
+        "label": "Available now CTA",
+        "startMs": 9800,
+        "endMs": 12800,
+        "intent": "A warm gradient replaces the file stage and a pill CTA springs into focus.",
+        "componentRefs": [
+          "availableNowPill"
+        ]
+      }
+    ],
+    "components": [
+      {
+        "id": "promptShell",
+        "role": "promptInputBar.shell",
+        "label": "White prompt input bar"
+      },
+      {
+        "id": "promptText",
+        "role": "promptInputBar.typewriterText",
+        "label": "Typed request inside prompt bar"
+      },
+      {
+        "id": "thinkPhrase",
+        "role": "kineticTitle.wordSwap",
+        "label": "Think deeper / Think faster"
+      },
+      {
+        "id": "fileCardStack",
+        "role": "fileAnalysis.cardStack",
+        "label": "Three sequential analyzing cards"
+      },
+      {
+        "id": "availableNowPill",
+        "role": "cta.downloadAvailability",
+        "label": "Available now pill"
+      }
+    ],
+    "primitives": [
+      {
+        "id": "prompt-shell-spring",
+        "beatId": "prompt-bar-build",
+        "targetComponentId": "promptShell",
+        "kind": "scalePop",
+        "property": "scale",
+        "startMs": 120,
+        "endMs": 620,
+        "fromValue": 0.88,
+        "toValue": 1,
+        "easing": "slowFastSlow"
+      },
+      {
+        "id": "prompt-typewriter",
+        "beatId": "prompt-bar-build",
+        "targetComponentId": "promptText",
+        "kind": "typewriter",
+        "property": "typewriterProgress",
+        "startMs": 1120,
+        "endMs": 2320,
+        "fromValue": 0,
+        "toValue": 1,
+        "easing": "linear"
+      },
+      {
+        "id": "card-cascade",
+        "beatId": "file-analysis-cards",
+        "targetComponentId": "fileCardStack",
+        "kind": "cascadeSlideIn",
+        "property": "positionY",
+        "startMs": 6650,
+        "endMs": 7900,
+        "fromValue": 80,
+        "toValue": 0,
+        "easing": "slowFastSlow"
+      },
+      {
+        "id": "cta-pop",
+        "beatId": "available-now-cta",
+        "targetComponentId": "availableNowPill",
+        "kind": "scaleInBounce",
+        "property": "scale",
+        "startMs": 10100,
+        "endMs": 10780,
+        "fromValue": 0.82,
+        "toValue": 1,
+        "easing": "slowFastSlow"
+      }
+    ]
+  },
+  "sceneProgram": {
+    "schemaVersion": "refusion.scene-program/v1",
+    "name": "Professional Test Version 2",
+    "durationMs": 12800,
+    "frameRate": 30,
+    "layers": [
+      {
+        "id": "ptv2-background-layer__ptv2-bg-white",
+        "name": "Scene background washes / ptv2-bg-white",
+        "kind": "shape",
+        "startMs": 0,
+        "durationMs": 12800,
+        "elements": [
+          {
+            "id": "ptv2-bg-white",
+            "kind": "shape",
+            "properties": {
+              "shapeKind": "rectangle",
+              "position": {
+                "x": 0,
+                "y": 0
+              },
+              "width": 1080,
+              "height": 1920,
+              "color": "#FFFFFF",
+              "opacity": 1
+            }
+          }
+        ]
+      },
+      {
+        "id": "ptv2-background-layer__ptv2-bg-blue-base",
+        "name": "Scene background washes / ptv2-bg-blue-base",
+        "kind": "shape",
+        "startMs": 6100,
+        "durationMs": 4000,
+        "elements": [
+          {
+            "id": "ptv2-bg-blue-base",
+            "kind": "shape",
+            "properties": {
+              "shapeKind": "rectangle",
+              "position": {
+                "x": 0,
+                "y": 0
+              },
+              "width": 1080,
+              "height": 1920,
+              "color": "#A9D9F6",
+              "opacity": 0
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 6100,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 6640,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 9400,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 10100,
+                    "value": 0,
+                    "easing": "linear"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-background-layer__ptv2-bg-blue-left",
+        "name": "Scene background washes / ptv2-bg-blue-left",
+        "kind": "shape",
+        "startMs": 6100,
+        "durationMs": 4000,
+        "elements": [
+          {
+            "id": "ptv2-bg-blue-left",
+            "kind": "shape",
+            "properties": {
+              "shapeKind": "rectangle",
+              "position": {
+                "x": -220,
+                "y": 0
+              },
+              "width": 640,
+              "height": 1920,
+              "color": "#55A9F6",
+              "opacity": 0
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 6100,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 6200,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 6900,
+                    "value": 0.56,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 9400,
+                    "value": 0.56,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 10100,
+                    "value": 0,
+                    "easing": "linear"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-background-layer__ptv2-bg-warm-base",
+        "name": "Scene background washes / ptv2-bg-warm-base",
+        "kind": "shape",
+        "startMs": 9600,
+        "durationMs": 3200,
+        "elements": [
+          {
+            "id": "ptv2-bg-warm-base",
+            "kind": "shape",
+            "properties": {
+              "shapeKind": "rectangle",
+              "position": {
+                "x": 0,
+                "y": 0
+              },
+              "width": 1080,
+              "height": 1920,
+              "color": "#E9B0A4",
+              "opacity": 0
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 9600,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 10300,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 12800,
+                    "value": 1,
+                    "easing": "linear"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-background-layer__ptv2-bg-warm-cool-corner",
+        "name": "Scene background washes / ptv2-bg-warm-cool-corner",
+        "kind": "shape",
+        "startMs": 9600,
+        "durationMs": 3200,
+        "elements": [
+          {
+            "id": "ptv2-bg-warm-cool-corner",
+            "kind": "shape",
+            "properties": {
+              "shapeKind": "rectangle",
+              "position": {
+                "x": 0,
+                "y": 0
+              },
+              "width": 1080,
+              "height": 1920,
+              "color": "#99A7EE",
+              "opacity": 0
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 9600,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 9750,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 10550,
+                    "value": 0.62,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 12800,
+                    "value": 0.62,
+                    "easing": "linear"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-background-layer__ptv2-bg-warm-gold-corner",
+        "name": "Scene background washes / ptv2-bg-warm-gold-corner",
+        "kind": "shape",
+        "startMs": 9600,
+        "durationMs": 3200,
+        "elements": [
+          {
+            "id": "ptv2-bg-warm-gold-corner",
+            "kind": "shape",
+            "properties": {
+              "shapeKind": "rectangle",
+              "position": {
+                "x": 0,
+                "y": 0
+              },
+              "width": 1080,
+              "height": 1920,
+              "color": "#FFE6AE",
+              "opacity": 0
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 9600,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 9800,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 10600,
+                    "value": 0.74,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 12800,
+                    "value": 0.74,
+                    "easing": "linear"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-prompt-layer__promptShell",
+        "name": "Prompt bar with sequential controls / promptShell",
+        "kind": "shape",
+        "startMs": 120,
+        "durationMs": 3200,
+        "elements": [
+          {
+            "id": "promptShell",
+            "kind": "shape",
+            "properties": {
+              "componentId": "ptv2PromptBar",
+              "layoutRole": "container",
+              "shapeKind": "roundedRectangle",
+              "position": {
+                "x": 0,
+                "y": 260
+              },
+              "width": 980,
+              "height": 126,
+              "cornerRadius": 63,
+              "color": "#FFFFFF",
+              "opacity": 0,
+              "scale": 0.9,
+              "borderColor": "#DADDE3",
+              "borderWidth": 2,
+              "shadowOpacity": 0.04,
+              "shadowBlur": 24,
+              "shadowOffset": {
+                "x": 0,
+                "y": 8
+              },
+              "shadowColor": "#111827",
+              "contentInsets": {
+                "left": 150,
+                "right": 230,
+                "top": 34,
+                "bottom": 34
+              }
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 120,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 160,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 520,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 2580,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3200,
+                    "value": 0,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 3320,
+                    "value": 0,
+                    "easing": "linear"
+                  }
+                ],
+                "timeBasis": "project"
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 120,
+                    "value": 0.9,
+                    "easing": "slowFast"
+                  },
+                  {
+                    "timeMs": 430,
+                    "value": 1.035,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 660,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 2580,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3200,
+                    "value": 0.96,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 3320,
+                    "value": 0.96,
+                    "easing": "linear"
+                  }
+                ],
+                "timeBasis": "project"
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 120,
+                    "value": 300,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 660,
+                    "value": 260,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 2580,
+                    "value": 260,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3200,
+                    "value": 210,
+                    "easing": "slowFast"
+                  },
+                  {
+                    "timeMs": 3320,
+                    "value": 210,
+                    "easing": "linear"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-prompt-layer__promptPlusIcon",
+        "name": "Prompt bar with sequential controls / promptPlusIcon",
+        "kind": "shape",
+        "startMs": 520,
+        "durationMs": 2680,
+        "elements": [
+          {
+            "id": "promptPlusIcon",
+            "kind": "icon",
+            "properties": {
+              "icon": "plus",
+              "position": {
+                "x": -415,
+                "y": 260
+              },
+              "width": 42,
+              "height": 42,
+              "color": "#0A0A0B",
+              "opacity": 0,
+              "scale": 0.68
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 520,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 820,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 2580,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3200,
+                    "value": 0,
+                    "easing": "fastSlow"
+                  }
+                ],
+                "timeBasis": "project"
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 520,
+                    "value": 0.68,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 720,
+                    "value": 1.13,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 880,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 2580,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3200,
+                    "value": 0.82,
+                    "easing": "fastSlow"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-prompt-layer__promptText",
+        "name": "Prompt bar with sequential controls / promptText",
+        "kind": "text",
+        "startMs": 980,
+        "durationMs": 2220,
+        "elements": [
+          {
+            "id": "promptText",
+            "kind": "text",
+            "text": "Our smartest, fastest mo",
+            "properties": {
+              "componentId": "ptv2PromptBar",
+              "parentId": "promptShell",
+              "layoutRole": "content",
+              "position": {
+                "x": -62,
+                "y": 260
+              },
+              "fontSize": 34,
+              "fontWeight": 650,
+              "lineHeight": 1,
+              "letterSpacing": 0,
+              "textAlign": "left",
+              "color": "#0A0A0B",
+              "opacity": 0,
+              "textFrame": {
+                "width": 500,
+                "height": 52,
+                "maxLines": 1,
+                "overflow": "clip",
+                "fitPolicy": "shrinkToFit",
+                "minFontSize": 28,
+                "maxFontSize": 34,
+                "measure": "fullText"
+              }
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 980,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1160,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 2580,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3200,
+                    "value": 0,
+                    "easing": "fastSlow"
+                  }
+                ],
+                "timeBasis": "project"
+              },
+              {
+                "property": "typewriterProgress",
+                "keyframes": [
+                  {
+                    "timeMs": 980,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1120,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 2320,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3200,
+                    "value": 1,
+                    "easing": "linear"
+                  }
+                ],
+                "timeBasis": "project"
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 980,
+                    "value": 268,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1260,
+                    "value": 260,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 2580,
+                    "value": 260,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3200,
+                    "value": 210,
+                    "easing": "slowFast"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-prompt-layer__promptCursor",
+        "name": "Prompt bar with sequential controls / promptCursor",
+        "kind": "shape",
+        "startMs": 2020,
+        "durationMs": 1180,
+        "elements": [
+          {
+            "id": "promptCursor",
+            "kind": "shape",
+            "properties": {
+              "shapeKind": "roundedRectangle",
+              "position": {
+                "x": 170,
+                "y": 260
+              },
+              "width": 2,
+              "height": 48,
+              "cornerRadius": 1,
+              "color": "#0A0A0B",
+              "opacity": 0
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 2020,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 2140,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 2580,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3200,
+                    "value": 0,
+                    "easing": "fastSlow"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-prompt-layer__promptMicIcon",
+        "name": "Prompt bar with sequential controls / promptMicIcon",
+        "kind": "shape",
+        "startMs": 700,
+        "durationMs": 2500,
+        "elements": [
+          {
+            "id": "promptMicIcon",
+            "kind": "icon",
+            "properties": {
+              "icon": "mic",
+              "position": {
+                "x": 330,
+                "y": 260
+              },
+              "width": 38,
+              "height": 38,
+              "color": "#0A0A0B",
+              "opacity": 0,
+              "scale": 0.72
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 700,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 980,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 2580,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3200,
+                    "value": 0,
+                    "easing": "fastSlow"
+                  }
+                ],
+                "timeBasis": "project"
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 700,
+                    "value": 0.72,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 900,
+                    "value": 1.12,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 1060,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 2580,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3200,
+                    "value": 0.82,
+                    "easing": "fastSlow"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-prompt-layer__sendButton",
+        "name": "Prompt bar with sequential controls / sendButton",
+        "kind": "shape",
+        "startMs": 780,
+        "durationMs": 2420,
+        "elements": [
+          {
+            "id": "sendButton",
+            "kind": "shape",
+            "properties": {
+              "componentId": "ptv2VoiceButton",
+              "layoutRole": "container",
+              "shapeKind": "circle",
+              "position": {
+                "x": 430,
+                "y": 260
+              },
+              "width": 78,
+              "height": 78,
+              "color": "#F7F7F8",
+              "opacity": 0,
+              "scale": 0.72
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 780,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1060,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 2580,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3200,
+                    "value": 0,
+                    "easing": "fastSlow"
+                  }
+                ],
+                "timeBasis": "project"
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 780,
+                    "value": 0.72,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 980,
+                    "value": 1.1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 1160,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 2520,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 2740,
+                    "value": 0.88,
+                    "easing": "whip"
+                  },
+                  {
+                    "timeMs": 2940,
+                    "value": 1.08,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 3120,
+                    "value": 0.86,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 3200,
+                    "value": 0.86,
+                    "easing": "linear"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-prompt-layer__promptVoiceIcon",
+        "name": "Prompt bar with sequential controls / promptVoiceIcon",
+        "kind": "shape",
+        "startMs": 880,
+        "durationMs": 2320,
+        "elements": [
+          {
+            "id": "promptVoiceIcon",
+            "kind": "icon",
+            "properties": {
+              "icon": "volume",
+              "parentId": "sendButton",
+              "position": {
+                "x": 430,
+                "y": 260
+              },
+              "width": 38,
+              "height": 38,
+              "color": "#0A0A0B",
+              "opacity": 0,
+              "scale": 0.7
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 880,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1140,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 2580,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3200,
+                    "value": 0,
+                    "easing": "fastSlow"
+                  }
+                ],
+                "timeBasis": "project"
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 880,
+                    "value": 0.7,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1080,
+                    "value": 1.12,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 1240,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 2580,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3200,
+                    "value": 0.82,
+                    "easing": "fastSlow"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-think-layer__thinkWordDeeperBase",
+        "name": "Think deeper to faster word swap / thinkWordDeeperBase",
+        "kind": "text",
+        "startMs": 3300,
+        "durationMs": 1700,
+        "elements": [
+          {
+            "id": "thinkWordDeeperBase",
+            "kind": "text",
+            "text": "Think",
+            "properties": {
+              "position": {
+                "x": -125,
+                "y": -70
+              },
+              "fontSize": 76,
+              "fontWeight": 560,
+              "lineHeight": 1,
+              "letterSpacing": 0,
+              "color": "#050506",
+              "opacity": 0,
+              "scale": 0.98
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 3300,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3380,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3740,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 4630,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 4970,
+                    "value": 0,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 5000,
+                    "value": 0,
+                    "easing": "linear"
+                  }
+                ],
+                "timeBasis": "project"
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 3300,
+                    "value": -10,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3380,
+                    "value": -10,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3740,
+                    "value": -70,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 4630,
+                    "value": -70,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 4970,
+                    "value": -116,
+                    "easing": "slowFast"
+                  },
+                  {
+                    "timeMs": 5000,
+                    "value": -116,
+                    "easing": "linear"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-think-layer__deeperWord",
+        "name": "Think deeper to faster word swap / deeperWord",
+        "kind": "text",
+        "startMs": 3300,
+        "durationMs": 1700,
+        "elements": [
+          {
+            "id": "deeperWord",
+            "kind": "text",
+            "text": "deeper",
+            "properties": {
+              "position": {
+                "x": 130,
+                "y": -70
+              },
+              "fontSize": 76,
+              "fontWeight": 690,
+              "lineHeight": 1,
+              "letterSpacing": 0,
+              "color": "#A5AEEB",
+              "opacity": 0,
+              "scale": 0.98
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 3300,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3440,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3820,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 4630,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 4970,
+                    "value": 0,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 5000,
+                    "value": 0,
+                    "easing": "linear"
+                  }
+                ],
+                "timeBasis": "project"
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 3300,
+                    "value": -132,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3440,
+                    "value": -132,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3820,
+                    "value": -70,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 4630,
+                    "value": -70,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 4970,
+                    "value": -132,
+                    "easing": "slowFast"
+                  },
+                  {
+                    "timeMs": 5000,
+                    "value": -132,
+                    "easing": "linear"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-think-layer__thinkWordFasterBase",
+        "name": "Think deeper to faster word swap / thinkWordFasterBase",
+        "kind": "text",
+        "startMs": 4850,
+        "durationMs": 1350,
+        "elements": [
+          {
+            "id": "thinkWordFasterBase",
+            "kind": "text",
+            "text": "Think",
+            "properties": {
+              "position": {
+                "x": -125,
+                "y": -70
+              },
+              "fontSize": 76,
+              "fontWeight": 560,
+              "lineHeight": 1,
+              "letterSpacing": 0,
+              "color": "#050506",
+              "opacity": 0,
+              "scale": 0.98
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 4850,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 5220,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 5920,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 6200,
+                    "value": 0,
+                    "easing": "fastSlow"
+                  }
+                ],
+                "timeBasis": "project"
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 4850,
+                    "value": -20,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 5220,
+                    "value": -70,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 5920,
+                    "value": -70,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 6200,
+                    "value": -118,
+                    "easing": "slowFast"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-think-layer__fasterWord",
+        "name": "Think deeper to faster word swap / fasterWord",
+        "kind": "text",
+        "startMs": 4850,
+        "durationMs": 1350,
+        "elements": [
+          {
+            "id": "fasterWord",
+            "kind": "text",
+            "text": "faster",
+            "properties": {
+              "position": {
+                "x": 130,
+                "y": -70
+              },
+              "fontSize": 76,
+              "fontWeight": 700,
+              "lineHeight": 1,
+              "letterSpacing": 0,
+              "color": "#E28F79",
+              "opacity": 0,
+              "scale": 0.98
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 4850,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 4930,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 5320,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 5920,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 6200,
+                    "value": 0,
+                    "easing": "fastSlow"
+                  }
+                ],
+                "timeBasis": "project"
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 4850,
+                    "value": -18,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 4930,
+                    "value": -18,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 5320,
+                    "value": -70,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 5920,
+                    "value": -70,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 6200,
+                    "value": -118,
+                    "easing": "slowFast"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-file-card-layer__fileCardOneShell",
+        "name": "Sequential analyzing file cards / fileCardOneShell",
+        "kind": "shape",
+        "startMs": 6500,
+        "durationMs": 3500,
+        "elements": [
+          {
+            "id": "fileCardOneShell",
+            "kind": "shape",
+            "properties": {
+              "shapeKind": "roundedRectangle",
+              "layoutRole": "container",
+              "position": {
+                "x": 0,
+                "y": -300
+              },
+              "width": 720,
+              "height": 170,
+              "cornerRadius": 48,
+              "color": "#FFFFFF",
+              "opacity": 0,
+              "scale": 0.94,
+              "shadowOpacity": 0.07,
+              "shadowBlur": 24,
+              "shadowOffset": {
+                "x": 0,
+                "y": 10
+              },
+              "shadowColor": "#325982"
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 6500,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 6900,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 9300,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 10000,
+                    "value": 0,
+                    "easing": "slowFast"
+                  }
+                ],
+                "timeBasis": "project"
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 6500,
+                    "value": 0.94,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 6780,
+                    "value": 1.035,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 7040,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 9300,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 10000,
+                    "value": 0.94,
+                    "easing": "slowFast"
+                  }
+                ],
+                "timeBasis": "project"
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 6500,
+                    "value": -220,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 7040,
+                    "value": -300,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 9300,
+                    "value": -300,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 10000,
+                    "value": -360,
+                    "easing": "slowFast"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-file-card-layer__fileCardOneIconBox",
+        "name": "Sequential analyzing file cards / fileCardOneIconBox",
+        "kind": "shape",
+        "startMs": 6820,
+        "durationMs": 3180,
+        "elements": [
+          {
+            "id": "fileCardOneIconBox",
+            "kind": "shape",
+            "properties": {
+              "shapeKind": "roundedRectangle",
+              "layoutRole": "container",
+              "position": {
+                "x": -250,
+                "y": -300
+              },
+              "width": 98,
+              "height": 98,
+              "cornerRadius": 18,
+              "color": "#FF638F",
+              "opacity": 0,
+              "scale": 0.8,
+              "parentId": "fileCardOneShell"
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 6820,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 7100,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 9300,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 10000,
+                    "value": 0,
+                    "easing": "slowFast"
+                  }
+                ],
+                "timeBasis": "project"
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 6820,
+                    "value": 0.8,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 7040,
+                    "value": 1.12,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 7240,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 10000,
+                    "value": 1,
+                    "easing": "linear"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-file-card-layer__fileCardOneIcon",
+        "name": "Sequential analyzing file cards / fileCardOneIcon",
+        "kind": "shape",
+        "startMs": 7000,
+        "durationMs": 3000,
+        "elements": [
+          {
+            "id": "fileCardOneIcon",
+            "kind": "icon",
+            "properties": {
+              "icon": "text",
+              "parentId": "fileCardOneIconBox",
+              "position": {
+                "x": -250,
+                "y": -300
+              },
+              "width": 42,
+              "height": 42,
+              "color": "#FFFFFF",
+              "opacity": 0,
+              "scale": 0.8
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 7000,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 7240,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 9300,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 10000,
+                    "value": 0,
+                    "easing": "slowFast"
+                  }
+                ],
+                "timeBasis": "project"
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 7000,
+                    "value": 0.8,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 7240,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 10000,
+                    "value": 1,
+                    "easing": "linear"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-file-card-layer__fileCardOneTitle",
+        "name": "Sequential analyzing file cards / fileCardOneTitle",
+        "kind": "text",
+        "startMs": 7100,
+        "durationMs": 2900,
+        "elements": [
+          {
+            "id": "fileCardOneTitle",
+            "kind": "text",
+            "text": "sales_deck.pdf",
+            "properties": {
+              "position": {
+                "x": 90,
+                "y": -322
+              },
+              "fontSize": 42,
+              "fontWeight": 620,
+              "lineHeight": 1,
+              "letterSpacing": 0,
+              "color": "#080809",
+              "opacity": 0,
+              "textFrame": {
+                "width": 450,
+                "height": 54,
+                "maxLines": 1,
+                "overflow": "clip",
+                "fitPolicy": "shrinkToFit",
+                "minFontSize": 30,
+                "maxFontSize": 42,
+                "measure": "fullText"
+              }
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 7100,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 7400,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 9300,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 10000,
+                    "value": 0,
+                    "easing": "slowFast"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-file-card-layer__fileCardOneStatus",
+        "name": "Sequential analyzing file cards / fileCardOneStatus",
+        "kind": "text",
+        "startMs": 7240,
+        "durationMs": 2760,
+        "elements": [
+          {
+            "id": "fileCardOneStatus",
+            "kind": "text",
+            "text": "Analyzing...",
+            "properties": {
+              "position": {
+                "x": 72,
+                "y": -268
+              },
+              "fontSize": 34,
+              "fontWeight": 430,
+              "lineHeight": 1,
+              "letterSpacing": 0,
+              "color": "#A7A7A8",
+              "opacity": 0,
+              "textFrame": {
+                "width": 430,
+                "height": 44,
+                "maxLines": 1,
+                "overflow": "clip",
+                "fitPolicy": "shrinkToFit",
+                "minFontSize": 26,
+                "maxFontSize": 34,
+                "measure": "fullText"
+              }
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 7240,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 7520,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 9300,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 10000,
+                    "value": 0,
+                    "easing": "slowFast"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-file-card-layer__fileCardTwoShell",
+        "name": "Sequential analyzing file cards / fileCardTwoShell",
+        "kind": "shape",
+        "startMs": 6980,
+        "durationMs": 3020,
+        "elements": [
+          {
+            "id": "fileCardTwoShell",
+            "kind": "shape",
+            "properties": {
+              "shapeKind": "roundedRectangle",
+              "layoutRole": "container",
+              "position": {
+                "x": 0,
+                "y": -60
+              },
+              "width": 720,
+              "height": 170,
+              "cornerRadius": 48,
+              "color": "#FFFFFF",
+              "opacity": 0,
+              "scale": 0.94,
+              "shadowOpacity": 0.07,
+              "shadowBlur": 24,
+              "shadowOffset": {
+                "x": 0,
+                "y": 10
+              },
+              "shadowColor": "#325982"
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 6980,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 7380,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 9300,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 10000,
+                    "value": 0,
+                    "easing": "slowFast"
+                  }
+                ],
+                "timeBasis": "project"
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 6980,
+                    "value": 0.94,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 7260,
+                    "value": 1.035,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 7520,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 9300,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 10000,
+                    "value": 0.94,
+                    "easing": "slowFast"
+                  }
+                ],
+                "timeBasis": "project"
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 6980,
+                    "value": 20,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 7520,
+                    "value": -60,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 9300,
+                    "value": -60,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 10000,
+                    "value": -120,
+                    "easing": "slowFast"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-file-card-layer__fileCardTwoIconBox",
+        "name": "Sequential analyzing file cards / fileCardTwoIconBox",
+        "kind": "shape",
+        "startMs": 7300,
+        "durationMs": 2700,
+        "elements": [
+          {
+            "id": "fileCardTwoIconBox",
+            "kind": "shape",
+            "properties": {
+              "shapeKind": "roundedRectangle",
+              "layoutRole": "container",
+              "position": {
+                "x": -250,
+                "y": -60
+              },
+              "width": 98,
+              "height": 98,
+              "cornerRadius": 18,
+              "color": "#08A995",
+              "opacity": 0,
+              "scale": 0.8,
+              "parentId": "fileCardTwoShell"
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 7300,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 7580,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 9300,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 10000,
+                    "value": 0,
+                    "easing": "slowFast"
+                  }
+                ],
+                "timeBasis": "project"
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 7300,
+                    "value": 0.8,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 7520,
+                    "value": 1.12,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 7720,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 10000,
+                    "value": 1,
+                    "easing": "linear"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-file-card-layer__fileCardTwoIcon",
+        "name": "Sequential analyzing file cards / fileCardTwoIcon",
+        "kind": "shape",
+        "startMs": 7480,
+        "durationMs": 2520,
+        "elements": [
+          {
+            "id": "fileCardTwoIcon",
+            "kind": "icon",
+            "properties": {
+              "icon": "text",
+              "parentId": "fileCardTwoIconBox",
+              "position": {
+                "x": -250,
+                "y": -60
+              },
+              "width": 42,
+              "height": 42,
+              "color": "#FFFFFF",
+              "opacity": 0,
+              "scale": 0.8
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 7480,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 7720,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 9300,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 10000,
+                    "value": 0,
+                    "easing": "slowFast"
+                  }
+                ],
+                "timeBasis": "project"
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 7480,
+                    "value": 0.8,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 7720,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 10000,
+                    "value": 1,
+                    "easing": "linear"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-file-card-layer__fileCardTwoTitle",
+        "name": "Sequential analyzing file cards / fileCardTwoTitle",
+        "kind": "text",
+        "startMs": 7580,
+        "durationMs": 2420,
+        "elements": [
+          {
+            "id": "fileCardTwoTitle",
+            "kind": "text",
+            "text": "annual_report.xlsx",
+            "properties": {
+              "position": {
+                "x": 100,
+                "y": -82
+              },
+              "fontSize": 42,
+              "fontWeight": 620,
+              "lineHeight": 1,
+              "letterSpacing": 0,
+              "color": "#080809",
+              "opacity": 0,
+              "textFrame": {
+                "width": 470,
+                "height": 54,
+                "maxLines": 1,
+                "overflow": "clip",
+                "fitPolicy": "shrinkToFit",
+                "minFontSize": 30,
+                "maxFontSize": 42,
+                "measure": "fullText"
+              }
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 7580,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 7880,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 9300,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 10000,
+                    "value": 0,
+                    "easing": "slowFast"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-file-card-layer__fileCardTwoStatus",
+        "name": "Sequential analyzing file cards / fileCardTwoStatus",
+        "kind": "text",
+        "startMs": 7720,
+        "durationMs": 2280,
+        "elements": [
+          {
+            "id": "fileCardTwoStatus",
+            "kind": "text",
+            "text": "Analyzing...",
+            "properties": {
+              "position": {
+                "x": 72,
+                "y": -28
+              },
+              "fontSize": 34,
+              "fontWeight": 430,
+              "lineHeight": 1,
+              "letterSpacing": 0,
+              "color": "#A7A7A8",
+              "opacity": 0,
+              "textFrame": {
+                "width": 430,
+                "height": 44,
+                "maxLines": 1,
+                "overflow": "clip",
+                "fitPolicy": "shrinkToFit",
+                "minFontSize": 26,
+                "maxFontSize": 34,
+                "measure": "fullText"
+              }
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 7720,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 8000,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 9300,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 10000,
+                    "value": 0,
+                    "easing": "slowFast"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-file-card-layer__fileCardThreeShell",
+        "name": "Sequential analyzing file cards / fileCardThreeShell",
+        "kind": "shape",
+        "startMs": 7460,
+        "durationMs": 2540,
+        "elements": [
+          {
+            "id": "fileCardThreeShell",
+            "kind": "shape",
+            "properties": {
+              "shapeKind": "roundedRectangle",
+              "layoutRole": "container",
+              "position": {
+                "x": 0,
+                "y": 180
+              },
+              "width": 720,
+              "height": 170,
+              "cornerRadius": 48,
+              "color": "#FFFFFF",
+              "opacity": 0,
+              "scale": 0.94,
+              "shadowOpacity": 0.07,
+              "shadowBlur": 24,
+              "shadowOffset": {
+                "x": 0,
+                "y": 10
+              },
+              "shadowColor": "#325982"
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 7460,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 7860,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 9300,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 10000,
+                    "value": 0,
+                    "easing": "slowFast"
+                  }
+                ],
+                "timeBasis": "project"
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 7460,
+                    "value": 0.94,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 7740,
+                    "value": 1.035,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 8000,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 9300,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 10000,
+                    "value": 0.94,
+                    "easing": "slowFast"
+                  }
+                ],
+                "timeBasis": "project"
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 7460,
+                    "value": 260,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 8000,
+                    "value": 180,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 9300,
+                    "value": 180,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 10000,
+                    "value": 120,
+                    "easing": "slowFast"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-file-card-layer__fileCardThreeIconBox",
+        "name": "Sequential analyzing file cards / fileCardThreeIconBox",
+        "kind": "shape",
+        "startMs": 7780,
+        "durationMs": 2220,
+        "elements": [
+          {
+            "id": "fileCardThreeIconBox",
+            "kind": "shape",
+            "properties": {
+              "shapeKind": "roundedRectangle",
+              "layoutRole": "container",
+              "position": {
+                "x": -250,
+                "y": 180
+              },
+              "width": 98,
+              "height": 98,
+              "cornerRadius": 18,
+              "color": "#0B8FF7",
+              "opacity": 0,
+              "scale": 0.8,
+              "parentId": "fileCardThreeShell"
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 7780,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 8060,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 9300,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 10000,
+                    "value": 0,
+                    "easing": "slowFast"
+                  }
+                ],
+                "timeBasis": "project"
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 7780,
+                    "value": 0.8,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 8000,
+                    "value": 1.12,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 8200,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 10000,
+                    "value": 1,
+                    "easing": "linear"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-file-card-layer__fileCardThreeIcon",
+        "name": "Sequential analyzing file cards / fileCardThreeIcon",
+        "kind": "shape",
+        "startMs": 7960,
+        "durationMs": 2040,
+        "elements": [
+          {
+            "id": "fileCardThreeIcon",
+            "kind": "icon",
+            "properties": {
+              "icon": "text",
+              "parentId": "fileCardThreeIconBox",
+              "position": {
+                "x": -250,
+                "y": 180
+              },
+              "width": 42,
+              "height": 42,
+              "color": "#FFFFFF",
+              "opacity": 0,
+              "scale": 0.8
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 7960,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 8200,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 9300,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 10000,
+                    "value": 0,
+                    "easing": "slowFast"
+                  }
+                ],
+                "timeBasis": "project"
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 7960,
+                    "value": 0.8,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 8200,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 10000,
+                    "value": 1,
+                    "easing": "linear"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-file-card-layer__fileCardThreeTitle",
+        "name": "Sequential analyzing file cards / fileCardThreeTitle",
+        "kind": "text",
+        "startMs": 8060,
+        "durationMs": 1940,
+        "elements": [
+          {
+            "id": "fileCardThreeTitle",
+            "kind": "text",
+            "text": "consult_notes.doc",
+            "properties": {
+              "position": {
+                "x": 100,
+                "y": 158
+              },
+              "fontSize": 42,
+              "fontWeight": 620,
+              "lineHeight": 1,
+              "letterSpacing": 0,
+              "color": "#080809",
+              "opacity": 0,
+              "textFrame": {
+                "width": 470,
+                "height": 54,
+                "maxLines": 1,
+                "overflow": "clip",
+                "fitPolicy": "shrinkToFit",
+                "minFontSize": 30,
+                "maxFontSize": 42,
+                "measure": "fullText"
+              }
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 8060,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 8360,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 9300,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 10000,
+                    "value": 0,
+                    "easing": "slowFast"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-file-card-layer__fileCardThreeStatus",
+        "name": "Sequential analyzing file cards / fileCardThreeStatus",
+        "kind": "text",
+        "startMs": 8200,
+        "durationMs": 1800,
+        "elements": [
+          {
+            "id": "fileCardThreeStatus",
+            "kind": "text",
+            "text": "Analyzing...",
+            "properties": {
+              "position": {
+                "x": 72,
+                "y": 212
+              },
+              "fontSize": 34,
+              "fontWeight": 430,
+              "lineHeight": 1,
+              "letterSpacing": 0,
+              "color": "#A7A7A8",
+              "opacity": 0,
+              "textFrame": {
+                "width": 430,
+                "height": 44,
+                "maxLines": 1,
+                "overflow": "clip",
+                "fitPolicy": "shrinkToFit",
+                "minFontSize": 26,
+                "maxFontSize": 34,
+                "measure": "fullText"
+              }
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 8200,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 8480,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 9300,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 10000,
+                    "value": 0,
+                    "easing": "slowFast"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-cta-layer__availableNowPill",
+        "name": "Available now CTA / availableNowPill",
+        "kind": "shape",
+        "startMs": 10020,
+        "durationMs": 2780,
+        "elements": [
+          {
+            "id": "availableNowPill",
+            "kind": "shape",
+            "properties": {
+              "shapeKind": "roundedRectangle",
+              "position": {
+                "x": 0,
+                "y": 10
+              },
+              "width": 720,
+              "height": 150,
+              "cornerRadius": 75,
+              "color": "#FFFDF9",
+              "opacity": 0,
+              "scale": 0.82,
+              "shadowOpacity": 0.08,
+              "shadowBlur": 30,
+              "shadowOffset": {
+                "x": 0,
+                "y": 12
+              },
+              "shadowColor": "#6B3A35"
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 10020,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 10460,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 12800,
+                    "value": 1,
+                    "easing": "linear"
+                  }
+                ],
+                "timeBasis": "project"
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 10020,
+                    "value": 0.82,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 10360,
+                    "value": 1.055,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 10780,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 12800,
+                    "value": 1,
+                    "easing": "linear"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-cta-layer__availableNowText",
+        "name": "Available now CTA / availableNowText",
+        "kind": "text",
+        "startMs": 10480,
+        "durationMs": 2320,
+        "elements": [
+          {
+            "id": "availableNowText",
+            "kind": "text",
+            "text": "Available now",
+            "properties": {
+              "position": {
+                "x": -80,
+                "y": 10
+              },
+              "fontSize": 62,
+              "fontWeight": 500,
+              "lineHeight": 1,
+              "letterSpacing": 0,
+              "color": "#050506",
+              "opacity": 0,
+              "textFrame": {
+                "width": 480,
+                "height": 76,
+                "maxLines": 1,
+                "overflow": "clip",
+                "fitPolicy": "shrinkToFit",
+                "minFontSize": 44,
+                "maxFontSize": 62,
+                "measure": "fullText"
+              }
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 10480,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 10860,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 12800,
+                    "value": 1,
+                    "easing": "linear"
+                  }
+                ],
+                "timeBasis": "project"
+              },
+              {
+                "property": "positionY",
+                "keyframes": [
+                  {
+                    "timeMs": 10480,
+                    "value": 42,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 10860,
+                    "value": 10,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 12800,
+                    "value": 10,
+                    "easing": "linear"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ptv2-cta-layer__availableNowArrow",
+        "name": "Available now CTA / availableNowArrow",
+        "kind": "shape",
+        "startMs": 10820,
+        "durationMs": 1980,
+        "elements": [
+          {
+            "id": "availableNowArrow",
+            "kind": "icon",
+            "properties": {
+              "icon": "arrow-up",
+              "position": {
+                "x": 230,
+                "y": 6
+              },
+              "width": 58,
+              "height": 58,
+              "rotation": 45,
+              "color": "#050506",
+              "opacity": 0,
+              "scale": 0.8
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 10820,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 11180,
+                    "value": 1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 12800,
+                    "value": 1,
+                    "easing": "linear"
+                  }
+                ],
+                "timeBasis": "project"
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 10820,
+                    "value": 0.8,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 11100,
+                    "value": 1.1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 11340,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 12800,
+                    "value": 1,
+                    "easing": "linear"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -198,6 +198,37 @@ void main() {
   });
 
   test(
+      'professional test version 2 preset imports through scene authoring pipeline',
+      () {
+    final source = File(
+      'assets/scene_programs/professional_test_version_2_scene.json',
+    ).readAsStringSync();
+
+    final extracted = KieSceneProgramAgentService()
+        .extractSceneProgramPayloadFromContent(content: source);
+    final result =
+        const ReFusionSceneProgramAuthoringService().importSceneProgram(
+      ReFusionSceneProgramAuthoringRequest(
+        source: extracted.sceneProgramJson,
+        fileName: 'professional_test_version_2_scene.json',
+        projectId: 'professional-test-v2-preset',
+        sceneId: 'professional-test-v2-scene',
+      ),
+    );
+
+    expect(
+      result.isValid,
+      isTrue,
+      reason: result.issues
+          .map((issue) => '${issue.severity} ${issue.path}: ${issue.message}')
+          .join('\n'),
+    );
+    expect(result.program?.name, 'Professional Test Version 2');
+    expect(result.program?.durationMs, 12800);
+    expect(result.channels.length, greaterThan(24));
+  });
+
+  test(
       'revival native intelligence result card text follows card timing tracks',
       () {
     final source = File(
@@ -269,7 +300,7 @@ void main() {
     );
   });
 
-  testWidgets('present sheet is clean after removing stale scene presets',
+  testWidgets('present sheet applies professional test version 2 preset',
       (tester) async {
     SceneProgramImportSheetResult? appliedResult;
 
@@ -299,16 +330,23 @@ void main() {
     await tester.tap(find.text('Open Present'));
     await tester.pumpAndSettle();
 
-    expect(find.text('No clean present scene yet'), findsOneWidget);
-    expect(
-      find.text(
-        'The mixed preset was removed. The next scene will be added fresh after the new screen-by-screen brief.',
-      ),
-      findsOneWidget,
-    );
+    expect(find.text('Professional Test Version 2'), findsOneWidget);
     expect(find.text('Premium App Promo'), findsNothing);
     expect(find.text('ReFusion Prompt Burst'), findsNothing);
-    expect(find.text('Professional Test'), findsNothing);
-    expect(appliedResult, isNull);
+    expect(find.text('No clean present scene yet'), findsNothing);
+
+    await tester.tap(find.text('Professional Test Version 2'));
+    await tester.runAsync(() async {
+      for (var attempt = 0;
+          attempt < 40 && appliedResult == null;
+          attempt += 1) {
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+      }
+    });
+    await tester.pumpAndSettle();
+
+    expect(appliedResult, isNotNull);
+    expect(appliedResult!.name, 'Professional Test Version 2');
+    expect(appliedResult!.authoringResult.program?.durationMs, 12800);
   });
 }
