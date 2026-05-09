@@ -40,6 +40,12 @@ void main() {
     expect(actions.first.frameTimeMs, 1200);
     expect(actions.first.measuredBounds, '120.00,320.00,560.00,64.00');
     expect(actions.first.expectedBounds, '120.00,320.00,520.00,64.00');
+    expect(
+      actions.first.suggestedFixPath,
+      'components.prompt.slots.primaryText.textFrame.fitPolicy',
+    );
+    expect(actions.first.suggestedFixValue, r'$textFit.wrapToLines');
+    expect(actions.first.visualDescription, isNotEmpty);
   });
 
   test('runLoop converges and emits closure proof', () {
@@ -104,5 +110,24 @@ void main() {
       result.attempts.last.proofIssues.first.message.contains('escalated=true'),
       isTrue,
     );
+  });
+
+  test('buildRepairActions emits token-level alternatives for motion variety',
+      () {
+    final issues = <ReFusionSceneProgramIssue>[
+      const ReFusionSceneProgramIssue(
+        severity: ReFusionSceneProgramIssueSeverity.error,
+        message: 'motion variety low detected in feature cards',
+        path: 'components.cards',
+      ),
+    ];
+
+    final actions = service.buildRepairActions(issues);
+    expect(actions, hasLength(1));
+    expect(actions.first.errorCode, 'MOTION_VARIETY_LOW');
+    expect(actions.first.suggestedAction, 'replace_repetitive_motion_recipes');
+    expect(actions.first.suggestedFixPath, 'components.cards.motionRecipe');
+    expect(actions.first.suggestedFixValue, r'$motion.cardSpringEntrance');
+    expect(actions.first.motionAlternatives, isNotEmpty);
   });
 }
