@@ -383,6 +383,36 @@ void main() {
     expect(decoded['layers'], isNotEmpty);
     expect(extracted.directorPlan, isNotNull);
   });
+
+  test('compiles directorBrief-only response into Scene Program JSON', () {
+    final rawResponse = jsonEncode(
+      <String, Object?>{
+        'output_text': jsonEncode(
+          <String, Object?>{
+            'directorBrief': _directorBriefJson(),
+          },
+        ),
+      },
+    );
+
+    final extracted = service.extractSceneProgramPayload(
+      rawResponse: rawResponse,
+      transport: ReFusionSceneAgentTransport.responses,
+    );
+    final decoded =
+        jsonDecode(extracted.sceneProgramJson) as Map<String, dynamic>;
+
+    expect(decoded['schemaVersion'], 'refusion.scene-program/v1');
+    expect(decoded['layers'], isA<List<Object?>>());
+    expect((decoded['layers'] as List).isNotEmpty, isTrue);
+    expect(extracted.directorPlan, isNotNull);
+    expect(
+      extracted.directorIssues.any(
+        (issue) => issue.message.contains('directorBrief'),
+      ),
+      isTrue,
+    );
+  });
 }
 
 Map<String, Object?> _directorPlanJson({bool reverseTyping = false}) {
@@ -438,6 +468,53 @@ Map<String, Object?> _directorPlanJson({bool reverseTyping = false}) {
         'fromValue': reverseTyping ? 1.0 : 0.0,
         'toValue': reverseTyping ? 0.0 : 1.0,
         'easing': 'linear',
+      },
+    ],
+  };
+}
+
+Map<String, Object?> _directorBriefJson() {
+  return <String, Object?>{
+    'intent': 'Showcase four app features',
+    'audience': 'content creators',
+    'mood': 'energetic professional',
+    'primaryFocus': 'feature cards',
+    'rhythm': 'intro -> cascade -> outro',
+    'aspect': r'$canvas.vertical9x16',
+    'durationIntent': r'$duration.deliberate',
+    'elements': <Object?>[
+      <String, Object?>{
+        'id': 'title',
+        'kind': 'title',
+        'importance': 'primary',
+        'text': 'Everything your launch needs',
+      },
+      <String, Object?>{
+        'id': 'cards',
+        'kind': 'featureCardGroup',
+        'importance': 'supporting',
+        'cards': <Object?>[
+          <String, Object?>{
+            'label': 'Fast',
+            'body': 'Polish edits in minutes',
+            'icon': r'$icon.montage',
+          },
+          <String, Object?>{
+            'label': 'Voice',
+            'body': 'Clean voiceovers in one tap',
+            'icon': r'$icon.audioEngineering',
+          },
+          <String, Object?>{
+            'label': 'Smart',
+            'body': 'Readable kinetic captions',
+            'icon': r'$icon.captions',
+          },
+          <String, Object?>{
+            'label': 'Image+',
+            'body': 'Retouch, grade, and color',
+            'icon': r'$icon.imageRetouch',
+          },
+        ],
       },
     ],
   };

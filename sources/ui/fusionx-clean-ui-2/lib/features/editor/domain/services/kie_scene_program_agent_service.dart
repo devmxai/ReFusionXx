@@ -13,6 +13,8 @@ import 'refusion_motion_director_scene_program_compiler.dart';
 import 'refusion_scene_agent_provider_catalog.dart';
 import 'professional_scene_timing_contract.dart';
 import 'refusion_scene_program_import_service.dart';
+import 'scene_director_intelligence_planner.dart';
+import 'scene_director_plan_validator.dart';
 
 class KieSceneProgramAgentService {
   KieSceneProgramAgentService({
@@ -24,6 +26,10 @@ class KieSceneProgramAgentService {
         const ReFusionMotionDirectorLinter(),
     ReFusionMotionDirectorSceneProgramCompiler directorCompiler =
         const ReFusionMotionDirectorSceneProgramCompiler(),
+    SceneDirectorPlanValidator directorBriefValidator =
+        const SceneDirectorPlanValidator(),
+    SceneDirectorIntelligencePlanner directorBriefPlanner =
+        const SceneDirectorIntelligencePlanner(),
     ReFusionMotionDirectorSceneProgramAlignmentLinter alignmentLinter =
         const ReFusionMotionDirectorSceneProgramAlignmentLinter(),
     ReFusionSceneProgramImportService sceneProgramImportService =
@@ -38,6 +44,8 @@ class KieSceneProgramAgentService {
         _directorPlanImportService = directorPlanImportService,
         _directorLinter = directorLinter,
         _directorCompiler = directorCompiler,
+        _directorBriefValidator = directorBriefValidator,
+        _directorBriefPlanner = directorBriefPlanner,
         _alignmentLinter = alignmentLinter,
         _sceneProgramImportService = sceneProgramImportService,
         _timingContractValidator = timingContractValidator,
@@ -50,6 +58,8 @@ class KieSceneProgramAgentService {
   final ReFusionMotionDirectorPlanImportService _directorPlanImportService;
   final ReFusionMotionDirectorLinter _directorLinter;
   final ReFusionMotionDirectorSceneProgramCompiler _directorCompiler;
+  final SceneDirectorPlanValidator _directorBriefValidator;
+  final SceneDirectorIntelligencePlanner _directorBriefPlanner;
   final ReFusionMotionDirectorSceneProgramAlignmentLinter _alignmentLinter;
   final ReFusionSceneProgramImportService _sceneProgramImportService;
   final ProfessionalSceneTimingContractValidator _timingContractValidator;
@@ -422,6 +432,10 @@ class KieSceneProgramAgentService {
       Map<dynamic, dynamic> object) {
     final rawDirectorPlan = object['directorPlan'] ?? object['motionDirector'];
     if (rawDirectorPlan == null) {
+      final directorBriefExtraction = _extractAndPlanDirectorBrief(object);
+      if (directorBriefExtraction != null) {
+        return directorBriefExtraction;
+      }
       return const _DirectorExtraction(
         issues: <ReFusionMotionDirectorIssue>[
           ReFusionMotionDirectorIssue(
@@ -458,6 +472,77 @@ class KieSceneProgramAgentService {
       );
     }
     return _DirectorExtraction(plan: plan, issues: issues);
+  }
+
+  _DirectorExtraction? _extractAndPlanDirectorBrief(
+    Map<dynamic, dynamic> object,
+  ) {
+    final rawDirectorBrief = object['directorBrief'];
+    if (rawDirectorBrief == null) {
+      return null;
+    }
+    final briefValidation = _directorBriefValidator.validate(rawDirectorBrief);
+    final issues = <ReFusionMotionDirectorIssue>[
+      ...briefValidation.issues.map(_toDirectorIssue),
+    ];
+    if (!briefValidation.isValid || briefValidation.brief == null) {
+      throw KieSceneProgramAgentException(
+        'Generated directorBrief failed validation: ${_timingIssueFormatter.formatDirectorIssues(issues)}',
+      );
+    }
+
+    final planningResult =
+        _directorBriefPlanner.planFromBrief(briefValidation.brief!);
+    issues.addAll(planningResult.issues);
+    final hasPlanningErrors = issues.any(
+      (issue) => issue.severity == ReFusionMotionDirectorIssueSeverity.error,
+    );
+    if (hasPlanningErrors || planningResult.plan == null) {
+      throw KieSceneProgramAgentException(
+        'Generated directorBrief failed planning: ${_timingIssueFormatter.formatDirectorIssues(issues)}',
+      );
+    }
+
+    final lintResult = _directorLinter.lint(planningResult.plan!);
+    issues.addAll(lintResult.issues);
+    final hasErrors = issues.any(
+      (issue) => issue.severity == ReFusionMotionDirectorIssueSeverity.error,
+    );
+    if (hasErrors) {
+      throw KieSceneProgramAgentException(
+        'Generated directorBrief produced invalid directorPlan: ${_timingIssueFormatter.formatDirectorIssues(issues)}',
+      );
+    }
+
+    issues.add(
+      const ReFusionMotionDirectorIssue(
+        severity: ReFusionMotionDirectorIssueSeverity.info,
+        message:
+            'Generated scene did not include `directorPlan`; ReFusion compiled a directorPlan from `directorBrief`.',
+        path: 'directorBrief',
+      ),
+    );
+    return _DirectorExtraction(
+      plan: planningResult.plan,
+      issues: issues,
+    );
+  }
+
+  ReFusionMotionDirectorIssue _toDirectorIssue(
+    ReFusionSceneProgramIssue issue,
+  ) {
+    return ReFusionMotionDirectorIssue(
+      severity: switch (issue.severity) {
+        ReFusionSceneProgramIssueSeverity.error =>
+          ReFusionMotionDirectorIssueSeverity.error,
+        ReFusionSceneProgramIssueSeverity.warning =>
+          ReFusionMotionDirectorIssueSeverity.warning,
+        ReFusionSceneProgramIssueSeverity.info =>
+          ReFusionMotionDirectorIssueSeverity.info,
+      },
+      message: issue.message,
+      path: issue.path,
+    );
   }
 
   Object? _decodeJsonOrSse(String rawResponse) {
