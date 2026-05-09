@@ -29,6 +29,41 @@ class SceneDirectorPlanValidator {
     'accent',
     'background',
   };
+  static const Set<String> _allowedAspects = <String>{
+    r'$canvas.vertical9x16',
+    r'$canvas.widescreen16x9',
+    r'$canvas.square1x1',
+    r'$canvas.portrait4x5',
+  };
+  static const Set<String> _allowedDurationIntents = <String>{
+    r'$duration.fast',
+    r'$duration.medium',
+    r'$duration.deliberate',
+    r'$duration.slow',
+  };
+  static const Set<String> _vagueIntentTokens = <String>{
+    'makesomethingcool',
+    'makecoolvideo',
+    'coolvideo',
+    'nicevideo',
+    'makeitnice',
+    'goodscene',
+    'somethingcreative',
+  };
+  static const Set<String> _highEnergyMotionTokens = <String>{
+    'bounce',
+    'wiggle',
+    'shake',
+    'stamp',
+    'whip',
+    'pop',
+  };
+  static const Set<String> _playfulBrands = <String>{
+    r'$brand.tiktok',
+    r'$brand.snapchat',
+    r'$brand.instagram',
+    r'$brand.threads',
+  };
 
   SceneDirectorPlanValidationResult validate(Object? raw) {
     final issues = <ReFusionSceneProgramIssue>[];
@@ -40,13 +75,12 @@ class SceneDirectorPlanValidator {
     }
 
     final intent = _readString(map['intent']);
-    final audience = _readString(map['audience']) ?? 'general';
+    final audience = _readString(map['audience']) ?? '';
     final mood = _readString(map['mood']) ?? '';
     final primaryFocus = _readString(map['primaryFocus']) ?? '';
     final rhythm = _readString(map['rhythm']) ?? '';
-    final aspect = _readString(map['aspect']) ?? r'$canvas.vertical9x16';
-    final durationIntent =
-        _readString(map['durationIntent']) ?? r'$duration.medium';
+    final aspect = _readString(map['aspect']) ?? '';
+    final durationIntent = _readString(map['durationIntent']) ?? '';
     final brandContext = _readString(map['brandContext']);
     final visualStyle = _readString(map['visualStyle']);
     final metadata = _readMap(map['metadata']) ?? const <String, Object?>{};
@@ -59,24 +93,73 @@ class SceneDirectorPlanValidator {
           path: 'directorBrief.intent',
         ),
       );
+    } else {
+      final token = _normalize(intent);
+      if (_vagueIntentTokens.contains(token) ||
+          token.contains('somethingcool') ||
+          token.contains('coolthing')) {
+        issues.add(
+          const ReFusionSceneProgramIssue(
+            severity: ReFusionSceneProgramIssueSeverity.error,
+            message:
+                'Director Brief intent is too vague. Provide a concrete creative objective.',
+            path: 'directorBrief.intent',
+          ),
+        );
+      }
+    }
+    if (audience.isEmpty) {
+      issues.add(
+        const ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message: 'Director Brief must include `audience`.',
+          path: 'directorBrief.audience',
+        ),
+      );
     }
     if (mood.isEmpty) {
       issues.add(
         const ReFusionSceneProgramIssue(
-          severity: ReFusionSceneProgramIssueSeverity.warning,
-          message:
-              'Director Brief did not include `mood`; using neutral defaults.',
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message: 'Director Brief must include `mood`.',
           path: 'directorBrief.mood',
+        ),
+      );
+    }
+    if (primaryFocus.isEmpty) {
+      issues.add(
+        const ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message: 'Director Brief must include `primaryFocus`.',
+          path: 'directorBrief.primaryFocus',
         ),
       );
     }
     if (rhythm.isEmpty) {
       issues.add(
         const ReFusionSceneProgramIssue(
-          severity: ReFusionSceneProgramIssueSeverity.warning,
-          message:
-              'Director Brief did not include `rhythm`; using standard pacing.',
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message: 'Director Brief must include `rhythm`.',
           path: 'directorBrief.rhythm',
+        ),
+      );
+    }
+    if (!_allowedAspects.contains(aspect)) {
+      issues.add(
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message: 'Director Brief aspect `$aspect` is not supported.',
+          path: 'directorBrief.aspect',
+        ),
+      );
+    }
+    if (!_allowedDurationIntents.contains(durationIntent)) {
+      issues.add(
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message:
+              'Director Brief duration intent `$durationIntent` is not supported.',
+          path: 'directorBrief.durationIntent',
         ),
       );
     }
@@ -104,12 +187,12 @@ class SceneDirectorPlanValidator {
         ),
       );
     }
-    if (primaryCount > 2) {
+    if (primaryCount > 1) {
       issues.add(
         const ReFusionSceneProgramIssue(
           severity: ReFusionSceneProgramIssueSeverity.error,
           message:
-              'Director Brief defines too many primary elements for one scene beat hierarchy.',
+              'Director Brief defines multiple primary elements. Keep a single focal hierarchy.',
           path: 'directorBrief.elements',
         ),
       );
@@ -137,36 +220,100 @@ class SceneDirectorPlanValidator {
       );
     }
 
-    final luxuryMood = _normalize(mood).contains('luxury') ||
-        _normalize(mood).contains('minimal');
-    if (luxuryMood) {
-      final energeticMotion = elements.any((element) {
-        final hint = _normalize(element.motionHint ?? '');
-        return hint.contains('bounce') ||
-            hint.contains('wiggle') ||
-            hint.contains('shake') ||
-            hint.contains('stamp');
-      });
-      if (energeticMotion) {
+    final duplicateSignatures = <String>{};
+    final seenSignatures = <String>{};
+    for (final element in elements) {
+      final allowDuplicate = element.properties['allowDuplicate'] == true;
+      if (allowDuplicate) {
+        continue;
+      }
+      final signature = '${_normalize(element.kind)}|'
+          '${_normalize(element.importance)}|'
+          '${_normalize(element.text ?? '')}|'
+          '${_normalize(element.motionHint ?? '')}';
+      if (!seenSignatures.add(signature)) {
+        duplicateSignatures.add(signature);
+      }
+    }
+    if (duplicateSignatures.isNotEmpty) {
+      issues.add(
+        const ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message:
+              'Director Brief contains duplicated elements without explicit allowDuplicate=true.',
+          path: 'directorBrief.elements',
+        ),
+      );
+    }
+
+    for (final element in elements) {
+      if (_normalize(element.kind) != 'featurecardgroup') {
+        continue;
+      }
+      final isPrimary = _normalize(element.importance) == 'primary';
+      if (!isPrimary || element.cards.length < 4) {
+        continue;
+      }
+      final primaryCardIndex = _readInt(element.properties['primaryCardIndex']);
+      if (primaryCardIndex == null ||
+          primaryCardIndex < 0 ||
+          primaryCardIndex >= element.cards.length) {
         issues.add(
           const ReFusionSceneProgramIssue(
             severity: ReFusionSceneProgramIssueSeverity.error,
             message:
-                'Director Brief mood is luxury/minimal but motion hints are highly bouncy.',
-            path: 'directorBrief.elements.motionHint',
+                'Primary feature-card groups require an explicit `primaryCardIndex` hierarchy.',
+            path: 'directorBrief.elements.properties.primaryCardIndex',
           ),
         );
       }
     }
 
+    final moodToken = _normalize(mood);
+    final calmMood = moodToken.contains('luxury') ||
+        moodToken.contains('minimal') ||
+        moodToken.contains('calm');
+    final energeticMotionCount = elements.where((element) {
+      final hint = _normalize(element.motionHint ?? '');
+      if (hint.isEmpty) {
+        return false;
+      }
+      return _highEnergyMotionTokens.any(hint.contains);
+    }).length;
+    if (calmMood && energeticMotionCount > 0) {
+      issues.add(
+        const ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message:
+              'Director Brief mood is calm/luxury/minimal but motion hints are high-energy.',
+          path: 'directorBrief.elements.motionHint',
+        ),
+      );
+    }
+    final hasPlayfulBrand = elements.any((element) {
+      final token = (element.brandToken ?? '').trim().toLowerCase();
+      return _playfulBrands.contains(token);
+    });
+    if (calmMood && hasPlayfulBrand && energeticMotionCount > 0) {
+      issues.add(
+        const ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message:
+              'Director Brief combines playful social brands with calm luxury motion intent without reconciliation.',
+          path: 'directorBrief.elements.brandToken',
+        ),
+      );
+    }
+
     final brief = SceneDirectorBrief(
       intent: intent ?? '',
-      audience: audience,
+      audience: audience.isEmpty ? 'general' : audience,
       mood: mood.isEmpty ? 'neutral professional' : mood,
       primaryFocus: primaryFocus.isEmpty ? 'primary element' : primaryFocus,
       rhythm: rhythm.isEmpty ? 'intro hold outro' : rhythm,
-      aspect: aspect,
-      durationIntent: durationIntent,
+      aspect: aspect.isEmpty ? r'$canvas.vertical9x16' : aspect,
+      durationIntent:
+          durationIntent.isEmpty ? r'$duration.medium' : durationIntent,
       brandContext: brandContext,
       visualStyle: visualStyle,
       elements: elements,
@@ -369,5 +516,18 @@ class SceneDirectorPlanValidator {
   String _singleToken(String value) {
     final compact = value.trim().replaceAll(RegExp(r'\s+'), '_');
     return compact.isEmpty ? 'none' : compact;
+  }
+
+  int? _readInt(Object? raw) {
+    if (raw is int) {
+      return raw;
+    }
+    if (raw is num) {
+      return raw.toInt();
+    }
+    if (raw is String) {
+      return int.tryParse(raw.trim());
+    }
+    return null;
   }
 }

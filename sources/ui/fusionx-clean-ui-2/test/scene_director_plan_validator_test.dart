@@ -91,9 +91,12 @@ void main() {
       <String, Object?>{
         'directorBrief': <String, Object?>{
           'intent': 'Premium luxury product reveal',
+          'audience': 'design teams',
           'mood': 'luxury minimal',
           'primaryFocus': 'logo',
           'rhythm': 'slow intro hold',
+          'aspect': r'$canvas.vertical9x16',
+          'durationIntent': r'$duration.deliberate',
           'elements': <Object?>[
             <String, Object?>{
               'kind': 'title',
@@ -109,7 +112,75 @@ void main() {
     expect(result.isValid, isFalse);
     expect(
       result.issues.any(
-        (issue) => issue.message.contains('luxury/minimal'),
+        (issue) => issue.message.contains('calm/luxury/minimal'),
+      ),
+      isTrue,
+    );
+  });
+
+  test('rejects vague intent prompt like make something cool', () {
+    final result = validator.validate(
+      <String, Object?>{
+        'directorBrief': <String, Object?>{
+          'intent': 'make something cool',
+          'audience': 'everyone',
+          'mood': 'energetic',
+          'primaryFocus': 'headline',
+          'rhythm': 'intro hold outro',
+          'aspect': r'$canvas.vertical9x16',
+          'durationIntent': r'$duration.medium',
+          'elements': <Object?>[
+            <String, Object?>{
+              'kind': 'title',
+              'importance': 'primary',
+              'text': 'Hello',
+            },
+          ],
+        },
+      },
+    );
+
+    expect(result.isValid, isFalse);
+    expect(
+      result.issues.any(
+        (issue) => issue.path == 'directorBrief.intent',
+      ),
+      isTrue,
+    );
+  });
+
+  test('rejects primary feature group without primaryCardIndex hierarchy', () {
+    final result = validator.validate(
+      <String, Object?>{
+        'directorBrief': <String, Object?>{
+          'intent': 'Show four flagship modules',
+          'audience': 'creators',
+          'mood': 'professional energetic',
+          'primaryFocus': 'feature cards',
+          'rhythm': 'intro cascade outro',
+          'aspect': r'$canvas.vertical9x16',
+          'durationIntent': r'$duration.medium',
+          'elements': <Object?>[
+            <String, Object?>{
+              'kind': 'featureCardGroup',
+              'importance': 'primary',
+              'cards': <Object?>[
+                <String, Object?>{'label': 'A', 'body': 'A body'},
+                <String, Object?>{'label': 'B', 'body': 'B body'},
+                <String, Object?>{'label': 'C', 'body': 'C body'},
+                <String, Object?>{'label': 'D', 'body': 'D body'},
+              ],
+            },
+          ],
+        },
+      },
+    );
+
+    expect(result.isValid, isFalse);
+    expect(
+      result.issues.any(
+        (issue) =>
+            issue.path == 'directorBrief.elements.properties.primaryCardIndex',
       ),
       isTrue,
     );
