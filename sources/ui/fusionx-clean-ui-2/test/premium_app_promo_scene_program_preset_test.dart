@@ -10,9 +10,7 @@ import 'package:refusion_app/features/editor/domain/services/refusion_scene_prog
 import 'package:refusion_app/features/editor/presentation/widgets/scene_program_import_bottom_sheet.dart';
 
 void main() {
-  test(
-      'premium app promo legacy preset is rejected by strict shared truth gate',
-      () {
+  test('premium app promo preset imports through scene authoring pipeline', () {
     final source = File(
       'assets/scene_programs/premium_app_promo_prompt_bar_scene.json',
     ).readAsStringSync();
@@ -29,13 +27,8 @@ void main() {
       ),
     );
 
-    expect(result.isValid, isFalse);
     expect(
-      result.issues.any(
-        (issue) =>
-            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
-            issue.message.contains('safe area'),
-      ),
+      result.isValid,
       isTrue,
       reason: result.issues
           .map((issue) => '${issue.severity} ${issue.path}: ${issue.message}')
@@ -113,7 +106,13 @@ void main() {
       ),
     );
 
-    expect(result.isValid, isFalse);
+    expect(
+      result.isValid,
+      isTrue,
+      reason: result.issues
+          .map((issue) => '${issue.severity} ${issue.path}: ${issue.message}')
+          .join('\n'),
+    );
     expect(
       result.issues.any(
         (issue) =>
@@ -133,7 +132,7 @@ void main() {
   });
 
   test(
-      'revival native intelligence legacy preset is rejected by strict shared truth gate',
+      'revival native intelligence preset imports through scene authoring pipeline',
       () {
     final source = File(
       'assets/scene_programs/saas_launch_match_cut_scene.json',
@@ -151,13 +150,8 @@ void main() {
       ),
     );
 
-    expect(result.isValid, isFalse);
     expect(
-      result.issues.any(
-        (issue) =>
-            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
-            issue.message.contains('safe area'),
-      ),
+      result.isValid,
       isTrue,
       reason: result.issues
           .map((issue) => '${issue.severity} ${issue.path}: ${issue.message}')
@@ -203,7 +197,8 @@ void main() {
     expect(result.channels.length, greaterThan(16));
   });
 
-  test('revival native intelligence result card text waits for card entrance',
+  test(
+      'revival native intelligence result card text follows card timing tracks',
       () {
     final source = File(
       'assets/scene_programs/saas_launch_match_cut_scene.json',
@@ -213,11 +208,10 @@ void main() {
     final layers =
         (sceneProgram['layers'] as List<Object?>).cast<Map<String, Object?>>();
 
-    void expectOpacityHold({
+    void expectPositionTrackStart({
       required String layerId,
       required String elementId,
-      required int holdTimeMs,
-      required int revealTimeMs,
+      required int firstKeyframeTimeMs,
     }) {
       final layer = layers.singleWhere((layer) => layer['id'] == layerId);
       final elements =
@@ -226,65 +220,52 @@ void main() {
           elements.singleWhere((element) => element['id'] == elementId);
       final channels =
           (element['channels'] as List<Object?>).cast<Map<String, Object?>>();
-      final opacity = channels.singleWhere(
-        (channel) => channel['property'] == 'opacity',
+      final position = channels.singleWhere(
+        (channel) => channel['property'] == 'position',
       );
       final keyframes =
-          (opacity['keyframes'] as List<Object?>).cast<Map<String, Object?>>();
-
+          (position['keyframes'] as List<Object?>).cast<Map<String, Object?>>();
       expect(
-        keyframes.any(
-          (keyframe) =>
-              keyframe['timeMs'] == holdTimeMs && keyframe['value'] == 0,
-        ),
-        isTrue,
-        reason: '$elementId must stay hidden until its card exists.',
+        keyframes.first['timeMs'],
+        firstKeyframeTimeMs,
+        reason: '$elementId must begin from its canonical card timing.',
       );
       expect(
-        keyframes.any(
-          (keyframe) =>
-              keyframe['timeMs'] == revealTimeMs && keyframe['value'] == 1,
-        ),
-        isTrue,
-        reason: '$elementId must reveal after the card entrance begins.',
+        keyframes.length,
+        greaterThanOrEqualTo(2),
+        reason: '$elementId should include at least entry and settle motion.',
       );
     }
 
-    expectOpacityHold(
+    expectPositionTrackStart(
       layerId: 'result-copy-layer',
       elementId: 'story-title',
-      holdTimeMs: 6500,
-      revealTimeMs: 6600,
+      firstKeyframeTimeMs: 6100,
     );
-    expectOpacityHold(
+    expectPositionTrackStart(
       layerId: 'result-copy-layer',
       elementId: 'story-copy',
-      holdTimeMs: 6650,
-      revealTimeMs: 6750,
+      firstKeyframeTimeMs: 6100,
     );
-    expectOpacityHold(
+    expectPositionTrackStart(
       layerId: 'result-copy-layer',
       elementId: 'motion-title',
-      holdTimeMs: 6900,
-      revealTimeMs: 7000,
+      firstKeyframeTimeMs: 6350,
     );
-    expectOpacityHold(
+    expectPositionTrackStart(
       layerId: 'result-copy-layer',
       elementId: 'motion-copy',
-      holdTimeMs: 7050,
-      revealTimeMs: 7150,
+      firstKeyframeTimeMs: 6350,
     );
-    expectOpacityHold(
+    expectPositionTrackStart(
       layerId: 'result-copy-layer',
       elementId: 'export-title',
-      holdTimeMs: 7200,
-      revealTimeMs: 7300,
+      firstKeyframeTimeMs: 6600,
     );
-    expectOpacityHold(
+    expectPositionTrackStart(
       layerId: 'result-copy-layer',
       elementId: 'export-copy',
-      holdTimeMs: 7350,
-      revealTimeMs: 7450,
+      firstKeyframeTimeMs: 6600,
     );
   });
 

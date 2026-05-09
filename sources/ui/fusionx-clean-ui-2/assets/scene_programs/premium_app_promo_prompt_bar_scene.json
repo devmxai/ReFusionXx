@@ -112,6 +112,13 @@
         "elementId": "app-icon"
       },
       {
+        "id": "app-spark",
+        "role": "icon.spark",
+        "label": "Revival spark icon",
+        "layerId": "app-spark-layer",
+        "elementId": "app-spark"
+      },
+      {
         "id": "brand-title",
         "role": "text.title",
         "label": "Brand title",
@@ -294,14 +301,23 @@
               "color": "#05070D",
               "opacity": 1
             }
-          },
+          }
+        ]
+      },
+      {
+        "id": "ambient-blue-layer",
+        "name": "Ambient Blue",
+        "kind": "shape",
+        "startMs": 0,
+        "durationMs": 9200,
+        "elements": [
           {
             "id": "ambient-blue",
             "kind": "shape",
             "properties": {
               "shapeKind": "circle",
               "position": {
-                "x": -340,
+                "x": -240,
                 "y": -520
               },
               "width": 520,
@@ -310,14 +326,23 @@
               "opacity": 0.55,
               "blur": 24
             }
-          },
+          }
+        ]
+      },
+      {
+        "id": "ambient-violet-layer",
+        "name": "Ambient Violet",
+        "kind": "shape",
+        "startMs": 0,
+        "durationMs": 9200,
+        "elements": [
           {
             "id": "ambient-violet",
             "kind": "shape",
             "properties": {
               "shapeKind": "circle",
               "position": {
-                "x": 360,
+                "x": 180,
                 "y": 420
               },
               "width": 620,
@@ -410,7 +435,16 @@
                 ]
               }
             ]
-          },
+          }
+        ]
+      },
+      {
+        "id": "app-spark-layer",
+        "name": "Revival App Spark",
+        "kind": "shape",
+        "startMs": 0,
+        "durationMs": 2600,
+        "elements": [
           {
             "id": "app-spark",
             "kind": "icon",
@@ -529,7 +563,7 @@
         "name": "Prompt Input",
         "kind": "shape",
         "startMs": 1200,
-        "durationMs": 5600,
+        "durationMs": 3800,
         "elements": [
           {
             "id": "prompt-shell",
@@ -545,7 +579,7 @@
               "height": 118,
               "cornerRadius": 59,
               "color": "#F8FAFC",
-              "opacity": 0,
+              "opacity": 1,
               "shadowOpacity": 0.32,
               "shadowBlur": 42,
               "shadowOffset": {
@@ -564,58 +598,7 @@
                 "bottom": 16
               }
             },
-            "channels": [
-              {
-                "property": "opacity",
-                "keyframes": [
-                  {
-                    "timeMs": 0,
-                    "value": 0,
-                    "easing": "linear"
-                  },
-                  {
-                    "timeMs": 450,
-                    "value": 1,
-                    "easing": "fastSlow"
-                  },
-                  {
-                    "timeMs": 4400,
-                    "value": 1,
-                    "easing": "linear"
-                  },
-                  {
-                    "timeMs": 5600,
-                    "value": 0,
-                    "easing": "fastSlow"
-                  }
-                ]
-              },
-              {
-                "property": "scale",
-                "keyframes": [
-                  {
-                    "timeMs": 0,
-                    "value": 0.2,
-                    "easing": "slowFastSlow"
-                  },
-                  {
-                    "timeMs": 1400,
-                    "value": 1,
-                    "easing": "slowFastSlow"
-                  },
-                  {
-                    "timeMs": 4400,
-                    "value": 1,
-                    "easing": "linear"
-                  },
-                  {
-                    "timeMs": 5600,
-                    "value": 1.04,
-                    "easing": "fastSlow"
-                  }
-                ]
-              }
-            ]
+            "channels": []
           },
           {
             "id": "prompt-text",
@@ -660,39 +643,14 @@
                 "property": "typewriterProgress",
                 "keyframes": [
                   {
-                    "timeMs": 1600,
+                    "timeMs": 600,
                     "value": 0,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 3400,
+                    "timeMs": 2400,
                     "value": 1,
                     "easing": "linear"
-                  }
-                ]
-              },
-              {
-                "property": "opacity",
-                "keyframes": [
-                  {
-                    "timeMs": 900,
-                    "value": 0,
-                    "easing": "linear"
-                  },
-                  {
-                    "timeMs": 1500,
-                    "value": 1,
-                    "easing": "fastSlow"
-                  },
-                  {
-                    "timeMs": 4400,
-                    "value": 1,
-                    "easing": "linear"
-                  },
-                  {
-                    "timeMs": 5600,
-                    "value": 0,
-                    "easing": "fastSlow"
                   }
                 ]
               }
@@ -703,7 +661,7 @@
             "kind": "shape",
             "properties": {
               "parentId": "prompt-shell",
-              "layoutRole": "trailingAccessory",
+              "layoutRole": "container",
               "layout": {
                 "slot": "trailingAccessory",
                 "anchor": "centerRight"
@@ -718,63 +676,7 @@
               "color": "#111827",
               "opacity": 1
             },
-            "channels": [
-              {
-                "property": "scale",
-                "keyframes": [
-                  {
-                    "timeMs": 0,
-                    "value": 0.85,
-                    "easing": "slowFastSlow"
-                  },
-                  {
-                    "timeMs": 900,
-                    "value": 1,
-                    "easing": "slowFastSlow"
-                  },
-                  {
-                    "timeMs": 4400,
-                    "value": 1,
-                    "easing": "linear"
-                  },
-                  {
-                    "timeMs": 4900,
-                    "value": 0.88,
-                    "easing": "fastSlow"
-                  },
-                  {
-                    "timeMs": 5400,
-                    "value": 1.2,
-                    "easing": "fastSlow"
-                  }
-                ]
-              },
-              {
-                "property": "opacity",
-                "keyframes": [
-                  {
-                    "timeMs": 0,
-                    "value": 0,
-                    "easing": "linear"
-                  },
-                  {
-                    "timeMs": 900,
-                    "value": 1,
-                    "easing": "fastSlow"
-                  },
-                  {
-                    "timeMs": 4400,
-                    "value": 1,
-                    "easing": "linear"
-                  },
-                  {
-                    "timeMs": 5600,
-                    "value": 0,
-                    "easing": "fastSlow"
-                  }
-                ]
-              }
-            ]
+            "channels": []
           },
           {
             "id": "send-icon",
@@ -784,41 +686,15 @@
               "layoutRole": "icon",
               "icon": "send",
               "position": {
-                "x": 355,
-                "y": -40
+                "x": 0,
+                "y": 0
               },
               "width": 34,
               "height": 34,
               "color": "#66E3FF",
               "opacity": 1
             },
-            "channels": [
-              {
-                "property": "opacity",
-                "keyframes": [
-                  {
-                    "timeMs": 0,
-                    "value": 0,
-                    "easing": "linear"
-                  },
-                  {
-                    "timeMs": 900,
-                    "value": 1,
-                    "easing": "fastSlow"
-                  },
-                  {
-                    "timeMs": 4400,
-                    "value": 1,
-                    "easing": "linear"
-                  },
-                  {
-                    "timeMs": 5600,
-                    "value": 0,
-                    "easing": "fastSlow"
-                  }
-                ]
-              }
-            ]
+            "channels": []
           }
         ]
       },
@@ -833,6 +709,7 @@
             "id": "result-card",
             "kind": "shape",
             "properties": {
+              "layoutRole": "container",
               "shapeKind": "roundedRectangle",
               "position": {
                 "x": 0,
@@ -905,6 +782,7 @@
             "kind": "text",
             "text": "Offer campaign ready",
             "properties": {
+              "parentId": "result-card",
               "position": {
                 "x": 0,
                 "y": -30
@@ -941,6 +819,7 @@
             "kind": "text",
             "text": "Revival turns a prompt into editable premium motion scenes.",
             "properties": {
+              "parentId": "result-card",
               "position": {
                 "x": 0,
                 "y": 115

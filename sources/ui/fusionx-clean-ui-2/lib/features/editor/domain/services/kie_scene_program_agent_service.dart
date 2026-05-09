@@ -141,7 +141,10 @@ class KieSceneProgramAgentService {
   }) {
     final jsonText = _extractJsonObjectText(content);
     final object = jsonDecode(jsonText);
-    return _extractSceneProgramPayloadObject(object);
+    return _extractSceneProgramPayloadObject(
+      object,
+      allowDirectorFallback: false,
+    );
   }
 
   @visibleForTesting
@@ -158,12 +161,16 @@ class KieSceneProgramAgentService {
     };
     final jsonText = _extractJsonObjectText(content);
     final object = jsonDecode(jsonText);
-    return _extractSceneProgramPayloadObject(object);
+    return _extractSceneProgramPayloadObject(
+      object,
+      allowDirectorFallback: true,
+    );
   }
 
   KieSceneProgramExtractionResult _extractSceneProgramPayloadObject(
-    Object? object,
-  ) {
+    Object? object, {
+    required bool allowDirectorFallback,
+  }) {
     if (object is! Map) {
       throw const KieSceneProgramAgentException(
         'Generated scene payload must be a JSON object.',
@@ -201,7 +208,7 @@ class KieSceneProgramAgentService {
     final sceneProgramTimingIssues =
         _validateExtractedSceneProgramTiming(sceneProgramJson);
     if (sceneProgramTimingIssues.isNotEmpty) {
-      if (directorExtraction.plan != null) {
+      if (allowDirectorFallback && directorExtraction.plan != null) {
         final fallbackIssues = <ReFusionMotionDirectorIssue>[
           ...directorExtraction.issues,
           const ReFusionMotionDirectorIssue(
@@ -240,7 +247,7 @@ class KieSceneProgramAgentService {
         plan: directorExtraction.plan!,
         sceneProgramJson: sceneProgramJson,
       );
-      if (!alignmentResult.isValid) {
+      if (allowDirectorFallback && !alignmentResult.isValid) {
         final fallbackIssues = <ReFusionMotionDirectorIssue>[
           ...directorExtraction.issues,
           const ReFusionMotionDirectorIssue(
