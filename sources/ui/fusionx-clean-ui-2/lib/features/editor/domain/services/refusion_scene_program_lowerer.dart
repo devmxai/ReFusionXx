@@ -8,6 +8,9 @@ import '../models/professional_motion_text_models.dart';
 import '../models/refusion_scene_program_models.dart';
 import 'refusion_core_design_pack.dart';
 
+const String kSceneProgramComponentLowererProofTag =
+    'TF_SCENE_PROGRAM_COMPONENT_LOWERER_PROOF';
+
 @immutable
 class ReFusionSceneProgramLoweringRequest {
   const ReFusionSceneProgramLoweringRequest({
@@ -108,6 +111,12 @@ class ReFusionSceneProgramLowerer {
         'source': 'refusion.scene-program',
         'schemaVersion': request.program.schemaVersion,
       },
+    );
+
+    _addComponentLoweringProof(
+      issues: issues,
+      layers: layers,
+      channelCount: channels.length,
     );
 
     return ReFusionSceneProgramLoweringResult(
@@ -1431,6 +1440,24 @@ class ReFusionSceneProgramLowerer {
       _propertyByNormalizedKey(properties, 'layoutRole') ??
           _propertyByNormalizedKey(properties, 'role'),
     );
+    add(
+      'layout.componentType',
+      _propertyByNormalizedKey(properties, 'componentType') ??
+          _propertyByNormalizedKey(properties, 'component') ??
+          _propertyByNormalizedKey(properties, 'semanticType'),
+    );
+    add(
+      'layout.componentId',
+      _propertyByNormalizedKey(properties, 'componentId') ??
+          _propertyByNormalizedKey(properties, 'componentRef') ??
+          _propertyByNormalizedKey(properties, 'componentKey'),
+    );
+    add(
+      'layout.slotId',
+      _propertyByNormalizedKey(properties, 'slotId') ??
+          _propertyByNormalizedKey(properties, 'slot') ??
+          _propertyByNormalizedKey(properties, 'slotKey'),
+    );
     final directLayout = _propertyByNormalizedKey(properties, 'layout');
     add(
       'layout.mode',
@@ -1471,6 +1498,24 @@ class ReFusionSceneProgramLowerer {
         'layout.role',
         _propertyByNormalizedKey(layoutProperties, 'layoutRole') ??
             _propertyByNormalizedKey(layoutProperties, 'role'),
+      );
+      add(
+        'layout.componentType',
+        _propertyByNormalizedKey(layoutProperties, 'componentType') ??
+            _propertyByNormalizedKey(layoutProperties, 'component') ??
+            _propertyByNormalizedKey(layoutProperties, 'semanticType'),
+      );
+      add(
+        'layout.componentId',
+        _propertyByNormalizedKey(layoutProperties, 'componentId') ??
+            _propertyByNormalizedKey(layoutProperties, 'componentRef') ??
+            _propertyByNormalizedKey(layoutProperties, 'componentKey'),
+      );
+      add(
+        'layout.slotId',
+        _propertyByNormalizedKey(layoutProperties, 'slotId') ??
+            _propertyByNormalizedKey(layoutProperties, 'slot') ??
+            _propertyByNormalizedKey(layoutProperties, 'slotKey'),
       );
       add(
         'layout.mode',
@@ -1622,6 +1667,51 @@ class ReFusionSceneProgramLowerer {
 
   String _normalizeToken(String value) =>
       value.replaceAll(RegExp(r'[^a-zA-Z0-9]+'), '').toLowerCase();
+
+  void _addComponentLoweringProof({
+    required List<ReFusionSceneProgramIssue> issues,
+    required List<MotionLayerModel> layers,
+    required int channelCount,
+  }) {
+    var componentTypes = 0;
+    var slotIds = 0;
+    var parentLinks = 0;
+    var sourceBindings = 0;
+    var elementCount = 0;
+    for (final layer in layers) {
+      for (final element in layer.elements) {
+        elementCount += 1;
+        final metadata = element.sourceBinding?.metadata;
+        if (metadata == null || metadata.isEmpty) {
+          continue;
+        }
+        sourceBindings += 1;
+        if ((metadata['layout.componentType'] ?? '').trim().isNotEmpty) {
+          componentTypes += 1;
+        }
+        if ((metadata['layout.slotId'] ?? '').trim().isNotEmpty) {
+          slotIds += 1;
+        }
+        if ((metadata['layout.parentId'] ?? '').trim().isNotEmpty) {
+          parentLinks += 1;
+        }
+      }
+    }
+
+    _addIssue(
+      issues,
+      severity: ReFusionSceneProgramIssueSeverity.info,
+      message: '$kSceneProgramComponentLowererProofTag '
+          'layers=${layers.length} '
+          'elements=$elementCount '
+          'channels=$channelCount '
+          'sourceBindings=$sourceBindings '
+          'componentTypes=$componentTypes '
+          'slotIds=$slotIds '
+          'parentLinks=$parentLinks',
+      path: 'lowerer.componentMetadata',
+    );
+  }
 
   void _addIssue(
     List<ReFusionSceneProgramIssue> issues, {
