@@ -325,16 +325,7 @@ class SceneComponentQualityValidator {
     required List<ReFusionSceneProgramIssue> issues,
   }) {
     for (final ref in elementRefs) {
-      if (_normalize(ref.element.kind) != 'shape') {
-        continue;
-      }
-      final componentType = _normalize(
-        _componentType(ref.element.properties) ?? '',
-      );
-      final elementId = _normalize(ref.element.id);
-      final isPromptShellById =
-          elementId.contains('promptshell') || elementId.contains('inputbar');
-      if (componentType != 'promptinputbar' && !isPromptShellById) {
+      if (!_isPromptShell(ref)) {
         continue;
       }
       final borderWidth = _doubleFromMap(
@@ -543,7 +534,23 @@ class SceneComponentQualityValidator {
     final componentType =
         _normalize(_componentType(ref.element.properties) ?? '');
     if (componentType == 'promptinputbar') {
-      return true;
+      final id = _normalize(ref.element.id);
+      final width = _doubleFromMap(ref.element.properties, const <String>[
+            'width',
+          ]) ??
+          0.0;
+      final height = _doubleFromMap(ref.element.properties, const <String>[
+            'height',
+          ]) ??
+          0.0;
+      final layoutRole = _normalize(
+        _stringFromMap(ref.element.properties, const <String>['layoutRole']) ??
+            '',
+      );
+      final looksPrimaryShell = id.contains('promptframe') ||
+          id.contains('promptshell') ||
+          (layoutRole == 'container' && width >= 320.0 && height >= 80.0);
+      return looksPrimaryShell;
     }
     final id = _normalize(ref.element.id);
     return id.contains('promptshell') ||

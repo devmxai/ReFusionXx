@@ -281,8 +281,8 @@
               "height": 96,
               "cornerRadius": 48,
               "color": "#FFFFFF",
-              "borderColor": "#FFFFFF",
-              "borderWidth": 1,
+              "borderColor": "#D9DDE3",
+              "borderWidth": 2,
               "opacity": 1,
               "contentInsets": {
                 "left": 126,
@@ -307,10 +307,12 @@
             "kind": "shape",
             "properties": {
               "parentId": "promptFrame",
+              "componentType": "PromptInputBar",
+              "componentId": "promptSpringBar",
               "layoutRole": "container",
               "shapeKind": "roundedRectangle",
               "position": {
-                "x": -420,
+                "x": -314,
                 "y": 0
               },
               "width": 72,
@@ -326,11 +328,9 @@
             "kind": "icon",
             "properties": {
               "parentId": "plusSlot",
+              "componentType": "PromptInputBar",
+              "componentId": "promptSpringBar",
               "layoutRole": "icon",
-              "layout": {
-                "slot": "leadingAccessory",
-                "anchor": "center"
-              },
               "icon": "plus",
               "position": {
                 "x": 0,
@@ -387,16 +387,18 @@
             "text": "Our smartest, fastest mo",
             "properties": {
               "parentId": "promptFrame",
+              "componentType": "PromptInputBar",
+              "componentId": "promptSpringBar",
               "layoutRole": "content",
               "layout": {
                 "slot": "primaryText",
                 "anchor": "centerLeft",
-                "maxWidth": 470,
+                "maxWidth": 430,
                 "maxLines": 1,
                 "overflow": "clip"
               },
               "textFrame": {
-                "width": 470,
+                "width": 430,
                 "height": 58,
                 "anchor": "centerLeft",
                 "maxLines": 1,
@@ -407,10 +409,10 @@
                 "measure": "fullText"
               },
               "position": {
-                "x": -145,
+                "x": -48,
                 "y": 0
               },
-              "fontSize": 34,
+              "fontSize": 30,
               "fontWeight": 400,
               "letterSpacing": 0,
               "lineHeight": 1,
@@ -442,7 +444,7 @@
                   {
                     "timeMs": 1940,
                     "value": {
-                      "x": -145,
+                      "x": -48,
                       "y": 8
                     },
                     "easing": "linear"
@@ -450,7 +452,7 @@
                   {
                     "timeMs": 2140,
                     "value": {
-                      "x": -145,
+                      "x": -48,
                       "y": 0
                     },
                     "easing": "fastSlow"
@@ -465,10 +467,12 @@
             "kind": "shape",
             "properties": {
               "parentId": "promptFrame",
+              "componentType": "PromptInputBar",
+              "componentId": "promptSpringBar",
               "layoutRole": "cursor",
               "shapeKind": "roundedRectangle",
               "position": {
-                "x": 100,
+                "x": 138,
                 "y": 0
               },
               "width": 2,
@@ -522,6 +526,8 @@
             "kind": "icon",
             "properties": {
               "parentId": "micSlot",
+              "componentType": "PromptInputBar",
+              "componentId": "promptSpringBar",
               "layoutRole": "icon",
               "layout": {
                 "slot": "mic",
@@ -582,10 +588,12 @@
             "kind": "shape",
             "properties": {
               "parentId": "promptFrame",
+              "componentType": "PromptInputBar",
+              "componentId": "promptSpringBar",
               "layoutRole": "container",
               "shapeKind": "roundedRectangle",
               "position": {
-                "x": 322,
+                "x": 188,
                 "y": 0
               },
               "width": 64,
@@ -601,6 +609,8 @@
             "kind": "shape",
             "properties": {
               "parentId": "promptFrame",
+              "componentType": "PromptInputBar",
+              "componentId": "promptSpringBar",
               "layoutRole": "container",
               "layout": {
                 "slot": "trailingAccessory",
@@ -608,7 +618,7 @@
               },
               "shapeKind": "circle",
               "position": {
-                "x": 422,
+                "x": 258,
                 "y": 0
               },
               "width": 72,
@@ -661,6 +671,8 @@
             "kind": "icon",
             "properties": {
               "parentId": "sendButton",
+              "componentType": "PromptInputBar",
+              "componentId": "promptSpringBar",
               "layoutRole": "icon",
               "icon": "volume",
               "position": {

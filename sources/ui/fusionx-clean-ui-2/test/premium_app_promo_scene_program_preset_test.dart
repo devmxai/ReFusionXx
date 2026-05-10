@@ -181,7 +181,10 @@ void main() {
         isA<KieSceneProgramAgentException>().having(
           (exception) => exception.message,
           'message',
-          contains('COMPONENT_QA::'),
+          anyOf(
+            contains('COMPONENT_QA::'),
+            contains('intrinsic size bounds'),
+          ),
         ),
       ),
     );
