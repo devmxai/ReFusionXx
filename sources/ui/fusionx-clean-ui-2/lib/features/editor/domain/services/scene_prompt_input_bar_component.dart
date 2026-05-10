@@ -267,6 +267,59 @@ class ScenePromptInputBarComponentValidator {
         ),
       );
     }
+    final lineHeight = _doubleFromMap(
+          textEntry.element.properties,
+          const <String>['lineHeight'],
+        ) ??
+        1.0;
+    final textVisualHeight =
+        (fontSize ?? 16.0) * (lineHeight <= 0 ? 1.0 : lineHeight);
+    if (shellHeight != null && shellHeight > 0) {
+      final ratio = textVisualHeight / shellHeight;
+      if (ratio < 0.22 || ratio > 0.42) {
+        issues.add(
+          ReFusionSceneProgramIssue(
+            severity: ReFusionSceneProgramIssueSeverity.error,
+            message:
+                'PromptInputBar text `${textEntry.element.id}` ratio to shell height must stay within [0.22, 0.42]. Current=${ratio.toStringAsFixed(3)}.',
+            path: '$textPath.properties.fontSize',
+          ),
+        );
+      }
+    }
+    if (plusIconEntry != null) {
+      _validateIconToTextRatio(
+        iconEntry: plusIconEntry,
+        textVisualHeight: textVisualHeight,
+        issues: issues,
+      );
+    }
+    if (micIconEntry != null) {
+      _validateIconToTextRatio(
+        iconEntry: micIconEntry,
+        textVisualHeight: textVisualHeight,
+        issues: issues,
+      );
+    }
+    final hasTypewriterChannel = textEntry.element.channels.any(
+      (channel) => _normalizeToken(channel.property) == 'typewriterprogress',
+    );
+    if (hasTypewriterChannel && cursorEntry != null) {
+      final hasCursorMotionChannel = cursorEntry.element.channels.any(
+        (channel) => _normalizeToken(channel.property) == 'positionx',
+      );
+      if (!hasCursorMotionChannel) {
+        issues.add(
+          ReFusionSceneProgramIssue(
+            severity: ReFusionSceneProgramIssueSeverity.error,
+            message:
+                'PromptInputBar cursor `${cursorEntry.element.id}` must animate `positionX` when prompt text uses typewriterProgress.',
+            path:
+                'layers[${cursorEntry.layerIndex}].elements[${cursorEntry.elementIndex}].channels',
+          ),
+        );
+      }
+    }
 
     _validateLifecycleInsideShell(
       shell: shell,
@@ -327,6 +380,33 @@ class ScenePromptInputBarComponentValidator {
         path: shellPath,
       ),
     );
+  }
+
+  void _validateIconToTextRatio({
+    required _ProgramElementEntry iconEntry,
+    required double textVisualHeight,
+    required List<ReFusionSceneProgramIssue> issues,
+  }) {
+    final iconSize = _doubleFromMap(
+          iconEntry.element.properties,
+          const <String>['width', 'size'],
+        ) ??
+        0.0;
+    if (iconSize <= 0 || textVisualHeight <= 0) {
+      return;
+    }
+    final ratio = iconSize / textVisualHeight;
+    if (ratio < 0.90 || ratio > 1.90) {
+      issues.add(
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message:
+              'PromptInputBar icon `${iconEntry.element.id}` size must stay proportional to text height (ratio [0.90, 1.90]). Current=${ratio.toStringAsFixed(3)}.',
+          path:
+              'layers[${iconEntry.layerIndex}].elements[${iconEntry.elementIndex}].properties.width',
+        ),
+      );
+    }
   }
 
   void _validateParent({

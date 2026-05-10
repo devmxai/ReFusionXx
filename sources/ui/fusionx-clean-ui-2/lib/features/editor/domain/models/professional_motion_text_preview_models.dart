@@ -385,12 +385,20 @@ class BasicMotionTextPreviewBinder implements MotionTextPreviewBinder {
     final maxLines = _intFromMetadata(metadata, 'textFrame.maxLines');
     final overflow = metadata['textFrame.overflow'];
     final fitPolicy = metadata['textFrame.fitPolicy'];
+    final anchor = metadata['textFrame.anchor'];
+    final measure = metadata['textFrame.measure'];
+    final minFontSize = _doubleFromMetadata(metadata, 'textFrame.minFontSize');
+    final maxFontSize = _doubleFromMetadata(metadata, 'textFrame.maxFontSize');
     final frame = MotionTextFrameContract(
       width: width,
       height: height,
       maxLines: maxLines,
       overflow: overflow,
       fitPolicy: fitPolicy,
+      anchor: anchor,
+      measure: measure,
+      minFontSize: minFontSize,
+      maxFontSize: maxFontSize,
     );
     return frame.hasBounds ? frame : null;
   }

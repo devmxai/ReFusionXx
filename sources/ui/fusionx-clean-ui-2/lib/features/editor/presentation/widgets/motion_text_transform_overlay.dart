@@ -617,9 +617,11 @@ class _MotionTextNodeLayout {
         text: node.text,
         style: TextStyle(
           fontSize: node.fontSize * effectiveScale,
-          fontWeight: FontWeight.w700,
+          fontWeight: _resolveFontWeight(node.fontWeight),
+          fontFamily: node.fontFamily,
+          fontStyle: _resolveFontStyle(node.fontStyle),
           letterSpacing: node.letterSpacing * effectiveScale,
-          height: 1.0,
+          height: node.lineHeight <= 0 ? 1.0 : node.lineHeight,
         ),
       ),
       textDirection: textDirection,
@@ -742,4 +744,30 @@ class _MotionTextNodeLayout {
     }
     return Rect.fromLTRB(minX, minY, maxX, maxY);
   }
+}
+
+FontWeight _resolveFontWeight(int weight) {
+  if (weight >= 800) {
+    return FontWeight.w800;
+  }
+  if (weight >= 700) {
+    return FontWeight.w700;
+  }
+  if (weight >= 600) {
+    return FontWeight.w600;
+  }
+  if (weight >= 500) {
+    return FontWeight.w500;
+  }
+  if (weight >= 400) {
+    return FontWeight.w400;
+  }
+  if (weight >= 300) {
+    return FontWeight.w300;
+  }
+  return FontWeight.w200;
+}
+
+FontStyle _resolveFontStyle(String style) {
+  return style.toLowerCase() == 'italic' ? FontStyle.italic : FontStyle.normal;
 }

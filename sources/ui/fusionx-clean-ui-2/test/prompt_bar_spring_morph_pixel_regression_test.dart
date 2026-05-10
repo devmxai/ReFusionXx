@@ -14,8 +14,7 @@ void main() {
   const pipeline = SceneEvaluationPipeline();
   const canvas = SceneCanvasMetrics(width: 1080, height: 1920);
 
-  test('smart test app prompt preserves hold-frame render truth contracts',
-      () {
+  test('smart test app prompt preserves hold-frame render truth contracts', () {
     final source = File(sourcePath).readAsStringSync();
     final decoded = jsonDecode(source) as Map<String, Object?>;
     final extracted = KieSceneProgramAgentService()
@@ -86,17 +85,75 @@ void main() {
 
     expect(plus.viewportBounds.left, lessThan(text.viewportBounds.left));
     expect(mic.viewportBounds.left, greaterThan(text.viewportBounds.right));
-    expect(sendButton.viewportBounds.left, greaterThan(mic.viewportBounds.left));
-    expect(sendIcon.viewportBounds.left, greaterThan(sendButton.viewportBounds.left));
+    expect(
+        sendButton.viewportBounds.left, greaterThan(mic.viewportBounds.left));
+    expect(sendIcon.viewportBounds.left,
+        greaterThan(sendButton.viewportBounds.left));
 
     final textMetrics = text.textMetrics;
     expect(textMetrics, isNotNull);
-    expect(textMetrics!.fontSize, greaterThanOrEqualTo(18));
-    expect(textMetrics.fontSize, lessThanOrEqualTo(26));
+    expect(textMetrics!.fontSize, greaterThanOrEqualTo(14));
+    expect(textMetrics.fontSize, lessThanOrEqualTo(20));
     expect(
       shell.viewportBounds.contains(text.viewportBounds),
       isTrue,
       reason: 'Prompt text must remain inside the visible prompt shell.',
+    );
+  });
+
+  test(
+      'smart test app prompt keeps cursor/typewriter motion contracts in scene payload',
+      () {
+    final source = File(sourcePath).readAsStringSync();
+    final decoded = jsonDecode(source) as Map<String, Object?>;
+    final extracted = KieSceneProgramAgentService()
+        .extractSceneProgramPayloadFromContent(content: source);
+    final authoring = authoringService.importSceneProgram(
+      ReFusionSceneProgramAuthoringRequest(
+        source: extracted.sceneProgramJson,
+        fileName: 'smart_test_app_prompt_scene.json',
+        projectId: 'prompt-bar-cursor-proof',
+        sceneId: 'prompt-bar-scene',
+      ),
+    );
+    expect(authoring.isValid, isTrue);
+    final program = authoring.program!;
+
+    final holdTimeMs = _holdFrameTimeMs(decoded);
+    final holdEval = pipeline.evaluate(
+      SceneEvaluationPipelineRequest(
+        program: program,
+        globalTimeMs: holdTimeMs,
+        canvas: canvas,
+      ),
+    );
+    expect(holdEval.isValid, isTrue);
+
+    final promptText = _programElementById(decoded, 'promptText');
+    final promptCursor = _programElementById(decoded, 'promptCursor');
+    final textChannels = (promptText['channels'] as List<Object?>? ?? const []);
+    final cursorChannels =
+        (promptCursor['channels'] as List<Object?>? ?? const []);
+    final hasTypewriterChannel = textChannels.any((entry) {
+      if (entry is! Map<String, Object?>) {
+        return false;
+      }
+      return ((entry['property'] as String?) ?? '').toLowerCase() ==
+          'typewriterprogress';
+    });
+    final hasCursorPositionChannel = cursorChannels.any((entry) {
+      if (entry is! Map<String, Object?>) {
+        return false;
+      }
+      return ((entry['property'] as String?) ?? '').toLowerCase() ==
+          'positionx';
+    });
+    expect(hasTypewriterChannel, isTrue);
+    expect(
+      hasCursorPositionChannel,
+      isTrue,
+      reason:
+          'Prompt cursor must keep a motion channel when prompt text uses typewriter.',
     );
   });
 }
@@ -150,6 +207,38 @@ Map<String, Object?> _promptFrameContract(Map<String, Object?> decoded) {
         if (properties is Map<String, Object?>) {
           return properties;
         }
+      }
+    }
+  }
+  return const <String, Object?>{};
+}
+
+Map<String, Object?> _programElementById(
+  Map<String, Object?> decoded,
+  String elementId,
+) {
+  final sceneProgram = decoded['sceneProgram'];
+  if (sceneProgram is! Map<String, Object?>) {
+    return const <String, Object?>{};
+  }
+  final layersRaw = sceneProgram['layers'];
+  if (layersRaw is! List<Object?>) {
+    return const <String, Object?>{};
+  }
+  for (final rawLayer in layersRaw) {
+    if (rawLayer is! Map<String, Object?>) {
+      continue;
+    }
+    final elementsRaw = rawLayer['elements'];
+    if (elementsRaw is! List<Object?>) {
+      continue;
+    }
+    for (final rawElement in elementsRaw) {
+      if (rawElement is! Map<String, Object?>) {
+        continue;
+      }
+      if ((rawElement['id'] as String?) == elementId) {
+        return rawElement;
       }
     }
   }

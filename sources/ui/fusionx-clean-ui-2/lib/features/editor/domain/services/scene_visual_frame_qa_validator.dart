@@ -635,6 +635,9 @@ class SceneVisualFrameQaValidator {
         if (left.parentNodeId != right.parentNodeId) {
           continue;
         }
+        if (_isAllowedSiblingOverlap(left, right)) {
+          continue;
+        }
         if (_intersects(left.worldBounds, right.worldBounds)) {
           overlaps.add(left.nodeId);
           overlaps.add(right.nodeId);
@@ -642,6 +645,33 @@ class SceneVisualFrameQaValidator {
       }
     }
     return overlaps;
+  }
+
+  bool _isAllowedSiblingOverlap(
+    _EvaluatedNodeRecord left,
+    _EvaluatedNodeRecord right,
+  ) {
+    final leftId = _normalizeToken(left.element.id);
+    final rightId = _normalizeToken(right.element.id);
+    final ids = <String>{leftId, rightId};
+
+    // Slot holder + concrete icon/content overlap is expected for prompt bars.
+    final hasPlusSlotPair = ids.contains('plusslot') &&
+        (ids.contains('promptplusicon') || ids.contains('plusicon'));
+    final hasMicSlotPair =
+        ids.contains('micslot') && ids.contains('promptmicicon');
+    final hasSendSlotPair =
+        ids.contains('sendbutton') && ids.contains('sendicon');
+    final hasCaretTextPair =
+        ids.contains('promptcursor') && ids.contains('prompttext');
+
+    if (hasPlusSlotPair ||
+        hasMicSlotPair ||
+        hasSendSlotPair ||
+        hasCaretTextPair) {
+      return true;
+    }
+    return false;
   }
 
   bool _detectParentChildDesync({

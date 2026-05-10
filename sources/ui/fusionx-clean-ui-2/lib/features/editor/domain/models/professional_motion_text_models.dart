@@ -49,6 +49,10 @@ class MotionTextFrameContract {
     this.maxLines,
     this.overflow,
     this.fitPolicy,
+    this.anchor,
+    this.measure,
+    this.minFontSize,
+    this.maxFontSize,
   });
 
   final double? width;
@@ -56,6 +60,10 @@ class MotionTextFrameContract {
   final int? maxLines;
   final String? overflow;
   final String? fitPolicy;
+  final String? anchor;
+  final String? measure;
+  final double? minFontSize;
+  final double? maxFontSize;
 
   bool get hasBoundedWidth => width != null && width! > 0;
   bool get hasBoundedHeight => height != null && height! > 0;
@@ -71,6 +79,10 @@ class MotionTextFrameContract {
       maxLines: maxLines,
       overflow: overflow,
       fitPolicy: fitPolicy,
+      anchor: anchor,
+      measure: measure,
+      minFontSize: minFontSize == null ? null : minFontSize! * scaleY,
+      maxFontSize: maxFontSize == null ? null : maxFontSize! * scaleY,
     );
   }
 }

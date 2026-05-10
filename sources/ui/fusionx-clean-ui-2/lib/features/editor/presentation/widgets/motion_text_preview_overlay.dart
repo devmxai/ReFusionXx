@@ -361,7 +361,11 @@ class _TextLayoutCacheKey {
             other.textFrame?.height == textFrame?.height &&
             other.textFrame?.maxLines == textFrame?.maxLines &&
             other.textFrame?.overflow == textFrame?.overflow &&
-            other.textFrame?.fitPolicy == textFrame?.fitPolicy;
+            other.textFrame?.fitPolicy == textFrame?.fitPolicy &&
+            other.textFrame?.anchor == textFrame?.anchor &&
+            other.textFrame?.measure == textFrame?.measure &&
+            other.textFrame?.minFontSize == textFrame?.minFontSize &&
+            other.textFrame?.maxFontSize == textFrame?.maxFontSize;
   }
 
   @override
@@ -377,6 +381,10 @@ class _TextLayoutCacheKey {
         textFrame?.maxLines,
         textFrame?.overflow,
         textFrame?.fitPolicy,
+        textFrame?.anchor,
+        textFrame?.measure,
+        textFrame?.minFontSize,
+        textFrame?.maxFontSize,
       );
 }
 
@@ -452,8 +460,17 @@ _MeasuredTextLayout _buildShapedTextLayout({
   if ((fitPolicy == 'shrinktofit' || fitPolicy == 'shrink') &&
       resolvedMaxWidth != null) {
     final originalFontSize = shapedStyle.fontSize ?? 16;
-    var fontSize = originalFontSize;
-    final minimumFontSize = math.min(12.0, originalFontSize);
+    final minimumFontSize = textFrame?.minFontSize == null
+        ? math.min(12.0, originalFontSize)
+        : math.min(textFrame!.minFontSize!, originalFontSize);
+    final cappedMaxFont = textFrame?.maxFontSize;
+    var fontSize = cappedMaxFont == null
+        ? originalFontSize
+        : math.min(originalFontSize, cappedMaxFont);
+    if (fontSize != originalFontSize) {
+      shapedStyle = shapedStyle.copyWith(fontSize: fontSize);
+      painter = buildPainter(shapedStyle);
+    }
     while (fontSize > minimumFontSize &&
         (painter.didExceedMaxLines ||
             painter.width > resolvedMaxWidth + 0.5 ||

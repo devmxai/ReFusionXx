@@ -109,7 +109,7 @@
         "kind": "typewriter",
         "property": "typewriterProgress",
         "startMs": 1740,
-        "endMs": 2580,
+        "endMs": 2380,
         "fromValue": 0,
         "toValue": 1,
         "easing": "linear"
@@ -409,20 +409,20 @@
               "parentId": "promptFrame",
               "textFrame": {
                 "width": 330,
-                "height": 48,
+                "height": 34,
                 "anchor": "centerLeft",
                 "maxLines": 1,
                 "overflow": "clip",
                 "fitPolicy": "shrinkToFit",
-                "minFontSize": 18,
-                "maxFontSize": 26,
+                "minFontSize": 14,
+                "maxFontSize": 18,
                 "measure": "fullText"
               },
               "position": {
                 "x": -82,
                 "y": 0
               },
-              "fontSize": 24,
+              "fontSize": 16,
               "fontWeight": 400,
               "letterSpacing": 0,
               "lineHeight": 1,
@@ -441,7 +441,7 @@
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 2580,
+                    "timeMs": 2380,
                     "value": 1,
                     "easing": "linear"
                   }
@@ -479,16 +479,99 @@
               "parentId": "promptFrame",
               "shapeKind": "roundedRectangle",
               "position": {
-                "x": 88,
+                "x": -80,
                 "y": 0
               },
               "width": 2,
-              "height": 40,
+              "height": 24,
               "cornerRadius": 1,
               "color": "#111827",
               "opacity": 1
             },
-            "channels": []
+            "channels": [
+              {
+                "property": "positionX",
+                "keyframes": [
+                  {
+                    "timeMs": 1740,
+                    "value": -80,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1900,
+                    "value": -52,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 2060,
+                    "value": -22,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 2220,
+                    "value": 10,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 2380,
+                    "value": 40,
+                    "easing": "linear"
+                  }
+                ],
+                "timeBasis": "project"
+              },
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 1740,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1860,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1980,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 2100,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 2220,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 2340,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 2460,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 2580,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 2700,
+                    "value": 1,
+                    "easing": "linear"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
           },
           {
             "id": "micSlot",
