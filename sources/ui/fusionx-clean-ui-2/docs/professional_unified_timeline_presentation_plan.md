@@ -21,13 +21,13 @@ Depends on:
 - `PUTP-05` completed (unified double-tap focus routing).
 - `PUTP-06` foundation completed (focused keyframe motion timeline adapter).
 - `PUTP-07` completed (adjustment layer presentation routing and insertion flow).
+- `PUTP-08` completed (legacy compatibility containment via fallback gate).
 - `PUTP-09` foundation completed (rollout mode safety flags).
 - `PUTP-10` foundation completed (projection start-offset parity regression).
+- `PUTP-10` expanded completed (compatibility gate regression coverage).
 
 Remaining high-level slices:
 
-- `PUTP-08` legacy compatibility containment hardening.
-- `PUTP-10` expanded regression matrix coverage.
 - `PUTP-11` broader external skills sync (when skills repo update is in scope).
 
 ## 1. Executive Decision
