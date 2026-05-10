@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:refusion_app/features/editor/domain/models/scene_director_brief_models.dart';
+import 'package:refusion_app/features/editor/domain/services/scene_component_choreography_compiler.dart';
 import 'package:refusion_app/features/editor/domain/services/scene_director_intelligence_planner.dart';
 
 void main() {
@@ -85,6 +86,13 @@ void main() {
     expect(primitiveKinds.contains('scale'), isTrue);
     expect(
       result.plan!.primitives.any((primitive) => primitive.kind == 'slide'),
+      isTrue,
+    );
+    expect(
+      result.issues.any(
+        (issue) =>
+            issue.message.contains(kSceneComponentChoreographyCompilerProofTag),
+      ),
       isTrue,
     );
 

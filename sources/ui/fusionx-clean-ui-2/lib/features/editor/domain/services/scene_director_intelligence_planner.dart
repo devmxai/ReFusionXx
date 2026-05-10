@@ -4,6 +4,7 @@ import '../models/refusion_motion_director_models.dart';
 import '../models/scene_director_brief_models.dart';
 import 'scene_background_semantic_pairing.dart';
 import 'scene_brand_motion_mapping.dart';
+import 'scene_component_choreography_compiler.dart';
 import 'scene_component_choreography_engine.dart';
 import 'scene_component_choreography_models.dart';
 import 'scene_composition_solver.dart';
@@ -38,6 +39,8 @@ class SceneDirectorIntelligencePlanner {
         const SceneBrandMotionMapping(),
     SceneComponentChoreographyEngine componentChoreographyEngine =
         const SceneComponentChoreographyEngine(),
+    SceneComponentChoreographyCompiler choreographyCompiler =
+        const SceneComponentChoreographyCompiler(),
     SceneInterComponentChoreographySolver interComponentSolver =
         const SceneInterComponentChoreographySolver(),
     SceneBackgroundSemanticPairing backgroundPairing =
@@ -49,6 +52,7 @@ class SceneDirectorIntelligencePlanner {
         _iconRegistry = iconRegistry,
         _brandMotionMapping = brandMotionMapping,
         _componentChoreographyEngine = componentChoreographyEngine,
+        _choreographyCompiler = choreographyCompiler,
         _interComponentSolver = interComponentSolver,
         _backgroundPairing = backgroundPairing,
         _featureVisualMotifs = featureVisualMotifs,
@@ -58,6 +62,7 @@ class SceneDirectorIntelligencePlanner {
   final SceneIconRegistry _iconRegistry;
   final SceneBrandMotionMapping _brandMotionMapping;
   final SceneComponentChoreographyEngine _componentChoreographyEngine;
+  final SceneComponentChoreographyCompiler _choreographyCompiler;
   final SceneInterComponentChoreographySolver _interComponentSolver;
   final SceneBackgroundSemanticPairing _backgroundPairing;
   final SceneFeatureVisualMotifs _featureVisualMotifs;
@@ -410,22 +415,37 @@ class SceneDirectorIntelligencePlanner {
             'label': labelId,
             'body': bodyId,
           };
-          _appendChoreographySpans(
-            spans: choreography.enterSpans,
-            beatId: 'features',
-            primitives: primitives,
-            issues: issues,
-            componentIdsByRole: componentIdsByRole,
-            index: index,
+          final enterCompilation = _choreographyCompiler.compile(
+            SceneComponentChoreographyCompileRequest(
+              componentType: 'FeatureCard',
+              beatId: 'features',
+              parentStartMs: enterStart,
+              parentEndMs: featuresEnd,
+              spans: choreography.enterSpans,
+              componentIdsByRole: componentIdsByRole,
+              requiredRoles: const <String>{'shell', 'icon', 'label', 'body'},
+              index: index,
+              professionalStrict: true,
+            ),
           );
-          _appendChoreographySpans(
-            spans: choreography.exitSpans,
-            beatId: 'outro',
-            primitives: primitives,
-            issues: issues,
-            componentIdsByRole: componentIdsByRole,
-            index: index,
+          primitives.addAll(enterCompilation.primitives);
+          issues.addAll(enterCompilation.issues);
+
+          final exitCompilation = _choreographyCompiler.compile(
+            SceneComponentChoreographyCompileRequest(
+              componentType: 'FeatureCard',
+              beatId: 'outro',
+              parentStartMs: featuresEnd,
+              parentEndMs: durationMs,
+              spans: choreography.exitSpans,
+              componentIdsByRole: componentIdsByRole,
+              requiredRoles: const <String>{'shell', 'icon', 'label', 'body'},
+              index: index,
+              professionalStrict: true,
+            ),
           );
+          primitives.addAll(exitCompilation.primitives);
+          issues.addAll(exitCompilation.issues);
           _appendRecipe(
             primitives: primitives,
             issues: issues,
@@ -602,36 +622,6 @@ class SceneDirectorIntelligencePlanner {
     final result = _recipeCompiler.compile(request);
     primitives.addAll(result.primitives);
     issues.addAll(result.issues);
-  }
-
-  void _appendChoreographySpans({
-    required List<SceneComponentChoreographySpan> spans,
-    required String beatId,
-    required List<ReFusionMotionDirectorPrimitive> primitives,
-    required List<ReFusionMotionDirectorIssue> issues,
-    required Map<String, String> componentIdsByRole,
-    required int index,
-  }) {
-    for (final span in spans) {
-      final componentId = componentIdsByRole[span.role];
-      if (componentId == null) {
-        continue;
-      }
-      _appendRecipe(
-        primitives: primitives,
-        issues: issues,
-        request: SceneMotionRecipeCompileRequest(
-          recipeId: span.recipeId,
-          targetComponentId: componentId,
-          targetScope: span.targetScope,
-          beatId: beatId,
-          startMs: span.startMs,
-          endMs: span.endMs,
-          index: index,
-          idPrefix: '$componentId-${span.phase}',
-        ),
-      );
-    }
   }
 }
 
