@@ -101,7 +101,16 @@ class SceneProgramPresentBottomSheet extends StatelessWidget {
       KieSceneProgramAgentService();
 
   static const List<_SceneProgramPresentPreset> _presets =
-      <_SceneProgramPresentPreset>[];
+      <_SceneProgramPresentPreset>[
+    _SceneProgramPresentPreset(
+      title: 'Prompt Bar Spring Morph',
+      subtitle:
+          'White prompt bar morph: circle pop, pill stretch, icon spring, and keyboard typing.',
+      assetPath: 'assets/scene_programs/prompt_bar_spring_morph_scene.json',
+      icon: Icons.keyboard_command_key_rounded,
+      status: 'New',
+    ),
+  ];
 
   Future<void> _applyPreset(
     BuildContext context,

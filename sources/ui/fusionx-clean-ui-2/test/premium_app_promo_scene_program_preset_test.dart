@@ -188,6 +188,55 @@ void main() {
   });
 
   test(
+      'prompt bar spring morph preset imports through scene authoring pipeline',
+      () {
+    final source = File(
+      'assets/scene_programs/prompt_bar_spring_morph_scene.json',
+    ).readAsStringSync();
+
+    final extracted = KieSceneProgramAgentService()
+        .extractSceneProgramPayloadFromContent(content: source);
+    final result =
+        const ReFusionSceneProgramAuthoringService().importSceneProgram(
+      ReFusionSceneProgramAuthoringRequest(
+        source: extracted.sceneProgramJson,
+        fileName: 'prompt_bar_spring_morph_scene.json',
+        projectId: 'prompt-bar-spring-test',
+        sceneId: 'prompt-bar-spring-scene',
+      ),
+    );
+
+    expect(
+      result.isValid,
+      isTrue,
+      reason: result.issues
+          .map((issue) => '${issue.severity} ${issue.path}: ${issue.message}')
+          .join('\n'),
+    );
+    expect(result.program?.name, 'Prompt Bar Spring Morph');
+    expect(result.program?.durationMs, 4200);
+    expect(result.channels.length, greaterThan(10));
+    expect(
+      result.issues.any(
+        (issue) =>
+            issue.message.contains('TF_SCENE_ICON_ALIGNMENT_PROOF') &&
+            issue.message.contains('errors=0') &&
+            issue.message.contains('status=pass'),
+      ),
+      isTrue,
+    );
+    expect(
+      result.issues.any(
+        (issue) =>
+            issue.message.contains('TF_SCENE_COMPONENT_QUALITY_GATE_PROOF') &&
+            issue.message.contains('strictProfessional=true') &&
+            issue.message.contains('structuralErrorCount=0'),
+      ),
+      isTrue,
+    );
+  });
+
+  test(
       'revival native intelligence result card text follows card timing tracks',
       () {
     final source = File(
@@ -259,7 +308,7 @@ void main() {
     );
   });
 
-  testWidgets('present sheet is empty until the next clean scene is authored',
+  testWidgets('present sheet applies prompt bar spring morph preset',
       (tester) async {
     SceneProgramImportSheetResult? appliedResult;
 
@@ -291,10 +340,25 @@ void main() {
     await tester.tap(find.text('Open Present'));
     await tester.pumpAndSettle();
 
+    expect(find.text('Prompt Bar Spring Morph'), findsOneWidget);
     expect(find.text('Professional Test Version 3'), findsNothing);
     expect(find.text('Premium App Promo'), findsNothing);
     expect(find.text('ReFusion Prompt Burst'), findsNothing);
-    expect(find.text('No clean present scene yet'), findsOneWidget);
-    expect(appliedResult, isNull);
+    expect(find.text('No clean present scene yet'), findsNothing);
+
+    await tester.tap(find.text('Prompt Bar Spring Morph'));
+    await tester.runAsync(() async {
+      for (var attempt = 0;
+          attempt < 40 && appliedResult == null;
+          attempt += 1) {
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+      }
+    });
+    await tester.pumpAndSettle();
+
+    expect(appliedResult, isNotNull);
+    expect(appliedResult!.name, 'Prompt Bar Spring Morph');
+    expect(appliedResult!.replaceExistingComposition, isTrue);
+    expect(appliedResult!.authoringResult.program?.durationMs, 4200);
   });
 }

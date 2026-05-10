@@ -494,7 +494,8 @@ class SceneDesignScorecardEvaluator {
         penalty += 12;
       }
       final starts = refs.map((ref) => ref.layer.startMs).toSet();
-      final ends = refs.map((ref) => ref.layer.startMs + ref.layer.durationMs).toSet();
+      final ends =
+          refs.map((ref) => ref.layer.startMs + ref.layer.durationMs).toSet();
       if (starts.length > 2) {
         penalty += 8;
       }
@@ -560,7 +561,8 @@ class SceneDesignScorecardEvaluator {
       return primaries.length <= 1 ? 82 : 58;
     }
     final areas = activeNodes
-        .map((node) => node.worldBoundsCenter.width * node.worldBoundsCenter.height)
+        .map((node) =>
+            node.worldBoundsCenter.width * node.worldBoundsCenter.height)
         .where((area) => area > 0)
         .toList(growable: false);
     if (areas.isEmpty) {
@@ -655,28 +657,29 @@ class SceneDesignScorecardEvaluator {
     if (refs.isEmpty) {
       return 70;
     }
+    final refsById = <String, _ElementRef>{
+      for (final ref in refs) ref.element.id: ref,
+    };
     var componentBacked = 0;
     var slotBackedText = 0;
     var textCount = 0;
     for (final ref in refs) {
-      final componentId = _stringFromMap(
-        ref.element.properties,
-        const <String>['componentId', 'layout.componentId'],
-      );
-      if (componentId != null && componentId.trim().isNotEmpty) {
+      if (_isComponentBacked(ref, refsById)) {
         componentBacked += 1;
       }
       if (_normalize(ref.element.kind) == 'text') {
         textCount += 1;
         final slotId = _stringFromMap(
           ref.element.properties,
-          const <String>['slotId', 'layout.slotId'],
+          const <String>['slotId', 'layout.slotId', 'layout.slot'],
         );
         final textFrame = _mapFromMap(
           ref.element.properties,
           const <String>['textFrame', 'layoutTextFrame'],
         );
-        if (slotId != null && slotId.trim().isNotEmpty && textFrame != null) {
+        if (textFrame != null &&
+            ((slotId != null && slotId.trim().isNotEmpty) ||
+                _isComponentBacked(ref, refsById))) {
           slotBackedText += 1;
         }
       }
@@ -685,6 +688,38 @@ class SceneDesignScorecardEvaluator {
     final textRatio = textCount == 0 ? 1.0 : slotBackedText / textCount;
     final score = 40 + (componentRatio * 35) + (textRatio * 25);
     return score.clamp(0, 100).round();
+  }
+
+  bool _isComponentBacked(
+    _ElementRef ref,
+    Map<String, _ElementRef> refsById,
+  ) {
+    final componentId = _stringFromMap(
+      ref.element.properties,
+      const <String>['componentId', 'layout.componentId'],
+    );
+    if (componentId != null && componentId.trim().isNotEmpty) {
+      return true;
+    }
+    final componentType = _stringFromMap(
+      ref.element.properties,
+      const <String>['componentType', 'layout.componentType'],
+    );
+    if (componentType != null && componentType.trim().isNotEmpty) {
+      return true;
+    }
+    final parentId = _stringFromMap(
+      ref.element.properties,
+      const <String>['parentId', 'layout.parentId'],
+    );
+    if (parentId == null || parentId.trim().isEmpty) {
+      return false;
+    }
+    final parent = refsById[parentId.trim()];
+    if (parent == null) {
+      return false;
+    }
+    return _isComponentBacked(parent, refsById);
   }
 
   int _scoreDensityNegativeSpace(EvaluatedFrameTruth truth) {
@@ -714,9 +749,8 @@ class SceneDesignScorecardEvaluator {
     if (coverage >= targetMin && coverage <= targetMax) {
       return 92;
     }
-    final distance = coverage < targetMin
-        ? targetMin - coverage
-        : coverage - targetMax;
+    final distance =
+        coverage < targetMin ? targetMin - coverage : coverage - targetMax;
     return (92 - (distance * 220)).clamp(0, 100).round();
   }
 
@@ -833,10 +867,14 @@ class SceneDesignScorecardEvaluator {
     if (property == 'opacity' || property == 'alpha') {
       return 'fade';
     }
-    if (property == 'x' || property == 'positionx' || property == 'position.x') {
+    if (property == 'x' ||
+        property == 'positionx' ||
+        property == 'position.x') {
       return 'slideX';
     }
-    if (property == 'y' || property == 'positiony' || property == 'position.y') {
+    if (property == 'y' ||
+        property == 'positiony' ||
+        property == 'position.y') {
       return 'slideY';
     }
     if (property == 'scale' ||
