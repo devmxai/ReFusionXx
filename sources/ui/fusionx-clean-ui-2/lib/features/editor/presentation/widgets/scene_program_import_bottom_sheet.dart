@@ -101,10 +101,11 @@ class SceneProgramPresentBottomSheet extends StatelessWidget {
   static const List<_SceneProgramPresentPreset> _presets =
       <_SceneProgramPresentPreset>[
     _SceneProgramPresentPreset(
-      title: 'Prompt Bar Spring Morph',
+      title: 'Professional Prompt Bar Clean',
       subtitle:
-          'White prompt bar morph: circle pop, pill stretch, icon spring, and keyboard typing.',
-      assetPath: 'assets/scene_programs/prompt_bar_spring_morph_scene.json',
+          'Clean white prompt bar: circle pop, pill stretch, visible border, icon spring, and keyboard typing.',
+      assetPath:
+          'assets/scene_programs/professional_prompt_bar_clean_scene.json',
       icon: Icons.keyboard_command_key_rounded,
       status: 'New',
     ),

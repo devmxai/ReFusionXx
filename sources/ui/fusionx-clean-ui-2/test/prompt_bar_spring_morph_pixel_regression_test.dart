@@ -9,12 +9,13 @@ import 'package:refusion_app/features/editor/domain/services/scene_coordinate_sy
 import 'package:refusion_app/features/editor/domain/services/scene_evaluation_pipeline.dart';
 
 void main() {
-  const sourcePath = 'assets/scene_programs/prompt_bar_spring_morph_scene.json';
+  const sourcePath =
+      'assets/scene_programs/professional_prompt_bar_clean_scene.json';
   const authoringService = ReFusionSceneProgramAuthoringService();
   const pipeline = SceneEvaluationPipeline();
   const canvas = SceneCanvasMetrics(width: 1080, height: 1920);
 
-  test('prompt bar spring morph preserves hold-frame render truth contracts',
+  test('professional prompt bar clean preserves hold-frame render truth contracts',
       () {
     final source = File(sourcePath).readAsStringSync();
     final decoded = jsonDecode(source) as Map<String, Object?>;
@@ -23,7 +24,7 @@ void main() {
     final authoring = authoringService.importSceneProgram(
       ReFusionSceneProgramAuthoringRequest(
         source: extracted.sceneProgramJson,
-        fileName: 'prompt_bar_spring_morph_scene.json',
+        fileName: 'professional_prompt_bar_clean_scene.json',
         projectId: 'prompt-bar-hold-proof',
         sceneId: 'prompt-bar-scene',
       ),

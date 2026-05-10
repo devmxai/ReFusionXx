@@ -240,6 +240,46 @@ void main() {
   });
 
   test(
+      'professional prompt bar clean preset imports through scene authoring pipeline',
+      () {
+    final source = File(
+      'assets/scene_programs/professional_prompt_bar_clean_scene.json',
+    ).readAsStringSync();
+
+    final extracted = KieSceneProgramAgentService()
+        .extractSceneProgramPayloadFromContent(content: source);
+    final result =
+        const ReFusionSceneProgramAuthoringService().importSceneProgram(
+      ReFusionSceneProgramAuthoringRequest(
+        source: extracted.sceneProgramJson,
+        fileName: 'professional_prompt_bar_clean_scene.json',
+        projectId: 'professional-prompt-bar-clean-test',
+        sceneId: 'professional-prompt-bar-clean-scene',
+      ),
+    );
+
+    expect(
+      result.isValid,
+      isTrue,
+      reason: result.issues
+          .map((issue) => '${issue.severity} ${issue.path}: ${issue.message}')
+          .join('\n'),
+    );
+    expect(result.program?.name, 'Professional Prompt Bar Clean');
+    expect(result.program?.durationMs, 4200);
+    expect(
+      result.issues.any(
+        (issue) =>
+            issue.message.contains('TF_SCENE_COMPONENT_QUALITY_GATE_PROOF') &&
+            issue.message.contains('strictProfessional=true') &&
+            issue.message.contains('structuralErrorCount=0'),
+      ),
+      isTrue,
+    );
+  });
+
+
+  test(
       'revival native intelligence result card text follows card timing tracks',
       () {
     final source = File(
@@ -343,13 +383,14 @@ void main() {
     await tester.tap(find.text('Open Present'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Prompt Bar Spring Morph'), findsOneWidget);
+    expect(find.text('Professional Prompt Bar Clean'), findsOneWidget);
+    expect(find.text('Prompt Bar Spring Morph'), findsNothing);
     expect(find.text('Professional Test Version 3'), findsNothing);
     expect(find.text('Premium App Promo'), findsNothing);
     expect(find.text('ReFusion Prompt Burst'), findsNothing);
     expect(find.text('No clean present scene yet'), findsNothing);
 
-    await tester.tap(find.text('Prompt Bar Spring Morph'));
+    await tester.tap(find.text('Professional Prompt Bar Clean'));
     await tester.runAsync(() async {
       for (var attempt = 0;
           attempt < 40 && appliedResult == null;
@@ -360,7 +401,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(appliedResult, isNotNull);
-    expect(appliedResult!.name, 'Prompt Bar Spring Morph');
+    expect(appliedResult!.name, 'Professional Prompt Bar Clean');
     expect(appliedResult!.replaceExistingComposition, isTrue);
     expect(appliedResult!.authoringResult.program?.durationMs, 4200);
   });
