@@ -86,6 +86,7 @@ void main() {
       required String id,
       required double x,
       required int layerDurationMs,
+      required String iconName,
     }) {
       return ReFusionSceneProgramElement(
         id: id,
@@ -95,6 +96,7 @@ void main() {
           'position': <String, Object?>{'x': x, 'y': 0.0},
           'width': 34.0,
           'height': 34.0,
+          'icon': iconName,
           'layoutRole': 'accessory',
           if (componentAuthored) 'componentType': 'PromptInputBar',
           if (componentAuthored) 'componentId': 'prompt-input-1',
@@ -161,16 +163,19 @@ void main() {
               id: 'prompt-plus-icon',
               x: -338.0,
               layerDurationMs: iconLayerDuration,
+              iconName: 'plus',
             ),
             icon(
               id: 'prompt-mic-icon',
               x: 256.0,
               layerDurationMs: iconLayerDuration,
+              iconName: 'mic',
             ),
             icon(
               id: 'prompt-voice-icon',
               x: 344.0,
               layerDurationMs: iconLayerDuration,
+              iconName: 'volume',
             ),
           ],
         ),
@@ -279,7 +284,7 @@ void main() {
         (issue) =>
             issue.severity == ReFusionSceneProgramIssueSeverity.error &&
             issue.message.contains(
-              'COMPONENT_QA::RAW_LAYER_USED_WHERE_COMPONENT_EXISTS',
+              'COMPONENT_QA::PROMPT_BAR_SPLIT_SHELL_FRAME',
             ),
       ),
       isTrue,

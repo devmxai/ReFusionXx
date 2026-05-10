@@ -278,7 +278,7 @@ void main() {
         (issue) =>
             issue.severity == ReFusionSceneProgramIssueSeverity.error &&
             issue.message.contains(
-              'COMPONENT_QA::RAW_LAYER_USED_WHERE_COMPONENT_EXISTS',
+              'COMPONENT_QA::PROMPT_BAR_SPLIT_SHELL_FRAME',
             ),
       );
       expect(rawLayerErrors, isEmpty, reason: aspect);

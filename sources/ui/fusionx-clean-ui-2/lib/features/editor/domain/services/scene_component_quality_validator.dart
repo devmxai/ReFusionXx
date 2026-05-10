@@ -44,7 +44,15 @@ class SceneComponentQualityValidator {
         elementRefs: elementRefs,
         issues: issues,
       );
+      _lintPromptSplitShellFrame(
+        elementRefs: elementRefs,
+        issues: issues,
+      );
       _lintPromptBorders(
+        elementRefs: elementRefs,
+        issues: issues,
+      );
+      _lintPromptIconContracts(
         elementRefs: elementRefs,
         issues: issues,
       );
@@ -248,7 +256,7 @@ class SceneComponentQualityValidator {
       }
       issues.add(
         _componentError(
-          code: 'RAW_LAYER_USED_WHERE_COMPONENT_EXISTS',
+          code: 'PROMPT_BAR_SPLIT_SHELL_FRAME',
           message:
               'Prompt shell `${shell.element.id}` is authored as raw layers in professional mode.',
           path: 'layers[${shell.layerIndex}].elements[${shell.elementIndex}]',
@@ -259,6 +267,56 @@ class SceneComponentQualityValidator {
           },
         ),
       );
+    }
+  }
+
+  void _lintPromptSplitShellFrame({
+    required List<_ElementRef> elementRefs,
+    required List<ReFusionSceneProgramIssue> issues,
+  }) {
+    final shells = elementRefs.where(_isPromptShell).toList(growable: false);
+    if (shells.length < 2) {
+      return;
+    }
+    final byComponentId = <String, List<_ElementRef>>{};
+    for (final shell in shells) {
+      final componentId =
+          _componentId(shell.element.properties) ?? '__prompt-shell-raw__';
+      byComponentId.putIfAbsent(componentId, () => <_ElementRef>[]).add(shell);
+    }
+    for (final entry in byComponentId.entries) {
+      final refs = entry.value;
+      if (refs.length < 2) {
+        continue;
+      }
+      refs.sort((a, b) => a.layer.startMs.compareTo(b.layer.startMs));
+      for (var i = 0; i < refs.length - 1; i += 1) {
+        final current = refs[i];
+        final next = refs[i + 1];
+        final currentEnd = current.layer.startMs + current.layer.durationMs;
+        final nextEnd = next.layer.startMs + next.layer.durationMs;
+        final overlaps =
+            current.layer.startMs < nextEnd && next.layer.startMs < currentEnd;
+        if (!overlaps) {
+          continue;
+        }
+        issues.add(
+          _componentError(
+            code: 'PROMPT_BAR_SPLIT_SHELL_FRAME',
+            message:
+                'Prompt bar shell is split across overlapping shells `${current.element.id}` and `${next.element.id}`.',
+            path: 'layers[${next.layerIndex}].elements[${next.elementIndex}]',
+            repairPayload: <String, Object?>{
+              'action': 'mergePromptShells',
+              'componentId': entry.key,
+              'shellIds': <String>[
+                current.element.id,
+                next.element.id,
+              ],
+            },
+          ),
+        );
+      }
     }
   }
 
@@ -285,11 +343,54 @@ class SceneComponentQualityValidator {
           ) ??
           0.0;
       if (borderWidth >= 1.0) {
+        final shellWidth = _doubleFromMap(
+          ref.element.properties,
+          const <String>['width'],
+        );
+        final shellHeight = _doubleFromMap(
+          ref.element.properties,
+          const <String>['height'],
+        );
+        if (shellWidth == null || shellHeight == null) {
+          issues.add(
+            _componentError(
+              code: 'COMPONENT_INTRINSIC_SIZE_MISSING',
+              message:
+                  'PromptInputBar shell `${ref.element.id}` is missing intrinsic size (width/height).',
+              path: 'layers[${ref.layerIndex}].elements[${ref.elementIndex}]',
+              repairPayload: <String, Object?>{
+                'action': 'setIntrinsicSize',
+                'targetElementId': ref.element.id,
+                'width': 860,
+                'height': 112,
+              },
+            ),
+          );
+          continue;
+        }
+        final looksCanvasSized =
+            shellWidth >= 1000.0 || shellHeight >= 360.0 || shellHeight <= 64.0;
+        if (looksCanvasSized) {
+          issues.add(
+            _componentError(
+              code: 'COMPONENT_SIZED_AS_CANVAS',
+              message:
+                  'PromptInputBar shell `${ref.element.id}` resolved to non-professional bounds ${shellWidth.toStringAsFixed(1)}x${shellHeight.toStringAsFixed(1)}.',
+              path: 'layers[${ref.layerIndex}].elements[${ref.elementIndex}]',
+              repairPayload: <String, Object?>{
+                'action': 'normalizePromptIntrinsicSize',
+                'targetElementId': ref.element.id,
+                'widthRange': '560-980',
+                'heightRange': '84-140',
+              },
+            ),
+          );
+        }
         continue;
       }
       issues.add(
         _componentError(
-          code: 'BORDER_NOT_VISIBLE',
+          code: 'BORDER_CONTRACT_NOT_RENDERED',
           message:
               'PromptInputBar shell `${ref.element.id}` must keep visible border (>= 1px).',
           path: 'layers[${ref.layerIndex}].elements[${ref.elementIndex}]',
@@ -297,6 +398,77 @@ class SceneComponentQualityValidator {
             'action': 'setBorderWidth',
             'targetElementId': ref.element.id,
             'borderWidth': 1.0,
+          },
+        ),
+      );
+    }
+  }
+
+  void _lintPromptIconContracts({
+    required List<_ElementRef> elementRefs,
+    required List<ReFusionSceneProgramIssue> issues,
+  }) {
+    final promptEntries = elementRefs.where((ref) {
+      final type = _normalize(_componentType(ref.element.properties) ?? '');
+      return type == 'promptinputbar';
+    }).toList(growable: false);
+    if (promptEntries.isEmpty) {
+      return;
+    }
+    final byComponentId = <String, List<_ElementRef>>{};
+    for (final entry in promptEntries) {
+      final componentId = _componentId(entry.element.properties);
+      if (componentId == null || componentId.trim().isEmpty) {
+        continue;
+      }
+      byComponentId.putIfAbsent(componentId, () => <_ElementRef>[]).add(entry);
+    }
+    for (final entry in byComponentId.entries) {
+      final refs = entry.value;
+      final hasPlus = refs.any((ref) {
+        if (_normalize(ref.element.kind) != 'icon') {
+          return false;
+        }
+        final icon = _normalize(
+          _stringFromMap(ref.element.properties, const <String>['icon']) ?? '',
+        );
+        return icon == 'plus';
+      });
+      final hasMic = refs.any((ref) {
+        if (_normalize(ref.element.kind) != 'icon') {
+          return false;
+        }
+        final icon = _normalize(
+          _stringFromMap(ref.element.properties, const <String>['icon']) ?? '',
+        );
+        return icon == 'mic' || icon == 'microphone';
+      });
+      final hasTrailingVoice = refs.any((ref) {
+        if (_normalize(ref.element.kind) != 'icon') {
+          return false;
+        }
+        final icon = _normalize(
+          _stringFromMap(ref.element.properties, const <String>['icon']) ?? '',
+        );
+        return icon == 'volume' ||
+            icon == 'audiowave' ||
+            icon == 'waveform' ||
+            icon == 'speaker';
+      });
+      if (hasPlus && hasMic && hasTrailingVoice) {
+        continue;
+      }
+      final anchor = refs.first;
+      issues.add(
+        _componentError(
+          code: 'ICON_CONTRACT_NOT_RENDERED',
+          message:
+              'PromptInputBar `${entry.key}` is missing required icon contract (plus=$hasPlus mic=$hasMic voice=$hasTrailingVoice).',
+          path: 'layers[${anchor.layerIndex}]',
+          repairPayload: <String, Object?>{
+            'action': 'restorePromptIcons',
+            'componentId': entry.key,
+            'requiredIcons': const <String>['plus', 'mic', 'volume'],
           },
         ),
       );
@@ -350,7 +522,7 @@ class SceneComponentQualityValidator {
       }
       issues.add(
         _componentError(
-          code: 'UNSUPPORTED_LOOSE_COORDINATES_IN_COMPONENT',
+          code: 'RAW_CHILD_POSITION_INSIDE_KNOWN_COMPONENT',
           message:
               'Child `${ref.element.id}` uses loose/global coordinates inside parent `${parent.element.id}`.',
           path: 'layers[${ref.layerIndex}].elements[${ref.elementIndex}]',
@@ -362,6 +534,21 @@ class SceneComponentQualityValidator {
         ),
       );
     }
+  }
+
+  bool _isPromptShell(_ElementRef ref) {
+    if (_normalize(ref.element.kind) != 'shape') {
+      return false;
+    }
+    final componentType =
+        _normalize(_componentType(ref.element.properties) ?? '');
+    if (componentType == 'promptinputbar') {
+      return true;
+    }
+    final id = _normalize(ref.element.id);
+    return id.contains('promptshell') ||
+        id.contains('promptbar') ||
+        id.contains('inputbar');
   }
 
   void _lintFadeOnlyPatterns({
