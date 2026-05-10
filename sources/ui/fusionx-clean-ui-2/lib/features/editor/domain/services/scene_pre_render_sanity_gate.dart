@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/refusion_scene_program_models.dart';
 import 'refusion_scene_program_authoring_service.dart';
+import 'scene_component_quality_validator.dart';
 import 'scene_render_truth_alignment_validator.dart';
 import 'scene_visual_frame_qa_validator.dart';
 
@@ -27,16 +28,20 @@ class ScenePreRenderSanityGateResult {
 class ScenePreRenderSanityGate {
   const ScenePreRenderSanityGate({
     SceneVisualFrameQaValidator? visualFrameQaValidator,
+    SceneComponentQualityValidator? componentQualityValidator,
     SceneRenderTruthAlignmentValidator? renderTruthAlignmentValidator,
   })  : _visualFrameQaValidator = visualFrameQaValidator ??
             const SceneVisualFrameQaValidator(
               enforceOverflowAsError: true,
             ),
+        _componentQualityValidator =
+            componentQualityValidator ?? const SceneComponentQualityValidator(),
         _renderTruthAlignmentValidator = renderTruthAlignmentValidator;
 
   static const String _proofTag = 'TF_SCENE_PRE_RENDER_GATE_PROOF';
 
   final SceneVisualFrameQaValidator _visualFrameQaValidator;
+  final SceneComponentQualityValidator _componentQualityValidator;
   final SceneRenderTruthAlignmentValidator? _renderTruthAlignmentValidator;
 
   ScenePreRenderSanityGateResult validate({
@@ -85,6 +90,13 @@ class ScenePreRenderSanityGate {
         )
         .toList(growable: false);
     issues.addAll(strictErrors);
+    final componentQualityResult = _componentQualityValidator.validate(program);
+    final componentQualityErrors = componentQualityResult.issues
+        .where(
+          (issue) => issue.severity == ReFusionSceneProgramIssueSeverity.error,
+        )
+        .toList(growable: false);
+    issues.addAll(componentQualityErrors);
 
     final hctValid = !strictErrors.any(
       (issue) => issue.message.contains('Runtime probe tree invalid'),
@@ -106,7 +118,8 @@ class ScenePreRenderSanityGate {
             textAnimationBindings: authoringResult.textAnimationBindings,
           );
     issues.addAll(renderTruthAlignment.issues);
-    final frameQaValid = strictFrameQaResult.isValid;
+    final frameQaValid =
+        strictFrameQaResult.isValid && componentQualityResult.isValid;
     final renderTruthAligned = renderTruthAlignment.aligned;
     final blocked = issues.any(
       (issue) => issue.severity == ReFusionSceneProgramIssueSeverity.error,
@@ -165,6 +178,9 @@ class ScenePreRenderSanityGate {
       }
       if (message.contains('unreadable')) {
         return 'unreadable_hold';
+      }
+      if (message.contains('COMPONENT_QA::')) {
+        return 'component_quality_violation';
       }
     }
     return 'validation_failed';

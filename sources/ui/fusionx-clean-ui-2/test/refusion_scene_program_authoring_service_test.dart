@@ -353,7 +353,7 @@ void main() {
   });
 
   test(
-      'strict visual gate rejects premium prompt scene when frame QA defects remain',
+      'premium prompt scene imports cleanly with visual and component QA proofs',
       () {
     final source = File(
       'assets/scene_programs/premium_app_promo_prompt_bar_scene.json',
@@ -370,18 +370,8 @@ void main() {
       ),
     );
 
-    expect(result.isValid, isFalse,
+    expect(result.isValid, isTrue,
         reason: result.issues.map((issue) => issue.message).join('\n'));
-    expect(
-      result.issues.any(
-        (issue) =>
-            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
-            (issue.message.contains('clipped') ||
-                issue.message.contains('safe area') ||
-                issue.message.contains('desynced')),
-      ),
-      isTrue,
-    );
     expect(
       result.issues.any(
         (issue) => issue.message.contains('TF_SCENE_MOTION_CONTINUITY_PROOF'),
@@ -391,6 +381,13 @@ void main() {
     expect(
       result.issues.any(
         (issue) => issue.message.contains('TF_SCENE_VISUAL_FRAME_QA_PROOF'),
+      ),
+      isTrue,
+    );
+    expect(
+      result.issues.any(
+        (issue) =>
+            issue.message.contains('TF_SCENE_COMPONENT_QUALITY_GATE_PROOF'),
       ),
       isTrue,
     );

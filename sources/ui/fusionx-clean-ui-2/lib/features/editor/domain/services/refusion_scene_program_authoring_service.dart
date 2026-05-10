@@ -9,6 +9,7 @@ import 'refusion_scene_program_import_service.dart';
 import 'refusion_scene_program_lowerer.dart';
 import 'scene_motion_continuity_validator.dart';
 import 'scene_icon_alignment_validator.dart';
+import 'scene_component_quality_validator.dart';
 import 'scene_program_component_contract.dart';
 import 'scene_program_layout_contract.dart';
 import 'scene_visual_frame_qa_validator.dart';
@@ -78,6 +79,8 @@ class ReFusionSceneProgramAuthoringService {
         const SceneMotionContinuityValidator(),
     SceneVisualFrameQaValidator visualFrameQaValidator =
         const SceneVisualFrameQaValidator(),
+    SceneComponentQualityValidator componentQualityValidator =
+        const SceneComponentQualityValidator(),
     ReFusionSceneProgramLowerer lowerer = const ReFusionSceneProgramLowerer(),
   })  : _importService = importService,
         _timingContractValidator = timingContractValidator,
@@ -86,6 +89,7 @@ class ReFusionSceneProgramAuthoringService {
         _iconAlignmentValidator = iconAlignmentValidator,
         _motionContinuityValidator = motionContinuityValidator,
         _visualFrameQaValidator = visualFrameQaValidator,
+        _componentQualityValidator = componentQualityValidator,
         _lowerer = lowerer;
 
   final ReFusionSceneProgramImportService _importService;
@@ -95,6 +99,7 @@ class ReFusionSceneProgramAuthoringService {
   final SceneIconAlignmentValidator _iconAlignmentValidator;
   final SceneMotionContinuityValidator _motionContinuityValidator;
   final SceneVisualFrameQaValidator _visualFrameQaValidator;
+  final SceneComponentQualityValidator _componentQualityValidator;
   final ReFusionSceneProgramLowerer _lowerer;
 
   ReFusionSceneProgramAuthoringResult importSceneProgram(
@@ -204,6 +209,25 @@ class ReFusionSceneProgramAuthoringService {
       );
     }
 
+    final componentQualityResult = _componentQualityValidator.validate(
+      importResult.program!,
+    );
+    if (!componentQualityResult.isValid) {
+      return ReFusionSceneProgramAuthoringResult(
+        program: importResult.program,
+        issues: <ReFusionSceneProgramIssue>[
+          ...importResult.issues,
+          ...timingResult.issues,
+          ...layoutResult.issues,
+          ...componentResult.issues,
+          ...iconAlignmentResult.issues,
+          ...continuityResult.issues,
+          ...visualQaResult.issues,
+          ...componentQualityResult.issues,
+        ],
+      );
+    }
+
     final loweringResult = _lowerer.lower(
       ReFusionSceneProgramLoweringRequest(
         program: importResult.program!,
@@ -225,6 +249,7 @@ class ReFusionSceneProgramAuthoringService {
         ...iconAlignmentResult.issues,
         ...continuityResult.issues,
         ...visualQaResult.issues,
+        ...componentQualityResult.issues,
         ...loweringResult.issues,
       ],
     );
