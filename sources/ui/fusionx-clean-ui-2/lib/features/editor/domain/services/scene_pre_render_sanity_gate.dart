@@ -179,6 +179,31 @@ class ScenePreRenderSanityGate {
       if (message.contains('unreadable')) {
         return 'unreadable_hold';
       }
+      if (message.contains('component_qa::component_intrinsic_size_missing')) {
+        return 'component_intrinsic_size_missing';
+      }
+      if (message.contains('component_qa::component_sized_as_canvas')) {
+        return 'component_sized_as_canvas';
+      }
+      if (message.contains('component_qa::border_contract_not_rendered')) {
+        return 'border_contract_not_rendered';
+      }
+      if (message.contains('component_qa::icon_contract_not_rendered')) {
+        return 'icon_contract_not_rendered';
+      }
+      if (message.contains(
+          'component_qa::raw_child_position_inside_known_component')) {
+        return 'raw_child_position_inside_known_component';
+      }
+      if (message.contains('component_qa::prompt_bar_split_shell_frame')) {
+        return 'prompt_bar_split_shell_frame';
+      }
+      if (message.contains('component_qa::child_outlives_parent')) {
+        return 'child_outlives_parent';
+      }
+      if (message.contains('component_qa::text_exceeds_text_slot')) {
+        return 'text_exceeds_text_slot';
+      }
       if (message.contains('COMPONENT_QA::')) {
         return 'component_quality_violation';
       }
