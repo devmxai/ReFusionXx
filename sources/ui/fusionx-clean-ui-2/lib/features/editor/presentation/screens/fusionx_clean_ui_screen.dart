@@ -85,6 +85,7 @@ import '../services/transition_unified_scope_keyframe_adapter.dart';
 import '../services/transition_unified_scope_timeline_session_adapter.dart';
 import '../services/unified_timeline_add_command_registry.dart';
 import '../services/unified_timeline_focus_routing_adapter.dart';
+import '../services/unified_keyframe_motion_timeline_adapter.dart';
 import '../services/unified_timeline_panel_projection_adapter.dart';
 import '../services/unified_timeline_presentation_adapter.dart';
 import '../services/unified_timeline_presentation_flags.dart';
@@ -200,6 +201,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   static const UnifiedTimelineFocusRoutingAdapter
       _unifiedTimelineFocusRoutingAdapter =
       UnifiedTimelineFocusRoutingAdapter();
+  static const UnifiedKeyframeMotionTimelineAdapter
+      _unifiedKeyframeMotionTimelineAdapter =
+      UnifiedKeyframeMotionTimelineAdapter();
   static const UnifiedTimelineAddCommandRegistry
       _unifiedTimelineAddCommandRegistry = UnifiedTimelineAddCommandRegistry();
   static const RootSceneClipProjectionAdapter _rootSceneClipProjectionAdapter =
@@ -4435,6 +4439,21 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
     switch (decision.route) {
       case UnifiedTimelineFocusRoute.layerScope:
+        final projection = _unifiedKeyframeMotionTimelineAdapter.project(
+          UnifiedKeyframeMotionTimelineRequest(
+            tracks: _timelineTruthTracks,
+            focusedClipId: decision.sourceId,
+            globalTimelineTime: _currentTime,
+          ),
+        );
+        if (projection.focusedTrack == null) {
+          _showStageMessage(
+            projection.issues.isEmpty
+                ? 'Unable to resolve keyframe focus for this layer.'
+                : projection.issues.first.message,
+          );
+          return;
+        }
         _enterLayerScope(decision.sourceId);
         return;
       case UnifiedTimelineFocusRoute.sceneScopeFallback:
