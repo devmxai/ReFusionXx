@@ -55,6 +55,10 @@ class SceneEvaluationPipeline {
   final SceneSlotLayoutSolver _slotLayoutSolver;
   static const String _parentGraphProofTag = 'TF_SCENE_PARENT_GRAPH_PROOF';
   static const String _slotLayoutProofTag = 'TF_SCENE_SLOT_LAYOUT_PROOF';
+  static const String _componentHierarchyProofTag =
+      'TF_SCENE_COMPONENT_HIERARCHY_PROOF';
+  static const String _componentLifecycleProofTag =
+      'TF_SCENE_COMPONENT_LIFECYCLE_PROOF';
 
   SceneEvaluationPipelineResult evaluate(
       SceneEvaluationPipelineRequest request) {
@@ -80,6 +84,10 @@ class SceneEvaluationPipeline {
     final runtimeNodeById = <String, SceneRuntimeNode>{};
     final sourceMaps = <String, Object?>{};
     final stateByNodeId = <String, _ElementEvaluationState>{};
+    final componentIdByRuntimeNodeId = <String, String>{};
+    final componentTypeByRuntimeNodeId = <String, String>{};
+    final slotIdByRuntimeNodeId = <String, String>{};
+    final layoutRoleByRuntimeNodeId = <String, String>{};
     final parentGraph = _globalParentGraph.build(request.program);
     for (final graphIssue in parentGraph.issues) {
       issues.add(
@@ -125,6 +133,22 @@ class SceneEvaluationPipeline {
           layerId: layer.id,
           elementId: element.id,
         );
+        final componentId = _componentIdFor(element);
+        final componentType = _componentTypeFor(element);
+        final slotId = _slotIdFor(element);
+        final layoutRole = _layoutRoleFor(element);
+        if (componentId != null && componentId.trim().isNotEmpty) {
+          componentIdByRuntimeNodeId[runtimeNodeId] = componentId;
+        }
+        if (componentType != null && componentType.trim().isNotEmpty) {
+          componentTypeByRuntimeNodeId[runtimeNodeId] = componentType;
+        }
+        if (slotId != null && slotId.trim().isNotEmpty) {
+          slotIdByRuntimeNodeId[runtimeNodeId] = slotId;
+        }
+        if (layoutRole != null && layoutRole.trim().isNotEmpty) {
+          layoutRoleByRuntimeNodeId[runtimeNodeId] = layoutRole;
+        }
         final parentNodeId = parentGraph.parentByRuntimeNodeId[runtimeNodeId] ??
             SceneGlobalParentGraph.sceneRootNodeId;
         final baseState = stateByNodeId[runtimeNodeId]!;
@@ -142,8 +166,10 @@ class SceneEvaluationPipeline {
           nodeType: _runtimeTypeForElementKind(element.kind),
           parentId: parentNodeId,
           zOrder: (layerIndex * 1000) + elementIndex,
+          sourceComponentId: _componentIdFor(element),
           sourceLayerId: layer.id,
           sourceElementId: element.id,
+          slotId: _slotIdFor(element),
           metadata: <String, Object?>{
             'x': normalizedState.x,
             'y': normalizedState.y,
@@ -166,8 +192,70 @@ class SceneEvaluationPipeline {
           'layerId': layer.id,
           'elementId': element.id,
           'parentNodeId': parentNodeId,
+          'componentId': componentId,
+          'componentType': componentType,
+          'slotId': slotId,
+          'layoutRole': layoutRole,
         };
       }
+    }
+
+    final componentBinding = _buildComponentRuntimeBinding(
+      runtimeNodeById: runtimeNodeById,
+      componentIdByRuntimeNodeId: componentIdByRuntimeNodeId,
+      componentTypeByRuntimeNodeId: componentTypeByRuntimeNodeId,
+      slotIdByRuntimeNodeId: slotIdByRuntimeNodeId,
+      layoutRoleByRuntimeNodeId: layoutRoleByRuntimeNodeId,
+      rootNodeId: _sceneRootId,
+    );
+    for (final entry in runtimeNodeById.entries.toList(growable: false)) {
+      final nodeId = entry.key;
+      final node = entry.value;
+      final parentOverride =
+          componentBinding.parentOverrideByRuntimeNodeId[nodeId];
+      final componentId = componentIdByRuntimeNodeId[nodeId];
+      final slotId = slotIdByRuntimeNodeId[nodeId];
+      runtimeNodeById[nodeId] = node.copyWith(
+        parentId: parentOverride ?? node.parentId,
+        sourceComponentId: componentId ?? node.sourceComponentId,
+        slotId: slotId ?? node.slotId,
+      );
+      final sourceMapRaw = sourceMaps[nodeId];
+      if (sourceMapRaw is Map<String, Object?>) {
+        final merged = <String, Object?>{...sourceMapRaw};
+        merged['parentNodeId'] = parentOverride ?? node.parentId;
+        if (componentId != null && componentId.trim().isNotEmpty) {
+          merged['componentId'] = componentId;
+        }
+        final componentType = componentTypeByRuntimeNodeId[nodeId];
+        if (componentType != null && componentType.trim().isNotEmpty) {
+          merged['componentType'] = componentType;
+        }
+        if (slotId != null && slotId.trim().isNotEmpty) {
+          merged['slotId'] = slotId;
+        }
+        sourceMaps[nodeId] = merged;
+      }
+    }
+    for (final node in componentBinding.syntheticNodes) {
+      nodes.add(node);
+      runtimeNodeById[node.id] = node;
+      sourceMaps[node.id] = <String, Object?>{
+        'synthetic': true,
+        'nodeType': node.nodeType.name,
+        'componentId': node.sourceComponentId,
+        'slotId': node.slotId,
+        'parentNodeId': node.parentId,
+      };
+    }
+    for (final node in runtimeNodeById.values) {
+      if (node.id == _sceneRootId) {
+        continue;
+      }
+      if (nodes.any((entry) => entry.id == node.id)) {
+        continue;
+      }
+      nodes.add(node);
     }
 
     final treeResult = SceneRuntimeComponentTree.build(nodes);
@@ -256,6 +344,7 @@ class SceneEvaluationPipeline {
         sourceLayerId: runtimeNode.sourceLayerId,
         sourceElementId: runtimeNode.sourceElementId ??
             _sourceElementIdFromRuntimeNodeId(nodeId),
+        sourceComponentId: runtimeNode.sourceComponentId,
         parentNodeId: runtimeNode.parentId,
         nodeType: runtimeNode.nodeType.name,
         slotId: runtimeNode.slotId,
@@ -301,6 +390,8 @@ class SceneEvaluationPipeline {
       nodesById: evaluatedNodes,
       sourceMaps: sourceMaps,
     );
+    final hierarchyStats = _hierarchyStats(evaluatedNodes);
+    final lifecycleStats = _lifecycleStats(evaluatedNodes);
     final diagnostics = SceneEvaluationDiagnostics(events: const []).append(
       tag: _parentGraphProofTag,
       fields: <String, Object?>{
@@ -348,6 +439,36 @@ class SceneEvaluationPipeline {
         'hctApplied': true,
         'usedCanonicalCoordinates': true,
         'fallbackReason': 'none',
+      },
+    ).append(
+      tag: _componentHierarchyProofTag,
+      fields: <String, Object?>{
+        'sceneId': request.program.name,
+        'globalTimeMs': safeTime,
+        'nodesWithComponentId': hierarchyStats.nodesWithComponentId,
+        'nodesWithSlotId': hierarchyStats.nodesWithSlotId,
+        'nodesWithParent': hierarchyStats.nodesWithParent,
+        'orphanParentRefs': hierarchyStats.orphanParentRefs,
+        'fallbackReason':
+            hierarchyStats.orphanParentRefs == 0 ? 'none' : 'orphan_parent_ref',
+      },
+    ).append(
+      tag: _componentLifecycleProofTag,
+      fields: <String, Object?>{
+        'sceneId': request.program.name,
+        'globalTimeMs': safeTime,
+        'activeNodes': lifecycleStats.activeNodes,
+        'inactiveNodes': lifecycleStats.inactiveNodes,
+        'visibleNodes': lifecycleStats.visibleNodes,
+        'hiddenNodes': lifecycleStats.hiddenNodes,
+        'childActiveWhileParentInactive':
+            lifecycleStats.childActiveWhileParentInactive,
+        'childVisibleWhileParentHidden':
+            lifecycleStats.childVisibleWhileParentHidden,
+        'fallbackReason': (lifecycleStats.childActiveWhileParentInactive == 0 &&
+                lifecycleStats.childVisibleWhileParentHidden == 0)
+            ? 'none'
+            : 'lifecycle_mismatch',
       },
     );
 
@@ -773,6 +894,292 @@ class SceneEvaluationPipeline {
     return value.replaceAll(RegExp(r'[^a-zA-Z0-9]+'), '').toLowerCase();
   }
 
+  String? _componentTypeFor(ReFusionSceneProgramElement element) {
+    return _readStringProperty(
+      element.properties,
+      const <String>['componentType', 'component', 'semanticType'],
+      layoutKeys: const <String>['componentType', 'component', 'semanticType'],
+    );
+  }
+
+  String? _componentIdFor(ReFusionSceneProgramElement element) {
+    return _readStringProperty(
+          element.properties,
+          const <String>['componentId', 'componentRef', 'componentKey'],
+          layoutKeys: const <String>[
+            'componentId',
+            'componentRef',
+            'componentKey'
+          ],
+        ) ??
+        _componentTypeFor(element);
+  }
+
+  String? _slotIdFor(ReFusionSceneProgramElement element) {
+    return _readStringProperty(
+      element.properties,
+      const <String>['slotId', 'slot', 'slotKey'],
+      layoutKeys: const <String>['slotId', 'slot', 'slotKey'],
+    );
+  }
+
+  String? _layoutRoleFor(ReFusionSceneProgramElement element) {
+    return _readStringProperty(
+      element.properties,
+      const <String>['layoutRole', 'role'],
+      layoutKeys: const <String>['layoutRole', 'role'],
+    );
+  }
+
+  String? _readStringProperty(
+    Map<String, Object?> properties,
+    List<String> keys, {
+    List<String> layoutKeys = const <String>[],
+  }) {
+    for (final key in keys) {
+      final value = properties[key];
+      if (value is String && value.trim().isNotEmpty) {
+        return value.trim();
+      }
+    }
+    if (layoutKeys.isEmpty) {
+      return null;
+    }
+    final layout = _mapFromProperties(properties, const <String>['layout']);
+    if (layout == null) {
+      return null;
+    }
+    for (final key in layoutKeys) {
+      final value = layout[key];
+      if (value is String && value.trim().isNotEmpty) {
+        return value.trim();
+      }
+    }
+    return null;
+  }
+
+  _ComponentRuntimeBinding _buildComponentRuntimeBinding({
+    required Map<String, SceneRuntimeNode> runtimeNodeById,
+    required Map<String, String> componentIdByRuntimeNodeId,
+    required Map<String, String> componentTypeByRuntimeNodeId,
+    required Map<String, String> slotIdByRuntimeNodeId,
+    required Map<String, String> layoutRoleByRuntimeNodeId,
+    required String rootNodeId,
+  }) {
+    final parentOverrideByRuntimeNodeId = <String, String>{};
+    final syntheticNodes = <SceneRuntimeNode>[];
+
+    final membersByComponent = <String, List<String>>{};
+    for (final entry in componentIdByRuntimeNodeId.entries) {
+      membersByComponent
+          .putIfAbsent(entry.value, () => <String>[])
+          .add(entry.key);
+    }
+    final sortedComponentIds = membersByComponent.keys.toList(growable: false)
+      ..sort((a, b) => a.compareTo(b));
+
+    final componentNodeIdByComponentId = <String, String>{};
+    final slotNodeIdByComponentAndSlot = <String, String>{};
+
+    for (final componentId in sortedComponentIds) {
+      final memberNodeIds = membersByComponent[componentId]!;
+      final sortedMembers = memberNodeIds.toList(growable: false)
+        ..sort((a, b) => a.compareTo(b));
+      var anchorId = sortedMembers.first;
+      for (final memberId in sortedMembers) {
+        final role = _normalizeToken(layoutRoleByRuntimeNodeId[memberId] ?? '');
+        if (role == 'container') {
+          anchorId = memberId;
+          break;
+        }
+      }
+      final anchorNode = runtimeNodeById[anchorId];
+      if (anchorNode == null) {
+        continue;
+      }
+      final anchorComponentType =
+          componentTypeByRuntimeNodeId[anchorId] ?? 'Component';
+      final bounds = _boundsForNode(anchorNode);
+      final lifecycle = _lifecycleForNode(anchorNode);
+      final minZ = sortedMembers
+          .map((id) => runtimeNodeById[id]?.zOrder ?? anchorNode.zOrder)
+          .fold<int>(anchorNode.zOrder, math.min);
+      final componentNodeId = '__component__${_sanitizeRuntimeId(componentId)}';
+      componentNodeIdByComponentId[componentId] = componentNodeId;
+      syntheticNodes.add(
+        SceneRuntimeNode(
+          id: componentNodeId,
+          nodeType: SceneRuntimeNodeType.component,
+          parentId: rootNodeId,
+          zOrder: minZ - 10,
+          sourceComponentId: componentId,
+          metadata: <String, Object?>{
+            'x': bounds.centerX,
+            'y': bounds.centerY,
+            'width': bounds.width,
+            'height': bounds.height,
+            'localLeft': -(bounds.width / 2.0),
+            'localTop': -(bounds.height / 2.0),
+            'startMs': lifecycle.startMs,
+            'endMs': lifecycle.endMs,
+            'opacity': 1.0,
+            'componentType': anchorComponentType,
+          },
+        ),
+      );
+
+      final slotIds = <String>{
+        for (final memberId in sortedMembers)
+          if ((slotIdByRuntimeNodeId[memberId] ?? '').trim().isNotEmpty)
+            slotIdByRuntimeNodeId[memberId]!.trim(),
+      }.toList(growable: false)
+        ..sort((a, b) => a.compareTo(b));
+      for (final slotId in slotIds) {
+        final slotNodeId =
+            '$componentNodeId::slot::${_sanitizeRuntimeId(slotId)}';
+        slotNodeIdByComponentAndSlot['$componentId::$slotId'] = slotNodeId;
+        syntheticNodes.add(
+          SceneRuntimeNode(
+            id: slotNodeId,
+            nodeType: SceneRuntimeNodeType.slot,
+            parentId: componentNodeId,
+            zOrder: minZ - 5,
+            sourceComponentId: componentId,
+            slotId: slotId,
+            metadata: <String, Object?>{
+              'x': bounds.centerX,
+              'y': bounds.centerY,
+              'width': bounds.width,
+              'height': bounds.height,
+              'localLeft': -(bounds.width / 2.0),
+              'localTop': -(bounds.height / 2.0),
+              'startMs': lifecycle.startMs,
+              'endMs': lifecycle.endMs,
+              'opacity': 1.0,
+              'componentType': anchorComponentType,
+            },
+          ),
+        );
+      }
+    }
+
+    for (final entry in slotIdByRuntimeNodeId.entries) {
+      final runtimeNodeId = entry.key;
+      final slotId = entry.value.trim();
+      final componentId = componentIdByRuntimeNodeId[runtimeNodeId];
+      if (componentId == null || slotId.isEmpty) {
+        continue;
+      }
+      final slotNodeId = slotNodeIdByComponentAndSlot['$componentId::$slotId'];
+      if (slotNodeId == null) {
+        continue;
+      }
+      parentOverrideByRuntimeNodeId[runtimeNodeId] = slotNodeId;
+    }
+
+    return _ComponentRuntimeBinding(
+      syntheticNodes: syntheticNodes,
+      parentOverrideByRuntimeNodeId: parentOverrideByRuntimeNodeId,
+    );
+  }
+
+  ({double centerX, double centerY, double width, double height})
+      _boundsForNode(
+    SceneRuntimeNode node,
+  ) {
+    final metadata = node.metadata;
+    final centerX = _readDouble(metadata['x']) ?? 0.0;
+    final centerY = _readDouble(metadata['y']) ?? 0.0;
+    final width = (_readDouble(metadata['width']) ?? 1.0).clamp(1.0, 1000000.0);
+    final height =
+        (_readDouble(metadata['height']) ?? 1.0).clamp(1.0, 1000000.0);
+    return (
+      centerX: centerX,
+      centerY: centerY,
+      width: width,
+      height: height,
+    );
+  }
+
+  ({int startMs, int endMs}) _lifecycleForNode(SceneRuntimeNode node) {
+    final metadata = node.metadata;
+    final startMs = (_readDouble(metadata['startMs']) ?? 0.0).round();
+    final rawEnd = (_readDouble(metadata['endMs']) ?? (startMs + 1.0)).round();
+    final endMs = rawEnd <= startMs ? startMs + 1 : rawEnd;
+    return (startMs: startMs, endMs: endMs);
+  }
+
+  _HierarchyStats _hierarchyStats(Map<String, EvaluatedSceneNode> nodes) {
+    var nodesWithComponentId = 0;
+    var nodesWithSlotId = 0;
+    var nodesWithParent = 0;
+    var orphanParentRefs = 0;
+    for (final node in nodes.values) {
+      if ((node.sourceComponentId ?? '').trim().isNotEmpty) {
+        nodesWithComponentId += 1;
+      }
+      if ((node.slotId ?? '').trim().isNotEmpty) {
+        nodesWithSlotId += 1;
+      }
+      final parentId = node.parentNodeId;
+      if (parentId == null) {
+        continue;
+      }
+      nodesWithParent += 1;
+      if (!nodes.containsKey(parentId)) {
+        orphanParentRefs += 1;
+      }
+    }
+    return _HierarchyStats(
+      nodesWithComponentId: nodesWithComponentId,
+      nodesWithSlotId: nodesWithSlotId,
+      nodesWithParent: nodesWithParent,
+      orphanParentRefs: orphanParentRefs,
+    );
+  }
+
+  _LifecycleStats _lifecycleStats(Map<String, EvaluatedSceneNode> nodes) {
+    var activeNodes = 0;
+    var visibleNodes = 0;
+    var childActiveWhileParentInactive = 0;
+    var childVisibleWhileParentHidden = 0;
+    for (final node in nodes.values) {
+      if (node.active) {
+        activeNodes += 1;
+      }
+      if (node.visible) {
+        visibleNodes += 1;
+      }
+      final parentId = node.parentNodeId;
+      if (parentId == null) {
+        continue;
+      }
+      final parent = nodes[parentId];
+      if (parent == null) {
+        continue;
+      }
+      if (node.active && !parent.active) {
+        childActiveWhileParentInactive += 1;
+      }
+      if (node.visible && !parent.visible) {
+        childVisibleWhileParentHidden += 1;
+      }
+    }
+    return _LifecycleStats(
+      activeNodes: activeNodes,
+      inactiveNodes: nodes.length - activeNodes,
+      visibleNodes: visibleNodes,
+      hiddenNodes: nodes.length - visibleNodes,
+      childActiveWhileParentInactive: childActiveWhileParentInactive,
+      childVisibleWhileParentHidden: childVisibleWhileParentHidden,
+    );
+  }
+
+  String _sanitizeRuntimeId(String value) {
+    final sanitized = value.replaceAll(RegExp(r'[^a-zA-Z0-9_\\-]+'), '_');
+    return sanitized.isEmpty ? 'component' : sanitized;
+  }
+
   double _estimateTextWidth(
     String text, {
     required double fontSize,
@@ -853,4 +1260,46 @@ class _ElementEvaluationState {
       typewriterProgress: typewriterProgress,
     );
   }
+}
+
+class _HierarchyStats {
+  const _HierarchyStats({
+    required this.nodesWithComponentId,
+    required this.nodesWithSlotId,
+    required this.nodesWithParent,
+    required this.orphanParentRefs,
+  });
+
+  final int nodesWithComponentId;
+  final int nodesWithSlotId;
+  final int nodesWithParent;
+  final int orphanParentRefs;
+}
+
+class _LifecycleStats {
+  const _LifecycleStats({
+    required this.activeNodes,
+    required this.inactiveNodes,
+    required this.visibleNodes,
+    required this.hiddenNodes,
+    required this.childActiveWhileParentInactive,
+    required this.childVisibleWhileParentHidden,
+  });
+
+  final int activeNodes;
+  final int inactiveNodes;
+  final int visibleNodes;
+  final int hiddenNodes;
+  final int childActiveWhileParentInactive;
+  final int childVisibleWhileParentHidden;
+}
+
+class _ComponentRuntimeBinding {
+  const _ComponentRuntimeBinding({
+    required this.syntheticNodes,
+    required this.parentOverrideByRuntimeNodeId,
+  });
+
+  final List<SceneRuntimeNode> syntheticNodes;
+  final Map<String, String> parentOverrideByRuntimeNodeId;
 }
