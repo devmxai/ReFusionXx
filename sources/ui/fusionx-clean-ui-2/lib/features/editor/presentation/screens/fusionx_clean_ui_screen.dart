@@ -83,6 +83,7 @@ import '../services/transition_boundary_frame_request.dart';
 import '../services/transition_unified_scope_bridge_entry_adapter.dart';
 import '../services/transition_unified_scope_keyframe_adapter.dart';
 import '../services/transition_unified_scope_timeline_session_adapter.dart';
+import '../services/unified_timeline_add_command_registry.dart';
 import '../services/unified_timeline_panel_projection_adapter.dart';
 import '../services/unified_timeline_presentation_adapter.dart';
 import '../services/unified_timeline_presentation_flags.dart';
@@ -195,6 +196,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   static const UnifiedTimelinePanelProjectionAdapter
       _unifiedTimelinePanelProjectionAdapter =
       UnifiedTimelinePanelProjectionAdapter();
+  static const UnifiedTimelineAddCommandRegistry
+      _unifiedTimelineAddCommandRegistry = UnifiedTimelineAddCommandRegistry();
   static const RootSceneClipProjectionAdapter _rootSceneClipProjectionAdapter =
       RootSceneClipProjectionAdapter();
   static const CompositionWorkspaceOutlinerAdapter
@@ -13342,80 +13345,53 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   List<_UniversalAddSheetItem> _universalAddItemsForScope(
     _UniversalAddScope scope,
   ) {
+    final unifiedScope = _toUnifiedAddScope(scope);
+    final commands =
+        _unifiedTimelineAddCommandRegistry.commandsForScope(unifiedScope);
+    return commands
+        .map(
+          (command) => _UniversalAddSheetItem(
+            action: _actionForUnifiedCommandId(command.id),
+            icon: command.icon,
+            title: command.title,
+            subtitle: command.subtitle,
+            isReady: command.isReady,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  UnifiedTimelineAddScope _toUnifiedAddScope(_UniversalAddScope scope) {
     switch (scope) {
       case _UniversalAddScope.root:
-        return const <_UniversalAddSheetItem>[
-          _UniversalAddSheetItem(
-            action: _UniversalAddAction.newScene,
-            icon: Icons.view_timeline_rounded,
-            title: 'New Scene',
-            subtitle: 'Add an empty composition clip after the current scene.',
-          ),
-          _UniversalAddSheetItem(
-            action: _UniversalAddAction.sceneScript,
-            icon: Icons.auto_awesome_motion_rounded,
-            title: 'Scene From Script',
-            subtitle: 'Import or generate a complete editable scene program.',
-          ),
-          _UniversalAddSheetItem(
-            action: _UniversalAddAction.videoLayer,
-            icon: Icons.videocam_rounded,
-            title: 'Video',
-            subtitle: 'Import video media into the project timeline.',
-          ),
-          _UniversalAddSheetItem(
-            action: _UniversalAddAction.imageLayer,
-            icon: Icons.image_rounded,
-            title: 'Image',
-            subtitle: 'Import an image into the project timeline.',
-          ),
-          _UniversalAddSheetItem(
-            action: _UniversalAddAction.textLayer,
-            icon: Icons.text_fields_rounded,
-            title: 'Text',
-            subtitle: 'Create an editable text layer at the playhead.',
-          ),
-          _UniversalAddSheetItem(
-            action: _UniversalAddAction.audioLayer,
-            icon: Icons.music_note_rounded,
-            title: 'Audio',
-            subtitle: 'Audio import lands in a later checkpoint.',
-            isReady: false,
-          ),
-        ];
+        return UnifiedTimelineAddScope.root;
       case _UniversalAddScope.scene:
-        return const <_UniversalAddSheetItem>[
-          _UniversalAddSheetItem(
-            action: _UniversalAddAction.videoLayer,
-            icon: Icons.videocam_rounded,
-            title: 'Video Layer',
-            subtitle: 'Import video media as a layer inside this scene.',
-          ),
-          _UniversalAddSheetItem(
-            action: _UniversalAddAction.imageLayer,
-            icon: Icons.image_rounded,
-            title: 'Image Layer',
-            subtitle: 'Import an image as a layer inside this scene.',
-          ),
-        ];
+        return UnifiedTimelineAddScope.scene;
       case _UniversalAddScope.layer:
-        return const <_UniversalAddSheetItem>[
-          _UniversalAddSheetItem(
-            action: _UniversalAddAction.textLayer,
-            icon: Icons.add_circle_outline_rounded,
-            title: 'Add Keyframe',
-            subtitle: 'Use the Key button in this scope to add property keys.',
-            isReady: false,
-          ),
-          _UniversalAddSheetItem(
-            action: _UniversalAddAction.adjustmentLayer,
-            icon: Icons.auto_awesome_motion_rounded,
-            title: 'Add Effect',
-            subtitle: 'Use Animate or FX for layer-scoped properties.',
-            isReady: false,
-          ),
-        ];
+        return UnifiedTimelineAddScope.layer;
     }
+  }
+
+  _UniversalAddAction _actionForUnifiedCommandId(String commandId) {
+    switch (commandId) {
+      case 'newScene':
+        return _UniversalAddAction.newScene;
+      case 'sceneScript':
+        return _UniversalAddAction.sceneScript;
+      case 'videoLayer':
+        return _UniversalAddAction.videoLayer;
+      case 'imageLayer':
+        return _UniversalAddAction.imageLayer;
+      case 'textLayer':
+        return _UniversalAddAction.textLayer;
+      case 'shapeLayer':
+        return _UniversalAddAction.shapeLayer;
+      case 'audioLayer':
+        return _UniversalAddAction.audioLayer;
+      case 'adjustmentLayer':
+        return _UniversalAddAction.adjustmentLayer;
+    }
+    return _UniversalAddAction.projectAsset;
   }
 
   Future<void> _handleUniversalAddAction(_UniversalAddAction action) async {
