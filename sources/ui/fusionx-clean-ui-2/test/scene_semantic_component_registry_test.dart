@@ -5,6 +5,46 @@ import 'package:refusion_app/features/editor/domain/services/scene_semantic_comp
 void main() {
   final registry = SceneSemanticComponentRegistry();
 
+  test('exposes component library v1 vocabulary for director authoring', () {
+    final ids = registry.supportedComponentIds;
+    expect(ids.length, greaterThanOrEqualTo(30));
+    expect(
+      ids,
+      containsAll(<String>[
+        'PromptInputBar',
+        'SearchBar',
+        'TextField',
+        'FeatureCard',
+        'StatCard',
+        'TestimonialCard',
+        'ProductCard',
+        'ImageCard',
+        'CTAButton',
+        'IconButton',
+        'FAB',
+        'ToggleButton',
+        'DashboardPanel',
+        'FeatureGrid',
+        'FeatureList',
+        'HeroSection',
+        'AppIconIntro',
+        'BrandLogo',
+        'AvatarBadge',
+        'Toast',
+        'AlertCard',
+        'ProgressIndicator',
+        'VideoPlayer',
+        'AudioWaveform',
+        'ColorGradePanel',
+        'MotionTextBlock',
+        'KineticTitle',
+        'TypingPrompt',
+        'QuoteBlock',
+        'OrbitalRing',
+      ]),
+    );
+  });
+
   test('resolves component aliases to canonical component ids', () {
     final definition = registry.findByType('feedback-card');
     expect(definition, isNotNull);
