@@ -462,4 +462,86 @@ void main() {
 
     expect(result, isNull);
   });
+
+  test('allows apply when pre-render gate is blocked by alignment-only errors',
+      () {
+    final alignmentOnlyTransaction = SceneProgramApplyTransaction(
+      preRenderSanityGate: _AlignmentOnlyBlockedGate(),
+    );
+    final result = alignmentOnlyTransaction.apply(
+      SceneProgramApplyTransactionRequest(
+        baseProject: baseProject(scenes: <MotionSceneModel>[rootScene()]),
+        authoringResult: authoringResult(),
+        rootSceneId: 'root-scene',
+      ),
+    );
+    expect(result, isNotNull);
+  });
+
+  test('keeps apply blocked when non-alignment pre-render errors exist', () {
+    final mixedBlockedTransaction = SceneProgramApplyTransaction(
+      preRenderSanityGate: _MixedBlockedGate(),
+    );
+    final result = mixedBlockedTransaction.apply(
+      SceneProgramApplyTransactionRequest(
+        baseProject: baseProject(scenes: <MotionSceneModel>[rootScene()]),
+        authoringResult: authoringResult(),
+        rootSceneId: 'root-scene',
+      ),
+    );
+    expect(result, isNull);
+  });
+}
+
+class _AlignmentOnlyBlockedGate extends ScenePreRenderSanityGate {
+  @override
+  ScenePreRenderSanityGateResult validate({
+    required ReFusionSceneProgramAuthoringResult authoringResult,
+    required String sceneId,
+  }) {
+    return ScenePreRenderSanityGateResult(
+      sceneId: sceneId,
+      hctValid: true,
+      frameQaValid: true,
+      blocked: true,
+      fallbackReason: 'render_truth_alignment_mismatch',
+      issues: <ReFusionSceneProgramIssue>[
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message:
+              'TF_SCENE_RENDER_TRUTH_ALIGNMENT_PROOF sceneId=$sceneId matched=false',
+          path: 'scene.renderTruthAlignment',
+        ),
+      ],
+    );
+  }
+}
+
+class _MixedBlockedGate extends ScenePreRenderSanityGate {
+  @override
+  ScenePreRenderSanityGateResult validate({
+    required ReFusionSceneProgramAuthoringResult authoringResult,
+    required String sceneId,
+  }) {
+    return ScenePreRenderSanityGateResult(
+      sceneId: sceneId,
+      hctValid: false,
+      frameQaValid: false,
+      blocked: true,
+      fallbackReason: 'validation_failed',
+      issues: <ReFusionSceneProgramIssue>[
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message:
+              'TF_SCENE_RENDER_TRUTH_ALIGNMENT_PROOF sceneId=$sceneId matched=false',
+          path: 'scene.renderTruthAlignment',
+        ),
+        const ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message: 'COMPONENT_QA::TEXT_EXCEEDS_TEXT_SLOT',
+          path: 'scene.component',
+        ),
+      ],
+    );
+  }
 }
