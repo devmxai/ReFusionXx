@@ -175,6 +175,10 @@ class SceneIconAlignmentValidator {
         ) !=
         null;
     final childKind = _normalize(child.kind);
+    if (accessoryRole && parentRole == 'container') {
+      return true;
+    }
+
     if (isPromptShellParent &&
         parentRole == 'container' &&
         (accessoryRole || childKind == 'icon' || childHasIconToken)) {

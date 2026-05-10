@@ -268,4 +268,89 @@ void main() {
       isTrue,
     );
   });
+
+  test('rejects CTAButton label when fit policy is clip', () {
+    final result = validator.validate(
+      ReFusionSceneProgram(
+        schemaVersion: 'refusion.scene-program/v1',
+        name: 'CTA Contract Test',
+        durationMs: 2400,
+        frameRate: 30,
+        layers: <ReFusionSceneProgramLayer>[
+          ReFusionSceneProgramLayer(
+            id: 'cta-shell-layer',
+            kind: 'shape',
+            startMs: 200,
+            durationMs: 1600,
+            elements: <ReFusionSceneProgramElement>[
+              ReFusionSceneProgramElement(
+                id: 'availableNowPill',
+                kind: 'shape',
+                properties: const <String, Object?>{
+                  'componentType': 'CTAButton',
+                  'layoutRole': 'container',
+                  'position': <String, Object?>{'x': 0, 'y': 0},
+                  'width': 680,
+                  'height': 150,
+                },
+              ),
+            ],
+          ),
+          ReFusionSceneProgramLayer(
+            id: 'cta-label-layer',
+            kind: 'text',
+            startMs: 280,
+            durationMs: 1520,
+            elements: <ReFusionSceneProgramElement>[
+              ReFusionSceneProgramElement(
+                id: 'availableNowText',
+                kind: 'text',
+                text: 'Available now',
+                properties: const <String, Object?>{
+                  'parentId': 'availableNowPill',
+                  'position': <String, Object?>{'x': -70, 'y': 0},
+                  'fontSize': 58,
+                  'lineHeight': 1,
+                  'textFrame': <String, Object?>{
+                    'width': 360,
+                    'height': 62,
+                    'maxLines': 1,
+                    'fitPolicy': 'clip',
+                  },
+                },
+              ),
+            ],
+          ),
+          ReFusionSceneProgramLayer(
+            id: 'cta-icon-layer',
+            kind: 'shape',
+            startMs: 340,
+            durationMs: 1460,
+            elements: <ReFusionSceneProgramElement>[
+              ReFusionSceneProgramElement(
+                id: 'availableNowArrow',
+                kind: 'icon',
+                properties: const <String, Object?>{
+                  'parentId': 'availableNowPill',
+                  'position': <String, Object?>{'x': 225, 'y': 0},
+                  'width': 54,
+                  'height': 54,
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    expect(result.isValid, isFalse);
+    expect(
+      result.issues.any(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+            issue.message.contains('CTA_LABEL_OVERFLOW'),
+      ),
+      isTrue,
+    );
+  });
 }
