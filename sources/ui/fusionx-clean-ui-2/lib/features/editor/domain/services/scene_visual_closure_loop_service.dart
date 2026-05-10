@@ -16,6 +16,7 @@ class SceneVisualClosureRepairAction {
     this.frameTimeMs,
     this.measuredBounds,
     this.expectedBounds,
+    this.allowedValue,
     this.visualDescription,
     this.motionAlternatives = const <String>[],
     this.rawMessage,
@@ -31,6 +32,7 @@ class SceneVisualClosureRepairAction {
   final int? frameTimeMs;
   final String? measuredBounds;
   final String? expectedBounds;
+  final String? allowedValue;
   final String? visualDescription;
   final List<String> motionAlternatives;
   final String? rawMessage;
@@ -120,6 +122,10 @@ class SceneVisualClosureLoopService {
               payload.frameMs,
           measuredBounds: _readField(message, 'worldBounds='),
           expectedBounds: _readField(message, 'slotBounds='),
+          allowedValue: _allowedValueFor(
+            errorCode: resolvedErrorCode,
+            message: message,
+          ),
           visualDescription: _visualDescription(
             errorCode: resolvedErrorCode,
             message: sourceIssue?.message ?? payload.measuredProblem ?? '',
@@ -383,6 +389,31 @@ class SceneVisualClosureLoopService {
         return 'Too many concurrent motions reduce readability.';
       default:
         return summary.isEmpty ? null : summary;
+    }
+  }
+
+  String? _allowedValueFor({
+    required String errorCode,
+    required String message,
+  }) {
+    final explicit = _readField(message, 'allowedValue=');
+    if (explicit != null && explicit.trim().isNotEmpty) {
+      return explicit.trim();
+    }
+    switch (errorCode) {
+      case 'TEXT_OVERFLOW_RIGHT':
+      case 'TEXT_OVERFLOW_HEIGHT':
+        return 'text must fit inside textFrame bounds';
+      case 'SAFE_AREA_VIOLATION':
+        return 'element must stay inside safe area';
+      case 'MOTION_VARIETY_LOW':
+        return 'dominant motion recipe ratio <= 0.60';
+      case 'UNSAFE_SIMULTANEOUS_MOTION':
+        return 'max simultaneous major animations <= 5';
+      case 'BAD_PHRASE_CUT':
+        return 'sentence must not end mid-phrase';
+      default:
+        return null;
     }
   }
 

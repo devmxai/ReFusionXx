@@ -40,6 +40,7 @@ void main() {
     expect(actions.first.frameTimeMs, 1200);
     expect(actions.first.measuredBounds, '120.00,320.00,560.00,64.00');
     expect(actions.first.expectedBounds, '120.00,320.00,520.00,64.00');
+    expect(actions.first.allowedValue, isNotEmpty);
     expect(
       actions.first.suggestedFixPath,
       'components.prompt.slots.primaryText.textFrame.fitPolicy',
