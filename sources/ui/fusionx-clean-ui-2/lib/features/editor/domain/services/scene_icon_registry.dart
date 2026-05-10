@@ -457,6 +457,12 @@ class SceneIconRegistry {
 
   List<SceneIconToken> get semanticIcons => _semanticIcons;
   List<SceneBrandToken> get brands => _brands;
+  List<String> get registeredBrandIds => List<String>.unmodifiable(
+        _brands.map((brand) => brand.id),
+      );
+  List<String> get registeredIconIds => List<String>.unmodifiable(
+        _semanticIcons.map((icon) => icon.id),
+      );
 
   SceneIconToken? findIconToken(String tokenOrLabel) {
     final normalized = _normalize(tokenOrLabel);
