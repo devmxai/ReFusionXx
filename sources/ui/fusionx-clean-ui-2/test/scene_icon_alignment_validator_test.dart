@@ -107,6 +107,45 @@ void main() {
     );
   });
 
+  test('rejects R glyph when delta exceeds strict 1.5px app threshold', () {
+    final result = validator.validate(
+      buildProgram(
+        elements: <ReFusionSceneProgramElement>[
+          ReFusionSceneProgramElement(
+            id: 'app-shell',
+            kind: 'shape',
+            properties: const <String, Object?>{
+              'position': <String, Object?>{'x': 0, 'y': 0},
+              'width': 140,
+              'height': 140,
+            },
+          ),
+          ReFusionSceneProgramElement(
+            id: 'app-glyph',
+            kind: 'text',
+            text: 'R',
+            properties: const <String, Object?>{
+              'parentId': 'app-shell',
+              'position': <String, Object?>{'x': 6.0, 'y': 0},
+              'width': 54,
+              'height': 54,
+            },
+          ),
+        ],
+      ),
+    );
+
+    expect(result.isValid, isFalse);
+    expect(
+      result.issues.any(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+            issue.message.contains('allowedDeltaPx=1.50'),
+      ),
+      isTrue,
+    );
+  });
+
   test('accepts centered plus and send icons in prompt slots', () {
     final result = validator.validate(
       buildProgram(
@@ -198,6 +237,45 @@ void main() {
         (issue) =>
             issue.severity == ReFusionSceneProgramIssueSeverity.error &&
             issue.message.contains('fallbackReason=safe_zone'),
+      ),
+      isTrue,
+    );
+  });
+
+  test('accepts up-triangle icon after optical downward correction', () {
+    final result = validator.validate(
+      buildProgram(
+        elements: <ReFusionSceneProgramElement>[
+          ReFusionSceneProgramElement(
+            id: 'triangle-slot',
+            kind: 'shape',
+            properties: const <String, Object?>{
+              'position': <String, Object?>{'x': 0, 'y': 0},
+              'width': 100,
+              'height': 100,
+            },
+          ),
+          ReFusionSceneProgramElement(
+            id: 'triangle-up',
+            kind: 'icon',
+            properties: const <String, Object?>{
+              'parentId': 'triangle-slot',
+              'icon': 'triangle-up',
+              'position': <String, Object?>{'x': 0, 'y': 3},
+              'width': 52,
+              'height': 52,
+            },
+          ),
+        ],
+      ),
+    );
+
+    expect(result.isValid, isTrue);
+    expect(
+      result.issues.any(
+        (issue) =>
+            issue.message.contains('profileId=icon.triangle.up') &&
+            issue.severity == ReFusionSceneProgramIssueSeverity.info,
       ),
       isTrue,
     );

@@ -26,12 +26,16 @@ class SceneOpticalBoundsProfile {
     this.offsetXRatio = 0.0,
     this.offsetYRatio = 0.0,
     this.safeZoneRatio = 0.06,
+    this.maxCenterDeltaPx,
+    this.maxCenterDeltaRatio,
   });
 
   final String id;
   final double offsetXRatio;
   final double offsetYRatio;
   final double safeZoneRatio;
+  final double? maxCenterDeltaPx;
+  final double? maxCenterDeltaRatio;
 }
 
 class SceneOpticalBounds {
@@ -82,6 +86,8 @@ class SceneOpticalBounds {
           id: 'glyph.r',
           offsetXRatio: 0.03,
           safeZoneRatio: 0.08,
+          maxCenterDeltaPx: 1.5,
+          maxCenterDeltaRatio: 0.03,
         );
       }
       if (glyph == 'A' || glyph == 'V' || glyph == 'W') {
@@ -89,12 +95,14 @@ class SceneOpticalBounds {
           id: 'glyph.angular',
           offsetYRatio: 0.02,
           safeZoneRatio: 0.08,
+          maxCenterDeltaPx: 2.0,
         );
       }
       if (glyph == 'O' || glyph == 'C' || glyph == 'G' || glyph == 'S') {
         return const SceneOpticalBoundsProfile(
           id: 'glyph.round',
           safeZoneRatio: 0.08,
+          maxCenterDeltaPx: 2.0,
         );
       }
       return const SceneOpticalBoundsProfile(
@@ -108,16 +116,31 @@ class SceneOpticalBounds {
       return const SceneOpticalBoundsProfile(
         id: 'icon.plus',
         safeZoneRatio: 0.18,
+        maxCenterDeltaPx: 1.0,
+        maxCenterDeltaRatio: 0.02,
       );
     }
     if (normalizedIcon == 'send' ||
         normalizedIcon == 'arrowup' ||
+        normalizedIcon == 'arrowupright' ||
+        normalizedIcon == 'arrowne' ||
         normalizedIcon == 'up') {
       return const SceneOpticalBoundsProfile(
         id: 'icon.send',
-        offsetXRatio: -0.01,
-        offsetYRatio: -0.01,
+        offsetXRatio: -0.006,
+        offsetYRatio: -0.006,
         safeZoneRatio: 0.2,
+        maxCenterDeltaPx: 1.0,
+        maxCenterDeltaRatio: 0.02,
+      );
+    }
+    if (normalizedIcon.contains('triangleup') ||
+        normalizedIcon.contains('triangle')) {
+      return const SceneOpticalBoundsProfile(
+        id: 'icon.triangle.up',
+        offsetYRatio: 0.03,
+        safeZoneRatio: 0.16,
+        maxCenterDeltaPx: 1.2,
       );
     }
 
@@ -131,6 +154,20 @@ class SceneOpticalBounds {
       return const SceneOpticalBoundsProfile(
         id: 'icon.brand',
         safeZoneRatio: 0.12,
+        maxCenterDeltaPx: 1.5,
+        maxCenterDeltaRatio: 0.03,
+      );
+    }
+    final logo = _readString(
+      element.properties,
+      const <String>['logo', 'wordmark', 'brandLogo'],
+    );
+    if (logo != null && logo.trim().isNotEmpty) {
+      return const SceneOpticalBoundsProfile(
+        id: 'icon.logo',
+        safeZoneRatio: 0.14,
+        maxCenterDeltaPx: 1.5,
+        maxCenterDeltaRatio: 0.03,
       );
     }
 

@@ -20,11 +20,15 @@ class SceneIconAlignmentValidator {
   const SceneIconAlignmentValidator({
     this.maxCenterDeltaPx = 3.0,
     this.maxCenterDeltaRatio = 0.05,
+    this.buttonIconMaxCenterDeltaPx = 1.0,
+    this.appGlyphMaxCenterDeltaPx = 1.5,
     SceneIconAlignmentEngine alignmentEngine = const SceneIconAlignmentEngine(),
   }) : _alignmentEngine = alignmentEngine;
 
   final double maxCenterDeltaPx;
   final double maxCenterDeltaRatio;
+  final double buttonIconMaxCenterDeltaPx;
+  final double appGlyphMaxCenterDeltaPx;
   final SceneIconAlignmentEngine _alignmentEngine;
 
   SceneIconAlignmentValidationResult validate(ReFusionSceneProgram program) {
@@ -72,7 +76,12 @@ class SceneIconAlignmentValidator {
           iconRect: iconRect,
           profile: profile,
         );
-        final allowedDelta = _maxAllowedCenterDelta(parentRect.minDimension);
+        final allowedDelta = _maxAllowedCenterDelta(
+          parentMinDimension: parentRect.minDimension,
+          profile: profile,
+          element: element,
+          parent: parent,
+        );
         final centerAligned = measurement.centerDeltaDistance <= allowedDelta;
         final safeZoneSatisfied = measurement.safeZoneSatisfied;
         final passed = centerAligned && safeZoneSatisfied;
@@ -124,11 +133,37 @@ class SceneIconAlignmentValidator {
     return SceneIconAlignmentValidationResult(issues: issues);
   }
 
-  double _maxAllowedCenterDelta(double parentMinDimension) {
-    final ratioAllowance = parentMinDimension * maxCenterDeltaRatio;
-    return ratioAllowance > maxCenterDeltaPx
-        ? ratioAllowance
-        : maxCenterDeltaPx;
+  double _maxAllowedCenterDelta({
+    required double parentMinDimension,
+    required SceneOpticalBoundsProfile profile,
+    required ReFusionSceneProgramElement element,
+    required ReFusionSceneProgramElement parent,
+  }) {
+    final profileRatio = profile.maxCenterDeltaRatio ?? maxCenterDeltaRatio;
+    final profilePx = profile.maxCenterDeltaPx ?? maxCenterDeltaPx;
+    final baseRatioAllowance = parentMinDimension * profileRatio;
+    var allowed =
+        baseRatioAllowance > profilePx ? baseRatioAllowance : profilePx;
+
+    final childRole = _normalize(
+      _readString(element.properties, const <String>['layoutRole', 'role']) ??
+          '',
+    );
+    final parentRole = _normalize(
+      _readString(parent.properties, const <String>['layoutRole', 'role']) ??
+          '',
+    );
+    final isButtonIcon = childRole.contains('accessory') ||
+        parentRole.contains('button') ||
+        _normalize(parent.id).contains('button');
+    if (isButtonIcon && allowed > buttonIconMaxCenterDeltaPx) {
+      allowed = buttonIconMaxCenterDeltaPx;
+    }
+    final glyph = (element.text ?? '').trim().toUpperCase();
+    if (glyph == 'R' && allowed > appGlyphMaxCenterDeltaPx) {
+      allowed = appGlyphMaxCenterDeltaPx;
+    }
+    return allowed;
   }
 
   ReFusionSceneProgramElement? _findParentAcrossLayers({
