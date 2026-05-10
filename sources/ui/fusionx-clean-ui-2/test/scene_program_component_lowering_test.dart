@@ -146,4 +146,45 @@ void main() {
       isTrue,
     );
   });
+
+  test('lowers border color and border width shape properties', () {
+    final program = ReFusionSceneProgram(
+      schemaVersion: 'refusion.scene-program/v1',
+      name: 'Border Proof',
+      durationMs: 2000,
+      frameRate: 30,
+      layers: <ReFusionSceneProgramLayer>[
+        ReFusionSceneProgramLayer(
+          id: 'shell-layer',
+          kind: 'shape',
+          startMs: 0,
+          durationMs: 2000,
+          elements: <ReFusionSceneProgramElement>[
+            ReFusionSceneProgramElement(
+              id: 'shell',
+              kind: 'shape',
+              properties: const <String, Object?>{
+                'width': 820,
+                'height': 112,
+                'color': '#FFFFFF',
+                'borderWidth': 1.8,
+                'borderColor': '#D1D5DB',
+              },
+            ),
+          ],
+        ),
+      ],
+    );
+
+    final result = lowerer.lower(
+      ReFusionSceneProgramLoweringRequest(program: program),
+    );
+    expect(result.hasErrors, isFalse);
+    final element = result.project.scenes.single.layers.single.elements.single;
+    final definitions = element.properties
+        .map((assignment) => assignment.definition.id)
+        .toSet();
+    expect(definitions.contains('visual.borderWidth'), isTrue);
+    expect(definitions.contains('visual.borderColor'), isTrue);
+  });
 }

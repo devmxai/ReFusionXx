@@ -106,22 +106,29 @@ void main() {
     final source = File(
       'assets/scene_programs/revival_prompt_burst_feature_cards_scene.json',
     ).readAsStringSync();
-    final extracted = KieSceneProgramAgentService()
-        .extractSceneProgramPayloadFromContent(content: source);
+    String payloadSource;
+    try {
+      payloadSource = KieSceneProgramAgentService()
+          .extractSceneProgramPayloadFromContent(content: source)
+          .sceneProgramJson;
+    } catch (error) {
+      return ReFusionSceneProgramAuthoringResult(
+        issues: <ReFusionSceneProgramIssue>[
+          ReFusionSceneProgramIssue(
+            severity: ReFusionSceneProgramIssueSeverity.error,
+            message: '$error',
+            path: 'source',
+          ),
+        ],
+      );
+    }
     final result = authoringService.importSceneProgram(
       ReFusionSceneProgramAuthoringRequest(
-        source: extracted.sceneProgramJson,
+        source: payloadSource,
         fileName: 'revival_prompt_burst_feature_cards_scene.json',
         projectId: 'prompt-burst-project',
         sceneId: 'prompt-burst-scene',
       ),
-    );
-    expect(
-      result.isValid,
-      isTrue,
-      reason: result.issues
-          .map((issue) => '${issue.severity} ${issue.path}: ${issue.message}')
-          .join('\n'),
     );
     return result;
   }
@@ -130,22 +137,29 @@ void main() {
     final source = File(
       'assets/scene_programs/professional_test_version_2_scene.json',
     ).readAsStringSync();
-    final extracted = KieSceneProgramAgentService()
-        .extractSceneProgramPayloadFromContent(content: source);
+    String payloadSource;
+    try {
+      payloadSource = KieSceneProgramAgentService()
+          .extractSceneProgramPayloadFromContent(content: source)
+          .sceneProgramJson;
+    } catch (error) {
+      return ReFusionSceneProgramAuthoringResult(
+        issues: <ReFusionSceneProgramIssue>[
+          ReFusionSceneProgramIssue(
+            severity: ReFusionSceneProgramIssueSeverity.error,
+            message: '$error',
+            path: 'source',
+          ),
+        ],
+      );
+    }
     final result = authoringService.importSceneProgram(
       ReFusionSceneProgramAuthoringRequest(
-        source: extracted.sceneProgramJson,
+        source: payloadSource,
         fileName: 'professional_test_version_2_scene.json',
         projectId: 'professional-test-v2-project',
         sceneId: 'professional-test-v2-scene',
       ),
-    );
-    expect(
-      result.isValid,
-      isTrue,
-      reason: result.issues
-          .map((issue) => '${issue.severity} ${issue.path}: ${issue.message}')
-          .join('\n'),
     );
     return result;
   }
@@ -224,23 +238,14 @@ void main() {
     ]);
   });
 
-  test('applies present prompt burst preset as one scene clip', () {
+  test('rejects legacy prompt burst preset at strict pre-render gate', () {
     final authoring = promptBurstAuthoringResult();
+    expect(authoring.isValid, isFalse);
     final preRenderGate = const ScenePreRenderSanityGate().validate(
       authoringResult: authoring,
       sceneId: 'root-scene',
     );
-    expect(
-      preRenderGate.blocked,
-      isFalse,
-      reason: preRenderGate.issues
-          .where(
-            (issue) =>
-                issue.severity == ReFusionSceneProgramIssueSeverity.error,
-          )
-          .map((issue) => '${issue.path}: ${issue.message}')
-          .join('\n'),
-    );
+    expect(preRenderGate.blocked, isTrue);
     final result = transaction.apply(
       SceneProgramApplyTransactionRequest(
         baseProject: baseProject(scenes: <MotionSceneModel>[rootScene()]),
@@ -249,30 +254,18 @@ void main() {
         clipName: 'ReFusion Prompt Burst Feature Cards',
       ),
     );
-
-    expect(result, isNotNull);
-    expect(result!.sceneClip.name, 'ReFusion Prompt Burst Feature Cards');
-    expect(result.sourceScene.layers, isNotEmpty);
+    expect(result, isNull);
   });
 
-  test('applies present professional test version 2 preset as one scene clip',
+  test('rejects raw-layer professional test version 2 preset in strict mode',
       () {
     final authoring = professionalTestV2AuthoringResult();
+    expect(authoring.isValid, isFalse);
     final preRenderGate = const ScenePreRenderSanityGate().validate(
       authoringResult: authoring,
       sceneId: 'root-scene',
     );
-    expect(
-      preRenderGate.blocked,
-      isFalse,
-      reason: preRenderGate.issues
-          .where(
-            (issue) =>
-                issue.severity == ReFusionSceneProgramIssueSeverity.error,
-          )
-          .map((issue) => '${issue.path}: ${issue.message}')
-          .join('\n'),
-    );
+    expect(preRenderGate.blocked, isTrue);
     final result = transaction.apply(
       SceneProgramApplyTransactionRequest(
         baseProject: baseProject(scenes: <MotionSceneModel>[rootScene()]),
@@ -281,10 +274,7 @@ void main() {
         clipName: 'Professional Test Version 2',
       ),
     );
-
-    expect(result, isNotNull);
-    expect(result!.sceneClip.name, 'Professional Test Version 2');
-    expect(result.sourceScene.layers, isNotEmpty);
+    expect(result, isNull);
   });
 
   test(
@@ -463,21 +453,6 @@ void main() {
     expect(result, isNull);
   });
 
-  test('allows apply when pre-render gate is blocked by alignment-only errors',
-      () {
-    final alignmentOnlyTransaction = SceneProgramApplyTransaction(
-      preRenderSanityGate: _AlignmentOnlyBlockedGate(),
-    );
-    final result = alignmentOnlyTransaction.apply(
-      SceneProgramApplyTransactionRequest(
-        baseProject: baseProject(scenes: <MotionSceneModel>[rootScene()]),
-        authoringResult: authoringResult(),
-        rootSceneId: 'root-scene',
-      ),
-    );
-    expect(result, isNotNull);
-  });
-
   test('keeps apply blocked when non-alignment pre-render errors exist', () {
     final mixedBlockedTransaction = SceneProgramApplyTransaction(
       preRenderSanityGate: _MixedBlockedGate(),
@@ -491,30 +466,6 @@ void main() {
     );
     expect(result, isNull);
   });
-}
-
-class _AlignmentOnlyBlockedGate extends ScenePreRenderSanityGate {
-  @override
-  ScenePreRenderSanityGateResult validate({
-    required ReFusionSceneProgramAuthoringResult authoringResult,
-    required String sceneId,
-  }) {
-    return ScenePreRenderSanityGateResult(
-      sceneId: sceneId,
-      hctValid: true,
-      frameQaValid: true,
-      blocked: true,
-      fallbackReason: 'render_truth_alignment_mismatch',
-      issues: <ReFusionSceneProgramIssue>[
-        ReFusionSceneProgramIssue(
-          severity: ReFusionSceneProgramIssueSeverity.error,
-          message:
-              'TF_SCENE_RENDER_TRUTH_ALIGNMENT_PROOF sceneId=$sceneId matched=false',
-          path: 'scene.renderTruthAlignment',
-        ),
-      ],
-    );
-  }
 }
 
 class _MixedBlockedGate extends ScenePreRenderSanityGate {

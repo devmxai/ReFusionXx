@@ -5,7 +5,6 @@ import '../models/composition_scene_clip_models.dart';
 import '../models/professional_motion_animation_models.dart';
 import '../models/professional_motion_models.dart';
 import '../models/professional_motion_text_models.dart';
-import '../models/refusion_scene_program_models.dart';
 import 'refusion_scene_program_authoring_service.dart';
 import 'scene_pre_render_sanity_gate.dart';
 
@@ -105,9 +104,7 @@ class SceneProgramApplyTransaction {
       authoringResult: authoring,
       sceneId: request.rootSceneId,
     );
-    final bypassAlignmentOnlyBlock =
-        preRenderGate.blocked && _canBypassAlignmentOnlyBlock(preRenderGate);
-    if (preRenderGate.blocked && !bypassAlignmentOnlyBlock) {
+    if (preRenderGate.blocked) {
       if (kDebugMode) {
         debugPrint(
           'SceneProgramApplyTransaction blocked by pre-render gate: '
@@ -118,12 +115,6 @@ class SceneProgramApplyTransaction {
         }
       }
       return null;
-    }
-    if (bypassAlignmentOnlyBlock && kDebugMode) {
-      debugPrint(
-        'SceneProgramApplyTransaction bypassed alignment-only pre-render gate '
-        'for sceneId=${request.rootSceneId}',
-      );
     }
     final importedProject = authoring.project!;
     if (importedProject.scenes.isEmpty) {
@@ -209,21 +200,6 @@ class SceneProgramApplyTransaction {
           if (!incomingBindingIds.contains(binding.id)) binding,
         ...remappedBindings,
       ],
-    );
-  }
-
-  bool _canBypassAlignmentOnlyBlock(ScenePreRenderSanityGateResult gate) {
-    final errors = gate.issues
-        .where(
-          (issue) => issue.severity == ReFusionSceneProgramIssueSeverity.error,
-        )
-        .toList(growable: false);
-    if (errors.isEmpty) {
-      return false;
-    }
-    const alignmentProofTag = 'TF_SCENE_RENDER_TRUTH_ALIGNMENT_PROOF';
-    return errors.every(
-      (issue) => issue.message.contains(alignmentProofTag),
     );
   }
 

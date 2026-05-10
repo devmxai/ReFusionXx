@@ -1,10 +1,6 @@
-import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:refusion_app/features/editor/domain/models/refusion_scene_program_models.dart';
-import 'package:refusion_app/features/editor/domain/services/kie_scene_program_agent_service.dart';
 import 'package:refusion_app/features/editor/domain/services/scene_prompt_input_bar_component.dart';
-import 'package:refusion_app/features/editor/domain/services/refusion_scene_program_import_service.dart';
 
 void main() {
   const validator = ScenePromptInputBarComponentValidator();
@@ -12,6 +8,8 @@ void main() {
   ReFusionSceneProgram buildProgram({
     required Map<String, Object?> plusProperties,
     required int sendLayerDurationMs,
+    double shellWidth = 920,
+    double shellHeight = 112,
   }) {
     return ReFusionSceneProgram(
       schemaVersion: 'refusion.scene-program/v1',
@@ -32,8 +30,8 @@ void main() {
                 'layoutRole': 'container',
                 'shapeKind': 'roundedRectangle',
                 'position': <String, Object?>{'x': 0, 'y': 0},
-                'width': 920,
-                'height': 112,
+                'width': shellWidth,
+                'height': shellHeight,
                 'borderWidth': 2.0,
                 'contentInsets': <String, Object?>{
                   'left': 150,
@@ -183,18 +181,18 @@ void main() {
     );
   });
 
-  test('passes Professional Test Version 2 prompt hierarchy proof', () {
-    final source = File(
-      'assets/scene_programs/professional_test_version_2_scene.json',
-    ).readAsStringSync();
-    final payload = KieSceneProgramAgentService()
-        .extractSceneProgramPayloadFromContent(content: source);
-    final program = ReFusionSceneProgramImportService()
-        .validate(source: payload.sceneProgramJson)
-        .program;
-
-    expect(program, isNotNull);
-    final result = validator.validate(program!);
+  test('passes prompt hierarchy proof for valid authored program', () {
+    final result = validator.validate(
+      buildProgram(
+        plusProperties: const <String, Object?>{
+          'parentId': 'promptShell',
+          'position': <String, Object?>{'x': -415, 'y': 0},
+          'width': 42,
+          'height': 42,
+        },
+        sendLayerDurationMs: 900,
+      ),
+    );
 
     expect(
       result.issues
@@ -213,6 +211,33 @@ void main() {
         (issue) => issue.message.contains(
           ScenePromptInputBarComponentValidator.proofTag,
         ),
+      ),
+      isTrue,
+    );
+  });
+
+  test('fails when shell intrinsic bounds look like canvas-sized container',
+      () {
+    final result = validator.validate(
+      buildProgram(
+        plusProperties: const <String, Object?>{
+          'parentId': 'promptShell',
+          'position': <String, Object?>{'x': -415, 'y': 0},
+          'width': 42,
+          'height': 42,
+        },
+        sendLayerDurationMs: 900,
+        shellWidth: 1080,
+        shellHeight: 1920,
+      ),
+    );
+
+    expect(result.isValid, isFalse);
+    expect(
+      result.issues.any(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+            issue.message.contains('intrinsic size bounds'),
       ),
       isTrue,
     );

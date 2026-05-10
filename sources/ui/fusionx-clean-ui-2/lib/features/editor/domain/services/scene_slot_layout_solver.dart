@@ -362,6 +362,22 @@ class SceneSlotLayoutSolver {
         ),
       );
     }
+    if (componentType == 'promptinputbar') {
+      if (componentRect.width < 560.0 ||
+          componentRect.width > 980.0 ||
+          componentRect.height < 84.0 ||
+          componentRect.height > 140.0) {
+        issues.add(
+          SceneSlotLayoutIssue(
+            severity: ReFusionSceneProgramIssueSeverity.error,
+            code: 'prompt_intrinsic_bounds_violation',
+            message:
+                'PromptInputBar `${component.id}` resolved bounds ${componentRect.width.toStringAsFixed(1)}x${componentRect.height.toStringAsFixed(1)} outside intrinsic range 560-980x84-140.',
+            path: 'runtimeTree.nodes.${component.id}',
+          ),
+        );
+      }
+    }
 
     issues.add(
       SceneSlotLayoutIssue(

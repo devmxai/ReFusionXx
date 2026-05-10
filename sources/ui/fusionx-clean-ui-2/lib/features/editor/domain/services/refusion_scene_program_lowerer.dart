@@ -592,6 +592,8 @@ class ReFusionSceneProgramLowerer {
           MotionPropertyCatalog.trimEnd.id,
           MotionPropertyCatalog.trimOffset.id,
           _SceneProgramPropertyDefinitions.icon.id,
+          _SceneProgramPropertyDefinitions.borderColor.id,
+          _SceneProgramPropertyDefinitions.borderWidth.id,
         },
       MotionElementKind.mask => <String>{
           MotionPropertyCatalog.positionX.id,
@@ -615,6 +617,8 @@ class ReFusionSceneProgramLowerer {
           MotionPropertyCatalog.trimEnd.id,
           MotionPropertyCatalog.trimOffset.id,
           _SceneProgramPropertyDefinitions.maskRevealProgress.id,
+          _SceneProgramPropertyDefinitions.borderColor.id,
+          _SceneProgramPropertyDefinitions.borderWidth.id,
         },
       MotionElementKind.image => <String>{
           MotionPropertyCatalog.positionX.id,
@@ -766,6 +770,20 @@ class ReFusionSceneProgramLowerer {
       'shapefillcolor' =>
         <_LoweredProperty>[
           _LoweredProperty(definition: _SceneProgramPropertyDefinitions.color),
+        ],
+      'bordercolor' || 'strokecolor' || 'outlinecolor' => <_LoweredProperty>[
+          _LoweredProperty(
+            definition: _SceneProgramPropertyDefinitions.borderColor,
+          ),
+        ],
+      'borderwidth' ||
+      'strokewidth' ||
+      'outlinewidth' ||
+      'stroke' =>
+        <_LoweredProperty>[
+          _LoweredProperty(
+            definition: _SceneProgramPropertyDefinitions.borderWidth,
+          ),
         ],
       'fontsize' || 'textfontsize' => <_LoweredProperty>[
           _LoweredProperty(definition: MotionPropertyCatalog.fontSize),
@@ -1768,6 +1786,28 @@ class _SceneProgramPropertyDefinitions {
     valueKind: MotionPropertyValueKind.stringValue,
     supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
     defaultValue: const MotionPropertyValue.stringValue('sparkles'),
+  );
+
+  static final MotionPropertyDefinition borderColor = MotionPropertyDefinition(
+    id: 'visual.borderColor',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.visual,
+      name: 'borderColor',
+    ),
+    valueKind: MotionPropertyValueKind.colorArgb,
+    supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
+    defaultValue: const MotionPropertyValue.colorArgb(0x00000000),
+  );
+
+  static final MotionPropertyDefinition borderWidth = MotionPropertyDefinition(
+    id: 'visual.borderWidth',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.visual,
+      name: 'borderWidth',
+    ),
+    valueKind: MotionPropertyValueKind.scalar,
+    supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
+    defaultValue: const MotionPropertyValue.scalar(0),
   );
 
   static final MotionPropertyDefinition maskRevealProgress =

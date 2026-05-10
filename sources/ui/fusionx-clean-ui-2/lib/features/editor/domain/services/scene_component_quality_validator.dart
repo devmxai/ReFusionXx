@@ -273,7 +273,10 @@ class SceneComponentQualityValidator {
       final componentType = _normalize(
         _componentType(ref.element.properties) ?? '',
       );
-      if (componentType != 'promptinputbar') {
+      final elementId = _normalize(ref.element.id);
+      final isPromptShellById =
+          elementId.contains('promptshell') || elementId.contains('inputbar');
+      if (componentType != 'promptinputbar' && !isPromptShellById) {
         continue;
       }
       final borderWidth = _doubleFromMap(

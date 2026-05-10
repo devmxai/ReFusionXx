@@ -330,10 +330,12 @@ class SceneSemanticBlueprintService {
         const <String, Object?>{'x': 0.0, 'y': -40.0};
     final width = _readDouble(properties['width'], fallback: 860.0);
     final height = _readDouble(properties['height'], fallback: 112.0);
+    final requestedTextFrameWidth =
+        _readDouble(properties['textFrameWidth'], fallback: width - 340.0);
     final textFrameWidth =
-        _readDouble(properties['textFrameWidth'], fallback: width - 180.0);
+        requestedTextFrameWidth < 320.0 ? 320.0 : requestedTextFrameWidth;
     final textFrameHeight =
-        _readDouble(properties['textFrameHeight'], fallback: 60.0);
+        _readDouble(properties['textFrameHeight'], fallback: 42.0);
     final anchorX = _readDouble(anchor['x'], fallback: 0.0);
     final anchorY = _readDouble(anchor['y'], fallback: -40.0);
     final leadingIconX = anchorX - (width / 2.0) + 66.0;
@@ -361,6 +363,8 @@ class SceneSemanticBlueprintService {
           kind: 'shape',
           properties: <String, Object?>{
             'layoutRole': 'container',
+            'componentType': 'PromptInputBar',
+            'componentId': component.id,
             'shapeKind': 'roundedRectangle',
             'position': <String, Object?>{
               'x': anchorX,
@@ -369,7 +373,9 @@ class SceneSemanticBlueprintService {
             'width': width,
             'height': height,
             'cornerRadius': 56.0,
-            'color': '#F8FAFC',
+            'color': '#FFFFFF',
+            'borderWidth': 1.8,
+            'borderColor': '#D1D5DB',
             'opacity': 1.0,
             'contentInsets': const <String, Object?>{
               'left': 44.0,
@@ -385,6 +391,9 @@ class SceneSemanticBlueprintService {
           properties: <String, Object?>{
             'parentId': shellId,
             'layoutRole': 'leadingAccessory',
+            'componentType': 'PromptInputBar',
+            'componentId': component.id,
+            'slotId': 'leadingAccessory',
             'icon': 'plus',
             'position': <String, Object?>{
               'x': leadingIconX,
@@ -403,6 +412,9 @@ class SceneSemanticBlueprintService {
           properties: <String, Object?>{
             'parentId': shellId,
             'layoutRole': 'content',
+            'componentType': 'PromptInputBar',
+            'componentId': component.id,
+            'slotId': 'primaryText',
             'layout': const <String, Object?>{
               'slot': 'primaryText',
               'anchor': 'centerLeft',
@@ -416,15 +428,15 @@ class SceneSemanticBlueprintService {
               'maxLines': 1,
               'overflow': 'ellipsis',
               'fitPolicy': 'shrinkToFit',
-              'minFontSize': 24.0,
-              'maxFontSize': 32.0,
+              'minFontSize': 16.0,
+              'maxFontSize': 20.0,
               'measure': 'fullText',
             },
             'position': <String, Object?>{
               'x': textCenterX,
               'y': anchorY,
             },
-            'fontSize': 32.0,
+            'fontSize': 18.0,
             'fontWeight': 400,
             'lineHeight': 1.0,
             'letterSpacing': 0.0,
@@ -458,6 +470,9 @@ class SceneSemanticBlueprintService {
           properties: <String, Object?>{
             'parentId': shellId,
             'layoutRole': 'trailingAccessory',
+            'componentType': 'PromptInputBar',
+            'componentId': component.id,
+            'slotId': 'trailingAccessory',
             'icon': 'mic',
             'position': <String, Object?>{
               'x': micIconX,
@@ -475,14 +490,19 @@ class SceneSemanticBlueprintService {
           properties: <String, Object?>{
             'parentId': shellId,
             'layoutRole': 'trailingAccessory',
+            'componentType': 'PromptInputBar',
+            'componentId': component.id,
+            'slotId': 'trailingAccessory',
             'shapeKind': 'circle',
             'position': <String, Object?>{
               'x': sendButtonX,
               'y': anchorY,
             },
-            'width': 76.0,
-            'height': 76.0,
-            'color': '#101827',
+            'width': 56.0,
+            'height': 56.0,
+            'color': '#FFFFFF',
+            'borderWidth': 1.5,
+            'borderColor': '#D1D5DB',
             'opacity': 1.0,
           },
         ),
@@ -491,14 +511,17 @@ class SceneSemanticBlueprintService {
           kind: 'icon',
           properties: <String, Object?>{
             'parentId': buttonId,
-            'icon': 'send',
+            'componentType': 'PromptInputBar',
+            'componentId': component.id,
+            'slotId': 'trailingAccessory',
+            'icon': 'volume',
             'position': <String, Object?>{
               'x': sendButtonX,
               'y': anchorY,
             },
             'width': 28.0,
             'height': 28.0,
-            'color': '#F8FAFC',
+            'color': '#101827',
             'opacity': 1.0,
           },
         ),

@@ -120,6 +120,15 @@ class MotionShapePreviewOverlay extends StatelessWidget {
               ),
               opacity: opacity.clamp(0.0, 1.0).toDouble(),
               color: _color(properties, const Color(0xFFFFFFFF)),
+              borderColor: _colorById(
+                properties,
+                'visual.borderColor',
+                const Color(0x00000000),
+              ),
+              borderWidth: math.max(
+                0.0,
+                _scalar(properties, 'visual.borderWidth', 0.0),
+              ),
               cornerRadius: _scalar(
                 properties,
                 MotionPropertyCatalog.cornerRadius.id,
@@ -334,6 +343,8 @@ class _MotionShapePreviewNode {
     required this.rotationDegrees,
     required this.opacity,
     required this.color,
+    required this.borderColor,
+    required this.borderWidth,
     required this.cornerRadius,
     required this.trimStart,
     required this.trimEnd,
@@ -355,6 +366,8 @@ class _MotionShapePreviewNode {
   final double rotationDegrees;
   final double opacity;
   final Color color;
+  final Color borderColor;
+  final double borderWidth;
   final double cornerRadius;
   final double trimStart;
   final double trimEnd;
@@ -432,12 +445,20 @@ class _MotionShapePreviewNodeWidget extends StatelessWidget {
     final decorationColor = node.color.withOpacity(
       (colorOpacity * node.opacity).clamp(0.0, 1.0).toDouble(),
     );
+    final effectiveBorderOpacity =
+        (node.borderColor.opacity * node.opacity).clamp(0.0, 1.0).toDouble();
+    final effectiveBorderColor = node.borderColor.withOpacity(
+      effectiveBorderOpacity,
+    );
+    final effectiveBorderWidth = node.borderWidth * math.min(scaleX, scaleY);
     final decoration = _decorationFor(
       shapeKind: node.shapeKind,
       color: decorationColor,
       width: width,
       height: height,
       cornerRadius: node.cornerRadius * math.min(scaleX, scaleY),
+      borderColor: effectiveBorderColor,
+      borderWidth: effectiveBorderWidth,
       boxShadow: node.shadow
           ?.toBoxShadows(
             scaleX: scaleX,
@@ -536,19 +557,26 @@ class _MotionShapePreviewNodeWidget extends StatelessWidget {
     required double width,
     required double height,
     required double cornerRadius,
+    required Color borderColor,
+    required double borderWidth,
     List<BoxShadow>? boxShadow,
   }) {
+    final border = borderWidth > 0 && borderColor.opacity > 0
+        ? Border.all(color: borderColor, width: borderWidth)
+        : null;
     switch (shapeKind) {
       case MotionShapeKind.circle:
         return BoxDecoration(
           color: color,
           shape: BoxShape.circle,
+          border: border,
           boxShadow: boxShadow,
         );
       case MotionShapeKind.line:
       case MotionShapeKind.roundedRectangle:
         return BoxDecoration(
           color: color,
+          border: border,
           borderRadius: BorderRadius.circular(
             cornerRadius > 0 ? cornerRadius : math.min(width, height) / 2,
           ),
@@ -559,6 +587,7 @@ class _MotionShapePreviewNodeWidget extends StatelessWidget {
       case MotionShapeKind.customPath:
         return BoxDecoration(
           color: color,
+          border: border,
           borderRadius: cornerRadius > 0
               ? BorderRadius.circular(cornerRadius)
               : BorderRadius.zero,

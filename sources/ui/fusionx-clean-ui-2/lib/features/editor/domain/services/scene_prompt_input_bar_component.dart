@@ -126,6 +126,30 @@ class ScenePromptInputBarComponentValidator {
       );
     }
 
+    final shellWidth = _doubleFromMap(
+      shell.element.properties,
+      const <String>['width'],
+    );
+    final shellHeight = _doubleFromMap(
+      shell.element.properties,
+      const <String>['height'],
+    );
+    if (shellWidth == null ||
+        shellWidth < 560.0 ||
+        shellWidth > 980.0 ||
+        shellHeight == null ||
+        shellHeight < 84.0 ||
+        shellHeight > 140.0) {
+      issues.add(
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message:
+              'PromptInputBar shell `${shell.element.id}` must keep intrinsic size bounds (width 560-980, height 84-140).',
+          path: '$shellPath.properties.width',
+        ),
+      );
+    }
+
     _validateParent(
       entry: textEntry,
       expectedParentId: shell.element.id,
@@ -226,6 +250,20 @@ class ScenePromptInputBarComponentValidator {
           message:
               'PromptInputBar text `${textEntry.element.id}` should be regular weight (<= 500).',
           path: '$textPath.properties.fontWeight',
+        ),
+      );
+    }
+    final fontSize = _doubleFromMap(
+      textEntry.element.properties,
+      const <String>['fontSize'],
+    );
+    if (fontSize != null && (fontSize < 12.0 || fontSize > 34.0)) {
+      issues.add(
+        ReFusionSceneProgramIssue(
+          severity: ReFusionSceneProgramIssueSeverity.error,
+          message:
+              'PromptInputBar text `${textEntry.element.id}` must use readable sizing (fontSize between 12 and 34).',
+          path: '$textPath.properties.fontSize',
         ),
       );
     }
