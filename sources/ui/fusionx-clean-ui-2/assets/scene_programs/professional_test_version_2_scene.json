@@ -1787,6 +1787,8 @@
             "kind": "text",
             "text": "sales_deck.pdf",
             "properties": {
+              "parentId": "fileCardOneShell",
+              "layoutRole": "title",
               "position": {
                 "x": 90,
                 "y": -322
@@ -1851,6 +1853,8 @@
             "kind": "text",
             "text": "Analyzing...",
             "properties": {
+              "parentId": "fileCardOneShell",
+              "layoutRole": "body",
               "position": {
                 "x": 72,
                 "y": -268
@@ -2191,6 +2195,8 @@
             "kind": "text",
             "text": "annual_report.xlsx",
             "properties": {
+              "parentId": "fileCardTwoShell",
+              "layoutRole": "title",
               "position": {
                 "x": 100,
                 "y": -82
@@ -2255,6 +2261,8 @@
             "kind": "text",
             "text": "Analyzing...",
             "properties": {
+              "parentId": "fileCardTwoShell",
+              "layoutRole": "body",
               "position": {
                 "x": 72,
                 "y": -28
@@ -2595,6 +2603,8 @@
             "kind": "text",
             "text": "consult_notes.doc",
             "properties": {
+              "parentId": "fileCardThreeShell",
+              "layoutRole": "title",
               "position": {
                 "x": 100,
                 "y": 158
@@ -2659,6 +2669,8 @@
             "kind": "text",
             "text": "Analyzing...",
             "properties": {
+              "parentId": "fileCardThreeShell",
+              "layoutRole": "body",
               "position": {
                 "x": 72,
                 "y": 212

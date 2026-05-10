@@ -185,4 +185,87 @@ void main() {
       isNotEmpty,
     );
   });
+
+  test('rejects FeatureCard body text when fit policy is clip', () {
+    final result = validator.validate(
+      ReFusionSceneProgram(
+        schemaVersion: 'refusion.scene-program/v1',
+        name: 'Feature Card Contract Test',
+        durationMs: 2600,
+        frameRate: 30,
+        layers: <ReFusionSceneProgramLayer>[
+          ReFusionSceneProgramLayer(
+            id: 'file-card-shell-layer',
+            kind: 'shape',
+            startMs: 100,
+            durationMs: 1800,
+            elements: <ReFusionSceneProgramElement>[
+              ReFusionSceneProgramElement(
+                id: 'fileCardOneShell',
+                kind: 'shape',
+                properties: const <String, Object?>{
+                  'layoutRole': 'container',
+                  'componentType': 'FeatureCard',
+                  'position': <String, Object?>{'x': 0, 'y': 0},
+                  'width': 640,
+                  'height': 180,
+                },
+              ),
+            ],
+          ),
+          ReFusionSceneProgramLayer(
+            id: 'file-card-title-layer',
+            kind: 'text',
+            startMs: 180,
+            durationMs: 1720,
+            elements: <ReFusionSceneProgramElement>[
+              ReFusionSceneProgramElement(
+                id: 'fileCardOneTitle',
+                kind: 'text',
+                text: 'Montage',
+                properties: const <String, Object?>{
+                  'parentId': 'fileCardOneShell',
+                  'position': <String, Object?>{'x': 90, 'y': -26},
+                  'fontSize': 26,
+                  'textFrame': <String, Object?>{
+                    'width': 300,
+                    'height': 34,
+                    'maxLines': 1,
+                    'fitPolicy': 'shrinkToFit',
+                  },
+                },
+              ),
+              ReFusionSceneProgramElement(
+                id: 'fileCardOneStatus',
+                kind: 'text',
+                text: 'Retouch, grade, and',
+                properties: const <String, Object?>{
+                  'parentId': 'fileCardOneShell',
+                  'position': <String, Object?>{'x': 90, 'y': 34},
+                  'fontSize': 30,
+                  'lineHeight': 1,
+                  'textFrame': <String, Object?>{
+                    'width': 260,
+                    'height': 34,
+                    'maxLines': 1,
+                    'fitPolicy': 'clip',
+                  },
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    expect(result.isValid, isFalse);
+    expect(
+      result.issues.any(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+            issue.message.contains('FEATURE_TEXT_CLIPPED'),
+      ),
+      isTrue,
+    );
+  });
 }
