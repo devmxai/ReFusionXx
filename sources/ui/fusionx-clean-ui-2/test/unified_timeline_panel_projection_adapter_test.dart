@@ -84,9 +84,20 @@ void main() {
     expect(result.tracks[1].kind.name, 'text');
     expect(result.tracks[2].kind.name, 'shape');
     expect(
-      result.tracks.map((track) => track.clips.single.label),
+      result.tracks.map((track) => track.clips.last.label),
       <String>['Media', 'Title', 'Cross Dissolve'],
     );
+  });
+
+  test('preserves row start time using leading gap placeholder clip', () {
+    final result = adapter.project(presentation());
+    final textTrack = result.tracks[1];
+
+    expect(textTrack.clips, hasLength(2));
+    expect(textTrack.clips.first.id, 'gap:clip:text');
+    expect(
+        textTrack.clips.first.durationTime, TimelineTime.fromMilliseconds(300));
+    expect(textTrack.clips.last.id, 'clip:text');
   });
 
   test('returns source-id to projected-clip-id mapping', () {

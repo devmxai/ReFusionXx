@@ -63,25 +63,14 @@ class UnifiedTimelinePanelProjectionAdapter {
     for (var index = 0; index < sortedRows.length; index++) {
       final row = sortedRows[index];
       final kind = _trackKindForRow(row, issues);
-      final clip = TimelineClipData(
-        id: row.id,
-        type: TimelineClipType.placeholder,
-        tone: row.isTransition
-            ? TimelineClipTone.heroMuted
-            : TimelineClipTone.aiGenerated,
-        durationTime: row.durationTime,
-        sourceStartTime: TimelineTime.zero,
-        sourceDurationTime: row.durationTime,
-        label: row.label,
-        contentKind: _clipContentKindForRow(row),
-        visualKind: _visualKindForTrackKind(kind),
-      );
+      final clip = _projectedClipForRow(row, kind);
+      final clips = _clipsForProjectedRow(row, kind, clip);
       final track = TimelineTrackData(
         kind: kind,
         contentKind: _trackContentKindForRow(row),
         visualKind: _visualKindForTrackKind(kind),
         placeholderLabel: row.layerType.name,
-        clips: <TimelineClipData>[clip],
+        clips: clips,
       );
       tracks.add(track);
       sourceClipIdToRowClipId[row.sourceId] = row.id;
@@ -161,5 +150,46 @@ class UnifiedTimelinePanelProjectionAdapter {
       TimelineTrackKind.shape => TimelineVisualKind.shape,
       TimelineTrackKind.lipSync => TimelineVisualKind.lipSync,
     };
+  }
+
+  TimelineClipData _projectedClipForRow(
+    UnifiedTimelinePresentationRow row,
+    TimelineTrackKind kind,
+  ) {
+    return TimelineClipData(
+      id: row.id,
+      type: TimelineClipType.placeholder,
+      tone: row.isTransition
+          ? TimelineClipTone.heroMuted
+          : TimelineClipTone.aiGenerated,
+      durationTime: row.durationTime,
+      sourceStartTime: TimelineTime.zero,
+      sourceDurationTime: row.durationTime,
+      label: row.label,
+      contentKind: _clipContentKindForRow(row),
+      visualKind: _visualKindForTrackKind(kind),
+    );
+  }
+
+  List<TimelineClipData> _clipsForProjectedRow(
+    UnifiedTimelinePresentationRow row,
+    TimelineTrackKind kind,
+    TimelineClipData projectedClip,
+  ) {
+    if (row.startTime <= TimelineTime.zero) {
+      return <TimelineClipData>[projectedClip];
+    }
+    final gap = TimelineClipData(
+      id: 'gap:${row.id}',
+      type: TimelineClipType.placeholder,
+      tone: TimelineClipTone.placeholder,
+      durationTime: row.startTime,
+      sourceStartTime: TimelineTime.zero,
+      sourceDurationTime: row.startTime,
+      label: '',
+      contentKind: TimelineClipContentKind.placeholder,
+      visualKind: _visualKindForTrackKind(kind),
+    );
+    return <TimelineClipData>[gap, projectedClip];
   }
 }
