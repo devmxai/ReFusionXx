@@ -12,6 +12,24 @@ Depends on:
 - `docs/professional_composition_workspace_and_scene_orchestration_plan.md`
 - `docs/professional_canvas_timeline.md`
 
+## Execution Status (2026-05-11)
+
+- `PUTP-00` completed (inventory and protected-boundary audit).
+- `PUTP-01` completed (read-only unified presentation model).
+- `PUTP-03` completed (TimelinePanel projection handoff behind flag).
+- `PUTP-04` completed (plus command registry mapping).
+- `PUTP-05` completed (unified double-tap focus routing).
+- `PUTP-06` foundation completed (focused keyframe motion timeline adapter).
+- `PUTP-07` completed (adjustment layer presentation routing and insertion flow).
+- `PUTP-09` foundation completed (rollout mode safety flags).
+- `PUTP-10` foundation completed (projection start-offset parity regression).
+
+Remaining high-level slices:
+
+- `PUTP-08` legacy compatibility containment hardening.
+- `PUTP-10` expanded regression matrix coverage.
+- `PUTP-11` broader external skills sync (when skills repo update is in scope).
+
 ## 1. Executive Decision
 
 ReFusionXx will simplify the user-facing timeline experience by introducing a
@@ -675,4 +693,3 @@ It must not wire production UI yet.
 The first user-visible routing change is not allowed until the read-only model
 and compatibility tests prove that existing timelines can be projected without
 data loss.
-
