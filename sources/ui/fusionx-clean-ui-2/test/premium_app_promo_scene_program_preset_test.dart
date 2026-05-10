@@ -188,37 +188,6 @@ void main() {
   });
 
   test(
-      'professional test version 3 preset imports through scene authoring pipeline',
-      () {
-    final wrappedSource = File(
-      'assets/scene_programs/professional_test_version_3_director_brief.json',
-    ).readAsStringSync();
-    final source = KieSceneProgramAgentService()
-        .extractSceneProgramPayloadFromContent(content: wrappedSource)
-        .sceneProgramJson;
-    final result =
-        const ReFusionSceneProgramAuthoringService().importSceneProgram(
-      ReFusionSceneProgramAuthoringRequest(
-        source: source,
-        fileName: 'professional_test_version_3_director_brief.json',
-        projectId: 'professional-test-v3-preset',
-        sceneId: 'professional-test-v3-scene',
-      ),
-    );
-
-    expect(
-      result.isValid,
-      isTrue,
-      reason: result.issues
-          .map((issue) => '${issue.severity} ${issue.path}: ${issue.message}')
-          .join('\n'),
-    );
-    expect(result.program?.name.isNotEmpty, isTrue);
-    expect(result.program?.durationMs, greaterThan(2400));
-    expect(result.channels.length, greaterThan(6));
-  });
-
-  test(
       'revival native intelligence result card text follows card timing tracks',
       () {
     final source = File(
@@ -290,7 +259,7 @@ void main() {
     );
   });
 
-  testWidgets('present sheet applies professional test version 3 preset',
+  testWidgets('present sheet is empty until the next clean scene is authored',
       (tester) async {
     SceneProgramImportSheetResult? appliedResult;
 
@@ -322,28 +291,10 @@ void main() {
     await tester.tap(find.text('Open Present'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Professional Test Version 3'), findsOneWidget);
+    expect(find.text('Professional Test Version 3'), findsNothing);
     expect(find.text('Premium App Promo'), findsNothing);
     expect(find.text('ReFusion Prompt Burst'), findsNothing);
-    expect(find.text('No clean present scene yet'), findsNothing);
-
-    await tester.tap(find.text('Professional Test Version 3'));
-    await tester.runAsync(() async {
-      for (var attempt = 0;
-          attempt < 40 && appliedResult == null;
-          attempt += 1) {
-        await Future<void>.delayed(const Duration(milliseconds: 250));
-      }
-    });
-    await tester.pumpAndSettle();
-
-    expect(appliedResult, isNotNull);
-    expect(appliedResult!.name.isNotEmpty, isTrue);
-    expect(
-      appliedResult!.replaceExistingComposition,
-      isTrue,
-      reason: 'Present presets must replace existing composition clips to avoid mixing old and new scenes.',
-    );
-    expect(appliedResult!.authoringResult.program?.durationMs, greaterThan(2400));
+    expect(find.text('No clean present scene yet'), findsOneWidget);
+    expect(appliedResult, isNull);
   });
 }

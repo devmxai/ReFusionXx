@@ -101,17 +101,7 @@ class SceneProgramPresentBottomSheet extends StatelessWidget {
       KieSceneProgramAgentService();
 
   static const List<_SceneProgramPresentPreset> _presets =
-      <_SceneProgramPresentPreset>[
-    _SceneProgramPresentPreset(
-      title: 'Professional Test Version 3',
-      subtitle:
-          'Director-brief driven prompt morph scene compiled by the v5 runtime.',
-      assetPath:
-          'assets/scene_programs/professional_test_version_3_director_brief.json',
-      icon: Icons.auto_awesome_rounded,
-      status: 'Fresh',
-    ),
-  ];
+      <_SceneProgramPresentPreset>[];
 
   Future<void> _applyPreset(
     BuildContext context,
