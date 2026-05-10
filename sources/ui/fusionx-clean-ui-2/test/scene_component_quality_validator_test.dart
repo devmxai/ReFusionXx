@@ -178,6 +178,96 @@ void main() {
     );
   }
 
+  ReFusionSceneProgram _featureCardsSiblingProgram({
+    required bool repeatedMotion,
+  }) {
+    ReFusionSceneProgramLayer cardLayer({
+      required String id,
+      required double x,
+      required List<ReFusionSceneProgramChannel> channels,
+    }) {
+      return ReFusionSceneProgramLayer(
+        id: 'layer-$id',
+        kind: 'shape',
+        startMs: 0,
+        durationMs: 1600,
+        elements: <ReFusionSceneProgramElement>[
+          ReFusionSceneProgramElement(
+            id: 'shell-$id',
+            kind: 'shape',
+            properties: <String, Object?>{
+              'componentType': 'FeatureCard',
+              'componentId': id,
+              'layoutRole': 'container',
+              'position': <String, Object?>{'x': x, 'y': 0.0},
+              'width': 360.0,
+              'height': 180.0,
+              'professionalStrict': true,
+            },
+            channels: channels,
+          ),
+        ],
+      );
+    }
+
+    List<ReFusionSceneProgramChannel> fadeOnly() {
+      return <ReFusionSceneProgramChannel>[
+        ReFusionSceneProgramChannel(
+          target: 'self',
+          property: 'opacity',
+          keyframes: const <ReFusionSceneProgramKeyframe>[
+            ReFusionSceneProgramKeyframe(timeMs: 0, value: 0.0),
+            ReFusionSceneProgramKeyframe(timeMs: 420, value: 1.0),
+          ],
+        ),
+      ];
+    }
+
+    List<ReFusionSceneProgramChannel> slide() {
+      return <ReFusionSceneProgramChannel>[
+        ReFusionSceneProgramChannel(
+          target: 'self',
+          property: 'position.x',
+          keyframes: const <ReFusionSceneProgramKeyframe>[
+            ReFusionSceneProgramKeyframe(timeMs: 0, value: -80.0),
+            ReFusionSceneProgramKeyframe(timeMs: 420, value: 0.0),
+          ],
+        ),
+        ReFusionSceneProgramChannel(
+          target: 'self',
+          property: 'opacity',
+          keyframes: const <ReFusionSceneProgramKeyframe>[
+            ReFusionSceneProgramKeyframe(timeMs: 0, value: 0.0),
+            ReFusionSceneProgramKeyframe(timeMs: 420, value: 1.0),
+          ],
+        ),
+      ];
+    }
+
+    return ReFusionSceneProgram(
+      schemaVersion: 'refusion.scene-program/v1',
+      name: repeatedMotion
+          ? 'Professional FeatureCard Repeated'
+          : 'Professional FeatureCard Varied',
+      durationMs: 1800,
+      frameRate: 30.0,
+      layers: <ReFusionSceneProgramLayer>[
+        cardLayer(id: 'fc-1', x: -260.0, channels: fadeOnly()),
+        cardLayer(id: 'fc-2', x: -80.0, channels: fadeOnly()),
+        cardLayer(
+          id: 'fc-3',
+          x: 100.0,
+          channels: repeatedMotion ? fadeOnly() : slide(),
+        ),
+        cardLayer(
+          id: 'fc-4',
+          x: 280.0,
+          channels: repeatedMotion ? fadeOnly() : slide(),
+        ),
+      ],
+    );
+  }
+
   test('rejects raw-layer professional prompt bars', () {
     final result = validator.validate(
       _professionalPromptProgram(componentAuthored: false),
@@ -260,5 +350,36 @@ void main() {
       ),
       isTrue,
     );
+  });
+
+  test('rejects sibling components that over-repeat one motion signature', () {
+    final result = validator.validate(
+      _featureCardsSiblingProgram(repeatedMotion: true),
+    );
+
+    expect(result.isValid, isFalse);
+    expect(
+      result.issues.any(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+            issue.message.contains('COMPONENT_QA::MOTION_VARIETY_LOW'),
+      ),
+      isTrue,
+    );
+  });
+
+  test('accepts sibling components when motion signatures are diverse enough',
+      () {
+    final result = validator.validate(
+      _featureCardsSiblingProgram(repeatedMotion: false),
+    );
+
+    final varietyErrors = result.issues.where(
+      (issue) =>
+          issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+          issue.message.contains('COMPONENT_QA::MOTION_VARIETY_LOW'),
+    );
+    expect(varietyErrors, isEmpty,
+        reason: varietyErrors.map((issue) => issue.message).join('\n'));
   });
 }

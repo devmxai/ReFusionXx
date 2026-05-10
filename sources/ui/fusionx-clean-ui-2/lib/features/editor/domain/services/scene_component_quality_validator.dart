@@ -53,6 +53,12 @@ class SceneComponentQualityValidator {
         elementRefs: elementRefs,
         issues: issues,
       );
+      _lintSiblingMotionVariety(
+        program: program,
+        elementRefs: elementRefs,
+        elementById: elementById,
+        issues: issues,
+      );
       _lintGroupExitCoherence(
         program: program,
         elementRefs: elementRefs,
@@ -441,6 +447,87 @@ class SceneComponentQualityValidator {
     }
   }
 
+  void _lintSiblingMotionVariety({
+    required ReFusionSceneProgram program,
+    required List<_ElementRef> elementRefs,
+    required Map<String, _ElementRef> elementById,
+    required List<ReFusionSceneProgramIssue> issues,
+  }) {
+    final rootsByType = <String, List<_ElementRef>>{};
+    final seenComponentIds = <String>{};
+    for (final ref in elementRefs) {
+      final componentId = _componentId(ref.element.properties);
+      final componentType = _componentType(ref.element.properties);
+      if (componentId == null ||
+          componentType == null ||
+          componentId.isEmpty ||
+          componentType.isEmpty) {
+        continue;
+      }
+      if (!seenComponentIds.add(componentId)) {
+        continue;
+      }
+      final rootRef = _resolveComponentRootRef(
+        componentId: componentId,
+        elementRefs: elementRefs,
+        elementById: elementById,
+      );
+      if (rootRef == null) {
+        continue;
+      }
+      rootsByType
+          .putIfAbsent(_normalize(componentType), () => <_ElementRef>[])
+          .add(rootRef);
+    }
+
+    for (final entry in rootsByType.entries) {
+      final refs = entry.value;
+      if (refs.length < 3) {
+        continue;
+      }
+      if (_hasGroupRecipeOverride(refs)) {
+        continue;
+      }
+      final signatureCounts = <String, int>{};
+      for (final ref in refs) {
+        final signature = _motionSignatureForRoot(program: program, ref: ref);
+        signatureCounts[signature] = (signatureCounts[signature] ?? 0) + 1;
+      }
+      if (signatureCounts.isEmpty) {
+        continue;
+      }
+      final total = refs.length;
+      var dominantSignature = '';
+      var dominantCount = 0;
+      signatureCounts.forEach((signature, count) {
+        if (count > dominantCount) {
+          dominantCount = count;
+          dominantSignature = signature;
+        }
+      });
+      final ratio = dominantCount / total;
+      if (ratio <= 0.60) {
+        continue;
+      }
+      final anchor = refs.first;
+      issues.add(
+        _componentError(
+          code: 'MOTION_VARIETY_LOW',
+          message:
+              'Sibling `${entry.key}` components repeat `$dominantSignature` on ${(ratio * 100).toStringAsFixed(0)}% of roots.',
+          path: 'layers[${anchor.layerIndex}]',
+          repairPayload: <String, Object?>{
+            'action': 'applyMotionVariety',
+            'componentType': entry.key,
+            'dominantSignature': dominantSignature,
+            'dominantRatio': ratio.toStringAsFixed(3),
+            'maxAllowedRatio': 0.60,
+          },
+        ),
+      );
+    }
+  }
+
   List<int> _collectProbeTimes(ReFusionSceneProgram program) {
     final probes = <int>{0, program.durationMs};
     for (final layer in program.layers) {
@@ -563,6 +650,146 @@ class SceneComponentQualityValidator {
       }
     }
     return _AnimationShape(hasOpacity: hasOpacity, hasMotion: hasMotion);
+  }
+
+  String _motionSignatureForRoot({
+    required ReFusionSceneProgram program,
+    required _ElementRef ref,
+  }) {
+    final channels = _channelsFor(program: program, ref: ref);
+    if (channels.isEmpty) {
+      return 'static';
+    }
+    var hasOpacity = false;
+    var hasX = false;
+    var hasY = false;
+    var hasScale = false;
+    var hasRotation = false;
+    for (final channel in channels) {
+      final property = _normalize(channel.property);
+      if (property == 'opacity' || property == 'alpha') {
+        hasOpacity = true;
+        continue;
+      }
+      if (property == 'x' ||
+          property == 'positionx' ||
+          property == 'position.x') {
+        hasX = true;
+        continue;
+      }
+      if (property == 'y' ||
+          property == 'positiony' ||
+          property == 'position.y') {
+        hasY = true;
+        continue;
+      }
+      if (property == 'scale' ||
+          property == 'scalex' ||
+          property == 'scaley' ||
+          property == 'width' ||
+          property == 'height') {
+        hasScale = true;
+        continue;
+      }
+      if (property == 'rotation' || property == 'rotationdeg') {
+        hasRotation = true;
+      }
+    }
+    if (hasOpacity && !hasX && !hasY && !hasScale && !hasRotation) {
+      return 'fadeOnly';
+    }
+    final parts = <String>[];
+    if (hasX) {
+      parts.add('slideX');
+    }
+    if (hasY) {
+      parts.add('slideY');
+    }
+    if (hasScale) {
+      parts.add('scale');
+    }
+    if (hasRotation) {
+      parts.add('rotate');
+    }
+    if (hasOpacity) {
+      parts.add('fade');
+    }
+    if (parts.isEmpty) {
+      return 'static';
+    }
+    return parts.join('+');
+  }
+
+  _ElementRef? _resolveComponentRootRef({
+    required String componentId,
+    required List<_ElementRef> elementRefs,
+    required Map<String, _ElementRef> elementById,
+  }) {
+    final refs = elementRefs
+        .where((ref) => _componentId(ref.element.properties) == componentId)
+        .toList(growable: false);
+    if (refs.isEmpty) {
+      return null;
+    }
+    for (final ref in refs) {
+      final role = _normalize(
+        _stringFromMap(
+              ref.element.properties,
+              const <String>['layoutRole', 'role'],
+            ) ??
+            '',
+      );
+      if (role == 'container' || role == 'shell' || role == 'root') {
+        return ref;
+      }
+    }
+    for (final ref in refs) {
+      final parentId = _stringFromMap(
+        ref.element.properties,
+        const <String>['parentId', 'parent', 'containerId', 'parentGroup'],
+      );
+      if (parentId == null || parentId.isEmpty) {
+        return ref;
+      }
+      final parent = elementById[parentId];
+      if (parent == null) {
+        return ref;
+      }
+      if (_componentId(parent.element.properties) != componentId) {
+        return ref;
+      }
+    }
+    return refs.first;
+  }
+
+  bool _hasGroupRecipeOverride(List<_ElementRef> refs) {
+    for (final ref in refs) {
+      final recipe = _normalize(
+        _stringFromMap(
+              ref.element.properties,
+              const <String>['groupMotionRecipe', 'motionRecipe', 'recipeId'],
+            ) ??
+            '',
+      );
+      if (recipe.contains('cascade') ||
+          recipe.contains('group') ||
+          recipe.contains('stagger')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  List<ReFusionSceneProgramChannel> _channelsFor({
+    required ReFusionSceneProgram program,
+    required _ElementRef ref,
+  }) {
+    return <ReFusionSceneProgramChannel>[
+      ...ref.layer.channels.where(
+        (channel) => _normalize(channel.target) == _normalize(ref.element.id),
+      ),
+      ...ref.element.channels,
+    ];
   }
 
   ReFusionSceneProgramIssue _componentError({
