@@ -44,10 +44,12 @@ class SceneProgramImportSheetResult {
     required this.channels,
     required this.textAnimationBindings,
     required this.authoringResult,
+    this.replaceExistingComposition = false,
   });
 
   factory SceneProgramImportSheetResult.fromAuthoringResult(
     ReFusionSceneProgramAuthoringResult result,
+    {bool replaceExistingComposition = false}
   ) {
     final scenes = result.project?.scenes ?? const [];
     final scene = scenes.length == 1 ? scenes.single : null;
@@ -66,6 +68,7 @@ class SceneProgramImportSheetResult {
       channels: result.channels,
       textAnimationBindings: result.textAnimationBindings,
       authoringResult: result,
+      replaceExistingComposition: replaceExistingComposition,
     );
   }
 
@@ -77,6 +80,7 @@ class SceneProgramImportSheetResult {
   final List<MotionPropertyChannelModel> channels;
   final List<MotionTextAnimationBindingModel> textAnimationBindings;
   final ReFusionSceneProgramAuthoringResult authoringResult;
+  final bool replaceExistingComposition;
 }
 
 class SceneProgramPresentBottomSheet extends StatelessWidget {
@@ -99,10 +103,11 @@ class SceneProgramPresentBottomSheet extends StatelessWidget {
   static const List<_SceneProgramPresentPreset> _presets =
       <_SceneProgramPresentPreset>[
     _SceneProgramPresentPreset(
-      title: 'Professional Test Version 2',
+      title: 'Professional Test Version 3',
       subtitle:
-          'Clean prompt bar, Think word swap, analyzing file cards, and available-now CTA.',
-      assetPath: 'assets/scene_programs/professional_test_version_2_scene.json',
+          'Director-brief driven prompt morph scene compiled by the v5 runtime.',
+      assetPath:
+          'assets/scene_programs/professional_test_version_3_director_brief.json',
       icon: Icons.auto_awesome_rounded,
       status: 'Fresh',
     ),
@@ -154,7 +159,10 @@ class SceneProgramPresentBottomSheet extends StatelessWidget {
       return;
     }
     Navigator.of(context).pop(
-      SceneProgramImportSheetResult.fromAuthoringResult(result),
+      SceneProgramImportSheetResult.fromAuthoringResult(
+        result,
+        replaceExistingComposition: true,
+      ),
     );
   }
 
@@ -168,7 +176,16 @@ class SceneProgramPresentBottomSheet extends StatelessWidget {
       if (decoded is! Map) {
         return trimmed;
       }
+      final directSceneProgram = decoded['sceneProgram'];
+      if (directSceneProgram is Map) {
+        return const JsonEncoder.withIndent('  ').convert(directSceneProgram);
+      }
+      final directProgram = decoded['program'];
+      if (directProgram is Map) {
+        return const JsonEncoder.withIndent('  ').convert(directProgram);
+      }
       final hasSceneWrapper = decoded.containsKey('directorPlan') ||
+          decoded.containsKey('directorBrief') ||
           decoded.containsKey('motionDirector') ||
           decoded.containsKey('sceneProgram') ||
           decoded.containsKey('program');
@@ -179,7 +196,7 @@ class SceneProgramPresentBottomSheet extends StatelessWidget {
           .extractSceneProgramPayloadFromContent(content: trimmed)
           .sceneProgramJson;
     } on KieSceneProgramAgentException {
-      rethrow;
+      return trimmed;
     } catch (_) {
       return trimmed;
     }

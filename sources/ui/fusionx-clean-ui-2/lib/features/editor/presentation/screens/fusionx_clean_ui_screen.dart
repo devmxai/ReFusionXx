@@ -16277,15 +16277,22 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   void _applySceneProgramImportResult(SceneProgramImportSheetResult result) {
+    final replaceExisting = result.replaceExistingComposition;
     final transaction = _sceneProgramApplyTransaction.apply(
       SceneProgramApplyTransactionRequest(
         baseProject: _effectiveMotionProject,
         authoringResult: result.authoringResult,
         rootSceneId: _motionSceneId,
         startTime: TimelineTime.zero,
-        existingSceneClips: _sceneClips,
-        existingChannels: _universalMotionPropertyChannels,
-        existingTextAnimationBindings: _motionTextAnimationBindings,
+        existingSceneClips: replaceExisting
+            ? const <CompositionSceneClipModel>[]
+            : _sceneClips,
+        existingChannels: replaceExisting
+            ? const <MotionPropertyChannelModel>[]
+            : _universalMotionPropertyChannels,
+        existingTextAnimationBindings: replaceExisting
+            ? const <MotionTextAnimationBindingModel>[]
+            : _motionTextAnimationBindings,
         clipName: result.name,
       ),
     );

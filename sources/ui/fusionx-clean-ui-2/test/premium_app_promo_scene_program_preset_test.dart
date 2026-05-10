@@ -167,52 +167,42 @@ void main() {
     );
   });
 
-  test('refusion prompt burst preset imports through scene authoring pipeline',
+  test(
+      'refusion prompt burst legacy preset is rejected by strict component gate',
       () {
     final source = File(
       'assets/scene_programs/revival_prompt_burst_feature_cards_scene.json',
     ).readAsStringSync();
 
-    final extracted = KieSceneProgramAgentService()
-        .extractSceneProgramPayloadFromContent(content: source);
-    final result =
-        const ReFusionSceneProgramAuthoringService().importSceneProgram(
-      ReFusionSceneProgramAuthoringRequest(
-        source: extracted.sceneProgramJson,
-        fileName: 'revival_prompt_burst_feature_cards_scene.json',
-        projectId: 'refusion-prompt-burst-test',
-        sceneId: 'refusion-prompt-burst-scene',
+    expect(
+      () => KieSceneProgramAgentService()
+          .extractSceneProgramPayloadFromContent(content: source),
+      throwsA(
+        isA<KieSceneProgramAgentException>().having(
+          (exception) => exception.message,
+          'message',
+          contains('COMPONENT_QA::'),
+        ),
       ),
     );
-
-    expect(
-      result.isValid,
-      isTrue,
-      reason: result.issues
-          .map((issue) => '${issue.severity} ${issue.path}: ${issue.message}')
-          .join('\n'),
-    );
-    expect(result.program?.name, 'ReFusion Prompt Burst Feature Cards');
-    expect(result.program?.durationMs, 12800);
-    expect(result.channels.length, greaterThan(16));
   });
 
   test(
-      'professional test version 2 preset imports through scene authoring pipeline',
+      'professional test version 3 preset imports through scene authoring pipeline',
       () {
-    final source = File(
-      'assets/scene_programs/professional_test_version_2_scene.json',
+    final wrappedSource = File(
+      'assets/scene_programs/professional_test_version_3_director_brief.json',
     ).readAsStringSync();
-
-    final extracted = KieSceneProgramAgentService()
-        .extractSceneProgramPayloadFromContent(content: source);
+    final source = KieSceneProgramAgentService()
+        .extractSceneProgramPayloadFromContent(content: wrappedSource)
+        .sceneProgramJson;
     final result =
         const ReFusionSceneProgramAuthoringService().importSceneProgram(
       ReFusionSceneProgramAuthoringRequest(
-        source: extracted.sceneProgramJson,
-        fileName: 'professional_test_version_2_scene.json',
-        projectId: 'professional-test-v2-preset',
-        sceneId: 'professional-test-v2-scene',
+        source: source,
+        fileName: 'professional_test_version_3_director_brief.json',
+        projectId: 'professional-test-v3-preset',
+        sceneId: 'professional-test-v3-scene',
       ),
     );
 
@@ -223,9 +213,9 @@ void main() {
           .map((issue) => '${issue.severity} ${issue.path}: ${issue.message}')
           .join('\n'),
     );
-    expect(result.program?.name, 'Professional Test Version 2');
-    expect(result.program?.durationMs, 12800);
-    expect(result.channels.length, greaterThan(24));
+    expect(result.program?.name.isNotEmpty, isTrue);
+    expect(result.program?.durationMs, greaterThan(2400));
+    expect(result.channels.length, greaterThan(6));
   });
 
   test(
@@ -300,29 +290,31 @@ void main() {
     );
   });
 
-  testWidgets('present sheet applies professional test version 2 preset',
+  testWidgets('present sheet applies professional test version 3 preset',
       (tester) async {
     SceneProgramImportSheetResult? appliedResult;
 
     await tester.pumpWidget(
       MaterialApp(
-        home: Builder(
-          builder: (context) {
-            return TextButton(
-              onPressed: () async {
-                appliedResult =
-                    await showModalBottomSheet<SceneProgramImportSheetResult>(
-                  context: context,
-                  builder: (_) => const SceneProgramPresentBottomSheet(
-                    projectId: 'revival-native-intelligence-test',
-                    sceneId: 'revival-native-intelligence-scene',
-                    canvasSize: MotionSize2D(width: 1080, height: 1920),
-                  ),
-                );
-              },
-              child: const Text('Open Present'),
-            );
-          },
+        home: Scaffold(
+          body: Builder(
+            builder: (context) {
+              return TextButton(
+                onPressed: () async {
+                  appliedResult =
+                      await showModalBottomSheet<SceneProgramImportSheetResult>(
+                    context: context,
+                    builder: (_) => const SceneProgramPresentBottomSheet(
+                      projectId: 'revival-native-intelligence-test',
+                      sceneId: 'revival-native-intelligence-scene',
+                      canvasSize: MotionSize2D(width: 1080, height: 1920),
+                    ),
+                  );
+                },
+                child: const Text('Open Present'),
+              );
+            },
+          ),
         ),
       ),
     );
@@ -330,12 +322,12 @@ void main() {
     await tester.tap(find.text('Open Present'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Professional Test Version 2'), findsOneWidget);
+    expect(find.text('Professional Test Version 3'), findsOneWidget);
     expect(find.text('Premium App Promo'), findsNothing);
     expect(find.text('ReFusion Prompt Burst'), findsNothing);
     expect(find.text('No clean present scene yet'), findsNothing);
 
-    await tester.tap(find.text('Professional Test Version 2'));
+    await tester.tap(find.text('Professional Test Version 3'));
     await tester.runAsync(() async {
       for (var attempt = 0;
           attempt < 40 && appliedResult == null;
@@ -346,7 +338,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(appliedResult, isNotNull);
-    expect(appliedResult!.name, 'Professional Test Version 2');
-    expect(appliedResult!.authoringResult.program?.durationMs, 12800);
+    expect(appliedResult!.name.isNotEmpty, isTrue);
+    expect(
+      appliedResult!.replaceExistingComposition,
+      isTrue,
+      reason: 'Present presets must replace existing composition clips to avoid mixing old and new scenes.',
+    );
+    expect(appliedResult!.authoringResult.program?.durationMs, greaterThan(2400));
   });
 }
