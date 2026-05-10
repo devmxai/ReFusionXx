@@ -63,6 +63,7 @@ import '../models/editor_asset_item.dart';
 import '../models/editor_media_tab.dart';
 import '../models/timeline_mock_models.dart';
 import '../models/timeline_time.dart';
+import '../models/unified_timeline_presentation_models.dart';
 import '../services/composition_workspace_inspector_adapter.dart';
 import '../services/composition_workspace_outliner_adapter.dart';
 import '../services/composition_media_playback_projection_adapter.dart';
@@ -82,6 +83,9 @@ import '../services/transition_boundary_frame_request.dart';
 import '../services/transition_unified_scope_bridge_entry_adapter.dart';
 import '../services/transition_unified_scope_keyframe_adapter.dart';
 import '../services/transition_unified_scope_timeline_session_adapter.dart';
+import '../services/unified_timeline_panel_projection_adapter.dart';
+import '../services/unified_timeline_presentation_adapter.dart';
+import '../services/unified_timeline_presentation_flags.dart';
 import '../services/universal_master_frame_evaluation_service.dart';
 import '../services/universal_motion_channel_collector.dart';
 import '../widgets/editor_tools_bar.dart';
@@ -185,6 +189,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   static const double _motionPreviewClockResyncThresholdSeconds = 0.08;
   static const SceneProgramApplyTransaction _sceneProgramApplyTransaction =
       SceneProgramApplyTransaction();
+  static const UnifiedTimelinePresentationAdapter
+      _unifiedTimelinePresentationAdapter =
+      UnifiedTimelinePresentationAdapter();
+  static const UnifiedTimelinePanelProjectionAdapter
+      _unifiedTimelinePanelProjectionAdapter =
+      UnifiedTimelinePanelProjectionAdapter();
   static const RootSceneClipProjectionAdapter _rootSceneClipProjectionAdapter =
       RootSceneClipProjectionAdapter();
   static const CompositionWorkspaceOutlinerAdapter
@@ -16284,9 +16294,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         authoringResult: result.authoringResult,
         rootSceneId: _motionSceneId,
         startTime: TimelineTime.zero,
-        existingSceneClips: replaceExisting
-            ? const <CompositionSceneClipModel>[]
-            : _sceneClips,
+        existingSceneClips:
+            replaceExisting ? const <CompositionSceneClipModel>[] : _sceneClips,
         existingChannels: replaceExisting
             ? const <MotionPropertyChannelModel>[]
             : _universalMotionPropertyChannels,
@@ -25675,6 +25684,40 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         isSceneLayerScopeActive;
     final isTextLayerScopeActive =
         layerScopeContext?.track.kind == TimelineTrackKind.text;
+    final canUseUnifiedRootTimelinePresentation =
+        UnifiedTimelinePresentationFlags.unifiedTimelinePresentationLayer &&
+            transitionFocusContext == null &&
+            unifiedTransitionScopeViewModel == null &&
+            layerScopeContext == null &&
+            sceneScopeSession == null &&
+            sceneLayerScopeViewModel == null;
+    final unifiedRootTimelineProjection = canUseUnifiedRootTimelinePresentation
+        ? _unifiedTimelinePanelProjectionAdapter.project(
+            _unifiedTimelinePresentationAdapter.build(
+              UnifiedTimelinePresentationRequest(
+                scopeKind: UnifiedTimelineScopeKind.root,
+                currentTime: _currentTime,
+                durationTime: _timelineDurationTime,
+                tracks: mainTimelineTracks,
+              ),
+            ),
+          )
+        : null;
+    final unifiedRootTimelineTracks =
+        unifiedRootTimelineProjection?.tracks ?? mainTimelineTracks;
+    final unifiedRootSourceToRowClipId = unifiedRootTimelineProjection == null
+        ? const <String, String>{}
+        : unifiedRootTimelineProjection.sourceClipIdToRowClipId;
+    final unifiedRootRowToSourceClipId = unifiedRootTimelineProjection == null
+        ? const <String, String>{}
+        : <String, String>{
+            for (final entry in unifiedRootTimelineProjection
+                .sourceClipIdToRowClipId.entries)
+              entry.value: entry.key,
+          };
+    final unifiedRootSelectedClipId = _selectedClipId == null
+        ? null
+        : unifiedRootSourceToRowClipId[_selectedClipId!] ?? _selectedClipId;
     String availabilityScope = 'none';
     String? availabilityLaneId;
     String? availabilityKeyframeId;
@@ -26603,7 +26646,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                   : TimelinePanel(
                                                       embedded: true,
                                                       tracks:
-                                                          mainTimelineTracks,
+                                                          unifiedRootTimelineTracks,
                                                       currentTime: _currentTime,
                                                       displayTimeListenable:
                                                           _timelineDisplayTimeNotifier,
@@ -26619,22 +26662,54 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                           effectiveIsPlaying,
                                                       timelineFps: _timelineFps,
                                                       selectedClipId:
-                                                          _selectedClipId,
+                                                          canUseUnifiedRootTimelinePresentation
+                                                              ? unifiedRootSelectedClipId
+                                                              : _selectedClipId,
                                                       selectedTransitionId:
-                                                          _selectedClipId ==
-                                                                  null
+                                                          !canUseUnifiedRootTimelinePresentation &&
+                                                                  _selectedClipId ==
+                                                                      null
                                                               ? _selectedTransitionId
                                                               : null,
                                                       trimSelection:
                                                           _timelineTrimSelection,
                                                       onClipSelected:
-                                                          _selectClip,
-                                                      onClipDoubleTap:
-                                                          _handleTimelineClipDoubleTap,
-                                                      onClipReorder:
-                                                          _reorderClip,
-                                                      onClipTimeShift:
-                                                          _shiftClipInTimeline,
+                                                          (clipId) =>
+                                                              _selectClip(
+                                                        canUseUnifiedRootTimelinePresentation
+                                                            ? unifiedRootRowToSourceClipId[
+                                                                    clipId] ??
+                                                                clipId
+                                                            : clipId,
+                                                      ),
+                                                      onClipDoubleTap: (clipId) =>
+                                                          _handleTimelineClipDoubleTap(
+                                                        canUseUnifiedRootTimelinePresentation
+                                                            ? unifiedRootRowToSourceClipId[
+                                                                    clipId] ??
+                                                                clipId
+                                                            : clipId,
+                                                      ),
+                                                      onClipReorder: (clipId,
+                                                              insertionIndex) =>
+                                                          _reorderClip(
+                                                        canUseUnifiedRootTimelinePresentation
+                                                            ? unifiedRootRowToSourceClipId[
+                                                                    clipId] ??
+                                                                clipId
+                                                            : clipId,
+                                                        insertionIndex,
+                                                      ),
+                                                      onClipTimeShift: (clipId,
+                                                              startTime) =>
+                                                          _shiftClipInTimeline(
+                                                        canUseUnifiedRootTimelinePresentation
+                                                            ? unifiedRootRowToSourceClipId[
+                                                                    clipId] ??
+                                                                clipId
+                                                            : clipId,
+                                                        startTime,
+                                                      ),
                                                       onTransitionTap: (track,
                                                           leftClip, rightClip) {
                                                         unawaited(
@@ -26650,10 +26725,51 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                       animateTrackKinds: const <TimelineTrackKind>{},
                                                       onBackgroundTap:
                                                           _clearSelection,
-                                                      onTrimCommit:
-                                                          _handleTimelineTrimCommit,
+                                                      onTrimCommit: (request) =>
+                                                          _handleTimelineTrimCommit(
+                                                        TimelineTrimCommitRequest(
+                                                          clipId: canUseUnifiedRootTimelinePresentation
+                                                              ? unifiedRootRowToSourceClipId[
+                                                                      request
+                                                                          .clipId] ??
+                                                                  request.clipId
+                                                              : request.clipId,
+                                                          edge: request.edge,
+                                                          sourceStartTime: request
+                                                              .sourceStartTime,
+                                                          durationTime: request
+                                                              .durationTime,
+                                                        ),
+                                                      ),
                                                       onTrimPreviewChanged:
-                                                          _handleTimelineTrimPreviewChanged,
+                                                          (request) =>
+                                                              _handleTimelineTrimPreviewChanged(
+                                                        request == null
+                                                            ? null
+                                                            : TimelineTrimPreviewRequest(
+                                                                clipId: canUseUnifiedRootTimelinePresentation
+                                                                    ? unifiedRootRowToSourceClipId[request
+                                                                            .clipId] ??
+                                                                        request
+                                                                            .clipId
+                                                                    : request
+                                                                        .clipId,
+                                                                edge: request
+                                                                    .edge,
+                                                                sourceStartTime:
+                                                                    request
+                                                                        .sourceStartTime,
+                                                                durationTime:
+                                                                    request
+                                                                        .durationTime,
+                                                                timelinePreviewTime:
+                                                                    request
+                                                                        .timelinePreviewTime,
+                                                                sourcePreviewTime:
+                                                                    request
+                                                                        .sourcePreviewTime,
+                                                              ),
+                                                      ),
                                                       assetPathResolver:
                                                           _resolveAssetPath,
                                                       onScrubStateChanged:
