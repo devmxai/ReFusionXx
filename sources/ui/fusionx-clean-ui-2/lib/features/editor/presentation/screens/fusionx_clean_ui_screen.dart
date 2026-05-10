@@ -89,6 +89,7 @@ import '../services/unified_keyframe_motion_timeline_adapter.dart';
 import '../services/unified_timeline_panel_projection_adapter.dart';
 import '../services/unified_timeline_presentation_adapter.dart';
 import '../services/unified_timeline_presentation_flags.dart';
+import '../services/unified_timeline_legacy_compatibility_gate.dart';
 import '../services/universal_master_frame_evaluation_service.dart';
 import '../services/universal_motion_channel_collector.dart';
 import '../widgets/editor_tools_bar.dart';
@@ -198,6 +199,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   static const UnifiedTimelinePanelProjectionAdapter
       _unifiedTimelinePanelProjectionAdapter =
       UnifiedTimelinePanelProjectionAdapter();
+  static const UnifiedTimelineLegacyCompatibilityGate
+      _unifiedTimelineLegacyCompatibilityGate =
+      UnifiedTimelineLegacyCompatibilityGate();
   static const UnifiedTimelineFocusRoutingAdapter
       _unifiedTimelineFocusRoutingAdapter =
       UnifiedTimelineFocusRoutingAdapter();
@@ -25854,12 +25858,27 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                 ),
               )
             : null;
-    final unifiedRootTimelineProjection =
+    final unifiedRootTimelineProjectionCandidate =
         unifiedRootTimelinePresentation == null
             ? null
             : _unifiedTimelinePanelProjectionAdapter.project(
                 unifiedRootTimelinePresentation,
               );
+    final unifiedRootCompatibilityDecision =
+        unifiedRootTimelinePresentation == null ||
+                unifiedRootTimelineProjectionCandidate == null
+            ? null
+            : _unifiedTimelineLegacyCompatibilityGate.evaluate(
+                presentation: unifiedRootTimelinePresentation,
+                projection: unifiedRootTimelineProjectionCandidate,
+              );
+    final useUnifiedRootTimelineProjection =
+        canUseUnifiedRootTimelinePresentation &&
+            (unifiedRootCompatibilityDecision?.canUseUnifiedPresentation ??
+                false);
+    final unifiedRootTimelineProjection = useUnifiedRootTimelineProjection
+        ? unifiedRootTimelineProjectionCandidate
+        : null;
     final unifiedRootTimelineTracks =
         unifiedRootTimelineProjection?.tracks ?? mainTimelineTracks;
     final unifiedRootSourceToRowClipId = unifiedRootTimelineProjection == null
@@ -26819,11 +26838,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                           effectiveIsPlaying,
                                                       timelineFps: _timelineFps,
                                                       selectedClipId:
-                                                          canUseUnifiedRootTimelinePresentation
+                                                          useUnifiedRootTimelineProjection
                                                               ? unifiedRootSelectedClipId
                                                               : _selectedClipId,
                                                       selectedTransitionId:
-                                                          !canUseUnifiedRootTimelinePresentation &&
+                                                          !useUnifiedRootTimelineProjection &&
                                                                   _selectedClipId ==
                                                                       null
                                                               ? _selectedTransitionId
@@ -26833,14 +26852,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                       onClipSelected:
                                                           (clipId) =>
                                                               _selectClip(
-                                                        canUseUnifiedRootTimelinePresentation
+                                                        useUnifiedRootTimelineProjection
                                                             ? unifiedRootRowToSourceClipId[
                                                                     clipId] ??
                                                                 clipId
                                                             : clipId,
                                                       ),
                                                       onClipDoubleTap: (clipId) =>
-                                                          canUseUnifiedRootTimelinePresentation &&
+                                                          useUnifiedRootTimelineProjection &&
                                                                   unifiedRootTimelinePresentation !=
                                                                       null
                                                               ? _handleUnifiedTimelineClipDoubleTap(
@@ -26857,7 +26876,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                       onClipReorder: (clipId,
                                                               insertionIndex) =>
                                                           _reorderClip(
-                                                        canUseUnifiedRootTimelinePresentation
+                                                        useUnifiedRootTimelineProjection
                                                             ? unifiedRootRowToSourceClipId[
                                                                     clipId] ??
                                                                 clipId
@@ -26867,7 +26886,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                       onClipTimeShift: (clipId,
                                                               startTime) =>
                                                           _shiftClipInTimeline(
-                                                        canUseUnifiedRootTimelinePresentation
+                                                        useUnifiedRootTimelineProjection
                                                             ? unifiedRootRowToSourceClipId[
                                                                     clipId] ??
                                                                 clipId
@@ -26892,7 +26911,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                       onTrimCommit: (request) =>
                                                           _handleTimelineTrimCommit(
                                                         TimelineTrimCommitRequest(
-                                                          clipId: canUseUnifiedRootTimelinePresentation
+                                                          clipId: useUnifiedRootTimelineProjection
                                                               ? unifiedRootRowToSourceClipId[
                                                                       request
                                                                           .clipId] ??
@@ -26911,7 +26930,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                         request == null
                                                             ? null
                                                             : TimelineTrimPreviewRequest(
-                                                                clipId: canUseUnifiedRootTimelinePresentation
+                                                                clipId: useUnifiedRootTimelineProjection
                                                                     ? unifiedRootRowToSourceClipId[request
                                                                             .clipId] ??
                                                                         request
