@@ -600,6 +600,9 @@
             "id": "promptPlusIcon",
             "kind": "icon",
             "properties": {
+              "componentId": "ptv2PromptBar",
+              "parentId": "promptShell",
+              "layoutRole": "leadingAccessory",
               "icon": "plus",
               "position": {
                 "x": -415,
@@ -804,6 +807,8 @@
             "id": "promptCursor",
             "kind": "shape",
             "properties": {
+              "componentId": "ptv2PromptBar",
+              "parentId": "promptShell",
               "shapeKind": "roundedRectangle",
               "position": {
                 "x": 170,
@@ -857,6 +862,9 @@
             "id": "promptMicIcon",
             "kind": "icon",
             "properties": {
+              "componentId": "ptv2PromptBar",
+              "parentId": "promptShell",
+              "layoutRole": "trailingAccessory",
               "icon": "mic",
               "position": {
                 "x": 330,
@@ -941,7 +949,8 @@
             "id": "sendButton",
             "kind": "shape",
             "properties": {
-              "componentId": "ptv2VoiceButton",
+              "componentId": "ptv2PromptBar",
+              "parentId": "promptShell",
               "layoutRole": "container",
               "shapeKind": "circle",
               "position": {

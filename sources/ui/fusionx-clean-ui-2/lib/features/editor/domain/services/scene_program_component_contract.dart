@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import '../models/refusion_scene_program_models.dart';
+import 'scene_prompt_input_bar_component.dart';
 
 class SceneProgramComponentContractResult {
   SceneProgramComponentContractResult({
@@ -15,7 +16,12 @@ class SceneProgramComponentContractResult {
 }
 
 class SceneProgramComponentContractValidator {
-  const SceneProgramComponentContractValidator();
+  const SceneProgramComponentContractValidator({
+    ScenePromptInputBarComponentValidator promptInputBarValidator =
+        const ScenePromptInputBarComponentValidator(),
+  }) : _promptInputBarValidator = promptInputBarValidator;
+
+  final ScenePromptInputBarComponentValidator _promptInputBarValidator;
 
   SceneProgramComponentContractResult validate(ReFusionSceneProgram program) {
     final issues = <ReFusionSceneProgramIssue>[];
@@ -27,6 +33,8 @@ class SceneProgramComponentContractValidator {
         issues: issues,
       );
     }
+    final promptInputBarResult = _promptInputBarValidator.validate(program);
+    issues.addAll(promptInputBarResult.issues);
     return SceneProgramComponentContractResult(issues: issues);
   }
 

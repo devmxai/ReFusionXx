@@ -334,9 +334,18 @@ class SceneSemanticBlueprintService {
         _readDouble(properties['textFrameWidth'], fallback: width - 180.0);
     final textFrameHeight =
         _readDouble(properties['textFrameHeight'], fallback: 60.0);
+    final anchorX = _readDouble(anchor['x'], fallback: 0.0);
+    final anchorY = _readDouble(anchor['y'], fallback: -40.0);
+    final leadingIconX = anchorX - (width / 2.0) + 66.0;
+    final sendButtonX = anchorX + (width / 2.0) - 98.0;
+    final micIconX = sendButtonX - 96.0;
+    final textLeftX = anchorX - (width / 2.0) + 44.0;
+    final textCenterX = textLeftX + (textFrameWidth / 2.0);
 
     final shellId = '${component.id}-shell';
+    final leadingIconId = '${component.id}-leading-icon';
     final textId = '${component.id}-text';
+    final micIconId = '${component.id}-mic-icon';
     final buttonId = '${component.id}-send-button';
     final iconId = '${component.id}-send-icon';
 
@@ -354,8 +363,8 @@ class SceneSemanticBlueprintService {
             'layoutRole': 'container',
             'shapeKind': 'roundedRectangle',
             'position': <String, Object?>{
-              'x': _readDouble(anchor['x'], fallback: 0.0),
-              'y': _readDouble(anchor['y'], fallback: -40.0),
+              'x': anchorX,
+              'y': anchorY,
             },
             'width': width,
             'height': height,
@@ -368,6 +377,23 @@ class SceneSemanticBlueprintService {
               'top': 16.0,
               'bottom': 16.0,
             },
+          },
+        ),
+        ReFusionSceneProgramElement(
+          id: leadingIconId,
+          kind: 'icon',
+          properties: <String, Object?>{
+            'parentId': shellId,
+            'layoutRole': 'leadingAccessory',
+            'icon': 'plus',
+            'position': <String, Object?>{
+              'x': leadingIconX,
+              'y': anchorY,
+            },
+            'width': 36.0,
+            'height': 36.0,
+            'color': '#101827',
+            'opacity': 1.0,
           },
         ),
         ReFusionSceneProgramElement(
@@ -395,11 +421,11 @@ class SceneSemanticBlueprintService {
               'measure': 'fullText',
             },
             'position': <String, Object?>{
-              'x': _readDouble(anchor['x'], fallback: 0.0) - 76.0,
-              'y': _readDouble(anchor['y'], fallback: -40.0),
+              'x': textCenterX,
+              'y': anchorY,
             },
             'fontSize': 32.0,
-            'fontWeight': 650,
+            'fontWeight': 400,
             'lineHeight': 1.0,
             'letterSpacing': 0.0,
             'textAlign': 'left',
@@ -427,6 +453,23 @@ class SceneSemanticBlueprintService {
           ],
         ),
         ReFusionSceneProgramElement(
+          id: micIconId,
+          kind: 'icon',
+          properties: <String, Object?>{
+            'parentId': shellId,
+            'layoutRole': 'trailingAccessory',
+            'icon': 'mic',
+            'position': <String, Object?>{
+              'x': micIconX,
+              'y': anchorY,
+            },
+            'width': 34.0,
+            'height': 34.0,
+            'color': '#101827',
+            'opacity': 1.0,
+          },
+        ),
+        ReFusionSceneProgramElement(
           id: buttonId,
           kind: 'shape',
           properties: <String, Object?>{
@@ -434,8 +477,8 @@ class SceneSemanticBlueprintService {
             'layoutRole': 'trailingAccessory',
             'shapeKind': 'circle',
             'position': <String, Object?>{
-              'x': _readDouble(anchor['x'], fallback: 0.0) + 332.0,
-              'y': _readDouble(anchor['y'], fallback: -40.0),
+              'x': sendButtonX,
+              'y': anchorY,
             },
             'width': 76.0,
             'height': 76.0,
@@ -450,8 +493,8 @@ class SceneSemanticBlueprintService {
             'parentId': buttonId,
             'icon': 'send',
             'position': <String, Object?>{
-              'x': _readDouble(anchor['x'], fallback: 0.0) + 332.0,
-              'y': _readDouble(anchor['y'], fallback: -40.0),
+              'x': sendButtonX,
+              'y': anchorY,
             },
             'width': 28.0,
             'height': 28.0,

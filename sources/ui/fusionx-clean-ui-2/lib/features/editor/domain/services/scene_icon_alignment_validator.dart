@@ -49,11 +49,23 @@ class SceneIconAlignmentValidator {
         if (parent == null) {
           continue;
         }
-        final parentRect = SceneOpticalBounds.rectFor(parent);
-        final iconRect = SceneOpticalBounds.rectFor(element);
-        if (parentRect == null || iconRect == null) {
+        if (_shouldSkipAccessorySlotAlignment(
+          child: element,
+          parent: parent,
+          parentId: parentId,
+        )) {
           continue;
         }
+        final parentRect = SceneOpticalBounds.rectFor(parent);
+        final rawIconRect = SceneOpticalBounds.rectFor(element);
+        if (parentRect == null || rawIconRect == null) {
+          continue;
+        }
+        final iconRect = _resolveIconRect(
+          element: element,
+          parentRect: parentRect,
+          rawIconRect: rawIconRect,
+        );
         final profile = SceneOpticalBounds.profileFor(element);
         final measurement = _alignmentEngine.measure(
           parentRect: parentRect,
@@ -131,5 +143,100 @@ class SceneIconAlignmentValidator {
       }
     }
     return null;
+  }
+
+  bool _shouldSkipAccessorySlotAlignment({
+    required ReFusionSceneProgramElement child,
+    required ReFusionSceneProgramElement parent,
+    required String parentId,
+  }) {
+    final childRole = _normalize(
+      _readString(
+            child.properties,
+            const <String>['layoutRole', 'role'],
+          ) ??
+          '',
+    );
+    final parentRole = _normalize(
+      _readString(
+            parent.properties,
+            const <String>['layoutRole', 'role'],
+          ) ??
+          '',
+    );
+    final normalizedParentId = _normalize(parentId);
+    final isPromptShellParent = normalizedParentId.contains('promptshell') ||
+        normalizedParentId.contains('inputbar');
+    final accessoryRole =
+        childRole == 'leadingaccessory' || childRole == 'trailingaccessory';
+    final childHasIconToken = _readString(
+          child.properties,
+          const <String>['icon', 'iconName', 'glyph', 'symbol'],
+        ) !=
+        null;
+    final childKind = _normalize(child.kind);
+    if (isPromptShellParent &&
+        parentRole == 'container' &&
+        (accessoryRole || childKind == 'icon' || childHasIconToken)) {
+      return true;
+    }
+    return false;
+  }
+
+  SceneOpticalRect _resolveIconRect({
+    required ReFusionSceneProgramElement element,
+    required SceneOpticalRect parentRect,
+    required SceneOpticalRect rawIconRect,
+  }) {
+    final position = element.properties['position'];
+    if (position is! Map<String, Object?>) {
+      return rawIconRect;
+    }
+    final localX = _readDouble(position['x']);
+    final localY = _readDouble(position['y']);
+    if (localX == null || localY == null) {
+      return rawIconRect;
+    }
+    final parentIsOffset =
+        parentRect.centerX.abs() > (parentRect.width / 2.0) + 20.0 ||
+            parentRect.centerY.abs() > (parentRect.height / 2.0) + 20.0;
+    final localWithinParent = localX.abs() <= (parentRect.width / 2.0) + 1.0 &&
+        localY.abs() <= (parentRect.height / 2.0) + 1.0;
+    if (!parentIsOffset || !localWithinParent) {
+      return rawIconRect;
+    }
+    return SceneOpticalRect(
+      centerX: parentRect.centerX + localX,
+      centerY: parentRect.centerY + localY,
+      width: rawIconRect.width,
+      height: rawIconRect.height,
+    );
+  }
+
+  String? _readString(Map<String, Object?> map, List<String> keys) {
+    for (final key in keys) {
+      final value = map[key];
+      if (value is String && value.trim().isNotEmpty) {
+        return value.trim();
+      }
+    }
+    return null;
+  }
+
+  double? _readDouble(Object? value) {
+    if (value is double) {
+      return value;
+    }
+    if (value is num) {
+      return value.toDouble();
+    }
+    if (value is String) {
+      return double.tryParse(value.trim());
+    }
+    return null;
+  }
+
+  String _normalize(String value) {
+    return value.replaceAll(RegExp(r'[^a-zA-Z0-9]+'), '').toLowerCase();
   }
 }

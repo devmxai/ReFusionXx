@@ -92,16 +92,21 @@ void main() {
         layer.elements.map((it) => it.id),
         containsAll(<String>[
           'prompt-shell',
+          'prompt-leading-icon',
           'prompt-text',
+          'prompt-mic-icon',
           'prompt-send-button',
           'prompt-send-icon',
         ]));
 
     final shell =
         layer.elements.firstWhere((element) => element.id == 'prompt-shell');
+    final promptText =
+        layer.elements.firstWhere((element) => element.id == 'prompt-text');
     final shellPosition = shell.properties['position'] as Map<String, Object?>;
     expect(shellPosition['x'], 12.0);
     expect(shellPosition['y'], -220.0);
+    expect(promptText.properties['fontWeight'], 400);
 
     expect(
       lowered.issues.any(

@@ -229,6 +229,7 @@
             "channels": [
               {
                 "property": "opacity",
+                "timeBasis": "project",
                 "keyframes": [
                   {
                     "timeMs": 0,
@@ -273,6 +274,8 @@
               "height": 176,
               "cornerRadius": 52,
               "color": "#0B0F17",
+              "borderColor": "#E5E7EB",
+              "borderWidth": 2,
               "opacity": 0,
               "scale": 0.72,
               "shadowOpacity": 0.2,
@@ -654,13 +657,15 @@
         "id": "prompt-plus-layer",
         "name": "Prompt attach plus icon",
         "kind": "shape",
-        "startMs": 0,
-        "durationMs": 7050,
+        "startMs": 2450,
+        "durationMs": 4600,
         "elements": [
           {
             "id": "plus-icon",
             "kind": "icon",
             "properties": {
+              "componentId": "heroPrompt",
+              "parentId": "prompt-shell",
               "icon": "plus",
               "position": {
                 "x": -360,
@@ -685,22 +690,17 @@
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 2450,
-                    "value": 0,
-                    "easing": "linear"
-                  },
-                  {
-                    "timeMs": 2920,
+                    "timeMs": 470,
                     "value": 1,
                     "easing": "slowFastSlow"
                   },
                   {
-                    "timeMs": 6000,
+                    "timeMs": 3550,
                     "value": 1,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 6800,
+                    "timeMs": 4350,
                     "value": 0,
                     "easing": "fastSlow"
                   }
@@ -710,32 +710,32 @@
                 "property": "scale",
                 "keyframes": [
                   {
-                    "timeMs": 2450,
+                    "timeMs": 0,
                     "value": 0.76,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 2920,
+                    "timeMs": 470,
                     "value": 1,
                     "easing": "slowFastSlow"
                   },
                   {
-                    "timeMs": 5200,
+                    "timeMs": 2750,
                     "value": 1,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 5360,
+                    "timeMs": 2910,
                     "value": 0.82,
                     "easing": "fastSlow"
                   },
                   {
-                    "timeMs": 5540,
+                    "timeMs": 3090,
                     "value": 1.12,
                     "easing": "slowFastSlow"
                   },
                   {
-                    "timeMs": 5720,
+                    "timeMs": 3270,
                     "value": 1,
                     "easing": "fastSlow"
                   }
@@ -745,22 +745,22 @@
                 "property": "positionX",
                 "keyframes": [
                   {
-                    "timeMs": 2920,
+                    "timeMs": 470,
                     "value": -360,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 5360,
+                    "timeMs": 2910,
                     "value": -360,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 5720,
+                    "timeMs": 3270,
                     "value": -384,
                     "easing": "fastSlow"
                   },
                   {
-                    "timeMs": 6800,
+                    "timeMs": 4350,
                     "value": -520,
                     "easing": "slowFastSlow"
                   }
@@ -774,8 +774,8 @@
         "id": "prompt-text-layer",
         "name": "Keyboard typed prompt",
         "kind": "text",
-        "startMs": 0,
-        "durationMs": 7050,
+        "startMs": 3000,
+        "durationMs": 4050,
         "elements": [
           {
             "id": "prompt-text",
@@ -783,6 +783,7 @@
             "text": "build a new app for my business",
             "properties": {
               "componentId": "heroPrompt",
+              "parentId": "prompt-shell",
               "layoutRole": "content",
               "layout": {
                 "slot": "textSlot"
@@ -792,7 +793,7 @@
                 "y": -90
               },
               "fontSize": 31,
-              "fontWeight": 600,
+              "fontWeight": 400,
               "lineHeight": 1,
               "letterSpacing": 0,
               "textAlign": "left",
@@ -812,12 +813,8 @@
             "channels": [
               {
                 "property": "opacity",
+                "timeBasis": "project",
                 "keyframes": [
-                  {
-                    "timeMs": 0,
-                    "value": 0,
-                    "easing": "linear"
-                  },
                   {
                     "timeMs": 3000,
                     "value": 0,
@@ -842,6 +839,7 @@
               },
               {
                 "property": "typewriterProgress",
+                "timeBasis": "project",
                 "keyframes": [
                   {
                     "timeMs": 3150,
@@ -857,6 +855,7 @@
               },
               {
                 "property": "positionY",
+                "timeBasis": "project",
                 "keyframes": [
                   {
                     "timeMs": 3260,
@@ -883,14 +882,15 @@
         "id": "send-button-layer",
         "name": "Submit button circle",
         "kind": "shape",
-        "startMs": 0,
-        "durationMs": 7050,
+        "startMs": 2520,
+        "durationMs": 4530,
         "elements": [
           {
             "id": "send-button",
             "kind": "shape",
             "properties": {
-              "componentId": "sendButton",
+              "componentId": "heroPrompt",
+              "parentId": "prompt-shell",
               "layoutRole": "container",
               "shapeKind": "circle",
               "position": {
@@ -913,17 +913,12 @@
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 2520,
-                    "value": 0,
-                    "easing": "linear"
-                  },
-                  {
-                    "timeMs": 3060,
+                    "timeMs": 540,
                     "value": 1,
                     "easing": "slowFastSlow"
                   },
                   {
-                    "timeMs": 7000,
+                    "timeMs": 4480,
                     "value": 1,
                     "easing": "linear"
                   }
@@ -933,32 +928,32 @@
                 "property": "scale",
                 "keyframes": [
                   {
-                    "timeMs": 2520,
+                    "timeMs": 0,
                     "value": 0.72,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 3060,
+                    "timeMs": 540,
                     "value": 1,
                     "easing": "slowFastSlow"
                   },
                   {
-                    "timeMs": 5900,
+                    "timeMs": 3380,
                     "value": 1,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 6100,
+                    "timeMs": 3580,
                     "value": 0.84,
                     "easing": "fastSlow"
                   },
                   {
-                    "timeMs": 6280,
+                    "timeMs": 3760,
                     "value": 1.12,
                     "easing": "slowFastSlow"
                   },
                   {
-                    "timeMs": 6460,
+                    "timeMs": 3940,
                     "value": 1,
                     "easing": "fastSlow"
                   }
@@ -968,17 +963,17 @@
                 "property": "positionY",
                 "keyframes": [
                   {
-                    "timeMs": 3060,
+                    "timeMs": 540,
                     "value": -90,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 5900,
+                    "timeMs": 3380,
                     "value": -90,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 6800,
+                    "timeMs": 4280,
                     "value": -240,
                     "easing": "slowFastSlow"
                   }
@@ -992,8 +987,8 @@
         "id": "send-icon-layer",
         "name": "Submit arrow icon",
         "kind": "shape",
-        "startMs": 0,
-        "durationMs": 7050,
+        "startMs": 2600,
+        "durationMs": 4450,
         "elements": [
           {
             "id": "send-arrow",
@@ -1023,17 +1018,12 @@
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 2600,
-                    "value": 0,
-                    "easing": "linear"
-                  },
-                  {
-                    "timeMs": 3160,
+                    "timeMs": 560,
                     "value": 1,
                     "easing": "slowFastSlow"
                   },
                   {
-                    "timeMs": 6800,
+                    "timeMs": 4200,
                     "value": 1,
                     "easing": "linear"
                   }
@@ -1043,32 +1033,32 @@
                 "property": "scale",
                 "keyframes": [
                   {
-                    "timeMs": 2600,
+                    "timeMs": 0,
                     "value": 0.82,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 3160,
+                    "timeMs": 560,
                     "value": 1,
                     "easing": "slowFastSlow"
                   },
                   {
-                    "timeMs": 5900,
+                    "timeMs": 3300,
                     "value": 1,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 6100,
+                    "timeMs": 3500,
                     "value": 0.82,
                     "easing": "fastSlow"
                   },
                   {
-                    "timeMs": 6280,
+                    "timeMs": 3680,
                     "value": 1.08,
                     "easing": "slowFastSlow"
                   },
                   {
-                    "timeMs": 6460,
+                    "timeMs": 3860,
                     "value": 1,
                     "easing": "fastSlow"
                   }
@@ -1078,17 +1068,17 @@
                 "property": "positionY",
                 "keyframes": [
                   {
-                    "timeMs": 3060,
+                    "timeMs": 460,
                     "value": -90,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 5900,
+                    "timeMs": 3300,
                     "value": -90,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 6800,
+                    "timeMs": 4200,
                     "value": -240,
                     "easing": "slowFastSlow"
                   }
@@ -1292,6 +1282,8 @@
               "height": 236,
               "cornerRadius": 34,
               "color": "#FFFFFF",
+              "borderColor": "#D7DFEC",
+              "borderWidth": 2,
               "opacity": 0,
               "scale": 0.9,
               "shadowOpacity": 0.12,
@@ -1386,6 +1378,8 @@
               "width": 64,
               "height": 64,
               "color": "#2563EB",
+              "borderColor": "#1D4ED8",
+              "borderWidth": 2,
               "opacity": 0,
               "scale": 0.72
             },
@@ -1733,6 +1727,8 @@
               "height": 236,
               "cornerRadius": 34,
               "color": "#FFFFFF",
+              "borderColor": "#D7DFEC",
+              "borderWidth": 2,
               "opacity": 0,
               "scale": 0.9,
               "shadowOpacity": 0.12,
@@ -1827,6 +1823,8 @@
               "width": 64,
               "height": 64,
               "color": "#7C3AED",
+              "borderColor": "#6D28D9",
+              "borderWidth": 2,
               "opacity": 0,
               "scale": 0.72
             },
@@ -2174,6 +2172,8 @@
               "height": 236,
               "cornerRadius": 34,
               "color": "#FFFFFF",
+              "borderColor": "#D7DFEC",
+              "borderWidth": 2,
               "opacity": 0,
               "scale": 0.9,
               "shadowOpacity": 0.12,
@@ -2268,6 +2268,8 @@
               "width": 64,
               "height": 64,
               "color": "#059669",
+              "borderColor": "#047857",
+              "borderWidth": 2,
               "opacity": 0,
               "scale": 0.72
             },
@@ -2615,6 +2617,8 @@
               "height": 236,
               "cornerRadius": 34,
               "color": "#FFFFFF",
+              "borderColor": "#D7DFEC",
+              "borderWidth": 2,
               "opacity": 0,
               "scale": 0.9,
               "shadowOpacity": 0.12,
@@ -2709,6 +2713,8 @@
               "width": 64,
               "height": 64,
               "color": "#EA580C",
+              "borderColor": "#C2410C",
+              "borderWidth": 2,
               "opacity": 0,
               "scale": 0.72
             },

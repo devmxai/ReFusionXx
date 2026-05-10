@@ -143,6 +143,7 @@
             "channels": [
               {
                 "property": "position",
+                "timeBasis": "project",
                 "keyframes": [
                   {"timeMs": 0, "value": {"x": 120, "y": -520}, "easing": "linear"},
                   {"timeMs": 14000, "value": {"x": 80, "y": -470}, "easing": "linear"}
@@ -173,6 +174,7 @@
             "channels": [
               {
                 "property": "position",
+                "timeBasis": "project",
                 "keyframes": [
                   {"timeMs": 0, "value": {"x": -80, "y": 520}, "easing": "linear"},
                   {"timeMs": 14000, "value": {"x": -40, "y": 500}, "easing": "linear"}
@@ -236,6 +238,8 @@
               "cornerRadius": 58,
               "position": {"x": 0, "y": 60},
               "color": "#FFFFFF",
+              "borderColor": "#D1D5DB",
+              "borderWidth": 1,
               "opacity": 1,
               "shadowOpacity": 0.12,
               "shadowBlur": 32,
@@ -245,6 +249,7 @@
             "channels": [
               {
                 "property": "position",
+                "timeBasis": "project",
                 "keyframes": [
                   {"timeMs": 0, "value": {"x": 0, "y": 200}, "easing": "linear"},
                   {"timeMs": 1100, "value": {"x": 0, "y": 200}, "easing": "linear"},
@@ -385,6 +390,8 @@
               "cornerRadius": 40,
               "position": {"x": 0, "y": -330},
               "color": "#FFFFFF",
+              "borderColor": "#D9E2EF",
+              "borderWidth": 1,
               "opacity": 1,
               "shadowOpacity": 0.13,
               "shadowBlur": 26,
@@ -393,6 +400,7 @@
             "channels": [
               {
                 "property": "position",
+                "timeBasis": "project",
                 "keyframes": [
                   {"timeMs": 0, "value": {"x": 0, "y": 0}, "easing": "linear"},
                   {"timeMs": 6100, "value": {"x": 0, "y": 0}, "easing": "linear"},
@@ -424,6 +432,8 @@
               "cornerRadius": 40,
               "position": {"x": 0, "y": -70},
               "color": "#FFFFFF",
+              "borderColor": "#D9E2EF",
+              "borderWidth": 1,
               "opacity": 1,
               "shadowOpacity": 0.13,
               "shadowBlur": 26,
@@ -432,6 +442,7 @@
             "channels": [
               {
                 "property": "position",
+                "timeBasis": "project",
                 "keyframes": [
                   {"timeMs": 0, "value": {"x": 0, "y": 200}, "easing": "linear"},
                   {"timeMs": 6350, "value": {"x": 0, "y": 200}, "easing": "linear"},
@@ -463,6 +474,8 @@
               "cornerRadius": 40,
               "position": {"x": 0, "y": 190},
               "color": "#FFFFFF",
+              "borderColor": "#D9E2EF",
+              "borderWidth": 1,
               "opacity": 1,
               "shadowOpacity": 0.13,
               "shadowBlur": 26,
@@ -471,6 +484,7 @@
             "channels": [
               {
                 "property": "position",
+                "timeBasis": "project",
                 "keyframes": [
                   {"timeMs": 0, "value": {"x": 0, "y": 400}, "easing": "linear"},
                   {"timeMs": 6600, "value": {"x": 0, "y": 400}, "easing": "linear"},
@@ -497,8 +511,8 @@
         "id": "result-copy-layer",
         "kind": "text",
         "name": "Generated output card text",
-        "startMs": 0,
-        "durationMs": 11200,
+        "startMs": 6100,
+        "durationMs": 5100,
         "elements": [
           {
             "id": "story-title",
@@ -516,6 +530,7 @@
             "channels": [
               {
                 "property": "position",
+                "timeBasis": "project",
                 "keyframes": [
                   {"timeMs": 6100, "value": {"x": -240, "y": -40}, "easing": "linear"},
                   {"timeMs": 7050, "value": {"x": -240, "y": -370}, "easing": "slowFastSlow"},
@@ -541,6 +556,7 @@
             "channels": [
               {
                 "property": "position",
+                "timeBasis": "project",
                 "keyframes": [
                   {"timeMs": 6100, "value": {"x": 34, "y": 26}, "easing": "linear"},
                   {"timeMs": 7050, "value": {"x": 34, "y": -304}, "easing": "slowFastSlow"},
@@ -565,6 +581,7 @@
             "channels": [
               {
                 "property": "position",
+                "timeBasis": "project",
                 "keyframes": [
                   {"timeMs": 6350, "value": {"x": -250, "y": 160}, "easing": "linear"},
                   {"timeMs": 7420, "value": {"x": -250, "y": -110}, "easing": "slowFastSlow"},
@@ -590,6 +607,7 @@
             "channels": [
               {
                 "property": "position",
+                "timeBasis": "project",
                 "keyframes": [
                   {"timeMs": 6350, "value": {"x": 44, "y": 226}, "easing": "linear"},
                   {"timeMs": 7420, "value": {"x": 44, "y": -44}, "easing": "slowFastSlow"},
@@ -614,6 +632,7 @@
             "channels": [
               {
                 "property": "position",
+                "timeBasis": "project",
                 "keyframes": [
                   {"timeMs": 6600, "value": {"x": -250, "y": 360}, "easing": "linear"},
                   {"timeMs": 7800, "value": {"x": -250, "y": 150}, "easing": "slowFastSlow"},
@@ -639,6 +658,7 @@
             "channels": [
               {
                 "property": "position",
+                "timeBasis": "project",
                 "keyframes": [
                   {"timeMs": 6600, "value": {"x": 44, "y": 426}, "easing": "linear"},
                   {"timeMs": 7800, "value": {"x": 44, "y": 216}, "easing": "slowFastSlow"},
