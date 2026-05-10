@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:refusion_app/features/editor/domain/models/refusion_scene_program_models.dart';
 import 'package:refusion_app/features/editor/domain/models/scene_runtime_node.dart';
 import 'package:refusion_app/features/editor/domain/services/scene_runtime_component_tree.dart';
 import 'package:refusion_app/features/editor/domain/services/scene_runtime_transform_composer.dart';
@@ -178,5 +179,147 @@ void main() {
 
     expect(wideText.width, greaterThan(narrowText.width));
     expect(narrowText.width, greaterThan(100));
+  });
+
+  test('emits proportional proof diagnostics for feature card components', () {
+    final nodes = <SceneRuntimeNode>[
+      SceneRuntimeNode(
+        id: 'root',
+        nodeType: SceneRuntimeNodeType.sceneRoot,
+        metadata: const <String, Object?>{
+          'width': 1080.0,
+          'height': 1920.0,
+          'localLeft': -540.0,
+          'localTop': -960.0,
+        },
+      ),
+      SceneRuntimeNode(
+        id: 'feature',
+        nodeType: SceneRuntimeNodeType.component,
+        parentId: 'root',
+        metadata: const <String, Object?>{
+          'componentType': 'FeatureCard',
+          'width': 620.0,
+          'height': 220.0,
+          'x': 0.0,
+          'y': 0.0,
+          'localLeft': -310.0,
+          'localTop': -110.0,
+        },
+      ),
+      SceneRuntimeNode(
+        id: 'feature::slot::leadingIcon',
+        nodeType: SceneRuntimeNodeType.slot,
+        parentId: 'feature',
+        slotId: 'leadingIcon',
+      ),
+      SceneRuntimeNode(
+        id: 'feature::slot::title',
+        nodeType: SceneRuntimeNodeType.slot,
+        parentId: 'feature',
+        slotId: 'title',
+      ),
+      SceneRuntimeNode(
+        id: 'feature::slot::body',
+        nodeType: SceneRuntimeNodeType.slot,
+        parentId: 'feature',
+        slotId: 'body',
+      ),
+    ];
+
+    final result = solver.solve(
+      tree: tree(nodes),
+      composition: compose(nodes),
+    );
+
+    expect(
+      result.issues.any(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.info &&
+            issue.message.contains('TF_SCENE_PROPORTIONAL_RULES_PROOF') &&
+            issue.message.contains('componentType=featurecard'),
+      ),
+      isTrue,
+    );
+  });
+
+  test(
+      'fallback slot flow follows aspect policy (portrait vertical, landscape horizontal)',
+      () {
+    List<SceneRuntimeNode> nodesFor({
+      required double canvasWidth,
+      required double canvasHeight,
+    }) {
+      return <SceneRuntimeNode>[
+        SceneRuntimeNode(
+          id: '__scene_root__',
+          nodeType: SceneRuntimeNodeType.sceneRoot,
+          metadata: <String, Object?>{
+            'width': canvasWidth,
+            'height': canvasHeight,
+            'localLeft': -(canvasWidth / 2),
+            'localTop': -(canvasHeight / 2),
+          },
+        ),
+        SceneRuntimeNode(
+          id: 'grid',
+          nodeType: SceneRuntimeNodeType.component,
+          parentId: '__scene_root__',
+          metadata: const <String, Object?>{
+            'componentType': 'DashboardPanel',
+            'width': 640.0,
+            'height': 240.0,
+            'x': 0.0,
+            'y': 0.0,
+            'localLeft': -320.0,
+            'localTop': -120.0,
+          },
+        ),
+        SceneRuntimeNode(
+          id: 'grid::slot::one',
+          nodeType: SceneRuntimeNodeType.slot,
+          parentId: 'grid',
+          slotId: 'one',
+        ),
+        SceneRuntimeNode(
+          id: 'grid::slot::two',
+          nodeType: SceneRuntimeNodeType.slot,
+          parentId: 'grid',
+          slotId: 'two',
+        ),
+        SceneRuntimeNode(
+          id: 'grid::slot::three',
+          nodeType: SceneRuntimeNodeType.slot,
+          parentId: 'grid',
+          slotId: 'three',
+        ),
+        SceneRuntimeNode(
+          id: 'grid::slot::four',
+          nodeType: SceneRuntimeNodeType.slot,
+          parentId: 'grid',
+          slotId: 'four',
+        ),
+      ];
+    }
+
+    final portraitNodes = nodesFor(canvasWidth: 1080, canvasHeight: 1920);
+    final portraitResult = solver.solve(
+      tree: tree(portraitNodes),
+      composition: compose(portraitNodes),
+    );
+    final p1 = portraitResult.slotBoundsByNodeId['grid::slot::one']!;
+    final p2 = portraitResult.slotBoundsByNodeId['grid::slot::two']!;
+    expect(p1.left, closeTo(p2.left, 0.01));
+    expect(p2.top, greaterThan(p1.top));
+
+    final landscapeNodes = nodesFor(canvasWidth: 1920, canvasHeight: 1080);
+    final landscapeResult = solver.solve(
+      tree: tree(landscapeNodes),
+      composition: compose(landscapeNodes),
+    );
+    final l1 = landscapeResult.slotBoundsByNodeId['grid::slot::one']!;
+    final l2 = landscapeResult.slotBoundsByNodeId['grid::slot::two']!;
+    expect(l1.top, closeTo(l2.top, 0.01));
+    expect(l2.left, greaterThan(l1.left));
   });
 }

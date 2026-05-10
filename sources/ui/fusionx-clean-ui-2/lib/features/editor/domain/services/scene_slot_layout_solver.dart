@@ -10,6 +10,8 @@ class SceneSlotLayoutSolver {
   const SceneSlotLayoutSolver();
 
   static const String proofTag = 'TF_SCENE_SLOT_LAYOUT_PROOF';
+  static const String proportionalProofTag =
+      'TF_SCENE_PROPORTIONAL_RULES_PROOF';
 
   SceneSlotLayoutSolveResult solve({
     required SceneRuntimeComponentTree tree,
@@ -18,6 +20,7 @@ class SceneSlotLayoutSolver {
     final slotBoundsByNodeId = <String, SceneSlotLayoutRect>{};
     final contentBoundsByComponentNodeId = <String, SceneSlotLayoutRect>{};
     final issues = <SceneSlotLayoutIssue>[];
+    final aspectPolicy = _aspectPolicyFor(composition);
 
     final components = tree.nodeById.values
         .where((node) => node.nodeType == SceneRuntimeNodeType.component)
@@ -63,6 +66,7 @@ class SceneSlotLayoutSolver {
         component: component,
         slotNodes: slotNodes,
         contentRect: contentRect,
+        aspectPolicy: aspectPolicy,
       );
       for (final entry in slotRects.entries) {
         slotBoundsByNodeId[entry.key] = entry.value;
@@ -79,6 +83,15 @@ class SceneSlotLayoutSolver {
               'slotCount=${slotRects.length} '
               'contentBounds=${contentRect.toString()}',
           path: 'runtimeTree.nodes.${component.id}',
+        ),
+      );
+      issues.addAll(
+        _proportionalIssuesFor(
+          component: component,
+          componentRect: componentRect,
+          contentRect: contentRect,
+          slotRects: slotRects,
+          aspectPolicy: aspectPolicy,
         ),
       );
     }
@@ -129,7 +142,7 @@ class SceneSlotLayoutSolver {
       return (left: 44.0, top: 16.0, right: 124.0, bottom: 16.0);
     }
     if (componentType == 'featurecard') {
-      return (left: 24.0, top: 18.0, right: 24.0, bottom: 18.0);
+      return (left: 27.0, top: 27.0, right: 27.0, bottom: 27.0);
     }
     if (componentType == 'ctabutton') {
       return (left: 20.0, top: 12.0, right: 20.0, bottom: 12.0);
@@ -141,6 +154,7 @@ class SceneSlotLayoutSolver {
     required SceneRuntimeNode component,
     required List<SceneRuntimeNode> slotNodes,
     required SceneSlotLayoutRect contentRect,
+    required _AspectPolicy aspectPolicy,
   }) {
     final byNodeId = <String, SceneSlotLayoutRect>{};
     final normalizedBySlot = <String, SceneRuntimeNode>{};
@@ -228,7 +242,10 @@ class SceneSlotLayoutSolver {
 
     final ordered = slotNodes.toList(growable: false)
       ..sort((a, b) => a.zOrder.compareTo(b.zOrder));
-    final columns = math.max(1, math.sqrt(ordered.length).ceil());
+    final columns = _fallbackColumnsFor(
+      count: ordered.length,
+      aspectPolicy: aspectPolicy,
+    );
     final rows = (ordered.length / columns).ceil();
     final cellWidth = contentRect.width / columns;
     final cellHeight = contentRect.height / rows;
@@ -256,6 +273,160 @@ class SceneSlotLayoutSolver {
       right: contentRect.right,
       bottom: contentRect.top + height,
     );
+  }
+
+  List<SceneSlotLayoutIssue> _proportionalIssuesFor({
+    required SceneRuntimeNode component,
+    required SceneSlotLayoutRect componentRect,
+    required SceneSlotLayoutRect contentRect,
+    required Map<String, SceneSlotLayoutRect> slotRects,
+    required _AspectPolicy aspectPolicy,
+  }) {
+    final issues = <SceneSlotLayoutIssue>[];
+    final componentType =
+        _normalize((component.metadata['componentType'] as String?) ?? '');
+    final widthRatio = componentRect.width == 0.0
+        ? 0.0
+        : contentRect.width / componentRect.width;
+    final horizontalPadding =
+        math.max(0.0, (componentRect.width - contentRect.width) / 2.0);
+    final verticalPadding =
+        math.max(0.0, (componentRect.height - contentRect.height) / 2.0);
+
+    if (componentType == 'featurecard') {
+      const titleFontSize = 35.0;
+      const bodyFontSize = 18.0;
+      final minWidth = titleFontSize * 6.0;
+      final minPadding = bodyFontSize * 1.5;
+      if (componentRect.width < minWidth) {
+        issues.add(
+          SceneSlotLayoutIssue(
+            severity: ReFusionSceneProgramIssueSeverity.error,
+            code: 'feature_card_min_width_violation',
+            message:
+                'FeatureCard `${component.id}` width=${componentRect.width.toStringAsFixed(1)} < minWidth=${minWidth.toStringAsFixed(1)}.',
+            path: 'runtimeTree.nodes.${component.id}',
+          ),
+        );
+      }
+      if (horizontalPadding < minPadding || verticalPadding < minPadding) {
+        issues.add(
+          SceneSlotLayoutIssue(
+            severity: ReFusionSceneProgramIssueSeverity.warning,
+            code: 'feature_card_min_padding_warning',
+            message:
+                'FeatureCard `${component.id}` padding below preferred min=${minPadding.toStringAsFixed(1)} (horizontal=${horizontalPadding.toStringAsFixed(1)}, vertical=${verticalPadding.toStringAsFixed(1)}).',
+            path: 'runtimeTree.nodes.${component.id}',
+          ),
+        );
+      }
+      if (widthRatio < 0.60 || widthRatio > 0.75) {
+        issues.add(
+          SceneSlotLayoutIssue(
+            severity: ReFusionSceneProgramIssueSeverity.warning,
+            code: 'feature_card_content_ratio_warning',
+            message:
+                'FeatureCard `${component.id}` contentRatio=${widthRatio.toStringAsFixed(3)} outside preferred [0.60, 0.75].',
+            path: 'runtimeTree.nodes.${component.id}',
+          ),
+        );
+      }
+      final iconRect = _slotByName(slotRects, 'leadingicon') ??
+          _slotByName(slotRects, 'icon');
+      final titleRect = _slotByName(slotRects, 'title');
+      if (iconRect != null && titleRect != null && titleRect.height > 0.0) {
+        final iconToHeading = iconRect.height / titleRect.height;
+        if (iconToHeading < 1.1 || iconToHeading > 1.8) {
+          issues.add(
+            SceneSlotLayoutIssue(
+              severity: ReFusionSceneProgramIssueSeverity.warning,
+              code: 'feature_card_icon_heading_ratio_warning',
+              message:
+                  'FeatureCard `${component.id}` icon/title ratio=${iconToHeading.toStringAsFixed(3)} outside preferred [1.10, 1.80].',
+              path: 'runtimeTree.nodes.${component.id}',
+            ),
+          );
+        }
+      }
+    }
+
+    if (componentType == 'promptinputbar' &&
+        (widthRatio < 0.60 || widthRatio > 0.82)) {
+      issues.add(
+        SceneSlotLayoutIssue(
+          severity: ReFusionSceneProgramIssueSeverity.warning,
+          code: 'prompt_content_ratio_warning',
+          message:
+              'PromptInputBar `${component.id}` contentRatio=${widthRatio.toStringAsFixed(3)} outside preferred [0.60, 0.82].',
+          path: 'runtimeTree.nodes.${component.id}',
+        ),
+      );
+    }
+
+    issues.add(
+      SceneSlotLayoutIssue(
+        severity: ReFusionSceneProgramIssueSeverity.info,
+        code: 'proportional_rules_proof',
+        message: '$proportionalProofTag '
+            'componentId=${component.id} '
+            'componentType=$componentType '
+            'aspectPolicy=${aspectPolicy.name} '
+            'contentRatio=${widthRatio.toStringAsFixed(3)} '
+            'horizontalPadding=${horizontalPadding.toStringAsFixed(1)} '
+            'verticalPadding=${verticalPadding.toStringAsFixed(1)}',
+        path: 'runtimeTree.nodes.${component.id}',
+      ),
+    );
+
+    return issues;
+  }
+
+  SceneSlotLayoutRect? _slotByName(
+    Map<String, SceneSlotLayoutRect> slotRects,
+    String slotName,
+  ) {
+    for (final entry in slotRects.entries) {
+      if (_normalize(entry.key).contains(slotName)) {
+        return entry.value;
+      }
+    }
+    return null;
+  }
+
+  _AspectPolicy _aspectPolicyFor(SceneRuntimeCompositionResult composition) {
+    final root = composition.recordsByNodeId['__scene_root__'];
+    if (root == null || root.worldBounds.height == 0.0) {
+      return _AspectPolicy.portrait;
+    }
+    final ratio = root.worldBounds.width / root.worldBounds.height;
+    if ((ratio - 1.0).abs() <= 0.08) {
+      return _AspectPolicy.square;
+    }
+    if ((ratio - 0.8).abs() <= 0.06) {
+      return _AspectPolicy.portraitFeed;
+    }
+    if (ratio >= 1.45) {
+      return _AspectPolicy.landscape;
+    }
+    return _AspectPolicy.portrait;
+  }
+
+  int _fallbackColumnsFor({
+    required int count,
+    required _AspectPolicy aspectPolicy,
+  }) {
+    if (count <= 1) {
+      return 1;
+    }
+    switch (aspectPolicy) {
+      case _AspectPolicy.landscape:
+        return count;
+      case _AspectPolicy.square:
+        return math.min(2, count);
+      case _AspectPolicy.portraitFeed:
+      case _AspectPolicy.portrait:
+        return 1;
+    }
   }
 
   String _layoutHash({
@@ -303,4 +474,11 @@ class SceneSlotLayoutSolver {
   String _normalize(String value) {
     return value.replaceAll(RegExp(r'[^a-zA-Z0-9]+'), '').toLowerCase();
   }
+}
+
+enum _AspectPolicy {
+  portrait,
+  landscape,
+  square,
+  portraitFeed,
 }
