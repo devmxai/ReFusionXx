@@ -145,7 +145,7 @@ class SceneDirectorIntelligencePlanner {
           targetScope: 'background',
           beatId: 'intro',
           startMs: (introEnd * 0.15).round(),
-          endMs: featuresEnd,
+          endMs: introEnd,
           idPrefix: '$backgroundMotifId-enter',
         ),
       );

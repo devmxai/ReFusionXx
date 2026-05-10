@@ -343,6 +343,9 @@ class ReFusionMotionDirectorSceneProgramCompiler {
           'height': 132,
           'cornerRadius': 54,
           'color': '#191B24',
+          'borderWidth': 1.5,
+          'strokeWidth': 1.5,
+          'strokeColor': '#D5D8E2',
           'opacity': 1.0,
           ...baseProperties,
         },
@@ -424,6 +427,7 @@ class ReFusionMotionDirectorSceneProgramCompiler {
       );
     }
     if (role.contains('shape')) {
+      final isCard = role.contains('card');
       return _DirectorComponentSpec(
         layerKind: 'shape',
         elementKind: 'shape',
@@ -433,6 +437,9 @@ class ReFusionMotionDirectorSceneProgramCompiler {
           'height': 220,
           'cornerRadius': 32,
           'color': '#FFFFFF',
+          if (isCard) 'borderWidth': 1.25,
+          if (isCard) 'strokeWidth': 1.25,
+          if (isCard) 'strokeColor': '#DFE5F2',
           'opacity': 1.0,
           ...baseProperties,
         },

@@ -115,6 +115,19 @@ class SceneGroupChoreographySolver {
     required String issueCode,
   }) {
     int? baseStart;
+    int? beatStart;
+    int? beatEnd;
+    for (final primitive in mutable) {
+      if (primitive.beatId != beatId) {
+        continue;
+      }
+      beatStart = beatStart == null
+          ? primitive.startMs
+          : (primitive.startMs < beatStart ? primitive.startMs : beatStart);
+      beatEnd = beatEnd == null
+          ? primitive.endMs
+          : (primitive.endMs > beatEnd ? primitive.endMs : beatEnd);
+    }
     for (final index in sortedCardIndexes) {
       final target = _componentIdFor(index, roleSuffix);
       final first = mutable
@@ -145,7 +158,33 @@ class SceneGroupChoreographySolver {
         continue;
       }
       final desiredStart = baseStart + (order * staggerMs);
-      final delta = desiredStart - first.first.startMs;
+      var delta = desiredStart - first.first.startMs;
+      if (beatStart != null && beatEnd != null) {
+        final cardPrimitives = mutable.where((primitive) {
+          final belongsToCard =
+              primitive.targetComponentId.startsWith('feature-card-$index-');
+          return belongsToCard && primitive.beatId == beatId;
+        }).toList(growable: false);
+        if (cardPrimitives.isNotEmpty) {
+          var cardMinStart = cardPrimitives.first.startMs;
+          var cardMaxEnd = cardPrimitives.first.endMs;
+          for (final primitive in cardPrimitives.skip(1)) {
+            if (primitive.startMs < cardMinStart) {
+              cardMinStart = primitive.startMs;
+            }
+            if (primitive.endMs > cardMaxEnd) {
+              cardMaxEnd = primitive.endMs;
+            }
+          }
+          final minDelta = beatStart - cardMinStart;
+          final maxDelta = beatEnd - cardMaxEnd;
+          if (delta < minDelta) {
+            delta = minDelta;
+          } else if (delta > maxDelta) {
+            delta = maxDelta;
+          }
+        }
+      }
       if (delta == 0) {
         continue;
       }

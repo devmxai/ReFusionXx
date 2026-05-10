@@ -651,6 +651,8 @@ String _handoffSceneProgramJson() {
                 'width': 112,
                 'height': 112,
                 'cornerRadius': 56,
+                'borderWidth': 5.0,
+                'strokeWidth': 5.0,
               },
               'channels': <Object?>[
                 <String, Object?>{

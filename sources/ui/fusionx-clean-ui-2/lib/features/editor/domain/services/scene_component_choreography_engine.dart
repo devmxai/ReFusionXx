@@ -152,9 +152,6 @@ class SceneComponentChoreographyEngine {
     if (step.exitRecipeOverride != null) {
       return step.exitRecipeOverride!;
     }
-    if (step.role == 'shell') {
-      return profile.shellExitRecipe;
-    }
-    return r'$motion.fadeCollapse';
+    return profile.shellExitRecipe;
   }
 }

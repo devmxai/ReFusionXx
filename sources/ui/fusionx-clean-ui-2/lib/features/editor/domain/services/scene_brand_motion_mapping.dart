@@ -48,11 +48,11 @@ class SceneBrandMotionMapping {
       SceneBrandMotionProfile(
     id: r'$motion.brand.minimal',
     style: 'minimal',
-    shellEnterRecipe: r'$motion.fadeRaise',
-    shellExitRecipe: r'$motion.fadeCollapse',
-    iconEnterRecipe: r'$motion.fadeRaise',
-    labelEnterRecipe: r'$motion.fadeRaise',
-    bodyEnterRecipe: r'$motion.fadeRaise',
+    shellEnterRecipe: r'$motion.slideInFromBottom',
+    shellExitRecipe: r'$motion.slideOutToBottom',
+    iconEnterRecipe: r'$motion.scaleIn',
+    labelEnterRecipe: r'$motion.wordCascadeUp',
+    bodyEnterRecipe: r'$motion.wordCascadeUp',
     allowElastic: false,
   );
 

@@ -244,6 +244,12 @@ class ReFusionSceneAgentProviderCatalog {
       'role',
       'label',
     ],
+    'componentRules': <String>[
+      'Choose from known component roles and keep parent-child choreography coherent.',
+      'Do not invent detached child timing where a component container exists.',
+      'Do not guess loose child coordinates inside professional UI components.',
+      'Prefer component-level motion recipes over isolated child fades.',
+    ],
     'primitiveRequiredKeys': <String>[
       'id',
       'beatId',
@@ -386,6 +392,8 @@ ordered beats, semantic components, and animation primitives.
 The final Scene Program must reflect that plan with real layers, elements, channels, keyframes, and easing.
 
 Use ReFusion's center-origin canvas. Keep all keyframe timeMs values inside the owning timeline range.
+Prefer component-aware authoring. Build coherent component groups instead of isolated loose children.
+Do not place child icon/text layers with independent exits when they belong to one UI component shell.
 Do not create one text element per character. Use a single text element with typewriterProgress or reveal from 0 to 1.
 For every typewriter/typing primitive, include property "typewriterProgress", fromValue 0.0, and toValue 1.0.
 Parallel beats are valid only when componentRefs are explicit and disjoint; same-component overlap must be one intentional beat.

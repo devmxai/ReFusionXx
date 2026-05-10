@@ -12,6 +12,7 @@ import 'refusion_motion_director_scene_program_alignment_linter.dart';
 import 'refusion_motion_director_scene_program_compiler.dart';
 import 'refusion_scene_agent_provider_catalog.dart';
 import 'professional_scene_timing_contract.dart';
+import 'refusion_scene_program_authoring_service.dart';
 import 'refusion_scene_program_import_service.dart';
 import 'scene_director_intelligence_planner.dart';
 import 'scene_director_plan_validator.dart';
@@ -34,6 +35,8 @@ class KieSceneProgramAgentService {
         const ReFusionMotionDirectorSceneProgramAlignmentLinter(),
     ReFusionSceneProgramImportService sceneProgramImportService =
         const ReFusionSceneProgramImportService(),
+    ReFusionSceneProgramAuthoringService sceneProgramAuthoringService =
+        const ReFusionSceneProgramAuthoringService(),
     ProfessionalSceneTimingContractValidator timingContractValidator =
         const ProfessionalSceneTimingContractValidator(),
     ProfessionalSceneTimingContractIssueFormatter timingIssueFormatter =
@@ -48,6 +51,7 @@ class KieSceneProgramAgentService {
         _directorBriefPlanner = directorBriefPlanner,
         _alignmentLinter = alignmentLinter,
         _sceneProgramImportService = sceneProgramImportService,
+        _sceneProgramAuthoringService = sceneProgramAuthoringService,
         _timingContractValidator = timingContractValidator,
         _timingIssueFormatter = timingIssueFormatter,
         _runtimeConfigChannel = runtimeConfigChannel;
@@ -62,6 +66,7 @@ class KieSceneProgramAgentService {
   final SceneDirectorIntelligencePlanner _directorBriefPlanner;
   final ReFusionMotionDirectorSceneProgramAlignmentLinter _alignmentLinter;
   final ReFusionSceneProgramImportService _sceneProgramImportService;
+  final ReFusionSceneProgramAuthoringService _sceneProgramAuthoringService;
   final ProfessionalSceneTimingContractValidator _timingContractValidator;
   final ProfessionalSceneTimingContractIssueFormatter _timingIssueFormatter;
   final MethodChannel _runtimeConfigChannel;
@@ -252,6 +257,43 @@ class KieSceneProgramAgentService {
         'Generated sceneProgram failed the professional timing contract: ${_timingIssueFormatter.formatSceneProgramIssues(sceneProgramTimingIssues)}',
       );
     }
+    final sceneProgramAuthoringIssues =
+        _validateExtractedSceneProgramAuthoring(sceneProgramJson);
+    if (sceneProgramAuthoringIssues.isNotEmpty) {
+      if (allowDirectorFallback && directorExtraction.plan != null) {
+        final fallbackIssues = <ReFusionMotionDirectorIssue>[
+          ...directorExtraction.issues,
+          const ReFusionMotionDirectorIssue(
+            severity: ReFusionMotionDirectorIssueSeverity.warning,
+            message:
+                'Generated sceneProgram failed the component runtime contract; ReFusion compiled the directorPlan locally instead.',
+            path: 'sceneProgram',
+          ),
+          ...sceneProgramAuthoringIssues.take(4).map(
+                (issue) => ReFusionMotionDirectorIssue(
+                  severity: ReFusionMotionDirectorIssueSeverity.warning,
+                  message: 'Ignored generated sceneProgram component issue: '
+                      '${issue.path == null ? issue.message : '${issue.path}: ${issue.message}'}',
+                  path: issue.path == null
+                      ? 'sceneProgram'
+                      : 'sceneProgram.${issue.path}',
+                ),
+              ),
+        ];
+        final compiled = _compileDirectorPlanToSceneProgram(
+          directorExtraction.plan!,
+          fallbackIssues,
+        );
+        return KieSceneProgramExtractionResult(
+          sceneProgramJson: _encodeSceneProgram(compiled),
+          directorPlan: directorExtraction.plan,
+          directorIssues: fallbackIssues,
+        );
+      }
+      throw KieSceneProgramAgentException(
+        'Generated sceneProgram failed the component runtime contract: ${_timingIssueFormatter.formatSceneProgramIssues(sceneProgramAuthoringIssues)}',
+      );
+    }
     if (directorExtraction.plan != null) {
       final alignmentResult = _lintSceneProgramAlignment(
         plan: directorExtraction.plan!,
@@ -314,6 +356,37 @@ class KieSceneProgramAgentService {
         .toList(growable: false);
   }
 
+  List<ReFusionSceneProgramIssue> _validateExtractedSceneProgramAuthoring(
+    String sceneProgramJson,
+  ) {
+    final authoringResult = _sceneProgramAuthoringService.importSceneProgram(
+      ReFusionSceneProgramAuthoringRequest(source: sceneProgramJson),
+    );
+    return authoringResult.issues
+        .where(
+          (issue) =>
+              issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+              _isComponentRuntimeGateIssue(issue),
+        )
+        .toList(growable: false);
+  }
+
+  bool _isComponentRuntimeGateIssue(ReFusionSceneProgramIssue issue) {
+    final message = issue.message;
+    if (message.contains('COMPONENT_QA::')) {
+      return true;
+    }
+    if (message.contains('requires a visible border')) {
+      return true;
+    }
+    if (message.contains('PromptInputBar') ||
+        message.contains('FeatureCard') ||
+        message.contains('CTAButton')) {
+      return true;
+    }
+    return false;
+  }
+
   ReFusionSceneProgram _compileDirectorPlanToSceneProgram(
     ReFusionMotionDirectorPlan plan,
     List<ReFusionMotionDirectorIssue> directorIssues,
@@ -326,6 +399,14 @@ class KieSceneProgramAgentService {
     if (hasErrors || compileResult.program == null) {
       throw KieSceneProgramAgentException(
         'Generated directorPlan could not compile into Scene Program: ${_timingIssueFormatter.formatDirectorIssues(directorIssues)}',
+      );
+    }
+    final compiledProgramJson = _encodeSceneProgram(compileResult.program!);
+    final compiledAuthoringIssues =
+        _validateExtractedSceneProgramAuthoring(compiledProgramJson);
+    if (compiledAuthoringIssues.isNotEmpty) {
+      throw KieSceneProgramAgentException(
+        'Compiled directorPlan sceneProgram failed component runtime contract: ${_timingIssueFormatter.formatSceneProgramIssues(compiledAuthoringIssues)}',
       );
     }
     return compileResult.program!;

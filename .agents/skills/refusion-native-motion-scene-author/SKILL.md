@@ -54,6 +54,7 @@ Read only the references needed for the request:
 - ReFusion scenes must remain editable after import.
 - DirectorPlan is the choreography source of truth.
 - SceneProgram is the executable editable scene.
+- Professional UI-like scenes must be component-aware, not loose child layers.
 - Bezier control points are the timing execution truth.
 - Speed / influence / presets must compile through SpeedyGraph contracts.
 - Effects must be official editable effect instances, not hidden renderer tricks.
@@ -62,6 +63,19 @@ Read only the references needed for the request:
 - Use stable IDs for every semantic component and layer.
 - Every animated property must have a real channel and keyframes.
 - Never rely on importer repair for quality.
+
+## PMCR Component Runtime Rules (Mandatory)
+
+- Prefer component groups with coherent parent-child lifecycle (`enter -> hold -> exit`) over detached child fades.
+- Do not invent raw child coordinates inside known components such as PromptInputBar, FeatureCard, or CTAButton.
+- Keep shape borders explicit and visible for professional components.
+- Keep component exits group-coherent; children must not outlive parent shell.
+- If the system reports structured component QA errors, repair at component contract level:
+  - `TEXT_EXCEEDS_TEXT_SLOT`
+  - `CHILD_OUTLIVES_PARENT`
+  - `BORDER_NOT_VISIBLE`
+  - `GROUP_EXIT_INCOHERENT`
+  - `RAW_LAYER_USED_WHERE_COMPONENT_EXISTS`
 
 ## Stop List
 
