@@ -1,5 +1,11 @@
 import 'dart:collection';
 
+import 'design_duration_scale.dart';
+import 'design_radius_scale.dart';
+import 'design_spacing_scale.dart';
+import 'design_token_resolver.dart';
+import 'design_type_scale.dart';
+
 const String kSceneTokenRegistryProofTag = 'TF_SCENE_TOKEN_REGISTRY_PROOF';
 
 class SceneSemanticTokenRegistryError {
@@ -36,24 +42,32 @@ class SceneSemanticTokenResolution {
 /// - deep resolution for map/list semantic blueprints.
 class SceneSemanticTokenRegistry {
   SceneSemanticTokenRegistry({
+    String canvasProfile = 'story_9_16',
     Map<String, Object?>? components,
     Map<String, Object?>? spacing,
     Map<String, Object?>? typography,
     Map<String, Object?>? colors,
     Map<String, Object?>? radius,
     Map<String, Object?>? shadows,
+    Map<String, Object?>? stroke,
+    Map<String, Object?>? safeArea,
+    Map<String, Object?>? motionEnergy,
     Map<String, Object?>? duration,
     Map<String, Object?>? easing,
     Map<String, Object?>? anchors,
     Map<String, Object?>? motionRecipes,
     Map<String, Object?>? beatPresets,
   }) : _root = _buildRoot(
+          canvasProfile: canvasProfile,
           components: components,
           spacing: spacing,
           typography: typography,
           colors: colors,
           radius: radius,
           shadows: shadows,
+          stroke: stroke,
+          safeArea: safeArea,
+          motionEnergy: motionEnergy,
           duration: duration,
           easing: easing,
           anchors: anchors,
@@ -139,27 +153,84 @@ class SceneSemanticTokenRegistry {
   }
 
   static Map<String, Object?> _buildRoot({
+    required String canvasProfile,
     Map<String, Object?>? components,
     Map<String, Object?>? spacing,
     Map<String, Object?>? typography,
     Map<String, Object?>? colors,
     Map<String, Object?>? radius,
     Map<String, Object?>? shadows,
+    Map<String, Object?>? stroke,
+    Map<String, Object?>? safeArea,
+    Map<String, Object?>? motionEnergy,
     Map<String, Object?>? duration,
     Map<String, Object?>? easing,
     Map<String, Object?>? anchors,
     Map<String, Object?>? motionRecipes,
     Map<String, Object?>? beatPresets,
   }) {
+    final resolved = const DesignTokenResolver().resolveRoot(
+      canvasProfile: canvasProfile,
+    );
+    final resolvedRoot = resolved.root;
     return UnmodifiableMapView<String, Object?>(
       <String, Object?>{
         'component': _freezeMap(_mergeShallow(_defaultComponents, components)),
-        'spacing': _freezeMap(_mergeShallow(_defaultSpacing, spacing)),
-        'typography': _freezeMap(_mergeShallow(_defaultTypography, typography)),
+        'spacing': _freezeMap(
+          _mergeShallow(
+            resolvedRoot['spacing'] as Map<String, Object?>,
+            spacing,
+          ),
+        ),
+        'typography': _freezeMap(
+          _mergeShallow(
+            resolvedRoot['typography'] as Map<String, Object?>,
+            typography,
+          ),
+        ),
         'color': _freezeMap(_mergeShallow(_defaultColors, colors)),
-        'radius': _freezeMap(_mergeShallow(_defaultRadius, radius)),
-        'shadow': _freezeMap(_mergeShallow(_defaultShadows, shadows)),
-        'duration': _freezeMap(_mergeShallow(_defaultDuration, duration)),
+        'colorRole': _freezeMap(
+          _mergeShallow(
+            resolvedRoot['colorRole'] as Map<String, Object?>,
+            colors,
+          ),
+        ),
+        'radius': _freezeMap(
+          _mergeShallow(
+            resolvedRoot['radius'] as Map<String, Object?>,
+            radius,
+          ),
+        ),
+        'shadow': _freezeMap(
+          _mergeShallow(
+            resolvedRoot['shadow'] as Map<String, Object?>,
+            shadows,
+          ),
+        ),
+        'stroke': _freezeMap(
+          _mergeShallow(
+            resolvedRoot['stroke'] as Map<String, Object?>,
+            stroke,
+          ),
+        ),
+        'safeArea': _freezeMap(
+          _mergeShallow(
+            resolvedRoot['safeArea'] as Map<String, Object?>,
+            safeArea,
+          ),
+        ),
+        'motionEnergy': _freezeMap(
+          _mergeShallow(
+            resolvedRoot['motionEnergy'] as Map<String, Object?>,
+            motionEnergy,
+          ),
+        ),
+        'duration': _freezeMap(
+          _mergeShallow(
+            resolvedRoot['duration'] as Map<String, Object?>,
+            duration,
+          ),
+        ),
         'easing': _freezeMap(_mergeShallow(_defaultEasing, easing)),
         'anchor': _freezeMap(_mergeShallow(_defaultAnchors, anchors)),
         'motion':
@@ -283,15 +354,7 @@ class SceneSemanticTokenRegistry {
   }
 }
 
-const Map<String, Object?> _defaultSpacing = <String, Object?>{
-  'xs': 8.0,
-  'sm': 12.0,
-  'md': 16.0,
-  'lg': 24.0,
-  'xl': 32.0,
-  '2xl': 48.0,
-  '3xl': 64.0,
-};
+const Map<String, Object?> _defaultSpacing = designSpacingScale;
 
 const Map<String, Object?> _defaultComponents = <String, Object?>{
   'PromptInputBar': 'PromptInputBar',
@@ -307,36 +370,8 @@ const Map<String, Object?> _defaultComponents = <String, Object?>{
 };
 
 const Map<String, Object?> _defaultTypography = <String, Object?>{
-  'caption': <String, Object?>{
-    'fontSize': 16.0,
-    'fontWeight': 500,
-    'lineHeight': 1.2
-  },
-  'body': <String, Object?>{
-    'fontSize': 22.0,
-    'fontWeight': 500,
-    'lineHeight': 1.3
-  },
-  'input': <String, Object?>{
-    'fontSize': 32.0,
-    'fontWeight': 650,
-    'lineHeight': 1.0
-  },
-  'title': <String, Object?>{
-    'fontSize': 44.0,
-    'fontWeight': 700,
-    'lineHeight': 1.1
-  },
-  'headline': <String, Object?>{
-    'fontSize': 56.0,
-    'fontWeight': 800,
-    'lineHeight': 1.05
-  },
-  'hero': <String, Object?>{
-    'fontSize': 72.0,
-    'fontWeight': 900,
-    'lineHeight': 1.0
-  },
+  ...designTypeScale,
+  ...designTypeScaleLegacyAliases,
 };
 
 const Map<String, Object?> _defaultColors = <String, Object?>{
@@ -358,13 +393,7 @@ const Map<String, Object?> _defaultColors = <String, Object?>{
   },
 };
 
-const Map<String, Object?> _defaultRadius = <String, Object?>{
-  'sm': 8.0,
-  'md': 12.0,
-  'lg': 20.0,
-  'xl': 32.0,
-  'pill': 999.0,
-};
+const Map<String, Object?> _defaultRadius = designRadiusScale;
 
 const Map<String, Object?> _defaultShadows = <String, Object?>{
   'card': <String, Object?>{
@@ -383,13 +412,7 @@ const Map<String, Object?> _defaultShadows = <String, Object?>{
   },
 };
 
-const Map<String, Object?> _defaultDuration = <String, Object?>{
-  'instant': 120,
-  'fast': 260,
-  'medium': 520,
-  'slow': 860,
-  'deliberate': 1200,
-};
+const Map<String, Object?> _defaultDuration = designDurationScale;
 
 const Map<String, Object?> _defaultEasing = <String, Object?>{
   'linear': 'linear',
