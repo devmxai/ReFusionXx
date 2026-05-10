@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import '../models/refusion_scene_program_models.dart';
 import 'scene_coordinate_system.dart';
+import 'scene_design_scorecard.dart';
 import 'scene_evaluation_pipeline.dart';
 
 class SceneComponentQualityValidationResult {
@@ -20,11 +21,15 @@ class SceneComponentQualityValidator {
   const SceneComponentQualityValidator({
     SceneEvaluationPipeline evaluationPipeline =
         const SceneEvaluationPipeline(),
-  }) : _evaluationPipeline = evaluationPipeline;
+    SceneDesignScorecardEvaluator designScorecardEvaluator =
+        const SceneDesignScorecardEvaluator(),
+  })  : _evaluationPipeline = evaluationPipeline,
+        _designScorecardEvaluator = designScorecardEvaluator;
 
   static const String proofTag = 'TF_SCENE_COMPONENT_QUALITY_GATE_PROOF';
 
   final SceneEvaluationPipeline _evaluationPipeline;
+  final SceneDesignScorecardEvaluator _designScorecardEvaluator;
 
   SceneComponentQualityValidationResult validate(ReFusionSceneProgram program) {
     final issues = <ReFusionSceneProgramIssue>[];
@@ -75,6 +80,11 @@ class SceneComponentQualityValidator {
         issues: issues,
       );
     }
+    final designScorecardResult = _designScorecardEvaluator.evaluate(
+      program,
+      strictProfessional: strictProfessional,
+    );
+    issues.addAll(designScorecardResult.issues);
 
     final structuralErrorCount = issues
         .where(

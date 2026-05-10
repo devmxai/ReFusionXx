@@ -1,0 +1,28 @@
+{
+  "directorBrief": {
+    "intent": "highlight the strongest product benefit and reinforce credibility",
+    "audience": "content creators",
+    "mood": "confident clean modern",
+    "primaryFocus": "core benefit statement",
+    "rhythm": "single strong claim then supporting evidence cards",
+    "aspect": "$canvas.portrait4x5",
+    "durationIntent": "$duration.medium",
+    "elements": [
+      {
+        "kind": "title",
+        "importance": "primary",
+        "text": "Professional scenes, without manual chaos"
+      },
+      {
+        "kind": "featureCardGroup",
+        "importance": "secondary",
+        "cards": [
+          {"label": "Consistent", "body": "One runtime truth path"},
+          {"label": "Accurate", "body": "Text stays inside slots"},
+          {"label": "Cinematic", "body": "Recipe-driven motion polish"},
+          {"label": "Reliable", "body": "Strict pre-render gate"}
+        ]
+      }
+    ]
+  }
+}

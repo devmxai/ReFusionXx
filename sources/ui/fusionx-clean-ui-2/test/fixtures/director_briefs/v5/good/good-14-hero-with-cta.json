@@ -1,0 +1,34 @@
+{
+  "directorBrief": {
+    "intent": "introduce a hero message then transition to an action moment",
+    "audience": "founders and solo builders",
+    "mood": "modern premium focused",
+    "primaryFocus": "hero value proposition",
+    "rhythm": "calm hero entrance then energetic CTA cadence",
+    "aspect": "$canvas.vertical9x16",
+    "durationIntent": "$duration.deliberate",
+    "elements": [
+      {
+        "kind": "title",
+        "importance": "primary",
+        "text": "Launch faster with native motion"
+      },
+      {
+        "kind": "subtitle",
+        "importance": "supporting",
+        "text": "A pro pipeline from prompt to polished render"
+      },
+      {
+        "kind": "featureCardGroup",
+        "importance": "secondary",
+        "cards": [
+          {"label": "Prompt", "body": "Author once, adapt everywhere"},
+          {"label": "Preview", "body": "Live feedback without drift"},
+          {"label": "Export", "body": "Deterministic quality every run"},
+          {"label": "Scale", "body": "Templates for every campaign"}
+        ]
+      }
+    ]
+  }
+}
+

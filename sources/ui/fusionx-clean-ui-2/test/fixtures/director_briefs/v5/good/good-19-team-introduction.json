@@ -1,0 +1,34 @@
+{
+  "directorBrief": {
+    "intent": "introduce a cross-functional creative team in a polished sequence",
+    "audience": "agency clients",
+    "mood": "warm professional modern",
+    "primaryFocus": "team capability statement",
+    "rhythm": "gentle intro then member capability cascade",
+    "aspect": "$canvas.vertical9x16",
+    "durationIntent": "$duration.deliberate",
+    "elements": [
+      {
+        "kind": "title",
+        "importance": "primary",
+        "text": "Meet the team behind every launch"
+      },
+      {
+        "kind": "subtitle",
+        "importance": "supporting",
+        "text": "Editors, strategists, and motion designers in sync"
+      },
+      {
+        "kind": "featureCardGroup",
+        "importance": "secondary",
+        "cards": [
+          {"label": "Edit", "body": "Narrative-first assembly"},
+          {"label": "Audio", "body": "Clean dubbing and mix"},
+          {"label": "Design", "body": "Readable kinetic typography"},
+          {"label": "QA", "body": "Frame-level validation"}
+        ]
+      }
+    ]
+  }
+}
+

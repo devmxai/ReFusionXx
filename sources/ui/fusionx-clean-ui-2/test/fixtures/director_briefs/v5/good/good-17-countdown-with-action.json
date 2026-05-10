@@ -1,0 +1,29 @@
+{
+  "directorBrief": {
+    "intent": "build urgency with a countdown feel and final action cue",
+    "audience": "campaign managers",
+    "mood": "energetic focused modern",
+    "primaryFocus": "countdown message",
+    "rhythm": "quick intro then escalating cadence before resolve",
+    "aspect": "$canvas.vertical9x16",
+    "durationIntent": "$duration.fast",
+    "elements": [
+      {
+        "kind": "title",
+        "importance": "primary",
+        "text": "Go live in minutes"
+      },
+      {
+        "kind": "featureCardGroup",
+        "importance": "secondary",
+        "cards": [
+          {"label": "3", "body": "Prepare assets"},
+          {"label": "2", "body": "Lock choreography"},
+          {"label": "1", "body": "Approve final pass"},
+          {"label": "Now", "body": "Publish everywhere"}
+        ]
+      }
+    ]
+  }
+}
+

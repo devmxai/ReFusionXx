@@ -1,0 +1,33 @@
+{
+  "directorBrief": {
+    "intent": "present key performance counters in a clean grid reveal",
+    "audience": "growth teams",
+    "mood": "clean analytical confident",
+    "primaryFocus": "headline KPI momentum",
+    "rhythm": "headline settle then feature cascade then stable hold",
+    "aspect": "$canvas.vertical9x16",
+    "durationIntent": "$duration.medium",
+    "elements": [
+      {
+        "kind": "title",
+        "importance": "primary",
+        "text": "Results that compound"
+      },
+      {
+        "kind": "subtitle",
+        "importance": "supporting",
+        "text": "Track speed, quality, and consistency in one flow"
+      },
+      {
+        "kind": "featureCardGroup",
+        "importance": "secondary",
+        "cards": [
+          {"label": "42%", "body": "Faster delivery"},
+          {"label": "98%", "body": "Approval accuracy"},
+          {"label": "3.1x", "body": "Content throughput"},
+          {"label": "0 lag", "body": "Realtime motion feedback"}
+        ]
+      }
+    ]
+  }
+}

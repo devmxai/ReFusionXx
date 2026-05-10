@@ -16,6 +16,14 @@ Professional regression fixtures for NSI-v5-17.
 10. tech brand intro
 11. testimonial quote
 12. before after split
+13. stat counter grid
+14. hero with cta
+15. feature list horizontal
+16. timeline journey
+17. countdown with action
+18. pricing comparison
+19. team introduction
+20. benefit highlight
 
 ## Bad templates
 

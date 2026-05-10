@@ -1,0 +1,29 @@
+{
+  "directorBrief": {
+    "intent": "position value tiers with a clean comparison narrative",
+    "audience": "B2B buyers",
+    "mood": "premium clear confident",
+    "primaryFocus": "value differentiation",
+    "rhythm": "headline anchor then feature contrast sequence",
+    "aspect": "$canvas.square1x1",
+    "durationIntent": "$duration.medium",
+    "elements": [
+      {
+        "kind": "title",
+        "importance": "primary",
+        "text": "Choose the plan that scales with you"
+      },
+      {
+        "kind": "featureCardGroup",
+        "importance": "secondary",
+        "cards": [
+          {"label": "Starter", "body": "Core creation workflow"},
+          {"label": "Pro", "body": "Advanced review and speed"},
+          {"label": "Team", "body": "Shared templates and QA"},
+          {"label": "Enterprise", "body": "Governance and scale"}
+        ]
+      }
+    ]
+  }
+}
+

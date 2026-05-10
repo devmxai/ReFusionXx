@@ -72,4 +72,67 @@ void main() {
       isTrue,
     );
   });
+
+  test('strips raw child coordinate metadata from blueprint properties', () {
+    final plan = ReFusionMotionDirectorPlan(
+      schemaVersion: ReFusionMotionDirectorPlan.currentSchemaVersion,
+      name: 'Blueprint sanitize test',
+      durationMs: 2200,
+      frameRate: 30,
+      canvasWidth: 1080,
+      canvasHeight: 1920,
+      beats: <ReFusionMotionDirectorBeat>[
+        ReFusionMotionDirectorBeat(
+          id: 'intro',
+          label: 'Intro',
+          startMs: 0,
+          endMs: 900,
+          intent: 'Enter',
+          componentRefs: const <String>['feature-shell'],
+        ),
+      ],
+      components: <ReFusionMotionDirectorComponent>[
+        ReFusionMotionDirectorComponent(
+          id: 'feature-shell',
+          role: 'shape.card',
+          label: 'Feature Shell',
+          properties: const <String, Object?>{
+            'x': 0.0,
+            'y': 120.0,
+            'width': 420.0,
+            'height': 220.0,
+            'children': <Object?>[],
+            'parentId': 'legacy-parent',
+            'childCoordinates': <String, Object?>{'x': 12, 'y': 8},
+            'localX': 24,
+            'localY': -12,
+          },
+        ),
+      ],
+      primitives: const <ReFusionMotionDirectorPrimitive>[
+        ReFusionMotionDirectorPrimitive(
+          id: 'feature-enter',
+          beatId: 'intro',
+          targetComponentId: 'feature-shell',
+          kind: 'scale',
+          startMs: 0,
+          endMs: 400,
+          property: 'scale',
+          fromValue: 0.8,
+          toValue: 1.0,
+          easing: 'fastSlow',
+        ),
+      ],
+    );
+
+    final result = compiler.compile(plan: plan);
+    final properties = result.blueprint.components.single.properties;
+    expect(properties.containsKey('x'), isTrue);
+    expect(properties.containsKey('y'), isTrue);
+    expect(properties.containsKey('children'), isFalse);
+    expect(properties.containsKey('parentId'), isFalse);
+    expect(properties.containsKey('childCoordinates'), isFalse);
+    expect(properties.containsKey('localX'), isFalse);
+    expect(properties.containsKey('localY'), isFalse);
+  });
 }

@@ -22,7 +22,7 @@ void main() {
         .where((file) => file.path.endsWith('.json'))
         .toList()
       ..sort((left, right) => left.path.compareTo(right.path));
-    expect(files.length, 12);
+    expect(files.length, 20);
 
     for (final file in files) {
       final payload = jsonDecode(file.readAsStringSync()) as Map<String, Object?>;

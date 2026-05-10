@@ -1,0 +1,29 @@
+{
+  "directorBrief": {
+    "intent": "show a horizontal style feature progression with balanced cards",
+    "audience": "product marketers",
+    "mood": "structured clear energetic",
+    "primaryFocus": "feature progression",
+    "rhythm": "short intro then staggered card progression and coherent exit",
+    "aspect": "$canvas.widescreen16x9",
+    "durationIntent": "$duration.medium",
+    "elements": [
+      {
+        "kind": "title",
+        "importance": "primary",
+        "text": "From idea to publish in one timeline"
+      },
+      {
+        "kind": "featureCardGroup",
+        "importance": "secondary",
+        "cards": [
+          {"label": "Draft", "body": "Frame the concept quickly"},
+          {"label": "Edit", "body": "Shape visuals with precision"},
+          {"label": "Review", "body": "Sync feedback instantly"},
+          {"label": "Ship", "body": "Export with confidence"}
+        ]
+      }
+    ]
+  }
+}
+

@@ -182,6 +182,9 @@ class ScenePreRenderSanityGate {
       if (message.contains('COMPONENT_QA::')) {
         return 'component_quality_violation';
       }
+      if (message.contains('DESIGN_SCORECARD::')) {
+        return 'design_scorecard_violation';
+      }
     }
     return 'validation_failed';
   }

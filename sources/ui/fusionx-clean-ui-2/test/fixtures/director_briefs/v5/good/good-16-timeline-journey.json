@@ -1,0 +1,34 @@
+{
+  "directorBrief": {
+    "intent": "communicate a timeline journey from brief to delivery",
+    "audience": "creative operations teams",
+    "mood": "professional trustworthy",
+    "primaryFocus": "journey headline",
+    "rhythm": "headline hold then sequential milestones",
+    "aspect": "$canvas.portrait4x5",
+    "durationIntent": "$duration.deliberate",
+    "elements": [
+      {
+        "kind": "title",
+        "importance": "primary",
+        "text": "Plan, produce, publish"
+      },
+      {
+        "kind": "subtitle",
+        "importance": "supporting",
+        "text": "Every phase stays aligned and trackable"
+      },
+      {
+        "kind": "featureCardGroup",
+        "importance": "secondary",
+        "cards": [
+          {"label": "Brief", "body": "Define outcomes early"},
+          {"label": "Build", "body": "Compose with reusable systems"},
+          {"label": "Validate", "body": "Gate quality before release"},
+          {"label": "Deliver", "body": "Ship deterministic exports"}
+        ]
+      }
+    ]
+  }
+}
+

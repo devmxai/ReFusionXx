@@ -49,11 +49,13 @@ class SceneDirectorBlueprintCompiler {
         compositionIntent: _componentCompositionIntent(component, semanticType),
         microScene: _microSceneTokenForComponent(component, semanticType),
         tasteProfile: _tasteProfileForBrief(sourceBrief),
-        properties: <String, Object?>{
-          ...component.properties,
-          'directorRole': component.role,
-          'directorLabel': component.label,
-        },
+        properties: _sanitizeComponentProperties(
+          <String, Object?>{
+            ...component.properties,
+            'directorRole': component.role,
+            'directorLabel': component.label,
+          },
+        ),
         motionIntents: intents,
       );
     }).toList(growable: false);
@@ -295,5 +297,39 @@ class SceneDirectorBlueprintCompiler {
   String _token(String value) {
     final compact = value.trim().replaceAll(RegExp(r'\s+'), '_');
     return compact.isEmpty ? 'none' : compact;
+  }
+
+  Map<String, Object?> _sanitizeComponentProperties(
+    Map<String, Object?> source,
+  ) {
+    final disallowedChildGeometryKeys = <String>{
+      'children',
+      'child',
+      'childnodes',
+      'childcomponents',
+      'parentid',
+      'parent',
+      'childcoordinates',
+      'childposition',
+      'childx',
+      'childy',
+      'slotchildren',
+      'localx',
+      'localy',
+      'childlayout',
+      'childbounds',
+    };
+    final output = <String, Object?>{};
+    source.forEach((key, value) {
+      final normalized = key
+          .trim()
+          .toLowerCase()
+          .replaceAll(RegExp(r'[^a-z0-9]+'), '');
+      if (disallowedChildGeometryKeys.contains(normalized)) {
+        return;
+      }
+      output[key] = value;
+    });
+    return output;
   }
 }
