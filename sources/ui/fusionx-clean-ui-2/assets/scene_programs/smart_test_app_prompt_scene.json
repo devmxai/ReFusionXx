@@ -300,10 +300,6 @@
             "id": "promptFrame",
             "kind": "shape",
             "properties": {
-              "componentType": "PromptInputBar",
-              "componentId": "smartTestPromptBar",
-              "layoutRole": "container",
-              "groupMotionRecipe": "springMorphPromptBar",
               "shapeKind": "roundedRectangle",
               "position": {
                 "x": 0,
@@ -377,9 +373,6 @@
             "kind": "shape",
             "properties": {
               "parentId": "promptFrame",
-              "componentType": "PromptInputBar",
-              "componentId": "smartTestPromptBar",
-              "layoutRole": "container",
               "shapeKind": "circle",
               "position": {
                 "x": -306,
@@ -396,13 +389,9 @@
             "id": "promptPlusIcon",
             "kind": "icon",
             "properties": {
-              "parentId": "plusSlot",
-              "componentType": "PromptInputBar",
-              "componentId": "smartTestPromptBar",
-              "layoutRole": "icon",
               "icon": "plus",
               "position": {
-                "x": 0,
+                "x": -306,
                 "y": 0
               },
               "width": 36,
@@ -418,16 +407,6 @@
             "text": "smart test app",
             "properties": {
               "parentId": "promptFrame",
-              "componentType": "PromptInputBar",
-              "componentId": "smartTestPromptBar",
-              "layoutRole": "content",
-              "layout": {
-                "slot": "primaryText",
-                "anchor": "centerLeft",
-                "maxWidth": 330,
-                "maxLines": 1,
-                "overflow": "clip"
-              },
               "textFrame": {
                 "width": 330,
                 "height": 48,
@@ -498,9 +477,6 @@
             "kind": "shape",
             "properties": {
               "parentId": "promptFrame",
-              "componentType": "PromptInputBar",
-              "componentId": "smartTestPromptBar",
-              "layoutRole": "cursor",
               "shapeKind": "roundedRectangle",
               "position": {
                 "x": 88,
@@ -519,9 +495,6 @@
             "kind": "shape",
             "properties": {
               "parentId": "promptFrame",
-              "componentType": "PromptInputBar",
-              "componentId": "smartTestPromptBar",
-              "layoutRole": "container",
               "shapeKind": "circle",
               "position": {
                 "x": 216,
@@ -538,17 +511,9 @@
             "id": "promptMicIcon",
             "kind": "icon",
             "properties": {
-              "parentId": "micSlot",
-              "componentType": "PromptInputBar",
-              "componentId": "smartTestPromptBar",
-              "layoutRole": "icon",
-              "layout": {
-                "slot": "mic",
-                "anchor": "center"
-              },
               "icon": "mic",
               "position": {
-                "x": 0,
+                "x": 216,
                 "y": 0
               },
               "width": 34,
@@ -601,13 +566,6 @@
             "kind": "shape",
             "properties": {
               "parentId": "promptFrame",
-              "componentType": "PromptInputBar",
-              "componentId": "smartTestPromptBar",
-              "layoutRole": "container",
-              "layout": {
-                "slot": "trailingAccessory",
-                "anchor": "center"
-              },
               "shapeKind": "circle",
               "position": {
                 "x": 306,
@@ -682,13 +640,9 @@
             "id": "sendIcon",
             "kind": "icon",
             "properties": {
-              "parentId": "sendButton",
-              "componentType": "PromptInputBar",
-              "componentId": "smartTestPromptBar",
-              "layoutRole": "icon",
               "icon": "send",
               "position": {
-                "x": 0,
+                "x": 306,
                 "y": 0
               },
               "width": 30,

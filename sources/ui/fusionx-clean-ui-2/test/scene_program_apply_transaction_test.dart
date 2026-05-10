@@ -164,6 +164,31 @@ void main() {
     return result;
   }
 
+  ReFusionSceneProgramAuthoringResult smartTestPromptAuthoringResult() {
+    final source = File(
+      'assets/scene_programs/smart_test_app_prompt_scene.json',
+    ).readAsStringSync();
+    final payloadSource = KieSceneProgramAgentService()
+        .extractSceneProgramPayloadFromContent(content: source)
+        .sceneProgramJson;
+    final result = authoringService.importSceneProgram(
+      ReFusionSceneProgramAuthoringRequest(
+        source: payloadSource,
+        fileName: 'smart_test_app_prompt_scene.json',
+        projectId: 'smart-test-app-prompt-project',
+        sceneId: 'smart-test-app-prompt-scene',
+      ),
+    );
+    expect(
+      result.isValid,
+      isTrue,
+      reason: result.issues
+          .map((issue) => '${issue.severity} ${issue.path}: ${issue.message}')
+          .join('\n'),
+    );
+    return result;
+  }
+
   ReFusionSceneProgram _badSaasProgram() {
     return ReFusionSceneProgram(
       schemaVersion: 'refusion.scene-program/v1',
@@ -316,6 +341,32 @@ void main() {
       result.textAnimationBindings.single.elementTarget.targetId,
       'agent-nested-scene__typing-text',
     );
+  });
+
+  test('applies smart test app prompt preset through pre-render gate', () {
+    final authoring = smartTestPromptAuthoringResult();
+    final preRenderGate = const ScenePreRenderSanityGate().validate(
+      authoringResult: authoring,
+      sceneId: 'root-scene',
+    );
+    expect(
+      preRenderGate.blocked,
+      isFalse,
+      reason: preRenderGate.issues
+          .map((issue) => '${issue.severity} ${issue.path}: ${issue.message}')
+          .join('\n'),
+    );
+    final result = transaction.apply(
+      SceneProgramApplyTransactionRequest(
+        baseProject: baseProject(scenes: <MotionSceneModel>[rootScene()]),
+        authoringResult: authoring,
+        rootSceneId: 'root-scene',
+        clipName: 'Smart Test App Prompt',
+      ),
+    );
+
+    expect(result, isNotNull);
+    expect(result!.sceneClips, hasLength(1));
   });
 
   test('preserves existing root content and chooses unique clip and scene ids',

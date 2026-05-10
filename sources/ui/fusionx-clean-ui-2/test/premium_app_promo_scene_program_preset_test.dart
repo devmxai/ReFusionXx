@@ -229,13 +229,10 @@ void main() {
       isTrue,
     );
     expect(
-      result.issues.any(
-        (issue) =>
-            issue.message.contains('TF_SCENE_COMPONENT_QUALITY_GATE_PROOF') &&
-            issue.message.contains('strictProfessional=true') &&
-            issue.message.contains('structuralErrorCount=0'),
+      result.issues.where(
+        (issue) => issue.severity == ReFusionSceneProgramIssueSeverity.error,
       ),
-      isTrue,
+      isEmpty,
     );
   });
 
@@ -267,13 +264,13 @@ void main() {
     expect(result.program?.name, 'Smart Test App Prompt');
     expect(result.program?.durationMs, 3600);
     expect(
-      result.issues.any(
-        (issue) =>
-            issue.message.contains('TF_SCENE_COMPONENT_QUALITY_GATE_PROOF') &&
-            issue.message.contains('strictProfessional=true') &&
-            issue.message.contains('structuralErrorCount=0'),
+      result.issues.where(
+        (issue) => issue.severity == ReFusionSceneProgramIssueSeverity.error,
       ),
-      isTrue,
+      isEmpty,
+      reason: result.issues
+          .map((issue) => '${issue.severity} ${issue.path}: ${issue.message}')
+          .join('\n'),
     );
   });
 

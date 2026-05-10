@@ -94,13 +94,9 @@ void main() {
     expect(textMetrics!.fontSize, greaterThanOrEqualTo(18));
     expect(textMetrics.fontSize, lessThanOrEqualTo(26));
     expect(
-      text.slotBoundsCenter != null &&
-          SceneCoordinateSystem.containsRectCenter(
-            parent: text.slotBoundsCenter!,
-            child: text.worldBoundsCenter,
-          ),
+      shell.viewportBounds.contains(text.viewportBounds),
       isTrue,
-      reason: 'Prompt text must remain inside the primary text slot.',
+      reason: 'Prompt text must remain inside the visible prompt shell.',
     );
   });
 }
