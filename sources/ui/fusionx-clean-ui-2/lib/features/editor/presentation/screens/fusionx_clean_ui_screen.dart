@@ -84,6 +84,7 @@ import '../services/transition_unified_scope_bridge_entry_adapter.dart';
 import '../services/transition_unified_scope_keyframe_adapter.dart';
 import '../services/transition_unified_scope_timeline_session_adapter.dart';
 import '../services/unified_timeline_add_command_registry.dart';
+import '../services/unified_timeline_focus_routing_adapter.dart';
 import '../services/unified_timeline_panel_projection_adapter.dart';
 import '../services/unified_timeline_presentation_adapter.dart';
 import '../services/unified_timeline_presentation_flags.dart';
@@ -196,6 +197,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   static const UnifiedTimelinePanelProjectionAdapter
       _unifiedTimelinePanelProjectionAdapter =
       UnifiedTimelinePanelProjectionAdapter();
+  static const UnifiedTimelineFocusRoutingAdapter
+      _unifiedTimelineFocusRoutingAdapter =
+      UnifiedTimelineFocusRoutingAdapter();
   static const UnifiedTimelineAddCommandRegistry
       _unifiedTimelineAddCommandRegistry = UnifiedTimelineAddCommandRegistry();
   static const RootSceneClipProjectionAdapter _rootSceneClipProjectionAdapter =
@@ -4415,6 +4419,77 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return;
     }
     _enterLayerScope(clipId);
+  }
+
+  void _handleUnifiedTimelineClipDoubleTap({
+    required String projectedClipId,
+    required UnifiedTimelinePresentation presentation,
+    required Map<String, String> rowToSourceClipId,
+  }) {
+    final decision = _unifiedTimelineFocusRoutingAdapter.resolve(
+      UnifiedTimelineFocusRoutingRequest(
+        presentation: presentation,
+        projectedClipId: projectedClipId,
+        rowClipIdToSourceClipId: rowToSourceClipId,
+      ),
+    );
+    switch (decision.route) {
+      case UnifiedTimelineFocusRoute.layerScope:
+        _enterLayerScope(decision.sourceId);
+        return;
+      case UnifiedTimelineFocusRoute.sceneScopeFallback:
+        _enterSceneScope(decision.sourceId);
+        return;
+      case UnifiedTimelineFocusRoute.adjustmentScope:
+        if (_tryOpenUnifiedAdjustmentScopeBySourceId(decision.sourceId)) {
+          return;
+        }
+        _showStageMessage(
+          'Adjustment layer focus is not available for this row yet.',
+        );
+        return;
+      case UnifiedTimelineFocusRoute.unsupported:
+        _showStageMessage(decision.message);
+        return;
+    }
+  }
+
+  bool _tryOpenUnifiedAdjustmentScopeBySourceId(String sourceId) {
+    for (final track in _tracks) {
+      if (track.kind != TimelineTrackKind.video) {
+        continue;
+      }
+      TimelineTrackTransitionData? matchedTransition;
+      for (final transition in track.transitions) {
+        if (transition.id == sourceId) {
+          matchedTransition = transition;
+          break;
+        }
+      }
+      if (matchedTransition == null) {
+        continue;
+      }
+      TimelineClipData? leftClip;
+      TimelineClipData? rightClip;
+      for (final clip in track.clips) {
+        if (clip.id == matchedTransition.leftClipId) {
+          leftClip = clip;
+        } else if (clip.id == matchedTransition.rightClipId) {
+          rightClip = clip;
+        }
+      }
+      if (leftClip == null || rightClip == null) {
+        continue;
+      }
+      return _tryOpenUnifiedTransitionScopeBridge(
+        track: track,
+        leftClip: leftClip,
+        rightClip: rightClip,
+        preset: matchedTransition.preset,
+        transition: matchedTransition,
+      );
+    }
+    return false;
   }
 
   void _enterSceneScope(String clipId) {
@@ -25667,18 +25742,23 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             layerScopeContext == null &&
             sceneScopeSession == null &&
             sceneLayerScopeViewModel == null;
-    final unifiedRootTimelineProjection = canUseUnifiedRootTimelinePresentation
-        ? _unifiedTimelinePanelProjectionAdapter.project(
-            _unifiedTimelinePresentationAdapter.build(
-              UnifiedTimelinePresentationRequest(
-                scopeKind: UnifiedTimelineScopeKind.root,
-                currentTime: _currentTime,
-                durationTime: _timelineDurationTime,
-                tracks: mainTimelineTracks,
-              ),
-            ),
-          )
-        : null;
+    final unifiedRootTimelinePresentation =
+        canUseUnifiedRootTimelinePresentation
+            ? _unifiedTimelinePresentationAdapter.build(
+                UnifiedTimelinePresentationRequest(
+                  scopeKind: UnifiedTimelineScopeKind.root,
+                  currentTime: _currentTime,
+                  durationTime: _timelineDurationTime,
+                  tracks: mainTimelineTracks,
+                ),
+              )
+            : null;
+    final unifiedRootTimelineProjection =
+        unifiedRootTimelinePresentation == null
+            ? null
+            : _unifiedTimelinePanelProjectionAdapter.project(
+                unifiedRootTimelinePresentation,
+              );
     final unifiedRootTimelineTracks =
         unifiedRootTimelineProjection?.tracks ?? mainTimelineTracks;
     final unifiedRootSourceToRowClipId = unifiedRootTimelineProjection == null
@@ -26659,13 +26739,20 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                             : clipId,
                                                       ),
                                                       onClipDoubleTap: (clipId) =>
-                                                          _handleTimelineClipDoubleTap(
-                                                        canUseUnifiedRootTimelinePresentation
-                                                            ? unifiedRootRowToSourceClipId[
-                                                                    clipId] ??
-                                                                clipId
-                                                            : clipId,
-                                                      ),
+                                                          canUseUnifiedRootTimelinePresentation &&
+                                                                  unifiedRootTimelinePresentation !=
+                                                                      null
+                                                              ? _handleUnifiedTimelineClipDoubleTap(
+                                                                  projectedClipId:
+                                                                      clipId,
+                                                                  presentation:
+                                                                      unifiedRootTimelinePresentation,
+                                                                  rowToSourceClipId:
+                                                                      unifiedRootRowToSourceClipId,
+                                                                )
+                                                              : _handleTimelineClipDoubleTap(
+                                                                  clipId,
+                                                                ),
                                                       onClipReorder: (clipId,
                                                               insertionIndex) =>
                                                           _reorderClip(
