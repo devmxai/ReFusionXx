@@ -9,6 +9,8 @@ void main() {
     required bool componentAuthored,
     bool includeFadeOnlyChildren = false,
     bool incoherentExit = false,
+    bool canvasSizedShell = false,
+    bool missingPromptIcons = false,
   }) {
     ReFusionSceneProgramElement shell({
       required double borderWidth,
@@ -19,8 +21,8 @@ void main() {
         kind: 'shape',
         properties: <String, Object?>{
           'position': const <String, Object?>{'x': 0.0, 'y': 320.0},
-          'width': 820.0,
-          'height': 112.0,
+          'width': canvasSizedShell ? 1080.0 : 820.0,
+          'height': canvasSizedShell ? 640.0 : 112.0,
           'layoutRole': 'container',
           'shapeKind': 'roundedRectangle',
           'borderWidth': borderWidth,
@@ -165,18 +167,20 @@ void main() {
               layerDurationMs: iconLayerDuration,
               iconName: 'plus',
             ),
-            icon(
-              id: 'prompt-mic-icon',
-              x: 256.0,
-              layerDurationMs: iconLayerDuration,
-              iconName: 'mic',
-            ),
-            icon(
-              id: 'prompt-voice-icon',
-              x: 344.0,
-              layerDurationMs: iconLayerDuration,
-              iconName: 'volume',
-            ),
+            if (!missingPromptIcons)
+              icon(
+                id: 'prompt-mic-icon',
+                x: 256.0,
+                layerDurationMs: iconLayerDuration,
+                iconName: 'mic',
+              ),
+            if (!missingPromptIcons)
+              icon(
+                id: 'prompt-voice-icon',
+                x: 344.0,
+                layerDurationMs: iconLayerDuration,
+                iconName: 'volume',
+              ),
           ],
         ),
       ],
@@ -368,6 +372,44 @@ void main() {
         (issue) =>
             issue.severity == ReFusionSceneProgramIssueSeverity.error &&
             issue.message.contains('COMPONENT_QA::MOTION_VARIETY_LOW'),
+      ),
+      isTrue,
+    );
+  });
+
+  test('rejects prompt shell that resolves to canvas-like size', () {
+    final result = validator.validate(
+      _professionalPromptProgram(
+        componentAuthored: true,
+        canvasSizedShell: true,
+      ),
+    );
+
+    expect(result.isValid, isFalse);
+    expect(
+      result.issues.any(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+            issue.message.contains('COMPONENT_QA::COMPONENT_SIZED_AS_CANVAS'),
+      ),
+      isTrue,
+    );
+  });
+
+  test('rejects prompt bars missing required icon contract', () {
+    final result = validator.validate(
+      _professionalPromptProgram(
+        componentAuthored: true,
+        missingPromptIcons: true,
+      ),
+    );
+
+    expect(result.isValid, isFalse);
+    expect(
+      result.issues.any(
+        (issue) =>
+            issue.severity == ReFusionSceneProgramIssueSeverity.error &&
+            issue.message.contains('COMPONENT_QA::ICON_CONTRACT_NOT_RENDERED'),
       ),
       isTrue,
     );
