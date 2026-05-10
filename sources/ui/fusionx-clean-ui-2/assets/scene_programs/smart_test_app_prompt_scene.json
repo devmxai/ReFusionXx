@@ -1,8 +1,8 @@
 {
   "directorPlan": {
     "schemaVersion": "refusion.motion-director/v1",
-    "name": "Professional Prompt Bar Clean Plan",
-    "durationMs": 4200,
+    "name": "Smart Test App Prompt Plan",
+    "durationMs": 3600,
     "frameRate": 30,
     "canvasWidth": 1080,
     "canvasHeight": 1920,
@@ -11,105 +11,127 @@
         "id": "circle-pop",
         "label": "Circle spring pop",
         "startMs": 0,
-        "endMs": 760,
-        "intent": "A small white circle pops into the middle of a white canvas with a light border.",
+        "endMs": 680,
+        "intent": "A small bordered white circle pops into the center of a white canvas with a crisp dark stroke.",
         "componentRefs": [
-          "prompt-input"
+          "smart-prompt"
         ]
       },
       {
-        "id": "bar-stretch",
+        "id": "pill-stretch",
         "label": "Circle stretches into prompt bar",
-        "startMs": 760,
-        "endMs": 1500,
-        "intent": "The same circle stretches horizontally into a pill-shaped prompt input.",
+        "startMs": 680,
+        "endMs": 1320,
+        "intent": "The same circle stretches into a clean prompt input pill with a dark border.",
         "componentRefs": [
-          "prompt-input"
+          "smart-prompt"
         ]
       },
       {
-        "id": "controls-pop",
-        "label": "Controls pop in",
-        "startMs": 1500,
-        "endMs": 1900,
-        "intent": "Plus, microphone, and voice controls pop into their slots with spring timing.",
+        "id": "icons-pop",
+        "label": "Controls spring into place",
+        "startMs": 1320,
+        "endMs": 1740,
+        "intent": "Plus, microphone, and send controls pop into their slots after the shell settles.",
         "componentRefs": [
-          "prompt-input"
+          "smart-prompt"
         ]
       },
       {
         "id": "keyboard-type",
-        "label": "Prompt text types in",
-        "startMs": 1900,
-        "endMs": 3260,
-        "intent": "The prompt text appears through a keyboard typewriter effect.",
+        "label": "Prompt text types",
+        "startMs": 1740,
+        "endMs": 2580,
+        "intent": "Small regular prompt text types in with a keyboard cursor.",
         "componentRefs": [
-          "prompt-input"
+          "smart-prompt"
         ]
       },
       {
-        "id": "readable-hold",
-        "label": "Readable prompt hold",
-        "startMs": 3260,
-        "endMs": 4200,
-        "intent": "The completed prompt bar holds cleanly in the center.",
+        "id": "send-press",
+        "label": "Send button press",
+        "startMs": 2580,
+        "endMs": 3340,
+        "intent": "The dark send button presses in and springs back to confirm the prompt.",
         "componentRefs": [
-          "prompt-input"
+          "smart-prompt"
+        ]
+      },
+      {
+        "id": "final-hold",
+        "label": "Clean final hold",
+        "startMs": 3340,
+        "endMs": 3600,
+        "intent": "The completed prompt bar holds briefly, intact and centered.",
+        "componentRefs": [
+          "smart-prompt"
         ]
       }
     ],
     "components": [
       {
-        "id": "prompt-input",
+        "id": "smart-prompt",
         "role": "component.PromptInputBar",
-        "label": "Centered prompt input bar",
-        "layerId": "prompt-bar-layer",
+        "label": "Smart test prompt bar",
+        "layerId": "prompt-a-frame-layer",
         "elementId": "promptFrame"
       }
     ],
     "primitives": [
       {
-        "id": "shell-pop",
+        "id": "shell-pop-scale",
         "beatId": "circle-pop",
-        "targetComponentId": "prompt-input",
+        "targetComponentId": "smart-prompt",
         "kind": "scale",
         "property": "scale",
         "startMs": 0,
-        "endMs": 720,
-        "fromValue": 0.12,
+        "endMs": 680,
+        "fromValue": 0.18,
         "toValue": 1,
         "easing": "slowFastSlow"
       },
       {
-        "id": "shell-stretch",
-        "beatId": "bar-stretch",
-        "targetComponentId": "prompt-input",
+        "id": "shell-width-stretch",
+        "beatId": "pill-stretch",
+        "targetComponentId": "smart-prompt",
         "kind": "width",
         "property": "width",
-        "startMs": 760,
-        "endMs": 1450,
-        "fromValue": 96,
-        "toValue": 972,
+        "startMs": 680,
+        "endMs": 1320,
+        "fromValue": 92,
+        "toValue": 760,
         "easing": "slowFastSlow"
       },
       {
-        "id": "prompt-type",
+        "id": "prompt-typewriter",
         "beatId": "keyboard-type",
-        "targetComponentId": "prompt-input",
+        "targetComponentId": "smart-prompt",
         "kind": "typewriter",
         "property": "typewriterProgress",
-        "startMs": 1900,
-        "endMs": 3260,
+        "startMs": 1740,
+        "endMs": 2580,
         "fromValue": 0,
         "toValue": 1,
         "easing": "linear"
+      },
+      {
+        "id": "send-press-scale",
+        "beatId": "send-press",
+        "targetComponentId": "smart-prompt",
+        "kind": "scale",
+        "property": "scale",
+        "startMs": 2860,
+        "endMs": 3200,
+        "fromValue": 1,
+        "toValue": 0.9,
+        "easing": "slowFastSlow"
       }
     ]
   },
   "sceneProgram": {
     "schemaVersion": "refusion.scene-program/v1",
-    "name": "Professional Prompt Bar Clean",
-    "durationMs": 4200,
+    "name": "Smart Test App Prompt",
+    "durationMs": 3600,
     "frameRate": 30,
     "layers": [
       {
@@ -117,7 +139,7 @@
         "name": "White Background",
         "kind": "shape",
         "startMs": 0,
-        "durationMs": 4200,
+        "durationMs": 3600,
         "elements": [
           {
             "id": "white-background",
@@ -138,10 +160,10 @@
       },
       {
         "id": "prompt-morph-layer",
-        "name": "Circle To Prompt Morph",
+        "name": "Circle To Prompt Bar Morph Shell",
         "kind": "shape",
         "startMs": 0,
-        "durationMs": 1499,
+        "durationMs": 1320,
         "elements": [
           {
             "id": "morphShell",
@@ -152,15 +174,15 @@
                 "x": 0,
                 "y": 0
               },
-              "width": 972,
-              "height": 96,
-              "cornerRadius": 48,
+              "width": 760,
+              "height": 92,
+              "cornerRadius": 46,
               "color": "#FFFFFF",
-              "borderColor": "#D9DDE3",
-              "borderWidth": 2,
+              "borderColor": "#111827",
+              "borderWidth": 2.2,
               "opacity": 0,
-              "shadowOpacity": 0.08,
-              "shadowBlur": 18,
+              "shadowOpacity": 0.06,
+              "shadowBlur": 20,
               "shadowOffset": {
                 "x": 0,
                 "y": 10
@@ -182,7 +204,7 @@
                     "easing": "fastSlow"
                   },
                   {
-                    "timeMs": 1499,
+                    "timeMs": 1320,
                     "value": 1,
                     "easing": "linear"
                   }
@@ -193,21 +215,26 @@
                 "keyframes": [
                   {
                     "timeMs": 0,
-                    "value": 0.12,
+                    "value": 0.18,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 280,
+                    "value": 1.1,
                     "easing": "slowFastSlow"
                   },
                   {
-                    "timeMs": 320,
-                    "value": 0.94,
+                    "timeMs": 520,
+                    "value": 0.97,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 680,
+                    "value": 1,
                     "easing": "fastSlow"
                   },
                   {
-                    "timeMs": 500,
-                    "value": 1.08,
-                    "easing": "slowFastSlow"
-                  },
-                  {
-                    "timeMs": 700,
+                    "timeMs": 1320,
                     "value": 1,
                     "easing": "fastSlow"
                   }
@@ -218,23 +245,28 @@
                 "keyframes": [
                   {
                     "timeMs": 0,
-                    "value": 96,
+                    "value": 92,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 760,
-                    "value": 96,
+                    "timeMs": 680,
+                    "value": 92,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 1180,
-                    "value": 1018,
+                    "timeMs": 1040,
+                    "value": 792,
                     "easing": "slowFastSlow"
                   },
                   {
-                    "timeMs": 1450,
-                    "value": 972,
+                    "timeMs": 1320,
+                    "value": 760,
                     "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 1320,
+                    "value": 760,
+                    "easing": "linear"
                   }
                 ]
               },
@@ -243,12 +275,12 @@
                 "keyframes": [
                   {
                     "timeMs": 0,
-                    "value": 96,
+                    "value": 92,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 1499,
-                    "value": 96,
+                    "timeMs": 1320,
+                    "value": 92,
                     "easing": "linear"
                   }
                 ]
@@ -258,49 +290,87 @@
         ]
       },
       {
-        "id": "prompt-bar-layer",
-        "name": "Prompt Input Bar Frame",
+        "id": "prompt-a-frame-layer",
+        "name": "Prompt Bar Runtime Frame",
         "kind": "shape",
-        "startMs": 1500,
-        "durationMs": 2700,
+        "startMs": 0,
+        "durationMs": 3600,
         "elements": [
           {
             "id": "promptFrame",
             "kind": "shape",
             "properties": {
               "componentType": "PromptInputBar",
-              "componentId": "professionalPromptBar",
+              "componentId": "smartTestPromptBar",
               "layoutRole": "container",
-              "groupMotionRecipe": "groupBounceIn",
+              "groupMotionRecipe": "springMorphPromptBar",
               "shapeKind": "roundedRectangle",
               "position": {
                 "x": 0,
                 "y": 0
               },
-              "width": 972,
-              "height": 96,
-              "cornerRadius": 48,
+              "intrinsicSize": {
+                "width": 760,
+                "height": 92
+              },
+              "width": 760,
+              "height": 92,
+              "cornerRadius": 46,
               "color": "#FFFFFF",
-              "borderColor": "#D9DDE3",
-              "borderWidth": 2,
-              "opacity": 1,
+              "borderColor": "#111827",
+              "borderWidth": 2.2,
+              "opacity": 0,
               "contentInsets": {
-                "left": 126,
-                "right": 190,
-                "top": 20,
-                "bottom": 20
-              }
+                "left": 104,
+                "right": 154,
+                "top": 18,
+                "bottom": 18
+              },
+              "shadowOpacity": 0.06,
+              "shadowBlur": 20,
+              "shadowOffset": {
+                "x": 0,
+                "y": 10
+              },
+              "shadowColor": "#111827"
             },
-            "channels": []
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 0,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1319,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1320,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3600,
+                    "value": 1,
+                    "easing": "linear"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
           }
         ]
       },
       {
-        "id": "prompt-content-layer",
-        "name": "Prompt Bar Content",
+        "id": "prompt-b-content-layer",
+        "name": "Prompt Bar Icons And Typing",
         "kind": "shape",
-        "startMs": 1500,
-        "durationMs": 2700,
+        "startMs": 1320,
+        "durationMs": 2280,
         "elements": [
           {
             "id": "plusSlot",
@@ -308,16 +378,15 @@
             "properties": {
               "parentId": "promptFrame",
               "componentType": "PromptInputBar",
-              "componentId": "professionalPromptBar",
+              "componentId": "smartTestPromptBar",
               "layoutRole": "container",
-              "shapeKind": "roundedRectangle",
+              "shapeKind": "circle",
               "position": {
-                "x": -314,
+                "x": -306,
                 "y": 0
               },
-              "width": 72,
-              "height": 72,
-              "cornerRadius": 36,
+              "width": 58,
+              "height": 58,
               "color": "#FFFFFF",
               "opacity": 1
             },
@@ -329,16 +398,224 @@
             "properties": {
               "parentId": "plusSlot",
               "componentType": "PromptInputBar",
-              "componentId": "professionalPromptBar",
+              "componentId": "smartTestPromptBar",
               "layoutRole": "icon",
               "icon": "plus",
               "position": {
                 "x": 0,
                 "y": 0
               },
-              "width": 42,
-              "height": 42,
-              "color": "#050505",
+              "width": 36,
+              "height": 36,
+              "color": "#111827",
+              "opacity": 1
+            },
+            "channels": []
+          },
+          {
+            "id": "promptText",
+            "kind": "text",
+            "text": "smart test app",
+            "properties": {
+              "parentId": "promptFrame",
+              "componentType": "PromptInputBar",
+              "componentId": "smartTestPromptBar",
+              "layoutRole": "content",
+              "layout": {
+                "slot": "primaryText",
+                "anchor": "centerLeft",
+                "maxWidth": 330,
+                "maxLines": 1,
+                "overflow": "clip"
+              },
+              "textFrame": {
+                "width": 330,
+                "height": 48,
+                "anchor": "centerLeft",
+                "maxLines": 1,
+                "overflow": "clip",
+                "fitPolicy": "shrinkToFit",
+                "minFontSize": 18,
+                "maxFontSize": 26,
+                "measure": "fullText"
+              },
+              "position": {
+                "x": -82,
+                "y": 0
+              },
+              "fontSize": 24,
+              "fontWeight": 400,
+              "letterSpacing": 0,
+              "lineHeight": 1,
+              "textAlign": "left",
+              "color": "#111827",
+              "opacity": 1,
+              "typewriterProgress": 0
+            },
+            "channels": [
+              {
+                "property": "typewriterProgress",
+                "keyframes": [
+                  {
+                    "timeMs": 1740,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 2580,
+                    "value": 1,
+                    "easing": "linear"
+                  }
+                ],
+                "timeBasis": "project"
+              },
+              {
+                "property": "position",
+                "keyframes": [
+                  {
+                    "timeMs": 1680,
+                    "value": {
+                      "x": -82,
+                      "y": 7
+                    },
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1840,
+                    "value": {
+                      "x": -82,
+                      "y": 0
+                    },
+                    "easing": "fastSlow"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          },
+          {
+            "id": "promptCursor",
+            "kind": "shape",
+            "properties": {
+              "parentId": "promptFrame",
+              "componentType": "PromptInputBar",
+              "componentId": "smartTestPromptBar",
+              "layoutRole": "cursor",
+              "shapeKind": "roundedRectangle",
+              "position": {
+                "x": 88,
+                "y": 0
+              },
+              "width": 2,
+              "height": 40,
+              "cornerRadius": 1,
+              "color": "#111827",
+              "opacity": 1
+            },
+            "channels": []
+          },
+          {
+            "id": "micSlot",
+            "kind": "shape",
+            "properties": {
+              "parentId": "promptFrame",
+              "componentType": "PromptInputBar",
+              "componentId": "smartTestPromptBar",
+              "layoutRole": "container",
+              "shapeKind": "circle",
+              "position": {
+                "x": 216,
+                "y": 0
+              },
+              "width": 56,
+              "height": 56,
+              "color": "#FFFFFF",
+              "opacity": 1
+            },
+            "channels": []
+          },
+          {
+            "id": "promptMicIcon",
+            "kind": "icon",
+            "properties": {
+              "parentId": "micSlot",
+              "componentType": "PromptInputBar",
+              "componentId": "smartTestPromptBar",
+              "layoutRole": "icon",
+              "layout": {
+                "slot": "mic",
+                "anchor": "center"
+              },
+              "icon": "mic",
+              "position": {
+                "x": 0,
+                "y": 0
+              },
+              "width": 34,
+              "height": 34,
+              "color": "#111827",
+              "opacity": 0
+            },
+            "channels": [
+              {
+                "property": "opacity",
+                "keyframes": [
+                  {
+                    "timeMs": 1440,
+                    "value": 0,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1620,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  }
+                ],
+                "timeBasis": "project"
+              },
+              {
+                "property": "scale",
+                "keyframes": [
+                  {
+                    "timeMs": 1440,
+                    "value": 0.5,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 1600,
+                    "value": 1.14,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 1760,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  }
+                ],
+                "timeBasis": "project"
+              }
+            ]
+          },
+          {
+            "id": "sendButton",
+            "kind": "shape",
+            "properties": {
+              "parentId": "promptFrame",
+              "componentType": "PromptInputBar",
+              "componentId": "smartTestPromptBar",
+              "layoutRole": "container",
+              "layout": {
+                "slot": "trailingAccessory",
+                "anchor": "center"
+              },
+              "shapeKind": "circle",
+              "position": {
+                "x": 306,
+                "y": 0
+              },
+              "width": 58,
+              "height": 58,
+              "color": "#111827",
               "opacity": 0
             },
             "channels": [
@@ -363,301 +640,36 @@
                 "keyframes": [
                   {
                     "timeMs": 1520,
-                    "value": 0.45,
+                    "value": 0.46,
                     "easing": "linear"
                   },
                   {
                     "timeMs": 1680,
-                    "value": 1.18,
-                    "easing": "slowFastSlow"
-                  },
-                  {
-                    "timeMs": 1840,
-                    "value": 1,
-                    "easing": "fastSlow"
-                  }
-                ],
-                "timeBasis": "project"
-              }
-            ]
-          },
-          {
-            "id": "promptText",
-            "kind": "text",
-            "text": "Our smartest, fastest mo",
-            "properties": {
-              "parentId": "promptFrame",
-              "componentType": "PromptInputBar",
-              "componentId": "professionalPromptBar",
-              "layoutRole": "content",
-              "layout": {
-                "slot": "primaryText",
-                "anchor": "centerLeft",
-                "maxWidth": 430,
-                "maxLines": 1,
-                "overflow": "clip"
-              },
-              "textFrame": {
-                "width": 430,
-                "height": 58,
-                "anchor": "centerLeft",
-                "maxLines": 1,
-                "overflow": "clip",
-                "fitPolicy": "shrinkToFit",
-                "minFontSize": 28,
-                "maxFontSize": 34,
-                "measure": "fullText"
-              },
-              "position": {
-                "x": -48,
-                "y": 0
-              },
-              "fontSize": 30,
-              "fontWeight": 400,
-              "letterSpacing": 0,
-              "lineHeight": 1,
-              "textAlign": "left",
-              "color": "#050505",
-              "opacity": 1,
-              "typewriterProgress": 0
-            },
-            "channels": [
-              {
-                "property": "typewriterProgress",
-                "keyframes": [
-                  {
-                    "timeMs": 2100,
-                    "value": 0,
-                    "easing": "linear"
-                  },
-                  {
-                    "timeMs": 3460,
-                    "value": 1,
-                    "easing": "linear"
-                  }
-                ],
-                "timeBasis": "project"
-              },
-              {
-                "property": "position",
-                "keyframes": [
-                  {
-                    "timeMs": 1940,
-                    "value": {
-                      "x": -48,
-                      "y": 8
-                    },
-                    "easing": "linear"
-                  },
-                  {
-                    "timeMs": 2140,
-                    "value": {
-                      "x": -48,
-                      "y": 0
-                    },
-                    "easing": "fastSlow"
-                  }
-                ],
-                "timeBasis": "project"
-              }
-            ]
-          },
-          {
-            "id": "promptCursor",
-            "kind": "shape",
-            "properties": {
-              "parentId": "promptFrame",
-              "componentType": "PromptInputBar",
-              "componentId": "professionalPromptBar",
-              "layoutRole": "cursor",
-              "shapeKind": "roundedRectangle",
-              "position": {
-                "x": 138,
-                "y": 0
-              },
-              "width": 2,
-              "height": 52,
-              "cornerRadius": 1,
-              "color": "#050505",
-              "opacity": 0
-            },
-            "channels": [
-              {
-                "property": "opacity",
-                "keyframes": [
-                  {
-                    "timeMs": 3360,
-                    "value": 0,
-                    "easing": "linear"
-                  },
-                  {
-                    "timeMs": 3460,
-                    "value": 1,
-                    "easing": "fastSlow"
-                  },
-                  {
-                    "timeMs": 4200,
-                    "value": 1,
-                    "easing": "linear"
-                  }
-                ],
-                "timeBasis": "project"
-              },
-              {
-                "property": "scale",
-                "keyframes": [
-                  {
-                    "timeMs": 3360,
-                    "value": 0.9,
-                    "easing": "linear"
-                  },
-                  {
-                    "timeMs": 3460,
-                    "value": 1,
-                    "easing": "fastSlow"
-                  }
-                ],
-                "timeBasis": "project"
-              }
-            ]
-          },
-          {
-            "id": "promptMicIcon",
-            "kind": "icon",
-            "properties": {
-              "parentId": "micSlot",
-              "componentType": "PromptInputBar",
-              "componentId": "professionalPromptBar",
-              "layoutRole": "icon",
-              "layout": {
-                "slot": "mic",
-                "anchor": "center"
-              },
-              "icon": "mic",
-              "position": {
-                "x": 0,
-                "y": 0
-              },
-              "width": 38,
-              "height": 38,
-              "color": "#050505",
-              "opacity": 0
-            },
-            "channels": [
-              {
-                "property": "opacity",
-                "keyframes": [
-                  {
-                    "timeMs": 1600,
-                    "value": 0,
-                    "easing": "linear"
-                  },
-                  {
-                    "timeMs": 1800,
-                    "value": 1,
-                    "easing": "fastSlow"
-                  }
-                ],
-                "timeBasis": "project"
-              },
-              {
-                "property": "scale",
-                "keyframes": [
-                  {
-                    "timeMs": 1600,
-                    "value": 0.5,
-                    "easing": "linear"
-                  },
-                  {
-                    "timeMs": 1760,
-                    "value": 1.16,
-                    "easing": "slowFastSlow"
-                  },
-                  {
-                    "timeMs": 1920,
-                    "value": 1,
-                    "easing": "fastSlow"
-                  }
-                ],
-                "timeBasis": "project"
-              }
-            ]
-          },
-          {
-            "id": "micSlot",
-            "kind": "shape",
-            "properties": {
-              "parentId": "promptFrame",
-              "componentType": "PromptInputBar",
-              "componentId": "professionalPromptBar",
-              "layoutRole": "container",
-              "shapeKind": "roundedRectangle",
-              "position": {
-                "x": 188,
-                "y": 0
-              },
-              "width": 64,
-              "height": 64,
-              "cornerRadius": 32,
-              "color": "#FFFFFF",
-              "opacity": 1
-            },
-            "channels": []
-          },
-          {
-            "id": "sendButton",
-            "kind": "shape",
-            "properties": {
-              "parentId": "promptFrame",
-              "componentType": "PromptInputBar",
-              "componentId": "professionalPromptBar",
-              "layoutRole": "container",
-              "layout": {
-                "slot": "trailingAccessory",
-                "anchor": "center"
-              },
-              "shapeKind": "circle",
-              "position": {
-                "x": 258,
-                "y": 0
-              },
-              "width": 72,
-              "height": 72,
-              "color": "#F7F7F9",
-              "opacity": 0
-            },
-            "channels": [
-              {
-                "property": "opacity",
-                "keyframes": [
-                  {
-                    "timeMs": 1680,
-                    "value": 0,
-                    "easing": "linear"
-                  },
-                  {
-                    "timeMs": 1880,
-                    "value": 1,
-                    "easing": "fastSlow"
-                  }
-                ],
-                "timeBasis": "project"
-              },
-              {
-                "property": "scale",
-                "keyframes": [
-                  {
-                    "timeMs": 1680,
-                    "value": 0.45,
-                    "easing": "linear"
-                  },
-                  {
-                    "timeMs": 1840,
                     "value": 1.14,
                     "easing": "slowFastSlow"
                   },
                   {
-                    "timeMs": 2000,
+                    "timeMs": 1840,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 2860,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3000,
+                    "value": 0.82,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 3180,
+                    "value": 1.1,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 3340,
                     "value": 1,
                     "easing": "fastSlow"
                   }
@@ -667,21 +679,21 @@
             ]
           },
           {
-            "id": "voiceIcon",
+            "id": "sendIcon",
             "kind": "icon",
             "properties": {
               "parentId": "sendButton",
               "componentType": "PromptInputBar",
-              "componentId": "professionalPromptBar",
+              "componentId": "smartTestPromptBar",
               "layoutRole": "icon",
-              "icon": "volume",
+              "icon": "send",
               "position": {
                 "x": 0,
                 "y": 0
               },
-              "width": 36,
-              "height": 36,
-              "color": "#050505",
+              "width": 30,
+              "height": 30,
+              "color": "#FFFFFF",
               "opacity": 0
             },
             "channels": [
@@ -689,12 +701,12 @@
                 "property": "opacity",
                 "keyframes": [
                   {
-                    "timeMs": 1720,
+                    "timeMs": 1560,
                     "value": 0,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 1900,
+                    "timeMs": 1740,
                     "value": 1,
                     "easing": "fastSlow"
                   }
@@ -705,17 +717,37 @@
                 "property": "scale",
                 "keyframes": [
                   {
-                    "timeMs": 1720,
+                    "timeMs": 1560,
                     "value": 0.5,
                     "easing": "linear"
                   },
                   {
-                    "timeMs": 1880,
+                    "timeMs": 1720,
                     "value": 1.12,
                     "easing": "slowFastSlow"
                   },
                   {
-                    "timeMs": 2040,
+                    "timeMs": 1880,
+                    "value": 1,
+                    "easing": "fastSlow"
+                  },
+                  {
+                    "timeMs": 2860,
+                    "value": 1,
+                    "easing": "linear"
+                  },
+                  {
+                    "timeMs": 3000,
+                    "value": 0.86,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 3180,
+                    "value": 1.08,
+                    "easing": "slowFastSlow"
+                  },
+                  {
+                    "timeMs": 3340,
                     "value": 1,
                     "easing": "fastSlow"
                   }

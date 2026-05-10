@@ -239,11 +239,10 @@ void main() {
     );
   });
 
-  test(
-      'professional prompt bar clean preset imports through scene authoring pipeline',
+  test('smart test app prompt preset imports through scene authoring pipeline',
       () {
     final source = File(
-      'assets/scene_programs/professional_prompt_bar_clean_scene.json',
+      'assets/scene_programs/smart_test_app_prompt_scene.json',
     ).readAsStringSync();
 
     final extracted = KieSceneProgramAgentService()
@@ -252,9 +251,9 @@ void main() {
         const ReFusionSceneProgramAuthoringService().importSceneProgram(
       ReFusionSceneProgramAuthoringRequest(
         source: extracted.sceneProgramJson,
-        fileName: 'professional_prompt_bar_clean_scene.json',
-        projectId: 'professional-prompt-bar-clean-test',
-        sceneId: 'professional-prompt-bar-clean-scene',
+        fileName: 'smart_test_app_prompt_scene.json',
+        projectId: 'smart-test-app-prompt-test',
+        sceneId: 'smart-test-app-prompt-scene',
       ),
     );
 
@@ -265,8 +264,8 @@ void main() {
           .map((issue) => '${issue.severity} ${issue.path}: ${issue.message}')
           .join('\n'),
     );
-    expect(result.program?.name, 'Professional Prompt Bar Clean');
-    expect(result.program?.durationMs, 4200);
+    expect(result.program?.name, 'Smart Test App Prompt');
+    expect(result.program?.durationMs, 3600);
     expect(
       result.issues.any(
         (issue) =>
@@ -383,14 +382,15 @@ void main() {
     await tester.tap(find.text('Open Present'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Professional Prompt Bar Clean'), findsOneWidget);
+    expect(find.text('Smart Test App Prompt'), findsOneWidget);
+    expect(find.text('Professional Prompt Bar Clean'), findsNothing);
     expect(find.text('Prompt Bar Spring Morph'), findsNothing);
     expect(find.text('Professional Test Version 3'), findsNothing);
     expect(find.text('Premium App Promo'), findsNothing);
     expect(find.text('ReFusion Prompt Burst'), findsNothing);
     expect(find.text('No clean present scene yet'), findsNothing);
 
-    await tester.tap(find.text('Professional Prompt Bar Clean'));
+    await tester.tap(find.text('Smart Test App Prompt'));
     await tester.runAsync(() async {
       for (var attempt = 0;
           attempt < 40 && appliedResult == null;
@@ -401,8 +401,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(appliedResult, isNotNull);
-    expect(appliedResult!.name, 'Professional Prompt Bar Clean');
+    expect(appliedResult!.name, 'Smart Test App Prompt');
     expect(appliedResult!.replaceExistingComposition, isTrue);
-    expect(appliedResult!.authoringResult.program?.durationMs, 4200);
+    expect(appliedResult!.authoringResult.program?.durationMs, 3600);
   });
 }

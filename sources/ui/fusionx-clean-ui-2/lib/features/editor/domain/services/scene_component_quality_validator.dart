@@ -444,7 +444,9 @@ class SceneComponentQualityValidator {
         return icon == 'volume' ||
             icon == 'audiowave' ||
             icon == 'waveform' ||
-            icon == 'speaker';
+            icon == 'speaker' ||
+            icon == 'send' ||
+            icon == 'arrowup';
       });
       if (hasPlus && hasMic && hasTrailingVoice) {
         continue;
@@ -459,7 +461,7 @@ class SceneComponentQualityValidator {
           repairPayload: <String, Object?>{
             'action': 'restorePromptIcons',
             'componentId': entry.key,
-            'requiredIcons': const <String>['plus', 'mic', 'volume'],
+            'requiredIcons': const <String>['plus', 'mic', 'send'],
           },
         ),
       );
