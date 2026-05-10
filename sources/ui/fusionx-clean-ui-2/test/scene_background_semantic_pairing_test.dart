@@ -39,4 +39,83 @@ void main() {
       isTrue,
     );
   });
+
+  test('maps AI-focused brief to node-link micro-scene', () {
+    final brief = SceneDirectorBrief(
+      intent: 'AI assistant launch',
+      audience: 'founders',
+      mood: 'modern',
+      primaryFocus: 'chatgpt automation',
+      rhythm: 'intro -> demo -> outro',
+      aspect: r'$canvas.vertical9x16',
+      durationIntent: r'$duration.medium',
+      elements: <SceneDirectorBriefElement>[
+        SceneDirectorBriefElement(
+          kind: 'title',
+          importance: 'primary',
+          text: 'Think deeper',
+        ),
+      ],
+    );
+
+    final result = pairing.resolve(brief);
+    expect(result.spec.topic, 'ai');
+    expect(result.spec.microSceneId, 'ai.nodes');
+    expect(result.microScene, isNotNull);
+  });
+
+  test('maps social-focused brief to connection micro-scene', () {
+    final brief = SceneDirectorBrief(
+      intent: 'Social creator toolkit',
+      audience: 'creators',
+      mood: 'energetic',
+      primaryFocus: 'community growth',
+      rhythm: 'intro -> cards -> outro',
+      aspect: r'$canvas.vertical9x16',
+      durationIntent: r'$duration.medium',
+      elements: <SceneDirectorBriefElement>[
+        SceneDirectorBriefElement(
+          kind: 'featureCardGroup',
+          importance: 'primary',
+          cards: <SceneDirectorBriefCard>[
+            SceneDirectorBriefCard(
+              label: 'Feed',
+              body: 'Plan posts and social campaigns',
+            ),
+          ],
+        ),
+      ],
+    );
+
+    final result = pairing.resolve(brief);
+    expect(result.spec.topic, 'social');
+    expect(result.spec.microSceneId, 'social.links');
+    expect(result.microScene, isNotNull);
+  });
+
+  test('supports explicit no-background override in brief metadata', () {
+    final brief = SceneDirectorBrief(
+      intent: 'Minimal clean prompt animation',
+      audience: 'marketers',
+      mood: 'calm',
+      primaryFocus: 'prompt bar',
+      rhythm: 'intro -> text -> outro',
+      aspect: r'$canvas.vertical9x16',
+      durationIntent: r'$duration.medium',
+      metadata: const <String, Object?>{
+        'noBackground': true,
+      },
+      elements: <SceneDirectorBriefElement>[
+        SceneDirectorBriefElement(
+          kind: 'typingPrompt',
+          importance: 'primary',
+        ),
+      ],
+    );
+
+    final result = pairing.resolve(brief);
+    expect(result.spec.backgroundEnabled, isFalse);
+    expect(result.microScene, isNull);
+    expect(result.spec.topic, 'disabled');
+  });
 }

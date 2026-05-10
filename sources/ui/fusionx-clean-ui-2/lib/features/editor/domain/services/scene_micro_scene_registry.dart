@@ -77,7 +77,63 @@ class SceneMicroSceneRegistry {
       motionRecipe: r'$motion.softFadeUp',
       aspectBias: 'free',
     ),
+    'ai.nodes': SceneMicroSceneSpec(
+      id: 'ai.nodes',
+      kind: 'particleNodes',
+      width: 900,
+      height: 240,
+      opacity: 0.07,
+      motionRecipe: r'$motion.softFadeUp',
+      aspectBias: 'free',
+    ),
+    'speed.lines': SceneMicroSceneSpec(
+      id: 'speed.lines',
+      kind: 'motionLines',
+      width: 980,
+      height: 160,
+      opacity: 0.07,
+      motionRecipe: r'$motion.softFadeUp',
+      aspectBias: 'horizontal',
+    ),
+    'cloud.paths': SceneMicroSceneSpec(
+      id: 'cloud.paths',
+      kind: 'cloudDots',
+      width: 920,
+      height: 200,
+      opacity: 0.06,
+      motionRecipe: r'$motion.softFadeUp',
+      aspectBias: 'free',
+    ),
+    'code.grid': SceneMicroSceneSpec(
+      id: 'code.grid',
+      kind: 'codeGrid',
+      width: 900,
+      height: 220,
+      opacity: 0.06,
+      motionRecipe: r'$motion.softFadeUp',
+      aspectBias: 'horizontal',
+    ),
+    'social.links': SceneMicroSceneSpec(
+      id: 'social.links',
+      kind: 'socialLinks',
+      width: 920,
+      height: 220,
+      opacity: 0.06,
+      motionRecipe: r'$motion.softFadeUp',
+      aspectBias: 'free',
+    ),
+    'privacy.shields': SceneMicroSceneSpec(
+      id: 'privacy.shields',
+      kind: 'shieldPattern',
+      width: 860,
+      height: 220,
+      opacity: 0.06,
+      motionRecipe: r'$motion.softFadeUp',
+      aspectBias: 'free',
+    ),
   };
 
   SceneMicroSceneSpec? find(String id) => _specs[id];
+
+  List<String> get ids => _specs.keys.toList(growable: false)..sort();
 }
