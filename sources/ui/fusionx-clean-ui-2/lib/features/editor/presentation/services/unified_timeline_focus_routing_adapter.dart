@@ -99,24 +99,12 @@ class UnifiedTimelineFocusRoutingAdapter {
 
     if (row.isTransition ||
         row.layerType == UnifiedTimelineLayerType.adjustment) {
-      if (!row.canFocusKeyframes) {
-        return UnifiedTimelineFocusRoutingDecision(
-          route: UnifiedTimelineFocusRoute.unsupported,
-          sourceId: sourceId,
-          message: 'This adjustment layer has no editable keyframes yet.',
-          issue: UnifiedTimelineFocusIssue(
-            code: UnifiedTimelineFocusIssueCode.adjustmentLayerFocusUnsupported,
-            message:
-                'Adjustment row `${row.id}` does not expose focusable keyframes.',
-            rowId: row.id,
-            sourceId: sourceId,
-          ),
-        );
-      }
       return UnifiedTimelineFocusRoutingDecision(
         route: UnifiedTimelineFocusRoute.adjustmentScope,
         sourceId: sourceId,
-        message: 'Opening adjustment keyframe focus.',
+        message: row.canFocusKeyframes
+            ? 'Opening adjustment keyframe focus.'
+            : 'Opening adjustment layer controls.',
       );
     }
 

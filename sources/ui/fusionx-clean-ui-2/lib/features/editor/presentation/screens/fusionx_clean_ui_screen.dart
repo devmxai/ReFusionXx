@@ -13519,15 +13519,97 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         _showStageMessage('Null/control layers are planned for parent motion.');
         return;
       case _UniversalAddAction.adjustmentLayer:
-        _showStageMessage(
-          'Adjustment layers will connect to the effects stack later.',
-        );
+        await _openUnifiedAdjustmentLayerFlow();
         return;
       case _UniversalAddAction.projectAsset:
         _showStageMessage(
             'Project asset browser is planned for a later slice.');
         return;
     }
+  }
+
+  Future<void> _openUnifiedAdjustmentLayerFlow() async {
+    final selectedContext = _selectedClipContext;
+    if (selectedContext != null &&
+        selectedContext.track.kind == TimelineTrackKind.video) {
+      final boundary = _resolvePreferredAdjustmentBoundary(
+        track: selectedContext.track,
+        preferredClipId: selectedContext.clip.id,
+      );
+      if (boundary != null) {
+        await _handleTimelineTransitionTap(
+          selectedContext.track,
+          boundary.left,
+          boundary.right,
+        );
+        return;
+      }
+    }
+
+    for (final track in _tracks) {
+      if (track.kind != TimelineTrackKind.video) {
+        continue;
+      }
+      final boundary = _resolvePreferredAdjustmentBoundary(track: track);
+      if (boundary == null) {
+        continue;
+      }
+      await _handleTimelineTransitionTap(track, boundary.left, boundary.right);
+      return;
+    }
+
+    _showStageMessage(
+      'Add at least two adjacent video clips before inserting an adjustment layer.',
+    );
+  }
+
+  _TimelineBoundaryCandidate? _resolvePreferredAdjustmentBoundary({
+    required TimelineTrackData track,
+    String? preferredClipId,
+  }) {
+    final clips = track.clips;
+    if (clips.length < 2) {
+      return null;
+    }
+
+    int? preferredIndex;
+    if (preferredClipId != null) {
+      for (var index = 0; index < clips.length; index++) {
+        if (clips[index].id == preferredClipId) {
+          preferredIndex = index;
+          break;
+        }
+      }
+    }
+
+    if (preferredIndex != null) {
+      if (preferredIndex + 1 < clips.length) {
+        final left = clips[preferredIndex];
+        final right = clips[preferredIndex + 1];
+        if (_isTransitionEligibleClipForTrack(track, left) &&
+            _isTransitionEligibleClipForTrack(track, right)) {
+          return _TimelineBoundaryCandidate(left: left, right: right);
+        }
+      }
+      if (preferredIndex - 1 >= 0) {
+        final left = clips[preferredIndex - 1];
+        final right = clips[preferredIndex];
+        if (_isTransitionEligibleClipForTrack(track, left) &&
+            _isTransitionEligibleClipForTrack(track, right)) {
+          return _TimelineBoundaryCandidate(left: left, right: right);
+        }
+      }
+    }
+
+    for (var index = 0; index < clips.length - 1; index++) {
+      final left = clips[index];
+      final right = clips[index + 1];
+      if (_isTransitionEligibleClipForTrack(track, left) &&
+          _isTransitionEligibleClipForTrack(track, right)) {
+        return _TimelineBoundaryCandidate(left: left, right: right);
+      }
+    }
+    return null;
   }
 
   void _insertEmptySceneClipAfterCurrentSelection() {
@@ -27597,6 +27679,16 @@ class _SelectedTimelineClipContext {
   double get clipStartSeconds => clipStartTime.inSecondsDouble;
 
   double get clipEndSeconds => clipEndTime.inSecondsDouble;
+}
+
+class _TimelineBoundaryCandidate {
+  const _TimelineBoundaryCandidate({
+    required this.left,
+    required this.right,
+  });
+
+  final TimelineClipData left;
+  final TimelineClipData right;
 }
 
 enum _TimelineStructuralEditKind {

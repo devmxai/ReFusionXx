@@ -139,6 +139,48 @@ void main() {
     expect(decision.sourceId, 'transition:01');
   });
 
+  test('routes non-focusable adjustment row to adjustment scope', () {
+    final nonFocusablePresentation = UnifiedTimelinePresentation(
+      scopeKind: UnifiedTimelineScopeKind.root,
+      currentTime: TimelineTime.zero,
+      durationTime: TimelineTime.fromMilliseconds(2000),
+      rows: <UnifiedTimelinePresentationRow>[
+        UnifiedTimelinePresentationRow(
+          id: 'row:adjustment:plain',
+          trackId: 'track:fx',
+          sourceId: 'transition:plain',
+          layerType: UnifiedTimelineLayerType.adjustment,
+          sourceKind: 'transition',
+          label: 'Adjustment',
+          startTime: TimelineTime.zero,
+          durationTime: TimelineTime.fromMilliseconds(500),
+          zIndex: 0,
+          isVisible: true,
+          isLocked: false,
+          isMuted: false,
+          isTransition: false,
+          canFocusKeyframes: false,
+          canTrim: true,
+          canMove: true,
+          canReceiveEffects: true,
+        ),
+      ],
+      issues: const <UnifiedTimelinePresentationIssue>[],
+    );
+    final decision = adapter.resolve(
+      UnifiedTimelineFocusRoutingRequest(
+        presentation: nonFocusablePresentation,
+        projectedClipId: 'row:adjustment:plain',
+        rowClipIdToSourceClipId: const <String, String>{
+          'row:adjustment:plain': 'transition:plain',
+        },
+      ),
+    );
+
+    expect(decision.route, UnifiedTimelineFocusRoute.adjustmentScope);
+    expect(decision.sourceId, 'transition:plain');
+  });
+
   test('returns unsupported for audio row', () {
     final decision = adapter.resolve(
       UnifiedTimelineFocusRoutingRequest(

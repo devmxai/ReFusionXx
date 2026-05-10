@@ -101,6 +101,7 @@ class UnifiedTimelineAddCommandRegistry {
     videoLayer,
     imageLayer,
     textLayer,
+    adjustmentLayer,
     audioLayer,
   ];
 
@@ -110,6 +111,7 @@ class UnifiedTimelineAddCommandRegistry {
     imageLayer,
     textLayer,
     shapeLayer,
+    adjustmentLayer,
     audioLayer,
   ];
 

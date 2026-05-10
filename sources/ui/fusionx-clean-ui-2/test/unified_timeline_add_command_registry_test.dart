@@ -15,6 +15,7 @@ void main() {
         'videoLayer',
         'imageLayer',
         'textLayer',
+        'adjustmentLayer',
         'audioLayer',
       ],
     );
@@ -30,6 +31,7 @@ void main() {
         'imageLayer',
         'textLayer',
         'shapeLayer',
+        'adjustmentLayer',
         'audioLayer',
       ],
     );
