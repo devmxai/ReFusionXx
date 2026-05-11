@@ -330,4 +330,8 @@ class RefusionMcpCommandBus {
   List<RefusionMcpPendingTransaction> get pendingTransactions {
     return _transactionManager.pendingTransactions;
   }
+
+  List<RefusionMcpCommittedTransaction> get recentCommittedTransactions {
+    return _transactionManager.recentCommittedTransactions;
+  }
 }

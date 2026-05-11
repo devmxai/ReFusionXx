@@ -3,7 +3,9 @@ import 'package:flutter/foundation.dart';
 import 'refusion_mcp_command.dart';
 import 'refusion_mcp_command_bus.dart';
 import 'refusion_mcp_command_result.dart';
+import 'refusion_mcp_session.dart';
 import 'refusion_mcp_session_store.dart';
+import 'refusion_mcp_transaction.dart';
 import 'refusion_mcp_tool_registry.dart';
 
 typedef RefusionMcpRevisionReader = int Function();
@@ -59,6 +61,12 @@ class RefusionMcpAgentControlPlane {
       );
     }
     switch (request.toolName) {
+      case 'refusion.dry_run_command':
+        return _dryRunCommand(
+          request: request,
+          session: session,
+          revision: revision,
+        );
       case 'refusion.commit_transaction':
         return _commandBus.commitTransaction(
           session: session,
@@ -75,6 +83,22 @@ class RefusionMcpAgentControlPlane {
         return _commandBus.redo(
           session: session,
           currentRevision: revision,
+        );
+      case 'refusion.list_recent_transactions':
+        return RefusionMcpCommandResult(
+          ok: true,
+          summary: 'Recent transactions loaded.',
+          sessionId: session.id,
+          revisionBefore: revision,
+          revisionAfter: revision,
+          payload: <String, Object?>{
+            'pending': _commandBus.pendingTransactions
+                .map((entry) => _serializePending(entry))
+                .toList(growable: false),
+            'recentCommitted': _commandBus.recentCommittedTransactions
+                .map((entry) => _serializeCommitted(entry))
+                .toList(growable: false),
+          },
         );
       default:
         break;
@@ -119,5 +143,84 @@ class RefusionMcpAgentControlPlane {
       return value.trim();
     }
     return '';
+  }
+
+  RefusionMcpCommandResult _dryRunCommand({
+    required RefusionMcpToolCallRequest request,
+    required RefusionMcpSession session,
+    required int revision,
+  }) {
+    final targetToolName = request.payload['toolName'] as String?;
+    if (targetToolName == null || targetToolName.trim().isEmpty) {
+      return RefusionMcpCommandResult.failure(
+        sessionId: session.id,
+        revisionBefore: revision,
+        code: RefusionMcpCommandErrorCode.validationFailed,
+        message: 'dry_run_command requires payload.toolName.',
+      );
+    }
+    if (targetToolName == 'refusion.dry_run_command') {
+      return RefusionMcpCommandResult.failure(
+        sessionId: session.id,
+        revisionBefore: revision,
+        code: RefusionMcpCommandErrorCode.validationFailed,
+        message: 'dry_run_command cannot target itself.',
+      );
+    }
+    final nestedPayload = _readPayload(request.payload['payload']);
+    final nestedRequest = RefusionMcpToolCallRequest(
+      toolName: targetToolName,
+      sessionId: request.sessionId,
+      projectId: request.projectId,
+      commandId: '${request.commandId}:dryrun',
+      idempotencyKey: '${request.idempotencyKey}:dryrun',
+      mode: RefusionMcpCommandMode.dryRun,
+      expectedRevision: request.expectedRevision,
+      payload: nestedPayload,
+    );
+    return executeTool(nestedRequest);
+  }
+
+  Map<String, Object?> _readPayload(Object? payload) {
+    if (payload is Map<String, Object?>) {
+      return payload;
+    }
+    if (payload is Map) {
+      final casted = <String, Object?>{};
+      for (final entry in payload.entries) {
+        if (entry.key is String) {
+          casted[entry.key as String] = entry.value;
+        }
+      }
+      return casted;
+    }
+    return const <String, Object?>{};
+  }
+
+  Map<String, Object?> _serializePending(RefusionMcpPendingTransaction value) {
+    return <String, Object?>{
+      'id': value.id,
+      'commandType': value.command.type,
+      'capability': value.command.capability.value,
+      'revisionBefore': value.revisionBefore,
+      'summary': value.summary,
+      'createdAtUtc': value.createdAt.toIso8601String(),
+      'affectedObjects': value.patchPreview.affectedObjects,
+      'changedProperties': value.patchPreview.changedProperties,
+    };
+  }
+
+  Map<String, Object?> _serializeCommitted(
+    RefusionMcpCommittedTransaction value,
+  ) {
+    return <String, Object?>{
+      'id': value.id,
+      'commandType': value.command.type,
+      'capability': value.command.capability.value,
+      'revisionBefore': value.revisionBefore,
+      'revisionAfter': value.revisionAfter,
+      'summary': value.summary,
+      'committedAtUtc': value.committedAt.toIso8601String(),
+    };
   }
 }

@@ -98,6 +98,19 @@ class RefusionMcpToolRegistry {
       mutating: true,
     ),
     RefusionMcpToolDescriptor(
+      name: 'refusion.dry_run_command',
+      title: 'Dry Run Command',
+      description: 'Execute any registered command in dry-run mode.',
+      capability: RefusionMcpCapability.timelineRead,
+    ),
+    RefusionMcpToolDescriptor(
+      name: 'refusion.commit_transaction',
+      title: 'Commit Transaction',
+      description: 'Commit a pending transaction by transactionId.',
+      capability: RefusionMcpCapability.timelineWrite,
+      mutating: true,
+    ),
+    RefusionMcpToolDescriptor(
       name: 'refusion.undo_transaction',
       title: 'Undo Transaction',
       description: 'Undo last committed MCP transaction.',
@@ -110,6 +123,12 @@ class RefusionMcpToolRegistry {
       description: 'Redo last undone MCP transaction.',
       capability: RefusionMcpCapability.timelineWrite,
       mutating: true,
+    ),
+    RefusionMcpToolDescriptor(
+      name: 'refusion.list_recent_transactions',
+      title: 'List Recent Transactions',
+      description: 'Return committed and pending transaction summaries.',
+      capability: RefusionMcpCapability.timelineRead,
     ),
   ];
 
