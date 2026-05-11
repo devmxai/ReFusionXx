@@ -13,6 +13,8 @@ class EditorToolsBar extends StatelessWidget {
     this.isTrimModeActive = false,
     this.onDuplicate,
     this.onDelete,
+    this.onTransformToggle,
+    this.isTransformModeActive = false,
     this.onPlayToggle,
   });
 
@@ -23,6 +25,8 @@ class EditorToolsBar extends StatelessWidget {
   final bool isTrimModeActive;
   final VoidCallback? onDuplicate;
   final VoidCallback? onDelete;
+  final VoidCallback? onTransformToggle;
+  final bool isTransformModeActive;
   final VoidCallback? onPlayToggle;
 
   @override
@@ -58,6 +62,17 @@ class EditorToolsBar extends StatelessWidget {
         size: 30,
         iconScale: 0.4,
         onPressed: onDelete,
+      ),
+      const SizedBox(width: 5),
+      FxIconButton(
+        icon: Icons.open_with_rounded,
+        size: 30,
+        iconScale: 0.4,
+        foregroundColor:
+            isTransformModeActive ? FxPalette.background : FxPalette.textMuted,
+        backgroundColor:
+            isTransformModeActive ? FxPalette.accent : FxPalette.surface,
+        onPressed: onTransformToggle,
       ),
     ];
 

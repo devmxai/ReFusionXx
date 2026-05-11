@@ -109,7 +109,6 @@ import '../widgets/media_dock.dart';
 import '../widgets/motion_image_preview_overlay.dart';
 import '../widgets/motion_shape_preview_overlay.dart';
 import '../widgets/motion_text_preview_overlay.dart';
-import '../widgets/motion_text_transform_overlay.dart';
 import '../widgets/motion_video_preview_transform.dart';
 import '../widgets/native_timeline_scrub_surface.dart';
 import '../widgets/native_preview_surface.dart';
@@ -118,6 +117,7 @@ import '../widgets/professional_video_transition_surface.dart';
 import '../widgets/remotion_prompt_bottom_sheet.dart';
 import '../widgets/scene_program_import_bottom_sheet.dart';
 import '../widgets/scoped_text_motion_script_bottom_sheet.dart';
+import '../widgets/unified_canvas_transform_overlay.dart';
 import '../widgets/text_clip_edit_bottom_sheet.dart';
 import '../widgets/timeline_panel.dart';
 import '../widgets/timeline_transition_preview_overlay.dart';
@@ -730,6 +730,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   bool _isLayerScopeGraphEditorOpen = false;
   bool _isTransitionFocusValueEditorOpen = false;
   bool _isTransitionFocusGraphEditorOpen = false;
+  bool _isCanvasTransformToolActive = false;
   String? _lastGraphAvailabilityProof;
   String? _previewAssetId;
   PreviewViewportState _previewViewportState = PreviewViewportState.identity;
@@ -2981,6 +2982,37 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return null;
   }
 
+  _MotionElementContext? _motionElementContextForId(String elementId) {
+    final project = _motionProject;
+    if (project == null) {
+      return null;
+    }
+    for (var sceneIndex = 0; sceneIndex < project.scenes.length; sceneIndex++) {
+      final scene = project.scenes[sceneIndex];
+      for (var layerIndex = 0; layerIndex < scene.layers.length; layerIndex++) {
+        final layer = scene.layers[layerIndex];
+        for (var elementIndex = 0;
+            elementIndex < layer.elements.length;
+            elementIndex++) {
+          final element = layer.elements[elementIndex];
+          if (element.id != elementId) {
+            continue;
+          }
+          return _MotionElementContext(
+            project: project,
+            sceneIndex: sceneIndex,
+            layerIndex: layerIndex,
+            elementIndex: elementIndex,
+            scene: scene,
+            layer: layer,
+            element: element,
+          );
+        }
+      }
+    }
+    return null;
+  }
+
   MotionTextAnimationBindingModel? _motionTextBindingForElementId(
     String elementId, {
     List<MotionTextAnimationBindingModel>? bindings,
@@ -3336,6 +3368,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
   }
 
+  void _handleCanvasTransformToolToggle() {
+    setState(() {
+      _isCanvasTransformToolActive = !_isCanvasTransformToolActive;
+    });
+  }
+
   double? _bindingScalarParameter(
     MotionTextAnimationBindingModel? binding,
     String parameterId,
@@ -3345,23 +3383,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return null;
     }
     return value.rawValue as double;
-  }
-
-  String? _selectedCanvasTextElementIdForSnapshot(
-    MotionTextRenderSnapshot snapshot,
-  ) {
-    final candidateElementId = _hasSelectedMotionTextClip
-        ? _selectedClipId
-        : _textEditSession?.elementId;
-    if (candidateElementId == null) {
-      return null;
-    }
-    for (final node in snapshot.nodes) {
-      if (node.targetElementId == candidateElementId) {
-        return candidateElementId;
-      }
-    }
-    return null;
   }
 
   bool get _hasSelectedImportedClip =>
@@ -12149,11 +12170,28 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _handleTimelineScrubFinalized(_layerScopeGlobalTime(context, localTime));
   }
 
-  void _handleCanvasTextSelected(String elementId) {
-    _selectTextElement(elementId);
+  void _handleCanvasNodeSelected(String elementId) {
+    if (_motionTextElementContextForId(elementId) != null) {
+      _selectTextElement(elementId);
+      return;
+    }
+    final context = _motionElementContextForId(elementId);
+    if (context == null) {
+      return;
+    }
+    setState(() {
+      _selectedClipId = elementId;
+      _activeTab = switch (context.element.kind) {
+        MotionElementKind.image => EditorMediaTab.image,
+        MotionElementKind.videoClip => EditorMediaTab.video,
+        MotionElementKind.text => EditorMediaTab.text,
+        MotionElementKind.audioClip => EditorMediaTab.audio,
+        _ => _activeTab,
+      };
+    });
   }
 
-  void _handleCanvasTextEditRequested(String elementId) {
+  void _handleCanvasNodeEditRequested(String elementId) {
     _enterLayerScope(elementId);
   }
 
@@ -12203,6 +12241,32 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     });
   }
 
+  void _handleCanvasNodeMoved(String elementId, Offset deltaCanvas) {
+    if (_motionTextElementContextForId(elementId) != null) {
+      _handleCanvasTextMoved(elementId, deltaCanvas);
+      return;
+    }
+    final context = _motionElementContextForId(elementId);
+    if (context == null) {
+      return;
+    }
+    _applyStaticElementScalarEdit(
+      context,
+      scalarProperties: <MotionPropertyDefinition, double>{
+        MotionPropertyCatalog.positionX: _elementScalarPropertyOrDefault(
+              context.element,
+              MotionPropertyCatalog.positionX,
+            ) +
+            deltaCanvas.dx,
+        MotionPropertyCatalog.positionY: _elementScalarPropertyOrDefault(
+              context.element,
+              MotionPropertyCatalog.positionY,
+            ) +
+            deltaCanvas.dy,
+      },
+    );
+  }
+
   void _handleCanvasTextScaleChanged(
     String elementId,
     double scaleX,
@@ -12237,6 +12301,28 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     });
   }
 
+  void _handleCanvasNodeScaleChanged(
+    String elementId,
+    double scaleX,
+    double scaleY,
+  ) {
+    if (_motionTextElementContextForId(elementId) != null) {
+      _handleCanvasTextScaleChanged(elementId, scaleX, scaleY);
+      return;
+    }
+    final context = _motionElementContextForId(elementId);
+    if (context == null) {
+      return;
+    }
+    _applyStaticElementScalarEdit(
+      context,
+      scalarProperties: <MotionPropertyDefinition, double>{
+        MotionPropertyCatalog.scaleX: scaleX.clamp(0.05, 20.0),
+        MotionPropertyCatalog.scaleY: scaleY.clamp(0.05, 20.0),
+      },
+    );
+  }
+
   void _handleCanvasTextRotationChanged(
     String elementId,
     double rotationDegrees,
@@ -12268,6 +12354,26 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     });
   }
 
+  void _handleCanvasNodeRotationChanged(
+    String elementId,
+    double rotationDegrees,
+  ) {
+    if (_motionTextElementContextForId(elementId) != null) {
+      _handleCanvasTextRotationChanged(elementId, rotationDegrees);
+      return;
+    }
+    final context = _motionElementContextForId(elementId);
+    if (context == null) {
+      return;
+    }
+    _applyStaticElementScalarEdit(
+      context,
+      scalarProperties: <MotionPropertyDefinition, double>{
+        MotionPropertyCatalog.rotationDegrees: rotationDegrees,
+      },
+    );
+  }
+
   bool _isAnimatingTextElementInScopedMode(String elementId) =>
       _activeLayerScopeContext?.clip.id == elementId;
 
@@ -12285,6 +12391,46 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _selectedClipId = context.element.id;
       _activeTab = EditorMediaTab.text;
     });
+  }
+
+  void _applyStaticElementScalarEdit(
+    _MotionElementContext context, {
+    required Map<MotionPropertyDefinition, double> scalarProperties,
+  }) {
+    final nextProperties = List<MotionPropertyAssignment>.from(
+      context.element.properties,
+    );
+    for (final entry in scalarProperties.entries) {
+      final nextAssignment = MotionPropertyAssignment(
+        target: context.elementTarget,
+        definition: entry.key,
+        value: MotionPropertyValue.scalar(entry.value),
+      );
+      final propertyIndex = nextProperties.indexWhere(
+        (property) => property.definition.id == entry.key.id,
+      );
+      if (propertyIndex >= 0) {
+        nextProperties[propertyIndex] = nextAssignment;
+      } else {
+        nextProperties.add(nextAssignment);
+      }
+    }
+    final updatedElement = context.element.copyWith(
+      properties: List<MotionPropertyAssignment>.unmodifiable(nextProperties),
+    );
+    final nextElements = List<MotionElementModel>.from(context.layer.elements)
+      ..[context.elementIndex] = updatedElement;
+    final nextLayers = List<MotionLayerModel>.from(context.scene.layers)
+      ..[context.layerIndex] = context.layer.copyWith(elements: nextElements);
+    final nextScenes = List<MotionSceneModel>.from(context.project.scenes)
+      ..[context.sceneIndex] = context.scene.copyWith(layers: nextLayers);
+    setState(() {
+      _motionProject = context.project.copyWith(scenes: nextScenes);
+      _markMotionAuthoringChanged();
+      _selectedClipId = context.element.id;
+    });
+    _syncLayerScopeTimeNotifiers();
+    _syncTimelineClockDuration();
   }
 
   void _handleDeleteSelectedClip() {
@@ -23394,6 +23540,286 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return false;
   }
 
+  UnifiedCanvasTransformSnapshot? _unifiedCanvasTransformSnapshotFor({
+    required MotionNormalizedComposition? composition,
+    required MotionEvaluationSnapshot? evaluation,
+    required MotionTextRenderSnapshot? textSnapshot,
+  }) {
+    final canvasSize =
+        textSnapshot?.canvasSize ?? composition?.format.canvasSize;
+    if (canvasSize == null) {
+      return null;
+    }
+    final nodes = <UnifiedCanvasTransformNode>[
+      if (evaluation != null)
+        ..._unifiedCanvasTransformNodesFromEvaluation(
+          composition: composition,
+          evaluation: evaluation,
+          canvasSize: canvasSize,
+        ),
+      if (textSnapshot != null)
+        ..._unifiedCanvasTransformNodesFromTextSnapshot(textSnapshot),
+    ]..sort((left, right) {
+        final zIndex = left.zIndex.compareTo(right.zIndex);
+        if (zIndex != 0) {
+          return zIndex;
+        }
+        return left.id.compareTo(right.id);
+      });
+    if (nodes.isEmpty) {
+      return null;
+    }
+    return UnifiedCanvasTransformSnapshot(
+      canvasSize: canvasSize,
+      nodes: nodes,
+    );
+  }
+
+  String? _selectedCanvasElementIdForUnifiedSnapshot(
+    UnifiedCanvasTransformSnapshot snapshot,
+  ) {
+    final selectedClipId = _selectedClipId;
+    if (selectedClipId == null) {
+      return null;
+    }
+    for (final node in snapshot.nodes) {
+      if (node.id == selectedClipId || node.layerId == selectedClipId) {
+        return node.id;
+      }
+    }
+    return null;
+  }
+
+  List<UnifiedCanvasTransformNode> _unifiedCanvasTransformNodesFromTextSnapshot(
+    MotionTextRenderSnapshot snapshot,
+  ) {
+    final nodes = <UnifiedCanvasTransformNode>[];
+    for (final node in snapshot.nodes) {
+      if (!node.isActive || node.opacity <= 0) {
+        continue;
+      }
+      final frame = node.textFrame;
+      final textLength = math.max(node.text.length, node.fullText.length);
+      final lineHeight = node.lineHeight <= 0 ? 1.0 : node.lineHeight;
+      final width =
+          frame?.width ?? math.max(36.0, textLength * node.fontSize * 0.58);
+      final height =
+          frame?.height ?? math.max(18.0, node.fontSize * lineHeight * 1.2);
+      nodes.add(
+        UnifiedCanvasTransformNode(
+          id: node.targetElementId,
+          layerId: node.layerId,
+          kind: UnifiedCanvasTransformNodeKind.text,
+          positionX: node.canvasOffset.x,
+          positionY: node.canvasOffset.y,
+          width: width,
+          height: height,
+          scaleX: node.scaleX,
+          scaleY: node.scaleY,
+          rotationDegrees: node.rotationDegrees,
+          opacity: node.opacity,
+          zIndex: node.zIndex,
+        ),
+      );
+    }
+    return nodes;
+  }
+
+  List<UnifiedCanvasTransformNode> _unifiedCanvasTransformNodesFromEvaluation({
+    required MotionNormalizedComposition? composition,
+    required MotionEvaluationSnapshot evaluation,
+    required MotionSize2D canvasSize,
+  }) {
+    final sourceByElementId = <String, MotionElementSourceBinding>{};
+    if (composition != null) {
+      for (final scene in composition.scenes) {
+        for (final layer in scene.layers) {
+          for (final element in layer.elements) {
+            final sourceBinding = element.sourceBinding;
+            if (sourceBinding != null) {
+              sourceByElementId[element.id] = sourceBinding;
+            }
+          }
+        }
+      }
+    }
+    final nodes = <UnifiedCanvasTransformNode>[];
+    var order = 0;
+    for (final scene in evaluation.scenes) {
+      if (scene.activationState != MotionActivationState.active) {
+        continue;
+      }
+      for (final layer in scene.layers) {
+        if (layer.activationState != MotionActivationState.active) {
+          continue;
+        }
+        final layerProperties = _evaluatedPropertiesById(layer.properties);
+        final layerOpacity = _evaluatedScalar(
+          layerProperties,
+          MotionPropertyCatalog.opacity.id,
+          1,
+        );
+        if (layerOpacity <= 0) {
+          continue;
+        }
+        for (final element in layer.elements) {
+          if (element.kind == MotionElementKind.text ||
+              element.activationState != MotionActivationState.active) {
+            continue;
+          }
+          final properties = _evaluatedPropertiesById(element.properties);
+          final opacity = _evaluatedScalar(
+                  properties, MotionPropertyCatalog.opacity.id, 1) *
+              layerOpacity;
+          if (opacity <= 0) {
+            continue;
+          }
+          final kind = switch (element.kind) {
+            MotionElementKind.shape => UnifiedCanvasTransformNodeKind.shape,
+            MotionElementKind.image => UnifiedCanvasTransformNodeKind.image,
+            MotionElementKind.videoClip => UnifiedCanvasTransformNodeKind.video,
+            _ => null,
+          };
+          if (kind == null) {
+            continue;
+          }
+          final size = _unifiedCanvasElementSize(
+            element: element,
+            properties: properties,
+            sourceBinding: sourceByElementId[element.id],
+            canvasSize: canvasSize,
+          );
+          if (size.width <= 0 || size.height <= 0) {
+            continue;
+          }
+          nodes.add(
+            UnifiedCanvasTransformNode(
+              id: element.id,
+              layerId: layer.id,
+              kind: kind,
+              positionX: _evaluatedScalar(
+                properties,
+                MotionPropertyCatalog.positionX.id,
+                0,
+              ),
+              positionY: _evaluatedScalar(
+                properties,
+                MotionPropertyCatalog.positionY.id,
+                0,
+              ),
+              width: size.width,
+              height: size.height,
+              scaleX: _evaluatedScalar(
+                properties,
+                MotionPropertyCatalog.scaleX.id,
+                1,
+              ),
+              scaleY: _evaluatedScalar(
+                properties,
+                MotionPropertyCatalog.scaleY.id,
+                1,
+              ),
+              rotationDegrees: _evaluatedScalar(
+                properties,
+                MotionPropertyCatalog.rotationDegrees.id,
+                0,
+              ),
+              opacity: opacity.clamp(0.0, 1.0).toDouble(),
+              zIndex: (layer.zIndex * 1000) + order++,
+            ),
+          );
+        }
+      }
+    }
+    return nodes;
+  }
+
+  Size _unifiedCanvasElementSize({
+    required MotionEvaluatedElementState element,
+    required Map<String, MotionPropertyValue> properties,
+    required MotionElementSourceBinding? sourceBinding,
+    required MotionSize2D canvasSize,
+  }) {
+    final explicitWidth = _evaluatedScalarOrNull(
+      properties,
+      MotionPropertyCatalog.width.id,
+    );
+    final explicitHeight = _evaluatedScalarOrNull(
+      properties,
+      MotionPropertyCatalog.height.id,
+    );
+    if (explicitWidth != null &&
+        explicitWidth > 0 &&
+        explicitHeight != null &&
+        explicitHeight > 0) {
+      return Size(explicitWidth, explicitHeight);
+    }
+    switch (element.kind) {
+      case MotionElementKind.shape:
+        final fallbackWidth = switch (element.shapeKind) {
+          MotionShapeKind.circle => 160.0,
+          MotionShapeKind.line => 420.0,
+          _ => 240.0,
+        };
+        final fallbackHeight = switch (element.shapeKind) {
+          MotionShapeKind.circle => 160.0,
+          MotionShapeKind.line => 8.0,
+          _ => 160.0,
+        };
+        return Size(fallbackWidth, fallbackHeight);
+      case MotionElementKind.image:
+      case MotionElementKind.videoClip:
+        final assetId = sourceBinding?.assetId ?? sourceBinding?.sourceId;
+        final asset = _assetForId(assetId);
+        final sourceWidth = asset?.width?.toDouble();
+        final sourceHeight = asset?.height?.toDouble();
+        if (sourceWidth != null &&
+            sourceWidth > 0 &&
+            sourceHeight != null &&
+            sourceHeight > 0) {
+          final fitScale = math.min(
+            canvasSize.width / sourceWidth,
+            canvasSize.height / sourceHeight,
+          );
+          return Size(sourceWidth * fitScale, sourceHeight * fitScale);
+        }
+        return Size(canvasSize.width * 0.72, canvasSize.height * 0.72);
+      default:
+        return Size.zero;
+    }
+  }
+
+  Map<String, MotionPropertyValue> _evaluatedPropertiesById(
+    List<MotionEvaluatedPropertyValue> properties,
+  ) {
+    return <String, MotionPropertyValue>{
+      for (final property in properties) property.definition.id: property.value,
+    };
+  }
+
+  double _evaluatedScalar(
+    Map<String, MotionPropertyValue> properties,
+    String id,
+    double fallback,
+  ) {
+    final rawValue = properties[id]?.rawValue;
+    if (rawValue is num) {
+      return rawValue.toDouble();
+    }
+    return fallback;
+  }
+
+  double? _evaluatedScalarOrNull(
+    Map<String, MotionPropertyValue> properties,
+    String id,
+  ) {
+    final rawValue = properties[id]?.rawValue;
+    if (rawValue is num) {
+      return rawValue.toDouble();
+    }
+    return null;
+  }
+
   void _scheduleMotionImagePreviewWarmup(
     MotionNormalizedComposition? composition,
   ) {
@@ -25522,10 +25948,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                     activeVisualOpacity >= 0.999) {
                   return const SizedBox.shrink();
                 }
-                final selectedCanvasElementId = motionTextRenderSnapshot == null
+                final unifiedTransformSnapshot =
+                    _unifiedCanvasTransformSnapshotFor(
+                  composition: motionComposition,
+                  evaluation: motionEvaluationSnapshot,
+                  textSnapshot: motionTextRenderSnapshot,
+                );
+                final selectedCanvasElementId = unifiedTransformSnapshot == null
                     ? null
-                    : _selectedCanvasTextElementIdForSnapshot(
-                        motionTextRenderSnapshot,
+                    : _selectedCanvasElementIdForUnifiedSnapshot(
+                        unifiedTransformSnapshot,
                       );
                 final outgoingTransitionBytes = activeTransition == null
                     ? null
@@ -25653,17 +26085,19 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                       MotionTextPreviewOverlay(
                         snapshot: motionTextRenderSnapshot,
                       ),
-                    if (motionTextRenderSnapshot != null && !effectiveIsPlaying)
-                      MotionTextTransformOverlay(
-                        snapshot: motionTextRenderSnapshot,
+                    if (_isCanvasTransformToolActive &&
+                        unifiedTransformSnapshot != null &&
+                        !effectiveIsPlaying)
+                      UnifiedCanvasTransformOverlay(
+                        snapshot: unifiedTransformSnapshot,
                         selectedElementId: selectedCanvasElementId,
                         isInteractive:
                             !_isTimelineScrubbing && !effectiveIsPlaying,
-                        onNodeSelected: _handleCanvasTextSelected,
-                        onNodeEditRequested: _handleCanvasTextEditRequested,
-                        onNodeMoved: _handleCanvasTextMoved,
-                        onNodeScaleChanged: _handleCanvasTextScaleChanged,
-                        onNodeRotationChanged: _handleCanvasTextRotationChanged,
+                        onNodeSelected: _handleCanvasNodeSelected,
+                        onNodeEditRequested: _handleCanvasNodeEditRequested,
+                        onNodeMoved: _handleCanvasNodeMoved,
+                        onNodeScaleChanged: _handleCanvasNodeScaleChanged,
+                        onNodeRotationChanged: _handleCanvasNodeRotationChanged,
                       ),
                   ],
                 );
@@ -26169,6 +26603,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                                             hasSelectedMotionTextClip
                                                         ? _handleDeleteSelectedClip
                                                         : null,
+                                                    isTransformModeActive:
+                                                        _isCanvasTransformToolActive,
+                                                    onTransformToggle:
+                                                        _handleCanvasTransformToolToggle,
                                                     onPlayToggle:
                                                         canToggleTimelinePlayback
                                                             ? _handlePlayToggle
@@ -27772,6 +28210,35 @@ class _TimelineStructuralEditPlan {
 
 class _MotionTextElementContext {
   const _MotionTextElementContext({
+    required this.project,
+    required this.sceneIndex,
+    required this.layerIndex,
+    required this.elementIndex,
+    required this.scene,
+    required this.layer,
+    required this.element,
+  });
+
+  final MotionProjectModel project;
+  final int sceneIndex;
+  final int layerIndex;
+  final int elementIndex;
+  final MotionSceneModel scene;
+  final MotionLayerModel layer;
+  final MotionElementModel element;
+
+  MotionPropertyTarget get elementTarget => MotionPropertyTarget(
+        kind: MotionTargetKind.element,
+        targetId: element.id,
+        projectId: project.id,
+        sceneId: scene.id,
+        layerId: layer.id,
+        elementId: element.id,
+      );
+}
+
+class _MotionElementContext {
+  const _MotionElementContext({
     required this.project,
     required this.sceneIndex,
     required this.layerIndex,
