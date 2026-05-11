@@ -197,6 +197,7 @@ class _SelectedNodeTransformBoxState extends State<_SelectedNodeTransformBox> {
   static const double _stemLength = 16;
 
   int _activePointerCount = 0;
+  Offset? _lastBodyMovePosition;
   double? _rotationGestureStartAngle;
   double? _rotationGestureStartDegrees;
 
@@ -253,6 +254,7 @@ class _SelectedNodeTransformBoxState extends State<_SelectedNodeTransformBox> {
               ),
             ),
           ),
+          _buildBodyMoveRegion(points: cornerPoints),
           for (final handle in _ResizeHandle.values)
             _buildResizeHandle(
               handle: handle,
@@ -263,6 +265,60 @@ class _SelectedNodeTransformBoxState extends State<_SelectedNodeTransformBox> {
           _buildMoveHandle(point: moveHandlePoint),
           _buildRotationHandle(point: rotationHandlePoint),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBodyMoveRegion({
+    required List<Offset> points,
+  }) {
+    final left = points.map((point) => point.dx).reduce(math.min);
+    final top = points.map((point) => point.dy).reduce(math.min);
+    final right = points.map((point) => point.dx).reduce(math.max);
+    final bottom = points.map((point) => point.dy).reduce(math.max);
+    return Positioned(
+      left: left,
+      top: top,
+      width: math.max(1.0, right - left),
+      height: math.max(1.0, bottom - top),
+      child: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: widget.isInteractive
+            ? (event) {
+                _lastBodyMovePosition = event.position;
+              }
+            : null,
+        onPointerMove: widget.isInteractive
+            ? (event) {
+                if (_activePointerCount != 1) {
+                  _lastBodyMovePosition = event.position;
+                  return;
+                }
+                final previous = _lastBodyMovePosition;
+                _lastBodyMovePosition = event.position;
+                if (previous == null) {
+                  return;
+                }
+                final delta = event.position - previous;
+                if (delta == Offset.zero) {
+                  return;
+                }
+                widget.onNodeMoved(
+                  widget.layout.node.id,
+                  Offset(
+                    delta.dx / widget.layout.stageScaleX,
+                    delta.dy / widget.layout.stageScaleY,
+                  ),
+                );
+              }
+            : null,
+        onPointerUp: (_) {
+          _lastBodyMovePosition = null;
+        },
+        onPointerCancel: (_) {
+          _lastBodyMovePosition = null;
+        },
+        child: const SizedBox.expand(),
       ),
     );
   }

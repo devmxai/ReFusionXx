@@ -26754,6 +26754,21 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                             previewConstraints.maxWidth,
                             previewConstraints.maxHeight,
                           );
+                          final useFlutterTransformEditingPreview =
+                              _isCanvasTransformToolActive &&
+                                  !effectiveIsPlaying;
+                          final transformPreviewTargetContext =
+                              useFlutterTransformEditingPreview
+                                  ? _canvasTransformTargetClipContextForPreviewTime(
+                                      _timelineDisplayTimeNotifier.value,
+                                    )
+                                  : null;
+                          final transformPreviewTransform =
+                              transformPreviewTargetContext == null
+                                  ? const _CanvasClipTransform()
+                                  : _canvasClipTransformFor(
+                                      transformPreviewTargetContext.clip.id,
+                                    );
                           final previewFallback = _CleanPreviewCanvas(
                             asset: previewCanvasAsset,
                             backgroundColor: _compositionCanvasBackgroundColor,
@@ -26761,6 +26776,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                 _previewThumbnailResolvedAssetId,
                             previewThumbnailListenable:
                                 _previewThumbnailNotifier,
+                            canvasSize: _motionProjectFormat.canvasSize,
+                            canvasTransform: transformPreviewTransform,
                           );
                           final previewStage = PreviewStage(
                             workspaceAspectRatio: _previewAspectRatio,
@@ -26773,7 +26790,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                             overlay: _buildPreviewOverlay(
                               effectiveIsPlaying: effectiveIsPlaying,
                             ),
-                            child: _useNativePreview
+                            child: _useNativePreview &&
+                                    !useFlutterTransformEditingPreview
                                 ? _buildNativePreviewSurface(
                                     previewIdentity: _nativePreviewIdentityFor(
                                       previewCanvasAsset,
@@ -28931,12 +28949,16 @@ class _CleanPreviewCanvas extends StatelessWidget {
   const _CleanPreviewCanvas({
     required this.asset,
     required this.backgroundColor,
+    required this.canvasSize,
+    required this.canvasTransform,
     this.previewThumbnailAssetId,
     this.previewThumbnailListenable,
   });
 
   final EditorAssetItem? asset;
   final Color backgroundColor;
+  final MotionSize2D canvasSize;
+  final _CanvasClipTransform canvasTransform;
   final String? previewThumbnailAssetId;
   final ValueListenable<Uint8List?>? previewThumbnailListenable;
 
@@ -28964,17 +28986,41 @@ class _CleanPreviewCanvas extends StatelessWidget {
             previewThumbnailAssetId == asset?.id);
     return ColoredBox(
       color: backgroundColor,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          if (shouldShowPoster)
-            Image.memory(
-              previewBytes,
-              fit: BoxFit.contain,
-              gaplessPlayback: true,
-              filterQuality: FilterQuality.medium,
-            ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final canvasWidth =
+              canvasSize.width <= 0 ? constraints.maxWidth : canvasSize.width;
+          final canvasHeight = canvasSize.height <= 0
+              ? constraints.maxHeight
+              : canvasSize.height;
+          final stageScaleX =
+              canvasWidth == 0 ? 1.0 : constraints.maxWidth / canvasWidth;
+          final stageScaleY =
+              canvasHeight == 0 ? 1.0 : constraints.maxHeight / canvasHeight;
+          final transform = Matrix4.identity()
+            ..translate(
+              canvasTransform.positionX * stageScaleX,
+              canvasTransform.positionY * stageScaleY,
+            )
+            ..rotateZ(canvasTransform.rotationDegrees * math.pi / 180)
+            ..scale(canvasTransform.scaleX, canvasTransform.scaleY);
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              if (shouldShowPoster)
+                Transform(
+                  alignment: Alignment.center,
+                  transform: transform,
+                  child: Image.memory(
+                    previewBytes,
+                    fit: BoxFit.contain,
+                    gaplessPlayback: true,
+                    filterQuality: FilterQuality.medium,
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }

@@ -141,4 +141,36 @@ void main() {
     expect(backgroundTapCount, 1);
     expect(selectedNodeCount, 0);
   });
+
+  testWidgets('dragging selected node body moves the node', (tester) async {
+    Offset? movedDelta;
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: SizedBox(
+          width: 540,
+          height: 960,
+          child: UnifiedCanvasTransformOverlay(
+            snapshot: snapshotWithNodes(<UnifiedCanvasTransformNode>[
+              videoNode(id: 'selected-video', x: 0, y: 0),
+            ]),
+            selectedElementId: 'selected-video',
+            isInteractive: true,
+            onNodeSelected: (_) {},
+            onNodeEditRequested: (_) {},
+            onNodeMoved: (_, delta) => movedDelta = delta,
+            onNodeScaleChanged: (_, __, ___) {},
+            onNodeRotationChanged: (_, __) {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.dragFrom(const Offset(270, 480), const Offset(24, 18));
+
+    expect(movedDelta, isNotNull);
+    expect(movedDelta!.dx, greaterThan(0));
+    expect(movedDelta!.dy, greaterThan(0));
+  });
 }
