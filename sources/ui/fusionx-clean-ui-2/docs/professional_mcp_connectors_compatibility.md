@@ -64,6 +64,14 @@ Session open payload must include:
 Codex can connect via the same stdio server config surface used for local MCP
 servers.
 
+Recommended first tool call after `refusion/session/open`:
+
+- `refusion.get_security_profile`
+
+This returns active hardening facts (pairing requirement, payload limits, rate
+limits, restricted capabilities) so the host can adapt its command strategy
+before sending mutations.
+
 Minimum required capabilities for full authoring loop:
 
 - `project.read`

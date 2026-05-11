@@ -8,6 +8,7 @@ This guide defines the safe authoring loop for AI agents using ReFusion MCP.
 
 1. Open session with minimal required capabilities.
 2. Read state:
+   - `refusion.get_security_profile`
    - `refusion.get_project_state`
    - `refusion.get_timeline_summary`
    - `refusion.get_selection`
@@ -25,6 +26,7 @@ This guide defines the safe authoring loop for AI agents using ReFusion MCP.
 - Always provide `expectedRevision` for commit mode.
 - Prefer minimal payloads to avoid size limits.
 - Use `refusion.dry_run_command` for preflight.
+- Read `refusion.get_security_profile` once per session and honor returned limits.
 
 ## Recommended Mutation Pattern
 
