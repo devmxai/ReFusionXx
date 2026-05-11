@@ -18,6 +18,7 @@ typedef RefusionMcpStateReader = Map<String, Object?> Function();
 typedef RefusionMcpPreviewCaptureReader = Map<String, Object?> Function(
   int? timeMs,
 );
+typedef RefusionMcpSecurityProfileReader = Map<String, Object?> Function();
 typedef RefusionMcpProjectReader = MotionProjectModel Function();
 typedef RefusionMcpRootSceneIdReader = String Function();
 typedef RefusionMcpSceneClipsReader = List<CompositionSceneClipModel>
@@ -67,6 +68,7 @@ class RefusionMcpMvpToolkitConfig {
     required this.timelineSummaryReader,
     required this.selectionReader,
     required this.previewCaptureReader,
+    this.securityProfileReader,
     this.sceneProgramTools = const RefusionMcpSceneProgramTools(),
     this.projectReader,
     this.rootSceneIdReader,
@@ -93,6 +95,7 @@ class RefusionMcpMvpToolkitConfig {
   final RefusionMcpStateReader timelineSummaryReader;
   final RefusionMcpStateReader selectionReader;
   final RefusionMcpPreviewCaptureReader previewCaptureReader;
+  final RefusionMcpSecurityProfileReader? securityProfileReader;
   final RefusionMcpSceneProgramTools sceneProgramTools;
   final RefusionMcpProjectReader? projectReader;
   final RefusionMcpRootSceneIdReader? rootSceneIdReader;
@@ -160,6 +163,30 @@ class RefusionMcpMvpToolkit {
           payload: payload,
           resourceUris:
               resourceUri is String ? <String>[resourceUri] : const <String>[],
+        );
+      },
+    );
+    bus.registerHandler(
+      commandType: 'refusion.get_security_profile',
+      handler: (_) {
+        return RefusionMcpCommandHandlingOutcome(
+          summary: 'Security profile loaded.',
+          payload: config.securityProfileReader?.call() ??
+              <String, Object?>{
+                'pairing': <String, Object?>{
+                  'required': false,
+                },
+                'limits': <String, Object?>{
+                  'maxToolPayloadBytes': 0,
+                  'maxCallsPerMinutePerSession': 0,
+                },
+                'restrictedCapabilities': <String>[
+                  'filesystem.read',
+                  'filesystem.write',
+                  'export.start',
+                  'debug.diagnostics',
+                ],
+              },
         );
       },
     );

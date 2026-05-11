@@ -51,13 +51,14 @@ For mutation workflows, add:
 ## 3) Codex-safe command loop
 
 1. `tools/list`, `resources/list`, `prompts/list`
-2. `refusion.get_project_state`
-3. `refusion.get_timeline_summary`
-4. mutation as `dryRun`
-5. inspect `diagnostics` + `patchPreview`
-6. `refusion.commit_transaction`
-7. `refusion.capture_preview_frame`
-8. `refusion.undo_transaction` if needed
+2. `refusion.get_security_profile`
+3. `refusion.get_project_state`
+4. `refusion.get_timeline_summary`
+5. mutation as `dryRun`
+6. inspect `diagnostics` + `patchPreview`
+7. `refusion.commit_transaction`
+8. `refusion.capture_preview_frame`
+9. `refusion.undo_transaction` if needed
 
 ## 4) Hardening behaviors to expect
 

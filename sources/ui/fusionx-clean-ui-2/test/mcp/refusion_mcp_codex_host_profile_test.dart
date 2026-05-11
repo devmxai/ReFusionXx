@@ -26,6 +26,21 @@ void main() {
           previewCaptureReader: (timeMs) => <String, Object?>{
             'resourceUri': 'refusion://preview/frame/${timeMs ?? 0}',
           },
+          securityProfileReader: () => <String, Object?>{
+            'pairing': <String, Object?>{
+              'required': true,
+            },
+            'limits': <String, Object?>{
+              'maxToolPayloadBytes': 65536,
+              'maxCallsPerMinutePerSession': 120,
+            },
+            'restrictedCapabilities': <String>[
+              'filesystem.read',
+              'filesystem.write',
+              'export.start',
+              'debug.diagnostics',
+            ],
+          },
         ),
       );
 
@@ -167,6 +182,34 @@ void main() {
       expect(structured['ok'], isTrue);
       final payload = structured['payload'] as Map<String, Object?>;
       expect(payload['projectId'], 'active');
+
+      final profile = server.handle(
+        <String, Object?>{
+          'jsonrpc': '2.0',
+          'id': 7,
+          'method': 'tools/call',
+          'params': <String, Object?>{
+            'name': 'refusion.get_security_profile',
+            'arguments': <String, Object?>{
+              'sessionId': 'codex_session',
+              'projectId': 'active',
+              'commandId': 'cmd_7',
+              'idempotencyKey': 'turn-7',
+              'mode': 'dryRun',
+              'expectedRevision': 9,
+              'payload': const <String, Object?>{},
+            },
+          },
+        },
+      );
+      final profileResult = profile['result'] as Map<String, Object?>;
+      final profileStructured =
+          profileResult['structuredContent'] as Map<String, Object?>;
+      expect(profileStructured['ok'], isTrue);
+      final profilePayload =
+          profileStructured['payload'] as Map<String, Object?>;
+      final limits = profilePayload['limits'] as Map<String, Object?>;
+      expect(limits['maxToolPayloadBytes'], 65536);
     });
   });
 }

@@ -58,6 +58,13 @@ class RefusionMcpToolRegistry {
       capability: RefusionMcpCapability.previewRead,
     ),
     RefusionMcpToolDescriptor(
+      name: 'refusion.get_security_profile',
+      title: 'Get Security Profile',
+      description:
+          'Return MCP hardening profile such as limits and restricted capabilities.',
+      capability: RefusionMcpCapability.timelineRead,
+    ),
+    RefusionMcpToolDescriptor(
       name: 'refusion.validate_scene_program',
       title: 'Validate Scene Program',
       description: 'Validate SceneProgram schema and safety.',

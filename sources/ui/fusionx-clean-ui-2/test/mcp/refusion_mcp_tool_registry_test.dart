@@ -10,6 +10,7 @@ void main() {
       expect(names.contains('refusion.get_project_state'), isTrue);
       expect(names.contains('refusion.get_timeline_summary'), isTrue);
       expect(names.contains('refusion.capture_preview_frame'), isTrue);
+      expect(names.contains('refusion.get_security_profile'), isTrue);
       expect(names.contains('refusion.validate_scene_program'), isTrue);
       expect(names.contains('refusion.author_scene_program'), isTrue);
       expect(names.contains('refusion.apply_scene_program'), isTrue);

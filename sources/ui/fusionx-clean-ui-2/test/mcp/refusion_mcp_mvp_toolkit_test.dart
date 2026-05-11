@@ -88,6 +88,23 @@ void main() {
       expect(result.resourceUris, contains('refusion://preview/frame/1200'));
     });
 
+    test('returns security profile payload for host negotiation', () {
+      final result = bus.execute(
+        session: session,
+        command: _command(
+          type: 'refusion.get_security_profile',
+          capability: RefusionMcpCapability.timelineRead,
+        ),
+        currentRevision: 7,
+      );
+      expect(result.ok, isTrue);
+      final pairing = result.payload['pairing'] as Map<String, Object?>;
+      expect(pairing['required'], isFalse);
+      final limits = result.payload['limits'] as Map<String, Object?>;
+      expect(limits.containsKey('maxToolPayloadBytes'), isTrue);
+      expect(limits.containsKey('maxCallsPerMinutePerSession'), isTrue);
+    });
+
     test('validates scene program source through toolkit', () {
       final source = File(
         '/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/test/fixtures/refusion_scene_programs/first_generated_scene.json',
