@@ -65,6 +65,13 @@ class RefusionMcpToolRegistry {
       capability: RefusionMcpCapability.timelineRead,
     ),
     RefusionMcpToolDescriptor(
+      name: 'refusion.get_host_compatibility',
+      title: 'Get Host Compatibility',
+      description:
+          'Return host support matrix and connection requirements (Codex/Claude/ChatGPT).',
+      capability: RefusionMcpCapability.timelineRead,
+    ),
+    RefusionMcpToolDescriptor(
       name: 'refusion.validate_scene_program',
       title: 'Validate Scene Program',
       description: 'Validate SceneProgram schema and safety.',

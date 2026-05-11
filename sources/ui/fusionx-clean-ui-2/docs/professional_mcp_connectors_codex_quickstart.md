@@ -52,13 +52,14 @@ For mutation workflows, add:
 
 1. `tools/list`, `resources/list`, `prompts/list`
 2. `refusion.get_security_profile`
-3. `refusion.get_project_state`
-4. `refusion.get_timeline_summary`
-5. mutation as `dryRun`
-6. inspect `diagnostics` + `patchPreview`
-7. `refusion.commit_transaction`
-8. `refusion.capture_preview_frame`
-9. `refusion.undo_transaction` if needed
+3. `refusion.get_host_compatibility`
+4. `refusion.get_project_state`
+5. `refusion.get_timeline_summary`
+6. mutation as `dryRun`
+7. inspect `diagnostics` + `patchPreview`
+8. `refusion.commit_transaction`
+9. `refusion.capture_preview_frame`
+10. `refusion.undo_transaction` if needed
 
 ## 4) Hardening behaviors to expect
 

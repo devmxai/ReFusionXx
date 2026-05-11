@@ -105,6 +105,22 @@ void main() {
       expect(limits.containsKey('maxCallsPerMinutePerSession'), isTrue);
     });
 
+    test('returns host compatibility payload including ChatGPT path', () {
+      final result = bus.execute(
+        session: session,
+        command: _command(
+          type: 'refusion.get_host_compatibility',
+          capability: RefusionMcpCapability.timelineRead,
+        ),
+        currentRevision: 7,
+      );
+      expect(result.ok, isTrue);
+      final chatgpt = result.payload['chatgpt'] as Map<String, Object?>;
+      expect(chatgpt['supported'], isTrue);
+      expect(chatgpt['requiresRemoteDomain'], isTrue);
+      expect(chatgpt['requiredTransport'], 'streamable-http');
+    });
+
     test('validates scene program source through toolkit', () {
       final source = File(
         '/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/test/fixtures/refusion_scene_programs/first_generated_scene.json',

@@ -19,6 +19,7 @@ typedef RefusionMcpPreviewCaptureReader = Map<String, Object?> Function(
   int? timeMs,
 );
 typedef RefusionMcpSecurityProfileReader = Map<String, Object?> Function();
+typedef RefusionMcpHostCompatibilityReader = Map<String, Object?> Function();
 typedef RefusionMcpProjectReader = MotionProjectModel Function();
 typedef RefusionMcpRootSceneIdReader = String Function();
 typedef RefusionMcpSceneClipsReader = List<CompositionSceneClipModel>
@@ -69,6 +70,7 @@ class RefusionMcpMvpToolkitConfig {
     required this.selectionReader,
     required this.previewCaptureReader,
     this.securityProfileReader,
+    this.hostCompatibilityReader,
     this.sceneProgramTools = const RefusionMcpSceneProgramTools(),
     this.projectReader,
     this.rootSceneIdReader,
@@ -96,6 +98,7 @@ class RefusionMcpMvpToolkitConfig {
   final RefusionMcpStateReader selectionReader;
   final RefusionMcpPreviewCaptureReader previewCaptureReader;
   final RefusionMcpSecurityProfileReader? securityProfileReader;
+  final RefusionMcpHostCompatibilityReader? hostCompatibilityReader;
   final RefusionMcpSceneProgramTools sceneProgramTools;
   final RefusionMcpProjectReader? projectReader;
   final RefusionMcpRootSceneIdReader? rootSceneIdReader;
@@ -186,6 +189,31 @@ class RefusionMcpMvpToolkit {
                   'export.start',
                   'debug.diagnostics',
                 ],
+              },
+        );
+      },
+    );
+    bus.registerHandler(
+      commandType: 'refusion.get_host_compatibility',
+      handler: (_) {
+        return RefusionMcpCommandHandlingOutcome(
+          summary: 'Host compatibility profile loaded.',
+          payload: config.hostCompatibilityReader?.call() ??
+              <String, Object?>{
+                'claude': <String, Object?>{
+                  'supported': true,
+                  'transport': 'stdio',
+                },
+                'codex': <String, Object?>{
+                  'supported': true,
+                  'transport': 'stdio',
+                },
+                'chatgpt': <String, Object?>{
+                  'supported': true,
+                  'requiresRemoteDomain': true,
+                  'requiredTransport': 'streamable-http',
+                  'domainSetupPath': 'ChatGPT > Settings > Apps',
+                },
               },
         );
       },

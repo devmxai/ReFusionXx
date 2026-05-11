@@ -97,6 +97,10 @@ void main() {
         tools.any((tool) => tool['name'] == 'refusion.get_project_state'),
         isTrue,
       );
+      expect(
+        tools.any((tool) => tool['name'] == 'refusion.get_host_compatibility'),
+        isTrue,
+      );
 
       final resourcesList = server.handle(
         <String, Object?>{
@@ -210,6 +214,36 @@ void main() {
           profileStructured['payload'] as Map<String, Object?>;
       final limits = profilePayload['limits'] as Map<String, Object?>;
       expect(limits['maxToolPayloadBytes'], 65536);
+
+      final compatibility = server.handle(
+        <String, Object?>{
+          'jsonrpc': '2.0',
+          'id': 8,
+          'method': 'tools/call',
+          'params': <String, Object?>{
+            'name': 'refusion.get_host_compatibility',
+            'arguments': <String, Object?>{
+              'sessionId': 'codex_session',
+              'projectId': 'active',
+              'commandId': 'cmd_8',
+              'idempotencyKey': 'turn-8',
+              'mode': 'dryRun',
+              'expectedRevision': 9,
+              'payload': const <String, Object?>{},
+            },
+          },
+        },
+      );
+      final compatibilityResult =
+          compatibility['result'] as Map<String, Object?>;
+      final compatibilityStructured =
+          compatibilityResult['structuredContent'] as Map<String, Object?>;
+      expect(compatibilityStructured['ok'], isTrue);
+      final compatibilityPayload =
+          compatibilityStructured['payload'] as Map<String, Object?>;
+      final chatgpt = compatibilityPayload['chatgpt'] as Map<String, Object?>;
+      expect(chatgpt['supported'], isTrue);
+      expect(chatgpt['requiresRemoteDomain'], isTrue);
     });
   });
 }

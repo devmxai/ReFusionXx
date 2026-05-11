@@ -5,6 +5,9 @@ Status: `PMC-14`
 This document packages the ReFusion MCP server for real hosts with explicit,
 honest boundaries.
 
+ChatGPT domain onboarding checklist:
+- [professional_mcp_connectors_chatgpt_domain_setup.md](/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/docs/professional_mcp_connectors_chatgpt_domain_setup.md)
+
 ## 1) Transport + Command
 
 - Transport: `stdio` JSON-RPC.
@@ -89,8 +92,16 @@ Optional (blocked by default policy):
 
 ## 4) ChatGPT integration path (important limitation)
 
-Direct raw local MCP server connection is not guaranteed as a generic
-end-user feature path.
+ChatGPT connection is supported through remote MCP domain onboarding (Apps
+settings flow), not through local `stdio`.
+
+Required shape for ChatGPT onboarding:
+
+- Public HTTPS domain (no localhost).
+- MCP endpoint exposed with Streamable HTTP transport.
+- Domain reachable from ChatGPT and TLS-valid.
+- Host should call `refusion.get_security_profile` then
+  `refusion.get_host_compatibility` before any mutation path.
 
 For production ChatGPT integration, package this as an official app/connector
 surface (Apps SDK / connector-supported path) and expose approved tools through
@@ -99,7 +110,7 @@ that integration boundary.
 In short:
 
 - Local dev: use stdio MCP host (Claude/Codex local flows).
-- ChatGPT production: use supported app/connector packaging path.
+- ChatGPT: add MCP domain from ChatGPT Apps settings and use remote transport.
 
 ## 5) Troubleshooting Checklist
 
