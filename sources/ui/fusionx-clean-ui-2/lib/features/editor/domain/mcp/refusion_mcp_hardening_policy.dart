@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 
 @immutable
@@ -25,12 +28,16 @@ class RefusionMcpPairingValidation {
 class RefusionMcpHardeningPolicy {
   RefusionMcpHardeningPolicy({
     this.requiredPairingToken,
+    this.requiredPairingTokenSha256Hex,
+    this.pairingTokenSalt = '',
     this.maxToolPayloadBytes = 64 * 1024,
     this.maxCallsPerMinutePerSession = 120,
     DateTime Function()? clock,
   }) : _clock = clock ?? (() => DateTime.now().toUtc());
 
   final String? requiredPairingToken;
+  final String? requiredPairingTokenSha256Hex;
+  final String pairingTokenSalt;
   final int maxToolPayloadBytes;
   final int maxCallsPerMinutePerSession;
   final DateTime Function() _clock;
@@ -38,11 +45,26 @@ class RefusionMcpHardeningPolicy {
       <String, List<DateTime>>{};
 
   RefusionMcpPairingValidation validatePairingToken(String? token) {
+    if (requiredPairingTokenSha256Hex != null &&
+        requiredPairingTokenSha256Hex!.isNotEmpty) {
+      final candidate = sha256
+          .convert(utf8.encode('${pairingTokenSalt}${token ?? ''}'))
+          .toString();
+      if (_constantTimeEquals(
+        candidate,
+        requiredPairingTokenSha256Hex!.toLowerCase(),
+      )) {
+        return const RefusionMcpPairingValidation.allowed();
+      }
+      return const RefusionMcpPairingValidation.denied(
+        'Pairing token is invalid or missing.',
+      );
+    }
     final required = requiredPairingToken;
     if (required == null || required.isEmpty) {
       return const RefusionMcpPairingValidation.allowed();
     }
-    if (token == required) {
+    if (_constantTimeEquals(token ?? '', required)) {
       return const RefusionMcpPairingValidation.allowed();
     }
     return const RefusionMcpPairingValidation.denied(
@@ -78,5 +100,14 @@ class RefusionMcpHardeningPolicy {
 
   int _estimatePayloadBytes(Map<String, Object?> payload) {
     return payload.toString().codeUnits.length;
+  }
+
+  bool _constantTimeEquals(String left, String right) {
+    var mismatch = left.length ^ right.length;
+    final shared = left.length < right.length ? left.length : right.length;
+    for (var index = 0; index < shared; index += 1) {
+      mismatch |= left.codeUnitAt(index) ^ right.codeUnitAt(index);
+    }
+    return mismatch == 0;
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../domain/mcp/refusion_mcp_agent_control_plane.dart';
 import '../../domain/mcp/refusion_mcp_audit_log.dart';
+import '../../domain/mcp/refusion_mcp_audit_persistence.dart';
 import '../../domain/mcp/refusion_mcp_capability.dart';
 import '../../domain/mcp/refusion_mcp_command_result.dart';
 import '../../domain/mcp/refusion_mcp_hardening_policy.dart';
@@ -36,13 +37,17 @@ class RefusionMcpAppBridge {
         const RefusionMcpSecurityPolicy(),
     RefusionMcpHardeningPolicy? hardeningPolicy,
     RefusionMcpAuditLog? auditLog,
+    RefusionMcpAuditPersistence? auditPersistence,
   })  : _controlPlane = controlPlane,
         _sessionStore = sessionStore,
         _resourceProvider = resourceProvider,
         _promptProvider = promptProvider ?? RefusionMcpPromptProvider(),
         _securityPolicy = securityPolicy,
         _hardeningPolicy = hardeningPolicy ?? RefusionMcpHardeningPolicy(),
-        _auditLog = auditLog ?? RefusionMcpAuditLog() {
+        _auditLog = auditLog ??
+            RefusionMcpAuditLog(
+              persistence: auditPersistence,
+            ) {
     _resourceProvider.registerReader(
       uri: 'refusion://mcp/audit/recent',
       reader: () {

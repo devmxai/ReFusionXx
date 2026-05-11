@@ -124,3 +124,16 @@ A host compatibility pass is complete when all are true:
 3. Host reads preview resource.
 4. Host reads audit resource.
 5. Security gates enforce pairing, payload limit, and rate limits.
+
+Local automated proof command:
+
+```bash
+cd /Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2
+flutter test test/mcp/refusion_mcp_e2e_workflow_test.dart
+```
+
+Expected output:
+
+```text
+All tests passed!
+```

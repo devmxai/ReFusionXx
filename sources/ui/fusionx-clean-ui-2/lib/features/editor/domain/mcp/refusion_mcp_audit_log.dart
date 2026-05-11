@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import 'refusion_mcp_audit_persistence.dart';
+
 @immutable
 class RefusionMcpAuditEvent {
   const RefusionMcpAuditEvent({
@@ -49,10 +51,15 @@ class RefusionMcpAuditLog {
   RefusionMcpAuditLog({
     this.maxEntries = 500,
     DateTime Function()? clock,
-  }) : _clock = clock ?? (() => DateTime.now().toUtc());
+    RefusionMcpAuditPersistence? persistence,
+  })  : _clock = clock ?? (() => DateTime.now().toUtc()),
+        _persistence = persistence {
+    _hydrate();
+  }
 
   final int maxEntries;
   final DateTime Function() _clock;
+  final RefusionMcpAuditPersistence? _persistence;
   final List<RefusionMcpAuditEvent> _entries = <RefusionMcpAuditEvent>[];
 
   void record({
@@ -85,6 +92,7 @@ class RefusionMcpAuditLog {
     if (_entries.length > maxEntries) {
       _entries.removeRange(0, _entries.length - maxEntries);
     }
+    _persist();
   }
 
   List<RefusionMcpAuditEvent> recent({int limit = 100}) {
@@ -93,5 +101,53 @@ class RefusionMcpAuditLog {
         ? _entries.length - normalizedLimit
         : 0;
     return _entries.sublist(start).toList(growable: false);
+  }
+
+  void _hydrate() {
+    final persistence = _persistence;
+    if (persistence == null) {
+      return;
+    }
+    final rows = persistence.load();
+    for (final row in rows) {
+      final timestampRaw = row['timestampUtc'] as String?;
+      final timestamp = timestampRaw == null
+          ? _clock()
+          : (DateTime.tryParse(timestampRaw)?.toUtc() ?? _clock());
+      _entries.add(
+        RefusionMcpAuditEvent(
+          timestampUtc: timestamp,
+          category: (row['category'] as String?) ?? 'unknown',
+          action: (row['action'] as String?) ?? 'unknown',
+          clientName: (row['clientName'] as String?) ?? 'unknown',
+          sessionId: (row['sessionId'] as String?) ?? 'unknown',
+          ok: row['ok'] == true,
+          toolName: row['toolName'] as String?,
+          capability: row['capability'] as String?,
+          revisionBefore: row['revisionBefore'] as int?,
+          revisionAfter: row['revisionAfter'] as int?,
+          details: (row['details'] as Map?)?.map((key, value) {
+                return MapEntry(key.toString(), value);
+              }) ??
+              const <String, Object?>{},
+        ),
+      );
+    }
+    if (_entries.length > maxEntries) {
+      _entries.removeRange(0, _entries.length - maxEntries);
+    }
+  }
+
+  void _persist() {
+    final persistence = _persistence;
+    if (persistence == null) {
+      return;
+    }
+    persistence.save(
+      _entries
+          .map((entry) => entry.toJson())
+          .toList(growable: false)
+          .cast<Map<String, Object?>>(),
+    );
   }
 }
