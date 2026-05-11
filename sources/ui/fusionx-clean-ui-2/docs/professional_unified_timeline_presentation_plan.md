@@ -1,6 +1,6 @@
 # Professional Unified Timeline Presentation Plan
 
-Status: official execution plan  
+Status: closed (implemented)  
 Package: `com.refusion.app`  
 Date: 2026-05-11  
 Short name: `PUTP`  
@@ -12,7 +12,7 @@ Depends on:
 - `docs/professional_composition_workspace_and_scene_orchestration_plan.md`
 - `docs/professional_canvas_timeline.md`
 
-## Execution Status (2026-05-11)
+## Execution Status (2026-05-11, Closure)
 
 - `PUTP-00` completed (inventory and protected-boundary audit).
 - `PUTP-01` completed (read-only unified presentation model).
@@ -25,10 +25,10 @@ Depends on:
 - `PUTP-09` foundation completed (rollout mode safety flags).
 - `PUTP-10` foundation completed (projection start-offset parity regression).
 - `PUTP-10` expanded completed (compatibility gate regression coverage).
+- `PUTP-11` completed locally (authoring rules documented in
+  `docs/unified_timeline_presentation_authoring_rules.md`).
 
-Remaining high-level slices:
-
-- `PUTP-11` broader external skills sync (when skills repo update is in scope).
+No remaining implementation slices for PUTP inside this repository.
 
 ## 1. Executive Decision
 

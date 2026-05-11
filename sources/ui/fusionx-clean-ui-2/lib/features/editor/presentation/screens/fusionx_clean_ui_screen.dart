@@ -142,15 +142,12 @@ enum _UniversalAddScope {
 enum _UniversalAddAction {
   newScene,
   sceneScript,
-  presentDemo,
   videoLayer,
   imageLayer,
   textLayer,
   shapeLayer,
   audioLayer,
-  nullLayer,
   adjustmentLayer,
-  projectAsset,
 }
 
 @immutable
@@ -13446,17 +13443,23 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final unifiedScope = _toUnifiedAddScope(scope);
     final commands =
         _unifiedTimelineAddCommandRegistry.commandsForScope(unifiedScope);
-    return commands
-        .map(
-          (command) => _UniversalAddSheetItem(
-            action: _actionForUnifiedCommandId(command.id),
-            icon: command.icon,
-            title: command.title,
-            subtitle: command.subtitle,
-            isReady: command.isReady,
-          ),
-        )
-        .toList(growable: false);
+    final items = <_UniversalAddSheetItem>[];
+    for (final command in commands) {
+      final action = _actionForUnifiedCommandId(command.id);
+      if (action == null) {
+        continue;
+      }
+      items.add(
+        _UniversalAddSheetItem(
+          action: action,
+          icon: command.icon,
+          title: command.title,
+          subtitle: command.subtitle,
+          isReady: command.isReady,
+        ),
+      );
+    }
+    return items;
   }
 
   UnifiedTimelineAddScope _toUnifiedAddScope(_UniversalAddScope scope) {
@@ -13470,7 +13473,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
   }
 
-  _UniversalAddAction _actionForUnifiedCommandId(String commandId) {
+  _UniversalAddAction? _actionForUnifiedCommandId(String commandId) {
     switch (commandId) {
       case 'newScene':
         return _UniversalAddAction.newScene;
@@ -13489,7 +13492,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       case 'adjustmentLayer':
         return _UniversalAddAction.adjustmentLayer;
     }
-    return _UniversalAddAction.projectAsset;
+    return null;
   }
 
   Future<void> _handleUniversalAddAction(_UniversalAddAction action) async {
@@ -13499,9 +13502,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         return;
       case _UniversalAddAction.sceneScript:
         await _openSceneProgramImportSheet();
-        return;
-      case _UniversalAddAction.presentDemo:
-        await _openSceneProgramPresentSheet();
         return;
       case _UniversalAddAction.videoLayer:
         await _openMediaSheet(EditorMediaTab.video);
@@ -13519,15 +13519,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         _showStageMessage(
             'Audio layer import is not active in this checkpoint.');
         return;
-      case _UniversalAddAction.nullLayer:
-        _showStageMessage('Null/control layers are planned for parent motion.');
-        return;
       case _UniversalAddAction.adjustmentLayer:
         await _openUnifiedAdjustmentLayerFlow();
-        return;
-      case _UniversalAddAction.projectAsset:
-        _showStageMessage(
-            'Project asset browser is planned for a later slice.');
         return;
     }
   }

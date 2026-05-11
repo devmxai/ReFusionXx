@@ -8,9 +8,9 @@ enum UnifiedTimelinePresentationRolloutMode {
 class UnifiedTimelinePresentationFlags {
   const UnifiedTimelinePresentationFlags._();
 
-  // Rollout remains disabled by default for safety.
+  // PUTP is now closed: unified presentation is the default route.
   static const UnifiedTimelinePresentationRolloutMode rolloutMode =
-      UnifiedTimelinePresentationRolloutMode.off;
+      UnifiedTimelinePresentationRolloutMode.stable;
 
   // Backward-compatible flag used by existing wiring.
   static const bool unifiedTimelinePresentationLayer =
