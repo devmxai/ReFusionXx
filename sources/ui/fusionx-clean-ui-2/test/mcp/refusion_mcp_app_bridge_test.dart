@@ -64,6 +64,7 @@ void main() {
       );
       expect(bridge.listSessions().length, 1);
       expect(bridge.listTools().contains('refusion.get_project_state'), isTrue);
+      expect(bridge.listPrompts(), isNotEmpty);
       final resource = bridge.readResource('refusion://project/active/state');
       expect(resource.ok, isTrue);
 

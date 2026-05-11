@@ -7,6 +7,7 @@ import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_command_bus
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_mvp_toolkit.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_motion_tools.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_scene_program_tools.dart';
+import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_timeline_tools.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_session.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_transaction.dart';
 import 'package:refusion_app/features/editor/domain/models/composition_scene_clip_models.dart';
@@ -355,6 +356,149 @@ void main() {
         expect(ids.contains(MotionPropertyCatalog.scaleY.id), isTrue);
       },
     );
+
+    test('uses default timeline tools for insert_layer dryRun -> commit', () {
+      var revision = 40;
+      var project = _sampleProject();
+      final toolBus = RefusionMcpCommandBus();
+      const toolkit = RefusionMcpMvpToolkit();
+      toolkit.register(
+        bus: toolBus,
+        config: RefusionMcpMvpToolkitConfig(
+          projectStateReader: () => <String, Object?>{'revision': revision},
+          timelineSummaryReader: () => <String, Object?>{'rows': 1},
+          selectionReader: () => <String, Object?>{'selected': <String>[]},
+          previewCaptureReader: (_) => <String, Object?>{},
+          projectReader: () => project,
+          rootSceneIdReader: () => 'root-scene',
+          playheadReader: () => TimelineTime.fromMilliseconds(1500),
+          timelineProjectCommit: (request) {
+            project = request.project;
+            revision += 1;
+            return RefusionMcpTimelineProjectCommitResult(
+              revisionAfter: revision,
+              summary: request.summary,
+            );
+          },
+        ),
+      );
+
+      final dryRun = toolBus.execute(
+        session: _sessionWithAllWrites(),
+        command: _command(
+          type: 'refusion.insert_layer',
+          capability: RefusionMcpCapability.timelineWrite,
+          payload: const <String, Object?>{
+            'layerKind': 'shape',
+            'startMs': 1000,
+            'durationMs': 2000,
+            'name': 'Overlay',
+          },
+        ),
+        currentRevision: revision,
+      );
+      expect(dryRun.ok, isTrue);
+      expect(dryRun.transactionId, isNotNull);
+      expect(dryRun.payload['pending'], isTrue);
+
+      final commit = toolBus.commitTransaction(
+        session: _sessionWithAllWrites(),
+        transactionId: dryRun.transactionId!,
+        expectedRevision: 40,
+        actualRevision: 40,
+      );
+      expect(commit.ok, isTrue);
+      expect(commit.revisionAfter, 41);
+      expect(project.scenes.first.layers.length, greaterThan(1));
+    });
+
+    test('default timeline delete_layer requires confirmation flag', () {
+      final toolBus = RefusionMcpCommandBus();
+      var project = _sampleProject();
+      const toolkit = RefusionMcpMvpToolkit();
+      toolkit.register(
+        bus: toolBus,
+        config: RefusionMcpMvpToolkitConfig(
+          projectStateReader: () => const <String, Object?>{'revision': 50},
+          timelineSummaryReader: () => const <String, Object?>{'rows': 1},
+          selectionReader: () =>
+              const <String, Object?>{'selected': <String>[]},
+          previewCaptureReader: (_) => const <String, Object?>{},
+          projectReader: () => project,
+          rootSceneIdReader: () => 'root-scene',
+          playheadReader: () => TimelineTime.fromMilliseconds(500),
+          timelineProjectCommit: (request) {
+            project = request.project;
+            return const RefusionMcpTimelineProjectCommitResult(
+              revisionAfter: 51,
+            );
+          },
+        ),
+      );
+
+      final result = toolBus.execute(
+        session: _sessionWithAllWrites(),
+        command: _command(
+          type: 'refusion.delete_layer',
+          capability: RefusionMcpCapability.timelineWrite,
+          mode: RefusionMcpCommandMode.commit,
+          expectedRevision: 50,
+          payload: const <String, Object?>{'layerId': 'layer_1'},
+        ),
+        currentRevision: 50,
+      );
+      expect(result.ok, isFalse);
+      expect(result.requiresConfirmation, isTrue);
+      expect(project.scenes.first.layers.length, 1);
+    });
+
+    test('uses playhead for split_at_playhead and commits both layers', () {
+      var revision = 60;
+      var project = _sampleProject();
+      final toolBus = RefusionMcpCommandBus();
+      const toolkit = RefusionMcpMvpToolkit();
+      toolkit.register(
+        bus: toolBus,
+        config: RefusionMcpMvpToolkitConfig(
+          projectStateReader: () => <String, Object?>{'revision': revision},
+          timelineSummaryReader: () => <String, Object?>{'rows': 1},
+          selectionReader: () => <String, Object?>{'selected': <String>[]},
+          previewCaptureReader: (_) => <String, Object?>{},
+          projectReader: () => project,
+          rootSceneIdReader: () => 'root-scene',
+          playheadReader: () => TimelineTime.fromMilliseconds(2500),
+          timelineProjectCommit: (request) {
+            project = request.project;
+            revision += 1;
+            return RefusionMcpTimelineProjectCommitResult(
+              revisionAfter: revision,
+            );
+          },
+        ),
+      );
+
+      final dryRun = toolBus.execute(
+        session: _sessionWithAllWrites(),
+        command: _command(
+          type: 'refusion.split_at_playhead',
+          capability: RefusionMcpCapability.timelineWrite,
+          payload: const <String, Object?>{'layerId': 'layer_1'},
+        ),
+        currentRevision: revision,
+      );
+      expect(dryRun.ok, isTrue);
+      expect(dryRun.transactionId, isNotNull);
+
+      final commit = toolBus.commitTransaction(
+        session: _sessionWithAllWrites(),
+        transactionId: dryRun.transactionId!,
+        expectedRevision: 60,
+        actualRevision: 60,
+      );
+      expect(commit.ok, isTrue);
+      expect(commit.revisionAfter, 61);
+      expect(project.scenes.first.layers.length, 2);
+    });
   });
 }
 

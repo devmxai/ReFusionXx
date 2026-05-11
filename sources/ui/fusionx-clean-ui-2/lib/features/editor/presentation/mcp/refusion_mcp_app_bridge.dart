@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../domain/mcp/refusion_mcp_agent_control_plane.dart';
 import '../../domain/mcp/refusion_mcp_command_result.dart';
+import '../../domain/mcp/refusion_mcp_prompt_provider.dart';
 import '../../domain/mcp/refusion_mcp_resource_provider.dart';
 import '../../domain/mcp/refusion_mcp_session.dart';
 import '../../domain/mcp/refusion_mcp_session_store.dart';
@@ -26,13 +27,16 @@ class RefusionMcpAppBridge {
     required RefusionMcpAgentControlPlane controlPlane,
     required RefusionMcpSessionStore sessionStore,
     required RefusionMcpResourceProvider resourceProvider,
+    RefusionMcpPromptProvider? promptProvider,
   })  : _controlPlane = controlPlane,
         _sessionStore = sessionStore,
-        _resourceProvider = resourceProvider;
+        _resourceProvider = resourceProvider,
+        _promptProvider = promptProvider ?? RefusionMcpPromptProvider();
 
   final RefusionMcpAgentControlPlane _controlPlane;
   final RefusionMcpSessionStore _sessionStore;
   final RefusionMcpResourceProvider _resourceProvider;
+  final RefusionMcpPromptProvider _promptProvider;
 
   void openSession(RefusionMcpSession session) {
     _sessionStore.upsert(session);
@@ -52,6 +56,14 @@ class RefusionMcpAppBridge {
 
   List<String> listResourceUris() {
     return _resourceProvider.listUris();
+  }
+
+  List<RefusionMcpPromptDescriptor> listPrompts() {
+    return _promptProvider.list();
+  }
+
+  RefusionMcpPromptResult getPrompt(String name) {
+    return _promptProvider.get(name);
   }
 
   RefusionMcpResourceResult readResource(String uri) {

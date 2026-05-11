@@ -155,5 +155,35 @@ void main() {
           jsonDecode(contents.first['text'] as String) as Map<String, Object?>;
       expect(payload['projectId'], 'active');
     });
+
+    test('lists prompts and fetches prompt definition', () {
+      final listResponse = server.handle(
+        <String, Object?>{
+          'jsonrpc': '2.0',
+          'id': 6,
+          'method': 'prompts/list',
+          'params': const <String, Object?>{},
+        },
+      );
+      final listResult = listResponse['result'] as Map<String, Object?>;
+      final prompts =
+          (listResult['prompts'] as List).cast<Map<String, Object?>>();
+      expect(prompts, isNotEmpty);
+
+      final firstPromptName = prompts.first['name'] as String;
+      final promptResponse = server.handle(
+        <String, Object?>{
+          'jsonrpc': '2.0',
+          'id': 7,
+          'method': 'prompts/get',
+          'params': <String, Object?>{
+            'name': firstPromptName,
+          },
+        },
+      );
+      final promptResult = promptResponse['result'] as Map<String, Object?>;
+      expect(promptResult['description'], isNotNull);
+      expect((promptResult['messages'] as List).isNotEmpty, isTrue);
+    });
   });
 }

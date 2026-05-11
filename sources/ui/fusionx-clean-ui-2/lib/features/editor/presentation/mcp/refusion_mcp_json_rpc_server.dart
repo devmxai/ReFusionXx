@@ -65,6 +65,22 @@ class RefusionMcpJsonRpcServer {
               }).toList(growable: false),
             },
           );
+        case 'prompts/list':
+          return _result(
+            id: id,
+            value: <String, Object?>{
+              'prompts': _bridge.listPrompts().map((prompt) {
+                return <String, Object?>{
+                  'name': prompt.name,
+                  'title': prompt.title,
+                  'description': prompt.description,
+                  'arguments': prompt.arguments,
+                };
+              }).toList(growable: false),
+            },
+          );
+        case 'prompts/get':
+          return _handlePromptGet(id: id, params: request['params']);
         case 'resources/read':
           return _handleResourceRead(id: id, params: request['params']);
         case 'refusion/session/open':
@@ -208,6 +224,58 @@ class RefusionMcpJsonRpcServer {
             'text': jsonEncode(resource.payload),
           },
         ],
+      },
+    );
+  }
+
+  Map<String, Object?> _handlePromptGet({
+    required Object? id,
+    required Object? params,
+  }) {
+    if (params is! Map<String, Object?>) {
+      return _error(
+        id: id,
+        code: -32602,
+        message: 'Invalid params for prompts/get.',
+      );
+    }
+    final name = params['name'] as String?;
+    if (name == null || name.trim().isEmpty) {
+      return _error(
+        id: id,
+        code: -32602,
+        message: 'prompts/get requires name.',
+      );
+    }
+    final prompt = _bridge.getPrompt(name.trim());
+    if (!prompt.ok || prompt.descriptor == null) {
+      return _result(
+        id: id,
+        value: <String, Object?>{
+          'messages': const <Map<String, Object?>>[],
+          'error': <String, Object?>{
+            'message': prompt.message ?? 'Prompt was not found.',
+          },
+        },
+      );
+    }
+    final descriptor = prompt.descriptor!;
+    return _result(
+      id: id,
+      value: <String, Object?>{
+        'description': descriptor.description,
+        'messages': <Map<String, Object?>>[
+          <String, Object?>{
+            'role': 'user',
+            'content': <Map<String, Object?>>[
+              <String, Object?>{
+                'type': 'text',
+                'text': descriptor.description,
+              },
+            ],
+          },
+        ],
+        'arguments': descriptor.arguments,
       },
     );
   }

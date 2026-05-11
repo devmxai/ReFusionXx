@@ -13,6 +13,11 @@ void main() {
       expect(names.contains('refusion.validate_scene_program'), isTrue);
       expect(names.contains('refusion.author_scene_program'), isTrue);
       expect(names.contains('refusion.apply_scene_program'), isTrue);
+      expect(names.contains('refusion.insert_layer'), isTrue);
+      expect(names.contains('refusion.split_at_playhead'), isTrue);
+      expect(names.contains('refusion.trim_layer'), isTrue);
+      expect(names.contains('refusion.move_layer'), isTrue);
+      expect(names.contains('refusion.delete_layer'), isTrue);
     });
 
     test('resolves descriptor by name', () {

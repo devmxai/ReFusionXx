@@ -9,6 +9,7 @@ import 'refusion_mcp_command.dart';
 import 'refusion_mcp_command_bus.dart';
 import 'refusion_mcp_motion_tools.dart';
 import 'refusion_mcp_scene_program_tools.dart';
+import 'refusion_mcp_timeline_tools.dart';
 import 'refusion_mcp_transaction.dart';
 import '../services/refusion_scene_program_authoring_service.dart';
 import '../services/scene_program_apply_transaction.dart';
@@ -78,6 +79,14 @@ class RefusionMcpMvpToolkitConfig {
     this.setElementTransformHandler,
     this.motionTools = const RefusionMcpMotionTools(),
     this.motionChannelsCommit,
+    this.playheadReader,
+    this.timelineTools = const RefusionMcpTimelineTools(),
+    this.insertLayerHandler,
+    this.splitAtPlayheadHandler,
+    this.trimLayerHandler,
+    this.moveLayerHandler,
+    this.deleteLayerHandler,
+    this.timelineProjectCommit,
   });
 
   final RefusionMcpStateReader projectStateReader;
@@ -96,6 +105,14 @@ class RefusionMcpMvpToolkitConfig {
   final RefusionMcpMutationCommandHandler? setElementTransformHandler;
   final RefusionMcpMotionTools motionTools;
   final RefusionMcpMotionChannelsCommit? motionChannelsCommit;
+  final RefusionMcpTimelinePlayheadReader? playheadReader;
+  final RefusionMcpTimelineTools timelineTools;
+  final RefusionMcpMutationCommandHandler? insertLayerHandler;
+  final RefusionMcpMutationCommandHandler? splitAtPlayheadHandler;
+  final RefusionMcpMutationCommandHandler? trimLayerHandler;
+  final RefusionMcpMutationCommandHandler? moveLayerHandler;
+  final RefusionMcpMutationCommandHandler? deleteLayerHandler;
+  final RefusionMcpTimelineProjectCommit? timelineProjectCommit;
 }
 
 class RefusionMcpMvpToolkit {
@@ -374,6 +391,51 @@ class RefusionMcpMvpToolkit {
         config: config,
       ),
     );
+    _registerMutationHandler(
+      bus: bus,
+      commandType: 'refusion.insert_layer',
+      mutationHandler: config.insertLayerHandler,
+      defaultHandler: (command) => _defaultTimelineMutationHandler(
+        command: command,
+        config: config,
+      ),
+    );
+    _registerMutationHandler(
+      bus: bus,
+      commandType: 'refusion.split_at_playhead',
+      mutationHandler: config.splitAtPlayheadHandler,
+      defaultHandler: (command) => _defaultTimelineMutationHandler(
+        command: command,
+        config: config,
+      ),
+    );
+    _registerMutationHandler(
+      bus: bus,
+      commandType: 'refusion.trim_layer',
+      mutationHandler: config.trimLayerHandler,
+      defaultHandler: (command) => _defaultTimelineMutationHandler(
+        command: command,
+        config: config,
+      ),
+    );
+    _registerMutationHandler(
+      bus: bus,
+      commandType: 'refusion.move_layer',
+      mutationHandler: config.moveLayerHandler,
+      defaultHandler: (command) => _defaultTimelineMutationHandler(
+        command: command,
+        config: config,
+      ),
+    );
+    _registerMutationHandler(
+      bus: bus,
+      commandType: 'refusion.delete_layer',
+      mutationHandler: config.deleteLayerHandler,
+      defaultHandler: (command) => _defaultTimelineMutationHandler(
+        command: command,
+        config: config,
+      ),
+    );
   }
 }
 
@@ -415,12 +477,39 @@ RefusionMcpCommandHandlingOutcome _defaultMotionMutationHandler({
   );
 }
 
+RefusionMcpCommandHandlingOutcome _defaultTimelineMutationHandler({
+  required RefusionMcpCommandEnvelope command,
+  required RefusionMcpMvpToolkitConfig config,
+}) {
+  if (!_canUseDefaultTimelineTools(config)) {
+    return RefusionMcpCommandHandlingOutcome(
+      summary:
+          'Command `${command.type}` is not wired in this runtime profile.',
+      requiresConfirmation: true,
+    );
+  }
+  return config.timelineTools.handle(
+    command: command,
+    project: config.projectReader!.call(),
+    rootSceneId: config.rootSceneIdReader!.call(),
+    playheadReader: config.playheadReader!,
+    commitProject: config.timelineProjectCommit!,
+  );
+}
+
 bool _canUseDefaultMotionTools(RefusionMcpMvpToolkitConfig config) {
   return config.projectReader != null &&
       config.rootSceneIdReader != null &&
       config.sceneClipsReader != null &&
       config.channelsReader != null &&
       config.motionChannelsCommit != null;
+}
+
+bool _canUseDefaultTimelineTools(RefusionMcpMvpToolkitConfig config) {
+  return config.projectReader != null &&
+      config.rootSceneIdReader != null &&
+      config.playheadReader != null &&
+      config.timelineProjectCommit != null;
 }
 
 bool _canApplySceneProgram(RefusionMcpMvpToolkitConfig config) {
