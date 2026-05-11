@@ -146,6 +146,49 @@ void main() {
       expect(structured['projectId'], 'active');
     });
 
+    test('auto-bootstrap default session on tools/call when missing', () {
+      final call = server.handle(
+        <String, Object?>{
+          'jsonrpc': '2.0',
+          'id': 10,
+          'method': 'tools/call',
+          'params': <String, Object?>{
+            'name': 'refusion.get_project_state',
+            'arguments': <String, Object?>{
+              'sessionId': 'default',
+              'projectId': 'active',
+              'commandId': 'cmd_auto',
+              'idempotencyKey': 'turn-auto',
+              'mode': 'dryRun',
+              'payload': const <String, Object?>{},
+            },
+          },
+        },
+      );
+      final result = call['result'] as Map<String, Object?>;
+      expect(result['isError'], isFalse);
+      final structured = (result['structuredContent']
+          as Map<String, Object?>)['payload'] as Map<String, Object?>;
+      expect(structured['projectId'], 'active');
+
+      final sessions = server.handle(
+        <String, Object?>{
+          'jsonrpc': '2.0',
+          'id': 11,
+          'method': 'refusion/session/list',
+          'params': const <String, Object?>{},
+        },
+      );
+      final listed =
+          (sessions['result'] as Map<String, Object?>)['sessions'] as List;
+      expect(
+        listed.any(
+          (entry) => entry is Map<String, Object?> && entry['id'] == 'default',
+        ),
+        isTrue,
+      );
+    });
+
     test('reads resource through resources/read', () {
       final response = server.handle(
         <String, Object?>{
@@ -279,6 +322,31 @@ void main() {
       expect(allowed['error'], isNull);
       final result = allowed['result'] as Map<String, Object?>;
       expect(result['sessionId'], 'session_secure');
+
+      final missingSessionCall = hardenedServer.handle(
+        <String, Object?>{
+          'jsonrpc': '2.0',
+          'id': 12,
+          'method': 'tools/call',
+          'params': <String, Object?>{
+            'name': 'refusion.get_project_state',
+            'arguments': <String, Object?>{
+              'sessionId': 'default',
+              'projectId': 'active',
+              'commandId': 'cmd_secure',
+              'idempotencyKey': 'turn-secure',
+              'mode': 'dryRun',
+              'payload': const <String, Object?>{},
+            },
+          },
+        },
+      );
+      final missingResult =
+          missingSessionCall['result'] as Map<String, Object?>;
+      expect(missingResult['isError'], isTrue);
+      final missingStructured =
+          missingResult['structuredContent'] as Map<String, Object?>;
+      expect(missingStructured['code'], 'sessionNotFound');
     });
   });
 }

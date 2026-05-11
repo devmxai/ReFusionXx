@@ -138,12 +138,22 @@ class RefusionMcpJsonRpcServer {
         : RefusionMcpCommandMode.dryRun;
     final expectedRevision = _readInt(arguments['expectedRevision']);
     final payload = _readMap(arguments['payload']);
+    final requestedSessionId = (arguments['sessionId'] as String?)?.trim();
+    final sessionId = (requestedSessionId == null || requestedSessionId.isEmpty)
+        ? 'default'
+        : requestedSessionId;
+    final projectId = (arguments['projectId'] as String?) ?? 'active';
+
+    _autoBootstrapSessionIfNeeded(
+      sessionId: sessionId,
+      projectId: projectId,
+    );
 
     final response = _bridge.executeTool(
       RefusionMcpToolCallRequest(
         toolName: name,
-        sessionId: (arguments['sessionId'] as String?) ?? '',
-        projectId: (arguments['projectId'] as String?) ?? 'active',
+        sessionId: sessionId,
+        projectId: projectId,
         commandId: (arguments['commandId'] as String?) ??
             'cmd_${DateTime.now().microsecondsSinceEpoch}',
         idempotencyKey: (arguments['idempotencyKey'] as String?) ??
@@ -180,6 +190,40 @@ class RefusionMcpJsonRpcServer {
           'resourceUris': response.resourceUris,
         },
       },
+    );
+  }
+
+  void _autoBootstrapSessionIfNeeded({
+    required String sessionId,
+    required String projectId,
+  }) {
+    final hasSession =
+        _bridge.listSessions().any((session) => session.id == sessionId);
+    if (hasSession) {
+      return;
+    }
+    // Do not bypass pairing-gated environments. In those contexts, sessions
+    // must be opened explicitly through `refusion/session/open`.
+    final hardening = _bridge.hardeningPolicy;
+    final pairingRequired =
+        (hardening.requiredPairingToken?.isNotEmpty ?? false) ||
+            (hardening.requiredPairingTokenSha256Hex?.isNotEmpty ?? false);
+    if (pairingRequired) {
+      return;
+    }
+    final granted =
+        _bridge.grantCapabilities(RefusionMcpCapability.values.toSet());
+    _bridge.openSession(
+      RefusionMcpSession(
+        id: sessionId,
+        clientName: 'auto-bootstrap',
+        clientVersion: '0.1.0',
+        transport: 'streamable-http',
+        activeProjectId: projectId,
+        activeCompositionId: 'comp_1',
+        timelineRevision: 0,
+        grantedCapabilities: granted,
+      ),
     );
   }
 
