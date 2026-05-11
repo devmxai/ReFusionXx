@@ -24852,13 +24852,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return null;
     }
     final transform = _canvasClipTransformFor(context.clip.id);
-    final matrix = _stage5VisualTransformMatrix3x3FromComponents(
-      positionX: transform.positionX,
-      positionY: transform.positionY,
-      scaleX: transform.scaleX,
-      scaleY: transform.scaleY,
-      rotationRadians: transform.rotationDegrees * math.pi / 180,
-    );
+    final matrix = _canvasClipNativeTransformMatrix3x3(transform);
     final revision = ++_stage5VisualRuntimeRevision;
     final frameIndex = _stage5FrameIndexForTimelineTime(previewTime);
     final surface = Stage5VisualRuntimeSurfaceState(
@@ -24891,9 +24885,61 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       surfaces: <Stage5VisualRuntimeSurfaceState>[surface],
       diagnostics: <String>[
         'canvas_clip_native_transform:${context.clip.id}',
+        _canvasClipNativeTransformScaleDiagnostic(),
         if (transform.isIdentity) 'canvas_clip_native_transform_identity',
       ],
     );
+  }
+
+  List<double> _canvasClipNativeTransformMatrix3x3(
+    _CanvasClipTransform transform,
+  ) {
+    final scale = _canvasClipNativeViewportTranslationScale();
+    return _stage5VisualTransformMatrix3x3FromComponents(
+      positionX: transform.positionX * scale.dx,
+      positionY: transform.positionY * scale.dy,
+      scaleX: transform.scaleX,
+      scaleY: transform.scaleY,
+      rotationRadians: transform.rotationDegrees * math.pi / 180,
+    );
+  }
+
+  Offset _canvasClipNativeViewportTranslationScale() {
+    final canvasSize = _motionProjectFormat.canvasSize;
+    final viewportSize = _resolvedPreviewCanvasViewportSize();
+    if (viewportSize == null ||
+        viewportSize.width <= 0 ||
+        viewportSize.height <= 0 ||
+        canvasSize.width <= 0 ||
+        canvasSize.height <= 0) {
+      return const Offset(1, 1);
+    }
+    return Offset(
+      viewportSize.width / canvasSize.width,
+      viewportSize.height / canvasSize.height,
+    );
+  }
+
+  Size? _resolvedPreviewCanvasViewportSize() {
+    final stageSize = _lastPreviewStageSize;
+    if (stageSize == null || stageSize.width <= 0 || stageSize.height <= 0) {
+      return null;
+    }
+    final aspectRatio =
+        _previewAspectRatio > 0 ? _previewAspectRatio : (9 / 16);
+    var targetWidth = stageSize.width;
+    var targetHeight = targetWidth / aspectRatio;
+    if (targetHeight > stageSize.height) {
+      targetHeight = stageSize.height;
+      targetWidth = targetHeight * aspectRatio;
+    }
+    return Size(targetWidth, targetHeight);
+  }
+
+  String _canvasClipNativeTransformScaleDiagnostic() {
+    final scale = _canvasClipNativeViewportTranslationScale();
+    return 'canvas_clip_native_transform_translation_scale:'
+        '${scale.dx.toStringAsFixed(6)}x${scale.dy.toStringAsFixed(6)}';
   }
 
   int _canvasClipStage5TransformHash({

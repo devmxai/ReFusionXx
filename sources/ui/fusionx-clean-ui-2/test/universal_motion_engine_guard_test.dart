@@ -208,6 +208,32 @@ void main() {
     expect(source.contains('motionBlurSamples:'), isFalse);
   });
 
+  test('canvas transform native bridge scales translation to viewport pixels',
+      () async {
+    final source = await screenFile.readAsString();
+    final runtimeStart = source.indexOf(
+      'Stage5VisualRuntimeState?\n      _buildSelectedCanvasClipStage5VisualRuntimeStateForPreviewTime({',
+    );
+    expect(runtimeStart, isNonNegative);
+    final runtimeEnd = source.indexOf(
+      'int _canvasClipStage5TransformHash({',
+      runtimeStart,
+    );
+    expect(runtimeEnd, greaterThan(runtimeStart));
+    final body = source.substring(runtimeStart, runtimeEnd);
+
+    expect(body.contains('_canvasClipNativeTransformMatrix3x3(transform)'),
+        isTrue);
+    expect(
+        body.contains('_canvasClipNativeViewportTranslationScale()'), isTrue);
+    expect(body.contains('transform.positionX * scale.dx'), isTrue);
+    expect(body.contains('transform.positionY * scale.dy'), isTrue);
+    expect(
+      body.contains('canvas_clip_native_transform_translation_scale:'),
+      isTrue,
+    );
+  });
+
   test('stage5 does not use snapshot overlay for temporal Motion Blur',
       () async {
     final nativeEngine = await stage5NativeScrubEngineFile.readAsString();
