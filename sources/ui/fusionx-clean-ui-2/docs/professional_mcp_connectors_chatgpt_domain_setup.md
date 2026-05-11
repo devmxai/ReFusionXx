@@ -28,6 +28,11 @@ REFUSION_MCP_PAIRING_TOKEN=your-token dart run tool/refusion_mcp_streamable_http
 Then expose a public HTTPS URL with your tunnel/reverse-proxy of choice and map
 it to `http://localhost:8787/mcp`.
 
+Important:
+- Preferred MCP Server URL in host settings is `https://your-domain/mcp`.
+- ReFusion also accepts root alias (`https://your-domain/`) for host UIs that
+  submit the base domain only, but `/mcp` remains the canonical endpoint.
+
 ## 2) Host Handshake Order (must follow)
 
 1. `refusion/session/open`
@@ -59,3 +64,13 @@ In ChatGPT:
 - Local `stdio` integration is for local dev hosts (Codex/Claude local).
 - ChatGPT requires remote domain onboarding and network-reachable transport.
 - Stage5 and Live Scrub remain protected and are not directly mutated by MCP.
+
+## 6) Quick Troubleshooting
+
+- If you see `OAuth configuration` errors, switch authentication to `No Auth`
+  unless you implemented OAuth endpoints.
+- If connector creation fails generically, test both:
+  - `https://your-domain/mcp` (recommended)
+  - `https://your-domain/` (root alias supported)
+- If using temporary tunnels, regenerate the tunnel URL and retry. Some
+  enterprise networks block `trycloudflare.com`.

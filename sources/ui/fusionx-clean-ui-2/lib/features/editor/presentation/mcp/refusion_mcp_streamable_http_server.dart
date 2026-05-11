@@ -13,12 +13,14 @@ class RefusionMcpStreamableHttpServer {
   RefusionMcpStreamableHttpServer({
     required RefusionMcpJsonRpcServer jsonRpcServer,
     this.endpointPath = '/mcp',
+    this.acceptRootAlias = true,
     this.ssePingInterval = const Duration(seconds: 15),
   })  : _jsonRpcServer = jsonRpcServer,
         assert(endpointPath.isNotEmpty);
 
   final RefusionMcpJsonRpcServer _jsonRpcServer;
   final String endpointPath;
+  final bool acceptRootAlias;
   final Duration ssePingInterval;
 
   HttpServer? _server;
@@ -56,7 +58,7 @@ class RefusionMcpStreamableHttpServer {
 
   Future<void> _handleRequest(HttpRequest request) async {
     final path = request.uri.path;
-    if (path != endpointPath) {
+    if (!_matchesEndpointPath(path)) {
       await _respondNotFound(request);
       return;
     }
@@ -84,6 +86,16 @@ class RefusionMcpStreamableHttpServer {
       }),
     );
     await request.response.close();
+  }
+
+  bool _matchesEndpointPath(String path) {
+    if (path == endpointPath) {
+      return true;
+    }
+    if (!acceptRootAlias) {
+      return false;
+    }
+    return path == '/' || path.isEmpty;
   }
 
   Future<void> _handleGet(HttpRequest request) async {
