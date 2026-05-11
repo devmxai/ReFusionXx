@@ -708,6 +708,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   final Map<EditorMediaTab, int> _assetOffsets = <EditorMediaTab, int>{};
   final Map<EditorMediaTab, bool> _assetHasMore = <EditorMediaTab, bool>{};
   final Set<EditorMediaTab> _assetPageRequestsInFlight = <EditorMediaTab>{};
+  final Map<String, _CanvasClipTransform> _canvasClipTransforms =
+      <String, _CanvasClipTransform>{};
   EditorMediaTab _activeTab = EditorMediaTab.video;
   List<TimelineTrackData> _tracks = const <TimelineTrackData>[];
   final Map<String, List<TimelineTrackTransitionData>>
@@ -12176,18 +12178,30 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return;
     }
     final context = _motionElementContextForId(elementId);
-    if (context == null) {
+    if (context != null) {
+      setState(() {
+        _selectedClipId = elementId;
+        _activeTab = switch (context.element.kind) {
+          MotionElementKind.image => EditorMediaTab.image,
+          MotionElementKind.videoClip => EditorMediaTab.video,
+          MotionElementKind.text => EditorMediaTab.text,
+          MotionElementKind.audioClip => EditorMediaTab.audio,
+          _ => _activeTab,
+        };
+      });
+      return;
+    }
+    final timelineContext =
+        _selectedClipContextForTracks(_timelineTruthTracks, elementId);
+    if (timelineContext == null ||
+        !_timelineClipSupportsCanvasTransform(timelineContext.clip)) {
       return;
     }
     setState(() {
       _selectedClipId = elementId;
-      _activeTab = switch (context.element.kind) {
-        MotionElementKind.image => EditorMediaTab.image,
-        MotionElementKind.videoClip => EditorMediaTab.video,
-        MotionElementKind.text => EditorMediaTab.text,
-        MotionElementKind.audioClip => EditorMediaTab.audio,
-        _ => _activeTab,
-      };
+      _activeTab = timelineContext.clip.visualKind == TimelineVisualKind.image
+          ? EditorMediaTab.image
+          : EditorMediaTab.video;
     });
   }
 
@@ -12247,23 +12261,27 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return;
     }
     final context = _motionElementContextForId(elementId);
-    if (context == null) {
+    if (context != null) {
+      _applyStaticElementScalarEdit(
+        context,
+        scalarProperties: <MotionPropertyDefinition, double>{
+          MotionPropertyCatalog.positionX: _elementScalarPropertyOrDefault(
+                context.element,
+                MotionPropertyCatalog.positionX,
+              ) +
+              deltaCanvas.dx,
+          MotionPropertyCatalog.positionY: _elementScalarPropertyOrDefault(
+                context.element,
+                MotionPropertyCatalog.positionY,
+              ) +
+              deltaCanvas.dy,
+        },
+      );
       return;
     }
-    _applyStaticElementScalarEdit(
-      context,
-      scalarProperties: <MotionPropertyDefinition, double>{
-        MotionPropertyCatalog.positionX: _elementScalarPropertyOrDefault(
-              context.element,
-              MotionPropertyCatalog.positionX,
-            ) +
-            deltaCanvas.dx,
-        MotionPropertyCatalog.positionY: _elementScalarPropertyOrDefault(
-              context.element,
-              MotionPropertyCatalog.positionY,
-            ) +
-            deltaCanvas.dy,
-      },
+    _applyCanvasClipTransformDelta(
+      elementId,
+      positionDelta: deltaCanvas,
     );
   }
 
@@ -12311,15 +12329,20 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return;
     }
     final context = _motionElementContextForId(elementId);
-    if (context == null) {
+    if (context != null) {
+      _applyStaticElementScalarEdit(
+        context,
+        scalarProperties: <MotionPropertyDefinition, double>{
+          MotionPropertyCatalog.scaleX: scaleX.clamp(0.05, 20.0),
+          MotionPropertyCatalog.scaleY: scaleY.clamp(0.05, 20.0),
+        },
+      );
       return;
     }
-    _applyStaticElementScalarEdit(
-      context,
-      scalarProperties: <MotionPropertyDefinition, double>{
-        MotionPropertyCatalog.scaleX: scaleX.clamp(0.05, 20.0),
-        MotionPropertyCatalog.scaleY: scaleY.clamp(0.05, 20.0),
-      },
+    _applyCanvasClipTransformDelta(
+      elementId,
+      scaleX: scaleX.clamp(0.05, 20.0),
+      scaleY: scaleY.clamp(0.05, 20.0),
     );
   }
 
@@ -12363,14 +12386,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return;
     }
     final context = _motionElementContextForId(elementId);
-    if (context == null) {
+    if (context != null) {
+      _applyStaticElementScalarEdit(
+        context,
+        scalarProperties: <MotionPropertyDefinition, double>{
+          MotionPropertyCatalog.rotationDegrees: rotationDegrees,
+        },
+      );
       return;
     }
-    _applyStaticElementScalarEdit(
-      context,
-      scalarProperties: <MotionPropertyDefinition, double>{
-        MotionPropertyCatalog.rotationDegrees: rotationDegrees,
-      },
+    _applyCanvasClipTransformDelta(
+      elementId,
+      rotationDegrees: rotationDegrees,
     );
   }
 
@@ -12431,6 +12458,37 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     });
     _syncLayerScopeTimeNotifiers();
     _syncTimelineClockDuration();
+  }
+
+  void _applyCanvasClipTransformDelta(
+    String clipId, {
+    Offset? positionDelta,
+    double? scaleX,
+    double? scaleY,
+    double? rotationDegrees,
+  }) {
+    final context = _selectedClipContextForTracks(_timelineTruthTracks, clipId);
+    if (context == null ||
+        !_timelineClipSupportsCanvasTransform(context.clip)) {
+      return;
+    }
+    final current = _canvasClipTransformFor(clipId);
+    final delta = positionDelta ?? Offset.zero;
+    final next = current.copyWith(
+      positionX: current.positionX + delta.dx,
+      positionY: current.positionY + delta.dy,
+      scaleX: scaleX,
+      scaleY: scaleY,
+      rotationDegrees: rotationDegrees,
+    );
+    setState(() {
+      _canvasClipTransforms[clipId] = next;
+      _selectedClipId = clipId;
+      _activeTab = context.clip.visualKind == TimelineVisualKind.image
+          ? EditorMediaTab.image
+          : EditorMediaTab.video;
+      _markMotionAuthoringChanged();
+    });
   }
 
   void _handleDeleteSelectedClip() {
@@ -23544,6 +23602,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required MotionNormalizedComposition? composition,
     required MotionEvaluationSnapshot? evaluation,
     required MotionTextRenderSnapshot? textSnapshot,
+    required TimelineTime previewTime,
   }) {
     final canvasSize =
         textSnapshot?.canvasSize ?? composition?.format.canvasSize;
@@ -23551,6 +23610,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return null;
     }
     final nodes = <UnifiedCanvasTransformNode>[
+      ..._unifiedCanvasTransformNodesFromTimelineClip(
+        previewTime: previewTime,
+        canvasSize: canvasSize,
+      ),
       if (evaluation != null)
         ..._unifiedCanvasTransformNodesFromEvaluation(
           composition: composition,
@@ -23623,6 +23686,51 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       );
     }
     return nodes;
+  }
+
+  List<UnifiedCanvasTransformNode>
+      _unifiedCanvasTransformNodesFromTimelineClip({
+    required TimelineTime previewTime,
+    required MotionSize2D canvasSize,
+  }) {
+    final selectedClipId = _selectedClipId;
+    if (selectedClipId == null) {
+      return const <UnifiedCanvasTransformNode>[];
+    }
+    final context =
+        _selectedClipContextForTracks(_timelineTruthTracks, selectedClipId);
+    if (context == null ||
+        !_timelineClipSupportsCanvasTransform(context.clip) ||
+        previewTime < context.clipStartTime ||
+        previewTime >= context.clipEndTime) {
+      return const <UnifiedCanvasTransformNode>[];
+    }
+    final size = _canvasClipPreviewSize(
+      clip: context.clip,
+      canvasSize: canvasSize,
+    );
+    if (size.width <= 0 || size.height <= 0) {
+      return const <UnifiedCanvasTransformNode>[];
+    }
+    final transform = _canvasClipTransformFor(context.clip.id);
+    return <UnifiedCanvasTransformNode>[
+      UnifiedCanvasTransformNode(
+        id: context.clip.id,
+        layerId: context.clip.id,
+        kind: context.clip.visualKind == TimelineVisualKind.image
+            ? UnifiedCanvasTransformNodeKind.image
+            : UnifiedCanvasTransformNodeKind.video,
+        positionX: transform.positionX,
+        positionY: transform.positionY,
+        width: size.width,
+        height: size.height,
+        scaleX: transform.scaleX,
+        scaleY: transform.scaleY,
+        rotationDegrees: transform.rotationDegrees,
+        opacity: 1,
+        zIndex: 1 << 20,
+      ),
+    ];
   }
 
   List<UnifiedCanvasTransformNode> _unifiedCanvasTransformNodesFromEvaluation({
@@ -23818,6 +23926,66 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return rawValue.toDouble();
     }
     return null;
+  }
+
+  bool _timelineClipSupportsCanvasTransform(TimelineClipData clip) {
+    return clip.type == TimelineClipType.media &&
+        (clip.visualKind == TimelineVisualKind.video ||
+            clip.visualKind == TimelineVisualKind.image);
+  }
+
+  _CanvasClipTransform _canvasClipTransformFor(String clipId) {
+    return _canvasClipTransforms[clipId] ?? const _CanvasClipTransform();
+  }
+
+  Size _canvasClipPreviewSize({
+    required TimelineClipData clip,
+    required MotionSize2D canvasSize,
+  }) {
+    final asset = _assetForId(clip.assetId);
+    final sourceWidth = asset?.width?.toDouble();
+    final sourceHeight = asset?.height?.toDouble();
+    if (sourceWidth != null &&
+        sourceWidth > 0 &&
+        sourceHeight != null &&
+        sourceHeight > 0) {
+      final fitScale = math.min(
+        canvasSize.width / sourceWidth,
+        canvasSize.height / sourceHeight,
+      );
+      return Size(sourceWidth * fitScale, sourceHeight * fitScale);
+    }
+    return Size(canvasSize.width, canvasSize.height);
+  }
+
+  MotionVideoPreviewTransform? _timelineClipPreviewTransformForTime(
+    TimelineTime previewTime,
+  ) {
+    final selectedClipId = _selectedClipId;
+    if (selectedClipId == null) {
+      return null;
+    }
+    final context =
+        _selectedClipContextForTracks(_timelineTruthTracks, selectedClipId);
+    if (context == null ||
+        !_timelineClipSupportsCanvasTransform(context.clip) ||
+        previewTime < context.clipStartTime ||
+        previewTime >= context.clipEndTime) {
+      return null;
+    }
+    final transform = _canvasClipTransformFor(context.clip.id);
+    return MotionVideoPreviewTransform(
+      elementId: context.clip.id,
+      assetId: context.clip.assetId,
+      zIndex: context.trackIndex,
+      positionX: transform.positionX,
+      positionY: transform.positionY,
+      scaleX: transform.scaleX,
+      scaleY: transform.scaleY,
+      rotationDegrees: transform.rotationDegrees,
+      opacity: 1,
+      blurAmount: 0,
+    );
   }
 
   void _scheduleMotionImagePreviewWarmup(
@@ -25875,7 +26043,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         final shouldSuppressNativePreviewForProfessionalTransition =
             routeDecision.suppressesStage5Preview;
         return MotionVideoPreviewTransformSurface(
-          transform: _motionVideoPreviewTransformForTime(previewTime),
+          transform: _motionVideoPreviewTransformForTime(previewTime) ??
+              _timelineClipPreviewTransformForTime(previewTime),
           surfaceTransform: _transitionVideoSurfaceTransformForTime(
             previewTime,
           ),
@@ -25953,6 +26122,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                   composition: motionComposition,
                   evaluation: motionEvaluationSnapshot,
                   textSnapshot: motionTextRenderSnapshot,
+                  previewTime: previewTime,
                 );
                 final selectedCanvasElementId = unifiedTransformSnapshot == null
                     ? null
@@ -28264,6 +28434,38 @@ class _MotionElementContext {
         layerId: layer.id,
         elementId: element.id,
       );
+}
+
+class _CanvasClipTransform {
+  const _CanvasClipTransform({
+    this.positionX = 0,
+    this.positionY = 0,
+    this.scaleX = 1,
+    this.scaleY = 1,
+    this.rotationDegrees = 0,
+  });
+
+  final double positionX;
+  final double positionY;
+  final double scaleX;
+  final double scaleY;
+  final double rotationDegrees;
+
+  _CanvasClipTransform copyWith({
+    double? positionX,
+    double? positionY,
+    double? scaleX,
+    double? scaleY,
+    double? rotationDegrees,
+  }) {
+    return _CanvasClipTransform(
+      positionX: positionX ?? this.positionX,
+      positionY: positionY ?? this.positionY,
+      scaleX: scaleX ?? this.scaleX,
+      scaleY: scaleY ?? this.scaleY,
+      rotationDegrees: rotationDegrees ?? this.rotationDegrees,
+    );
+  }
 }
 
 class _ActiveTextEditSession {
