@@ -55,6 +55,8 @@ class RefusionMcpApplySceneProgramCommitResult {
 typedef RefusionMcpApplySceneProgramCommit
     = RefusionMcpApplySceneProgramCommitResult Function(
         RefusionMcpApplySceneProgramCommitRequest request);
+typedef RefusionMcpMutationCommandHandler = RefusionMcpCommandHandlingOutcome
+    Function(RefusionMcpCommandEnvelope command);
 
 @immutable
 class RefusionMcpMvpToolkitConfig {
@@ -70,6 +72,9 @@ class RefusionMcpMvpToolkitConfig {
     this.channelsReader,
     this.textBindingsReader,
     this.applySceneProgramCommit,
+    this.applyMotionPatchHandler,
+    this.keyframeEditHandler,
+    this.setElementTransformHandler,
   });
 
   final RefusionMcpStateReader projectStateReader;
@@ -83,6 +88,9 @@ class RefusionMcpMvpToolkitConfig {
   final RefusionMcpChannelsReader? channelsReader;
   final RefusionMcpTextBindingsReader? textBindingsReader;
   final RefusionMcpApplySceneProgramCommit? applySceneProgramCommit;
+  final RefusionMcpMutationCommandHandler? applyMotionPatchHandler;
+  final RefusionMcpMutationCommandHandler? keyframeEditHandler;
+  final RefusionMcpMutationCommandHandler? setElementTransformHandler;
 }
 
 class RefusionMcpMvpToolkit {
@@ -331,7 +339,42 @@ class RefusionMcpMvpToolkit {
         );
       },
     );
+    _registerMutationHandler(
+      bus: bus,
+      commandType: 'refusion.apply_motion_patch',
+      mutationHandler: config.applyMotionPatchHandler,
+    );
+    _registerMutationHandler(
+      bus: bus,
+      commandType: 'refusion.keyframe_edit',
+      mutationHandler: config.keyframeEditHandler,
+    );
+    _registerMutationHandler(
+      bus: bus,
+      commandType: 'refusion.set_element_transform',
+      mutationHandler: config.setElementTransformHandler,
+    );
   }
+}
+
+void _registerMutationHandler({
+  required RefusionMcpCommandBus bus,
+  required String commandType,
+  required RefusionMcpMutationCommandHandler? mutationHandler,
+}) {
+  bus.registerHandler(
+    commandType: commandType,
+    handler: (context) {
+      if (mutationHandler == null) {
+        return RefusionMcpCommandHandlingOutcome(
+          summary:
+              'Command `$commandType` is not wired in this runtime profile.',
+          requiresConfirmation: true,
+        );
+      }
+      return mutationHandler(context.command);
+    },
+  );
 }
 
 bool _canApplySceneProgram(RefusionMcpMvpToolkitConfig config) {
