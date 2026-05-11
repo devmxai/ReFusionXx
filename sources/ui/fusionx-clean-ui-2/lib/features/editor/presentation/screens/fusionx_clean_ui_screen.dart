@@ -75,6 +75,7 @@ import '../services/normal_transition_timeline_authoring_adapter.dart';
 import '../services/native_preview_identity_resolver.dart';
 import '../services/professional_video_transition_render_plan_adapter.dart';
 import '../services/root_scene_clip_projection_adapter.dart';
+import '../services/refusion_mcp_cloud_bridge.dart';
 import '../services/scene_layer_scope_timeline_adapter.dart';
 import '../services/scene_scope_transition_preview_resolver.dart';
 import '../services/timeline_media_program_time_mapper.dart';
@@ -821,6 +822,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   final Map<int, Map<String, int>> _velocityParitySemanticHashesByTimeMs =
       <int, Map<String, int>>{};
   final SeamStateHistoryCache _seamStateHistoryCache = SeamStateHistoryCache();
+  RefusionMcpCloudBridge? _mcpCloudBridge;
+  Timer? _mcpCloudSyncDebounce;
+  bool _mcpCloudIsForeground = true;
 
   @override
   void initState() {
@@ -892,6 +896,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _masterClockNativeBridge = MasterClockNativeBridge(
       clock: _timelineClockCoordinator,
     );
+    _configureMcpCloudBridge();
     unawaited(_transportController.initialize());
     unawaited(_exportController.ensureInitialized());
   }
@@ -910,7 +915,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _assetLibraryLoading.dispose();
     _assetLibraryError.dispose();
     _motionPreviewWarmupDebounce?.cancel();
+    _mcpCloudSyncDebounce?.cancel();
     _playbackStopTimeLockTimer?.cancel();
+    final bridge = _mcpCloudBridge;
+    _mcpCloudBridge = null;
+    if (bridge != null) {
+      unawaited(bridge.stop());
+    }
     _motionPreviewFrameTicker.dispose();
     _timelineClockCoordinator.dispose();
     _timelineDisplayTimeNotifier.dispose();
@@ -930,9 +941,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       case AppLifecycleState.inactive:
       case AppLifecycleState.paused:
       case AppLifecycleState.hidden:
+        unawaited(_setMcpCloudForeground(false));
         _handleNativePreviewLifecycleSuspended();
         break;
       case AppLifecycleState.resumed:
+        unawaited(_setMcpCloudForeground(true));
         _scheduleNativePreviewLifecycleRecovery();
         break;
       case AppLifecycleState.detached:
@@ -1168,6 +1181,57 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
   }
 
+  void _configureMcpCloudBridge() {
+    final endpoint = refusionMcpCloudEndpointFromEnvironment();
+    if (endpoint == null) {
+      return;
+    }
+    _mcpCloudBridge = RefusionMcpCloudBridge(
+      endpoint: endpoint,
+      deviceId: refusionMcpCloudDeviceId(),
+      contextReader: _readMcpCloudContextState,
+      onSnapshot: _handleMcpCloudSnapshot,
+    );
+    unawaited(_mcpCloudBridge!.start());
+  }
+
+  RefusionMcpCloudContextState _readMcpCloudContextState() {
+    final activeSceneId = _sceneScopeSession?.sourceSceneId ?? _motionSceneId;
+    return RefusionMcpCloudContextState(
+      projectId: _effectiveMotionProject.id,
+      compositionId: activeSceneId,
+      timelineId: 'main',
+      playheadMs: refusionMcpPlayheadMs(_currentTime),
+      foreground: _mcpCloudIsForeground,
+    );
+  }
+
+  void _handleMcpCloudSnapshot(RefusionMcpCloudBridgeSnapshot snapshot) {
+    if (!snapshot.ok && kDebugMode) {
+      debugPrint('MCP cloud sync warning: ${snapshot.error ?? 'unknown'}');
+    }
+  }
+
+  void _scheduleMcpCloudSync({Duration delay = const Duration(milliseconds: 180)}) {
+    final bridge = _mcpCloudBridge;
+    if (bridge == null) {
+      return;
+    }
+    _mcpCloudSyncDebounce?.cancel();
+    _mcpCloudSyncDebounce = Timer(delay, () {
+      unawaited(bridge.syncNow());
+    });
+  }
+
+  Future<void> _setMcpCloudForeground(bool isForeground) async {
+    _mcpCloudIsForeground = isForeground;
+    final bridge = _mcpCloudBridge;
+    if (bridge == null) {
+      return;
+    }
+    await bridge.setForeground(isForeground);
+  }
+
   MotionProjectModel get _effectiveMotionProject {
     final baseProject = _motionProject ?? _buildInitialMotionProject();
     final effectiveDuration = _timelineDurationTime > baseProject.durationTime
@@ -1294,6 +1358,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (scheduleWarmup) {
       _scheduleMotionPreviewWarmup();
     }
+    _scheduleMcpCloudSync();
   }
 
   void _scheduleMotionPreviewWarmup({TimelineTime? time}) {
