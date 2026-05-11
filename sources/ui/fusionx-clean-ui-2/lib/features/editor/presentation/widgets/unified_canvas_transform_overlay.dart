@@ -102,12 +102,14 @@ class UnifiedCanvasTransformOverlay extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final layouts = _buildLayouts(constraints);
-        final selectedLayout = selectedElementId == null
+        final effectiveSelectedElementId = selectedElementId ??
+            (layouts.length == 1 ? layouts.single.node.id : null);
+        final selectedLayout = effectiveSelectedElementId == null
             ? null
             : layouts.cast<_UnifiedCanvasNodeLayout?>().firstWhere(
                   (layout) =>
-                      layout?.node.id == selectedElementId ||
-                      layout?.node.layerId == selectedElementId,
+                      layout?.node.id == effectiveSelectedElementId ||
+                      layout?.node.layerId == effectiveSelectedElementId,
                   orElse: () => null,
                 );
 
@@ -137,6 +139,9 @@ class UnifiedCanvasTransformOverlay extends StatelessWidget {
               ),
             if (selectedLayout != null)
               _SelectedNodeTransformBox(
+                key: const ValueKey<String>(
+                  'unifiedCanvasTransformSelectionBox',
+                ),
                 layout: selectedLayout,
                 isInteractive: isInteractive,
                 onNodeSelected: onNodeSelected,
@@ -201,6 +206,7 @@ class UnifiedCanvasTransformOverlay extends StatelessWidget {
 
 class _SelectedNodeTransformBox extends StatefulWidget {
   const _SelectedNodeTransformBox({
+    super.key,
     required this.layout,
     required this.isInteractive,
     required this.onNodeSelected,

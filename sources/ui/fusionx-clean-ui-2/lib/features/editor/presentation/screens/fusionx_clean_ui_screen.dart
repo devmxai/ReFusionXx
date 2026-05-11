@@ -23645,14 +23645,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   ) {
     final selectedClipId = _selectedClipId;
     if (selectedClipId == null) {
-      return null;
+      return snapshot.nodes.length == 1 ? snapshot.nodes.first.id : null;
     }
     for (final node in snapshot.nodes) {
       if (node.id == selectedClipId || node.layerId == selectedClipId) {
         return node.id;
       }
     }
-    return null;
+    return snapshot.nodes.length == 1 ? snapshot.nodes.first.id : null;
   }
 
   List<UnifiedCanvasTransformNode> _unifiedCanvasTransformNodesFromTextSnapshot(
