@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:meta/meta.dart';
 
 import '../../domain/mcp/refusion_mcp_agent_control_plane.dart';
 import '../../domain/mcp/refusion_mcp_audit_log.dart';

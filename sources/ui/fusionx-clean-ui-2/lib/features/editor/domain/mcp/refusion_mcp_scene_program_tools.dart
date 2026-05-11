@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
+import 'package:meta/meta.dart';
 
 import '../models/refusion_motion_director_models.dart';
 import '../models/refusion_scene_program_models.dart';

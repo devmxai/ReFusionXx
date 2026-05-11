@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:meta/meta.dart';
 
 import '../../presentation/models/timeline_time.dart';
 import '../models/composition_scene_clip_models.dart';

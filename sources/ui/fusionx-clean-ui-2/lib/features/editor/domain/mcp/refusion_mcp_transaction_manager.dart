@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:meta/meta.dart';
 
 import 'refusion_mcp_command_result.dart';
 import 'refusion_mcp_transaction.dart';

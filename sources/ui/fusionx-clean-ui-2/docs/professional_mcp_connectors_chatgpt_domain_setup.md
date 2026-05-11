@@ -12,6 +12,22 @@ domain from ChatGPT Apps settings.
 3. TLS certificate valid (no self-signed certs for production).
 4. ReFusion MCP toolset available on that endpoint.
 
+Local start command (development):
+
+```bash
+cd /Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2
+dart run tool/refusion_mcp_streamable_http_launcher.dart --host 0.0.0.0 --port 8787 --path /mcp
+```
+
+Optional pairing token:
+
+```bash
+REFUSION_MCP_PAIRING_TOKEN=your-token dart run tool/refusion_mcp_streamable_http_launcher.dart --host 0.0.0.0 --port 8787 --path /mcp
+```
+
+Then expose a public HTTPS URL with your tunnel/reverse-proxy of choice and map
+it to `http://localhost:8787/mcp`.
+
 ## 2) Host Handshake Order (must follow)
 
 1. `refusion/session/open`
@@ -43,4 +59,3 @@ In ChatGPT:
 - Local `stdio` integration is for local dev hosts (Codex/Claude local).
 - ChatGPT requires remote domain onboarding and network-reachable transport.
 - Stage5 and Live Scrub remain protected and are not directly mutated by MCP.
-
