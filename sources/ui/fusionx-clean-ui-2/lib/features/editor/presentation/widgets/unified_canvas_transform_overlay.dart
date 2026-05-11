@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../../domain/models/professional_motion_models.dart';
+import 'preview_stage.dart';
 
 typedef UnifiedCanvasNodeMoveCallback = void Function(
   String elementId,
@@ -101,7 +102,17 @@ class UnifiedCanvasTransformOverlay extends StatelessWidget {
     }
     return LayoutBuilder(
       builder: (context, constraints) {
-        final layouts = _buildLayouts(constraints);
+        final stageViewport = PreviewStageCanvasViewport.maybeOf(context);
+        final canvasRect = stageViewport?.canvasRect ??
+            Offset.zero &
+                Size(
+                  constraints.maxWidth,
+                  constraints.maxHeight,
+                );
+        final layouts = _buildLayouts(
+          canvasRect: canvasRect,
+          viewportScale: stageViewport?.viewportScale ?? 1.0,
+        );
         final effectiveSelectedElementId = selectedElementId ??
             (layouts.length == 1 ? layouts.single.node.id : null);
         final selectedLayout = effectiveSelectedElementId == null
@@ -134,21 +145,21 @@ class UnifiedCanvasTransformOverlay extends StatelessWidget {
     );
   }
 
-  List<_UnifiedCanvasNodeLayout> _buildLayouts(BoxConstraints constraints) {
+  List<_UnifiedCanvasNodeLayout> _buildLayouts({
+    required Rect canvasRect,
+    required double viewportScale,
+  }) {
     final canvasWidth = snapshot.canvasSize.width <= 0
-        ? constraints.maxWidth
+        ? canvasRect.width
         : snapshot.canvasSize.width;
     final canvasHeight = snapshot.canvasSize.height <= 0
-        ? constraints.maxHeight
+        ? canvasRect.height
         : snapshot.canvasSize.height;
     final stageScaleX =
-        canvasWidth == 0 ? 1.0 : (constraints.maxWidth / canvasWidth);
+        canvasWidth == 0 ? 1.0 : (canvasRect.width / canvasWidth);
     final stageScaleY =
-        canvasHeight == 0 ? 1.0 : (constraints.maxHeight / canvasHeight);
-    final stageCenter = Offset(
-      constraints.maxWidth / 2,
-      constraints.maxHeight / 2,
-    );
+        canvasHeight == 0 ? 1.0 : (canvasRect.height / canvasHeight);
+    final stageCenter = canvasRect.center;
     final layouts = <_UnifiedCanvasNodeLayout>[
       for (final node in snapshot.nodes)
         if (node.opacity > 0 && node.width > 0 && node.height > 0)
@@ -157,6 +168,7 @@ class UnifiedCanvasTransformOverlay extends StatelessWidget {
             stageCenter: stageCenter,
             stageScaleX: stageScaleX,
             stageScaleY: stageScaleY,
+            viewportScale: viewportScale,
           ),
     ];
     layouts.sort((left, right) {
@@ -196,9 +208,12 @@ class _SelectedNodeTransformBoxState extends State<_SelectedNodeTransformBox> {
   static const double _handleSize = 10;
   static const double _handleHitSize = 30;
   static const double _stemLength = 16;
+  static const double _bodyDragSlop = 5;
 
   int _activePointerCount = 0;
+  Offset? _bodyMoveStartPosition;
   Offset? _lastBodyMovePosition;
+  bool _bodyMoveActivated = false;
   double? _rotationGestureStartAngle;
   double? _rotationGestureStartDegrees;
 
@@ -287,17 +302,31 @@ class _SelectedNodeTransformBoxState extends State<_SelectedNodeTransformBox> {
         behavior: HitTestBehavior.translucent,
         onPointerDown: widget.isInteractive
             ? (event) {
-                _lastBodyMovePosition = event.position;
+                _bodyMoveStartPosition = event.position;
+                _lastBodyMovePosition = null;
+                _bodyMoveActivated = false;
               }
             : null,
         onPointerMove: widget.isInteractive
             ? (event) {
+                final currentPosition = event.position;
                 if (_activePointerCount != 1) {
-                  _lastBodyMovePosition = event.position;
+                  _bodyMoveStartPosition = currentPosition;
+                  _lastBodyMovePosition = null;
+                  _bodyMoveActivated = false;
+                  return;
+                }
+                final start = _bodyMoveStartPosition ?? currentPosition;
+                if (!_bodyMoveActivated) {
+                  if ((currentPosition - start).distance < _bodyDragSlop) {
+                    return;
+                  }
+                  _bodyMoveActivated = true;
+                  _lastBodyMovePosition = currentPosition;
                   return;
                 }
                 final previous = _lastBodyMovePosition;
-                _lastBodyMovePosition = event.position;
+                _lastBodyMovePosition = currentPosition;
                 if (previous == null) {
                   return;
                 }
@@ -307,18 +336,19 @@ class _SelectedNodeTransformBoxState extends State<_SelectedNodeTransformBox> {
                 }
                 widget.onNodeMoved(
                   widget.layout.node.id,
-                  Offset(
-                    delta.dx / widget.layout.stageScaleX,
-                    delta.dy / widget.layout.stageScaleY,
-                  ),
+                  widget.layout.projectScreenDeltaToCanvas(delta),
                 );
               }
             : null,
         onPointerUp: (_) {
+          _bodyMoveStartPosition = null;
           _lastBodyMovePosition = null;
+          _bodyMoveActivated = false;
         },
         onPointerCancel: (_) {
+          _bodyMoveStartPosition = null;
           _lastBodyMovePosition = null;
+          _bodyMoveActivated = false;
         },
         child: const SizedBox.expand(),
       ),
@@ -396,10 +426,7 @@ class _SelectedNodeTransformBoxState extends State<_SelectedNodeTransformBox> {
                 }
                 widget.onNodeMoved(
                   widget.layout.node.id,
-                  Offset(
-                    details.delta.dx / widget.layout.stageScaleX,
-                    details.delta.dy / widget.layout.stageScaleY,
-                  ),
+                  widget.layout.projectScreenDeltaToCanvas(details.delta),
                 );
               }
             : null,
@@ -629,6 +656,7 @@ class _UnifiedCanvasNodeLayout {
     required this.node,
     required this.stageScaleX,
     required this.stageScaleY,
+    required this.viewportScale,
     required this.nodeCenter,
     required this.localRect,
     required this.axisAlignedBounds,
@@ -639,6 +667,7 @@ class _UnifiedCanvasNodeLayout {
     required Offset stageCenter,
     required double stageScaleX,
     required double stageScaleY,
+    required double viewportScale,
   }) {
     final localRect = Rect.fromCenter(
       center: Offset.zero,
@@ -661,6 +690,7 @@ class _UnifiedCanvasNodeLayout {
       node: node,
       stageScaleX: stageScaleX,
       stageScaleY: stageScaleY,
+      viewportScale: viewportScale,
       nodeCenter: nodeCenter,
       localRect: localRect,
       axisAlignedBounds: axisAlignedBounds,
@@ -670,6 +700,7 @@ class _UnifiedCanvasNodeLayout {
   final UnifiedCanvasTransformNode node;
   final double stageScaleX;
   final double stageScaleY;
+  final double viewportScale;
   final Offset nodeCenter;
   final Rect localRect;
   final Rect axisAlignedBounds;
@@ -687,12 +718,24 @@ class _UnifiedCanvasNodeLayout {
   }
 
   Offset projectScreenDeltaToLocal(Offset screenDelta) {
+    final safeViewportScale =
+        viewportScale.abs() < 0.0001 ? 1.0 : viewportScale;
+    final localScreenDelta = screenDelta / safeViewportScale;
     final radians = node.rotationDegrees * (math.pi / 180);
     final cosTheta = math.cos(-radians);
     final sinTheta = math.sin(-radians);
     return Offset(
-      (screenDelta.dx * cosTheta) - (screenDelta.dy * sinTheta),
-      (screenDelta.dx * sinTheta) + (screenDelta.dy * cosTheta),
+      (localScreenDelta.dx * cosTheta) - (localScreenDelta.dy * sinTheta),
+      (localScreenDelta.dx * sinTheta) + (localScreenDelta.dy * cosTheta),
+    );
+  }
+
+  Offset projectScreenDeltaToCanvas(Offset screenDelta) {
+    final safeViewportScale =
+        viewportScale.abs() < 0.0001 ? 1.0 : viewportScale;
+    return Offset(
+      screenDelta.dx / (stageScaleX * safeViewportScale),
+      screenDelta.dy / (stageScaleY * safeViewportScale),
     );
   }
 

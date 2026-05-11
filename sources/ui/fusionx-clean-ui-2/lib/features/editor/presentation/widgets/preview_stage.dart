@@ -80,24 +80,42 @@ class PreviewStage extends StatelessWidget {
 
         return ColoredBox(
           color: FxPalette.background,
-          child: Center(
-            child: SizedBox(
-              width: targetWidth,
-              height: targetHeight,
-              child: _PreviewStageViewportShell(
-                hasVisibleContent: hasVisibleContent,
-                viewportState: viewportState,
-                onViewportChanged: onViewportChanged,
-                onViewportReset: onViewportReset,
-                canvasBackgroundColor: canvasBackgroundColor,
-                overlay: overlay,
-                child: child,
-              ),
-            ),
+          child: _PreviewStageViewportShell(
+            hasVisibleContent: hasVisibleContent,
+            viewportState: viewportState,
+            onViewportChanged: onViewportChanged,
+            onViewportReset: onViewportReset,
+            canvasBackgroundColor: canvasBackgroundColor,
+            canvasSize: Size(targetWidth, targetHeight),
+            overlay: overlay,
+            child: child,
           ),
         );
       },
     );
+  }
+}
+
+class PreviewStageCanvasViewport extends InheritedWidget {
+  const PreviewStageCanvasViewport({
+    super.key,
+    required this.canvasRect,
+    required this.viewportScale,
+    required super.child,
+  });
+
+  final Rect canvasRect;
+  final double viewportScale;
+
+  static PreviewStageCanvasViewport? maybeOf(BuildContext context) {
+    return context
+        .dependOnInheritedWidgetOfExactType<PreviewStageCanvasViewport>();
+  }
+
+  @override
+  bool updateShouldNotify(covariant PreviewStageCanvasViewport oldWidget) {
+    return oldWidget.canvasRect != canvasRect ||
+        oldWidget.viewportScale != viewportScale;
   }
 }
 
@@ -107,6 +125,7 @@ class _PreviewStageViewportShell extends StatefulWidget {
     required this.viewportState,
     required this.child,
     required this.canvasBackgroundColor,
+    required this.canvasSize,
     this.overlay,
     this.onViewportChanged,
     this.onViewportReset,
@@ -116,6 +135,7 @@ class _PreviewStageViewportShell extends StatefulWidget {
   final PreviewViewportState viewportState;
   final Widget child;
   final Color canvasBackgroundColor;
+  final Size canvasSize;
   final Widget? overlay;
   final ValueChanged<PreviewViewportState>? onViewportChanged;
   final VoidCallback? onViewportReset;
@@ -222,44 +242,66 @@ class _PreviewStageViewportShellState
           _viewportGestureActive = false;
           widget.onViewportChanged?.call(_interactiveViewportState);
         },
-        child: Stack(
-          clipBehavior: Clip.none,
-          fit: StackFit.expand,
-          children: [
-            Positioned.fill(
-              child: Transform(
-                alignment: Alignment.center,
-                transform: Matrix4.identity()
-                  ..translate(
-                    viewportState.offset.dx,
-                    viewportState.offset.dy,
-                  )
-                  ..scale(viewportState.scale),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: ColoredBox(
-                    color: widget.hasVisibleContent
-                        ? widget.canvasBackgroundColor
-                        : Colors.transparent,
-                    child: widget.child,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final stageSize = Size(
+              constraints.maxWidth,
+              constraints.maxHeight,
+            );
+            final canvasRect = Rect.fromCenter(
+              center: stageSize.center(Offset.zero),
+              width: widget.canvasSize.width,
+              height: widget.canvasSize.height,
+            );
+            final viewportTransform = Matrix4.identity()
+              ..translate(
+                viewportState.offset.dx,
+                viewportState.offset.dy,
+              )
+              ..scale(viewportState.scale);
+            return Stack(
+              clipBehavior: Clip.none,
+              fit: StackFit.expand,
+              children: [
+                Positioned.fill(
+                  child: Transform(
+                    alignment: Alignment.center,
+                    transform: viewportTransform,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      fit: StackFit.expand,
+                      children: [
+                        Positioned.fromRect(
+                          rect: canvasRect,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: ColoredBox(
+                              color: widget.hasVisibleContent
+                                  ? widget.canvasBackgroundColor
+                                  : Colors.transparent,
+                              child: widget.child,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ),
-            if (widget.overlay != null)
-              Positioned.fill(
-                child: Transform(
-                  alignment: Alignment.center,
-                  transform: Matrix4.identity()
-                    ..translate(
-                      viewportState.offset.dx,
-                      viewportState.offset.dy,
-                    )
-                    ..scale(viewportState.scale),
-                  child: widget.overlay!,
-                ),
-              ),
-          ],
+                if (widget.overlay != null)
+                  Positioned.fill(
+                    child: Transform(
+                      alignment: Alignment.center,
+                      transform: viewportTransform,
+                      child: PreviewStageCanvasViewport(
+                        canvasRect: canvasRect,
+                        viewportScale: viewportState.scale,
+                        child: widget.overlay!,
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
         ),
       ),
     );
