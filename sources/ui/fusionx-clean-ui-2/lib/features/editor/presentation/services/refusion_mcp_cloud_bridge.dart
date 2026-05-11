@@ -281,9 +281,11 @@ String refusionMcpCloudDeviceId() {
 }
 
 Uri? refusionMcpCloudEndpointFromEnvironment() {
+  const fallbackEndpoint =
+      'https://wygydvczsgnocihbihje.supabase.co/functions/v1/mcp';
   const endpointValue = String.fromEnvironment(
     'REFUSION_MCP_REMOTE_URL',
-    defaultValue: '',
+    defaultValue: fallbackEndpoint,
   );
   if (endpointValue.trim().isEmpty) {
     return null;
