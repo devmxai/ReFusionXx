@@ -13,6 +13,8 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const devToken = Deno.env.get('REFUSION_MCP_DEV_TOKEN') ?? '';
 const devUserId = Deno.env.get('REFUSION_MCP_DEV_USER_ID') ?? '';
+const allowNoAuthDevMode =
+  (Deno.env.get('REFUSION_MCP_ALLOW_NO_AUTH') ?? '').toLowerCase() === 'true';
 
 const admin = createClient(supabaseUrl, serviceRoleKey, {
   auth: {
@@ -104,6 +106,9 @@ async function resolveUserId(request: Request): Promise<string> {
     requestUrl.searchParams.get('dev_token') ??
     '';
   if (devToken && devUserId && providedDevToken === devToken) {
+    return devUserId;
+  }
+  if (allowNoAuthDevMode && devUserId) {
     return devUserId;
   }
   throw new Error('Authentication required.');

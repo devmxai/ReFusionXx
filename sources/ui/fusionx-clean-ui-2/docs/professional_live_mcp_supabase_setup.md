@@ -43,6 +43,11 @@ Current tools:
 For quick testing, the function accepts a temporary development token through
 the query string or `x-refusion-dev-token` header.
 
+The deployed development environment can also enable temporary `No Auth`
+connector testing with `REFUSION_MCP_ALLOW_NO_AUTH=true`. This maps requests to
+the configured development user and exists only to prove ChatGPT MCP tool calls
+end-to-end before the production OAuth/Supabase Auth flow is implemented.
+
 This is not the final production auth model.
 
 Production must replace this with OAuth/Supabase Auth through the MCP
