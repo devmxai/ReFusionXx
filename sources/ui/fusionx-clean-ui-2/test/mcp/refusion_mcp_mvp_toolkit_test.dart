@@ -288,6 +288,13 @@ void main() {
       expect(commit.revisionAfter, 21);
       expect(channels, isNotEmpty);
       expect(channels.first.definition.id, MotionPropertyCatalog.positionX.id);
+      final undo = toolBus.undo(
+        session: _sessionWithAllWrites(),
+        currentRevision: 21,
+      );
+      expect(undo.ok, isTrue);
+      expect(undo.revisionAfter, 22);
+      expect(channels, isEmpty);
     });
 
     test(
@@ -410,6 +417,13 @@ void main() {
       expect(commit.ok, isTrue);
       expect(commit.revisionAfter, 41);
       expect(project.scenes.first.layers.length, greaterThan(1));
+      final undo = toolBus.undo(
+        session: _sessionWithAllWrites(),
+        currentRevision: 41,
+      );
+      expect(undo.ok, isTrue);
+      expect(undo.revisionAfter, 42);
+      expect(project.scenes.first.layers.length, 1);
     });
 
     test('default timeline delete_layer requires confirmation flag', () {

@@ -180,6 +180,26 @@ class RefusionMcpMotionTools {
         return RefusionMcpCommitExecution(
           revisionAfter: commit.revisionAfter,
           summary: commit.summary,
+          undo: () {
+            final undoCommit = commitChannels(
+              RefusionMcpMotionChannelsCommitRequest(
+                command: command,
+                channels: channels,
+                summary: 'Undo ${commit.summary ?? 'Apply motion patch'}',
+              ),
+            );
+            return undoCommit.revisionAfter;
+          },
+          redo: () {
+            final redoCommit = commitChannels(
+              RefusionMcpMotionChannelsCommitRequest(
+                command: command,
+                channels: applyResult.channels,
+                summary: 'Redo ${commit.summary ?? 'Apply motion patch'}',
+              ),
+            );
+            return redoCommit.revisionAfter;
+          },
         );
       },
     );
@@ -349,6 +369,26 @@ class RefusionMcpMotionTools {
         return RefusionMcpCommitExecution(
           revisionAfter: commit.revisionAfter,
           summary: commit.summary,
+          undo: () {
+            final undoCommit = commitChannels(
+              RefusionMcpMotionChannelsCommitRequest(
+                command: command,
+                channels: channels,
+                summary: 'Undo ${commit.summary ?? 'Set element transform'}',
+              ),
+            );
+            return undoCommit.revisionAfter;
+          },
+          redo: () {
+            final redoCommit = commitChannels(
+              RefusionMcpMotionChannelsCommitRequest(
+                command: command,
+                channels: nextChannels,
+                summary: 'Redo ${commit.summary ?? 'Set element transform'}',
+              ),
+            );
+            return redoCommit.revisionAfter;
+          },
         );
       },
       payload: <String, Object?>{
@@ -412,6 +452,7 @@ class RefusionMcpMotionTools {
     return _commitKeyframeResult(
       command: command,
       summary: 'Keyframe add is ready to commit.',
+      previousChannels: channels,
       result: result,
       commitChannels: commitChannels,
     );
@@ -461,6 +502,7 @@ class RefusionMcpMotionTools {
     return _commitKeyframeResult(
       command: command,
       summary: 'Keyframe value edit is ready to commit.',
+      previousChannels: channels,
       result: result,
       commitChannels: commitChannels,
     );
@@ -491,6 +533,7 @@ class RefusionMcpMotionTools {
     return _commitKeyframeResult(
       command: command,
       summary: 'Keyframe move is ready to commit.',
+      previousChannels: channels,
       result: result,
       commitChannels: commitChannels,
     );
@@ -519,6 +562,7 @@ class RefusionMcpMotionTools {
     return _commitKeyframeResult(
       command: command,
       summary: 'Keyframe delete is ready to commit.',
+      previousChannels: channels,
       result: result,
       commitChannels: commitChannels,
     );
@@ -556,6 +600,7 @@ class RefusionMcpMotionTools {
     return _commitKeyframeResult(
       command: command,
       summary: 'Keyframe easing update is ready to commit.',
+      previousChannels: channels,
       result: result,
       commitChannels: commitChannels,
     );
@@ -564,6 +609,7 @@ class RefusionMcpMotionTools {
   RefusionMcpCommandHandlingOutcome _commitKeyframeResult({
     required RefusionMcpCommandEnvelope command,
     required String summary,
+    required List<MotionPropertyChannelModel> previousChannels,
     required UnifiedKeyframeOperationResult result,
     required RefusionMcpMotionChannelsCommit commitChannels,
   }) {
@@ -600,6 +646,26 @@ class RefusionMcpMotionTools {
         return RefusionMcpCommitExecution(
           revisionAfter: commit.revisionAfter,
           summary: commit.summary,
+          undo: () {
+            final undoCommit = commitChannels(
+              RefusionMcpMotionChannelsCommitRequest(
+                command: command,
+                channels: previousChannels,
+                summary: 'Undo ${commit.summary ?? summary}',
+              ),
+            );
+            return undoCommit.revisionAfter;
+          },
+          redo: () {
+            final redoCommit = commitChannels(
+              RefusionMcpMotionChannelsCommitRequest(
+                command: command,
+                channels: result.channels,
+                summary: 'Redo ${commit.summary ?? summary}',
+              ),
+            );
+            return redoCommit.revisionAfter;
+          },
         );
       },
     );

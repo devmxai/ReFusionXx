@@ -156,6 +156,7 @@ class RefusionMcpTimelineTools {
     return _timelineCommitOutcome(
       command: command,
       summary: 'Insert layer is ready to commit.',
+      previousProject: project,
       project: nextProject,
       commitProject: commitProject,
       affectedLayerIds: <String>[layerId],
@@ -249,6 +250,7 @@ class RefusionMcpTimelineTools {
     return _timelineCommitOutcome(
       command: command,
       summary: 'Split layer is ready to commit.',
+      previousProject: project,
       project: nextProject,
       commitProject: commitProject,
       affectedLayerIds: <String>[layer.id, rightLayerId],
@@ -320,6 +322,7 @@ class RefusionMcpTimelineTools {
     return _timelineCommitOutcome(
       command: command,
       summary: 'Trim layer is ready to commit.',
+      previousProject: project,
       project: nextProject,
       commitProject: commitProject,
       affectedLayerIds: <String>[layer.id],
@@ -404,6 +407,7 @@ class RefusionMcpTimelineTools {
     return _timelineCommitOutcome(
       command: command,
       summary: 'Move layer is ready to commit.',
+      previousProject: project,
       project: nextProject,
       commitProject: commitProject,
       affectedLayerIds: <String>[layer.id],
@@ -456,6 +460,7 @@ class RefusionMcpTimelineTools {
     return _timelineCommitOutcome(
       command: command,
       summary: 'Delete layer is ready to commit.',
+      previousProject: project,
       project: nextProject,
       commitProject: commitProject,
       affectedLayerIds: <String>[layerId],
@@ -470,6 +475,7 @@ class RefusionMcpTimelineTools {
   RefusionMcpCommandHandlingOutcome _timelineCommitOutcome({
     required RefusionMcpCommandEnvelope command,
     required String summary,
+    required MotionProjectModel previousProject,
     required MotionProjectModel project,
     required RefusionMcpTimelineProjectCommit commitProject,
     required List<String> affectedLayerIds,
@@ -499,6 +505,26 @@ class RefusionMcpTimelineTools {
         return RefusionMcpCommitExecution(
           revisionAfter: commit.revisionAfter,
           summary: commit.summary,
+          undo: () {
+            final undoCommit = commitProject(
+              RefusionMcpTimelineProjectCommitRequest(
+                command: command,
+                project: previousProject,
+                summary: 'Undo ${commit.summary ?? summary}',
+              ),
+            );
+            return undoCommit.revisionAfter;
+          },
+          redo: () {
+            final redoCommit = commitProject(
+              RefusionMcpTimelineProjectCommitRequest(
+                command: command,
+                project: project,
+                summary: 'Redo ${commit.summary ?? summary}',
+              ),
+            );
+            return redoCommit.revisionAfter;
+          },
         );
       },
     );
