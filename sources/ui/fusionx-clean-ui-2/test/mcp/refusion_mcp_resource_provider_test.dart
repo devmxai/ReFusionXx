@@ -35,5 +35,19 @@ void main() {
       expect(result.ok, isFalse);
       expect(result.code, RefusionMcpResourceCode.unavailableResource);
     });
+
+    test('returns too large failure when payload exceeds size limit', () {
+      final provider = RefusionMcpResourceProvider(
+        maxPayloadBytes: 10,
+        readers: <String, RefusionMcpResourceReader>{
+          'refusion://oversized': () => <String, Object?>{
+                'payload': 'this-is-way-too-large',
+              },
+        },
+      );
+      final result = provider.read('refusion://oversized');
+      expect(result.ok, isFalse);
+      expect(result.code, RefusionMcpResourceCode.resourceTooLarge);
+    });
   });
 }

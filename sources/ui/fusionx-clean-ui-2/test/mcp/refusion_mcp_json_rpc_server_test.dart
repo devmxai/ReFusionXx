@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_agent_control_plane.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_capability.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_command_bus.dart';
+import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_hardening_policy.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_mvp_toolkit.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_resource_provider.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_session_store.dart';
@@ -193,6 +194,91 @@ void main() {
       final promptResult = promptResponse['result'] as Map<String, Object?>;
       expect(promptResult['description'], isNotNull);
       expect((promptResult['messages'] as List).isNotEmpty, isTrue);
+    });
+
+    test('requires pairing token when hardening policy is configured', () {
+      final bus = RefusionMcpCommandBus();
+      const toolkit = RefusionMcpMvpToolkit();
+      toolkit.register(
+        bus: bus,
+        config: RefusionMcpMvpToolkitConfig(
+          projectStateReader: () => <String, Object?>{
+            'projectId': 'active',
+            'revision': 5,
+          },
+          timelineSummaryReader: () => <String, Object?>{'rows': 2},
+          selectionReader: () => <String, Object?>{'selected': <String>[]},
+          previewCaptureReader: (_) => <String, Object?>{
+            'resourceUri': 'refusion://preview/frame/0',
+          },
+        ),
+      );
+      final sessionStore = RefusionMcpSessionStore();
+      final resourceProvider = RefusionMcpResourceProvider();
+      final registry = RefusionMcpToolRegistry();
+      final controlPlane = RefusionMcpAgentControlPlane(
+        commandBus: bus,
+        toolRegistry: registry,
+        sessionStore: sessionStore,
+        revisionReader: () => 5,
+      );
+      final hardenedBridge = RefusionMcpAppBridge(
+        controlPlane: controlPlane,
+        sessionStore: sessionStore,
+        resourceProvider: resourceProvider,
+        hardeningPolicy: RefusionMcpHardeningPolicy(
+          requiredPairingToken: 'pair-123',
+        ),
+      );
+      final hardenedServer = RefusionMcpJsonRpcServer(
+        bridge: hardenedBridge,
+        toolRegistry: registry,
+      );
+
+      final denied = hardenedServer.handle(
+        <String, Object?>{
+          'jsonrpc': '2.0',
+          'id': 8,
+          'method': 'refusion/session/open',
+          'params': <String, Object?>{
+            'session': <String, Object?>{
+              'id': 'session_secure',
+              'clientName': 'codex',
+              'clientVersion': '1.0.0',
+              'transport': 'stdio',
+              'activeProjectId': 'active',
+              'activeCompositionId': 'comp_1',
+              'timelineRevision': 5,
+              'capabilities': <String>['project.read'],
+            },
+          },
+        },
+      );
+      expect(denied['error'], isNotNull);
+
+      final allowed = hardenedServer.handle(
+        <String, Object?>{
+          'jsonrpc': '2.0',
+          'id': 9,
+          'method': 'refusion/session/open',
+          'params': <String, Object?>{
+            'pairingToken': 'pair-123',
+            'session': <String, Object?>{
+              'id': 'session_secure',
+              'clientName': 'codex',
+              'clientVersion': '1.0.0',
+              'transport': 'stdio',
+              'activeProjectId': 'active',
+              'activeCompositionId': 'comp_1',
+              'timelineRevision': 5,
+              'capabilities': <String>['project.read'],
+            },
+          },
+        },
+      );
+      expect(allowed['error'], isNull);
+      final result = allowed['result'] as Map<String, Object?>;
+      expect(result['sessionId'], 'session_secure');
     });
   });
 }

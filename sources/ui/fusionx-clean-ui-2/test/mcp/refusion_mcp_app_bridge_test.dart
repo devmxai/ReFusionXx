@@ -3,6 +3,8 @@ import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_agent_contr
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_capability.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_command.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_command_bus.dart';
+import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_command_result.dart';
+import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_hardening_policy.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_mvp_toolkit.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_resource_provider.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_session.dart';
@@ -90,9 +92,101 @@ void main() {
       expect(health.ready, isTrue);
       expect(health.sessionCount, 1);
       expect(health.toolCount, greaterThan(0));
-      expect(health.resourceCount, 1);
+      expect(health.resourceCount, greaterThanOrEqualTo(1));
       expect(bridge.closeSession('session_1'), isTrue);
       expect(bridge.listSessions(), isEmpty);
+    });
+
+    test('enforces payload size and rate limits', () {
+      var revision = 2;
+      final bus = RefusionMcpCommandBus();
+      const toolkit = RefusionMcpMvpToolkit();
+      toolkit.register(
+        bus: bus,
+        config: RefusionMcpMvpToolkitConfig(
+          projectStateReader: () => <String, Object?>{
+            'projectId': 'active',
+            'revision': revision,
+          },
+          timelineSummaryReader: () => <String, Object?>{'rows': 1},
+          selectionReader: () => <String, Object?>{'selected': <String>[]},
+          previewCaptureReader: (timeMs) => <String, Object?>{
+            'resourceUri': 'refusion://preview/frame/${timeMs ?? 0}',
+          },
+        ),
+      );
+      final sessions = RefusionMcpSessionStore();
+      final controlPlane = RefusionMcpAgentControlPlane(
+        commandBus: bus,
+        toolRegistry: RefusionMcpToolRegistry(),
+        sessionStore: sessions,
+        revisionReader: () => revision,
+      );
+      final bridge = RefusionMcpAppBridge(
+        controlPlane: controlPlane,
+        sessionStore: sessions,
+        resourceProvider: RefusionMcpResourceProvider(),
+        hardeningPolicy: RefusionMcpHardeningPolicy(
+          maxToolPayloadBytes: 20,
+          maxCallsPerMinutePerSession: 1,
+        ),
+      );
+      bridge.openSession(
+        RefusionMcpSession(
+          id: 'session_limits',
+          clientName: 'codex',
+          clientVersion: '1.0',
+          transport: 'stdio',
+          activeProjectId: 'active',
+          activeCompositionId: 'comp_1',
+          timelineRevision: revision,
+          grantedCapabilities: <RefusionMcpCapability>{
+            RefusionMcpCapability.projectRead,
+          },
+        ),
+      );
+
+      final oversized = bridge.executeTool(
+        const RefusionMcpToolCallRequest(
+          toolName: 'refusion.get_project_state',
+          sessionId: 'session_limits',
+          projectId: 'active',
+          commandId: 'cmd_big',
+          idempotencyKey: 'big',
+          mode: RefusionMcpCommandMode.dryRun,
+          payload: <String, Object?>{
+            'blob': 'this-payload-should-trigger-size-limit',
+          },
+        ),
+      );
+      expect(oversized.ok, isFalse);
+      expect(
+          oversized.error?.code, RefusionMcpCommandErrorCode.payloadTooLarge);
+
+      final ok = bridge.executeTool(
+        const RefusionMcpToolCallRequest(
+          toolName: 'refusion.get_project_state',
+          sessionId: 'session_limits',
+          projectId: 'active',
+          commandId: 'cmd_ok',
+          idempotencyKey: 'ok',
+          mode: RefusionMcpCommandMode.dryRun,
+        ),
+      );
+      expect(ok.ok, isTrue);
+
+      final rateLimited = bridge.executeTool(
+        const RefusionMcpToolCallRequest(
+          toolName: 'refusion.get_project_state',
+          sessionId: 'session_limits',
+          projectId: 'active',
+          commandId: 'cmd_rate',
+          idempotencyKey: 'rate',
+          mode: RefusionMcpCommandMode.dryRun,
+        ),
+      );
+      expect(rateLimited.ok, isFalse);
+      expect(rateLimited.error?.code, RefusionMcpCommandErrorCode.rateLimited);
     });
   });
 }

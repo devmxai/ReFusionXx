@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 enum RefusionMcpResourceCode {
   unknownResource,
   unavailableResource,
+  resourceTooLarge,
 }
 
 @immutable
@@ -41,9 +42,11 @@ class RefusionMcpResourceProvider {
   RefusionMcpResourceProvider({
     Map<String, RefusionMcpResourceReader> readers =
         const <String, RefusionMcpResourceReader>{},
+    this.maxPayloadBytes = 256 * 1024,
   }) : _readers = Map<String, RefusionMcpResourceReader>.from(readers);
 
   final Map<String, RefusionMcpResourceReader> _readers;
+  final int maxPayloadBytes;
 
   void registerReader({
     required String uri,
@@ -69,6 +72,14 @@ class RefusionMcpResourceProvider {
         message: 'Resource `$uri` is currently unavailable.',
       );
     }
+    if (_estimatePayloadBytes(payload) > maxPayloadBytes) {
+      return RefusionMcpResourceResult.failure(
+        uri: uri,
+        code: RefusionMcpResourceCode.resourceTooLarge,
+        message:
+            'Resource `$uri` exceeds max payload size (${maxPayloadBytes} bytes).',
+      );
+    }
     return RefusionMcpResourceResult(
       ok: true,
       uri: uri,
@@ -78,5 +89,9 @@ class RefusionMcpResourceProvider {
 
   List<String> listUris() {
     return _readers.keys.toList(growable: false)..sort();
+  }
+
+  int _estimatePayloadBytes(Map<String, Object?> payload) {
+    return payload.toString().codeUnits.length;
   }
 }

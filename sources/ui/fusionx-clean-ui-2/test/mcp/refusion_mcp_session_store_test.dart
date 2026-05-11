@@ -41,5 +41,28 @@ void main() {
       expect(store.remove('session_b'), isTrue);
       expect(store.get('session_b'), isNull);
     });
+
+    test('expires stale sessions by ttl', () {
+      var now = DateTime.utc(2026, 5, 11, 12, 0, 0);
+      final store = RefusionMcpSessionStore(
+        clock: () => now,
+        sessionTtl: const Duration(minutes: 5),
+      );
+      store.upsert(
+        RefusionMcpSession(
+          id: 'session_expire',
+          clientName: 'codex',
+          clientVersion: '1.0',
+          transport: 'stdio',
+          activeProjectId: 'active',
+          activeCompositionId: 'comp_1',
+          timelineRevision: 1,
+        ),
+      );
+      expect(store.get('session_expire'), isNotNull);
+      now = now.add(const Duration(minutes: 6));
+      expect(store.get('session_expire'), isNull);
+      expect(store.list(), isEmpty);
+    });
   });
 }

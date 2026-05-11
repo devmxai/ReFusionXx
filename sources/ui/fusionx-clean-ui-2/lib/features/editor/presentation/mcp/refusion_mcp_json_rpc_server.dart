@@ -169,6 +169,7 @@ class RefusionMcpJsonRpcServer {
         'structuredContent': <String, Object?>{
           'ok': response.ok,
           'summary': response.summary,
+          'requiresConfirmation': response.requiresConfirmation,
           'message': response.error?.message,
           'code': response.error?.code.name,
           'revisionBefore': response.revisionBefore,
@@ -292,6 +293,16 @@ class RefusionMcpJsonRpcServer {
       );
     }
     final sessionMap = _readMap(params['session']);
+    final pairingValidation = _bridge.hardeningPolicy.validatePairingToken(
+      params['pairingToken'] as String?,
+    );
+    if (!pairingValidation.ok) {
+      return _error(
+        id: id,
+        code: -32001,
+        message: pairingValidation.message ?? 'Session pairing failed.',
+      );
+    }
     final sessionId = sessionMap['id'] as String?;
     if (sessionId == null || sessionId.trim().isEmpty) {
       return _error(

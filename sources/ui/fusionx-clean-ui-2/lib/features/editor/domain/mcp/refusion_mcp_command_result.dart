@@ -2,6 +2,9 @@ import 'package:flutter/foundation.dart';
 
 enum RefusionMcpCommandErrorCode {
   sessionNotFound,
+  unauthenticated,
+  rateLimited,
+  payloadTooLarge,
   capabilityDenied,
   revisionConflict,
   validationFailed,
