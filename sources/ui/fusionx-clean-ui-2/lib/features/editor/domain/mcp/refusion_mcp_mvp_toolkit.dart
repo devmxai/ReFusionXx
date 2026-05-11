@@ -15,6 +15,9 @@ import '../services/refusion_scene_program_authoring_service.dart';
 import '../services/scene_program_apply_transaction.dart';
 
 typedef RefusionMcpStateReader = Map<String, Object?> Function();
+typedef RefusionMcpCommandStatusReader = Map<String, Object?> Function(
+  String? commandId,
+);
 typedef RefusionMcpPreviewCaptureReader = Map<String, Object?> Function(
   int? timeMs,
 );
@@ -71,6 +74,7 @@ class RefusionMcpMvpToolkitConfig {
     required this.previewCaptureReader,
     this.securityProfileReader,
     this.hostCompatibilityReader,
+    this.commandStatusReader,
     this.sceneProgramTools = const RefusionMcpSceneProgramTools(),
     this.projectReader,
     this.rootSceneIdReader,
@@ -99,6 +103,7 @@ class RefusionMcpMvpToolkitConfig {
   final RefusionMcpPreviewCaptureReader previewCaptureReader;
   final RefusionMcpSecurityProfileReader? securityProfileReader;
   final RefusionMcpHostCompatibilityReader? hostCompatibilityReader;
+  final RefusionMcpCommandStatusReader? commandStatusReader;
   final RefusionMcpSceneProgramTools sceneProgramTools;
   final RefusionMcpProjectReader? projectReader;
   final RefusionMcpRootSceneIdReader? rootSceneIdReader;
@@ -129,6 +134,40 @@ class RefusionMcpMvpToolkit {
     required RefusionMcpMvpToolkitConfig config,
   }) {
     bus.registerHandler(
+      commandType: 'refusion.get_active_context',
+      handler: (_) {
+        final projectState = config.projectStateReader();
+        final projectId =
+            (projectState['projectId'] as String?)?.trim().isNotEmpty == true
+                ? projectState['projectId'] as String
+                : 'active';
+        final revision = projectState['revision'] is num
+            ? (projectState['revision'] as num).round()
+            : 0;
+        return RefusionMcpCommandHandlingOutcome(
+          summary: 'Active context loaded.',
+          payload: <String, Object?>{
+            'project': <String, Object?>{
+              'id': projectId,
+              'name': projectState['projectName'] ?? 'Active Project',
+              'revision': revision,
+            },
+            'composition': <String, Object?>{
+              'id': projectState['compositionId'] ?? 'active-composition',
+              'name': projectState['compositionName'] ?? 'Composition 1',
+            },
+            'timeline': <String, Object?>{
+              'id': projectState['timelineId'] ?? 'main',
+              'playheadMs': projectState['playheadMs'] ?? 0,
+            },
+            'liveEditor': <String, Object?>{
+              'online': true,
+            },
+          },
+        );
+      },
+    );
+    bus.registerHandler(
       commandType: 'refusion.get_project_state',
       handler: (_) {
         return RefusionMcpCommandHandlingOutcome(
@@ -156,6 +195,24 @@ class RefusionMcpMvpToolkit {
       },
     );
     bus.registerHandler(
+      commandType: 'refusion.get_command_status',
+      handler: (context) {
+        final commandId = context.command.payload['commandId'] as String?;
+        final defaultStatus = <String, Object?>{
+          'commandId': commandId,
+          'status': 'unknown',
+          'message':
+              'No command status reader is wired in this runtime profile.',
+        };
+        final payload = config.commandStatusReader?.call(commandId) ??
+            defaultStatus;
+        return RefusionMcpCommandHandlingOutcome(
+          summary: 'Command status loaded.',
+          payload: payload,
+        );
+      },
+    );
+    bus.registerHandler(
       commandType: 'refusion.capture_preview_frame',
       handler: (context) {
         final timeMs = _readInt(context.command.payload['timeMs']);
@@ -166,6 +223,23 @@ class RefusionMcpMvpToolkit {
           payload: payload,
           resourceUris:
               resourceUri is String ? <String>[resourceUri] : const <String>[],
+        );
+      },
+    );
+    bus.registerHandler(
+      commandType: 'refusion.create_project',
+      handler: (context) {
+        final requestedName =
+            (context.command.payload['projectName'] as String?)?.trim();
+        return RefusionMcpCommandHandlingOutcome(
+          summary: context.command.mode == RefusionMcpCommandMode.commit
+              ? 'Project context prepared.'
+              : 'Project context preview is ready.',
+          payload: <String, Object?>{
+            'projectName': requestedName ?? 'Untitled Project',
+            'note':
+                'Runtime create_project is currently context-scoped. Supabase MCP cloud path should own persistent project creation.',
+          },
         );
       },
     );

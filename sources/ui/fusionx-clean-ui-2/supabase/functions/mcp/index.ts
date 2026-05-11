@@ -115,12 +115,17 @@ async function resolveUserId(request: Request): Promise<string> {
 }
 
 async function callTool(name: string, args: JsonMap, userId: string) {
-  switch (name) {
+  const canonicalToolName = normalizeToolName(name);
+  switch (canonicalToolName) {
     case 'refusion.get_active_context':
     case 'refusion.get_project_state':
       return ok('Active context loaded.', await getActiveContext(userId));
     case 'refusion.create_project':
       return ok('Project created.', await createProject(userId, args));
+    case 'refusion.set_active_context':
+      return ok('Active context updated.', await setActiveContext(userId, args));
+    case 'refusion.touch_editor_session':
+      return ok('Editor session touched.', await touchEditorSession(userId, args));
     case 'refusion.insert_layer':
       return ok('Layer inserted.', await insertLayer(userId, args));
     case 'refusion.apply_scene_program':
@@ -132,6 +137,24 @@ async function callTool(name: string, args: JsonMap, userId: string) {
         supportedTools: tools().map((tool) => tool.name),
       });
   }
+}
+
+function normalizeToolName(name: string): string {
+  const value = name.trim();
+  if (value.startsWith('refusion.')) {
+    return value;
+  }
+  const aliases: Record<string, string> = {
+    get_active_context: 'refusion.get_active_context',
+    get_project_state: 'refusion.get_project_state',
+    create_project: 'refusion.create_project',
+    set_active_context: 'refusion.set_active_context',
+    touch_editor_session: 'refusion.touch_editor_session',
+    insert_layer: 'refusion.insert_layer',
+    apply_scene_program: 'refusion.apply_scene_program',
+    get_command_status: 'refusion.get_command_status',
+  };
+  return aliases[value] ?? value;
 }
 
 async function getActiveContext(userId: string) {
@@ -242,6 +265,95 @@ async function createProject(userId: string, args: JsonMap) {
     projectId: project.id,
     compositionId: composition.id,
     revision: 1,
+  };
+}
+
+async function setActiveContext(userId: string, args: JsonMap) {
+  const active = await getActiveContext(userId);
+  const currentProjectId = stringValue(readMap(active.project).id);
+  const currentCompositionId = stringValue(readMap(active.composition).id);
+  const projectId = stringValue(args.projectId) || currentProjectId;
+  const compositionId = stringValue(args.compositionId) || currentCompositionId;
+  const deviceId = text(args.deviceId, 'chatgpt-remote');
+  const timelineId = text(args.timelineId, 'main');
+  const playheadMs = numberValue(args.playheadMs, 0);
+  const status = text(args.status, 'online');
+  const foreground = args.foreground === false ? false : true;
+  const appVersion = text(args.appVersion, 'mcp-remote');
+  const platform = text(args.platform, 'chatgpt');
+
+  await touchEditorSession(userId, {
+    deviceId,
+    projectId,
+    compositionId,
+    timelineId,
+    playheadMs,
+    status,
+    foreground,
+    appVersion,
+    platform,
+  });
+
+  return await getActiveContext(userId);
+}
+
+async function touchEditorSession(userId: string, args: JsonMap) {
+  const active = await getActiveContext(userId);
+  const projectId = stringValue(args.projectId) || stringValue(readMap(active.project).id);
+  const compositionId =
+    stringValue(args.compositionId) || stringValue(readMap(active.composition).id);
+  const deviceId = text(args.deviceId, 'chatgpt-remote');
+  const timelineId = text(args.timelineId, 'main');
+  const playheadMs = numberValue(args.playheadMs, 0);
+  const status = text(args.status, 'online');
+  const foreground = args.foreground === false ? false : true;
+  const appVersion = text(args.appVersion, 'mcp-remote');
+  const platform = text(args.platform, 'chatgpt');
+  const metadata = readMap(args.metadata);
+
+  const { data: existing, error: existingError } = await admin
+    .from('refusion_editor_sessions')
+    .select('id')
+    .eq('owner_id', userId)
+    .eq('device_id', deviceId)
+    .maybeSingle();
+  if (existingError) throw existingError;
+
+  const payload = {
+    owner_id: userId,
+    device_id: deviceId,
+    project_id: projectId,
+    composition_id: compositionId,
+    timeline_id: timelineId,
+    playhead_ms: playheadMs,
+    status,
+    foreground,
+    app_version: appVersion,
+    platform,
+    metadata,
+    last_seen_at: new Date().toISOString(),
+  };
+
+  if (existing?.id) {
+    const { error } = await admin
+      .from('refusion_editor_sessions')
+      .update(payload)
+      .eq('id', existing.id);
+    if (error) throw error;
+    return { sessionId: existing.id, deviceId, projectId, compositionId };
+  }
+
+  const { data: inserted, error } = await admin
+    .from('refusion_editor_sessions')
+    .insert(payload)
+    .select('id')
+    .single();
+  if (error) throw error;
+  return {
+    sessionId: inserted.id,
+    deviceId,
+    projectId,
+    compositionId,
   };
 }
 
@@ -404,6 +516,8 @@ function tools() {
     ),
     tool('refusion.get_project_state', 'Get Project State', 'Alias for active context.'),
     tool('refusion.create_project', 'Create Project', 'Create a project and default composition.', true),
+    tool('refusion.set_active_context', 'Set Active Context', 'Set active project/composition and bind editor session.', true),
+    tool('refusion.touch_editor_session', 'Touch Editor Session', 'Refresh active editor session heartbeat.', true),
     tool('refusion.insert_layer', 'Insert Layer', 'Insert a layer into the active composition.', true),
     tool('refusion.apply_scene_program', 'Apply Scene Program', 'Apply a minimal SceneProgram as a layer mutation.', true),
     tool('refusion.get_command_status', 'Get Command Status', 'Return a command status by id.'),

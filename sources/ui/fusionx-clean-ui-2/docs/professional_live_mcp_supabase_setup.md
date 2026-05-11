@@ -34,9 +34,15 @@ Current tools:
 - `refusion.get_active_context`
 - `refusion.get_project_state`
 - `refusion.create_project`
+- `refusion.set_active_context`
+- `refusion.touch_editor_session`
 - `refusion.insert_layer`
 - `refusion.apply_scene_program`
 - `refusion.get_command_status`
+
+The function also accepts short aliases without the `refusion.` prefix for
+common host clients that normalize tool names differently. Example:
+`insert_layer` maps to `refusion.insert_layer`.
 
 ## Current Dev Authentication
 
@@ -80,6 +86,21 @@ The Android app still needs the live editor bridge:
    - `refusion_editor_sessions`
 5. Apply incoming command/layer changes into the active editor controller.
 6. Push local edits back through revision-safe transactions.
+
+## Quick ChatGPT Connector Smoke Test
+
+Use this MCP URL in ChatGPT Apps:
+
+- `https://wygydvczsgnocihbihje.functions.supabase.co/mcp`
+
+With temporary development mode enabled (`No Auth`), run these tool calls:
+
+1. `set_active_context` with a `deviceId` you control.
+2. `insert_layer` with `layerKind=solid` and `payload.fill=#FFFFFF`.
+3. `get_active_context` to verify revision increment and live session state.
+
+If these pass, the cloud MCP control plane is healthy. The remaining step for
+direct on-canvas updates is wiring the app-side live bridge (Realtime apply).
 
 ## Safety Rule
 

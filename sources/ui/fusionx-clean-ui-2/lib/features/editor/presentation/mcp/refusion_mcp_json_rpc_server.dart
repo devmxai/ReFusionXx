@@ -123,19 +123,24 @@ class RefusionMcpJsonRpcServer {
       );
     }
     final name = params['name'];
-    final arguments = params['arguments'];
-    if (name is! String || arguments is! Map<String, Object?>) {
+    if (name is! String) {
       return _error(
         id: id,
         code: -32602,
         message: 'tools/call requires name and arguments map.',
       );
     }
+    final arguments = _readMap(params['arguments']);
 
+    final descriptor = _toolRegistry.find(name);
     final modeValue = arguments['mode'] as String?;
-    final mode = modeValue == 'commit'
-        ? RefusionMcpCommandMode.commit
-        : RefusionMcpCommandMode.dryRun;
+    final mode = modeValue == null
+        ? (descriptor?.mutating == true
+            ? RefusionMcpCommandMode.commit
+            : RefusionMcpCommandMode.dryRun)
+        : (modeValue == 'commit'
+            ? RefusionMcpCommandMode.commit
+            : RefusionMcpCommandMode.dryRun);
     final expectedRevision = _readInt(arguments['expectedRevision']);
     final payload = _readMap(arguments['payload']);
     final requestedSessionId = (arguments['sessionId'] as String?)?.trim();

@@ -34,6 +34,13 @@ class RefusionMcpToolRegistry {
   static const List<RefusionMcpToolDescriptor> _defaultTools =
       <RefusionMcpToolDescriptor>[
     RefusionMcpToolDescriptor(
+      name: 'refusion.get_active_context',
+      title: 'Get Active Context',
+      description:
+          'Return active project/composition context and live editor status.',
+      capability: RefusionMcpCapability.projectRead,
+    ),
+    RefusionMcpToolDescriptor(
       name: 'refusion.get_project_state',
       title: 'Get Project State',
       description: 'Return active project metadata and revision.',
@@ -49,6 +56,12 @@ class RefusionMcpToolRegistry {
       name: 'refusion.get_selection',
       title: 'Get Selection',
       description: 'Return selected objects and editable capabilities.',
+      capability: RefusionMcpCapability.timelineRead,
+    ),
+    RefusionMcpToolDescriptor(
+      name: 'refusion.get_command_status',
+      title: 'Get Command Status',
+      description: 'Return command/transaction status in the active session.',
       capability: RefusionMcpCapability.timelineRead,
     ),
     RefusionMcpToolDescriptor(
@@ -88,6 +101,13 @@ class RefusionMcpToolRegistry {
       title: 'Apply Scene Program',
       description: 'Apply a valid scene program transactionally.',
       capability: RefusionMcpCapability.sceneWrite,
+      mutating: true,
+    ),
+    RefusionMcpToolDescriptor(
+      name: 'refusion.create_project',
+      title: 'Create Project',
+      description: 'Create a new active project context for MCP authoring.',
+      capability: RefusionMcpCapability.projectRead,
       mutating: true,
     ),
     RefusionMcpToolDescriptor(
