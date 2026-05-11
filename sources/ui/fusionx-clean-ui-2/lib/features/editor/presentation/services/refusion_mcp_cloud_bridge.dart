@@ -28,6 +28,8 @@ class RefusionMcpCloudBridgeSnapshot {
     required this.revision,
     required this.liveOnline,
     required this.updatedAtUtc,
+    this.remoteRevision,
+    this.latestSolidColorHex,
     this.error,
   });
 
@@ -37,6 +39,8 @@ class RefusionMcpCloudBridgeSnapshot {
   final int? revision;
   final bool liveOnline;
   final DateTime updatedAtUtc;
+  final int? remoteRevision;
+  final String? latestSolidColorHex;
   final String? error;
 }
 
@@ -104,12 +108,15 @@ class RefusionMcpCloudBridge {
     try {
       final state = _contextReader();
       final status = _foreground && state.foreground ? 'online' : 'background';
+      final projectIdArg = _isUuidLike(state.projectId) ? state.projectId : null;
+      final compositionIdArg =
+          _isUuidLike(state.compositionId) ? state.compositionId : null;
       await _callTool(
         toolName: 'touch_editor_session',
         arguments: <String, Object?>{
           'deviceId': _deviceId,
-          'projectId': state.projectId,
-          'compositionId': state.compositionId,
+          if (projectIdArg != null) 'projectId': projectIdArg,
+          if (compositionIdArg != null) 'compositionId': compositionIdArg,
           'foreground': _foreground && state.foreground,
           'status': status,
           'platform': 'flutter',
@@ -119,8 +126,8 @@ class RefusionMcpCloudBridge {
         toolName: 'set_active_context',
         arguments: <String, Object?>{
           'deviceId': _deviceId,
-          'projectId': state.projectId,
-          'compositionId': state.compositionId,
+          if (projectIdArg != null) 'projectId': projectIdArg,
+          if (compositionIdArg != null) 'compositionId': compositionIdArg,
           'timelineId': state.timelineId,
           'playheadMs': state.playheadMs,
           'foreground': _foreground && state.foreground,
@@ -133,9 +140,23 @@ class RefusionMcpCloudBridge {
         toolName: 'get_active_context',
         arguments: const <String, Object?>{},
       );
+      final contextStructured = _asMap(contextResponse['structuredContent']);
+      final contextPayload = _asMap(contextStructured['payload']);
+      final contextProject = _asMap(contextPayload['project']);
+      final contextComposition = _asMap(contextPayload['composition']);
+      final cloudProjectId = _asString(contextProject['id']);
+      final cloudCompositionId = _asString(contextComposition['id']);
+      final layersResponse = await _safeCallTool(
+        toolName: 'get_layers',
+        arguments: <String, Object?>{
+          if (cloudProjectId != null) 'projectId': cloudProjectId,
+          if (cloudCompositionId != null) 'compositionId': cloudCompositionId,
+        },
+      );
       _emitSnapshot(
         _snapshotFromContextResponse(
           contextResponse,
+          layersResult: layersResponse,
           fallbackProjectId: state.projectId,
           fallbackCompositionId: state.compositionId,
         ),
@@ -159,6 +180,7 @@ class RefusionMcpCloudBridge {
 
   RefusionMcpCloudBridgeSnapshot _snapshotFromContextResponse(
     Map<String, Object?> rpcResult, {
+    required Map<String, Object?>? layersResult,
     required String fallbackProjectId,
     required String fallbackCompositionId,
   }) {
@@ -167,6 +189,25 @@ class RefusionMcpCloudBridge {
     final project = _asMap(payload['project']);
     final composition = _asMap(payload['composition']);
     final liveEditor = _asMap(payload['liveEditor']);
+    int? remoteRevision;
+    String? latestSolidColorHex;
+    if (layersResult != null) {
+      final layersStructured = _asMap(layersResult['structuredContent']);
+      final layersPayload = _asMap(layersStructured['payload']);
+      remoteRevision = _asInt(layersPayload['revision']);
+      final layers = _asListOfMap(layersPayload['layers']);
+      for (final layer in layers.reversed) {
+        if (_asString(layer['layer_kind']) != 'solid') {
+          continue;
+        }
+        final payload = _asMap(layer['payload']);
+        final color = _asString(payload['color']);
+        if (color != null) {
+          latestSolidColorHex = color;
+          break;
+        }
+      }
+    }
     return RefusionMcpCloudBridgeSnapshot(
       ok: structured['ok'] == true,
       projectId: _asString(project['id']) ?? fallbackProjectId,
@@ -174,6 +215,8 @@ class RefusionMcpCloudBridge {
       revision: _asInt(project['revision']),
       liveOnline: liveEditor['online'] == true,
       updatedAtUtc: DateTime.now().toUtc(),
+      remoteRevision: remoteRevision,
+      latestSolidColorHex: latestSolidColorHex,
       error: structured['ok'] == true ? null : _asString(structured['summary']),
     );
   }
@@ -206,6 +249,17 @@ class RefusionMcpCloudBridge {
       throw StateError(summary);
     }
     return result;
+  }
+
+  Future<Map<String, Object?>?> _safeCallTool({
+    required String toolName,
+    required Map<String, Object?> arguments,
+  }) async {
+    try {
+      return await _callTool(toolName: toolName, arguments: arguments);
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<Map<String, Object?>> _postJson(Map<String, Object?> body) async {
@@ -273,6 +327,31 @@ int? _asInt(Object? value) {
     return value.round();
   }
   return null;
+}
+
+List<Map<String, Object?>> _asListOfMap(Object? value) {
+  if (value is! List) {
+    return const <Map<String, Object?>>[];
+  }
+  final result = <Map<String, Object?>>[];
+  for (final item in value) {
+    result.add(_asMap(item));
+  }
+  return result;
+}
+
+bool _isUuidLike(String? value) {
+  if (value == null) {
+    return false;
+  }
+  final normalized = value.trim();
+  if (normalized.isEmpty) {
+    return false;
+  }
+  final uuidPattern = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+  );
+  return uuidPattern.hasMatch(normalized);
 }
 
 String refusionMcpCloudDeviceId() {

@@ -130,6 +130,8 @@ async function callTool(name: string, args: JsonMap, userId: string) {
       return ok('Layer inserted.', await insertLayer(userId, args));
     case 'refusion.apply_scene_program':
       return ok('Scene program applied.', await applySceneProgram(userId, args));
+    case 'refusion.get_layers':
+      return ok('Layers loaded.', await getLayers(userId, args));
     case 'refusion.get_command_status':
       return ok('Command status loaded.', await getCommandStatus(userId, args));
     default:
@@ -152,15 +154,23 @@ function normalizeToolName(name: string): string {
     touch_editor_session: 'refusion.touch_editor_session',
     insert_layer: 'refusion.insert_layer',
     apply_scene_program: 'refusion.apply_scene_program',
+    get_layers: 'refusion.get_layers',
     get_command_status: 'refusion.get_command_status',
   };
   return aliases[value] ?? value;
 }
 
 async function getActiveContext(userId: string) {
-  const session = await selectSingle('refusion_editor_sessions', {
-    owner_id: userId,
-  }, 'foreground', false);
+  const { data: sessionRows, error: sessionError } = await admin
+    .from('refusion_editor_sessions')
+    .select('*')
+    .eq('owner_id', userId)
+    .in('status', ['online', 'background'])
+    .order('foreground', { ascending: false })
+    .order('last_seen_at', { ascending: false })
+    .limit(1);
+  if (sessionError) throw sessionError;
+  const session = (sessionRows ?? [])[0] as JsonMap | null;
 
   let projectId = stringValue(session?.project_id);
   let compositionId = stringValue(session?.composition_id);
@@ -431,6 +441,37 @@ async function applySceneProgram(userId: string, args: JsonMap) {
   });
 }
 
+async function getLayers(userId: string, args: JsonMap) {
+  const context = await getActiveContext(userId);
+  const project = readMap(context.project);
+  const composition = readMap(context.composition);
+  const projectId = stringValue(args.projectId) || stringValue(project.id);
+  const compositionId =
+    stringValue(args.compositionId) || stringValue(composition.id);
+  if (!projectId || !compositionId) {
+    return fail('Active project/composition is not available.');
+  }
+  const revision = await projectRevision(projectId);
+  const { data, error } = await admin
+    .from('refusion_layers')
+    .select(
+      'id, layer_kind, name, start_ms, duration_ms, z_index, payload, updated_at',
+    )
+    .eq('owner_id', userId)
+    .eq('project_id', projectId)
+    .eq('composition_id', compositionId)
+    .order('z_index', { ascending: true })
+    .order('start_ms', { ascending: true })
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return {
+    projectId,
+    compositionId,
+    revision,
+    layers: data ?? [],
+  };
+}
+
 async function getCommandStatus(userId: string, args: JsonMap) {
   const commandId = stringValue(args.commandId);
   if (!commandId) return fail('commandId is required.');
@@ -520,6 +561,7 @@ function tools() {
     tool('refusion.touch_editor_session', 'Touch Editor Session', 'Refresh active editor session heartbeat.', true),
     tool('refusion.insert_layer', 'Insert Layer', 'Insert a layer into the active composition.', true),
     tool('refusion.apply_scene_program', 'Apply Scene Program', 'Apply a minimal SceneProgram as a layer mutation.', true),
+    tool('refusion.get_layers', 'Get Layers', 'Return composition layers ordered by z-index and start.'),
     tool('refusion.get_command_status', 'Get Command Status', 'Return a command status by id.'),
   ];
 }

@@ -1207,9 +1207,40 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   void _handleMcpCloudSnapshot(RefusionMcpCloudBridgeSnapshot snapshot) {
+    _applyRemoteSolidBackgroundIfNeeded(snapshot.latestSolidColorHex);
     if (!snapshot.ok && kDebugMode) {
       debugPrint('MCP cloud sync warning: ${snapshot.error ?? 'unknown'}');
     }
+  }
+
+  void _applyRemoteSolidBackgroundIfNeeded(String? colorHex) {
+    if (colorHex == null || colorHex.trim().isEmpty) {
+      return;
+    }
+    final parsed = _parseCompositionColor(colorHex);
+    if (parsed == null) {
+      return;
+    }
+    final currentProject = _motionProject ?? _buildInitialMotionProject();
+    final currentColor = _parseCompositionColor(
+      currentProject.metadata['backgroundColor'],
+    );
+    if (currentColor?.value == parsed.value) {
+      return;
+    }
+    final nextMetadata = <String, String>{
+      ...currentProject.metadata,
+      'backgroundColor': _normalizeHexColor(parsed),
+    };
+    setState(() {
+      _motionProject = currentProject.copyWith(metadata: nextMetadata);
+    });
+  }
+
+  static String _normalizeHexColor(Color color) {
+    final rgb = color.value & 0x00FFFFFF;
+    final hex = rgb.toRadixString(16).padLeft(6, '0').toUpperCase();
+    return '#$hex';
   }
 
   void _scheduleMcpCloudSync({Duration delay = const Duration(milliseconds: 180)}) {
