@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_agent_control_plane.dart';
-import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_capability.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_command_bus.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_hardening_policy.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_mvp_toolkit.dart';
@@ -187,6 +186,30 @@ void main() {
         ),
         isTrue,
       );
+    });
+
+    test('accepts short tool aliases in tools/call', () {
+      final call = server.handle(
+        <String, Object?>{
+          'jsonrpc': '2.0',
+          'id': 12,
+          'method': 'tools/call',
+          'params': <String, Object?>{
+            'name': 'get_project_state',
+            'arguments': <String, Object?>{
+              'sessionId': 'default',
+              'projectId': 'active',
+              'mode': 'dryRun',
+              'payload': const <String, Object?>{},
+            },
+          },
+        },
+      );
+      final result = call['result'] as Map<String, Object?>;
+      expect(result['isError'], isFalse);
+      final structured = (result['structuredContent']
+          as Map<String, Object?>)['payload'] as Map<String, Object?>;
+      expect(structured['projectId'], 'active');
     });
 
     test('reads resource through resources/read', () {

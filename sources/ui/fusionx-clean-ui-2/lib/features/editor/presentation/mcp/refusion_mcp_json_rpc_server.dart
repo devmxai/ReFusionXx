@@ -131,8 +131,9 @@ class RefusionMcpJsonRpcServer {
       );
     }
     final arguments = _readMap(params['arguments']);
+    final normalizedToolName = _toolRegistry.normalizeToolName(name) ?? name;
 
-    final descriptor = _toolRegistry.find(name);
+    final descriptor = _toolRegistry.find(normalizedToolName);
     final modeValue = arguments['mode'] as String?;
     final mode = modeValue == null
         ? (descriptor?.mutating == true
@@ -156,7 +157,7 @@ class RefusionMcpJsonRpcServer {
 
     final response = _bridge.executeTool(
       RefusionMcpToolCallRequest(
-        toolName: name,
+        toolName: normalizedToolName,
         sessionId: sessionId,
         projectId: projectId,
         commandId: (arguments['commandId'] as String?) ??

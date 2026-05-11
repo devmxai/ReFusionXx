@@ -30,6 +30,33 @@ class RefusionMcpToolRegistry {
         );
 
   final Map<String, RefusionMcpToolDescriptor> _tools;
+  static const Map<String, String> _toolAliases = <String, String>{
+    'get_active_context': 'refusion.get_active_context',
+    'get_project_state': 'refusion.get_project_state',
+    'get_timeline_summary': 'refusion.get_timeline_summary',
+    'get_selection': 'refusion.get_selection',
+    'get_command_status': 'refusion.get_command_status',
+    'capture_preview_frame': 'refusion.capture_preview_frame',
+    'get_security_profile': 'refusion.get_security_profile',
+    'get_host_compatibility': 'refusion.get_host_compatibility',
+    'validate_scene_program': 'refusion.validate_scene_program',
+    'author_scene_program': 'refusion.author_scene_program',
+    'apply_scene_program': 'refusion.apply_scene_program',
+    'create_project': 'refusion.create_project',
+    'apply_motion_patch': 'refusion.apply_motion_patch',
+    'keyframe_edit': 'refusion.keyframe_edit',
+    'set_element_transform': 'refusion.set_element_transform',
+    'insert_layer': 'refusion.insert_layer',
+    'split_at_playhead': 'refusion.split_at_playhead',
+    'trim_layer': 'refusion.trim_layer',
+    'move_layer': 'refusion.move_layer',
+    'delete_layer': 'refusion.delete_layer',
+    'dry_run_command': 'refusion.dry_run_command',
+    'commit_transaction': 'refusion.commit_transaction',
+    'undo_transaction': 'refusion.undo_transaction',
+    'redo_transaction': 'refusion.redo_transaction',
+    'list_recent_transactions': 'refusion.list_recent_transactions',
+  };
 
   static const List<RefusionMcpToolDescriptor> _defaultTools =
       <RefusionMcpToolDescriptor>[
@@ -208,6 +235,26 @@ class RefusionMcpToolRegistry {
   }
 
   RefusionMcpToolDescriptor? find(String name) {
-    return _tools[name];
+    final normalizedName = normalizeToolName(name);
+    if (normalizedName == null) {
+      return null;
+    }
+    return _tools[normalizedName];
+  }
+
+  String? normalizeToolName(String name) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) {
+      return null;
+    }
+    final aliasMatch = _toolAliases[trimmed];
+    if (aliasMatch != null) {
+      return aliasMatch;
+    }
+    if (trimmed.startsWith('refusion.')) {
+      return _tools.containsKey(trimmed) ? trimmed : null;
+    }
+    final prefixed = 'refusion.$trimmed';
+    return _tools.containsKey(prefixed) ? prefixed : null;
   }
 }

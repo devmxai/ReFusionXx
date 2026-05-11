@@ -29,5 +29,21 @@ void main() {
       expect(descriptor!.capability, RefusionMcpCapability.sceneWrite);
       expect(descriptor.mutating, isTrue);
     });
+
+    test('normalizes short tool names for host compatibility', () {
+      final registry = RefusionMcpToolRegistry();
+      expect(
+        registry.normalizeToolName('insert_layer'),
+        'refusion.insert_layer',
+      );
+      expect(
+        registry.normalizeToolName('get_project_state'),
+        'refusion.get_project_state',
+      );
+      expect(
+        registry.normalizeToolName('unknown_tool'),
+        isNull,
+      );
+    });
   });
 }
