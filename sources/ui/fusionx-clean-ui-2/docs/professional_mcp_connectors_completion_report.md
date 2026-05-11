@@ -71,6 +71,10 @@ This report maps `PMC-00` through `PMC-15` to implementation evidence:
 - Codex-specific path:
   - [professional_mcp_connectors_codex_quickstart.md](/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/docs/professional_mcp_connectors_codex_quickstart.md)
   - [refusion_mcp_codex_host_profile_test.dart](/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/test/mcp/refusion_mcp_codex_host_profile_test.dart)
+  - host negotiation tool:
+    - `refusion.get_security_profile`
+    - wired in [refusion_mcp_tool_registry.dart](/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/lib/features/editor/domain/mcp/refusion_mcp_tool_registry.dart)
+    - handled in [refusion_mcp_mvp_toolkit.dart](/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/lib/features/editor/domain/mcp/refusion_mcp_mvp_toolkit.dart)
 
 ### PMC-15
 
