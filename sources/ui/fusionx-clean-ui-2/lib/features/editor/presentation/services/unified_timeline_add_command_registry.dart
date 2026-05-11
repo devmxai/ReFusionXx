@@ -44,6 +44,14 @@ class UnifiedTimelineAddCommandRegistry {
     subtitle: 'Generate and insert a scripted scene clip.',
   );
 
+  static const UnifiedTimelineAddCommand solidLayer = UnifiedTimelineAddCommand(
+    id: 'solidLayer',
+    scope: UnifiedTimelineAddScope.root,
+    icon: Icons.layers_rounded,
+    title: 'Solid Layer',
+    subtitle: 'Add a time-bounded solid layer to the composition timeline.',
+  );
+
   static const UnifiedTimelineAddCommand videoLayer = UnifiedTimelineAddCommand(
     id: 'videoLayer',
     scope: UnifiedTimelineAddScope.root,
@@ -96,12 +104,12 @@ class UnifiedTimelineAddCommandRegistry {
 
   static const List<UnifiedTimelineAddCommand> _root =
       <UnifiedTimelineAddCommand>[
-    newScene,
-    sceneScript,
+    solidLayer,
+    adjustmentLayer,
     videoLayer,
     imageLayer,
     textLayer,
-    adjustmentLayer,
+    shapeLayer,
     audioLayer,
   ];
 

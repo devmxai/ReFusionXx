@@ -10,12 +10,12 @@ void main() {
     expect(
       commands.map((command) => command.id),
       <String>[
-        'newScene',
-        'sceneScript',
+        'solidLayer',
+        'adjustmentLayer',
         'videoLayer',
         'imageLayer',
         'textLayer',
-        'adjustmentLayer',
+        'shapeLayer',
         'audioLayer',
       ],
     );

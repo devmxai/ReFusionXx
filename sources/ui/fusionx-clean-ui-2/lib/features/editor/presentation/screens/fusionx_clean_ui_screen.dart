@@ -140,6 +140,7 @@ enum _UniversalAddScope {
 }
 
 enum _UniversalAddAction {
+  solidLayer,
   newScene,
   sceneScript,
   videoLayer,
@@ -173,10 +174,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   static const int _deviceMediaPageSize = 24;
   static const String _motionProjectId = 'motion-project';
   static const String _motionSceneId = 'scene-main';
-  static const String _defaultCompositionSceneClipId = 'scene-clip-01';
   static const String _professionalTransitionBoundaryMissingSentinel =
       '__professional_transition_boundary_missing__';
-  static const String _defaultCompositionSourceSceneId = 'scene-01-source';
   static const String _exportContractVersion = 'v1alpha1';
   static const String _normalTransitionVideoTrackId = 'video-main';
   static const int _playbackStartPositionToleranceMs = 24;
@@ -13475,6 +13474,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
   _UniversalAddAction? _actionForUnifiedCommandId(String commandId) {
     switch (commandId) {
+      case 'solidLayer':
+        return _UniversalAddAction.solidLayer;
       case 'newScene':
         return _UniversalAddAction.newScene;
       case 'sceneScript':
@@ -13497,6 +13498,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
   Future<void> _handleUniversalAddAction(_UniversalAddAction action) async {
     switch (action) {
+      case _UniversalAddAction.solidLayer:
+        _insertRootSolidLayer();
+        return;
       case _UniversalAddAction.newScene:
         _insertEmptySceneClipAfterCurrentSelection();
         return;
@@ -13558,6 +13562,55 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _showStageMessage(
       'Add at least two adjacent video clips before inserting an adjustment layer.',
     );
+  }
+
+  void _insertRootSolidLayer() {
+    final duration = _timelineDurationTime > TimelineTime.zero
+        ? _timelineDurationTime
+        : _effectiveMotionProject.durationTime;
+    if (duration <= TimelineTime.zero) {
+      _showStageMessage('Composition duration is not ready yet.');
+      return;
+    }
+
+    final solidClipId = _nextMotionEntityId('solid-layer');
+    final solidClip = TimelineClipData(
+      id: solidClipId,
+      type: TimelineClipType.placeholder,
+      tone: TimelineClipTone.aiGenerated,
+      durationTime: duration,
+      sourceStartTime: TimelineTime.zero,
+      sourceDurationTime: duration,
+      label: 'Solid Layer',
+      contentKind: TimelineClipContentKind.placeholder,
+      visualKind: TimelineVisualKind.shape,
+    );
+    final baseTracks = _ensureTrackKind(_tracks, TimelineTrackKind.shape);
+    final trackIndex = baseTracks.indexWhere(
+      (track) => track.kind == TimelineTrackKind.shape,
+    );
+    if (trackIndex < 0) {
+      _showStageMessage('Unable to create a solid layer track.');
+      return;
+    }
+    final clips = <TimelineClipData>[
+      ...baseTracks[trackIndex].clips,
+      solidClip,
+    ];
+    final nextTracks = _replaceTrackIn(baseTracks, trackIndex, clips);
+    setState(() {
+      _tracks = nextTracks;
+      _sceneScopeSession = null;
+      _sceneLayerScopeLayerId = null;
+      _selectedClipId = solidClip.id;
+      _selectedTransitionId = null;
+      _previewAssetId = null;
+      _activeTab = EditorMediaTab.text;
+      _setCurrentTime(TimelineTime.zero);
+      _markMotionAuthoringChanged();
+    });
+    _syncTimelineClockDuration();
+    _showStageMessage('Solid Layer added.');
   }
 
   _TimelineBoundaryCandidate? _resolvePreferredAdjustmentBoundary({
@@ -16345,53 +16398,23 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             ...projectMetadata,
           },
         ),
-        MotionSceneModel(
-          id: _defaultCompositionSourceSceneId,
-          projectRange: TimelineTimeRange(
-            start: TimelineTime.zero,
-            endExclusive: template.duration,
-          ),
-          layers: const <MotionLayerModel>[],
-          name: 'Scene 01',
-          metadata: <String, String>{
-            'role': 'source-composition',
-            'source': 'refusion.empty-scene',
-            ...projectMetadata,
-          },
-        ),
       ],
       name: '${template.label} Composition',
       metadata: projectMetadata,
     );
-    final sceneClip = CompositionSceneClipModel(
-      id: _defaultCompositionSceneClipId,
-      sourceSceneId: _defaultCompositionSourceSceneId,
-      name: 'Scene 01',
-      startTime: TimelineTime.zero,
-      durationTime: template.duration,
-      sourceInTime: TimelineTime.zero,
-      sourceOutTime: template.duration,
-      metadata: const <String, String>{
-        'source': 'refusion.empty-scene',
-      },
-    );
-    final sceneClips = <CompositionSceneClipModel>[sceneClip];
-    final nextTracks = List<TimelineTrackData>.unmodifiable(
-      _rootSceneClipProjectionAdapter.mergeSceneTrack(
-        existingTracks: const <TimelineTrackData>[],
-        sceneClips: sceneClips,
-      ),
-    );
+    const sceneClips = <CompositionSceneClipModel>[];
+    const nextTracks = <TimelineTrackData>[];
     setState(() {
       _lockedWorkspaceAspectRatio = template.aspectRatio;
       _motionProject = project;
       _hasStartedCompositionSession = true;
-      _sceneClips = List<CompositionSceneClipModel>.unmodifiable(sceneClips);
+      _sceneClips = sceneClips;
       _sceneScopeSession = null;
+      _sceneLayerScopeLayerId = null;
       _motionTextAnimationBindings = const <MotionTextAnimationBindingModel>[];
       _universalMotionPropertyChannels = const <MotionPropertyChannelModel>[];
       _tracks = nextTracks;
-      _selectedClipId = sceneClip.id;
+      _selectedClipId = null;
       _selectedTransitionId = null;
       _previewAssetId = null;
       _activeTab = EditorMediaTab.text;
@@ -25838,7 +25861,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             transitionFocusContext == null &&
             unifiedTransitionScopeViewModel == null &&
             layerScopeContext == null &&
-            sceneScopeSession == null &&
             sceneLayerScopeViewModel == null;
     final unifiedRootTimelinePresentation =
         canUseUnifiedRootTimelinePresentation
