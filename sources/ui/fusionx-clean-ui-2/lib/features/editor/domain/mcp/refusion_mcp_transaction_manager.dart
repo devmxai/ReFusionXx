@@ -99,7 +99,15 @@ class RefusionMcpTransactionManager {
         message: 'Pending transaction not found.',
       );
     }
-    final commit = pendingEntry.commitOperation();
+    final RefusionMcpCommitExecution commit;
+    try {
+      commit = pendingEntry.commitOperation();
+    } catch (error) {
+      throw RefusionMcpTransactionManagerException(
+        code: RefusionMcpCommandErrorCode.internalError,
+        message: 'Transaction commit failed: $error',
+      );
+    }
     final committed = RefusionMcpCommittedTransaction(
       id: pendingEntry.pending.id,
       command: pendingEntry.pending.command,

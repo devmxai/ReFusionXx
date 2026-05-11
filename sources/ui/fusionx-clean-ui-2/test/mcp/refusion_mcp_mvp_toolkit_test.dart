@@ -5,7 +5,11 @@ import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_capability.
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_command.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_command_bus.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_mvp_toolkit.dart';
+import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_scene_program_tools.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_session.dart';
+import 'package:refusion_app/features/editor/domain/models/composition_scene_clip_models.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_animation_models.dart';
+import 'package:refusion_app/features/editor/domain/models/professional_motion_text_models.dart';
 
 void main() {
   group('RefusionMcpMvpToolkit', () {
@@ -94,6 +98,66 @@ void main() {
       expect(result.ok, isTrue);
       expect(result.payload['isValid'], isTrue);
     });
+
+    test('apply scene program returns pending transaction in dryRun', () {
+      final source = File(
+        '/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/test/fixtures/refusion_scene_programs/first_generated_scene.json',
+      ).readAsStringSync();
+      const tools = RefusionMcpSceneProgramTools();
+      final authored = tools.authorSceneProgram(source: source);
+      expect(authored.isValid, isTrue);
+      expect(authored.project, isNotNull);
+      var revision = 7;
+      final toolBus = RefusionMcpCommandBus();
+      const toolkit = RefusionMcpMvpToolkit();
+      toolkit.register(
+        bus: toolBus,
+        config: RefusionMcpMvpToolkitConfig(
+          projectStateReader: () => <String, Object?>{
+            'projectId': 'active',
+            'revision': revision,
+          },
+          timelineSummaryReader: () => <String, Object?>{'rowCount': 0},
+          selectionReader: () =>
+              <String, Object?>{'selected': const <String>[]},
+          previewCaptureReader: (_) => <String, Object?>{},
+          sceneProgramTools: tools,
+          projectReader: () => authored.project!,
+          rootSceneIdReader: () => authored.project!.scenes.first.id,
+          sceneClipsReader: () => const <CompositionSceneClipModel>[],
+          channelsReader: () => const <MotionPropertyChannelModel>[],
+          textBindingsReader: () => const <MotionTextAnimationBindingModel>[],
+          applySceneProgramCommit: (_) {
+            revision += 1;
+            return RefusionMcpApplySceneProgramCommitResult(
+              revisionAfter: revision,
+            );
+          },
+        ),
+      );
+
+      final dryRun = toolBus.execute(
+        session: session,
+        command: _command(
+          type: 'refusion.apply_scene_program',
+          capability: RefusionMcpCapability.sceneWrite,
+          payload: <String, Object?>{'source': source},
+        ),
+        currentRevision: revision,
+      );
+      expect(dryRun.ok, isTrue);
+      expect(dryRun.transactionId, isNotNull);
+      expect(dryRun.payload['pending'], isTrue);
+
+      final commit = toolBus.commitTransaction(
+        session: session,
+        transactionId: dryRun.transactionId!,
+        expectedRevision: revision,
+        actualRevision: revision,
+      );
+      expect(commit.ok, isTrue);
+      expect(commit.revisionAfter, 8);
+    });
   });
 }
 
@@ -101,6 +165,8 @@ RefusionMcpCommandEnvelope _command({
   required String type,
   required RefusionMcpCapability capability,
   Map<String, Object?> payload = const <String, Object?>{},
+  RefusionMcpCommandMode mode = RefusionMcpCommandMode.dryRun,
+  int? expectedRevision,
 }) {
   return RefusionMcpCommandEnvelope(
     commandId: 'cmd_1',
@@ -108,8 +174,9 @@ RefusionMcpCommandEnvelope _command({
     projectId: 'active',
     type: type,
     capability: capability,
-    mode: RefusionMcpCommandMode.dryRun,
+    mode: mode,
     idempotencyKey: 'turn-1',
+    expectedRevision: expectedRevision,
     payload: payload,
   );
 }

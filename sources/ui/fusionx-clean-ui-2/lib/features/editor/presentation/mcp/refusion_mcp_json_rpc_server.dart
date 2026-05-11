@@ -1,0 +1,391 @@
+import 'dart:convert';
+
+import '../../domain/mcp/refusion_mcp_agent_control_plane.dart';
+import '../../domain/mcp/refusion_mcp_capability.dart';
+import '../../domain/mcp/refusion_mcp_command.dart';
+import '../../domain/mcp/refusion_mcp_session.dart';
+import '../../domain/mcp/refusion_mcp_tool_registry.dart';
+import 'refusion_mcp_app_bridge.dart';
+
+class RefusionMcpJsonRpcServer {
+  RefusionMcpJsonRpcServer({
+    required RefusionMcpAppBridge bridge,
+    required RefusionMcpToolRegistry toolRegistry,
+  })  : _bridge = bridge,
+        _toolRegistry = toolRegistry;
+
+  final RefusionMcpAppBridge _bridge;
+  final RefusionMcpToolRegistry _toolRegistry;
+
+  Map<String, Object?> handle(Map<String, Object?> request) {
+    final id = request['id'];
+    final method = request['method'];
+    if (method is! String || method.trim().isEmpty) {
+      return _error(
+        id: id,
+        code: -32600,
+        message: 'Invalid JSON-RPC request: missing method.',
+      );
+    }
+    try {
+      switch (method) {
+        case 'initialize':
+          return _result(
+            id: id,
+            value: <String, Object?>{
+              'protocolVersion': '2025-03-26',
+              'serverInfo': <String, Object?>{
+                'name': 'refusion-mcp',
+                'version': '0.1.0',
+              },
+              'capabilities': <String, Object?>{
+                'tools': <String, Object?>{},
+                'resources': <String, Object?>{},
+              },
+            },
+          );
+        case 'tools/list':
+          return _result(
+            id: id,
+            value: <String, Object?>{
+              'tools': _toolRegistry.list().map(_serializeTool).toList(),
+            },
+          );
+        case 'tools/call':
+          return _handleToolsCall(id: id, params: request['params']);
+        case 'resources/list':
+          return _result(
+            id: id,
+            value: <String, Object?>{
+              'resources': _bridge.listResourceUris().map((uri) {
+                return <String, Object?>{
+                  'uri': uri,
+                  'name': uri,
+                };
+              }).toList(growable: false),
+            },
+          );
+        case 'resources/read':
+          return _handleResourceRead(id: id, params: request['params']);
+        case 'refusion/session/open':
+          return _handleSessionOpen(id: id, params: request['params']);
+        case 'refusion/session/close':
+          return _handleSessionClose(id: id, params: request['params']);
+        case 'refusion/session/list':
+          return _result(
+            id: id,
+            value: <String, Object?>{
+              'sessions':
+                  _bridge.listSessions().map(_serializeSession).toList(),
+            },
+          );
+        default:
+          return _error(
+            id: id,
+            code: -32601,
+            message: 'Method not found: $method',
+          );
+      }
+    } catch (error) {
+      return _error(
+        id: id,
+        code: -32603,
+        message: 'Internal error: $error',
+      );
+    }
+  }
+
+  Map<String, Object?> _handleToolsCall({
+    required Object? id,
+    required Object? params,
+  }) {
+    if (params is! Map<String, Object?>) {
+      return _error(
+        id: id,
+        code: -32602,
+        message: 'Invalid params for tools/call.',
+      );
+    }
+    final name = params['name'];
+    final arguments = params['arguments'];
+    if (name is! String || arguments is! Map<String, Object?>) {
+      return _error(
+        id: id,
+        code: -32602,
+        message: 'tools/call requires name and arguments map.',
+      );
+    }
+
+    final modeValue = arguments['mode'] as String?;
+    final mode = modeValue == 'commit'
+        ? RefusionMcpCommandMode.commit
+        : RefusionMcpCommandMode.dryRun;
+    final expectedRevision = _readInt(arguments['expectedRevision']);
+    final payload = _readMap(arguments['payload']);
+
+    final response = _bridge.executeTool(
+      RefusionMcpToolCallRequest(
+        toolName: name,
+        sessionId: (arguments['sessionId'] as String?) ?? '',
+        projectId: (arguments['projectId'] as String?) ?? 'active',
+        commandId: (arguments['commandId'] as String?) ??
+            'cmd_${DateTime.now().microsecondsSinceEpoch}',
+        idempotencyKey: (arguments['idempotencyKey'] as String?) ??
+            'mcp-${DateTime.now().microsecondsSinceEpoch}',
+        mode: mode,
+        expectedRevision: expectedRevision,
+        payload: payload,
+      ),
+    );
+
+    return _result(
+      id: id,
+      value: <String, Object?>{
+        'isError': !response.ok,
+        'content': <Map<String, Object?>>[
+          <String, Object?>{
+            'type': 'text',
+            'text': response.ok
+                ? response.summary
+                : (response.error?.message ?? response.summary),
+          },
+        ],
+        'structuredContent': <String, Object?>{
+          'ok': response.ok,
+          'summary': response.summary,
+          'message': response.error?.message,
+          'code': response.error?.code.name,
+          'revisionBefore': response.revisionBefore,
+          'revisionAfter': response.revisionAfter,
+          'transactionId': response.transactionId,
+          'payload': response.payload,
+          'diagnostics': response.diagnostics,
+          'resourceUris': response.resourceUris,
+        },
+      },
+    );
+  }
+
+  Map<String, Object?> _handleResourceRead({
+    required Object? id,
+    required Object? params,
+  }) {
+    if (params is! Map<String, Object?>) {
+      return _error(
+        id: id,
+        code: -32602,
+        message: 'Invalid params for resources/read.',
+      );
+    }
+    final uri = params['uri'];
+    if (uri is! String || uri.trim().isEmpty) {
+      return _error(
+        id: id,
+        code: -32602,
+        message: 'resources/read requires uri.',
+      );
+    }
+    final resource = _bridge.readResource(uri);
+    if (!resource.ok) {
+      return _result(
+        id: id,
+        value: <String, Object?>{
+          'contents': <Map<String, Object?>>[],
+          'error': <String, Object?>{
+            'code': resource.code?.name,
+            'message': resource.message,
+          },
+        },
+      );
+    }
+    return _result(
+      id: id,
+      value: <String, Object?>{
+        'contents': <Map<String, Object?>>[
+          <String, Object?>{
+            'uri': resource.uri,
+            'mimeType': 'application/json',
+            'text': jsonEncode(resource.payload),
+          },
+        ],
+      },
+    );
+  }
+
+  Map<String, Object?> _handleSessionOpen({
+    required Object? id,
+    required Object? params,
+  }) {
+    if (params is! Map<String, Object?>) {
+      return _error(
+        id: id,
+        code: -32602,
+        message: 'Invalid params for refusion/session/open.',
+      );
+    }
+    final sessionMap = _readMap(params['session']);
+    final sessionId = sessionMap['id'] as String?;
+    if (sessionId == null || sessionId.trim().isEmpty) {
+      return _error(
+        id: id,
+        code: -32602,
+        message: 'session.id is required.',
+      );
+    }
+    final capabilityValues =
+        (sessionMap['capabilities'] as List?)?.whereType<String>() ??
+            const <String>[];
+    final capabilities = capabilityValues
+        .map(RefusionMcpCapability.parse)
+        .whereType<RefusionMcpCapability>()
+        .toSet();
+
+    _bridge.openSession(
+      RefusionMcpSession(
+        id: sessionId,
+        clientName: (sessionMap['clientName'] as String?) ?? 'unknown',
+        clientVersion: (sessionMap['clientVersion'] as String?) ?? '0.0.0',
+        transport: (sessionMap['transport'] as String?) ?? 'stdio',
+        activeProjectId: (sessionMap['activeProjectId'] as String?) ?? 'active',
+        activeCompositionId:
+            (sessionMap['activeCompositionId'] as String?) ?? 'comp_1',
+        timelineRevision: _readInt(sessionMap['timelineRevision']) ?? 0,
+        grantedCapabilities: capabilities,
+      ),
+    );
+    return _result(
+      id: id,
+      value: <String, Object?>{
+        'sessionId': sessionId,
+      },
+    );
+  }
+
+  Map<String, Object?> _handleSessionClose({
+    required Object? id,
+    required Object? params,
+  }) {
+    if (params is! Map<String, Object?>) {
+      return _error(
+        id: id,
+        code: -32602,
+        message: 'Invalid params for refusion/session/close.',
+      );
+    }
+    final sessionId = params['sessionId'] as String?;
+    if (sessionId == null || sessionId.trim().isEmpty) {
+      return _error(
+        id: id,
+        code: -32602,
+        message: 'sessionId is required.',
+      );
+    }
+    return _result(
+      id: id,
+      value: <String, Object?>{
+        'closed': _bridge.closeSession(sessionId),
+      },
+    );
+  }
+
+  Map<String, Object?> _serializeTool(RefusionMcpToolDescriptor tool) {
+    return <String, Object?>{
+      'name': tool.name,
+      'title': tool.title,
+      'description': tool.description,
+      'inputSchema': <String, Object?>{
+        'type': 'object',
+        'properties': <String, Object?>{
+          'sessionId': <String, Object?>{'type': 'string'},
+          'projectId': <String, Object?>{'type': 'string'},
+          'commandId': <String, Object?>{'type': 'string'},
+          'idempotencyKey': <String, Object?>{'type': 'string'},
+          'mode': <String, Object?>{
+            'type': 'string',
+            'enum': <String>['dryRun', 'commit'],
+          },
+          'expectedRevision': <String, Object?>{'type': 'integer'},
+          'payload': <String, Object?>{'type': 'object'},
+        },
+        'required': <String>[
+          'sessionId',
+          'projectId',
+          'commandId',
+          'idempotencyKey',
+          'payload',
+        ],
+      },
+      'annotations': <String, Object?>{
+        'mutating': tool.mutating,
+        'capability': tool.capability.value,
+      },
+    };
+  }
+
+  Map<String, Object?> _serializeSession(RefusionMcpSession session) {
+    return <String, Object?>{
+      'id': session.id,
+      'clientName': session.clientName,
+      'clientVersion': session.clientVersion,
+      'transport': session.transport,
+      'activeProjectId': session.activeProjectId,
+      'activeCompositionId': session.activeCompositionId,
+      'timelineRevision': session.timelineRevision,
+      'capabilities':
+          session.grantedCapabilities.map((value) => value.value).toList(),
+    };
+  }
+
+  Map<String, Object?> _result({
+    required Object? id,
+    required Map<String, Object?> value,
+  }) {
+    return <String, Object?>{
+      'jsonrpc': '2.0',
+      'id': id,
+      'result': value,
+    };
+  }
+
+  Map<String, Object?> _error({
+    required Object? id,
+    required int code,
+    required String message,
+  }) {
+    return <String, Object?>{
+      'jsonrpc': '2.0',
+      'id': id,
+      'error': <String, Object?>{
+        'code': code,
+        'message': message,
+      },
+    };
+  }
+
+  int? _readInt(Object? value) {
+    if (value is int) {
+      return value;
+    }
+    if (value is num) {
+      return value.round();
+    }
+    return null;
+  }
+
+  Map<String, Object?> _readMap(Object? value) {
+    if (value is Map<String, Object?>) {
+      return value;
+    }
+    if (value is Map) {
+      final result = <String, Object?>{};
+      for (final entry in value.entries) {
+        final key = entry.key;
+        if (key is String) {
+          result[key] = entry.value;
+        }
+      }
+      return result;
+    }
+    return const <String, Object?>{};
+  }
+}
