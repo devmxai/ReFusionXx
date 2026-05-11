@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 import '../../../../core/engine/stage5_native_transport_controller.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -17,6 +18,15 @@ bool shouldResetNativePreviewForFrameLoss({
       hasPresentedNativeFrameForPreview;
 }
 
+@visibleForTesting
+PlatformViewHitTestBehavior nativePreviewHitTestBehaviorFor({
+  required bool allowPointerInteraction,
+}) {
+  return allowPointerInteraction
+      ? PlatformViewHitTestBehavior.opaque
+      : PlatformViewHitTestBehavior.transparent;
+}
+
 class NativePreviewSurface extends StatefulWidget {
   const NativePreviewSurface({
     super.key,
@@ -24,12 +34,14 @@ class NativePreviewSurface extends StatefulWidget {
     required this.previewIdentity,
     required this.recoveryRevision,
     required this.fallback,
+    this.allowPointerInteraction = true,
   });
 
   final Stage5NativeTransportController controller;
   final String? previewIdentity;
   final int recoveryRevision;
   final Widget fallback;
+  final bool allowPointerInteraction;
 
   bool get _supportsAndroidPreview => !kIsWeb && Platform.isAndroid;
 
@@ -137,15 +149,22 @@ class _NativePreviewSurfaceState extends State<NativePreviewSurface> {
     }
 
     final showNative = _hasPresentedNativeFrameForPreview;
+    final nativeView = AndroidView(
+      key: ValueKey<int>(widget.recoveryRevision),
+      viewType: Stage5NativeTransportController.previewViewType,
+      hitTestBehavior: nativePreviewHitTestBehaviorFor(
+        allowPointerInteraction: widget.allowPointerInteraction,
+      ),
+    );
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
       child: Stack(
         fit: StackFit.expand,
         children: [
           Positioned.fill(
-            child: AndroidView(
-              key: ValueKey<int>(widget.recoveryRevision),
-              viewType: Stage5NativeTransportController.previewViewType,
+            child: IgnorePointer(
+              ignoring: !widget.allowPointerInteraction,
+              child: nativeView,
             ),
           ),
           Positioned.fill(

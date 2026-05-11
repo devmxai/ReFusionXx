@@ -1,3 +1,4 @@
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:refusion_app/features/editor/presentation/widgets/native_preview_surface.dart';
 
@@ -39,6 +40,22 @@ void main() {
         hasPresentedNativeFrameForPreview: false,
       ),
       isFalse,
+    );
+  });
+
+  test('native preview is transparent to gestures during canvas transform', () {
+    expect(
+      nativePreviewHitTestBehaviorFor(allowPointerInteraction: false),
+      PlatformViewHitTestBehavior.transparent,
+    );
+  });
+
+  test(
+      'native preview remains opaque when normal preview interaction is allowed',
+      () {
+    expect(
+      nativePreviewHitTestBehaviorFor(allowPointerInteraction: true),
+      PlatformViewHitTestBehavior.opaque,
     );
   });
 }

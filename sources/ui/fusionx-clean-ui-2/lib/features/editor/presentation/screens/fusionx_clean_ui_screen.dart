@@ -23982,6 +23982,54 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             clip.visualKind == TimelineVisualKind.image);
   }
 
+  _SelectedTimelineClipContext? _canvasTransformTargetClipContextForPreviewTime(
+    TimelineTime previewTime,
+  ) {
+    final selectedClipId = _selectedClipId;
+    if (selectedClipId != null) {
+      final selectedContext =
+          _selectedClipContextForTracks(_timelineTruthTracks, selectedClipId);
+      if (selectedContext != null &&
+          _timelineClipSupportsCanvasTransform(selectedContext.clip) &&
+          previewTime >= selectedContext.clipStartTime &&
+          previewTime < selectedContext.clipEndTime) {
+        return selectedContext;
+      }
+    }
+
+    final activeTransformableContexts = <_SelectedTimelineClipContext>[];
+    for (var trackIndex = 0;
+        trackIndex < _timelineTruthTracks.length;
+        trackIndex++) {
+      final track = _timelineTruthTracks[trackIndex];
+      var cursor = TimelineTime.zero;
+      for (var clipIndex = 0; clipIndex < track.clips.length; clipIndex++) {
+        final clip = track.clips[clipIndex];
+        final clipStart = cursor;
+        final clipEnd = clipStart + clip.durationTime;
+        if (_timelineClipSupportsCanvasTransform(clip) &&
+            previewTime >= clipStart &&
+            previewTime < clipEnd) {
+          activeTransformableContexts.add(
+            _SelectedTimelineClipContext(
+              trackIndex: trackIndex,
+              clipIndex: clipIndex,
+              track: track,
+              clip: clip,
+              asset: _assetForId(clip.assetId),
+              clipStartTime: clipStart,
+              clipEndTime: clipEnd,
+            ),
+          );
+        }
+        cursor = clipEnd;
+      }
+    }
+    return activeTransformableContexts.length == 1
+        ? activeTransformableContexts.single
+        : null;
+  }
+
   _CanvasClipTransform _canvasClipTransformFor(String clipId) {
     return _canvasClipTransforms[clipId] ?? const _CanvasClipTransform();
   }
@@ -24798,16 +24846,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required TimelineTime previewTime,
     required String mode,
   }) {
-    final selectedClipId = _selectedClipId;
-    if (selectedClipId == null) {
-      return null;
-    }
     final context =
-        _selectedClipContextForTracks(_timelineTruthTracks, selectedClipId);
-    if (context == null ||
-        !_timelineClipSupportsCanvasTransform(context.clip) ||
-        previewTime < context.clipStartTime ||
-        previewTime >= context.clipEndTime) {
+        _canvasTransformTargetClipContextForPreviewTime(previewTime);
+    if (context == null) {
       return null;
     }
     final transform = _canvasClipTransformFor(context.clip.id);
@@ -24905,6 +24946,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }).join('|');
     final effectValuesHash = state.framePacket?.effectValuesHash ?? 0;
     return '$transitionId:${state.mode}:$primary:$frameIndex:$effectValuesHash:$surfacesDigest:${state.surfaces.length}';
+  }
+
+  bool _isEmptyStage5VisualRuntimeState(Stage5VisualRuntimeState state) {
+    final packetTargetId = state.framePacket?.targetClipId ?? '';
+    return state.primaryTargetClipId == null &&
+        state.transitionId == null &&
+        state.surfaces.isEmpty &&
+        packetTargetId.isEmpty;
   }
 
   int _stage5FrameIndexForTimelineTime(TimelineTime time) {
@@ -25328,6 +25377,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       previewTime: previewTime,
       mode: mode,
     );
+    if (_isCanvasTransformToolActive &&
+        mode != 'playback' &&
+        mode != 'export' &&
+        _isEmptyStage5VisualRuntimeState(runtimeState)) {
+      debugPrint(
+        'TF_CANVAS_TRANSFORM_RUNTIME_SKIP '
+        'reason=empty_transform_runtime '
+        'timelineTimeMs=${runtimeState.timelineTimeMs} '
+        'selectedClipId=${_selectedClipId ?? 'none'}',
+      );
+      return;
+    }
     final key = _stage5VisualRuntimeSubmissionKey(runtimeState);
     final packet = runtimeState.framePacket;
     final primarySurface = runtimeState.surfaces.firstWhere(
@@ -26059,11 +26120,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required String? previewIdentity,
     required bool effectiveIsPlaying,
   }) {
+    final allowNativePointerInteraction =
+        !(_isCanvasTransformToolActive && !effectiveIsPlaying);
     final surface = NativePreviewSurface(
       controller: _transportController,
       previewIdentity: previewIdentity,
       recoveryRevision: _nativePreviewRecoveryRevision,
       fallback: fallback,
+      allowPointerInteraction: allowNativePointerInteraction,
     );
     final previewTimeListenable = effectiveIsPlaying && _useNativePreview
         ? _playbackSampleTimeNotifier

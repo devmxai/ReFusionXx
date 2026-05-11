@@ -1274,4 +1274,23 @@ void main() {
         source.contains('onVelocityChanged: (velocity, {required editType})'),
         isTrue);
   });
+
+  test('canvas transform runtime resolves active media target safely',
+      () async {
+    final source = await screenFile.readAsString();
+    expect(
+      source.contains(
+        '_canvasTransformTargetClipContextForPreviewTime(previewTime)',
+      ),
+      isTrue,
+    );
+    expect(
+      source.contains('TF_CANVAS_TRANSFORM_RUNTIME_SKIP'),
+      isTrue,
+    );
+    expect(
+      source.contains('allowPointerInteraction: allowNativePointerInteraction'),
+      isTrue,
+    );
+  });
 }
