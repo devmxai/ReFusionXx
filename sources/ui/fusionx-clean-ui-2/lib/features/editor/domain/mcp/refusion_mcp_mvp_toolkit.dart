@@ -7,6 +7,7 @@ import '../models/professional_motion_models.dart';
 import '../models/professional_motion_text_models.dart';
 import 'refusion_mcp_command.dart';
 import 'refusion_mcp_command_bus.dart';
+import 'refusion_mcp_motion_tools.dart';
 import 'refusion_mcp_scene_program_tools.dart';
 import 'refusion_mcp_transaction.dart';
 import '../services/refusion_scene_program_authoring_service.dart';
@@ -75,6 +76,8 @@ class RefusionMcpMvpToolkitConfig {
     this.applyMotionPatchHandler,
     this.keyframeEditHandler,
     this.setElementTransformHandler,
+    this.motionTools = const RefusionMcpMotionTools(),
+    this.motionChannelsCommit,
   });
 
   final RefusionMcpStateReader projectStateReader;
@@ -91,6 +94,8 @@ class RefusionMcpMvpToolkitConfig {
   final RefusionMcpMutationCommandHandler? applyMotionPatchHandler;
   final RefusionMcpMutationCommandHandler? keyframeEditHandler;
   final RefusionMcpMutationCommandHandler? setElementTransformHandler;
+  final RefusionMcpMotionTools motionTools;
+  final RefusionMcpMotionChannelsCommit? motionChannelsCommit;
 }
 
 class RefusionMcpMvpToolkit {
@@ -343,16 +348,31 @@ class RefusionMcpMvpToolkit {
       bus: bus,
       commandType: 'refusion.apply_motion_patch',
       mutationHandler: config.applyMotionPatchHandler,
+      defaultHandler: (command) => _defaultMotionMutationHandler(
+        command: command,
+        commandType: 'refusion.apply_motion_patch',
+        config: config,
+      ),
     );
     _registerMutationHandler(
       bus: bus,
       commandType: 'refusion.keyframe_edit',
       mutationHandler: config.keyframeEditHandler,
+      defaultHandler: (command) => _defaultMotionMutationHandler(
+        command: command,
+        commandType: 'refusion.keyframe_edit',
+        config: config,
+      ),
     );
     _registerMutationHandler(
       bus: bus,
       commandType: 'refusion.set_element_transform',
       mutationHandler: config.setElementTransformHandler,
+      defaultHandler: (command) => _defaultMotionMutationHandler(
+        command: command,
+        commandType: 'refusion.set_element_transform',
+        config: config,
+      ),
     );
   }
 }
@@ -361,20 +381,46 @@ void _registerMutationHandler({
   required RefusionMcpCommandBus bus,
   required String commandType,
   required RefusionMcpMutationCommandHandler? mutationHandler,
+  required RefusionMcpMutationCommandHandler defaultHandler,
 }) {
   bus.registerHandler(
     commandType: commandType,
     handler: (context) {
       if (mutationHandler == null) {
-        return RefusionMcpCommandHandlingOutcome(
-          summary:
-              'Command `$commandType` is not wired in this runtime profile.',
-          requiresConfirmation: true,
-        );
+        return defaultHandler(context.command);
       }
       return mutationHandler(context.command);
     },
   );
+}
+
+RefusionMcpCommandHandlingOutcome _defaultMotionMutationHandler({
+  required RefusionMcpCommandEnvelope command,
+  required String commandType,
+  required RefusionMcpMvpToolkitConfig config,
+}) {
+  if (!_canUseDefaultMotionTools(config)) {
+    return RefusionMcpCommandHandlingOutcome(
+      summary: 'Command `$commandType` is not wired in this runtime profile.',
+      requiresConfirmation: true,
+    );
+  }
+  return config.motionTools.handle(
+    command: command,
+    project: config.projectReader!.call(),
+    rootSceneId: config.rootSceneIdReader!.call(),
+    sceneClips: config.sceneClipsReader!.call(),
+    channels: config.channelsReader!.call(),
+    commitChannels: config.motionChannelsCommit!,
+  );
+}
+
+bool _canUseDefaultMotionTools(RefusionMcpMvpToolkitConfig config) {
+  return config.projectReader != null &&
+      config.rootSceneIdReader != null &&
+      config.sceneClipsReader != null &&
+      config.channelsReader != null &&
+      config.motionChannelsCommit != null;
 }
 
 bool _canApplySceneProgram(RefusionMcpMvpToolkitConfig config) {
