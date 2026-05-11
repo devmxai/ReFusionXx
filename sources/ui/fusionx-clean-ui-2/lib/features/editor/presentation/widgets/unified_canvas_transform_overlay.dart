@@ -114,6 +114,7 @@ class UnifiedCanvasTransformOverlay extends StatelessWidget {
                 );
 
         return Stack(
+          clipBehavior: Clip.none,
           fit: StackFit.expand,
           children: [
             if (selectedLayout != null)
@@ -240,6 +241,7 @@ class _SelectedNodeTransformBoxState extends State<_SelectedNodeTransformBox> {
         _activePointerCount = (_activePointerCount - 1).clamp(0, 1000);
       },
       child: Stack(
+        clipBehavior: Clip.none,
         children: [
           Positioned.fill(
             child: CustomPaint(

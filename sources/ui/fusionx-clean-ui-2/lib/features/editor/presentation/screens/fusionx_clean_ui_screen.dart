@@ -26754,11 +26754,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                             previewConstraints.maxWidth,
                             previewConstraints.maxHeight,
                           );
-                          final useFlutterTransformEditingPreview =
-                              _isCanvasTransformToolActive &&
-                                  !effectiveIsPlaying;
                           final transformPreviewTargetContext =
-                              useFlutterTransformEditingPreview
+                              _isCanvasTransformToolActive
                                   ? _canvasTransformTargetClipContextForPreviewTime(
                                       _timelineDisplayTimeNotifier.value,
                                     )
@@ -26790,8 +26787,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                             overlay: _buildPreviewOverlay(
                               effectiveIsPlaying: effectiveIsPlaying,
                             ),
-                            child: _useNativePreview &&
-                                    !useFlutterTransformEditingPreview
+                            child: _useNativePreview
                                 ? _buildNativePreviewSurface(
                                     previewIdentity: _nativePreviewIdentityFor(
                                       previewCanvasAsset,

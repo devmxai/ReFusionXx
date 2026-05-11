@@ -1293,4 +1293,18 @@ void main() {
       isTrue,
     );
   });
+
+  test('preview stage keeps transform overlay outside the clipped canvas',
+      () async {
+    final source = await File(
+      'lib/features/editor/presentation/widgets/preview_stage.dart',
+    ).readAsString();
+    expect(source.contains('clipBehavior: Clip.none'), isTrue);
+    expect(
+      source.contains('if (widget.overlay != null)') &&
+          source.indexOf('if (widget.overlay != null)') >
+              source.indexOf('child: widget.child'),
+      isTrue,
+    );
+  });
 }

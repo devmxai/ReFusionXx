@@ -223,33 +223,42 @@ class _PreviewStageViewportShellState
           widget.onViewportChanged?.call(_interactiveViewportState);
         },
         child: Stack(
-          clipBehavior: Clip.hardEdge,
+          clipBehavior: Clip.none,
           fit: StackFit.expand,
           children: [
-            Transform(
-              alignment: Alignment.center,
-              transform: Matrix4.identity()
-                ..translate(
-                  viewportState.offset.dx,
-                  viewportState.offset.dy,
-                )
-                ..scale(viewportState.scale),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: ColoredBox(
-                  color: widget.hasVisibleContent
-                      ? widget.canvasBackgroundColor
-                      : Colors.transparent,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      widget.child,
-                      if (widget.overlay != null) widget.overlay!,
-                    ],
+            Positioned.fill(
+              child: Transform(
+                alignment: Alignment.center,
+                transform: Matrix4.identity()
+                  ..translate(
+                    viewportState.offset.dx,
+                    viewportState.offset.dy,
+                  )
+                  ..scale(viewportState.scale),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: ColoredBox(
+                    color: widget.hasVisibleContent
+                        ? widget.canvasBackgroundColor
+                        : Colors.transparent,
+                    child: widget.child,
                   ),
                 ),
               ),
             ),
+            if (widget.overlay != null)
+              Positioned.fill(
+                child: Transform(
+                  alignment: Alignment.center,
+                  transform: Matrix4.identity()
+                    ..translate(
+                      viewportState.offset.dx,
+                      viewportState.offset.dy,
+                    )
+                    ..scale(viewportState.scale),
+                  child: widget.overlay!,
+                ),
+              ),
           ],
         ),
       ),
