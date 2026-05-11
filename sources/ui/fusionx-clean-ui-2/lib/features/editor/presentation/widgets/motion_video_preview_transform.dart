@@ -301,17 +301,23 @@ class MotionVideoPreviewTransformSurface extends StatelessWidget {
     required double viewportScaleX,
     required double viewportScaleY,
   }) {
-    Widget transformed = ImageFiltered(
-      imageFilter: ui.ImageFilter.blur(
-        sigmaX: blurAmount * viewportScaleX,
-        sigmaY: blurAmount * viewportScaleY,
-      ),
-      enabled: blurAmount > 0,
-      child: Opacity(
-        opacity: opacity.clamp(0.0, 1.0).toDouble(),
-        child: child,
-      ),
-    );
+    Widget transformed = child;
+    if (blurAmount > 0) {
+      transformed = ImageFiltered(
+        imageFilter: ui.ImageFilter.blur(
+          sigmaX: blurAmount * viewportScaleX,
+          sigmaY: blurAmount * viewportScaleY,
+        ),
+        child: transformed,
+      );
+    }
+    final effectiveOpacity = opacity.clamp(0.0, 1.0).toDouble();
+    if (effectiveOpacity < 0.999) {
+      transformed = Opacity(
+        opacity: effectiveOpacity,
+        child: transformed,
+      );
+    }
     transformed = Transform.scale(
       scaleX: scaleX,
       scaleY: scaleY,
