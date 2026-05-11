@@ -241,9 +241,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   static const SceneScopeTransitionPreviewResolver
       _sceneScopeTransitionPreviewResolver =
       SceneScopeTransitionPreviewResolver();
-  static const MotionVideoPreviewTransformResolver
-      _motionVideoPreviewTransformResolver =
-      MotionVideoPreviewTransformResolver();
   static const LayerScopeCompositionAdapter _layerScopeCompositionAdapter =
       LayerScopeCompositionAdapter();
   static const SceneMentionIndex _sceneMentionIndex = SceneMentionIndex();
@@ -12489,6 +12486,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           : EditorMediaTab.video;
       _markMotionAuthoringChanged();
     });
+    _scheduleStage5VisualRuntimeSubmission(
+      previewTime: _timelineDisplayTimeNotifier.value,
+      mode: _professionalVideoTransitionMode(
+        effectiveIsPlaying: _transportController.state.isPlaying,
+      ),
+    );
   }
 
   void _handleDeleteSelectedClip() {
@@ -23957,36 +23960,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return Size(canvasSize.width, canvasSize.height);
   }
 
-  MotionVideoPreviewTransform? _timelineClipPreviewTransformForTime(
-    TimelineTime previewTime,
-  ) {
-    final selectedClipId = _selectedClipId;
-    if (selectedClipId == null) {
-      return null;
-    }
-    final context =
-        _selectedClipContextForTracks(_timelineTruthTracks, selectedClipId);
-    if (context == null ||
-        !_timelineClipSupportsCanvasTransform(context.clip) ||
-        previewTime < context.clipStartTime ||
-        previewTime >= context.clipEndTime) {
-      return null;
-    }
-    final transform = _canvasClipTransformFor(context.clip.id);
-    return MotionVideoPreviewTransform(
-      elementId: context.clip.id,
-      assetId: context.clip.assetId,
-      zIndex: context.trackIndex,
-      positionX: transform.positionX,
-      positionY: transform.positionY,
-      scaleX: transform.scaleX,
-      scaleY: transform.scaleY,
-      rotationDegrees: transform.rotationDegrees,
-      opacity: 1,
-      blurAmount: 0,
-    );
-  }
-
   void _scheduleMotionImagePreviewWarmup(
     MotionNormalizedComposition? composition,
   ) {
@@ -24048,42 +24021,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _previewThumbnailCache[asset.id] = bytes;
     _motionImagePreviewRevisionNotifier.value =
         _motionImagePreviewRevisionNotifier.value + 1;
-  }
-
-  MotionVideoPreviewTransform? _motionVideoPreviewTransformForTime(
-    TimelineTime previewTime,
-  ) {
-    final composition = _motionCompositionForCurrentState();
-    if (composition == null) {
-      return null;
-    }
-    final snapshot = _motionEvaluator.evaluate(
-      MotionEvaluationRequest(
-        composition: composition,
-        time: previewTime.clamp(
-          TimelineTime.zero,
-          composition.projectRange.endExclusive,
-        ),
-        reason: _isTimelineScrubbing
-            ? MotionEvaluationReason.liveScrub
-            : MotionEvaluationReason.previewPlayback,
-      ),
-    );
-    return _motionVideoPreviewTransformResolver.resolve(
-      composition: composition,
-      snapshot: snapshot,
-      preferredAssetId: _previewAssetId,
-    );
-  }
-
-  MotionVideoPreviewSurfaceTransform? _transitionVideoSurfaceTransformForTime(
-    TimelineTime previewTime,
-  ) {
-    // Native preview is an Android PlatformView. Transforming it from Flutter
-    // can leak the surface into the timeline overlay and break Live Scrub
-    // hit-testing. Zoom-family transitions must wait for a native compositor
-    // surface that owns clipping/transform inside Android.
-    return null;
   }
 
   bool _canApplyTimelineTransition(
@@ -24616,6 +24553,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       previewTimeOverride: previewTime,
     );
     if (activeTransition == null) {
+      final selectedClipRuntimeState =
+          _buildSelectedCanvasClipStage5VisualRuntimeStateForPreviewTime(
+        previewTime: previewTime,
+        mode: mode,
+      );
+      if (selectedClipRuntimeState != null) {
+        return selectedClipRuntimeState;
+      }
       final frameIndex = _stage5FrameIndexForTimelineTime(previewTime);
       return Stage5VisualRuntimeState(
         revision: ++_stage5VisualRuntimeRevision,
@@ -24799,6 +24744,82 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         ...program.diagnostics,
         ...seamDiagnostics,
       ],
+    );
+  }
+
+  Stage5VisualRuntimeState?
+      _buildSelectedCanvasClipStage5VisualRuntimeStateForPreviewTime({
+    required TimelineTime previewTime,
+    required String mode,
+  }) {
+    final selectedClipId = _selectedClipId;
+    if (selectedClipId == null) {
+      return null;
+    }
+    final context =
+        _selectedClipContextForTracks(_timelineTruthTracks, selectedClipId);
+    if (context == null ||
+        !_timelineClipSupportsCanvasTransform(context.clip) ||
+        previewTime < context.clipStartTime ||
+        previewTime >= context.clipEndTime) {
+      return null;
+    }
+    final transform = _canvasClipTransformFor(context.clip.id);
+    final matrix = _stage5VisualTransformMatrix3x3FromComponents(
+      positionX: transform.positionX,
+      positionY: transform.positionY,
+      scaleX: transform.scaleX,
+      scaleY: transform.scaleY,
+      rotationRadians: transform.rotationDegrees * math.pi / 180,
+    );
+    final revision = ++_stage5VisualRuntimeRevision;
+    final frameIndex = _stage5FrameIndexForTimelineTime(previewTime);
+    final surface = Stage5VisualRuntimeSurfaceState(
+      targetClipId: context.clip.id,
+      role: 'canvasTransform',
+      transformMatrix3x3: matrix,
+      opacity: 1,
+    );
+    return Stage5VisualRuntimeState(
+      revision: revision,
+      timelineTimeMs: previewTime.inMilliseconds,
+      mode: mode,
+      framePacket: Stage5VisualFramePacket(
+        timelineTimeMs: previewTime.inMilliseconds,
+        frameIndex: frameIndex,
+        mode: mode,
+        revision: revision,
+        targetClipId: context.clip.id,
+        sourceId: context.clip.id,
+        transformMatrix3x3: matrix,
+        motionBlurDirective: null,
+        edgeFillDirective: null,
+        gaussianBlurSigmaPx: 0,
+        effectValuesHash: _canvasClipStage5TransformHash(
+          clipId: context.clip.id,
+          transform: transform,
+        ),
+      ),
+      primaryTargetClipId: context.clip.id,
+      surfaces: <Stage5VisualRuntimeSurfaceState>[surface],
+      diagnostics: <String>[
+        'canvas_clip_native_transform:${context.clip.id}',
+        if (transform.isIdentity) 'canvas_clip_native_transform_identity',
+      ],
+    );
+  }
+
+  int _canvasClipStage5TransformHash({
+    required String clipId,
+    required _CanvasClipTransform transform,
+  }) {
+    return Object.hash(
+      clipId,
+      transform.positionX.toStringAsFixed(3),
+      transform.positionY.toStringAsFixed(3),
+      transform.scaleX.toStringAsFixed(4),
+      transform.scaleY.toStringAsFixed(4),
+      transform.rotationDegrees.toStringAsFixed(3),
     );
   }
 
@@ -26042,11 +26063,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         final shouldSuppressNativePreviewForProfessionalTransition =
             routeDecision.suppressesStage5Preview;
         return MotionVideoPreviewTransformSurface(
-          transform: _motionVideoPreviewTransformForTime(previewTime) ??
-              _timelineClipPreviewTransformForTime(previewTime),
-          surfaceTransform: _transitionVideoSurfaceTransformForTime(
-            previewTime,
-          ),
+          // Android PlatformViews cannot be safely scaled/rotated from the
+          // Flutter layer: the decoder keeps audio running while the video
+          // surface disappears. Direct timeline media transforms are submitted
+          // through Stage5VisualRuntimeState above, so the native owner applies
+          // the matrix without wrapping the preview AndroidView.
+          transform: null,
+          surfaceTransform: null,
           canvasSize: _motionProjectFormat.canvasSize,
           child: shouldSuppressNativePreviewForProfessionalTransition
               ? fallback
@@ -28452,6 +28475,13 @@ class _CanvasClipTransform {
   final double scaleX;
   final double scaleY;
   final double rotationDegrees;
+
+  bool get isIdentity =>
+      positionX == 0 &&
+      positionY == 0 &&
+      scaleX == 1 &&
+      scaleY == 1 &&
+      rotationDegrees == 0;
 
   _CanvasClipTransform copyWith({
     double? positionX,
