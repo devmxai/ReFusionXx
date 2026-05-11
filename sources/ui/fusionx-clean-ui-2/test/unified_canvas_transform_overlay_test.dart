@@ -104,4 +104,41 @@ void main() {
 
     expect(find.byKey(selectionBoxKey), findsOneWidget);
   });
+
+  testWidgets('transform chrome does not consume empty canvas taps',
+      (tester) async {
+    var backgroundTapCount = 0;
+    var selectedNodeCount = 0;
+
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => backgroundTapCount += 1,
+          child: SizedBox(
+            width: 540,
+            height: 960,
+            child: UnifiedCanvasTransformOverlay(
+              snapshot: snapshotWithNodes(<UnifiedCanvasTransformNode>[
+                videoNode(id: 'selected-video', x: 0, y: 0),
+              ]),
+              selectedElementId: 'selected-video',
+              isInteractive: true,
+              onNodeSelected: (_) => selectedNodeCount += 1,
+              onNodeEditRequested: (_) {},
+              onNodeMoved: (_, __) {},
+              onNodeScaleChanged: (_, __, ___) {},
+              onNodeRotationChanged: (_, __) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tapAt(const Offset(270, 480));
+
+    expect(backgroundTapCount, 1);
+    expect(selectedNodeCount, 0);
+  });
 }

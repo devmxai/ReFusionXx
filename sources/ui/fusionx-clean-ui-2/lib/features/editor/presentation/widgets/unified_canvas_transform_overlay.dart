@@ -116,27 +116,6 @@ class UnifiedCanvasTransformOverlay extends StatelessWidget {
         return Stack(
           fit: StackFit.expand,
           children: [
-            if (isInteractive)
-              Positioned.fill(
-                child: GestureDetector(
-                  behavior: HitTestBehavior.translucent,
-                  onTapDown: (details) {
-                    final hit = _hitTest(layouts, details.localPosition);
-                    if (hit == null) {
-                      return;
-                    }
-                    onNodeSelected(hit.node.id);
-                  },
-                  onDoubleTapDown: (details) {
-                    final hit = _hitTest(layouts, details.localPosition);
-                    if (hit == null) {
-                      return;
-                    }
-                    onNodeSelected(hit.node.id);
-                    onNodeEditRequested(hit.node.id);
-                  },
-                ),
-              ),
             if (selectedLayout != null)
               _SelectedNodeTransformBox(
                 key: const ValueKey<String>(
@@ -144,8 +123,6 @@ class UnifiedCanvasTransformOverlay extends StatelessWidget {
                 ),
                 layout: selectedLayout,
                 isInteractive: isInteractive,
-                onNodeSelected: onNodeSelected,
-                onNodeEditRequested: onNodeEditRequested,
                 onNodeMoved: onNodeMoved,
                 onNodeScaleChanged: onNodeScaleChanged,
                 onNodeRotationChanged: onNodeRotationChanged,
@@ -190,18 +167,6 @@ class UnifiedCanvasTransformOverlay extends StatelessWidget {
     });
     return layouts;
   }
-
-  _UnifiedCanvasNodeLayout? _hitTest(
-    List<_UnifiedCanvasNodeLayout> layouts,
-    Offset point,
-  ) {
-    for (final layout in layouts.reversed) {
-      if (layout.hitTest(point)) {
-        return layout;
-      }
-    }
-    return null;
-  }
 }
 
 class _SelectedNodeTransformBox extends StatefulWidget {
@@ -209,8 +174,6 @@ class _SelectedNodeTransformBox extends StatefulWidget {
     super.key,
     required this.layout,
     required this.isInteractive,
-    required this.onNodeSelected,
-    required this.onNodeEditRequested,
     required this.onNodeMoved,
     required this.onNodeScaleChanged,
     required this.onNodeRotationChanged,
@@ -218,8 +181,6 @@ class _SelectedNodeTransformBox extends StatefulWidget {
 
   final _UnifiedCanvasNodeLayout layout;
   final bool isInteractive;
-  final ValueChanged<String> onNodeSelected;
-  final ValueChanged<String> onNodeEditRequested;
   final UnifiedCanvasNodeMoveCallback onNodeMoved;
   final UnifiedCanvasNodeScaleCallback onNodeScaleChanged;
   final UnifiedCanvasNodeRotationCallback onNodeRotationChanged;
@@ -290,33 +251,6 @@ class _SelectedNodeTransformBoxState extends State<_SelectedNodeTransformBox> {
                 pivotDotPoint: pivotDotPoint,
                 opacity: chromeOpacity,
               ),
-            ),
-          ),
-          Positioned.fromRect(
-            rect: layout.axisAlignedBounds.inflate(_selectionPadding + 18),
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              dragStartBehavior: DragStartBehavior.down,
-              onTap: widget.isInteractive
-                  ? () => widget.onNodeSelected(layout.node.id)
-                  : null,
-              onDoubleTap: widget.isInteractive
-                  ? () => widget.onNodeEditRequested(layout.node.id)
-                  : null,
-              onPanUpdate: widget.isInteractive
-                  ? (details) {
-                      if (_activePointerCount > 1) {
-                        return;
-                      }
-                      widget.onNodeMoved(
-                        layout.node.id,
-                        Offset(
-                          details.delta.dx / layout.stageScaleX,
-                          details.delta.dy / layout.stageScaleY,
-                        ),
-                      );
-                    }
-                  : null,
             ),
           ),
           for (final handle in _ResizeHandle.values)
@@ -681,24 +615,6 @@ class _UnifiedCanvasNodeLayout {
   final Offset nodeCenter;
   final Rect localRect;
   final Rect axisAlignedBounds;
-
-  bool hitTest(Offset point) {
-    final translated = point - nodeCenter;
-    final radians = node.rotationDegrees * (math.pi / 180);
-    final cosTheta = math.cos(-radians);
-    final sinTheta = math.sin(-radians);
-    final unrotated = Offset(
-      (translated.dx * cosTheta) - (translated.dy * sinTheta),
-      (translated.dx * sinTheta) + (translated.dy * cosTheta),
-    );
-    final safeScaleX = node.scaleX.abs() < 0.0001 ? 1.0 : node.scaleX;
-    final safeScaleY = node.scaleY.abs() < 0.0001 ? 1.0 : node.scaleY;
-    final localPoint = Offset(
-      unrotated.dx / safeScaleX,
-      unrotated.dy / safeScaleY,
-    );
-    return localRect.inflate(18).contains(localPoint);
-  }
 
   Offset transformLocalPoint(Offset point) {
     final radians = node.rotationDegrees * (math.pi / 180);

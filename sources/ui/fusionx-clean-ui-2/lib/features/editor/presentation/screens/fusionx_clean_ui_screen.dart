@@ -23643,16 +23643,31 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   String? _selectedCanvasElementIdForUnifiedSnapshot(
     UnifiedCanvasTransformSnapshot snapshot,
   ) {
+    String? singleMediaNodeId() {
+      final mediaNodes = snapshot.nodes
+          .where(
+            (node) =>
+                node.kind == UnifiedCanvasTransformNodeKind.video ||
+                node.kind == UnifiedCanvasTransformNodeKind.image,
+          )
+          .toList(growable: false);
+      return mediaNodes.length == 1 ? mediaNodes.single.id : null;
+    }
+
     final selectedClipId = _selectedClipId;
     if (selectedClipId == null) {
-      return snapshot.nodes.length == 1 ? snapshot.nodes.first.id : null;
+      return snapshot.nodes.length == 1
+          ? snapshot.nodes.first.id
+          : singleMediaNodeId();
     }
     for (final node in snapshot.nodes) {
       if (node.id == selectedClipId || node.layerId == selectedClipId) {
         return node.id;
       }
     }
-    return snapshot.nodes.length == 1 ? snapshot.nodes.first.id : null;
+    return snapshot.nodes.length == 1
+        ? snapshot.nodes.first.id
+        : singleMediaNodeId();
   }
 
   List<UnifiedCanvasTransformNode> _unifiedCanvasTransformNodesFromTextSnapshot(
@@ -23695,31 +23710,22 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required TimelineTime previewTime,
     required MotionSize2D canvasSize,
   }) {
-    final selectedClipId = _selectedClipId;
-    if (selectedClipId == null) {
-      return const <UnifiedCanvasTransformNode>[];
-    }
-    final context =
-        _selectedClipContextForTracks(_timelineTruthTracks, selectedClipId);
-    if (context == null ||
-        !_timelineClipSupportsCanvasTransform(context.clip) ||
-        previewTime < context.clipStartTime ||
-        previewTime >= context.clipEndTime) {
-      return const <UnifiedCanvasTransformNode>[];
-    }
-    final size = _canvasClipPreviewSize(
-      clip: context.clip,
-      canvasSize: canvasSize,
-    );
-    if (size.width <= 0 || size.height <= 0) {
-      return const <UnifiedCanvasTransformNode>[];
-    }
-    final transform = _canvasClipTransformFor(context.clip.id);
-    return <UnifiedCanvasTransformNode>[
-      UnifiedCanvasTransformNode(
-        id: context.clip.id,
-        layerId: context.clip.id,
-        kind: context.clip.visualKind == TimelineVisualKind.image
+    UnifiedCanvasTransformNode? nodeFor({
+      required TimelineClipData clip,
+      required int trackIndex,
+    }) {
+      final size = _canvasClipPreviewSize(
+        clip: clip,
+        canvasSize: canvasSize,
+      );
+      if (size.width <= 0 || size.height <= 0) {
+        return null;
+      }
+      final transform = _canvasClipTransformFor(clip.id);
+      return UnifiedCanvasTransformNode(
+        id: clip.id,
+        layerId: clip.id,
+        kind: clip.visualKind == TimelineVisualKind.image
             ? UnifiedCanvasTransformNodeKind.image
             : UnifiedCanvasTransformNodeKind.video,
         positionX: transform.positionX,
@@ -23730,9 +23736,49 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         scaleY: transform.scaleY,
         rotationDegrees: transform.rotationDegrees,
         opacity: 1,
-        zIndex: 1 << 20,
-      ),
-    ];
+        zIndex: (1 << 20) + trackIndex,
+      );
+    }
+
+    final selectedClipId = _selectedClipId;
+    if (selectedClipId != null) {
+      final context =
+          _selectedClipContextForTracks(_timelineTruthTracks, selectedClipId);
+      if (context != null &&
+          _timelineClipSupportsCanvasTransform(context.clip) &&
+          previewTime >= context.clipStartTime &&
+          previewTime < context.clipEndTime) {
+        final selectedNode = nodeFor(
+          clip: context.clip,
+          trackIndex: context.trackIndex,
+        );
+        return selectedNode == null
+            ? const <UnifiedCanvasTransformNode>[]
+            : <UnifiedCanvasTransformNode>[selectedNode];
+      }
+    }
+
+    final nodes = <UnifiedCanvasTransformNode>[];
+    for (var trackIndex = 0;
+        trackIndex < _timelineTruthTracks.length;
+        trackIndex++) {
+      final track = _timelineTruthTracks[trackIndex];
+      var cursor = TimelineTime.zero;
+      for (final clip in track.clips) {
+        final clipStart = cursor;
+        final clipEnd = clipStart + clip.durationTime;
+        if (_timelineClipSupportsCanvasTransform(clip) &&
+            previewTime >= clipStart &&
+            previewTime < clipEnd) {
+          final node = nodeFor(clip: clip, trackIndex: trackIndex);
+          if (node != null) {
+            nodes.add(node);
+          }
+        }
+        cursor = clipEnd;
+      }
+    }
+    return nodes;
   }
 
   List<UnifiedCanvasTransformNode> _unifiedCanvasTransformNodesFromEvaluation({
