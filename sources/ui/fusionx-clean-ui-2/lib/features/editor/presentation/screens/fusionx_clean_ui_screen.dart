@@ -23603,12 +23603,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required MotionEvaluationSnapshot? evaluation,
     required MotionTextRenderSnapshot? textSnapshot,
     required TimelineTime previewTime,
+    required MotionSize2D fallbackCanvasSize,
   }) {
-    final canvasSize =
-        textSnapshot?.canvasSize ?? composition?.format.canvasSize;
-    if (canvasSize == null) {
-      return null;
-    }
+    final canvasSize = textSnapshot?.canvasSize ??
+        composition?.format.canvasSize ??
+        fallbackCanvasSize;
     final nodes = <UnifiedCanvasTransformNode>[
       ..._unifiedCanvasTransformNodesFromTimelineClip(
         previewTime: previewTime,
@@ -26110,20 +26109,23 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                 final activeVisualOpacity = _activePreviewVisualOpacityForTime(
                   previewTime,
                 );
-                if (motionTextRenderSnapshot == null &&
-                    !hasMotionShapePreview &&
-                    !hasMotionImagePreview &&
-                    activeTransition == null &&
-                    activeVisualOpacity >= 0.999) {
-                  return const SizedBox.shrink();
-                }
                 final unifiedTransformSnapshot =
                     _unifiedCanvasTransformSnapshotFor(
                   composition: motionComposition,
                   evaluation: motionEvaluationSnapshot,
                   textSnapshot: motionTextRenderSnapshot,
                   previewTime: previewTime,
+                  fallbackCanvasSize: _motionProjectFormat.canvasSize,
                 );
+                if (motionTextRenderSnapshot == null &&
+                    !hasMotionShapePreview &&
+                    !hasMotionImagePreview &&
+                    activeTransition == null &&
+                    !(_isCanvasTransformToolActive &&
+                        unifiedTransformSnapshot != null) &&
+                    activeVisualOpacity >= 0.999) {
+                  return const SizedBox.shrink();
+                }
                 final selectedCanvasElementId = unifiedTransformSnapshot == null
                     ? null
                     : _selectedCanvasElementIdForUnifiedSnapshot(
