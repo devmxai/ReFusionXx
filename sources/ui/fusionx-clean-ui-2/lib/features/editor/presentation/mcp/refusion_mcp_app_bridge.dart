@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
 
 import '../../domain/mcp/refusion_mcp_agent_control_plane.dart';
+import '../../domain/mcp/refusion_mcp_capability.dart';
 import '../../domain/mcp/refusion_mcp_command_result.dart';
 import '../../domain/mcp/refusion_mcp_prompt_provider.dart';
 import '../../domain/mcp/refusion_mcp_resource_provider.dart';
+import '../../domain/mcp/refusion_mcp_security_policy.dart';
 import '../../domain/mcp/refusion_mcp_session.dart';
 import '../../domain/mcp/refusion_mcp_session_store.dart';
 
@@ -28,15 +30,19 @@ class RefusionMcpAppBridge {
     required RefusionMcpSessionStore sessionStore,
     required RefusionMcpResourceProvider resourceProvider,
     RefusionMcpPromptProvider? promptProvider,
+    RefusionMcpSecurityPolicy securityPolicy =
+        const RefusionMcpSecurityPolicy(),
   })  : _controlPlane = controlPlane,
         _sessionStore = sessionStore,
         _resourceProvider = resourceProvider,
-        _promptProvider = promptProvider ?? RefusionMcpPromptProvider();
+        _promptProvider = promptProvider ?? RefusionMcpPromptProvider(),
+        _securityPolicy = securityPolicy;
 
   final RefusionMcpAgentControlPlane _controlPlane;
   final RefusionMcpSessionStore _sessionStore;
   final RefusionMcpResourceProvider _resourceProvider;
   final RefusionMcpPromptProvider _promptProvider;
+  final RefusionMcpSecurityPolicy _securityPolicy;
 
   void openSession(RefusionMcpSession session) {
     _sessionStore.upsert(session);
@@ -64,6 +70,12 @@ class RefusionMcpAppBridge {
 
   RefusionMcpPromptResult getPrompt(String name) {
     return _promptProvider.get(name);
+  }
+
+  Set<RefusionMcpCapability> grantCapabilities(
+    Set<RefusionMcpCapability> requested,
+  ) {
+    return _securityPolicy.grantRequestedCapabilities(requested);
   }
 
   RefusionMcpResourceResult readResource(String uri) {

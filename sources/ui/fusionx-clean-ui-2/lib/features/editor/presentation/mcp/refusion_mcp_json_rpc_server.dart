@@ -303,10 +303,11 @@ class RefusionMcpJsonRpcServer {
     final capabilityValues =
         (sessionMap['capabilities'] as List?)?.whereType<String>() ??
             const <String>[];
-    final capabilities = capabilityValues
+    final requestedCapabilities = capabilityValues
         .map(RefusionMcpCapability.parse)
         .whereType<RefusionMcpCapability>()
         .toSet();
+    final capabilities = _bridge.grantCapabilities(requestedCapabilities);
 
     _bridge.openSession(
       RefusionMcpSession(
@@ -325,6 +326,8 @@ class RefusionMcpJsonRpcServer {
       id: id,
       value: <String, Object?>{
         'sessionId': sessionId,
+        'grantedCapabilities':
+            capabilities.map((capability) => capability.value).toList(),
       },
     );
   }

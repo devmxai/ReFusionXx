@@ -103,13 +103,22 @@ void main() {
               'activeProjectId': 'active',
               'activeCompositionId': 'comp_1',
               'timelineRevision': 5,
-              'capabilities': <String>['project.read'],
+              'capabilities': <String>[
+                'project.read',
+                'filesystem.read',
+                'export.start',
+              ],
             },
           },
         },
       );
-      expect(
-          (open['result'] as Map<String, Object?>)['sessionId'], 'session_1');
+      final openResult = open['result'] as Map<String, Object?>;
+      expect(openResult['sessionId'], 'session_1');
+      final granted =
+          (openResult['grantedCapabilities'] as List).cast<String>();
+      expect(granted.contains('project.read'), isTrue);
+      expect(granted.contains('filesystem.read'), isFalse);
+      expect(granted.contains('export.start'), isFalse);
 
       final call = server.handle(
         <String, Object?>{

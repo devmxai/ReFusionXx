@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'refusion_mcp_command.dart';
 import 'refusion_mcp_command_bus.dart';
 import 'refusion_mcp_command_result.dart';
+import 'refusion_mcp_security_policy.dart';
 import 'refusion_mcp_session.dart';
 import 'refusion_mcp_session_store.dart';
 import 'refusion_mcp_transaction.dart';
@@ -39,15 +40,19 @@ class RefusionMcpAgentControlPlane {
     required RefusionMcpToolRegistry toolRegistry,
     required RefusionMcpSessionStore sessionStore,
     required RefusionMcpRevisionReader revisionReader,
+    RefusionMcpSecurityPolicy securityPolicy =
+        const RefusionMcpSecurityPolicy(),
   })  : _commandBus = commandBus,
         _toolRegistry = toolRegistry,
         _sessionStore = sessionStore,
-        _revisionReader = revisionReader;
+        _revisionReader = revisionReader,
+        _securityPolicy = securityPolicy;
 
   final RefusionMcpCommandBus _commandBus;
   final RefusionMcpToolRegistry _toolRegistry;
   final RefusionMcpSessionStore _sessionStore;
   final RefusionMcpRevisionReader _revisionReader;
+  final RefusionMcpSecurityPolicy _securityPolicy;
 
   RefusionMcpCommandResult executeTool(RefusionMcpToolCallRequest request) {
     final revision = _revisionReader();
@@ -111,6 +116,21 @@ class RefusionMcpAgentControlPlane {
         code: RefusionMcpCommandErrorCode.unsupportedCommand,
         message: 'Unknown tool `${request.toolName}`.',
       );
+    }
+    final securityResult = _securityPolicy.evaluateToolCall(
+      context: RefusionMcpToolCallContext(
+        requestedToolName: request.toolName,
+        descriptor: descriptor,
+        session: session,
+        currentRevision: revision,
+        mode: request.mode == RefusionMcpCommandMode.commit
+            ? RefusionMcpSecurityMode.commit
+            : RefusionMcpSecurityMode.dryRun,
+        payload: request.payload,
+      ),
+    );
+    if (securityResult != null) {
+      return securityResult;
     }
     final command = RefusionMcpCommandEnvelope(
       commandId: request.commandId,

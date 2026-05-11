@@ -5,6 +5,7 @@ import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_command.dar
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_command_bus.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_command_result.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_mvp_toolkit.dart';
+import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_security_policy.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_session.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_session_store.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_transaction.dart';
@@ -231,6 +232,114 @@ void main() {
       expect(listed.ok, isTrue);
       final recent = listed.payload['recentCommitted'] as List<Object?>;
       expect(recent, isNotEmpty);
+    });
+
+    test('blocks destructive commit without explicit confirmation', () {
+      final bus = RefusionMcpCommandBus();
+      bus.registerHandler(
+        commandType: 'refusion.delete_layer',
+        handler: (_) => RefusionMcpCommandHandlingOutcome(
+          summary: 'Delete prepared.',
+          commitOperation: () => const RefusionMcpCommitExecution(
+            revisionAfter: 9,
+          ),
+        ),
+      );
+      final store = RefusionMcpSessionStore();
+      store.upsert(
+        RefusionMcpSession(
+          id: 'session_1',
+          clientName: 'codex',
+          clientVersion: '1.0',
+          transport: 'stdio',
+          activeProjectId: 'active',
+          activeCompositionId: 'comp_1',
+          timelineRevision: 8,
+          grantedCapabilities: <RefusionMcpCapability>{
+            RefusionMcpCapability.timelineWrite,
+          },
+        ),
+      );
+      final controlPlane = RefusionMcpAgentControlPlane(
+        commandBus: bus,
+        toolRegistry: RefusionMcpToolRegistry(),
+        sessionStore: store,
+        revisionReader: () => 8,
+      );
+      final result = controlPlane.executeTool(
+        const RefusionMcpToolCallRequest(
+          toolName: 'refusion.delete_layer',
+          sessionId: 'session_1',
+          projectId: 'active',
+          commandId: 'cmd_del_1',
+          idempotencyKey: 'turn-5',
+          mode: RefusionMcpCommandMode.commit,
+          expectedRevision: 8,
+          payload: <String, Object?>{
+            'layerId': 'layer_1',
+          },
+        ),
+      );
+      expect(result.ok, isFalse);
+      expect(
+        result.error?.code,
+        RefusionMcpCommandErrorCode.confirmationRequired,
+      );
+      expect(result.requiresConfirmation, isTrue);
+    });
+
+    test('blocks filesystem capability tools by default policy', () {
+      final bus = RefusionMcpCommandBus();
+      bus.registerHandler(
+        commandType: 'refusion.filesystem_read',
+        handler: (_) => RefusionMcpCommandHandlingOutcome(
+          summary: 'Read prepared.',
+        ),
+      );
+      final registry = RefusionMcpToolRegistry(
+        tools: const <RefusionMcpToolDescriptor>[
+          RefusionMcpToolDescriptor(
+            name: 'refusion.filesystem_read',
+            title: 'Filesystem Read',
+            description: 'Read filesystem entry.',
+            capability: RefusionMcpCapability.filesystemRead,
+          ),
+        ],
+      );
+      final store = RefusionMcpSessionStore();
+      store.upsert(
+        RefusionMcpSession(
+          id: 'session_1',
+          clientName: 'codex',
+          clientVersion: '1.0',
+          transport: 'stdio',
+          activeProjectId: 'active',
+          activeCompositionId: 'comp_1',
+          timelineRevision: 8,
+          grantedCapabilities: <RefusionMcpCapability>{
+            RefusionMcpCapability.filesystemRead,
+          },
+        ),
+      );
+      final controlPlane = RefusionMcpAgentControlPlane(
+        commandBus: bus,
+        toolRegistry: registry,
+        sessionStore: store,
+        revisionReader: () => 8,
+        securityPolicy: const RefusionMcpSecurityPolicy(),
+      );
+      final result = controlPlane.executeTool(
+        const RefusionMcpToolCallRequest(
+          toolName: 'refusion.filesystem_read',
+          sessionId: 'session_1',
+          projectId: 'active',
+          commandId: 'cmd_fs_1',
+          idempotencyKey: 'turn-6',
+          mode: RefusionMcpCommandMode.dryRun,
+        ),
+      );
+      expect(result.ok, isFalse);
+      expect(result.error?.code, RefusionMcpCommandErrorCode.capabilityDenied);
     });
   });
 }
