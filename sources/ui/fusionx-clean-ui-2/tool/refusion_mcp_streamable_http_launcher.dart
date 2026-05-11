@@ -8,12 +8,14 @@ import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_hardening_p
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_resource_provider.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_session_store.dart';
 import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_tool_registry.dart';
+import 'package:refusion_app/features/editor/domain/mcp/refusion_mcp_transaction.dart';
 import 'package:refusion_app/features/editor/presentation/mcp/refusion_mcp_app_bridge.dart';
 import 'package:refusion_app/features/editor/presentation/mcp/refusion_mcp_json_rpc_server.dart';
 import 'package:refusion_app/features/editor/presentation/mcp/refusion_mcp_streamable_http_server.dart';
 
 Future<void> main(List<String> args) async {
   final options = _parseArgs(args);
+  final runtime = _MockMcpRuntimeState();
 
   final bus = RefusionMcpCommandBus();
   bus.registerHandler(
@@ -21,10 +23,7 @@ Future<void> main(List<String> args) async {
     handler: (_) {
       return RefusionMcpCommandHandlingOutcome(
         summary: 'Project state loaded.',
-        payload: <String, Object?>{
-          'projectId': 'active',
-          'revision': 1,
-        },
+        payload: runtime.projectStatePayload(),
       );
     },
   );
@@ -33,10 +32,7 @@ Future<void> main(List<String> args) async {
     handler: (_) {
       return RefusionMcpCommandHandlingOutcome(
         summary: 'Timeline summary loaded.',
-        payload: <String, Object?>{
-          'rowCount': 0,
-          'durationMs': 0,
-        },
+        payload: runtime.timelineSummaryPayload(),
       );
     },
   );
@@ -45,9 +41,7 @@ Future<void> main(List<String> args) async {
     handler: (_) {
       return RefusionMcpCommandHandlingOutcome(
         summary: 'Selection loaded.',
-        payload: <String, Object?>{
-          'selected': const <String>[],
-        },
+        payload: runtime.selectionPayload(),
       );
     },
   );
@@ -60,6 +54,7 @@ Future<void> main(List<String> args) async {
         payload: <String, Object?>{
           'resourceUri': 'refusion://preview/frame/${timeMs ?? 0}',
           'timeMs': timeMs ?? 0,
+          'revision': runtime.revision,
         },
         resourceUris: <String>['refusion://preview/frame/${timeMs ?? 0}'],
       );
@@ -112,21 +107,111 @@ Future<void> main(List<String> args) async {
       );
     },
   );
+  bus.registerHandler(
+    commandType: 'refusion.insert_layer',
+    handler: (context) {
+      final payload = context.command.payload;
+      final layer = runtime.previewLayer(
+        kind: (payload['layerKind'] as String?) ?? 'solid',
+        name: (payload['name'] as String?)?.trim(),
+        startMs: _readInt(payload['startMs']) ?? 0,
+        durationMs: _readInt(payload['durationMs']) ?? 3000,
+        colorHex: _readColorHex(payload),
+      );
+      return RefusionMcpCommandHandlingOutcome(
+        summary: 'Layer insert is ready to commit.',
+        patchPreview: RefusionMcpPatchPreview(
+          affectedObjects: <String>[layer['id'] as String],
+          changedProperties: const <String>['layers', 'timeline', 'revision'],
+          diagnostics: const <String>[],
+        ),
+        commitOperation: () {
+          runtime.insertLayer(layer);
+          return RefusionMcpCommitExecution(
+            revisionAfter: runtime.revision,
+            summary: 'Layer inserted (${layer['kind']}).',
+          );
+        },
+        payload: <String, Object?>{
+          'layer': layer,
+          'previewTimeline': runtime.timelineSummaryPayload(),
+        },
+      );
+    },
+  );
+  bus.registerHandler(
+    commandType: 'refusion.apply_scene_program',
+    handler: (context) {
+      final source = context.command.payload['source'] as String?;
+      final inferredColor = runtime.inferSolidColorFromSource(source);
+      final layer = runtime.previewLayer(
+        kind: 'solid',
+        name: 'Scene Background',
+        startMs: 0,
+        durationMs: 3000,
+        colorHex: inferredColor ?? '#FFFFFF',
+      );
+      return RefusionMcpCommandHandlingOutcome(
+        summary: 'Scene program apply is ready to commit.',
+        patchPreview: RefusionMcpPatchPreview(
+          affectedObjects: <String>[layer['id'] as String],
+          changedProperties: const <String>[
+            'sceneProgram',
+            'layers',
+            'revision'
+          ],
+          diagnostics: const <String>[],
+        ),
+        commitOperation: () {
+          runtime.insertLayer(layer);
+          runtime.lastAppliedSource = source;
+          return RefusionMcpCommitExecution(
+            revisionAfter: runtime.revision,
+            summary: 'Scene program applied in mock runtime.',
+          );
+        },
+        payload: <String, Object?>{
+          'isMockRuntime': true,
+          'previewTimeline': runtime.timelineSummaryPayload(),
+        },
+      );
+    },
+  );
+  bus.registerHandler(
+    commandType: 'refusion.apply_motion_patch',
+    handler: (_) => runtime.noopMutationOutcome('Motion patch'),
+  );
+  bus.registerHandler(
+    commandType: 'refusion.keyframe_edit',
+    handler: (_) => runtime.noopMutationOutcome('Keyframe edit'),
+  );
+  bus.registerHandler(
+    commandType: 'refusion.set_element_transform',
+    handler: (_) => runtime.noopMutationOutcome('Element transform'),
+  );
+  bus.registerHandler(
+    commandType: 'refusion.split_at_playhead',
+    handler: (_) => runtime.noopMutationOutcome('Split at playhead'),
+  );
+  bus.registerHandler(
+    commandType: 'refusion.trim_layer',
+    handler: (_) => runtime.noopMutationOutcome('Trim layer'),
+  );
+  bus.registerHandler(
+    commandType: 'refusion.move_layer',
+    handler: (_) => runtime.noopMutationOutcome('Move layer'),
+  );
+  bus.registerHandler(
+    commandType: 'refusion.delete_layer',
+    handler: (_) => runtime.noopMutationOutcome('Delete layer'),
+  );
 
   final sessionStore = RefusionMcpSessionStore();
   final resourceProvider = RefusionMcpResourceProvider(
     readers: <String, RefusionMcpResourceReader>{
-      'refusion://project/active/state': () => <String, Object?>{
-            'projectId': 'active',
-            'revision': 1,
-          },
-      'refusion://timeline/summary': () => <String, Object?>{
-            'rowCount': 0,
-            'durationMs': 0,
-          },
-      'refusion://selection/current': () => <String, Object?>{
-            'selected': const <String>[],
-          },
+      'refusion://project/active/state': runtime.projectStatePayload,
+      'refusion://timeline/summary': runtime.timelineSummaryPayload,
+      'refusion://selection/current': runtime.selectionPayload,
     },
   );
 
@@ -135,7 +220,7 @@ Future<void> main(List<String> args) async {
     commandBus: bus,
     toolRegistry: toolRegistry,
     sessionStore: sessionStore,
-    revisionReader: () => 1,
+    revisionReader: () => runtime.revision,
   );
   final bridge = RefusionMcpAppBridge(
     controlPlane: controlPlane,
@@ -171,6 +256,142 @@ Future<void> main(List<String> args) async {
     }
   });
   await done.future;
+}
+
+class _MockMcpRuntimeState {
+  int revision = 1;
+  final List<Map<String, Object?>> _layers = <Map<String, Object?>>[];
+  String? lastAppliedSource;
+
+  Map<String, Object?> projectStatePayload() {
+    return <String, Object?>{
+      'projectId': 'active',
+      'revision': revision,
+      'layerCount': _layers.length,
+      if (lastAppliedSource != null) 'lastAppliedSource': lastAppliedSource,
+    };
+  }
+
+  Map<String, Object?> timelineSummaryPayload() {
+    return <String, Object?>{
+      'rowCount': _layers.length,
+      'durationMs': _timelineDurationMs(),
+      'layers': _layers.map((layer) => Map<String, Object?>.from(layer)).toList(
+            growable: false,
+          ),
+    };
+  }
+
+  Map<String, Object?> selectionPayload() {
+    final selected = _layers.isEmpty
+        ? const <String>[]
+        : <String>[_layers.last['id'] as String];
+    return <String, Object?>{
+      'selected': selected,
+    };
+  }
+
+  Map<String, Object?> previewLayer({
+    required String kind,
+    required int startMs,
+    required int durationMs,
+    String? name,
+    String? colorHex,
+  }) {
+    final sanitizedDuration = durationMs <= 0 ? 3000 : durationMs;
+    return <String, Object?>{
+      'id': 'layer_${_layers.length + 1}',
+      'kind': kind,
+      'name':
+          (name == null || name.isEmpty) ? 'Layer ${_layers.length + 1}' : name,
+      'startMs': startMs < 0 ? 0 : startMs,
+      'durationMs': sanitizedDuration,
+      if (colorHex != null) 'color': colorHex,
+    };
+  }
+
+  RefusionMcpCommandHandlingOutcome noopMutationOutcome(String label) {
+    return RefusionMcpCommandHandlingOutcome(
+      summary: '$label is ready to commit.',
+      patchPreview: RefusionMcpPatchPreview(
+        affectedObjects: const <String>['timeline'],
+        changedProperties: const <String>['revision'],
+      ),
+      commitOperation: () {
+        revision += 1;
+        return RefusionMcpCommitExecution(
+          revisionAfter: revision,
+          summary: '$label committed in mock runtime.',
+        );
+      },
+      payload: <String, Object?>{
+        'isMockRuntime': true,
+      },
+    );
+  }
+
+  void insertLayer(Map<String, Object?> layer) {
+    _layers.add(Map<String, Object?>.from(layer));
+    revision += 1;
+  }
+
+  String? inferSolidColorFromSource(String? source) {
+    if (source == null || source.isEmpty) {
+      return null;
+    }
+    final upper = source.toUpperCase();
+    final hashIndex = upper.indexOf('#');
+    if (hashIndex < 0) {
+      return null;
+    }
+    final end = (hashIndex + 7 <= upper.length) ? hashIndex + 7 : upper.length;
+    final candidate = upper.substring(hashIndex, end);
+    final valid = RegExp(r'^#[0-9A-F]{6}$').hasMatch(candidate);
+    return valid ? candidate : null;
+  }
+
+  int _timelineDurationMs() {
+    if (_layers.isEmpty) {
+      return 0;
+    }
+    var maxEnd = 0;
+    for (final layer in _layers) {
+      final start = layer['startMs'] is int ? layer['startMs'] as int : 0;
+      final duration =
+          layer['durationMs'] is int ? layer['durationMs'] as int : 0;
+      final end = start + duration;
+      if (end > maxEnd) {
+        maxEnd = end;
+      }
+    }
+    return maxEnd;
+  }
+}
+
+String? _readColorHex(Map<String, Object?> payload) {
+  final directColor = payload['color'];
+  if (directColor is String &&
+      RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(directColor)) {
+    return directColor.toUpperCase();
+  }
+  final style = payload['style'];
+  if (style is Map) {
+    final color = style['color'];
+    if (color is String && RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(color)) {
+      return color.toUpperCase();
+    }
+  }
+  return null;
+}
+
+int? _readInt(Object? value) {
+  if (value is int) {
+    return value;
+  }
+  if (value is num) {
+    return value.round();
+  }
+  return null;
 }
 
 class _LauncherOptions {
