@@ -75,6 +75,7 @@ const userOnlyTools = new Set<string>([
   'refusion.set_active_context',
   'refusion.touch_editor_session',
   'refusion.generate_pairing_code',
+  'refusion.get_pairing_code_status',
 ]);
 
 const admin = createClient(supabaseUrl, serviceRoleKey, {
@@ -260,6 +261,12 @@ async function callTool(
         'Pairing code generated.',
         await generatePairingCode(context.userId, args),
       );
+    case 'refusion.get_pairing_code_status':
+      ensureUserTool(canonicalToolName, context);
+      return ok(
+        'Pairing status loaded.',
+        await getPairingCodeStatus(context.userId, args),
+      );
     case 'refusion.attach_pairing_code':
       return await attachPairingCode(context.userId, args);
     case 'refusion.insert_layer':
@@ -311,6 +318,7 @@ function normalizeToolName(name: string): string {
     set_active_context: 'refusion.set_active_context',
     touch_editor_session: 'refusion.touch_editor_session',
     generate_pairing_code: 'refusion.generate_pairing_code',
+    get_pairing_code_status: 'refusion.get_pairing_code_status',
     attach_pairing_code: 'refusion.attach_pairing_code',
     insert_layer: 'refusion.insert_layer',
     apply_scene_program: 'refusion.apply_scene_program',
@@ -669,6 +677,57 @@ async function generatePairingCode(userId: string, args: JsonMap) {
       timelineRevision: context.timelineRevision,
       deviceId: context.deviceId,
     },
+  };
+}
+
+async function getPairingCodeStatus(userId: string, args: JsonMap) {
+  const code = normalizePairingCode(stringValue(args.code));
+  if (!code) {
+    throw new Error('PAIRING_CODE_REQUIRED');
+  }
+  const { data: row, error } = await admin
+    .from('refusion_pairing_codes')
+    .select('*')
+    .eq('owner_id', userId)
+    .eq('code', code)
+    .maybeSingle();
+  if (error) throw error;
+  if (!row) {
+    return {
+      code,
+      status: 'not_found',
+      exists: false,
+    };
+  }
+  let status = text(row.status, 'pending');
+  const expiresAtIso = stringValue(row.expires_at);
+  const expiresAtMs = Date.parse(expiresAtIso);
+  const nowMs = Date.now();
+  const isExpired = Number.isFinite(expiresAtMs) && expiresAtMs <= nowMs;
+  if (status === 'pending' && isExpired) {
+    status = 'expired';
+    await admin.from('refusion_pairing_codes')
+      .update({ status: 'expired' })
+      .eq('id', row.id);
+  }
+  const secondsRemaining = !Number.isFinite(expiresAtMs)
+    ? 0
+    : Math.max(0, Math.floor((expiresAtMs - nowMs) / 1000));
+  return {
+    exists: true,
+    code,
+    status,
+    generatedAt: stringValue(row.generated_at),
+    expiresAt: expiresAtIso,
+    claimedAt: stringValue(row.claimed_at),
+    claimedByAgent: stringValue(row.claimed_by_agent),
+    revokedAt: stringValue(row.revoked_at),
+    revokeReason: stringValue(row.revoke_reason),
+    failedAttempts: numberValue(row.failed_attempts, 0),
+    projectId: stringValue(row.project_id),
+    compositionId: stringValue(row.composition_id),
+    isExpired,
+    secondsRemaining,
   };
 }
 
@@ -1307,6 +1366,11 @@ function tools() {
       'Generate Pairing Code',
       'Generate one-time pairing code for current active context.',
       true,
+    ),
+    tool(
+      'refusion.get_pairing_code_status',
+      'Get Pairing Code Status',
+      'Fetch pairing-code lifecycle state (pending, claimed, expired, revoked).',
     ),
     tool(
       'refusion.attach_pairing_code',

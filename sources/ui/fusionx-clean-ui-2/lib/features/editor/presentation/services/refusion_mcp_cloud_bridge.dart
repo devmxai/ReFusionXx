@@ -96,6 +96,30 @@ class RefusionMcpCloudAgentSessionAttachment {
   final DateTime expiresAtUtc;
 }
 
+class RefusionMcpCloudPairingCodeStatus {
+  const RefusionMcpCloudPairingCodeStatus({
+    required this.code,
+    required this.exists,
+    required this.status,
+    required this.secondsRemaining,
+    this.claimedByAgent,
+    this.claimedAtUtc,
+    this.expiresAtUtc,
+  });
+
+  final String code;
+  final bool exists;
+  final String status;
+  final int secondsRemaining;
+  final String? claimedByAgent;
+  final DateTime? claimedAtUtc;
+  final DateTime? expiresAtUtc;
+
+  bool get isClaimed => status == 'claimed';
+  bool get isTerminal =>
+      status == 'claimed' || status == 'expired' || status == 'revoked';
+}
+
 typedef RefusionMcpCloudContextReader = RefusionMcpCloudContextState Function();
 typedef RefusionMcpCloudSnapshotListener = void Function(
   RefusionMcpCloudBridgeSnapshot snapshot,
@@ -443,6 +467,38 @@ class RefusionMcpCloudBridge {
     } finally {
       clearAgentSessionToken();
     }
+  }
+
+  Future<RefusionMcpCloudPairingCodeStatus> getPairingCodeStatus({
+    required String code,
+  }) async {
+    final normalizedCode = code.trim().toUpperCase();
+    if (normalizedCode.isEmpty) {
+      throw StateError('Pairing code is required.');
+    }
+    final response = await _callTool(
+      toolName: 'get_pairing_code_status',
+      arguments: <String, Object?>{'code': normalizedCode},
+    );
+    final structured = _asMap(response['structuredContent']);
+    final payload = _asMap(structured['payload']);
+    final status = _asString(payload['status']) ?? 'pending';
+    final exists = payload['exists'] == true;
+    final secondsRemaining = _asInt(payload['secondsRemaining']) ?? 0;
+    final claimedByAgent = _asString(payload['claimedByAgent']);
+    final claimedAt = _asString(payload['claimedAt']);
+    final expiresAt = _asString(payload['expiresAt']);
+    return RefusionMcpCloudPairingCodeStatus(
+      code: normalizedCode,
+      exists: exists,
+      status: status,
+      secondsRemaining: secondsRemaining,
+      claimedByAgent: claimedByAgent,
+      claimedAtUtc:
+          claimedAt == null ? null : DateTime.tryParse(claimedAt)?.toUtc(),
+      expiresAtUtc:
+          expiresAt == null ? null : DateTime.tryParse(expiresAt)?.toUtc(),
+    );
   }
 
   Future<Map<String, Object?>> _postJson(Map<String, Object?> body) async {

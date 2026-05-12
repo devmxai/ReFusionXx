@@ -827,6 +827,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   Timer? _mcpCloudSyncDebounce;
   bool _mcpCloudIsForeground = true;
   bool _isGeneratingMcpPairingCode = false;
+  bool _isMcpAgentConnected = false;
+  Timer? _mcpPairingStatusPollTimer;
 
   @override
   void initState() {
@@ -918,6 +920,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _assetLibraryError.dispose();
     _motionPreviewWarmupDebounce?.cancel();
     _mcpCloudSyncDebounce?.cancel();
+    _mcpPairingStatusPollTimer?.cancel();
     _playbackStopTimeLockTimer?.cancel();
     final bridge = _mcpCloudBridge;
     _mcpCloudBridge = null;
@@ -1252,85 +1255,150 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   Future<void> _showMcpPairingDialog(RefusionMcpCloudPairingCode pairingCode) {
+    final bridge = _mcpCloudBridge;
+    if (bridge == null) {
+      return Future<void>.value();
+    }
+    final statusNotifier = ValueNotifier<RefusionMcpCloudPairingCodeStatus?>(
+      null,
+    );
+    _mcpPairingStatusPollTimer?.cancel();
+    _mcpPairingStatusPollTimer = Timer.periodic(const Duration(seconds: 1), (
+      _,
+    ) async {
+      try {
+        final status =
+            await bridge.getPairingCodeStatus(code: pairingCode.code);
+        statusNotifier.value = status;
+        if (status.isClaimed) {
+          _mcpPairingStatusPollTimer?.cancel();
+          _mcpPairingStatusPollTimer = null;
+          if (mounted) {
+            setState(() {
+              _isMcpAgentConnected = true;
+            });
+            _showTopStageBanner(
+              'AI agent connected${status.claimedByAgent == null ? '' : ' (${status.claimedByAgent})'}.',
+            );
+          }
+        } else if (status.isTerminal && status.status != 'claimed') {
+          _mcpPairingStatusPollTimer?.cancel();
+          _mcpPairingStatusPollTimer = null;
+        }
+      } catch (_) {}
+    });
     return showDialog<void>(
       context: context,
       builder: (dialogContext) {
-        final nowUtc = DateTime.now().toUtc();
-        final remaining = pairingCode.expiresAtUtc.difference(nowUtc);
-        final safeRemaining = remaining.isNegative ? Duration.zero : remaining;
-        final minutes =
-            safeRemaining.inMinutes.remainder(60).toString().padLeft(2, '0');
-        final seconds =
-            safeRemaining.inSeconds.remainder(60).toString().padLeft(2, '0');
-        return AlertDialog(
-          title: const Text('Connect AI Agent'),
-          content: SizedBox(
-            width: 420,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Pairing code'),
-                const SizedBox(height: 8),
-                SelectableText(
-                  pairingCode.code,
-                  style: const TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.2,
-                  ),
+        return ValueListenableBuilder<RefusionMcpCloudPairingCodeStatus?>(
+          valueListenable: statusNotifier,
+          builder: (context, pairingStatus, _) {
+            final nowUtc = DateTime.now().toUtc();
+            final remaining = pairingCode.expiresAtUtc.difference(nowUtc);
+            final safeRemaining =
+                remaining.isNegative ? Duration.zero : remaining;
+            final defaultMinutes = safeRemaining.inMinutes
+                .remainder(60)
+                .toString()
+                .padLeft(2, '0');
+            final defaultSeconds = safeRemaining.inSeconds
+                .remainder(60)
+                .toString()
+                .padLeft(2, '0');
+            final statusSeconds = pairingStatus?.secondsRemaining ?? -1;
+            final statusMinutesText = statusSeconds >= 0
+                ? (statusSeconds ~/ 60).toString().padLeft(2, '0')
+                : defaultMinutes;
+            final statusSecondsText = statusSeconds >= 0
+                ? (statusSeconds % 60).toString().padLeft(2, '0')
+                : defaultSeconds;
+            final statusLabel = switch (pairingStatus?.status) {
+              'claimed' => 'Connected',
+              'expired' => 'Expired',
+              'revoked' => 'Revoked',
+              'pending' => 'Waiting for agent...',
+              _ => 'Waiting for agent...',
+            };
+            final claimedBy = pairingStatus?.claimedByAgent;
+            final claimedSuffix =
+                (claimedBy == null || claimedBy.isEmpty) ? '' : ' ($claimedBy)';
+            return AlertDialog(
+              title: const Text('Connect AI Agent'),
+              content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Pairing code'),
+                    const SizedBox(height: 8),
+                    SelectableText(
+                      pairingCode.code,
+                      style: const TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SelectableText(
+                      pairingCode.link,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Theme.of(dialogContext).colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text('Expires in $statusMinutesText:$statusSecondsText'),
+                    const SizedBox(height: 4),
+                    Text('Status: $statusLabel$claimedSuffix'),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Project: ${pairingCode.projectId}\nComposition: ${pairingCode.compositionId}',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 10),
-                SelectableText(
-                  pairingCode.link,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Theme.of(dialogContext).colorScheme.primary,
-                  ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () async {
+                    await Clipboard.setData(
+                      ClipboardData(text: pairingCode.code),
+                    );
+                    if (!mounted) {
+                      return;
+                    }
+                    _showStageMessage('Pairing code copied.');
+                  },
+                  child: const Text('Copy Code'),
                 ),
-                const SizedBox(height: 10),
-                Text('Expires in $minutes:$seconds'),
-                const SizedBox(height: 6),
-                Text(
-                  'Project: ${pairingCode.projectId}\nComposition: ${pairingCode.compositionId}',
-                  style: const TextStyle(fontSize: 12),
+                TextButton(
+                  onPressed: () async {
+                    await Clipboard.setData(
+                      ClipboardData(text: pairingCode.link),
+                    );
+                    if (!mounted) {
+                      return;
+                    }
+                    _showStageMessage('Pairing link copied.');
+                  },
+                  child: const Text('Copy Link'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Close'),
                 ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () async {
-                await Clipboard.setData(
-                  ClipboardData(text: pairingCode.code),
-                );
-                if (!mounted) {
-                  return;
-                }
-                _showStageMessage('Pairing code copied.');
-              },
-              child: const Text('Copy Code'),
-            ),
-            TextButton(
-              onPressed: () async {
-                await Clipboard.setData(
-                  ClipboardData(text: pairingCode.link),
-                );
-                if (!mounted) {
-                  return;
-                }
-                _showStageMessage('Pairing link copied.');
-              },
-              child: const Text('Copy Link'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Close'),
-            ),
-          ],
+            );
+          },
         );
       },
-    );
+    ).whenComplete(() {
+      _mcpPairingStatusPollTimer?.cancel();
+      _mcpPairingStatusPollTimer = null;
+      statusNotifier.dispose();
+    });
   }
 
   void _ensureCompositionSessionForMcpSync() {
@@ -27033,9 +27101,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                     onOutliner: _openCompositionWorkspaceOutlinerSheet,
                     onInspector: _openCompositionWorkspaceInspectorSheet,
                     onConnectAgent: _handleMcpConnectAgentTap,
-                    isAgentConnected:
-                        (_mcpCloudBridge?.agentSessionToken?.isNotEmpty ??
-                            false),
+                    isAgentConnected: _isMcpAgentConnected,
                     onShare: _handleShare,
                     isExporting: _exportController.state.isActive,
                     exportProgress: _exportController.state.progress,
