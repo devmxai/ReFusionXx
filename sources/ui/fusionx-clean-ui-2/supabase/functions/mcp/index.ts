@@ -387,6 +387,8 @@ function normalizeToolName(name: string): string {
     generate_pairing_code: 'refusion.generate_pairing_code',
     get_pairing_code_status: 'refusion.get_pairing_code_status',
     attach_pairing_code: 'refusion.attach_pairing_code',
+    claim_pairing_code: 'refusion.attach_pairing_code',
+    connect_pairing_code: 'refusion.attach_pairing_code',
     insert_layer: 'refusion.insert_layer',
     insert_text: 'refusion.insert_layer',
     add_text: 'refusion.insert_layer',
@@ -422,6 +424,8 @@ function normalizeToolName(name: string): string {
     wait_for_apply: 'refusion.wait_for_apply',
     disconnect_agent: 'refusion.disconnect_agent',
     'refusion.insert_text': 'refusion.insert_layer',
+    'refusion.claim_pairing_code': 'refusion.attach_pairing_code',
+    'refusion.connect_pairing_code': 'refusion.attach_pairing_code',
     'refusion.add_text': 'refusion.insert_layer',
     'refusion.create_text': 'refusion.insert_layer',
     'refusion.insert_shape': 'refusion.insert_layer',
@@ -985,6 +989,16 @@ async function getPairingCodeStatus(userId: string, args: JsonMap) {
     exists: true,
     code,
     status,
+    nextAction: status === 'pending'
+      ? 'agent_call_attach_pairing_code_now'
+      : status === 'claimed'
+      ? 'agent_may_call_attach_pairing_code_again_to_get_its_own_session_token'
+      : 'generate_new_pairing_code_in_app',
+    agentInstruction: status === 'pending'
+      ? 'Do not wait for app approval. Pending means the app is waiting for the agent. Call refusion.attach_pairing_code with this code to claim it.'
+      : status === 'claimed'
+      ? 'The code has already been claimed once. Call refusion.attach_pairing_code again if this agent needs its own session token.'
+      : 'This code cannot be attached. Ask the user to generate a new numeric REF code from the ReFusion app.',
     generatedAt: stringValue(row.generated_at),
     expiresAt: expiresAtIso,
     claimedAt: stringValue(row.claimed_at),
@@ -1109,6 +1123,10 @@ async function attachPairingCode(
   return ok('Pairing attached.', {
     agentSessionToken: tokenRaw,
     agentSessionId: agentSession.id,
+    codeStatusBeforeAttach: status,
+    codeStatusAfterAttach: 'claimed',
+    agentInstruction:
+      'Use agentSessionToken on all subsequent ReFusion MCP write/read calls. The app does not need a separate approval tap after code generation.',
     context: {
       projectId: pairingRow.project_id,
       compositionId: pairingRow.composition_id,
@@ -3201,12 +3219,18 @@ function tools() {
     tool(
       'refusion.get_pairing_code_status',
       'Get Pairing Code Status',
-      'Fetch pairing-code lifecycle state (pending, claimed, expired, revoked).',
+      'Fetch pairing-code lifecycle state. If status is pending, the app is already waiting for the agent; immediately call refusion.attach_pairing_code with that code. Do not wait for status claimed.',
     ),
     tool(
       'refusion.attach_pairing_code',
       'Attach Pairing Code',
-      'Claim pairing code and issue agent session token.',
+      'Claim a pending ReFusion pairing code and issue an agent session token. Call this when the code status is pending; this tool changes it to claimed. No extra app approval is required.',
+      true,
+    ),
+    tool(
+      'refusion.claim_pairing_code',
+      'Claim Pairing Code',
+      'Alias of attach_pairing_code with clearer intent: claim the pending app code now and return an agent session token.',
       true,
     ),
     tool(
