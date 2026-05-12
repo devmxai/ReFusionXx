@@ -721,6 +721,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   final Set<EditorMediaTab> _assetPageRequestsInFlight = <EditorMediaTab>{};
   final Map<String, _CanvasClipTransform> _canvasClipTransforms =
       <String, _CanvasClipTransform>{};
+  final Map<String, _CanvasClipStyle> _canvasClipStyles =
+      <String, _CanvasClipStyle>{};
   final Map<String, String> _mcpRemoteMediaLayerClipIds = <String, String>{};
   EditorMediaTab _activeTab = EditorMediaTab.video;
   List<TimelineTrackData> _tracks = const <TimelineTrackData>[];
@@ -1554,6 +1556,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _motionTextAnimationBindings = const <MotionTextAnimationBindingModel>[];
       _universalMotionPropertyChannels = const <MotionPropertyChannelModel>[];
       _appliedMcpMotionChannelSignatures.clear();
+      _canvasClipStyles.clear();
       _tracks = const <TimelineTrackData>[];
       _selectedClipId = null;
       _selectedTransitionId = null;
@@ -1974,6 +1977,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return false;
     }
     var didApply = false;
+    didApply =
+        _applyRemoteTimelineClipStyleMutation(
+          clipId: clipId,
+          payload: payload,
+          updates: updates,
+        ) ||
+        didApply;
     final animation = _remoteMap(updates['animation']).isNotEmpty
         ? _remoteMap(updates['animation'])
         : _remoteMap(payload['animation']);
@@ -2006,6 +2016,127 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       );
     }
     return didApply;
+  }
+
+  bool _applyRemoteTimelineClipStyleMutation({
+    required String clipId,
+    required Map<String, Object?> payload,
+    required Map<String, Object?> updates,
+  }) {
+    final mask = _remoteMap(
+      _firstRemoteObject(<Object?>[updates['mask'], payload['mask']]),
+    );
+    final border = _remoteMap(
+      _firstRemoteObject(<Object?>[updates['border'], payload['border']]),
+    );
+    final glow = _remoteMap(
+      _firstRemoteObject(<Object?>[updates['glow'], payload['glow']]),
+    );
+    final hasStyleData = mask.isNotEmpty ||
+        border.isNotEmpty ||
+        glow.isNotEmpty ||
+        payload.containsKey('maskType') ||
+        payload.containsKey('cornerRadius') ||
+        payload.containsKey('borderWidth') ||
+        payload.containsKey('borderColor');
+    if (!hasStyleData) {
+      return false;
+    }
+    final current = _canvasClipStyleFor(clipId);
+    var next = current;
+    var didChange = false;
+
+    final rawMaskType = _firstRemoteString(<Object?>[
+      mask['type'],
+      mask['shape'],
+      payload['maskType'],
+      payload['shape'],
+    ]);
+    if (rawMaskType != null) {
+      final normalized =
+          rawMaskType.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '');
+      if (normalized.contains('none')) {
+        next = next.copyWith(circleMask: false, cornerRadius: 0);
+        didChange = true;
+      } else if (normalized.contains('circle')) {
+        next = next.copyWith(circleMask: true);
+        didChange = true;
+      } else if (normalized.contains('round')) {
+        next = next.copyWith(circleMask: false);
+        didChange = true;
+      }
+    }
+
+    final cornerRadius = _firstRemoteDouble(<Object?>[
+      mask['radius'],
+      mask['cornerRadius'],
+      payload['cornerRadius'],
+      payload['borderRadius'],
+    ]);
+    if (cornerRadius != null) {
+      next = next.copyWith(cornerRadius: math.max(0, cornerRadius));
+      didChange = true;
+    }
+
+    final borderWidth = _firstRemoteDouble(<Object?>[
+      border['width'],
+      border['strokeWidth'],
+      payload['borderWidth'],
+      payload['strokeWidth'],
+    ]);
+    if (borderWidth != null) {
+      next = next.copyWith(borderWidth: math.max(0, borderWidth));
+      didChange = true;
+    }
+    final borderColor = _parseCompositionColor(
+      _firstRemoteString(<Object?>[
+        border['color'],
+        border['strokeColor'],
+        payload['borderColor'],
+        payload['strokeColor'],
+      ]),
+    );
+    if (borderColor != null) {
+      next = next.copyWith(borderColor: borderColor);
+      didChange = true;
+    }
+
+    final glowBlur = _firstRemoteDouble(<Object?>[
+      glow['blur'],
+      glow['radius'],
+      glow['amount'],
+    ]);
+    if (glowBlur != null) {
+      next = next.copyWith(glowBlur: math.max(0, glowBlur));
+      didChange = true;
+    }
+    final glowOpacity = _firstRemoteDouble(<Object?>[
+      glow['opacity'],
+      glow['alpha'],
+      glow['intensity'],
+    ]);
+    if (glowOpacity != null) {
+      next = next.copyWith(glowOpacity: glowOpacity.clamp(0.0, 1.0).toDouble());
+      didChange = true;
+    }
+    final glowColor = _parseCompositionColor(
+      _firstRemoteString(<Object?>[
+        glow['color'],
+        glow['strokeColor'],
+      ]),
+    );
+    if (glowColor != null) {
+      next = next.copyWith(glowColor: glowColor);
+      didChange = true;
+    }
+
+    if (!didChange || next == current) {
+      return false;
+    }
+    setState(() {
+      _canvasClipStyles[clipId] = next;
+    });
+    return true;
   }
 
   bool _applyRemoteSolidLayerIfNeeded(Map<String, Object?> remoteLayer) {
@@ -2769,6 +2900,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       final resolved = _remoteString(value);
       if (resolved != null) {
         return resolved;
+      }
+    }
+    return null;
+  }
+
+  Object? _firstRemoteObject(Iterable<Object?> values) {
+    for (final value in values) {
+      if (value != null) {
+        return value;
       }
     }
     return null;
@@ -25736,6 +25876,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
   }
 
+  _CanvasClipStyle _canvasClipStyleFor(String clipId) {
+    return _canvasClipStyles[clipId] ?? const _CanvasClipStyle();
+  }
+
   MotionPropertyValue _evaluateMotionPropertyChannelValue(
     MotionPropertyChannelModel channel,
     TimelineTime time,
@@ -28552,6 +28696,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                   : _canvasClipTransformFor(
                                       transformPreviewTargetContext.clip.id,
                                     );
+                          final transformPreviewStyle =
+                              transformPreviewTargetContext == null
+                                  ? const _CanvasClipStyle()
+                                  : _canvasClipStyleFor(
+                                      transformPreviewTargetContext.clip.id,
+                                    );
                           final previewFallback = _CleanPreviewCanvas(
                             asset: previewCanvasAsset,
                             backgroundColor: _compositionCanvasBackgroundColor,
@@ -28561,6 +28711,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                 _previewThumbnailNotifier,
                             canvasSize: _motionProjectFormat.canvasSize,
                             canvasTransform: transformPreviewTransform,
+                            canvasStyle: transformPreviewStyle,
                           );
                           final previewStage = PreviewStage(
                             workspaceAspectRatio: _previewAspectRatio,
@@ -30410,6 +30561,70 @@ class _CanvasClipTransform {
   }
 }
 
+class _CanvasClipStyle {
+  const _CanvasClipStyle({
+    this.circleMask = false,
+    this.cornerRadius = 0,
+    this.borderWidth = 0,
+    this.borderColor = Colors.white,
+    this.glowBlur = 0,
+    this.glowOpacity = 0,
+    this.glowColor = Colors.white,
+  });
+
+  final bool circleMask;
+  final double cornerRadius;
+  final double borderWidth;
+  final Color borderColor;
+  final double glowBlur;
+  final double glowOpacity;
+  final Color glowColor;
+
+  _CanvasClipStyle copyWith({
+    bool? circleMask,
+    double? cornerRadius,
+    double? borderWidth,
+    Color? borderColor,
+    double? glowBlur,
+    double? glowOpacity,
+    Color? glowColor,
+  }) {
+    return _CanvasClipStyle(
+      circleMask: circleMask ?? this.circleMask,
+      cornerRadius: cornerRadius ?? this.cornerRadius,
+      borderWidth: borderWidth ?? this.borderWidth,
+      borderColor: borderColor ?? this.borderColor,
+      glowBlur: glowBlur ?? this.glowBlur,
+      glowOpacity: glowOpacity ?? this.glowOpacity,
+      glowColor: glowColor ?? this.glowColor,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is _CanvasClipStyle &&
+        other.circleMask == circleMask &&
+        other.cornerRadius == cornerRadius &&
+        other.borderWidth == borderWidth &&
+        other.borderColor.value == borderColor.value &&
+        other.glowBlur == glowBlur &&
+        other.glowOpacity == glowOpacity &&
+        other.glowColor.value == glowColor.value;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        circleMask,
+        cornerRadius,
+        borderWidth,
+        borderColor.value,
+        glowBlur,
+        glowOpacity,
+        glowColor.value,
+      );
+}
+
 class _ActiveTextEditSession {
   const _ActiveTextEditSession({
     required this.elementId,
@@ -30733,6 +30948,7 @@ class _CleanPreviewCanvas extends StatelessWidget {
     required this.backgroundColor,
     required this.canvasSize,
     required this.canvasTransform,
+    this.canvasStyle = const _CanvasClipStyle(),
     this.previewThumbnailAssetId,
     this.previewThumbnailListenable,
   });
@@ -30741,6 +30957,7 @@ class _CleanPreviewCanvas extends StatelessWidget {
   final Color backgroundColor;
   final MotionSize2D canvasSize;
   final _CanvasClipTransform canvasTransform;
+  final _CanvasClipStyle canvasStyle;
   final String? previewThumbnailAssetId;
   final ValueListenable<Uint8List?>? previewThumbnailListenable;
 
@@ -30793,17 +31010,56 @@ class _CleanPreviewCanvas extends StatelessWidget {
                 Transform(
                   alignment: Alignment.center,
                   transform: transform,
-                  child: Image.memory(
-                    previewBytes,
-                    fit: BoxFit.contain,
-                    gaplessPlayback: true,
-                    filterQuality: FilterQuality.medium,
-                  ),
+                  child: _styledPoster(previewBytes),
                 ),
             ],
           );
         },
       ),
+    );
+  }
+
+  Widget _styledPoster(Uint8List previewBytes) {
+    Widget child = Image.memory(
+      previewBytes,
+      fit: BoxFit.contain,
+      gaplessPlayback: true,
+      filterQuality: FilterQuality.medium,
+    );
+    final style = canvasStyle;
+    if (style.circleMask) {
+      child = ClipOval(child: child);
+    } else if (style.cornerRadius > 0) {
+      child = ClipRRect(
+        borderRadius: BorderRadius.circular(style.cornerRadius),
+        child: child,
+      );
+    }
+    final hasBorder = style.borderWidth > 0;
+    final hasGlow = style.glowOpacity > 0 && style.glowBlur > 0;
+    if (!hasBorder && !hasGlow) {
+      return child;
+    }
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        shape: style.circleMask ? BoxShape.circle : BoxShape.rectangle,
+        borderRadius: style.circleMask
+            ? null
+            : BorderRadius.circular(style.cornerRadius),
+        border: hasBorder
+            ? Border.all(color: style.borderColor, width: style.borderWidth)
+            : null,
+        boxShadow: hasGlow
+            ? <BoxShadow>[
+                BoxShadow(
+                  color: style.glowColor.withOpacity(style.glowOpacity),
+                  blurRadius: style.glowBlur,
+                  spreadRadius: style.glowBlur * 0.12,
+                ),
+              ]
+            : const <BoxShadow>[],
+      ),
+      child: child,
     );
   }
 }
