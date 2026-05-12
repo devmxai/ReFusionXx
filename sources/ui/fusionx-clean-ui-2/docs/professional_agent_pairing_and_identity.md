@@ -13,17 +13,27 @@ project context.
 
 ReFusionXx will use **One-Tap Agent Pairing**.
 
-The user signs in once, opens a project, taps `Connect Agent`, receives a short
-pairing code such as `REF-A1B2`, gives that code to an MCP-capable agent, and
-the backend creates an `agentSessionToken` bound to the exact user, device, app
-session, project, composition, timeline revision, playhead, and selection that
-were active when the code was generated.
+Normal editor usage must not require sign-in. A user can open the app, create a
+composition, edit locally, and use the timeline without an account.
+
+Sign-in is required only when the user enables `Connect Agent` / MCP live
+control. At that point the allowed account method is **Supabase Email +
+Password only**. No social login, no Google, no Apple, no Gmail OAuth, and no
+magic-link-first production flow.
+
+After email/password sign-in, the user opens a project, taps `Connect Agent`,
+receives a short pairing code such as `REF-A1B2`, gives that code to an
+MCP-capable agent, and the backend creates an `agentSessionToken` bound to the
+exact user, device, app session, project, composition, timeline revision,
+playhead, and selection that were active when the code was generated.
 
 The final production flow is:
 
 ```text
 User opens ReFusionXx
--> Supabase Auth identifies the user
+-> Local editor is usable without sign-in
+-> User chooses Connect Agent
+-> Supabase Email + Password identifies the user
 -> App registers this physical device
 -> App opens or creates a project/composition
 -> App syncs active context to Supabase
@@ -36,9 +46,9 @@ User opens ReFusionXx
 -> Realtime updates make edits appear in the open app
 ```
 
-This is the same class of trusted binding used by WhatsApp Web, Apple TV
-pairing, GitHub device flows, and authenticator apps: short-lived, user
-approved, context-bound access.
+This is the same class of trusted binding used by WhatsApp Web, TV pairing,
+GitHub device flows, and authenticator apps: short-lived, user approved,
+context-bound access.
 
 ## 2. Why This Plan Exists
 
@@ -112,9 +122,13 @@ Supported development modes:
 
 Supported production modes:
 
-- OAuth if the host MCP client requires OAuth.
-- Public attach-only MCP endpoint if the host allows unauthenticated discovery,
-  with all real project access locked behind `agentSessionToken`.
+- Public attach-only MCP endpoint for host discovery and pairing.
+- All real project access locked behind `agentSessionToken`.
+
+The MCP connector transport must not become the user's app account system. The
+app account system is Supabase Email + Password only. If a host MCP client
+offers OAuth configuration, do not use Google, Apple, Gmail, or social identity
+providers for ReFusion app identity in this plan.
 
 Important rule:
 
@@ -170,13 +184,21 @@ target context from the token.
 
 Supabase Auth is the user identity source.
 
-Supported sign-in methods:
+Supported app sign-in method:
 
-- Apple
-- Google
-- Email magic link or email/password
+- Email + Password only.
 
-The app stores the Supabase session securely and refreshes it normally.
+Explicitly not supported in this plan:
+
+- Google OAuth
+- Gmail OAuth
+- Apple OAuth
+- social login
+- anonymous production MCP mutations
+- magic-link-first production flow
+
+The app stores the Supabase session securely and refreshes it normally after
+email/password sign-in.
 
 The MCP backend never trusts `userId` from a request body. It gets user identity
 from:
@@ -420,10 +442,11 @@ resolve to one of:
 ```text
 Open app
 -> Generate local device id
--> Show sign-in screen
--> Supabase Auth succeeds
+-> Enter local editor/home without forced sign-in
+-> If the user taps Connect Agent, show Email + Password sign-in
+-> Supabase Auth succeeds with email/password
 -> Register device
--> Create app session
+-> Create app session for cloud/MCP features
 -> Enter home/editor
 ```
 
@@ -843,12 +866,15 @@ Acceptance gate:
 
 ### PAP-01: Supabase Auth Integration
 
-Goal: make the app know the signed-in user.
+Goal: make the app know the signed-in user only when cloud/MCP features need
+identity, without forcing sign-in for normal local editing.
 
 Implementation:
 
-- add Supabase Auth sign-in,
-- support Apple, Google, and email,
+- add Supabase Auth sign-in behind `Connect Agent` and other cloud features,
+- support Email + Password only,
+- explicitly disable Google, Apple, Gmail OAuth, social login, and magic-link
+  primary flows in the app UI and Supabase provider configuration,
 - store session securely,
 - refresh JWT,
 - add sign-out,
@@ -856,7 +882,10 @@ Implementation:
 
 Acceptance gate:
 
+- local editor opens without required sign-in,
+- Connect Agent prompts for Email + Password when no user is signed in,
 - sign-in creates a valid Supabase user,
+- Google/Apple/social login buttons do not exist,
 - sign-out clears local auth state,
 - expired JWT refreshes without losing project state,
 - unauthenticated app cannot generate pairing codes.
