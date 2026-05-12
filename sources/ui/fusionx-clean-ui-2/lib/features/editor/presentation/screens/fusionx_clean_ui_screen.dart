@@ -1207,10 +1207,42 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   void _handleMcpCloudSnapshot(RefusionMcpCloudBridgeSnapshot snapshot) {
+    if (snapshot.ok) {
+      _ensureCompositionSessionForMcpSync();
+    }
     _applyRemoteSolidBackgroundIfNeeded(snapshot.latestSolidColorHex);
     if (!snapshot.ok && kDebugMode) {
       debugPrint('MCP cloud sync warning: ${snapshot.error ?? 'unknown'}');
     }
+  }
+
+  void _ensureCompositionSessionForMcpSync() {
+    if (_hasStartedCompositionSession || _motionProject != null) {
+      return;
+    }
+    final project = _buildInitialMotionProject().copyWith(
+      metadata: <String, String>{
+        'backgroundColor': '#000000',
+        'compositionPreset': 'story',
+      },
+    );
+    setState(() {
+      _lockedWorkspaceAspectRatio = 9 / 16;
+      _motionProject = project;
+      _hasStartedCompositionSession = true;
+      _sceneClips = const <CompositionSceneClipModel>[];
+      _sceneScopeSession = null;
+      _sceneLayerScopeLayerId = null;
+      _motionTextAnimationBindings = const <MotionTextAnimationBindingModel>[];
+      _universalMotionPropertyChannels = const <MotionPropertyChannelModel>[];
+      _tracks = const <TimelineTrackData>[];
+      _selectedClipId = null;
+      _selectedTransitionId = null;
+      _previewAssetId = null;
+      _activeTab = EditorMediaTab.text;
+      _setCurrentTime(TimelineTime.zero);
+    });
+    _syncTimelineClockDuration();
   }
 
   void _applyRemoteSolidBackgroundIfNeeded(String? colorHex) {
