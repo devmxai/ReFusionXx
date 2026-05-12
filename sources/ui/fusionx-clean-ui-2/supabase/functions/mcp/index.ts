@@ -633,11 +633,28 @@ async function generatePairingCode(userId: string, args: JsonMap) {
     status: text(args.status, 'online'),
   });
 
-  const code = await generateUniquePairingCode();
   const generatedAt = new Date();
-  const expiresAt = new Date(
-    generatedAt.getTime() + safeTtlMinutes(pairingCodeTtlMinutes) * 60_000,
-  );
+  const expiresAt = pairingCodeExpiresAtFrom(generatedAt);
+
+  const existing = await reusablePairingCodeForContext(context);
+  if (existing) {
+    const { error } = await admin.from('refusion_pairing_codes').update({
+      expires_at: expiresAt.toISOString(),
+    }).eq('id', existing.id);
+    if (error) throw error;
+    return pairingCodePayload(
+      text(existing.code, ''),
+      expiresAt,
+      context,
+      {
+        status: text(existing.status, 'pending'),
+        claimedAt: stringValue(existing.claimed_at),
+        claimedByAgent: stringValue(existing.claimed_by_agent),
+      },
+    );
+  }
+
+  const code = await generateUniquePairingCode();
 
   const { error } = await admin.from('refusion_pairing_codes').insert({
     code,
@@ -664,8 +681,46 @@ async function generatePairingCode(userId: string, args: JsonMap) {
     },
   });
 
+  return pairingCodePayload(code, expiresAt, context, { status: 'pending' });
+}
+
+async function reusablePairingCodeForContext(context: PairingContext) {
+  const { data, error } = await admin
+    .from('refusion_pairing_codes')
+    .select('*')
+    .eq('owner_id', context.userId)
+    .eq('app_session_id', context.appSessionId)
+    .eq('project_id', context.projectId)
+    .eq('composition_id', context.compositionId)
+    .in('status', ['pending', 'claimed'])
+    .order('generated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data as JsonMap | null;
+}
+
+function pairingCodeExpiresAtFrom(anchor: Date): Date {
+  return new Date(
+    anchor.getTime() + safeTtlMinutes(pairingCodeTtlMinutes) * 60_000,
+  );
+}
+
+function pairingCodePayload(
+  code: string,
+  expiresAt: Date,
+  context: PairingContext,
+  lifecycle: {
+    status: string;
+    claimedAt?: string;
+    claimedByAgent?: string;
+  },
+) {
   return {
     code,
+    status: lifecycle.status,
+    claimedAt: lifecycle.claimedAt ?? '',
+    claimedByAgent: lifecycle.claimedByAgent ?? '',
     expiresAt: expiresAt.toISOString(),
     qrData: `refusion://agent/${code}`,
     link: `${pairingLinkBase.replace(/\/+$/, '')}/${code}`,
@@ -700,8 +755,8 @@ async function getPairingCodeStatus(userId: string, args: JsonMap) {
     };
   }
   let status = text(row.status, 'pending');
-  const expiresAtIso = stringValue(row.expires_at);
-  const expiresAtMs = Date.parse(expiresAtIso);
+  let expiresAtIso = stringValue(row.expires_at);
+  let expiresAtMs = Date.parse(expiresAtIso);
   const nowMs = Date.now();
   const isExpired = Number.isFinite(expiresAtMs) && expiresAtMs <= nowMs;
   if (status === 'pending' && isExpired) {
@@ -709,6 +764,17 @@ async function getPairingCodeStatus(userId: string, args: JsonMap) {
     await admin.from('refusion_pairing_codes')
       .update({ status: 'expired' })
       .eq('id', row.id);
+  } else if (
+    args.keepAlive === true && (status === 'pending' || status === 'claimed')
+  ) {
+    const keepAliveExpiresAt = pairingCodeExpiresAtFrom(new Date());
+    const { error: keepAliveError } = await admin
+      .from('refusion_pairing_codes')
+      .update({ expires_at: keepAliveExpiresAt.toISOString() })
+      .eq('id', row.id);
+    if (keepAliveError) throw keepAliveError;
+    expiresAtIso = keepAliveExpiresAt.toISOString();
+    expiresAtMs = keepAliveExpiresAt.getTime();
   }
   const secondsRemaining = !Number.isFinite(expiresAtMs)
     ? 0
@@ -757,8 +823,8 @@ async function attachPairingCode(
   if (status === 'locked' || failedAttempts >= 5) {
     return fail('PAIRING_CODE_LOCKED');
   }
-  if (status !== 'pending') {
-    return fail('PAIRING_CODE_ALREADY_CLAIMED', { status });
+  if (status !== 'pending' && status !== 'claimed') {
+    return fail('PAIRING_CODE_NOT_CLAIMABLE', { status });
   }
   const expiresAt = Date.parse(String(pairingRow.expires_at));
   if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
@@ -811,11 +877,12 @@ async function attachPairingCode(
     .single();
   if (sessionError) throw sessionError;
 
-  await admin.from('refusion_pairing_codes').update({
+  const { error: pairingUpdateError } = await admin.from('refusion_pairing_codes').update({
     status: 'claimed',
     claimed_at: now.toISOString(),
     claimed_by_agent: agentClientName,
   }).eq('id', pairingRow.id);
+  if (pairingUpdateError) throw pairingUpdateError;
 
   const activeContext = await selectById(
     'refusion_active_contexts',
@@ -1309,9 +1376,9 @@ function randomAlphaNumeric(length: number): string {
 
 function safeTtlMinutes(value: number): number {
   if (!Number.isFinite(value) || value <= 0) {
-    return 10;
+    return 60;
   }
-  return Math.min(Math.max(Math.floor(value), 1), 60);
+  return Math.min(Math.max(Math.floor(value), 10), 240);
 }
 
 function safeTtlHours(value: number): number {

@@ -1239,6 +1239,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       if (!mounted) {
         return;
       }
+      if (pairingCode.status == 'claimed') {
+        setState(() {
+          _isMcpAgentConnected = true;
+        });
+      }
       await _showMcpPairingDialog(pairingCode);
     } catch (error) {
       if (!mounted) {
@@ -1259,8 +1264,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (bridge == null) {
       return Future<void>.value();
     }
+    final initialStatus = RefusionMcpCloudPairingCodeStatus(
+      code: pairingCode.code,
+      exists: true,
+      status: pairingCode.status,
+      secondsRemaining:
+          pairingCode.expiresAtUtc.difference(DateTime.now().toUtc()).inSeconds,
+      claimedByAgent: pairingCode.claimedByAgent,
+      claimedAtUtc: pairingCode.claimedAtUtc,
+      expiresAtUtc: pairingCode.expiresAtUtc,
+    );
     final statusNotifier = ValueNotifier<RefusionMcpCloudPairingCodeStatus?>(
-      null,
+      initialStatus,
     );
     _mcpPairingStatusPollTimer?.cancel();
     _mcpPairingStatusPollTimer = Timer.periodic(const Duration(seconds: 1), (

@@ -58,6 +58,9 @@ class RefusionMcpCloudPairingCode {
     required this.playheadMs,
     required this.timelineRevision,
     required this.deviceId,
+    this.status = 'pending',
+    this.claimedByAgent,
+    this.claimedAtUtc,
   });
 
   final String code;
@@ -70,6 +73,9 @@ class RefusionMcpCloudPairingCode {
   final int playheadMs;
   final int timelineRevision;
   final String deviceId;
+  final String status;
+  final String? claimedByAgent;
+  final DateTime? claimedAtUtc;
 }
 
 class RefusionMcpCloudAgentSessionAttachment {
@@ -393,6 +399,7 @@ class RefusionMcpCloudBridge {
     final qrData = _asString(payload['qrData']);
     final link = _asString(payload['link']);
     final expiresAt = _asString(payload['expiresAt']);
+    final claimedAt = _asString(payload['claimedAt']);
     if (code == null || qrData == null || link == null || expiresAt == null) {
       throw StateError('Pairing payload missing required fields.');
     }
@@ -407,6 +414,10 @@ class RefusionMcpCloudBridge {
       playheadMs: _asInt(context['playheadMs']) ?? 0,
       timelineRevision: _asInt(context['timelineRevision']) ?? 1,
       deviceId: _asString(context['deviceId']) ?? _deviceId,
+      status: _asString(payload['status']) ?? 'pending',
+      claimedByAgent: _asString(payload['claimedByAgent']),
+      claimedAtUtc:
+          claimedAt == null ? null : DateTime.tryParse(claimedAt)?.toUtc(),
     );
   }
 
@@ -478,7 +489,10 @@ class RefusionMcpCloudBridge {
     }
     final response = await _callTool(
       toolName: 'get_pairing_code_status',
-      arguments: <String, Object?>{'code': normalizedCode},
+      arguments: <String, Object?>{
+        'code': normalizedCode,
+        'keepAlive': true,
+      },
     );
     final structured = _asMap(response['structuredContent']);
     final payload = _asMap(structured['payload']);
