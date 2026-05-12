@@ -2022,22 +2022,57 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required Map<String, Object?> payload,
     required Map<String, Object?> updates,
   }) {
+    final updatePayload = _remoteMap(updates['payload']);
+    final payloadStyle = _remoteMap(payload['style']);
+    final updatesStyle = _remoteMap(updates['style']);
+    final updatePayloadStyle = _remoteMap(updatePayload['style']);
     final mask = _remoteMap(
-      _firstRemoteObject(<Object?>[updates['mask'], payload['mask']]),
+      _firstRemoteObject(<Object?>[
+        updates['mask'],
+        payload['mask'],
+        updatesStyle['mask'],
+        payloadStyle['mask'],
+        updatePayloadStyle['mask'],
+      ]),
     );
     final border = _remoteMap(
-      _firstRemoteObject(<Object?>[updates['border'], payload['border']]),
+      _firstRemoteObject(<Object?>[
+        updates['border'],
+        payload['border'],
+        updatesStyle['border'],
+        payloadStyle['border'],
+        updatePayloadStyle['border'],
+      ]),
     );
     final glow = _remoteMap(
-      _firstRemoteObject(<Object?>[updates['glow'], payload['glow']]),
+      _firstRemoteObject(<Object?>[
+        updates['glow'],
+        payload['glow'],
+        updatesStyle['glow'],
+        payloadStyle['glow'],
+        updatePayloadStyle['glow'],
+      ]),
     );
     final hasStyleData = mask.isNotEmpty ||
         border.isNotEmpty ||
         glow.isNotEmpty ||
+        payloadStyle.isNotEmpty ||
+        updatesStyle.isNotEmpty ||
+        updatePayloadStyle.isNotEmpty ||
         payload.containsKey('maskType') ||
         payload.containsKey('cornerRadius') ||
         payload.containsKey('borderWidth') ||
-        payload.containsKey('borderColor');
+        payload.containsKey('borderColor') ||
+        payload.containsKey('clipPath') ||
+        payload.containsKey('renderMask') ||
+        updates.containsKey('clipPath') ||
+        updates.containsKey('renderMask') ||
+        payloadStyle.containsKey('clipPath') ||
+        payloadStyle.containsKey('renderMask') ||
+        updatesStyle.containsKey('clipPath') ||
+        updatesStyle.containsKey('renderMask') ||
+        updatePayloadStyle.containsKey('clipPath') ||
+        updatePayloadStyle.containsKey('renderMask');
     if (!hasStyleData) {
       return false;
     }
@@ -2050,6 +2085,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       mask['shape'],
       payload['maskType'],
       payload['shape'],
+      payloadStyle['maskType'],
+      updatesStyle['maskType'],
+      updatePayloadStyle['maskType'],
     ]);
     if (rawMaskType != null) {
       final normalized = rawMaskType
@@ -2068,11 +2106,47 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
     }
 
+    final rawClipPath = _firstRemoteString(<Object?>[
+      payload['clipPath'],
+      updates['clipPath'],
+      payloadStyle['clipPath'],
+      updatesStyle['clipPath'],
+      updatePayloadStyle['clipPath'],
+    ]);
+    if (rawClipPath != null) {
+      final normalized = rawClipPath
+          .trim()
+          .toLowerCase()
+          .replaceAll(RegExp(r'[^a-z0-9]+'), '');
+      if (normalized.contains('circle')) {
+        next = next.copyWith(circleMask: true);
+        didChange = true;
+      } else if (normalized.contains('none')) {
+        next = next.copyWith(circleMask: false, cornerRadius: 0);
+        didChange = true;
+      }
+    }
+
+    final renderMaskValue = _firstRemoteObject(<Object?>[
+      payload['renderMask'],
+      updates['renderMask'],
+      payloadStyle['renderMask'],
+      updatesStyle['renderMask'],
+      updatePayloadStyle['renderMask'],
+    ]);
+    if (renderMaskValue is bool && !renderMaskValue && next.circleMask) {
+      next = next.copyWith(circleMask: false, cornerRadius: 0);
+      didChange = true;
+    }
+
     final cornerRadius = _firstRemoteDouble(<Object?>[
       mask['radius'],
       mask['cornerRadius'],
       payload['cornerRadius'],
       payload['borderRadius'],
+      payloadStyle['cornerRadius'],
+      updatesStyle['cornerRadius'],
+      updatePayloadStyle['cornerRadius'],
     ]);
     if (cornerRadius != null) {
       next = next.copyWith(cornerRadius: math.max(0, cornerRadius));
@@ -2084,6 +2158,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       border['strokeWidth'],
       payload['borderWidth'],
       payload['strokeWidth'],
+      payloadStyle['borderWidth'],
+      updatesStyle['borderWidth'],
+      updatePayloadStyle['borderWidth'],
     ]);
     if (borderWidth != null) {
       next = next.copyWith(borderWidth: math.max(0, borderWidth));
@@ -2095,6 +2172,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         border['strokeColor'],
         payload['borderColor'],
         payload['strokeColor'],
+        payloadStyle['borderColor'],
+        updatesStyle['borderColor'],
+        updatePayloadStyle['borderColor'],
       ]),
     );
     if (borderColor != null) {
@@ -2106,6 +2186,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       glow['blur'],
       glow['radius'],
       glow['amount'],
+      payloadStyle['glowBlur'],
+      updatesStyle['glowBlur'],
+      updatePayloadStyle['glowBlur'],
     ]);
     if (glowBlur != null) {
       next = next.copyWith(glowBlur: math.max(0, glowBlur));
@@ -2115,6 +2198,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       glow['opacity'],
       glow['alpha'],
       glow['intensity'],
+      payloadStyle['glowOpacity'],
+      updatesStyle['glowOpacity'],
+      updatePayloadStyle['glowOpacity'],
     ]);
     if (glowOpacity != null) {
       next = next.copyWith(glowOpacity: glowOpacity.clamp(0.0, 1.0).toDouble());
