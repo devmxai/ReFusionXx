@@ -68,6 +68,11 @@ const publicTools = new Set<string>([
 const writeTools = new Set<string>([
   'refusion.insert_layer',
   'refusion.apply_scene_program',
+  'refusion.apply_motion_patch',
+  'refusion.apply_animation_recipe',
+  'refusion.apply_keyframes',
+  'refusion.keyframe_edit',
+  'refusion.set_element_transform',
 ]);
 
 const userOnlyTools = new Set<string>([
@@ -275,10 +280,29 @@ async function callTool(
     case 'refusion.apply_scene_program':
       ensureAgentWrite(canonicalToolName, context);
       return await applySceneProgram(context, args);
+    case 'refusion.apply_motion_patch':
+    case 'refusion.apply_animation_recipe':
+      ensureAgentWrite(canonicalToolName, context);
+      return await applyMotionPatch(context, args);
+    case 'refusion.apply_keyframes':
+      ensureAgentWrite(canonicalToolName, context);
+      return await applyKeyframes(context, args);
+    case 'refusion.keyframe_edit':
+      ensureAgentWrite(canonicalToolName, context);
+      return await keyframeEdit(context, args);
+    case 'refusion.set_element_transform':
+      ensureAgentWrite(canonicalToolName, context);
+      return await setElementTransform(context, args);
     case 'refusion.get_layers':
       return await getLayers(context, args);
+    case 'refusion.get_motion_channels':
+      return await getMotionChannels(context, args);
+    case 'refusion.get_keyframes':
+      return await getKeyframes(context, args);
     case 'refusion.get_command_status':
       return await getCommandStatus(context, args);
+    case 'refusion.wait_for_apply':
+      return await waitForApply(context, args);
     case 'refusion.disconnect_agent':
       return await disconnectAgent(context, args);
     default:
@@ -327,8 +351,16 @@ function normalizeToolName(name: string): string {
     set_solid_background: 'refusion.insert_layer',
     background_set_solid: 'refusion.insert_layer',
     apply_scene_program: 'refusion.apply_scene_program',
+    apply_motion_patch: 'refusion.apply_motion_patch',
+    apply_animation_recipe: 'refusion.apply_animation_recipe',
+    apply_keyframes: 'refusion.apply_keyframes',
+    keyframe_edit: 'refusion.keyframe_edit',
+    set_element_transform: 'refusion.set_element_transform',
     get_layers: 'refusion.get_layers',
+    get_motion_channels: 'refusion.get_motion_channels',
+    get_keyframes: 'refusion.get_keyframes',
     get_command_status: 'refusion.get_command_status',
+    wait_for_apply: 'refusion.wait_for_apply',
     disconnect_agent: 'refusion.disconnect_agent',
     'refusion.insert_text': 'refusion.insert_layer',
     'refusion.add_text': 'refusion.insert_layer',
@@ -338,6 +370,7 @@ function normalizeToolName(name: string): string {
     'refusion.set_background': 'refusion.insert_layer',
     'refusion.set_solid_background': 'refusion.insert_layer',
     'refusion.background.set_solid': 'refusion.insert_layer',
+    'refusion.apply_animation_recipe': 'refusion.apply_motion_patch',
   };
   return aliases[value] ?? (value.startsWith('refusion.') ? value : value);
 }
@@ -962,6 +995,22 @@ async function disconnectAgent(context: RequestContext, args: JsonMap) {
 }
 
 async function insertLayer(context: RequestContext, args: JsonMap): Promise<ToolResult> {
+  const operation = firstText(
+    args.operation,
+    args.command,
+    args.action,
+    readMap(args.payload).operation,
+  ).toLowerCase();
+  if (
+    operation.includes('animate') ||
+    operation.includes('keyframe') ||
+    operation.includes('transform')
+  ) {
+    return fail(
+      'INSERT_LAYER_CANNOT_BE_USED_FOR_ANIMATION',
+      { hint: 'Use refusion.apply_motion_patch / refusion.keyframe_edit / refusion.set_element_transform.' },
+    );
+  }
   const boundProjectId = context.agentSession?.project_id ?? '';
   const boundCompositionId = context.agentSession?.composition_id ?? '';
   const activeContext = await getActiveContext(context, {});
@@ -1067,6 +1116,17 @@ async function applySceneProgram(
   context: RequestContext,
   args: JsonMap,
 ): Promise<ToolResult> {
+  const operation = firstText(args.operation, args.action, args.command).toLowerCase();
+  if (
+    operation.includes('animate') ||
+    operation.includes('keyframe') ||
+    operation.includes('transform')
+  ) {
+    return fail(
+      'SCENE_PROGRAM_CANNOT_BE_USED_FOR_ANIMATION',
+      { hint: 'Use refusion.apply_motion_patch, refusion.apply_keyframes, or refusion.set_element_transform.' },
+    );
+  }
   const source = text(args.source, '');
   const color = inferColor(source) ?? '#FFFFFF';
   return await insertLayer(context, {
@@ -1075,6 +1135,280 @@ async function applySceneProgram(
     name: text(args.name, 'Scene Background'),
     color,
   });
+}
+
+async function applyMotionPatch(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const active = await getActiveContext(context, {});
+  const project = readMap(active.project);
+  const composition = readMap(active.composition);
+  const projectId = context.agentSession?.project_id || stringValue(args.projectId) ||
+    stringValue(project.id);
+  const compositionId = context.agentSession?.composition_id || stringValue(args.compositionId) ||
+    stringValue(composition.id);
+  if (!projectId || !compositionId) {
+    return fail('PROJECT_NOT_OPEN');
+  }
+  const currentRevision = await projectRevision(projectId);
+  const expectedRevision = optionalNumber(args.expectedRevision);
+  if (expectedRevision != null && expectedRevision !== currentRevision) {
+    return fail('REVISION_CONFLICT', {
+      expectedRevision,
+      actualRevision: currentRevision,
+    });
+  }
+
+  const layerId = firstText(
+    args.layerId,
+    args.layer_id,
+    args.targetLayerId,
+    readMap(args.payload).layerId,
+  );
+  if (!layerId) {
+    return fail('LAYER_ID_REQUIRED');
+  }
+  const { data: layer, error: layerError } = await admin
+    .from('refusion_layers')
+    .select('id')
+    .eq('owner_id', context.userId)
+    .eq('project_id', projectId)
+    .eq('composition_id', compositionId)
+    .eq('id', layerId)
+    .maybeSingle();
+  if (layerError) throw layerError;
+  if (!layer) {
+    return fail('LAYER_NOT_FOUND');
+  }
+
+  const writes = inferMotionWrites(args);
+  if (writes.length === 0) {
+    return fail('MOTION_CHANNELS_REQUIRED');
+  }
+
+  for (const write of writes) {
+    const { error } = await admin
+      .from('refusion_motion_channels')
+      .upsert({
+        owner_id: context.userId,
+        project_id: projectId,
+        composition_id: compositionId,
+        layer_id: layerId,
+        property_id: write.propertyId,
+        motion_recipe: write.motionRecipe,
+        keyframes: write.keyframes,
+        created_by: context.agentSession ? 'mcp-agent' : 'mcp',
+      }, {
+        onConflict: 'owner_id,project_id,composition_id,layer_id,property_id',
+      });
+    if (error) throw error;
+  }
+
+  const revisionAfter = currentRevision + 1;
+  await updateRevision(projectId, revisionAfter);
+  const commandRecord = await recordCommand(
+    context,
+    projectId,
+    compositionId,
+    'refusion.apply_motion_patch',
+    {
+      layerId,
+      writes,
+    },
+    currentRevision,
+    revisionAfter,
+    stringValue(args.idempotencyKey),
+  );
+  return ok('Motion patch applied.', {
+    projectId,
+    compositionId,
+    layerId,
+    channels: writes.length,
+    commandId: commandRecord.commandId,
+    revisionBefore: currentRevision,
+    revisionAfter,
+  });
+}
+
+async function applyKeyframes(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  return await applyMotionPatch(context, args);
+}
+
+async function keyframeEdit(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const active = await getActiveContext(context, {});
+  const project = readMap(active.project);
+  const composition = readMap(active.composition);
+  const projectId = context.agentSession?.project_id || stringValue(args.projectId) ||
+    stringValue(project.id);
+  const compositionId = context.agentSession?.composition_id || stringValue(args.compositionId) ||
+    stringValue(composition.id);
+  if (!projectId || !compositionId) {
+    return fail('PROJECT_NOT_OPEN');
+  }
+  const layerId = firstText(args.layerId, args.layer_id, args.targetLayerId);
+  if (!layerId) {
+    return fail('LAYER_ID_REQUIRED');
+  }
+  const propertyId = canonicalMotionPropertyId(
+    firstText(args.propertyId, args.property, args.targetProperty),
+  );
+  if (!propertyId) {
+    return fail('PROPERTY_ID_REQUIRED');
+  }
+  const { data: existing, error: existingError } = await admin
+    .from('refusion_motion_channels')
+    .select('id, keyframes')
+    .eq('owner_id', context.userId)
+    .eq('project_id', projectId)
+    .eq('composition_id', compositionId)
+    .eq('layer_id', layerId)
+    .eq('property_id', propertyId)
+    .maybeSingle();
+  if (existingError) throw existingError;
+  if (!existing) {
+    return fail('MOTION_CHANNEL_NOT_FOUND');
+  }
+  const action = firstText(args.action, 'set').toLowerCase();
+  const currentKeyframes = parseKeyframes(existing.keyframes);
+  const timeMs = numberValue(args.timeMs, -1);
+  const keyframeId = firstText(args.keyframeId);
+  const index = currentKeyframes.findIndex((entry) =>
+    (keyframeId && stringValue(entry.id) === keyframeId) ||
+    (timeMs >= 0 && numberValue(entry.timeMs, -1) === timeMs)
+  );
+  if (action === 'delete') {
+    if (index < 0) {
+      return fail('KEYFRAME_NOT_FOUND');
+    }
+    currentKeyframes.removeAt(index);
+  } else {
+    const update = parseKeyframe(firstDefined(
+      args.keyframe,
+      readMap(args.payload).keyframe,
+      <String, unknown>{
+        'id': keyframeId,
+        'timeMs': timeMs >= 0 ? timeMs : optionalNumber(args.time),
+        'value': args.value,
+        'easing': args.easing,
+      },
+    ));
+    if (!update) {
+      return fail('KEYFRAME_INVALID');
+    }
+    if (index < 0) {
+      currentKeyframes.add(update);
+    } else {
+      currentKeyframes[index] = update;
+    }
+  }
+  currentKeyframes.sort((a, b) =>
+    numberValue(a.timeMs, 0) - numberValue(b.timeMs, 0));
+  const { error } = await admin
+    .from('refusion_motion_channels')
+    .update({
+      keyframes: currentKeyframes,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', existing.id);
+  if (error) throw error;
+  const currentRevision = await projectRevision(projectId);
+  const revisionAfter = currentRevision + 1;
+  await updateRevision(projectId, revisionAfter);
+  const commandRecord = await recordCommand(
+    context,
+    projectId,
+    compositionId,
+    'refusion.keyframe_edit',
+    {
+      layerId,
+      propertyId,
+      action,
+      keyframeCount: currentKeyframes.length,
+    },
+    currentRevision,
+    revisionAfter,
+    stringValue(args.idempotencyKey),
+  );
+  return ok('Keyframe edit applied.', {
+    projectId,
+    compositionId,
+    layerId,
+    propertyId,
+    keyframeCount: currentKeyframes.length,
+    commandId: commandRecord.commandId,
+    revisionBefore: currentRevision,
+    revisionAfter,
+  });
+}
+
+async function setElementTransform(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const layerId = firstText(args.layerId, args.layer_id, args.targetLayerId);
+  if (!layerId) {
+    return fail('LAYER_ID_REQUIRED');
+  }
+  const timeMs = numberValue(firstDefined(args.timeMs, args.time, 0), 0);
+  const keyframes = <JsonMap>[];
+  const x = optionalNumber(firstDefined(args.x, args.positionX, args.translateX));
+  const y = optionalNumber(firstDefined(args.y, args.positionY, args.translateY));
+  const scaleX = numberOrNull(firstDefined(args.scaleX, args.scale));
+  const scaleY = numberOrNull(firstDefined(args.scaleY, args.scale));
+  const rotation = numberOrNull(firstDefined(args.rotation, args.rotationDegrees));
+  const opacity = numberOrNull(args.opacity);
+  if (x != null) {
+    keyframes.add({
+      'propertyId': 'transform.position.x',
+      'keyframes': [makeScalarKeyframe(timeMs, x)],
+    });
+  }
+  if (y != null) {
+    keyframes.add({
+      'propertyId': 'transform.position.y',
+      'keyframes': [makeScalarKeyframe(timeMs, y)],
+    });
+  }
+  if (scaleX != null) {
+    keyframes.add({
+      'propertyId': 'transform.scale.x',
+      'keyframes': [makeScalarKeyframe(timeMs, scaleX)],
+    });
+  }
+  if (scaleY != null) {
+    keyframes.add({
+      'propertyId': 'transform.scale.y',
+      'keyframes': [makeScalarKeyframe(timeMs, scaleY)],
+    });
+  }
+  if (rotation != null) {
+    keyframes.add({
+      'propertyId': 'transform.rotation.degrees',
+      'keyframes': [makeScalarKeyframe(timeMs, rotation)],
+    });
+  }
+  if (opacity != null) {
+    keyframes.add({
+      'propertyId': 'visual.opacity',
+      'keyframes': [makeScalarKeyframe(timeMs, opacity)],
+    });
+  }
+  if (keyframes.isEmpty) {
+    return fail('NO_TRANSFORM_VALUES');
+  }
+  final payload = <String, unknown>{
+    ...args,
+    'layerId': layerId,
+    'channels': keyframes,
+  };
+  return await applyMotionPatch(context, payload);
 }
 
 async function getLayers(context: RequestContext, args: JsonMap): Promise<ToolResult> {
@@ -1111,6 +1445,67 @@ async function getLayers(context: RequestContext, args: JsonMap): Promise<ToolRe
   });
 }
 
+async function getMotionChannels(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const active = await getActiveContext(context, {});
+  const project = readMap(active.project);
+  const composition = readMap(active.composition);
+  const projectId = context.agentSession?.project_id || stringValue(args.projectId) ||
+    stringValue(project.id);
+  const compositionId = context.agentSession?.composition_id || stringValue(args.compositionId) ||
+    stringValue(composition.id);
+  if (!projectId || !compositionId) {
+    return fail('PROJECT_NOT_OPEN');
+  }
+  const { data, error } = await admin
+    .from('refusion_motion_channels')
+    .select('id, layer_id, property_id, keyframes, motion_recipe, updated_at')
+    .eq('owner_id', context.userId)
+    .eq('project_id', projectId)
+    .eq('composition_id', compositionId)
+    .order('updated_at', { ascending: true });
+  if (error) throw error;
+  return ok('Motion channels loaded.', {
+    projectId,
+    compositionId,
+    channels: data ?? [],
+  });
+}
+
+async function getKeyframes(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const result = await getMotionChannels(context, args);
+  if (!result.ok) {
+    return result;
+  }
+  const payload = readMap(result.payload);
+  const channels = readList(payload.channels);
+  const keyframes: JsonMap[] = [];
+  for (const channel of channels) {
+    const channelMap = readMap(channel);
+    const channelId = stringValue(channelMap.id);
+    const layerId = stringValue(channelMap.layer_id);
+    const propertyId = stringValue(channelMap.property_id);
+    for (const keyframe of parseKeyframes(channelMap.keyframes)) {
+      keyframes.push({
+        ...keyframe,
+        channelId,
+        layerId,
+        propertyId,
+      });
+    }
+  }
+  return ok('Keyframes loaded.', {
+    projectId: payload.projectId,
+    compositionId: payload.compositionId,
+    keyframes,
+  });
+}
+
 async function getCommandStatus(
   context: RequestContext,
   args: JsonMap,
@@ -1125,6 +1520,42 @@ async function getCommandStatus(
     .single();
   if (error) throw error;
   return ok('Command status loaded.', data);
+}
+
+async function waitForApply(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const commandId = stringValue(args.commandId);
+  if (!commandId) return fail('COMMAND_ID_REQUIRED');
+  const timeoutMs = numberValue(args.timeoutMs, 5000);
+  const deadline = Date.now() + Math.max(250, Math.min(timeoutMs, 120000));
+  while (Date.now() < deadline) {
+    const status = await getCommandStatus(context, { commandId });
+    if (!status.ok) {
+      return status;
+    }
+    const payload = readMap(status.payload);
+    const state = text(payload.status, 'pending');
+    if (
+      state === 'succeeded' ||
+      state === 'failed' ||
+      state === 'cancelled'
+    ) {
+      return ok('Apply status resolved.', {
+        commandId,
+        status: state,
+        appApplied: state === 'succeeded',
+        payload,
+      });
+    }
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  return ok('Apply status timeout.', {
+    commandId,
+    status: 'pending',
+    appApplied: false,
+  });
 }
 
 async function ensurePairingContext(
@@ -1509,14 +1940,59 @@ function tools() {
       true,
     ),
     tool(
+      'refusion.apply_motion_patch',
+      'Apply Motion Patch',
+      'Apply or upsert motion channels (keyframes/recipes) on an existing layer.',
+      true,
+    ),
+    tool(
+      'refusion.apply_animation_recipe',
+      'Apply Animation Recipe',
+      'Alias of apply_motion_patch for recipe-based animations.',
+      true,
+    ),
+    tool(
+      'refusion.apply_keyframes',
+      'Apply Keyframes',
+      'Upsert explicit keyframes on one or more motion properties.',
+      true,
+    ),
+    tool(
+      'refusion.keyframe_edit',
+      'Keyframe Edit',
+      'Edit existing motion channel keyframes (add/set/delete).',
+      true,
+    ),
+    tool(
+      'refusion.set_element_transform',
+      'Set Element Transform',
+      'Set element transform values at a timeline time as keyframed motion channels.',
+      true,
+    ),
+    tool(
       'refusion.get_layers',
       'Get Layers',
       'Return composition layers ordered by z-index and start.',
     ),
     tool(
+      'refusion.get_motion_channels',
+      'Get Motion Channels',
+      'Return motion channels for the active composition.',
+    ),
+    tool(
+      'refusion.get_keyframes',
+      'Get Keyframes',
+      'Return flattened keyframes for motion channels in the active composition.',
+    ),
+    tool(
       'refusion.get_command_status',
       'Get Command Status',
       'Return a command status by id.',
+    ),
+    tool(
+      'refusion.wait_for_apply',
+      'Wait For Apply',
+      'Poll command status until it reaches a terminal state or timeout.',
     ),
     tool(
       'refusion.disconnect_agent',
@@ -1571,6 +2047,10 @@ function readMap(value: unknown): JsonMap {
     return value as JsonMap;
   }
   return {};
+}
+
+function readList(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
 }
 
 function stringValue(value: unknown): string {
@@ -1658,6 +2138,21 @@ function inferLayerKind(args: JsonMap, payload: JsonMap): string {
   const style = readMap(payload.style);
   const updates = readMap(payload.updates);
   const updatePayload = readMap(updates.payload);
+  const operation = firstText(
+    args.operation,
+    args.command,
+    args.action,
+    payload.operation,
+    updates.operation,
+    updatePayload.operation,
+  ).toLowerCase();
+  if (
+    operation.includes('animate') ||
+    operation.includes('keyframe') ||
+    operation.includes('transform')
+  ) {
+    return 'text';
+  }
   const rawKind = firstText(
     args.layerKind,
     args.layer_kind,
@@ -1731,6 +2226,166 @@ function inferLayerColor(args: JsonMap, payload: JsonMap): string | null {
   }
   if (/^[0-9a-fA-F]{8}$/.test(normalized)) {
     return `#${normalized.slice(2).toUpperCase()}`;
+  }
+  return null;
+}
+
+type MotionChannelWrite = {
+  propertyId: string;
+  keyframes: JsonMap[];
+  motionRecipe?: string | null;
+};
+
+function inferMotionWrites(args: JsonMap): MotionChannelWrite[] {
+  const payload = readMap(args.payload);
+  const channels = readList(firstDefined(args.channels, payload.channels));
+  const writes: MotionChannelWrite[] = [];
+  if (channels.length > 0) {
+    for (const channel of channels) {
+      const map = readMap(channel);
+      const propertyId = canonicalMotionPropertyId(
+        firstText(map.propertyId, map.property, map.targetProperty),
+      );
+      if (!propertyId) continue;
+      const keyframes = parseKeyframes(map.keyframes);
+      if (keyframes.length === 0) continue;
+      writes.push({
+        propertyId,
+        keyframes,
+        motionRecipe: text(map.motionRecipe, '') || null,
+      });
+    }
+  }
+  if (writes.length > 0) {
+    return writes;
+  }
+
+  const propertyId = canonicalMotionPropertyId(
+    firstText(args.propertyId, args.property, payload.propertyId, payload.property),
+  );
+  const directKeyframes = parseKeyframes(firstDefined(args.keyframes, payload.keyframes));
+  if (propertyId && directKeyframes.length > 0) {
+    return [{
+      propertyId,
+      keyframes: directKeyframes,
+      motionRecipe: text(args.motionRecipe, '') || null,
+    }];
+  }
+
+  const motionRecipe = firstText(
+    args.motionRecipe,
+    args.animationRecipe,
+    args.recipe,
+    payload.motionRecipe,
+    payload.animationRecipe,
+    payload.recipe,
+  );
+  if (motionRecipe) {
+    return expandMotionRecipe(motionRecipe, numberValue(args.durationMs, 650));
+  }
+
+  return const <MotionChannelWrite>[];
+}
+
+function canonicalMotionPropertyId(value: string): string {
+  const normalized = value.trim().toLowerCase();
+  const aliases: Record<string, string> = {
+    'positionx': 'transform.position.x',
+    'position.x': 'transform.position.x',
+    'positiony': 'transform.position.y',
+    'position.y': 'transform.position.y',
+    'scale.x': 'transform.scale.x',
+    'scale.y': 'transform.scale.y',
+    'scale': 'transform.scale.x',
+    'rotation': 'transform.rotation.degrees',
+    'rotation.degrees': 'transform.rotation.degrees',
+    'opacity': 'visual.opacity',
+  };
+  if (!normalized) return '';
+  return aliases[normalized] ?? normalized;
+}
+
+function expandMotionRecipe(recipe: string, durationMsRaw: number): MotionChannelWrite[] {
+  const normalized = recipe.trim().toLowerCase();
+  const durationMs = Math.max(240, Math.min(durationMsRaw, 5000));
+  if (normalized === '$motion.scaleinbounce' || normalized === 'scaleinbounce') {
+    const keyframes = <JsonMap>[
+      makeScalarKeyframe(0, 0.15, 'easeOut'),
+      makeScalarKeyframe(Math.round(durationMs * 0.28), 1.18, 'easeOut'),
+      makeScalarKeyframe(Math.round(durationMs * 0.51), 0.94, 'easeInOut'),
+      makeScalarKeyframe(Math.round(durationMs * 0.77), 1.04, 'easeOut'),
+      makeScalarKeyframe(durationMs, 1.0, 'easeInOut'),
+    ];
+    return [
+      {
+        propertyId: 'transform.scale.x',
+        keyframes,
+        motionRecipe: '$motion.scaleInBounce',
+      },
+      {
+        propertyId: 'transform.scale.y',
+        keyframes,
+        motionRecipe: '$motion.scaleInBounce',
+      },
+      {
+        propertyId: 'visual.opacity',
+        keyframes: <JsonMap>[
+          makeScalarKeyframe(0, 0.0, 'linear'),
+          makeScalarKeyframe(Math.round(durationMs * 0.24), 1.0, 'easeOut'),
+          makeScalarKeyframe(durationMs, 1.0, 'linear'),
+        ],
+        motionRecipe: '$motion.scaleInBounce',
+      },
+    ];
+  }
+  throw new Error(`UNKNOWN_MOTION_RECIPE: ${recipe}`);
+}
+
+function makeScalarKeyframe(timeMs: number, value: number, easing = 'linear'): JsonMap {
+  return {
+    id: `kf_${randomBase32(8).toLowerCase()}`,
+    timeMs: Math.max(0, Math.round(timeMs)),
+    value,
+    easing,
+  };
+}
+
+function parseKeyframes(value: unknown): JsonMap[] {
+  const list = readList(value);
+  const parsed: JsonMap[] = [];
+  for (const entry of list) {
+    const map = parseKeyframe(entry);
+    if (map) parsed.push(map);
+  }
+  parsed.sort((a, b) => numberValue(a.timeMs, 0) - numberValue(b.timeMs, 0));
+  return parsed;
+}
+
+function parseKeyframe(value: unknown): JsonMap | null {
+  const map = readMap(value);
+  const timeMs = optionalNumber(firstDefined(map.timeMs, map.time, map.t));
+  if (timeMs == null || timeMs < 0) {
+    return null;
+  }
+  const rawValue = firstDefined(map.value, map.v);
+  const numericValue = numberOrNull(rawValue);
+  const keyframeValue = numericValue ?? rawValue;
+  if (keyframeValue === undefined || keyframeValue === null) {
+    return null;
+  }
+  return {
+    id: firstText(map.id) || `kf_${randomBase32(8).toLowerCase()}`,
+    timeMs,
+    value: keyframeValue,
+    easing: firstText(map.easing, map.interpolation, 'linear'),
+  };
+}
+
+function numberOrNull(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value.trim());
+    if (Number.isFinite(parsed)) return parsed;
   }
   return null;
 }

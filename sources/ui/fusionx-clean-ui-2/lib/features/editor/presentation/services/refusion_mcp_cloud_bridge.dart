@@ -31,8 +31,8 @@ class RefusionMcpCloudBridgeSnapshot {
     required this.liveOnline,
     required this.updatedAtUtc,
     this.remoteRevision,
-    this.latestSolidColorHex,
     this.remoteLayers = const <Map<String, Object?>>[],
+    this.remoteMotionChannels = const <Map<String, Object?>>[],
     this.error,
   });
 
@@ -43,8 +43,8 @@ class RefusionMcpCloudBridgeSnapshot {
   final bool liveOnline;
   final DateTime updatedAtUtc;
   final int? remoteRevision;
-  final String? latestSolidColorHex;
   final List<Map<String, Object?>> remoteLayers;
+  final List<Map<String, Object?>> remoteMotionChannels;
   final String? error;
 }
 
@@ -255,10 +255,19 @@ class RefusionMcpCloudBridge {
         },
         allowAgentSessionToken: true,
       );
+      final motionChannelsResponse = await _safeCallTool(
+        toolName: 'get_motion_channels',
+        arguments: <String, Object?>{
+          if (cloudProjectId != null) 'projectId': cloudProjectId,
+          if (cloudCompositionId != null) 'compositionId': cloudCompositionId,
+        },
+        allowAgentSessionToken: true,
+      );
       _emitSnapshot(
         _snapshotFromContextResponse(
           contextResponse,
           layersResult: layersResponse,
+          motionChannelsResult: motionChannelsResponse,
           fallbackProjectId: state.projectId,
           fallbackCompositionId: state.compositionId,
         ),
@@ -283,6 +292,7 @@ class RefusionMcpCloudBridge {
   RefusionMcpCloudBridgeSnapshot _snapshotFromContextResponse(
     Map<String, Object?> rpcResult, {
     required Map<String, Object?>? layersResult,
+    required Map<String, Object?>? motionChannelsResult,
     required String fallbackProjectId,
     required String fallbackCompositionId,
   }) {
@@ -292,33 +302,20 @@ class RefusionMcpCloudBridge {
     final composition = _asMap(payload['composition']);
     final liveEditor = _asMap(payload['liveEditor']);
     int? remoteRevision;
-    String? latestSolidColorHex;
     var remoteLayers = const <Map<String, Object?>>[];
+    var remoteMotionChannels = const <Map<String, Object?>>[];
     if (layersResult != null) {
       final layersStructured = _asMap(layersResult['structuredContent']);
       final layersPayload = _asMap(layersStructured['payload']);
       remoteRevision = _asInt(layersPayload['revision']);
       final layers = _asListOfMap(layersPayload['layers']);
       remoteLayers = layers;
-      DateTime? latestSolidUpdatedAtUtc;
-      for (final layer in layers) {
-        if (_asString(layer['layer_kind']) != 'solid') {
-          continue;
-        }
-        final color = _extractRemoteLayerColorHex(layer);
-        if (color == null) {
-          continue;
-        }
-        final updatedAtUtc = _asDateTimeUtc(layer['updated_at']);
-        final shouldPromote = latestSolidColorHex == null ||
-            (updatedAtUtc != null &&
-                (latestSolidUpdatedAtUtc == null ||
-                    updatedAtUtc.isAfter(latestSolidUpdatedAtUtc)));
-        if (shouldPromote) {
-          latestSolidColorHex = color;
-          latestSolidUpdatedAtUtc = updatedAtUtc;
-        }
-      }
+    }
+    if (motionChannelsResult != null) {
+      final channelsStructured =
+          _asMap(motionChannelsResult['structuredContent']);
+      final channelsPayload = _asMap(channelsStructured['payload']);
+      remoteMotionChannels = _asListOfMap(channelsPayload['channels']);
     }
     return RefusionMcpCloudBridgeSnapshot(
       ok: structured['ok'] == true,
@@ -328,8 +325,10 @@ class RefusionMcpCloudBridge {
       liveOnline: liveEditor['online'] == true,
       updatedAtUtc: DateTime.now().toUtc(),
       remoteRevision: remoteRevision,
-      latestSolidColorHex: latestSolidColorHex,
       remoteLayers: List<Map<String, Object?>>.unmodifiable(remoteLayers),
+      remoteMotionChannels: List<Map<String, Object?>>.unmodifiable(
+        remoteMotionChannels,
+      ),
       error: structured['ok'] == true ? null : _asString(structured['summary']),
     );
   }
@@ -598,14 +597,6 @@ int? _asInt(Object? value) {
   return null;
 }
 
-DateTime? _asDateTimeUtc(Object? value) {
-  final raw = _asString(value);
-  if (raw == null) {
-    return null;
-  }
-  return DateTime.tryParse(raw)?.toUtc();
-}
-
 List<Map<String, Object?>> _asListOfMap(Object? value) {
   if (value is! List) {
     return const <Map<String, Object?>>[];
@@ -615,53 +606,6 @@ List<Map<String, Object?>> _asListOfMap(Object? value) {
     result.add(_asMap(item));
   }
   return result;
-}
-
-String? _extractRemoteLayerColorHex(Map<String, Object?> layer) {
-  final payload = _asMap(layer['payload']);
-  final updates = _asMap(payload['updates']);
-  final nestedPayload = _asMap(updates['payload']);
-  final nestedLayer = _asMap(payload['layer']);
-  final style = _asMap(payload['style']);
-  final updateStyle = _asMap(updates['style']);
-  for (final value in <Object?>[
-    updates['color'],
-    updates['fill'],
-    nestedPayload['color'],
-    nestedPayload['fill'],
-    updateStyle['fill'],
-    updateStyle['color'],
-    payload['color'],
-    payload['fill'],
-    style['fill'],
-    style['color'],
-    nestedLayer['color'],
-    nestedLayer['fill'],
-    layer['color'],
-    layer['fill'],
-  ]) {
-    final normalized = _normalizeColorHex(_asString(value));
-    if (normalized != null) {
-      return normalized;
-    }
-  }
-  return null;
-}
-
-String? _normalizeColorHex(String? value) {
-  if (value == null) {
-    return null;
-  }
-  final normalized = value.trim().replaceFirst('#', '');
-  if (normalized.length != 6 && normalized.length != 8) {
-    return null;
-  }
-  final parsed = int.tryParse(normalized, radix: 16);
-  if (parsed == null) {
-    return null;
-  }
-  final rgb = normalized.length == 8 ? parsed & 0x00FFFFFF : parsed;
-  return '#${rgb.toRadixString(16).padLeft(6, '0').toUpperCase()}';
 }
 
 bool _isUuidLike(String? value) {

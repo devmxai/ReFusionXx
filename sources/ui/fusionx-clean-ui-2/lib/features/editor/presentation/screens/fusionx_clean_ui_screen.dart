@@ -840,7 +840,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   bool _isGeneratingMcpPairingCode = false;
   bool _isMcpAgentConnected = false;
   Timer? _mcpPairingStatusPollTimer;
-  int? _lastAppliedMcpCloudRevision;
+  final Set<String> _appliedMcpSolidLayerIds = <String>{};
+  final Set<String> _appliedMcpMotionChannelIds = <String>{};
 
   @override
   void initState() {
@@ -1231,11 +1232,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         snapshot.remoteLayers,
         snapshot.remoteRevision,
       );
+      _applyRemoteMotionChannelsIfNeeded(
+        snapshot.remoteMotionChannels,
+        snapshot.remoteRevision,
+      );
     }
-    _applyRemoteSolidBackgroundIfNeeded(
-      snapshot.latestSolidColorHex,
-      snapshot.remoteRevision,
-    );
     if (!snapshot.ok && kDebugMode) {
       debugPrint('MCP cloud sync warning: ${snapshot.error ?? 'unknown'}');
     }
@@ -1473,14 +1474,232 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
     var didApply = false;
     for (final remoteLayer in remoteLayers) {
+      didApply =
+          _applyLegacyRemoteAnimationFromLayerIfNeeded(remoteLayer) || didApply;
       final kind = _remoteLayerKind(remoteLayer);
       if (kind == 'text') {
         didApply = _applyRemoteTextLayerIfNeeded(remoteLayer) || didApply;
+      } else if (kind == 'solid') {
+        didApply = _applyRemoteSolidLayerIfNeeded(remoteLayer) || didApply;
       }
     }
-    if (didApply && remoteRevision != null) {
-      _lastAppliedMcpCloudRevision = remoteRevision;
+    if (!didApply || remoteRevision == null) {
+      return;
     }
+  }
+
+  bool _applyLegacyRemoteAnimationFromLayerIfNeeded(
+    Map<String, Object?> remoteLayer,
+  ) {
+    final payload = _remotePayload(remoteLayer);
+    final updates = _remoteMap(payload['updates']);
+    final nestedPayload = _remoteMap(updates['payload']);
+    final animationSource = payload['animation'] ??
+        updates['animation'] ??
+        nestedPayload['animation'];
+    final animation = _remoteMap(animationSource);
+    final operation = _firstRemoteString(<Object?>[
+          payload['operation'],
+          updates['operation'],
+          nestedPayload['operation'],
+        ])?.toLowerCase() ??
+        '';
+    final hasLegacyAnimationPayload =
+        animation.isNotEmpty || operation.contains('animate');
+    if (!hasLegacyAnimationPayload) {
+      return false;
+    }
+    final targetRemoteLayerId = _firstRemoteString(<Object?>[
+      animation['layerId'],
+      animation['targetLayerId'],
+      payload['layerId'],
+      payload['targetLayerId'],
+      updates['layerId'],
+      updates['targetLayerId'],
+      nestedPayload['layerId'],
+      nestedPayload['targetLayerId'],
+    ]);
+    if (targetRemoteLayerId == null || targetRemoteLayerId.isEmpty) {
+      return false;
+    }
+    final recipe = _firstRemoteString(<Object?>[
+      animation['motionRecipe'],
+      animation['animationRecipe'],
+      animation['recipe'],
+      payload['motionRecipe'],
+      payload['animationRecipe'],
+    ]);
+    final keyframes = animation['keyframes'];
+    if (recipe != null &&
+        keyframes is! List &&
+        recipe.toLowerCase().contains('scaleinbounce')) {
+      final remoteChannelSeed =
+          _remoteString(remoteLayer['id']) ?? targetRemoteLayerId;
+      final generated = <Map<String, Object?>>[
+        <String, Object?>{
+          'id': 'legacy.$remoteChannelSeed.scale_x',
+          'layer_id': targetRemoteLayerId,
+          'property_id': 'transform.scale.x',
+          'keyframes': <Map<String, Object?>>[
+            <String, Object?>{
+              'id': 'kf1',
+              'timeMs': 0,
+              'value': 0.15,
+              'easing': 'easeOut'
+            },
+            <String, Object?>{
+              'id': 'kf2',
+              'timeMs': 180,
+              'value': 1.18,
+              'easing': 'easeOut'
+            },
+            <String, Object?>{
+              'id': 'kf3',
+              'timeMs': 330,
+              'value': 0.94,
+              'easing': 'easeInOut'
+            },
+            <String, Object?>{
+              'id': 'kf4',
+              'timeMs': 500,
+              'value': 1.04,
+              'easing': 'easeOut'
+            },
+            <String, Object?>{
+              'id': 'kf5',
+              'timeMs': 650,
+              'value': 1.0,
+              'easing': 'easeInOut'
+            },
+          ],
+        },
+        <String, Object?>{
+          'id': 'legacy.$remoteChannelSeed.scale_y',
+          'layer_id': targetRemoteLayerId,
+          'property_id': 'transform.scale.y',
+          'keyframes': <Map<String, Object?>>[
+            <String, Object?>{
+              'id': 'kf1',
+              'timeMs': 0,
+              'value': 0.15,
+              'easing': 'easeOut'
+            },
+            <String, Object?>{
+              'id': 'kf2',
+              'timeMs': 180,
+              'value': 1.18,
+              'easing': 'easeOut'
+            },
+            <String, Object?>{
+              'id': 'kf3',
+              'timeMs': 330,
+              'value': 0.94,
+              'easing': 'easeInOut'
+            },
+            <String, Object?>{
+              'id': 'kf4',
+              'timeMs': 500,
+              'value': 1.04,
+              'easing': 'easeOut'
+            },
+            <String, Object?>{
+              'id': 'kf5',
+              'timeMs': 650,
+              'value': 1.0,
+              'easing': 'easeInOut'
+            },
+          ],
+        },
+        <String, Object?>{
+          'id': 'legacy.$remoteChannelSeed.opacity',
+          'layer_id': targetRemoteLayerId,
+          'property_id': 'visual.opacity',
+          'keyframes': <Map<String, Object?>>[
+            <String, Object?>{
+              'id': 'kf1',
+              'timeMs': 0,
+              'value': 0.0,
+              'easing': 'linear'
+            },
+            <String, Object?>{
+              'id': 'kf2',
+              'timeMs': 150,
+              'value': 1.0,
+              'easing': 'easeOut'
+            },
+            <String, Object?>{
+              'id': 'kf3',
+              'timeMs': 650,
+              'value': 1.0,
+              'easing': 'linear'
+            },
+          ],
+        },
+      ];
+      var didApplyGenerated = false;
+      for (final channel in generated) {
+        didApplyGenerated =
+            _applyRemoteMotionChannel(channel) || didApplyGenerated;
+      }
+      return didApplyGenerated;
+    }
+    final propertyId = _firstRemoteString(<Object?>[
+      animation['propertyId'],
+      animation['property'],
+      payload['propertyId'],
+      payload['property'],
+    ]);
+    if (propertyId == null || keyframes is! List || keyframes.isEmpty) {
+      return false;
+    }
+    return _applyRemoteMotionChannel(<String, Object?>{
+      'id':
+          'legacy.${_remoteString(remoteLayer['id']) ?? targetRemoteLayerId}.$propertyId',
+      'layer_id': targetRemoteLayerId,
+      'property_id': propertyId,
+      'keyframes': keyframes,
+    });
+  }
+
+  bool _applyRemoteSolidLayerIfNeeded(Map<String, Object?> remoteLayer) {
+    final remoteLayerId = _remoteString(remoteLayer['id']);
+    if (remoteLayerId == null || remoteLayerId.isEmpty) {
+      return false;
+    }
+    if (_appliedMcpSolidLayerIds.contains(remoteLayerId)) {
+      return false;
+    }
+    final payload = _remotePayload(remoteLayer);
+    final updates = _remoteMap(payload['updates']);
+    final nestedPayload = _remoteMap(updates['payload']);
+    final operation = _firstRemoteString(<Object?>[
+          payload['operation'],
+          updates['operation'],
+          nestedPayload['operation'],
+        ])?.toLowerCase() ??
+        '';
+    if (operation.contains('animate') || operation.contains('keyframe')) {
+      return false;
+    }
+    final color = _extractRemoteSolidColorHex(remoteLayer);
+    if (color == null) {
+      return false;
+    }
+    final parsed = _parseCompositionColor(color);
+    if (parsed == null) {
+      return false;
+    }
+    final currentProject = _motionProject ?? _buildInitialMotionProject();
+    final nextMetadata = <String, String>{
+      ...currentProject.metadata,
+      'backgroundColor': _normalizeHexColor(parsed),
+    };
+    setState(() {
+      _motionProject = currentProject.copyWith(metadata: nextMetadata);
+      _appliedMcpSolidLayerIds.add(remoteLayerId);
+    });
+    _markMotionAuthoringChanged(scheduleWarmup: true);
+    return true;
   }
 
   bool _applyRemoteTextLayerIfNeeded(Map<String, Object?> remoteLayer) {
@@ -1664,6 +1883,210 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return true;
   }
 
+  void _applyRemoteMotionChannelsIfNeeded(
+    List<Map<String, Object?>> remoteMotionChannels,
+    int? remoteRevision,
+  ) {
+    if (remoteMotionChannels.isEmpty) {
+      return;
+    }
+    var didApply = false;
+    for (final channel in remoteMotionChannels) {
+      final channelId = _remoteString(channel['id']);
+      if (channelId == null || channelId.isEmpty) {
+        continue;
+      }
+      if (_appliedMcpMotionChannelIds.contains(channelId)) {
+        continue;
+      }
+      if (_applyRemoteMotionChannel(channel)) {
+        _appliedMcpMotionChannelIds.add(channelId);
+        didApply = true;
+      }
+    }
+    if (didApply && remoteRevision != null) {
+      _showStageMessage('AI animation applied.');
+    }
+  }
+
+  bool _applyRemoteMotionChannel(Map<String, Object?> remoteChannel) {
+    final remoteLayerId = _remoteString(remoteChannel['layer_id']);
+    final propertyId = _remoteString(remoteChannel['property_id']);
+    if (remoteLayerId == null || propertyId == null) {
+      return false;
+    }
+    final elementContext = _mcpRemoteElementContextByLayerId(remoteLayerId);
+    if (elementContext == null) {
+      return false;
+    }
+    final definition = _mcpDefinitionForPropertyId(propertyId);
+    if (definition == null) {
+      return false;
+    }
+    final keyframes = _mcpKeyframesFromRemoteChannel(
+      remoteChannel: remoteChannel,
+      channelId: _remoteString(remoteChannel['id']) ??
+          'mcp.$remoteLayerId.$propertyId',
+      definition: definition,
+    );
+    if (keyframes.isEmpty) {
+      return false;
+    }
+    final channelId =
+        'mcp.remote.${elementContext.elementId}.${definition.id.replaceAll('.', '_')}';
+    final target = MotionPropertyTarget(
+      kind: MotionTargetKind.element,
+      targetId: elementContext.elementId,
+      projectId: _effectiveMotionProject.id,
+      sceneId: elementContext.sceneId,
+      layerId: elementContext.layerId,
+      elementId: elementContext.elementId,
+    );
+    final existingIndex = _universalMotionPropertyChannels.indexWhere(
+      (entry) =>
+          entry.target.targetId == elementContext.elementId &&
+          entry.definition.id == definition.id,
+    );
+    final nextChannel = MotionPropertyChannelModel(
+      id: existingIndex >= 0
+          ? _universalMotionPropertyChannels[existingIndex].id
+          : channelId,
+      target: target,
+      definition: definition,
+      keyframes: keyframes,
+    );
+    final nextChannels = <MotionPropertyChannelModel>[
+      ..._universalMotionPropertyChannels,
+    ];
+    if (existingIndex >= 0) {
+      nextChannels[existingIndex] = nextChannel;
+    } else {
+      nextChannels.add(nextChannel);
+    }
+    setState(() {
+      _universalMotionPropertyChannels =
+          List<MotionPropertyChannelModel>.unmodifiable(nextChannels);
+      _markMotionAuthoringChanged();
+    });
+    return true;
+  }
+
+  _McpRemoteElementContext? _mcpRemoteElementContextByLayerId(
+    String remoteLayerId,
+  ) {
+    final project = _motionProject;
+    if (project == null) {
+      return null;
+    }
+    for (final scene in project.scenes) {
+      for (final layer in scene.layers) {
+        for (final element in layer.elements) {
+          if (element.sourceBinding?.metadata['mcp.remoteLayerId'] ==
+              remoteLayerId) {
+            return _McpRemoteElementContext(
+              sceneId: scene.id,
+              layerId: layer.id,
+              elementId: element.id,
+            );
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  MotionPropertyDefinition? _mcpDefinitionForPropertyId(String propertyId) {
+    final normalized = propertyId.trim().toLowerCase();
+    switch (normalized) {
+      case 'transform.position.x':
+      case 'position.x':
+        return MotionPropertyCatalog.positionX;
+      case 'transform.position.y':
+      case 'position.y':
+        return MotionPropertyCatalog.positionY;
+      case 'transform.scale.x':
+      case 'scale.x':
+        return MotionPropertyCatalog.scaleX;
+      case 'transform.scale.y':
+      case 'scale.y':
+        return MotionPropertyCatalog.scaleY;
+      case 'transform.rotation.degrees':
+      case 'rotation':
+      case 'rotation.degrees':
+        return MotionPropertyCatalog.rotationDegrees;
+      case 'visual.opacity':
+      case 'opacity':
+        return MotionPropertyCatalog.opacity;
+    }
+    return null;
+  }
+
+  List<MotionKeyframeModel> _mcpKeyframesFromRemoteChannel({
+    required Map<String, Object?> remoteChannel,
+    required String channelId,
+    required MotionPropertyDefinition definition,
+  }) {
+    final rawKeyframes = remoteChannel['keyframes'];
+    if (rawKeyframes is! List) {
+      return const <MotionKeyframeModel>[];
+    }
+    final parsed = <MotionKeyframeModel>[];
+    for (final raw in rawKeyframes) {
+      final map = _remoteMap(raw);
+      final timeMs = _firstRemoteInt(<Object?>[
+        map['timeMs'],
+        map['time_ms'],
+        map['time'],
+      ]);
+      final value = _firstRemoteDouble(<Object?>[map['value'], map['v']]);
+      if (timeMs == null || value == null) {
+        continue;
+      }
+      parsed.add(
+        MotionKeyframeModel(
+          id: _firstRemoteString(<Object?>[
+                map['id'],
+                map['keyframeId'],
+              ]) ??
+              'mcp.kf.${timeMs}_${parsed.length}',
+          channelId: channelId,
+          time: TimelineTime.fromMilliseconds(math.max(0, timeMs)),
+          value: MotionPropertyValue.scalar(value),
+          interpolationToNext: _mcpInterpolationFromRemote(
+            _firstRemoteString(<Object?>[
+              map['easing'],
+              map['interpolation'],
+            ]),
+          ),
+        ),
+      );
+    }
+    parsed.sort((a, b) => a.time.compareTo(b.time));
+    return List<MotionKeyframeModel>.unmodifiable(parsed);
+  }
+
+  MotionInterpolationSpec _mcpInterpolationFromRemote(String? easing) {
+    final normalized = easing?.trim().toLowerCase() ?? '';
+    switch (normalized) {
+      case 'easein':
+      case 'ease_in':
+        return const MotionInterpolationSpec.easeIn();
+      case 'easeout':
+      case 'ease_out':
+        return const MotionInterpolationSpec.easeOut();
+      case 'easeinout':
+      case 'ease_in_out':
+      case 'ease':
+        return const MotionInterpolationSpec.easeInOut();
+      case 'hold':
+        return const MotionInterpolationSpec.hold();
+      case 'spring':
+        return const MotionInterpolationSpec.spring();
+      default:
+        return const MotionInterpolationSpec.linear();
+    }
+  }
+
   MotionProjectModel _motionProjectWithRemoteElementMetadata({
     required MotionProjectModel project,
     required String elementId,
@@ -1765,6 +2188,49 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
   Map<String, Object?> _remotePayload(Map<String, Object?> layer) {
     return _remoteMap(layer['payload']);
+  }
+
+  String? _extractRemoteSolidColorHex(Map<String, Object?> layer) {
+    final payload = _remotePayload(layer);
+    final updates = _remoteMap(payload['updates']);
+    final nestedPayload = _remoteMap(updates['payload']);
+    final nestedLayer = _remoteMap(payload['layer']);
+    final style = _remoteMap(payload['style']);
+    final updateStyle = _remoteMap(updates['style']);
+    return _normalizeRemoteHexColor(
+      _firstRemoteString(<Object?>[
+        updates['color'],
+        updates['fill'],
+        nestedPayload['color'],
+        nestedPayload['fill'],
+        updateStyle['fill'],
+        updateStyle['color'],
+        payload['color'],
+        payload['fill'],
+        style['fill'],
+        style['color'],
+        nestedLayer['color'],
+        nestedLayer['fill'],
+        layer['color'],
+        layer['fill'],
+      ]),
+    );
+  }
+
+  String? _normalizeRemoteHexColor(String? value) {
+    if (value == null) {
+      return null;
+    }
+    final normalized = value.trim().replaceFirst('#', '');
+    if (normalized.length != 6 && normalized.length != 8) {
+      return null;
+    }
+    final parsed = int.tryParse(normalized, radix: 16);
+    if (parsed == null) {
+      return null;
+    }
+    final rgb = normalized.length == 8 ? parsed & 0x00FFFFFF : parsed;
+    return '#${rgb.toRadixString(16).padLeft(6, '0').toUpperCase()}';
   }
 
   String _remoteLayerKind(Map<String, Object?> layer) {
@@ -1878,45 +2344,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
   int? _remoteColorArgb(String? colorHex) {
     return _parseCompositionColor(colorHex)?.value;
-  }
-
-  void _applyRemoteSolidBackgroundIfNeeded(
-    String? colorHex,
-    int? remoteRevision,
-  ) {
-    if (colorHex == null || colorHex.trim().isEmpty) {
-      return;
-    }
-    if (remoteRevision != null &&
-        _lastAppliedMcpCloudRevision != null &&
-        remoteRevision < _lastAppliedMcpCloudRevision!) {
-      return;
-    }
-    final parsed = _parseCompositionColor(colorHex);
-    if (parsed == null) {
-      return;
-    }
-    final currentProject = _motionProject ?? _buildInitialMotionProject();
-    final currentColor = _parseCompositionColor(
-      currentProject.metadata['backgroundColor'],
-    );
-    if (currentColor?.value == parsed.value) {
-      if (remoteRevision != null) {
-        _lastAppliedMcpCloudRevision = remoteRevision;
-      }
-      return;
-    }
-    final nextMetadata = <String, String>{
-      ...currentProject.metadata,
-      'backgroundColor': _normalizeHexColor(parsed),
-    };
-    setState(() {
-      _motionProject = currentProject.copyWith(metadata: nextMetadata);
-      if (remoteRevision != null) {
-        _lastAppliedMcpCloudRevision = remoteRevision;
-      }
-    });
-    _markMotionAuthoringChanged(scheduleWarmup: true);
   }
 
   static String _normalizeHexColor(Color color) {
@@ -30861,6 +31288,18 @@ class _CompositionColorSwatch extends StatelessWidget {
       ),
     );
   }
+}
+
+class _McpRemoteElementContext {
+  const _McpRemoteElementContext({
+    required this.sceneId,
+    required this.layerId,
+    required this.elementId,
+  });
+
+  final String sceneId;
+  final String layerId;
+  final String elementId;
 }
 
 class _CompositionCreateButton extends StatelessWidget {
