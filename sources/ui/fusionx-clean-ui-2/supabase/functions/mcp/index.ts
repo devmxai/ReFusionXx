@@ -824,20 +824,28 @@ async function generatePairingCode(userId: string, args: JsonMap) {
 
   const existing = await reusablePairingCodeForContext(context);
   if (existing) {
-    const { error } = await admin.from('refusion_pairing_codes').update({
-      expires_at: expiresAt.toISOString(),
-    }).eq('id', existing.id);
-    if (error) throw error;
-    return pairingCodePayload(
-      text(existing.code, ''),
-      expiresAt,
-      context,
-      {
-        status: text(existing.status, 'pending'),
-        claimedAt: stringValue(existing.claimed_at),
-        claimedByAgent: stringValue(existing.claimed_by_agent),
-      },
-    );
+    if (!isSafePairingCode(text(existing.code, ''))) {
+      await admin.from('refusion_pairing_codes').update({
+        status: 'revoked',
+        revoked_at: generatedAt.toISOString(),
+        revoke_reason: 'unsafe_pairing_code_regenerated',
+      }).eq('id', existing.id);
+    } else {
+      const { error } = await admin.from('refusion_pairing_codes').update({
+        expires_at: expiresAt.toISOString(),
+      }).eq('id', existing.id);
+      if (error) throw error;
+      return pairingCodePayload(
+        text(existing.code, ''),
+        expiresAt,
+        context,
+        {
+          status: text(existing.status, 'pending'),
+          claimedAt: stringValue(existing.claimed_at),
+          claimedByAgent: stringValue(existing.claimed_by_agent),
+        },
+      );
+    }
   }
 
   const code = await generateUniquePairingCode();
@@ -941,6 +949,14 @@ async function getPairingCodeStatus(userId: string, args: JsonMap) {
     };
   }
   let status = text(row.status, 'pending');
+  if (!isSafePairingCode(code) && (status === 'pending' || status === 'claimed')) {
+    status = 'revoked';
+    await admin.from('refusion_pairing_codes').update({
+      status,
+      revoked_at: new Date().toISOString(),
+      revoke_reason: 'unsafe_pairing_code_regenerated',
+    }).eq('id', row.id);
+  }
   let expiresAtIso = stringValue(row.expires_at);
   let expiresAtMs = Date.parse(expiresAtIso);
   const nowMs = Date.now();
@@ -992,6 +1008,11 @@ async function attachPairingCode(
   const agentClientVersion = text(args.agentClientVersion, '');
   if (!code) {
     return fail('PAIRING_CODE_REQUIRED');
+  }
+  if (!isSafePairingCode(code)) {
+    return fail('PAIRING_CODE_UNSAFE_REGENERATE', {
+      hint: 'Generate a new numeric pairing code from the ReFusion app.',
+    });
   }
 
   const { data: pairingRow, error } = await admin
@@ -3054,7 +3075,7 @@ function readAgentSessionToken(request: Request, args: JsonMap): string | null {
 
 async function generateUniquePairingCode(): Promise<string> {
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    const code = `REF-${randomBase32(4)}`;
+    const code = `REF-${randomDigits(6)}`;
     const { data } = await admin.from('refusion_pairing_codes').select('id').eq(
       'code',
       code,
@@ -3063,7 +3084,7 @@ async function generateUniquePairingCode(): Promise<string> {
       return code;
     }
   }
-  return `REF-${randomBase32(6)}`;
+  return `REF-${randomDigits(6)}`;
 }
 
 function normalizePairingCode(value: string): string {
@@ -3074,6 +3095,10 @@ function normalizePairingCode(value: string): string {
   return normalized;
 }
 
+function isSafePairingCode(value: string): boolean {
+  return /^REF-[0-9]{6}$/.test(value.trim().toUpperCase());
+}
+
 function randomBase32(length: number): string {
   const alphabet = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
   const bytes = new Uint8Array(length);
@@ -3081,6 +3106,16 @@ function randomBase32(length: number): string {
   let output = '';
   for (let index = 0; index < bytes.length; index += 1) {
     output += alphabet[bytes[index] % alphabet.length];
+  }
+  return output;
+}
+
+function randomDigits(length: number): string {
+  const bytes = new Uint8Array(length);
+  crypto.getRandomValues(bytes);
+  let output = '';
+  for (let index = 0; index < bytes.length; index += 1) {
+    output += String(bytes[index] % 10);
   }
   return output;
 }
