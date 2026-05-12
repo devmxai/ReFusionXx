@@ -1977,8 +1977,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return false;
     }
     var didApply = false;
-    didApply =
-        _applyRemoteTimelineClipStyleMutation(
+    didApply = _applyRemoteTimelineClipStyleMutation(
           clipId: clipId,
           payload: payload,
           updates: updates,
@@ -2053,8 +2052,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       payload['shape'],
     ]);
     if (rawMaskType != null) {
-      final normalized =
-          rawMaskType.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '');
+      final normalized = rawMaskType
+          .trim()
+          .toLowerCase()
+          .replaceAll(RegExp(r'[^a-z0-9]+'), '');
       if (normalized.contains('none')) {
         next = next.copyWith(circleMask: false, cornerRadius: 0);
         didChange = true;
@@ -25848,7 +25849,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         : null;
   }
 
-  Set<String> _activeTransformableClipIdsForPreviewTime(TimelineTime previewTime) {
+  Set<String> _activeTransformableClipIdsForPreviewTime(
+      TimelineTime previewTime) {
     final clipIds = <String>{};
     for (final track in _timelineTruthTracks) {
       var cursor = TimelineTime.zero;
@@ -28121,11 +28123,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             routeDecision.suppressesStage5Preview;
         final activeTransformableClipIds =
             _activeTransformableClipIdsForPreviewTime(previewTime);
+        // Keep native video surface active during normal scrub/playback.
+        // Fallback is static-image based and cannot represent live video.
         final shouldSuppressNativePreviewForClipStyle =
             allowClipStyleFallbackSuppression &&
-            activeTransformableClipIds.any(
-          (clipId) => !_canvasClipStyleFor(clipId).isIdentity,
-        );
+                _isCanvasTransformToolActive &&
+                !effectiveIsPlaying &&
+                activeTransformableClipIds.any(
+                  (clipId) => !_canvasClipStyleFor(clipId).isIdentity,
+                );
         return MotionVideoPreviewTransformSurface(
           // Android PlatformViews cannot be safely scaled/rotated from the
           // Flutter layer: the decoder keeps audio running while the video
@@ -28135,8 +28141,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           transform: null,
           surfaceTransform: null,
           canvasSize: _motionProjectFormat.canvasSize,
-          child: shouldSuppressNativePreviewForProfessionalTransition
-                  || shouldSuppressNativePreviewForClipStyle
+          child: shouldSuppressNativePreviewForProfessionalTransition ||
+                  shouldSuppressNativePreviewForClipStyle
               ? fallback
               : surface,
         );
@@ -31084,9 +31090,8 @@ class _CleanPreviewCanvas extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         shape: style.circleMask ? BoxShape.circle : BoxShape.rectangle,
-        borderRadius: style.circleMask
-            ? null
-            : BorderRadius.circular(style.cornerRadius),
+        borderRadius:
+            style.circleMask ? null : BorderRadius.circular(style.cornerRadius),
         border: hasBorder
             ? Border.all(color: style.borderColor, width: style.borderWidth)
             : null,
