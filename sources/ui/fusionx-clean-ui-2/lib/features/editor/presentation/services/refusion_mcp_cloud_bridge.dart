@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
+
 import '../models/timeline_time.dart';
 
 class RefusionMcpCloudContextState {
@@ -44,6 +46,56 @@ class RefusionMcpCloudBridgeSnapshot {
   final String? error;
 }
 
+class RefusionMcpCloudPairingCode {
+  const RefusionMcpCloudPairingCode({
+    required this.code,
+    required this.expiresAtUtc,
+    required this.qrData,
+    required this.link,
+    required this.projectId,
+    required this.compositionId,
+    required this.timelineId,
+    required this.playheadMs,
+    required this.timelineRevision,
+    required this.deviceId,
+  });
+
+  final String code;
+  final DateTime expiresAtUtc;
+  final String qrData;
+  final String link;
+  final String projectId;
+  final String compositionId;
+  final String timelineId;
+  final int playheadMs;
+  final int timelineRevision;
+  final String deviceId;
+}
+
+class RefusionMcpCloudAgentSessionAttachment {
+  const RefusionMcpCloudAgentSessionAttachment({
+    required this.agentSessionToken,
+    required this.agentSessionId,
+    required this.projectId,
+    required this.compositionId,
+    required this.timelineId,
+    required this.playheadMs,
+    required this.timelineRevision,
+    required this.capabilities,
+    required this.expiresAtUtc,
+  });
+
+  final String agentSessionToken;
+  final String agentSessionId;
+  final String projectId;
+  final String compositionId;
+  final String timelineId;
+  final int playheadMs;
+  final int timelineRevision;
+  final List<String> capabilities;
+  final DateTime expiresAtUtc;
+}
+
 typedef RefusionMcpCloudContextReader = RefusionMcpCloudContextState Function();
 typedef RefusionMcpCloudSnapshotListener = void Function(
   RefusionMcpCloudBridgeSnapshot snapshot,
@@ -55,6 +107,8 @@ class RefusionMcpCloudBridge {
     required String deviceId,
     required RefusionMcpCloudContextReader contextReader,
     required RefusionMcpCloudSnapshotListener onSnapshot,
+    this.authBearerToken,
+    String? agentSessionToken,
     HttpClient? httpClient,
     this.interval = const Duration(seconds: 8),
     this.connectTimeout = const Duration(seconds: 8),
@@ -62,6 +116,7 @@ class RefusionMcpCloudBridge {
         _deviceId = deviceId,
         _contextReader = contextReader,
         _onSnapshot = onSnapshot,
+        _agentSessionToken = agentSessionToken,
         _httpClient = httpClient ?? HttpClient();
 
   final Uri _endpoint;
@@ -69,6 +124,7 @@ class RefusionMcpCloudBridge {
   final RefusionMcpCloudContextReader _contextReader;
   final RefusionMcpCloudSnapshotListener _onSnapshot;
   final HttpClient _httpClient;
+  final String? authBearerToken;
   final Duration interval;
   final Duration connectTimeout;
 
@@ -76,8 +132,19 @@ class RefusionMcpCloudBridge {
   bool _foreground = true;
   int _requestIdSeed = 1;
   bool _syncInFlight = false;
+  String? _agentSessionToken;
 
   bool get isRunning => _timer != null;
+  String? get agentSessionToken => _agentSessionToken;
+
+  void setAgentSessionToken(String token) {
+    final normalized = token.trim();
+    _agentSessionToken = normalized.isEmpty ? null : normalized;
+  }
+
+  void clearAgentSessionToken() {
+    _agentSessionToken = null;
+  }
 
   Future<void> start() async {
     if (_timer != null) {
@@ -108,7 +175,8 @@ class RefusionMcpCloudBridge {
     try {
       final state = _contextReader();
       final status = _foreground && state.foreground ? 'online' : 'background';
-      final projectIdArg = _isUuidLike(state.projectId) ? state.projectId : null;
+      final projectIdArg =
+          _isUuidLike(state.projectId) ? state.projectId : null;
       final compositionIdArg =
           _isUuidLike(state.compositionId) ? state.compositionId : null;
       await _callTool(
@@ -139,6 +207,7 @@ class RefusionMcpCloudBridge {
       final contextResponse = await _callTool(
         toolName: 'get_active_context',
         arguments: const <String, Object?>{},
+        allowAgentSessionToken: true,
       );
       final contextStructured = _asMap(contextResponse['structuredContent']);
       final contextPayload = _asMap(contextStructured['payload']);
@@ -152,6 +221,7 @@ class RefusionMcpCloudBridge {
           if (cloudProjectId != null) 'projectId': cloudProjectId,
           if (cloudCompositionId != null) 'compositionId': cloudCompositionId,
         },
+        allowAgentSessionToken: true,
       );
       _emitSnapshot(
         _snapshotFromContextResponse(
@@ -224,14 +294,24 @@ class RefusionMcpCloudBridge {
   Future<Map<String, Object?>> _callTool({
     required String toolName,
     required Map<String, Object?> arguments,
+    bool allowAgentSessionToken = false,
   }) async {
+    final mergedArguments = <String, Object?>{
+      ...arguments,
+    };
+    if (allowAgentSessionToken &&
+        _agentSessionToken != null &&
+        _agentSessionToken!.trim().isNotEmpty &&
+        mergedArguments['agentSessionToken'] == null) {
+      mergedArguments['agentSessionToken'] = _agentSessionToken;
+    }
     final requestBody = <String, Object?>{
       'jsonrpc': '2.0',
       'id': _nextRequestId(),
       'method': 'tools/call',
       'params': <String, Object?>{
         'name': toolName,
-        'arguments': arguments,
+        'arguments': mergedArguments,
       },
     };
     final response = await _postJson(requestBody);
@@ -254,19 +334,125 @@ class RefusionMcpCloudBridge {
   Future<Map<String, Object?>?> _safeCallTool({
     required String toolName,
     required Map<String, Object?> arguments,
+    bool allowAgentSessionToken = false,
   }) async {
     try {
-      return await _callTool(toolName: toolName, arguments: arguments);
+      return await _callTool(
+        toolName: toolName,
+        arguments: arguments,
+        allowAgentSessionToken: allowAgentSessionToken,
+      );
     } catch (_) {
       return null;
     }
   }
 
+  Future<RefusionMcpCloudPairingCode> generatePairingCode() async {
+    final state = _contextReader();
+    final response = await _callTool(
+      toolName: 'generate_pairing_code',
+      arguments: <String, Object?>{
+        'deviceId': _deviceId,
+        if (_isUuidLike(state.projectId)) 'projectId': state.projectId,
+        if (_isUuidLike(state.compositionId))
+          'compositionId': state.compositionId,
+        'timelineId': state.timelineId,
+        'playheadMs': state.playheadMs,
+        'platform': 'flutter',
+        'appVersion': 'refusion-app',
+      },
+    );
+    final structured = _asMap(response['structuredContent']);
+    final payload = _asMap(structured['payload']);
+    final context = _asMap(payload['context']);
+    final code = _asString(payload['code']);
+    final qrData = _asString(payload['qrData']);
+    final link = _asString(payload['link']);
+    final expiresAt = _asString(payload['expiresAt']);
+    if (code == null || qrData == null || link == null || expiresAt == null) {
+      throw StateError('Pairing payload missing required fields.');
+    }
+    return RefusionMcpCloudPairingCode(
+      code: code,
+      expiresAtUtc: DateTime.parse(expiresAt).toUtc(),
+      qrData: qrData,
+      link: link,
+      projectId: _asString(context['projectId']) ?? '',
+      compositionId: _asString(context['compositionId']) ?? '',
+      timelineId: _asString(context['timelineId']) ?? 'main',
+      playheadMs: _asInt(context['playheadMs']) ?? 0,
+      timelineRevision: _asInt(context['timelineRevision']) ?? 1,
+      deviceId: _asString(context['deviceId']) ?? _deviceId,
+    );
+  }
+
+  Future<RefusionMcpCloudAgentSessionAttachment> attachPairingCode({
+    required String code,
+    String agentClientName = 'ReFusionApp',
+  }) async {
+    final response = await _callTool(
+      toolName: 'attach_pairing_code',
+      arguments: <String, Object?>{
+        'code': code,
+        'agentClientName': agentClientName,
+      },
+    );
+    final structured = _asMap(response['structuredContent']);
+    final payload = _asMap(structured['payload']);
+    final context = _asMap(payload['context']);
+    final token = _asString(payload['agentSessionToken']);
+    final sessionId = _asString(payload['agentSessionId']);
+    final expiresAt = _asString(payload['expiresAt']);
+    if (token == null || sessionId == null || expiresAt == null) {
+      throw StateError('Agent session payload missing required fields.');
+    }
+    final capabilities = <String>[];
+    final dynamicCaps = payload['capabilities'];
+    if (dynamicCaps is List) {
+      for (final value in dynamicCaps) {
+        final capability = _asString(value);
+        if (capability != null) {
+          capabilities.add(capability);
+        }
+      }
+    }
+    setAgentSessionToken(token);
+    return RefusionMcpCloudAgentSessionAttachment(
+      agentSessionToken: token,
+      agentSessionId: sessionId,
+      projectId: _asString(context['projectId']) ?? '',
+      compositionId: _asString(context['compositionId']) ?? '',
+      timelineId: _asString(context['timelineId']) ?? 'main',
+      playheadMs: _asInt(context['playheadMs']) ?? 0,
+      timelineRevision: _asInt(context['timelineRevision']) ?? 1,
+      capabilities: List<String>.unmodifiable(capabilities),
+      expiresAtUtc: DateTime.parse(expiresAt).toUtc(),
+    );
+  }
+
+  Future<void> disconnectAgent({String? reason}) async {
+    try {
+      await _callTool(
+        toolName: 'disconnect_agent',
+        arguments: <String, Object?>{
+          if (reason != null && reason.trim().isNotEmpty)
+            'reason': reason.trim(),
+        },
+        allowAgentSessionToken: true,
+      );
+    } finally {
+      clearAgentSessionToken();
+    }
+  }
+
   Future<Map<String, Object?>> _postJson(Map<String, Object?> body) async {
-    final request = await _httpClient
-        .postUrl(_endpoint)
-        .timeout(connectTimeout);
+    final request =
+        await _httpClient.postUrl(_endpoint).timeout(connectTimeout);
     request.headers.contentType = ContentType.json;
+    final bearer = authBearerToken?.trim();
+    if (bearer != null && bearer.isNotEmpty) {
+      request.headers.set(HttpHeaders.authorizationHeader, 'Bearer $bearer');
+    }
     request.write(jsonEncode(body));
     final response = await request.close().timeout(connectTimeout);
     final responseBody = await utf8.decoder.bind(response).join();
@@ -355,8 +541,25 @@ bool _isUuidLike(String? value) {
 }
 
 String refusionMcpCloudDeviceId() {
-  final seed = DateTime.now().millisecondsSinceEpoch;
-  return 'flutter-device-$seed';
+  const explicit = String.fromEnvironment(
+    'REFUSION_MCP_DEVICE_ID',
+    defaultValue: '',
+  );
+  final explicitNormalized = explicit.trim();
+  if (explicitNormalized.isNotEmpty) {
+    return explicitNormalized;
+  }
+  String host = 'unknown-host';
+  try {
+    final resolved = Platform.localHostname.trim();
+    if (resolved.isNotEmpty) {
+      host = resolved;
+    }
+  } catch (_) {}
+  final fingerprint =
+      '${Platform.operatingSystem}|${Platform.operatingSystemVersion}|$host';
+  final digest = sha256.convert(utf8.encode(fingerprint)).toString();
+  return 'flutter-device-${digest.substring(0, 16)}';
 }
 
 Uri? refusionMcpCloudEndpointFromEnvironment() {
@@ -370,6 +573,18 @@ Uri? refusionMcpCloudEndpointFromEnvironment() {
     return null;
   }
   return Uri.tryParse(endpointValue.trim());
+}
+
+String? refusionMcpCloudBearerTokenFromEnvironment() {
+  const tokenValue = String.fromEnvironment(
+    'REFUSION_MCP_BEARER_TOKEN',
+    defaultValue: '',
+  );
+  final normalized = tokenValue.trim();
+  if (normalized.isEmpty) {
+    return null;
+  }
+  return normalized;
 }
 
 int refusionMcpPlayheadMs(TimelineTime value) => value.inMilliseconds;

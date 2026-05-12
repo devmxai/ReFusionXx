@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../core/engine/live_scrub_preview_sources.dart';
 import '../../../../core/engine/stage5_native_transport_controller.dart';
@@ -825,6 +826,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   RefusionMcpCloudBridge? _mcpCloudBridge;
   Timer? _mcpCloudSyncDebounce;
   bool _mcpCloudIsForeground = true;
+  bool _isGeneratingMcpPairingCode = false;
 
   @override
   void initState() {
@@ -1191,6 +1193,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       deviceId: refusionMcpCloudDeviceId(),
       contextReader: _readMcpCloudContextState,
       onSnapshot: _handleMcpCloudSnapshot,
+      authBearerToken: refusionMcpCloudBearerTokenFromEnvironment(),
     );
     unawaited(_mcpCloudBridge!.start());
   }
@@ -1214,6 +1217,120 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (!snapshot.ok && kDebugMode) {
       debugPrint('MCP cloud sync warning: ${snapshot.error ?? 'unknown'}');
     }
+  }
+
+  Future<void> _handleMcpConnectAgentTap() async {
+    final bridge = _mcpCloudBridge;
+    if (bridge == null) {
+      _showStageMessage('MCP cloud bridge is not configured.');
+      return;
+    }
+    if (_isGeneratingMcpPairingCode) {
+      return;
+    }
+    setState(() {
+      _isGeneratingMcpPairingCode = true;
+    });
+    try {
+      final pairingCode = await bridge.generatePairingCode();
+      if (!mounted) {
+        return;
+      }
+      await _showMcpPairingDialog(pairingCode);
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      _showStageMessage('Failed to generate pairing code: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGeneratingMcpPairingCode = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _showMcpPairingDialog(RefusionMcpCloudPairingCode pairingCode) {
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        final nowUtc = DateTime.now().toUtc();
+        final remaining = pairingCode.expiresAtUtc.difference(nowUtc);
+        final safeRemaining = remaining.isNegative ? Duration.zero : remaining;
+        final minutes =
+            safeRemaining.inMinutes.remainder(60).toString().padLeft(2, '0');
+        final seconds =
+            safeRemaining.inSeconds.remainder(60).toString().padLeft(2, '0');
+        return AlertDialog(
+          title: const Text('Connect AI Agent'),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Pairing code'),
+                const SizedBox(height: 8),
+                SelectableText(
+                  pairingCode.code,
+                  style: const TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SelectableText(
+                  pairingCode.link,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Theme.of(dialogContext).colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text('Expires in $minutes:$seconds'),
+                const SizedBox(height: 6),
+                Text(
+                  'Project: ${pairingCode.projectId}\nComposition: ${pairingCode.compositionId}',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                await Clipboard.setData(
+                  ClipboardData(text: pairingCode.code),
+                );
+                if (!mounted) {
+                  return;
+                }
+                _showStageMessage('Pairing code copied.');
+              },
+              child: const Text('Copy Code'),
+            ),
+            TextButton(
+              onPressed: () async {
+                await Clipboard.setData(
+                  ClipboardData(text: pairingCode.link),
+                );
+                if (!mounted) {
+                  return;
+                }
+                _showStageMessage('Pairing link copied.');
+              },
+              child: const Text('Copy Link'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void _ensureCompositionSessionForMcpSync() {
@@ -1275,7 +1392,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return '#$hex';
   }
 
-  void _scheduleMcpCloudSync({Duration delay = const Duration(milliseconds: 180)}) {
+  void _scheduleMcpCloudSync(
+      {Duration delay = const Duration(milliseconds: 180)}) {
     final bridge = _mcpCloudBridge;
     if (bridge == null) {
       return;
@@ -26914,6 +27032,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                   EditorTopBar(
                     onOutliner: _openCompositionWorkspaceOutlinerSheet,
                     onInspector: _openCompositionWorkspaceInspectorSheet,
+                    onConnectAgent: _handleMcpConnectAgentTap,
+                    isAgentConnected:
+                        (_mcpCloudBridge?.agentSessionToken?.isNotEmpty ??
+                            false),
                     onShare: _handleShare,
                     isExporting: _exportController.state.isActive,
                     exportProgress: _exportController.state.progress,

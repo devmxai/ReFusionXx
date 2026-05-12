@@ -8,6 +8,8 @@ class EditorTopBar extends StatelessWidget {
     super.key,
     this.onOutliner,
     this.onInspector,
+    this.onConnectAgent,
+    this.isAgentConnected = false,
     this.onShare,
     this.isExporting = false,
     this.exportProgress = 0,
@@ -15,6 +17,8 @@ class EditorTopBar extends StatelessWidget {
 
   final VoidCallback? onOutliner;
   final VoidCallback? onInspector;
+  final VoidCallback? onConnectAgent;
+  final bool isAgentConnected;
   final VoidCallback? onShare;
   final bool isExporting;
   final double exportProgress;
@@ -62,6 +66,30 @@ class EditorTopBar extends StatelessWidget {
             icon: Icons.redo_rounded,
             size: 34,
             iconScale: 0.38,
+          ),
+          const SizedBox(width: 6),
+          Tooltip(
+            message:
+                isAgentConnected ? 'AI Agent connected' : 'Connect AI Agent',
+            child: Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: isAgentConnected
+                    ? FxPalette.accent.withOpacity(0.12)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: FxIconButton(
+                icon:
+                    isAgentConnected ? Icons.link_rounded : Icons.link_outlined,
+                size: 34,
+                iconScale: 0.38,
+                foregroundColor:
+                    isAgentConnected ? FxPalette.accent : FxPalette.textPrimary,
+                onPressed: onConnectAgent,
+              ),
+            ),
           ),
           const Spacer(),
           Stack(
