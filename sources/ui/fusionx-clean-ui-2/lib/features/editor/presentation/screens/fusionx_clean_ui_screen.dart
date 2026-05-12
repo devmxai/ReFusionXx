@@ -25848,6 +25848,24 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         : null;
   }
 
+  Set<String> _activeTransformableClipIdsForPreviewTime(TimelineTime previewTime) {
+    final clipIds = <String>{};
+    for (final track in _timelineTruthTracks) {
+      var cursor = TimelineTime.zero;
+      for (final clip in track.clips) {
+        final clipStart = cursor;
+        final clipEnd = clipStart + clip.durationTime;
+        if (_timelineClipSupportsCanvasTransform(clip) &&
+            previewTime >= clipStart &&
+            previewTime < clipEnd) {
+          clipIds.add(clip.id);
+        }
+        cursor = clipEnd;
+      }
+    }
+    return clipIds;
+  }
+
   _CanvasClipTransform _canvasClipTransformFor(String clipId) {
     final base = _canvasClipTransforms[clipId] ?? const _CanvasClipTransform();
     final timelineTime = _timelineDisplayTimeNotifier.value;
@@ -28100,11 +28118,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         );
         final shouldSuppressNativePreviewForProfessionalTransition =
             routeDecision.suppressesStage5Preview;
-        final activeStyleContext =
-            _canvasTransformTargetClipContextForPreviewTime(previewTime);
+        final activeTransformableClipIds =
+            _activeTransformableClipIdsForPreviewTime(previewTime);
         final shouldSuppressNativePreviewForClipStyle =
-            activeStyleContext != null &&
-            !_canvasClipStyleFor(activeStyleContext.clip.id).isIdentity;
+            activeTransformableClipIds.any(
+          (clipId) => !_canvasClipStyleFor(clipId).isIdentity,
+        );
         return MotionVideoPreviewTransformSurface(
           // Android PlatformViews cannot be safely scaled/rotated from the
           // Flutter layer: the decoder keeps audio running while the video
