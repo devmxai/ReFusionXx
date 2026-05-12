@@ -28100,6 +28100,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         );
         final shouldSuppressNativePreviewForProfessionalTransition =
             routeDecision.suppressesStage5Preview;
+        final activeStyleContext =
+            _canvasTransformTargetClipContextForPreviewTime(previewTime);
+        final shouldSuppressNativePreviewForClipStyle =
+            activeStyleContext != null &&
+            !_canvasClipStyleFor(activeStyleContext.clip.id).isIdentity;
         return MotionVideoPreviewTransformSurface(
           // Android PlatformViews cannot be safely scaled/rotated from the
           // Flutter layer: the decoder keeps audio running while the video
@@ -28110,6 +28115,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           surfaceTransform: null,
           canvasSize: _motionProjectFormat.canvasSize,
           child: shouldSuppressNativePreviewForProfessionalTransition
+                  || shouldSuppressNativePreviewForClipStyle
               ? fallback
               : surface,
         );
@@ -30579,6 +30585,13 @@ class _CanvasClipStyle {
   final double glowBlur;
   final double glowOpacity;
   final Color glowColor;
+
+  bool get isIdentity =>
+      !circleMask &&
+      cornerRadius == 0 &&
+      borderWidth == 0 &&
+      glowBlur == 0 &&
+      glowOpacity == 0;
 
   _CanvasClipStyle copyWith({
     bool? circleMask,
