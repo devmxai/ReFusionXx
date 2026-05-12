@@ -1475,25 +1475,22 @@ async function applyMotionPatch(
     });
   }
 
-  const layerId = firstText(
+  const requestedLayerId = firstText(
     args.layerId,
     args.layer_id,
     args.targetLayerId,
     readMap(args.payload).layerId,
   );
-  if (!layerId) {
+  if (!requestedLayerId) {
     return fail('LAYER_ID_REQUIRED');
   }
-  const { data: layer, error: layerError } = await admin
-    .from('refusion_layers')
-    .select('id')
-    .eq('owner_id', context.userId)
-    .eq('project_id', projectId)
-    .eq('composition_id', compositionId)
-    .eq('id', layerId)
-    .maybeSingle();
-  if (layerError) throw layerError;
-  if (!layer) {
+  const layerId = await resolveLayerIdForMutation(
+    context,
+    projectId,
+    compositionId,
+    requestedLayerId,
+  );
+  if (!layerId) {
     return fail('LAYER_NOT_FOUND');
   }
 
@@ -1536,6 +1533,7 @@ async function applyMotionPatch(
       layerId,
       writes: normalizedWrites,
       motionBaseTimeMs,
+      requestedLayerId,
     },
     currentRevision,
     revisionAfter,
@@ -1545,6 +1543,7 @@ async function applyMotionPatch(
     projectId,
     compositionId,
     layerId,
+    requestedLayerId,
     channels: normalizedWrites.length,
     motionBaseTimeMs,
     commandId: commandRecord.commandId,
@@ -3293,6 +3292,56 @@ async function loadLayersForScope(
     .order('created_at', { ascending: true });
   if (error) throw error;
   return readList(data).map(readMap);
+}
+
+async function resolveLayerIdForMutation(
+  context: RequestContext,
+  projectId: string,
+  compositionId: string,
+  requestedLayerId: string,
+): Promise<string | null> {
+  const trimmed = requestedLayerId.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const candidateIds = new Set<string>([
+    trimmed,
+    trimmed.startsWith('clip:') ? trimmed.slice(5) : trimmed,
+  ]);
+  for (const candidate of candidateIds) {
+    if (!candidate) continue;
+    const { data: directLayer, error: directError } = await admin
+      .from('refusion_layers')
+      .select('id')
+      .eq('owner_id', context.userId)
+      .eq('project_id', projectId)
+      .eq('composition_id', compositionId)
+      .eq('id', candidate)
+      .maybeSingle();
+    if (directError) throw directError;
+    if (directLayer?.id) {
+      return stringValue(directLayer.id);
+    }
+  }
+
+  const rows = await loadLayersForScope(context, projectId, compositionId);
+  for (const row of rows) {
+    const rowId = stringValue(row.id);
+    if (!rowId) continue;
+    const payload = readMap(row.payload);
+    const localLayerId = firstText(payload.localLayerId, payload.local_layer_id);
+    const clipId = firstText(payload.clipId, payload.clip_id);
+    for (const candidate of candidateIds) {
+      if (!candidate) continue;
+      if (localLayerId && (localLayerId === candidate || `clip:${localLayerId}` === candidate)) {
+        return rowId;
+      }
+      if (clipId && (clipId === candidate || `clip:${clipId}` === candidate)) {
+        return rowId;
+      }
+    }
+  }
+  return null;
 }
 
 async function loadMotionChannelsForScope(
