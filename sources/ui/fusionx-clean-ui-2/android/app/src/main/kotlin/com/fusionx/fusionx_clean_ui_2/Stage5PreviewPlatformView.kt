@@ -1,8 +1,12 @@
 package com.refusion.app
 
 import android.content.Context
+import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Matrix
+import android.graphics.Outline
+import android.graphics.Paint
+import android.graphics.RectF
 import android.graphics.RenderEffect
 import android.graphics.Shader
 import android.os.Handler
@@ -12,6 +16,7 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.Surface
 import android.view.View
+import android.view.ViewOutlineProvider
 import android.widget.FrameLayout
 import androidx.media3.common.Player
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -49,6 +54,7 @@ class Stage5PreviewPlatformView(
     private var runtimeGaussianBlurSigmaPx: Float? = null
     private var runtimeMotionBlurDirective: Stage5VisualRuntimeMotionBlurDirective? = null
     private var runtimeEdgeFillDirective: Stage5VisualRuntimeEdgeFillDirective? = null
+    private var runtimeStyleDirective: Stage5VisualRuntimeSurfaceStyleDirective? = null
     private val motionBlurShaderPass = Stage5MotionBlurShaderPass()
     private val edgeFillShaderPass = Stage5EdgeFillShaderPass()
     private val runtimeEffectChainBuilder = Stage5RuntimeEffectChainBuilder()
@@ -129,6 +135,12 @@ class Stage5PreviewPlatformView(
                 stage5NativeScrubEngine.notifyDirectOutputSurfaceAvailable()
             }
         }
+    private val styleOverlayView =
+        Stage5SurfaceStyleOverlayView(context).apply {
+            isClickable = false
+            isFocusable = false
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }
     private val rootView =
         FrameLayout(context).apply {
             addView(
@@ -140,6 +152,13 @@ class Stage5PreviewPlatformView(
             )
             addView(
                 scrubOverlayView,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                ),
+            )
+            addView(
+                styleOverlayView,
                 FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.MATCH_PARENT,
@@ -184,12 +203,14 @@ class Stage5PreviewPlatformView(
         gaussianBlurSigmaPx: Float?,
         motionBlurDirective: Stage5VisualRuntimeMotionBlurDirective?,
         edgeFillDirective: Stage5VisualRuntimeEdgeFillDirective?,
+        styleDirective: Stage5VisualRuntimeSurfaceStyleDirective?,
     ) {
         runtimeTransformMatrix3x3 = transformMatrix3x3
         runtimeOpacity = ((opacity ?: 1.0).coerceIn(0.0, 1.0))
         runtimeGaussianBlurSigmaPx = gaussianBlurSigmaPx?.takeIf { it.isFinite() && it > 0.05f }
         runtimeMotionBlurDirective = motionBlurDirective
         runtimeEdgeFillDirective = edgeFillDirective
+        runtimeStyleDirective = styleDirective
         runOnUiThreadIfActive(waitForCompletion = true) {
             val edgeFillOwnsTransform = edgeFillDirective.ownsStage5Transform()
             scrubOverlayView.setRuntimeVisualState(
@@ -197,6 +218,7 @@ class Stage5PreviewPlatformView(
                 opacity = opacity,
             )
             applyRuntimeStateToPlayerView()
+            applyRuntimeStyleDirective()
             applyRuntimeEffects()
             syncPlayerVisibility()
         }
@@ -228,6 +250,7 @@ class Stage5PreviewPlatformView(
                 playerView.setRenderEffect(null)
                 scrubOverlayView.setRenderEffect(null)
             }
+            clearRuntimeStyleDirective()
             playerView.player = null
         }
     }
@@ -322,6 +345,14 @@ class Stage5PreviewPlatformView(
             playerView.pivotX = centerX
             playerView.pivotY = centerY
             playerView.animationMatrix = runtimeMatrix
+            styleOverlayView.translationX = 0f
+            styleOverlayView.translationY = 0f
+            styleOverlayView.scaleX = 1f
+            styleOverlayView.scaleY = 1f
+            styleOverlayView.rotation = 0f
+            styleOverlayView.pivotX = centerX
+            styleOverlayView.pivotY = centerY
+            styleOverlayView.animationMatrix = runtimeMatrix
         } else {
             val m00 = matrixValues[0].toFloat()
             val m01 = matrixValues[1].toFloat()
@@ -340,11 +371,55 @@ class Stage5PreviewPlatformView(
             playerView.scaleX = if (sx.isFinite()) sx else 1f
             playerView.scaleY = if (sy.isFinite()) sy else 1f
             playerView.rotation = if (rotationDegrees.isFinite()) rotationDegrees else 0f
+            clearStyleOverlayAnimationMatrix()
+            styleOverlayView.pivotX = centerX
+            styleOverlayView.pivotY = centerY
+            styleOverlayView.translationX = tx
+            styleOverlayView.translationY = ty
+            styleOverlayView.scaleX = if (sx.isFinite()) sx else 1f
+            styleOverlayView.scaleY = if (sy.isFinite()) sy else 1f
+            styleOverlayView.rotation = if (rotationDegrees.isFinite()) rotationDegrees else 0f
         }
         logRotationStabilityProof(
             fallbackReason = null,
             matrix = matrixValues,
         )
+    }
+
+    private fun applyRuntimeStyleDirective() {
+        val directive = runtimeStyleDirective
+        if (directive == null || directive.isIdentity()) {
+            clearRuntimeStyleDirective()
+            return
+        }
+        val outlineProvider = Stage5SurfaceStyleOutlineProvider(directive)
+        playerView.outlineProvider = outlineProvider
+        scrubOverlayView.outlineProvider = outlineProvider
+        playerView.clipToOutline = directive.shouldClipSurface()
+        scrubOverlayView.clipToOutline = directive.shouldClipSurface()
+        styleOverlayView.setStyleDirective(directive)
+        styleOverlayView.alpha = runtimeOpacity.toFloat().coerceIn(0f, 1f)
+        styleOverlayView.visibility = View.VISIBLE
+        Log.d(
+            "Stage5PreviewPlatformView",
+            "TF_STAGE5_SURFACE_STYLE_PROOF "
+                + "maskShape=${directive.maskShape} "
+                + "cornerRadiusPx=${directive.cornerRadiusPx} "
+                + "borderWidthPx=${directive.borderWidthPx} "
+                + "glowBlurPx=${directive.glowBlurPx} "
+                + "glowOpacity=${directive.glowOpacity} "
+                + "clipToOutline=${directive.shouldClipSurface()} "
+                + "rendererPath=stage5NativePreviewSurface",
+        )
+    }
+
+    private fun clearRuntimeStyleDirective() {
+        playerView.clipToOutline = false
+        scrubOverlayView.clipToOutline = false
+        playerView.outlineProvider = ViewOutlineProvider.BACKGROUND
+        scrubOverlayView.outlineProvider = ViewOutlineProvider.BACKGROUND
+        styleOverlayView.setStyleDirective(null)
+        styleOverlayView.visibility = View.GONE
     }
 
     private fun applyRuntimeEffects() {
@@ -581,16 +656,28 @@ class Stage5PreviewPlatformView(
 
     private fun resetPlayerRuntimeTransform() {
         clearPlayerAnimationMatrix()
+        clearStyleOverlayAnimationMatrix()
         playerView.translationX = 0f
         playerView.translationY = 0f
         playerView.scaleX = 1f
         playerView.scaleY = 1f
         playerView.rotation = 0f
+        styleOverlayView.translationX = 0f
+        styleOverlayView.translationY = 0f
+        styleOverlayView.scaleX = 1f
+        styleOverlayView.scaleY = 1f
+        styleOverlayView.rotation = 0f
     }
 
     private fun clearPlayerAnimationMatrix() {
         if (Build.VERSION.SDK_INT >= 29) {
             playerView.animationMatrix = null
+        }
+    }
+
+    private fun clearStyleOverlayAnimationMatrix() {
+        if (Build.VERSION.SDK_INT >= 29) {
+            styleOverlayView.animationMatrix = null
         }
     }
 
@@ -926,6 +1013,123 @@ class Stage5PreviewPlatformView(
             "blurredbackground",
             "autooverscan" -> true
             else -> false
+        }
+    }
+}
+
+private fun Stage5VisualRuntimeSurfaceStyleDirective.shouldClipSurface(): Boolean =
+    maskShape.equals("circle", ignoreCase = true) ||
+        maskShape.equals("roundedRect", ignoreCase = true) ||
+        cornerRadiusPx > 0.0
+
+private class Stage5SurfaceStyleOutlineProvider(
+    private val directive: Stage5VisualRuntimeSurfaceStyleDirective,
+) : ViewOutlineProvider() {
+    override fun getOutline(view: View, outline: Outline) {
+        val width = view.width
+        val height = view.height
+        if (width <= 0 || height <= 0) {
+            outline.setEmpty()
+            return
+        }
+        if (directive.maskShape.equals("circle", ignoreCase = true)) {
+            val size = kotlin.math.min(width, height)
+            val left = (width - size) / 2
+            val top = (height - size) / 2
+            outline.setOval(left, top, left + size, top + size)
+            return
+        }
+        val radius = directive.cornerRadiusPx.toFloat().coerceAtLeast(0f)
+        outline.setRoundRect(0, 0, width, height, radius)
+    }
+}
+
+private class Stage5SurfaceStyleOverlayView(context: Context) : View(context) {
+    private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+    }
+    private val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+    }
+    private val drawRect = RectF()
+    private var directive: Stage5VisualRuntimeSurfaceStyleDirective? = null
+
+    fun setStyleDirective(next: Stage5VisualRuntimeSurfaceStyleDirective?) {
+        directive = next
+        val hasGlow = next != null && next.glowBlurPx > 0.0 && next.glowOpacity > 0.0
+        setLayerType(if (hasGlow) LAYER_TYPE_SOFTWARE else LAYER_TYPE_NONE, null)
+        invalidate()
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        val style = directive ?: return
+        if (style.isIdentity()) {
+            return
+        }
+        val strokeWidth = style.borderWidthPx.toFloat().coerceAtLeast(0f)
+        val glowBlur = style.glowBlurPx.toFloat().coerceAtLeast(0f)
+        val glowOpacity = style.glowOpacity.toFloat().coerceIn(0f, 1f)
+        if (strokeWidth <= 0f && (glowBlur <= 0f || glowOpacity <= 0f)) {
+            return
+        }
+        val inset = (kotlin.math.max(strokeWidth, glowBlur * 0.18f) / 2f)
+            .coerceAtLeast(1f)
+        if (style.maskShape.equals("circle", ignoreCase = true)) {
+            val size = kotlin.math.min(width, height).toFloat() - (inset * 2f)
+            val left = ((width - size) / 2f).coerceAtLeast(inset)
+            val top = ((height - size) / 2f).coerceAtLeast(inset)
+            drawRect.set(left, top, left + size, top + size)
+            drawGlow(canvas, style, glowBlur, glowOpacity, circle = true)
+            drawStroke(canvas, style, strokeWidth, circle = true)
+            return
+        }
+        drawRect.set(inset, inset, width - inset, height - inset)
+        val radius = style.cornerRadiusPx.toFloat().coerceAtLeast(0f)
+        drawGlow(canvas, style, glowBlur, glowOpacity, circle = false, radius = radius)
+        drawStroke(canvas, style, strokeWidth, circle = false, radius = radius)
+    }
+
+    private fun drawGlow(
+        canvas: Canvas,
+        style: Stage5VisualRuntimeSurfaceStyleDirective,
+        blur: Float,
+        opacity: Float,
+        circle: Boolean,
+        radius: Float = 0f,
+    ) {
+        if (blur <= 0f || opacity <= 0f) {
+            return
+        }
+        glowPaint.strokeWidth = kotlin.math.max(1f, blur * 0.18f)
+        glowPaint.color = style.glowColorArgb.toInt()
+        glowPaint.alpha = (255f * opacity).toInt().coerceIn(0, 255)
+        glowPaint.setShadowLayer(blur, 0f, 0f, style.glowColorArgb.toInt())
+        if (circle) {
+            canvas.drawOval(drawRect, glowPaint)
+        } else {
+            canvas.drawRoundRect(drawRect, radius, radius, glowPaint)
+        }
+        glowPaint.clearShadowLayer()
+    }
+
+    private fun drawStroke(
+        canvas: Canvas,
+        style: Stage5VisualRuntimeSurfaceStyleDirective,
+        strokeWidth: Float,
+        circle: Boolean,
+        radius: Float = 0f,
+    ) {
+        if (strokeWidth <= 0f) {
+            return
+        }
+        strokePaint.strokeWidth = strokeWidth
+        strokePaint.color = style.borderColorArgb.toInt()
+        strokePaint.alpha = 255
+        if (circle) {
+            canvas.drawOval(drawRect, strokePaint)
+        } else {
+            canvas.drawRoundRect(drawRect, radius, radius, strokePaint)
         }
     }
 }

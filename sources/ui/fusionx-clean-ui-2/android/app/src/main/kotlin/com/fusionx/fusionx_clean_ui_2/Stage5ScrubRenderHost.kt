@@ -13,6 +13,7 @@ interface Stage5ScrubRenderHost {
         gaussianBlurSigmaPx: Float? = null,
         motionBlurDirective: Stage5VisualRuntimeMotionBlurDirective? = null,
         edgeFillDirective: Stage5VisualRuntimeEdgeFillDirective? = null,
+        styleDirective: Stage5VisualRuntimeSurfaceStyleDirective? = null,
     ) = Unit
 
     fun hasScrubOutputSurface(): Boolean = false

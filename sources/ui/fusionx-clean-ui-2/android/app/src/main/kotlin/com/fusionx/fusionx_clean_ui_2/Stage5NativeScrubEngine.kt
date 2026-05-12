@@ -73,6 +73,7 @@ data class Stage5VisualRuntimeSurfaceState(
     val effectBindings: List<Stage5VisualRuntimeEffectBinding> = emptyList(),
     val motionBlurDirective: Stage5VisualRuntimeMotionBlurDirective? = null,
     val edgeFillDirective: Stage5VisualRuntimeEdgeFillDirective? = null,
+    val styleDirective: Stage5VisualRuntimeSurfaceStyleDirective? = null,
     val blockers: List<String> = emptyList(),
 )
 
@@ -122,6 +123,22 @@ data class Stage5VisualRuntimeEdgeFillDirective(
     val inverseTransformMatrix3x3: List<Double> = listOf(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0),
     val fallbackReason: String? = null,
 )
+
+data class Stage5VisualRuntimeSurfaceStyleDirective(
+    val maskShape: String = "none",
+    val cornerRadiusPx: Double = 0.0,
+    val borderWidthPx: Double = 0.0,
+    val borderColorArgb: Long = 0xFFFFFFFF,
+    val glowBlurPx: Double = 0.0,
+    val glowOpacity: Double = 0.0,
+    val glowColorArgb: Long = 0xFFFFFFFF,
+) {
+    fun isIdentity(): Boolean =
+        maskShape.equals("none", ignoreCase = true) &&
+            cornerRadiusPx <= 0.0 &&
+            borderWidthPx <= 0.0 &&
+            (glowBlurPx <= 0.0 || glowOpacity <= 0.0)
+}
 
 data class Stage5VisualRuntimeState(
     val revision: Long,
@@ -893,6 +910,7 @@ class Stage5NativeScrubEngine(
             gaussianBlurSigmaPx = visualState.gaussianBlurSigmaPx(),
             motionBlurDirective = visualState.validMotionBlurDirective(),
             edgeFillDirective = visualState.validEdgeFillDirective(),
+            styleDirective = visualState.validStyleDirective(),
         )
         if (snapshot.forceSeekBeforeRender) {
             surfaceScrubDecoder.forceSeekOnNextRender()
@@ -1005,6 +1023,7 @@ class Stage5NativeScrubEngine(
                 gaussianBlurSigmaPx = visualState.gaussianBlurSigmaPx(),
                 motionBlurDirective = visualState.validMotionBlurDirective(),
                 edgeFillDirective = visualState.validEdgeFillDirective(),
+                styleDirective = visualState.validStyleDirective(),
             )
             surfaceScrubDecoder.forceSeekOnNextRender()
             val rendered =
@@ -1229,6 +1248,7 @@ class Stage5NativeScrubEngine(
                 gaussianBlurSigmaPx = gaussianBlurSigmaPx,
                 motionBlurDirective = motionBlurDirective,
                 edgeFillDirective = edgeFillDirective,
+                styleDirective = surface.validStyleDirective(),
             )
         }
     }
@@ -1270,8 +1290,15 @@ class Stage5NativeScrubEngine(
             effectBindings = emptyList(),
             motionBlurDirective = null,
             edgeFillDirective = null,
+            styleDirective = null,
             blockers = runtimeFallbackBlockers.ifEmpty { descriptor.runtimeBlockers },
         )
+    }
+
+    private fun Stage5VisualRuntimeSurfaceState.validStyleDirective():
+        Stage5VisualRuntimeSurfaceStyleDirective? {
+        val directive = styleDirective ?: return null
+        return directive.takeUnless { it.isIdentity() }
     }
 
     private fun Stage5VisualRuntimeSurfaceState.gaussianBlurSigmaPx(): Float? {

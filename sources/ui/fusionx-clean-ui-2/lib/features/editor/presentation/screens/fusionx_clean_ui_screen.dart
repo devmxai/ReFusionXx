@@ -25992,6 +25992,27 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return _canvasClipStyles[clipId] ?? const _CanvasClipStyle();
   }
 
+  Stage5VisualRuntimeSurfaceStyleDirective? _stage5SurfaceStyleDirectiveForClip(
+      String clipId) {
+    final style = _canvasClipStyleFor(clipId);
+    if (style.isIdentity) {
+      return null;
+    }
+    return Stage5VisualRuntimeSurfaceStyleDirective(
+      maskShape: style.circleMask
+          ? 'circle'
+          : style.cornerRadius > 0
+              ? 'roundedRect'
+              : 'none',
+      cornerRadiusPx: style.cornerRadius,
+      borderWidthPx: style.borderWidth,
+      borderColorArgb: style.borderColor.value,
+      glowBlurPx: style.glowBlur,
+      glowOpacity: style.glowOpacity,
+      glowColorArgb: style.glowColor.value,
+    );
+  }
+
   MotionPropertyValue _evaluateMotionPropertyChannelValue(
     MotionPropertyChannelModel channel,
     TimelineTime time,
@@ -26849,6 +26870,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       context.clip.id,
       atTime: previewTime,
     );
+    final styleDirective = _stage5SurfaceStyleDirectiveForClip(
+      context.clip.id,
+    );
     final matrix = _canvasClipNativeTransformMatrix3x3(transform);
     final revision = ++_stage5VisualRuntimeRevision;
     final frameIndex = _stage5FrameIndexForTimelineTime(previewTime);
@@ -26857,6 +26881,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       role: 'canvasTransform',
       transformMatrix3x3: matrix,
       opacity: 1,
+      styleDirective: styleDirective,
     );
     return Stage5VisualRuntimeState(
       revision: revision,
@@ -26876,6 +26901,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         effectValuesHash: _canvasClipStage5TransformHash(
           clipId: context.clip.id,
           transform: transform,
+          styleDirective: styleDirective,
         ),
       ),
       primaryTargetClipId: context.clip.id,
@@ -26942,6 +26968,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   int _canvasClipStage5TransformHash({
     required String clipId,
     required _CanvasClipTransform transform,
+    Stage5VisualRuntimeSurfaceStyleDirective? styleDirective,
   }) {
     return Object.hash(
       clipId,
@@ -26950,6 +26977,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       transform.scaleX.toStringAsFixed(4),
       transform.scaleY.toStringAsFixed(4),
       transform.rotationDegrees.toStringAsFixed(3),
+      styleDirective?.maskShape ?? 'none',
+      styleDirective?.cornerRadiusPx.toStringAsFixed(3) ?? '0',
+      styleDirective?.borderWidthPx.toStringAsFixed(3) ?? '0',
+      styleDirective?.borderColorArgb ?? 0,
+      styleDirective?.glowBlurPx.toStringAsFixed(3) ?? '0',
+      styleDirective?.glowOpacity.toStringAsFixed(3) ?? '0',
+      styleDirective?.glowColorArgb ?? 0,
     );
   }
 
@@ -26985,7 +27019,17 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
               '${edgeFillDirective.overscanScale.toStringAsFixed(3)}:'
               '${edgeFillDirective.sourceRectLeft.toStringAsFixed(4)},${edgeFillDirective.sourceRectTop.toStringAsFixed(4)},'
               '${edgeFillDirective.sourceRectRight.toStringAsFixed(4)},${edgeFillDirective.sourceRectBottom.toStringAsFixed(4)}';
-      return '${surface.targetClipId}:${surface.role}:$matrix:${surface.opacity.toStringAsFixed(4)}:$directiveDigest:$edgeFillDirectiveDigest';
+      final styleDirective = surface.styleDirective;
+      final styleDirectiveDigest = styleDirective == null
+          ? 'none'
+          : '${styleDirective.maskShape}:'
+              '${styleDirective.cornerRadiusPx.toStringAsFixed(3)}:'
+              '${styleDirective.borderWidthPx.toStringAsFixed(3)}:'
+              '${styleDirective.borderColorArgb}:'
+              '${styleDirective.glowBlurPx.toStringAsFixed(3)}:'
+              '${styleDirective.glowOpacity.toStringAsFixed(3)}:'
+              '${styleDirective.glowColorArgb}';
+      return '${surface.targetClipId}:${surface.role}:$matrix:${surface.opacity.toStringAsFixed(4)}:$directiveDigest:$edgeFillDirectiveDigest:$styleDirectiveDigest';
     }).join('|');
     final effectValuesHash = state.framePacket?.effectValuesHash ?? 0;
     return '$transitionId:${state.mode}:$primary:$frameIndex:$effectValuesHash:$surfacesDigest:${state.surfaces.length}';

@@ -1186,6 +1186,11 @@ class MainActivity: FlutterActivity() {
                                 fallbackReason = directiveMap["fallbackReason"]?.toString(),
                             )
                         }
+                val styleDirective =
+                    parseSurfaceStyleDirective(
+                        (surfaceMap["styleDirective"] as? Map<*, *>)
+                            ?.mapKeys { (key, _) -> key.toString() },
+                    )
                 val surfaceBlockers =
                     (surfaceMap["blockers"] as? List<*>)?.mapNotNull { value ->
                         value?.toString()
@@ -1200,6 +1205,7 @@ class MainActivity: FlutterActivity() {
                     effectBindings = effectBindings,
                     motionBlurDirective = motionBlurDirective,
                     edgeFillDirective = edgeFillDirective,
+                    styleDirective = styleDirective,
                     blockers = surfaceBlockers,
                 )
             } ?: emptyList()
@@ -1215,6 +1221,29 @@ class MainActivity: FlutterActivity() {
             blockers = blockers,
             diagnostics = diagnostics,
         )
+    }
+
+    private fun parseSurfaceStyleDirective(
+        directiveMap: Map<String, Any?>?,
+    ): Stage5VisualRuntimeSurfaceStyleDirective? {
+        val map = directiveMap ?: return null
+        val maskShape = map["maskShape"]?.toString().orEmpty().ifBlank { "none" }
+        val cornerRadiusPx = (map["cornerRadiusPx"] as? Number)?.toDouble() ?: 0.0
+        val borderWidthPx = (map["borderWidthPx"] as? Number)?.toDouble() ?: 0.0
+        val borderColorArgb = (map["borderColorArgb"] as? Number)?.toLong() ?: 0xFFFFFFFF
+        val glowBlurPx = (map["glowBlurPx"] as? Number)?.toDouble() ?: 0.0
+        val glowOpacity = (map["glowOpacity"] as? Number)?.toDouble() ?: 0.0
+        val glowColorArgb = (map["glowColorArgb"] as? Number)?.toLong() ?: 0xFFFFFFFF
+        val directive = Stage5VisualRuntimeSurfaceStyleDirective(
+            maskShape = maskShape,
+            cornerRadiusPx = cornerRadiusPx.coerceAtLeast(0.0),
+            borderWidthPx = borderWidthPx.coerceAtLeast(0.0),
+            borderColorArgb = borderColorArgb,
+            glowBlurPx = glowBlurPx.coerceAtLeast(0.0),
+            glowOpacity = glowOpacity.coerceIn(0.0, 1.0),
+            glowColorArgb = glowColorArgb,
+        )
+        return directive.takeUnless { it.isIdentity() }
     }
 
     private fun parseMotionBlurDirective(

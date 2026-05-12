@@ -151,6 +151,45 @@ class Stage5VisualRuntimeEdgeFillDirective {
 }
 
 @immutable
+class Stage5VisualRuntimeSurfaceStyleDirective {
+  const Stage5VisualRuntimeSurfaceStyleDirective({
+    required this.maskShape,
+    required this.cornerRadiusPx,
+    required this.borderWidthPx,
+    required this.borderColorArgb,
+    required this.glowBlurPx,
+    required this.glowOpacity,
+    required this.glowColorArgb,
+  });
+
+  final String maskShape;
+  final double cornerRadiusPx;
+  final double borderWidthPx;
+  final int borderColorArgb;
+  final double glowBlurPx;
+  final double glowOpacity;
+  final int glowColorArgb;
+
+  bool get isIdentity =>
+      maskShape == 'none' &&
+      cornerRadiusPx <= 0 &&
+      borderWidthPx <= 0 &&
+      (glowBlurPx <= 0 || glowOpacity <= 0);
+
+  Map<String, Object?> toMap() {
+    return <String, Object?>{
+      'maskShape': maskShape,
+      'cornerRadiusPx': cornerRadiusPx,
+      'borderWidthPx': borderWidthPx,
+      'borderColorArgb': borderColorArgb,
+      'glowBlurPx': glowBlurPx,
+      'glowOpacity': glowOpacity,
+      'glowColorArgb': glowColorArgb,
+    };
+  }
+}
+
+@immutable
 class Stage5VisualRuntimeSurfaceState {
   const Stage5VisualRuntimeSurfaceState({
     required this.targetClipId,
@@ -162,6 +201,7 @@ class Stage5VisualRuntimeSurfaceState {
     this.effectBindings = const <Stage5VisualRuntimeEffectBinding>[],
     this.motionBlurDirective,
     this.edgeFillDirective,
+    this.styleDirective,
     this.blockers = const <String>[],
   });
 
@@ -174,6 +214,7 @@ class Stage5VisualRuntimeSurfaceState {
   final List<Stage5VisualRuntimeEffectBinding> effectBindings;
   final Stage5VisualRuntimeMotionBlurDirective? motionBlurDirective;
   final Stage5VisualRuntimeEdgeFillDirective? edgeFillDirective;
+  final Stage5VisualRuntimeSurfaceStyleDirective? styleDirective;
   final List<String> blockers;
 
   Map<String, Object?> toMap() {
@@ -189,6 +230,7 @@ class Stage5VisualRuntimeSurfaceState {
           .toList(growable: false),
       'motionBlurDirective': motionBlurDirective?.toMap(),
       'edgeFillDirective': edgeFillDirective?.toMap(),
+      'styleDirective': styleDirective?.toMap(),
       'blockers': blockers,
     };
   }
