@@ -79,6 +79,7 @@ const writeTools = new Set<string>([
   'refusion.set_border',
   'refusion.set_glow',
   'refusion.set_layer_style',
+  'refusion.position_at_anchor',
 ]);
 
 const userOnlyTools = new Set<string>([
@@ -336,6 +337,15 @@ async function callTool(
       return await getMediaAssets(context, args);
     case 'refusion.get_scene_layers':
       return await getSceneLayers(context, args);
+    case 'refusion.get_canvas_metadata':
+      return await getCanvasMetadata(context, args);
+    case 'refusion.get_element_geometry':
+      return await getElementGeometry(context, args);
+    case 'refusion.get_visual_layout_summary':
+      return await getVisualLayoutSummary(context, args);
+    case 'refusion.position_at_anchor':
+      ensureAgentWrite(canonicalToolName, context);
+      return await positionAtAnchor(context, args);
     case 'refusion.evaluate_frame':
       return await evaluateFrame(context, args);
     case 'refusion.explain_capabilities':
@@ -416,6 +426,12 @@ function normalizeToolName(name: string): string {
     get_timeline_graph: 'refusion.get_timeline_graph',
     get_media_assets: 'refusion.get_media_assets',
     get_scene_layers: 'refusion.get_scene_layers',
+    get_canvas_metadata: 'refusion.get_canvas_metadata',
+    get_element_geometry: 'refusion.get_element_geometry',
+    get_visual_layout_summary: 'refusion.get_visual_layout_summary',
+    position_at_anchor: 'refusion.position_at_anchor',
+    align_to_anchor: 'refusion.position_at_anchor',
+    place_at_anchor: 'refusion.position_at_anchor',
     evaluate_frame: 'refusion.evaluate_frame',
     explain_capabilities: 'refusion.explain_capabilities',
     get_motion_channels: 'refusion.get_motion_channels',
@@ -441,6 +457,10 @@ function normalizeToolName(name: string): string {
     'refusion.set_rounded_crop': 'refusion.set_layer_mask',
     'refusion.set_layer_border': 'refusion.set_border',
     'refusion.set_layer_glow': 'refusion.set_glow',
+    'refusion.surface.position.at_anchor': 'refusion.position_at_anchor',
+    'refusion.surface.align_to': 'refusion.position_at_anchor',
+    'refusion.surface.fit_in_zone': 'refusion.position_at_anchor',
+    'refusion.surface.center_in': 'refusion.position_at_anchor',
   };
   return aliases[value] ?? (value.startsWith('refusion.') ? value : value);
 }
@@ -2294,6 +2314,313 @@ async function getSceneLayers(
   });
 }
 
+async function getCanvasMetadata(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const resolved = await resolveProjectScope(context, args);
+  if (!resolved) {
+    return fail('PROJECT_NOT_OPEN');
+  }
+  const spec = buildCompositionSpec(resolved.composition, resolved.compositionId);
+  const width = Math.max(1, numberValue(spec.width, 1080));
+  const height = Math.max(1, numberValue(spec.height, 1920));
+  const halfW = width / 2;
+  const halfH = height / 2;
+  const actionMarginX = Math.max(16, Math.round(width * 0.03));
+  const actionMarginY = Math.max(24, Math.round(height * 0.05));
+  const titleMarginX = Math.max(24, Math.round(width * 0.06));
+  const titleMarginY = Math.max(48, Math.round(height * 0.067));
+  const thirdsX = Math.round(width / 3);
+  const thirdsY = Math.round(height / 3);
+
+  return ok('Canvas metadata loaded.', {
+    projectId: resolved.projectId,
+    compositionId: resolved.compositionId,
+    revision: resolved.revision,
+    width,
+    height,
+    aspect: aspectString(width, height),
+    fps: resolved.fps,
+    durationMs: resolved.compositionDurationMs,
+    origin: 'center',
+    coordinateSystem: {
+      canonical: 'centerOrigin',
+      unit: 'px',
+      xRange: [-halfW, halfW],
+      yRange: [-halfH, halfH],
+    },
+    safeZones: {
+      titleSafe: {
+        left: titleMarginX,
+        top: titleMarginY,
+        right: width - titleMarginX,
+        bottom: height - titleMarginY,
+      },
+      actionSafe: {
+        left: actionMarginX,
+        top: actionMarginY,
+        right: width - actionMarginX,
+        bottom: height - actionMarginY,
+      },
+    },
+    anchors: {
+      topLeft: { x: -halfW, y: -halfH },
+      topCenter: { x: 0, y: -halfH },
+      topRight: { x: halfW, y: -halfH },
+      centerLeft: { x: -halfW, y: 0 },
+      center: { x: 0, y: 0 },
+      centerRight: { x: halfW, y: 0 },
+      bottomLeft: { x: -halfW, y: halfH },
+      bottomCenter: { x: 0, y: halfH },
+      bottomRight: { x: halfW, y: halfH },
+      goldenTop: { x: 0, y: -Math.round(height * 0.191) },
+      goldenBottom: { x: 0, y: Math.round(height * 0.191) },
+      ruleOfThirdsTopLeft: { x: -halfW + thirdsX / 2, y: -halfH + thirdsY / 2 },
+      ruleOfThirdsTopRight: { x: halfW - thirdsX / 2, y: -halfH + thirdsY / 2 },
+      ruleOfThirdsBottomLeft: { x: -halfW + thirdsX / 2, y: halfH - thirdsY / 2 },
+      ruleOfThirdsBottomRight: { x: halfW - thirdsX / 2, y: halfH - thirdsY / 2 },
+    },
+    gridLines: {
+      vertical: [-Math.round(width / 6), 0, Math.round(width / 6)],
+      horizontal: [-Math.round(height / 6), 0, Math.round(height / 6)],
+    },
+  });
+}
+
+async function getElementGeometry(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const resolved = await resolveProjectScope(context, args);
+  if (!resolved) {
+    return fail('PROJECT_NOT_OPEN');
+  }
+  const layers = await loadLayersForScope(context, resolved.projectId, resolved.compositionId);
+  const targetLayer = resolveTargetLayer(layers, args);
+  if (!targetLayer) {
+    return fail('LAYER_NOT_FOUND', {
+      hint: 'Provide layerId, targetLayerId, or clipId.',
+    });
+  }
+
+  const spec = buildCompositionSpec(resolved.composition, resolved.compositionId);
+  const width = Math.max(1, numberValue(spec.width, 1080));
+  const height = Math.max(1, numberValue(spec.height, 1920));
+  const safeZones = buildSafeZones(width, height);
+  const timeMs = optionalNumber(firstDefined(args.timeMs, args.time)) ??
+    numberValue(readMap(resolved.active.timeline).playheadMs, 0);
+  const geometry = computeLayerGeometry(targetLayer, width, height, safeZones);
+  const startMs = numberValue(targetLayer.start_ms, 0);
+  const durationMs = Math.max(1, numberValue(targetLayer.duration_ms, 1));
+  const visibleAtTime = timeMs >= startMs && timeMs < (startMs + durationMs);
+  const overlaps = computeOverlapsForLayer(targetLayer, layers, width, height, safeZones)
+    .map((entry) => ({
+      layerId: stringValue(entry.layer.id),
+      name: text(entry.layer.name, 'Layer'),
+      intersection: entry.intersection,
+    }));
+
+  return ok('Element geometry loaded.', {
+    projectId: resolved.projectId,
+    compositionId: resolved.compositionId,
+    revision: resolved.revision,
+    timeMs,
+    layerId: stringValue(targetLayer.id),
+    kind: text(targetLayer.layer_kind, 'solid'),
+    mediaKind: text(readMap(targetLayer.payload).mediaKind, ''),
+    intrinsicSize: geometry.intrinsicSize,
+    worldBounds: geometry.worldBounds,
+    visibleBounds: geometry.visibleBounds,
+    timelineRange: {
+      startMs,
+      durationMs,
+    },
+    sourceRange: {
+      startMs: numberValue(firstDefined(
+        readMap(targetLayer.payload).sourceStartMs,
+        readMap(targetLayer.payload).source_start_ms,
+        0,
+      ), 0),
+      durationMs: numberValue(firstDefined(
+        readMap(targetLayer.payload).sourceDurationMs,
+        readMap(targetLayer.payload).source_duration_ms,
+        durationMs,
+      ), durationMs),
+    },
+    visibleAtTime,
+    safeAreaCompliance: {
+      titleSafe: rectContainsRect(safeZones.titleSafe, geometry.visibleBoundsAbsolute),
+      actionSafe: rectContainsRect(safeZones.actionSafe, geometry.visibleBoundsAbsolute),
+    },
+    overlaps,
+  });
+}
+
+async function getVisualLayoutSummary(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const resolved = await resolveProjectScope(context, args);
+  if (!resolved) {
+    return fail('PROJECT_NOT_OPEN');
+  }
+  const layers = await loadLayersForScope(context, resolved.projectId, resolved.compositionId);
+  const spec = buildCompositionSpec(resolved.composition, resolved.compositionId);
+  const width = Math.max(1, numberValue(spec.width, 1080));
+  const height = Math.max(1, numberValue(spec.height, 1920));
+  const safeZones = buildSafeZones(width, height);
+  const playheadMs = optionalNumber(firstDefined(args.timeMs, args.time)) ??
+    numberValue(readMap(resolved.active.timeline).playheadMs, 0);
+  const visible = layers.filter((layer) => {
+    const startMs = numberValue(layer.start_ms, 0);
+    const durationMs = Math.max(1, numberValue(layer.duration_ms, 1));
+    return playheadMs >= startMs && playheadMs < (startMs + durationMs);
+  });
+
+  const issues: JsonMap[] = [];
+  for (let i = 0; i < visible.length; i += 1) {
+    const base = visible[i];
+    const geometry = computeLayerGeometry(base, width, height, safeZones);
+    if (!rectContainsRect(safeZones.actionSafe, geometry.visibleBoundsAbsolute)) {
+      issues.push({
+        code: 'OUTSIDE_ACTION_SAFE',
+        severity: 'warning',
+        layerId: stringValue(base.id),
+      });
+    }
+    for (let j = i + 1; j < visible.length; j += 1) {
+      const candidate = visible[j];
+      const candidateGeometry = computeLayerGeometry(candidate, width, height, safeZones);
+      const intersection = rectIntersection(
+        geometry.visibleBoundsAbsolute,
+        candidateGeometry.visibleBoundsAbsolute,
+      );
+      if (intersection != null && intersection.area > 0) {
+        issues.push({
+          code: 'LAYER_OVERLAP',
+          severity: 'info',
+          layerIds: [stringValue(base.id), stringValue(candidate.id)],
+          intersection,
+        });
+      }
+    }
+  }
+
+  const sortedVisible = [...visible].sort((a, b) =>
+    numberValue(a.z_index, 0) - numberValue(b.z_index, 0)
+  );
+  const primary = pickPrimaryFocusLayer(sortedVisible);
+  const summary = composeLayoutSummary({
+    width,
+    height,
+    visibleLayers: sortedVisible,
+    primary,
+    issueCount: issues.length,
+  });
+
+  return ok('Visual layout summary loaded.', {
+    projectId: resolved.projectId,
+    compositionId: resolved.compositionId,
+    revision: resolved.revision,
+    playheadMs,
+    summary,
+    primaryFocusLayerId: primary ? stringValue(primary.id) : null,
+    visibleLayerCount: sortedVisible.length,
+    layers: sortedVisible.map((layer) => ({
+      layerId: stringValue(layer.id),
+      name: text(layer.name, 'Layer'),
+      kind: text(layer.layer_kind, 'solid'),
+      mediaKind: text(readMap(layer.payload).mediaKind, ''),
+      zIndex: numberValue(layer.z_index, 0),
+    })),
+    issues,
+    suggestions: suggestLayoutActions(issues),
+  });
+}
+
+async function positionAtAnchor(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const resolved = await resolveProjectScope(context, args);
+  if (!resolved) {
+    return fail('PROJECT_NOT_OPEN');
+  }
+  const layers = await loadLayersForScope(context, resolved.projectId, resolved.compositionId);
+  const targetLayer = resolveTargetLayer(layers, args);
+  if (!targetLayer) {
+    return fail('LAYER_NOT_FOUND', {
+      hint: 'Provide layerId, targetLayerId, or clipId.',
+    });
+  }
+
+  const spec = buildCompositionSpec(resolved.composition, resolved.compositionId);
+  const compositionWidth = Math.max(1, numberValue(spec.width, 1080));
+  const compositionHeight = Math.max(1, numberValue(spec.height, 1920));
+  const safeZones = buildSafeZones(compositionWidth, compositionHeight);
+  const geometry = computeLayerGeometry(targetLayer, compositionWidth, compositionHeight, safeZones);
+  const anchor = normalizeAnchorName(firstText(args.anchor, args.targetAnchor, 'center'));
+  const safeArea = normalizeSafeArea(firstText(args.safeArea, args.safe_zone, 'actionSafe'));
+  const paddingPx = Math.max(0, numberValue(firstDefined(args.paddingPx, args.padding, 0), 0));
+  const keepInCanvas = firstDefined(args.keepInCanvas, args.keep_in_canvas, true) !== false;
+  const timeMs = numberValue(
+    firstDefined(args.timeMs, args.time, readMap(resolved.active.timeline).playheadMs, 0),
+    0,
+  );
+
+  const targetAbs = anchorTargetCenter({
+    anchor,
+    safeArea,
+    safeZones,
+    width: compositionWidth,
+    height: compositionHeight,
+    elementWidth: geometry.worldBounds.width,
+    elementHeight: geometry.worldBounds.height,
+    paddingPx,
+  });
+
+  const clampedAbs = keepInCanvas
+    ? clampCenterIntoCanvas(
+      targetAbs,
+      compositionWidth,
+      compositionHeight,
+      geometry.worldBounds.width,
+      geometry.worldBounds.height,
+    )
+    : targetAbs;
+  const canonicalX = clampedAbs.x - compositionWidth / 2;
+  const canonicalY = clampedAbs.y - compositionHeight / 2;
+
+  const transformResult = await setElementTransform(context, {
+    ...args,
+    layerId: stringValue(targetLayer.id),
+    x: canonicalX,
+    y: canonicalY,
+    timeMs,
+  });
+  if (!transformResult.ok) {
+    return transformResult;
+  }
+
+  return ok('Anchor positioning applied.', {
+    projectId: resolved.projectId,
+    compositionId: resolved.compositionId,
+    layerId: stringValue(targetLayer.id),
+    anchor,
+    safeArea,
+    paddingPx,
+    keepInCanvas,
+    timeMs,
+    resolvedCenterAbsolute: clampedAbs,
+    resolvedCenterCanonical: {
+      x: canonicalX,
+      y: canonicalY,
+    },
+    result: transformResult.payload,
+  });
+}
+
 async function evaluateFrame(
   context: RequestContext,
   args: JsonMap,
@@ -2767,6 +3094,380 @@ function effectCatalog(): JsonMap[] {
     { id: 'transform.rotation', category: 'motion', status: 'supported' },
     { id: 'visual.opacity', category: 'motion', status: 'supported' },
   ];
+}
+
+function aspectString(width: number, height: number): string {
+  const divisor = gcd(width, height);
+  return `${Math.round(width / divisor)}:${Math.round(height / divisor)}`;
+}
+
+function gcd(a: number, b: number): number {
+  let x = Math.abs(Math.round(a));
+  let y = Math.abs(Math.round(b));
+  while (y !== 0) {
+    const t = y;
+    y = x % y;
+    x = t;
+  }
+  return x <= 0 ? 1 : x;
+}
+
+function buildSafeZones(width: number, height: number): {
+  titleSafe: Rect;
+  actionSafe: Rect;
+} {
+  const actionMarginX = Math.max(16, Math.round(width * 0.03));
+  const actionMarginY = Math.max(24, Math.round(height * 0.05));
+  const titleMarginX = Math.max(24, Math.round(width * 0.06));
+  const titleMarginY = Math.max(48, Math.round(height * 0.067));
+  return {
+    titleSafe: {
+      left: titleMarginX,
+      top: titleMarginY,
+      right: width - titleMarginX,
+      bottom: height - titleMarginY,
+    },
+    actionSafe: {
+      left: actionMarginX,
+      top: actionMarginY,
+      right: width - actionMarginX,
+      bottom: height - actionMarginY,
+    },
+  };
+}
+
+type Rect = {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+};
+
+type LayerGeometry = {
+  intrinsicSize: {
+    width: number;
+    height: number;
+  };
+  worldBounds: {
+    centerX: number;
+    centerY: number;
+    width: number;
+    height: number;
+    rotationDeg: number;
+    scaleX: number;
+    scaleY: number;
+  };
+  visibleBounds: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  visibleBoundsAbsolute: Rect;
+};
+
+function resolveTargetLayer(layers: JsonMap[], args: JsonMap): JsonMap | null {
+  const rawLayerId = firstText(args.layerId, args.layer_id, args.targetLayerId, args.surfaceId);
+  const clipId = firstText(args.clipId, args.clip_id);
+  const layerId = rawLayerId
+    ? rawLayerId.startsWith('clip:')
+      ? rawLayerId.slice(5)
+      : rawLayerId
+    : clipId.startsWith('clip:')
+    ? clipId.slice(5)
+    : clipId;
+  if (layerId) {
+    for (const layer of layers) {
+      if (stringValue(layer.id) === layerId) {
+        return layer;
+      }
+    }
+    return null;
+  }
+  if (layers.length == 0) {
+    return null;
+  }
+  const sorted = [...layers].sort((a, b) =>
+    numberValue(a.z_index, 0) - numberValue(b.z_index, 0)
+  );
+  return sorted[sorted.length - 1] ?? null;
+}
+
+function computeLayerGeometry(
+  layer: JsonMap,
+  compositionWidth: number,
+  compositionHeight: number,
+  safeZones: { titleSafe: Rect; actionSafe: Rect },
+): LayerGeometry {
+  const payload = readMap(layer.payload);
+  const baseWidth = Math.max(1, numberValue(
+    firstDefined(
+      payload.width,
+      payload.w,
+      payload.intrinsicWidth,
+      payload.sourceWidth,
+      compositionWidth,
+    ),
+    compositionWidth,
+  ));
+  const baseHeight = Math.max(1, numberValue(
+    firstDefined(
+      payload.height,
+      payload.h,
+      payload.intrinsicHeight,
+      payload.sourceHeight,
+      compositionHeight,
+    ),
+    compositionHeight,
+  ));
+  const scaleX = numberOrNull(firstDefined(payload.scaleX, payload.scale, 1)) ?? 1;
+  const scaleY = numberOrNull(firstDefined(payload.scaleY, payload.scale, 1)) ?? 1;
+  const worldWidth = Math.max(1, baseWidth * Math.abs(scaleX));
+  const worldHeight = Math.max(1, baseHeight * Math.abs(scaleY));
+  const centerX = numberOrNull(firstDefined(payload.x, payload.centerX, payload.cx)) ?? 0;
+  const centerY = numberOrNull(firstDefined(payload.y, payload.centerY, payload.cy)) ?? 0;
+  const halfW = compositionWidth / 2;
+  const halfH = compositionHeight / 2;
+  const absCenterX = centerX + halfW;
+  const absCenterY = centerY + halfH;
+  const rect: Rect = {
+    left: absCenterX - worldWidth / 2,
+    top: absCenterY - worldHeight / 2,
+    right: absCenterX + worldWidth / 2,
+    bottom: absCenterY + worldHeight / 2,
+  };
+  const clamped: Rect = {
+    left: Math.max(0, rect.left),
+    top: Math.max(0, rect.top),
+    right: Math.min(compositionWidth, rect.right),
+    bottom: Math.min(compositionHeight, rect.bottom),
+  };
+  const clampedWidth = Math.max(0, clamped.right - clamped.left);
+  const clampedHeight = Math.max(0, clamped.bottom - clamped.top);
+  const visibleBounds = {
+    x: clamped.left - halfW + clampedWidth / 2,
+    y: clamped.top - halfH + clampedHeight / 2,
+    width: clampedWidth,
+    height: clampedHeight,
+  };
+  const _ignored = safeZones;
+  return {
+    intrinsicSize: {
+      width: baseWidth,
+      height: baseHeight,
+    },
+    worldBounds: {
+      centerX,
+      centerY,
+      width: worldWidth,
+      height: worldHeight,
+      rotationDeg: numberOrNull(firstDefined(payload.rotation, payload.rotationDeg, 0)) ?? 0,
+      scaleX,
+      scaleY,
+    },
+    visibleBounds,
+    visibleBoundsAbsolute: clamped,
+  };
+}
+
+function rectContainsRect(container: Rect, inner: Rect): boolean {
+  return (
+    inner.left >= container.left &&
+    inner.top >= container.top &&
+    inner.right <= container.right &&
+    inner.bottom <= container.bottom
+  );
+}
+
+function rectIntersection(a: Rect, b: Rect): (Rect & { area: number }) | null {
+  const left = Math.max(a.left, b.left);
+  const top = Math.max(a.top, b.top);
+  const right = Math.min(a.right, b.right);
+  const bottom = Math.min(a.bottom, b.bottom);
+  if (right <= left || bottom <= top) {
+    return null;
+  }
+  const area = (right - left) * (bottom - top);
+  return { left, top, right, bottom, area };
+}
+
+function computeOverlapsForLayer(
+  target: JsonMap,
+  layers: JsonMap[],
+  compositionWidth: number,
+  compositionHeight: number,
+  safeZones: { titleSafe: Rect; actionSafe: Rect },
+): Array<{ layer: JsonMap; intersection: Rect & { area: number } }> {
+  const targetGeometry = computeLayerGeometry(
+    target,
+    compositionWidth,
+    compositionHeight,
+    safeZones,
+  );
+  const result: Array<{ layer: JsonMap; intersection: Rect & { area: number } }> = [];
+  for (const layer of layers) {
+    if (stringValue(layer.id) == stringValue(target.id)) {
+      continue;
+    }
+    const geometry = computeLayerGeometry(layer, compositionWidth, compositionHeight, safeZones);
+    const intersection = rectIntersection(
+      targetGeometry.visibleBoundsAbsolute,
+      geometry.visibleBoundsAbsolute,
+    );
+    if (intersection != null && intersection.area > 0) {
+      result.push({ layer, intersection });
+    }
+  }
+  return result;
+}
+
+function pickPrimaryFocusLayer(layers: JsonMap[]): JsonMap | null {
+  for (let i = layers.length - 1; i >= 0; i -= 1) {
+    const layer = layers[i];
+    const kind = text(layer.layer_kind, 'solid');
+    if (kind !== 'solid' || text(readMap(layer.payload).mediaKind, '') !== '') {
+      return layer;
+    }
+  }
+  return layers[layers.length - 1] ?? null;
+}
+
+function composeLayoutSummary(input: {
+  width: number;
+  height: number;
+  visibleLayers: JsonMap[];
+  primary: JsonMap | null;
+  issueCount: number;
+}): string {
+  const { width, height, visibleLayers, primary, issueCount } = input;
+  const primaryName = primary ? text(primary.name, 'Layer') : 'none';
+  return `Canvas ${width}x${height} with ${visibleLayers.length} visible layers. Primary focus: ${primaryName}. Diagnostics: ${issueCount}.`;
+}
+
+function suggestLayoutActions(issues: JsonMap[]): JsonMap[] {
+  if (issues.length === 0) {
+    return [];
+  }
+  return [
+    {
+      operation: 'surface.fit_in_zone',
+      zone: 'actionSafe',
+      reason: 'keep elements inside action-safe area',
+    },
+    {
+      operation: 'surface.position.at_anchor',
+      anchor: 'goldenTop',
+      reason: 'reduce overlap and improve hierarchy',
+    },
+  ];
+}
+
+function normalizeAnchorName(value: string): string {
+  const normalized = value.trim().toLowerCase();
+  const map: Record<string, string> = {
+    topleft: 'topLeft',
+    topcenter: 'topCenter',
+    topright: 'topRight',
+    centerleft: 'centerLeft',
+    center: 'center',
+    centerright: 'centerRight',
+    bottomleft: 'bottomLeft',
+    bottomcenter: 'bottomCenter',
+    bottomright: 'bottomRight',
+    goldentop: 'goldenTop',
+    goldenbottom: 'goldenBottom',
+    ruleofthirdstopleft: 'ruleOfThirdsTopLeft',
+    ruleofthirdstopright: 'ruleOfThirdsTopRight',
+    ruleofthirdsbottomleft: 'ruleOfThirdsBottomLeft',
+    ruleofthirdsbottomright: 'ruleOfThirdsBottomRight',
+  };
+  return map[normalized] ?? 'center';
+}
+
+function normalizeSafeArea(value: string): 'none' | 'titleSafe' | 'actionSafe' {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'none' || normalized === 'off') {
+    return 'none';
+  }
+  if (normalized === 'title' || normalized === 'titlesafe') {
+    return 'titleSafe';
+  }
+  return 'actionSafe';
+}
+
+function anchorTargetCenter(input: {
+  anchor: string;
+  safeArea: 'none' | 'titleSafe' | 'actionSafe';
+  safeZones: { titleSafe: Rect; actionSafe: Rect };
+  width: number;
+  height: number;
+  elementWidth: number;
+  elementHeight: number;
+  paddingPx: number;
+}): { x: number; y: number } {
+  const zone = input.safeArea === 'none'
+    ? { left: 0, top: 0, right: input.width, bottom: input.height }
+    : input.safeArea === 'titleSafe'
+    ? input.safeZones.titleSafe
+    : input.safeZones.actionSafe;
+  const zoneCenterX = (zone.left + zone.right) / 2;
+  const zoneCenterY = (zone.top + zone.bottom) / 2;
+  const zoneWidth = zone.right - zone.left;
+  const zoneHeight = zone.bottom - zone.top;
+  const halfW = input.elementWidth / 2;
+  const halfH = input.elementHeight / 2;
+  const padding = input.paddingPx;
+  const map: Record<string, { x: number; y: number }> = {
+    topLeft: { x: zone.left + padding + halfW, y: zone.top + padding + halfH },
+    topCenter: { x: zoneCenterX, y: zone.top + padding + halfH },
+    topRight: { x: zone.right - padding - halfW, y: zone.top + padding + halfH },
+    centerLeft: { x: zone.left + padding + halfW, y: zoneCenterY },
+    center: { x: zoneCenterX, y: zoneCenterY },
+    centerRight: { x: zone.right - padding - halfW, y: zoneCenterY },
+    bottomLeft: { x: zone.left + padding + halfW, y: zone.bottom - padding - halfH },
+    bottomCenter: { x: zoneCenterX, y: zone.bottom - padding - halfH },
+    bottomRight: { x: zone.right - padding - halfW, y: zone.bottom - padding - halfH },
+    goldenTop: { x: zoneCenterX, y: zone.top + zoneHeight * 0.309 },
+    goldenBottom: { x: zoneCenterX, y: zone.bottom - zoneHeight * 0.309 },
+    ruleOfThirdsTopLeft: {
+      x: zone.left + zoneWidth / 3,
+      y: zone.top + zoneHeight / 3,
+    },
+    ruleOfThirdsTopRight: {
+      x: zone.right - zoneWidth / 3,
+      y: zone.top + zoneHeight / 3,
+    },
+    ruleOfThirdsBottomLeft: {
+      x: zone.left + zoneWidth / 3,
+      y: zone.bottom - zoneHeight / 3,
+    },
+    ruleOfThirdsBottomRight: {
+      x: zone.right - zoneWidth / 3,
+      y: zone.bottom - zoneHeight / 3,
+    },
+  };
+  return map[input.anchor] ?? map.center;
+}
+
+function clampCenterIntoCanvas(
+  centerAbs: { x: number; y: number },
+  compositionWidth: number,
+  compositionHeight: number,
+  elementWidth: number,
+  elementHeight: number,
+): { x: number; y: number } {
+  const halfW = elementWidth / 2;
+  const halfH = elementHeight / 2;
+  return {
+    x: Math.min(
+      compositionWidth - halfW,
+      Math.max(halfW, centerAbs.x),
+    ),
+    y: Math.min(
+      compositionHeight - halfH,
+      Math.max(halfH, centerAbs.y),
+    ),
+  };
 }
 
 async function getCommandStatus(
@@ -3411,6 +4112,12 @@ function tools() {
       true,
     ),
     tool(
+      'refusion.position_at_anchor',
+      'Position At Anchor',
+      'Place target layer at semantic anchors (topLeft/topRight/goldenTop/thirds) with optional safe-area and padding.',
+      true,
+    ),
+    tool(
       'refusion.get_layers',
       'Get Layers',
       'Return composition layers ordered by z-index and start.',
@@ -3439,6 +4146,21 @@ function tools() {
       'refusion.get_scene_layers',
       'Get Scene Layers',
       'Return scene layer graph with element, transform, mask, and style metadata.',
+    ),
+    tool(
+      'refusion.get_canvas_metadata',
+      'Get Canvas Metadata',
+      'Return canvas dimensions, origin, coordinate ranges, safe zones, and anchors.',
+    ),
+    tool(
+      'refusion.get_element_geometry',
+      'Get Element Geometry',
+      'Return evaluated bounds, world geometry, and safe-area compliance for a target layer.',
+    ),
+    tool(
+      'refusion.get_visual_layout_summary',
+      'Get Visual Layout Summary',
+      'Return layout summary with overlap diagnostics and smart suggestions.',
     ),
     tool(
       'refusion.evaluate_frame',

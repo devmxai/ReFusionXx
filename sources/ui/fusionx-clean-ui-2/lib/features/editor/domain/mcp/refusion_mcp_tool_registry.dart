@@ -1,8 +1,5 @@
-import 'package:meta/meta.dart';
-
 import 'refusion_mcp_capability.dart';
 
-@immutable
 class RefusionMcpToolDescriptor {
   const RefusionMcpToolDescriptor({
     required this.name,
@@ -52,11 +49,17 @@ class RefusionMcpToolRegistry {
     'set_border': 'refusion.set_border',
     'set_glow': 'refusion.set_glow',
     'set_layer_style': 'refusion.set_layer_style',
+    'position_at_anchor': 'refusion.position_at_anchor',
+    'align_to_anchor': 'refusion.position_at_anchor',
+    'place_at_anchor': 'refusion.position_at_anchor',
     'get_project_snapshot': 'refusion.get_project_snapshot',
     'get_composition_spec': 'refusion.get_composition_spec',
     'get_timeline_graph': 'refusion.get_timeline_graph',
     'get_media_assets': 'refusion.get_media_assets',
     'get_scene_layers': 'refusion.get_scene_layers',
+    'get_canvas_metadata': 'refusion.get_canvas_metadata',
+    'get_element_geometry': 'refusion.get_element_geometry',
+    'get_visual_layout_summary': 'refusion.get_visual_layout_summary',
     'evaluate_frame': 'refusion.evaluate_frame',
     'explain_capabilities': 'refusion.explain_capabilities',
     'insert_layer': 'refusion.insert_layer',
@@ -69,6 +72,14 @@ class RefusionMcpToolRegistry {
     'set_rounded_crop': 'refusion.set_layer_mask',
     'set_layer_border': 'refusion.set_border',
     'set_layer_glow': 'refusion.set_glow',
+    'surface.position.at_anchor': 'refusion.position_at_anchor',
+    'surface.align_to': 'refusion.position_at_anchor',
+    'surface.fit_in_zone': 'refusion.position_at_anchor',
+    'surface.center_in': 'refusion.position_at_anchor',
+    'refusion.surface.position.at_anchor': 'refusion.position_at_anchor',
+    'refusion.surface.align_to': 'refusion.position_at_anchor',
+    'refusion.surface.fit_in_zone': 'refusion.position_at_anchor',
+    'refusion.surface.center_in': 'refusion.position_at_anchor',
     'move_layer': 'refusion.move_layer',
     'delete_layer': 'refusion.delete_layer',
     'dry_run_command': 'refusion.dry_run_command',
@@ -124,6 +135,27 @@ class RefusionMcpToolRegistry {
       title: 'Get Scene Layers',
       description:
           'Return scene layer graph with transforms, masks, style, and source bindings.',
+      capability: RefusionMcpCapability.timelineRead,
+    ),
+    RefusionMcpToolDescriptor(
+      name: 'refusion.get_canvas_metadata',
+      title: 'Get Canvas Metadata',
+      description:
+          'Return canvas dimensions, safe zones, anchors, and coordinate metadata.',
+      capability: RefusionMcpCapability.timelineRead,
+    ),
+    RefusionMcpToolDescriptor(
+      name: 'refusion.get_element_geometry',
+      title: 'Get Element Geometry',
+      description:
+          'Return evaluated bounds and spatial diagnostics for a target layer or clip.',
+      capability: RefusionMcpCapability.timelineRead,
+    ),
+    RefusionMcpToolDescriptor(
+      name: 'refusion.get_visual_layout_summary',
+      title: 'Get Visual Layout Summary',
+      description:
+          'Return layout summary with overlap and safe-area diagnostics.',
       capability: RefusionMcpCapability.timelineRead,
     ),
     RefusionMcpToolDescriptor(
@@ -269,6 +301,14 @@ class RefusionMcpToolRegistry {
       name: 'refusion.set_layer_style',
       title: 'Set Layer Style',
       description: 'Apply style patch metadata on a target layer.',
+      capability: RefusionMcpCapability.timelineWrite,
+      mutating: true,
+    ),
+    RefusionMcpToolDescriptor(
+      name: 'refusion.position_at_anchor',
+      title: 'Position At Anchor',
+      description:
+          'Place a target layer at semantic anchors with safe-area and padding options.',
       capability: RefusionMcpCapability.timelineWrite,
       mutating: true,
     ),
