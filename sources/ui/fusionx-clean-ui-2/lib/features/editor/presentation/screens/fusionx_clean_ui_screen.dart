@@ -720,6 +720,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   final Set<EditorMediaTab> _assetPageRequestsInFlight = <EditorMediaTab>{};
   final Map<String, _CanvasClipTransform> _canvasClipTransforms =
       <String, _CanvasClipTransform>{};
+  final Map<String, String> _mcpRemoteMediaLayerClipIds = <String, String>{};
   EditorMediaTab _activeTab = EditorMediaTab.video;
   List<TimelineTrackData> _tracks = const <TimelineTrackData>[];
   final Map<String, List<TimelineTrackTransitionData>>
@@ -1576,7 +1577,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         didApply = _applyRemoteTextLayerIfNeeded(remoteLayer) || didApply;
       } else if (kind == 'solid') {
         didApply = _applyRemoteSolidLayerIfNeeded(remoteLayer) || didApply;
+      } else if (kind == 'media') {
+        _registerRemoteMediaLayerBinding(remoteLayer);
       }
+      didApply =
+          _applyRemoteTimelineClipMutationFromLayerIfNeeded(remoteLayer) ||
+              didApply;
     }
     if (!didApply || remoteRevision == null) {
       return;
@@ -1791,6 +1797,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }) {
     final scaleKeyframes = <Map<String, Object?>>[];
     final opacityKeyframes = <Map<String, Object?>>[];
+    final positionXKeyframes = <Map<String, Object?>>[];
+    final positionYKeyframes = <Map<String, Object?>>[];
     for (final raw in keyframes) {
       final map = _remoteMap(raw);
       final timeMs = _firstRemoteInt(<Object?>[
@@ -1833,6 +1841,34 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           'easing': easing,
         });
       }
+      final x = _firstRemoteDouble(<Object?>[
+        map['x'],
+        map['centerX'],
+        _remoteMap(map['position'])['x'],
+        _remoteMap(map['transform'])['x'],
+      ]);
+      if (x != null) {
+        positionXKeyframes.add(<String, Object?>{
+          'id': 'legacy_position_x_$timeMs',
+          'timeMs': timeMs,
+          'value': x - (_effectiveMotionProject.format.canvasSize.width / 2),
+          'easing': easing,
+        });
+      }
+      final y = _firstRemoteDouble(<Object?>[
+        map['y'],
+        map['centerY'],
+        _remoteMap(map['position'])['y'],
+        _remoteMap(map['transform'])['y'],
+      ]);
+      if (y != null) {
+        positionYKeyframes.add(<String, Object?>{
+          'id': 'legacy_position_y_$timeMs',
+          'timeMs': timeMs,
+          'value': y - (_effectiveMotionProject.format.canvasSize.height / 2),
+          'easing': easing,
+        });
+      }
     }
     final channels = <Map<String, Object?>>[];
     if (scaleKeyframes.isNotEmpty) {
@@ -1858,7 +1894,114 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         'keyframes': opacityKeyframes,
       });
     }
+    if (positionXKeyframes.isNotEmpty) {
+      channels.add(<String, Object?>{
+        'id': 'legacy.$remoteLayerId.position_x',
+        'layer_id': targetRemoteLayerId,
+        'property_id': 'transform.position.x',
+        'keyframes': positionXKeyframes,
+      });
+    }
+    if (positionYKeyframes.isNotEmpty) {
+      channels.add(<String, Object?>{
+        'id': 'legacy.$remoteLayerId.position_y',
+        'layer_id': targetRemoteLayerId,
+        'property_id': 'transform.position.y',
+        'keyframes': positionYKeyframes,
+      });
+    }
     return List<Map<String, Object?>>.unmodifiable(channels);
+  }
+
+  void _registerRemoteMediaLayerBinding(Map<String, Object?> remoteLayer) {
+    final remoteLayerId = _remoteString(remoteLayer['id']);
+    if (remoteLayerId == null || remoteLayerId.isEmpty) {
+      return;
+    }
+    final payload = _remotePayload(remoteLayer);
+    final clipId = _firstRemoteString(<Object?>[
+      payload['localLayerId'],
+      payload['clipId'],
+    ]);
+    if (clipId == null || clipId.isEmpty) {
+      return;
+    }
+    if (_selectedClipContextForTracks(_timelineTruthTracks, clipId) == null) {
+      return;
+    }
+    _mcpRemoteMediaLayerClipIds[remoteLayerId] = clipId;
+  }
+
+  bool _applyRemoteTimelineClipMutationFromLayerIfNeeded(
+    Map<String, Object?> remoteLayer,
+  ) {
+    final payload = _remotePayload(remoteLayer);
+    final updates = _remoteMap(payload['updates']);
+    final operation = _firstRemoteString(<Object?>[
+          payload['operation'],
+          updates['operation'],
+        ])?.toLowerCase() ??
+        '';
+    final hasTimelineMutation = operation.contains('update_layer') ||
+        updates.containsKey('animation') ||
+        updates.containsKey('mask') ||
+        updates.containsKey('border') ||
+        updates.containsKey('glow') ||
+        payload.containsKey('animation') ||
+        payload.containsKey('mask') ||
+        payload.containsKey('border') ||
+        payload.containsKey('glow');
+    if (!hasTimelineMutation) {
+      return false;
+    }
+    final targetRemoteLayerId = _firstRemoteString(<Object?>[
+          payload['layerId'],
+          payload['targetLayerId'],
+          updates['layerId'],
+          updates['targetLayerId'],
+          _remoteString(remoteLayer['id']),
+        ]) ??
+        '';
+    final clipId = _mcpTimelineClipIdForRemoteLayer(
+      targetRemoteLayerId,
+      fallbackToSingleVisualClip: true,
+    );
+    if (clipId == null) {
+      return false;
+    }
+    var didApply = false;
+    final animation = _remoteMap(updates['animation']).isNotEmpty
+        ? _remoteMap(updates['animation'])
+        : _remoteMap(payload['animation']);
+    final keyframes = animation['keyframes'];
+    if (keyframes is List && keyframes.isNotEmpty) {
+      final channels = _legacyCompoundAnimationChannels(
+        targetRemoteLayerId:
+            targetRemoteLayerId.isEmpty ? clipId : targetRemoteLayerId,
+        remoteLayerId: _remoteString(remoteLayer['id']) ?? clipId,
+        keyframes: keyframes,
+      );
+      for (final channel in channels) {
+        final localChannel = <String, Object?>{
+          ...channel,
+          'layer_id':
+              targetRemoteLayerId.isEmpty ? clipId : targetRemoteLayerId,
+        };
+        didApply = _applyRemoteMotionChannel(localChannel) || didApply;
+      }
+    }
+    if (didApply) {
+      setState(() {
+        _selectedClipId = clipId;
+      });
+      _scheduleStage5VisualRuntimeSubmission(
+        previewTime: _timelineDisplayTimeNotifier.value,
+        mode: _professionalVideoTransitionMode(
+          effectiveIsPlaying: _transportController.state.isPlaying,
+        ),
+      );
+    }
+    return didApply;
   }
 
   bool _applyRemoteSolidLayerIfNeeded(Map<String, Object?> remoteLayer) {
@@ -2118,12 +2261,24 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return false;
     }
     final elementContext = _mcpRemoteElementContextByLayerId(remoteLayerId);
-    if (elementContext == null) {
-      return false;
-    }
     final definition = _mcpDefinitionForPropertyId(propertyId);
     if (definition == null) {
       return false;
+    }
+    if (elementContext == null) {
+      final clipId = _mcpTimelineClipIdForRemoteLayer(
+        remoteLayerId,
+        fallbackToSingleVisualClip: true,
+      );
+      if (clipId == null) {
+        return false;
+      }
+      return _applyRemoteMotionChannelToTimelineClip(
+        clipId: clipId,
+        remoteLayerId: remoteLayerId,
+        definition: definition,
+        remoteChannel: remoteChannel,
+      );
     }
     final keyframes = _mcpKeyframesFromRemoteChannel(
       remoteChannel: remoteChannel,
@@ -2173,6 +2328,58 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return true;
   }
 
+  bool _applyRemoteMotionChannelToTimelineClip({
+    required String clipId,
+    required String remoteLayerId,
+    required MotionPropertyDefinition definition,
+    required Map<String, Object?> remoteChannel,
+  }) {
+    final keyframes = _mcpKeyframesFromRemoteChannel(
+      remoteChannel: remoteChannel,
+      channelId: _remoteString(remoteChannel['id']) ??
+          'mcp.$remoteLayerId.${definition.id}',
+      definition: definition,
+    );
+    if (keyframes.isEmpty) {
+      return false;
+    }
+    final existingIndex = _universalMotionPropertyChannels.indexWhere(
+      (entry) =>
+          entry.target.targetId == clipId &&
+          entry.definition.id == definition.id,
+    );
+    final target = MotionPropertyTarget(
+      kind: MotionTargetKind.element,
+      targetId: clipId,
+      projectId: _effectiveMotionProject.id,
+      sceneId: _motionSceneId,
+      elementId: clipId,
+    );
+    final nextChannel = MotionPropertyChannelModel(
+      id: existingIndex >= 0
+          ? _universalMotionPropertyChannels[existingIndex].id
+          : 'mcp.timeline.$clipId.${definition.id.replaceAll('.', '_')}',
+      target: target,
+      definition: definition,
+      keyframes: keyframes,
+    );
+    final nextChannels = <MotionPropertyChannelModel>[
+      ..._universalMotionPropertyChannels,
+    ];
+    if (existingIndex >= 0) {
+      nextChannels[existingIndex] = nextChannel;
+    } else {
+      nextChannels.add(nextChannel);
+    }
+    setState(() {
+      _universalMotionPropertyChannels =
+          List<MotionPropertyChannelModel>.unmodifiable(nextChannels);
+      _selectedClipId = clipId;
+      _markMotionAuthoringChanged();
+    });
+    return true;
+  }
+
   _McpRemoteElementContext? _mcpRemoteElementContextByLayerId(
     String remoteLayerId,
   ) {
@@ -2195,6 +2402,38 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
     }
     return null;
+  }
+
+  String? _mcpTimelineClipIdForRemoteLayer(
+    String remoteLayerId, {
+    bool fallbackToSingleVisualClip = false,
+  }) {
+    final mappedClipId = _mcpRemoteMediaLayerClipIds[remoteLayerId];
+    if (mappedClipId != null &&
+        _selectedClipContextForTracks(_timelineTruthTracks, mappedClipId) !=
+            null) {
+      return mappedClipId;
+    }
+    if (_selectedClipContextForTracks(_timelineTruthTracks, remoteLayerId) !=
+        null) {
+      return remoteLayerId;
+    }
+    if (!fallbackToSingleVisualClip) {
+      return null;
+    }
+    String? onlyClipId;
+    for (final track in _timelineTruthTracks) {
+      for (final clip in track.clips) {
+        if (!_timelineClipSupportsCanvasTransform(clip)) {
+          continue;
+        }
+        if (onlyClipId != null && onlyClipId != clip.id) {
+          return null;
+        }
+        onlyClipId = clip.id;
+      }
+    }
+    return onlyClipId;
   }
 
   MotionPropertyDefinition? _mcpDefinitionForPropertyId(String propertyId) {
@@ -25439,7 +25678,67 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   _CanvasClipTransform _canvasClipTransformFor(String clipId) {
-    return _canvasClipTransforms[clipId] ?? const _CanvasClipTransform();
+    final base = _canvasClipTransforms[clipId] ?? const _CanvasClipTransform();
+    final timelineTime = _timelineDisplayTimeNotifier.value;
+    double? scalar(MotionPropertyDefinition definition) {
+      final channel = _manualPropertyChannelForElement(clipId, definition);
+      if (channel == null) {
+        return null;
+      }
+      final value = _evaluateMotionPropertyChannelValue(
+        channel,
+        timelineTime,
+      );
+      if (value.kind != MotionPropertyValueKind.scalar) {
+        return null;
+      }
+      final raw = value.rawValue;
+      return raw is num ? raw.toDouble() : null;
+    }
+
+    return base.copyWith(
+      positionX: scalar(MotionPropertyCatalog.positionX),
+      positionY: scalar(MotionPropertyCatalog.positionY),
+      scaleX: scalar(MotionPropertyCatalog.scaleX),
+      scaleY: scalar(MotionPropertyCatalog.scaleY),
+      rotationDegrees: scalar(MotionPropertyCatalog.rotationDegrees),
+    );
+  }
+
+  MotionPropertyValue _evaluateMotionPropertyChannelValue(
+    MotionPropertyChannelModel channel,
+    TimelineTime time,
+  ) {
+    if (channel.keyframes.isEmpty) {
+      return channel.fallbackValue;
+    }
+    final keyframes = channel.keyframes;
+    if (time <= keyframes.first.time) {
+      return keyframes.first.value;
+    }
+    if (time >= keyframes.last.time) {
+      return keyframes.last.value;
+    }
+    for (var index = 0; index < keyframes.length - 1; index += 1) {
+      final left = keyframes[index];
+      final right = keyframes[index + 1];
+      if (time < left.time || time > right.time) {
+        continue;
+      }
+      if (left.value.kind != MotionPropertyValueKind.scalar ||
+          right.value.kind != MotionPropertyValueKind.scalar) {
+        return left.value;
+      }
+      final span = (right.time - left.time).inMilliseconds;
+      if (span <= 0) {
+        return right.value;
+      }
+      final local = (time - left.time).inMilliseconds / span;
+      final start = left.value.rawValue as double;
+      final end = right.value.rawValue as double;
+      return MotionPropertyValue.scalar(start + ((end - start) * local));
+    }
+    return channel.fallbackValue;
   }
 
   Size _canvasClipPreviewSize({

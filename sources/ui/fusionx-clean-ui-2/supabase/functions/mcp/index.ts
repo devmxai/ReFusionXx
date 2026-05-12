@@ -756,57 +756,144 @@ async function syncEditorLayers(userId: string, args: JsonMap) {
     .filter((layer) => Object.keys(layer).length > 0);
   const nowIso = new Date().toISOString();
 
-  const { error: deleteError } = await admin
+  const { data: existingRows, error: existingError } = await admin
     .from('refusion_layers')
-    .delete()
+    .select('id, payload')
     .eq('owner_id', userId)
     .eq('project_id', projectId)
     .eq('composition_id', compositionId)
     .eq('created_by', 'editor')
     .filter('payload->>syncSource', 'eq', 'editorTimeline');
-  if (deleteError) throw deleteError;
+  if (existingError) throw existingError;
 
-  const rows = incomingLayers.map((layer, index) => {
+  const existingByKey = new Map<string, JsonMap>();
+  for (const row of existingRows ?? []) {
+    const rowMap = readMap(row);
+    const payload = readMap(rowMap.payload);
+    const key = editorTimelineLayerKey(payload);
+    if (key) {
+      existingByKey.set(key, rowMap);
+    }
+  }
+  const seenKeys = new Set<string>();
+
+  let syncedCount = 0;
+  for (let index = 0; index < incomingLayers.length; index += 1) {
+    const layer = incomingLayers[index];
     const payload = sanitizeLayerPayload(readMap(layer.payload));
+    const key = editorTimelineLayerKey(payload);
+    if (key) {
+      seenKeys.add(key);
+    }
+    const existing = key ? existingByKey.get(key) : null;
+    const existingPayload = readMap(existing?.payload);
+    const nextPayload = mergeEditorTimelinePayload(existingPayload, {
+      ...payload,
+      syncSource: 'editorTimeline',
+      syncedAt: nowIso,
+    });
     const layerKind = inferLayerKind(
       {
-        ...payload,
-        kind: firstDefined(layer.layerKind, layer.layer_kind, payload.kind),
-        type: firstDefined(layer.type, payload.type),
+        ...nextPayload,
+        kind: firstDefined(layer.layerKind, layer.layer_kind, nextPayload.kind),
+        type: firstDefined(layer.type, nextPayload.type),
       },
-      payload,
+      nextPayload,
     );
-    return {
-      owner_id: userId,
-      project_id: projectId,
-      composition_id: compositionId,
+    const row = {
       layer_kind: layerKind === 'solid' ? 'media' : layerKind,
       name: text(
-        firstDefined(layer.name, payload.name, payload.label),
+        firstDefined(layer.name, nextPayload.name, nextPayload.label),
         `Editor Media ${index + 1}`,
       ),
       start_ms: Math.max(0, numberValue(firstDefined(layer.startMs, layer.start_ms), 0)),
       duration_ms: Math.max(1, numberValue(firstDefined(layer.durationMs, layer.duration_ms), 1)),
       z_index: numberValue(firstDefined(layer.zIndex, layer.z_index), index),
-      payload: {
-        ...payload,
-        syncSource: 'editorTimeline',
-        syncedAt: nowIso,
-      },
+      payload: nextPayload,
       created_by: 'editor',
     };
-  });
 
-  if (rows.length > 0) {
-    const { error: insertError } = await admin.from('refusion_layers').insert(rows);
-    if (insertError) throw insertError;
+    if (existing?.id) {
+      const { error: updateError } = await admin
+        .from('refusion_layers')
+        .update(row)
+        .eq('id', existing.id);
+      if (updateError) throw updateError;
+    } else {
+      const { error: insertError } = await admin.from('refusion_layers').insert({
+        ...row,
+        owner_id: userId,
+        project_id: projectId,
+        composition_id: compositionId,
+      });
+      if (insertError) throw insertError;
+    }
+    syncedCount += 1;
+  }
+
+  const staleIds = <string[]>[];
+  for (const row of existingRows ?? []) {
+    const rowMap = readMap(row);
+    const key = editorTimelineLayerKey(readMap(rowMap.payload));
+    const rowId = stringValue(rowMap.id);
+    if (key && rowId && !seenKeys.has(key)) {
+      staleIds.push(rowId);
+    }
+  }
+  if (staleIds.length > 0) {
+    const { error: staleDeleteError } = await admin
+      .from('refusion_layers')
+      .delete()
+      .in('id', staleIds);
+    if (staleDeleteError) throw staleDeleteError;
   }
 
   return {
     projectId,
     compositionId,
-    syncedCount: rows.length,
+    syncedCount,
+    staleRemovedCount: staleIds.length,
     syncedAt: nowIso,
+  };
+}
+
+function editorTimelineLayerKey(payload: JsonMap): string {
+  return firstText(
+    payload.localLayerId,
+    payload.clipId,
+    payload.assetId && `asset:${payload.assetId}`,
+  );
+}
+
+function mergeEditorTimelinePayload(
+  existingPayload: JsonMap,
+  incomingPayload: JsonMap,
+): JsonMap {
+  const existingStyle = readMap(existingPayload.style);
+  const incomingStyle = readMap(incomingPayload.style);
+  const preserved: JsonMap = {};
+  for (const key of [
+    'mask',
+    'maskType',
+    'border',
+    'borderWidth',
+    'borderColor',
+    'glow',
+    'animation',
+    'effects',
+    'style',
+  ]) {
+    if (existingPayload[key] != null && incomingPayload[key] == null) {
+      preserved[key] = existingPayload[key];
+    }
+  }
+  return {
+    ...incomingPayload,
+    ...preserved,
+    style: {
+      ...existingStyle,
+      ...incomingStyle,
+    },
   };
 }
 
