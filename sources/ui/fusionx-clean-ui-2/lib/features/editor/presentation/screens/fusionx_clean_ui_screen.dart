@@ -1224,7 +1224,99 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       playheadMs: refusionMcpPlayheadMs(_currentTime),
       timelineRevision: _mcpAppliedRemoteRevision,
       foreground: _mcpCloudIsForeground,
+      editorLayers: _mcpEditorLayerSnapshots(),
     );
+  }
+
+  List<Map<String, Object?>> _mcpEditorLayerSnapshots() {
+    final snapshots = <Map<String, Object?>>[];
+    final canvasSize = _effectiveMotionProject.format.canvasSize;
+    for (var trackIndex = 0; trackIndex < _tracks.length; trackIndex += 1) {
+      final track = _tracks[trackIndex];
+      final mediaKind = _mcpMediaKindForTrack(track.kind);
+      if (mediaKind == null) {
+        continue;
+      }
+      var cursor = TimelineTime.zero;
+      for (var clipIndex = 0; clipIndex < track.clips.length; clipIndex += 1) {
+        final clip = track.clips[clipIndex];
+        final startTime = cursor;
+        cursor = cursor + clip.durationTime;
+        if (clip.type != TimelineClipType.media) {
+          continue;
+        }
+        final asset = _assetForId(clip.assetId);
+        final assetId = clip.assetId ?? asset?.id;
+        if (assetId == null || assetId.isEmpty) {
+          continue;
+        }
+        final label = (clip.label?.trim().isNotEmpty ?? false)
+            ? clip.label!.trim()
+            : (asset?.label.trim().isNotEmpty ?? false)
+                ? asset!.label.trim()
+                : '$mediaKind layer';
+        final durationMs = math.max(1, clip.durationTime.inMilliseconds);
+        final sourceDurationMs =
+            math.max(1, clip.sourceDurationTime.inMilliseconds);
+        final payload = <String, Object?>{
+          'syncSource': 'editorTimeline',
+          'localLayerId': clip.id,
+          'clipId': clip.id,
+          'assetId': assetId,
+          'mediaKind': mediaKind,
+          'label': label,
+          'trackIndex': trackIndex,
+          'clipIndex': clipIndex,
+          'sourceStartMs': clip.sourceStartTime.inMilliseconds,
+          'sourceDurationMs': sourceDurationMs,
+          'timelineStartMs': startTime.inMilliseconds,
+          'timelineDurationMs': durationMs,
+          'playbackRate': clip.playbackRate,
+          'fit': 'cover',
+          'x': canvasSize.width / 2.0,
+          'y': canvasSize.height / 2.0,
+          'width': canvasSize.width,
+          'height': canvasSize.height,
+          'scaleX': 1.0,
+          'scaleY': 1.0,
+          'rotationDeg': 0.0,
+          'opacity': 1.0,
+          if (asset?.sourceUri?.isNotEmpty ?? false)
+            'sourceUri': asset!.sourceUri,
+          if (asset?.previewUri?.isNotEmpty ?? false)
+            'thumbnailUri': asset!.previewUri,
+          if (asset?.durationSeconds != null)
+            'durationMs': (asset!.durationSeconds! * 1000).round(),
+          if (asset?.width != null) 'sourceWidth': asset!.width,
+          if (asset?.height != null) 'sourceHeight': asset!.height,
+          if (clip.splitGroupId?.isNotEmpty ?? false)
+            'splitGroupId': clip.splitGroupId,
+          'canUseInMcp': true,
+          'isUserImported': true,
+        };
+        snapshots.add(<String, Object?>{
+          'layerKind': 'media',
+          'name': label,
+          'startMs': startTime.inMilliseconds,
+          'durationMs': durationMs,
+          'zIndex': trackIndex,
+          'payload': payload,
+        });
+      }
+    }
+    return List<Map<String, Object?>>.unmodifiable(snapshots);
+  }
+
+  String? _mcpMediaKindForTrack(TimelineTrackKind kind) {
+    return switch (kind) {
+      TimelineTrackKind.video => 'video',
+      TimelineTrackKind.image => 'image',
+      TimelineTrackKind.audio => 'audio',
+      TimelineTrackKind.text ||
+      TimelineTrackKind.shape ||
+      TimelineTrackKind.lipSync =>
+        null,
+    };
   }
 
   void _handleMcpCloudSnapshot(RefusionMcpCloudBridgeSnapshot snapshot) {

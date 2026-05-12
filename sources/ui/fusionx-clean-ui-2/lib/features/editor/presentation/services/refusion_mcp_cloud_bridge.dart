@@ -13,6 +13,7 @@ class RefusionMcpCloudContextState {
     required this.playheadMs,
     required this.timelineRevision,
     required this.foreground,
+    this.editorLayers = const <Map<String, Object?>>[],
     this.timelineId = 'main',
   });
 
@@ -21,6 +22,7 @@ class RefusionMcpCloudContextState {
   final int playheadMs;
   final int timelineRevision;
   final bool foreground;
+  final List<Map<String, Object?>> editorLayers;
   final String timelineId;
 }
 
@@ -238,6 +240,14 @@ class RefusionMcpCloudBridge {
           'status': status,
           'platform': 'flutter',
           'appVersion': 'refusion-app',
+        },
+      );
+      await _safeCallTool(
+        toolName: 'sync_editor_layers',
+        arguments: <String, Object?>{
+          if (projectIdArg != null) 'projectId': projectIdArg,
+          if (compositionIdArg != null) 'compositionId': compositionIdArg,
+          'layers': state.editorLayers,
         },
       );
       final contextResponse = await _callTool(

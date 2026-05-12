@@ -85,6 +85,7 @@ const userOnlyTools = new Set<string>([
   'refusion.create_project',
   'refusion.set_active_context',
   'refusion.touch_editor_session',
+  'refusion.sync_editor_layers',
   'refusion.generate_pairing_code',
   'refusion.get_pairing_code_status',
 ]);
@@ -266,6 +267,12 @@ async function callTool(
         'Editor session touched.',
         await touchEditorSession(context.userId, args),
       );
+    case 'refusion.sync_editor_layers':
+      ensureUserTool(canonicalToolName, context);
+      return ok(
+        'Editor layers synced.',
+        await syncEditorLayers(context.userId, args),
+      );
     case 'refusion.generate_pairing_code':
       ensureUserTool(canonicalToolName, context);
       return ok(
@@ -376,6 +383,7 @@ function normalizeToolName(name: string): string {
     create_project: 'refusion.create_project',
     set_active_context: 'refusion.set_active_context',
     touch_editor_session: 'refusion.touch_editor_session',
+    sync_editor_layers: 'refusion.sync_editor_layers',
     generate_pairing_code: 'refusion.generate_pairing_code',
     get_pairing_code_status: 'refusion.get_pairing_code_status',
     attach_pairing_code: 'refusion.attach_pairing_code',
@@ -725,6 +733,77 @@ async function touchEditorSession(userId: string, args: JsonMap) {
   });
 
   return { sessionId, deviceId, projectId, compositionId };
+}
+
+async function syncEditorLayers(userId: string, args: JsonMap) {
+  const active = await getActiveContext(
+    { userId, authSource: 'bearer', agentSession: null, agentSessionToken: null },
+    {},
+  );
+  const projectId = stringValue(args.projectId) || stringValue(readMap(active.project).id);
+  const compositionId =
+    stringValue(args.compositionId) || stringValue(readMap(active.composition).id);
+  if (!projectId || !compositionId) {
+    return fail('ACTIVE_CONTEXT_REQUIRED');
+  }
+
+  const incomingLayers = readList(args.layers)
+    .map(readMap)
+    .filter((layer) => Object.keys(layer).length > 0);
+  const nowIso = new Date().toISOString();
+
+  const { error: deleteError } = await admin
+    .from('refusion_layers')
+    .delete()
+    .eq('owner_id', userId)
+    .eq('project_id', projectId)
+    .eq('composition_id', compositionId)
+    .eq('created_by', 'editor')
+    .filter('payload->>syncSource', 'eq', 'editorTimeline');
+  if (deleteError) throw deleteError;
+
+  const rows = incomingLayers.map((layer, index) => {
+    const payload = sanitizeLayerPayload(readMap(layer.payload));
+    const layerKind = inferLayerKind(
+      {
+        ...payload,
+        kind: firstDefined(layer.layerKind, layer.layer_kind, payload.kind),
+        type: firstDefined(layer.type, payload.type),
+      },
+      payload,
+    );
+    return {
+      owner_id: userId,
+      project_id: projectId,
+      composition_id: compositionId,
+      layer_kind: layerKind === 'solid' ? 'media' : layerKind,
+      name: text(
+        firstDefined(layer.name, payload.name, payload.label),
+        `Editor Media ${index + 1}`,
+      ),
+      start_ms: Math.max(0, numberValue(firstDefined(layer.startMs, layer.start_ms), 0)),
+      duration_ms: Math.max(1, numberValue(firstDefined(layer.durationMs, layer.duration_ms), 1)),
+      z_index: numberValue(firstDefined(layer.zIndex, layer.z_index), index),
+      payload: {
+        ...payload,
+        syncSource: 'editorTimeline',
+        syncedAt: nowIso,
+      },
+      created_by: 'editor',
+    };
+  });
+
+  if (rows.length > 0) {
+    const { error: insertError } = await admin.from('refusion_layers').insert(rows);
+    if (insertError) throw insertError;
+  }
+
+  return {
+    projectId,
+    compositionId,
+    syncedCount: rows.length,
+    syncedAt: nowIso,
+  };
 }
 
 async function generatePairingCode(userId: string, args: JsonMap) {
@@ -3070,6 +3149,12 @@ function tools() {
       'refusion.touch_editor_session',
       'Touch Editor Session',
       'Refresh active editor session heartbeat.',
+      true,
+    ),
+    tool(
+      'refusion.sync_editor_layers',
+      'Sync Editor Layers',
+      'Publish the open app timeline media layers so MCP agents can inspect locally inserted video, image, and audio clips.',
       true,
     ),
     tool(
