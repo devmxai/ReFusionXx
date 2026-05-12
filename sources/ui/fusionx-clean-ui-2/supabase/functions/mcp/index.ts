@@ -1446,8 +1446,239 @@ async function applySceneProgram(
       { hint: 'Use refusion.apply_motion_patch, refusion.apply_keyframes, or refusion.set_element_transform.' },
     );
   }
+  const payload = canonicalLayerPayload(args);
+  const updates = readMap(payload.updates);
+  const updatePayload = readMap(updates.payload);
+  const incomingStyle = readMap(firstDefined(args.style, payload.style, updates.style, updatePayload.style));
+  const incomingMask = readMap(
+    firstDefined(args.mask, payload.mask, updates.mask, updatePayload.mask, incomingStyle.mask),
+  );
+  const incomingBorder = readMap(firstDefined(args.border, payload.border, updates.border, updatePayload.border));
+  const incomingGlow = readMap(firstDefined(args.glow, payload.glow, updates.glow, updatePayload.glow));
+  const hasStyleMutationIntent =
+    Object.keys(incomingStyle).length > 0 ||
+    Object.keys(incomingMask).length > 0 ||
+    Object.keys(incomingBorder).length > 0 ||
+    Object.keys(incomingGlow).length > 0 ||
+    !!firstText(
+      args.maskType,
+      args.clipPath,
+      args.renderMask?.toString(),
+      args.borderColor,
+      args.glowColor,
+      stringValue(args.cornerRadius),
+      stringValue(args.borderWidth),
+      payload.maskType,
+      payload.clipPath,
+      payload.renderMask?.toString(),
+      payload.borderColor,
+      stringValue(payload.cornerRadius),
+      stringValue(payload.borderWidth),
+    );
+
+  if (hasStyleMutationIntent) {
+    const resolved = await resolveProjectScope(context, args);
+    if (!resolved) {
+      return fail('PROJECT_NOT_OPEN');
+    }
+    const layers = await loadLayersForScope(context, resolved.projectId, resolved.compositionId);
+    const explicitLayerRef = firstText(
+      args.layerId,
+      args.layer_id,
+      args.targetLayerId,
+      args.clipId,
+      args.clip_id,
+      payload.layerId,
+      payload.layer_id,
+      payload.targetLayerId,
+      payload.target_layer_id,
+      updates.layerId,
+      updates.layer_id,
+      updates.targetLayerId,
+      updates.target_layer_id,
+      updatePayload.layerId,
+      updatePayload.layer_id,
+      updatePayload.targetLayerId,
+      updatePayload.target_layer_id,
+    );
+
+    let targetLayer: JsonMap | null = null;
+    if (explicitLayerRef) {
+      targetLayer = resolveTargetLayer(layers, { ...args, layerId: explicitLayerRef });
+      if (!targetLayer) {
+        const resolvedId = await resolveLayerIdForMutation(
+          context,
+          resolved.projectId,
+          resolved.compositionId,
+          explicitLayerRef,
+        );
+        if (resolvedId) {
+          targetLayer = resolveTargetLayer(layers, { ...args, layerId: resolvedId });
+        }
+      }
+    }
+    if (!targetLayer) {
+      targetLayer = resolvePreferredMediaLayer(layers);
+    }
+    if (!targetLayer) {
+      return fail('LAYER_NOT_FOUND', {
+        hint: 'Provide layerId/clipId for video styling, or keep exactly one media layer active.',
+      });
+    }
+
+    const rawMaskType = firstText(
+      args.maskType,
+      args.shape,
+      args.type,
+      payload.maskType,
+      payload.shape,
+      incomingMask.type,
+      incomingMask.shape,
+    ).toLowerCase();
+    const borderWidth = numberOrNull(
+      firstDefined(
+        args.borderWidth,
+        args.strokeWidth,
+        payload.borderWidth,
+        payload.strokeWidth,
+        incomingBorder.width,
+        incomingBorder.strokeWidth,
+      ),
+    );
+    const borderColor = firstText(
+      args.borderColor,
+      args.strokeColor,
+      payload.borderColor,
+      payload.strokeColor,
+      incomingBorder.color,
+      incomingBorder.strokeColor,
+    );
+    const glowBlur = numberOrNull(
+      firstDefined(
+        args.blur,
+        payload.glowBlur,
+        readMap(payload.glow).blur,
+        incomingGlow.blur,
+        incomingGlow.radius,
+      ),
+    );
+    const glowOpacity = numberOrNull(
+      firstDefined(
+        args.opacity,
+        payload.glowOpacity,
+        readMap(payload.glow).opacity,
+        incomingGlow.opacity,
+        incomingGlow.alpha,
+      ),
+    );
+    const glowColor = firstText(
+      args.glowColor,
+      args.color,
+      payload.glowColor,
+      readMap(payload.glow).color,
+      incomingGlow.color,
+    );
+    const cornerRadius = numberOrNull(
+      firstDefined(
+        args.cornerRadius,
+        args.borderRadius,
+        payload.cornerRadius,
+        payload.borderRadius,
+        incomingMask.radius,
+      ),
+    );
+    const clipPath = firstText(args.clipPath, payload.clipPath, readMap(payload.style).clipPath);
+    const renderMask = firstDefined(
+      args.renderMask,
+      payload.renderMask,
+      readMap(payload.style).renderMask,
+    );
+
+    return await applyLayerStyleMutation(
+      context,
+      {
+        ...args,
+        layerId: stringValue(targetLayer.id),
+      },
+      'refusion.apply_scene_program.layer_style_redirect',
+      (currentPayload) => {
+        const currentStyle = readMap(currentPayload.style);
+        const nextMask = {
+          ...readMap(currentPayload.mask),
+          ...incomingMask,
+        };
+        if (rawMaskType) {
+          nextMask.type = rawMaskType;
+        }
+        if (cornerRadius != null) {
+          nextMask.radius = cornerRadius;
+        }
+        const nextGlow = {
+          ...readMap(currentPayload.glow),
+          ...incomingGlow,
+        };
+        if (glowBlur != null) nextGlow.blur = glowBlur;
+        if (glowOpacity != null) nextGlow.opacity = Math.max(0, Math.min(1, glowOpacity));
+        if (glowColor) {
+          nextGlow.color = inferLayerColor({ color: glowColor }, {}) ?? glowColor;
+        }
+        const nextBorder = {
+          ...readMap(currentPayload.border),
+          ...incomingBorder,
+        };
+        if (borderWidth != null) nextBorder.width = Math.max(0, borderWidth);
+        if (borderColor) {
+          nextBorder.color = inferLayerColor({ color: borderColor }, {}) ?? borderColor;
+        }
+        return {
+          ...currentPayload,
+          ...payload,
+          ...(rawMaskType ? { maskType: rawMaskType } : {}),
+          ...(cornerRadius != null ? { cornerRadius } : {}),
+          ...(clipPath ? { clipPath } : {}),
+          ...(renderMask != null ? { renderMask: renderMask === true } : {}),
+          ...(borderWidth != null ? { borderWidth: Math.max(0, borderWidth) } : {}),
+          ...(borderColor
+            ? { borderColor: inferLayerColor({ color: borderColor }, {}) ?? borderColor }
+            : {}),
+          ...(Object.keys(nextGlow).length > 0 ? { glow: nextGlow } : {}),
+          ...(Object.keys(nextBorder).length > 0 ? { border: nextBorder } : {}),
+          ...(Object.keys(nextMask).length > 0 ? { mask: nextMask } : {}),
+          style: {
+            ...currentStyle,
+            ...incomingStyle,
+            ...(rawMaskType ? { maskType: rawMaskType } : {}),
+            ...(cornerRadius != null ? { cornerRadius } : {}),
+            ...(clipPath ? { clipPath } : {}),
+            ...(renderMask != null ? { renderMask: renderMask === true } : {}),
+            ...(borderWidth != null ? { borderWidth: Math.max(0, borderWidth) } : {}),
+            ...(borderColor
+              ? { borderColor: inferLayerColor({ color: borderColor }, {}) ?? borderColor }
+              : {}),
+            ...(Object.keys(nextGlow).length > 0 ? { glow: nextGlow } : {}),
+            ...(Object.keys(nextBorder).length > 0 ? { border: nextBorder } : {}),
+            ...(Object.keys(nextMask).length > 0 ? { mask: nextMask } : {}),
+          },
+        };
+      },
+    );
+  }
+
   const source = text(args.source, '');
-  const color = inferColor(source) ?? '#FFFFFF';
+  const color = inferColor(source) ?? inferLayerColor(args, payload) ?? '#FFFFFF';
+  const layerKind = inferLayerKind(args, payload);
+  const explicitBackgroundIntent =
+    layerKind === 'solid' ||
+    operation.includes('background') ||
+    operation.includes('solid') ||
+    firstText(args.layerKind, args.layer_kind, payload.layerKind, payload.layer_kind)
+      .toLowerCase()
+      .includes('solid');
+  if (!explicitBackgroundIntent) {
+    return fail('SCENE_PROGRAM_INSERT_BLOCKED_FOR_NON_BACKGROUND', {
+      hint: 'For layer edits use refusion.set_layer_mask / set_border / set_glow / set_layer_style / set_element_transform.',
+    });
+  }
   return await insertLayer(context, {
     ...args,
     layerKind: 'solid',
@@ -3733,6 +3964,20 @@ function resolveTargetLayer(layers: JsonMap[], args: JsonMap): JsonMap | null {
     return null;
   }
   const sorted = [...layers].sort((a, b) =>
+    numberValue(a.z_index, 0) - numberValue(b.z_index, 0)
+  );
+  return sorted[sorted.length - 1] ?? null;
+}
+
+function resolvePreferredMediaLayer(layers: JsonMap[]): JsonMap | null {
+  if (layers.length === 0) {
+    return null;
+  }
+  const mediaLayers = layers.filter((layer) => text(layer.layer_kind, '') === 'media');
+  if (mediaLayers.length === 0) {
+    return null;
+  }
+  const sorted = [...mediaLayers].sort((a, b) =>
     numberValue(a.z_index, 0) - numberValue(b.z_index, 0)
   );
   return sorted[sorted.length - 1] ?? null;
