@@ -829,6 +829,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   bool _isGeneratingMcpPairingCode = false;
   bool _isMcpAgentConnected = false;
   Timer? _mcpPairingStatusPollTimer;
+  int? _lastAppliedMcpCloudRevision;
 
   @override
   void initState() {
@@ -1216,7 +1217,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (snapshot.ok) {
       _ensureCompositionSessionForMcpSync();
     }
-    _applyRemoteSolidBackgroundIfNeeded(snapshot.latestSolidColorHex);
+    _applyRemoteSolidBackgroundIfNeeded(
+      snapshot.latestSolidColorHex,
+      snapshot.remoteRevision,
+    );
     if (!snapshot.ok && kDebugMode) {
       debugPrint('MCP cloud sync warning: ${snapshot.error ?? 'unknown'}');
     }
@@ -1445,8 +1449,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _syncTimelineClockDuration();
   }
 
-  void _applyRemoteSolidBackgroundIfNeeded(String? colorHex) {
+  void _applyRemoteSolidBackgroundIfNeeded(
+    String? colorHex,
+    int? remoteRevision,
+  ) {
     if (colorHex == null || colorHex.trim().isEmpty) {
+      return;
+    }
+    if (remoteRevision != null &&
+        _lastAppliedMcpCloudRevision != null &&
+        remoteRevision < _lastAppliedMcpCloudRevision!) {
       return;
     }
     final parsed = _parseCompositionColor(colorHex);
@@ -1458,6 +1470,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       currentProject.metadata['backgroundColor'],
     );
     if (currentColor?.value == parsed.value) {
+      if (remoteRevision != null) {
+        _lastAppliedMcpCloudRevision = remoteRevision;
+      }
       return;
     }
     final nextMetadata = <String, String>{
@@ -1466,7 +1481,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     };
     setState(() {
       _motionProject = currentProject.copyWith(metadata: nextMetadata);
+      if (remoteRevision != null) {
+        _lastAppliedMcpCloudRevision = remoteRevision;
+      }
     });
+    _markMotionAuthoringChanged(scheduleWarmup: true);
   }
 
   static String _normalizeHexColor(Color color) {

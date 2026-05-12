@@ -32,6 +32,7 @@ class RefusionMcpCloudBridgeSnapshot {
     required this.updatedAtUtc,
     this.remoteRevision,
     this.latestSolidColorHex,
+    this.remoteLayers = const <Map<String, Object?>>[],
     this.error,
   });
 
@@ -43,6 +44,7 @@ class RefusionMcpCloudBridgeSnapshot {
   final DateTime updatedAtUtc;
   final int? remoteRevision;
   final String? latestSolidColorHex;
+  final List<Map<String, Object?>> remoteLayers;
   final String? error;
 }
 
@@ -291,20 +293,31 @@ class RefusionMcpCloudBridge {
     final liveEditor = _asMap(payload['liveEditor']);
     int? remoteRevision;
     String? latestSolidColorHex;
+    var remoteLayers = const <Map<String, Object?>>[];
     if (layersResult != null) {
       final layersStructured = _asMap(layersResult['structuredContent']);
       final layersPayload = _asMap(layersStructured['payload']);
       remoteRevision = _asInt(layersPayload['revision']);
       final layers = _asListOfMap(layersPayload['layers']);
-      for (final layer in layers.reversed) {
+      remoteLayers = layers;
+      DateTime? latestSolidUpdatedAtUtc;
+      for (final layer in layers) {
         if (_asString(layer['layer_kind']) != 'solid') {
           continue;
         }
         final payload = _asMap(layer['payload']);
         final color = _asString(payload['color']);
-        if (color != null) {
+        if (color == null) {
+          continue;
+        }
+        final updatedAtUtc = _asDateTimeUtc(layer['updated_at']);
+        final shouldPromote = latestSolidColorHex == null ||
+            (updatedAtUtc != null &&
+                (latestSolidUpdatedAtUtc == null ||
+                    updatedAtUtc.isAfter(latestSolidUpdatedAtUtc)));
+        if (shouldPromote) {
           latestSolidColorHex = color;
-          break;
+          latestSolidUpdatedAtUtc = updatedAtUtc;
         }
       }
     }
@@ -317,6 +330,7 @@ class RefusionMcpCloudBridge {
       updatedAtUtc: DateTime.now().toUtc(),
       remoteRevision: remoteRevision,
       latestSolidColorHex: latestSolidColorHex,
+      remoteLayers: List<Map<String, Object?>>.unmodifiable(remoteLayers),
       error: structured['ok'] == true ? null : _asString(structured['summary']),
     );
   }
@@ -583,6 +597,14 @@ int? _asInt(Object? value) {
     return value.round();
   }
   return null;
+}
+
+DateTime? _asDateTimeUtc(Object? value) {
+  final raw = _asString(value);
+  if (raw == null) {
+    return null;
+  }
+  return DateTime.tryParse(raw)?.toUtc();
 }
 
 List<Map<String, Object?>> _asListOfMap(Object? value) {

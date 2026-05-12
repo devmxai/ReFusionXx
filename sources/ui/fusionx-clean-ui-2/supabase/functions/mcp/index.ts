@@ -968,7 +968,7 @@ async function insertLayer(context: RequestContext, args: JsonMap): Promise<Tool
   }
 
   const layerKind = text(args.layerKind ?? args.kind, 'solid');
-  const payload = readMap(args.payload);
+  const payload = sanitizeLayerPayload(readMap(args.payload));
   const color = text(args.color ?? payload.color, '#FFFFFF');
   const name = text(args.name, layerKind === 'solid' ? 'Background' : 'Layer');
   const durationMs = numberValue(
@@ -1540,6 +1540,36 @@ function optionalNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value)
     ? Math.round(value)
     : null;
+}
+
+function sanitizeLayerPayload(value: unknown): JsonMap {
+  const blocked = new Set([
+    'agentsessiontoken',
+    'sessiontoken',
+    'accesstoken',
+    'refreshtoken',
+    'authorization',
+    'password',
+    'secret',
+    'apikey',
+    'token',
+  ]);
+  const visit = (input: unknown): unknown => {
+    if (Array.isArray(input)) {
+      return input.map(visit);
+    }
+    if (input && typeof input === 'object') {
+      const out: JsonMap = {};
+      for (const [rawKey, rawValue] of Object.entries(input as JsonMap)) {
+        const normalized = rawKey.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+        if (blocked.has(normalized)) continue;
+        out[rawKey] = visit(rawValue);
+      }
+      return out;
+    }
+    return input;
+  };
+  return readMap(visit(value));
 }
 
 function inferColor(source: string): string | null {
