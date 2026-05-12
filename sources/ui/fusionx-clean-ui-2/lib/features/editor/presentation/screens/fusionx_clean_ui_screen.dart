@@ -208,6 +208,17 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       UnifiedKeyframeMotionTimelineAdapter();
   static const UnifiedTimelineAddCommandRegistry
       _unifiedTimelineAddCommandRegistry = UnifiedTimelineAddCommandRegistry();
+  static final MotionPropertyDefinition _mcpRemoteVisualColorProperty =
+      MotionPropertyDefinition(
+    id: 'visual.color',
+    path: const MotionPropertyPath(
+      group: MotionPropertyGroup.visual,
+      name: 'color',
+    ),
+    valueKind: MotionPropertyValueKind.colorArgb,
+    supportedTargets: const <MotionTargetKind>[MotionTargetKind.element],
+    defaultValue: const MotionPropertyValue.colorArgb(0xFF111111),
+  );
   static const RootSceneClipProjectionAdapter _rootSceneClipProjectionAdapter =
       RootSceneClipProjectionAdapter();
   static const CompositionWorkspaceOutlinerAdapter
@@ -1216,6 +1227,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   void _handleMcpCloudSnapshot(RefusionMcpCloudBridgeSnapshot snapshot) {
     if (snapshot.ok) {
       _ensureCompositionSessionForMcpSync();
+      _applyRemoteLayersIfNeeded(
+        snapshot.remoteLayers,
+        snapshot.remoteRevision,
+      );
     }
     _applyRemoteSolidBackgroundIfNeeded(
       snapshot.latestSolidColorHex,
@@ -1447,6 +1462,422 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _setCurrentTime(TimelineTime.zero);
     });
     _syncTimelineClockDuration();
+  }
+
+  void _applyRemoteLayersIfNeeded(
+    List<Map<String, Object?>> remoteLayers,
+    int? remoteRevision,
+  ) {
+    if (remoteLayers.isEmpty) {
+      return;
+    }
+    var didApply = false;
+    for (final remoteLayer in remoteLayers) {
+      final kind = _remoteLayerKind(remoteLayer);
+      if (kind == 'text') {
+        didApply = _applyRemoteTextLayerIfNeeded(remoteLayer) || didApply;
+      }
+    }
+    if (didApply && remoteRevision != null) {
+      _lastAppliedMcpCloudRevision = remoteRevision;
+    }
+  }
+
+  bool _applyRemoteTextLayerIfNeeded(Map<String, Object?> remoteLayer) {
+    final remoteLayerId = _remoteString(remoteLayer['id']);
+    if (remoteLayerId == null ||
+        remoteLayerId.isEmpty ||
+        _hasAppliedMcpRemoteLayer(remoteLayerId)) {
+      return false;
+    }
+
+    final payload = _remotePayload(remoteLayer);
+    final nestedLayer = _remoteMap(payload['layer']);
+    final textValue = _firstRemoteString(<Object?>[
+      nestedLayer['text'],
+      nestedLayer['content'],
+      nestedLayer['value'],
+      payload['text'],
+      payload['content'],
+      payload['value'],
+      remoteLayer['text'],
+      remoteLayer['content'],
+    ]);
+    if (textValue == null || textValue.trim().isEmpty) {
+      return false;
+    }
+
+    final currentProject = _motionProject ?? _buildInitialMotionProject();
+    final sceneIndex = currentProject.scenes.indexWhere(
+      (scene) => scene.id == _motionSceneId,
+    );
+    if (sceneIndex < 0) {
+      return false;
+    }
+    final scene = currentProject.scenes[sceneIndex];
+    final insertionRange = _remoteProjectRangeForLayer(
+      scene: scene,
+      remoteLayer: remoteLayer,
+      payload: payload,
+    );
+    if (insertionRange == null) {
+      return false;
+    }
+
+    final canvasSize = currentProject.format.canvasSize;
+    final fontSize = _firstRemoteDouble(<Object?>[
+          nestedLayer['fontSize'],
+          payload['fontSize'],
+          nestedLayer['font_size'],
+          payload['font_size'],
+        ]) ??
+        64.0;
+    final absoluteX = _firstRemoteDouble(<Object?>[
+      nestedLayer['x'],
+      payload['x'],
+      nestedLayer['centerX'],
+      payload['centerX'],
+    ]);
+    final absoluteY = _firstRemoteDouble(<Object?>[
+      nestedLayer['y'],
+      payload['y'],
+      nestedLayer['centerY'],
+      payload['centerY'],
+    ]);
+    final positionX =
+        absoluteX == null ? 0.0 : absoluteX - (canvasSize.width / 2.0);
+    final positionY =
+        absoluteY == null ? 0.0 : absoluteY - (canvasSize.height / 2.0);
+    final colorArgb = _remoteColorArgb(
+          _firstRemoteString(<Object?>[
+            nestedLayer['color'],
+            nestedLayer['fill'],
+            payload['color'],
+            payload['fill'],
+            _remoteMap(payload['style'])['color'],
+            _remoteMap(payload['style'])['fill'],
+          ]),
+        ) ??
+        0xFF111111;
+    final opacity = (_firstRemoteDouble(<Object?>[
+              nestedLayer['opacity'],
+              payload['opacity'],
+            ]) ??
+            1.0)
+        .clamp(0.0, 1.0)
+        .toDouble();
+    final layerName = _firstRemoteString(<Object?>[
+          remoteLayer['name'],
+          nestedLayer['name'],
+          payload['name'],
+        ]) ??
+        'Text';
+    final zIndex = _firstRemoteInt(<Object?>[
+          remoteLayer['z_index'],
+          remoteLayer['zIndex'],
+          nestedLayer['zIndex'],
+          payload['zIndex'],
+        ]) ??
+        10;
+    const pendingTarget = MotionPropertyTarget(
+      kind: MotionTargetKind.element,
+      targetId: '__pending__',
+    );
+    MotionPropertyAssignment assignment(
+      MotionPropertyDefinition definition,
+      MotionPropertyValue value,
+    ) {
+      return MotionPropertyAssignment(
+        target: pendingTarget,
+        definition: definition,
+        value: value,
+      );
+    }
+
+    final insertionResult = _buildMotionTextAuthoringService().insertTextPreset(
+      MotionTextElementInsertionRequest(
+        project: currentProject,
+        sceneId: scene.id,
+        projectRange: insertionRange,
+        text: textValue,
+        elementName: layerName,
+        layerName: layerName,
+        layerZIndex: zIndex,
+        reuseExistingLayer: false,
+        elementProperties: <MotionPropertyAssignment>[
+          assignment(
+            MotionPropertyCatalog.fontSize,
+            MotionPropertyValue.scalar(fontSize),
+          ),
+          assignment(
+            MotionPropertyCatalog.positionX,
+            MotionPropertyValue.scalar(positionX),
+          ),
+          assignment(
+            MotionPropertyCatalog.positionY,
+            MotionPropertyValue.scalar(positionY),
+          ),
+          assignment(
+            MotionPropertyCatalog.opacity,
+            MotionPropertyValue.scalar(opacity),
+          ),
+          assignment(
+            _mcpRemoteVisualColorProperty,
+            MotionPropertyValue.colorArgb(colorArgb),
+          ),
+        ],
+      ),
+    );
+
+    if (!insertionResult.didApply || insertionResult.elementId == null) {
+      if (kDebugMode) {
+        debugPrint(
+          'MCP remote text apply failed for layer `$remoteLayerId`: '
+          '${insertionResult.issues.map((issue) => issue.code.name).join(', ')}',
+        );
+      }
+      return false;
+    }
+
+    final nextProject = _motionProjectWithRemoteElementMetadata(
+      project: insertionResult.project,
+      elementId: insertionResult.elementId!,
+      remoteLayerId: remoteLayerId,
+      remoteLayerName: layerName,
+    );
+    final nextBindings = <MotionTextAnimationBindingModel>[
+      ..._motionTextAnimationBindings,
+      ...insertionResult.generatedBindings,
+    ];
+    setState(() {
+      _motionProject = nextProject;
+      _motionTextAnimationBindings = nextBindings;
+      _tracks = _ensureTrackKind(_tracks, TimelineTrackKind.text);
+      _selectedClipId = insertionResult.layerId ?? _selectedClipId;
+      _selectedTransitionId = null;
+      _activeTab = EditorMediaTab.text;
+      _setCurrentTime(insertionRange.start);
+      _markMotionAuthoringChanged();
+    });
+    _syncTimelineClockDuration();
+    _showStageMessage('AI text layer applied.');
+    return true;
+  }
+
+  MotionProjectModel _motionProjectWithRemoteElementMetadata({
+    required MotionProjectModel project,
+    required String elementId,
+    required String remoteLayerId,
+    required String remoteLayerName,
+  }) {
+    var didUpdate = false;
+    final nextScenes = project.scenes.map((scene) {
+      final nextLayers = scene.layers.map((layer) {
+        final nextElements = layer.elements.map((element) {
+          if (element.id != elementId) {
+            return element;
+          }
+          final binding = element.sourceBinding;
+          if (binding == null) {
+            return element;
+          }
+          didUpdate = true;
+          return element.copyWith(
+            sourceBinding: MotionElementSourceBinding(
+              kind: binding.kind,
+              sourceId: binding.sourceId,
+              assetId: binding.assetId,
+              label: binding.label,
+              sourceRange: binding.sourceRange,
+              metadata: <String, String>{
+                ...binding.metadata,
+                'mcp.remoteLayerId': remoteLayerId,
+                'mcp.remoteLayerName': remoteLayerName,
+              },
+            ),
+          );
+        }).toList(growable: false);
+        return layer.copyWith(elements: nextElements);
+      }).toList(growable: false);
+      return scene.copyWith(layers: nextLayers);
+    }).toList(growable: false);
+    return didUpdate ? project.copyWith(scenes: nextScenes) : project;
+  }
+
+  bool _hasAppliedMcpRemoteLayer(String remoteLayerId) {
+    final project = _motionProject;
+    if (project == null) {
+      return false;
+    }
+    for (final scene in project.scenes) {
+      for (final layer in scene.layers) {
+        for (final element in layer.elements) {
+          if (element.sourceBinding?.metadata['mcp.remoteLayerId'] ==
+              remoteLayerId) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  TimelineTimeRange? _remoteProjectRangeForLayer({
+    required MotionSceneModel scene,
+    required Map<String, Object?> remoteLayer,
+    required Map<String, Object?> payload,
+  }) {
+    final startMs = _firstRemoteInt(<Object?>[
+          remoteLayer['start_ms'],
+          remoteLayer['startMs'],
+          payload['startMs'],
+          payload['start_ms'],
+        ]) ??
+        0;
+    final durationMs = _firstRemoteInt(<Object?>[
+          remoteLayer['duration_ms'],
+          remoteLayer['durationMs'],
+          payload['durationMs'],
+          payload['duration_ms'],
+        ]) ??
+        math.max(1, scene.projectRange.duration.inMilliseconds);
+    final safeStart = math.max(0, startMs);
+    final safeDuration = math.max(1, durationMs);
+    var start = TimelineTime.fromMilliseconds(safeStart);
+    var end = TimelineTime.fromMilliseconds(safeStart + safeDuration);
+    if (start < scene.projectRange.start) {
+      start = scene.projectRange.start;
+    }
+    if (start >= scene.projectRange.endExclusive) {
+      start = scene.projectRange.start;
+    }
+    if (end <= start) {
+      end = start + TimelineTime.fromMilliseconds(safeDuration);
+    }
+    if (end > scene.projectRange.endExclusive) {
+      end = scene.projectRange.endExclusive;
+    }
+    if (end <= start) {
+      return null;
+    }
+    return TimelineTimeRange(start: start, endExclusive: end);
+  }
+
+  Map<String, Object?> _remotePayload(Map<String, Object?> layer) {
+    return _remoteMap(layer['payload']);
+  }
+
+  String _remoteLayerKind(Map<String, Object?> layer) {
+    final payload = _remotePayload(layer);
+    final nestedLayer = _remoteMap(payload['layer']);
+    final rawKind = _firstRemoteString(<Object?>[
+      layer['layer_kind'],
+      layer['layerKind'],
+      payload['layerKind'],
+      payload['layer_kind'],
+      payload['kind'],
+      payload['type'],
+      nestedLayer['kind'],
+      nestedLayer['type'],
+    ])?.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_');
+    if (rawKind != null && rawKind.trim().isNotEmpty) {
+      if (rawKind.contains('text')) {
+        return 'text';
+      }
+      if (rawKind.contains('shape')) {
+        return 'shape';
+      }
+      if (rawKind.contains('solid') || rawKind.contains('background')) {
+        return 'solid';
+      }
+      return rawKind;
+    }
+    if (_firstRemoteString(<Object?>[
+          nestedLayer['text'],
+          payload['text'],
+          payload['content'],
+        ]) !=
+        null) {
+      return 'text';
+    }
+    return 'solid';
+  }
+
+  Map<String, Object?> _remoteMap(Object? value) {
+    if (value is Map<String, Object?>) {
+      return value;
+    }
+    if (value is Map) {
+      final mapped = <String, Object?>{};
+      for (final entry in value.entries) {
+        if (entry.key is String) {
+          mapped[entry.key as String] = entry.value;
+        }
+      }
+      return mapped;
+    }
+    return const <String, Object?>{};
+  }
+
+  String? _remoteString(Object? value) {
+    if (value is String && value.trim().isNotEmpty) {
+      return value.trim();
+    }
+    return null;
+  }
+
+  String? _firstRemoteString(Iterable<Object?> values) {
+    for (final value in values) {
+      final resolved = _remoteString(value);
+      if (resolved != null) {
+        return resolved;
+      }
+    }
+    return null;
+  }
+
+  double? _remoteDouble(Object? value) {
+    if (value is num && value.isFinite) {
+      return value.toDouble();
+    }
+    if (value is String) {
+      return double.tryParse(value.trim());
+    }
+    return null;
+  }
+
+  double? _firstRemoteDouble(Iterable<Object?> values) {
+    for (final value in values) {
+      final resolved = _remoteDouble(value);
+      if (resolved != null) {
+        return resolved;
+      }
+    }
+    return null;
+  }
+
+  int? _remoteInt(Object? value) {
+    if (value is num && value.isFinite) {
+      return value.round();
+    }
+    if (value is String) {
+      return int.tryParse(value.trim());
+    }
+    return null;
+  }
+
+  int? _firstRemoteInt(Iterable<Object?> values) {
+    for (final value in values) {
+      final resolved = _remoteInt(value);
+      if (resolved != null) {
+        return resolved;
+      }
+    }
+    return null;
+  }
+
+  int? _remoteColorArgb(String? colorHex) {
+    return _parseCompositionColor(colorHex)?.value;
   }
 
   void _applyRemoteSolidBackgroundIfNeeded(

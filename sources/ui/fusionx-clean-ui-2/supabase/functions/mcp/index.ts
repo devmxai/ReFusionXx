@@ -308,9 +308,6 @@ function ensureAgentWrite(toolName: string, context: RequestContext) {
 
 function normalizeToolName(name: string): string {
   const value = name.trim();
-  if (value.startsWith('refusion.')) {
-    return value;
-  }
   const aliases: Record<string, string> = {
     get_active_context: 'refusion.get_active_context',
     get_project_state: 'refusion.get_project_state',
@@ -321,12 +318,28 @@ function normalizeToolName(name: string): string {
     get_pairing_code_status: 'refusion.get_pairing_code_status',
     attach_pairing_code: 'refusion.attach_pairing_code',
     insert_layer: 'refusion.insert_layer',
+    insert_text: 'refusion.insert_layer',
+    add_text: 'refusion.insert_layer',
+    create_text: 'refusion.insert_layer',
+    insert_shape: 'refusion.insert_layer',
+    add_shape: 'refusion.insert_layer',
+    set_background: 'refusion.insert_layer',
+    set_solid_background: 'refusion.insert_layer',
+    background_set_solid: 'refusion.insert_layer',
     apply_scene_program: 'refusion.apply_scene_program',
     get_layers: 'refusion.get_layers',
     get_command_status: 'refusion.get_command_status',
     disconnect_agent: 'refusion.disconnect_agent',
+    'refusion.insert_text': 'refusion.insert_layer',
+    'refusion.add_text': 'refusion.insert_layer',
+    'refusion.create_text': 'refusion.insert_layer',
+    'refusion.insert_shape': 'refusion.insert_layer',
+    'refusion.add_shape': 'refusion.insert_layer',
+    'refusion.set_background': 'refusion.insert_layer',
+    'refusion.set_solid_background': 'refusion.insert_layer',
+    'refusion.background.set_solid': 'refusion.insert_layer',
   };
-  return aliases[value] ?? value;
+  return aliases[value] ?? (value.startsWith('refusion.') ? value : value);
 }
 
 async function getActiveContext(context: RequestContext, args: JsonMap) {
@@ -967,13 +980,32 @@ async function insertLayer(context: RequestContext, args: JsonMap): Promise<Tool
     });
   }
 
-  const layerKind = text(args.layerKind ?? args.kind, 'solid');
-  const payload = sanitizeLayerPayload(readMap(args.payload));
-  const color = text(args.color ?? payload.color, '#FFFFFF');
-  const name = text(args.name, layerKind === 'solid' ? 'Background' : 'Layer');
+  const payload = canonicalLayerPayload(args);
+  const layerKind = inferLayerKind(args, payload);
+  const color = inferLayerColor(args, payload) ?? '#FFFFFF';
+  const name = text(
+    args.name ?? payload.name,
+    layerKind === 'solid' ? 'Background' : layerKind === 'text' ? 'Text' : 'Layer',
+  );
   const durationMs = numberValue(
-    args.durationMs,
+    firstDefined(
+      args.durationMs,
+      args.duration,
+      args.endMs != null && args.startMs != null
+        ? numberValue(args.endMs, 0) - numberValue(args.startMs, 0)
+        : undefined,
+      payload.durationMs,
+      payload.duration_ms,
+    ),
     numberValue(composition.durationMs, 8000),
+  );
+  const startMs = numberValue(
+    firstDefined(args.startMs, args.start, args.startTimeMs, payload.startMs, payload.start_ms),
+    0,
+  );
+  const zIndex = numberValue(
+    firstDefined(args.zIndex, args.z_index, payload.zIndex, payload.z_index),
+    layerKind === 'solid' ? -1000 : 0,
   );
 
   const { data: layer, error } = await admin
@@ -984,9 +1016,9 @@ async function insertLayer(context: RequestContext, args: JsonMap): Promise<Tool
       composition_id: compositionId,
       layer_kind: layerKind,
       name,
-      start_ms: numberValue(args.startMs, 0),
+      start_ms: startMs,
       duration_ms: durationMs,
-      z_index: numberValue(args.zIndex, layerKind === 'solid' ? -1000 : 0),
+      z_index: zIndex,
       payload: {
         ...payload,
         ...(layerKind === 'solid' ? { color } : {}),
@@ -1007,7 +1039,14 @@ async function insertLayer(context: RequestContext, args: JsonMap): Promise<Tool
     {
       layerId: layer.id,
       layerKind,
-      color,
+      name,
+      startMs,
+      durationMs,
+      zIndex,
+      payload: {
+        ...payload,
+        ...(layerKind === 'solid' ? { color } : {}),
+      },
     },
     currentRevision,
     revisionAfter,
@@ -1452,6 +1491,18 @@ function tools() {
       true,
     ),
     tool(
+      'refusion.insert_text',
+      'Insert Text',
+      'Insert a text layer into the active composition.',
+      true,
+    ),
+    tool(
+      'refusion.set_background',
+      'Set Background',
+      'Set or insert a solid background layer for the active composition.',
+      true,
+    ),
+    tool(
       'refusion.apply_scene_program',
       'Apply Scene Program',
       'Apply a minimal SceneProgram as a layer mutation.',
@@ -1540,6 +1591,148 @@ function optionalNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value)
     ? Math.round(value)
     : null;
+}
+
+function firstDefined(...values: unknown[]): unknown {
+  for (const value of values) {
+    if (value !== undefined && value !== null) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function firstText(...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return '';
+}
+
+function canonicalLayerPayload(args: JsonMap): JsonMap {
+  const payload = sanitizeLayerPayload(readMap(args.payload));
+  const layer = sanitizeLayerPayload(firstDefined(args.layer, payload.layer));
+  const updates = sanitizeLayerPayload(firstDefined(args.updates, payload.updates));
+  const style = sanitizeLayerPayload(firstDefined(args.style, payload.style, layer.style));
+  const out: JsonMap = {
+    ...payload,
+    ...layer,
+  };
+  if (Object.keys(style).length > 0) {
+    out.style = style;
+  }
+  if (Object.keys(updates).length > 0) {
+    out.updates = updates;
+  }
+
+  const textValue = firstText(
+    args.text,
+    args.content,
+    args.title,
+    out.text,
+    out.content,
+    out.value,
+  );
+  if (textValue) {
+    out.text = textValue;
+    if (!out.content) out.content = textValue;
+  }
+
+  const fontSize = firstDefined(args.fontSize, args.font_size, out.fontSize, out.font_size);
+  if (fontSize !== undefined) out.fontSize = fontSize;
+  const x = firstDefined(args.x, args.centerX, out.x, out.centerX);
+  const y = firstDefined(args.y, args.centerY, out.y, out.centerY);
+  if (x !== undefined) out.x = x;
+  if (y !== undefined) out.y = y;
+
+  const color = inferLayerColor(args, out);
+  if (color) {
+    out.color = color;
+  }
+  return out;
+}
+
+function inferLayerKind(args: JsonMap, payload: JsonMap): string {
+  const style = readMap(payload.style);
+  const updates = readMap(payload.updates);
+  const updatePayload = readMap(updates.payload);
+  const rawKind = firstText(
+    args.layerKind,
+    args.layer_kind,
+    args.layerType,
+    args.kind,
+    args.type,
+    payload.layerKind,
+    payload.layer_kind,
+    payload.kind,
+    payload.type,
+    updates.layerKind,
+    updates.kind,
+    updates.type,
+  ).toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  if (rawKind.includes('text')) return 'text';
+  if (rawKind.includes('shape')) return 'shape';
+  if (rawKind.includes('video')) return 'video';
+  if (rawKind.includes('image')) return 'image';
+  if (rawKind.includes('audio')) return 'audio';
+  if (rawKind.includes('media')) return 'media';
+  if (
+    rawKind.includes('solid') ||
+    rawKind.includes('background') ||
+    rawKind.includes('bg')
+  ) {
+    return 'solid';
+  }
+  const textValue = firstText(
+    args.text,
+    args.content,
+    args.title,
+    payload.text,
+    payload.content,
+    payload.value,
+    updatePayload.text,
+    updatePayload.content,
+  );
+  if (textValue) return 'text';
+  if (inferLayerColor(args, payload) || firstText(style.fill, style.color)) {
+    return 'solid';
+  }
+  return 'solid';
+}
+
+function inferLayerColor(args: JsonMap, payload: JsonMap): string | null {
+  const updates = readMap(payload.updates);
+  const updatePayload = readMap(updates.payload);
+  const style = readMap(payload.style);
+  const updateStyle = readMap(updates.style);
+  const raw = firstText(
+    args.color,
+    args.fill,
+    args.backgroundColor,
+    payload.color,
+    payload.fill,
+    style.fill,
+    style.color,
+    updates.color,
+    updates.fill,
+    updatePayload.color,
+    updatePayload.fill,
+    updateStyle.fill,
+    updateStyle.color,
+  );
+  if (!raw) return null;
+  const directHex = inferColor(raw);
+  if (directHex) return directHex;
+  const normalized = raw.trim().replace(/^#/, '');
+  if (/^[0-9a-fA-F]{6}$/.test(normalized)) {
+    return `#${normalized.toUpperCase()}`;
+  }
+  if (/^[0-9a-fA-F]{8}$/.test(normalized)) {
+    return `#${normalized.slice(2).toUpperCase()}`;
+  }
+  return null;
 }
 
 function sanitizeLayerPayload(value: unknown): JsonMap {

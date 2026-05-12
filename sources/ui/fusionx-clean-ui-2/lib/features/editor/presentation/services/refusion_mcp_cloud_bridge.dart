@@ -305,8 +305,7 @@ class RefusionMcpCloudBridge {
         if (_asString(layer['layer_kind']) != 'solid') {
           continue;
         }
-        final payload = _asMap(layer['payload']);
-        final color = _asString(payload['color']);
+        final color = _extractRemoteLayerColorHex(layer);
         if (color == null) {
           continue;
         }
@@ -616,6 +615,53 @@ List<Map<String, Object?>> _asListOfMap(Object? value) {
     result.add(_asMap(item));
   }
   return result;
+}
+
+String? _extractRemoteLayerColorHex(Map<String, Object?> layer) {
+  final payload = _asMap(layer['payload']);
+  final updates = _asMap(payload['updates']);
+  final nestedPayload = _asMap(updates['payload']);
+  final nestedLayer = _asMap(payload['layer']);
+  final style = _asMap(payload['style']);
+  final updateStyle = _asMap(updates['style']);
+  for (final value in <Object?>[
+    updates['color'],
+    updates['fill'],
+    nestedPayload['color'],
+    nestedPayload['fill'],
+    updateStyle['fill'],
+    updateStyle['color'],
+    payload['color'],
+    payload['fill'],
+    style['fill'],
+    style['color'],
+    nestedLayer['color'],
+    nestedLayer['fill'],
+    layer['color'],
+    layer['fill'],
+  ]) {
+    final normalized = _normalizeColorHex(_asString(value));
+    if (normalized != null) {
+      return normalized;
+    }
+  }
+  return null;
+}
+
+String? _normalizeColorHex(String? value) {
+  if (value == null) {
+    return null;
+  }
+  final normalized = value.trim().replaceFirst('#', '');
+  if (normalized.length != 6 && normalized.length != 8) {
+    return null;
+  }
+  final parsed = int.tryParse(normalized, radix: 16);
+  if (parsed == null) {
+    return null;
+  }
+  final rgb = normalized.length == 8 ? parsed & 0x00FFFFFF : parsed;
+  return '#${rgb.toRadixString(16).padLeft(6, '0').toUpperCase()}';
 }
 
 bool _isUuidLike(String? value) {
