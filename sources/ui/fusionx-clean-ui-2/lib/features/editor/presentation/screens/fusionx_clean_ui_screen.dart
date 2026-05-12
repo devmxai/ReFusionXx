@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -843,7 +844,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   Timer? _mcpPairingStatusPollTimer;
   int _mcpAppliedRemoteRevision = 1;
   final Set<String> _appliedMcpSolidLayerIds = <String>{};
-  final Set<String> _appliedMcpMotionChannelIds = <String>{};
+  final Map<String, String> _appliedMcpMotionChannelSignatures =
+      <String, String>{};
 
   @override
   void initState() {
@@ -1329,6 +1331,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       );
       _applyRemoteMotionChannelsIfNeeded(
         snapshot.remoteMotionChannels,
+        snapshot.remoteLayers,
         snapshot.remoteRevision,
       );
     }
@@ -1550,6 +1553,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _sceneLayerScopeLayerId = null;
       _motionTextAnimationBindings = const <MotionTextAnimationBindingModel>[];
       _universalMotionPropertyChannels = const <MotionPropertyChannelModel>[];
+      _appliedMcpMotionChannelSignatures.clear();
       _tracks = const <TimelineTrackData>[];
       _selectedClipId = null;
       _selectedTransitionId = null;
@@ -2228,10 +2232,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
   void _applyRemoteMotionChannelsIfNeeded(
     List<Map<String, Object?>> remoteMotionChannels,
+    List<Map<String, Object?>> remoteLayers,
     int? remoteRevision,
   ) {
     if (remoteMotionChannels.isEmpty) {
       return;
+    }
+    for (final remoteLayer in remoteLayers) {
+      if (_remoteLayerKind(remoteLayer) == 'media') {
+        _registerRemoteMediaLayerBinding(remoteLayer);
+      }
     }
     var didApply = false;
     for (final channel in remoteMotionChannels) {
@@ -2239,11 +2249,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       if (channelId == null || channelId.isEmpty) {
         continue;
       }
-      if (_appliedMcpMotionChannelIds.contains(channelId)) {
+      final signature = _mcpRemoteMotionChannelSignature(channel);
+      if (_appliedMcpMotionChannelSignatures[channelId] == signature) {
         continue;
       }
       if (_applyRemoteMotionChannel(channel)) {
-        _appliedMcpMotionChannelIds.add(channelId);
+        _appliedMcpMotionChannelSignatures[channelId] = signature;
         didApply = true;
       }
     }
@@ -2418,6 +2429,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         null) {
       return remoteLayerId;
     }
+    final selectedClipId = _selectedClipId;
+    if (selectedClipId != null) {
+      final selectedContext =
+          _selectedClipContextForTracks(_timelineTruthTracks, selectedClipId);
+      if (selectedContext != null &&
+          _timelineClipSupportsCanvasTransform(selectedContext.clip)) {
+        return selectedClipId;
+      }
+    }
     if (!fallbackToSingleVisualClip) {
       return null;
     }
@@ -2434,6 +2454,17 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
     }
     return onlyClipId;
+  }
+
+  String _mcpRemoteMotionChannelSignature(Map<String, Object?> channel) {
+    final updatedAt = _remoteString(channel['updated_at']) ?? '';
+    final propertyId = _remoteString(channel['property_id']) ?? '';
+    final layerId = _remoteString(channel['layer_id']) ?? '';
+    final keyframes = channel['keyframes'];
+    final keyframeJson = keyframes is List
+        ? jsonEncode(keyframes)
+        : (keyframes == null ? '' : jsonEncode(keyframes));
+    return '$layerId|$propertyId|$updatedAt|$keyframeJson';
   }
 
   MotionPropertyDefinition? _mcpDefinitionForPropertyId(String propertyId) {

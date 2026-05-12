@@ -1460,17 +1460,13 @@ async function applyMotionPatch(
   context: RequestContext,
   args: JsonMap,
 ): Promise<ToolResult> {
-  const active = await getActiveContext(context, {});
-  const project = readMap(active.project);
-  const composition = readMap(active.composition);
-  const projectId = context.agentSession?.project_id || stringValue(args.projectId) ||
-    stringValue(project.id);
-  const compositionId = context.agentSession?.composition_id || stringValue(args.compositionId) ||
-    stringValue(composition.id);
-  if (!projectId || !compositionId) {
+  const resolved = await resolveProjectScope(context, args);
+  if (!resolved) {
     return fail('PROJECT_NOT_OPEN');
   }
-  const currentRevision = await projectRevision(projectId);
+  const projectId = resolved.projectId;
+  const compositionId = resolved.compositionId;
+  const currentRevision = resolved.revision;
   const expectedRevision = optionalNumber(args.expectedRevision);
   if (expectedRevision != null && expectedRevision !== currentRevision) {
     return fail('REVISION_CONFLICT', {
@@ -1505,8 +1501,13 @@ async function applyMotionPatch(
   if (writes.length === 0) {
     return fail('MOTION_CHANNELS_REQUIRED');
   }
+  const motionBaseTimeMs = resolveMotionBaseTimeMs(resolved.active, args);
+  const normalizedWrites =
+    motionBaseTimeMs > 0 && !hasExplicitMotionTime(args)
+      ? shiftMotionWritesBy(writes, motionBaseTimeMs)
+      : writes;
 
-  for (const write of writes) {
+  for (const write of normalizedWrites) {
     const { error } = await admin
       .from('refusion_motion_channels')
       .upsert({
@@ -1533,7 +1534,8 @@ async function applyMotionPatch(
     'refusion.apply_motion_patch',
     {
       layerId,
-      writes,
+      writes: normalizedWrites,
+      motionBaseTimeMs,
     },
     currentRevision,
     revisionAfter,
@@ -1543,7 +1545,8 @@ async function applyMotionPatch(
     projectId,
     compositionId,
     layerId,
-    channels: writes.length,
+    channels: normalizedWrites.length,
+    motionBaseTimeMs,
     commandId: commandRecord.commandId,
     revisionBefore: currentRevision,
     revisionAfter,
@@ -5219,6 +5222,51 @@ type MotionChannelWrite = {
   keyframes: JsonMap[];
   motionRecipe?: string | null;
 };
+
+function hasExplicitMotionTime(args: JsonMap): boolean {
+  const payload = readMap(args.payload);
+  return firstDefined(
+    args.startTimeMs,
+    args.startMs,
+    args.atMs,
+    args.timeMs,
+    args.time,
+    args.playheadMs,
+    payload.startTimeMs,
+    payload.startMs,
+    payload.atMs,
+    payload.timeMs,
+    payload.time,
+    payload.playheadMs,
+  ) != null;
+}
+
+function resolveMotionBaseTimeMs(activeContext: JsonMap, args: JsonMap): number {
+  const timeline = readMap(activeContext.timeline);
+  const activePlayhead = numberValue(firstDefined(timeline.playheadMs, 0), 0);
+  const hintedPlayhead = optionalNumber(firstDefined(args.playheadMs, args.timelinePlayheadMs));
+  const base = hintedPlayhead ?? activePlayhead;
+  return Math.max(0, Math.round(base));
+}
+
+function shiftMotionWritesBy(
+  writes: MotionChannelWrite[],
+  offsetMs: number,
+): MotionChannelWrite[] {
+  if (offsetMs <= 0) {
+    return writes;
+  }
+  return writes.map((write) => ({
+    ...write,
+    keyframes: write.keyframes.map((keyframe) => {
+      const timeMs = numberValue(keyframe.timeMs, 0);
+      return {
+        ...keyframe,
+        timeMs: Math.max(0, Math.round(timeMs + offsetMs)),
+      };
+    }),
+  }));
+}
 
 function inferMotionWrites(args: JsonMap): MotionChannelWrite[] {
   const payload = readMap(args.payload);
