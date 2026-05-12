@@ -453,6 +453,276 @@ canonicalY = 252 - 960 = -708
 No agent or UI feature should hand-guess PIP coordinates when a solver can
 derive them.
 
+### 7.3 Spatial Intelligence Layer
+
+The system must give agents and future manual UI the same spatial senses that a
+professional motion designer has while looking at the canvas.
+
+The five cognitive layers are:
+
+```text
+Sensory:
+  What exists and what is visible?
+
+Spatial memory:
+  Where is it, how large is it, what does it overlap, and what safe area is it in?
+
+Temporal memory:
+  When is it visible, what is its source time, and what keyframes affect it?
+
+Capability memory:
+  What can this renderer/tool/app version actually do?
+
+Reasoning helpers:
+  How should the engine solve placement, alignment, fit, and layout validation?
+```
+
+These layers are not MCP-only. They should power:
+
+- agent reads,
+- inspector panels,
+- transform tool overlays,
+- alignment buttons,
+- snapping,
+- layout diagnostics,
+- visual QA,
+- future template authoring.
+
+### 7.4 Canvas Metadata Contract
+
+Create a canonical canvas metadata projection.
+
+Suggested command/resource:
+
+```text
+get_canvas_metadata
+```
+
+Required response:
+
+```json
+{
+  "compositionId": "uuid",
+  "width": 1080,
+  "height": 1920,
+  "aspect": "9:16",
+  "fps": 30,
+  "durationMs": 30000,
+  "origin": "center",
+  "coordinateSystem": {
+    "canonical": "centerOrigin",
+    "unit": "px",
+    "xRange": [-540, 540],
+    "yRange": [-960, 960]
+  },
+  "safeZones": {
+    "titleSafe": {"left": 64, "top": 128, "right": 1016, "bottom": 1792},
+    "actionSafe": {"left": 32, "top": 96, "right": 1048, "bottom": 1824}
+  },
+  "anchors": {
+    "topLeft": {"x": -540, "y": -960},
+    "topCenter": {"x": 0, "y": -960},
+    "topRight": {"x": 540, "y": -960},
+    "centerLeft": {"x": -540, "y": 0},
+    "center": {"x": 0, "y": 0},
+    "centerRight": {"x": 540, "y": 0},
+    "bottomLeft": {"x": -540, "y": 960},
+    "bottomCenter": {"x": 0, "y": 960},
+    "bottomRight": {"x": 540, "y": 960},
+    "goldenTop": {"x": 0, "y": -367},
+    "goldenBottom": {"x": 0, "y": 367}
+  }
+}
+```
+
+### 7.5 Element Geometry Contract
+
+Create a geometry projection for every authored surface.
+
+Suggested command/resource:
+
+```text
+get_element_geometry
+```
+
+Required response:
+
+```json
+{
+  "surfaceId": "surface_video_01",
+  "clipId": "clip_video_01",
+  "kind": "video",
+  "intrinsicSize": {"width": 1920, "height": 1080},
+  "aspectRatio": 1.7777778,
+  "timelineRange": {"startMs": 0, "durationMs": 12000},
+  "sourceRange": {"startMs": 3000, "durationMs": 12000},
+  "worldBounds": {
+    "centerX": 0,
+    "centerY": 0,
+    "width": 1080,
+    "height": 607.5,
+    "rotationDeg": 0,
+    "scaleX": 0.5625,
+    "scaleY": 0.5625
+  },
+  "visibleBounds": {},
+  "style": {},
+  "safeAreaCompliance": {
+    "titleSafe": true,
+    "actionSafe": true
+  },
+  "overlaps": []
+}
+```
+
+The geometry response must be evaluated from the same frame context as the
+renderer. It cannot be a stale database approximation.
+
+### 7.6 Visual Layout Summary
+
+Create a layout summary projection for agents and UI diagnostics.
+
+Suggested command/resource:
+
+```text
+get_visual_layout_summary
+```
+
+Required response:
+
+```json
+{
+  "summary": "Story canvas 1080x1920 with one purple background, one video clip centered, and one text layer in the upper third.",
+  "primaryFocus": "surface_video_01",
+  "backgroundSurfaceId": "surface_background_01",
+  "selectedSurfaceIds": ["surface_video_01"],
+  "issues": [
+    {
+      "code": "TEXT_OVERLAPS_VIDEO",
+      "severity": "warning",
+      "surfaceIds": ["surface_text_01", "surface_video_01"]
+    }
+  ],
+  "suggestions": [
+    {
+      "operation": "surface.position.at_anchor",
+      "targetSurfaceId": "surface_text_01",
+      "anchor": "goldenTop"
+    }
+  ]
+}
+```
+
+This gives the agent and the future manual UI a human-readable mental model,
+not only raw JSON.
+
+### 7.7 Semantic Positioning Commands
+
+Add semantic spatial commands. These commands compile into ordinary transform
+channels or immediate transform properties.
+
+Required operations:
+
+```text
+surface.position.at_anchor
+surface.align_to
+surface.fit_in_zone
+surface.scale_to
+surface.center_in
+surface.distribute
+surface.keep_in_canvas
+```
+
+Allowed anchors:
+
+```text
+topLeft, topCenter, topRight
+centerLeft, center, centerRight
+bottomLeft, bottomCenter, bottomRight
+goldenTop, goldenBottom
+ruleOfThirdsTopLeft, ruleOfThirdsTopRight
+ruleOfThirdsBottomLeft, ruleOfThirdsBottomRight
+```
+
+Allowed zones:
+
+```text
+fullCanvas
+titleSafe
+actionSafe
+upperThird
+middleThird
+lowerThird
+leftHalf
+rightHalf
+customRect
+```
+
+Example:
+
+```json
+{
+  "operation": "surface.position.at_anchor",
+  "target": {"surfaceId": "surface_video_01"},
+  "anchor": "topRight",
+  "paddingPx": 72,
+  "safeArea": "actionSafe",
+  "keepInCanvas": true,
+  "animate": {
+    "durationMs": 900,
+    "easing": "easeOutCubic"
+  }
+}
+```
+
+The engine, not the agent, calculates the final pixel-perfect transform.
+
+### 7.8 Reasoning Helpers
+
+Add non-mutating reasoning commands that work for MCP and manual UI diagnostics.
+
+Required operations:
+
+```text
+layout.suggest_composition
+layout.validate_intent
+layout.preview_change
+layout.describe_timeline
+layout.detect_overlaps
+layout.score_safe_area
+```
+
+These commands must support `dryRun=true` and return proposed diffs without
+mutating state.
+
+### 7.9 Vision Loop
+
+Add optional visual capture for pixel-level verification.
+
+Required operation:
+
+```text
+capture_frame
+```
+
+Required behavior:
+
+```text
+evaluate frame -> render/capture preview -> store approved image -> return URI
+```
+
+The capture must be tied to:
+
+- projectId,
+- compositionId,
+- revision,
+- frame/time,
+- renderer adapter,
+- capability diagnostics.
+
+Vision is not the first source of truth. It is a verification loop over the
+deterministic visual program.
+
 ## 8. Time And Frame Contract
 
 Every visible/evaluated frame must carry:
@@ -614,6 +884,30 @@ recipe.image_card_slide
 
 Recipes must compile into ordinary surfaces, style patches, and motion
 channels. Recipes are not a second runtime.
+
+### 10.7 Spatial Awareness And Layout Commands
+
+```text
+canvas.get_metadata
+surface.get_geometry
+layout.get_visual_summary
+surface.position.at_anchor
+surface.align_to
+surface.fit_in_zone
+surface.scale_to
+surface.center_in
+surface.distribute
+surface.keep_in_canvas
+layout.suggest_composition
+layout.validate_intent
+layout.preview_change
+layout.detect_overlaps
+layout.score_safe_area
+capture.frame
+```
+
+These commands are shared by MCP and future manual UI. They must not become
+agent-only tools.
 
 ## 11. Visual Effects Catalog
 
@@ -886,13 +1180,28 @@ MCP resources must expose the graph projection:
 
 ```text
 get_composition_truth_graph
+get_canvas_metadata
 get_timeline_graph
 get_asset_inventory
 get_surface_visual_state
+get_element_geometry
+get_visual_layout_summary
 get_motion_channels
 get_renderer_capabilities
 get_command_status
 wait_for_apply
+capture_frame
+```
+
+MCP tools may expose friendly aliases, but internally they must call the same
+operations listed in the universal command taxonomy:
+
+```text
+position_at_anchor -> surface.position.at_anchor
+align_to -> surface.align_to
+fit_in_zone -> surface.fit_in_zone
+scale_to -> surface.scale_to
+preview_change -> layout.preview_change
 ```
 
 ## 17. Future Manual UI Adapter
@@ -969,12 +1278,21 @@ Unify:
 - styles,
 - effects,
 - keyframes,
+- canvas metadata,
+- element geometry,
+- visual layout summary,
 - playhead,
 - selection,
 - capabilities.
 
 `PACTG` becomes a serialized read projection of this graph, not a second source
 of truth.
+
+This phase must expose the sensory layer:
+
+- `canvas.get_metadata`,
+- `surface.get_geometry`,
+- `layout.get_visual_summary`.
 
 ### PCVME-03: Universal Editor Command Dispatcher
 
@@ -991,6 +1309,20 @@ future templates
 ```
 
 All route to canonical commands and transactions.
+
+This phase must include semantic positioning operations:
+
+- `surface.position.at_anchor`,
+- `surface.align_to`,
+- `surface.fit_in_zone`,
+- `surface.scale_to`,
+- `surface.center_in`,
+- `surface.distribute`,
+- `layout.preview_change`,
+- `layout.validate_intent`.
+
+Raw numeric transforms remain supported for precise pro workflows, but agents
+and high-level UI tools must prefer anchors, zones, and placement solvers.
 
 ### PCVME-04: Authored Surface And Visual Style Stack
 
@@ -1209,6 +1541,24 @@ If export does not support it, export blocks with reason.
 No silent drops.
 ```
 
+### 19.8 Spatial Intelligence
+
+```text
+get_canvas_metadata returns width, height, fps, duration, origin, anchors, zones.
+get_element_geometry returns evaluated bounds for video/image/text/shape.
+position_at_anchor(topRight, padding=72) places the surface exactly in safe bounds.
+fit_in_zone(upperThird, contain) preserves aspect and avoids overflow.
+layout.preview_change predicts bounds and overlap before commit.
+```
+
+### 19.9 Reasoning And Vision Loop
+
+```text
+layout.get_visual_summary explains the current composition accurately.
+capture_frame returns a revision/time-bound visual proof image.
+Agent can inspect, propose, validate, apply, and verify without guessing raw coordinates.
+```
+
 ## 20. Stop List
 
 Do not ship if any of these are true:
@@ -1220,6 +1570,9 @@ Undo/redo cannot reverse a shipped authoring mutation.
 Composition Truth Graph becomes a second source of truth.
 Canvas preview and timeline disagree about layer timing or transform.
 Renderer draws from UI slider values instead of evaluated graph state.
+Agents must guess canvas size, origin, or element geometry.
+High-level positioning requires raw x/y numbers when anchor/zone would be sufficient.
+Spatial tools return database approximations instead of evaluated frame bounds.
 Animation timing bypasses MotionInterpolationTruthCompiler.
 Motion/keyframe rows can mutate background.
 Video remains a transport widget instead of a graph-backed surface.
