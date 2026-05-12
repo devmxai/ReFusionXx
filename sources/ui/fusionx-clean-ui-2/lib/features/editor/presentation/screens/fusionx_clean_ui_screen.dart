@@ -28065,6 +28065,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required Widget fallback,
     required String? previewIdentity,
     required bool effectiveIsPlaying,
+    required bool allowClipStyleFallbackSuppression,
   }) {
     final allowNativePointerInteraction =
         !(_isCanvasTransformToolActive && !effectiveIsPlaying);
@@ -28121,6 +28122,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         final activeTransformableClipIds =
             _activeTransformableClipIdsForPreviewTime(previewTime);
         final shouldSuppressNativePreviewForClipStyle =
+            allowClipStyleFallbackSuppression &&
             activeTransformableClipIds.any(
           (clipId) => !_canvasClipStyleFor(clipId).isIdentity,
         );
@@ -28738,6 +28740,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                             canvasTransform: transformPreviewTransform,
                             canvasStyle: transformPreviewStyle,
                           );
+                          final fallbackHasRenderablePoster =
+                              previewCanvasAsset != null &&
+                                  (_previewThumbnailCache[previewCanvasAsset.id]
+                                          ?.isNotEmpty ??
+                                      false);
                           final previewStage = PreviewStage(
                             workspaceAspectRatio: _previewAspectRatio,
                             canvasBackgroundColor:
@@ -28756,6 +28763,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                     ),
                                     effectiveIsPlaying: effectiveIsPlaying,
                                     fallback: previewFallback,
+                                    allowClipStyleFallbackSuppression:
+                                        fallbackHasRenderablePoster,
                                   )
                                 : previewFallback,
                           );
