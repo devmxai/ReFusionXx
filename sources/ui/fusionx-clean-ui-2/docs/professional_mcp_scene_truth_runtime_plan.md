@@ -110,6 +110,42 @@ The app can read remote layers, but the local apply bridge is incomplete:
 - command apply is not acknowledged back as `appApplied=true`,
 - active project/composition isolation is not enforced strongly enough.
 
+### 2.4 Motion Tool Surface Gap
+
+The current cloud tool surface is still too narrow for a motion editor. A
+professional agent cannot be expected to animate through `insert_layer` or a
+generic SceneProgram fallback.
+
+Required cloud tools must exist as first-class MCP tools:
+
+```text
+refusion.apply_motion_patch
+refusion.apply_animation_recipe
+refusion.apply_keyframes
+refusion.keyframe_edit
+refusion.set_element_transform
+refusion.get_keyframes
+refusion.get_motion_channels
+```
+
+The current issue has two possible manifestations, and the implementation must
+handle both:
+
+```text
+1. Future-correct path:
+   Agent calls an official motion tool -> backend writes motion command/channel.
+
+2. Legacy compatibility path:
+   Agent sends operation=animate_layer through insert_layer -> backend or app
+   must treat it as animation, never as solid/background.
+```
+
+Important nuance: the latest broken row proves that keyframes can already reach
+Supabase inside `payload.animation`. The failure is that the payload is typed as
+`solid` and the app does not lower it into local motion channels. The fix must
+therefore include both official motion tools and legacy `animate_layer`
+compatibility.
+
 ## 3. Non-Negotiable Product Workflow
 
 The final workflow must work exactly like this.
@@ -397,6 +433,75 @@ updatedAt
 
 At apply time, these become local `MotionPropertyChannelModel` objects.
 
+### 6.5 Motion Channel Storage
+
+The backend must persist motion separately from visual layer rows.
+
+Required table shape:
+
+```text
+refusion_motion_channels
+id
+ownerId
+projectId
+compositionId
+targetLayerId
+targetElementId
+targetProperty
+motionRecipe
+keyframes
+status
+createdAt
+updatedAt
+```
+
+Allowed `targetProperty` values:
+
+```text
+position
+positionX
+positionY
+scale
+scaleX
+scaleY
+rotation
+opacity
+blur
+compound
+```
+
+Realtime must publish this table or the command table that creates equivalent
+motion channels. The app must be able to reconstruct the same local
+`MotionPropertyChannelModel` objects from the backend truth.
+
+### 6.6 Motion Recipe Contract
+
+Motion recipes are allowed only through an explicit registry.
+
+Initial required recipes:
+
+```text
+$motion.scaleIn
+$motion.scaleInBounce
+$motion.springPopUp
+$motion.slideInFromLeft
+$motion.slideInFromRight
+$motion.slideInFromTop
+$motion.slideInFromBottom
+$motion.fadeIn
+$motion.fadeOut
+$motion.rotateIn
+```
+
+Unknown recipes fail closed with:
+
+```text
+UNKNOWN_MOTION_RECIPE
+```
+
+No agent may invent ad hoc easing or recipe names unless the payload is explicit
+keyframes accepted by `apply_keyframes`.
+
 ## 7. Phase Plan
 
 ### PMSTR-00 - Failure Lockdown Fixtures
@@ -416,6 +521,13 @@ Add fixtures/tests for:
   `default`, `active`, `comp_1`, `motion-project`, `scene-main`.
 - backend layer-kind parity:
   Edge Function cannot emit a layer kind rejected by DB or app mapping.
+- official motion surface:
+  `apply_motion_patch`, `apply_animation_recipe`, `apply_keyframes`,
+  `keyframe_edit`, `set_element_transform`, `get_keyframes`, and
+  `get_motion_channels` are present in `tools/list`.
+- legacy animation row compatibility:
+  a row with `operation=animate_layer` and `payload.animation.keyframes` is
+  ignored as background and applied as animation when target mapping exists.
 
 Exit gate:
 
@@ -538,14 +650,32 @@ refusion.insert_shape
 refusion.update_shape
 
 refusion.set_transform
+refusion.set_element_transform
 refusion.apply_motion_patch
 refusion.apply_animation_recipe
 refusion.apply_keyframes
+refusion.keyframe_edit
+refusion.get_keyframes
 refusion.get_motion_channels
 
 refusion.apply_scene_program
 refusion.wait_for_apply
 ```
+
+Implementation requirements:
+
+- `apply_motion_patch` accepts a target layer/element and either a registered
+  recipe or an explicit channel patch.
+- `apply_animation_recipe` accepts only known recipes and expands them into
+  canonical keyframes.
+- `apply_keyframes` writes explicit keyframes for one or more target properties.
+- `keyframe_edit` supports insert/update/delete for existing motion channels.
+- `set_element_transform` writes static transform values or delegates to
+  keyframe tools when animation data is present.
+- `get_keyframes` and `get_motion_channels` return enough data for the app and
+  the agent to reconstruct animation truth.
+- Tool schemas must document target resolution, units, timeline time base,
+  accepted properties, and expected revision.
 
 Exit gate:
 
@@ -567,6 +697,12 @@ Implementation requirements:
 - The old `latestSolidColorHex` auto-apply path is removed or restricted to
   explicit background commands.
 - Non-background rows cannot change background.
+- Polling recovery may read background rows, but it must require explicit
+  background command authority. It must not use "newest solid wins" as a global
+  mutation rule.
+- `operation=animate_layer`, `operation=transform`, `operation=keyframe_edit`,
+  and any row containing `animation`, `keyframes`, `motionRecipe`, or `recipe`
+  are forbidden from background color selection.
 
 Exit gate:
 
@@ -644,12 +780,20 @@ Implementation requirements:
 - `apply_animation_recipe` expands recipes into channels.
 - `apply_keyframes` writes explicit channels.
 - App converts remote motion commands into `MotionPropertyChannelModel`.
+- Backend stores official motion commands in `refusion_motion_channels` or an
+  equivalent command table, not as visual layer rows.
 - Supported properties: positionX, positionY, scaleX, scaleY, rotation,
   opacity, blur where supported.
 - Remote absolute canvas coordinates convert to local centered coordinates.
 - Keyframe times are clamped to the layer visible range.
 - Existing remote bad rows with `operation=animate_layer` must be safely
-  ignored as background and optionally migrated/applied as animation.
+  ignored as background and migrated/applied as animation when possible.
+- The app must find the local target through remote layer metadata such as
+  `mcp.remoteLayerId`, then map keyframes to the correct local element target.
+- Recipe expansion must produce deterministic keyframes. For a spring pop-up,
+  minimum required channels are scaleX, scaleY, and opacity. Optional y-position
+  overshoot is allowed only if target coordinates are explicit.
+- Playback, scrub, and keyframe timeline must consume the same channels.
 
 Exit gate:
 
@@ -769,6 +913,8 @@ Implementation requirements:
 - Every generated element maps to real layers/elements/channels.
 - Unsupported element/property fails with structured diagnostics.
 - DirectorPlan compiles into canonical commands, not ad hoc rows.
+- SceneProgram must not be used as an animation fallback when the user asked to
+  animate an existing layer. That path must go through motion tools.
 
 Exit gate:
 
@@ -806,6 +952,9 @@ Implementation requirements:
   - applied
   - failed
   - ignored due wrong context
+- Add an MCP diagnostics panel or equivalent developer-visible surface showing:
+  last command type, cloud state, app apply state, target project/composition,
+  target layer, realtime status, polling recovery status, and last failure.
 - Diagnostic panel shows recent MCP commands.
 - Each failure includes commandId, commandType, reason, and repair hint.
 - Unsupported command never returns vague success.
@@ -826,6 +975,9 @@ Implementation requirements:
 - Remove dev/default project targeting in production builds.
 - Remove any "default session" fallback for write commands.
 - Stop storing motion commands as layer rows.
+- Add a compatibility reader for old broken rows:
+  `layer_kind=solid` with `operation=animate_layer` must not mutate background.
+  It may be migrated into motion command truth once, then marked applied.
 - Keep backward-compatible read only where needed for old test data, but do
   not let it mutate the current editor incorrectly.
 
@@ -878,6 +1030,14 @@ Required tests:
 
 12. Layer-kind parity
     Edge Function emitted layer kinds match DB constraints and Flutter mapping.
+
+13. Official motion tool surface
+    `tools/list` includes motion patch, animation recipe, keyframe edit,
+    transform, and motion readback tools with schemas.
+
+14. Legacy animation compatibility
+    Existing bad rows with `operation=animate_layer` never select background
+    color and are applied or ignored with diagnostics.
 ```
 
 ## 8. Implementation Order
@@ -917,6 +1077,9 @@ Forbidden:
 - Do not store `animate_layer` as `solid`.
 - Do not let animation commands change background.
 - Do not use `latest solid wins` as a general editor mutation rule.
+- Do not leave motion tools implemented only in Dart; MCP must expose them in
+  the Edge Function.
+- Do not use SceneProgram as a fallback for animation of an existing layer.
 - Do not let ChatGPT claim success without app acknowledgement.
 - Do not accept write commands against `default` project/session.
 - Do not let a command choose arbitrary projectId when an agentSessionToken is
