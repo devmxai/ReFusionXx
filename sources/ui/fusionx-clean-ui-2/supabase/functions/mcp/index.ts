@@ -618,6 +618,7 @@ async function setActiveContext(userId: string, args: JsonMap) {
   const deviceId = text(args.deviceId, 'chatgpt-remote');
   const timelineId = text(args.timelineId, 'main');
   const playheadMs = numberValue(args.playheadMs, 0);
+  const timelineRevision = optionalNumber(args.timelineRevision);
   const status = text(args.status, 'online');
   const foreground = args.foreground === false ? false : true;
   const appVersion = text(args.appVersion, 'mcp-remote');
@@ -629,6 +630,7 @@ async function setActiveContext(userId: string, args: JsonMap) {
     compositionId,
     timelineId,
     playheadMs,
+    timelineRevision,
     status,
     foreground,
     appVersion,
@@ -641,7 +643,7 @@ async function setActiveContext(userId: string, args: JsonMap) {
     compositionId,
     timelineId,
     playheadMs,
-    timelineRevision: await projectRevision(projectId),
+    timelineRevision: timelineRevision ?? await projectRevision(projectId),
   });
 
   return await getActiveContext(
@@ -661,6 +663,7 @@ async function touchEditorSession(userId: string, args: JsonMap) {
   const deviceId = text(args.deviceId, 'chatgpt-remote');
   const timelineId = text(args.timelineId, 'main');
   const playheadMs = numberValue(args.playheadMs, 0);
+  const timelineRevision = optionalNumber(args.timelineRevision);
   const status = text(args.status, 'online');
   const foreground = args.foreground === false ? false : true;
   const appVersion = text(args.appVersion, 'mcp-remote');
@@ -682,7 +685,7 @@ async function touchEditorSession(userId: string, args: JsonMap) {
     composition_id: compositionId,
     timeline_id: timelineId,
     playhead_ms: playheadMs,
-    timeline_revision: await projectRevision(projectId),
+    timeline_revision: timelineRevision ?? await projectRevision(projectId),
     status,
     foreground,
     app_version: appVersion,
@@ -2574,7 +2577,8 @@ async function getCommandStatus(
     .eq('id', commandId)
     .single();
   if (error) throw error;
-  return ok('Command status loaded.', data);
+  const normalized = await normalizeCommandApplyState(context, readMap(data));
+  return ok('Command status loaded.', normalized);
 }
 
 async function waitForApply(
@@ -2592,6 +2596,8 @@ async function waitForApply(
     }
     const payload = readMap(status.payload);
     const state = text(payload.status, 'pending');
+    const result = readMap(payload.result);
+    const appApplied = result.appApplied === true;
     if (
       state === 'succeeded' ||
       state === 'failed' ||
@@ -2600,7 +2606,7 @@ async function waitForApply(
       return ok('Apply status resolved.', {
         commandId,
         status: state,
-        appApplied: state === 'succeeded',
+        appApplied: state === 'succeeded' ? appApplied : false,
         payload,
       });
     }
@@ -2611,6 +2617,113 @@ async function waitForApply(
     status: 'pending',
     appApplied: false,
   });
+}
+
+async function normalizeCommandApplyState(
+  context: RequestContext,
+  commandRow: JsonMap,
+): Promise<JsonMap> {
+  const state = text(commandRow.status, 'pending');
+  if (state === 'failed' || state === 'cancelled' || state === 'succeeded') {
+    return commandRow;
+  }
+  const revisionAfter = optionalNumber(commandRow.revision_after);
+  if (revisionAfter == null) {
+    return commandRow;
+  }
+  const appliedRevision = await readAppliedTimelineRevisionForCommand(
+    context.userId,
+    commandRow,
+  );
+  if (appliedRevision == null || appliedRevision < revisionAfter) {
+    return commandRow;
+  }
+  const existingResult = readMap(commandRow.result);
+  const nextResult: JsonMap = {
+    ...existingResult,
+    appApplied: true,
+    appliedTimelineRevision: appliedRevision,
+    appliedAt: new Date().toISOString(),
+  };
+  const { data: updated, error } = await admin
+    .from('refusion_agent_commands')
+    .update({
+      status: 'succeeded',
+      result: nextResult,
+      completed_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('owner_id', context.userId)
+    .eq('id', stringValue(commandRow.id))
+    .select('*')
+    .single();
+  if (error) {
+    throw error;
+  }
+  return readMap(updated);
+}
+
+async function readAppliedTimelineRevisionForCommand(
+  ownerId: string,
+  commandRow: JsonMap,
+): Promise<number | null> {
+  const editorSessionId = stringValue(commandRow.editor_session_id);
+  if (editorSessionId) {
+    const { data, error } = await admin
+      .from('refusion_editor_sessions')
+      .select('timeline_revision')
+      .eq('owner_id', ownerId)
+      .eq('id', editorSessionId)
+      .maybeSingle();
+    if (error) throw error;
+    const revision = optionalNumber(data?.timeline_revision);
+    if (revision != null) {
+      return revision;
+    }
+  }
+
+  const agentSessionId = stringValue(commandRow.agent_session_id);
+  if (agentSessionId) {
+    const { data: agentSession, error: agentError } = await admin
+      .from('refusion_agent_sessions')
+      .select('active_context_id')
+      .eq('owner_id', ownerId)
+      .eq('id', agentSessionId)
+      .maybeSingle();
+    if (agentError) throw agentError;
+    const activeContextId = stringValue(agentSession?.active_context_id);
+    if (activeContextId) {
+      const { data: activeContext, error: activeContextError } = await admin
+        .from('refusion_active_contexts')
+        .select('timeline_revision')
+        .eq('owner_id', ownerId)
+        .eq('id', activeContextId)
+        .maybeSingle();
+      if (activeContextError) throw activeContextError;
+      const revision = optionalNumber(activeContext?.timeline_revision);
+      if (revision != null) {
+        return revision;
+      }
+    }
+  }
+
+  const projectId = stringValue(commandRow.project_id);
+  const compositionId = stringValue(commandRow.composition_id);
+  if (!projectId || !compositionId) {
+    return null;
+  }
+  const { data: fallbackContext, error: fallbackError } = await admin
+    .from('refusion_active_contexts')
+    .select('timeline_revision')
+    .eq('owner_id', ownerId)
+    .eq('project_id', projectId)
+    .eq('composition_id', compositionId)
+    .eq('status', 'active')
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (fallbackError) throw fallbackError;
+  return optionalNumber(fallbackContext?.timeline_revision);
 }
 
 async function ensurePairingContext(
@@ -2717,6 +2830,7 @@ async function recordCommand(
   revisionAfter: number,
   idempotencyKey: string,
 ) {
+  const nowIso = new Date().toISOString();
   const insertPayload: JsonMap = {
     owner_id: context.userId,
     project_id: projectId,
@@ -2725,9 +2839,14 @@ async function recordCommand(
     payload,
     revision_before: revisionBefore,
     revision_after: revisionAfter,
-    status: 'succeeded',
-    result: payload,
-    completed_at: new Date().toISOString(),
+    status: 'running',
+    claimed_at: nowIso,
+    result: {
+      ...payload,
+      appApplied: false,
+      revisionAfter,
+      acceptedAt: nowIso,
+    },
   };
   if (idempotencyKey) {
     insertPayload.idempotency_key = idempotencyKey;

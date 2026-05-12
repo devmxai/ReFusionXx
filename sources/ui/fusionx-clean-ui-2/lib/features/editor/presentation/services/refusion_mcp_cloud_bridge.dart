@@ -11,6 +11,7 @@ class RefusionMcpCloudContextState {
     required this.projectId,
     required this.compositionId,
     required this.playheadMs,
+    required this.timelineRevision,
     required this.foreground,
     this.timelineId = 'main',
   });
@@ -18,6 +19,7 @@ class RefusionMcpCloudContextState {
   final String projectId;
   final String compositionId;
   final int playheadMs;
+  final int timelineRevision;
   final bool foreground;
   final String timelineId;
 }
@@ -217,6 +219,7 @@ class RefusionMcpCloudBridge {
           'deviceId': _deviceId,
           if (projectIdArg != null) 'projectId': projectIdArg,
           if (compositionIdArg != null) 'compositionId': compositionIdArg,
+          'timelineRevision': state.timelineRevision,
           'foreground': _foreground && state.foreground,
           'status': status,
           'platform': 'flutter',
@@ -230,6 +233,7 @@ class RefusionMcpCloudBridge {
           if (compositionIdArg != null) 'compositionId': compositionIdArg,
           'timelineId': state.timelineId,
           'playheadMs': state.playheadMs,
+          'timelineRevision': state.timelineRevision,
           'foreground': _foreground && state.foreground,
           'status': status,
           'platform': 'flutter',
@@ -400,6 +404,7 @@ class RefusionMcpCloudBridge {
           'compositionId': state.compositionId,
         'timelineId': state.timelineId,
         'playheadMs': state.playheadMs,
+        'timelineRevision': state.timelineRevision,
         'platform': 'flutter',
         'appVersion': 'refusion-app',
       },

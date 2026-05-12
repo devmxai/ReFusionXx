@@ -840,6 +840,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   bool _isGeneratingMcpPairingCode = false;
   bool _isMcpAgentConnected = false;
   Timer? _mcpPairingStatusPollTimer;
+  int _mcpAppliedRemoteRevision = 1;
   final Set<String> _appliedMcpSolidLayerIds = <String>{};
   final Set<String> _appliedMcpMotionChannelIds = <String>{};
 
@@ -1221,6 +1222,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       compositionId: activeSceneId,
       timelineId: 'main',
       playheadMs: refusionMcpPlayheadMs(_currentTime),
+      timelineRevision: _mcpAppliedRemoteRevision,
       foreground: _mcpCloudIsForeground,
     );
   }
@@ -1459,6 +1461,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _selectedClipId = null;
       _selectedTransitionId = null;
       _previewAssetId = null;
+      _mcpAppliedRemoteRevision = 1;
       _activeTab = EditorMediaTab.text;
       _setCurrentTime(TimelineTime.zero);
     });
@@ -1486,6 +1489,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (!didApply || remoteRevision == null) {
       return;
     }
+    _mcpAppliedRemoteRevision =
+        math.max(_mcpAppliedRemoteRevision, remoteRevision);
   }
 
   bool _applyLegacyRemoteAnimationFromLayerIfNeeded(
@@ -2008,6 +2013,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
     }
     if (didApply && remoteRevision != null) {
+      _mcpAppliedRemoteRevision =
+          math.max(_mcpAppliedRemoteRevision, remoteRevision);
       _showStageMessage('AI animation applied.');
     }
   }
