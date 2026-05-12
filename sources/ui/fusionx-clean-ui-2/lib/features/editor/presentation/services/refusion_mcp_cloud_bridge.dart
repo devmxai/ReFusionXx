@@ -37,6 +37,9 @@ class RefusionMcpCloudBridgeSnapshot {
     this.remoteRevision,
     this.remoteLayers = const <Map<String, Object?>>[],
     this.remoteMotionChannels = const <Map<String, Object?>>[],
+    this.canvasMetadata = const <String, Object?>{},
+    this.primaryElementGeometry = const <String, Object?>{},
+    this.visualLayoutSummary = const <String, Object?>{},
     this.error,
   });
 
@@ -49,6 +52,9 @@ class RefusionMcpCloudBridgeSnapshot {
   final int? remoteRevision;
   final List<Map<String, Object?>> remoteLayers;
   final List<Map<String, Object?>> remoteMotionChannels;
+  final Map<String, Object?> canvasMetadata;
+  final Map<String, Object?> primaryElementGeometry;
+  final Map<String, Object?> visualLayoutSummary;
   final String? error;
 }
 
@@ -277,11 +283,52 @@ class RefusionMcpCloudBridge {
         },
         allowAgentSessionToken: true,
       );
+      final canvasMetadataResponse = await _safeCallTool(
+        toolName: 'get_canvas_metadata',
+        arguments: <String, Object?>{
+          if (cloudProjectId != null) 'projectId': cloudProjectId,
+          if (cloudCompositionId != null) 'compositionId': cloudCompositionId,
+        },
+        allowAgentSessionToken: true,
+      );
+      final visualLayoutSummaryResponse = await _safeCallTool(
+        toolName: 'get_visual_layout_summary',
+        arguments: <String, Object?>{
+          if (cloudProjectId != null) 'projectId': cloudProjectId,
+          if (cloudCompositionId != null) 'compositionId': cloudCompositionId,
+          'timeMs': state.playheadMs,
+        },
+        allowAgentSessionToken: true,
+      );
+      final firstLayerId = _asString(
+        _asMap(
+          _asListOfMap(
+            _asMap(_asMap(layersResponse?['structuredContent'])['payload'])['layers'],
+          ).isNotEmpty
+              ? _asListOfMap(
+                  _asMap(_asMap(layersResponse?['structuredContent'])['payload'])['layers'],
+                ).first
+              : const <String, Object?>{},
+        )['id'],
+      );
+      final elementGeometryResponse = await _safeCallTool(
+        toolName: 'get_element_geometry',
+        arguments: <String, Object?>{
+          if (cloudProjectId != null) 'projectId': cloudProjectId,
+          if (cloudCompositionId != null) 'compositionId': cloudCompositionId,
+          if (firstLayerId != null) 'layerId': firstLayerId,
+          'timeMs': state.playheadMs,
+        },
+        allowAgentSessionToken: true,
+      );
       _emitSnapshot(
         _snapshotFromContextResponse(
           contextResponse,
           layersResult: layersResponse,
           motionChannelsResult: motionChannelsResponse,
+          canvasMetadataResult: canvasMetadataResponse,
+          elementGeometryResult: elementGeometryResponse,
+          visualLayoutSummaryResult: visualLayoutSummaryResponse,
           fallbackProjectId: state.projectId,
           fallbackCompositionId: state.compositionId,
         ),
@@ -307,6 +354,9 @@ class RefusionMcpCloudBridge {
     Map<String, Object?> rpcResult, {
     required Map<String, Object?>? layersResult,
     required Map<String, Object?>? motionChannelsResult,
+    required Map<String, Object?>? canvasMetadataResult,
+    required Map<String, Object?>? elementGeometryResult,
+    required Map<String, Object?>? visualLayoutSummaryResult,
     required String fallbackProjectId,
     required String fallbackCompositionId,
   }) {
@@ -318,6 +368,9 @@ class RefusionMcpCloudBridge {
     int? remoteRevision;
     var remoteLayers = const <Map<String, Object?>>[];
     var remoteMotionChannels = const <Map<String, Object?>>[];
+    var canvasMetadata = const <String, Object?>{};
+    var primaryElementGeometry = const <String, Object?>{};
+    var visualLayoutSummary = const <String, Object?>{};
     if (layersResult != null) {
       final layersStructured = _asMap(layersResult['structuredContent']);
       final layersPayload = _asMap(layersStructured['payload']);
@@ -331,6 +384,20 @@ class RefusionMcpCloudBridge {
       final channelsPayload = _asMap(channelsStructured['payload']);
       remoteMotionChannels = _asListOfMap(channelsPayload['channels']);
     }
+    if (canvasMetadataResult != null) {
+      final metadataStructured = _asMap(canvasMetadataResult['structuredContent']);
+      canvasMetadata = _asMap(metadataStructured['payload']);
+    }
+    if (elementGeometryResult != null) {
+      final geometryStructured = _asMap(elementGeometryResult['structuredContent']);
+      primaryElementGeometry = _asMap(geometryStructured['payload']);
+    }
+    if (visualLayoutSummaryResult != null) {
+      final summaryStructured = _asMap(
+        visualLayoutSummaryResult['structuredContent'],
+      );
+      visualLayoutSummary = _asMap(summaryStructured['payload']);
+    }
     return RefusionMcpCloudBridgeSnapshot(
       ok: structured['ok'] == true,
       projectId: _asString(project['id']) ?? fallbackProjectId,
@@ -342,6 +409,13 @@ class RefusionMcpCloudBridge {
       remoteLayers: List<Map<String, Object?>>.unmodifiable(remoteLayers),
       remoteMotionChannels: List<Map<String, Object?>>.unmodifiable(
         remoteMotionChannels,
+      ),
+      canvasMetadata: Map<String, Object?>.unmodifiable(canvasMetadata),
+      primaryElementGeometry: Map<String, Object?>.unmodifiable(
+        primaryElementGeometry,
+      ),
+      visualLayoutSummary: Map<String, Object?>.unmodifiable(
+        visualLayoutSummary,
       ),
       error: structured['ok'] == true ? null : _asString(structured['summary']),
     );
