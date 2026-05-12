@@ -5280,13 +5280,11 @@ function hasExplicitMotionTime(args: JsonMap): boolean {
     args.atMs,
     args.timeMs,
     args.time,
-    args.playheadMs,
     payload.startTimeMs,
     payload.startMs,
     payload.atMs,
     payload.timeMs,
     payload.time,
-    payload.playheadMs,
   ) != null;
 }
 
