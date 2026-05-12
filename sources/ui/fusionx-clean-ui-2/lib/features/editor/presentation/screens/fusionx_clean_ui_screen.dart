@@ -1510,15 +1510,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return false;
     }
     final targetRemoteLayerId = _firstRemoteString(<Object?>[
-      animation['layerId'],
-      animation['targetLayerId'],
-      payload['layerId'],
-      payload['targetLayerId'],
-      updates['layerId'],
-      updates['targetLayerId'],
-      nestedPayload['layerId'],
-      nestedPayload['targetLayerId'],
-    ]);
+          animation['layerId'],
+          animation['targetLayerId'],
+          payload['layerId'],
+          payload['targetLayerId'],
+          updates['layerId'],
+          updates['targetLayerId'],
+          nestedPayload['layerId'],
+          nestedPayload['targetLayerId'],
+        ]) ??
+        _remoteString(remoteLayer['id']);
     if (targetRemoteLayerId == null || targetRemoteLayerId.isEmpty) {
       return false;
     }
@@ -1526,13 +1527,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       animation['motionRecipe'],
       animation['animationRecipe'],
       animation['recipe'],
+      animation['animation'],
+      animation['preset'],
+      payload['animation'],
+      payload['preset'],
       payload['motionRecipe'],
       payload['animationRecipe'],
     ]);
     final keyframes = animation['keyframes'];
-    if (recipe != null &&
-        keyframes is! List &&
-        recipe.toLowerCase().contains('scaleinbounce')) {
+    if (recipe != null && keyframes is! List && _isMcpPopUpRecipe(recipe)) {
       final remoteChannelSeed =
           _remoteString(remoteLayer['id']) ?? targetRemoteLayerId;
       final generated = <Map<String, Object?>>[
@@ -1643,6 +1646,21 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
       return didApplyGenerated;
     }
+    if (keyframes is List && keyframes.isNotEmpty) {
+      final compoundChannels = _legacyCompoundAnimationChannels(
+        targetRemoteLayerId: targetRemoteLayerId,
+        remoteLayerId: _remoteString(remoteLayer['id']) ?? targetRemoteLayerId,
+        keyframes: keyframes,
+      );
+      if (compoundChannels.isNotEmpty) {
+        var didApplyCompound = false;
+        for (final channel in compoundChannels) {
+          didApplyCompound =
+              _applyRemoteMotionChannel(channel) || didApplyCompound;
+        }
+        return didApplyCompound;
+      }
+    }
     final propertyId = _firstRemoteString(<Object?>[
       animation['propertyId'],
       animation['property'],
@@ -1659,6 +1677,91 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       'property_id': propertyId,
       'keyframes': keyframes,
     });
+  }
+
+  bool _isMcpPopUpRecipe(String recipe) {
+    final normalized =
+        recipe.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '');
+    return normalized.contains('popup') ||
+        normalized.contains('scaleinbounce') ||
+        normalized.contains('spring');
+  }
+
+  List<Map<String, Object?>> _legacyCompoundAnimationChannels({
+    required String targetRemoteLayerId,
+    required String remoteLayerId,
+    required List<Object?> keyframes,
+  }) {
+    final scaleKeyframes = <Map<String, Object?>>[];
+    final opacityKeyframes = <Map<String, Object?>>[];
+    for (final raw in keyframes) {
+      final map = _remoteMap(raw);
+      final timeMs = _firstRemoteInt(<Object?>[
+        map['timeMs'],
+        map['time_ms'],
+        map['time'],
+        map['t'],
+      ]);
+      if (timeMs == null) {
+        continue;
+      }
+      final easing = _firstRemoteString(<Object?>[
+            map['easing'],
+            map['interpolation'],
+          ]) ??
+          'easeOut';
+      final scale = _firstRemoteDouble(<Object?>[
+        map['scale'],
+        map['scaleX'],
+        _remoteMap(map['transform'])['scale'],
+        _remoteMap(map['transform'])['scaleX'],
+      ]);
+      if (scale != null) {
+        scaleKeyframes.add(<String, Object?>{
+          'id': 'legacy_scale_$timeMs',
+          'timeMs': timeMs,
+          'value': scale,
+          'easing': easing,
+        });
+      }
+      final opacity = _firstRemoteDouble(<Object?>[
+        map['opacity'],
+        _remoteMap(map['visual'])['opacity'],
+      ]);
+      if (opacity != null) {
+        opacityKeyframes.add(<String, Object?>{
+          'id': 'legacy_opacity_$timeMs',
+          'timeMs': timeMs,
+          'value': opacity,
+          'easing': easing,
+        });
+      }
+    }
+    final channels = <Map<String, Object?>>[];
+    if (scaleKeyframes.isNotEmpty) {
+      channels
+        ..add(<String, Object?>{
+          'id': 'legacy.$remoteLayerId.scale_x',
+          'layer_id': targetRemoteLayerId,
+          'property_id': 'transform.scale.x',
+          'keyframes': scaleKeyframes,
+        })
+        ..add(<String, Object?>{
+          'id': 'legacy.$remoteLayerId.scale_y',
+          'layer_id': targetRemoteLayerId,
+          'property_id': 'transform.scale.y',
+          'keyframes': scaleKeyframes,
+        });
+    }
+    if (opacityKeyframes.isNotEmpty) {
+      channels.add(<String, Object?>{
+        'id': 'legacy.$remoteLayerId.opacity',
+        'layer_id': targetRemoteLayerId,
+        'property_id': 'visual.opacity',
+        'keyframes': opacityKeyframes,
+      });
+    }
+    return List<Map<String, Object?>>.unmodifiable(channels);
   }
 
   bool _applyRemoteSolidLayerIfNeeded(Map<String, Object?> remoteLayer) {

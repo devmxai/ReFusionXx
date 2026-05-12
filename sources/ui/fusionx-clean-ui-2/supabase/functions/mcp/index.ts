@@ -1287,23 +1287,23 @@ async function keyframeEdit(
     if (index < 0) {
       return fail('KEYFRAME_NOT_FOUND');
     }
-    currentKeyframes.removeAt(index);
+    currentKeyframes.splice(index, 1);
   } else {
     const update = parseKeyframe(firstDefined(
       args.keyframe,
       readMap(args.payload).keyframe,
-      <String, unknown>{
-        'id': keyframeId,
-        'timeMs': timeMs >= 0 ? timeMs : optionalNumber(args.time),
-        'value': args.value,
-        'easing': args.easing,
+      {
+        id: keyframeId,
+        timeMs: timeMs >= 0 ? timeMs : optionalNumber(args.time),
+        value: args.value,
+        easing: args.easing,
       },
     ));
     if (!update) {
       return fail('KEYFRAME_INVALID');
     }
     if (index < 0) {
-      currentKeyframes.add(update);
+      currentKeyframes.push(update);
     } else {
       currentKeyframes[index] = update;
     }
@@ -1357,7 +1357,7 @@ async function setElementTransform(
     return fail('LAYER_ID_REQUIRED');
   }
   const timeMs = numberValue(firstDefined(args.timeMs, args.time, 0), 0);
-  const keyframes = <JsonMap>[];
+  const keyframes: JsonMap[] = [];
   const x = optionalNumber(firstDefined(args.x, args.positionX, args.translateX));
   const y = optionalNumber(firstDefined(args.y, args.positionY, args.translateY));
   const scaleX = numberOrNull(firstDefined(args.scaleX, args.scale));
@@ -1365,48 +1365,48 @@ async function setElementTransform(
   const rotation = numberOrNull(firstDefined(args.rotation, args.rotationDegrees));
   const opacity = numberOrNull(args.opacity);
   if (x != null) {
-    keyframes.add({
-      'propertyId': 'transform.position.x',
-      'keyframes': [makeScalarKeyframe(timeMs, x)],
+    keyframes.push({
+      propertyId: 'transform.position.x',
+      keyframes: [makeScalarKeyframe(timeMs, x)],
     });
   }
   if (y != null) {
-    keyframes.add({
-      'propertyId': 'transform.position.y',
-      'keyframes': [makeScalarKeyframe(timeMs, y)],
+    keyframes.push({
+      propertyId: 'transform.position.y',
+      keyframes: [makeScalarKeyframe(timeMs, y)],
     });
   }
   if (scaleX != null) {
-    keyframes.add({
-      'propertyId': 'transform.scale.x',
-      'keyframes': [makeScalarKeyframe(timeMs, scaleX)],
+    keyframes.push({
+      propertyId: 'transform.scale.x',
+      keyframes: [makeScalarKeyframe(timeMs, scaleX)],
     });
   }
   if (scaleY != null) {
-    keyframes.add({
-      'propertyId': 'transform.scale.y',
-      'keyframes': [makeScalarKeyframe(timeMs, scaleY)],
+    keyframes.push({
+      propertyId: 'transform.scale.y',
+      keyframes: [makeScalarKeyframe(timeMs, scaleY)],
     });
   }
   if (rotation != null) {
-    keyframes.add({
-      'propertyId': 'transform.rotation.degrees',
-      'keyframes': [makeScalarKeyframe(timeMs, rotation)],
+    keyframes.push({
+      propertyId: 'transform.rotation.degrees',
+      keyframes: [makeScalarKeyframe(timeMs, rotation)],
     });
   }
   if (opacity != null) {
-    keyframes.add({
-      'propertyId': 'visual.opacity',
-      'keyframes': [makeScalarKeyframe(timeMs, opacity)],
+    keyframes.push({
+      propertyId: 'visual.opacity',
+      keyframes: [makeScalarKeyframe(timeMs, opacity)],
     });
   }
-  if (keyframes.isEmpty) {
+  if (keyframes.length === 0) {
     return fail('NO_TRANSFORM_VALUES');
   }
-  final payload = <String, unknown>{
+  const payload: JsonMap = {
     ...args,
-    'layerId': layerId,
-    'channels': keyframes,
+    layerId,
+    channels: keyframes,
   };
   return await applyMotionPatch(context, payload);
 }
@@ -2284,7 +2284,7 @@ function inferMotionWrites(args: JsonMap): MotionChannelWrite[] {
     return expandMotionRecipe(motionRecipe, numberValue(args.durationMs, 650));
   }
 
-  return const <MotionChannelWrite>[];
+  return [];
 }
 
 function canonicalMotionPropertyId(value: string): string {
@@ -2309,7 +2309,7 @@ function expandMotionRecipe(recipe: string, durationMsRaw: number): MotionChanne
   const normalized = recipe.trim().toLowerCase();
   const durationMs = Math.max(240, Math.min(durationMsRaw, 5000));
   if (normalized === '$motion.scaleinbounce' || normalized === 'scaleinbounce') {
-    const keyframes = <JsonMap>[
+    const keyframes: JsonMap[] = [
       makeScalarKeyframe(0, 0.15, 'easeOut'),
       makeScalarKeyframe(Math.round(durationMs * 0.28), 1.18, 'easeOut'),
       makeScalarKeyframe(Math.round(durationMs * 0.51), 0.94, 'easeInOut'),
@@ -2329,7 +2329,7 @@ function expandMotionRecipe(recipe: string, durationMsRaw: number): MotionChanne
       },
       {
         propertyId: 'visual.opacity',
-        keyframes: <JsonMap>[
+        keyframes: [
           makeScalarKeyframe(0, 0.0, 'linear'),
           makeScalarKeyframe(Math.round(durationMs * 0.24), 1.0, 'easeOut'),
           makeScalarKeyframe(durationMs, 1.0, 'linear'),
