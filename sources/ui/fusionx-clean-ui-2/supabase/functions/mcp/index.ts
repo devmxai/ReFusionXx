@@ -80,6 +80,10 @@ const writeTools = new Set<string>([
   'refusion.set_glow',
   'refusion.set_layer_style',
   'refusion.position_at_anchor',
+  'refusion.align_to',
+  'refusion.fit_in_zone',
+  'refusion.scale_to',
+  'refusion.center_in',
 ]);
 
 const userOnlyTools = new Set<string>([
@@ -346,6 +350,24 @@ async function callTool(
     case 'refusion.position_at_anchor':
       ensureAgentWrite(canonicalToolName, context);
       return await positionAtAnchor(context, args);
+    case 'refusion.align_to':
+      ensureAgentWrite(canonicalToolName, context);
+      return await alignTo(context, args);
+    case 'refusion.fit_in_zone':
+      ensureAgentWrite(canonicalToolName, context);
+      return await fitInZone(context, args);
+    case 'refusion.scale_to':
+      ensureAgentWrite(canonicalToolName, context);
+      return await scaleTo(context, args);
+    case 'refusion.center_in':
+      ensureAgentWrite(canonicalToolName, context);
+      return await centerIn(context, args);
+    case 'refusion.layout.preview_change':
+      return await previewLayoutChange(context, args);
+    case 'refusion.layout.validate_intent':
+      return await validateLayoutIntent(context, args);
+    case 'refusion.layout.detect_overlaps':
+      return await detectLayoutOverlaps(context, args);
     case 'refusion.evaluate_frame':
       return await evaluateFrame(context, args);
     case 'refusion.explain_capabilities':
@@ -432,6 +454,13 @@ function normalizeToolName(name: string): string {
     position_at_anchor: 'refusion.position_at_anchor',
     align_to_anchor: 'refusion.position_at_anchor',
     place_at_anchor: 'refusion.position_at_anchor',
+    align_to: 'refusion.align_to',
+    fit_in_zone: 'refusion.fit_in_zone',
+    scale_to: 'refusion.scale_to',
+    center_in: 'refusion.center_in',
+    preview_change: 'refusion.layout.preview_change',
+    validate_intent: 'refusion.layout.validate_intent',
+    detect_overlaps: 'refusion.layout.detect_overlaps',
     evaluate_frame: 'refusion.evaluate_frame',
     explain_capabilities: 'refusion.explain_capabilities',
     get_motion_channels: 'refusion.get_motion_channels',
@@ -458,9 +487,13 @@ function normalizeToolName(name: string): string {
     'refusion.set_layer_border': 'refusion.set_border',
     'refusion.set_layer_glow': 'refusion.set_glow',
     'refusion.surface.position.at_anchor': 'refusion.position_at_anchor',
-    'refusion.surface.align_to': 'refusion.position_at_anchor',
-    'refusion.surface.fit_in_zone': 'refusion.position_at_anchor',
-    'refusion.surface.center_in': 'refusion.position_at_anchor',
+    'refusion.surface.align_to': 'refusion.align_to',
+    'refusion.surface.fit_in_zone': 'refusion.fit_in_zone',
+    'refusion.surface.scale_to': 'refusion.scale_to',
+    'refusion.surface.center_in': 'refusion.center_in',
+    'refusion.layout.preview_change': 'refusion.layout.preview_change',
+    'refusion.layout.validate_intent': 'refusion.layout.validate_intent',
+    'refusion.layout.detect_overlaps': 'refusion.layout.detect_overlaps',
   };
   return aliases[value] ?? (value.startsWith('refusion.') ? value : value);
 }
@@ -2621,6 +2654,466 @@ async function positionAtAnchor(
   });
 }
 
+async function alignTo(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const resolved = await resolveProjectScope(context, args);
+  if (!resolved) {
+    return fail('PROJECT_NOT_OPEN');
+  }
+  const layers = await loadLayersForScope(context, resolved.projectId, resolved.compositionId);
+  const targetLayer = resolveTargetLayer(layers, args);
+  if (!targetLayer) {
+    return fail('LAYER_NOT_FOUND', {
+      hint: 'Provide layerId, targetLayerId, or clipId.',
+    });
+  }
+  const spec = buildCompositionSpec(resolved.composition, resolved.compositionId);
+  const compositionWidth = Math.max(1, numberValue(spec.width, 1080));
+  const compositionHeight = Math.max(1, numberValue(spec.height, 1920));
+  const safeZones = buildSafeZones(compositionWidth, compositionHeight);
+  const geometry = computeLayerGeometry(targetLayer, compositionWidth, compositionHeight, safeZones);
+  const targetRect = resolveAlignmentTargetRect({
+    args,
+    layers,
+    compositionWidth,
+    compositionHeight,
+    safeZones,
+  });
+  if (!targetRect) {
+    return fail('ALIGN_TARGET_NOT_FOUND');
+  }
+
+  const alignTokens = parseAlignmentTokens(args);
+  const nextCenterAbs = {
+    x: (targetRect.left + targetRect.right) / 2,
+    y: (targetRect.top + targetRect.bottom) / 2,
+  };
+  let nextWidth = geometry.worldBounds.width;
+  let nextHeight = geometry.worldBounds.height;
+  let scaleX = geometry.worldBounds.scaleX;
+  let scaleY = geometry.worldBounds.scaleY;
+  const keepAspect = firstDefined(args.keepAspect, args.keep_aspect, true) !== false;
+  const baseWidth = Math.max(1, geometry.intrinsicSize.width);
+  const baseHeight = Math.max(1, geometry.intrinsicSize.height);
+  const targetWidth = Math.max(1, targetRect.right - targetRect.left);
+  const targetHeight = Math.max(1, targetRect.bottom - targetRect.top);
+
+  if (alignTokens.includes('matchSize')) {
+    scaleX = targetWidth / baseWidth;
+    scaleY = targetHeight / baseHeight;
+    nextWidth = targetWidth;
+    nextHeight = targetHeight;
+  } else if (alignTokens.includes('matchAspect')) {
+    const axisScale = keepAspect
+      ? Math.min(targetWidth / baseWidth, targetHeight / baseHeight)
+      : targetWidth / baseWidth;
+    scaleX = axisScale;
+    scaleY = keepAspect ? axisScale : targetHeight / baseHeight;
+    nextWidth = baseWidth * Math.abs(scaleX);
+    nextHeight = baseHeight * Math.abs(scaleY);
+  }
+
+  if (alignTokens.includes('horizontalLeft')) {
+    nextCenterAbs.x = targetRect.left + nextWidth / 2;
+  } else if (alignTokens.includes('horizontalRight')) {
+    nextCenterAbs.x = targetRect.right - nextWidth / 2;
+  } else if (alignTokens.includes('horizontalCenter')) {
+    nextCenterAbs.x = (targetRect.left + targetRect.right) / 2;
+  }
+
+  if (alignTokens.includes('verticalTop')) {
+    nextCenterAbs.y = targetRect.top + nextHeight / 2;
+  } else if (alignTokens.includes('verticalBottom')) {
+    nextCenterAbs.y = targetRect.bottom - nextHeight / 2;
+  } else if (alignTokens.includes('verticalCenter')) {
+    nextCenterAbs.y = (targetRect.top + targetRect.bottom) / 2;
+  }
+
+  const keepInCanvas = firstDefined(args.keepInCanvas, args.keep_in_canvas, true) !== false;
+  const clampedAbs = keepInCanvas
+    ? clampCenterIntoCanvas(
+      nextCenterAbs,
+      compositionWidth,
+      compositionHeight,
+      nextWidth,
+      nextHeight,
+    )
+    : nextCenterAbs;
+  const canonicalX = clampedAbs.x - compositionWidth / 2;
+  const canonicalY = clampedAbs.y - compositionHeight / 2;
+  const timeMs = numberValue(
+    firstDefined(args.timeMs, args.time, readMap(resolved.active.timeline).playheadMs, 0),
+    0,
+  );
+  const transformResult = await setElementTransform(context, {
+    ...args,
+    layerId: stringValue(targetLayer.id),
+    x: canonicalX,
+    y: canonicalY,
+    scaleX,
+    scaleY,
+    timeMs,
+  });
+  if (!transformResult.ok) {
+    return transformResult;
+  }
+
+  return ok('Alignment applied.', {
+    projectId: resolved.projectId,
+    compositionId: resolved.compositionId,
+    layerId: stringValue(targetLayer.id),
+    alignments: alignTokens,
+    targetRect,
+    keepInCanvas,
+    timeMs,
+    resolvedCenterAbsolute: clampedAbs,
+    resolvedCenterCanonical: {
+      x: canonicalX,
+      y: canonicalY,
+    },
+    appliedScale: {
+      scaleX,
+      scaleY,
+    },
+    result: transformResult.payload,
+  });
+}
+
+async function fitInZone(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const resolved = await resolveProjectScope(context, args);
+  if (!resolved) {
+    return fail('PROJECT_NOT_OPEN');
+  }
+  const layers = await loadLayersForScope(context, resolved.projectId, resolved.compositionId);
+  const targetLayer = resolveTargetLayer(layers, args);
+  if (!targetLayer) {
+    return fail('LAYER_NOT_FOUND');
+  }
+  const spec = buildCompositionSpec(resolved.composition, resolved.compositionId);
+  const compositionWidth = Math.max(1, numberValue(spec.width, 1080));
+  const compositionHeight = Math.max(1, numberValue(spec.height, 1920));
+  const safeZones = buildSafeZones(compositionWidth, compositionHeight);
+  const geometry = computeLayerGeometry(targetLayer, compositionWidth, compositionHeight, safeZones);
+  const zoneRect = resolveZoneRectFromArgs({
+    args,
+    compositionWidth,
+    compositionHeight,
+    safeZones,
+  });
+  if (!zoneRect) {
+    return fail('ZONE_NOT_FOUND');
+  }
+  const mode = normalizeFitMode(firstText(args.mode, args.fitMode, args.fit, 'fit'));
+  const baseWidth = Math.max(1, geometry.intrinsicSize.width);
+  const baseHeight = Math.max(1, geometry.intrinsicSize.height);
+  const zoneWidth = Math.max(1, zoneRect.right - zoneRect.left);
+  const zoneHeight = Math.max(1, zoneRect.bottom - zoneRect.top);
+  let scaleX = geometry.worldBounds.scaleX;
+  let scaleY = geometry.worldBounds.scaleY;
+
+  if (mode === 'fit' || mode === 'contain') {
+    const axisScale = Math.min(zoneWidth / baseWidth, zoneHeight / baseHeight);
+    scaleX = axisScale;
+    scaleY = axisScale;
+  } else if (mode === 'fill' || mode === 'cover') {
+    const axisScale = Math.max(zoneWidth / baseWidth, zoneHeight / baseHeight);
+    scaleX = axisScale;
+    scaleY = axisScale;
+  } else if (mode === 'stretch') {
+    scaleX = zoneWidth / baseWidth;
+    scaleY = zoneHeight / baseHeight;
+  }
+
+  const nextWidth = Math.max(1, baseWidth * Math.abs(scaleX));
+  const nextHeight = Math.max(1, baseHeight * Math.abs(scaleY));
+  const centerAbs = {
+    x: (zoneRect.left + zoneRect.right) / 2,
+    y: (zoneRect.top + zoneRect.bottom) / 2,
+  };
+  const keepInCanvas = firstDefined(args.keepInCanvas, args.keep_in_canvas, true) !== false;
+  const clampedAbs = keepInCanvas
+    ? clampCenterIntoCanvas(
+      centerAbs,
+      compositionWidth,
+      compositionHeight,
+      nextWidth,
+      nextHeight,
+    )
+    : centerAbs;
+  const canonicalX = clampedAbs.x - compositionWidth / 2;
+  const canonicalY = clampedAbs.y - compositionHeight / 2;
+  const timeMs = numberValue(
+    firstDefined(args.timeMs, args.time, readMap(resolved.active.timeline).playheadMs, 0),
+    0,
+  );
+  const transformResult = await setElementTransform(context, {
+    ...args,
+    layerId: stringValue(targetLayer.id),
+    x: canonicalX,
+    y: canonicalY,
+    scaleX,
+    scaleY,
+    timeMs,
+  });
+  if (!transformResult.ok) {
+    return transformResult;
+  }
+
+  return ok('Fit in zone applied.', {
+    projectId: resolved.projectId,
+    compositionId: resolved.compositionId,
+    layerId: stringValue(targetLayer.id),
+    mode,
+    zoneRect,
+    timeMs,
+    resolvedCenterCanonical: { x: canonicalX, y: canonicalY },
+    appliedScale: { scaleX, scaleY },
+    result: transformResult.payload,
+  });
+}
+
+async function scaleTo(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const resolved = await resolveProjectScope(context, args);
+  if (!resolved) {
+    return fail('PROJECT_NOT_OPEN');
+  }
+  const layers = await loadLayersForScope(context, resolved.projectId, resolved.compositionId);
+  const targetLayer = resolveTargetLayer(layers, args);
+  if (!targetLayer) {
+    return fail('LAYER_NOT_FOUND');
+  }
+  const spec = buildCompositionSpec(resolved.composition, resolved.compositionId);
+  const compositionWidth = Math.max(1, numberValue(spec.width, 1080));
+  const compositionHeight = Math.max(1, numberValue(spec.height, 1920));
+  const safeZones = buildSafeZones(compositionWidth, compositionHeight);
+  const geometry = computeLayerGeometry(targetLayer, compositionWidth, compositionHeight, safeZones);
+  const baseWidth = Math.max(1, geometry.intrinsicSize.width);
+  const baseHeight = Math.max(1, geometry.intrinsicSize.height);
+  const mode = firstText(args.mode, args.scaleMode, args.scale_mode, 'exact').toLowerCase();
+
+  let scaleX = geometry.worldBounds.scaleX;
+  let scaleY = geometry.worldBounds.scaleY;
+  if (mode === 'exact') {
+    const exact = numberValue(firstDefined(args.value, args.scale, args.scaleX, 1), 1);
+    scaleX = exact;
+    scaleY = numberOrNull(firstDefined(args.scaleY, args.valueY, exact)) ?? exact;
+  } else if (mode === 'percent') {
+    const percent = numberValue(firstDefined(args.value, args.percent, 100), 100) / 100;
+    scaleX = percent;
+    scaleY = percent;
+  } else {
+    const zoneRect = resolveZoneRectFromArgs({
+      args,
+      compositionWidth,
+      compositionHeight,
+      safeZones,
+    }) ?? { left: 0, top: 0, right: compositionWidth, bottom: compositionHeight };
+    const zoneWidth = Math.max(1, zoneRect.right - zoneRect.left);
+    const zoneHeight = Math.max(1, zoneRect.bottom - zoneRect.top);
+    if (mode === 'fitwidth') {
+      const axis = zoneWidth / baseWidth;
+      scaleX = axis;
+      scaleY = axis;
+    } else if (mode === 'fitheight') {
+      const axis = zoneHeight / baseHeight;
+      scaleX = axis;
+      scaleY = axis;
+    } else if (mode === 'contain') {
+      const axis = Math.min(zoneWidth / baseWidth, zoneHeight / baseHeight);
+      scaleX = axis;
+      scaleY = axis;
+    } else if (mode === 'cover' || mode === 'fill') {
+      const axis = Math.max(zoneWidth / baseWidth, zoneHeight / baseHeight);
+      scaleX = axis;
+      scaleY = axis;
+    } else if (mode === 'stretch') {
+      scaleX = zoneWidth / baseWidth;
+      scaleY = zoneHeight / baseHeight;
+    }
+  }
+
+  const timeMs = numberValue(
+    firstDefined(args.timeMs, args.time, readMap(resolved.active.timeline).playheadMs, 0),
+    0,
+  );
+  const transformResult = await setElementTransform(context, {
+    ...args,
+    layerId: stringValue(targetLayer.id),
+    scaleX,
+    scaleY,
+    timeMs,
+  });
+  if (!transformResult.ok) {
+    return transformResult;
+  }
+  return ok('Scale applied.', {
+    projectId: resolved.projectId,
+    compositionId: resolved.compositionId,
+    layerId: stringValue(targetLayer.id),
+    mode,
+    scaleX,
+    scaleY,
+    timeMs,
+    result: transformResult.payload,
+  });
+}
+
+async function centerIn(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  return await alignTo(context, {
+    ...args,
+    alignment: ['horizontalCenter', 'verticalCenter'],
+  });
+}
+
+async function previewLayoutChange(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const resolved = await resolveProjectScope(context, args);
+  if (!resolved) {
+    return fail('PROJECT_NOT_OPEN');
+  }
+  const layers = await loadLayersForScope(context, resolved.projectId, resolved.compositionId);
+  const targetLayer = resolveTargetLayer(layers, args);
+  if (!targetLayer) {
+    return fail('LAYER_NOT_FOUND');
+  }
+  const spec = buildCompositionSpec(resolved.composition, resolved.compositionId);
+  const compositionWidth = Math.max(1, numberValue(spec.width, 1080));
+  const compositionHeight = Math.max(1, numberValue(spec.height, 1920));
+  const safeZones = buildSafeZones(compositionWidth, compositionHeight);
+  const before = computeLayerGeometry(targetLayer, compositionWidth, compositionHeight, safeZones);
+  const payload = readMap(targetLayer.payload);
+  const patchedLayer: JsonMap = {
+    ...targetLayer,
+    payload: {
+      ...payload,
+      ...readMap(firstDefined(args.proposed, args.patch, args.transformPatch, {})),
+      ...(optionalNumber(args.x) != null ? { x: optionalNumber(args.x) } : {}),
+      ...(optionalNumber(args.y) != null ? { y: optionalNumber(args.y) } : {}),
+      ...(numberOrNull(firstDefined(args.scaleX, args.scale)) != null
+        ? { scaleX: numberOrNull(firstDefined(args.scaleX, args.scale)) }
+        : {}),
+      ...(numberOrNull(firstDefined(args.scaleY, args.scale)) != null
+        ? { scaleY: numberOrNull(firstDefined(args.scaleY, args.scale)) }
+        : {}),
+    },
+  };
+  const after = computeLayerGeometry(patchedLayer, compositionWidth, compositionHeight, safeZones);
+  const overlaps = computeOverlapsForLayer(
+    patchedLayer,
+    layers.filter((entry) => stringValue(entry.id) !== stringValue(targetLayer.id)),
+    compositionWidth,
+    compositionHeight,
+    safeZones,
+  );
+  return ok('Layout preview generated.', {
+    projectId: resolved.projectId,
+    compositionId: resolved.compositionId,
+    layerId: stringValue(targetLayer.id),
+    before: {
+      worldBounds: before.worldBounds,
+      visibleBounds: before.visibleBounds,
+    },
+    after: {
+      worldBounds: after.worldBounds,
+      visibleBounds: after.visibleBounds,
+    },
+    overlapCount: overlaps.length,
+    safeAreaCompliance: {
+      before: {
+        titleSafe: rectContainsRect(safeZones.titleSafe, before.visibleBoundsAbsolute),
+        actionSafe: rectContainsRect(safeZones.actionSafe, before.visibleBoundsAbsolute),
+      },
+      after: {
+        titleSafe: rectContainsRect(safeZones.titleSafe, after.visibleBoundsAbsolute),
+        actionSafe: rectContainsRect(safeZones.actionSafe, after.visibleBoundsAbsolute),
+      },
+    },
+  });
+}
+
+async function validateLayoutIntent(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const summary = await getVisualLayoutSummary(context, args);
+  if (!summary.ok) {
+    return summary;
+  }
+  const payload = readMap(summary.payload);
+  const issues = readList(payload.issues).map(readMap);
+  const warnings = issues.filter((entry) => text(entry.severity, 'info') !== 'info');
+  return ok('Layout intent validated.', {
+    projectId: payload.projectId,
+    compositionId: payload.compositionId,
+    valid: warnings.length === 0,
+    issueCount: issues.length,
+    blockers: warnings,
+    suggestions: payload.suggestions,
+    summary: payload.summary,
+  });
+}
+
+async function detectLayoutOverlaps(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const resolved = await resolveProjectScope(context, args);
+  if (!resolved) {
+    return fail('PROJECT_NOT_OPEN');
+  }
+  const layers = await loadLayersForScope(context, resolved.projectId, resolved.compositionId);
+  const spec = buildCompositionSpec(resolved.composition, resolved.compositionId);
+  const compositionWidth = Math.max(1, numberValue(spec.width, 1080));
+  const compositionHeight = Math.max(1, numberValue(spec.height, 1920));
+  const safeZones = buildSafeZones(compositionWidth, compositionHeight);
+  const timeMs = numberValue(
+    firstDefined(args.timeMs, args.time, readMap(resolved.active.timeline).playheadMs, 0),
+    0,
+  );
+  const visible = layers.filter((layer) => {
+    const startMs = numberValue(layer.start_ms, 0);
+    const durationMs = Math.max(1, numberValue(layer.duration_ms, 1));
+    return timeMs >= startMs && timeMs < (startMs + durationMs);
+  });
+  const overlaps: JsonMap[] = [];
+  for (let i = 0; i < visible.length; i += 1) {
+    const a = visible[i];
+    const ga = computeLayerGeometry(a, compositionWidth, compositionHeight, safeZones);
+    for (let j = i + 1; j < visible.length; j += 1) {
+      const b = visible[j];
+      const gb = computeLayerGeometry(b, compositionWidth, compositionHeight, safeZones);
+      const intersection = rectIntersection(ga.visibleBoundsAbsolute, gb.visibleBoundsAbsolute);
+      if (intersection && intersection.area > 0) {
+        overlaps.push({
+          layerA: stringValue(a.id),
+          layerB: stringValue(b.id),
+          intersection,
+        });
+      }
+    }
+  }
+  return ok('Overlap diagnostics loaded.', {
+    projectId: resolved.projectId,
+    compositionId: resolved.compositionId,
+    timeMs,
+    overlapCount: overlaps.length,
+    overlaps,
+  });
+}
+
 async function evaluateFrame(
   context: RequestContext,
   args: JsonMap,
@@ -3360,6 +3853,231 @@ function suggestLayoutActions(issues: JsonMap[]): JsonMap[] {
       reason: 'reduce overlap and improve hierarchy',
     },
   ];
+}
+
+type AlignToken =
+  | 'horizontalLeft'
+  | 'horizontalCenter'
+  | 'horizontalRight'
+  | 'verticalTop'
+  | 'verticalCenter'
+  | 'verticalBottom'
+  | 'matchSize'
+  | 'matchAspect';
+
+function parseAlignmentTokens(args: JsonMap): AlignToken[] {
+  const raw = firstDefined(args.alignment, args.alignments, args.align);
+  const tokens = new Set<AlignToken>();
+  const pushToken = (value: string) => {
+    const normalized = value.trim().toLowerCase();
+    const map: Record<string, AlignToken> = {
+      left: 'horizontalLeft',
+      horizontalleft: 'horizontalLeft',
+      hleft: 'horizontalLeft',
+      centerx: 'horizontalCenter',
+      horizontalcenter: 'horizontalCenter',
+      hcenter: 'horizontalCenter',
+      right: 'horizontalRight',
+      horizontalright: 'horizontalRight',
+      hright: 'horizontalRight',
+      top: 'verticalTop',
+      verticaltop: 'verticalTop',
+      vtop: 'verticalTop',
+      centery: 'verticalCenter',
+      verticalcenter: 'verticalCenter',
+      vcenter: 'verticalCenter',
+      bottom: 'verticalBottom',
+      verticalbottom: 'verticalBottom',
+      vbottom: 'verticalBottom',
+      matchsize: 'matchSize',
+      matchaspect: 'matchAspect',
+    };
+    const token = map[normalized];
+    if (token) {
+      tokens.add(token);
+    }
+  };
+  if (Array.isArray(raw)) {
+    for (const item of raw) {
+      if (typeof item === 'string') {
+        pushToken(item);
+      }
+    }
+  } else if (typeof raw === 'string') {
+    for (const part of raw.split(/[,\s]+/)) {
+      if (part.trim() !== '') {
+        pushToken(part);
+      }
+    }
+  }
+  if (tokens.size === 0) {
+    tokens.add('horizontalCenter');
+    tokens.add('verticalCenter');
+  }
+  return [...tokens];
+}
+
+function resolveAlignmentTargetRect(input: {
+  args: JsonMap;
+  layers: JsonMap[];
+  compositionWidth: number;
+  compositionHeight: number;
+  safeZones: { titleSafe: Rect; actionSafe: Rect };
+}): Rect | null {
+  const target = firstText(input.args.target, input.args.alignTo, 'canvas').trim();
+  const lower = target.toLowerCase();
+  if (
+    lower === 'canvas' ||
+    lower === 'composition' ||
+    lower === 'fullcanvas' ||
+    lower === 'full'
+  ) {
+    return {
+      left: 0,
+      top: 0,
+      right: input.compositionWidth,
+      bottom: input.compositionHeight,
+    };
+  }
+  if (lower === 'titlesafe' || lower === 'title') {
+    return input.safeZones.titleSafe;
+  }
+  if (lower === 'actionsafe' || lower === 'action') {
+    return input.safeZones.actionSafe;
+  }
+  if (lower.startsWith('anchor:')) {
+    const anchor = normalizeAnchorName(target.split(':').slice(1).join(':'));
+    const point = anchorTargetCenter({
+      anchor,
+      safeArea: 'none',
+      safeZones: input.safeZones,
+      width: input.compositionWidth,
+      height: input.compositionHeight,
+      elementWidth: 0,
+      elementHeight: 0,
+      paddingPx: 0,
+    });
+    return { left: point.x, top: point.y, right: point.x, bottom: point.y };
+  }
+  const layerId = lower.startsWith('layer:') ? target.split(':').slice(1).join(':') : target;
+  const matched = input.layers.find((entry) => stringValue(entry.id) === layerId);
+  if (!matched) {
+    return null;
+  }
+  const geometry = computeLayerGeometry(
+    matched,
+    input.compositionWidth,
+    input.compositionHeight,
+    input.safeZones,
+  );
+  return geometry.visibleBoundsAbsolute;
+}
+
+function normalizeZoneName(value: string): string {
+  const normalized = value.trim().toLowerCase();
+  const map: Record<string, string> = {
+    full: 'fullCanvas',
+    fullcanvas: 'fullCanvas',
+    canvas: 'fullCanvas',
+    titlesafe: 'titleSafe',
+    title: 'titleSafe',
+    actionsafe: 'actionSafe',
+    action: 'actionSafe',
+    upperthird: 'upperThird',
+    middlethird: 'middleThird',
+    lowerthird: 'lowerThird',
+    lefthalf: 'leftHalf',
+    righthalf: 'rightHalf',
+  };
+  return map[normalized] ?? 'actionSafe';
+}
+
+function resolveZoneRectFromArgs(input: {
+  args: JsonMap;
+  compositionWidth: number;
+  compositionHeight: number;
+  safeZones: { titleSafe: Rect; actionSafe: Rect };
+}): Rect | null {
+  const zoneName = normalizeZoneName(firstText(input.args.zone, input.args.targetZone, 'actionSafe'));
+  const full: Rect = {
+    left: 0,
+    top: 0,
+    right: input.compositionWidth,
+    bottom: input.compositionHeight,
+  };
+  if (zoneName === 'fullCanvas') {
+    return full;
+  }
+  if (zoneName === 'titleSafe') {
+    return input.safeZones.titleSafe;
+  }
+  if (zoneName === 'actionSafe') {
+    return input.safeZones.actionSafe;
+  }
+  if (zoneName === 'upperThird') {
+    return {
+      left: 0,
+      top: 0,
+      right: input.compositionWidth,
+      bottom: input.compositionHeight / 3,
+    };
+  }
+  if (zoneName === 'middleThird') {
+    return {
+      left: 0,
+      top: input.compositionHeight / 3,
+      right: input.compositionWidth,
+      bottom: (input.compositionHeight * 2) / 3,
+    };
+  }
+  if (zoneName === 'lowerThird') {
+    return {
+      left: 0,
+      top: (input.compositionHeight * 2) / 3,
+      right: input.compositionWidth,
+      bottom: input.compositionHeight,
+    };
+  }
+  if (zoneName === 'leftHalf') {
+    return {
+      left: 0,
+      top: 0,
+      right: input.compositionWidth / 2,
+      bottom: input.compositionHeight,
+    };
+  }
+  if (zoneName === 'rightHalf') {
+    return {
+      left: input.compositionWidth / 2,
+      top: 0,
+      right: input.compositionWidth,
+      bottom: input.compositionHeight,
+    };
+  }
+
+  const rect = readMap(firstDefined(input.args.rect, input.args.zoneRect, {}));
+  if (Object.keys(rect).length > 0) {
+    const x = numberValue(firstDefined(rect.x, rect.left, 0), 0);
+    const y = numberValue(firstDefined(rect.y, rect.top, 0), 0);
+    const w = Math.max(1, numberValue(firstDefined(rect.w, rect.width, 1), 1));
+    const h = Math.max(1, numberValue(firstDefined(rect.h, rect.height, 1), 1));
+    return {
+      left: x,
+      top: y,
+      right: x + w,
+      bottom: y + h,
+    };
+  }
+  return null;
+}
+
+function normalizeFitMode(value: string): 'fit' | 'contain' | 'fill' | 'cover' | 'stretch' {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'contain') return 'contain';
+  if (normalized === 'fill') return 'fill';
+  if (normalized === 'cover') return 'cover';
+  if (normalized === 'stretch') return 'stretch';
+  return 'fit';
 }
 
 function normalizeAnchorName(value: string): string {
@@ -4116,6 +4834,45 @@ function tools() {
       'Position At Anchor',
       'Place target layer at semantic anchors (topLeft/topRight/goldenTop/thirds) with optional safe-area and padding.',
       true,
+    ),
+    tool(
+      'refusion.align_to',
+      'Align To',
+      'Align target layer to canvas/zone/anchor/another layer using semantic alignment tokens.',
+      true,
+    ),
+    tool(
+      'refusion.fit_in_zone',
+      'Fit In Zone',
+      'Fit target layer into a layout zone (contain/cover/fill/stretch) with optional safe area.',
+      true,
+    ),
+    tool(
+      'refusion.scale_to',
+      'Scale To',
+      'Scale target layer by exact/percent/fitWidth/fitHeight/contain/cover modes.',
+      true,
+    ),
+    tool(
+      'refusion.center_in',
+      'Center In',
+      'Center target layer in canvas/titleSafe/actionSafe/zone/layer.',
+      true,
+    ),
+    tool(
+      'refusion.layout.preview_change',
+      'Layout Preview Change',
+      'Simulate a proposed transform/style patch and return geometry impact without mutation.',
+    ),
+    tool(
+      'refusion.layout.validate_intent',
+      'Layout Validate Intent',
+      'Validate current/proposed layout intent and return structured blockers/suggestions.',
+    ),
+    tool(
+      'refusion.layout.detect_overlaps',
+      'Layout Detect Overlaps',
+      'Return overlap diagnostics for visible layers at a timeline time.',
     ),
     tool(
       'refusion.get_layers',
