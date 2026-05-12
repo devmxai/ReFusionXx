@@ -1594,7 +1594,7 @@ async function applySceneProgram(
       readMap(payload.style).renderMask,
     );
 
-    return await applyLayerStyleMutation(
+    const styleResult = await applyLayerStyleMutation(
       context,
       {
         ...args,
@@ -1662,6 +1662,42 @@ async function applySceneProgram(
         };
       },
     );
+    if (!styleResult.ok) {
+      return styleResult;
+    }
+
+    const legacyAnimation = readMap(
+      firstDefined(
+        updates.animation,
+        payload.animation,
+        updatePayload.animation,
+      ),
+    );
+    const legacyKeyframes = readList(legacyAnimation.keyframes);
+    if (legacyKeyframes.length == 0) {
+      return styleResult;
+    }
+
+    const compositionSpec = buildCompositionSpec(resolved.composition, resolved.compositionId);
+    const canvasWidth = Math.max(1, numberValue(compositionSpec.width, 1080));
+    const canvasHeight = Math.max(1, numberValue(compositionSpec.height, 1920));
+    const motionChannels = legacyAnimationChannelsToMotionWrites(
+      legacyKeyframes,
+      {
+        canvasWidth,
+        canvasHeight,
+      },
+    );
+    if (motionChannels.length == 0) {
+      return styleResult;
+    }
+
+    return await applyMotionPatch(context, {
+      ...args,
+      layerId: stringValue(targetLayer.id),
+      channels: motionChannels,
+      operation: 'animate_layer',
+    });
   }
 
   const source = text(args.source, '');
@@ -5609,6 +5645,117 @@ function inferMotionWrites(args: JsonMap): MotionChannelWrite[] {
   }
 
   return [];
+}
+
+function legacyAnimationChannelsToMotionWrites(
+  keyframes: unknown[],
+  options: {
+    canvasWidth: number;
+    canvasHeight: number;
+  },
+): JsonMap[] {
+  const scaleKeyframes: JsonMap[] = [];
+  const opacityKeyframes: JsonMap[] = [];
+  const positionXKeyframes: JsonMap[] = [];
+  const positionYKeyframes: JsonMap[] = [];
+
+  for (const raw of keyframes) {
+    const map = readMap(raw);
+    const timeMs = optionalNumber(firstDefined(map.timeMs, map.time, map.t));
+    if (timeMs == null || timeMs < 0) {
+      continue;
+    }
+    const easing = firstText(map.easing, map.interpolation, 'easeOut');
+
+    const scale = numberOrNull(firstDefined(
+      map.scale,
+      map.scaleX,
+      readMap(map.transform).scale,
+      readMap(map.transform).scaleX,
+    ));
+    if (scale != null) {
+      scaleKeyframes.push({
+        id: firstText(map.id) || `kf_scale_${timeMs}_${scaleKeyframes.length}`,
+        timeMs,
+        value: scale,
+        easing,
+      });
+    }
+
+    const opacity = numberOrNull(firstDefined(
+      map.opacity,
+      readMap(map.visual).opacity,
+    ));
+    if (opacity != null) {
+      opacityKeyframes.push({
+        id: firstText(map.id) || `kf_opacity_${timeMs}_${opacityKeyframes.length}`,
+        timeMs,
+        value: opacity,
+        easing,
+      });
+    }
+
+    const absoluteX = numberOrNull(firstDefined(
+      map.x,
+      map.centerX,
+      readMap(map.position).x,
+      readMap(map.transform).x,
+    ));
+    if (absoluteX != null) {
+      positionXKeyframes.push({
+        id: firstText(map.id) || `kf_x_${timeMs}_${positionXKeyframes.length}`,
+        timeMs,
+        value: absoluteX - (options.canvasWidth / 2),
+        easing,
+      });
+    }
+
+    const absoluteY = numberOrNull(firstDefined(
+      map.y,
+      map.centerY,
+      readMap(map.position).y,
+      readMap(map.transform).y,
+    ));
+    if (absoluteY != null) {
+      positionYKeyframes.push({
+        id: firstText(map.id) || `kf_y_${timeMs}_${positionYKeyframes.length}`,
+        timeMs,
+        value: absoluteY - (options.canvasHeight / 2),
+        easing,
+      });
+    }
+  }
+
+  const channels: JsonMap[] = [];
+  if (scaleKeyframes.length > 0) {
+    channels.push({
+      propertyId: 'transform.scale.x',
+      keyframes: scaleKeyframes,
+    });
+    channels.push({
+      propertyId: 'transform.scale.y',
+      keyframes: scaleKeyframes,
+    });
+  }
+  if (opacityKeyframes.length > 0) {
+    channels.push({
+      propertyId: 'visual.opacity',
+      keyframes: opacityKeyframes,
+    });
+  }
+  if (positionXKeyframes.length > 0) {
+    channels.push({
+      propertyId: 'transform.position.x',
+      keyframes: positionXKeyframes,
+    });
+  }
+  if (positionYKeyframes.length > 0) {
+    channels.push({
+      propertyId: 'transform.position.y',
+      keyframes: positionYKeyframes,
+    });
+  }
+  return channels;
 }
 
 function canonicalMotionPropertyId(value: string): string {

@@ -25540,7 +25540,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       if (size.width <= 0 || size.height <= 0) {
         return null;
       }
-      final transform = _canvasClipTransformFor(clip.id);
+      final transform = _canvasClipTransformFor(
+        clip.id,
+        atTime: previewTime,
+      );
       return UnifiedCanvasTransformNode(
         id: clip.id,
         layerId: clip.id,
@@ -25868,9 +25871,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return clipIds;
   }
 
-  _CanvasClipTransform _canvasClipTransformFor(String clipId) {
+  _CanvasClipTransform _canvasClipTransformFor(
+    String clipId, {
+    TimelineTime? atTime,
+  }) {
     final base = _canvasClipTransforms[clipId] ?? const _CanvasClipTransform();
-    final timelineTime = _timelineDisplayTimeNotifier.value;
+    final timelineTime = atTime ?? _timelineDisplayTimeNotifier.value;
     double? scalar(MotionPropertyDefinition definition) {
       final channel = _manualPropertyChannelForElement(clipId, definition);
       if (channel == null) {
@@ -26753,7 +26759,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (context == null) {
       return null;
     }
-    final transform = _canvasClipTransformFor(context.clip.id);
+    final transform = _canvasClipTransformFor(
+      context.clip.id,
+      atTime: previewTime,
+    );
     final matrix = _canvasClipNativeTransformMatrix3x3(transform);
     final revision = ++_stage5VisualRuntimeRevision;
     final frameIndex = _stage5FrameIndexForTimelineTime(previewTime);
