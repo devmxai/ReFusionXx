@@ -73,6 +73,12 @@ const writeTools = new Set<string>([
   'refusion.apply_keyframes',
   'refusion.keyframe_edit',
   'refusion.set_element_transform',
+  'refusion.trim_clip',
+  'refusion.split_clip',
+  'refusion.set_layer_mask',
+  'refusion.set_border',
+  'refusion.set_glow',
+  'refusion.set_layer_style',
 ]);
 
 const userOnlyTools = new Set<string>([
@@ -293,8 +299,40 @@ async function callTool(
     case 'refusion.set_element_transform':
       ensureAgentWrite(canonicalToolName, context);
       return await setElementTransform(context, args);
+    case 'refusion.trim_clip':
+      ensureAgentWrite(canonicalToolName, context);
+      return await trimClip(context, args);
+    case 'refusion.split_clip':
+      ensureAgentWrite(canonicalToolName, context);
+      return await splitClip(context, args);
+    case 'refusion.set_layer_mask':
+      ensureAgentWrite(canonicalToolName, context);
+      return await setLayerMask(context, args);
+    case 'refusion.set_border':
+      ensureAgentWrite(canonicalToolName, context);
+      return await setBorder(context, args);
+    case 'refusion.set_glow':
+      ensureAgentWrite(canonicalToolName, context);
+      return await setGlow(context, args);
+    case 'refusion.set_layer_style':
+      ensureAgentWrite(canonicalToolName, context);
+      return await setLayerStyle(context, args);
     case 'refusion.get_layers':
       return await getLayers(context, args);
+    case 'refusion.get_project_snapshot':
+      return await getProjectSnapshot(context, args);
+    case 'refusion.get_composition_spec':
+      return await getCompositionSpec(context, args);
+    case 'refusion.get_timeline_graph':
+      return await getTimelineGraph(context, args);
+    case 'refusion.get_media_assets':
+      return await getMediaAssets(context, args);
+    case 'refusion.get_scene_layers':
+      return await getSceneLayers(context, args);
+    case 'refusion.evaluate_frame':
+      return await evaluateFrame(context, args);
+    case 'refusion.explain_capabilities':
+      return await explainCapabilities(context, args);
     case 'refusion.get_motion_channels':
       return await getMotionChannels(context, args);
     case 'refusion.get_keyframes':
@@ -356,7 +394,20 @@ function normalizeToolName(name: string): string {
     apply_keyframes: 'refusion.apply_keyframes',
     keyframe_edit: 'refusion.keyframe_edit',
     set_element_transform: 'refusion.set_element_transform',
+    trim_clip: 'refusion.trim_clip',
+    split_clip: 'refusion.split_clip',
+    set_layer_mask: 'refusion.set_layer_mask',
+    set_border: 'refusion.set_border',
+    set_glow: 'refusion.set_glow',
+    set_layer_style: 'refusion.set_layer_style',
     get_layers: 'refusion.get_layers',
+    get_project_snapshot: 'refusion.get_project_snapshot',
+    get_composition_spec: 'refusion.get_composition_spec',
+    get_timeline_graph: 'refusion.get_timeline_graph',
+    get_media_assets: 'refusion.get_media_assets',
+    get_scene_layers: 'refusion.get_scene_layers',
+    evaluate_frame: 'refusion.evaluate_frame',
+    explain_capabilities: 'refusion.explain_capabilities',
     get_motion_channels: 'refusion.get_motion_channels',
     get_keyframes: 'refusion.get_keyframes',
     get_command_status: 'refusion.get_command_status',
@@ -371,6 +422,13 @@ function normalizeToolName(name: string): string {
     'refusion.set_solid_background': 'refusion.insert_layer',
     'refusion.background.set_solid': 'refusion.insert_layer',
     'refusion.apply_animation_recipe': 'refusion.apply_motion_patch',
+    'refusion.trim_layer': 'refusion.trim_clip',
+    'refusion.split_layer': 'refusion.split_clip',
+    'refusion.set_mask': 'refusion.set_layer_mask',
+    'refusion.apply_mask': 'refusion.set_layer_mask',
+    'refusion.set_rounded_crop': 'refusion.set_layer_mask',
+    'refusion.set_layer_border': 'refusion.set_border',
+    'refusion.set_layer_glow': 'refusion.set_glow',
   };
   return aliases[value] ?? (value.startsWith('refusion.') ? value : value);
 }
@@ -1411,6 +1469,465 @@ async function setElementTransform(
   return await applyMotionPatch(context, payload);
 }
 
+async function trimClip(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const resolved = await resolveProjectScope(context, args);
+  if (!resolved) {
+    return fail('PROJECT_NOT_OPEN');
+  }
+  const rawLayerId = firstText(args.layerId, args.layer_id, args.clipId, args.clip_id);
+  const layerId = rawLayerId.startsWith('clip:') ? rawLayerId.slice(5) : rawLayerId;
+  if (!layerId) {
+    return fail('LAYER_ID_REQUIRED');
+  }
+  const { data: layer, error: layerError } = await admin
+    .from('refusion_layers')
+    .select('*')
+    .eq('owner_id', context.userId)
+    .eq('project_id', resolved.projectId)
+    .eq('composition_id', resolved.compositionId)
+    .eq('id', layerId)
+    .maybeSingle();
+  if (layerError) throw layerError;
+  if (!layer) {
+    return fail('LAYER_NOT_FOUND');
+  }
+  const currentRevision = resolved.revision;
+  const expectedRevision = optionalNumber(args.expectedRevision);
+  if (expectedRevision != null && expectedRevision !== currentRevision) {
+    return fail('REVISION_CONFLICT', {
+      expectedRevision,
+      actualRevision: currentRevision,
+    });
+  }
+  const startMs = Math.max(
+    0,
+    numberValue(firstDefined(args.timelineStartMs, args.startMs, layer.start_ms), numberValue(layer.start_ms, 0)),
+  );
+  const durationMs = Math.max(
+    1,
+    numberValue(
+      firstDefined(args.timelineDurationMs, args.durationMs, layer.duration_ms),
+      numberValue(layer.duration_ms, 1000),
+    ),
+  );
+  const payload = readMap(layer.payload);
+  const sourceStartMs = Math.max(
+    0,
+    numberValue(
+      firstDefined(args.sourceStartMs, payload.sourceStartMs, payload.source_start_ms, 0),
+      0,
+    ),
+  );
+  const sourceDurationMs = Math.max(
+    1,
+    numberValue(
+      firstDefined(args.sourceDurationMs, payload.sourceDurationMs, payload.source_duration_ms, durationMs),
+      durationMs,
+    ),
+  );
+  const nextPayload = {
+    ...payload,
+    sourceStartMs,
+    sourceDurationMs,
+  };
+  const { error: updateError } = await admin
+    .from('refusion_layers')
+    .update({
+      start_ms: startMs,
+      duration_ms: durationMs,
+      payload: nextPayload,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', layerId);
+  if (updateError) throw updateError;
+  const revisionAfter = currentRevision + 1;
+  await updateRevision(resolved.projectId, revisionAfter);
+  const commandRecord = await recordCommand(
+    context,
+    resolved.projectId,
+    resolved.compositionId,
+    'refusion.trim_clip',
+    {
+      layerId,
+      timelineStartMs: startMs,
+      timelineDurationMs: durationMs,
+      sourceStartMs,
+      sourceDurationMs,
+    },
+    currentRevision,
+    revisionAfter,
+    stringValue(args.idempotencyKey),
+  );
+  return ok('Clip trimmed.', {
+    projectId: resolved.projectId,
+    compositionId: resolved.compositionId,
+    layerId,
+    commandId: commandRecord.commandId,
+    revisionBefore: currentRevision,
+    revisionAfter,
+    clip: {
+      clipId: `clip:${layerId}`,
+      timelineStartMs: startMs,
+      timelineDurationMs: durationMs,
+      sourceStartMs,
+      sourceDurationMs,
+    },
+  });
+}
+
+async function splitClip(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const resolved = await resolveProjectScope(context, args);
+  if (!resolved) {
+    return fail('PROJECT_NOT_OPEN');
+  }
+  const rawLayerId = firstText(args.layerId, args.layer_id, args.clipId, args.clip_id);
+  const layerId = rawLayerId.startsWith('clip:') ? rawLayerId.slice(5) : rawLayerId;
+  if (!layerId) {
+    return fail('LAYER_ID_REQUIRED');
+  }
+  const { data: layer, error: layerError } = await admin
+    .from('refusion_layers')
+    .select('*')
+    .eq('owner_id', context.userId)
+    .eq('project_id', resolved.projectId)
+    .eq('composition_id', resolved.compositionId)
+    .eq('id', layerId)
+    .maybeSingle();
+  if (layerError) throw layerError;
+  if (!layer) {
+    return fail('LAYER_NOT_FOUND');
+  }
+  const currentRevision = resolved.revision;
+  const expectedRevision = optionalNumber(args.expectedRevision);
+  if (expectedRevision != null && expectedRevision !== currentRevision) {
+    return fail('REVISION_CONFLICT', {
+      expectedRevision,
+      actualRevision: currentRevision,
+    });
+  }
+  const originalStartMs = numberValue(layer.start_ms, 0);
+  const originalDurationMs = Math.max(1, numberValue(layer.duration_ms, 1));
+  const splitTimeMs = numberValue(
+    firstDefined(args.splitTimeMs, args.timeMs, args.atMs),
+    originalStartMs + Math.floor(originalDurationMs / 2),
+  );
+  if (splitTimeMs <= originalStartMs || splitTimeMs >= originalStartMs + originalDurationMs) {
+    return fail('SPLIT_OUT_OF_RANGE', {
+      splitTimeMs,
+      clipStartMs: originalStartMs,
+      clipEndMs: originalStartMs + originalDurationMs,
+    });
+  }
+  const leftDurationMs = splitTimeMs - originalStartMs;
+  const rightDurationMs = originalDurationMs - leftDurationMs;
+  const payload = readMap(layer.payload);
+  const sourceStartMs = numberValue(
+    firstDefined(payload.sourceStartMs, payload.source_start_ms, 0),
+    0,
+  );
+  const sourceDurationMs = numberValue(
+    firstDefined(payload.sourceDurationMs, payload.source_duration_ms, originalDurationMs),
+    originalDurationMs,
+  );
+  const splitGroupId = firstText(
+    payload.splitGroupId,
+    payload.split_group_id,
+    `split_${randomBase32(8).toLowerCase()}`,
+  );
+  const leftSourceDurationMs = Math.min(sourceDurationMs, leftDurationMs);
+  const rightSourceStartMs = sourceStartMs + leftSourceDurationMs;
+  const rightSourceDurationMs = Math.max(1, sourceDurationMs - leftSourceDurationMs);
+  const leftPayload = {
+    ...payload,
+    splitGroupId,
+    sourceStartMs,
+    sourceDurationMs: leftSourceDurationMs,
+  };
+  const rightPayload = {
+    ...payload,
+    splitGroupId,
+    sourceStartMs: rightSourceStartMs,
+    sourceDurationMs: rightSourceDurationMs,
+  };
+  const { error: leftUpdateError } = await admin
+    .from('refusion_layers')
+    .update({
+      duration_ms: leftDurationMs,
+      payload: leftPayload,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', layerId);
+  if (leftUpdateError) throw leftUpdateError;
+  const { data: rightLayer, error: rightInsertError } = await admin
+    .from('refusion_layers')
+    .insert({
+      owner_id: context.userId,
+      project_id: resolved.projectId,
+      composition_id: resolved.compositionId,
+      layer_kind: text(layer.layer_kind, 'media'),
+      name: text(layer.name, 'Layer'),
+      start_ms: splitTimeMs,
+      duration_ms: rightDurationMs,
+      z_index: numberValue(layer.z_index, 0),
+      payload: rightPayload,
+      parent_layer_id: stringValue(layer.parent_layer_id) || null,
+      created_by: context.agentSession ? 'mcp-agent' : 'mcp',
+    })
+    .select('id')
+    .single();
+  if (rightInsertError) throw rightInsertError;
+  const revisionAfter = currentRevision + 1;
+  await updateRevision(resolved.projectId, revisionAfter);
+  const commandRecord = await recordCommand(
+    context,
+    resolved.projectId,
+    resolved.compositionId,
+    'refusion.split_clip',
+    {
+      layerId,
+      newLayerId: stringValue(rightLayer?.id),
+      splitTimeMs,
+      splitGroupId,
+      leftDurationMs,
+      rightDurationMs,
+    },
+    currentRevision,
+    revisionAfter,
+    stringValue(args.idempotencyKey),
+  );
+  return ok('Clip split.', {
+    projectId: resolved.projectId,
+    compositionId: resolved.compositionId,
+    commandId: commandRecord.commandId,
+    revisionBefore: currentRevision,
+    revisionAfter,
+    split: {
+      splitTimeMs,
+      splitGroupId,
+      left: {
+        layerId,
+        clipId: `clip:${layerId}`,
+        timelineStartMs: originalStartMs,
+        timelineDurationMs: leftDurationMs,
+      },
+      right: {
+        layerId: stringValue(rightLayer?.id),
+        clipId: `clip:${stringValue(rightLayer?.id)}`,
+        timelineStartMs: splitTimeMs,
+        timelineDurationMs: rightDurationMs,
+      },
+    },
+  });
+}
+
+async function setLayerMask(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const maskType = firstText(
+    args.maskType,
+    args.type,
+    args.shape,
+    readMap(args.mask).type,
+  ).toLowerCase();
+  if (!maskType) {
+    return fail('MASK_TYPE_REQUIRED');
+  }
+  const radius = numberOrNull(firstDefined(args.radius, args.cornerRadius, readMap(args.mask).radius));
+  const feather = numberOrNull(firstDefined(args.feather, readMap(args.mask).feather)) ?? 0;
+  return await applyLayerStyleMutation(
+    context,
+    args,
+    'refusion.set_layer_mask',
+    (payload) => {
+      const style = readMap(payload.style);
+      const nextMask = {
+        ...readMap(payload.mask),
+        type: maskType,
+        radius,
+        feather,
+      };
+      return {
+        ...payload,
+        maskType,
+        mask: nextMask,
+        style: {
+          ...style,
+          mask: nextMask,
+        },
+      };
+    },
+  );
+}
+
+async function setBorder(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const width = numberOrNull(firstDefined(args.borderWidth, args.strokeWidth, args.width));
+  if (width == null) {
+    return fail('BORDER_WIDTH_REQUIRED');
+  }
+  const color = firstText(args.borderColor, args.strokeColor, args.color, '#FFFFFF');
+  return await applyLayerStyleMutation(
+    context,
+    args,
+    'refusion.set_border',
+    (payload) => {
+      const style = readMap(payload.style);
+      return {
+        ...payload,
+        borderWidth: width,
+        borderColor: inferLayerColor({ color }, {}) ?? color,
+        style: {
+          ...style,
+          borderWidth: width,
+          borderColor: inferLayerColor({ color }, {}) ?? color,
+        },
+      };
+    },
+  );
+}
+
+async function setGlow(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const glowColor = firstText(
+    args.color,
+    args.glowColor,
+    readMap(args.glow).color,
+    '#FFFFFF',
+  );
+  const blur = Math.max(0, numberValue(firstDefined(args.blur, readMap(args.glow).blur, 12), 12));
+  const opacity = Math.max(
+    0,
+    Math.min(1, (numberOrNull(firstDefined(args.opacity, readMap(args.glow).opacity)) ?? 0.35)),
+  );
+  return await applyLayerStyleMutation(
+    context,
+    args,
+    'refusion.set_glow',
+    (payload) => {
+      const style = readMap(payload.style);
+      const glow = {
+        color: inferLayerColor({ color: glowColor }, {}) ?? glowColor,
+        blur,
+        opacity,
+      };
+      return {
+        ...payload,
+        glow,
+        style: {
+          ...style,
+          glow,
+        },
+      };
+    },
+  );
+}
+
+async function setLayerStyle(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const patchStyle = readMap(firstDefined(args.style, args.payload));
+  if (Object.keys(patchStyle).length === 0) {
+    return fail('STYLE_PAYLOAD_REQUIRED');
+  }
+  return await applyLayerStyleMutation(
+    context,
+    args,
+    'refusion.set_layer_style',
+    (payload) => {
+      const style = readMap(payload.style);
+      return {
+        ...payload,
+        style: {
+          ...style,
+          ...patchStyle,
+        },
+      };
+    },
+  );
+}
+
+async function applyLayerStyleMutation(
+  context: RequestContext,
+  args: JsonMap,
+  commandType: string,
+  mutate: (payload: JsonMap) => JsonMap,
+): Promise<ToolResult> {
+  const resolved = await resolveProjectScope(context, args);
+  if (!resolved) {
+    return fail('PROJECT_NOT_OPEN');
+  }
+  const rawLayerId = firstText(args.layerId, args.layer_id, args.clipId, args.clip_id);
+  const layerId = rawLayerId.startsWith('clip:') ? rawLayerId.slice(5) : rawLayerId;
+  if (!layerId) {
+    return fail('LAYER_ID_REQUIRED');
+  }
+  const { data: layer, error: layerError } = await admin
+    .from('refusion_layers')
+    .select('*')
+    .eq('owner_id', context.userId)
+    .eq('project_id', resolved.projectId)
+    .eq('composition_id', resolved.compositionId)
+    .eq('id', layerId)
+    .maybeSingle();
+  if (layerError) throw layerError;
+  if (!layer) {
+    return fail('LAYER_NOT_FOUND');
+  }
+  const currentRevision = resolved.revision;
+  const expectedRevision = optionalNumber(args.expectedRevision);
+  if (expectedRevision != null && expectedRevision !== currentRevision) {
+    return fail('REVISION_CONFLICT', {
+      expectedRevision,
+      actualRevision: currentRevision,
+    });
+  }
+  const currentPayload = readMap(layer.payload);
+  const nextPayload = mutate(currentPayload);
+  const { error: updateError } = await admin
+    .from('refusion_layers')
+    .update({
+      payload: nextPayload,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', layerId);
+  if (updateError) throw updateError;
+  const revisionAfter = currentRevision + 1;
+  await updateRevision(resolved.projectId, revisionAfter);
+  const commandRecord = await recordCommand(
+    context,
+    resolved.projectId,
+    resolved.compositionId,
+    commandType,
+    {
+      layerId,
+      payload: nextPayload,
+    },
+    currentRevision,
+    revisionAfter,
+    stringValue(args.idempotencyKey),
+  );
+  return ok('Layer style updated.', {
+    projectId: resolved.projectId,
+    compositionId: resolved.compositionId,
+    layerId,
+    commandId: commandRecord.commandId,
+    revisionBefore: currentRevision,
+    revisionAfter,
+  });
+}
+
 async function getLayers(context: RequestContext, args: JsonMap): Promise<ToolResult> {
   const boundProjectId = context.agentSession?.project_id ?? '';
   const boundCompositionId = context.agentSession?.composition_id ?? '';
@@ -1442,6 +1959,184 @@ async function getLayers(context: RequestContext, args: JsonMap): Promise<ToolRe
     compositionId,
     revision,
     layers: data ?? [],
+  });
+}
+
+async function getProjectSnapshot(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const resolved = await resolveProjectScope(context, args);
+  if (!resolved) {
+    return fail('PROJECT_NOT_OPEN');
+  }
+  const layers = await loadLayersForScope(context, resolved.projectId, resolved.compositionId);
+  const channels = await loadMotionChannelsForScope(
+    context,
+    resolved.projectId,
+    resolved.compositionId,
+  );
+  const timelineGraph = buildTimelineGraph(layers, resolved.compositionDurationMs);
+  const sceneLayers = buildSceneLayers(layers);
+  const mediaAssets = buildMediaAssets(layers);
+  const capabilities = defaultCapabilityGraph();
+  const playheadMs = numberValue(readMap(resolved.active.timeline).playheadMs, 0);
+  const evaluated = evaluateFrameFromState(
+    layers,
+    channels,
+    playheadMs,
+    numberValue(args.includeBounds, 1) !== 0,
+  );
+  return ok('Project snapshot loaded.', {
+    schemaVersion: 'refusion.compositionTruthGraph/v1',
+    projectId: resolved.projectId,
+    compositionId: resolved.compositionId,
+    revision: resolved.revision,
+    generatedAt: new Date().toISOString(),
+    composition: buildCompositionSpec(resolved.composition, resolved.compositionId),
+    playhead: {
+      timeMs: playheadMs,
+      frame: Math.round(playheadMs / 1000 * resolved.fps),
+    },
+    selection: {
+      selectedLayerIds: readList(args.selectedLayerIds),
+      selectedElementIds: readList(args.selectedElementIds),
+    },
+    assets: mediaAssets,
+    timeline: timelineGraph,
+    scene: {
+      layers: sceneLayers,
+    },
+    motion: {
+      channels,
+    },
+    effects: {
+      catalog: effectCatalog(),
+    },
+    capabilities,
+    evaluatedFrame: evaluated,
+    diagnostics: [],
+  });
+}
+
+async function getCompositionSpec(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const resolved = await resolveProjectScope(context, args);
+  if (!resolved) {
+    return fail('PROJECT_NOT_OPEN');
+  }
+  return ok('Composition spec loaded.', {
+    projectId: resolved.projectId,
+    compositionId: resolved.compositionId,
+    revision: resolved.revision,
+    composition: buildCompositionSpec(resolved.composition, resolved.compositionId),
+  });
+}
+
+async function getTimelineGraph(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const resolved = await resolveProjectScope(context, args);
+  if (!resolved) {
+    return fail('PROJECT_NOT_OPEN');
+  }
+  const layers = await loadLayersForScope(context, resolved.projectId, resolved.compositionId);
+  return ok('Timeline graph loaded.', {
+    projectId: resolved.projectId,
+    compositionId: resolved.compositionId,
+    revision: resolved.revision,
+    timeline: buildTimelineGraph(layers, resolved.compositionDurationMs),
+  });
+}
+
+async function getMediaAssets(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const resolved = await resolveProjectScope(context, args);
+  if (!resolved) {
+    return fail('PROJECT_NOT_OPEN');
+  }
+  const layers = await loadLayersForScope(context, resolved.projectId, resolved.compositionId);
+  return ok('Media assets loaded.', {
+    projectId: resolved.projectId,
+    compositionId: resolved.compositionId,
+    revision: resolved.revision,
+    assets: buildMediaAssets(layers),
+  });
+}
+
+async function getSceneLayers(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const resolved = await resolveProjectScope(context, args);
+  if (!resolved) {
+    return fail('PROJECT_NOT_OPEN');
+  }
+  const layers = await loadLayersForScope(context, resolved.projectId, resolved.compositionId);
+  return ok('Scene layers loaded.', {
+    projectId: resolved.projectId,
+    compositionId: resolved.compositionId,
+    revision: resolved.revision,
+    layers: buildSceneLayers(layers),
+  });
+}
+
+async function evaluateFrame(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const resolved = await resolveProjectScope(context, args);
+  if (!resolved) {
+    return fail('PROJECT_NOT_OPEN');
+  }
+  const layers = await loadLayersForScope(context, resolved.projectId, resolved.compositionId);
+  const channels = await loadMotionChannelsForScope(
+    context,
+    resolved.projectId,
+    resolved.compositionId,
+  );
+  const requestedTimeMs = optionalNumber(firstDefined(args.timeMs, args.time));
+  const playheadMs = numberValue(readMap(resolved.active.timeline).playheadMs, 0);
+  const timeMs = requestedTimeMs ?? playheadMs;
+  return ok('Frame evaluated.', {
+    projectId: resolved.projectId,
+    compositionId: resolved.compositionId,
+    revision: resolved.revision,
+    timeMs,
+    frame: Math.round(timeMs / 1000 * resolved.fps),
+    ...evaluateFrameFromState(
+      layers,
+      channels,
+      timeMs,
+      numberValue(args.includeBounds, 1) !== 0,
+    ),
+  });
+}
+
+async function explainCapabilities(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const resolved = await resolveProjectScope(context, args);
+  if (!resolved) {
+    return fail('PROJECT_NOT_OPEN');
+  }
+  return ok('Capability graph loaded.', {
+    projectId: resolved.projectId,
+    compositionId: resolved.compositionId,
+    revision: resolved.revision,
+    capabilities: defaultCapabilityGraph(),
+    effectsCatalog: effectCatalog(),
+    notes: [
+      'Use get_project_snapshot before complex edits.',
+      'Use apply_motion_patch/apply_keyframes for animation.',
+      'Use set_element_transform for transform keyframes.',
+    ],
   });
 }
 
@@ -1504,6 +2199,366 @@ async function getKeyframes(
     compositionId: payload.compositionId,
     keyframes,
   });
+}
+
+async function resolveProjectScope(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<{
+  active: JsonMap;
+  composition: JsonMap;
+  projectId: string;
+  compositionId: string;
+  revision: number;
+  fps: number;
+  compositionDurationMs: number;
+} | null> {
+  const active = await getActiveContext(context, {});
+  const project = readMap(active.project);
+  const composition = readMap(active.composition);
+  const projectId = context.agentSession?.project_id || stringValue(args.projectId) ||
+    stringValue(project.id);
+  const compositionId = context.agentSession?.composition_id || stringValue(args.compositionId) ||
+    stringValue(composition.id);
+  if (!projectId || !compositionId) {
+    return null;
+  }
+  const compositionRow = await selectById('refusion_compositions', compositionId);
+  const resolvedComposition = compositionRow ?? composition;
+  const fps = numberValue(
+    firstDefined(resolvedComposition.fps, composition.fps, 30),
+    30,
+  );
+  const compositionDurationMs = numberValue(
+    firstDefined(resolvedComposition.duration_ms, resolvedComposition.durationMs, 8000),
+    8000,
+  );
+  return {
+    active,
+    composition: resolvedComposition,
+    projectId,
+    compositionId,
+    revision: await projectRevision(projectId),
+    fps: Math.max(fps, 1),
+    compositionDurationMs: Math.max(compositionDurationMs, 1),
+  };
+}
+
+async function loadLayersForScope(
+  context: RequestContext,
+  projectId: string,
+  compositionId: string,
+): Promise<JsonMap[]> {
+  const { data, error } = await admin
+    .from('refusion_layers')
+    .select(
+      'id, layer_kind, name, start_ms, duration_ms, z_index, payload, created_at, updated_at',
+    )
+    .eq('owner_id', context.userId)
+    .eq('project_id', projectId)
+    .eq('composition_id', compositionId)
+    .order('z_index', { ascending: true })
+    .order('start_ms', { ascending: true })
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return readList(data).map(readMap);
+}
+
+async function loadMotionChannelsForScope(
+  context: RequestContext,
+  projectId: string,
+  compositionId: string,
+): Promise<JsonMap[]> {
+  const { data, error } = await admin
+    .from('refusion_motion_channels')
+    .select('id, layer_id, property_id, keyframes, motion_recipe, updated_at')
+    .eq('owner_id', context.userId)
+    .eq('project_id', projectId)
+    .eq('composition_id', compositionId)
+    .order('updated_at', { ascending: true });
+  if (error) throw error;
+  return readList(data).map(readMap);
+}
+
+function buildCompositionSpec(composition: JsonMap, fallbackId: string): JsonMap {
+  return {
+    id: stringValue(composition.id) || fallbackId,
+    name: text(composition.name, 'Story'),
+    aspect: text(composition.aspect, 'story'),
+    width: numberValue(firstDefined(composition.width, 1080), 1080),
+    height: numberValue(firstDefined(composition.height, 1920), 1920),
+    fps: numberValue(firstDefined(composition.fps, 30), 30),
+    durationMs: numberValue(
+      firstDefined(composition.duration_ms, composition.durationMs, 8000),
+      8000,
+    ),
+  };
+}
+
+function buildTimelineGraph(layers: JsonMap[], compositionDurationMs: number): JsonMap {
+  const trackMap = new Map<string, JsonMap>();
+  for (const layer of layers) {
+    const payload = readMap(layer.payload);
+    const layerKind = text(layer.layer_kind, 'solid');
+    const mediaKind = text(payload.mediaKind, layerKind === 'media' ? 'video' : layerKind);
+    const trackIndex = numberValue(
+      firstDefined(payload.trackIndex, payload.track_index, layer.z_index, 0),
+      0,
+    );
+    const trackKind = layerKind === 'media'
+      ? (mediaKind === 'audio' ? 'audio' : 'video')
+      : layerKind === 'text'
+      ? 'text'
+      : layerKind === 'shape'
+      ? 'shape'
+      : 'overlay';
+    const trackId = `${trackKind}:${trackIndex}`;
+    if (!trackMap.has(trackId)) {
+      trackMap.set(trackId, {
+        trackId,
+        kind: trackKind,
+        index: trackIndex,
+        locked: false,
+        muted: false,
+        clips: [] as JsonMap[],
+      });
+    }
+    const clips = readList(readMap(trackMap.get(trackId)).clips) as JsonMap[];
+    const startMs = numberValue(layer.start_ms, 0);
+    const durationMs = Math.max(1, numberValue(layer.duration_ms, compositionDurationMs));
+    clips.push({
+      clipId: `clip:${stringValue(layer.id)}`,
+      layerId: stringValue(layer.id),
+      assetId: firstText(payload.assetId, payload.asset_id, stringValue(layer.id)),
+      timelineStartMs: startMs,
+      timelineDurationMs: durationMs,
+      sourceStartMs: numberValue(firstDefined(payload.sourceStartMs, payload.source_start_ms, 0), 0),
+      sourceDurationMs: numberValue(
+        firstDefined(payload.sourceDurationMs, payload.source_duration_ms, durationMs),
+        durationMs,
+      ),
+      splitGroupId: firstText(payload.splitGroupId, payload.split_group_id),
+      zIndex: numberValue(layer.z_index, 0),
+      label: text(layer.name, 'Layer'),
+    });
+    readMap(trackMap.get(trackId)).clips = clips;
+  }
+  const tracks = [...trackMap.values()].sort((a, b) =>
+    numberValue(readMap(a).index, 0) - numberValue(readMap(b).index, 0)
+  );
+  return {
+    timelineId: 'main',
+    durationMs: compositionDurationMs,
+    tracks,
+  };
+}
+
+function buildSceneLayers(layers: JsonMap[]): JsonMap[] {
+  const sceneLayers: JsonMap[] = [];
+  for (const layer of layers) {
+    const payload = readMap(layer.payload);
+    const style = readMap(payload.style);
+    const layerKind = text(layer.layer_kind, 'solid');
+    const mediaKind = text(payload.mediaKind, layerKind === 'media' ? 'video' : '');
+    const elementKind = layerKind === 'media'
+      ? mediaKind === 'image'
+        ? 'image'
+        : mediaKind === 'audio'
+        ? 'audioClip'
+        : 'videoClip'
+      : layerKind === 'text'
+      ? 'text'
+      : layerKind === 'shape'
+      ? 'shape'
+      : 'shape';
+    const elementId = `element:${stringValue(layer.id)}`;
+    const startMs = numberValue(layer.start_ms, 0);
+    const durationMs = Math.max(1, numberValue(layer.duration_ms, 1));
+    sceneLayers.push({
+      layerId: stringValue(layer.id),
+      kind: layerKind,
+      mediaKind: mediaKind || null,
+      name: text(layer.name, 'Layer'),
+      zIndex: numberValue(layer.z_index, 0),
+      visibleRangeMs: {
+        start: startMs,
+        duration: durationMs,
+      },
+      elements: [
+        {
+          elementId,
+          kind: elementKind,
+          sourceBinding: {
+            assetId: firstText(payload.assetId, payload.asset_id),
+            sourceUri: firstText(payload.sourceUri, payload.source_uri),
+          },
+          transform: {
+            x: numberOrNull(firstDefined(payload.x, payload.centerX, payload.cx)),
+            y: numberOrNull(firstDefined(payload.y, payload.centerY, payload.cy)),
+            scaleX: numberOrNull(firstDefined(payload.scaleX, payload.scale, 1)),
+            scaleY: numberOrNull(firstDefined(payload.scaleY, payload.scale, 1)),
+            rotationDeg: numberOrNull(firstDefined(payload.rotation, payload.rotationDeg, 0)),
+            opacity: numberOrNull(firstDefined(payload.opacity, style.opacity, 1)),
+          },
+          crop: {
+            rect: readMap(firstDefined(payload.cropRect, payload.crop, {})),
+            fit: firstText(payload.fit, payload.objectFit, 'cover'),
+          },
+          mask: {
+            type: firstText(
+              payload.maskType,
+              readMap(payload.mask).type,
+              payload.shape,
+              'none',
+            ),
+            radius: numberOrNull(
+              firstDefined(payload.cornerRadius, readMap(payload.mask).radius),
+            ),
+            feather: numberOrNull(readMap(payload.mask).feather) ?? 0,
+          },
+          style: {
+            borderWidth: numberOrNull(
+              firstDefined(
+                payload.borderWidth,
+                payload.strokeWidth,
+                style.borderWidth,
+                style.strokeWidth,
+              ),
+            ) ?? 0,
+            borderColor: firstText(
+              payload.borderColor,
+              payload.strokeColor,
+              style.borderColor,
+              style.strokeColor,
+              '#FFFFFF',
+            ),
+            glow: readMap(firstDefined(payload.glow, style.glow)),
+            shadow: readMap(firstDefined(payload.shadow, style.shadow)),
+            fill: firstText(payload.color, payload.fill, style.fill),
+          },
+          text: {
+            value: firstText(payload.text, payload.content),
+            fontSize: numberOrNull(firstDefined(payload.fontSize, style.fontSize)),
+            color: firstText(payload.textColor, style.textColor, style.color),
+          },
+        },
+      ],
+      updatedAt: stringValue(layer.updated_at),
+    });
+  }
+  return sceneLayers;
+}
+
+function buildMediaAssets(layers: JsonMap[]): JsonMap[] {
+  const byAssetId = new Map<string, JsonMap>();
+  for (const layer of layers) {
+    const payload = readMap(layer.payload);
+    const layerKind = text(layer.layer_kind, 'solid');
+    const mediaKind = text(payload.mediaKind, layerKind === 'media' ? 'video' : '');
+    const inferredMedia = mediaKind || (layerKind === 'media' ? 'video' : '');
+    if (!inferredMedia) {
+      continue;
+    }
+    const assetId = firstText(payload.assetId, payload.asset_id, `asset:${stringValue(layer.id)}`);
+    if (byAssetId.has(assetId)) {
+      continue;
+    }
+    const durationMs = optionalNumber(
+      firstDefined(payload.durationMs, payload.duration_ms, layer.duration_ms),
+    );
+    byAssetId.set(assetId, {
+      assetId,
+      kind: inferredMedia,
+      label: firstText(payload.label, payload.name, layer.name, assetId),
+      sourceUri: firstText(payload.sourceUri, payload.source_uri),
+      durationMs: durationMs ?? 0,
+      width: optionalNumber(firstDefined(payload.width, payload.w)),
+      height: optionalNumber(firstDefined(payload.height, payload.h)),
+      fps: optionalNumber(firstDefined(payload.fps)),
+      hasAudio: inferredMedia === 'video'
+        ? firstDefined(payload.hasAudio, true) === true
+        : false,
+      isUserImported: true,
+      canUseInMcp: true,
+    });
+  }
+  return [...byAssetId.values()];
+}
+
+function evaluateFrameFromState(
+  layers: JsonMap[],
+  channels: JsonMap[],
+  timeMs: number,
+  includeBounds: boolean,
+): JsonMap {
+  const visibleLayers: JsonMap[] = [];
+  for (const layer of layers) {
+    const startMs = numberValue(layer.start_ms, 0);
+    const durationMs = Math.max(1, numberValue(layer.duration_ms, 1));
+    if (timeMs < startMs || timeMs >= startMs + durationMs) {
+      continue;
+    }
+    const payload = readMap(layer.payload);
+    const bounds = includeBounds
+      ? {
+        x: numberOrNull(firstDefined(payload.x, payload.centerX, 0)) ?? 0,
+        y: numberOrNull(firstDefined(payload.y, payload.centerY, 0)) ?? 0,
+        width: numberOrNull(firstDefined(payload.width, payload.w)),
+        height: numberOrNull(firstDefined(payload.height, payload.h)),
+      }
+      : null;
+    visibleLayers.push({
+      layerId: stringValue(layer.id),
+      kind: text(layer.layer_kind, 'solid'),
+      zIndex: numberValue(layer.z_index, 0),
+      bounds,
+    });
+  }
+  visibleLayers.sort((a, b) =>
+    numberValue(readMap(a).zIndex, 0) - numberValue(readMap(b).zIndex, 0)
+  );
+  const keyedChannels = channels.map((channel) => ({
+    channelId: stringValue(channel.id),
+    layerId: stringValue(channel.layer_id),
+    propertyId: stringValue(channel.property_id),
+    keyframeCount: parseKeyframes(channel.keyframes).length,
+  }));
+  return {
+    visibleLayers,
+    channelSummary: keyedChannels,
+    diagnostics: [],
+  };
+}
+
+function defaultCapabilityGraph(): JsonMap {
+  return {
+    'media.video.trim': 'supported',
+    'media.video.split': 'planned',
+    'media.video.mask.circle': 'supported',
+    'media.video.mask.roundedRect': 'supported',
+    'media.video.border': 'supported',
+    'media.video.glow': 'supported',
+    'media.video.motion.transform': 'supported',
+    'media.video.exportParity': 'previewOnly',
+    'text.insert': 'supported',
+    'shape.insert': 'supported',
+    'background.set_solid': 'supported',
+    'animation.apply_keyframes': 'supported',
+  };
+}
+
+function effectCatalog(): JsonMap[] {
+  return [
+    { id: 'mask.circle', category: 'mask', status: 'supported' },
+    { id: 'mask.roundedRect', category: 'mask', status: 'supported' },
+    { id: 'style.border', category: 'style', status: 'supported' },
+    { id: 'effect.glow', category: 'effect', status: 'supported' },
+    { id: 'effect.shadow', category: 'effect', status: 'supported' },
+    { id: 'transform.position', category: 'motion', status: 'supported' },
+    { id: 'transform.scale', category: 'motion', status: 'supported' },
+    { id: 'transform.rotation', category: 'motion', status: 'supported' },
+    { id: 'visual.opacity', category: 'motion', status: 'supported' },
+  ];
 }
 
 async function getCommandStatus(
@@ -1970,9 +3025,80 @@ function tools() {
       true,
     ),
     tool(
+      'refusion.trim_clip',
+      'Trim Clip',
+      'Trim clip timeline/source ranges for a target layer.',
+      true,
+    ),
+    tool(
+      'refusion.split_clip',
+      'Split Clip',
+      'Split a clip into two layers at a timeline time.',
+      true,
+    ),
+    tool(
+      'refusion.set_layer_mask',
+      'Set Layer Mask',
+      'Apply circle/rounded/rect mask metadata on a target layer.',
+      true,
+    ),
+    tool(
+      'refusion.set_border',
+      'Set Border',
+      'Apply border style metadata on a target layer.',
+      true,
+    ),
+    tool(
+      'refusion.set_glow',
+      'Set Glow',
+      'Apply glow style metadata on a target layer.',
+      true,
+    ),
+    tool(
+      'refusion.set_layer_style',
+      'Set Layer Style',
+      'Apply style patch metadata on a target layer.',
+      true,
+    ),
+    tool(
       'refusion.get_layers',
       'Get Layers',
       'Return composition layers ordered by z-index and start.',
+    ),
+    tool(
+      'refusion.get_project_snapshot',
+      'Get Project Snapshot',
+      'Return a composition truth graph snapshot for the active project.',
+    ),
+    tool(
+      'refusion.get_composition_spec',
+      'Get Composition Spec',
+      'Return composition dimensions, fps, duration, and metadata.',
+    ),
+    tool(
+      'refusion.get_timeline_graph',
+      'Get Timeline Graph',
+      'Return timeline tracks, clips, ranges, and ordering for active composition.',
+    ),
+    tool(
+      'refusion.get_media_assets',
+      'Get Media Assets',
+      'Return media asset inventory detected for active composition.',
+    ),
+    tool(
+      'refusion.get_scene_layers',
+      'Get Scene Layers',
+      'Return scene layer graph with element, transform, mask, and style metadata.',
+    ),
+    tool(
+      'refusion.evaluate_frame',
+      'Evaluate Frame',
+      'Return visible layer/layout summary for a timeline time.',
+    ),
+    tool(
+      'refusion.explain_capabilities',
+      'Explain Capabilities',
+      'Return supported/blocked capabilities for timeline, media, style, and motion operations.',
     ),
     tool(
       'refusion.get_motion_channels',
@@ -2119,6 +3245,35 @@ function canonicalLayerPayload(args: JsonMap): JsonMap {
     out.text = textValue;
     if (!out.content) out.content = textValue;
   }
+  const assetId = firstText(
+    args.assetId,
+    args.asset_id,
+    out.assetId,
+    out.asset_id,
+  );
+  if (assetId) {
+    out.assetId = assetId;
+  }
+  const sourceUri = firstText(
+    args.sourceUri,
+    args.source_uri,
+    out.sourceUri,
+    out.source_uri,
+  );
+  if (sourceUri) {
+    out.sourceUri = sourceUri;
+  }
+  const mediaKind = firstText(
+    args.mediaKind,
+    args.media_kind,
+    args.kind,
+    args.type,
+    out.mediaKind,
+    out.media_kind,
+  ).toLowerCase();
+  if (mediaKind === 'video' || mediaKind === 'image' || mediaKind === 'audio') {
+    out.mediaKind = mediaKind;
+  }
 
   const fontSize = firstDefined(args.fontSize, args.font_size, out.fontSize, out.font_size);
   if (fontSize !== undefined) out.fontSize = fontSize;
@@ -2169,9 +3324,9 @@ function inferLayerKind(args: JsonMap, payload: JsonMap): string {
   ).toLowerCase().replace(/[^a-z0-9]+/g, '_');
   if (rawKind.includes('text')) return 'text';
   if (rawKind.includes('shape')) return 'shape';
-  if (rawKind.includes('video')) return 'video';
-  if (rawKind.includes('image')) return 'image';
-  if (rawKind.includes('audio')) return 'audio';
+  if (rawKind.includes('video')) return 'media';
+  if (rawKind.includes('image')) return 'media';
+  if (rawKind.includes('audio')) return 'media';
   if (rawKind.includes('media')) return 'media';
   if (
     rawKind.includes('solid') ||
