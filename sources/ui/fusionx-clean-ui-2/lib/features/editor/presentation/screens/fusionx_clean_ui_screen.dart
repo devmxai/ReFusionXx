@@ -2007,8 +2007,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
     final payload = _remotePayload(remoteLayer);
     final updates = _remoteMap(payload['updates']);
+    final props = _remoteMap(payload['props']);
+    final updateProps = _remoteMap(updates['props']);
+    final nestedPayload = _remoteMap(updates['payload']);
+    final nestedPayloadProps = _remoteMap(nestedPayload['props']);
     final style = _remoteMap(payload['style']);
     final nestedLayer = _remoteMap(payload['layer']);
+    final nestedLayerProps = _remoteMap(nestedLayer['props']);
     final background = _remoteMap(payload['background']);
     final sceneProgram = _remoteMap(payload['sceneProgram']);
     final operation = _firstRemoteString(<Object?>[
@@ -2021,16 +2026,32 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         kind == 'background' ||
         operation.contains('background') ||
         background.isNotEmpty ||
+        _remoteLayerLooksLikeRectBackgroundShape(remoteLayer) ||
         _firstRemoteString(<Object?>[
               payload['baseColor'],
               payload['backgroundColor'],
               payload['fillColor'],
+              props['baseColor'],
+              props['backgroundColor'],
+              props['fillColor'],
+              updateProps['baseColor'],
+              updateProps['backgroundColor'],
+              updateProps['fillColor'],
+              nestedPayload['baseColor'],
+              nestedPayload['backgroundColor'],
+              nestedPayload['fillColor'],
+              nestedPayloadProps['baseColor'],
+              nestedPayloadProps['backgroundColor'],
+              nestedPayloadProps['fillColor'],
               style['baseColor'],
               style['backgroundColor'],
               style['fillColor'],
               nestedLayer['baseColor'],
               nestedLayer['backgroundColor'],
               nestedLayer['fillColor'],
+              nestedLayerProps['baseColor'],
+              nestedLayerProps['backgroundColor'],
+              nestedLayerProps['fillColor'],
               background['color'],
               background['fill'],
               background['baseColor'],
@@ -2038,6 +2059,105 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
               sceneProgram['baseColor'],
             ]) !=
             null;
+  }
+
+  bool _remoteLayerLooksLikeRectBackgroundShape(
+    Map<String, Object?> remoteLayer,
+  ) {
+    if (_extractRemoteSolidColorHex(remoteLayer) == null) {
+      return false;
+    }
+    final kind = _remoteLayerKind(remoteLayer);
+    final payload = _remotePayload(remoteLayer);
+    final updates = _remoteMap(payload['updates']);
+    final nestedPayload = _remoteMap(updates['payload']);
+    final nestedLayer = _remoteMap(payload['layer']);
+    final props = _remoteMap(payload['props']);
+    final updateProps = _remoteMap(updates['props']);
+    final nestedPayloadProps = _remoteMap(nestedPayload['props']);
+    final nestedLayerProps = _remoteMap(nestedLayer['props']);
+    final name = _firstRemoteString(<Object?>[
+          remoteLayer['name'],
+          payload['name'],
+          nestedLayer['name'],
+        ])?.toLowerCase() ??
+        '';
+    final operation = _firstRemoteString(<Object?>[
+          payload['operation'],
+          updates['operation'],
+          nestedPayload['operation'],
+        ])?.toLowerCase() ??
+        '';
+    final rawShape = _firstRemoteString(<Object?>[
+          remoteLayer['shape'],
+          remoteLayer['shapeKind'],
+          remoteLayer['type'],
+          payload['shape'],
+          payload['shapeKind'],
+          payload['type'],
+          payload['kind'],
+          props['shape'],
+          props['shapeKind'],
+          props['type'],
+          updateProps['shape'],
+          updateProps['shapeKind'],
+          updateProps['type'],
+          nestedPayload['shape'],
+          nestedPayload['shapeKind'],
+          nestedPayload['type'],
+          nestedPayloadProps['shape'],
+          nestedPayloadProps['shapeKind'],
+          nestedPayloadProps['type'],
+          nestedLayer['shape'],
+          nestedLayer['shapeKind'],
+          nestedLayer['type'],
+          nestedLayerProps['shape'],
+          nestedLayerProps['shapeKind'],
+          nestedLayerProps['type'],
+        ])?.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_') ??
+        '';
+    final isRectShape = rawShape.contains('rect') ||
+        rawShape.contains('rectangle') ||
+        rawShape.contains('solid') ||
+        rawShape.contains('background');
+    if (kind != 'shape' && !isRectShape) {
+      return false;
+    }
+    if (name.contains('background') || operation.contains('background')) {
+      return isRectShape || kind == 'shape';
+    }
+    if (!isRectShape) {
+      return false;
+    }
+    final width = _firstRemoteDouble(<Object?>[
+      remoteLayer['width'],
+      payload['width'],
+      updates['width'],
+      nestedPayload['width'],
+      nestedLayer['width'],
+      props['width'],
+      updateProps['width'],
+      nestedPayloadProps['width'],
+      nestedLayerProps['width'],
+    ]);
+    final height = _firstRemoteDouble(<Object?>[
+      remoteLayer['height'],
+      payload['height'],
+      updates['height'],
+      nestedPayload['height'],
+      nestedLayer['height'],
+      props['height'],
+      updateProps['height'],
+      nestedPayloadProps['height'],
+      nestedLayerProps['height'],
+    ]);
+    if (width == null || height == null) {
+      return true;
+    }
+    final canvasSize = _motionProjectFormat.canvasSize;
+    final coversWidth = width >= canvasSize.width * 0.9;
+    final coversHeight = height >= canvasSize.height * 0.9;
+    return coversWidth && coversHeight;
   }
 
   bool _remoteLayerHasTimelineMutationIntent(
@@ -3530,6 +3650,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final updates = _remoteMap(payload['updates']);
     final nestedPayload = _remoteMap(updates['payload']);
     final nestedLayer = _remoteMap(payload['layer']);
+    final props = _remoteMap(payload['props']);
+    final updateProps = _remoteMap(updates['props']);
+    final nestedPayloadProps = _remoteMap(nestedPayload['props']);
+    final nestedLayerProps = _remoteMap(nestedLayer['props']);
     final style = _remoteMap(payload['style']);
     final updateStyle = _remoteMap(updates['style']);
     return _normalizeRemoteHexColor(
@@ -3544,16 +3668,31 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         nestedPayload['baseColor'],
         nestedPayload['backgroundColor'],
         nestedPayload['fillColor'],
+        nestedPayloadProps['color'],
+        nestedPayloadProps['fill'],
+        nestedPayloadProps['baseColor'],
+        nestedPayloadProps['backgroundColor'],
+        nestedPayloadProps['fillColor'],
         updateStyle['fill'],
         updateStyle['color'],
         updateStyle['baseColor'],
         updateStyle['backgroundColor'],
         updateStyle['fillColor'],
+        updateProps['fill'],
+        updateProps['color'],
+        updateProps['baseColor'],
+        updateProps['backgroundColor'],
+        updateProps['fillColor'],
         payload['color'],
         payload['fill'],
         payload['baseColor'],
         payload['backgroundColor'],
         payload['fillColor'],
+        props['fill'],
+        props['color'],
+        props['baseColor'],
+        props['backgroundColor'],
+        props['fillColor'],
         style['fill'],
         style['color'],
         style['baseColor'],
@@ -3564,6 +3703,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         nestedLayer['baseColor'],
         nestedLayer['backgroundColor'],
         nestedLayer['fillColor'],
+        nestedLayerProps['fill'],
+        nestedLayerProps['color'],
+        nestedLayerProps['baseColor'],
+        nestedLayerProps['backgroundColor'],
+        nestedLayerProps['fillColor'],
         _remoteMap(payload['background'])['color'],
         _remoteMap(payload['background'])['fill'],
         _remoteMap(payload['background'])['baseColor'],
