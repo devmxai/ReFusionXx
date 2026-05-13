@@ -276,7 +276,7 @@ class RefusionMcpCloudBridge {
       final compositionIdArg = _normalizedIdentifierOrNull(state.compositionId);
       final hasActiveComposition =
           projectIdArg != null && compositionIdArg != null;
-      await _callTool(
+      await _safeCallTool(
         toolName: 'touch_editor_session',
         arguments: <String, Object?>{
           'deviceId': _deviceId,
@@ -289,7 +289,7 @@ class RefusionMcpCloudBridge {
           'platform': 'flutter',
         },
       );
-      await _callTool(
+      await _safeCallTool(
         toolName: 'set_active_context',
         arguments: <String, Object?>{
           'deviceId': _deviceId,
@@ -334,18 +334,23 @@ class RefusionMcpCloudBridge {
           'layers': state.editorLayers,
         },
       );
-      final contextResponse = await _callTool(
-        toolName: 'get_active_context',
-        arguments: const <String, Object?>{},
-        allowAgentSessionToken: true,
-      );
+      final effectiveProjectId = projectIdArg;
+      final effectiveCompositionId = compositionIdArg;
+      final contextResponse = await _safeCallTool(
+            toolName: 'get_active_context',
+            arguments: const <String, Object?>{},
+            allowAgentSessionToken: true,
+          ) ??
+          _contextResponseFromState(
+            state: state,
+            projectId: effectiveProjectId,
+            compositionId: effectiveCompositionId,
+          );
       final contextStructured = _asMap(contextResponse['structuredContent']);
       final contextPayload = _asMap(contextStructured['payload']);
       final contextLiveEditor = _asMap(contextPayload['liveEditor']);
       final liveSessionId = _asString(contextLiveEditor['sessionId']);
-      final effectiveProjectId = projectIdArg;
-      final effectiveCompositionId = compositionIdArg;
-      final pendingCommandsResponse = await _safeCallTool(
+      var pendingCommandsResponse = await _safeCallTool(
         toolName: 'get_pending_commands',
         arguments: <String, Object?>{
           'projectId': effectiveProjectId,
@@ -355,9 +360,26 @@ class RefusionMcpCloudBridge {
           'limit': 40,
         },
       );
-      final pendingCommandTargetLayerIds = _pendingCommandTargetLayerIds(
+      var pendingCommandTargetLayerIds = _pendingCommandTargetLayerIds(
         pendingCommandsResponse,
       );
+      if (pendingCommandTargetLayerIds.isEmpty && liveSessionId != null) {
+        final unscopedPendingCommandsResponse = await _safeCallTool(
+          toolName: 'get_pending_commands',
+          arguments: <String, Object?>{
+            'projectId': effectiveProjectId,
+            'compositionId': effectiveCompositionId,
+            'markReceived': true,
+            'limit': 40,
+          },
+        );
+        final unscopedPendingCommandTargetLayerIds =
+            _pendingCommandTargetLayerIds(unscopedPendingCommandsResponse);
+        if (unscopedPendingCommandTargetLayerIds.isNotEmpty) {
+          pendingCommandsResponse = unscopedPendingCommandsResponse;
+          pendingCommandTargetLayerIds = unscopedPendingCommandTargetLayerIds;
+        }
+      }
       final layersResponse = await _safeCallTool(
         toolName: 'get_layers',
         arguments: <String, Object?>{
@@ -605,6 +627,40 @@ class RefusionMcpCloudBridge {
       throw StateError(summary);
     }
     return result;
+  }
+
+  Map<String, Object?> _contextResponseFromState({
+    required RefusionMcpCloudContextState state,
+    required String projectId,
+    required String compositionId,
+  }) {
+    return <String, Object?>{
+      'structuredContent': <String, Object?>{
+        'ok': true,
+        'summary': 'Local app context fallback.',
+        'payload': <String, Object?>{
+          'hasProject': true,
+          'project': <String, Object?>{
+            'id': projectId,
+            'name': 'MCP Project',
+            'revision': state.timelineRevision,
+          },
+          'composition': <String, Object?>{
+            'id': compositionId,
+            'name': 'Story',
+          },
+          'timeline': <String, Object?>{
+            'id': state.timelineId,
+            'playheadMs': state.playheadMs,
+          },
+          'liveEditor': <String, Object?>{
+            'online': _foreground && state.foreground,
+            'deviceId': _deviceId,
+            'foreground': _foreground && state.foreground,
+          },
+        },
+      },
+    };
   }
 
   Future<Map<String, Object?>?> _safeCallTool({

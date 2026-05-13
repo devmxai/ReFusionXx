@@ -860,6 +860,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   final Map<String, DateTime> _mcpPendingCommandFirstSeenAtById =
       <String, DateTime>{};
   final Set<String> _mcpAcknowledgedCommandIds = <String>{};
+  String? _lastAdoptedMcpProjectId;
+  String? _lastAdoptedMcpCompositionId;
   ProfessionalSceneApplyReceipt _mcpLatestApplyProof =
       const ProfessionalSceneApplyReceipt(
     appliedCommandCount: 0,
@@ -1361,14 +1363,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
   void _handleMcpCloudSnapshot(RefusionMcpCloudBridgeSnapshot snapshot) {
     if (!_isMcpSnapshotForActiveComposition(snapshot)) {
-      if (kDebugMode) {
-        debugPrint(
-          'MCP cloud sync ignored due to active identity mismatch '
-          '(remote project=${snapshot.projectId}, remote composition=${snapshot.compositionId}, '
-          'local project=${_effectiveMotionProject.id}, local composition=$_rootMotionSceneId).',
-        );
+      if (_adoptMcpCloudIdentityIfNeeded(snapshot)) {
+        _scheduleMcpCloudSync(delay: const Duration(milliseconds: 40));
+      } else {
+        if (kDebugMode) {
+          debugPrint(
+            'MCP cloud sync ignored due to active identity mismatch '
+            '(remote project=${snapshot.projectId}, remote composition=${snapshot.compositionId}, '
+            'local project=${_effectiveMotionProject.id}, local composition=$_rootMotionSceneId).',
+          );
+        }
+        return;
       }
-      return;
     }
     if (snapshot.ok) {
       _refreshMcpPendingCommandLedger(snapshot.pendingCommands);
@@ -1418,6 +1424,73 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (!snapshot.ok && kDebugMode) {
       debugPrint('MCP cloud sync warning: ${snapshot.error ?? 'unknown'}');
     }
+  }
+
+  bool _adoptMcpCloudIdentityIfNeeded(
+    RefusionMcpCloudBridgeSnapshot snapshot,
+  ) {
+    if (!snapshot.ok ||
+        !_hasStartedCompositionSession ||
+        _motionProject == null ||
+        _motionProject!.scenes.isEmpty ||
+        !snapshot.liveOnline) {
+      return false;
+    }
+    final remoteProjectId = snapshot.projectId?.trim();
+    final remoteCompositionId = snapshot.compositionId?.trim();
+    if (remoteProjectId == null ||
+        remoteProjectId.isEmpty ||
+        remoteCompositionId == null ||
+        remoteCompositionId.isEmpty) {
+      return false;
+    }
+    if (remoteProjectId == _effectiveMotionProject.id &&
+        remoteCompositionId == _rootMotionSceneId) {
+      return true;
+    }
+    if (_lastAdoptedMcpProjectId == remoteProjectId &&
+        _lastAdoptedMcpCompositionId == remoteCompositionId) {
+      return true;
+    }
+    final currentProject = _motionProject!;
+    final currentScene = currentProject.scenes.first;
+    final nextScenes = <MotionSceneModel>[
+      currentScene.copyWith(id: remoteCompositionId),
+      ...currentProject.scenes.skip(1),
+    ];
+    setState(() {
+      _activeCompositionProjectId = remoteProjectId;
+      _activeRootSceneId = remoteCompositionId;
+      _motionProject = currentProject.copyWith(
+        id: remoteProjectId,
+        scenes: List<MotionSceneModel>.unmodifiable(nextScenes),
+      );
+      _lastAdoptedMcpProjectId = remoteProjectId;
+      _lastAdoptedMcpCompositionId = remoteCompositionId;
+    });
+    return true;
+  }
+
+  void _adoptMcpPairingIdentityIfNeeded(
+    RefusionMcpCloudPairingCode pairingCode,
+  ) {
+    if (!_hasStartedCompositionSession ||
+        _motionProject == null ||
+        _motionProject!.scenes.isEmpty ||
+        pairingCode.projectId.trim().isEmpty ||
+        pairingCode.compositionId.trim().isEmpty) {
+      return;
+    }
+    _adoptMcpCloudIdentityIfNeeded(
+      RefusionMcpCloudBridgeSnapshot(
+        ok: true,
+        projectId: pairingCode.projectId,
+        compositionId: pairingCode.compositionId,
+        revision: pairingCode.timelineRevision,
+        liveOnline: true,
+        updatedAtUtc: DateTime.now().toUtc(),
+      ),
+    );
   }
 
   bool _shouldRunMcpRecoverySync({
@@ -1532,6 +1605,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       if (!mounted) {
         return;
       }
+      _adoptMcpPairingIdentityIfNeeded(pairingCode);
       if (pairingCode.status == 'claimed') {
         setState(() {
           _isMcpAgentConnected = true;
