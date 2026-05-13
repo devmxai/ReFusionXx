@@ -559,14 +559,27 @@ async function getActiveContext(context: RequestContext, args: JsonMap) {
     compositionId = stringValue(created.compositionId);
   }
 
-  const project = await selectById('refusion_projects', projectId);
-  if (!compositionId) {
-    const composition = await selectSingle('refusion_compositions', {
-      owner_id: context.userId,
+  const resolved = await resolveOwnedProjectAndComposition(
+    context.userId,
+    projectId,
+    compositionId,
+  );
+  projectId = resolved.projectId;
+  compositionId = resolved.compositionId;
+
+  if (session?.id && (
+    stringValue(session.project_id) !== projectId ||
+      stringValue(session.composition_id) !== compositionId
+  )) {
+    await admin.from('refusion_editor_sessions').update({
       project_id: projectId,
-    }, 'updated_at', false);
-    compositionId = stringValue(composition?.id);
+      composition_id: compositionId,
+      timeline_revision: await projectRevision(projectId),
+      updated_at: new Date().toISOString(),
+    }).eq('id', stringValue(session.id));
   }
+
+  const project = await selectById('refusion_projects', projectId);
   const composition = await selectById('refusion_compositions', compositionId);
   const revision = await projectRevision(projectId);
 
@@ -747,12 +760,19 @@ async function touchEditorSession(userId: string, args: JsonMap) {
     { userId, authSource: 'bearer', agentSession: null, agentSessionToken: null },
     {},
   );
-  const projectId =
+  const inputProjectId =
     asUuidOrEmpty(stringValue(args.projectId)) ||
     stringValue(readMap(active.project).id);
-  const compositionId =
+  const inputCompositionId =
     asUuidOrEmpty(stringValue(args.compositionId)) ||
     stringValue(readMap(active.composition).id);
+  const resolved = await resolveOwnedProjectAndComposition(
+    userId,
+    inputProjectId,
+    inputCompositionId,
+  );
+  const projectId = resolved.projectId;
+  const compositionId = resolved.compositionId;
   const deviceId = text(args.deviceId, 'chatgpt-remote');
   const timelineId = text(args.timelineId, 'main');
   const playheadMs = numberValue(args.playheadMs, 0);
@@ -5049,8 +5069,13 @@ async function ensurePairingContext(
   const deviceId = input.deviceId.trim().length > 0
     ? input.deviceId.trim()
     : text(liveEditor.deviceId, 'flutter-device');
-  const projectId = asUuidOrEmpty(input.projectId) || activeProjectId;
-  const compositionId = asUuidOrEmpty(input.compositionId) || activeCompositionId;
+  const resolvedIds = await resolveOwnedProjectAndComposition(
+    userId,
+    asUuidOrEmpty(input.projectId) || activeProjectId,
+    asUuidOrEmpty(input.compositionId) || activeCompositionId,
+  );
+  const projectId = resolvedIds.projectId;
+  const compositionId = resolvedIds.compositionId;
   const timelineId = input.timelineId || text(activeTimeline.id, 'main');
   const playheadMs = input.playheadMs;
   const timelineRevision = input.timelineRevision > 0
@@ -5280,9 +5305,113 @@ async function projectRevision(projectId: string): Promise<number> {
     .from('refusion_project_revisions')
     .select('revision')
     .eq('project_id', projectId)
-    .single();
+    .maybeSingle();
   if (error) throw error;
+  if (!data) {
+    const { data: inserted, error: insertError } = await admin
+      .from('refusion_project_revisions')
+      .insert({ project_id: projectId, revision: 1 })
+      .select('revision')
+      .single();
+    if (insertError) throw insertError;
+    return numberValue(inserted?.revision, 1);
+  }
   return numberValue(data?.revision, 1);
+}
+
+async function resolveOwnedProjectAndComposition(
+  userId: string,
+  inputProjectId: string,
+  inputCompositionId: string,
+): Promise<{ projectId: string; compositionId: string }> {
+  let projectId = asUuidOrEmpty(inputProjectId);
+  let compositionId = asUuidOrEmpty(inputCompositionId);
+
+  if (projectId) {
+    const { data, error } = await admin
+      .from('refusion_projects')
+      .select('id')
+      .eq('owner_id', userId)
+      .eq('id', projectId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) {
+      projectId = '';
+    }
+  }
+
+  if (!projectId) {
+    const latestProject = await selectSingle(
+      'refusion_projects',
+      { owner_id: userId, status: 'active' },
+      'updated_at',
+      false,
+    );
+    projectId = stringValue(latestProject?.id);
+  }
+
+  if (!projectId) {
+    const created = await createProject(userId, {
+      projectName: 'MCP Project',
+      compositionName: 'Story',
+    });
+    projectId = stringValue(created.projectId);
+    compositionId = stringValue(created.compositionId);
+  }
+
+  if (!projectId) {
+    throw new Error('ACTIVE_PROJECT_RESOLUTION_FAILED');
+  }
+
+  if (compositionId) {
+    const { data, error } = await admin
+      .from('refusion_compositions')
+      .select('id')
+      .eq('owner_id', userId)
+      .eq('project_id', projectId)
+      .eq('id', compositionId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) {
+      compositionId = '';
+    }
+  }
+
+  if (!compositionId) {
+    const latestComposition = await selectSingle(
+      'refusion_compositions',
+      { owner_id: userId, project_id: projectId },
+      'updated_at',
+      false,
+    );
+    compositionId = stringValue(latestComposition?.id);
+  }
+
+  if (!compositionId) {
+    const { data, error } = await admin
+      .from('refusion_compositions')
+      .insert({
+        owner_id: userId,
+        project_id: projectId,
+        name: 'Story',
+        aspect: 'story',
+        width: 1080,
+        height: 1920,
+        duration_ms: 8000,
+        fps: 30,
+        is_active: true,
+      })
+      .select('id')
+      .single();
+    if (error) throw error;
+    compositionId = stringValue(data?.id);
+  }
+
+  if (!compositionId) {
+    throw new Error('ACTIVE_COMPOSITION_RESOLUTION_FAILED');
+  }
+
+  return { projectId, compositionId };
 }
 
 async function updateRevision(projectId: string, revision: number) {
