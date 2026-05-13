@@ -79,6 +79,7 @@ const writeTools = new Set<string>([
   'refusion.set_border',
   'refusion.set_glow',
   'refusion.set_layer_style',
+  'refusion.apply_video_pip_recipe',
   'refusion.position_at_anchor',
   'refusion.align_to',
   'refusion.fit_in_zone',
@@ -329,6 +330,9 @@ async function callTool(
     case 'refusion.set_layer_style':
       ensureAgentWrite(canonicalToolName, context);
       return await setLayerStyle(context, args);
+    case 'refusion.apply_video_pip_recipe':
+      ensureAgentWrite(canonicalToolName, context);
+      return await applyVideoPipRecipe(context, args);
     case 'refusion.get_layers':
       return await getLayers(context, args);
     case 'refusion.get_project_snapshot':
@@ -442,6 +446,7 @@ function normalizeToolName(name: string): string {
     set_border: 'refusion.set_border',
     set_glow: 'refusion.set_glow',
     set_layer_style: 'refusion.set_layer_style',
+    apply_video_pip_recipe: 'refusion.apply_video_pip_recipe',
     get_layers: 'refusion.get_layers',
     get_project_snapshot: 'refusion.get_project_snapshot',
     get_composition_spec: 'refusion.get_composition_spec',
@@ -486,6 +491,8 @@ function normalizeToolName(name: string): string {
     'refusion.set_rounded_crop': 'refusion.set_layer_mask',
     'refusion.set_layer_border': 'refusion.set_border',
     'refusion.set_layer_glow': 'refusion.set_glow',
+    'refusion.video.pip': 'refusion.apply_video_pip_recipe',
+    'refusion.apply_video_pip': 'refusion.apply_video_pip_recipe',
     'refusion.surface.position.at_anchor': 'refusion.position_at_anchor',
     'refusion.surface.align_to': 'refusion.align_to',
     'refusion.surface.fit_in_zone': 'refusion.fit_in_zone',
@@ -2007,6 +2014,293 @@ async function setElementTransform(
     channels: keyframes,
   };
   return await applyMotionPatch(context, payload);
+}
+
+async function applyVideoPipRecipe(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const resolved = await resolveProjectScope(context, args);
+  if (!resolved) {
+    return fail('PROJECT_NOT_OPEN');
+  }
+  const layers = await loadLayersForScope(
+    context,
+    resolved.projectId,
+    resolved.compositionId,
+  );
+  const explicitLayerRef = firstText(
+    args.layerId,
+    args.layer_id,
+    args.targetLayerId,
+    args.clipId,
+    args.clip_id,
+  );
+  let targetLayer: JsonMap | null = null;
+  if (explicitLayerRef) {
+    targetLayer = resolveTargetLayer(layers, { ...args, layerId: explicitLayerRef });
+    if (!targetLayer) {
+      const resolvedId = await resolveLayerIdForMutation(
+        context,
+        resolved.projectId,
+        resolved.compositionId,
+        explicitLayerRef,
+      );
+      if (resolvedId) {
+        targetLayer = resolveTargetLayer(layers, { ...args, layerId: resolvedId });
+      }
+    }
+  }
+  targetLayer ??= resolvePreferredMediaLayer(layers);
+  if (!targetLayer) {
+    return fail('LAYER_NOT_FOUND', {
+      hint: 'No media layer found. Insert/select a video layer first.',
+    });
+  }
+
+  const compositionSpec = buildCompositionSpec(
+    resolved.composition,
+    resolved.compositionId,
+  );
+  const width = Math.max(1, numberValue(compositionSpec.width, 1080));
+  const height = Math.max(1, numberValue(compositionSpec.height, 1920));
+  const minSide = Math.min(width, height);
+
+  const radius = Math.max(
+    8,
+    numberValue(
+      firstDefined(
+        args.radius,
+        args.circleRadius,
+        args.maskRadius,
+        Math.round(minSide * 0.22),
+      ),
+      Math.round(minSide * 0.22),
+    ),
+  );
+  const padding = Math.max(0, numberValue(args.padding, Math.round(minSide * 0.028)));
+  const durationMs = Math.max(120, numberValue(args.durationMs, 900));
+  const delayMs = Math.max(0, numberValue(args.delayMs, 0));
+  const popMs = Math.max(80, numberValue(args.popMs, Math.min(260, Math.round(durationMs * 0.25))));
+  const settleMs = Math.min(
+    durationMs,
+    Math.max(popMs + 80, numberValue(args.settleMs, Math.round(durationMs * 0.68))),
+  );
+  const targetScale = Math.max(
+    0.03,
+    numberValue(firstDefined(args.targetScale, args.scale, 0.42), 0.42),
+  );
+  const corner = text(args.corner, 'topRight').toLowerCase();
+  const startHidden = args.startHidden !== false;
+  const borderWidth = Math.max(0, numberValue(args.borderWidth, 6));
+  const borderColor = inferLayerColor(
+    { color: firstText(args.borderColor, '#FFFFFF') },
+    {},
+  ) ?? '#FFFFFF';
+  const glowBlur = Math.max(0, numberValue(args.glowBlur, 24));
+  const glowOpacity = Math.max(
+    0,
+    Math.min(1, numberValue(args.glowOpacity, 0.22)),
+  );
+  const glowColor = inferLayerColor(
+    { color: firstText(args.glowColor, borderColor) },
+    {},
+  ) ?? borderColor;
+
+  let destinationAbsX = width - padding - radius;
+  let destinationAbsY = padding + radius;
+  if (corner === 'topleft' || corner === 'top_left' || corner === 'lefttop') {
+    destinationAbsX = padding + radius;
+    destinationAbsY = padding + radius;
+  } else if (
+    corner === 'bottomright' ||
+    corner === 'bottom_right' ||
+    corner === 'rightbottom'
+  ) {
+    destinationAbsX = width - padding - radius;
+    destinationAbsY = height - padding - radius;
+  } else if (
+    corner === 'bottomleft' ||
+    corner === 'bottom_left' ||
+    corner === 'leftbottom'
+  ) {
+    destinationAbsX = padding + radius;
+    destinationAbsY = height - padding - radius;
+  }
+  destinationAbsX = Math.min(width - radius, Math.max(radius, destinationAbsX));
+  destinationAbsY = Math.min(height - radius, Math.max(radius, destinationAbsY));
+  const destinationRelX = destinationAbsX - width / 2;
+  const destinationRelY = destinationAbsY - height / 2;
+
+  const layerId = stringValue(targetLayer.id);
+
+  const styleResult = await applyLayerStyleMutation(
+    context,
+    {
+      ...args,
+      layerId,
+      autoRebase: true,
+      allowRebase: true,
+    },
+    'refusion.apply_video_pip_recipe.style',
+    (payload) => {
+      const style = readMap(payload.style);
+      const nextGlow = {
+        ...readMap(payload.glow),
+        color: glowColor,
+        blur: glowBlur,
+        opacity: glowOpacity,
+      };
+      const nextBorder = {
+        ...readMap(payload.border),
+        color: borderColor,
+        width: borderWidth,
+      };
+      const nextMask = {
+        ...readMap(payload.mask),
+        type: 'circle',
+        radius,
+        feather: Math.max(0, numberValue(args.feather, 10)),
+      };
+      return {
+        ...payload,
+        maskType: 'circle',
+        cornerRadius: radius,
+        clipPath: 'circle',
+        renderMask: true,
+        borderWidth,
+        borderColor,
+        glow: nextGlow,
+        border: nextBorder,
+        mask: nextMask,
+        style: {
+          ...style,
+          maskType: 'circle',
+          cornerRadius: radius,
+          clipPath: 'circle',
+          renderMask: true,
+          borderWidth,
+          borderColor,
+          glow: nextGlow,
+          border: nextBorder,
+          mask: nextMask,
+        },
+      };
+    },
+  );
+  if (!styleResult.ok) {
+    return styleResult;
+  }
+
+  const t0 = delayMs;
+  const tPop = delayMs + popMs;
+  const tSettle = delayMs + settleMs;
+  const tEnd = delayMs + durationMs;
+  const popScale = Math.max(targetScale * 1.12, targetScale + 0.08);
+
+  const channels: JsonMap[] = [
+    {
+      propertyId: 'transform.position.x',
+      keyframes: [
+        makeScalarKeyframe(t0, 0),
+        makeScalarKeyframe(tPop, 0, 'easeOut'),
+        makeScalarKeyframe(tSettle, destinationRelX * 0.92, 'easeInOut'),
+        makeScalarKeyframe(tEnd, destinationRelX, 'easeInOut'),
+      ],
+    },
+    {
+      propertyId: 'transform.position.y',
+      keyframes: [
+        makeScalarKeyframe(t0, 0),
+        makeScalarKeyframe(tPop, 0, 'easeOut'),
+        makeScalarKeyframe(tSettle, destinationRelY * 0.92, 'easeInOut'),
+        makeScalarKeyframe(tEnd, destinationRelY, 'easeInOut'),
+      ],
+    },
+    {
+      propertyId: 'transform.scale.x',
+      keyframes: [
+        makeScalarKeyframe(t0, startHidden ? 0.02 : 1.0),
+        makeScalarKeyframe(tPop, popScale, 'spring'),
+        makeScalarKeyframe(tSettle, targetScale * 0.96, 'easeInOut'),
+        makeScalarKeyframe(tEnd, targetScale, 'easeInOut'),
+      ],
+    },
+    {
+      propertyId: 'transform.scale.y',
+      keyframes: [
+        makeScalarKeyframe(t0, startHidden ? 0.02 : 1.0),
+        makeScalarKeyframe(tPop, popScale, 'spring'),
+        makeScalarKeyframe(tSettle, targetScale * 0.96, 'easeInOut'),
+        makeScalarKeyframe(tEnd, targetScale, 'easeInOut'),
+      ],
+    },
+    {
+      propertyId: 'visual.opacity',
+      keyframes: [
+        makeScalarKeyframe(t0, startHidden ? 0 : 1),
+        makeScalarKeyframe(delayMs + Math.max(80, Math.round(popMs * 0.6)), 1, 'easeOut'),
+        makeScalarKeyframe(tEnd, 1, 'linear'),
+      ],
+    },
+  ];
+
+  const motionResult = await applyMotionPatch(context, {
+    ...args,
+    layerId,
+    channels,
+    operation: 'apply_video_pip_recipe',
+    autoRebase: true,
+    allowRebase: true,
+  });
+  if (!motionResult.ok) {
+    return motionResult;
+  }
+
+  const stylePayload = readMap(styleResult.payload);
+  const motionPayload = readMap(motionResult.payload);
+  return ok('Video PIP recipe applied.', {
+    projectId: resolved.projectId,
+    compositionId: resolved.compositionId,
+    layerId,
+    styleCommandId: stringValue(stylePayload.commandId),
+    motionCommandId: stringValue(motionPayload.commandId),
+    revisionBefore: firstDefined(
+      stylePayload.revisionBefore,
+      motionPayload.revisionBefore,
+      resolved.revision,
+    ),
+    revisionAfter: firstDefined(
+      motionPayload.revisionAfter,
+      stylePayload.revisionAfter,
+      resolved.revision,
+    ),
+    recipe: {
+      corner,
+      radius,
+      padding,
+      durationMs,
+      delayMs,
+      destinationAbsolute: {
+        x: destinationAbsX,
+        y: destinationAbsY,
+      },
+      destinationRelative: {
+        x: destinationRelX,
+        y: destinationRelY,
+      },
+      targetScale,
+      border: {
+        width: borderWidth,
+        color: borderColor,
+      },
+      glow: {
+        blur: glowBlur,
+        opacity: glowOpacity,
+        color: glowColor,
+      },
+    },
+  });
 }
 
 async function trimClip(
@@ -5185,6 +5479,12 @@ function tools() {
       'refusion.set_layer_style',
       'Set Layer Style',
       'Apply style patch metadata on a target layer.',
+      true,
+    ),
+    tool(
+      'refusion.apply_video_pip_recipe',
+      'Apply Video PIP Recipe',
+      'Apply circle mask + border + glow + pop-up motion and move video to canvas corner using deterministic composition-aware coordinates.',
       true,
     ),
     tool(
