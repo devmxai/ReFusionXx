@@ -78,6 +78,7 @@ import '../services/master_frame_evaluation_read_adapter.dart';
 import '../services/normal_transition_timeline_authoring_adapter.dart';
 import '../services/native_preview_identity_resolver.dart';
 import '../services/professional_video_transition_render_plan_adapter.dart';
+import '../services/professional_scene_apply_engine.dart';
 import '../services/root_scene_clip_projection_adapter.dart';
 import '../services/refusion_mcp_cloud_bridge.dart';
 import '../services/scene_layer_scope_timeline_adapter.dart';
@@ -864,6 +865,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   );
   static const McpSceneCommandDispatcher _mcpSceneCommandDispatcher =
       McpSceneCommandDispatcher();
+  static const ProfessionalSceneApplyEngine _professionalSceneApplyEngine =
+      ProfessionalSceneApplyEngine();
 
   @override
   void initState() {
@@ -1590,57 +1593,44 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       hasBackgroundVisualIntent: _remoteLayerHasBackgroundVisualIntent,
       hasTimelineMutationIntent: _remoteLayerHasTimelineMutationIntent,
     );
-    var didApply = false;
-    var hasRepresentedRemoteLayer = false;
-    var appliedCommandCount = 0;
-    final appliedKinds = <String>{};
-    for (final command in commands) {
-      final remoteLayer = command.payload;
-      final remoteLayerId = _remoteString(remoteLayer['id']);
-      bool commandApplied = false;
-      switch (command.type) {
-        case ProfessionalSceneCommandType.applyLegacyAnimation:
-          commandApplied = _applyLegacyRemoteAnimationFromLayerIfNeeded(
-            remoteLayer,
-          );
-          didApply = commandApplied || didApply;
-          break;
-        case ProfessionalSceneCommandType.applyTextLayer:
-          commandApplied = _applyRemoteTextLayerIfNeeded(remoteLayer);
-          didApply = commandApplied || didApply;
-          break;
-        case ProfessionalSceneCommandType.applySolidLayer:
-          commandApplied = _applyRemoteSolidLayerIfNeeded(remoteLayer);
-          didApply = commandApplied || didApply;
-          break;
-        case ProfessionalSceneCommandType.registerMediaBinding:
-          _registerRemoteMediaLayerBinding(remoteLayer);
-          break;
-        case ProfessionalSceneCommandType.applyTimelineMutation:
-          commandApplied = _applyRemoteTimelineClipMutationFromLayerIfNeeded(
-            remoteLayer,
-          );
-          didApply = commandApplied || didApply;
-          break;
-      }
-      if (commandApplied) {
-        appliedCommandCount += 1;
-        appliedKinds.add(command.type.name);
-      }
-      if (remoteLayerId != null &&
-          _isMcpRemoteLayerRepresentedLocally(remoteLayerId)) {
-        hasRepresentedRemoteLayer = true;
-      }
-    }
-    _mcpLatestApplyProof = ProfessionalSceneApplyReceipt(
-      appliedCommandCount: appliedCommandCount,
-      appliedCommandTypes: appliedKinds.toList(growable: false),
+    final applyResult = _professionalSceneApplyEngine.apply(
+      commands: commands,
       receivedRemoteLayers: remoteLayers.length,
+      execute: _executeMcpSceneCommand,
+      isRepresented: _isMcpSceneCommandRepresentedLocally,
     );
-    if ((!didApply && !hasRepresentedRemoteLayer) || remoteRevision == null) {
+    _mcpLatestApplyProof = applyResult.receipt;
+    if ((!applyResult.didApply && !applyResult.hasRepresentedRemoteLayer) ||
+        remoteRevision == null) {
       return;
     }
     _acknowledgeMcpRemoteRevision(remoteRevision);
+  }
+
+  bool _executeMcpSceneCommand(ProfessionalSceneCommand command) {
+    final remoteLayer = command.payload;
+    switch (command.type) {
+      case ProfessionalSceneCommandType.applyLegacyAnimation:
+        return _applyLegacyRemoteAnimationFromLayerIfNeeded(remoteLayer);
+      case ProfessionalSceneCommandType.applyTextLayer:
+        return _applyRemoteTextLayerIfNeeded(remoteLayer);
+      case ProfessionalSceneCommandType.applySolidLayer:
+        return _applyRemoteSolidLayerIfNeeded(remoteLayer);
+      case ProfessionalSceneCommandType.registerMediaBinding:
+        _registerRemoteMediaLayerBinding(remoteLayer);
+        return false;
+      case ProfessionalSceneCommandType.applyTimelineMutation:
+        return _applyRemoteTimelineClipMutationFromLayerIfNeeded(remoteLayer);
+    }
+  }
+
+  bool _isMcpSceneCommandRepresentedLocally(ProfessionalSceneCommand command) {
+    final remoteLayerId =
+        command.target.id ?? _remoteString(command.payload['id']);
+    if (remoteLayerId == null || remoteLayerId.isEmpty) {
+      return false;
+    }
+    return _isMcpRemoteLayerRepresentedLocally(remoteLayerId);
   }
 
   void _acknowledgeMcpRemoteRevision(int remoteRevision) {
@@ -2133,25 +2123,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   bool _applyRemoteTimelineClipMutationFromLayerIfNeeded(
     Map<String, Object?> remoteLayer,
   ) {
-    final payload = _remotePayload(remoteLayer);
-    final updates = _remoteMap(payload['updates']);
-    final operation = _firstRemoteString(<Object?>[
-          payload['operation'],
-          updates['operation'],
-        ])?.toLowerCase() ??
-        '';
-    final hasTimelineMutation = operation.contains('update_layer') ||
-        updates.containsKey('animation') ||
-        updates.containsKey('mask') ||
-        updates.containsKey('border') ||
-        updates.containsKey('glow') ||
-        payload.containsKey('animation') ||
-        payload.containsKey('mask') ||
-        payload.containsKey('border') ||
-        payload.containsKey('glow');
-    if (!hasTimelineMutation) {
+    if (!_remoteLayerHasTimelineMutationIntent(remoteLayer)) {
       return false;
     }
+    final payload = _remotePayload(remoteLayer);
+    final updates = _remoteMap(payload['updates']);
     final targetRemoteLayerId = _firstRemoteString(<Object?>[
           payload['layerId'],
           payload['targetLayerId'],
