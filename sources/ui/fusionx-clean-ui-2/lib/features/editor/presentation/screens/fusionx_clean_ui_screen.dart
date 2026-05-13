@@ -31,6 +31,7 @@ import '../../domain/models/professional_motion_evaluation_models.dart';
 import '../../domain/models/professional_motion_fx_models.dart';
 import '../../domain/models/professional_motion_models.dart';
 import '../../domain/models/professional_motion_runtime_helpers.dart';
+import '../../domain/models/professional_scene_command_models.dart';
 import '../../domain/models/professional_motion_text_authoring_models.dart';
 import '../../domain/models/professional_motion_text_keyframe_authoring_models.dart';
 import '../../domain/models/professional_motion_text_models.dart';
@@ -855,7 +856,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       <String, String>{};
   final Map<String, int> _mcpPendingCommandRevisionById = <String, int>{};
   final Set<String> _mcpAcknowledgedCommandIds = <String>{};
-  Map<String, Object?> _mcpLatestApplyProof = const <String, Object?>{};
+  ProfessionalSceneApplyReceipt _mcpLatestApplyProof =
+      const ProfessionalSceneApplyReceipt(
+    appliedCommandCount: 0,
+    appliedCommandTypes: <String>[],
+    receivedRemoteLayers: 0,
+  );
   static const McpSceneCommandDispatcher _mcpSceneCommandDispatcher =
       McpSceneCommandDispatcher();
 
@@ -1589,28 +1595,28 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     var appliedCommandCount = 0;
     final appliedKinds = <String>{};
     for (final command in commands) {
-      final remoteLayer = command.remoteLayer;
+      final remoteLayer = command.payload;
       final remoteLayerId = _remoteString(remoteLayer['id']);
       bool commandApplied = false;
       switch (command.type) {
-        case McpSceneCommandType.applyLegacyAnimation:
+        case ProfessionalSceneCommandType.applyLegacyAnimation:
           commandApplied = _applyLegacyRemoteAnimationFromLayerIfNeeded(
             remoteLayer,
           );
           didApply = commandApplied || didApply;
           break;
-        case McpSceneCommandType.applyTextLayer:
+        case ProfessionalSceneCommandType.applyTextLayer:
           commandApplied = _applyRemoteTextLayerIfNeeded(remoteLayer);
           didApply = commandApplied || didApply;
           break;
-        case McpSceneCommandType.applySolidLayer:
+        case ProfessionalSceneCommandType.applySolidLayer:
           commandApplied = _applyRemoteSolidLayerIfNeeded(remoteLayer);
           didApply = commandApplied || didApply;
           break;
-        case McpSceneCommandType.registerMediaBinding:
+        case ProfessionalSceneCommandType.registerMediaBinding:
           _registerRemoteMediaLayerBinding(remoteLayer);
           break;
-        case McpSceneCommandType.applyTimelineMutation:
+        case ProfessionalSceneCommandType.applyTimelineMutation:
           commandApplied = _applyRemoteTimelineClipMutationFromLayerIfNeeded(
             remoteLayer,
           );
@@ -1626,11 +1632,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         hasRepresentedRemoteLayer = true;
       }
     }
-    _mcpLatestApplyProof = <String, Object?>{
-      'appliedCommands': appliedCommandCount,
-      'appliedKinds': appliedKinds.toList(growable: false),
-      'remoteLayersReceived': remoteLayers.length,
-    };
+    _mcpLatestApplyProof = ProfessionalSceneApplyReceipt(
+      appliedCommandCount: appliedCommandCount,
+      appliedCommandTypes: appliedKinds.toList(growable: false),
+      receivedRemoteLayers: remoteLayers.length,
+    );
     if ((!didApply && !hasRepresentedRemoteLayer) || remoteRevision == null) {
       return;
     }
@@ -1665,7 +1671,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             'frameEvaluated': true,
             'proofFrameTimeMs':
                 _timelineDisplayTimeNotifier.value.inMilliseconds,
-            ..._mcpLatestApplyProof,
+            ..._mcpLatestApplyProof.toProofMap(),
           },
         ),
       );
@@ -2847,11 +2853,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
     }
     if (didApply) {
-      _mcpLatestApplyProof = <String, Object?>{
-        ..._mcpLatestApplyProof,
-        'appliedMotionChannels': _appliedMcpMotionChannelSignatures.length,
-        'lastAppliedMotionChannelsBatch': remoteMotionChannels.length,
-      };
+      _mcpLatestApplyProof = _mcpLatestApplyProof.copyWith(
+        appliedMotionChannels: _appliedMcpMotionChannelSignatures.length,
+        lastAppliedMotionChannelsBatch: remoteMotionChannels.length,
+      );
       if (remoteRevision != null) {
         _acknowledgeMcpRemoteRevision(remoteRevision);
       }

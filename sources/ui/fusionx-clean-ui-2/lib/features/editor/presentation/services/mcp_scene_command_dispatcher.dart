@@ -1,14 +1,16 @@
+import '../../domain/models/professional_scene_command_models.dart';
+
 class McpSceneCommandDispatcher {
   const McpSceneCommandDispatcher();
 
-  List<McpSceneCommand> dispatchRemoteLayers({
+  List<ProfessionalSceneCommand> dispatchRemoteLayers({
     required List<Map<String, Object?>> remoteLayers,
     required bool Function(Map<String, Object?> remoteLayer)
         hasBackgroundVisualIntent,
     required bool Function(Map<String, Object?> remoteLayer)
         hasTimelineMutationIntent,
   }) {
-    final commands = <McpSceneCommand>[];
+    final commands = <ProfessionalSceneCommand>[];
     for (final remoteLayer in remoteLayers) {
       final payload = _asMap(remoteLayer['payload']);
       final updates = _asMap(payload['updates']);
@@ -30,51 +32,109 @@ class McpSceneCommandDispatcher {
           _asMap(updates['animation']).isNotEmpty;
       if (hasLegacyAnimationPayload) {
         commands.add(
-          McpSceneCommand(
-            type: McpSceneCommandType.applyLegacyAnimation,
-            remoteLayer: remoteLayer,
+          ProfessionalSceneCommand(
+            type: ProfessionalSceneCommandType.applyLegacyAnimation,
+            source: ProfessionalSceneCommandSource.mcpAgent,
+            target: ProfessionalSceneCommandTarget(
+              mode: ProfessionalSceneCommandTargetMode.layerId,
+              id: _firstText(<Object?>[
+                payload['layerId'],
+                payload['targetLayerId'],
+                updates['layerId'],
+                updates['targetLayerId'],
+                remoteLayer['id'],
+              ]),
+            ),
+            payload: remoteLayer,
           ),
         );
       }
       if (kind == 'text') {
         commands.add(
-          McpSceneCommand(
-            type: McpSceneCommandType.applyTextLayer,
-            remoteLayer: remoteLayer,
+          ProfessionalSceneCommand(
+            type: ProfessionalSceneCommandType.applyTextLayer,
+            source: ProfessionalSceneCommandSource.mcpAgent,
+            target: ProfessionalSceneCommandTarget(
+              mode: ProfessionalSceneCommandTargetMode.layerId,
+              id: _firstText(<Object?>[
+                remoteLayer['id'],
+                payload['layerId'],
+                payload['targetLayerId'],
+              ]),
+            ),
+            payload: remoteLayer,
           ),
         );
       } else if (kind == 'solid') {
         commands.add(
-          McpSceneCommand(
-            type: McpSceneCommandType.applySolidLayer,
-            remoteLayer: remoteLayer,
+          ProfessionalSceneCommand(
+            type: ProfessionalSceneCommandType.applySolidLayer,
+            source: ProfessionalSceneCommandSource.mcpAgent,
+            target: ProfessionalSceneCommandTarget(
+              mode: ProfessionalSceneCommandTargetMode.layerId,
+              id: _firstText(<Object?>[
+                remoteLayer['id'],
+                payload['layerId'],
+                payload['targetLayerId'],
+              ]),
+            ),
+            payload: remoteLayer,
           ),
         );
       } else if (kind == 'media') {
         commands.add(
-          McpSceneCommand(
-            type: McpSceneCommandType.registerMediaBinding,
-            remoteLayer: remoteLayer,
+          ProfessionalSceneCommand(
+            type: ProfessionalSceneCommandType.registerMediaBinding,
+            source: ProfessionalSceneCommandSource.mcpAgent,
+            target: ProfessionalSceneCommandTarget(
+              mode: ProfessionalSceneCommandTargetMode.layerId,
+              id: _firstText(<Object?>[
+                remoteLayer['id'],
+                payload['layerId'],
+                payload['targetLayerId'],
+              ]),
+            ),
+            payload: remoteLayer,
           ),
         );
       } else if (hasBackgroundVisualIntent(remoteLayer)) {
         commands.add(
-          McpSceneCommand(
-            type: McpSceneCommandType.applySolidLayer,
-            remoteLayer: remoteLayer,
+          ProfessionalSceneCommand(
+            type: ProfessionalSceneCommandType.applySolidLayer,
+            source: ProfessionalSceneCommandSource.mcpAgent,
+            target: ProfessionalSceneCommandTarget(
+              mode: ProfessionalSceneCommandTargetMode.layerId,
+              id: _firstText(<Object?>[
+                remoteLayer['id'],
+                payload['layerId'],
+                payload['targetLayerId'],
+              ]),
+            ),
+            payload: remoteLayer,
           ),
         );
       }
       if (hasTimelineMutationIntent(remoteLayer)) {
         commands.add(
-          McpSceneCommand(
-            type: McpSceneCommandType.applyTimelineMutation,
-            remoteLayer: remoteLayer,
+          ProfessionalSceneCommand(
+            type: ProfessionalSceneCommandType.applyTimelineMutation,
+            source: ProfessionalSceneCommandSource.mcpAgent,
+            target: ProfessionalSceneCommandTarget(
+              mode: ProfessionalSceneCommandTargetMode.layerId,
+              id: _firstText(<Object?>[
+                payload['layerId'],
+                payload['targetLayerId'],
+                updates['layerId'],
+                updates['targetLayerId'],
+                remoteLayer['id'],
+              ]),
+            ),
+            payload: remoteLayer,
           ),
         );
       }
     }
-    return List<McpSceneCommand>.unmodifiable(commands);
+    return List<ProfessionalSceneCommand>.unmodifiable(commands);
   }
 
   static Map<String, Object?> _asMap(Object? value) {
@@ -104,22 +164,4 @@ class McpSceneCommandDispatcher {
     }
     return null;
   }
-}
-
-enum McpSceneCommandType {
-  applyLegacyAnimation,
-  applyTextLayer,
-  applySolidLayer,
-  registerMediaBinding,
-  applyTimelineMutation,
-}
-
-class McpSceneCommand {
-  const McpSceneCommand({
-    required this.type,
-    required this.remoteLayer,
-  });
-
-  final McpSceneCommandType type;
-  final Map<String, Object?> remoteLayer;
 }
