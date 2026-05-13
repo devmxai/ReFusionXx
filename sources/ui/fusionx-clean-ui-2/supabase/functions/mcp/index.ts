@@ -1341,10 +1341,15 @@ async function insertLayer(context: RequestContext, args: JsonMap): Promise<Tool
     stringValue(composition.id);
   const currentRevision = await projectRevision(projectId);
   const expectedRevision = optionalNumber(args.expectedRevision);
-  if (expectedRevision != null && expectedRevision !== currentRevision) {
+  if (
+    expectedRevision != null &&
+    expectedRevision !== currentRevision &&
+    !allowRevisionRebase(args)
+  ) {
     return fail('REVISION_CONFLICT', {
       expectedRevision,
       actualRevision: currentRevision,
+      rebaseAllowed: true,
     });
   }
 
@@ -1735,10 +1740,15 @@ async function applyMotionPatch(
   const compositionId = resolved.compositionId;
   const currentRevision = resolved.revision;
   const expectedRevision = optionalNumber(args.expectedRevision);
-  if (expectedRevision != null && expectedRevision !== currentRevision) {
+  if (
+    expectedRevision != null &&
+    expectedRevision !== currentRevision &&
+    !allowRevisionRebase(args)
+  ) {
     return fail('REVISION_CONFLICT', {
       expectedRevision,
       actualRevision: currentRevision,
+      rebaseAllowed: true,
     });
   }
 
@@ -2026,10 +2036,15 @@ async function trimClip(
   }
   const currentRevision = resolved.revision;
   const expectedRevision = optionalNumber(args.expectedRevision);
-  if (expectedRevision != null && expectedRevision !== currentRevision) {
+  if (
+    expectedRevision != null &&
+    expectedRevision !== currentRevision &&
+    !allowRevisionRebase(args)
+  ) {
     return fail('REVISION_CONFLICT', {
       expectedRevision,
       actualRevision: currentRevision,
+      rebaseAllowed: true,
     });
   }
   const startMs = Math.max(
@@ -2135,10 +2150,15 @@ async function splitClip(
   }
   const currentRevision = resolved.revision;
   const expectedRevision = optionalNumber(args.expectedRevision);
-  if (expectedRevision != null && expectedRevision !== currentRevision) {
+  if (
+    expectedRevision != null &&
+    expectedRevision !== currentRevision &&
+    !allowRevisionRebase(args)
+  ) {
     return fail('REVISION_CONFLICT', {
       expectedRevision,
       actualRevision: currentRevision,
+      rebaseAllowed: true,
     });
   }
   const originalStartMs = numberValue(layer.start_ms, 0);
@@ -2417,10 +2437,15 @@ async function applyLayerStyleMutation(
   }
   const currentRevision = resolved.revision;
   const expectedRevision = optionalNumber(args.expectedRevision);
-  if (expectedRevision != null && expectedRevision !== currentRevision) {
+  if (
+    expectedRevision != null &&
+    expectedRevision !== currentRevision &&
+    !allowRevisionRebase(args)
+  ) {
     return fail('REVISION_CONFLICT', {
       expectedRevision,
       actualRevision: currentRevision,
+      rebaseAllowed: true,
     });
   }
   const currentPayload = readMap(layer.payload);
@@ -5377,6 +5402,39 @@ function firstText(...values: unknown[]): string {
     }
   }
   return '';
+}
+
+function allowRevisionRebase(args: JsonMap): boolean {
+  const candidate = firstDefined(
+    args.autoRebase,
+    args.allowRebase,
+    args.rebaseOnConflict,
+    args.revisionStrategy,
+    args.onRevisionConflict,
+  );
+  if (typeof candidate === 'boolean') {
+    return candidate;
+  }
+  if (typeof candidate === 'number') {
+    return candidate !== 0;
+  }
+  if (typeof candidate === 'string') {
+    const normalized = candidate.trim().toLowerCase();
+    if (!normalized) {
+      return true;
+    }
+    if (
+      normalized === 'false' ||
+      normalized === '0' ||
+      normalized === 'strict' ||
+      normalized === 'reject' ||
+      normalized === 'fail'
+    ) {
+      return false;
+    }
+    return true;
+  }
+  return true;
 }
 
 function canonicalLayerPayload(args: JsonMap): JsonMap {

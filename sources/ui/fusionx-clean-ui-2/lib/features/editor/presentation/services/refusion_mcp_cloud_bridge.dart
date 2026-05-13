@@ -217,10 +217,8 @@ class RefusionMcpCloudBridge {
     try {
       final state = _contextReader();
       final status = _foreground && state.foreground ? 'online' : 'background';
-      final projectIdArg =
-          _isUuidLike(state.projectId) ? state.projectId : null;
-      final compositionIdArg =
-          _isUuidLike(state.compositionId) ? state.compositionId : null;
+      final projectIdArg = _normalizedIdentifierOrNull(state.projectId);
+      final compositionIdArg = _normalizedIdentifierOrNull(state.compositionId);
       await _callTool(
         toolName: 'touch_editor_session',
         arguments: <String, Object?>{
@@ -303,10 +301,12 @@ class RefusionMcpCloudBridge {
       final firstLayerId = _asString(
         _asMap(
           _asListOfMap(
-            _asMap(_asMap(layersResponse?['structuredContent'])['payload'])['layers'],
+            _asMap(_asMap(layersResponse?['structuredContent'])['payload'])[
+                'layers'],
           ).isNotEmpty
               ? _asListOfMap(
-                  _asMap(_asMap(layersResponse?['structuredContent'])['payload'])['layers'],
+                  _asMap(_asMap(layersResponse?['structuredContent'])[
+                      'payload'])['layers'],
                 ).first
               : const <String, Object?>{},
         )['id'],
@@ -385,11 +385,13 @@ class RefusionMcpCloudBridge {
       remoteMotionChannels = _asListOfMap(channelsPayload['channels']);
     }
     if (canvasMetadataResult != null) {
-      final metadataStructured = _asMap(canvasMetadataResult['structuredContent']);
+      final metadataStructured =
+          _asMap(canvasMetadataResult['structuredContent']);
       canvasMetadata = _asMap(metadataStructured['payload']);
     }
     if (elementGeometryResult != null) {
-      final geometryStructured = _asMap(elementGeometryResult['structuredContent']);
+      final geometryStructured =
+          _asMap(elementGeometryResult['structuredContent']);
       primaryElementGeometry = _asMap(geometryStructured['payload']);
     }
     if (visualLayoutSummaryResult != null) {
@@ -483,9 +485,10 @@ class RefusionMcpCloudBridge {
       toolName: 'generate_pairing_code',
       arguments: <String, Object?>{
         'deviceId': _deviceId,
-        if (_isUuidLike(state.projectId)) 'projectId': state.projectId,
-        if (_isUuidLike(state.compositionId))
-          'compositionId': state.compositionId,
+        if (_normalizedIdentifierOrNull(state.projectId) != null)
+          'projectId': _normalizedIdentifierOrNull(state.projectId),
+        if (_normalizedIdentifierOrNull(state.compositionId) != null)
+          'compositionId': _normalizedIdentifierOrNull(state.compositionId),
         'timelineId': state.timelineId,
         'playheadMs': state.playheadMs,
         'timelineRevision': state.timelineRevision,
@@ -697,18 +700,15 @@ List<Map<String, Object?>> _asListOfMap(Object? value) {
   return result;
 }
 
-bool _isUuidLike(String? value) {
+String? _normalizedIdentifierOrNull(String? value) {
   if (value == null) {
-    return false;
+    return null;
   }
   final normalized = value.trim();
   if (normalized.isEmpty) {
-    return false;
+    return null;
   }
-  final uuidPattern = RegExp(
-    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
-  );
-  return uuidPattern.hasMatch(normalized);
+  return normalized;
 }
 
 String refusionMcpCloudDeviceId() {
