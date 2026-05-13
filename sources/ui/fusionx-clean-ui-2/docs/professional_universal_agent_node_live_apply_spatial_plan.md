@@ -14,6 +14,12 @@ This is intentionally not a full app rewrite plan. It is the first focused
 execution part for making ChatGPT / Codex / Claude agents professionally useful
 inside the exact open ReFusionXx composition.
 
+Review upgrade: this version incorporates the external review and the
+Super Professional Engine recommendation. It keeps the same focused scope, but
+hardens the plan with canonical time, schemas, app-session command receipts,
+realtime apply, transaction semantics, target ambiguity handling, renderer proof,
+and semantic-first agent rules.
+
 ## 1. The Three Problems This Plan Solves
 
 ### Problem A - Universal Agent Capability
@@ -137,6 +143,20 @@ References:
 - https://hyperframes.heygen.com/packages/engine
 - https://hyperframes.heygen.com/guides/video-editor-cheatsheet
 - https://hyperframes.heygen.com/guides/prompting
+
+### 2.3 Scene Graph Principle
+
+Professional editors expose a scene graph with stable node identities,
+type-specific capabilities, shared transform/effect concepts, and deterministic
+geometry. Figma-style nodes and After Effects-style property stacks both point to
+the same rule for ReFusionXx:
+
+```text
+node identity + capability contract + evaluated frame -> visual truth
+```
+
+Every agent-visible command must operate on this truth model, not on ad-hoc
+payload fields or "latest layer wins" heuristics.
 
 ## 3. Non-Negotiable Contracts
 
@@ -278,6 +298,193 @@ renderer capability
 Raw pixels remain allowed for manual professional precision, but agent-authored
 layout must default to anchors, zones, and solvers.
 
+### 3.5 Canonical Time And Schema Contract
+
+All motion, visibility, source trimming, and receipts must use a canonical time
+model. Milliseconds are allowed as API convenience, but they are not the only
+source of truth.
+
+Required model:
+
+```text
+TimelineTime
+  frameIndex
+  fpsNumerator
+  fpsDenominator
+  timeMs
+  compositionId
+  localClipTime
+  sourceMediaTime
+  roundingRule
+```
+
+Required rules:
+
+```text
+visibility: timelineStart <= time < timelineEnd
+frame conversion: deterministic and documented
+source range: independent from composition range
+animation range: clamped unless explicitly extrapolated
+```
+
+Every persisted command and response must include:
+
+```text
+schemaVersion
+capabilityVersion
+commandVersion
+migrationPolicy
+```
+
+Acceptance:
+
+```text
+The same graph revision, same schema version, and same TimelineTime evaluate to
+the same frame result across preview, playback, live scrub inspection, and export
+adapters.
+```
+
+### 3.6 App Session, Realtime, And Ack Contract
+
+Every mutating command must be bound to the exact open app session and exact
+composition. The app must acknowledge the command after local apply.
+
+Required lifecycle:
+
+```text
+agent tool call
+-> server creates commandId
+-> cloud commit
+-> realtime event to active app session
+-> app receives commandId
+-> app applies locally to MotionProject / editor graph
+-> app invalidates player/canvas frame cache
+-> app evaluates the affected frame(s)
+-> app writes ack_command(commandId, proof)
+-> wait_for_apply(commandId) returns command-specific status
+```
+
+Required command bus semantics:
+
+```text
+ordering per composition
+idempotent replay by idempotencyKey
+retry-safe dispatch
+stale app-session rejection
+wrong active composition rejection
+timeout -> APP_NOT_RESPONDING
+out-of-order command handling
+cancel / supersede support
+```
+
+Forbidden:
+
+```text
+mark command applied because another command advanced the revision
+mark command applied without app-session receipt
+mark command applied from snapshot polling only
+write to default/latest project when active context is missing
+```
+
+### 3.7 Transaction, Undo, And Rebase Contract
+
+Every command must be transactional.
+
+Required:
+
+```text
+atomic commit or structured blocker
+undo record
+redo record
+audit event
+idempotencyKey
+expectedGraphRevision
+rebase strategy for safe non-conflicting edits
+conflict blocker for unsafe overlapping edits
+partial failure diagnostics
+```
+
+Acceptance:
+
+```text
+If command 2 adds an exit animation after command 1 added a popup animation, the
+system merges motion phases on the same node. It must not replace the whole
+scene, duplicate the node, mutate the background, or silently drop either motion.
+```
+
+### 3.8 Target Resolution And Ambiguity Contract
+
+The agent may not guess a target when the open composition contains ambiguous
+nodes.
+
+Resolution order:
+
+```text
+explicit targetId
+selected timeline node
+selected canvas node
+named node with exact match
+single compatible visible node
+AMBIGUOUS_TARGET blocker
+```
+
+Acceptance:
+
+```text
+If the prompt says "the video" and there are two visible videos, the system must
+return AMBIGUOUS_TARGET with candidates and geometry instead of editing a random
+video.
+```
+
+### 3.9 Agent Skill Rules Contract
+
+Agent-facing documentation must be treated as part of the runtime contract.
+
+Required rules:
+
+```text
+Before spatial edits:
+  call get_canvas_metadata
+  call get_element_geometry or evaluate_frame
+
+Before high-risk layout/effect edits:
+  call layout.preview_change
+  call layout.validate_intent
+
+After every mutating command:
+  call wait_for_apply(commandId)
+  require appApplied=true or report the blocker
+
+Default behavior:
+  use anchors, zones, fit/align solvers
+  use universal capability tools
+  do not write raw x/y/scale unless the user requested pixel precision
+```
+
+This prevents the agent from treating ReFusionXx like an untyped JSON store.
+
+### 3.10 Execution Priority
+
+The implementation order is strict:
+
+```text
+1. failure fixtures and diagnostics
+2. apply guarantee foundation:
+   commandId, realtime dispatch, ack_command, wait_for_apply
+3. canonical time/schema/transaction contracts
+4. spatial awareness:
+   get_canvas_metadata, get_element_geometry, evaluate_frame
+5. semantic positioning:
+   position_at_anchor, fit_in_zone, align_to, scale_to
+6. universal capability registry and one patch path
+7. renderer capability proof and conformance matrix
+8. agent skill documentation and compliance tests
+```
+
+Do not expand the full effects catalog before steps 1-7 are green. A small
+capability set with honest proof is better than a large catalog that can still
+return false success.
+
 ## 4. Phase Plan
 
 ### PUANLAS-00 - Failure Fixtures First
@@ -312,6 +519,8 @@ Required model:
 
 ```text
 UniversalCapabilityDefinition
+  schemaVersion
+  capabilityVersion
   capabilityId
   family
   supportedNodeFamilies
@@ -320,7 +529,14 @@ UniversalCapabilityDefinition
   propertyType
   stackOrder
   affectsBounds
+  valueSchema
+  unitSchema
+  coordinateSpace
+  mergePolicy
+  conflictPolicy
   rendererSupport
+  liveScrubSupport
+  exportSupport
   fallbackPolicy
   diagnostics
 ```
@@ -352,6 +568,8 @@ Acceptance:
 ```text
 One API answers whether border/glow/mask/animation applies to video, image,
 text, shape, background, and audio.
+The answer includes value schema, stack order, renderer support, proof method,
+and exact blocker if the operation is unsupported.
 ```
 
 ### PUANLAS-02 - Universal Target Identity
@@ -378,6 +596,7 @@ Required:
 
 ```text
 resolveTarget(ref, activeCompositionTruth) -> UniversalTarget
+resolveTargetOrBlock(ref, activeCompositionTruth) -> UniversalTarget | blocker
 ```
 
 Acceptance:
@@ -385,6 +604,8 @@ Acceptance:
 ```text
 MCP, SceneProgram, keyframe UI, canvas transform, and renderer adapters resolve
 the same target ID for the same visible node.
+Ambiguous target prompts return AMBIGUOUS_TARGET with candidate nodes, not a
+guessed mutation.
 ```
 
 ### PUANLAS-03 - One Capability Patch Path
@@ -409,6 +630,7 @@ Patch shape:
 
 ```text
 commandId
+schemaVersion
 targetRef
 capabilityId
 value
@@ -416,6 +638,8 @@ timeRange
 mode: set | add | remove | animate | merge
 expectedGraphRevision
 idempotencyKey
+transactionId
+undoGroupId
 ```
 
 Acceptance:
@@ -424,6 +648,24 @@ Acceptance:
 set_glow(video), set_glow(image), set_glow(shape), and set_glow(text) all
 produce the same capability patch family with different target adapters.
 ```
+
+The canonical public aliases for Part 1 and Part 2 must lower into this same
+path:
+
+```text
+set_element_property
+apply_effect
+apply_motion
+set_audio_property
+add_adjustment_layer
+position_at_anchor
+fit_in_zone
+align_to
+scale_to
+```
+
+No alias may write directly to layer payloads, motion payloads, or renderer
+metadata without passing through `apply_capability_patch`.
 
 ### PUANLAS-04 - Open-App Command Dispatcher
 
@@ -435,11 +677,45 @@ Required:
 get_pending_commands(projectId, compositionId, appSessionId)
 dispatchCommand(commandId)
 applyCapabilityPatch()
+ack_command(commandId, proof)
 writeCommandReceipt(commandId)
+wait_for_apply(commandId)
 ```
 
 The app may continue polling snapshots for recovery and inspection, but
 snapshots are not the command bus.
+
+Realtime is the primary transport:
+
+```text
+Supabase realtime channel: project:{projectId}:composition:{compositionId}
+event: command.pending
+payload: commandId, appSessionId, projectId, compositionId, targetIds
+fallback: bounded polling only for missed events or recovery
+```
+
+The app must update the command status from:
+
+```text
+PENDING_APPLY
+APP_RECEIVED
+LOCAL_GRAPH_APPLIED
+FRAME_EVALUATED
+RENDERER_APPLIED
+APPLIED
+```
+
+or a terminal blocker:
+
+```text
+APP_NOT_RESPONDING
+OPEN_COMPOSITION_REQUIRED
+WRONG_ACTIVE_CONTEXT
+RENDERER_CAPABILITY_MISSING
+TARGET_NOT_FOUND
+AMBIGUOUS_TARGET
+VALIDATION_FAILED
+```
 
 Acceptance:
 
@@ -452,6 +728,14 @@ Agent inserts background:
   wait_for_apply(commandId) returns appApplied=true
 ```
 
+Latency target:
+
+```text
+realtime event delivered to open app <= 500ms in normal network conditions
+wait_for_apply success <= 2s for simple background/text/transform commands
+timeout blocker at 10s if the app never acknowledges
+```
+
 ### PUANLAS-05 - Command-Specific Receipts
 
 Replace revision-only ACK with command proof.
@@ -460,6 +744,7 @@ Receipt:
 
 ```text
 commandId
+schemaVersion
 projectId
 compositionId
 appSessionId
@@ -469,12 +754,20 @@ localRevisionBefore
 localRevisionAfter
 cloudRevisionAfter
 proof:
+  dataApplied
   localGraphApplied
   timelineVisible
+  playerInvalidated
   frameEvaluated
   visualProgramEmitted
   rendererApplied
   visualBoundsVerified
+  pixelVerified
+  proofFrameTimeMs
+  proofFrameIndex
+  proofBounds
+  screenshotUrl
+  screenshotHash
 diagnostics:
   warnings
   blockers
@@ -485,6 +778,9 @@ Acceptance:
 ```text
 Two commands at same revision range can have separate success/failure states.
 No command succeeds because another command advanced the revision.
+No command succeeds until the affected open player/canvas has been invalidated,
+the frame has been re-evaluated, and the renderer has either applied the visual
+change or returned a structured blocker.
 ```
 
 ### PUANLAS-06 - Canvas Metadata Tool
@@ -504,6 +800,12 @@ width: 1080
 height: 1920
 fps: 30
 durationMs: from active composition
+durationFrames: from active composition
+timelineTime:
+  currentFrameIndex
+  currentTimeMs
+  fpsNumerator
+  fpsDenominator
 origin: center
 xRange: [-540, 540]
 yRange: [-960, 960]
@@ -534,13 +836,18 @@ Response includes:
 
 ```text
 intrinsicSize
+intrinsicBounds
 timelineRange
 sourceRange
+localBounds
+worldBounds
 centerAbs
 centerCanonical
 boundsAbs
 boundsCanonical
 visibleBoundsAfterMask
+renderBoundsAfterEffects
+transformMatrix
 rotation
 scale
 opacity
@@ -548,6 +855,7 @@ zIndex
 safeZoneCompliance
 overlaps
 rendererCapabilityState
+measurementAuthority
 ```
 
 Acceptance:
@@ -555,6 +863,8 @@ Acceptance:
 ```text
 Geometry comes from evaluated frame state, not raw DB payload only.
 Tolerance <= 0.5px.
+measurementAuthority states whether the numbers came from domain math, media
+metadata, text layout metrics, renderer adapter measurement, or pixel proof.
 ```
 
 ### PUANLAS-08 - Deterministic Frame Evaluation
@@ -575,7 +885,9 @@ evaluated styles
 evaluated effects
 evaluated motion values
 visible bounds
+render bounds after strokes/shadows/glows
 overlaps
+asset readiness
 renderer blockers
 ```
 
@@ -585,6 +897,8 @@ Acceptance:
 Same graph revision + same timeMs returns identical results across 3 calls.
 Visibility rule is exact:
 timelineStartMs <= timeMs < timelineEndMs
+No render-time network fetch or unresolved font/media decode may be hidden.
+Unready assets return ASSET_NOT_READY blockers.
 ```
 
 ### PUANLAS-09 - Spatial Solver
@@ -599,6 +913,25 @@ scale_to
 keep_in_canvas
 exit_direction
 plan_motion_path
+```
+
+The solver accepts semantic intent and returns explicit pixel output:
+
+```text
+input:
+  targetRef
+  anchor/zone/path intent
+  padding
+  safeArea
+  fitMode
+  timeRange
+
+output:
+  solvedTransform
+  solvedBounds
+  keyframes
+  validation
+  blocker if impossible
 ```
 
 Example for Story 1080x1920:
@@ -635,6 +968,8 @@ Acceptance:
 ```text
 Before commit, agent sees if text overlaps video, PIP leaves canvas, title safe
 is violated, or motion path collides during hold frames.
+High-risk operations must dry-run before commit unless the user explicitly
+requests immediate apply.
 ```
 
 ### PUANLAS-11 - Renderer Capability Proof
@@ -644,11 +979,13 @@ Renderer support must be honest.
 For each capability and node family, report:
 
 ```text
+domainSupport
 previewSupport
 playbackSupport
 liveScrubSupport
 exportSupport
 proofMethod
+proofArtifactRequirement
 blockerReason
 ```
 
@@ -657,6 +994,44 @@ Acceptance:
 ```text
 If video glow/mask/border cannot render, command fails with
 RENDERER_CAPABILITY_MISSING instead of returning appApplied=true.
+```
+
+### PUANLAS-11A - Capability Matrix And Renderer Conformance
+
+Build a matrix that proves support honestly instead of assuming it.
+
+Matrix axes:
+
+```text
+node family:
+  video | image | text | shape | background | audio | adjustment | group
+
+capability:
+  transform | opacity | border | shadow | glow | mask | crop | blur |
+  color | typography | sourceRange | audio | motion
+
+mode:
+  static | animated | merged sequential edit
+
+surface:
+  editor graph | timeline | preview | playback | live scrub inspection | export
+```
+
+Conformance tests:
+
+```text
+repeat same frame -> identical result
+random seek -> identical result
+seek command order does not affect output
+renderer readiness gate blocks unresolved assets
+unsupported capability returns blocker, never fake success
+```
+
+Acceptance:
+
+```text
+The registry cannot claim a capability is supported unless the relevant adapter
+has a passing conformance entry or an explicit blocker policy.
 ```
 
 ### PUANLAS-12 - Minimum Green Slice
@@ -668,12 +1043,17 @@ Implement:
 
 ```text
 1. commandId dispatch for background insert
-2. commandId receipt
-3. get_canvas_metadata
-4. get_element_geometry for background/text/shape/media
-5. evaluate_frame for visible node list and bounds
-6. position_at_anchor solver
-7. universal capability registry with transform + opacity + border + mask
+2. realtime command delivery to the active app session
+3. ack_command + wait_for_apply(commandId)
+4. command-specific receipt with renderer proof levels
+5. canonical time + schemaVersion on commands/responses
+6. get_canvas_metadata
+7. get_element_geometry for background/text/shape/media
+8. evaluate_frame for visible node list, bounds, readiness, and blockers
+9. position_at_anchor solver
+10. target ambiguity blocker
+11. universal capability registry with transform + opacity + border + mask
+12. capability matrix conformance for the minimum supported set
 ```
 
 Acceptance:
@@ -683,7 +1063,8 @@ Open a Story composition.
 Pair ChatGPT.
 Ask: "add purple background".
 It appears in timeline and canvas.
-wait_for_apply(commandId) returns rendererApplied=true.
+wait_for_apply(commandId) returns command-specific appApplied=true with
+localGraphApplied, frameEvaluated, rendererApplied, and proofBounds.
 
 Ask: "add text and move it to top center title safe".
 It appears correctly with evaluated bounds.
@@ -691,6 +1072,10 @@ It appears correctly with evaluated bounds.
 Ask: "move video to top-right PIP".
 Solver outputs exact top-right bounds.
 If mask/border/glow not supported yet, app returns explicit blocker.
+
+Ask while the app is on the home screen or another composition.
+The command returns OPEN_COMPOSITION_REQUIRED or WRONG_ACTIVE_CONTEXT and does
+not mutate default/latest project state.
 ```
 
 ## 5. Stop List
@@ -700,10 +1085,18 @@ Do not:
 - add more one-off MCP tools for each effect,
 - let text/video/image/shape use separate unrelated capability models,
 - apply remote changes from `get_layers` as the primary path,
+- treat polling snapshots as proof that a command was applied,
 - ack by revision as final success,
 - mark metadata-only effects as applied,
+- mark appApplied true without ack_command from the active app session,
+- mark rendererApplied true without frame evaluation and renderer proof,
 - claim unsupported renderer capabilities,
 - allow ChatGPT to guess canvas coordinates,
+- allow ambiguous prompts to mutate arbitrary nodes,
+- accept commands without schemaVersion and idempotencyKey,
+- persist effects outside the universal capability stack,
+- build "unlimited" capability claims without honest blockers,
+- skip undo/redo/audit records for mutating commands,
 - mutate background from non-background commands,
 - replace a whole scene to animate one existing node,
 - build MCP-only behavior that manual UI cannot reuse,
@@ -771,6 +1164,65 @@ Expected:
   no background mutation
 ```
 
+### 6.6 Command Bus And Ack
+
+```text
+Command 1 and Command 2 are queued for the same composition.
+Expected:
+  ordered dispatch or explicit out-of-order hold
+  retry with same idempotencyKey does not duplicate
+  each command has its own receipt
+  wait_for_apply(commandId) never borrows another command's success
+```
+
+### 6.7 Target Ambiguity
+
+```text
+Open composition with two videos.
+Prompt: "move the video to top-right".
+Expected:
+  AMBIGUOUS_TARGET
+  candidate node IDs, names, bounds, and selected state
+  no mutation until target is explicit or selected
+```
+
+### 6.8 Renderer Proof And Readiness
+
+```text
+Apply mask/border/glow to media.
+Expected if supported:
+  rendererApplied=true
+  proofBounds include visible/render bounds after mask and glow
+  optional screenshotHash/proof artifact exists
+
+Expected if unsupported:
+  RENDERER_CAPABILITY_MISSING
+  appApplied=false
+  no fake metadata-only success
+```
+
+### 6.9 Time And Geometry Determinism
+
+```text
+Evaluate frame 0, 15, 30 three times each.
+Expected:
+  identical visible nodes
+  identical evaluated transforms
+  identical visible/render bounds within <= 0.5px
+  no wall-clock dependent motion values
+```
+
+### 6.10 Agent Skill Compliance
+
+```text
+Spatial prompt from ChatGPT.
+Expected:
+  get_canvas_metadata called before mutation
+  get_element_geometry or evaluate_frame called before mutation
+  layout.preview_change used for high-risk spatial/effect edits
+  wait_for_apply called after each write
+```
+
 ## 7. Final Definition Of Done For Part 1
 
 This part is complete when:
@@ -781,7 +1233,10 @@ apply a supported capability to any applicable node family through one command
 path,
 see it appear in the open app,
 receive commandId renderer proof,
-and use spatial solvers instead of coordinate guessing.
+use spatial solvers instead of coordinate guessing,
+preserve undo/redo/audit records,
+reject ambiguous/stale contexts,
+and return honest blockers for unsupported renderer capabilities.
 ```
 
 Only after this is green should we expand into the next parts:
