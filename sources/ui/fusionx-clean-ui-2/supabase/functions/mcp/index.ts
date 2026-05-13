@@ -133,10 +133,28 @@ Deno.serve(async (request) => {
     return rpcError(
       id,
       -32603,
-      error instanceof Error ? error.message : String(error),
+      normalizedErrorMessage(error),
     );
   }
 });
+
+function normalizedErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (error && typeof error === 'object') {
+    const map = error as Record<string, unknown>;
+    const message = typeof map.message === 'string' ? map.message : '';
+    const details = typeof map.details === 'string' ? map.details : '';
+    const hint = typeof map.hint === 'string' ? map.hint : '';
+    const code = typeof map.code === 'string' ? map.code : '';
+    const parts = [message, details, hint].filter((v) => v.trim().length > 0);
+    if (parts.length > 0) {
+      return code ? `${code}: ${parts.join(' | ')}` : parts.join(' | ');
+    }
+  }
+  return String(error);
+}
 
 async function handleRpc(request: Request, id: unknown, body: JsonMap) {
   const method = body.method;
@@ -685,8 +703,8 @@ async function setActiveContext(userId: string, args: JsonMap) {
   );
   const currentProjectId = stringValue(readMap(active.project).id);
   const currentCompositionId = stringValue(readMap(active.composition).id);
-  const projectId = stringValue(args.projectId) || currentProjectId;
-  const compositionId = stringValue(args.compositionId) || currentCompositionId;
+  const projectId = asUuidOrEmpty(stringValue(args.projectId)) || currentProjectId;
+  const compositionId = asUuidOrEmpty(stringValue(args.compositionId)) || currentCompositionId;
   const deviceId = text(args.deviceId, 'chatgpt-remote');
   const timelineId = text(args.timelineId, 'main');
   const playheadMs = numberValue(args.playheadMs, 0);
@@ -729,9 +747,12 @@ async function touchEditorSession(userId: string, args: JsonMap) {
     { userId, authSource: 'bearer', agentSession: null, agentSessionToken: null },
     {},
   );
-  const projectId = stringValue(args.projectId) || stringValue(readMap(active.project).id);
+  const projectId =
+    asUuidOrEmpty(stringValue(args.projectId)) ||
+    stringValue(readMap(active.project).id);
   const compositionId =
-    stringValue(args.compositionId) || stringValue(readMap(active.composition).id);
+    asUuidOrEmpty(stringValue(args.compositionId)) ||
+    stringValue(readMap(active.composition).id);
   const deviceId = text(args.deviceId, 'chatgpt-remote');
   const timelineId = text(args.timelineId, 'main');
   const playheadMs = numberValue(args.playheadMs, 0);
@@ -5028,59 +5049,75 @@ async function ensurePairingContext(
   const deviceId = input.deviceId.trim().length > 0
     ? input.deviceId.trim()
     : text(liveEditor.deviceId, 'flutter-device');
-  const projectId = input.projectId || activeProjectId;
-  const compositionId = input.compositionId || activeCompositionId;
+  const projectId = asUuidOrEmpty(input.projectId) || activeProjectId;
+  const compositionId = asUuidOrEmpty(input.compositionId) || activeCompositionId;
   const timelineId = input.timelineId || text(activeTimeline.id, 'main');
   const playheadMs = input.playheadMs;
   const timelineRevision = input.timelineRevision > 0
     ? input.timelineRevision
     : await projectRevision(projectId);
 
-  const { data: deviceRow, error: deviceError } = await admin
-    .from('refusion_devices')
-    .upsert({
+  const nowIso = new Date().toISOString();
+  const devicePayload = {
+    owner_id: userId,
+    device_id: deviceId,
+    device_name: deviceId,
+    platform: text(input.platform, 'flutter'),
+    app_version: text(input.appVersion, 'refusion-app'),
+    status: 'active',
+    last_seen_at: nowIso,
+  };
+  const deviceRow = await upsertOrSelectAndUpdateSingle({
+    table: 'refusion_devices',
+    payload: devicePayload,
+    conflictColumns: 'owner_id,device_id',
+    match: {
       owner_id: userId,
       device_id: deviceId,
-      device_name: deviceId,
-      platform: text(input.platform, 'flutter'),
-      app_version: text(input.appVersion, 'refusion-app'),
-      status: 'active',
-      last_seen_at: new Date().toISOString(),
-    }, { onConflict: 'owner_id,device_id' })
-    .select()
-    .single();
-  if (deviceError) throw deviceError;
+    },
+    orderBy: 'last_seen_at',
+  });
 
-  const { data: appSessionRow, error: appSessionError } = await admin
-    .from('refusion_app_sessions')
-    .upsert({
+  const appSessionPayload = {
+    owner_id: userId,
+    device_ref: deviceRow.id,
+    status: mapEditorStatus(text(input.status, 'online')),
+    last_heartbeat_at: nowIso,
+    started_at: nowIso,
+  };
+  const appSessionRow = await upsertOrSelectAndUpdateSingle({
+    table: 'refusion_app_sessions',
+    payload: appSessionPayload,
+    conflictColumns: 'owner_id,device_ref',
+    match: {
       owner_id: userId,
-      device_ref: deviceRow.id,
-      status: mapEditorStatus(text(input.status, 'online')),
-      last_heartbeat_at: new Date().toISOString(),
-      started_at: new Date().toISOString(),
-    }, { onConflict: 'owner_id,device_ref' })
-    .select()
-    .single();
-  if (appSessionError) throw appSessionError;
+      device_ref: deviceRow.id as string,
+    },
+    orderBy: 'last_heartbeat_at',
+  });
 
-  const { data: activeContextRow, error: activeContextError } = await admin
-    .from('refusion_active_contexts')
-    .upsert({
+  const activeContextPayload = {
+    owner_id: userId,
+    device_ref: deviceRow.id,
+    app_session_id: appSessionRow.id,
+    project_id: projectId,
+    composition_id: compositionId,
+    timeline_id: timelineId,
+    playhead_ms: playheadMs,
+    timeline_revision: timelineRevision,
+    status: 'active',
+    updated_at: nowIso,
+  };
+  const activeContextRow = await upsertOrSelectAndUpdateSingle({
+    table: 'refusion_active_contexts',
+    payload: activeContextPayload,
+    conflictColumns: 'owner_id,device_ref',
+    match: {
       owner_id: userId,
-      device_ref: deviceRow.id,
-      app_session_id: appSessionRow.id,
-      project_id: projectId,
-      composition_id: compositionId,
-      timeline_id: timelineId,
-      playhead_ms: playheadMs,
-      timeline_revision: timelineRevision,
-      status: 'active',
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'owner_id,device_ref' })
-    .select()
-    .single();
-  if (activeContextError) throw activeContextError;
+      device_ref: deviceRow.id as string,
+    },
+    orderBy: 'updated_at',
+  });
 
   return {
     userId,
@@ -5094,6 +5131,86 @@ async function ensurePairingContext(
     timelineId,
     playheadMs,
   };
+}
+
+function asUuidOrEmpty(value: string): string {
+  const normalized = value.trim();
+  if (normalized.length === 0) {
+    return '';
+  }
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(normalized)) {
+    return '';
+  }
+  return normalized;
+}
+
+function isOnConflictConstraintMissing(error: unknown): boolean {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+  const map = error as Record<string, unknown>;
+  const code = typeof map.code === 'string' ? map.code : '';
+  const message = typeof map.message === 'string' ? map.message : '';
+  return code === '42P10' || message.includes('ON CONFLICT specification');
+}
+
+async function upsertOrSelectAndUpdateSingle(input: {
+  table: string;
+  payload: JsonMap;
+  conflictColumns: string;
+  match: Record<string, string>;
+  orderBy: string;
+}): Promise<JsonMap> {
+  const { table, payload, conflictColumns, match, orderBy } = input;
+  const attempt = await admin
+    .from(table)
+    .upsert(payload, { onConflict: conflictColumns })
+    .select()
+    .single();
+  if (!attempt.error) {
+    return readMap(attempt.data);
+  }
+  if (!isOnConflictConstraintMissing(attempt.error)) {
+    throw attempt.error;
+  }
+
+  let query = admin.from(table).select('*');
+  for (const [key, value] of Object.entries(match)) {
+    query = query.eq(key, value);
+  }
+  const existing = await query
+    .order(orderBy, { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (existing.error) {
+    throw existing.error;
+  }
+  if (existing.data) {
+    const existingId = stringValue(readMap(existing.data).id);
+    if (!existingId) {
+      throw new Error(`Missing id in existing ${table} row.`);
+    }
+    const updated = await admin
+      .from(table)
+      .update(payload)
+      .eq('id', existingId)
+      .select()
+      .single();
+    if (updated.error) {
+      throw updated.error;
+    }
+    return readMap(updated.data);
+  }
+
+  const inserted = await admin
+    .from(table)
+    .insert(payload)
+    .select()
+    .single();
+  if (inserted.error) {
+    throw inserted.error;
+  }
+  return readMap(inserted.data);
 }
 
 async function recordCommand(
