@@ -1919,8 +1919,18 @@ async function applySceneProgram(
         }
       }
     }
-    if (!targetLayer) {
-      targetLayer = resolvePreferredMediaLayer(layers);
+    if (!targetLayer && !explicitLayerRef) {
+      const autoResolution = resolveTargetForEdit(layers, args, {
+        preferredKinds: ['media'],
+      });
+      if (autoResolution.kind === 'ambiguous') {
+        return fail('AMBIGUOUS_TARGET', {
+          hint:
+            'Multiple media layers found. Provide layerId/targetLayerId/clipId explicitly.',
+          candidates: targetCandidatesPayload(autoResolution.candidates),
+        });
+      }
+      targetLayer = autoResolution.layer;
     }
     if (!targetLayer) {
       return fail('LAYER_NOT_FOUND', {
@@ -2441,7 +2451,19 @@ async function applyVideoPipRecipe(
       }
     }
   }
-  targetLayer ??= resolvePreferredMediaLayer(layers);
+  if (!targetLayer && !explicitLayerRef) {
+    const autoResolution = resolveTargetForEdit(layers, args, {
+      preferredKinds: ['media'],
+    });
+    if (autoResolution.kind === 'ambiguous') {
+      return fail('AMBIGUOUS_TARGET', {
+        hint:
+          'Multiple media layers found. Provide layerId/targetLayerId/clipId explicitly.',
+        candidates: targetCandidatesPayload(autoResolution.candidates),
+      });
+    }
+    targetLayer = autoResolution.layer;
+  }
   if (!targetLayer) {
     return fail('LAYER_NOT_FOUND', {
       hint: 'No media layer found. Insert/select a video layer first.',
@@ -3408,7 +3430,14 @@ async function getElementGeometry(
     return fail('PROJECT_NOT_OPEN');
   }
   const layers = await loadLayersForScope(context, resolved.projectId, resolved.compositionId);
-  const targetLayer = resolveTargetLayer(layers, args);
+  const targetResolution = resolveTargetForEdit(layers, args);
+  if (targetResolution.kind === 'ambiguous') {
+    return fail('AMBIGUOUS_TARGET', {
+      hint: 'Provide layerId, targetLayerId, or clipId. Multiple candidates match.',
+      candidates: targetCandidatesPayload(targetResolution.candidates),
+    });
+  }
+  const targetLayer = targetResolution.layer;
   if (!targetLayer) {
     return fail('LAYER_NOT_FOUND', {
       hint: 'Provide layerId, targetLayerId, or clipId.',
@@ -3559,7 +3588,14 @@ async function positionAtAnchor(
     return fail('PROJECT_NOT_OPEN');
   }
   const layers = await loadLayersForScope(context, resolved.projectId, resolved.compositionId);
-  const targetLayer = resolveTargetLayer(layers, args);
+  const targetResolution = resolveTargetForEdit(layers, args);
+  if (targetResolution.kind === 'ambiguous') {
+    return fail('AMBIGUOUS_TARGET', {
+      hint: 'Provide explicit layerId/targetLayerId. Multiple candidate layers exist.',
+      candidates: targetCandidatesPayload(targetResolution.candidates),
+    });
+  }
+  const targetLayer = targetResolution.layer;
   if (!targetLayer) {
     return fail('LAYER_NOT_FOUND', {
       hint: 'Provide layerId, targetLayerId, or clipId.',
@@ -3641,7 +3677,14 @@ async function alignTo(
     return fail('PROJECT_NOT_OPEN');
   }
   const layers = await loadLayersForScope(context, resolved.projectId, resolved.compositionId);
-  const targetLayer = resolveTargetLayer(layers, args);
+  const targetResolution = resolveTargetForEdit(layers, args);
+  if (targetResolution.kind === 'ambiguous') {
+    return fail('AMBIGUOUS_TARGET', {
+      hint: 'Provide explicit layerId/targetLayerId. Multiple candidate layers exist.',
+      candidates: targetCandidatesPayload(targetResolution.candidates),
+    });
+  }
+  const targetLayer = targetResolution.layer;
   if (!targetLayer) {
     return fail('LAYER_NOT_FOUND', {
       hint: 'Provide layerId, targetLayerId, or clipId.',
@@ -3768,7 +3811,14 @@ async function fitInZone(
     return fail('PROJECT_NOT_OPEN');
   }
   const layers = await loadLayersForScope(context, resolved.projectId, resolved.compositionId);
-  const targetLayer = resolveTargetLayer(layers, args);
+  const targetResolution = resolveTargetForEdit(layers, args);
+  if (targetResolution.kind === 'ambiguous') {
+    return fail('AMBIGUOUS_TARGET', {
+      hint: 'Provide explicit layerId/targetLayerId. Multiple candidate layers exist.',
+      candidates: targetCandidatesPayload(targetResolution.candidates),
+    });
+  }
+  const targetLayer = targetResolution.layer;
   if (!targetLayer) {
     return fail('LAYER_NOT_FOUND');
   }
@@ -3864,7 +3914,14 @@ async function scaleTo(
     return fail('PROJECT_NOT_OPEN');
   }
   const layers = await loadLayersForScope(context, resolved.projectId, resolved.compositionId);
-  const targetLayer = resolveTargetLayer(layers, args);
+  const targetResolution = resolveTargetForEdit(layers, args);
+  if (targetResolution.kind === 'ambiguous') {
+    return fail('AMBIGUOUS_TARGET', {
+      hint: 'Provide explicit layerId/targetLayerId. Multiple candidate layers exist.',
+      candidates: targetCandidatesPayload(targetResolution.candidates),
+    });
+  }
+  const targetLayer = targetResolution.layer;
   if (!targetLayer) {
     return fail('LAYER_NOT_FOUND');
   }
@@ -3963,7 +4020,14 @@ async function previewLayoutChange(
     return fail('PROJECT_NOT_OPEN');
   }
   const layers = await loadLayersForScope(context, resolved.projectId, resolved.compositionId);
-  const targetLayer = resolveTargetLayer(layers, args);
+  const targetResolution = resolveTargetForEdit(layers, args);
+  if (targetResolution.kind === 'ambiguous') {
+    return fail('AMBIGUOUS_TARGET', {
+      hint: 'Provide explicit layerId/targetLayerId. Multiple candidate layers exist.',
+      candidates: targetCandidatesPayload(targetResolution.candidates),
+    });
+  }
+  const targetLayer = targetResolution.layer;
   if (!targetLayer) {
     return fail('LAYER_NOT_FOUND');
   }
@@ -4687,6 +4751,12 @@ type LayerGeometry = {
   visibleBoundsAbsolute: Rect;
 };
 
+type TargetResolution = {
+  kind: 'ok' | 'not_found' | 'ambiguous';
+  layer: JsonMap | null;
+  candidates: JsonMap[];
+};
+
 function resolveTargetLayer(layers: JsonMap[], args: JsonMap): JsonMap | null {
   const rawLayerId = firstText(args.layerId, args.layer_id, args.targetLayerId, args.surfaceId);
   const clipId = firstText(args.clipId, args.clip_id);
@@ -4712,6 +4782,82 @@ function resolveTargetLayer(layers: JsonMap[], args: JsonMap): JsonMap | null {
     numberValue(a.z_index, 0) - numberValue(b.z_index, 0)
   );
   return sorted[sorted.length - 1] ?? null;
+}
+
+function hasExplicitTargetReference(args: JsonMap): boolean {
+  return firstText(
+    args.layerId,
+    args.layer_id,
+    args.targetLayerId,
+    args.surfaceId,
+    args.clipId,
+    args.clip_id,
+  ).trim().isNotEmpty;
+}
+
+function targetCandidatesPayload(candidates: JsonMap[]): JsonMap[] {
+  return candidates.map((layer) => {
+    const payload = readMap(layer.payload);
+    return {
+      layerId: stringValue(layer.id),
+      name: text(layer.name, 'Layer'),
+      kind: text(layer.layer_kind, 'solid'),
+      mediaKind: text(payload.mediaKind, ''),
+      zIndex: numberValue(layer.z_index, 0),
+      startMs: numberValue(layer.start_ms, 0),
+      durationMs: Math.max(1, numberValue(layer.duration_ms, 1)),
+    };
+  });
+}
+
+function resolveTargetForEdit(
+  layers: JsonMap[],
+  args: JsonMap,
+  options: { preferredKinds?: string[] } = {},
+): TargetResolution {
+  const explicit = hasExplicitTargetReference(args);
+  if (explicit) {
+    const layer = resolveTargetLayer(layers, args);
+    return {
+      kind: layer ? 'ok' : 'not_found',
+      layer,
+      candidates: [],
+    };
+  }
+  if (layers.length === 0) {
+    return {
+      kind: 'not_found',
+      layer: null,
+      candidates: [],
+    };
+  }
+  const preferredKinds = (options.preferredKinds ?? [])
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => entry.isNotEmpty);
+  let candidates = [...layers];
+  if (preferredKinds.length > 0) {
+    const filtered = candidates.filter((layer) =>
+      preferredKinds.includes(text(layer.layer_kind, '').toLowerCase())
+    );
+    if (filtered.length > 0) {
+      candidates = filtered;
+    }
+  }
+  const ordered = [...candidates].sort((a, b) =>
+    numberValue(b.z_index, 0) - numberValue(a.z_index, 0)
+  );
+  if (ordered.length === 1) {
+    return {
+      kind: 'ok',
+      layer: ordered[0],
+      candidates: ordered,
+    };
+  }
+  return {
+    kind: 'ambiguous',
+    layer: null,
+    candidates: ordered,
+  };
 }
 
 function resolvePreferredMediaLayer(layers: JsonMap[]): JsonMap | null {

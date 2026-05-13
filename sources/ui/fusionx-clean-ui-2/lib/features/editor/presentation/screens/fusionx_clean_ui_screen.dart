@@ -1607,7 +1607,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
   void _acknowledgeMcpRemoteRevision(int remoteRevision) {
     final commandIds = _pendingMcpCommandIdsUpToRevision(remoteRevision);
-    if (remoteRevision <= _mcpAppliedRemoteRevision && commandIds.isEmpty) {
+    if (commandIds.isEmpty) {
+      if (remoteRevision > _mcpAppliedRemoteRevision) {
+        _mcpAppliedRemoteRevision = remoteRevision;
+      }
       return;
     }
     _mcpAppliedRemoteRevision = remoteRevision;
