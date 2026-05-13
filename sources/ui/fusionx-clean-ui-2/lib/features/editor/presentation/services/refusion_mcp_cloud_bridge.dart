@@ -37,6 +37,7 @@ class RefusionMcpCloudBridgeSnapshot {
     this.remoteRevision,
     this.remoteLayers = const <Map<String, Object?>>[],
     this.remoteMotionChannels = const <Map<String, Object?>>[],
+    this.pendingCommands = const <Map<String, Object?>>[],
     this.canvasMetadata = const <String, Object?>{},
     this.primaryElementGeometry = const <String, Object?>{},
     this.visualLayoutSummary = const <String, Object?>{},
@@ -52,6 +53,7 @@ class RefusionMcpCloudBridgeSnapshot {
   final int? remoteRevision;
   final List<Map<String, Object?>> remoteLayers;
   final List<Map<String, Object?>> remoteMotionChannels;
+  final List<Map<String, Object?>> pendingCommands;
   final Map<String, Object?> canvasMetadata;
   final Map<String, Object?> primaryElementGeometry;
   final Map<String, Object?> visualLayoutSummary;
@@ -209,6 +211,52 @@ class RefusionMcpCloudBridge {
     await syncNow();
   }
 
+  Future<void> acknowledgeAppliedRevision({
+    required String projectId,
+    required String compositionId,
+    required int revision,
+  }) async {
+    await acknowledgeAppliedCommands(
+      projectId: projectId,
+      compositionId: compositionId,
+      revision: revision,
+      commandIds: const <String>[],
+    );
+  }
+
+  Future<void> acknowledgeAppliedCommands({
+    required String projectId,
+    required String compositionId,
+    required int revision,
+    required List<String> commandIds,
+    bool appliedSuccessfully = true,
+    Map<String, Object?> proof = const <String, Object?>{},
+  }) async {
+    final projectIdArg = _normalizedIdentifierOrNull(projectId);
+    final compositionIdArg = _normalizedIdentifierOrNull(compositionId);
+    if (projectIdArg == null || compositionIdArg == null || revision < 0) {
+      return;
+    }
+    final normalizedCommandIds = commandIds
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    await _safeCallTool(
+      toolName: 'ack_command_applied',
+      arguments: <String, Object?>{
+        'projectId': projectIdArg,
+        'compositionId': compositionIdArg,
+        'timelineRevision': revision,
+        'revision': revision,
+        'commandIds': normalizedCommandIds,
+        'appliedSuccessfully': appliedSuccessfully,
+        'proof': proof,
+        'deviceId': _deviceId,
+      },
+    );
+  }
+
   Future<void> syncNow() async {
     if (_syncInFlight) {
       return;
@@ -219,10 +267,13 @@ class RefusionMcpCloudBridge {
       final status = _foreground && state.foreground ? 'online' : 'background';
       final projectIdArg = _normalizedIdentifierOrNull(state.projectId);
       final compositionIdArg = _normalizedIdentifierOrNull(state.compositionId);
+      final hasActiveComposition =
+          projectIdArg != null && compositionIdArg != null;
       await _callTool(
         toolName: 'touch_editor_session',
         arguments: <String, Object?>{
           'deviceId': _deviceId,
+          'hasActiveComposition': hasActiveComposition,
           if (projectIdArg != null) 'projectId': projectIdArg,
           if (compositionIdArg != null) 'compositionId': compositionIdArg,
           'timelineRevision': state.timelineRevision,
@@ -235,6 +286,7 @@ class RefusionMcpCloudBridge {
         toolName: 'set_active_context',
         arguments: <String, Object?>{
           'deviceId': _deviceId,
+          'hasActiveComposition': hasActiveComposition,
           if (projectIdArg != null) 'projectId': projectIdArg,
           if (compositionIdArg != null) 'compositionId': compositionIdArg,
           'timelineId': state.timelineId,
@@ -246,11 +298,32 @@ class RefusionMcpCloudBridge {
           'appVersion': 'refusion-app',
         },
       );
+      if (!hasActiveComposition) {
+        final contextResponse = await _callTool(
+          toolName: 'get_active_context',
+          arguments: const <String, Object?>{},
+          allowAgentSessionToken: true,
+        );
+        _emitSnapshot(
+          _snapshotFromContextResponse(
+            contextResponse,
+            layersResult: null,
+            motionChannelsResult: null,
+            pendingCommandsResult: null,
+            canvasMetadataResult: null,
+            elementGeometryResult: null,
+            visualLayoutSummaryResult: null,
+            fallbackProjectId: state.projectId,
+            fallbackCompositionId: state.compositionId,
+          ),
+        );
+        return;
+      }
       await _safeCallTool(
         toolName: 'sync_editor_layers',
         arguments: <String, Object?>{
-          if (projectIdArg != null) 'projectId': projectIdArg,
-          if (compositionIdArg != null) 'compositionId': compositionIdArg,
+          'projectId': projectIdArg,
+          'compositionId': compositionIdArg,
           'layers': state.editorLayers,
         },
       );
@@ -261,45 +334,49 @@ class RefusionMcpCloudBridge {
       );
       final contextStructured = _asMap(contextResponse['structuredContent']);
       final contextPayload = _asMap(contextStructured['payload']);
-      final contextProject = _asMap(contextPayload['project']);
-      final contextComposition = _asMap(contextPayload['composition']);
-      final cloudProjectId = _asString(contextProject['id']);
-      final cloudCompositionId = _asString(contextComposition['id']);
-      final effectiveProjectId = projectIdArg ?? cloudProjectId;
-      final effectiveCompositionId = compositionIdArg ?? cloudCompositionId;
+      final contextLiveEditor = _asMap(contextPayload['liveEditor']);
+      final liveSessionId = _asString(contextLiveEditor['sessionId']);
+      final effectiveProjectId = projectIdArg;
+      final effectiveCompositionId = compositionIdArg;
       final layersResponse = await _safeCallTool(
         toolName: 'get_layers',
         arguments: <String, Object?>{
-          if (effectiveProjectId != null) 'projectId': effectiveProjectId,
-          if (effectiveCompositionId != null)
-            'compositionId': effectiveCompositionId,
+          'projectId': effectiveProjectId,
+          'compositionId': effectiveCompositionId,
         },
         allowAgentSessionToken: true,
       );
       final motionChannelsResponse = await _safeCallTool(
         toolName: 'get_motion_channels',
         arguments: <String, Object?>{
-          if (effectiveProjectId != null) 'projectId': effectiveProjectId,
-          if (effectiveCompositionId != null)
-            'compositionId': effectiveCompositionId,
+          'projectId': effectiveProjectId,
+          'compositionId': effectiveCompositionId,
         },
         allowAgentSessionToken: true,
+      );
+      final pendingCommandsResponse = await _safeCallTool(
+        toolName: 'get_pending_commands',
+        arguments: <String, Object?>{
+          'projectId': effectiveProjectId,
+          'compositionId': effectiveCompositionId,
+          if (liveSessionId != null) 'appSessionId': liveSessionId,
+          'markReceived': true,
+          'limit': 40,
+        },
       );
       final canvasMetadataResponse = await _safeCallTool(
         toolName: 'get_canvas_metadata',
         arguments: <String, Object?>{
-          if (effectiveProjectId != null) 'projectId': effectiveProjectId,
-          if (effectiveCompositionId != null)
-            'compositionId': effectiveCompositionId,
+          'projectId': effectiveProjectId,
+          'compositionId': effectiveCompositionId,
         },
         allowAgentSessionToken: true,
       );
       final visualLayoutSummaryResponse = await _safeCallTool(
         toolName: 'get_visual_layout_summary',
         arguments: <String, Object?>{
-          if (effectiveProjectId != null) 'projectId': effectiveProjectId,
-          if (effectiveCompositionId != null)
-            'compositionId': effectiveCompositionId,
+          'projectId': effectiveProjectId,
+          'compositionId': effectiveCompositionId,
           'timeMs': state.playheadMs,
         },
         allowAgentSessionToken: true,
@@ -320,9 +397,8 @@ class RefusionMcpCloudBridge {
       final elementGeometryResponse = await _safeCallTool(
         toolName: 'get_element_geometry',
         arguments: <String, Object?>{
-          if (effectiveProjectId != null) 'projectId': effectiveProjectId,
-          if (effectiveCompositionId != null)
-            'compositionId': effectiveCompositionId,
+          'projectId': effectiveProjectId,
+          'compositionId': effectiveCompositionId,
           if (firstLayerId != null) 'layerId': firstLayerId,
           'timeMs': state.playheadMs,
         },
@@ -333,6 +409,7 @@ class RefusionMcpCloudBridge {
           contextResponse,
           layersResult: layersResponse,
           motionChannelsResult: motionChannelsResponse,
+          pendingCommandsResult: pendingCommandsResponse,
           canvasMetadataResult: canvasMetadataResponse,
           elementGeometryResult: elementGeometryResponse,
           visualLayoutSummaryResult: visualLayoutSummaryResponse,
@@ -361,6 +438,7 @@ class RefusionMcpCloudBridge {
     Map<String, Object?> rpcResult, {
     required Map<String, Object?>? layersResult,
     required Map<String, Object?>? motionChannelsResult,
+    required Map<String, Object?>? pendingCommandsResult,
     required Map<String, Object?>? canvasMetadataResult,
     required Map<String, Object?>? elementGeometryResult,
     required Map<String, Object?>? visualLayoutSummaryResult,
@@ -375,6 +453,7 @@ class RefusionMcpCloudBridge {
     int? remoteRevision;
     var remoteLayers = const <Map<String, Object?>>[];
     var remoteMotionChannels = const <Map<String, Object?>>[];
+    var pendingCommands = const <Map<String, Object?>>[];
     var canvasMetadata = const <String, Object?>{};
     var primaryElementGeometry = const <String, Object?>{};
     var visualLayoutSummary = const <String, Object?>{};
@@ -390,6 +469,12 @@ class RefusionMcpCloudBridge {
           _asMap(motionChannelsResult['structuredContent']);
       final channelsPayload = _asMap(channelsStructured['payload']);
       remoteMotionChannels = _asListOfMap(channelsPayload['channels']);
+    }
+    if (pendingCommandsResult != null) {
+      final pendingStructured =
+          _asMap(pendingCommandsResult['structuredContent']);
+      final pendingPayload = _asMap(pendingStructured['payload']);
+      pendingCommands = _asListOfMap(pendingPayload['commands']);
     }
     if (canvasMetadataResult != null) {
       final metadataStructured =
@@ -419,6 +504,7 @@ class RefusionMcpCloudBridge {
       remoteMotionChannels: List<Map<String, Object?>>.unmodifiable(
         remoteMotionChannels,
       ),
+      pendingCommands: List<Map<String, Object?>>.unmodifiable(pendingCommands),
       canvasMetadata: Map<String, Object?>.unmodifiable(canvasMetadata),
       primaryElementGeometry: Map<String, Object?>.unmodifiable(
         primaryElementGeometry,
@@ -488,14 +574,17 @@ class RefusionMcpCloudBridge {
 
   Future<RefusionMcpCloudPairingCode> generatePairingCode() async {
     final state = _contextReader();
+    final projectIdArg = _normalizedIdentifierOrNull(state.projectId);
+    final compositionIdArg = _normalizedIdentifierOrNull(state.compositionId);
+    final hasActiveComposition =
+        projectIdArg != null && compositionIdArg != null;
     final response = await _callTool(
       toolName: 'generate_pairing_code',
       arguments: <String, Object?>{
         'deviceId': _deviceId,
-        if (_normalizedIdentifierOrNull(state.projectId) != null)
-          'projectId': _normalizedIdentifierOrNull(state.projectId),
-        if (_normalizedIdentifierOrNull(state.compositionId) != null)
-          'compositionId': _normalizedIdentifierOrNull(state.compositionId),
+        'hasActiveComposition': hasActiveComposition,
+        if (projectIdArg != null) 'projectId': projectIdArg,
+        if (compositionIdArg != null) 'compositionId': compositionIdArg,
         'timelineId': state.timelineId,
         'playheadMs': state.playheadMs,
         'timelineRevision': state.timelineRevision,

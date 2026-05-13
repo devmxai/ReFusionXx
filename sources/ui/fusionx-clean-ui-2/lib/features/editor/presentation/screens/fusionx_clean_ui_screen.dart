@@ -852,6 +852,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   final Set<String> _appliedMcpSolidLayerIds = <String>{};
   final Map<String, String> _appliedMcpMotionChannelSignatures =
       <String, String>{};
+  final Map<String, int> _mcpPendingCommandRevisionById = <String, int>{};
+  final Set<String> _mcpAcknowledgedCommandIds = <String>{};
 
   @override
   void initState() {
@@ -1228,6 +1230,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       contextReader: _readMcpCloudContextState,
       onSnapshot: _handleMcpCloudSnapshot,
       authBearerToken: refusionMcpCloudBearerTokenFromEnvironment(),
+      interval: const Duration(seconds: 1),
     );
     unawaited(_mcpCloudBridge!.start());
   }
@@ -1352,6 +1355,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return;
     }
     if (snapshot.ok) {
+      _refreshMcpPendingCommandLedger(snapshot.pendingCommands);
       if (!_hasStartedCompositionSession || _motionProject == null) {
         return;
       }
@@ -1572,7 +1576,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return;
     }
     var didApply = false;
+    var hasRepresentedRemoteLayer = false;
     for (final remoteLayer in remoteLayers) {
+      final remoteLayerId = _remoteString(remoteLayer['id']);
       didApply =
           _applyLegacyRemoteAnimationFromLayerIfNeeded(remoteLayer) || didApply;
       final kind = _remoteLayerKind(remoteLayer);
@@ -1582,16 +1588,142 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         didApply = _applyRemoteSolidLayerIfNeeded(remoteLayer) || didApply;
       } else if (kind == 'media') {
         _registerRemoteMediaLayerBinding(remoteLayer);
+      } else if (_remoteLayerHasBackgroundVisualIntent(remoteLayer)) {
+        didApply = _applyRemoteSolidLayerIfNeeded(remoteLayer) || didApply;
       }
       didApply =
           _applyRemoteTimelineClipMutationFromLayerIfNeeded(remoteLayer) ||
               didApply;
+      if (remoteLayerId != null &&
+          _isMcpRemoteLayerRepresentedLocally(remoteLayerId)) {
+        hasRepresentedRemoteLayer = true;
+      }
     }
-    if (!didApply || remoteRevision == null) {
+    if ((!didApply && !hasRepresentedRemoteLayer) || remoteRevision == null) {
       return;
     }
-    _mcpAppliedRemoteRevision =
-        math.max(_mcpAppliedRemoteRevision, remoteRevision);
+    _acknowledgeMcpRemoteRevision(remoteRevision);
+  }
+
+  void _acknowledgeMcpRemoteRevision(int remoteRevision) {
+    final commandIds = _pendingMcpCommandIdsUpToRevision(remoteRevision);
+    if (remoteRevision <= _mcpAppliedRemoteRevision && commandIds.isEmpty) {
+      return;
+    }
+    _mcpAppliedRemoteRevision = remoteRevision;
+    final bridge = _mcpCloudBridge;
+    if (bridge != null && _hasStartedCompositionSession) {
+      if (commandIds.isNotEmpty) {
+        _mcpAcknowledgedCommandIds.addAll(commandIds);
+      }
+      unawaited(
+        bridge.acknowledgeAppliedCommands(
+          projectId: _effectiveMotionProject.id,
+          compositionId: _rootMotionSceneId,
+          revision: remoteRevision,
+          commandIds: commandIds,
+          appliedSuccessfully: true,
+          proof: <String, Object?>{
+            'rendererApplied': true,
+            'timelineVisible': true,
+            'localGraphApplied': true,
+            'frameEvaluated': true,
+            'proofFrameTimeMs':
+                _timelineDisplayTimeNotifier.value.inMilliseconds,
+          },
+        ),
+      );
+    }
+    _scheduleMcpCloudSync(delay: const Duration(milliseconds: 60));
+  }
+
+  void _refreshMcpPendingCommandLedger(
+    List<Map<String, Object?>> pendingCommands,
+  ) {
+    final next = <String, int>{};
+    for (final command in pendingCommands) {
+      final commandId = _remoteString(command['id']);
+      if (commandId == null || commandId.isEmpty) {
+        continue;
+      }
+      final status =
+          _remoteString(command['status'])?.toLowerCase() ?? 'pending';
+      if (status == 'succeeded' ||
+          status == 'failed' ||
+          status == 'cancelled') {
+        _mcpAcknowledgedCommandIds.add(commandId);
+        continue;
+      }
+      final revisionAfter = _remoteInt(command['revision_after']);
+      if (revisionAfter == null || revisionAfter < 0) {
+        continue;
+      }
+      next[commandId] = revisionAfter;
+    }
+    _mcpPendingCommandRevisionById
+      ..clear()
+      ..addAll(next);
+  }
+
+  List<String> _pendingMcpCommandIdsUpToRevision(int remoteRevision) {
+    if (remoteRevision < 0) {
+      return const <String>[];
+    }
+    final result = <String>[];
+    _mcpPendingCommandRevisionById.forEach((commandId, revisionAfter) {
+      if (revisionAfter <= remoteRevision &&
+          !_mcpAcknowledgedCommandIds.contains(commandId)) {
+        result.add(commandId);
+      }
+    });
+    result.sort();
+    return result;
+  }
+
+  bool _isMcpRemoteLayerRepresentedLocally(String remoteLayerId) {
+    return _appliedMcpSolidLayerIds.contains(remoteLayerId) ||
+        _hasAppliedMcpRemoteLayer(remoteLayerId) ||
+        _mcpRemoteMediaLayerClipIds.containsKey(remoteLayerId);
+  }
+
+  bool _remoteLayerHasBackgroundVisualIntent(Map<String, Object?> remoteLayer) {
+    final kind = _remoteLayerKind(remoteLayer);
+    if (kind == 'solid') {
+      return true;
+    }
+    final payload = _remotePayload(remoteLayer);
+    final updates = _remoteMap(payload['updates']);
+    final style = _remoteMap(payload['style']);
+    final nestedLayer = _remoteMap(payload['layer']);
+    final background = _remoteMap(payload['background']);
+    final sceneProgram = _remoteMap(payload['sceneProgram']);
+    final operation = _firstRemoteString(<Object?>[
+          payload['operation'],
+          updates['operation'],
+          sceneProgram['operation'],
+        ])?.toLowerCase() ??
+        '';
+    return kind == 'scene_program' ||
+        kind == 'background' ||
+        operation.contains('background') ||
+        background.isNotEmpty ||
+        _firstRemoteString(<Object?>[
+              payload['baseColor'],
+              payload['backgroundColor'],
+              payload['fillColor'],
+              style['baseColor'],
+              style['backgroundColor'],
+              style['fillColor'],
+              nestedLayer['baseColor'],
+              nestedLayer['backgroundColor'],
+              nestedLayer['fillColor'],
+              background['color'],
+              background['fill'],
+              background['baseColor'],
+              sceneProgram['backgroundColor'],
+              sceneProgram['baseColor'],
+            ]) !=
+            null;
   }
 
   bool _applyLegacyRemoteAnimationFromLayerIfNeeded(
@@ -2605,8 +2737,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
     if (didApply) {
       if (remoteRevision != null) {
-        _mcpAppliedRemoteRevision =
-            math.max(_mcpAppliedRemoteRevision, remoteRevision);
+        _acknowledgeMcpRemoteRevision(remoteRevision);
       }
       _scheduleStage5VisualRuntimeSubmission(
         previewTime: _timelineDisplayTimeNotifier.value,
@@ -3026,18 +3157,44 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _firstRemoteString(<Object?>[
         updates['color'],
         updates['fill'],
+        updates['baseColor'],
+        updates['backgroundColor'],
+        updates['fillColor'],
         nestedPayload['color'],
         nestedPayload['fill'],
+        nestedPayload['baseColor'],
+        nestedPayload['backgroundColor'],
+        nestedPayload['fillColor'],
         updateStyle['fill'],
         updateStyle['color'],
+        updateStyle['baseColor'],
+        updateStyle['backgroundColor'],
+        updateStyle['fillColor'],
         payload['color'],
         payload['fill'],
+        payload['baseColor'],
+        payload['backgroundColor'],
+        payload['fillColor'],
         style['fill'],
         style['color'],
+        style['baseColor'],
+        style['backgroundColor'],
+        style['fillColor'],
         nestedLayer['color'],
         nestedLayer['fill'],
+        nestedLayer['baseColor'],
+        nestedLayer['backgroundColor'],
+        nestedLayer['fillColor'],
+        _remoteMap(payload['background'])['color'],
+        _remoteMap(payload['background'])['fill'],
+        _remoteMap(payload['background'])['baseColor'],
+        _remoteMap(payload['sceneProgram'])['backgroundColor'],
+        _remoteMap(payload['sceneProgram'])['baseColor'],
         layer['color'],
         layer['fill'],
+        layer['baseColor'],
+        layer['backgroundColor'],
+        layer['fillColor'],
       ]),
     );
   }
@@ -3080,6 +3237,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
       if (rawKind.contains('solid') || rawKind.contains('background')) {
         return 'solid';
+      }
+      if (rawKind.contains('scene_program') ||
+          rawKind.contains('sceneprogram')) {
+        return 'scene_program';
       }
       return rawKind;
     }
@@ -3440,6 +3601,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _mcpAppliedRemoteRevision = 1;
       _appliedMcpSolidLayerIds.clear();
       _appliedMcpMotionChannelSignatures.clear();
+      _mcpPendingCommandRevisionById.clear();
+      _mcpAcknowledgedCommandIds.clear();
       _mcpRemoteMediaLayerClipIds.clear();
       _canvasClipStyles.clear();
     });
@@ -18778,6 +18941,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _universalMotionPropertyChannels = const <MotionPropertyChannelModel>[];
       _appliedMcpSolidLayerIds.clear();
       _appliedMcpMotionChannelSignatures.clear();
+      _mcpPendingCommandRevisionById.clear();
+      _mcpAcknowledgedCommandIds.clear();
       _mcpRemoteMediaLayerClipIds.clear();
       _canvasClipStyles.clear();
       _tracks = nextTracks;

@@ -92,6 +92,8 @@ const userOnlyTools = new Set<string>([
   'refusion.set_active_context',
   'refusion.touch_editor_session',
   'refusion.sync_editor_layers',
+  'refusion.get_pending_commands',
+  'refusion.ack_command_applied',
   'refusion.generate_pairing_code',
   'refusion.get_pairing_code_status',
 ]);
@@ -297,6 +299,12 @@ async function callTool(
         'Editor layers synced.',
         await syncEditorLayers(context.userId, args),
       );
+    case 'refusion.get_pending_commands':
+      ensureUserTool(canonicalToolName, context);
+      return await getPendingCommands(context.userId, args);
+    case 'refusion.ack_command_applied':
+      ensureUserTool(canonicalToolName, context);
+      return await ackCommandApplied(context.userId, args);
     case 'refusion.generate_pairing_code':
       ensureUserTool(canonicalToolName, context);
       return ok(
@@ -438,6 +446,10 @@ function normalizeToolName(name: string): string {
     set_active_context: 'refusion.set_active_context',
     touch_editor_session: 'refusion.touch_editor_session',
     sync_editor_layers: 'refusion.sync_editor_layers',
+    get_pending_commands: 'refusion.get_pending_commands',
+    pending_commands: 'refusion.get_pending_commands',
+    ack_command_applied: 'refusion.ack_command_applied',
+    ack_applied: 'refusion.ack_command_applied',
     generate_pairing_code: 'refusion.generate_pairing_code',
     get_pairing_code_status: 'refusion.get_pairing_code_status',
     attach_pairing_code: 'refusion.attach_pairing_code',
@@ -541,6 +553,29 @@ async function getActiveContext(context: RequestContext, args: JsonMap) {
 
   let projectId = stringValue(session?.project_id);
   let compositionId = stringValue(session?.composition_id);
+
+  if (session?.id && (!projectId || !compositionId)) {
+    return {
+      hasProject: false,
+      project: null,
+      composition: null,
+      timeline: {
+        id: session?.timeline_id ?? 'main',
+        playheadMs: session?.playhead_ms ?? 0,
+      },
+      liveEditor: {
+        online: isSessionOnline(session),
+        sessionId: session?.id ?? null,
+        deviceId: session?.device_id ?? null,
+        foreground: session?.foreground ?? false,
+        lastSeenAt: session?.last_seen_at ?? null,
+      },
+      auth: {
+        source: context.authSource,
+        viaAgentSession: false,
+      },
+    };
+  }
 
   if (!projectId) {
     const project = await selectSingle('refusion_projects', {
@@ -710,6 +745,18 @@ async function createProject(userId: string, args: JsonMap) {
 }
 
 async function setActiveContext(userId: string, args: JsonMap) {
+  if (args.hasActiveComposition === false) {
+    await touchEditorSession(userId, {
+      ...args,
+      projectId: '',
+      compositionId: '',
+      hasActiveComposition: false,
+    });
+    return await getActiveContext(
+      { userId, authSource: 'bearer', agentSession: null, agentSessionToken: null },
+      {},
+    );
+  }
   const active = await getActiveContext(
     { userId, authSource: 'bearer', agentSession: null, agentSessionToken: null },
     {},
@@ -756,21 +803,26 @@ async function setActiveContext(userId: string, args: JsonMap) {
 }
 
 async function touchEditorSession(userId: string, args: JsonMap) {
+  const hasActiveComposition = args.hasActiveComposition !== false;
   const active = await getActiveContext(
     { userId, authSource: 'bearer', agentSession: null, agentSessionToken: null },
     {},
   );
-  const inputProjectId =
-    asUuidOrEmpty(stringValue(args.projectId)) ||
-    stringValue(readMap(active.project).id);
-  const inputCompositionId =
-    asUuidOrEmpty(stringValue(args.compositionId)) ||
-    stringValue(readMap(active.composition).id);
-  const resolved = await resolveOwnedProjectAndComposition(
-    userId,
-    inputProjectId,
-    inputCompositionId,
-  );
+  const inputProjectId = hasActiveComposition
+    ? asUuidOrEmpty(stringValue(args.projectId)) ||
+      stringValue(readMap(active.project).id)
+    : '';
+  const inputCompositionId = hasActiveComposition
+    ? asUuidOrEmpty(stringValue(args.compositionId)) ||
+      stringValue(readMap(active.composition).id)
+    : '';
+  const resolved = hasActiveComposition
+    ? await resolveOwnedProjectAndComposition(
+      userId,
+      inputProjectId,
+      inputCompositionId,
+    )
+    : { projectId: '', compositionId: '' };
   const projectId = resolved.projectId;
   const compositionId = resolved.compositionId;
   const deviceId = text(args.deviceId, 'chatgpt-remote');
@@ -794,11 +846,12 @@ async function touchEditorSession(userId: string, args: JsonMap) {
   const payload = {
     owner_id: userId,
     device_id: deviceId,
-    project_id: projectId,
-    composition_id: compositionId,
+    project_id: projectId || null,
+    composition_id: compositionId || null,
     timeline_id: timelineId,
     playhead_ms: playheadMs,
-    timeline_revision: timelineRevision ?? await projectRevision(projectId),
+    timeline_revision: timelineRevision ??
+      (projectId ? await projectRevision(projectId) : 1),
     status,
     foreground,
     app_version: appVersion,
@@ -825,17 +878,19 @@ async function touchEditorSession(userId: string, args: JsonMap) {
     sessionId = inserted.id as string;
   }
 
-  await ensurePairingContext(userId, {
-    deviceId,
-    projectId,
-    compositionId,
-    timelineId,
-    playheadMs,
-    timelineRevision: numberValue(payload.timeline_revision, 1),
-    platform,
-    appVersion,
-    status,
-  });
+  if (projectId && compositionId) {
+    await ensurePairingContext(userId, {
+      deviceId,
+      projectId,
+      compositionId,
+      timelineId,
+      playheadMs,
+      timelineRevision: numberValue(payload.timeline_revision, 1),
+      platform,
+      appVersion,
+      status,
+    });
+  }
 
   return { sessionId, deviceId, projectId, compositionId };
 }
@@ -958,6 +1013,295 @@ async function syncEditorLayers(userId: string, args: JsonMap) {
   };
 }
 
+async function getPendingCommands(
+  userId: string,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const active = await getActiveContext(
+    { userId, authSource: 'bearer', agentSession: null, agentSessionToken: null },
+    {},
+  );
+  const activeProjectId = stringValue(readMap(active.project).id);
+  const activeCompositionId = stringValue(readMap(active.composition).id);
+  const projectId = stringValue(args.projectId) || activeProjectId;
+  const compositionId = stringValue(args.compositionId) || activeCompositionId;
+  if (!projectId || !compositionId) {
+    return fail('ACTIVE_CONTEXT_REQUIRED');
+  }
+
+  const limit = Math.max(
+    1,
+    Math.min(100, numberValue(args.limit, 30)),
+  );
+  const appSessionId = stringValue(args.appSessionId);
+  let query = admin
+    .from('refusion_agent_commands')
+    .select('*')
+    .eq('owner_id', userId)
+    .eq('project_id', projectId)
+    .eq('composition_id', compositionId)
+    .in('status', ['pending', 'running'])
+    .order('created_at', { ascending: true })
+    .limit(limit);
+  if (appSessionId) {
+    query = query.eq('editor_session_id', appSessionId);
+  }
+  const { data: rows, error } = await query;
+  if (error) throw error;
+
+  const markReceived = args.markReceived !== false;
+  const nowIso = new Date().toISOString();
+  const commands = <JsonMap>[];
+  for (const row of rows ?? []) {
+    const rowMap = readMap(row);
+    const commandId = stringValue(rowMap.id);
+    const status = text(rowMap.status, 'pending');
+    const result = readMap(rowMap.result);
+    const nextLifecycle = {
+      ...readMap(result.lifecycle),
+      stage: status === 'pending' ? 'appReceived' : text(
+        readMap(result.lifecycle).stage,
+        'cloudCommitted',
+      ),
+      appSessionId: appSessionId || stringValue(rowMap.editor_session_id),
+      appReceivedAt: status === 'pending' ? nowIso : firstText(
+        readMap(result.lifecycle).appReceivedAt,
+        nowIso,
+      ),
+    };
+    if (markReceived && status === 'pending' && commandId) {
+      const { error: receiveError } = await admin
+        .from('refusion_agent_commands')
+        .update({
+          status: 'running',
+          claimed_at: nowIso,
+          editor_session_id: appSessionId || rowMap.editor_session_id,
+          result: {
+            ...result,
+            lifecycle: nextLifecycle,
+          },
+        })
+        .eq('owner_id', userId)
+        .eq('id', commandId);
+      if (receiveError) throw receiveError;
+      rowMap.status = 'running';
+      rowMap.result = {
+        ...result,
+        lifecycle: nextLifecycle,
+      };
+    }
+    commands.push(rowMap);
+  }
+
+  return ok('Pending commands loaded.', {
+    schemaVersion: 'refusion.commandBus/v1',
+    projectId,
+    compositionId,
+    appSessionId,
+    count: commands.length,
+    commands,
+  });
+}
+
+async function ackCommandApplied(
+  userId: string,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const active = await getActiveContext(
+    { userId, authSource: 'bearer', agentSession: null, agentSessionToken: null },
+    {},
+  );
+  const activeProjectId = stringValue(readMap(active.project).id);
+  const activeCompositionId = stringValue(readMap(active.composition).id);
+  const projectId = stringValue(args.projectId) || activeProjectId;
+  const compositionId = stringValue(args.compositionId) || activeCompositionId;
+  const revision = optionalNumber(
+    firstDefined(args.revision, args.revisionAfter, args.timelineRevision),
+  );
+  if (!projectId || !compositionId) {
+    return fail('ACK_CONTEXT_REQUIRED');
+  }
+
+  const explicitCommandId = stringValue(args.commandId);
+  const explicitCommandIds = readList(args.commandIds)
+    .map((value) => stringValue(value))
+    .filter((value) => value.length > 0);
+  const targetCommandIds = [
+    ...new Set<string>([
+      ...explicitCommandIds,
+      ...(explicitCommandId ? [explicitCommandId] : []),
+    ]),
+  ];
+
+  let query = admin
+    .from('refusion_agent_commands')
+    .select('*')
+    .eq('owner_id', userId)
+    .eq('project_id', projectId)
+    .eq('composition_id', compositionId)
+    .in('status', ['pending', 'running']);
+  if (targetCommandIds.length > 0) {
+    query = query.in('id', targetCommandIds);
+  } else if (revision != null) {
+    query = query.lte('revision_after', revision);
+  } else {
+    return fail('ACK_COMMAND_ID_REQUIRED');
+  }
+  const { data: commands, error } = await query.order('created_at', {
+    ascending: true,
+  });
+  if (error) throw error;
+  const appSessionId = firstText(
+    args.appSessionId,
+    args.app_session_id,
+    args.sessionId,
+  );
+  const deviceId = firstText(args.deviceId, args.device_id);
+  const proofInput = readMap(args.proof);
+  const diagnosticsInput = readMap(args.diagnostics);
+  const blockers = readList(firstDefined(args.blockers, diagnosticsInput.blockers))
+    .map(readMap);
+  const warnings = readList(firstDefined(args.warnings, diagnosticsInput.warnings))
+    .map(readMap);
+  const appliedSuccessfully = firstDefined(
+    args.appliedSuccessfully,
+    args.applied,
+    proofInput.appliedSuccessfully,
+    blockers.length == 0,
+  ) !== false;
+
+  const nowIso = new Date().toISOString();
+  let acknowledged = 0;
+  const acknowledgedCommandIds = <string>[];
+  const failedCommandIds = <string>[];
+  for (const command of commands ?? []) {
+    const commandMap = readMap(command);
+    const commandId = stringValue(commandMap.id);
+    const commandRevision = optionalNumber(commandMap.revision_after);
+    if (revision != null &&
+        (commandRevision == null || commandRevision > revision)) {
+      continue;
+    }
+    const existingResult = readMap(commandMap.result);
+    const lifecycle = readMap(existingResult.lifecycle);
+    const nextProof: JsonMap = {
+      dataApplied: true,
+      localGraphApplied: firstDefined(
+        args.localGraphApplied,
+        proofInput.localGraphApplied,
+        appliedSuccessfully,
+      ) === true,
+      timelineVisible: firstDefined(
+        args.timelineVisible,
+        proofInput.timelineVisible,
+        appliedSuccessfully,
+      ) === true,
+      playerInvalidated: firstDefined(
+        args.playerInvalidated,
+        proofInput.playerInvalidated,
+        appliedSuccessfully,
+      ) === true,
+      frameEvaluated: firstDefined(
+        args.frameEvaluated,
+        proofInput.frameEvaluated,
+        appliedSuccessfully,
+      ) === true,
+      visualProgramEmitted: firstDefined(
+        args.visualProgramEmitted,
+        proofInput.visualProgramEmitted,
+        appliedSuccessfully,
+      ) === true,
+      rendererApplied: firstDefined(
+        args.rendererApplied,
+        proofInput.rendererApplied,
+        appliedSuccessfully,
+      ) === true,
+      visualBoundsVerified: firstDefined(
+        args.visualBoundsVerified,
+        proofInput.visualBoundsVerified,
+        appliedSuccessfully,
+      ) === true,
+      pixelVerified: firstDefined(
+        args.pixelVerified,
+        proofInput.pixelVerified,
+        false,
+      ) === true,
+      proofFrameTimeMs: optionalNumber(firstDefined(
+        args.proofFrameTimeMs,
+        proofInput.proofFrameTimeMs,
+      )),
+      proofFrameIndex: optionalNumber(firstDefined(
+        args.proofFrameIndex,
+        proofInput.proofFrameIndex,
+      )),
+      proofBounds: readMap(firstDefined(args.proofBounds, proofInput.proofBounds)),
+      screenshotUrl: firstText(args.screenshotUrl, proofInput.screenshotUrl),
+      screenshotHash: firstText(args.screenshotHash, proofInput.screenshotHash),
+    };
+    const nextStatus = appliedSuccessfully ? 'succeeded' : 'failed';
+    const nextResult: JsonMap = {
+      ...existingResult,
+      appApplied: appliedSuccessfully,
+      appliedTimelineRevision: revision ?? commandRevision,
+      appliedAt: nowIso,
+      appliedBy: 'open-app',
+      schemaVersion: 'refusion.commandReceipt/v1',
+      proof: nextProof,
+      diagnostics: {
+        warnings,
+        blockers,
+      },
+      lifecycle: {
+        ...lifecycle,
+        stage: appliedSuccessfully ? 'rendererApplied' : 'blocked',
+        appSessionId: appSessionId || firstText(lifecycle.appSessionId),
+        deviceId: deviceId || firstText(lifecycle.deviceId),
+        ackAt: nowIso,
+      },
+    };
+    const { error: updateError } = await admin
+      .from('refusion_agent_commands')
+      .update({
+        status: nextStatus,
+        editor_session_id: appSessionId || commandMap.editor_session_id,
+        result: nextResult,
+        error_message: appliedSuccessfully
+          ? null
+          : firstText(
+            args.errorMessage,
+            diagnosticsInput.errorMessage,
+            blockers
+              .map((entry) => text(entry.code, ''))
+              .where((entry) => entry.isNotEmpty)
+              .join(','),
+            'APP_APPLY_FAILED',
+          ),
+        completed_at: nowIso,
+        updated_at: nowIso,
+      })
+      .eq('owner_id', userId)
+      .eq('id', commandId);
+    if (updateError) throw updateError;
+    acknowledged += 1;
+    if (appliedSuccessfully) {
+      acknowledgedCommandIds.push(commandId);
+    } else {
+      failedCommandIds.push(commandId);
+    }
+  }
+
+  return ok('Commands acknowledged.', {
+    projectId,
+    compositionId,
+    revision,
+    acknowledged,
+    commandIds: acknowledgedCommandIds,
+    failedCommandIds,
+    appSessionId,
+    appliedSuccessfully,
+  });
+}
+
 function editorTimelineLayerKey(payload: JsonMap): string {
   return firstText(
     payload.localLayerId,
@@ -999,10 +1343,15 @@ function mergeEditorTimelinePayload(
 }
 
 async function generatePairingCode(userId: string, args: JsonMap) {
+  const projectId = stringValue(args.projectId);
+  const compositionId = stringValue(args.compositionId);
+  if (args.hasActiveComposition === false || !projectId || !compositionId) {
+    return fail('ACTIVE_COMPOSITION_REQUIRED');
+  }
   const context = await ensurePairingContext(userId, {
     deviceId: text(args.deviceId, ''),
-    projectId: stringValue(args.projectId),
-    compositionId: stringValue(args.compositionId),
+    projectId,
+    compositionId,
     timelineId: text(args.timelineId, 'main'),
     playheadMs: numberValue(args.playheadMs, 0),
     timelineRevision: optionalNumber(args.timelineRevision) ?? 1,
@@ -4937,47 +5286,12 @@ async function waitForApply(
 }
 
 async function normalizeCommandApplyState(
-  context: RequestContext,
+  _context: RequestContext,
   commandRow: JsonMap,
 ): Promise<JsonMap> {
-  const state = text(commandRow.status, 'pending');
-  if (state === 'failed' || state === 'cancelled' || state === 'succeeded') {
-    return commandRow;
-  }
-  const revisionAfter = optionalNumber(commandRow.revision_after);
-  if (revisionAfter == null) {
-    return commandRow;
-  }
-  const appliedRevision = await readAppliedTimelineRevisionForCommand(
-    context.userId,
-    commandRow,
-  );
-  if (appliedRevision == null || appliedRevision < revisionAfter) {
-    return commandRow;
-  }
-  const existingResult = readMap(commandRow.result);
-  const nextResult: JsonMap = {
-    ...existingResult,
-    appApplied: true,
-    appliedTimelineRevision: appliedRevision,
-    appliedAt: new Date().toISOString(),
-  };
-  const { data: updated, error } = await admin
-    .from('refusion_agent_commands')
-    .update({
-      status: 'succeeded',
-      result: nextResult,
-      completed_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('owner_id', context.userId)
-    .eq('id', stringValue(commandRow.id))
-    .select('*')
-    .single();
-  if (error) {
-    throw error;
-  }
-  return readMap(updated);
+  // Canonical apply contract: only explicit app ACK can mark command applied.
+  // Never auto-promote from revision drift.
+  return commandRow;
 }
 
 async function readAppliedTimelineRevisionForCommand(
@@ -5676,6 +5990,12 @@ function tools() {
       true,
     ),
     tool(
+      'refusion.ack_command_applied',
+      'Acknowledge Command Applied',
+      'Called by the open app after it applies remote changes locally; marks matching running commands appApplied=true.',
+      true,
+    ),
+    tool(
       'refusion.generate_pairing_code',
       'Generate Pairing Code',
       'Generate one-time pairing code for current active context.',
@@ -5903,6 +6223,12 @@ function tools() {
       'refusion.get_keyframes',
       'Get Keyframes',
       'Return flattened keyframes for motion channels in the active composition.',
+    ),
+    tool(
+      'refusion.get_pending_commands',
+      'Get Pending Commands',
+      'Return pending/running command bus rows for the active composition so the open app can acknowledge exact commandIds after local apply.',
+      true,
     ),
     tool(
       'refusion.get_command_status',
