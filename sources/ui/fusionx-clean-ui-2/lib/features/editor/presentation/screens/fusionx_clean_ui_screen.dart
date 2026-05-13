@@ -1376,19 +1376,143 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       if (!_hasStartedCompositionSession || _motionProject == null) {
         return;
       }
-      _applyRemoteLayersIfNeeded(
-        snapshot.remoteLayers,
-        snapshot.remoteRevision,
+      final hasPendingCommands = snapshot.pendingCommands.isNotEmpty;
+      final pendingTargetLayerIds =
+          _pendingCommandTargetLayerIds(snapshot.pendingCommands);
+      final useRecoverySync = _shouldRunMcpRecoverySync(
+        hasPendingCommands: hasPendingCommands,
+        remoteRevision: snapshot.remoteRevision,
       );
-      _applyRemoteMotionChannelsIfNeeded(
-        snapshot.remoteMotionChannels,
-        snapshot.remoteLayers,
-        snapshot.remoteRevision,
-      );
+      final remoteLayersForApply = hasPendingCommands
+          ? _filterRemoteLayersForPendingTargets(
+              snapshot.remoteLayers,
+              pendingTargetLayerIds,
+            )
+          : (useRecoverySync
+              ? snapshot.remoteLayers
+              : const <Map<String, Object?>>[]);
+      final remoteMotionChannelsForApply = hasPendingCommands
+          ? _filterRemoteMotionChannelsForPendingTargets(
+              snapshot.remoteMotionChannels,
+              pendingTargetLayerIds,
+            )
+          : (useRecoverySync
+              ? snapshot.remoteMotionChannels
+              : const <Map<String, Object?>>[]);
+      if (remoteLayersForApply.isNotEmpty) {
+        _applyRemoteLayersIfNeeded(
+          remoteLayersForApply,
+          snapshot.remoteRevision,
+        );
+      }
+      if (remoteMotionChannelsForApply.isNotEmpty) {
+        _applyRemoteMotionChannelsIfNeeded(
+          remoteMotionChannelsForApply,
+          remoteLayersForApply.isNotEmpty
+              ? remoteLayersForApply
+              : snapshot.remoteLayers,
+          snapshot.remoteRevision,
+        );
+      }
     }
     if (!snapshot.ok && kDebugMode) {
       debugPrint('MCP cloud sync warning: ${snapshot.error ?? 'unknown'}');
     }
+  }
+
+  bool _shouldRunMcpRecoverySync({
+    required bool hasPendingCommands,
+    required int? remoteRevision,
+  }) {
+    if (hasPendingCommands) {
+      return false;
+    }
+    if (remoteRevision == null) {
+      return false;
+    }
+    return remoteRevision > _mcpAppliedRemoteRevision;
+  }
+
+  Set<String> _pendingCommandTargetLayerIds(
+    List<Map<String, Object?>> pendingCommands,
+  ) {
+    final targetLayerIds = <String>{};
+    for (final command in pendingCommands) {
+      final payload = _remoteMap(command['payload']);
+      final candidates = <String?>[
+        _remoteString(payload['layerId']),
+        _remoteString(payload['targetLayerId']),
+        _remoteString(payload['requestedLayerId']),
+        _remoteString(payload['clipId']),
+        _remoteString(payload['localLayerId']),
+      ];
+      final nestedPayload = _remoteMap(payload['payload']);
+      candidates.addAll(<String?>[
+        _remoteString(nestedPayload['layerId']),
+        _remoteString(nestedPayload['targetLayerId']),
+        _remoteString(nestedPayload['clipId']),
+      ]);
+      for (final candidate in candidates) {
+        if (candidate == null) {
+          continue;
+        }
+        final normalized = candidate.trim();
+        if (normalized.isNotEmpty) {
+          targetLayerIds.add(normalized);
+        }
+      }
+    }
+    return targetLayerIds;
+  }
+
+  List<Map<String, Object?>> _filterRemoteLayersForPendingTargets(
+    List<Map<String, Object?>> remoteLayers,
+    Set<String> targetLayerIds,
+  ) {
+    if (remoteLayers.isEmpty) {
+      return const <Map<String, Object?>>[];
+    }
+    if (targetLayerIds.isEmpty) {
+      return List<Map<String, Object?>>.unmodifiable(remoteLayers);
+    }
+    final filtered = remoteLayers.where((remoteLayer) {
+      final remoteLayerId = _remoteString(remoteLayer['id']);
+      if (remoteLayerId != null && targetLayerIds.contains(remoteLayerId)) {
+        return true;
+      }
+      final payload = _remotePayload(remoteLayer);
+      final payloadLayerId = _firstRemoteString(<Object?>[
+        payload['layerId'],
+        payload['targetLayerId'],
+        payload['localLayerId'],
+        payload['clipId'],
+      ]);
+      if (payloadLayerId != null && targetLayerIds.contains(payloadLayerId)) {
+        return true;
+      }
+      return _remoteLayerHasBackgroundVisualIntent(remoteLayer);
+    }).toList(growable: false);
+    if (filtered.isEmpty) {
+      return List<Map<String, Object?>>.unmodifiable(remoteLayers);
+    }
+    return List<Map<String, Object?>>.unmodifiable(filtered);
+  }
+
+  List<Map<String, Object?>> _filterRemoteMotionChannelsForPendingTargets(
+    List<Map<String, Object?>> remoteMotionChannels,
+    Set<String> targetLayerIds,
+  ) {
+    if (remoteMotionChannels.isEmpty || targetLayerIds.isEmpty) {
+      return List<Map<String, Object?>>.unmodifiable(remoteMotionChannels);
+    }
+    final filtered = remoteMotionChannels.where((channel) {
+      final layerId = _remoteString(channel['layer_id']) ?? '';
+      return layerId.isNotEmpty && targetLayerIds.contains(layerId);
+    }).toList(growable: false);
+    if (filtered.isEmpty) {
+      return List<Map<String, Object?>>.unmodifiable(remoteMotionChannels);
+    }
+    return List<Map<String, Object?>>.unmodifiable(filtered);
   }
 
   Future<void> _handleMcpConnectAgentTap() async {
