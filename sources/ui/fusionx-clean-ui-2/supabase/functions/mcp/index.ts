@@ -5308,9 +5308,14 @@ async function projectRevision(projectId: string): Promise<number> {
     .maybeSingle();
   if (error) throw error;
   if (!data) {
+    const project = await selectById('refusion_projects', projectId);
+    const ownerId = stringValue(project?.owner_id);
+    if (!ownerId) {
+      throw new Error(`PROJECT_OWNER_NOT_FOUND_FOR_REVISION:${projectId}`);
+    }
     const { data: inserted, error: insertError } = await admin
       .from('refusion_project_revisions')
-      .insert({ project_id: projectId, revision: 1 })
+      .insert({ project_id: projectId, owner_id: ownerId, revision: 1 })
       .select('revision')
       .single();
     if (insertError) throw insertError;
@@ -5324,19 +5329,34 @@ async function resolveOwnedProjectAndComposition(
   inputProjectId: string,
   inputCompositionId: string,
 ): Promise<{ projectId: string; compositionId: string }> {
-  let projectId = asUuidOrEmpty(inputProjectId);
-  let compositionId = asUuidOrEmpty(inputCompositionId);
+  const requestedProjectId = asUuidOrEmpty(inputProjectId);
+  const requestedCompositionId = asUuidOrEmpty(inputCompositionId);
+  let projectId = requestedProjectId;
+  let compositionId = requestedCompositionId;
 
   if (projectId) {
     const { data, error } = await admin
       .from('refusion_projects')
-      .select('id')
-      .eq('owner_id', userId)
+      .select('id, owner_id')
       .eq('id', projectId)
       .maybeSingle();
     if (error) throw error;
-    if (!data) {
-      projectId = '';
+    if (data) {
+      const projectOwnerId = stringValue(data.owner_id);
+      if (projectOwnerId != userId) {
+        projectId = '';
+      }
+    } else {
+      const { error: insertProjectError } = await admin
+        .from('refusion_projects')
+        .insert({
+          id: projectId,
+          owner_id: userId,
+          name: 'MCP Project',
+          status: 'active',
+        });
+      if (insertProjectError) throw insertProjectError;
+      await ensureOwnedProjectRevisionEntry(userId, projectId);
     }
   }
 
@@ -5366,14 +5386,36 @@ async function resolveOwnedProjectAndComposition(
   if (compositionId) {
     const { data, error } = await admin
       .from('refusion_compositions')
-      .select('id')
-      .eq('owner_id', userId)
-      .eq('project_id', projectId)
+      .select('id, owner_id, project_id')
       .eq('id', compositionId)
       .maybeSingle();
     if (error) throw error;
-    if (!data) {
-      compositionId = '';
+    if (data) {
+      const compositionOwnerId = stringValue(data.owner_id);
+      if (compositionOwnerId != userId) {
+        compositionId = '';
+      }
+      const compositionProjectId = stringValue(data.project_id);
+      if (compositionOwnerId == userId && compositionProjectId != projectId) {
+        compositionId = '';
+      }
+    } else if (requestedCompositionId) {
+      const { error: insertCompositionError } = await admin
+        .from('refusion_compositions')
+        .insert({
+          id: requestedCompositionId,
+          owner_id: userId,
+          project_id: projectId,
+          name: 'Story',
+          aspect: 'story',
+          width: 1080,
+          height: 1920,
+          duration_ms: 8000,
+          fps: 30,
+          is_active: true,
+        });
+      if (insertCompositionError) throw insertCompositionError;
+      compositionId = requestedCompositionId;
     }
   }
 
@@ -5412,6 +5454,25 @@ async function resolveOwnedProjectAndComposition(
   }
 
   return { projectId, compositionId };
+}
+
+async function ensureOwnedProjectRevisionEntry(
+  ownerId: string,
+  projectId: string,
+) {
+  const { data, error } = await admin
+    .from('refusion_project_revisions')
+    .select('project_id')
+    .eq('project_id', projectId)
+    .maybeSingle();
+  if (error) throw error;
+  if (data) {
+    return;
+  }
+  const { error: insertError } = await admin
+    .from('refusion_project_revisions')
+    .insert({ project_id: projectId, owner_id: ownerId, revision: 1 });
+  if (insertError) throw insertError;
 }
 
 async function updateRevision(projectId: string, revision: number) {
