@@ -227,14 +227,17 @@ class RefusionMcpCloudBridge {
   Future<void> acknowledgeAppliedCommands({
     required String projectId,
     required String compositionId,
-    required int revision,
+    int? revision,
     required List<String> commandIds,
     bool appliedSuccessfully = true,
     Map<String, Object?> proof = const <String, Object?>{},
+    List<Map<String, Object?>> blockers = const <Map<String, Object?>>[],
+    List<Map<String, Object?>> warnings = const <Map<String, Object?>>[],
+    String? errorMessage,
   }) async {
     final projectIdArg = _normalizedIdentifierOrNull(projectId);
     final compositionIdArg = _normalizedIdentifierOrNull(compositionId);
-    if (projectIdArg == null || compositionIdArg == null || revision < 0) {
+    if (projectIdArg == null || compositionIdArg == null) {
       return;
     }
     final normalizedCommandIds = commandIds
@@ -247,11 +250,15 @@ class RefusionMcpCloudBridge {
       arguments: <String, Object?>{
         'projectId': projectIdArg,
         'compositionId': compositionIdArg,
-        'timelineRevision': revision,
-        'revision': revision,
+        if (revision != null && revision >= 0) 'timelineRevision': revision,
+        if (revision != null && revision >= 0) 'revision': revision,
         'commandIds': normalizedCommandIds,
         'appliedSuccessfully': appliedSuccessfully,
         'proof': proof,
+        if (blockers.isNotEmpty) 'blockers': blockers,
+        if (warnings.isNotEmpty) 'warnings': warnings,
+        if (errorMessage != null && errorMessage.trim().isNotEmpty)
+          'errorMessage': errorMessage.trim(),
         'deviceId': _deviceId,
       },
     );

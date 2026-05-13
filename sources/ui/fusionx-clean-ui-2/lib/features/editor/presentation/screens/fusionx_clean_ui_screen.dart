@@ -856,6 +856,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   final Map<String, String> _appliedMcpMotionChannelSignatures =
       <String, String>{};
   final Map<String, int> _mcpPendingCommandRevisionById = <String, int>{};
+  final Map<String, String> _mcpPendingCommandTypeById = <String, String>{};
+  final Map<String, DateTime> _mcpPendingCommandFirstSeenAtById =
+      <String, DateTime>{};
   final Set<String> _mcpAcknowledgedCommandIds = <String>{};
   ProfessionalSceneApplyReceipt _mcpLatestApplyProof =
       const ProfessionalSceneApplyReceipt(
@@ -1369,6 +1372,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
     if (snapshot.ok) {
       _refreshMcpPendingCommandLedger(snapshot.pendingCommands);
+      _failStaleMcpPendingCommandsIfNeeded(snapshot);
       if (!_hasStartedCompositionSession || _motionProject == null) {
         return;
       }
@@ -1673,6 +1677,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     List<Map<String, Object?>> pendingCommands,
   ) {
     final next = <String, int>{};
+    final nextTypes = <String, String>{};
+    final nowUtc = DateTime.now().toUtc();
     for (final command in pendingCommands) {
       final commandId = _remoteString(command['id']);
       if (commandId == null || commandId.isEmpty) {
@@ -1691,10 +1697,88 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         continue;
       }
       next[commandId] = revisionAfter;
+      final commandType = _remoteString(command['command_type']) ?? 'unknown';
+      nextTypes[commandId] = commandType;
+      _mcpPendingCommandFirstSeenAtById.putIfAbsent(commandId, () => nowUtc);
     }
     _mcpPendingCommandRevisionById
       ..clear()
       ..addAll(next);
+    _mcpPendingCommandTypeById
+      ..clear()
+      ..addAll(nextTypes);
+    final staleTrackedIds = _mcpPendingCommandFirstSeenAtById.keys
+        .where((commandId) => !next.containsKey(commandId))
+        .toList(growable: false);
+    for (final commandId in staleTrackedIds) {
+      _mcpPendingCommandFirstSeenAtById.remove(commandId);
+      _mcpPendingCommandTypeById.remove(commandId);
+    }
+  }
+
+  void _failStaleMcpPendingCommandsIfNeeded(
+      RefusionMcpCloudBridgeSnapshot snapshot) {
+    final bridge = _mcpCloudBridge;
+    if (bridge == null || !snapshot.ok) {
+      return;
+    }
+    final projectId = snapshot.projectId;
+    final compositionId = snapshot.compositionId;
+    if (projectId == null ||
+        projectId.isEmpty ||
+        compositionId == null ||
+        compositionId.isEmpty) {
+      return;
+    }
+    final nowUtc = DateTime.now().toUtc();
+    final staleCommandIds = <String>[];
+    for (final entry in _mcpPendingCommandFirstSeenAtById.entries) {
+      final commandId = entry.key;
+      final firstSeenAt = entry.value;
+      if (_mcpAcknowledgedCommandIds.contains(commandId)) {
+        continue;
+      }
+      if (!_mcpPendingCommandRevisionById.containsKey(commandId)) {
+        continue;
+      }
+      final age = nowUtc.difference(firstSeenAt);
+      if (age >= const Duration(seconds: 12)) {
+        staleCommandIds.add(commandId);
+      }
+    }
+    if (staleCommandIds.isEmpty) {
+      return;
+    }
+    final blockers = staleCommandIds
+        .map((commandId) => <String, Object?>{
+              'code': 'APP_APPLY_TIMEOUT',
+              'commandId': commandId,
+              'commandType': _mcpPendingCommandTypeById[commandId] ?? 'unknown',
+              'message':
+                  'Open app did not apply this command within the realtime timeout window.',
+            })
+        .toList(growable: false);
+    _mcpAcknowledgedCommandIds.addAll(staleCommandIds);
+    unawaited(
+      bridge.acknowledgeAppliedCommands(
+        projectId: projectId,
+        compositionId: compositionId,
+        commandIds: staleCommandIds,
+        appliedSuccessfully: false,
+        proof: const <String, Object?>{
+          'dataApplied': false,
+          'localGraphApplied': false,
+          'timelineVisible': false,
+          'playerInvalidated': false,
+          'frameEvaluated': false,
+          'visualProgramEmitted': false,
+          'rendererApplied': false,
+          'visualBoundsVerified': false,
+        },
+        blockers: blockers,
+        errorMessage: 'APP_APPLY_TIMEOUT',
+      ),
+    );
   }
 
   List<String> _pendingMcpCommandIdsUpToRevision(int remoteRevision) {
