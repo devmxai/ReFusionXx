@@ -3031,13 +3031,35 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
     final payload = _remotePayload(remoteLayer);
     final nestedLayer = _remoteMap(payload['layer']);
+    final props = _remoteMap(payload['props']);
+    final updates = _remoteMap(payload['updates']);
+    final updateProps = _remoteMap(updates['props']);
+    final nestedPayload = _remoteMap(updates['payload']);
+    final nestedPayloadProps = _remoteMap(nestedPayload['props']);
+    final style = _remoteMap(payload['style']);
+    final updateStyle = _remoteMap(updates['style']);
     final textValue = _firstRemoteString(<Object?>[
       nestedLayer['text'],
       nestedLayer['content'],
       nestedLayer['value'],
+      nestedPayload['text'],
+      nestedPayload['content'],
+      nestedPayload['value'],
+      nestedPayloadProps['text'],
+      nestedPayloadProps['content'],
+      nestedPayloadProps['value'],
+      props['text'],
+      props['content'],
+      props['value'],
+      updateProps['text'],
+      updateProps['content'],
+      updateProps['value'],
       payload['text'],
       payload['content'],
       payload['value'],
+      updates['text'],
+      updates['content'],
+      updates['value'],
       remoteLayer['text'],
       remoteLayer['content'],
     ]);
@@ -3066,21 +3088,51 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final fontSize = _firstRemoteDouble(<Object?>[
           nestedLayer['fontSize'],
           payload['fontSize'],
+          props['fontSize'],
+          updateProps['fontSize'],
+          nestedPayload['fontSize'],
+          nestedPayloadProps['fontSize'],
+          updates['fontSize'],
           nestedLayer['font_size'],
           payload['font_size'],
+          props['font_size'],
+          updateProps['font_size'],
+          nestedPayload['font_size'],
+          nestedPayloadProps['font_size'],
+          updates['font_size'],
         ]) ??
         64.0;
     final absoluteX = _firstRemoteDouble(<Object?>[
       nestedLayer['x'],
       payload['x'],
+      props['x'],
+      updateProps['x'],
+      nestedPayload['x'],
+      nestedPayloadProps['x'],
+      updates['x'],
       nestedLayer['centerX'],
       payload['centerX'],
+      props['centerX'],
+      updateProps['centerX'],
+      nestedPayload['centerX'],
+      nestedPayloadProps['centerX'],
+      updates['centerX'],
     ]);
     final absoluteY = _firstRemoteDouble(<Object?>[
       nestedLayer['y'],
       payload['y'],
+      props['y'],
+      updateProps['y'],
+      nestedPayload['y'],
+      nestedPayloadProps['y'],
+      updates['y'],
       nestedLayer['centerY'],
       payload['centerY'],
+      props['centerY'],
+      updateProps['centerY'],
+      nestedPayload['centerY'],
+      nestedPayloadProps['centerY'],
+      updates['centerY'],
     ]);
     final positionX =
         absoluteX == null ? 0.0 : absoluteX - (canvasSize.width / 2.0);
@@ -3090,15 +3142,32 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           _firstRemoteString(<Object?>[
             nestedLayer['color'],
             nestedLayer['fill'],
+            nestedPayload['color'],
+            nestedPayload['fill'],
+            nestedPayloadProps['color'],
+            nestedPayloadProps['fill'],
+            props['color'],
+            props['fill'],
+            updateProps['color'],
+            updateProps['fill'],
+            updates['color'],
+            updates['fill'],
             payload['color'],
             payload['fill'],
-            _remoteMap(payload['style'])['color'],
-            _remoteMap(payload['style'])['fill'],
+            style['color'],
+            style['fill'],
+            updateStyle['color'],
+            updateStyle['fill'],
           ]),
         ) ??
         0xFF111111;
     final opacity = (_firstRemoteDouble(<Object?>[
               nestedLayer['opacity'],
+              nestedPayload['opacity'],
+              nestedPayloadProps['opacity'],
+              props['opacity'],
+              updateProps['opacity'],
+              updates['opacity'],
               payload['opacity'],
             ]) ??
             1.0)
@@ -3107,6 +3176,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final layerName = _firstRemoteString(<Object?>[
           remoteLayer['name'],
           nestedLayer['name'],
+          nestedPayload['name'],
+          nestedPayloadProps['name'],
+          props['name'],
+          updateProps['name'],
           payload['name'],
         ]) ??
         'Text';
@@ -3114,6 +3187,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           remoteLayer['z_index'],
           remoteLayer['zIndex'],
           nestedLayer['zIndex'],
+          nestedPayload['zIndex'],
+          nestedPayloadProps['zIndex'],
+          props['zIndex'],
+          updateProps['zIndex'],
           payload['zIndex'],
         ]) ??
         10;
