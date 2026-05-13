@@ -855,6 +855,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       <String, String>{};
   final Map<String, int> _mcpPendingCommandRevisionById = <String, int>{};
   final Set<String> _mcpAcknowledgedCommandIds = <String>{};
+  Map<String, Object?> _mcpLatestApplyProof = const <String, Object?>{};
   static const McpSceneCommandDispatcher _mcpSceneCommandDispatcher =
       McpSceneCommandDispatcher();
 
@@ -1585,35 +1586,51 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
     var didApply = false;
     var hasRepresentedRemoteLayer = false;
+    var appliedCommandCount = 0;
+    final appliedKinds = <String>{};
     for (final command in commands) {
       final remoteLayer = command.remoteLayer;
       final remoteLayerId = _remoteString(remoteLayer['id']);
+      bool commandApplied = false;
       switch (command.type) {
         case McpSceneCommandType.applyLegacyAnimation:
-          didApply =
-              _applyLegacyRemoteAnimationFromLayerIfNeeded(remoteLayer) ||
-                  didApply;
+          commandApplied = _applyLegacyRemoteAnimationFromLayerIfNeeded(
+            remoteLayer,
+          );
+          didApply = commandApplied || didApply;
           break;
         case McpSceneCommandType.applyTextLayer:
-          didApply = _applyRemoteTextLayerIfNeeded(remoteLayer) || didApply;
+          commandApplied = _applyRemoteTextLayerIfNeeded(remoteLayer);
+          didApply = commandApplied || didApply;
           break;
         case McpSceneCommandType.applySolidLayer:
-          didApply = _applyRemoteSolidLayerIfNeeded(remoteLayer) || didApply;
+          commandApplied = _applyRemoteSolidLayerIfNeeded(remoteLayer);
+          didApply = commandApplied || didApply;
           break;
         case McpSceneCommandType.registerMediaBinding:
           _registerRemoteMediaLayerBinding(remoteLayer);
           break;
         case McpSceneCommandType.applyTimelineMutation:
-          didApply =
-              _applyRemoteTimelineClipMutationFromLayerIfNeeded(remoteLayer) ||
-                  didApply;
+          commandApplied = _applyRemoteTimelineClipMutationFromLayerIfNeeded(
+            remoteLayer,
+          );
+          didApply = commandApplied || didApply;
           break;
+      }
+      if (commandApplied) {
+        appliedCommandCount += 1;
+        appliedKinds.add(command.type.name);
       }
       if (remoteLayerId != null &&
           _isMcpRemoteLayerRepresentedLocally(remoteLayerId)) {
         hasRepresentedRemoteLayer = true;
       }
     }
+    _mcpLatestApplyProof = <String, Object?>{
+      'appliedCommands': appliedCommandCount,
+      'appliedKinds': appliedKinds.toList(growable: false),
+      'remoteLayersReceived': remoteLayers.length,
+    };
     if ((!didApply && !hasRepresentedRemoteLayer) || remoteRevision == null) {
       return;
     }
@@ -1648,6 +1665,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             'frameEvaluated': true,
             'proofFrameTimeMs':
                 _timelineDisplayTimeNotifier.value.inMilliseconds,
+            ..._mcpLatestApplyProof,
           },
         ),
       );
@@ -2829,6 +2847,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
     }
     if (didApply) {
+      _mcpLatestApplyProof = <String, Object?>{
+        ..._mcpLatestApplyProof,
+        'appliedMotionChannels': _appliedMcpMotionChannelSignatures.length,
+        'lastAppliedMotionChannelsBatch': remoteMotionChannels.length,
+      };
       if (remoteRevision != null) {
         _acknowledgeMcpRemoteRevision(remoteRevision);
       }
