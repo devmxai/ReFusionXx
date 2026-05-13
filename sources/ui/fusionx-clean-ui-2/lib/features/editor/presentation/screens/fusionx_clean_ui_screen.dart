@@ -2055,6 +2055,24 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         payloadStyle.isNotEmpty ||
         updatesStyle.isNotEmpty ||
         updatePayloadStyle.isNotEmpty ||
+        payload.containsKey('x') ||
+        payload.containsKey('y') ||
+        payload.containsKey('centerX') ||
+        payload.containsKey('centerY') ||
+        payload.containsKey('scale') ||
+        payload.containsKey('scaleX') ||
+        payload.containsKey('scaleY') ||
+        payload.containsKey('rotation') ||
+        payload.containsKey('rotationDeg') ||
+        updates.containsKey('x') ||
+        updates.containsKey('y') ||
+        updates.containsKey('centerX') ||
+        updates.containsKey('centerY') ||
+        updates.containsKey('scale') ||
+        updates.containsKey('scaleX') ||
+        updates.containsKey('scaleY') ||
+        updates.containsKey('rotation') ||
+        updates.containsKey('rotationDeg') ||
         payload.containsKey('maskType') ||
         payload.containsKey('cornerRadius') ||
         payload.containsKey('borderWidth') ||
@@ -2074,6 +2092,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     }
     final current = _canvasClipStyleFor(clipId);
     var next = current;
+    final currentTransform =
+        _canvasClipTransforms[clipId] ?? const _CanvasClipTransform();
+    var nextTransform = currentTransform;
     var didChange = false;
 
     final rawMaskType = _firstRemoteString(<Object?>[
@@ -2213,11 +2234,121 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       didChange = true;
     }
 
+    final canvasSize = _motionProjectFormat.canvasSize;
+    final directCenterX = _firstRemoteDouble(<Object?>[
+      updates['centerX'],
+      payload['centerX'],
+      updatePayload['centerX'],
+      updatesStyle['centerX'],
+      payloadStyle['centerX'],
+      updatePayloadStyle['centerX'],
+      updates['x'],
+      payload['x'],
+      updatePayload['x'],
+      updatesStyle['x'],
+      payloadStyle['x'],
+      updatePayloadStyle['x'],
+    ]);
+    if (directCenterX != null) {
+      final relativeX = directCenterX - (canvasSize.width / 2.0);
+      if ((nextTransform.positionX - relativeX).abs() > 0.001) {
+        nextTransform = nextTransform.copyWith(positionX: relativeX);
+        didChange = true;
+      }
+    }
+    final directCenterY = _firstRemoteDouble(<Object?>[
+      updates['centerY'],
+      payload['centerY'],
+      updatePayload['centerY'],
+      updatesStyle['centerY'],
+      payloadStyle['centerY'],
+      updatePayloadStyle['centerY'],
+      updates['y'],
+      payload['y'],
+      updatePayload['y'],
+      updatesStyle['y'],
+      payloadStyle['y'],
+      updatePayloadStyle['y'],
+    ]);
+    if (directCenterY != null) {
+      final relativeY = directCenterY - (canvasSize.height / 2.0);
+      if ((nextTransform.positionY - relativeY).abs() > 0.001) {
+        nextTransform = nextTransform.copyWith(positionY: relativeY);
+        didChange = true;
+      }
+    }
+    final directScaleX = _firstRemoteDouble(<Object?>[
+      updates['scaleX'],
+      payload['scaleX'],
+      updatePayload['scaleX'],
+      updatesStyle['scaleX'],
+      payloadStyle['scaleX'],
+      updatePayloadStyle['scaleX'],
+      updates['scale'],
+      payload['scale'],
+      updatePayload['scale'],
+      updatesStyle['scale'],
+      payloadStyle['scale'],
+      updatePayloadStyle['scale'],
+    ]);
+    if (directScaleX != null) {
+      final safe = directScaleX.clamp(0.0001, 1000.0).toDouble();
+      if ((nextTransform.scaleX - safe).abs() > 0.0001) {
+        nextTransform = nextTransform.copyWith(scaleX: safe);
+        didChange = true;
+      }
+    }
+    final directScaleY = _firstRemoteDouble(<Object?>[
+      updates['scaleY'],
+      payload['scaleY'],
+      updatePayload['scaleY'],
+      updatesStyle['scaleY'],
+      payloadStyle['scaleY'],
+      updatePayloadStyle['scaleY'],
+      updates['scale'],
+      payload['scale'],
+      updatePayload['scale'],
+      updatesStyle['scale'],
+      payloadStyle['scale'],
+      updatePayloadStyle['scale'],
+    ]);
+    if (directScaleY != null) {
+      final safe = directScaleY.clamp(0.0001, 1000.0).toDouble();
+      if ((nextTransform.scaleY - safe).abs() > 0.0001) {
+        nextTransform = nextTransform.copyWith(scaleY: safe);
+        didChange = true;
+      }
+    }
+    final directRotation = _firstRemoteDouble(<Object?>[
+      updates['rotation'],
+      payload['rotation'],
+      updatePayload['rotation'],
+      updates['rotationDeg'],
+      payload['rotationDeg'],
+      updatePayload['rotationDeg'],
+      updatesStyle['rotation'],
+      payloadStyle['rotation'],
+      updatePayloadStyle['rotation'],
+      updatesStyle['rotationDeg'],
+      payloadStyle['rotationDeg'],
+      updatePayloadStyle['rotationDeg'],
+    ]);
+    if (directRotation != null &&
+        (nextTransform.rotationDegrees - directRotation).abs() > 0.001) {
+      nextTransform = nextTransform.copyWith(rotationDegrees: directRotation);
+      didChange = true;
+    }
+
     if (!didChange || next == current) {
-      return false;
+      if (nextTransform == currentTransform) {
+        return false;
+      }
     }
     setState(() {
       _canvasClipStyles[clipId] = next;
+      if (nextTransform != currentTransform) {
+        _canvasClipTransforms[clipId] = nextTransform;
+      }
     });
     return true;
   }
@@ -2472,9 +2603,17 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         didApply = true;
       }
     }
-    if (didApply && remoteRevision != null) {
-      _mcpAppliedRemoteRevision =
-          math.max(_mcpAppliedRemoteRevision, remoteRevision);
+    if (didApply) {
+      if (remoteRevision != null) {
+        _mcpAppliedRemoteRevision =
+            math.max(_mcpAppliedRemoteRevision, remoteRevision);
+      }
+      _scheduleStage5VisualRuntimeSubmission(
+        previewTime: _timelineDisplayTimeNotifier.value,
+        mode: _professionalVideoTransitionMode(
+          effectiveIsPlaying: _transportController.state.isPlaying,
+        ),
+      );
       _showStageMessage('AI animation applied.');
     }
   }
@@ -26055,25 +26194,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         : null;
   }
 
-  Set<String> _activeTransformableClipIdsForPreviewTime(
-      TimelineTime previewTime) {
-    final clipIds = <String>{};
-    for (final track in _timelineTruthTracks) {
-      var cursor = TimelineTime.zero;
-      for (final clip in track.clips) {
-        final clipStart = cursor;
-        final clipEnd = clipStart + clip.durationTime;
-        if (_timelineClipSupportsCanvasTransform(clip) &&
-            previewTime >= clipStart &&
-            previewTime < clipEnd) {
-          clipIds.add(clip.id);
-        }
-        cursor = clipEnd;
-      }
-    }
-    return clipIds;
-  }
-
   _CanvasClipTransform _canvasClipTransformFor(
     String clipId, {
     TimelineTime? atTime,
@@ -28323,7 +28443,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required Widget fallback,
     required String? previewIdentity,
     required bool effectiveIsPlaying,
-    required bool allowClipStyleFallbackSuppression,
   }) {
     final allowNativePointerInteraction =
         !(_isCanvasTransformToolActive && !effectiveIsPlaying);
@@ -28377,17 +28496,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         );
         final shouldSuppressNativePreviewForProfessionalTransition =
             routeDecision.suppressesStage5Preview;
-        final activeTransformableClipIds =
-            _activeTransformableClipIdsForPreviewTime(previewTime);
         // Keep native video surface active during normal scrub/playback.
         // Fallback is static-image based and cannot represent live video.
-        final shouldSuppressNativePreviewForClipStyle =
-            allowClipStyleFallbackSuppression &&
-                _isCanvasTransformToolActive &&
-                !effectiveIsPlaying &&
-                activeTransformableClipIds.any(
-                  (clipId) => !_canvasClipStyleFor(clipId).isIdentity,
-                );
+        const shouldSuppressNativePreviewForClipStyle = false;
         return MotionVideoPreviewTransformSurface(
           // Android PlatformViews cannot be safely scaled/rotated from the
           // Flutter layer: the decoder keeps audio running while the video
@@ -29004,11 +29115,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                             canvasTransform: transformPreviewTransform,
                             canvasStyle: transformPreviewStyle,
                           );
-                          final fallbackHasRenderablePoster =
-                              previewCanvasAsset != null &&
-                                  (_previewThumbnailCache[previewCanvasAsset.id]
-                                          ?.isNotEmpty ??
-                                      false);
                           final previewStage = PreviewStage(
                             workspaceAspectRatio: _previewAspectRatio,
                             canvasBackgroundColor:
@@ -29027,8 +29133,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                                     ),
                                     effectiveIsPlaying: effectiveIsPlaying,
                                     fallback: previewFallback,
-                                    allowClipStyleFallbackSuppression:
-                                        fallbackHasRenderablePoster,
                                   )
                                 : previewFallback,
                           );

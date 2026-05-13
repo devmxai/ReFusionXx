@@ -265,35 +265,41 @@ class RefusionMcpCloudBridge {
       final contextComposition = _asMap(contextPayload['composition']);
       final cloudProjectId = _asString(contextProject['id']);
       final cloudCompositionId = _asString(contextComposition['id']);
+      final effectiveProjectId = projectIdArg ?? cloudProjectId;
+      final effectiveCompositionId = compositionIdArg ?? cloudCompositionId;
       final layersResponse = await _safeCallTool(
         toolName: 'get_layers',
         arguments: <String, Object?>{
-          if (cloudProjectId != null) 'projectId': cloudProjectId,
-          if (cloudCompositionId != null) 'compositionId': cloudCompositionId,
+          if (effectiveProjectId != null) 'projectId': effectiveProjectId,
+          if (effectiveCompositionId != null)
+            'compositionId': effectiveCompositionId,
         },
         allowAgentSessionToken: true,
       );
       final motionChannelsResponse = await _safeCallTool(
         toolName: 'get_motion_channels',
         arguments: <String, Object?>{
-          if (cloudProjectId != null) 'projectId': cloudProjectId,
-          if (cloudCompositionId != null) 'compositionId': cloudCompositionId,
+          if (effectiveProjectId != null) 'projectId': effectiveProjectId,
+          if (effectiveCompositionId != null)
+            'compositionId': effectiveCompositionId,
         },
         allowAgentSessionToken: true,
       );
       final canvasMetadataResponse = await _safeCallTool(
         toolName: 'get_canvas_metadata',
         arguments: <String, Object?>{
-          if (cloudProjectId != null) 'projectId': cloudProjectId,
-          if (cloudCompositionId != null) 'compositionId': cloudCompositionId,
+          if (effectiveProjectId != null) 'projectId': effectiveProjectId,
+          if (effectiveCompositionId != null)
+            'compositionId': effectiveCompositionId,
         },
         allowAgentSessionToken: true,
       );
       final visualLayoutSummaryResponse = await _safeCallTool(
         toolName: 'get_visual_layout_summary',
         arguments: <String, Object?>{
-          if (cloudProjectId != null) 'projectId': cloudProjectId,
-          if (cloudCompositionId != null) 'compositionId': cloudCompositionId,
+          if (effectiveProjectId != null) 'projectId': effectiveProjectId,
+          if (effectiveCompositionId != null)
+            'compositionId': effectiveCompositionId,
           'timeMs': state.playheadMs,
         },
         allowAgentSessionToken: true,
@@ -314,8 +320,9 @@ class RefusionMcpCloudBridge {
       final elementGeometryResponse = await _safeCallTool(
         toolName: 'get_element_geometry',
         arguments: <String, Object?>{
-          if (cloudProjectId != null) 'projectId': cloudProjectId,
-          if (cloudCompositionId != null) 'compositionId': cloudCompositionId,
+          if (effectiveProjectId != null) 'projectId': effectiveProjectId,
+          if (effectiveCompositionId != null)
+            'compositionId': effectiveCompositionId,
           if (firstLayerId != null) 'layerId': firstLayerId,
           'timeMs': state.playheadMs,
         },
