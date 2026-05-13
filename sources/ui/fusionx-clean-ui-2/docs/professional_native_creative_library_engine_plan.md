@@ -525,6 +525,93 @@ Build a central matrix:
 
 This matrix is enforced at command validation time.
 
+### 3.8 Existing Capability Upgrade Gate
+
+Existing ReFusion capabilities are not deleted or rebuilt by default.
+
+Current working foundations such as:
+
+```text
+position
+scale
+opacity
+rotation
+keyframes
+SpeedyGraph
+MotionPropertyChannelModel
+motion blur
+gaussian blur
+edge fill / motion tile
+timeline clips
+SceneProgram import/lowering
+existing text/shape/media insertion
+existing renderer/native implementations
+```
+
+must be preserved when they are already correct.
+
+The professional process is:
+
+```text
+inventory existing capability
+        ↓
+compare with HyperFrames / Remotion / After Effects reference patterns
+        ↓
+identify missing contract, weak parameter schema, weak renderer support,
+weak export support, weak UI/MCP exposure, or weak skill documentation
+        ↓
+wrap into ProfessionalCreativeLibraryRegistry
+        ↓
+upgrade only the weak edge
+        ↓
+add conformance tests
+```
+
+This means:
+
+- do not rewrite `scale` or `position` animation if the keyframe/channel engine
+  already evaluates correctly;
+- do not rewrite motion blur or gaussian blur if the renderer/export backend is
+  already sound;
+- do not replace SpeedyGraph with Remotion interpolation; map Remotion-style
+  easing knowledge into SpeedyGraph-compatible presets;
+- do not replace native renderer effects with HTML/React/GSAP versions;
+- do not preserve a feature blindly if it is metadata-only, preview-only,
+  export-broken, or invisible to MCP/manual UI.
+
+Every existing capability receives a review record:
+
+```text
+id
+currentImplementation
+currentOwners
+currentEntrySurfaces
+currentRendererSupport
+currentExportSupport
+currentTimelineProjection
+currentMcpSupport
+currentManualUiSupport
+hyperframesLessons
+remotionLessons
+afterEffectsLessons
+weaknesses
+upgradeActions
+conformanceTests
+decision: keep | wrap | upgrade | replace
+```
+
+Decision meanings:
+
+- `keep`: implementation is sound; only document it in the registry.
+- `wrap`: implementation is sound but hidden; expose it through registry,
+  manual UI, MCP, skills, and tests.
+- `upgrade`: implementation mostly works but needs schema, lowering, renderer,
+  export, proof, or UX improvements.
+- `replace`: implementation is architecturally wrong, duplicated, metadata-only,
+  or impossible to make conformant.
+
+This gate is mandatory before adding new HyperFrames/Remotion-inspired packs.
+
 ## 4. Native Library Domains
 
 ### 4.1 Component Registry
@@ -1058,19 +1145,45 @@ Acceptance:
 - schema tests pass;
 - no renderer code touched.
 
-### PNCLE-02: Existing ReFusion Inventory Adapter
+### PNCLE-02: Existing ReFusion Capability Audit And Adapter
 
-Wrap current ReFusion assets:
+Audit and wrap current ReFusion assets:
 
 - `scene_motion_recipe_library.dart`
 - `scene_semantic_component_registry.dart`
 - `scene_icon_registry.dart`
 - existing SceneProgram templates;
 - current effect docs/runtime-supported effects.
+- existing position/scale/opacity/rotation channels;
+- existing SpeedyGraph presets;
+- existing motion blur implementation;
+- existing gaussian blur implementation;
+- existing edge fill / motion tile implementation;
+- existing timeline clip projection;
+- existing preview/export paths.
+
+For each existing capability, create a review record:
+
+```text
+keep | wrap | upgrade | replace
+```
+
+The default decision is not `replace`. The default is:
+
+```text
+keep working implementation
+wrap it in the registry
+upgrade missing contracts and conformance
+```
 
 Acceptance:
 
-- registry lists existing motion recipes, components, icons, templates, effects.
+- registry lists existing motion recipes, components, icons, templates, effects;
+- every existing animation/effect capability has a review record;
+- motion blur, gaussian blur, position, scale, opacity, rotation, and SpeedyGraph
+  have explicit registry/conformance entries;
+- no working renderer implementation is rewritten without a documented
+  `replace` decision and reason.
 
 ### PNCLE-03: Discovery APIs
 
@@ -1354,6 +1467,8 @@ Do not:
 
 - embed Remotion as primary runtime;
 - embed HyperFrames as primary runtime;
+- rebuild existing working ReFusion capabilities just because HyperFrames or
+  Remotion has a similar concept;
 - make HTML/React/GSAP timelines editor truth;
 - add MCP-only tools;
 - add manual-UI-only features;
