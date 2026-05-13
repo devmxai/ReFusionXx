@@ -345,22 +345,6 @@ class RefusionMcpCloudBridge {
       final liveSessionId = _asString(contextLiveEditor['sessionId']);
       final effectiveProjectId = projectIdArg;
       final effectiveCompositionId = compositionIdArg;
-      final layersResponse = await _safeCallTool(
-        toolName: 'get_layers',
-        arguments: <String, Object?>{
-          'projectId': effectiveProjectId,
-          'compositionId': effectiveCompositionId,
-        },
-        allowAgentSessionToken: true,
-      );
-      final motionChannelsResponse = await _safeCallTool(
-        toolName: 'get_motion_channels',
-        arguments: <String, Object?>{
-          'projectId': effectiveProjectId,
-          'compositionId': effectiveCompositionId,
-        },
-        allowAgentSessionToken: true,
-      );
       final pendingCommandsResponse = await _safeCallTool(
         toolName: 'get_pending_commands',
         arguments: <String, Object?>{
@@ -370,6 +354,29 @@ class RefusionMcpCloudBridge {
           'markReceived': true,
           'limit': 40,
         },
+      );
+      final pendingCommandTargetLayerIds = _pendingCommandTargetLayerIds(
+        pendingCommandsResponse,
+      );
+      final layersResponse = await _safeCallTool(
+        toolName: 'get_layers',
+        arguments: <String, Object?>{
+          'projectId': effectiveProjectId,
+          'compositionId': effectiveCompositionId,
+          if (pendingCommandTargetLayerIds.isNotEmpty)
+            'layerIds': pendingCommandTargetLayerIds,
+        },
+        allowAgentSessionToken: true,
+      );
+      final motionChannelsResponse = await _safeCallTool(
+        toolName: 'get_motion_channels',
+        arguments: <String, Object?>{
+          'projectId': effectiveProjectId,
+          'compositionId': effectiveCompositionId,
+          if (pendingCommandTargetLayerIds.isNotEmpty)
+            'layerIds': pendingCommandTargetLayerIds,
+        },
+        allowAgentSessionToken: true,
       );
       final canvasMetadataResponse = await _safeCallTool(
         toolName: 'get_canvas_metadata',
@@ -439,6 +446,43 @@ class RefusionMcpCloudBridge {
     } finally {
       _syncInFlight = false;
     }
+  }
+
+  List<String> _pendingCommandTargetLayerIds(
+    Map<String, Object?>? pendingCommandsRpcResult,
+  ) {
+    if (pendingCommandsRpcResult == null) {
+      return const <String>[];
+    }
+    final pendingStructured =
+        _asMap(pendingCommandsRpcResult['structuredContent']);
+    final pendingPayload = _asMap(pendingStructured['payload']);
+    final pendingCommands = _asListOfMap(pendingPayload['commands']);
+    final targetLayerIds = <String>{};
+    for (final command in pendingCommands) {
+      final payload = _asMap(command['payload']);
+      final nestedPayload = _asMap(payload['payload']);
+      final candidates = <String?>[
+        _asString(payload['layerId']),
+        _asString(payload['targetLayerId']),
+        _asString(payload['requestedLayerId']),
+        _asString(payload['clipId']),
+        _asString(payload['localLayerId']),
+        _asString(nestedPayload['layerId']),
+        _asString(nestedPayload['targetLayerId']),
+        _asString(nestedPayload['clipId']),
+      ];
+      for (final candidate in candidates) {
+        if (candidate == null) {
+          continue;
+        }
+        final normalized = candidate.trim();
+        if (normalized.isNotEmpty) {
+          targetLayerIds.add(normalized);
+        }
+      }
+    }
+    return List<String>.unmodifiable(targetLayerIds);
   }
 
   RefusionMcpCloudBridgeSnapshot _snapshotFromContextResponse(

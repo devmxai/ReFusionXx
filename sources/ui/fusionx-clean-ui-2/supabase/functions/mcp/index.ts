@@ -3207,7 +3207,10 @@ async function getLayers(context: RequestContext, args: JsonMap): Promise<ToolRe
     return fail('PROJECT_NOT_OPEN');
   }
   const revision = await projectRevision(projectId);
-  const { data, error } = await admin
+  const requestedLayerIds = readStringList(
+    firstDefined(args.layerIds, args.layer_ids, args.targetLayerIds, args.target_layer_ids),
+  );
+  let query = admin
     .from('refusion_layers')
     .select(
       'id, layer_kind, name, start_ms, duration_ms, z_index, payload, updated_at',
@@ -3218,6 +3221,10 @@ async function getLayers(context: RequestContext, args: JsonMap): Promise<ToolRe
     .order('z_index', { ascending: true })
     .order('start_ms', { ascending: true })
     .order('created_at', { ascending: true });
+  if (requestedLayerIds.length > 0) {
+    query = query.in('id', requestedLayerIds);
+  }
+  const { data, error } = await query;
   if (error) throw error;
   return ok('Layers loaded.', {
     projectId,
@@ -4228,13 +4235,20 @@ async function getMotionChannels(
   if (!projectId || !compositionId) {
     return fail('PROJECT_NOT_OPEN');
   }
-  const { data, error } = await admin
+  const requestedLayerIds = readStringList(
+    firstDefined(args.layerIds, args.layer_ids, args.targetLayerIds, args.target_layer_ids),
+  );
+  let query = admin
     .from('refusion_motion_channels')
     .select('id, layer_id, property_id, keyframes, motion_recipe, updated_at')
     .eq('owner_id', context.userId)
     .eq('project_id', projectId)
     .eq('composition_id', compositionId)
     .order('updated_at', { ascending: true });
+  if (requestedLayerIds.length > 0) {
+    query = query.in('layer_id', requestedLayerIds);
+  }
+  const { data, error } = await query;
   if (error) throw error;
   return ok('Motion channels loaded.', {
     projectId,
@@ -6450,6 +6464,17 @@ function readMap(value: unknown): JsonMap {
 
 function readList(value: unknown): unknown[] {
   return Array.isArray(value) ? value : [];
+}
+
+function readStringList(value: unknown): string[] {
+  const list = readList(value);
+  const out: string[] = [];
+  for (const item of list) {
+    const normalized = stringValue(item).trim();
+    if (!normalized) continue;
+    out.push(normalized);
+  }
+  return [...new Set(out)];
 }
 
 function stringValue(value: unknown): string {
