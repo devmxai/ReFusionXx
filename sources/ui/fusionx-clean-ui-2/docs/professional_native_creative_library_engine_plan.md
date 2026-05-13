@@ -370,10 +370,15 @@ previewMotion
 qaRules
 rendererConformance
 exportConformance
+capabilityBenchmark
+benchmarkDecision
+legacyPathCleanup
 failureMode
 ```
 
 No item may be listed without a conformance declaration.
+No item may be listed as production-ready without a completed Capability
+Benchmark Matrix record.
 
 ### 3.3 Command Taxonomy
 
@@ -611,6 +616,226 @@ Decision meanings:
   or impossible to make conformant.
 
 This gate is mandatory before adding new HyperFrames/Remotion-inspired packs.
+
+### 3.9 Capability Benchmark Matrix
+
+Every effect, motion recipe, transition, component, template primitive, media
+treatment, and future creative capability must pass a formal Capability
+Benchmark Matrix before it can be promoted to production.
+
+This matrix is not optional research. It is the official engineering gate that
+decides whether an existing ReFusion capability is kept, wrapped, upgraded,
+replaced, or blocked.
+
+Each capability must be scored from 1 to 5 against ReFusion, Remotion, and
+HyperFrames where a comparable implementation or pattern exists.
+
+Required benchmark dimensions:
+
+```text
+Visual Quality
+Temporal Accuracy
+Parameter Depth
+Performance
+Preview/Export Parity
+Editability
+Determinism
+Cross-device Stability
+Pipeline Coverage
+Agent Usability
+```
+
+Score meanings:
+
+```text
+1 = unusable or missing
+2 = partial / prototype / fragile
+3 = usable with important limitations
+4 = production-grade with known minor gaps
+5 = best-in-class or reference-quality
+```
+
+Every score must include three forms of evidence:
+
+```text
+codeReference
+benchmarkScene
+measurementResult
+```
+
+Evidence examples:
+
+```text
+codeReference:
+  - local ReFusion implementation path
+  - Remotion or HyperFrames reference path
+  - renderer/export adapter path
+
+benchmarkScene:
+  - fast linear motion
+  - strong rotation
+  - scale + rotation
+  - kinetic text
+  - video with internal motion
+  - layer overlap / occlusion
+
+measurementResult:
+  - frame evaluation time
+  - render/export parity delta
+  - visual diff score
+  - dropped-frame or latency metric
+  - device stability result
+```
+
+Decision rules:
+
+```text
+if Visual Quality + Temporal Accuracy < 4:
+  decision = upgrade
+  action = adopt reference algorithm or recipe idea
+
+if Performance < 3:
+  decision = upgrade
+  action = add tiered quality, fallback, or budget guard
+
+if Preview/Export Parity < 4:
+  decision = blocked
+  action = no production launch
+
+if Editability < 4:
+  decision = prerender-only or upgrade
+  action = cannot ship as native editable feature
+
+if Pipeline Coverage < 4:
+  decision = upgrade
+  action = route Manual UI, Paste Script, MCP, Templates, Tap List, and Future
+  Tools through the same command/apply path
+
+if Agent Usability < 4:
+  decision = upgrade
+  action = add schema, examples, target rules, failure codes, and skill docs
+```
+
+Final benchmark decisions:
+
+```text
+keep
+wrap
+upgrade
+adoptIdea
+replace
+prerenderOnly
+blocked
+reject
+```
+
+Registry benchmark record:
+
+```text
+CapabilityBenchmarkRecord
+  capabilityId
+  capabilityFamily
+  benchmarkVersion
+  comparedAgainst
+  dimensions
+    visualQuality
+    temporalAccuracy
+    parameterDepth
+    performance
+    previewExportParity
+    editability
+    determinism
+    crossDeviceStability
+    pipelineCoverage
+    agentUsability
+  evidence
+    codeReferences
+    benchmarkScenes
+    measurementResults
+  strengths
+  weaknesses
+  adoptedReferenceIdeas
+  requiredUpgrades
+  cleanupRequired
+  decision
+  nextActions
+  owner
+  reviewer
+  qaOwner
+  releaseOwner
+```
+
+Example for motion blur:
+
+```text
+capabilityId: $effect.motionBlur
+ReFusion:
+  strength: native AGSL shader, velocity compiler, shutter controls,
+  adaptive samples
+Remotion:
+  reference: CameraMotionBlur and Trail temporal sampling APIs
+HyperFrames:
+  reference: blur-through, directional blur, whip-pan, velocity-matched
+  transition language
+decision: upgrade
+nextActions:
+  - keep native shader
+  - add creative presets
+  - add Remotion-style temporal sampling benchmark scenes
+  - add HyperFrames-style recipe language
+  - prove preview/export parity
+  - expose through UI/MCP/script from the registry only
+```
+
+### 3.10 Legacy Path Cleanup Gate
+
+Any capability review must include a cleanup pass. The goal is not only to add
+new professional behavior, but to remove or quarantine old paths that create
+parallel truth.
+
+For each capability, list every current path that can create, mutate, render,
+or export it:
+
+```text
+manual UI path
+paste script path
+MCP path
+template path
+tap list path
+legacy local mutation path
+renderer-only path
+database-only path
+metadata-only path
+export-only path
+```
+
+Each path receives one cleanup decision:
+
+```text
+canonicalize: convert it to SceneCommand -> Unified Apply Engine
+adapterOnly: keep only as translation layer into canonical commands
+featureFlag: keep temporarily behind an explicit compatibility flag
+migrate: auto-convert old payloads to canonical graph objects
+delete: remove because it is duplicated, wrong, or unsafe
+block: fail closed until a conformant implementation exists
+```
+
+Cleanup is mandatory when any of these are found:
+
+```text
+metadata-only effect storage
+renderer-only visual state
+MCP-only capability
+manual-UI-only capability
+paste-script-only mutation
+insert command used as update
+duplicate target mutation path
+preview/export divergence path
+legacy fallback that hides renderer failure
+```
+
+No capability may be marked `keep`, `wrap`, or `upgrade` unless old/conflicting
+paths are explicitly handled. A missing cleanup decision is a release blocker.
 
 ## 4. Native Library Domains
 
@@ -1481,6 +1706,9 @@ skill_registry_reference_validity = 100%
 preview_export_parity_score >= 0.98
 unsupported_capability_silent_success = 0
 metadata_only_success = 0
+capability_benchmark_record_coverage = 100%
+legacy_path_cleanup_decision_coverage = 100%
+parallel_truth_path_count = 0
 ```
 
 Phase-specific additions:
@@ -1711,6 +1939,9 @@ tests listed
 feature flag named
 rollback path named
 owner/reviewer/QA/release owner assigned
+Capability Benchmark Matrix record drafted
+legacy path inventory drafted
+cleanup decision drafted for every old or overlapping path
 ```
 
 Definition of Done for any slice:
@@ -1727,6 +1958,9 @@ frame evaluation pass
 preview renderer pass
 export parity pass or explicit blocker
 performance budget pass
+Capability Benchmark Matrix pass
+legacy path cleanup pass
+no duplicate/parallel creative path remains unowned
 skill docs synchronized
 release checklist updated
 rollback verified
@@ -1793,6 +2027,8 @@ Release checklist:
 
 ```text
 registry diff reviewed
+capability benchmark diffs reviewed
+legacy path cleanup decisions reviewed
 feature flags reviewed
 skills sync pass
 MCP discovery parity pass
@@ -1811,6 +2047,9 @@ Release cannot proceed if:
 ```text
 metadata_only_success > 0
 unsupported_capability_silent_success > 0
+unbenchmarked_production_capability_count > 0
+legacy_path_without_cleanup_decision > 0
+parallel_truth_path_count > 0
 preview_export_parity_score < 0.98
 skill_registry_reference_validity < 100%
 registry_schema_validation_pass < 100%
@@ -1836,6 +2075,10 @@ Do not:
 - claim appApplied from database success;
 - allow duplicate components/effects with different ids for the same concept;
 - allow UI, script, and MCP to use different capability lists.
+- promote a capability without a Capability Benchmark Matrix record;
+- keep an old or overlapping path without a cleanup decision;
+- treat subjective visual approval as a substitute for benchmark scenes,
+  measurements, and code references.
 
 ## 13. First Practical Build Slice
 
