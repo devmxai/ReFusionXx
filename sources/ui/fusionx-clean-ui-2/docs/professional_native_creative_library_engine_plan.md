@@ -66,6 +66,61 @@ Instead, it extracts their proven architecture patterns into ReFusion-native
 registries, skills, components, effects, motion recipes, validators, and
 render-conformance gates.
 
+### 0.1 Mandatory Pre-Build Evaluation And User Sync Gate
+
+Before implementing any PNCLE phase or slice, the team must complete a strict
+pre-build evaluation and share it with the user/reviewer.
+
+No coding is allowed before this gate is complete.
+
+Required pre-build sequence for each slice:
+
+```text
+1) analyze current ReFusion implementation for this slice
+2) evaluate strengths, weaknesses, and known risks in current code
+3) compare against relevant HyperFrames and Remotion references
+4) classify each capability path with one decision:
+   keep | wrap | upgrade | add | replace | block
+5) choose the smallest safe execution slice
+6) define acceptance gate and rollback for that slice
+7) publish the pre-build report before writing code
+```
+
+The pre-build report is mandatory and must include:
+
+```text
+slice id
+current state summary
+reference comparison summary (HyperFrames / Remotion)
+gap list
+decision table (keep/wrap/upgrade/add/replace/block)
+selected execution slice
+tests to run
+acceptance criteria
+rollback command
+```
+
+If any decision is ambiguous, risky, or missing evidence, the slice is blocked
+until the report is corrected.
+
+Fail conditions:
+
+```text
+code changes started without pre-build report
+reference comparison missing for relevant capability
+decision table missing
+acceptance gate missing
+rollback path missing
+```
+
+Fail action:
+
+```text
+stop implementation
+revert unapproved edits for that slice
+re-enter at pre-build evaluation
+```
+
 ## 1. Professional References And Lessons
 
 ### 1.1 HyperFrames Lessons
@@ -1927,6 +1982,10 @@ No old command may silently create duplicate nodes when the user meant update.
 Definition of Ready for any slice:
 
 ```text
+pre-build evaluation report completed and reviewed
+current ReFusion analysis completed for the slice
+HyperFrames/Remotion comparison completed for the slice
+decision table completed (keep/wrap/upgrade/add/replace/block)
 schema written
 registry item contract written
 manual UI contract written
@@ -1947,6 +2006,7 @@ cleanup decision drafted for every old or overlapping path
 Definition of Done for any slice:
 
 ```text
+pre-build report attached to the implementation checkpoint
 unit tests pass
 integration tests pass
 registry schema validation pass
@@ -2029,6 +2089,7 @@ Release checklist:
 registry diff reviewed
 capability benchmark diffs reviewed
 legacy path cleanup decisions reviewed
+pre-build evaluation reports reviewed for all shipped slices
 feature flags reviewed
 skills sync pass
 MCP discovery parity pass
@@ -2050,6 +2111,7 @@ unsupported_capability_silent_success > 0
 unbenchmarked_production_capability_count > 0
 legacy_path_without_cleanup_decision > 0
 parallel_truth_path_count > 0
+missing_prebuild_evaluation_report_count > 0
 preview_export_parity_score < 0.98
 skill_registry_reference_validity < 100%
 registry_schema_validation_pass < 100%
@@ -2079,6 +2141,8 @@ Do not:
 - keep an old or overlapping path without a cleanup decision;
 - treat subjective visual approval as a substitute for benchmark scenes,
   measurements, and code references.
+- start coding any slice before completing and publishing the mandatory
+  pre-build evaluation report.
 
 ## 13. First Practical Build Slice
 
