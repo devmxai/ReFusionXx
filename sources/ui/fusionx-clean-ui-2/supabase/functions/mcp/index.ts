@@ -67,12 +67,14 @@ const publicTools = new Set<string>([
 
 const writeTools = new Set<string>([
   'refusion.insert_layer',
+  'refusion.update_layer',
   'refusion.apply_scene_program',
   'refusion.apply_motion_patch',
   'refusion.apply_animation_recipe',
   'refusion.apply_keyframes',
   'refusion.keyframe_edit',
   'refusion.set_element_transform',
+  'refusion.set_text_style',
   'refusion.trim_clip',
   'refusion.split_clip',
   'refusion.set_layer_mask',
@@ -322,6 +324,9 @@ async function callTool(
     case 'refusion.insert_layer':
       ensureAgentWrite(canonicalToolName, context);
       return await insertLayer(context, args);
+    case 'refusion.update_layer':
+      ensureAgentWrite(canonicalToolName, context);
+      return await updateLayer(context, args);
     case 'refusion.apply_scene_program':
       ensureAgentWrite(canonicalToolName, context);
       return await applySceneProgram(context, args);
@@ -338,6 +343,9 @@ async function callTool(
     case 'refusion.set_element_transform':
       ensureAgentWrite(canonicalToolName, context);
       return await setElementTransform(context, args);
+    case 'refusion.set_text_style':
+      ensureAgentWrite(canonicalToolName, context);
+      return await setTextStyle(context, args);
     case 'refusion.trim_clip':
       ensureAgentWrite(canonicalToolName, context);
       return await trimClip(context, args);
@@ -456,9 +464,12 @@ function normalizeToolName(name: string): string {
     claim_pairing_code: 'refusion.attach_pairing_code',
     connect_pairing_code: 'refusion.attach_pairing_code',
     insert_layer: 'refusion.insert_layer',
+    update_layer: 'refusion.update_layer',
     insert_text: 'refusion.insert_layer',
     add_text: 'refusion.insert_layer',
     create_text: 'refusion.insert_layer',
+    update_text: 'refusion.update_layer',
+    edit_text: 'refusion.update_layer',
     insert_shape: 'refusion.insert_layer',
     add_shape: 'refusion.insert_layer',
     set_background: 'refusion.insert_layer',
@@ -470,6 +481,7 @@ function normalizeToolName(name: string): string {
     apply_keyframes: 'refusion.apply_keyframes',
     keyframe_edit: 'refusion.keyframe_edit',
     set_element_transform: 'refusion.set_element_transform',
+    set_text_style: 'refusion.set_text_style',
     trim_clip: 'refusion.trim_clip',
     split_clip: 'refusion.split_clip',
     set_layer_mask: 'refusion.set_layer_mask',
@@ -504,6 +516,11 @@ function normalizeToolName(name: string): string {
     wait_for_apply: 'refusion.wait_for_apply',
     disconnect_agent: 'refusion.disconnect_agent',
     'refusion.insert_text': 'refusion.insert_layer',
+    'refusion.update_text': 'refusion.update_layer',
+    'refusion.update_layer': 'refusion.update_layer',
+    'refusion.update': 'refusion.update_layer',
+    'refusion.edit_layer': 'refusion.update_layer',
+    'refusion.set_text_style': 'refusion.set_text_style',
     'refusion.claim_pairing_code': 'refusion.attach_pairing_code',
     'refusion.connect_pairing_code': 'refusion.attach_pairing_code',
     'refusion.add_text': 'refusion.insert_layer',
@@ -1048,7 +1065,7 @@ async function getPendingCommands(
 
   const markReceived = args.markReceived !== false;
   const nowIso = new Date().toISOString();
-  const commands = <JsonMap>[];
+  const commands: JsonMap[] = [];
   for (const row of rows ?? []) {
     const rowMap = readMap(row);
     const rowSessionId = stringValue(rowMap.editor_session_id);
@@ -1167,7 +1184,7 @@ async function ackCommandApplied(
     .map(readMap);
   const warnings = readList(firstDefined(args.warnings, diagnosticsInput.warnings))
     .map(readMap);
-  const appliedSuccessfully = firstDefined(
+  const requestedAppliedSuccessfully = firstDefined(
     args.appliedSuccessfully,
     args.applied,
     proofInput.appliedSuccessfully,
@@ -1176,8 +1193,8 @@ async function ackCommandApplied(
 
   const nowIso = new Date().toISOString();
   let acknowledged = 0;
-  const acknowledgedCommandIds = <string>[];
-  const failedCommandIds = <string>[];
+  const acknowledgedCommandIds: string[] = [];
+  const failedCommandIds: string[] = [];
   for (const command of commands ?? []) {
     const commandMap = readMap(command);
     const commandId = stringValue(commandMap.id);
@@ -1188,42 +1205,47 @@ async function ackCommandApplied(
     }
     const existingResult = readMap(commandMap.result);
     const lifecycle = readMap(existingResult.lifecycle);
+    const commandPayload = readMap(commandMap.payload);
     const nextProof: JsonMap = {
-      dataApplied: true,
+      dataApplied: firstDefined(
+        args.dataApplied,
+        proofInput.dataApplied,
+        requestedAppliedSuccessfully,
+      ) === true,
       localGraphApplied: firstDefined(
         args.localGraphApplied,
         proofInput.localGraphApplied,
-        appliedSuccessfully,
+        requestedAppliedSuccessfully,
       ) === true,
       timelineVisible: firstDefined(
         args.timelineVisible,
         proofInput.timelineVisible,
-        appliedSuccessfully,
+        requestedAppliedSuccessfully,
       ) === true,
       playerInvalidated: firstDefined(
         args.playerInvalidated,
         proofInput.playerInvalidated,
-        appliedSuccessfully,
+        requestedAppliedSuccessfully,
       ) === true,
       frameEvaluated: firstDefined(
         args.frameEvaluated,
         proofInput.frameEvaluated,
-        appliedSuccessfully,
+        requestedAppliedSuccessfully,
       ) === true,
       visualProgramEmitted: firstDefined(
         args.visualProgramEmitted,
         proofInput.visualProgramEmitted,
-        appliedSuccessfully,
+        requestedAppliedSuccessfully,
       ) === true,
       rendererApplied: firstDefined(
         args.rendererApplied,
         proofInput.rendererApplied,
-        appliedSuccessfully,
+        requestedAppliedSuccessfully,
       ) === true,
       visualBoundsVerified: firstDefined(
         args.visualBoundsVerified,
         proofInput.visualBoundsVerified,
-        appliedSuccessfully,
+        requestedAppliedSuccessfully,
       ) === true,
       pixelVerified: firstDefined(
         args.pixelVerified,
@@ -1241,7 +1263,42 @@ async function ackCommandApplied(
       proofBounds: readMap(firstDefined(args.proofBounds, proofInput.proofBounds)),
       screenshotUrl: firstText(args.screenshotUrl, proofInput.screenshotUrl),
       screenshotHash: firstText(args.screenshotHash, proofInput.screenshotHash),
+      targetLayerId: firstText(
+        args.targetLayerId,
+        proofInput.targetLayerId,
+        stringValue(commandPayload.layerId),
+      ),
+      operationApplied: firstText(
+        args.operationApplied,
+        proofInput.operationApplied,
+        text(existingResult.operationApplied, ''),
+      ),
+      createdLayerCount: numberValue(
+        firstDefined(
+          args.createdLayerCount,
+          proofInput.createdLayerCount,
+          existingResult.createdLayerCount,
+          0,
+        ),
+        0,
+      ),
+      updatedLayerCount: numberValue(
+        firstDefined(
+          args.updatedLayerCount,
+          proofInput.updatedLayerCount,
+          existingResult.updatedLayerCount,
+          0,
+        ),
+        0,
+      ),
     };
+    const appliedSuccessfully = requestedAppliedSuccessfully &&
+      nextProof.dataApplied === true &&
+      nextProof.localGraphApplied === true &&
+      nextProof.timelineVisible === true &&
+      nextProof.frameEvaluated === true &&
+      nextProof.visualProgramEmitted === true &&
+      nextProof.rendererApplied === true;
     const nextStatus = appliedSuccessfully ? 'succeeded' : 'failed';
     const nextResult: JsonMap = {
       ...existingResult,
@@ -1276,7 +1333,7 @@ async function ackCommandApplied(
             diagnosticsInput.errorMessage,
             blockers
               .map((entry) => text(entry.code, ''))
-              .where((entry) => entry.isNotEmpty)
+              .filter((entry) => entry.length > 0)
               .join(','),
             'APP_APPLY_FAILED',
           ),
@@ -1302,7 +1359,7 @@ async function ackCommandApplied(
     commandIds: acknowledgedCommandIds,
     failedCommandIds,
     appSessionId,
-    appliedSuccessfully,
+    appliedSuccessfully: acknowledged > 0 && failedCommandIds.length === 0,
   });
 }
 
@@ -1714,23 +1771,173 @@ async function disconnectAgent(context: RequestContext, args: JsonMap) {
   });
 }
 
-async function insertLayer(context: RequestContext, args: JsonMap): Promise<ToolResult> {
+function hasMotionIntentInput(args: JsonMap, payload: JsonMap): boolean {
+  const updates = readMap(payload.updates);
+  const updatePayload = readMap(updates.payload);
+  return (
+    readList(firstDefined(args.channels, payload.channels)).length > 0 ||
+    readList(firstDefined(args.keyframes, payload.keyframes)).length > 0 ||
+    Object.keys(
+      readMap(firstDefined(args.motion, payload.motion, updates.motion, updatePayload.motion)),
+    ).length > 0 ||
+    Object.keys(
+      readMap(firstDefined(args.animation, payload.animation, updates.animation, updatePayload.animation)),
+    ).length > 0 ||
+    firstText(
+      args.motionRecipe,
+      args.animationRecipe,
+      args.recipe,
+      payload.motionRecipe,
+      payload.animationRecipe,
+      payload.recipe,
+    ).trim().length > 0
+  );
+}
+
+function detectInsertUpdateIntent(
+  args: JsonMap,
+  payload: JsonMap,
+  layerKind: string,
+): { isUpdate: boolean; reason: string } {
+  const updates = readMap(payload.updates);
+  const updatePayload = readMap(updates.payload);
   const operation = firstText(
     args.operation,
     args.command,
     args.action,
-    readMap(args.payload).operation,
+    payload.operation,
+    updates.operation,
+    updatePayload.operation,
   ).toLowerCase();
+  const explicitTargetRef = hasExplicitTargetReference(args) ||
+    firstText(
+      payload.layerId,
+      payload.layer_id,
+      payload.targetLayerId,
+      payload.target_layer_id,
+      updates.layerId,
+      updates.layer_id,
+      updates.targetLayerId,
+      updates.target_layer_id,
+      updatePayload.layerId,
+      updatePayload.layer_id,
+      updatePayload.targetLayerId,
+      updatePayload.target_layer_id,
+    ).trim().length > 0;
+  if (explicitTargetRef) {
+    return { isUpdate: true, reason: 'explicit_target' };
+  }
+  if (Object.keys(updates).length > 0) {
+    return { isUpdate: true, reason: 'updates_payload' };
+  }
+  if (hasMotionIntentInput(args, payload)) {
+    return { isUpdate: true, reason: 'motion_payload' };
+  }
   if (
+    operation.includes('update') ||
+    operation.includes('edit') ||
     operation.includes('animate') ||
     operation.includes('keyframe') ||
-    operation.includes('transform')
+    operation.includes('transform') ||
+    operation.includes('style')
   ) {
-    return fail(
-      'INSERT_LAYER_CANNOT_BE_USED_FOR_ANIMATION',
-      { hint: 'Use refusion.apply_motion_patch / refusion.keyframe_edit / refusion.set_element_transform.' },
-    );
+    return { isUpdate: true, reason: 'operation_update_intent' };
   }
+  const sourceHint = firstText(
+    args.source,
+    args.prompt,
+    args.userPrompt,
+    args.instruction,
+  ).toLowerCase();
+  const referencesExisting = /(\bsame\b|\bexisting\b|\bcurrent\b|نفس|الموجود|الحالي)/.test(sourceHint);
+  const includesStylePatch = firstDefined(
+    args.fontSize,
+    args.font_size,
+    args.color,
+    args.opacity,
+    args.x,
+    args.y,
+    args.scale,
+    args.scaleX,
+    args.scaleY,
+    payload.fontSize,
+    payload.font_size,
+    payload.color,
+    payload.opacity,
+    payload.x,
+    payload.y,
+    payload.scale,
+    payload.scaleX,
+    payload.scaleY,
+  ) != null;
+  if (layerKind === 'text' && referencesExisting && includesStylePatch) {
+    return { isUpdate: true, reason: 'implicit_same_text_update' };
+  }
+  return { isUpdate: false, reason: '' };
+}
+
+function hasExplicitDuplicateIntent(args: JsonMap, payload: JsonMap): boolean {
+  if (
+    firstDefined(
+      args.allowDuplicate,
+      args.allow_duplicate,
+      payload.allowDuplicate,
+      payload.allow_duplicate,
+    ) === true
+  ) {
+    return true;
+  }
+  const sourceHint = firstText(
+    args.source,
+    args.prompt,
+    args.userPrompt,
+    args.instruction,
+  ).toLowerCase();
+  return /(\bnew\b|\bduplicate\b|\bcopy\b|جديد|انسخ|نسخة)/.test(sourceHint);
+}
+
+function hasTextStylePatchInput(args: JsonMap, payload: JsonMap): boolean {
+  const updates = readMap(payload.updates);
+  const updatePayload = readMap(updates.payload);
+  const style = readMap(payload.style);
+  const updateStyle = readMap(updates.style);
+  return firstDefined(
+    args.fontSize,
+    args.font_size,
+    args.color,
+    args.fill,
+    args.opacity,
+    args.x,
+    args.y,
+    args.scale,
+    args.scaleX,
+    args.scaleY,
+    payload.fontSize,
+    payload.font_size,
+    payload.color,
+    payload.fill,
+    payload.opacity,
+    payload.x,
+    payload.y,
+    payload.scale,
+    payload.scaleX,
+    payload.scaleY,
+    updatePayload.fontSize,
+    updatePayload.font_size,
+    updatePayload.color,
+    updatePayload.fill,
+    updatePayload.opacity,
+    updatePayload.x,
+    updatePayload.y,
+    updatePayload.scale,
+    updatePayload.scaleX,
+    updatePayload.scaleY,
+  ) != null ||
+    Object.keys(style).length > 0 ||
+    Object.keys(updateStyle).length > 0;
+}
+
+async function insertLayer(context: RequestContext, args: JsonMap): Promise<ToolResult> {
   const boundProjectId = context.agentSession?.project_id ?? '';
   const boundCompositionId = context.agentSession?.composition_id ?? '';
   const activeContext = await getActiveContext(context, {});
@@ -1756,6 +1963,68 @@ async function insertLayer(context: RequestContext, args: JsonMap): Promise<Tool
 
   const payload = canonicalLayerPayload(args);
   const layerKind = inferLayerKind(args, payload);
+  const updateIntent = detectInsertUpdateIntent(args, payload, layerKind);
+  if (updateIntent.isUpdate) {
+    const layers = await loadLayersForScope(context, projectId, compositionId);
+    const preferredKinds = layerKind.trim().length > 0 ? [layerKind] : [];
+    const targetResolution = resolveTargetForEdit(layers, args, {
+      preferredKinds,
+      playheadMs: optionalNumber(readMap(activeContext.timeline).playheadMs),
+    });
+    if (targetResolution.kind === 'ambiguous') {
+      return fail('AMBIGUOUS_TARGET', {
+        hint: 'Multiple candidate layers match this update intent. Provide layerId/targetLayerId.',
+        candidates: targetCandidatesPayload(targetResolution.candidates),
+      });
+    }
+    const targetLayer = targetResolution.layer;
+    if (targetLayer == null) {
+      return fail('TARGET_NOT_FOUND', {
+        hint: 'Insert was interpreted as update intent but no target layer was resolved.',
+        reason: updateIntent.reason,
+        code: 'INSERT_USED_FOR_UPDATE',
+      });
+    }
+    return await updateLayer(context, {
+      ...args,
+      projectId,
+      compositionId,
+      layerId: stringValue(targetLayer.id),
+      expectedRevision: currentRevision,
+      operation: firstText(args.operation, 'update_layer'),
+    });
+  }
+  if (
+    layerKind === 'text' &&
+    !hasExplicitDuplicateIntent(args, payload) &&
+    hasTextStylePatchInput(args, payload)
+  ) {
+    const textValue = firstText(args.text, args.content, payload.text, payload.content);
+    if (textValue.trim().length > 0) {
+      const layers = await loadLayersForScope(context, projectId, compositionId);
+      const targetResolution = resolveTargetForEdit(layers, args, {
+        preferredKinds: ['text'],
+        playheadMs: optionalNumber(readMap(activeContext.timeline).playheadMs),
+        targetText: textValue,
+      });
+      if (targetResolution.kind === 'ambiguous') {
+        return fail('AMBIGUOUS_TARGET', {
+          hint: 'Multiple existing text layers have the same content. Provide layerId/targetLayerId or set allowDuplicate=true to create another text layer.',
+          candidates: targetCandidatesPayload(targetResolution.candidates),
+        });
+      }
+      if (targetResolution.layer != null) {
+        return await updateLayer(context, {
+          ...args,
+          projectId,
+          compositionId,
+          layerId: stringValue(targetResolution.layer.id),
+          expectedRevision: currentRevision,
+          operation: 'update_layer',
+        });
+      }
+    }
+  }
   const color = inferLayerColor(args, payload) ?? '#FFFFFF';
   const name = text(
     args.name ?? payload.name,
@@ -1832,6 +2101,10 @@ async function insertLayer(context: RequestContext, args: JsonMap): Promise<Tool
     compositionId,
     layerId: layer.id,
     commandId: commandRecord.commandId,
+    operationApplied: 'insert',
+    createdLayerCount: 1,
+    updatedLayerCount: 0,
+    targetLayerId: layer.id,
     revisionBefore: currentRevision,
     revisionAfter,
   });
@@ -2184,6 +2457,38 @@ async function applyMotionPatch(
 
   const writes = inferMotionWrites(args);
   if (writes.length === 0) {
+    const payload = readMap(args.payload);
+    const updates = readMap(payload.updates);
+    const updatePayload = readMap(updates.payload);
+    const requestedRecipe = firstText(
+      args.motionRecipe,
+      args.animationRecipe,
+      args.recipe,
+      payload.motionRecipe,
+      payload.animationRecipe,
+      updates.motionRecipe,
+      updates.animationRecipe,
+      updatePayload.motionRecipe,
+      updatePayload.animationRecipe,
+      readMap(payload.motion).preset,
+      readMap(payload.animation).preset,
+      readMap(updates.motion).preset,
+      readMap(updates.animation).preset,
+      readMap(updatePayload.motion).preset,
+      readMap(updatePayload.animation).preset,
+      readMap(readMap(payload.motion).in).preset,
+      readMap(readMap(payload.animation).in).preset,
+      readMap(readMap(updates.motion).in).preset,
+      readMap(readMap(updates.animation).in).preset,
+      readMap(readMap(updatePayload.motion).in).preset,
+      readMap(readMap(updatePayload.animation).in).preset,
+    );
+    if (requestedRecipe.trim().length > 0) {
+      return fail('UNKNOWN_MOTION_RECIPE', {
+        motionRecipe: requestedRecipe,
+        hint: 'Use a supported recipe such as $motion.scaleInBounce / $motion.slideInFromLeft.',
+      });
+    }
     return fail('MOTION_CHANNELS_REQUIRED');
   }
   const motionBaseTimeMs = resolveMotionBaseTimeMs(resolved.active, args);
@@ -2207,7 +2512,15 @@ async function applyMotionPatch(
       }, {
         onConflict: 'owner_id,project_id,composition_id,layer_id,property_id',
       });
-    if (error) throw error;
+    if (error) {
+      const message = text((error as JsonMap).message, '');
+      if (message.includes('refusion_motion_channels')) {
+        return fail('MOTION_CHANNEL_STORAGE_MISSING', {
+          hint: 'Create and migrate table refusion_motion_channels before applying motion.',
+        });
+      }
+      throw error;
+    }
   }
 
   const revisionAfter = currentRevision + 1;
@@ -2235,6 +2548,10 @@ async function applyMotionPatch(
     channels: normalizedWrites.length,
     motionBaseTimeMs,
     commandId: commandRecord.commandId,
+    operationApplied: 'motion',
+    createdLayerCount: 0,
+    updatedLayerCount: 1,
+    targetLayerId: layerId,
     revisionBefore: currentRevision,
     revisionAfter,
   });
@@ -2418,6 +2735,164 @@ async function setElementTransform(
     channels: keyframes,
   };
   return await applyMotionPatch(context, payload);
+}
+
+async function setTextStyle(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  return await updateLayer(context, {
+    ...args,
+    operation: firstText(args.operation, 'set_text_style'),
+  });
+}
+
+async function updateLayer(
+  context: RequestContext,
+  args: JsonMap,
+): Promise<ToolResult> {
+  const resolved = await resolveProjectScope(context, args);
+  if (!resolved) {
+    return fail('PROJECT_NOT_OPEN');
+  }
+  const currentRevision = resolved.revision;
+  const expectedRevision = optionalNumber(args.expectedRevision);
+  if (
+    expectedRevision != null &&
+    expectedRevision !== currentRevision &&
+    !allowRevisionRebase(args)
+  ) {
+    return fail('REVISION_CONFLICT', {
+      expectedRevision,
+      actualRevision: currentRevision,
+      rebaseAllowed: true,
+    });
+  }
+
+  const layers = await loadLayersForScope(context, resolved.projectId, resolved.compositionId);
+  const payload = canonicalLayerPayload(args);
+  const inferredKind = inferLayerKind(args, payload);
+  const operation = firstText(args.operation, args.command, args.action).toLowerCase();
+  const preferredKinds = operation.includes('text')
+    ? ['text']
+    : inferredKind.trim().length > 0
+    ? [inferredKind]
+    : [];
+  const targetResolution = resolveTargetForEdit(layers, args, {
+    preferredKinds,
+    playheadMs: optionalNumber(firstDefined(args.timeMs, args.time, readMap(resolved.active.timeline).playheadMs)),
+  });
+  if (targetResolution.kind === 'ambiguous') {
+    return fail('AMBIGUOUS_TARGET', {
+      hint: 'Multiple candidate layers match this update request. Provide layerId/targetLayerId.',
+      candidates: targetCandidatesPayload(targetResolution.candidates),
+    });
+  }
+  const targetLayer = targetResolution.layer;
+  if (!targetLayer) {
+    return fail('TARGET_NOT_FOUND', {
+      hint: 'No layer resolved for update.',
+    });
+  }
+
+  const layerId = stringValue(targetLayer.id);
+  const currentPayload = readMap(targetLayer.payload);
+  const updates = readMap(payload.updates);
+  const updatePayload = readMap(updates.payload);
+  const mergedStyle = {
+    ...readMap(currentPayload.style),
+    ...readMap(payload.style),
+    ...readMap(updates.style),
+    ...readMap(updatePayload.style),
+  };
+  const nextPayload: JsonMap = {
+    ...currentPayload,
+    ...payload,
+    ...updatePayload,
+  };
+  delete nextPayload.updates;
+  if (Object.keys(mergedStyle).length > 0) {
+    nextPayload.style = mergedStyle;
+  }
+  const textValue = firstText(
+    args.text,
+    args.content,
+    payload.text,
+    payload.content,
+    updatePayload.text,
+    updatePayload.content,
+  );
+  if (textValue.trim().length > 0) {
+    nextPayload.text = textValue;
+    nextPayload.content = textValue;
+  }
+
+  const { error: updateError } = await admin
+    .from('refusion_layers')
+    .update({
+      payload: nextPayload,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', layerId);
+  if (updateError) throw updateError;
+
+  const revisionAfter = currentRevision + 1;
+  await updateRevision(resolved.projectId, revisionAfter);
+  const commandRecord = await recordCommand(
+    context,
+    resolved.projectId,
+    resolved.compositionId,
+    'refusion.update_layer',
+    {
+      layerId,
+      payload: nextPayload,
+    },
+    currentRevision,
+    revisionAfter,
+    stringValue(args.idempotencyKey),
+  );
+
+  if (hasMotionIntentInput(args, payload)) {
+    const motionResult = await applyMotionPatch(context, {
+      ...args,
+      projectId: resolved.projectId,
+      compositionId: resolved.compositionId,
+      layerId,
+      allowRebase: true,
+      autoRebase: true,
+      expectedRevision: revisionAfter,
+    });
+    if (!motionResult.ok) {
+      return motionResult;
+    }
+    const motionPayload = readMap(motionResult.payload);
+    return ok('Layer updated and motion applied.', {
+      projectId: resolved.projectId,
+      compositionId: resolved.compositionId,
+      layerId,
+      commandId: commandRecord.commandId,
+      motionCommandId: stringValue(motionPayload.commandId),
+      operationApplied: 'motion',
+      createdLayerCount: 0,
+      updatedLayerCount: 1,
+      targetLayerId: layerId,
+      revisionBefore: currentRevision,
+      revisionAfter: firstDefined(motionPayload.revisionAfter, revisionAfter),
+    });
+  }
+
+  return ok('Layer updated.', {
+    projectId: resolved.projectId,
+    compositionId: resolved.compositionId,
+    layerId,
+    commandId: commandRecord.commandId,
+    operationApplied: 'update',
+    createdLayerCount: 0,
+    updatedLayerCount: 1,
+    targetLayerId: layerId,
+    revisionBefore: currentRevision,
+    revisionAfter,
+  });
 }
 
 async function applyVideoPipRecipe(
@@ -2728,9 +3203,26 @@ async function trimClip(
     return fail('PROJECT_NOT_OPEN');
   }
   const rawLayerId = firstText(args.layerId, args.layer_id, args.clipId, args.clip_id);
-  const layerId = rawLayerId.startsWith('clip:') ? rawLayerId.slice(5) : rawLayerId;
+  let layerId = rawLayerId.startsWith('clip:') ? rawLayerId.slice(5) : rawLayerId;
   if (!layerId) {
-    return fail('LAYER_ID_REQUIRED');
+    const layers = await loadLayersForScope(context, resolved.projectId, resolved.compositionId);
+    const inferredKind = inferLayerKind(args, canonicalLayerPayload(args));
+    const targetResolution = resolveTargetForEdit(layers, args, {
+      preferredKinds: inferredKind.trim().length > 0 ? [inferredKind] : [],
+      playheadMs: optionalNumber(firstDefined(args.timeMs, args.time, readMap(resolved.active.timeline).playheadMs)),
+    });
+    if (targetResolution.kind === 'ambiguous') {
+      return fail('AMBIGUOUS_TARGET', {
+        hint: 'Multiple candidate layers match this trim request. Provide layerId/targetLayerId.',
+        candidates: targetCandidatesPayload(targetResolution.candidates),
+      });
+    }
+    if (!targetResolution.layer) {
+      return fail('TARGET_NOT_FOUND', {
+        hint: 'No layer resolved for trim request.',
+      });
+    }
+    layerId = stringValue(targetResolution.layer.id);
   }
   const { data: layer, error: layerError } = await admin
     .from('refusion_layers')
@@ -2842,9 +3334,26 @@ async function splitClip(
     return fail('PROJECT_NOT_OPEN');
   }
   const rawLayerId = firstText(args.layerId, args.layer_id, args.clipId, args.clip_id);
-  const layerId = rawLayerId.startsWith('clip:') ? rawLayerId.slice(5) : rawLayerId;
+  let layerId = rawLayerId.startsWith('clip:') ? rawLayerId.slice(5) : rawLayerId;
   if (!layerId) {
-    return fail('LAYER_ID_REQUIRED');
+    const layers = await loadLayersForScope(context, resolved.projectId, resolved.compositionId);
+    const inferredKind = inferLayerKind(args, canonicalLayerPayload(args));
+    const targetResolution = resolveTargetForEdit(layers, args, {
+      preferredKinds: inferredKind.trim().length > 0 ? [inferredKind] : [],
+      playheadMs: optionalNumber(firstDefined(args.timeMs, args.time, readMap(resolved.active.timeline).playheadMs)),
+    });
+    if (targetResolution.kind === 'ambiguous') {
+      return fail('AMBIGUOUS_TARGET', {
+        hint: 'Multiple candidate layers match this style update. Provide layerId/targetLayerId.',
+        candidates: targetCandidatesPayload(targetResolution.candidates),
+      });
+    }
+    if (!targetResolution.layer) {
+      return fail('TARGET_NOT_FOUND', {
+        hint: 'No layer resolved for style update.',
+      });
+    }
+    layerId = stringValue(targetResolution.layer.id);
   }
   const { data: layer, error: layerError } = await admin
     .from('refusion_layers')
@@ -3188,6 +3697,10 @@ async function applyLayerStyleMutation(
     compositionId: resolved.compositionId,
     layerId,
     commandId: commandRecord.commandId,
+    operationApplied: 'update',
+    createdLayerCount: 0,
+    updatedLayerCount: 1,
+    targetLayerId: layerId,
     revisionBefore: currentRevision,
     revisionAfter,
   });
@@ -4249,7 +4762,18 @@ async function getMotionChannels(
     query = query.in('layer_id', requestedLayerIds);
   }
   const { data, error } = await query;
-  if (error) throw error;
+  if (error) {
+    const message = text((error as JsonMap).message, '');
+    if (message.includes('refusion_motion_channels')) {
+      return ok('Motion channels table is not ready.', {
+        projectId,
+        compositionId,
+        channels: [],
+        warning: 'MOTION_CHANNEL_STORAGE_MISSING',
+      });
+    }
+    throw error;
+  }
   return ok('Motion channels loaded.', {
     projectId,
     compositionId,
@@ -4803,14 +5327,32 @@ function resolveTargetLayer(layers: JsonMap[], args: JsonMap): JsonMap | null {
 }
 
 function hasExplicitTargetReference(args: JsonMap): boolean {
-  return firstText(
+  const reference = firstText(
     args.layerId,
     args.layer_id,
     args.targetLayerId,
     args.surfaceId,
     args.clipId,
     args.clip_id,
-  ).trim().isNotEmpty;
+  ).trim();
+  return reference.length > 0;
+}
+
+function extractLayerText(layer: JsonMap): string {
+  const payload = readMap(layer.payload);
+  return firstText(
+    layer.text,
+    layer.content,
+    payload.text,
+    payload.content,
+    payload.value,
+  ).trim();
+}
+
+function isLayerVisibleAtPlayhead(layer: JsonMap, playheadMs: number): boolean {
+  const startMs = numberValue(layer.start_ms, 0);
+  const durationMs = Math.max(1, numberValue(layer.duration_ms, 1));
+  return playheadMs >= startMs && playheadMs < (startMs + durationMs);
 }
 
 function targetCandidatesPayload(candidates: JsonMap[]): JsonMap[] {
@@ -4821,6 +5363,7 @@ function targetCandidatesPayload(candidates: JsonMap[]): JsonMap[] {
       name: text(layer.name, 'Layer'),
       kind: text(layer.layer_kind, 'solid'),
       mediaKind: text(payload.mediaKind, ''),
+      text: extractLayerText(layer),
       zIndex: numberValue(layer.z_index, 0),
       startMs: numberValue(layer.start_ms, 0),
       durationMs: Math.max(1, numberValue(layer.duration_ms, 1)),
@@ -4831,7 +5374,13 @@ function targetCandidatesPayload(candidates: JsonMap[]): JsonMap[] {
 function resolveTargetForEdit(
   layers: JsonMap[],
   args: JsonMap,
-  options: { preferredKinds?: string[] } = {},
+  options: {
+    preferredKinds?: string[];
+    playheadMs?: number | null;
+    selectedLayerIds?: string[];
+    targetText?: string;
+    latestLayerId?: string | null;
+  } = {},
 ): TargetResolution {
   const explicit = hasExplicitTargetReference(args);
   if (explicit) {
@@ -4851,7 +5400,7 @@ function resolveTargetForEdit(
   }
   const preferredKinds = (options.preferredKinds ?? [])
     .map((entry) => entry.trim().toLowerCase())
-    .filter((entry) => entry.isNotEmpty);
+    .filter((entry) => entry.length > 0);
   let candidates = [...layers];
   if (preferredKinds.length > 0) {
     const filtered = candidates.filter((layer) =>
@@ -4859,6 +5408,64 @@ function resolveTargetForEdit(
     );
     if (filtered.length > 0) {
       candidates = filtered;
+    }
+  }
+  const selectedLayerIds = [
+    ...new Set(
+      [
+        ...(options.selectedLayerIds ?? []),
+        ...readStringList(firstDefined(args.selectedLayerIds, args.selected_layer_ids)),
+      ]
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0),
+    ),
+  ];
+  if (selectedLayerIds.length > 0) {
+    const selected = candidates.filter((layer) =>
+      selectedLayerIds.includes(stringValue(layer.id))
+    );
+    if (selected.length > 0) {
+      candidates = selected;
+    }
+  }
+  const targetText = (options.targetText ?? firstText(
+    args.targetText,
+    args.target_text,
+    args.matchText,
+    args.match_text,
+    args.text,
+    args.content,
+  )).trim();
+  if (targetText.length > 0) {
+    const textMatches = candidates.filter((layer) =>
+      extractLayerText(layer).trim().toLowerCase() === targetText.toLowerCase()
+    );
+    if (textMatches.length > 0) {
+      candidates = textMatches;
+    }
+  }
+  const playheadMs = options.playheadMs ??
+    optionalNumber(firstDefined(args.timeMs, args.time, args.playheadMs, args.timelinePlayheadMs));
+  if (playheadMs != null) {
+    const visible = candidates.filter((layer) => isLayerVisibleAtPlayhead(layer, playheadMs));
+    if (visible.length > 0) {
+      candidates = visible;
+    }
+  }
+  const latestLayerId = (options.latestLayerId ?? firstText(
+    args.latestLayerId,
+    args.latest_layer_id,
+    args.lastLayerId,
+    args.last_layer_id,
+  )).trim();
+  if (latestLayerId.length > 0) {
+    const latest = candidates.filter((layer) => stringValue(layer.id) === latestLayerId);
+    if (latest.length == 1) {
+      return {
+        kind: 'ok',
+        layer: latest[0],
+        candidates: latest,
+      };
     }
   }
   const ordered = [...candidates].sort((a, b) =>
@@ -6192,6 +6799,12 @@ function tools() {
       true,
     ),
     tool(
+      'refusion.update_layer',
+      'Update Layer',
+      'Update an existing target layer in-place. This never inserts a new layer.',
+      true,
+    ),
+    tool(
       'refusion.insert_text',
       'Insert Text',
       'Insert a text layer into the active composition.',
@@ -6237,6 +6850,12 @@ function tools() {
       'refusion.set_element_transform',
       'Set Element Transform',
       'Set element transform values at a timeline time as keyframed motion channels.',
+      true,
+    ),
+    tool(
+      'refusion.set_text_style',
+      'Set Text Style',
+      'Update typography/style fields of an existing text layer without inserting a duplicate.',
       true,
     ),
     tool(
@@ -6767,6 +7386,8 @@ function shiftMotionWritesBy(
 
 function inferMotionWrites(args: JsonMap): MotionChannelWrite[] {
   const payload = readMap(args.payload);
+  const updates = readMap(payload.updates);
+  const updatePayload = readMap(updates.payload);
   const channels = readList(firstDefined(args.channels, payload.channels));
   const writes: MotionChannelWrite[] = [];
   if (channels.length > 0) {
@@ -6810,10 +7431,74 @@ function inferMotionWrites(args: JsonMap): MotionChannelWrite[] {
     payload.recipe,
   );
   if (motionRecipe) {
-    return expandMotionRecipe(motionRecipe, numberValue(args.durationMs, 650));
+    const expanded = expandMotionRecipe(motionRecipe, numberValue(args.durationMs, 650));
+    if (expanded.length > 0) {
+      return expanded;
+    }
+  }
+
+  const legacyMotionMaps = [
+    readMap(firstDefined(args.motion, payload.motion, updates.motion, updatePayload.motion)),
+    readMap(firstDefined(args.animation, payload.animation, updates.animation, updatePayload.animation)),
+    readMap(readMap(payload.motion).in),
+    readMap(readMap(updates.motion).in),
+    readMap(readMap(updatePayload.motion).in),
+    readMap(readMap(payload.animation).in),
+    readMap(readMap(updates.animation).in),
+    readMap(readMap(updatePayload.animation).in),
+  ];
+  for (const legacyMap of legacyMotionMaps) {
+    if (Object.keys(legacyMap).length === 0) {
+      continue;
+    }
+    const preset = firstText(
+      legacyMap.preset,
+      legacyMap.recipe,
+      legacyMap.motionRecipe,
+      legacyMap.animationRecipe,
+      legacyMap.type,
+      legacyMap.animation,
+    );
+    if (preset.trim().length === 0) {
+      continue;
+    }
+    const durationMs = numberValue(
+      firstDefined(
+        legacyMap.durationMs,
+        legacyMap.duration,
+        args.durationMs,
+        payload.durationMs,
+      ),
+      650,
+    );
+    const normalizedPreset = normalizeLegacyMotionRecipe(preset);
+    const expanded = expandMotionRecipe(normalizedPreset, durationMs);
+    if (expanded.length > 0) {
+      return expanded;
+    }
   }
 
   return [];
+}
+
+function normalizeLegacyMotionRecipe(value: string): string {
+  const normalized = value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+  if (normalized === 'popup' || normalized === 'popupspring' || normalized === 'springpopup') {
+    return '$motion.scaleInBounce';
+  }
+  if (normalized === 'scaleinbounce') {
+    return '$motion.scaleInBounce';
+  }
+  if (normalized === 'scalein') {
+    return '$motion.scaleIn';
+  }
+  if (normalized === 'slideinfromleft') {
+    return '$motion.slideInFromLeft';
+  }
+  if (normalized === 'slideinfromright') {
+    return '$motion.slideInFromRight';
+  }
+  return value;
 }
 
 function legacyAnimationChannelsToMotionWrites(
@@ -6978,7 +7663,76 @@ function expandMotionRecipe(recipe: string, durationMsRaw: number): MotionChanne
       },
     ];
   }
-  throw new Error(`UNKNOWN_MOTION_RECIPE: ${recipe}`);
+  if (normalized === '$motion.scalein' || normalized === 'scalein') {
+    const keyframes: JsonMap[] = [
+      makeScalarKeyframe(0, 0.65, 'easeOut'),
+      makeScalarKeyframe(durationMs, 1.0, 'easeInOut'),
+    ];
+    return [
+      {
+        propertyId: 'transform.scale.x',
+        keyframes,
+        motionRecipe: '$motion.scaleIn',
+      },
+      {
+        propertyId: 'transform.scale.y',
+        keyframes,
+        motionRecipe: '$motion.scaleIn',
+      },
+      {
+        propertyId: 'visual.opacity',
+        keyframes: [
+          makeScalarKeyframe(0, 0.0, 'linear'),
+          makeScalarKeyframe(Math.round(durationMs * 0.35), 1.0, 'easeOut'),
+          makeScalarKeyframe(durationMs, 1.0, 'linear'),
+        ],
+        motionRecipe: '$motion.scaleIn',
+      },
+    ];
+  }
+  if (normalized === '$motion.slideinfromleft' || normalized === 'slideinfromleft') {
+    return [
+      {
+        propertyId: 'transform.position.x',
+        keyframes: [
+          makeScalarKeyframe(0, -360, 'easeOut'),
+          makeScalarKeyframe(durationMs, 0, 'easeInOut'),
+        ],
+        motionRecipe: '$motion.slideInFromLeft',
+      },
+      {
+        propertyId: 'visual.opacity',
+        keyframes: [
+          makeScalarKeyframe(0, 0.0, 'linear'),
+          makeScalarKeyframe(Math.round(durationMs * 0.24), 1.0, 'easeOut'),
+          makeScalarKeyframe(durationMs, 1.0, 'linear'),
+        ],
+        motionRecipe: '$motion.slideInFromLeft',
+      },
+    ];
+  }
+  if (normalized === '$motion.slideinfromright' || normalized === 'slideinfromright') {
+    return [
+      {
+        propertyId: 'transform.position.x',
+        keyframes: [
+          makeScalarKeyframe(0, 360, 'easeOut'),
+          makeScalarKeyframe(durationMs, 0, 'easeInOut'),
+        ],
+        motionRecipe: '$motion.slideInFromRight',
+      },
+      {
+        propertyId: 'visual.opacity',
+        keyframes: [
+          makeScalarKeyframe(0, 0.0, 'linear'),
+          makeScalarKeyframe(Math.round(durationMs * 0.24), 1.0, 'easeOut'),
+          makeScalarKeyframe(durationMs, 1.0, 'linear'),
+        ],
+        motionRecipe: '$motion.slideInFromRight',
+      },
+    ];
+  }
+  return [];
 }
 
 function makeScalarKeyframe(timeMs: number, value: number, easing = 'linear'): JsonMap {

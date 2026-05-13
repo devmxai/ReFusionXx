@@ -1861,8 +1861,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             'timelineVisible': true,
             'localGraphApplied': true,
             'frameEvaluated': true,
+            'visualProgramEmitted': true,
+            'dataApplied': true,
+            'playerInvalidated': true,
             'proofFrameTimeMs':
                 _timelineDisplayTimeNotifier.value.inMilliseconds,
+            if (_mcpLatestApplyProof.targetLayerIds.length == 1)
+              'targetLayerId': _mcpLatestApplyProof.targetLayerIds.first,
             ..._mcpLatestApplyProof.toProofMap(),
           },
         ),
@@ -2172,10 +2177,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         '';
     return operation.contains('update_layer') ||
         updates.containsKey('animation') ||
+        updates.containsKey('motion') ||
         updates.containsKey('mask') ||
         updates.containsKey('border') ||
         updates.containsKey('glow') ||
         payload.containsKey('animation') ||
+        payload.containsKey('motion') ||
         payload.containsKey('mask') ||
         payload.containsKey('border') ||
         payload.containsKey('glow');
@@ -2189,7 +2196,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final nestedPayload = _remoteMap(updates['payload']);
     final animationSource = payload['animation'] ??
         updates['animation'] ??
-        nestedPayload['animation'];
+        nestedPayload['animation'] ??
+        payload['motion'] ??
+        updates['motion'] ??
+        nestedPayload['motion'] ??
+        _remoteMap(payload['motion'])['in'] ??
+        _remoteMap(updates['motion'])['in'] ??
+        _remoteMap(nestedPayload['motion'])['in'];
     final animation = _remoteMap(animationSource);
     final operation = _firstRemoteString(<Object?>[
           payload['operation'],
@@ -2222,6 +2235,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       animation['recipe'],
       animation['animation'],
       animation['preset'],
+      _remoteMap(payload['motion'])['preset'],
+      _remoteMap(_remoteMap(payload['motion'])['in'])['preset'],
+      _remoteMap(updates['motion'])['preset'],
+      _remoteMap(_remoteMap(updates['motion'])['in'])['preset'],
       payload['animation'],
       payload['preset'],
       payload['motionRecipe'],

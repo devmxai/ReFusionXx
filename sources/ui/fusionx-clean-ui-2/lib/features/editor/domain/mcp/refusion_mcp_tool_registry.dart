@@ -40,6 +40,10 @@ class RefusionMcpToolRegistry {
     'author_scene_program': 'refusion.author_scene_program',
     'apply_scene_program': 'refusion.apply_scene_program',
     'create_project': 'refusion.create_project',
+    'update_layer': 'refusion.update_layer',
+    'update_text': 'refusion.update_layer',
+    'edit_text': 'refusion.update_layer',
+    'set_text_style': 'refusion.set_text_style',
     'apply_motion_patch': 'refusion.apply_motion_patch',
     'keyframe_edit': 'refusion.keyframe_edit',
     'set_element_transform': 'refusion.set_element_transform',
@@ -92,6 +96,8 @@ class RefusionMcpToolRegistry {
     'refusion.layout.preview_change': 'refusion.layout.preview_change',
     'refusion.layout.validate_intent': 'refusion.layout.validate_intent',
     'refusion.layout.detect_overlaps': 'refusion.layout.detect_overlaps',
+    'refusion.update_text': 'refusion.update_layer',
+    'refusion.edit_text': 'refusion.update_layer',
     'move_layer': 'refusion.move_layer',
     'delete_layer': 'refusion.delete_layer',
     'dry_run_command': 'refusion.dry_run_command',
@@ -275,6 +281,36 @@ class RefusionMcpToolRegistry {
       mutating: true,
     ),
     RefusionMcpToolDescriptor(
+      name: 'refusion.update_layer',
+      title: 'Update Layer',
+      description:
+          'Patch an existing layer after target resolution; never inserts duplicates for edit intent.',
+      capability: RefusionMcpCapability.timelineWrite,
+      mutating: true,
+    ),
+    RefusionMcpToolDescriptor(
+      name: 'refusion.set_text_style',
+      title: 'Set Text Style',
+      description:
+          'Patch typography, color, transform, or motion intent on a resolved text layer.',
+      capability: RefusionMcpCapability.timelineWrite,
+      mutating: true,
+    ),
+    RefusionMcpToolDescriptor(
+      name: 'refusion.split_at_playhead',
+      title: 'Split At Playhead',
+      description: 'Split the selected clip at the current playhead time.',
+      capability: RefusionMcpCapability.timelineWrite,
+      mutating: true,
+    ),
+    RefusionMcpToolDescriptor(
+      name: 'refusion.trim_layer',
+      title: 'Trim Layer',
+      description: 'Trim the selected layer or clip in the timeline.',
+      capability: RefusionMcpCapability.timelineWrite,
+      mutating: true,
+    ),
+    RefusionMcpToolDescriptor(
       name: 'refusion.split_clip',
       title: 'Split Clip',
       description: 'Split a clip at an explicit timeline time.',
@@ -284,7 +320,8 @@ class RefusionMcpToolRegistry {
     RefusionMcpToolDescriptor(
       name: 'refusion.trim_clip',
       title: 'Trim Clip',
-      description: 'Trim clip timeline/source ranges in the active composition.',
+      description:
+          'Trim clip timeline/source ranges in the active composition.',
       capability: RefusionMcpCapability.timelineWrite,
       mutating: true,
     ),

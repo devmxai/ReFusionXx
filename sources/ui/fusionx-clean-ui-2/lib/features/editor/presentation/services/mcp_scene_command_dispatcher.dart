@@ -29,7 +29,9 @@ class McpSceneCommandDispatcher {
       final hasLegacyAnimationPayload = operation.contains('animate') ||
           operation.contains('keyframe') ||
           _asMap(payload['animation']).isNotEmpty ||
-          _asMap(updates['animation']).isNotEmpty;
+          _asMap(updates['animation']).isNotEmpty ||
+          _asMap(payload['motion']).isNotEmpty ||
+          _asMap(updates['motion']).isNotEmpty;
       if (hasLegacyAnimationPayload) {
         commands.add(
           ProfessionalSceneCommand(

@@ -16,6 +16,8 @@ void main() {
       expect(names.contains('refusion.author_scene_program'), isTrue);
       expect(names.contains('refusion.apply_scene_program'), isTrue);
       expect(names.contains('refusion.insert_layer'), isTrue);
+      expect(names.contains('refusion.update_layer'), isTrue);
+      expect(names.contains('refusion.set_text_style'), isTrue);
       expect(names.contains('refusion.split_at_playhead'), isTrue);
       expect(names.contains('refusion.trim_layer'), isTrue);
       expect(names.contains('refusion.move_layer'), isTrue);
@@ -35,6 +37,14 @@ void main() {
       expect(
         registry.normalizeToolName('insert_layer'),
         'refusion.insert_layer',
+      );
+      expect(
+        registry.normalizeToolName('update_text'),
+        'refusion.update_layer',
+      );
+      expect(
+        registry.normalizeToolName('set_text_style'),
+        'refusion.set_text_style',
       );
       expect(
         registry.normalizeToolName('get_project_state'),

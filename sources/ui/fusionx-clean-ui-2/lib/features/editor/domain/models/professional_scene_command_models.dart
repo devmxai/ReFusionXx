@@ -59,6 +59,10 @@ class ProfessionalSceneApplyReceipt {
     required this.receivedRemoteLayers,
     this.appliedMotionChannels,
     this.lastAppliedMotionChannelsBatch,
+    this.operationApplied,
+    this.createdLayerCount,
+    this.updatedLayerCount,
+    this.targetLayerIds = const <String>[],
   });
 
   final int appliedCommandCount;
@@ -66,6 +70,10 @@ class ProfessionalSceneApplyReceipt {
   final int receivedRemoteLayers;
   final int? appliedMotionChannels;
   final int? lastAppliedMotionChannelsBatch;
+  final String? operationApplied;
+  final int? createdLayerCount;
+  final int? updatedLayerCount;
+  final List<String> targetLayerIds;
 
   Map<String, Object?> toProofMap() {
     return <String, Object?>{
@@ -76,6 +84,11 @@ class ProfessionalSceneApplyReceipt {
         'appliedMotionChannels': appliedMotionChannels,
       if (lastAppliedMotionChannelsBatch != null)
         'lastAppliedMotionChannelsBatch': lastAppliedMotionChannelsBatch,
+      if (operationApplied != null && operationApplied!.isNotEmpty)
+        'operationApplied': operationApplied,
+      if (createdLayerCount != null) 'createdLayerCount': createdLayerCount,
+      if (updatedLayerCount != null) 'updatedLayerCount': updatedLayerCount,
+      if (targetLayerIds.isNotEmpty) 'targetLayerIds': targetLayerIds,
     };
   }
 
@@ -85,6 +98,10 @@ class ProfessionalSceneApplyReceipt {
     int? receivedRemoteLayers,
     int? appliedMotionChannels,
     int? lastAppliedMotionChannelsBatch,
+    String? operationApplied,
+    int? createdLayerCount,
+    int? updatedLayerCount,
+    List<String>? targetLayerIds,
   }) {
     return ProfessionalSceneApplyReceipt(
       appliedCommandCount: appliedCommandCount ?? this.appliedCommandCount,
@@ -94,6 +111,10 @@ class ProfessionalSceneApplyReceipt {
           appliedMotionChannels ?? this.appliedMotionChannels,
       lastAppliedMotionChannelsBatch:
           lastAppliedMotionChannelsBatch ?? this.lastAppliedMotionChannelsBatch,
+      operationApplied: operationApplied ?? this.operationApplied,
+      createdLayerCount: createdLayerCount ?? this.createdLayerCount,
+      updatedLayerCount: updatedLayerCount ?? this.updatedLayerCount,
+      targetLayerIds: targetLayerIds ?? this.targetLayerIds,
     );
   }
 }
