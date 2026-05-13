@@ -1461,7 +1461,363 @@ lib/features/editor/presentation/widgets/exposed_controls_panel.dart
 Protected Live Scrub/native renderer files remain untouched unless a later
 slice explicitly approves renderer implementation work.
 
-## 11. Stop List
+## 11. Delivery Governance
+
+This plan is not accepted as a professional execution plan unless every phase
+has measurable gates, owners, rollback controls, migration rules, and release
+governance.
+
+### 11.1 KPIs For Every Phase
+
+Every PNCLE phase must report these KPIs:
+
+```text
+apply_success_rate >= 99.5%
+appApplied_proof_latency_p95 < 120ms
+command_dryrun_validation_pass >= 99%
+registry_schema_validation_pass = 100%
+manual_ui_mcp_capability_match = 100%
+skill_registry_reference_validity = 100%
+preview_export_parity_score >= 0.98
+unsupported_capability_silent_success = 0
+metadata_only_success = 0
+```
+
+Phase-specific additions:
+
+| Phase | Extra KPI |
+|---|---|
+| PNCLE-01 | `registry_core_model_test_pass = 100%` |
+| PNCLE-02 | `existing_capability_review_coverage = 100%` |
+| PNCLE-03 | `list_describe_tool_parity = 100%` |
+| PNCLE-03B | `adapter_direct_mutation_count = 0` |
+| PNCLE-05B | `insert_used_for_update_count = 0` |
+| PNCLE-07 | `renderer_conformance_unknown_count = 0` |
+| PNCLE-07B | `export_unsupported_silent_pass = 0` |
+| PNCLE-12 | `stale_skill_reference_count = 0` |
+| PNCLE-14 | `full_acceptance_suite_pass = 100%` |
+
+### 11.2 Performance Budgets
+
+Reference device class must be named in each run. Until a device matrix is
+formalized, use:
+
+```text
+reference_device: Android mid/high device connected through adb
+composition_reference: 1080x1920, 30fps
+```
+
+Budgets:
+
+```text
+frame_eval_budget_p95 <= 8ms for small/medium compositions
+frame_eval_budget_p95 <= 16ms for heavy compositions
+creative_command_dryrun_p95 <= 20ms
+registry_list_query_p95 <= 30ms
+registry_describe_query_p95 <= 20ms
+apply_engine_local_apply_p95 <= 50ms
+appApplied_proof_latency_p95 < 120ms
+preview_frame_capture_p95 <= 250ms
+export_timeout_budget <= 90s per rendered minute for reference composition
+```
+
+Initial structural limits before fallback/diagnostic:
+
+```text
+max_effect_instances_per_frame = 64
+max_motion_channels_per_node = 32
+max_keyframes_per_channel = 240
+max_visible_nodes_small = 50
+max_visible_nodes_medium = 150
+max_visible_nodes_heavy = 400
+max_nested_group_depth = 8
+max_registry_items_without_preview = 0
+```
+
+If a composition exceeds a budget, the system must return a diagnostic:
+
+```text
+PERFORMANCE_BUDGET_EXCEEDED
+```
+
+not a silent visual failure.
+
+### 11.3 RACI / Ownership
+
+Each phase must define:
+
+```text
+Owner
+Reviewer
+QA Owner
+Release Owner
+Approver
+```
+
+Default ownership map:
+
+| Phase | Owner | Reviewer | QA Owner | Release Owner |
+|---|---|---|---|---|
+| PNCLE-01 | Domain | Architecture | Unit QA | Release |
+| PNCLE-02 | Domain | Renderer + Export | Integration QA | Release |
+| PNCLE-03 | MCP/Domain | Architecture | Tooling QA | Release |
+| PNCLE-03B | Domain | Architecture | Integration QA | Release |
+| PNCLE-04 | UI | Domain | UI QA | Release |
+| PNCLE-05 | Domain | UI + MCP | Integration QA | Release |
+| PNCLE-05B | Domain | Renderer | Integration QA | Release |
+| PNCLE-06 | Domain | Timeline | Timeline QA | Release |
+| PNCLE-07 | Renderer | Domain + Export | Visual QA | Release |
+| PNCLE-07B | Export | Renderer | Export QA | Release |
+| PNCLE-08 | Creative Library | Domain | Visual QA | Release |
+| PNCLE-09 | Creative Library | Domain | Motion QA | Release |
+| PNCLE-10 | Creative Library | Timeline | Preset QA | Release |
+| PNCLE-11 | Templates | UI + Domain | Template QA | Release |
+| PNCLE-12 | Agent Skills | MCP + Domain | Skill QA | Release |
+| PNCLE-13 | QA Tooling | Renderer | Visual QA | Release |
+| PNCLE-14 | Integration | Architecture | Full QA | Release |
+
+No phase can be marked done without named owners in the implementation ticket.
+
+### 11.4 Fixed Milestones
+
+Target dates use Asia/Baghdad calendar dates.
+
+| Milestone | Target date | Required scope |
+|---|---:|---|
+| M1 | 2026-05-18 | PNCLE-01, PNCLE-02, PNCLE-03: registry core + existing inventory + read-only discovery |
+| M2 | 2026-05-23 | PNCLE-03B, PNCLE-05, PNCLE-05B: adapters + command taxonomy + command compilation |
+| M3 | 2026-05-29 | PNCLE-06, PNCLE-07, PNCLE-07B: lowering + renderer conformance + export parity |
+| M4 | 2026-06-04 | PNCLE-08, PNCLE-09, PNCLE-10: HyperFrames/Remotion-inspired native packs + presets |
+| M5 | 2026-06-08 | PNCLE-11, PNCLE-12, PNCLE-13: exposed controls + skill generation + visual closure loop |
+| M6 | 2026-06-12 | PNCLE-14: full acceptance suite + launch readiness |
+
+If a milestone slips, the release owner must record:
+
+```text
+slip reason
+affected phases
+new target date
+risk impact
+scope reduction or staffing plan
+```
+
+### 11.5 Risk Register
+
+| Risk | Probability | Impact | Mitigation | Owner |
+|---|---|---|---|---|
+| Preview/export divergence | High | Critical | Renderer/export conformance gate, parity snapshots, block unsupported items | Renderer + Export |
+| MCP generates commands outside schema | High | Critical | Registry-generated schemas, dry-run validation, fail-closed errors | MCP/Domain |
+| Registry grows without QA | High | High | No item without schema, preview, conformance, tests, skill validation | Creative Library |
+| Existing working effects get broken during wrapping | Medium | High | Existing Capability Upgrade Gate, keep/wrap/upgrade/replace decisions | Domain |
+| Manual UI and MCP expose different capabilities | Medium | High | Single registry facade, parity test | UI + MCP |
+| Motion remains metadata-only | Medium | Critical | Motion lowering tests, channel proof in ack | Domain + Timeline |
+| Renderer supports preview but export lacks feature | Medium | Critical | Export parity gate before release | Export |
+| Skill docs mention stale ids | Medium | Medium | Skill registry validation | Agent Skills |
+| Performance regressions from heavy effect stacks | Medium | High | Performance budgets, fallback diagnostics | Renderer |
+| Legacy commands create duplicate layers | High | High | Migration adapter, insert/update enforcement | Domain |
+
+Every risk must have an owner before implementation begins.
+
+### 11.6 Rollback And Feature Flags
+
+Every new capability family ships behind a feature flag:
+
+```text
+creative.registry.core
+creative.discovery.mcp
+creative.discovery.manual_ui
+creative.command_taxonomy.v2
+creative.effects.registry
+creative.motion.registry
+creative.templates.registry
+creative.export.conformance_gate
+effects.experimental.*
+motion.experimental.*
+components.experimental.*
+templates.experimental.*
+```
+
+Rollback rules:
+
+- disable one capability family without disabling the entire editor;
+- keep projects readable even if a capability is disabled;
+- disabled items show `CAPABILITY_DISABLED` diagnostics;
+- no flag removal until two stable releases after launch;
+- rollback must not delete graph data.
+
+Emergency rollback examples:
+
+```text
+effects.experimental.* -> off
+creative.discovery.mcp -> off
+creative.command_taxonomy.v2 -> compatibility-only
+creative.export.conformance_gate -> warn-only only with release approval
+```
+
+### 11.7 Legacy Migration Plan
+
+Legacy behavior must be migrated, not abruptly broken.
+
+Migration targets:
+
+```text
+insertLayer as general update path
+payload.motion
+payload.animation
+payload.updates.motion
+payload.updates.animation
+metadata-only effect storage
+latest-solid-wins background inference
+MCP-only tool aliases
+paste-script-only local mutations
+```
+
+Compatibility window:
+
+```text
+beta.12: compatibility adapter on, warnings emitted
+beta.13: compatibility adapter on, telemetry required, new commands preferred
+beta.14: legacy commands fail in strict mode, compatibility mode available
+beta.15: legacy aliases removed from production skill docs
+```
+
+Migration output must include:
+
+```text
+legacyCommandId
+newCommandFamily
+targetResolution
+transformedPayload
+warnings
+compatibilityMode
+```
+
+No old command may silently create duplicate nodes when the user meant update.
+
+### 11.8 Definition Of Ready / Done
+
+Definition of Ready for any slice:
+
+```text
+schema written
+registry item contract written
+manual UI contract written
+MCP contract written
+dry-run behavior defined
+undo/redo behavior defined
+renderer conformance expectation defined
+export conformance expectation defined
+tests listed
+feature flag named
+rollback path named
+owner/reviewer/QA/release owner assigned
+```
+
+Definition of Done for any slice:
+
+```text
+unit tests pass
+integration tests pass
+registry schema validation pass
+manual UI/MCP parity pass
+dry-run validation pass
+apply proof pass
+timeline projection pass
+frame evaluation pass
+preview renderer pass
+export parity pass or explicit blocker
+performance budget pass
+skill docs synchronized
+release checklist updated
+rollback verified
+```
+
+### 11.9 Operational Test Matrix
+
+Device classes:
+
+```text
+Android low memory
+Android mid range
+Android high range
+Android tablet/foldable where applicable
+```
+
+Composition sizes:
+
+```text
+small: <= 20 visible nodes, <= 20 motion channels, <= 10 effects
+medium: <= 80 visible nodes, <= 120 motion channels, <= 40 effects
+heavy: <= 250 visible nodes, <= 500 motion channels, <= 120 effects
+stress: above heavy, diagnostic/fallback expected
+```
+
+Aspect ratios:
+
+```text
+9:16
+16:9
+1:1
+4:5
+custom
+```
+
+Rendering modes:
+
+```text
+editor still preview
+live scrub
+playback
+frame capture
+export mp4
+export still
+```
+
+Input paths:
+
+```text
+Manual UI
+Paste Script
+MCP Agent
+Template
+Tap List
+Future Tool adapter test stub
+```
+
+Each release candidate must cover every rendering mode and at least small,
+medium, and heavy compositions.
+
+### 11.10 Release Governance
+
+Release checklist:
+
+```text
+registry diff reviewed
+feature flags reviewed
+skills sync pass
+MCP discovery parity pass
+manual UI discovery parity pass
+conformance snapshots approved
+preview/export parity pass
+performance budget pass
+legacy migration telemetry reviewed
+risk register updated
+rollback commands tested
+release notes updated
+```
+
+Release cannot proceed if:
+
+```text
+metadata_only_success > 0
+unsupported_capability_silent_success > 0
+preview_export_parity_score < 0.98
+skill_registry_reference_validity < 100%
+registry_schema_validation_pass < 100%
+manual_ui_mcp_capability_match < 100%
+```
+
+## 12. Stop List
 
 Do not:
 
@@ -1481,7 +1837,7 @@ Do not:
 - allow duplicate components/effects with different ids for the same concept;
 - allow UI, script, and MCP to use different capability lists.
 
-## 12. First Practical Build Slice
+## 13. First Practical Build Slice
 
 Start with a small, hard slice:
 
@@ -1498,7 +1854,7 @@ That gives us:
 
 Only after that should we add new HyperFrames/Remotion-inspired packs.
 
-## 13. Definition Of Done
+## 14. Definition Of Done
 
 This plan is done when:
 
