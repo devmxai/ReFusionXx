@@ -71,6 +71,7 @@ import '../services/composition_workspace_outliner_adapter.dart';
 import '../services/composition_media_playback_projection_adapter.dart';
 import '../services/live_scrub_runtime_surface_config_adapter.dart';
 import '../services/manual_transition_master_frame_evaluation_adapter.dart';
+import '../services/mcp_scene_command_dispatcher.dart';
 import '../services/manual_transition_lane_to_motion_channel_adapter.dart';
 import '../services/master_frame_evaluation_read_adapter.dart';
 import '../services/normal_transition_timeline_authoring_adapter.dart';
@@ -854,6 +855,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       <String, String>{};
   final Map<String, int> _mcpPendingCommandRevisionById = <String, int>{};
   final Set<String> _mcpAcknowledgedCommandIds = <String>{};
+  static const McpSceneCommandDispatcher _mcpSceneCommandDispatcher =
+      McpSceneCommandDispatcher();
 
   @override
   void initState() {
@@ -1575,25 +1578,37 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (remoteLayers.isEmpty) {
       return;
     }
+    final commands = _mcpSceneCommandDispatcher.dispatchRemoteLayers(
+      remoteLayers: remoteLayers,
+      hasBackgroundVisualIntent: _remoteLayerHasBackgroundVisualIntent,
+      hasTimelineMutationIntent: _remoteLayerHasTimelineMutationIntent,
+    );
     var didApply = false;
     var hasRepresentedRemoteLayer = false;
-    for (final remoteLayer in remoteLayers) {
+    for (final command in commands) {
+      final remoteLayer = command.remoteLayer;
       final remoteLayerId = _remoteString(remoteLayer['id']);
-      didApply =
-          _applyLegacyRemoteAnimationFromLayerIfNeeded(remoteLayer) || didApply;
-      final kind = _remoteLayerKind(remoteLayer);
-      if (kind == 'text') {
-        didApply = _applyRemoteTextLayerIfNeeded(remoteLayer) || didApply;
-      } else if (kind == 'solid') {
-        didApply = _applyRemoteSolidLayerIfNeeded(remoteLayer) || didApply;
-      } else if (kind == 'media') {
-        _registerRemoteMediaLayerBinding(remoteLayer);
-      } else if (_remoteLayerHasBackgroundVisualIntent(remoteLayer)) {
-        didApply = _applyRemoteSolidLayerIfNeeded(remoteLayer) || didApply;
+      switch (command.type) {
+        case McpSceneCommandType.applyLegacyAnimation:
+          didApply =
+              _applyLegacyRemoteAnimationFromLayerIfNeeded(remoteLayer) ||
+                  didApply;
+          break;
+        case McpSceneCommandType.applyTextLayer:
+          didApply = _applyRemoteTextLayerIfNeeded(remoteLayer) || didApply;
+          break;
+        case McpSceneCommandType.applySolidLayer:
+          didApply = _applyRemoteSolidLayerIfNeeded(remoteLayer) || didApply;
+          break;
+        case McpSceneCommandType.registerMediaBinding:
+          _registerRemoteMediaLayerBinding(remoteLayer);
+          break;
+        case McpSceneCommandType.applyTimelineMutation:
+          didApply =
+              _applyRemoteTimelineClipMutationFromLayerIfNeeded(remoteLayer) ||
+                  didApply;
+          break;
       }
-      didApply =
-          _applyRemoteTimelineClipMutationFromLayerIfNeeded(remoteLayer) ||
-              didApply;
       if (remoteLayerId != null &&
           _isMcpRemoteLayerRepresentedLocally(remoteLayerId)) {
         hasRepresentedRemoteLayer = true;
@@ -1727,6 +1742,27 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
               sceneProgram['baseColor'],
             ]) !=
             null;
+  }
+
+  bool _remoteLayerHasTimelineMutationIntent(
+    Map<String, Object?> remoteLayer,
+  ) {
+    final payload = _remotePayload(remoteLayer);
+    final updates = _remoteMap(payload['updates']);
+    final operation = _firstRemoteString(<Object?>[
+          payload['operation'],
+          updates['operation'],
+        ])?.toLowerCase() ??
+        '';
+    return operation.contains('update_layer') ||
+        updates.containsKey('animation') ||
+        updates.containsKey('mask') ||
+        updates.containsKey('border') ||
+        updates.containsKey('glow') ||
+        payload.containsKey('animation') ||
+        payload.containsKey('mask') ||
+        payload.containsKey('border') ||
+        payload.containsKey('glow');
   }
 
   bool _applyLegacyRemoteAnimationFromLayerIfNeeded(
@@ -2521,12 +2557,66 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       ...currentProject.metadata,
       'backgroundColor': _normalizeHexColor(parsed),
     };
+    final remoteLayerName = _firstRemoteString(<Object?>[
+          remoteLayer['name'],
+          payload['name'],
+          _remoteMap(payload['layer'])['name'],
+        ]) ??
+        'Solid Layer';
     setState(() {
       _motionProject = currentProject.copyWith(metadata: nextMetadata);
+      _ensureMcpSolidLayerTimelineClipInState(
+        remoteLayerId: remoteLayerId,
+        label: remoteLayerName,
+      );
       _appliedMcpSolidLayerIds.add(remoteLayerId);
     });
     _markMotionAuthoringChanged(scheduleWarmup: true);
+    _syncTimelineClockDuration();
     return true;
+  }
+
+  void _ensureMcpSolidLayerTimelineClipInState({
+    required String remoteLayerId,
+    required String label,
+  }) {
+    final clipId = 'mcp-solid-$remoteLayerId';
+    for (final track in _tracks) {
+      for (final clip in track.clips) {
+        if (clip.id == clipId) {
+          return;
+        }
+      }
+    }
+    final duration = _timelineDurationTime > TimelineTime.zero
+        ? _timelineDurationTime
+        : _effectiveMotionProject.durationTime;
+    if (duration <= TimelineTime.zero) {
+      return;
+    }
+    final solidClip = TimelineClipData(
+      id: clipId,
+      type: TimelineClipType.placeholder,
+      tone: TimelineClipTone.aiGenerated,
+      durationTime: duration,
+      sourceStartTime: TimelineTime.zero,
+      sourceDurationTime: duration,
+      label: label,
+      contentKind: TimelineClipContentKind.placeholder,
+      visualKind: TimelineVisualKind.shape,
+    );
+    final baseTracks = _ensureTrackKind(_tracks, TimelineTrackKind.shape);
+    final trackIndex = baseTracks.indexWhere(
+      (track) => track.kind == TimelineTrackKind.shape,
+    );
+    if (trackIndex < 0) {
+      return;
+    }
+    final clips = <TimelineClipData>[
+      solidClip,
+      ...baseTracks[trackIndex].clips,
+    ];
+    _tracks = _replaceTrackIn(baseTracks, trackIndex, clips);
   }
 
   bool _applyRemoteTextLayerIfNeeded(Map<String, Object?> remoteLayer) {

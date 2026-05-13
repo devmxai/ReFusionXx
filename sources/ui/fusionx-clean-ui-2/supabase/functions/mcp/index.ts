@@ -1034,7 +1034,7 @@ async function getPendingCommands(
     Math.min(100, numberValue(args.limit, 30)),
   );
   const appSessionId = stringValue(args.appSessionId);
-  let query = admin
+  const query = admin
     .from('refusion_agent_commands')
     .select('*')
     .eq('owner_id', userId)
@@ -1043,9 +1043,6 @@ async function getPendingCommands(
     .in('status', ['pending', 'running'])
     .order('created_at', { ascending: true })
     .limit(limit);
-  if (appSessionId) {
-    query = query.eq('editor_session_id', appSessionId);
-  }
   const { data: rows, error } = await query;
   if (error) throw error;
 
@@ -1054,28 +1051,35 @@ async function getPendingCommands(
   const commands = <JsonMap>[];
   for (const row of rows ?? []) {
     const rowMap = readMap(row);
+    const rowSessionId = stringValue(rowMap.editor_session_id);
+    if (appSessionId && rowSessionId && rowSessionId !== appSessionId) {
+      continue;
+    }
     const commandId = stringValue(rowMap.id);
     const status = text(rowMap.status, 'pending');
     const result = readMap(rowMap.result);
+    const shouldClaimForAppSession = !!appSessionId &&
+      (!rowSessionId || rowSessionId !== appSessionId);
+    const shouldMarkReceived = status === 'pending' || shouldClaimForAppSession;
     const nextLifecycle = {
       ...readMap(result.lifecycle),
-      stage: status === 'pending' ? 'appReceived' : text(
+      stage: shouldMarkReceived ? 'appReceived' : text(
         readMap(result.lifecycle).stage,
         'cloudCommitted',
       ),
-      appSessionId: appSessionId || stringValue(rowMap.editor_session_id),
-      appReceivedAt: status === 'pending' ? nowIso : firstText(
+      appSessionId: appSessionId || rowSessionId,
+      appReceivedAt: shouldMarkReceived ? nowIso : firstText(
         readMap(result.lifecycle).appReceivedAt,
         nowIso,
       ),
     };
-    if (markReceived && status === 'pending' && commandId) {
+    if (markReceived && shouldMarkReceived && commandId) {
       const { error: receiveError } = await admin
         .from('refusion_agent_commands')
         .update({
           status: 'running',
           claimed_at: nowIso,
-          editor_session_id: appSessionId || rowMap.editor_session_id,
+          editor_session_id: appSessionId || rowSessionId,
           result: {
             ...result,
             lifecycle: nextLifecycle,
@@ -5717,13 +5721,16 @@ async function recordCommand(
     payload,
     revision_before: revisionBefore,
     revision_after: revisionAfter,
-    status: 'running',
-    claimed_at: nowIso,
+    status: 'pending',
     result: {
       ...payload,
       appApplied: false,
       revisionAfter,
       acceptedAt: nowIso,
+      lifecycle: {
+        stage: 'cloudCommitted',
+        cloudCommittedAt: nowIso,
+      },
     },
   };
   if (idempotencyKey) {
