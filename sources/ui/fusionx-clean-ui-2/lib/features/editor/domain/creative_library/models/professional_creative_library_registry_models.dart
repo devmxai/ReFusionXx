@@ -18,6 +18,13 @@ enum CapabilityBenchmarkDecision {
   reject,
 }
 
+enum ExistingCapabilityReviewDecision {
+  keep,
+  wrap,
+  upgrade,
+  replace,
+}
+
 enum LegacyPathCleanupDecision {
   canonicalize,
   adapterOnly,
@@ -535,4 +542,22 @@ class CreativeLibrarySchemaIssue {
 
   final String itemId;
   final String message;
+}
+
+class ExistingCapabilityAuditRecord {
+  const ExistingCapabilityAuditRecord({
+    required this.capabilityId,
+    required this.capabilityFamily,
+    required this.revisionScope,
+    required this.localCodeReferences,
+    required this.reviewDecision,
+    required this.reason,
+  });
+
+  final String capabilityId;
+  final String capabilityFamily;
+  final String revisionScope;
+  final List<String> localCodeReferences;
+  final ExistingCapabilityReviewDecision reviewDecision;
+  final String reason;
 }
