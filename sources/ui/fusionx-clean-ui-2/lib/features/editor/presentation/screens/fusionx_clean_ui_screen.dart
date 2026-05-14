@@ -79,6 +79,7 @@ import '../services/normal_transition_timeline_authoring_adapter.dart';
 import '../services/native_preview_identity_resolver.dart';
 import '../services/professional_video_transition_render_plan_adapter.dart';
 import '../services/professional_scene_apply_engine.dart';
+import '../services/professional_scene_apply_proof_evaluator.dart';
 import '../services/root_scene_clip_projection_adapter.dart';
 import '../services/refusion_mcp_cloud_bridge.dart';
 import '../services/scene_layer_scope_timeline_adapter.dart';
@@ -868,6 +869,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     appliedCommandTypes: <String>[],
     receivedRemoteLayers: 0,
   );
+  bool _mcpLatestApplyDidApply = false;
+  bool _mcpLatestApplyHasRepresentedRemoteLayer = false;
+  static const ProfessionalSceneApplyProofEvaluator _mcpProofEvaluator =
+      ProfessionalSceneApplyProofEvaluator();
   static const McpSceneCommandDispatcher _mcpSceneCommandDispatcher =
       McpSceneCommandDispatcher();
   static const ProfessionalSceneApplyEngine _professionalSceneApplyEngine =
@@ -1802,6 +1807,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       isRepresented: _isMcpSceneCommandRepresentedLocally,
     );
     _mcpLatestApplyProof = applyResult.receipt;
+    _mcpLatestApplyDidApply = applyResult.didApply;
+    _mcpLatestApplyHasRepresentedRemoteLayer =
+        applyResult.hasRepresentedRemoteLayer;
     if ((!applyResult.didApply && !applyResult.hasRepresentedRemoteLayer) ||
         remoteRevision == null) {
       return;
@@ -1849,6 +1857,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       if (commandIds.isNotEmpty) {
         _mcpAcknowledgedCommandIds.addAll(commandIds);
       }
+      final successProof = _mcpProofEvaluator.buildSuccessProof(
+        receipt: _mcpLatestApplyProof,
+        didApply: _mcpLatestApplyDidApply,
+        hasRepresentedRemoteLayer: _mcpLatestApplyHasRepresentedRemoteLayer,
+        proofFrameTimeMs: _timelineDisplayTimeNotifier.value.inMilliseconds,
+        playerInvalidated: true,
+      );
       unawaited(
         bridge.acknowledgeAppliedCommands(
           projectId: _effectiveMotionProject.id,
@@ -1856,20 +1871,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           revision: remoteRevision,
           commandIds: commandIds,
           appliedSuccessfully: true,
-          proof: <String, Object?>{
-            'rendererApplied': true,
-            'timelineVisible': true,
-            'localGraphApplied': true,
-            'frameEvaluated': true,
-            'visualProgramEmitted': true,
-            'dataApplied': true,
-            'playerInvalidated': true,
-            'proofFrameTimeMs':
-                _timelineDisplayTimeNotifier.value.inMilliseconds,
-            if (_mcpLatestApplyProof.targetLayerIds.length == 1)
-              'targetLayerId': _mcpLatestApplyProof.targetLayerIds.first,
-            ..._mcpLatestApplyProof.toProofMap(),
-          },
+          proof: successProof,
         ),
       );
     }
@@ -1968,16 +1970,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         compositionId: compositionId,
         commandIds: staleCommandIds,
         appliedSuccessfully: false,
-        proof: const <String, Object?>{
-          'dataApplied': false,
-          'localGraphApplied': false,
-          'timelineVisible': false,
-          'playerInvalidated': false,
-          'frameEvaluated': false,
-          'visualProgramEmitted': false,
-          'rendererApplied': false,
-          'visualBoundsVerified': false,
-        },
+        proof: _mcpProofEvaluator.buildFailureProof(),
         blockers: blockers,
         errorMessage: 'APP_APPLY_TIMEOUT',
       ),
@@ -3325,6 +3318,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
     }
     if (didApply) {
+      _mcpLatestApplyDidApply = true;
+      _mcpLatestApplyHasRepresentedRemoteLayer = true;
       _mcpLatestApplyProof = _mcpLatestApplyProof.copyWith(
         appliedMotionChannels: _appliedMcpMotionChannelSignatures.length,
         lastAppliedMotionChannelsBatch: remoteMotionChannels.length,
