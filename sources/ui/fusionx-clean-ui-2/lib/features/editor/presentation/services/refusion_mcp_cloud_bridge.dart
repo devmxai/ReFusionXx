@@ -181,7 +181,9 @@ class RefusionMcpCloudBridge {
   Timer? _timer;
   bool _foreground = true;
   int _requestIdSeed = 1;
-  bool _syncInFlight = false;
+  bool _fastSyncInFlight = false;
+  bool _diagnosticsSyncInFlight = false;
+  _DiagnosticsSyncRequest? _queuedDiagnosticsRequest;
   String? _agentSessionToken;
 
   bool get isRunning => _timer != null;
@@ -280,10 +282,10 @@ class RefusionMcpCloudBridge {
   }
 
   Future<void> syncNow() async {
-    if (_syncInFlight) {
+    if (_fastSyncInFlight) {
       return;
     }
-    _syncInFlight = true;
+    _fastSyncInFlight = true;
     try {
       final state = _contextReader();
       final status = _foreground && state.foreground ? 'online' : 'background';
@@ -368,36 +370,14 @@ class RefusionMcpCloudBridge {
       final contextPayload = _asMap(contextStructured['payload']);
       final contextLiveEditor = _asMap(contextPayload['liveEditor']);
       final liveSessionId = _asString(contextLiveEditor['sessionId']);
-      var pendingCommandsResponse = await _safeCallTool(
-        toolName: 'get_pending_commands',
-        arguments: <String, Object?>{
-          'projectId': effectiveProjectId,
-          'compositionId': effectiveCompositionId,
-          if (liveSessionId != null) 'appSessionId': liveSessionId,
-          'markReceived': true,
-          'limit': 40,
-        },
+      final pendingCommandsResponse = await _fetchPendingCommands(
+        projectId: effectiveProjectId,
+        compositionId: effectiveCompositionId,
+        liveSessionId: liveSessionId,
       );
-      var pendingCommandTargetLayerIds = _pendingCommandTargetLayerIds(
+      final pendingCommandTargetLayerIds = _pendingCommandTargetLayerIds(
         pendingCommandsResponse,
       );
-      if (pendingCommandTargetLayerIds.isEmpty && liveSessionId != null) {
-        final unscopedPendingCommandsResponse = await _safeCallTool(
-          toolName: 'get_pending_commands',
-          arguments: <String, Object?>{
-            'projectId': effectiveProjectId,
-            'compositionId': effectiveCompositionId,
-            'markReceived': true,
-            'limit': 40,
-          },
-        );
-        final unscopedPendingCommandTargetLayerIds =
-            _pendingCommandTargetLayerIds(unscopedPendingCommandsResponse);
-        if (unscopedPendingCommandTargetLayerIds.isNotEmpty) {
-          pendingCommandsResponse = unscopedPendingCommandsResponse;
-          pendingCommandTargetLayerIds = unscopedPendingCommandTargetLayerIds;
-        }
-      }
       final layersResponse = await _safeCallTool(
         toolName: 'get_layers',
         arguments: <String, Object?>{
@@ -434,85 +414,15 @@ class RefusionMcpCloudBridge {
           fallbackCompositionId: state.compositionId,
         ),
       );
-      final canvasMetadataResponse = await _safeCallTool(
-        toolName: 'get_canvas_metadata',
-        arguments: <String, Object?>{
-          'projectId': effectiveProjectId,
-          'compositionId': effectiveCompositionId,
-        },
-        allowAgentSessionToken: true,
-      );
-      final visualLayoutSummaryResponse = await _safeCallTool(
-        toolName: 'get_visual_layout_summary',
-        arguments: <String, Object?>{
-          'projectId': effectiveProjectId,
-          'compositionId': effectiveCompositionId,
-          'timeMs': state.playheadMs,
-        },
-        allowAgentSessionToken: true,
-      );
-      final firstLayerId = _asString(
-        _asMap(
-          _asListOfMap(
-            _asMap(_asMap(layersResponse?['structuredContent'])['payload'])[
-                'layers'],
-          ).isNotEmpty
-              ? _asListOfMap(
-                  _asMap(_asMap(layersResponse?['structuredContent'])[
-                      'payload'])['layers'],
-                ).first
-              : const <String, Object?>{},
-        )['id'],
-      );
-      final elementGeometryResponse = await _safeCallTool(
-        toolName: 'get_element_geometry',
-        arguments: <String, Object?>{
-          'projectId': effectiveProjectId,
-          'compositionId': effectiveCompositionId,
-          if (firstLayerId != null) 'layerId': firstLayerId,
-          'timeMs': state.playheadMs,
-        },
-        allowAgentSessionToken: true,
-      );
-      final projectSnapshotResponse = await _safeCallTool(
-        toolName: 'get_project_snapshot',
-        arguments: <String, Object?>{
-          'projectId': effectiveProjectId,
-          'compositionId': effectiveCompositionId,
-        },
-        allowAgentSessionToken: true,
-      );
-      final timelineGraphResponse = await _safeCallTool(
-        toolName: 'get_timeline_graph',
-        arguments: <String, Object?>{
-          'projectId': effectiveProjectId,
-          'compositionId': effectiveCompositionId,
-        },
-        allowAgentSessionToken: true,
-      );
-      final frameEvaluationResponse = await _safeCallTool(
-        toolName: 'evaluate_frame',
-        arguments: <String, Object?>{
-          'projectId': effectiveProjectId,
-          'compositionId': effectiveCompositionId,
-          'timeMs': state.playheadMs,
-        },
-        allowAgentSessionToken: true,
-      );
-      _emitSnapshot(
-        _snapshotFromContextResponse(
-          contextResponse,
-          layersResult: layersResponse,
-          motionChannelsResult: motionChannelsResponse,
-          pendingCommandsResult: pendingCommandsResponse,
-          canvasMetadataResult: canvasMetadataResponse,
-          elementGeometryResult: elementGeometryResponse,
-          visualLayoutSummaryResult: visualLayoutSummaryResponse,
-          projectSnapshotResult: projectSnapshotResponse,
-          timelineGraphResult: timelineGraphResponse,
-          frameEvaluationResult: frameEvaluationResponse,
-          fallbackProjectId: state.projectId,
-          fallbackCompositionId: state.compositionId,
+      _scheduleDiagnosticsSync(
+        _DiagnosticsSyncRequest(
+          state: state,
+          contextResponse: contextResponse,
+          layersResponse: layersResponse,
+          motionChannelsResponse: motionChannelsResponse,
+          pendingCommandsResponse: pendingCommandsResponse,
+          projectId: effectiveProjectId,
+          compositionId: effectiveCompositionId,
         ),
       );
     } catch (error) {
@@ -528,7 +438,148 @@ class RefusionMcpCloudBridge {
         ),
       );
     } finally {
-      _syncInFlight = false;
+      _fastSyncInFlight = false;
+    }
+  }
+
+  Future<Map<String, Object?>?> _fetchPendingCommands({
+    required String projectId,
+    required String compositionId,
+    required String? liveSessionId,
+  }) async {
+    var pendingCommandsResponse = await _safeCallTool(
+      toolName: 'get_pending_commands',
+      arguments: <String, Object?>{
+        'projectId': projectId,
+        'compositionId': compositionId,
+        if (liveSessionId != null) 'appSessionId': liveSessionId,
+        'markReceived': true,
+        'limit': 40,
+      },
+    );
+    var pendingCommandTargetLayerIds = _pendingCommandTargetLayerIds(
+      pendingCommandsResponse,
+    );
+    if (pendingCommandTargetLayerIds.isNotEmpty || liveSessionId == null) {
+      return pendingCommandsResponse;
+    }
+    final unscopedPendingCommandsResponse = await _safeCallTool(
+      toolName: 'get_pending_commands',
+      arguments: <String, Object?>{
+        'projectId': projectId,
+        'compositionId': compositionId,
+        'markReceived': true,
+        'limit': 40,
+      },
+    );
+    final unscopedPendingCommandTargetLayerIds = _pendingCommandTargetLayerIds(
+      unscopedPendingCommandsResponse,
+    );
+    if (unscopedPendingCommandTargetLayerIds.isEmpty) {
+      return pendingCommandsResponse;
+    }
+    return unscopedPendingCommandsResponse;
+  }
+
+  void _scheduleDiagnosticsSync(_DiagnosticsSyncRequest request) {
+    if (_diagnosticsSyncInFlight) {
+      _queuedDiagnosticsRequest = request;
+      return;
+    }
+    _diagnosticsSyncInFlight = true;
+    unawaited(_runDiagnosticsSync(request));
+  }
+
+  Future<void> _runDiagnosticsSync(_DiagnosticsSyncRequest request) async {
+    try {
+      final canvasMetadataResponse = await _safeCallTool(
+        toolName: 'get_canvas_metadata',
+        arguments: <String, Object?>{
+          'projectId': request.projectId,
+          'compositionId': request.compositionId,
+        },
+        allowAgentSessionToken: true,
+      );
+      final visualLayoutSummaryResponse = await _safeCallTool(
+        toolName: 'get_visual_layout_summary',
+        arguments: <String, Object?>{
+          'projectId': request.projectId,
+          'compositionId': request.compositionId,
+          'timeMs': request.state.playheadMs,
+        },
+        allowAgentSessionToken: true,
+      );
+      final firstLayerId = _asString(
+        _asMap(
+          _asListOfMap(
+            _asMap(_asMap(request.layersResponse?['structuredContent'])[
+                'payload'])['layers'],
+          ).isNotEmpty
+              ? _asListOfMap(
+                  _asMap(_asMap(request.layersResponse?['structuredContent'])[
+                      'payload'])['layers'],
+                ).first
+              : const <String, Object?>{},
+        )['id'],
+      );
+      final elementGeometryResponse = await _safeCallTool(
+        toolName: 'get_element_geometry',
+        arguments: <String, Object?>{
+          'projectId': request.projectId,
+          'compositionId': request.compositionId,
+          if (firstLayerId != null) 'layerId': firstLayerId,
+          'timeMs': request.state.playheadMs,
+        },
+        allowAgentSessionToken: true,
+      );
+      final projectSnapshotResponse = await _safeCallTool(
+        toolName: 'get_project_snapshot',
+        arguments: <String, Object?>{
+          'projectId': request.projectId,
+          'compositionId': request.compositionId,
+        },
+        allowAgentSessionToken: true,
+      );
+      final timelineGraphResponse = await _safeCallTool(
+        toolName: 'get_timeline_graph',
+        arguments: <String, Object?>{
+          'projectId': request.projectId,
+          'compositionId': request.compositionId,
+        },
+        allowAgentSessionToken: true,
+      );
+      final frameEvaluationResponse = await _safeCallTool(
+        toolName: 'evaluate_frame',
+        arguments: <String, Object?>{
+          'projectId': request.projectId,
+          'compositionId': request.compositionId,
+          'timeMs': request.state.playheadMs,
+        },
+        allowAgentSessionToken: true,
+      );
+      _emitSnapshot(
+        _snapshotFromContextResponse(
+          request.contextResponse,
+          layersResult: request.layersResponse,
+          motionChannelsResult: request.motionChannelsResponse,
+          pendingCommandsResult: request.pendingCommandsResponse,
+          canvasMetadataResult: canvasMetadataResponse,
+          elementGeometryResult: elementGeometryResponse,
+          visualLayoutSummaryResult: visualLayoutSummaryResponse,
+          projectSnapshotResult: projectSnapshotResponse,
+          timelineGraphResult: timelineGraphResponse,
+          frameEvaluationResult: frameEvaluationResponse,
+          fallbackProjectId: request.state.projectId,
+          fallbackCompositionId: request.state.compositionId,
+        ),
+      );
+    } finally {
+      _diagnosticsSyncInFlight = false;
+      final queued = _queuedDiagnosticsRequest;
+      _queuedDiagnosticsRequest = null;
+      if (queued != null) {
+        _scheduleDiagnosticsSync(queued);
+      }
     }
   }
 
@@ -943,6 +994,26 @@ class RefusionMcpCloudBridge {
   void _emitSnapshot(RefusionMcpCloudBridgeSnapshot snapshot) {
     _onSnapshot(snapshot);
   }
+}
+
+class _DiagnosticsSyncRequest {
+  const _DiagnosticsSyncRequest({
+    required this.state,
+    required this.contextResponse,
+    required this.layersResponse,
+    required this.motionChannelsResponse,
+    required this.pendingCommandsResponse,
+    required this.projectId,
+    required this.compositionId,
+  });
+
+  final RefusionMcpCloudContextState state;
+  final Map<String, Object?> contextResponse;
+  final Map<String, Object?>? layersResponse;
+  final Map<String, Object?>? motionChannelsResponse;
+  final Map<String, Object?>? pendingCommandsResponse;
+  final String projectId;
+  final String compositionId;
 }
 
 Map<String, Object?> _asMap(Object? value) {
