@@ -293,7 +293,7 @@ class RefusionMcpCloudBridge {
       final compositionIdArg = _normalizedIdentifierOrNull(state.compositionId);
       final hasActiveComposition =
           projectIdArg != null && compositionIdArg != null;
-      await _safeCallTool(
+      _fireAndForgetTool(
         toolName: 'touch_editor_session',
         arguments: <String, Object?>{
           'deviceId': _deviceId,
@@ -306,7 +306,7 @@ class RefusionMcpCloudBridge {
           'platform': 'flutter',
         },
       );
-      await _safeCallTool(
+      _fireAndForgetTool(
         toolName: 'set_active_context',
         arguments: <String, Object?>{
           'deviceId': _deviceId,
@@ -346,7 +346,7 @@ class RefusionMcpCloudBridge {
         );
         return;
       }
-      await _safeCallTool(
+      _fireAndForgetTool(
         toolName: 'sync_editor_layers',
         arguments: <String, Object?>{
           'projectId': projectIdArg,
@@ -378,26 +378,26 @@ class RefusionMcpCloudBridge {
       final pendingCommandTargetLayerIds = _pendingCommandTargetLayerIds(
         pendingCommandsResponse,
       );
-      final layersResponse = await _safeCallTool(
-        toolName: 'get_layers',
-        arguments: <String, Object?>{
-          'projectId': effectiveProjectId,
-          'compositionId': effectiveCompositionId,
-          if (pendingCommandTargetLayerIds.isNotEmpty)
-            'layerIds': pendingCommandTargetLayerIds,
-        },
-        allowAgentSessionToken: true,
-      );
-      final motionChannelsResponse = await _safeCallTool(
-        toolName: 'get_motion_channels',
-        arguments: <String, Object?>{
-          'projectId': effectiveProjectId,
-          'compositionId': effectiveCompositionId,
-          if (pendingCommandTargetLayerIds.isNotEmpty)
-            'layerIds': pendingCommandTargetLayerIds,
-        },
-        allowAgentSessionToken: true,
-      );
+      final layerReadArgs = <String, Object?>{
+        'projectId': effectiveProjectId,
+        'compositionId': effectiveCompositionId,
+        if (pendingCommandTargetLayerIds.isNotEmpty)
+          'layerIds': pendingCommandTargetLayerIds,
+      };
+      final results = await Future.wait<Map<String, Object?>?>([
+        _safeCallTool(
+          toolName: 'get_layers',
+          arguments: layerReadArgs,
+          allowAgentSessionToken: true,
+        ),
+        _safeCallTool(
+          toolName: 'get_motion_channels',
+          arguments: layerReadArgs,
+          allowAgentSessionToken: true,
+        ),
+      ]);
+      final layersResponse = results[0];
+      final motionChannelsResponse = results[1];
       _emitSnapshot(
         _snapshotFromContextResponse(
           contextResponse,
@@ -814,6 +814,20 @@ class RefusionMcpCloudBridge {
     } catch (_) {
       return null;
     }
+  }
+
+  void _fireAndForgetTool({
+    required String toolName,
+    required Map<String, Object?> arguments,
+    bool allowAgentSessionToken = false,
+  }) {
+    unawaited(
+      _safeCallTool(
+        toolName: toolName,
+        arguments: arguments,
+        allowAgentSessionToken: allowAgentSessionToken,
+      ),
+    );
   }
 
   Future<RefusionMcpCloudPairingCode> generatePairingCode() async {
