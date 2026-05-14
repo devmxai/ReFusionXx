@@ -89,6 +89,48 @@ void main() {
             'second fast sync should run even while diagnostics are running',
       );
     });
+
+    test(
+      'fast sync falls back to local context when get_active_context is slow',
+      () async {
+        final server = await _FakeMcpServer.start(
+          diagnosticsDelay: const Duration(milliseconds: 20),
+          contextDelay: const Duration(seconds: 3),
+        );
+        addTearDown(server.close);
+
+        final snapshots = <RefusionMcpCloudBridgeSnapshot>[];
+        final bridge = RefusionMcpCloudBridge(
+          endpoint: server.endpoint,
+          deviceId: 'test-device',
+          contextReader: () => const RefusionMcpCloudContextState(
+            projectId: 'project-1',
+            compositionId: 'composition-1',
+            playheadMs: 1600,
+            timelineRevision: 6,
+            foreground: true,
+          ),
+          onSnapshot: snapshots.add,
+          interval: const Duration(seconds: 60),
+          connectTimeout: const Duration(seconds: 8),
+        );
+        addTearDown(bridge.stop);
+
+        final stopwatch = Stopwatch()..start();
+        await bridge.syncNow();
+        stopwatch.stop();
+
+        expect(
+          stopwatch.elapsedMilliseconds,
+          lessThan(5000),
+          reason: 'soft timeout must prevent long context stalls in fast path',
+        );
+        expect(snapshots, isNotEmpty);
+        final firstSnapshot = snapshots.first;
+        expect(firstSnapshot.projectId, 'project-1');
+        expect(firstSnapshot.compositionId, 'composition-1');
+      },
+    );
   });
 }
 
@@ -110,15 +152,18 @@ class _FakeMcpServer {
     required this.server,
     required this.endpoint,
     required this.diagnosticsDelay,
+    required this.contextDelay,
   });
 
   final HttpServer server;
   final Uri endpoint;
   final Duration diagnosticsDelay;
+  final Duration contextDelay;
   final Map<String, int> _counts = <String, int>{};
 
   static Future<_FakeMcpServer> start({
     required Duration diagnosticsDelay,
+    Duration contextDelay = Duration.zero,
   }) async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     final endpoint = Uri.parse(
@@ -128,6 +173,7 @@ class _FakeMcpServer {
       server: server,
       endpoint: endpoint,
       diagnosticsDelay: diagnosticsDelay,
+      contextDelay: contextDelay,
     );
     fake._serve();
     return fake;
@@ -151,6 +197,9 @@ class _FakeMcpServer {
 
         if (_isDiagnosticsTool(toolName)) {
           await Future<void>.delayed(diagnosticsDelay);
+        }
+        if (toolName == 'get_active_context' && contextDelay > Duration.zero) {
+          await Future<void>.delayed(contextDelay);
         }
 
         final payload = _payloadForTool(toolName);

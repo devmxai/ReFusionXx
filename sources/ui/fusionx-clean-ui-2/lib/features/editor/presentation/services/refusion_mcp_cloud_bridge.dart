@@ -177,6 +177,8 @@ class RefusionMcpCloudBridge {
   final String? authBearerToken;
   final Duration interval;
   final Duration connectTimeout;
+  static const Duration _fastApplySoftTimeout = Duration(milliseconds: 1500);
+  static const Duration _diagnosticsSoftTimeout = Duration(milliseconds: 1800);
 
   Timer? _timer;
   bool _foreground = true;
@@ -360,6 +362,7 @@ class RefusionMcpCloudBridge {
             toolName: 'get_active_context',
             arguments: const <String, Object?>{},
             allowAgentSessionToken: true,
+            softTimeout: _fastApplySoftTimeout,
           ) ??
           _contextResponseFromState(
             state: state,
@@ -374,6 +377,7 @@ class RefusionMcpCloudBridge {
         projectId: effectiveProjectId,
         compositionId: effectiveCompositionId,
         liveSessionId: liveSessionId,
+        softTimeout: _fastApplySoftTimeout,
       );
       final pendingCommandTargetLayerIds = _pendingCommandTargetLayerIds(
         pendingCommandsResponse,
@@ -389,11 +393,13 @@ class RefusionMcpCloudBridge {
           toolName: 'get_layers',
           arguments: layerReadArgs,
           allowAgentSessionToken: true,
+          softTimeout: _fastApplySoftTimeout,
         ),
         _safeCallTool(
           toolName: 'get_motion_channels',
           arguments: layerReadArgs,
           allowAgentSessionToken: true,
+          softTimeout: _fastApplySoftTimeout,
         ),
       ]);
       final layersResponse = results[0];
@@ -446,6 +452,7 @@ class RefusionMcpCloudBridge {
     required String projectId,
     required String compositionId,
     required String? liveSessionId,
+    required Duration softTimeout,
   }) async {
     var pendingCommandsResponse = await _safeCallTool(
       toolName: 'get_pending_commands',
@@ -456,6 +463,7 @@ class RefusionMcpCloudBridge {
         'markReceived': true,
         'limit': 40,
       },
+      softTimeout: softTimeout,
     );
     var pendingCommandTargetLayerIds = _pendingCommandTargetLayerIds(
       pendingCommandsResponse,
@@ -471,6 +479,7 @@ class RefusionMcpCloudBridge {
         'markReceived': true,
         'limit': 40,
       },
+      softTimeout: softTimeout,
     );
     final unscopedPendingCommandTargetLayerIds = _pendingCommandTargetLayerIds(
       unscopedPendingCommandsResponse,
@@ -499,6 +508,7 @@ class RefusionMcpCloudBridge {
           'compositionId': request.compositionId,
         },
         allowAgentSessionToken: true,
+        softTimeout: _diagnosticsSoftTimeout,
       );
       final visualLayoutSummaryResponse = await _safeCallTool(
         toolName: 'get_visual_layout_summary',
@@ -508,6 +518,7 @@ class RefusionMcpCloudBridge {
           'timeMs': request.state.playheadMs,
         },
         allowAgentSessionToken: true,
+        softTimeout: _diagnosticsSoftTimeout,
       );
       final firstLayerId = _asString(
         _asMap(
@@ -531,6 +542,7 @@ class RefusionMcpCloudBridge {
           'timeMs': request.state.playheadMs,
         },
         allowAgentSessionToken: true,
+        softTimeout: _diagnosticsSoftTimeout,
       );
       final projectSnapshotResponse = await _safeCallTool(
         toolName: 'get_project_snapshot',
@@ -539,6 +551,7 @@ class RefusionMcpCloudBridge {
           'compositionId': request.compositionId,
         },
         allowAgentSessionToken: true,
+        softTimeout: _diagnosticsSoftTimeout,
       );
       final timelineGraphResponse = await _safeCallTool(
         toolName: 'get_timeline_graph',
@@ -547,6 +560,7 @@ class RefusionMcpCloudBridge {
           'compositionId': request.compositionId,
         },
         allowAgentSessionToken: true,
+        softTimeout: _diagnosticsSoftTimeout,
       );
       final frameEvaluationResponse = await _safeCallTool(
         toolName: 'evaluate_frame',
@@ -556,6 +570,7 @@ class RefusionMcpCloudBridge {
           'timeMs': request.state.playheadMs,
         },
         allowAgentSessionToken: true,
+        softTimeout: _diagnosticsSoftTimeout,
       );
       _emitSnapshot(
         _snapshotFromContextResponse(
@@ -804,13 +819,18 @@ class RefusionMcpCloudBridge {
     required String toolName,
     required Map<String, Object?> arguments,
     bool allowAgentSessionToken = false,
+    Duration? softTimeout,
   }) async {
     try {
-      return await _callTool(
+      final callFuture = _callTool(
         toolName: toolName,
         arguments: arguments,
         allowAgentSessionToken: allowAgentSessionToken,
       );
+      if (softTimeout != null) {
+        return await callFuture.timeout(softTimeout);
+      }
+      return await callFuture;
     } catch (_) {
       return null;
     }
@@ -820,12 +840,14 @@ class RefusionMcpCloudBridge {
     required String toolName,
     required Map<String, Object?> arguments,
     bool allowAgentSessionToken = false,
+    Duration? softTimeout,
   }) {
     unawaited(
       _safeCallTool(
         toolName: toolName,
         arguments: arguments,
         allowAgentSessionToken: allowAgentSessionToken,
+        softTimeout: softTimeout,
       ),
     );
   }

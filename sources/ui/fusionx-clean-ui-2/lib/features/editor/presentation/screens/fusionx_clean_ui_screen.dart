@@ -2224,6 +2224,31 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final nestedLayerProps = _remoteMap(nestedLayer['props']);
     final background = _remoteMap(payload['background']);
     final sceneProgram = _remoteMap(payload['sceneProgram']);
+    final semanticRole = _firstRemoteString(<Object?>[
+          payload['semanticRole'],
+          updates['semanticRole'],
+          props['semanticRole'],
+          updateProps['semanticRole'],
+          nestedPayload['semanticRole'],
+          nestedPayloadProps['semanticRole'],
+          nestedLayer['semanticRole'],
+          nestedLayerProps['semanticRole'],
+          payload['role'],
+          updates['role'],
+          props['role'],
+          updateProps['role'],
+          nestedPayload['role'],
+          nestedPayloadProps['role'],
+          nestedLayer['role'],
+          nestedLayerProps['role'],
+        ])?.toLowerCase() ??
+        '';
+    final layerName = _firstRemoteString(<Object?>[
+          remoteLayer['name'],
+          payload['name'],
+          nestedLayer['name'],
+        ])?.toLowerCase() ??
+        '';
     final operation = _firstRemoteString(<Object?>[
           payload['operation'],
           updates['operation'],
@@ -2252,12 +2277,19 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       sceneProgram['backgroundColor'],
       sceneProgram['baseColor'],
     ]);
+    final explicitBackgroundSemanticHint =
+        semanticRole.contains('background') ||
+            semanticRole.contains('fullcanvas') ||
+            semanticRole.contains('full_canvas') ||
+            semanticRole.contains('canvas') ||
+            layerName.contains('background') ||
+            layerName.contains('canvas');
     return kind == 'scene_program' ||
         kind == 'background' ||
         operation.contains('background') ||
         background.isNotEmpty ||
         _remoteLayerLooksLikeRectBackgroundShape(remoteLayer) ||
-        explicitBackgroundColorHint != null;
+        (explicitBackgroundColorHint != null && explicitBackgroundSemanticHint);
   }
 
   bool _remoteLayerLooksLikeRectBackgroundShape(
@@ -3168,8 +3200,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return _applyRemoteShapeLikeLayerIfNeeded(
       remoteLayer: remoteLayer,
       commandKind: 'shape',
-      preferBackgroundRole:
-          _remoteLayerLooksLikeRectBackgroundShape(remoteLayer),
+      preferBackgroundRole: _remoteLayerHasBackgroundVisualIntent(remoteLayer),
     );
   }
 
@@ -3200,6 +3231,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (operation.contains('animate') || operation.contains('keyframe')) {
       return false;
     }
+    final currentProject = _motionProject ?? _buildInitialMotionProject();
 
     final aliases = _mcpRemoteLayerAliasesForPayload(
       payload: payload,
@@ -3214,30 +3246,97 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       payloadPayload: payloadPayload,
       updatesPayload: updatesPayload,
     );
-    final updateIntent = _remoteLayerRequestsShapeUpdate(
-      operation: operation,
+    final universalIntent = _mcpUniversalIntentClassifier.classify(
       payload: payload,
       updates: updates,
       payloadPayload: payloadPayload,
       updatesPayload: updatesPayload,
-      aliases: aliases,
     );
-    final blockInsert = McpShapeLayerResolution.shouldBlockInsert(
-      updateIntent: updateIntent,
-      resolvedLayerId: existingContext?.layerId,
-      resolvedTargetIsShapeElement: existingContext != null,
+    final shapeElementCountBefore = _mcpShapeElementCount(currentProject);
+    final universalResolution = existingContext != null
+        ? UniversalLayerResolution(
+            result: UniversalLayerResolutionResult.resolvedSingle,
+            target: UniversalLayerTarget(
+              canonicalTargetId: existingContext.layerId,
+              targetKind: preferBackgroundRole
+                  ? UniversalLayerTargetKind.backgroundElement
+                  : UniversalLayerTargetKind.shapeElement,
+              targetFamily: preferBackgroundRole ? 'background' : 'shape',
+              remoteLayerId: remoteLayerId,
+              targetLayerId: existingContext.layerId,
+              localLayerId: existingContext.layerId,
+              clipId: null,
+              elementId: existingContext.elementId,
+              sourceId: null,
+              aliases: aliases,
+              resolutionSource: 'existingElementContext',
+              confidence: 1.0,
+              isAmbiguous: false,
+              isMissing: false,
+              blockers: const <String>[],
+              metadata: const <String, Object?>{},
+            ),
+            candidates: <String>[existingContext.layerId],
+          )
+        : UniversalLayerResolution(
+            result: UniversalLayerResolutionResult.missingTarget,
+            target: UniversalLayerTarget(
+              canonicalTargetId: null,
+              targetKind: preferBackgroundRole
+                  ? UniversalLayerTargetKind.backgroundElement
+                  : UniversalLayerTargetKind.shapeElement,
+              targetFamily: preferBackgroundRole ? 'background' : 'shape',
+              remoteLayerId: remoteLayerId,
+              targetLayerId: null,
+              localLayerId: null,
+              clipId: null,
+              elementId: null,
+              sourceId: null,
+              aliases: aliases,
+              resolutionSource: 'none',
+              confidence: 0.0,
+              isAmbiguous: false,
+              isMissing: true,
+              blockers: const <String>['TARGET_NOT_FOUND'],
+              metadata: const <String, Object?>{},
+            ),
+            candidates: const <String>[],
+          );
+    final universalDiagnostic = _mcpUniversalRuntimeUpdatePlanner.plan(
+      remoteLayerId: remoteLayerId,
+      payloadSignature: jsonEncode(<String, Object?>{
+        'kind': commandKind,
+        'operation': operation,
+        'target': existingContext?.elementId,
+        'aliases': aliases,
+        'backgroundRole': preferBackgroundRole,
+      }),
+      layerCountBefore: shapeElementCountBefore,
+      intent: universalIntent,
+      resolution: universalResolution,
+      previousPayloadSignature: _appliedMcpSolidLayerSignatures[remoteLayerId],
     );
-    if (blockInsert) {
+    if (universalDiagnostic.decision ==
+            UniversalLayerApplyDecisionType.blockUnresolvedUpdate ||
+        universalDiagnostic.decision ==
+            UniversalLayerApplyDecisionType.blockAmbiguousTarget) {
       if (kDebugMode) {
         debugPrint(
           'mcp_shape_update_blocked_unresolved_target: '
-          'remoteLayerId=$remoteLayerId kind=$commandKind',
+          '${jsonEncode(<String, Object?>{
+                'decision': universalDiagnostic.decision.name,
+                'remoteLayerId': remoteLayerId,
+                'kind': commandKind,
+                'targetKind': universalDiagnostic.targetKind.name,
+                'targetFamily': universalDiagnostic.targetFamily,
+                'resolutionSource': universalDiagnostic.resolutionSource,
+                'blockers': universalDiagnostic.blockers,
+              })}',
         );
       }
       return false;
     }
 
-    final currentProject = _motionProject ?? _buildInitialMotionProject();
     final sceneIndex = currentProject.scenes.indexWhere(
       (scene) => scene.id == _rootMotionSceneId,
     );
@@ -4495,24 +4594,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return _mcpRemoteShapeElementContextByLayerId(resolvedLayerId);
   }
 
-  bool _remoteLayerRequestsShapeUpdate({
-    required String operation,
-    required Map<String, Object?> payload,
-    required Map<String, Object?> updates,
-    required Map<String, Object?> payloadPayload,
-    required Map<String, Object?> updatesPayload,
-    required List<String> aliases,
-  }) {
-    return McpShapeLayerResolution.requestsUpdate(
-      operation: operation,
-      payload: payload,
-      updates: updates,
-      payloadPayload: payloadPayload,
-      updatesPayload: updatesPayload,
-      aliases: aliases,
-    );
-  }
-
   MotionShapeKind _remoteShapeKindForPayload({
     required bool isBackgroundRole,
     required Map<String, Object?> payload,
@@ -5054,6 +5135,20 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       for (final layer in scene.layers) {
         for (final element in layer.elements) {
           if (element.kind == MotionElementKind.text) {
+            count += 1;
+          }
+        }
+      }
+    }
+    return count;
+  }
+
+  int _mcpShapeElementCount(MotionProjectModel project) {
+    var count = 0;
+    for (final scene in project.scenes) {
+      for (final layer in scene.layers) {
+        for (final element in layer.elements) {
+          if (element.kind == MotionElementKind.shape) {
             count += 1;
           }
         }
