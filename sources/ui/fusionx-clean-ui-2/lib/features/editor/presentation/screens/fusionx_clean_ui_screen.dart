@@ -4936,7 +4936,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
   String? _mcpTimelineClipIdForRemoteLayer(
     String remoteLayerId, {
-    bool allowSelectedClipFallback = true,
+    bool allowSelectedClipFallback = false,
     bool fallbackToSingleVisualClip = false,
   }) {
     final mappedClipId = _mcpRemoteMediaLayerClipIds[remoteLayerId];
