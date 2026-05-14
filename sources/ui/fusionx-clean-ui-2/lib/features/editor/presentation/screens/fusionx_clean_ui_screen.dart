@@ -72,6 +72,7 @@ import '../services/composition_workspace_outliner_adapter.dart';
 import '../services/composition_media_playback_projection_adapter.dart';
 import '../services/live_scrub_runtime_surface_config_adapter.dart';
 import '../services/manual_transition_master_frame_evaluation_adapter.dart';
+import '../services/mcp_text_layer_resolution.dart';
 import '../services/mcp_scene_command_dispatcher.dart';
 import '../services/manual_transition_lane_to_motion_channel_adapter.dart';
 import '../services/master_frame_evaluation_read_adapter.dart';
@@ -3238,10 +3239,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _showStageMessage('AI text updated.');
       return true;
     }
-    if (_remoteLayerRequestsTextUpdate(
+    final updateIntent = _remoteLayerRequestsTextUpdate(
       payload: payload,
       updates: updates,
       nestedPayload: nestedPayload,
+    );
+    if (McpTextLayerResolution.shouldBlockInsert(
+      updateIntent: updateIntent,
+      resolvedLayerId: existingContext?.elementId,
     )) {
       if (kDebugMode) {
         debugPrint(
@@ -3343,22 +3348,19 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required Map<String, Object?> updates,
     required Map<String, Object?> nestedPayload,
   }) {
-    final candidates = <String>{
-      _remoteString(remoteLayer['id']) ?? '',
-      _remoteString(payload['targetLayerId']) ?? '',
-      _remoteString(payload['layerId']) ?? '',
-      _remoteString(updates['targetLayerId']) ?? '',
-      _remoteString(updates['layerId']) ?? '',
-      _remoteString(nestedPayload['targetLayerId']) ?? '',
-      _remoteString(nestedPayload['layerId']) ?? '',
-    }..removeWhere((value) => value.trim().isEmpty);
-    for (final candidate in candidates) {
-      final context = _mcpRemoteElementContextByLayerId(candidate);
-      if (context != null) {
-        return context;
-      }
+    final remoteLayerId = _remoteString(remoteLayer['id']) ?? '';
+    final resolvedLayerId = McpTextLayerResolution.resolveCandidateLayerId(
+      remoteLayerId: remoteLayerId,
+      payload: payload,
+      updates: updates,
+      nestedPayload: nestedPayload,
+      exists: (layerId) => _mcpRemoteElementContextByLayerId(layerId) != null,
+    );
+    if (resolvedLayerId == null || resolvedLayerId.isEmpty) {
+      return null;
     }
-    return null;
+    final context = _mcpRemoteElementContextByLayerId(resolvedLayerId);
+    return context;
   }
 
   bool _remoteLayerRequestsTextUpdate({
@@ -3366,26 +3368,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required Map<String, Object?> updates,
     required Map<String, Object?> nestedPayload,
   }) {
-    final operation = _firstRemoteString(<Object?>[
-          payload['operation'],
-          updates['operation'],
-          nestedPayload['operation'],
-        ])?.toLowerCase() ??
-        '';
-    if (operation.contains('update') ||
-        operation.contains('edit') ||
-        operation.contains('mutat')) {
-      return true;
-    }
-    return _firstRemoteString(<Object?>[
-          payload['targetLayerId'],
-          payload['layerId'],
-          updates['targetLayerId'],
-          updates['layerId'],
-          nestedPayload['targetLayerId'],
-          nestedPayload['layerId'],
-        ]) !=
-        null;
+    return McpTextLayerResolution.requestsUpdate(
+      payload: payload,
+      updates: updates,
+      nestedPayload: nestedPayload,
+    );
   }
 
   MotionProjectModel? _updateExistingMcpTextElement({
