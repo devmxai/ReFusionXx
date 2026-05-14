@@ -3033,9 +3033,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
   bool _applyRemoteTextLayerIfNeeded(Map<String, Object?> remoteLayer) {
     final remoteLayerId = _remoteString(remoteLayer['id']);
-    if (remoteLayerId == null ||
-        remoteLayerId.isEmpty ||
-        _hasAppliedMcpRemoteLayer(remoteLayerId)) {
+    if (remoteLayerId == null || remoteLayerId.isEmpty) {
       return false;
     }
 
@@ -3204,6 +3202,43 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           payload['zIndex'],
         ]) ??
         10;
+    final existingContext = _resolveMcpRemoteTextElementContext(
+      remoteLayer: remoteLayer,
+      payload: payload,
+      updates: updates,
+      nestedPayload: nestedPayload,
+    );
+    if (existingContext != null) {
+      final updatedProject = _updateExistingMcpTextElement(
+        project: currentProject,
+        context: existingContext,
+        remoteLayerId: remoteLayerId,
+        remoteLayerName: layerName,
+        textValue: textValue,
+        insertionRange: insertionRange,
+        fontSize: fontSize,
+        positionX: positionX,
+        positionY: positionY,
+        opacity: opacity,
+        colorArgb: colorArgb,
+      );
+      if (updatedProject == null) {
+        return false;
+      }
+      setState(() {
+        _motionProject = updatedProject;
+        _tracks = _ensureTrackKind(_tracks, TimelineTrackKind.text);
+        _selectedClipId = existingContext.elementId;
+        _selectedTransitionId = null;
+        _activeTab = EditorMediaTab.text;
+        _setCurrentTime(insertionRange.start);
+        _markMotionAuthoringChanged();
+      });
+      _syncTimelineClockDuration();
+      _showStageMessage('AI text updated.');
+      return true;
+    }
+
     const pendingTarget = MotionPropertyTarget(
       kind: MotionTargetKind.element,
       targetId: '__pending__',
@@ -3287,6 +3322,142 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _syncTimelineClockDuration();
     _showStageMessage('AI text layer applied.');
     return true;
+  }
+
+  _McpRemoteElementContext? _resolveMcpRemoteTextElementContext({
+    required Map<String, Object?> remoteLayer,
+    required Map<String, Object?> payload,
+    required Map<String, Object?> updates,
+    required Map<String, Object?> nestedPayload,
+  }) {
+    final candidates = <String>{
+      _remoteString(remoteLayer['id']) ?? '',
+      _remoteString(payload['targetLayerId']) ?? '',
+      _remoteString(payload['layerId']) ?? '',
+      _remoteString(updates['targetLayerId']) ?? '',
+      _remoteString(updates['layerId']) ?? '',
+      _remoteString(nestedPayload['targetLayerId']) ?? '',
+      _remoteString(nestedPayload['layerId']) ?? '',
+    }..removeWhere((value) => value.trim().isEmpty);
+    for (final candidate in candidates) {
+      final context = _mcpRemoteElementContextByLayerId(candidate);
+      if (context != null) {
+        return context;
+      }
+    }
+    return null;
+  }
+
+  MotionProjectModel? _updateExistingMcpTextElement({
+    required MotionProjectModel project,
+    required _McpRemoteElementContext context,
+    required String remoteLayerId,
+    required String remoteLayerName,
+    required String textValue,
+    required TimelineTimeRange insertionRange,
+    required double fontSize,
+    required double positionX,
+    required double positionY,
+    required double opacity,
+    required int colorArgb,
+  }) {
+    var didUpdate = false;
+    final nextScenes = project.scenes.map((scene) {
+      if (scene.id != context.sceneId) {
+        return scene;
+      }
+      final localRange = TimelineTimeRange(
+        start: insertionRange.start - scene.projectRange.start,
+        endExclusive: insertionRange.endExclusive - scene.projectRange.start,
+      );
+      final nextLayers = scene.layers.map((layer) {
+        if (layer.id != context.layerId) {
+          return layer;
+        }
+        final nextElements = layer.elements.map((element) {
+          if (element.id != context.elementId ||
+              element.kind != MotionElementKind.text) {
+            return element;
+          }
+          final target = MotionPropertyTarget(
+            kind: MotionTargetKind.element,
+            targetId: element.id,
+            projectId: project.id,
+            sceneId: scene.id,
+            layerId: layer.id,
+            elementId: element.id,
+          );
+          var properties = element.properties;
+          properties = _upsertMotionPropertyAssignment(
+            assignments: properties,
+            target: target,
+            definition: MotionPropertyCatalog.fontSize,
+            value: MotionPropertyValue.scalar(fontSize),
+          );
+          properties = _upsertMotionPropertyAssignment(
+            assignments: properties,
+            target: target,
+            definition: MotionPropertyCatalog.positionX,
+            value: MotionPropertyValue.scalar(positionX),
+          );
+          properties = _upsertMotionPropertyAssignment(
+            assignments: properties,
+            target: target,
+            definition: MotionPropertyCatalog.positionY,
+            value: MotionPropertyValue.scalar(positionY),
+          );
+          properties = _upsertMotionPropertyAssignment(
+            assignments: properties,
+            target: target,
+            definition: MotionPropertyCatalog.opacity,
+            value: MotionPropertyValue.scalar(opacity),
+          );
+          properties = _upsertMotionPropertyAssignment(
+            assignments: properties,
+            target: target,
+            definition: _mcpRemoteVisualColorProperty,
+            value: MotionPropertyValue.colorArgb(colorArgb),
+          );
+          final existingBinding = element.sourceBinding;
+          final existingMetadata =
+              existingBinding?.metadata ?? const <String, String>{};
+          final existingAliases = _mcpRemoteLayerAliases(existingMetadata);
+          final aliasSet = <String>{...existingAliases, remoteLayerId};
+          final nextSourceBinding = MotionElementSourceBinding(
+            kind: existingBinding?.kind ?? MotionSourceKind.generatedText,
+            sourceId:
+                existingBinding?.sourceId ?? 'mcp.remote.text.$remoteLayerId',
+            assetId: existingBinding?.assetId,
+            label: textValue,
+            sourceRange: existingBinding?.sourceRange,
+            metadata: <String, String>{
+              ...existingMetadata,
+              'text': textValue,
+              'mcp.remoteLayerId': remoteLayerId,
+              'mcp.remoteLayerName': remoteLayerName,
+              if (aliasSet.isNotEmpty)
+                'mcp.remoteLayerAliases': aliasSet.join(','),
+            },
+          );
+          didUpdate = true;
+          return element.copyWith(
+            localRange: localRange,
+            name: remoteLayerName,
+            sourceBinding: nextSourceBinding,
+            properties: properties,
+          );
+        }).toList(growable: false);
+        return layer.copyWith(
+          elements: nextElements,
+          visibleRange: _expandedTimeRange(layer.visibleRange, localRange),
+        );
+      }).toList(growable: false);
+      return scene.copyWith(layers: nextLayers);
+    }).toList(growable: false);
+    if (!didUpdate) {
+      return null;
+    }
+    return project.copyWith(scenes: nextScenes);
   }
 
   void _applyRemoteMotionChannelsIfNeeded(
@@ -3473,8 +3644,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     for (final scene in project.scenes) {
       for (final layer in scene.layers) {
         for (final element in layer.elements) {
-          if (element.sourceBinding?.metadata['mcp.remoteLayerId'] ==
-              remoteLayerId) {
+          final metadata = element.sourceBinding?.metadata;
+          if (metadata == null) {
+            continue;
+          }
+          if (metadata['mcp.remoteLayerId'] == remoteLayerId ||
+              _mcpRemoteLayerAliases(metadata).contains(remoteLayerId)) {
             return _McpRemoteElementContext(
               sceneId: scene.id,
               layerId: layer.id,
@@ -3679,14 +3854,33 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     for (final scene in project.scenes) {
       for (final layer in scene.layers) {
         for (final element in layer.elements) {
-          if (element.sourceBinding?.metadata['mcp.remoteLayerId'] ==
-              remoteLayerId) {
+          final metadata = element.sourceBinding?.metadata;
+          if (metadata == null) {
+            continue;
+          }
+          if (metadata['mcp.remoteLayerId'] == remoteLayerId ||
+              _mcpRemoteLayerAliases(metadata).contains(remoteLayerId)) {
             return true;
           }
         }
       }
     }
     return false;
+  }
+
+  Set<String> _mcpRemoteLayerAliases(Map<String, String> metadata) {
+    final raw = metadata['mcp.remoteLayerAliases'];
+    if (raw == null || raw.trim().isEmpty) {
+      return const <String>{};
+    }
+    final next = <String>{};
+    for (final token in raw.split(',')) {
+      final value = token.trim();
+      if (value.isNotEmpty) {
+        next.add(value);
+      }
+    }
+    return next;
   }
 
   TimelineTimeRange? _remoteProjectRangeForLayer({
