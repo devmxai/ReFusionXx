@@ -8,6 +8,13 @@ Package: `com.refusion.app`
 
 Date: 2026-05-14
 
+Failure closure addendum:
+`professional_unified_creative_truth_apply_spine_failure_closure_plan.md`
+
+The addendum is mandatory for the current MCP failures where background,
+text/motion identity, apply latency, and proof still bypass the intended spine.
+Treat it as the execution gate before continuing broad PUCTAS phases.
+
 Primary goal: make every creative edit from MCP Agent, Manual UI, Paste Script,
 Templates, Tap List, and future tools pass through one professional apply spine
 and appear as real editable canvas/timeline/render truth immediately.
