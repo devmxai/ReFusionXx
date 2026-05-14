@@ -1950,7 +1950,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
       final projectionValidation = _mcpTimelineProjectionValidator.validate(
         receipt: _mcpLatestApplyProof,
-        isRepresentedLocally: _isMcpRemoteLayerRepresentedLocally,
+        isRepresentedLocally: _isMcpRemoteLayerProjectedInTimeline,
         didApply: _mcpLatestApplyDidApply,
         hasRepresentedRemoteLayer: _mcpLatestApplyHasRepresentedRemoteLayer,
       );
@@ -2206,6 +2206,27 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   bool _isMcpRemoteLayerRepresentedLocally(String remoteLayerId) {
     return _hasAppliedMcpRemoteLayer(remoteLayerId) ||
         _mcpRemoteMediaLayerClipIds.containsKey(remoteLayerId);
+  }
+
+  bool _isMcpRemoteLayerProjectedInTimeline(String remoteLayerId) {
+    final mappedClipId = _mcpRemoteMediaLayerClipIds[remoteLayerId];
+    if (mappedClipId != null &&
+        _selectedClipContextForTracks(_timelineTruthTracks, mappedClipId) !=
+            null) {
+      return true;
+    }
+    final context = _mcpRemoteElementContextByLayerId(remoteLayerId);
+    if (context == null) {
+      return false;
+    }
+    for (final track in _timelineTruthTracks) {
+      for (final clip in track.clips) {
+        if (clip.id == context.elementId) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   bool _remoteLayerHasBackgroundVisualIntent(Map<String, Object?> remoteLayer) {
@@ -7151,6 +7172,102 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
   }
 
+  TimelineTrackData _buildMotionShapeTimelineTrackForProject(
+    MotionProjectModel project,
+  ) {
+    final entries = _buildMotionShapeTimelineEntries(project);
+    final sortedEntries = List<_MotionShapeTimelineEntry>.from(entries)
+      ..sort((left, right) => left.start.compareTo(right.start));
+    if (sortedEntries.isEmpty) {
+      return TimelineTrackData(
+        kind: TimelineTrackKind.shape,
+        clips: <TimelineClipData>[],
+        placeholderLabel: 'Shapes',
+      );
+    }
+
+    final clips = <TimelineClipData>[];
+    var cursor = TimelineTime.zero;
+    for (final entry in sortedEntries) {
+      if (entry.start > cursor) {
+        clips.add(
+          TimelineClipData(
+            id: 'shape-gap-${cursor.inProjectTicks}-${entry.start.inProjectTicks}',
+            type: TimelineClipType.placeholder,
+            tone: TimelineClipTone.placeholder,
+            durationTime: entry.start - cursor,
+            label: '',
+          ),
+        );
+      }
+      clips.add(
+        TimelineClipData(
+          id: entry.elementId,
+          type: TimelineClipType.media,
+          tone: entry.isBackground
+              ? TimelineClipTone.aiGenerated
+              : TimelineClipTone.heroMuted,
+          sourceStartTime: entry.start,
+          durationTime: entry.end - entry.start,
+          label: entry.label,
+          contentKind: TimelineClipContentKind.media,
+          visualKind: TimelineVisualKind.shape,
+        ),
+      );
+      cursor = entry.end;
+    }
+
+    return TimelineTrackData(
+      kind: TimelineTrackKind.shape,
+      clips: clips,
+      placeholderLabel: 'Shapes',
+    );
+  }
+
+  List<_MotionShapeTimelineEntry> _buildMotionShapeTimelineEntries(
+    MotionProjectModel project,
+  ) {
+    final entries = <_MotionShapeTimelineEntry>[];
+    for (final scene in project.scenes) {
+      for (final layer in scene.layers) {
+        if (layer.kind != MotionLayerKind.shape) {
+          continue;
+        }
+        for (final element in layer.elements) {
+          if (element.kind != MotionElementKind.shape) {
+            continue;
+          }
+          final timingRange = TimelineTimeRange(
+            start: scene.projectRange.start + element.localRange.start,
+            endExclusive:
+                scene.projectRange.start + element.localRange.endExclusive,
+          );
+          if (timingRange.endExclusive <= timingRange.start) {
+            continue;
+          }
+          final metadata = element.sourceBinding?.metadata;
+          final isBackground = metadata?['mcp.backgroundRole'] == 'canvas';
+          final label = isBackground
+              ? 'Background'
+              : (metadata?['mcp.remoteLayerName'] ??
+                  element.sourceBinding?.label ??
+                  element.name ??
+                  'Shape');
+          entries.add(
+            _MotionShapeTimelineEntry(
+              elementId: element.id,
+              start: timingRange.start,
+              end: timingRange.endExclusive,
+              label: label,
+              isBackground: isBackground,
+            ),
+          );
+        }
+      }
+    }
+    return entries;
+  }
+
   List<_MotionTextTimelineEntry> _currentMotionTextTimelineEntries() {
     final project = _motionProject;
     if (project == null) {
@@ -7275,7 +7392,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final textTrackIndex = _tracks.indexWhere(
       (track) => track.kind == TimelineTrackKind.text && !track.isSceneTrack,
     );
-    if (textTrackIndex < 0) {
+    final shapeTrackIndex = _tracks.indexWhere(
+      (track) => track.kind == TimelineTrackKind.shape && !track.isSceneTrack,
+    );
+    if (textTrackIndex < 0 && shapeTrackIndex < 0) {
       return _tracks;
     }
     if (project == null) {
@@ -7297,11 +7417,20 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             project,
             bindings: bindings,
           );
-    final baseTextTrack = _tracks[textTrackIndex];
     final nextTracks = List<TimelineTrackData>.from(_tracks);
-    nextTracks[textTrackIndex] = generatedTextTrack.copyWith(
-      animationLanes: baseTextTrack.animationLanes,
-    );
+    if (textTrackIndex >= 0) {
+      final baseTextTrack = _tracks[textTrackIndex];
+      nextTracks[textTrackIndex] = generatedTextTrack.copyWith(
+        animationLanes: baseTextTrack.animationLanes,
+      );
+    }
+    if (shapeTrackIndex >= 0) {
+      final baseShapeTrack = _tracks[shapeTrackIndex];
+      nextTracks[shapeTrackIndex] =
+          _buildMotionShapeTimelineTrackForProject(project).copyWith(
+        animationLanes: baseShapeTrack.animationLanes,
+      );
+    }
     final resolvedTracks = List<TimelineTrackData>.unmodifiable(nextTracks);
     if (useCurrentProjection) {
       _cachedMotionTimelineBaseTracks = _tracks;
@@ -33684,6 +33813,22 @@ class _MotionTextTimelineEntry {
   final TimelineTime start;
   final TimelineTime end;
   final String label;
+}
+
+class _MotionShapeTimelineEntry {
+  const _MotionShapeTimelineEntry({
+    required this.elementId,
+    required this.start,
+    required this.end,
+    required this.label,
+    required this.isBackground,
+  });
+
+  final String elementId;
+  final TimelineTime start;
+  final TimelineTime end;
+  final String label;
+  final bool isBackground;
 }
 
 class _ResolvedTimelineTrimValues {

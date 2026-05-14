@@ -418,6 +418,7 @@ class RefusionMcpCloudBridge {
           frameEvaluationResult: null,
           fallbackProjectId: state.projectId,
           fallbackCompositionId: state.compositionId,
+          preferFallbackScope: true,
         ),
       );
       _scheduleDiagnosticsSync(
@@ -586,6 +587,7 @@ class RefusionMcpCloudBridge {
           frameEvaluationResult: frameEvaluationResponse,
           fallbackProjectId: request.state.projectId,
           fallbackCompositionId: request.state.compositionId,
+          preferFallbackScope: true,
         ),
       );
     } finally {
@@ -648,6 +650,7 @@ class RefusionMcpCloudBridge {
     required Map<String, Object?>? frameEvaluationResult,
     required String fallbackProjectId,
     required String fallbackCompositionId,
+    bool preferFallbackScope = false,
   }) {
     final structured = _asMap(rpcResult['structuredContent']);
     final payload = _asMap(structured['payload']);
@@ -716,8 +719,12 @@ class RefusionMcpCloudBridge {
     }
     return RefusionMcpCloudBridgeSnapshot(
       ok: structured['ok'] == true,
-      projectId: _asString(project['id']) ?? fallbackProjectId,
-      compositionId: _asString(composition['id']) ?? fallbackCompositionId,
+      projectId: preferFallbackScope
+          ? fallbackProjectId
+          : (_asString(project['id']) ?? fallbackProjectId),
+      compositionId: preferFallbackScope
+          ? fallbackCompositionId
+          : (_asString(composition['id']) ?? fallbackCompositionId),
       revision: _asInt(project['revision']),
       liveOnline: liveEditor['online'] == true,
       updatedAtUtc: DateTime.now().toUtc(),

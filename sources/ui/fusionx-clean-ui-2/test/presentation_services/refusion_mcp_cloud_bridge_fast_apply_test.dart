@@ -131,6 +131,43 @@ void main() {
         expect(firstSnapshot.compositionId, 'composition-1');
       },
     );
+
+    test(
+      'fast sync preserves scoped local identity when active context is stale',
+      () async {
+        final server = await _FakeMcpServer.start(
+          diagnosticsDelay: const Duration(milliseconds: 20),
+          activeProjectId: 'stale-project',
+          activeCompositionId: 'stale-composition',
+        );
+        addTearDown(server.close);
+
+        final snapshots = <RefusionMcpCloudBridgeSnapshot>[];
+        final bridge = RefusionMcpCloudBridge(
+          endpoint: server.endpoint,
+          deviceId: 'test-device',
+          contextReader: () => const RefusionMcpCloudContextState(
+            projectId: 'project-1',
+            compositionId: 'composition-1',
+            playheadMs: 1600,
+            timelineRevision: 6,
+            foreground: true,
+          ),
+          onSnapshot: snapshots.add,
+          interval: const Duration(seconds: 60),
+          connectTimeout: const Duration(seconds: 8),
+        );
+        addTearDown(bridge.stop);
+
+        await bridge.syncNow();
+
+        expect(snapshots, isNotEmpty);
+        final firstSnapshot = snapshots.first;
+        expect(firstSnapshot.projectId, 'project-1');
+        expect(firstSnapshot.compositionId, 'composition-1');
+        expect(firstSnapshot.remoteLayers, isNotEmpty);
+      },
+    );
   });
 }
 
@@ -153,17 +190,23 @@ class _FakeMcpServer {
     required this.endpoint,
     required this.diagnosticsDelay,
     required this.contextDelay,
+    required this.activeProjectId,
+    required this.activeCompositionId,
   });
 
   final HttpServer server;
   final Uri endpoint;
   final Duration diagnosticsDelay;
   final Duration contextDelay;
+  final String activeProjectId;
+  final String activeCompositionId;
   final Map<String, int> _counts = <String, int>{};
 
   static Future<_FakeMcpServer> start({
     required Duration diagnosticsDelay,
     Duration contextDelay = Duration.zero,
+    String activeProjectId = 'project-1',
+    String activeCompositionId = 'composition-1',
   }) async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     final endpoint = Uri.parse(
@@ -174,6 +217,8 @@ class _FakeMcpServer {
       endpoint: endpoint,
       diagnosticsDelay: diagnosticsDelay,
       contextDelay: contextDelay,
+      activeProjectId: activeProjectId,
+      activeCompositionId: activeCompositionId,
     );
     fake._serve();
     return fake;
@@ -241,8 +286,8 @@ class _FakeMcpServer {
     switch (toolName) {
       case 'get_active_context':
         return <String, Object?>{
-          'project': <String, Object?>{'id': 'project-1', 'revision': 3},
-          'composition': <String, Object?>{'id': 'composition-1'},
+          'project': <String, Object?>{'id': activeProjectId, 'revision': 3},
+          'composition': <String, Object?>{'id': activeCompositionId},
           'liveEditor': <String, Object?>{
             'online': true,
             'sessionId': 'session-1',
