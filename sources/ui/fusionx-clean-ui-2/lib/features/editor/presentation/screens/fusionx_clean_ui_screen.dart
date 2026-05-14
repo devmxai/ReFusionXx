@@ -4172,32 +4172,38 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return MotionShapeKind.roundedRectangle;
   }
 
-  MotionProjectModel? _insertNewMcpShapeElement({
+  _ShapeLayerInsertionResult? _insertShapeLayerIntoScene({
     required MotionProjectModel project,
-    required MotionSceneModel scene,
-    required TimelineTimeRange insertionRange,
-    required String remoteLayerId,
-    required List<String> remoteLayerAliases,
-    required String remoteLayerName,
-    required Color color,
+    required String sceneId,
+    required TimelineTimeRange projectRange,
+    required String layerId,
+    required String elementId,
+    required String sourceId,
+    required String layerName,
+    required String elementName,
+    required int zIndex,
+    required MotionShapeKind shapeKind,
+    required MotionSourceKind sourceKind,
+    required String sourceLabel,
+    required Map<String, String> sourceMetadata,
     required double positionX,
     required double positionY,
     required double width,
     required double height,
     required double cornerRadius,
     required double opacity,
-    required int zIndex,
-    required bool isBackgroundRole,
-    required MotionShapeKind shapeKind,
+    required int? colorArgb,
   }) {
     final sceneIndex =
-        project.scenes.indexWhere((candidate) => candidate.id == scene.id);
+        project.scenes.indexWhere((candidate) => candidate.id == sceneId);
     if (sceneIndex < 0) {
       return null;
     }
-    final layerId = _nextMotionEntityId('mcp-shape-layer');
-    final elementId = _nextMotionEntityId('mcp-shape-element');
-    final sourceId = _nextMotionEntityId('mcp-generated-shape');
+    final scene = project.scenes[sceneIndex];
+    final localRange = TimelineTimeRange(
+      start: projectRange.start - scene.projectRange.start,
+      endExclusive: projectRange.endExclusive - scene.projectRange.start,
+    );
     final target = MotionPropertyTarget(
       kind: MotionTargetKind.element,
       targetId: elementId,
@@ -4217,79 +4223,62 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       );
     }
 
-    final localRange = TimelineTimeRange(
-      start: insertionRange.start - scene.projectRange.start,
-      endExclusive: insertionRange.endExclusive - scene.projectRange.start,
-    );
-    final aliasSet = <String>{remoteLayerId, ...remoteLayerAliases}
-      ..removeWhere((value) => value.trim().isEmpty);
+    final properties = <MotionPropertyAssignment>[
+      assignment(
+        MotionPropertyCatalog.positionX,
+        MotionPropertyValue.scalar(positionX),
+      ),
+      assignment(
+        MotionPropertyCatalog.positionY,
+        MotionPropertyValue.scalar(positionY),
+      ),
+      assignment(
+          MotionPropertyCatalog.scaleX, const MotionPropertyValue.scalar(1)),
+      assignment(
+          MotionPropertyCatalog.scaleY, const MotionPropertyValue.scalar(1)),
+      assignment(
+          MotionPropertyCatalog.opacity, MotionPropertyValue.scalar(opacity)),
+      assignment(
+        MotionPropertyCatalog.width,
+        MotionPropertyValue.scalar(width.clamp(1.0, 100000.0).toDouble()),
+      ),
+      assignment(
+        MotionPropertyCatalog.height,
+        MotionPropertyValue.scalar(height.clamp(1.0, 100000.0).toDouble()),
+      ),
+      assignment(
+        MotionPropertyCatalog.cornerRadius,
+        MotionPropertyValue.scalar(
+            cornerRadius.clamp(0.0, 100000.0).toDouble()),
+      ),
+      if (colorArgb != null)
+        assignment(
+          _mcpRemoteVisualColorProperty,
+          MotionPropertyValue.colorArgb(colorArgb),
+        ),
+    ];
     final element = MotionElementModel(
       id: elementId,
       layerId: layerId,
       kind: MotionElementKind.shape,
       shapeKind: shapeKind,
       localRange: localRange,
-      name: remoteLayerName,
+      name: elementName,
       sourceBinding: MotionElementSourceBinding(
-        kind: MotionSourceKind.generatedShape,
+        kind: sourceKind,
         sourceId: sourceId,
-        label: remoteLayerName,
-        metadata: <String, String>{
-          'source': 'mcp.remote.shape',
-          'mcp.remoteLayerId': remoteLayerId,
-          'mcp.remoteLayerName': remoteLayerName,
-          'mcp.remoteLayerKind': isBackgroundRole ? 'solid' : 'shape',
-          if (isBackgroundRole) 'mcp.backgroundRole': 'canvas',
-          if (aliasSet.isNotEmpty) 'mcp.remoteLayerAliases': aliasSet.join(','),
-        },
+        label: sourceLabel,
+        metadata: sourceMetadata,
       ),
-      properties: <MotionPropertyAssignment>[
-        assignment(
-          MotionPropertyCatalog.positionX,
-          MotionPropertyValue.scalar(positionX),
-        ),
-        assignment(
-          MotionPropertyCatalog.positionY,
-          MotionPropertyValue.scalar(positionY),
-        ),
-        assignment(
-          MotionPropertyCatalog.scaleX,
-          const MotionPropertyValue.scalar(1),
-        ),
-        assignment(
-          MotionPropertyCatalog.scaleY,
-          const MotionPropertyValue.scalar(1),
-        ),
-        assignment(
-          MotionPropertyCatalog.opacity,
-          MotionPropertyValue.scalar(opacity),
-        ),
-        assignment(
-          MotionPropertyCatalog.width,
-          MotionPropertyValue.scalar(width.clamp(1.0, 100000.0).toDouble()),
-        ),
-        assignment(
-          MotionPropertyCatalog.height,
-          MotionPropertyValue.scalar(height.clamp(1.0, 100000.0).toDouble()),
-        ),
-        assignment(
-          MotionPropertyCatalog.cornerRadius,
-          MotionPropertyValue.scalar(
-              cornerRadius.clamp(0.0, 100000.0).toDouble()),
-        ),
-        assignment(
-          _mcpRemoteVisualColorProperty,
-          MotionPropertyValue.colorArgb(color.value),
-        ),
-      ],
+      properties: properties,
     );
     final layer = MotionLayerModel(
       id: layerId,
       sceneId: scene.id,
       kind: MotionLayerKind.shape,
-      visibleRange: insertionRange,
+      visibleRange: projectRange,
       elements: <MotionElementModel>[element],
-      name: remoteLayerName,
+      name: layerName,
       zIndex: zIndex,
     );
     final nextLayers = <MotionLayerModel>[
@@ -4298,7 +4287,63 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     ];
     final nextScenes = List<MotionSceneModel>.from(project.scenes)
       ..[sceneIndex] = scene.copyWith(layers: nextLayers);
-    return project.copyWith(scenes: nextScenes);
+    return _ShapeLayerInsertionResult(
+      project: project.copyWith(scenes: nextScenes),
+      layerId: layer.id,
+      elementId: element.id,
+    );
+  }
+
+  MotionProjectModel? _insertNewMcpShapeElement({
+    required MotionProjectModel project,
+    required MotionSceneModel scene,
+    required TimelineTimeRange insertionRange,
+    required String remoteLayerId,
+    required List<String> remoteLayerAliases,
+    required String remoteLayerName,
+    required Color color,
+    required double positionX,
+    required double positionY,
+    required double width,
+    required double height,
+    required double cornerRadius,
+    required double opacity,
+    required int zIndex,
+    required bool isBackgroundRole,
+    required MotionShapeKind shapeKind,
+  }) {
+    final aliasSet = <String>{remoteLayerId, ...remoteLayerAliases}
+      ..removeWhere((value) => value.trim().isEmpty);
+    final insertionResult = _insertShapeLayerIntoScene(
+      project: project,
+      sceneId: scene.id,
+      projectRange: insertionRange,
+      layerId: _nextMotionEntityId('mcp-shape-layer'),
+      elementId: _nextMotionEntityId('mcp-shape-element'),
+      sourceId: _nextMotionEntityId('mcp-generated-shape'),
+      layerName: remoteLayerName,
+      elementName: remoteLayerName,
+      zIndex: zIndex,
+      shapeKind: shapeKind,
+      sourceKind: MotionSourceKind.generatedShape,
+      sourceLabel: remoteLayerName,
+      sourceMetadata: <String, String>{
+        'source': 'mcp.remote.shape',
+        'mcp.remoteLayerId': remoteLayerId,
+        'mcp.remoteLayerName': remoteLayerName,
+        'mcp.remoteLayerKind': isBackgroundRole ? 'solid' : 'shape',
+        if (isBackgroundRole) 'mcp.backgroundRole': 'canvas',
+        if (aliasSet.isNotEmpty) 'mcp.remoteLayerAliases': aliasSet.join(','),
+      },
+      positionX: positionX,
+      positionY: positionY,
+      width: width,
+      height: height,
+      cornerRadius: cornerRadius,
+      opacity: opacity,
+      colorArgb: color.value,
+    );
+    return insertionResult?.project;
   }
 
   MotionProjectModel? _updateExistingMcpShapeElement({
@@ -18036,88 +18081,40 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return;
     }
 
-    final layerId = _nextMotionEntityId('shape-layer');
-    final elementId = _nextMotionEntityId('shape-element');
-    final sourceId = _nextMotionEntityId('generated-shape');
-    final localRange = TimelineTimeRange(
-      start: insertionRange.start - sourceScene.projectRange.start,
-      endExclusive:
-          insertionRange.endExclusive - sourceScene.projectRange.start,
-    );
-    final target = MotionPropertyTarget(
-      kind: MotionTargetKind.element,
-      targetId: elementId,
-      projectId: project.id,
-      sceneId: sourceScene.id,
-      layerId: layerId,
-      elementId: elementId,
-    );
-    MotionPropertyAssignment assignment(
-      MotionPropertyDefinition definition,
-      MotionPropertyValue value,
-    ) {
-      return MotionPropertyAssignment(
-        target: target,
-        definition: definition,
-        value: value,
-      );
-    }
-
-    final element = MotionElementModel(
-      id: elementId,
-      layerId: layerId,
-      kind: MotionElementKind.shape,
-      shapeKind: MotionShapeKind.roundedRectangle,
-      localRange: localRange,
-      name: 'Shape',
-      sourceBinding: MotionElementSourceBinding(
-        kind: MotionSourceKind.generatedShape,
-        sourceId: sourceId,
-        label: 'Shape',
-        metadata: const <String, String>{
-          'source': 'manual.add.shape',
-        },
-      ),
-      properties: <MotionPropertyAssignment>[
-        assignment(MotionPropertyCatalog.positionX,
-            const MotionPropertyValue.scalar(0)),
-        assignment(MotionPropertyCatalog.positionY,
-            const MotionPropertyValue.scalar(0)),
-        assignment(
-            MotionPropertyCatalog.scaleX, const MotionPropertyValue.scalar(1)),
-        assignment(
-            MotionPropertyCatalog.scaleY, const MotionPropertyValue.scalar(1)),
-        assignment(
-            MotionPropertyCatalog.opacity, const MotionPropertyValue.scalar(1)),
-        assignment(
-            MotionPropertyCatalog.width, const MotionPropertyValue.scalar(360)),
-        assignment(MotionPropertyCatalog.height,
-            const MotionPropertyValue.scalar(180)),
-        assignment(MotionPropertyCatalog.cornerRadius,
-            const MotionPropertyValue.scalar(36)),
-      ],
-    );
     final nextZIndex = sourceScene.layers.fold<int>(
           -1,
           (value, layer) => layer.zIndex > value ? layer.zIndex : value,
         ) +
         1;
-    final layer = MotionLayerModel(
-      id: layerId,
+    final insertionResult = _insertShapeLayerIntoScene(
+      project: project,
       sceneId: sourceScene.id,
-      kind: MotionLayerKind.shape,
-      visibleRange: insertionRange,
-      elements: <MotionElementModel>[element],
-      name: 'Shape',
+      projectRange: insertionRange,
+      layerId: _nextMotionEntityId('shape-layer'),
+      elementId: _nextMotionEntityId('shape-element'),
+      sourceId: _nextMotionEntityId('generated-shape'),
+      layerName: 'Shape',
+      elementName: 'Shape',
       zIndex: nextZIndex,
+      shapeKind: MotionShapeKind.roundedRectangle,
+      sourceKind: MotionSourceKind.generatedShape,
+      sourceLabel: 'Shape',
+      sourceMetadata: const <String, String>{
+        'source': 'manual.add.shape',
+      },
+      positionX: 0,
+      positionY: 0,
+      width: 360,
+      height: 180,
+      cornerRadius: 36,
+      opacity: 1,
+      colorArgb: null,
     );
-    final nextLayers = <MotionLayerModel>[
-      ...sourceScene.layers,
-      layer,
-    ];
-    final nextScenes = List<MotionSceneModel>.from(project.scenes)
-      ..[sceneIndex] = sourceScene.copyWith(layers: nextLayers);
-    final nextProject = project.copyWith(scenes: nextScenes);
+    if (insertionResult == null) {
+      _showStageMessage('Failed to add shape layer.');
+      return;
+    }
+    final nextProject = insertionResult.project;
     final nextSceneScope = _sceneScopeSessionResolver
             .open(
               SceneScopeSessionRequest(
@@ -18133,7 +18130,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     setState(() {
       _motionProject = nextProject;
       _sceneScopeSession = nextSceneScope;
-      _selectedClipId = layerId;
+      _selectedClipId = insertionResult.layerId;
       _selectedTransitionId = null;
       _sceneLayerScopeLayerId = null;
       _setCurrentTime(
@@ -34503,6 +34500,18 @@ class _McpRemoteElementContext {
   });
 
   final String sceneId;
+  final String layerId;
+  final String elementId;
+}
+
+class _ShapeLayerInsertionResult {
+  const _ShapeLayerInsertionResult({
+    required this.project,
+    required this.layerId,
+    required this.elementId,
+  });
+
+  final MotionProjectModel project;
   final String layerId;
   final String elementId;
 }
