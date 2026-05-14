@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../domain/models/professional_motion_evaluation_models.dart';
 import '../../domain/models/professional_motion_models.dart';
+import 'preview_stage.dart';
 
 class MotionShapePreviewOverlay extends StatelessWidget {
   const MotionShapePreviewOverlay({
@@ -29,9 +30,14 @@ class MotionShapePreviewOverlay extends StatelessWidget {
     return IgnorePointer(
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final viewportWidth = constraints.maxWidth;
-          final viewportHeight = constraints.maxHeight;
-          if (viewportWidth <= 0 ||
+          final stageViewport = PreviewStageCanvasViewport.maybeOf(context);
+          final canvasRect = stageViewport?.canvasRect ??
+              Rect.fromLTWH(0, 0, constraints.maxWidth, constraints.maxHeight);
+          final viewportWidth = canvasRect.width;
+          final viewportHeight = canvasRect.height;
+          if (constraints.maxWidth <= 0 ||
+              constraints.maxHeight <= 0 ||
+              viewportWidth <= 0 ||
               viewportHeight <= 0 ||
               canvasSize.width <= 0 ||
               canvasSize.height <= 0) {
@@ -43,15 +49,26 @@ class MotionShapePreviewOverlay extends StatelessWidget {
             fit: StackFit.expand,
             clipBehavior: Clip.none,
             children: [
-              for (final node in nodes)
-                _MotionShapePreviewNodeWidget(
-                  key: ValueKey<String>(node.id),
-                  node: node,
-                  viewportWidth: viewportWidth,
-                  viewportHeight: viewportHeight,
-                  scaleX: scaleX,
-                  scaleY: scaleY,
+              Positioned.fromRect(
+                rect: canvasRect,
+                child: ClipRect(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    clipBehavior: Clip.none,
+                    children: [
+                      for (final node in nodes)
+                        _MotionShapePreviewNodeWidget(
+                          key: ValueKey<String>(node.id),
+                          node: node,
+                          viewportWidth: viewportWidth,
+                          viewportHeight: viewportHeight,
+                          scaleX: scaleX,
+                          scaleY: scaleY,
+                        ),
+                    ],
+                  ),
                 ),
+              ),
             ],
           );
         },
