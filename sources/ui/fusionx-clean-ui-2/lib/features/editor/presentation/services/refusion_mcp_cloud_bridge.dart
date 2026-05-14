@@ -211,12 +211,12 @@ class RefusionMcpCloudBridge {
     await syncNow();
   }
 
-  Future<void> acknowledgeAppliedRevision({
+  Future<bool> acknowledgeAppliedRevision({
     required String projectId,
     required String compositionId,
     required int revision,
   }) async {
-    await acknowledgeAppliedCommands(
+    return acknowledgeAppliedCommands(
       projectId: projectId,
       compositionId: compositionId,
       revision: revision,
@@ -224,7 +224,7 @@ class RefusionMcpCloudBridge {
     );
   }
 
-  Future<void> acknowledgeAppliedCommands({
+  Future<bool> acknowledgeAppliedCommands({
     required String projectId,
     required String compositionId,
     int? revision,
@@ -238,14 +238,14 @@ class RefusionMcpCloudBridge {
     final projectIdArg = _normalizedIdentifierOrNull(projectId);
     final compositionIdArg = _normalizedIdentifierOrNull(compositionId);
     if (projectIdArg == null || compositionIdArg == null) {
-      return;
+      return false;
     }
     final normalizedCommandIds = commandIds
         .map((value) => value.trim())
         .where((value) => value.isNotEmpty)
         .toSet()
         .toList(growable: false);
-    await _safeCallTool(
+    final response = await _safeCallTool(
       toolName: 'ack_command_applied',
       arguments: <String, Object?>{
         'projectId': projectIdArg,
@@ -262,6 +262,15 @@ class RefusionMcpCloudBridge {
         'deviceId': _deviceId,
       },
     );
+    if (response == null) {
+      return false;
+    }
+    final structured = _asMap(response['structuredContent']);
+    final ok = structured['ok'];
+    if (ok is bool) {
+      return ok;
+    }
+    return true;
   }
 
   Future<void> syncNow() async {

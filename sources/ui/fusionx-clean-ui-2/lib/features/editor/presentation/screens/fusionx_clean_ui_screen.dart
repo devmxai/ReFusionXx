@@ -1865,9 +1865,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _mcpAppliedRemoteRevision = remoteRevision;
     final bridge = _mcpCloudBridge;
     if (bridge != null && _hasStartedCompositionSession) {
-      if (commandIds.isNotEmpty) {
-        _mcpAcknowledgedCommandIds.addAll(commandIds);
-      }
       final successProof = _mcpProofEvaluator.buildSuccessProof(
         receipt: _mcpLatestApplyProof,
         didApply: _mcpLatestApplyDidApply,
@@ -1875,16 +1872,29 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         proofFrameTimeMs: _timelineDisplayTimeNotifier.value.inMilliseconds,
         playerInvalidated: true,
       );
-      unawaited(
-        bridge.acknowledgeAppliedCommands(
+      unawaited(() async {
+        final acknowledged = await bridge.acknowledgeAppliedCommands(
           projectId: _effectiveMotionProject.id,
           compositionId: _rootMotionSceneId,
           revision: remoteRevision,
           commandIds: commandIds,
           appliedSuccessfully: true,
           proof: successProof,
-        ),
-      );
+        );
+        if (acknowledged) {
+          _mcpAcknowledgedCommandIds.addAll(commandIds);
+          _scheduleMcpCloudSync(delay: const Duration(milliseconds: 60));
+          return;
+        }
+        if (kDebugMode) {
+          debugPrint(
+            'MCP ack retry scheduled: revision=$remoteRevision '
+            'commands=${commandIds.join(',')}',
+          );
+        }
+        _scheduleMcpCloudSync(delay: const Duration(milliseconds: 420));
+      }());
+      return;
     }
     _scheduleMcpCloudSync(delay: const Duration(milliseconds: 60));
   }
@@ -1974,9 +1984,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                   'Open app did not apply this command within the realtime timeout window.',
             })
         .toList(growable: false);
-    _mcpAcknowledgedCommandIds.addAll(staleCommandIds);
-    unawaited(
-      bridge.acknowledgeAppliedCommands(
+    unawaited(() async {
+      final acknowledged = await bridge.acknowledgeAppliedCommands(
         projectId: projectId,
         compositionId: compositionId,
         commandIds: staleCommandIds,
@@ -1984,8 +1993,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         proof: _mcpProofEvaluator.buildFailureProof(),
         blockers: blockers,
         errorMessage: 'APP_APPLY_TIMEOUT',
-      ),
-    );
+      );
+      if (acknowledged) {
+        _mcpAcknowledgedCommandIds.addAll(staleCommandIds);
+        return;
+      }
+      if (kDebugMode) {
+        debugPrint(
+          'MCP timeout ack retry scheduled: ${staleCommandIds.join(',')}',
+        );
+      }
+      _scheduleMcpCloudSync(delay: const Duration(milliseconds: 420));
+    }());
   }
 
   List<String> _pendingMcpCommandIdsUpToRevision(int remoteRevision) {
