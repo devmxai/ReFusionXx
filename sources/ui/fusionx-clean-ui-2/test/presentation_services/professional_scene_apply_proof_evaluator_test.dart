@@ -86,6 +86,34 @@ void main() {
       },
     );
 
+    test('buildSuccessProof accepts projection overrides and extra proof', () {
+      const receipt = ProfessionalSceneApplyReceipt(
+        appliedCommandCount: 1,
+        appliedCommandTypes: <String>['applyShapeLayer'],
+        receivedRemoteLayers: 1,
+        targetLayerIds: <String>['remote-shape-1'],
+      );
+      final proof = evaluator.buildSuccessProof(
+        receipt: receipt,
+        didApply: true,
+        hasRepresentedRemoteLayer: true,
+        proofFrameTimeMs: 55,
+        playerInvalidated: true,
+        timelineVisibleOverride: false,
+        rendererAppliedOverride: false,
+        extraProof: const <String, Object?>{
+          'targetProjectionComplete': false,
+          'projectedTargetCount': 0,
+        },
+      );
+
+      expect(proof['timelineVisible'], isFalse);
+      expect(proof['rendererApplied'], isFalse);
+      expect(proof['visualBoundsVerified'], isFalse);
+      expect(proof['targetProjectionComplete'], isFalse);
+      expect(proof['projectedTargetCount'], 0);
+    });
+
     test('buildFailureProof returns hard fail proof contract', () {
       final proof = evaluator.buildFailureProof();
       expect(proof['dataApplied'], isFalse);

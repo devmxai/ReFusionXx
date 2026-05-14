@@ -83,6 +83,7 @@ import '../services/native_preview_identity_resolver.dart';
 import '../services/professional_video_transition_render_plan_adapter.dart';
 import '../services/professional_scene_apply_engine.dart';
 import '../services/professional_scene_apply_proof_evaluator.dart';
+import '../services/professional_scene_timeline_projection_validator.dart';
 import '../services/root_scene_clip_projection_adapter.dart';
 import '../services/refusion_mcp_cloud_bridge.dart';
 import '../services/scene_layer_scope_timeline_adapter.dart';
@@ -879,6 +880,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   bool _mcpLatestApplyHasRepresentedRemoteLayer = false;
   static const ProfessionalSceneApplyProofEvaluator _mcpProofEvaluator =
       ProfessionalSceneApplyProofEvaluator();
+  static const ProfessionalSceneTimelineProjectionValidator
+      _mcpTimelineProjectionValidator =
+      ProfessionalSceneTimelineProjectionValidator();
   static const McpSceneCommandDispatcher _mcpSceneCommandDispatcher =
       McpSceneCommandDispatcher();
   static const ProfessionalSceneApplyEngine _professionalSceneApplyEngine =
@@ -1866,12 +1870,22 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _mcpAppliedRemoteRevision = remoteRevision;
     final bridge = _mcpCloudBridge;
     if (bridge != null && _hasStartedCompositionSession) {
+      final projectionValidation = _mcpTimelineProjectionValidator.validate(
+        receipt: _mcpLatestApplyProof,
+        isRepresentedLocally: _isMcpRemoteLayerRepresentedLocally,
+        didApply: _mcpLatestApplyDidApply,
+        hasRepresentedRemoteLayer: _mcpLatestApplyHasRepresentedRemoteLayer,
+      );
       final successProof = _mcpProofEvaluator.buildSuccessProof(
         receipt: _mcpLatestApplyProof,
         didApply: _mcpLatestApplyDidApply,
         hasRepresentedRemoteLayer: _mcpLatestApplyHasRepresentedRemoteLayer,
         proofFrameTimeMs: _timelineDisplayTimeNotifier.value.inMilliseconds,
         playerInvalidated: true,
+        timelineVisibleOverride: projectionValidation.timelineVisible,
+        rendererAppliedOverride: projectionValidation.timelineVisible &&
+            projectionValidation.targetProjectionComplete,
+        extraProof: projectionValidation.toProofMap(),
       );
       unawaited(() async {
         final acknowledged = await bridge.acknowledgeAppliedCommands(

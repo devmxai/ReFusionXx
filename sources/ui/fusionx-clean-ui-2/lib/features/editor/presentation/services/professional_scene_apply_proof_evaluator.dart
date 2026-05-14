@@ -9,15 +9,20 @@ class ProfessionalSceneApplyProofEvaluator {
     required bool hasRepresentedRemoteLayer,
     required int proofFrameTimeMs,
     required bool playerInvalidated,
+    bool? timelineVisibleOverride,
+    bool? rendererAppliedOverride,
+    Map<String, Object?> extraProof = const <String, Object?>{},
   }) {
     final dataApplied = didApply || hasRepresentedRemoteLayer;
-    final timelineVisible = didApply ||
-        hasRepresentedRemoteLayer ||
-        receipt.targetLayerIds.isNotEmpty;
+    final timelineVisible = timelineVisibleOverride ??
+        didApply ||
+            hasRepresentedRemoteLayer ||
+            receipt.targetLayerIds.isNotEmpty;
     final localGraphApplied = didApply || timelineVisible;
     final frameEvaluated = dataApplied;
     final visualProgramEmitted = dataApplied;
-    final rendererApplied = didApply || hasRepresentedRemoteLayer;
+    final rendererApplied =
+        rendererAppliedOverride ?? didApply || hasRepresentedRemoteLayer;
     return <String, Object?>{
       'dataApplied': dataApplied,
       'localGraphApplied': localGraphApplied,
@@ -31,6 +36,7 @@ class ProfessionalSceneApplyProofEvaluator {
       if (receipt.targetLayerIds.length == 1)
         'targetLayerId': receipt.targetLayerIds.first,
       ...receipt.toProofMap(),
+      ...extraProof,
     };
   }
 
