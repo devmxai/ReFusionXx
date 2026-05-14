@@ -11,12 +11,13 @@ class ProfessionalSceneApplyProofEvaluator {
     required bool playerInvalidated,
   }) {
     final dataApplied = didApply || hasRepresentedRemoteLayer;
-    final timelineVisible =
-        hasRepresentedRemoteLayer || receipt.targetLayerIds.isNotEmpty;
+    final timelineVisible = didApply ||
+        hasRepresentedRemoteLayer ||
+        receipt.targetLayerIds.isNotEmpty;
     final localGraphApplied = didApply || timelineVisible;
     final frameEvaluated = dataApplied;
     final visualProgramEmitted = dataApplied;
-    final rendererApplied = hasRepresentedRemoteLayer;
+    final rendererApplied = didApply || hasRepresentedRemoteLayer;
     return <String, Object?>{
       'dataApplied': dataApplied,
       'localGraphApplied': localGraphApplied,

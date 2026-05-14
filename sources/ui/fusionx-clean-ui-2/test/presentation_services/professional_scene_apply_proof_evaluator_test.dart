@@ -58,6 +58,34 @@ void main() {
       expect(proof['playerInvalidated'], isFalse);
     });
 
+    test(
+      'buildSuccessProof marks renderer/timeline applied when execution succeeded '
+      'even if representation hint is delayed',
+      () {
+        const receipt = ProfessionalSceneApplyReceipt(
+          appliedCommandCount: 1,
+          appliedCommandTypes: <String>['applyShapeLayer'],
+          receivedRemoteLayers: 1,
+          operationApplied: 'insert',
+          createdLayerCount: 1,
+          updatedLayerCount: 0,
+        );
+
+        final proof = evaluator.buildSuccessProof(
+          receipt: receipt,
+          didApply: true,
+          hasRepresentedRemoteLayer: false,
+          proofFrameTimeMs: 24,
+          playerInvalidated: true,
+        );
+
+        expect(proof['dataApplied'], isTrue);
+        expect(proof['timelineVisible'], isTrue);
+        expect(proof['rendererApplied'], isTrue);
+        expect(proof['visualBoundsVerified'], isTrue);
+      },
+    );
+
     test('buildFailureProof returns hard fail proof contract', () {
       final proof = evaluator.buildFailureProof();
       expect(proof['dataApplied'], isFalse);
