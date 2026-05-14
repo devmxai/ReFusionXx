@@ -81,5 +81,38 @@ void main() {
       expect(blockers.length, 1);
       expect(blockers.first.effectType, 'film_grain');
     });
+
+    test('inspectCapabilities returns proof-friendly capability matrix', () {
+      final remoteLayers = <Map<String, Object?>>[
+        <String, Object?>{
+          'id': 'layer-a',
+          'payload': <String, Object?>{
+            'effects': <Object?>[
+              <String, Object?>{'type': 'mask'},
+              <String, Object?>{'type': 'glow'},
+            ],
+          },
+        },
+        <String, Object?>{
+          'id': 'layer-b',
+          'payload': <String, Object?>{
+            'effect': <String, Object?>{'type': 'vignette'},
+          },
+        },
+      ];
+
+      final report = guard.inspectCapabilities(remoteLayers);
+      expect(report.detectedEffectTypes,
+          containsAll(<String>['mask', 'glow', 'vignette']));
+      expect(
+          report.supportedEffectTypes, containsAll(<String>['mask', 'glow']));
+      expect(report.unsupportedEffectTypes, <String>['vignette']);
+      expect(report.blockers.length, 1);
+
+      final proof = report.toProofMap();
+      expect(proof['effectCapability.blockerCount'], 1);
+      expect(proof['effectCapability.unsupported'], <String>['vignette']);
+      expect(proof['effectCapability.layerEffectTypes'], isNotEmpty);
+    });
   });
 }

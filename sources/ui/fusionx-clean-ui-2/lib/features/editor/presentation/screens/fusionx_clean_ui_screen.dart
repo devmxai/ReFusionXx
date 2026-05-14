@@ -890,6 +890,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   bool _mcpLatestApplyHasRepresentedRemoteLayer = false;
   List<Map<String, Object?>> _mcpLatestCapabilityBlockers =
       const <Map<String, Object?>>[];
+  Map<String, Object?> _mcpLatestEffectCapabilityProof =
+      const <String, Object?>{};
   static const ProfessionalSceneApplyProofEvaluator _mcpProofEvaluator =
       ProfessionalSceneApplyProofEvaluator();
   static const ProfessionalSceneTimelineProjectionValidator
@@ -1826,10 +1828,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (remoteLayers.isEmpty) {
       return;
     }
-    final capabilityBlockers = _mcpEffectCapabilityGuard
-        .detectUnsupportedEffects(remoteLayers)
-        .map((entry) => entry.toMap())
-        .toList(growable: false);
+    final capabilityReport =
+        _mcpEffectCapabilityGuard.inspectCapabilities(remoteLayers);
+    final capabilityBlockers = capabilityReport.blockerMaps;
+    _mcpLatestEffectCapabilityProof = Map<String, Object?>.unmodifiable(
+      capabilityReport.toProofMap(),
+    );
     if (capabilityBlockers.isNotEmpty) {
       _mcpLatestCapabilityBlockers =
           List<Map<String, Object?>>.unmodifiable(capabilityBlockers);
@@ -1915,6 +1919,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         final failureProof = <String, Object?>{
           ..._mcpProofEvaluator.buildFailureProof(),
           ..._mcpLatestApplyProof.toProofMap(),
+          ..._mcpLatestEffectCapabilityProof,
           ..._mcpSpatialProofMap(),
         };
         unawaited(() async {
@@ -1931,6 +1936,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           if (acknowledged) {
             _mcpAcknowledgedCommandIds.addAll(commandIds);
             _mcpLatestCapabilityBlockers = const <Map<String, Object?>>[];
+            _mcpLatestEffectCapabilityProof = const <String, Object?>{};
             _scheduleMcpCloudSync(delay: const Duration(milliseconds: 60));
             return;
           }
@@ -1955,6 +1961,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             projectionValidation.targetProjectionComplete,
         extraProof: <String, Object?>{
           ...projectionValidation.toProofMap(),
+          ..._mcpLatestEffectCapabilityProof,
           ..._mcpSpatialProofMap(),
         },
       );
@@ -1970,6 +1977,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         if (acknowledged) {
           _mcpAcknowledgedCommandIds.addAll(commandIds);
           _mcpLatestCapabilityBlockers = const <Map<String, Object?>>[];
+          _mcpLatestEffectCapabilityProof = const <String, Object?>{};
           _scheduleMcpCloudSync(delay: const Duration(milliseconds: 60));
           return;
         }

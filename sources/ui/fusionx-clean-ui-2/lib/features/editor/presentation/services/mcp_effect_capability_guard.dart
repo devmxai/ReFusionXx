@@ -43,17 +43,54 @@ class McpEffectCapabilityGuard {
     'opacity',
   };
 
+  McpEffectCapabilityReport inspectCapabilities(
+    List<Map<String, Object?>> remoteLayers,
+  ) {
+    final detected = <String>{};
+    final supported = <String>{};
+    final unsupported = <String>{};
+    final blockers = <McpEffectCapabilityBlocker>[];
+    final layerEffectTypes = <Map<String, Object?>>[];
+    for (final remoteLayer in remoteLayers) {
+      final layerInspection = _inspectLayerEffectTypes(remoteLayer);
+      detected.addAll(layerInspection.detectedEffectTypes);
+      supported.addAll(layerInspection.detectedEffectTypes.where(
+        (entry) => _supportedEffectTypes.contains(entry),
+      ));
+      unsupported.addAll(layerInspection.detectedEffectTypes.where(
+        (entry) => !_supportedEffectTypes.contains(entry),
+      ));
+      blockers.addAll(layerInspection.blockers);
+      if (layerInspection.layerId != null &&
+          layerInspection.detectedEffectTypes.isNotEmpty) {
+        layerEffectTypes.add(<String, Object?>{
+          'layerId': layerInspection.layerId,
+          'effectTypes':
+              layerInspection.detectedEffectTypes.toList(growable: false),
+        });
+      }
+    }
+    return McpEffectCapabilityReport(
+      detectedEffectTypes: List<String>.unmodifiable(detected.toList()..sort()),
+      supportedEffectTypes:
+          List<String>.unmodifiable(supported.toList()..sort()),
+      unsupportedEffectTypes:
+          List<String>.unmodifiable(unsupported.toList()..sort()),
+      blockers: List<McpEffectCapabilityBlocker>.unmodifiable(blockers),
+      layerEffectTypes:
+          List<Map<String, Object?>>.unmodifiable(layerEffectTypes),
+      supportedRegistry:
+          List<String>.unmodifiable(_supportedEffectTypes.toList()..sort()),
+    );
+  }
+
   List<McpEffectCapabilityBlocker> detectUnsupportedEffects(
     List<Map<String, Object?>> remoteLayers,
   ) {
-    final blockers = <McpEffectCapabilityBlocker>[];
-    for (final remoteLayer in remoteLayers) {
-      blockers.addAll(_detectLayerUnsupportedEffects(remoteLayer));
-    }
-    return List<McpEffectCapabilityBlocker>.unmodifiable(blockers);
+    return inspectCapabilities(remoteLayers).blockers;
   }
 
-  List<McpEffectCapabilityBlocker> _detectLayerUnsupportedEffects(
+  _McpLayerEffectInspection _inspectLayerEffectTypes(
     Map<String, Object?> remoteLayer,
   ) {
     final payload = _asMap(remoteLayer['payload']);
@@ -88,7 +125,11 @@ class McpEffectCapabilityGuard {
       detectedEffectTypes.addAll(_extractEffectTypes(candidate));
     }
     if (detectedEffectTypes.isEmpty) {
-      return const <McpEffectCapabilityBlocker>[];
+      return const _McpLayerEffectInspection(
+        layerId: null,
+        detectedEffectTypes: <String>[],
+        blockers: <McpEffectCapabilityBlocker>[],
+      );
     }
     final blockers = <McpEffectCapabilityBlocker>[];
     for (final effectType in detectedEffectTypes) {
@@ -105,7 +146,13 @@ class McpEffectCapabilityGuard {
         ),
       );
     }
-    return blockers;
+    return _McpLayerEffectInspection(
+      layerId: layerId,
+      detectedEffectTypes: List<String>.unmodifiable(
+        detectedEffectTypes.toList()..sort(),
+      ),
+      blockers: List<McpEffectCapabilityBlocker>.unmodifiable(blockers),
+    );
   }
 
   Set<String> _extractEffectTypes(Object? value) {
@@ -186,4 +233,52 @@ class McpEffectCapabilityGuard {
     }
     return null;
   }
+}
+
+@immutable
+class McpEffectCapabilityReport {
+  const McpEffectCapabilityReport({
+    required this.detectedEffectTypes,
+    required this.supportedEffectTypes,
+    required this.unsupportedEffectTypes,
+    required this.blockers,
+    required this.layerEffectTypes,
+    required this.supportedRegistry,
+  });
+
+  final List<String> detectedEffectTypes;
+  final List<String> supportedEffectTypes;
+  final List<String> unsupportedEffectTypes;
+  final List<McpEffectCapabilityBlocker> blockers;
+  final List<Map<String, Object?>> layerEffectTypes;
+  final List<String> supportedRegistry;
+
+  bool get hasUnsupportedEffects => unsupportedEffectTypes.isNotEmpty;
+
+  List<Map<String, Object?>> get blockerMaps =>
+      blockers.map((entry) => entry.toMap()).toList(growable: false);
+
+  Map<String, Object?> toProofMap() {
+    return <String, Object?>{
+      'effectCapability.detected': detectedEffectTypes,
+      'effectCapability.supported': supportedEffectTypes,
+      'effectCapability.unsupported': unsupportedEffectTypes,
+      'effectCapability.blockerCount': blockers.length,
+      'effectCapability.layerEffectTypes': layerEffectTypes,
+      'effectCapability.registry': supportedRegistry,
+    };
+  }
+}
+
+@immutable
+class _McpLayerEffectInspection {
+  const _McpLayerEffectInspection({
+    required this.layerId,
+    required this.detectedEffectTypes,
+    required this.blockers,
+  });
+
+  final String? layerId;
+  final List<String> detectedEffectTypes;
+  final List<McpEffectCapabilityBlocker> blockers;
 }
