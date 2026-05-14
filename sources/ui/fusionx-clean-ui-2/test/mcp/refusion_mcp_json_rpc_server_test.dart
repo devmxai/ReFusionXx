@@ -212,6 +212,33 @@ void main() {
       expect(structured['projectId'], 'active');
     });
 
+    test('exposes get_launch_readiness through tools/call contract', () {
+      final call = server.handle(
+        <String, Object?>{
+          'jsonrpc': '2.0',
+          'id': 13,
+          'method': 'tools/call',
+          'params': <String, Object?>{
+            'name': 'get_launch_readiness',
+            'arguments': <String, Object?>{
+              'sessionId': 'default',
+              'projectId': 'active',
+              'mode': 'dryRun',
+              'payload': const <String, Object?>{
+                'skillMarkdown': '# skill',
+              },
+            },
+          },
+        },
+      );
+      final result = call['result'] as Map<String, Object?>;
+      expect(result['isError'], isFalse);
+      final structured = (result['structuredContent']
+          as Map<String, Object?>)['payload'] as Map<String, Object?>;
+      expect(structured['ok'], isFalse);
+      expect(structured['error'], 'launch_readiness_not_wired');
+    });
+
     test('reads resource through resources/read', () {
       final response = server.handle(
         <String, Object?>{
