@@ -71,6 +71,7 @@ import '../services/composition_workspace_inspector_adapter.dart';
 import '../services/composition_workspace_outliner_adapter.dart';
 import '../services/composition_media_playback_projection_adapter.dart';
 import '../services/live_scrub_runtime_surface_config_adapter.dart';
+import '../services/mcp_shape_layer_resolution.dart';
 import '../services/manual_transition_master_frame_evaluation_adapter.dart';
 import '../services/mcp_text_layer_resolution.dart';
 import '../services/mcp_text_runtime_update_planner.dart';
@@ -3031,7 +3032,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       updatesPayload: updatesPayload,
       aliases: aliases,
     );
-    if (updateIntent && existingContext == null) {
+    final blockInsert = McpShapeLayerResolution.shouldBlockInsert(
+      updateIntent: updateIntent,
+      resolvedLayerId: existingContext?.layerId,
+      resolvedTargetIsShapeElement: existingContext != null,
+    );
+    if (blockInsert) {
       if (kDebugMode) {
         debugPrint(
           'mcp_shape_update_blocked_unresolved_target: '
@@ -4092,36 +4098,19 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required Map<String, Object?> payloadPayload,
     required Map<String, Object?> updatesPayload,
   }) {
-    final candidates = <String>{
-      remoteLayerId,
-      _firstRemoteString(<Object?>[payload['targetLayerId']]) ?? '',
-      _firstRemoteString(<Object?>[updates['targetLayerId']]) ?? '',
-      _firstRemoteString(<Object?>[payloadPayload['targetLayerId']]) ?? '',
-      _firstRemoteString(<Object?>[updatesPayload['targetLayerId']]) ?? '',
-      _firstRemoteString(<Object?>[payload['layerId']]) ?? '',
-      _firstRemoteString(<Object?>[updates['layerId']]) ?? '',
-      _firstRemoteString(<Object?>[payloadPayload['layerId']]) ?? '',
-      _firstRemoteString(<Object?>[updatesPayload['layerId']]) ?? '',
-      _firstRemoteString(<Object?>[payload['requestedLayerId']]) ?? '',
-      _firstRemoteString(<Object?>[updates['requestedLayerId']]) ?? '',
-      _firstRemoteString(<Object?>[payloadPayload['requestedLayerId']]) ?? '',
-      _firstRemoteString(<Object?>[updatesPayload['requestedLayerId']]) ?? '',
-      _firstRemoteString(<Object?>[payload['localLayerId']]) ?? '',
-      _firstRemoteString(<Object?>[updates['localLayerId']]) ?? '',
-      _firstRemoteString(<Object?>[payloadPayload['localLayerId']]) ?? '',
-      _firstRemoteString(<Object?>[updatesPayload['localLayerId']]) ?? '',
-      _firstRemoteString(<Object?>[payload['clipId']]) ?? '',
-      _firstRemoteString(<Object?>[updates['clipId']]) ?? '',
-      _firstRemoteString(<Object?>[payloadPayload['clipId']]) ?? '',
-      _firstRemoteString(<Object?>[updatesPayload['clipId']]) ?? '',
-    }..removeWhere((value) => value.trim().isEmpty);
-    for (final candidate in candidates) {
-      final context = _mcpRemoteShapeElementContextByLayerId(candidate);
-      if (context != null) {
-        return context;
-      }
+    final resolvedLayerId = McpShapeLayerResolution.resolveCandidateLayerId(
+      remoteLayerId: remoteLayerId,
+      payload: payload,
+      updates: updates,
+      payloadPayload: payloadPayload,
+      updatesPayload: updatesPayload,
+      exists: (layerId) =>
+          _mcpRemoteShapeElementContextByLayerId(layerId) != null,
+    );
+    if (resolvedLayerId == null || resolvedLayerId.isEmpty) {
+      return null;
     }
-    return null;
+    return _mcpRemoteShapeElementContextByLayerId(resolvedLayerId);
   }
 
   bool _remoteLayerRequestsShapeUpdate({
@@ -4132,34 +4121,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required Map<String, Object?> updatesPayload,
     required List<String> aliases,
   }) {
-    final normalized = operation.toLowerCase();
-    final explicitUpdateOperation = normalized.contains('update') ||
-        normalized.contains('edit') ||
-        normalized.contains('mutate') ||
-        normalized.contains('patch') ||
-        normalized.contains('set') ||
-        normalized.contains('transform') ||
-        normalized.contains('style');
-    final hasTargetId = aliases.isNotEmpty ||
-        _firstRemoteString(<Object?>[payload['targetLayerId']]) != null ||
-        _firstRemoteString(<Object?>[updates['targetLayerId']]) != null;
-    final hasUpdatePatch = updates.isNotEmpty ||
-        updatesPayload.isNotEmpty ||
-        payload.containsKey('x') ||
-        payload.containsKey('y') ||
-        payload.containsKey('width') ||
-        payload.containsKey('height') ||
-        payload.containsKey('cornerRadius') ||
-        payload.containsKey('opacity') ||
-        payload.containsKey('color') ||
-        payload.containsKey('fill') ||
-        payloadPayload.isNotEmpty;
-    final insertKeyword =
-        normalized.contains('insert') || normalized.contains('add');
-    if (insertKeyword && !hasTargetId) {
-      return false;
-    }
-    return explicitUpdateOperation || hasTargetId || hasUpdatePatch;
+    return McpShapeLayerResolution.requestsUpdate(
+      operation: operation,
+      payload: payload,
+      updates: updates,
+      payloadPayload: payloadPayload,
+      updatesPayload: updatesPayload,
+      aliases: aliases,
+    );
   }
 
   MotionShapeKind _remoteShapeKindForPayload({
