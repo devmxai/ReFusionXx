@@ -23,6 +23,9 @@ typedef RefusionMcpPreviewCaptureReader = Map<String, Object?> Function(
 );
 typedef RefusionMcpSecurityProfileReader = Map<String, Object?> Function();
 typedef RefusionMcpHostCompatibilityReader = Map<String, Object?> Function();
+typedef RefusionMcpLaunchReadinessReader = Map<String, Object?> Function(
+  Map<String, Object?> payload,
+);
 typedef RefusionMcpProjectReader = MotionProjectModel Function();
 typedef RefusionMcpRootSceneIdReader = String Function();
 typedef RefusionMcpSceneClipsReader = List<CompositionSceneClipModel>
@@ -74,6 +77,7 @@ class RefusionMcpMvpToolkitConfig {
     required this.previewCaptureReader,
     this.securityProfileReader,
     this.hostCompatibilityReader,
+    this.launchReadinessReader,
     this.commandStatusReader,
     this.sceneProgramTools = const RefusionMcpSceneProgramTools(),
     this.projectReader,
@@ -103,6 +107,7 @@ class RefusionMcpMvpToolkitConfig {
   final RefusionMcpPreviewCaptureReader previewCaptureReader;
   final RefusionMcpSecurityProfileReader? securityProfileReader;
   final RefusionMcpHostCompatibilityReader? hostCompatibilityReader;
+  final RefusionMcpLaunchReadinessReader? launchReadinessReader;
   final RefusionMcpCommandStatusReader? commandStatusReader;
   final RefusionMcpSceneProgramTools sceneProgramTools;
   final RefusionMcpProjectReader? projectReader;
@@ -204,8 +209,8 @@ class RefusionMcpMvpToolkit {
           'message':
               'No command status reader is wired in this runtime profile.',
         };
-        final payload = config.commandStatusReader?.call(commandId) ??
-            defaultStatus;
+        final payload =
+            config.commandStatusReader?.call(commandId) ?? defaultStatus;
         return RefusionMcpCommandHandlingOutcome(
           summary: 'Command status loaded.',
           payload: payload,
@@ -289,6 +294,31 @@ class RefusionMcpMvpToolkit {
                   'domainSetupPath': 'ChatGPT > Settings > Apps',
                 },
               },
+        );
+      },
+    );
+    bus.registerHandler(
+      commandType: 'refusion.get_launch_readiness',
+      handler: (context) {
+        final reader = config.launchReadinessReader;
+        if (reader == null) {
+          return RefusionMcpCommandHandlingOutcome(
+            summary: 'Launch readiness evaluator is not wired.',
+            payload: const <String, Object?>{
+              'ok': false,
+              'error': 'launch_readiness_not_wired',
+              'message':
+                  'RefusionMcpMvpToolkitConfig.launchReadinessReader is required for refusion.get_launch_readiness.',
+            },
+          );
+        }
+        final payload = reader(context.command.payload);
+        final isOk = payload['ok'] == true;
+        return RefusionMcpCommandHandlingOutcome(
+          summary: isOk
+              ? 'Launch readiness evaluated.'
+              : 'Launch readiness evaluation returned issues.',
+          payload: payload,
         );
       },
     );

@@ -121,6 +121,57 @@ void main() {
       expect(chatgpt['requiredTransport'], 'streamable-http');
     });
 
+    test('returns deterministic payload when launch readiness is not wired',
+        () {
+      final result = bus.execute(
+        session: session,
+        command: _command(
+          type: 'refusion.get_launch_readiness',
+          capability: RefusionMcpCapability.timelineRead,
+        ),
+        currentRevision: 7,
+      );
+      expect(result.ok, isTrue);
+      expect(result.payload['ok'], isFalse);
+      expect(result.payload['error'], 'launch_readiness_not_wired');
+    });
+
+    test('returns launch readiness payload when reader is wired', () {
+      final toolBus = RefusionMcpCommandBus();
+      const toolkit = RefusionMcpMvpToolkit();
+      toolkit.register(
+        bus: toolBus,
+        config: RefusionMcpMvpToolkitConfig(
+          projectStateReader: () => <String, Object?>{'revision': 7},
+          timelineSummaryReader: () => <String, Object?>{'rows': 1},
+          selectionReader: () => <String, Object?>{'selected': <String>[]},
+          previewCaptureReader: (_) => <String, Object?>{},
+          launchReadinessReader: (payload) => <String, Object?>{
+            'ok': true,
+            'ready': true,
+            'issues': const <Map<String, Object?>>[],
+            'echo': payload['skillMarkdown'],
+          },
+        ),
+      );
+
+      final result = toolBus.execute(
+        session: session,
+        command: _command(
+          type: 'refusion.get_launch_readiness',
+          capability: RefusionMcpCapability.timelineRead,
+          payload: const <String, Object?>{
+            'skillMarkdown': '# skill',
+          },
+        ),
+        currentRevision: 7,
+      );
+      expect(result.ok, isTrue);
+      expect(result.payload['ok'], isTrue);
+      expect(result.payload['ready'], isTrue);
+      expect(result.payload['echo'], '# skill');
+    });
+
     test('validates scene program source through toolkit', () {
       final source = File(
         '/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/test/fixtures/refusion_scene_programs/first_generated_scene.json',
