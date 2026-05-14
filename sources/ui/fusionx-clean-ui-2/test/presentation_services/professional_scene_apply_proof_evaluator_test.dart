@@ -114,6 +114,26 @@ void main() {
       expect(proof['projectedTargetCount'], 0);
     });
 
+    test('buildSuccessProof allows independent visual bounds override', () {
+      const receipt = ProfessionalSceneApplyReceipt(
+        appliedCommandCount: 1,
+        appliedCommandTypes: <String>['applySolidLayer'],
+        receivedRemoteLayers: 1,
+      );
+      final proof = evaluator.buildSuccessProof(
+        receipt: receipt,
+        didApply: true,
+        hasRepresentedRemoteLayer: true,
+        proofFrameTimeMs: 99,
+        playerInvalidated: true,
+        rendererAppliedOverride: true,
+        visualBoundsVerifiedOverride: false,
+      );
+
+      expect(proof['rendererApplied'], isTrue);
+      expect(proof['visualBoundsVerified'], isFalse);
+    });
+
     test('buildFailureProof returns hard fail proof contract', () {
       final proof = evaluator.buildFailureProof();
       expect(proof['dataApplied'], isFalse);

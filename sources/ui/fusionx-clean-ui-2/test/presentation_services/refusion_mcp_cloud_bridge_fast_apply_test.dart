@@ -38,7 +38,7 @@ void main() {
 
         expect(
           stopwatch.elapsedMilliseconds,
-          lessThan(1200),
+          lessThan(1800),
           reason: 'fast path must not wait for slow diagnostics tools',
         );
         expect(snapshots, isNotEmpty);

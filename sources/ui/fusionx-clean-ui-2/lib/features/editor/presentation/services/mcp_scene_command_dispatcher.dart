@@ -1,7 +1,11 @@
 import '../../domain/models/professional_scene_command_models.dart';
+import 'mcp_universal_layer_identity.dart';
 
 class McpSceneCommandDispatcher {
   const McpSceneCommandDispatcher();
+
+  static const UniversalLayerApplyIntentClassifier _intentClassifier =
+      UniversalLayerApplyIntentClassifier();
 
   List<ProfessionalSceneCommand> dispatchRemoteLayers({
     required List<Map<String, Object?>> remoteLayers,
@@ -32,6 +36,15 @@ class McpSceneCommandDispatcher {
           _asMap(updates['animation']).isNotEmpty ||
           _asMap(payload['motion']).isNotEmpty ||
           _asMap(updates['motion']).isNotEmpty;
+      final payloadPayload = _asMap(payload['payload']);
+      final updatesPayload = _asMap(updates['payload']);
+      final intent = _intentClassifier.classify(
+        payload: payload,
+        updates: updates,
+        payloadPayload: payloadPayload,
+        updatesPayload: updatesPayload,
+        operationHint: operation,
+      );
       final backgroundIntent = hasBackgroundVisualIntent(remoteLayer);
       if (kind == 'text') {
         commands.add(
@@ -40,11 +53,14 @@ class McpSceneCommandDispatcher {
             source: ProfessionalSceneCommandSource.mcpAgent,
             target: ProfessionalSceneCommandTarget(
               mode: ProfessionalSceneCommandTargetMode.layerId,
-              id: _firstText(<Object?>[
-                remoteLayer['id'],
-                payload['layerId'],
-                payload['targetLayerId'],
-              ]),
+              id: _targetIdForIntent(
+                remoteLayer: remoteLayer,
+                payload: payload,
+                updates: updates,
+                payloadPayload: payloadPayload,
+                updatesPayload: updatesPayload,
+                intent: intent,
+              ),
             ),
             payload: remoteLayer,
           ),
@@ -56,11 +72,14 @@ class McpSceneCommandDispatcher {
             source: ProfessionalSceneCommandSource.mcpAgent,
             target: ProfessionalSceneCommandTarget(
               mode: ProfessionalSceneCommandTargetMode.layerId,
-              id: _firstText(<Object?>[
-                remoteLayer['id'],
-                payload['layerId'],
-                payload['targetLayerId'],
-              ]),
+              id: _targetIdForIntent(
+                remoteLayer: remoteLayer,
+                payload: payload,
+                updates: updates,
+                payloadPayload: payloadPayload,
+                updatesPayload: updatesPayload,
+                intent: intent,
+              ),
             ),
             payload: remoteLayer,
           ),
@@ -72,11 +91,14 @@ class McpSceneCommandDispatcher {
             source: ProfessionalSceneCommandSource.mcpAgent,
             target: ProfessionalSceneCommandTarget(
               mode: ProfessionalSceneCommandTargetMode.layerId,
-              id: _firstText(<Object?>[
-                remoteLayer['id'],
-                payload['layerId'],
-                payload['targetLayerId'],
-              ]),
+              id: _targetIdForIntent(
+                remoteLayer: remoteLayer,
+                payload: payload,
+                updates: updates,
+                payloadPayload: payloadPayload,
+                updatesPayload: updatesPayload,
+                intent: intent,
+              ),
             ),
             payload: remoteLayer,
           ),
@@ -88,11 +110,14 @@ class McpSceneCommandDispatcher {
             source: ProfessionalSceneCommandSource.mcpAgent,
             target: ProfessionalSceneCommandTarget(
               mode: ProfessionalSceneCommandTargetMode.layerId,
-              id: _firstText(<Object?>[
-                remoteLayer['id'],
-                payload['layerId'],
-                payload['targetLayerId'],
-              ]),
+              id: _targetIdForIntent(
+                remoteLayer: remoteLayer,
+                payload: payload,
+                updates: updates,
+                payloadPayload: payloadPayload,
+                updatesPayload: updatesPayload,
+                intent: intent,
+              ),
             ),
             payload: remoteLayer,
           ),
@@ -104,11 +129,14 @@ class McpSceneCommandDispatcher {
             source: ProfessionalSceneCommandSource.mcpAgent,
             target: ProfessionalSceneCommandTarget(
               mode: ProfessionalSceneCommandTargetMode.layerId,
-              id: _firstText(<Object?>[
-                remoteLayer['id'],
-                payload['layerId'],
-                payload['targetLayerId'],
-              ]),
+              id: _targetIdForIntent(
+                remoteLayer: remoteLayer,
+                payload: payload,
+                updates: updates,
+                payloadPayload: payloadPayload,
+                updatesPayload: updatesPayload,
+                intent: intent,
+              ),
             ),
             payload: remoteLayer,
           ),
@@ -121,13 +149,14 @@ class McpSceneCommandDispatcher {
             source: ProfessionalSceneCommandSource.mcpAgent,
             target: ProfessionalSceneCommandTarget(
               mode: ProfessionalSceneCommandTargetMode.layerId,
-              id: _firstText(<Object?>[
-                payload['layerId'],
-                payload['targetLayerId'],
-                updates['layerId'],
-                updates['targetLayerId'],
-                remoteLayer['id'],
-              ]),
+              id: _targetIdForIntent(
+                remoteLayer: remoteLayer,
+                payload: payload,
+                updates: updates,
+                payloadPayload: payloadPayload,
+                updatesPayload: updatesPayload,
+                intent: UniversalLayerApplyIntent.motionMutation,
+              ),
             ),
             payload: remoteLayer,
           ),
@@ -140,13 +169,14 @@ class McpSceneCommandDispatcher {
             source: ProfessionalSceneCommandSource.mcpAgent,
             target: ProfessionalSceneCommandTarget(
               mode: ProfessionalSceneCommandTargetMode.layerId,
-              id: _firstText(<Object?>[
-                payload['layerId'],
-                payload['targetLayerId'],
-                updates['layerId'],
-                updates['targetLayerId'],
-                remoteLayer['id'],
-              ]),
+              id: _targetIdForIntent(
+                remoteLayer: remoteLayer,
+                payload: payload,
+                updates: updates,
+                payloadPayload: payloadPayload,
+                updatesPayload: updatesPayload,
+                intent: UniversalLayerApplyIntent.update,
+              ),
             ),
             payload: remoteLayer,
           ),
@@ -182,5 +212,55 @@ class McpSceneCommandDispatcher {
       }
     }
     return null;
+  }
+
+  static String? _targetIdForIntent({
+    required Map<String, Object?> remoteLayer,
+    required Map<String, Object?> payload,
+    required Map<String, Object?> updates,
+    required Map<String, Object?> payloadPayload,
+    required Map<String, Object?> updatesPayload,
+    required UniversalLayerApplyIntent intent,
+  }) {
+    final mutationTarget = _firstText(<Object?>[
+      payload['targetLayerId'],
+      updates['targetLayerId'],
+      payloadPayload['targetLayerId'],
+      updatesPayload['targetLayerId'],
+      payload['layerId'],
+      updates['layerId'],
+      payloadPayload['layerId'],
+      updatesPayload['layerId'],
+      payload['requestedLayerId'],
+      updates['requestedLayerId'],
+      payloadPayload['requestedLayerId'],
+      updatesPayload['requestedLayerId'],
+      payload['localLayerId'],
+      updates['localLayerId'],
+      payloadPayload['localLayerId'],
+      updatesPayload['localLayerId'],
+      payload['clipId'],
+      updates['clipId'],
+      payloadPayload['clipId'],
+      updatesPayload['clipId'],
+    ]);
+    if (intent != UniversalLayerApplyIntent.insert) {
+      return mutationTarget ??
+          _firstText(<Object?>[
+            remoteLayer['id'],
+            payload['remoteLayerId'],
+            updates['remoteLayerId'],
+            payloadPayload['remoteLayerId'],
+            updatesPayload['remoteLayerId'],
+          ]);
+    }
+    return _firstText(<Object?>[
+      remoteLayer['id'],
+      payload['remoteLayerId'],
+      updates['remoteLayerId'],
+      payloadPayload['remoteLayerId'],
+      updatesPayload['remoteLayerId'],
+      mutationTarget,
+    ]);
   }
 }

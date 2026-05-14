@@ -1298,7 +1298,8 @@ async function ackCommandApplied(
       nextProof.timelineVisible === true &&
       nextProof.frameEvaluated === true &&
       nextProof.visualProgramEmitted === true &&
-      nextProof.rendererApplied === true;
+      nextProof.rendererApplied === true &&
+      nextProof.visualBoundsVerified === true;
     const nextStatus = appliedSuccessfully ? 'succeeded' : 'failed';
     const nextResult: JsonMap = {
       ...existingResult,
@@ -6108,13 +6109,19 @@ function isWaitForApplyProofSatisfied(
     result.rendererApplied,
     false,
   ) === true;
+  const visualBoundsVerified = firstDefined(
+    proof.visualBoundsVerified,
+    result.visualBoundsVerified,
+    false,
+  ) === true;
   return (
     dataApplied &&
     localGraphApplied &&
     timelineVisible &&
     frameEvaluated &&
     visualProgramEmitted &&
-    rendererApplied
+    rendererApplied &&
+    visualBoundsVerified
   );
 }
 

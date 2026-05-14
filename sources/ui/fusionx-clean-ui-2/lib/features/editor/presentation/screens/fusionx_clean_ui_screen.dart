@@ -1954,6 +1954,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         didApply: _mcpLatestApplyDidApply,
         hasRepresentedRemoteLayer: _mcpLatestApplyHasRepresentedRemoteLayer,
       );
+      final visualBoundsProof = _mcpVisualBoundsProofForReceipt(
+        _mcpLatestApplyProof,
+      );
+      final rendererProofSatisfied = projectionValidation.timelineVisible &&
+          projectionValidation.targetProjectionComplete &&
+          visualBoundsProof.visualBoundsVerified;
       final successProof = _mcpProofEvaluator.buildSuccessProof(
         receipt: _mcpLatestApplyProof,
         didApply: _mcpLatestApplyDidApply,
@@ -1961,10 +1967,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         proofFrameTimeMs: _timelineDisplayTimeNotifier.value.inMilliseconds,
         playerInvalidated: true,
         timelineVisibleOverride: projectionValidation.timelineVisible,
-        rendererAppliedOverride: projectionValidation.timelineVisible &&
-            projectionValidation.targetProjectionComplete,
+        rendererAppliedOverride: rendererProofSatisfied,
+        visualBoundsVerifiedOverride: visualBoundsProof.visualBoundsVerified,
         extraProof: <String, Object?>{
           ...projectionValidation.toProofMap(),
+          ...visualBoundsProof.toProofMap(),
           ..._mcpLatestEffectCapabilityProof,
           ..._mcpSpatialProofMap(),
         },
@@ -2223,43 +2230,34 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           sceneProgram['operation'],
         ])?.toLowerCase() ??
         '';
+    final explicitBackgroundColorHint = _firstRemoteString(<Object?>[
+      payload['baseColor'],
+      payload['backgroundColor'],
+      props['baseColor'],
+      props['backgroundColor'],
+      updateProps['baseColor'],
+      updateProps['backgroundColor'],
+      nestedPayload['baseColor'],
+      nestedPayload['backgroundColor'],
+      nestedPayloadProps['baseColor'],
+      nestedPayloadProps['backgroundColor'],
+      style['baseColor'],
+      style['backgroundColor'],
+      nestedLayer['baseColor'],
+      nestedLayer['backgroundColor'],
+      nestedLayerProps['baseColor'],
+      nestedLayerProps['backgroundColor'],
+      background['color'],
+      background['baseColor'],
+      sceneProgram['backgroundColor'],
+      sceneProgram['baseColor'],
+    ]);
     return kind == 'scene_program' ||
         kind == 'background' ||
         operation.contains('background') ||
         background.isNotEmpty ||
         _remoteLayerLooksLikeRectBackgroundShape(remoteLayer) ||
-        _firstRemoteString(<Object?>[
-              payload['baseColor'],
-              payload['backgroundColor'],
-              payload['fillColor'],
-              props['baseColor'],
-              props['backgroundColor'],
-              props['fillColor'],
-              updateProps['baseColor'],
-              updateProps['backgroundColor'],
-              updateProps['fillColor'],
-              nestedPayload['baseColor'],
-              nestedPayload['backgroundColor'],
-              nestedPayload['fillColor'],
-              nestedPayloadProps['baseColor'],
-              nestedPayloadProps['backgroundColor'],
-              nestedPayloadProps['fillColor'],
-              style['baseColor'],
-              style['backgroundColor'],
-              style['fillColor'],
-              nestedLayer['baseColor'],
-              nestedLayer['backgroundColor'],
-              nestedLayer['fillColor'],
-              nestedLayerProps['baseColor'],
-              nestedLayerProps['backgroundColor'],
-              nestedLayerProps['fillColor'],
-              background['color'],
-              background['fill'],
-              background['baseColor'],
-              sceneProgram['backgroundColor'],
-              sceneProgram['baseColor'],
-            ]) !=
-            null;
+        explicitBackgroundColorHint != null;
   }
 
   bool _remoteLayerLooksLikeRectBackgroundShape(
@@ -2753,7 +2751,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         '';
     final clipId = _mcpTimelineClipIdForRemoteLayer(
       targetRemoteLayerId,
-      fallbackToSingleVisualClip: true,
+      allowSelectedClipFallback: false,
+      fallbackToSingleVisualClip: false,
     );
     if (clipId == null) {
       return false;
@@ -6206,6 +6205,119 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       TimelineTrackKind.shape => ExportTrackKind.text,
       TimelineTrackKind.lipSync => ExportTrackKind.lipSync,
     };
+  }
+
+  _McpVisualBoundsProof _mcpVisualBoundsProofForReceipt(
+    ProfessionalSceneApplyReceipt receipt,
+  ) {
+    final canvas = _motionProjectFormat.canvasSize;
+    final canvasBounds = <String, Object?>{
+      'x': 0.0,
+      'y': 0.0,
+      'width': canvas.width,
+      'height': canvas.height,
+    };
+    final targetIds = <String>{
+      for (final id in receipt.targetLayerIds)
+        if (id.trim().isNotEmpty) id.trim(),
+    }.toList(growable: false);
+    if (targetIds.isEmpty) {
+      return _McpVisualBoundsProof(
+        visualBoundsVerified: true,
+        canvasBounds: canvasBounds,
+        visualBounds: const <String, Object?>{},
+        checkedTargetIds: const <String>[],
+        failedTargetIds: const <String>[],
+      );
+    }
+    final checkedTargetIds = <String>[];
+    final failedTargetIds = <String>[];
+    Map<String, Object?> visualBounds = const <String, Object?>{};
+    for (final targetLayerId in targetIds) {
+      final context = _mcpRemoteElementContextByLayerId(targetLayerId);
+      if (context == null) {
+        continue;
+      }
+      final elementSnapshot = _mcpElementSnapshot(context);
+      if (elementSnapshot == null) {
+        continue;
+      }
+      final metadata = elementSnapshot.element.sourceBinding?.metadata ??
+          const <String, String>{};
+      if (metadata['mcp.backgroundRole'] != 'canvas') {
+        continue;
+      }
+      checkedTargetIds.add(targetLayerId);
+      final width = _elementScalarPropertyOrDefault(
+        elementSnapshot.element,
+        MotionPropertyCatalog.width,
+      );
+      final height = _elementScalarPropertyOrDefault(
+        elementSnapshot.element,
+        MotionPropertyCatalog.height,
+      );
+      final positionX = _elementScalarPropertyOrDefault(
+        elementSnapshot.element,
+        MotionPropertyCatalog.positionX,
+      );
+      final positionY = _elementScalarPropertyOrDefault(
+        elementSnapshot.element,
+        MotionPropertyCatalog.positionY,
+      );
+      final absoluteLeft = (canvas.width / 2.0) + positionX - (width / 2.0);
+      final absoluteTop = (canvas.height / 2.0) + positionY - (height / 2.0);
+      final currentVisualBounds = <String, Object?>{
+        'x': absoluteLeft,
+        'y': absoluteTop,
+        'width': width,
+        'height': height,
+      };
+      if (visualBounds.isEmpty) {
+        visualBounds = currentVisualBounds;
+      }
+      final widthMatches = (width - canvas.width).abs() <= 1.0;
+      final heightMatches = (height - canvas.height).abs() <= 1.0;
+      final leftMatches = absoluteLeft.abs() <= 1.0;
+      final topMatches = absoluteTop.abs() <= 1.0;
+      if (!(widthMatches && heightMatches && leftMatches && topMatches)) {
+        failedTargetIds.add(targetLayerId);
+      }
+    }
+    final visualBoundsVerified = failedTargetIds.isEmpty;
+    return _McpVisualBoundsProof(
+      visualBoundsVerified: visualBoundsVerified,
+      canvasBounds: canvasBounds,
+      visualBounds: visualBounds,
+      checkedTargetIds: checkedTargetIds,
+      failedTargetIds: failedTargetIds,
+    );
+  }
+
+  _McpElementSnapshot? _mcpElementSnapshot(_McpRemoteElementContext context) {
+    final project = _motionProject;
+    if (project == null) {
+      return null;
+    }
+    for (final scene in project.scenes) {
+      if (scene.id != context.sceneId) {
+        continue;
+      }
+      for (final layer in scene.layers) {
+        if (layer.id != context.layerId) {
+          continue;
+        }
+        for (final element in layer.elements) {
+          if (element.id == context.elementId) {
+            return _McpElementSnapshot(
+              scene: scene,
+              layer: layer,
+              element: element,
+            );
+          }
+        }
+      }
+    }
+    return null;
   }
 
   ExportAssetKind _exportAssetKindForTab(EditorMediaTab tab) {
@@ -34886,6 +34998,48 @@ class _McpRemoteElementContext {
   final String sceneId;
   final String layerId;
   final String elementId;
+}
+
+class _McpElementSnapshot {
+  const _McpElementSnapshot({
+    required this.scene,
+    required this.layer,
+    required this.element,
+  });
+
+  final MotionSceneModel scene;
+  final MotionLayerModel layer;
+  final MotionElementModel element;
+}
+
+class _McpVisualBoundsProof {
+  const _McpVisualBoundsProof({
+    required this.visualBoundsVerified,
+    required this.canvasBounds,
+    required this.visualBounds,
+    required this.checkedTargetIds,
+    required this.failedTargetIds,
+  });
+
+  final bool visualBoundsVerified;
+  final Map<String, Object?> canvasBounds;
+  final Map<String, Object?> visualBounds;
+  final List<String> checkedTargetIds;
+  final List<String> failedTargetIds;
+
+  Map<String, Object?> toProofMap() {
+    return <String, Object?>{
+      'proofBounds': <String, Object?>{
+        'canvas': canvasBounds,
+        if (visualBounds.isNotEmpty) 'visual': visualBounds,
+      },
+      'backgroundBoundsCheckedTargetCount': checkedTargetIds.length,
+      if (checkedTargetIds.isNotEmpty)
+        'backgroundBoundsCheckedTargetIds': checkedTargetIds,
+      if (failedTargetIds.isNotEmpty)
+        'backgroundBoundsFailedTargetIds': failedTargetIds,
+    };
+  }
 }
 
 class _McpVisibleTextElementContext {

@@ -54,5 +54,30 @@ void main() {
       expect(commands, hasLength(1));
       expect(commands.first.type, ProfessionalSceneCommandType.applySolidLayer);
     });
+
+    test('prefers explicit targetLayerId over remote command id for updates',
+        () {
+      const dispatcher = McpSceneCommandDispatcher();
+
+      final commands = dispatcher.dispatchRemoteLayers(
+        remoteLayers: const <Map<String, Object?>>[
+          <String, Object?>{
+            'id': 'command-row-1',
+            'layer_kind': 'text',
+            'payload': <String, Object?>{
+              'operation': 'update_layer',
+              'targetLayerId': 'text-layer-live-1',
+              'text': 'Updated',
+            },
+          },
+        ],
+        hasBackgroundVisualIntent: (_) => false,
+        hasTimelineMutationIntent: (_) => false,
+      );
+
+      expect(commands, hasLength(1));
+      expect(commands.first.type, ProfessionalSceneCommandType.applyTextLayer);
+      expect(commands.first.target.id, 'text-layer-live-1');
+    });
   });
 }
