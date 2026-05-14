@@ -21,6 +21,8 @@ class RefusionCreativeLibraryDiscoveryToolset {
         return _discovery.listMotionRecipes().toJson();
       case 'list_templates':
         return _discovery.listTemplates().toJson();
+      case 'list_icons':
+        return _discovery.listIcons().toJson();
       case 'describe_component':
         return _describe(
           _discovery.describeComponent(payload['id'] as String? ?? ''),
@@ -39,6 +41,11 @@ class RefusionCreativeLibraryDiscoveryToolset {
       case 'describe_template':
         return _describe(
           _discovery.describeTemplate(payload['id'] as String? ?? ''),
+          toolName,
+        );
+      case 'describe_icon':
+        return _describe(
+          _discovery.describeIcon(payload['id'] as String? ?? ''),
           toolName,
         );
       default:

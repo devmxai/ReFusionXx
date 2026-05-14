@@ -21,6 +21,8 @@ void main() {
           discovery.listMotionRecipes().items.map((item) => item.id).toSet();
       final templateInternal =
           discovery.listTemplates().items.map((item) => item.id).toSet();
+      final iconInternal =
+          discovery.listIcons().items.map((item) => item.id).toSet();
 
       final componentMcp =
           ((mcp.invoke(toolName: 'list_components')['items'] as List)
@@ -37,11 +39,15 @@ void main() {
           ((mcp.invoke(toolName: 'list_templates')['items'] as List)
               .cast<Map<String, Object?>>()
               .map((row) => row['id'] as String)).toSet();
+      final iconMcp = ((mcp.invoke(toolName: 'list_icons')['items'] as List)
+          .cast<Map<String, Object?>>()
+          .map((row) => row['id'] as String)).toSet();
 
       expect(componentMcp, componentInternal);
       expect(effectMcp, effectInternal);
       expect(motionMcp, motionInternal);
       expect(templateMcp, templateInternal);
+      expect(iconMcp, iconInternal);
     });
 
     test('list_describe_tool_parity = 100%', () {
@@ -61,6 +67,10 @@ void main() {
         <String, String>{
           'listTool': 'list_templates',
           'describeTool': 'describe_template',
+        },
+        <String, String>{
+          'listTool': 'list_icons',
+          'describeTool': 'describe_icon',
         },
       ];
 

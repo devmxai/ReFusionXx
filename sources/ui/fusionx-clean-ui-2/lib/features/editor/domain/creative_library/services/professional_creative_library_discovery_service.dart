@@ -25,6 +25,10 @@ class ProfessionalCreativeLibraryDiscoveryService {
     return _list('templates', CreativeLibraryItemKind.template);
   }
 
+  CreativeLibraryDiscoveryListResponse listIcons() {
+    return _list('icons', CreativeLibraryItemKind.icon);
+  }
+
   CreativeLibraryDiscoveryDescribeResponse? describeComponent(String id) {
     return _describe(id, CreativeLibraryItemKind.component);
   }
@@ -39,6 +43,10 @@ class ProfessionalCreativeLibraryDiscoveryService {
 
   CreativeLibraryDiscoveryDescribeResponse? describeTemplate(String id) {
     return _describe(id, CreativeLibraryItemKind.template);
+  }
+
+  CreativeLibraryDiscoveryDescribeResponse? describeIcon(String id) {
+    return _describe(id, CreativeLibraryItemKind.icon);
   }
 
   CreativeLibraryDiscoveryListResponse _list(
