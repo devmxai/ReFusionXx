@@ -85,6 +85,7 @@ class RefusionMcpToolRegistry {
     'describe_template': 'refusion.describe_template',
     'list_icons': 'refusion.list_icons',
     'describe_icon': 'refusion.describe_icon',
+    'get_launch_readiness': 'refusion.get_launch_readiness',
     'insert_layer': 'refusion.insert_layer',
     'split_at_playhead': 'refusion.split_clip',
     'trim_layer': 'refusion.trim_clip',
@@ -540,6 +541,13 @@ class RefusionMcpToolRegistry {
       name: 'refusion.list_recent_transactions',
       title: 'List Recent Transactions',
       description: 'Return committed and pending transaction summaries.',
+      capability: RefusionMcpCapability.timelineRead,
+    ),
+    RefusionMcpToolDescriptor(
+      name: 'refusion.get_launch_readiness',
+      title: 'Get Launch Readiness',
+      description:
+          'Evaluate launch readiness gates from registry, skill validity, and parity contracts.',
       capability: RefusionMcpCapability.timelineRead,
     ),
   ];
