@@ -13,7 +13,9 @@ Failure closure addendum:
 
 The addendum is mandatory for the current MCP failures where background,
 text/motion identity, apply latency, and proof still bypass the intended spine.
-Treat it as the execution gate before continuing broad PUCTAS phases.
+It integrates `PNCLE-05C.UNIVERSAL-LAYER-UPDATE-IDENTITY-HARDENING.md` as the
+universal identity gate. Treat it as the execution gate before continuing broad
+PUCTAS or PNCLE phases.
 
 Primary goal: make every creative edit from MCP Agent, Manual UI, Paste Script,
 Templates, Tap List, and future tools pass through one professional apply spine
