@@ -1388,6 +1388,53 @@ Every skill or agent example must be validated against the registry:
 
 ## 9. Execution Phases
 
+### 9.0 Phase-Start Hard Gate (Non-Negotiable)
+
+This gate is mandatory at the start of **every** PNCLE phase and sub-slice.
+No exceptions, no batching, no retrospective backfill.
+
+Before any code change, the executor must publish a **Phase-Start Pre-Build
+Report** in this exact order:
+
+```text
+1) Current ReFusion state for this exact slice (code paths + known behavior)
+2) HyperFrames reference comparison (only relevant capabilities)
+3) Remotion reference comparison (only relevant capabilities)
+4) Decision table per capability:
+   keep | wrap | upgrade | add | replace | block
+5) Chosen execution action:
+   keep-only | adapter | additive build | controlled replace
+6) Acceptance gate (tests + measurable KPIs)
+7) Rollback command for this slice
+```
+
+Mandatory executor declaration at phase start:
+
+```text
+Phase: <PNCLE-xx>
+Pre-build complete: yes
+Decision class: keep|wrap|upgrade|add|replace|block
+Action type: keep-only|adapter|additive|replace
+Risk level: low|medium|high
+```
+
+Hard fail rules:
+
+```text
+- If pre-build report is missing: BLOCK implementation.
+- If HyperFrames/Remotion comparison is missing for relevant scope: BLOCK.
+- If decision class is missing: BLOCK.
+- If acceptance gate is missing: BLOCK.
+- If rollback command is missing: BLOCK.
+```
+
+Enforcement:
+
+```text
+Any phase started without this gate is considered invalid execution and must be
+stopped immediately; unapproved edits for that slice must be reverted.
+```
+
 ### PNCLE-00: Freeze The Rule
 
 Add an architecture note that says all creative additions must enter through
