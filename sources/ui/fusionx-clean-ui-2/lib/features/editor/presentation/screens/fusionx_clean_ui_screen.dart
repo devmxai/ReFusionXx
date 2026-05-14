@@ -71,6 +71,7 @@ import '../services/composition_workspace_inspector_adapter.dart';
 import '../services/composition_workspace_outliner_adapter.dart';
 import '../services/composition_media_playback_projection_adapter.dart';
 import '../services/live_scrub_runtime_surface_config_adapter.dart';
+import '../services/mcp_effect_capability_guard.dart';
 import '../services/mcp_shape_layer_resolution.dart';
 import '../services/manual_transition_master_frame_evaluation_adapter.dart';
 import '../services/mcp_text_layer_resolution.dart';
@@ -886,6 +887,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   );
   bool _mcpLatestApplyDidApply = false;
   bool _mcpLatestApplyHasRepresentedRemoteLayer = false;
+  List<Map<String, Object?>> _mcpLatestCapabilityBlockers =
+      const <Map<String, Object?>>[];
   static const ProfessionalSceneApplyProofEvaluator _mcpProofEvaluator =
       ProfessionalSceneApplyProofEvaluator();
   static const ProfessionalSceneTimelineProjectionValidator
@@ -899,6 +902,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       McpTextRuntimeUpdatePlanner();
   static const McpTextMotionTargetPlanner _mcpTextMotionTargetPlanner =
       McpTextMotionTargetPlanner();
+  static const McpEffectCapabilityGuard _mcpEffectCapabilityGuard =
+      McpEffectCapabilityGuard();
 
   @override
   void initState() {
@@ -1818,6 +1823,29 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (remoteLayers.isEmpty) {
       return;
     }
+    final capabilityBlockers = _mcpEffectCapabilityGuard
+        .detectUnsupportedEffects(remoteLayers)
+        .map((entry) => entry.toMap())
+        .toList(growable: false);
+    if (capabilityBlockers.isNotEmpty) {
+      _mcpLatestCapabilityBlockers =
+          List<Map<String, Object?>>.unmodifiable(capabilityBlockers);
+      _mcpLatestApplyProof = ProfessionalSceneApplyReceipt(
+        appliedCommandCount: 0,
+        appliedCommandTypes: const <String>[],
+        receivedRemoteLayers: remoteLayers.length,
+        operationApplied: 'effect',
+        createdLayerCount: 0,
+        updatedLayerCount: 0,
+      );
+      _mcpLatestApplyDidApply = false;
+      _mcpLatestApplyHasRepresentedRemoteLayer = false;
+      if (remoteRevision != null) {
+        _acknowledgeMcpRemoteRevision(remoteRevision);
+      }
+      return;
+    }
+    _mcpLatestCapabilityBlockers = const <Map<String, Object?>>[];
     final commands = _mcpSceneCommandDispatcher.dispatchRemoteLayers(
       remoteLayers: remoteLayers,
       hasBackgroundVisualIntent: _remoteLayerHasBackgroundVisualIntent,
@@ -1879,6 +1907,34 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _mcpAppliedRemoteRevision = remoteRevision;
     final bridge = _mcpCloudBridge;
     if (bridge != null && _hasStartedCompositionSession) {
+      if (_mcpLatestCapabilityBlockers.isNotEmpty) {
+        final blockers = _mcpLatestCapabilityBlockers;
+        final failureProof = <String, Object?>{
+          ..._mcpProofEvaluator.buildFailureProof(),
+          ..._mcpLatestApplyProof.toProofMap(),
+          ..._mcpSpatialProofMap(),
+        };
+        unawaited(() async {
+          final acknowledged = await bridge.acknowledgeAppliedCommands(
+            projectId: _effectiveMotionProject.id,
+            compositionId: _rootMotionSceneId,
+            revision: remoteRevision,
+            commandIds: commandIds,
+            appliedSuccessfully: false,
+            proof: failureProof,
+            blockers: blockers,
+            errorMessage: 'UNSUPPORTED_EFFECT_CAPABILITY',
+          );
+          if (acknowledged) {
+            _mcpAcknowledgedCommandIds.addAll(commandIds);
+            _mcpLatestCapabilityBlockers = const <Map<String, Object?>>[];
+            _scheduleMcpCloudSync(delay: const Duration(milliseconds: 60));
+            return;
+          }
+          _scheduleMcpCloudSync(delay: const Duration(milliseconds: 420));
+        }());
+        return;
+      }
       final projectionValidation = _mcpTimelineProjectionValidator.validate(
         receipt: _mcpLatestApplyProof,
         isRepresentedLocally: _isMcpRemoteLayerRepresentedLocally,
@@ -1910,6 +1966,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         );
         if (acknowledged) {
           _mcpAcknowledgedCommandIds.addAll(commandIds);
+          _mcpLatestCapabilityBlockers = const <Map<String, Object?>>[];
           _scheduleMcpCloudSync(delay: const Duration(milliseconds: 60));
           return;
         }
