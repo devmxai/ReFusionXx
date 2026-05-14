@@ -3284,34 +3284,38 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         preferBackgroundRole ? 0.0 : centerX - (canvasSize.width / 2.0);
     final relativeY =
         preferBackgroundRole ? 0.0 : centerY - (canvasSize.height / 2.0);
-    final width = _firstRemoteDouble(<Object?>[
-          updates['width'],
-          payload['width'],
-          updates['w'],
-          payload['w'],
-          updatesPayload['width'],
-          updatesPayload['w'],
-          nestedLayer['width'],
-          nestedLayer['w'],
-          style['width'],
-          updateStyle['width'],
-          payloadStyle['width'],
-        ]) ??
-        (preferBackgroundRole ? canvasSize.width : 360.0);
-    final height = _firstRemoteDouble(<Object?>[
-          updates['height'],
-          payload['height'],
-          updates['h'],
-          payload['h'],
-          updatesPayload['height'],
-          updatesPayload['h'],
-          nestedLayer['height'],
-          nestedLayer['h'],
-          style['height'],
-          updateStyle['height'],
-          payloadStyle['height'],
-        ]) ??
-        (preferBackgroundRole ? canvasSize.height : 180.0);
+    final width = preferBackgroundRole
+        ? canvasSize.width
+        : (_firstRemoteDouble(<Object?>[
+              updates['width'],
+              payload['width'],
+              updates['w'],
+              payload['w'],
+              updatesPayload['width'],
+              updatesPayload['w'],
+              nestedLayer['width'],
+              nestedLayer['w'],
+              style['width'],
+              updateStyle['width'],
+              payloadStyle['width'],
+            ]) ??
+            360.0);
+    final height = preferBackgroundRole
+        ? canvasSize.height
+        : (_firstRemoteDouble(<Object?>[
+              updates['height'],
+              payload['height'],
+              updates['h'],
+              payload['h'],
+              updatesPayload['height'],
+              updatesPayload['h'],
+              nestedLayer['height'],
+              nestedLayer['h'],
+              style['height'],
+              updateStyle['height'],
+              payloadStyle['height'],
+            ]) ??
+            180.0);
     final cornerRadius = _firstRemoteDouble(<Object?>[
           updates['cornerRadius'],
           payload['cornerRadius'],
@@ -3639,18 +3643,26 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           payload['zIndex'],
         ]) ??
         10;
+    final updateIntent = _remoteLayerRequestsTextUpdate(
+      payload: payload,
+      updates: updates,
+      payloadPayload: payloadPayload,
+      updatesPayload: updatesPayload,
+    );
+    final hasLegacyAnimationIntent = _remoteLayerHasLegacyAnimationIntent(
+      payload: payload,
+      updates: updates,
+      payloadPayload: payloadPayload,
+      updatesPayload: updatesPayload,
+    );
     final existingContext = _resolveMcpRemoteTextElementContext(
       remoteLayer: remoteLayer,
       payload: payload,
       updates: updates,
       payloadPayload: payloadPayload,
       updatesPayload: updatesPayload,
-    );
-    final updateIntent = _remoteLayerRequestsTextUpdate(
-      payload: payload,
-      updates: updates,
-      payloadPayload: payloadPayload,
-      updatesPayload: updatesPayload,
+      textValue: textValue,
+      allowContextualFallback: updateIntent || hasLegacyAnimationIntent,
     );
     final payloadSignature = _mcpRemoteTextPayloadSignature(
       remoteLayer: remoteLayer,
@@ -3849,6 +3861,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required Map<String, Object?> updates,
     required Map<String, Object?> payloadPayload,
     required Map<String, Object?> updatesPayload,
+    required String? textValue,
+    required bool allowContextualFallback,
   }) {
     final remoteLayerId = _remoteString(remoteLayer['id']) ?? '';
     final resolvedLayerId = McpTextLayerResolution.resolveCandidateLayerId(
@@ -3861,10 +3875,44 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           _mcpRemoteTextElementContextByLayerId(layerId) != null,
     );
     if (resolvedLayerId == null || resolvedLayerId.isEmpty) {
-      return null;
+      if (!allowContextualFallback) {
+        return null;
+      }
+      final contentContext =
+          _mcpUniqueVisibleTextElementContextByText(textValue);
+      if (contentContext != null) {
+        return contentContext;
+      }
+      return _mcpSingleVisibleTextElementContext();
     }
     final context = _mcpRemoteTextElementContextByLayerId(resolvedLayerId);
     return context;
+  }
+
+  bool _remoteLayerHasLegacyAnimationIntent({
+    required Map<String, Object?> payload,
+    required Map<String, Object?> updates,
+    required Map<String, Object?> payloadPayload,
+    required Map<String, Object?> updatesPayload,
+  }) {
+    final operation = _firstRemoteString(<Object?>[
+          payload['operation'],
+          updates['operation'],
+          payloadPayload['operation'],
+          updatesPayload['operation'],
+        ])?.toLowerCase() ??
+        '';
+    if (operation.contains('animate') || operation.contains('keyframe')) {
+      return true;
+    }
+    return _remoteMap(payload['animation']).isNotEmpty ||
+        _remoteMap(updates['animation']).isNotEmpty ||
+        _remoteMap(payloadPayload['animation']).isNotEmpty ||
+        _remoteMap(updatesPayload['animation']).isNotEmpty ||
+        _remoteMap(payload['motion']).isNotEmpty ||
+        _remoteMap(updates['motion']).isNotEmpty ||
+        _remoteMap(payloadPayload['motion']).isNotEmpty ||
+        _remoteMap(updatesPayload['motion']).isNotEmpty;
   }
 
   bool _remoteLayerRequestsTextUpdate({
@@ -3958,6 +4006,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           final existingAliases = _mcpRemoteLayerAliases(existingMetadata);
           final aliasSet = <String>{
             ...existingAliases,
+            if ((existingMetadata['mcp.remoteLayerId'] ?? '').trim().isNotEmpty)
+              existingMetadata['mcp.remoteLayerId']!,
             remoteLayerId,
             ...remoteLayerAliases,
           };
@@ -4245,6 +4295,97 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
     }
     return null;
+  }
+
+  _McpRemoteElementContext? _mcpUniqueVisibleTextElementContextByText(
+    String? textValue,
+  ) {
+    final normalizedText = _normalizeMcpTextContent(textValue);
+    if (normalizedText == null) {
+      return null;
+    }
+    _McpRemoteElementContext? match;
+    for (final candidate in _visibleMcpTextElementContexts()) {
+      final element = candidate.element;
+      final binding = element.sourceBinding;
+      final metadata = binding?.metadata ?? const <String, String>{};
+      final candidateTexts = <String?>[
+        metadata['text'],
+        binding?.label,
+        element.name,
+      ];
+      final matches = candidateTexts.any(
+        (value) => _normalizeMcpTextContent(value) == normalizedText,
+      );
+      if (!matches) {
+        continue;
+      }
+      final context = candidate.context;
+      if (match != null && match.elementId != context.elementId) {
+        return null;
+      }
+      match = context;
+    }
+    return match;
+  }
+
+  _McpRemoteElementContext? _mcpSingleVisibleTextElementContext() {
+    _McpRemoteElementContext? match;
+    for (final candidate in _visibleMcpTextElementContexts()) {
+      final context = candidate.context;
+      if (match != null && match.elementId != context.elementId) {
+        return null;
+      }
+      match = context;
+    }
+    return match;
+  }
+
+  Iterable<_McpVisibleTextElementContext>
+      _visibleMcpTextElementContexts() sync* {
+    final project = _motionProject;
+    if (project == null) {
+      return;
+    }
+    final playhead = _currentTime;
+    for (final scene in project.scenes) {
+      if (scene.id != _rootMotionSceneId) {
+        continue;
+      }
+      for (final layer in scene.layers) {
+        if (!layer.visibleRange.contains(playhead)) {
+          continue;
+        }
+        for (final element in layer.elements) {
+          if (element.kind != MotionElementKind.text) {
+            continue;
+          }
+          final elementStart =
+              scene.projectRange.start + element.localRange.start;
+          final elementEnd =
+              scene.projectRange.start + element.localRange.endExclusive;
+          if (playhead < elementStart || playhead >= elementEnd) {
+            continue;
+          }
+          yield _McpVisibleTextElementContext(
+            context: _McpRemoteElementContext(
+              sceneId: scene.id,
+              layerId: layer.id,
+              elementId: element.id,
+            ),
+            element: element,
+          );
+        }
+      }
+    }
+  }
+
+  String? _normalizeMcpTextContent(String? value) {
+    if (value == null) {
+      return null;
+    }
+    final normalized = value.trim().replaceAll(RegExp(r'\s+'), ' ');
+    return normalized.isEmpty ? null : normalized.toLowerCase();
   }
 
   _McpRemoteElementContext? _mcpRemoteShapeElementContextByLayerId(
@@ -34687,6 +34828,16 @@ class _McpRemoteElementContext {
   final String sceneId;
   final String layerId;
   final String elementId;
+}
+
+class _McpVisibleTextElementContext {
+  const _McpVisibleTextElementContext({
+    required this.context,
+    required this.element,
+  });
+
+  final _McpRemoteElementContext context;
+  final MotionElementModel element;
 }
 
 class _ShapeLayerInsertionResult {

@@ -32,25 +32,6 @@ class McpSceneCommandDispatcher {
           _asMap(updates['animation']).isNotEmpty ||
           _asMap(payload['motion']).isNotEmpty ||
           _asMap(updates['motion']).isNotEmpty;
-      if (hasLegacyAnimationPayload) {
-        commands.add(
-          ProfessionalSceneCommand(
-            type: ProfessionalSceneCommandType.applyLegacyAnimation,
-            source: ProfessionalSceneCommandSource.mcpAgent,
-            target: ProfessionalSceneCommandTarget(
-              mode: ProfessionalSceneCommandTargetMode.layerId,
-              id: _firstText(<Object?>[
-                payload['layerId'],
-                payload['targetLayerId'],
-                updates['layerId'],
-                updates['targetLayerId'],
-                remoteLayer['id'],
-              ]),
-            ),
-            payload: remoteLayer,
-          ),
-        );
-      }
       if (kind == 'text') {
         commands.add(
           ProfessionalSceneCommand(
@@ -126,6 +107,25 @@ class McpSceneCommandDispatcher {
                 remoteLayer['id'],
                 payload['layerId'],
                 payload['targetLayerId'],
+              ]),
+            ),
+            payload: remoteLayer,
+          ),
+        );
+      }
+      if (hasLegacyAnimationPayload) {
+        commands.add(
+          ProfessionalSceneCommand(
+            type: ProfessionalSceneCommandType.applyLegacyAnimation,
+            source: ProfessionalSceneCommandSource.mcpAgent,
+            target: ProfessionalSceneCommandTarget(
+              mode: ProfessionalSceneCommandTargetMode.layerId,
+              id: _firstText(<Object?>[
+                payload['layerId'],
+                payload['targetLayerId'],
+                updates['layerId'],
+                updates['targetLayerId'],
+                remoteLayer['id'],
               ]),
             ),
             payload: remoteLayer,

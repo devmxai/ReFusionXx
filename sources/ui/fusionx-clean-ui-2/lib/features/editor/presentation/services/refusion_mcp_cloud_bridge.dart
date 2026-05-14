@@ -418,6 +418,22 @@ class RefusionMcpCloudBridge {
         },
         allowAgentSessionToken: true,
       );
+      _emitSnapshot(
+        _snapshotFromContextResponse(
+          contextResponse,
+          layersResult: layersResponse,
+          motionChannelsResult: motionChannelsResponse,
+          pendingCommandsResult: pendingCommandsResponse,
+          canvasMetadataResult: null,
+          elementGeometryResult: null,
+          visualLayoutSummaryResult: null,
+          projectSnapshotResult: null,
+          timelineGraphResult: null,
+          frameEvaluationResult: null,
+          fallbackProjectId: state.projectId,
+          fallbackCompositionId: state.compositionId,
+        ),
+      );
       final canvasMetadataResponse = await _safeCallTool(
         toolName: 'get_canvas_metadata',
         arguments: <String, Object?>{
