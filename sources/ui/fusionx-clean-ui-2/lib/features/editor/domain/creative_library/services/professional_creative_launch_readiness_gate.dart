@@ -28,6 +28,11 @@ class CreativeLaunchReadinessInput {
     required this.registryDiffReviewed,
     required this.skillsSyncPass,
     required this.conformanceSnapshotsApproved,
+    this.benchmarkQualityTemporalBelowTargetCount = 0,
+    this.benchmarkPerformanceBelowTargetCount = 0,
+    this.benchmarkPreviewExportParityBelowTargetCount = 0,
+    this.benchmarkNativeEditabilityViolationCount = 0,
+    this.benchmarkMissingEvidenceCount = 0,
   });
 
   final double fullAcceptanceSuitePassRate;
@@ -41,6 +46,11 @@ class CreativeLaunchReadinessInput {
   final bool registryDiffReviewed;
   final bool skillsSyncPass;
   final bool conformanceSnapshotsApproved;
+  final int benchmarkQualityTemporalBelowTargetCount;
+  final int benchmarkPerformanceBelowTargetCount;
+  final int benchmarkPreviewExportParityBelowTargetCount;
+  final int benchmarkNativeEditabilityViolationCount;
+  final int benchmarkMissingEvidenceCount;
 }
 
 class CreativeLaunchReadinessResult {
@@ -126,6 +136,56 @@ class ProfessionalCreativeLaunchReadinessGate {
           message:
               'renderer_conformance_unknown_count must be 0, found ${input.rendererConformanceUnknownCount}.',
           severity: CreativeLaunchReadinessSeverity.blocker,
+        ),
+      );
+    }
+    if (input.benchmarkQualityTemporalBelowTargetCount != 0) {
+      issues.add(
+        CreativeLaunchReadinessIssue(
+          code: 'BENCHMARK_QUALITY_TEMPORAL_BELOW_TARGET',
+          message:
+              'benchmark quality/temporal below target for ${input.benchmarkQualityTemporalBelowTargetCount} capabilities.',
+          severity: CreativeLaunchReadinessSeverity.blocker,
+        ),
+      );
+    }
+    if (input.benchmarkPerformanceBelowTargetCount != 0) {
+      issues.add(
+        CreativeLaunchReadinessIssue(
+          code: 'BENCHMARK_PERFORMANCE_BELOW_TARGET',
+          message:
+              'benchmark performance below target for ${input.benchmarkPerformanceBelowTargetCount} capabilities.',
+          severity: CreativeLaunchReadinessSeverity.blocker,
+        ),
+      );
+    }
+    if (input.benchmarkPreviewExportParityBelowTargetCount != 0) {
+      issues.add(
+        CreativeLaunchReadinessIssue(
+          code: 'BENCHMARK_PARITY_BELOW_TARGET',
+          message:
+              'benchmark preview/export parity below target for ${input.benchmarkPreviewExportParityBelowTargetCount} capabilities.',
+          severity: CreativeLaunchReadinessSeverity.blocker,
+        ),
+      );
+    }
+    if (input.benchmarkNativeEditabilityViolationCount != 0) {
+      issues.add(
+        CreativeLaunchReadinessIssue(
+          code: 'BENCHMARK_EDITABILITY_NATIVE_VIOLATION',
+          message:
+              'native editability violation found for ${input.benchmarkNativeEditabilityViolationCount} capabilities.',
+          severity: CreativeLaunchReadinessSeverity.blocker,
+        ),
+      );
+    }
+    if (input.benchmarkMissingEvidenceCount != 0) {
+      issues.add(
+        CreativeLaunchReadinessIssue(
+          code: 'BENCHMARK_EVIDENCE_MISSING',
+          message:
+              'benchmark evidence missing for ${input.benchmarkMissingEvidenceCount} capabilities.',
+          severity: CreativeLaunchReadinessSeverity.warning,
         ),
       );
     }

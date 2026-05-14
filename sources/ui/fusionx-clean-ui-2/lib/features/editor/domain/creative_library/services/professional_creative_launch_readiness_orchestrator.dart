@@ -2,6 +2,7 @@ import '../../mcp/refusion_creative_library_discovery.dart';
 import '../models/professional_creative_library_discovery_models.dart';
 import '../models/professional_creative_library_registry_models.dart';
 import 'professional_creative_agent_skill_generation_service.dart';
+import 'professional_creative_capability_benchmark_gate.dart';
 import 'professional_creative_launch_readiness_gate.dart';
 import 'professional_creative_library_discovery_service.dart';
 import 'professional_creative_library_registry.dart';
@@ -46,6 +47,8 @@ class ProfessionalCreativeLaunchReadinessOrchestrator {
     required ProfessionalCreativeManualUiLibraryBrowserService manualBrowser,
     required RefusionCreativeLibraryDiscoveryToolset mcpDiscoveryTools,
     required ProfessionalCreativeAgentSkillGenerationService skillService,
+    ProfessionalCreativeCapabilityBenchmarkGate benchmarkGate =
+        const ProfessionalCreativeCapabilityBenchmarkGate(),
     ProfessionalCreativeLaunchReadinessGate launchGate =
         const ProfessionalCreativeLaunchReadinessGate(),
   })  : _registry = registry,
@@ -53,6 +56,7 @@ class ProfessionalCreativeLaunchReadinessOrchestrator {
         _manualBrowser = manualBrowser,
         _mcpDiscoveryTools = mcpDiscoveryTools,
         _skillService = skillService,
+        _benchmarkGate = benchmarkGate,
         _launchGate = launchGate;
 
   final ProfessionalCreativeLibraryRegistry _registry;
@@ -60,6 +64,7 @@ class ProfessionalCreativeLaunchReadinessOrchestrator {
   final ProfessionalCreativeManualUiLibraryBrowserService _manualBrowser;
   final RefusionCreativeLibraryDiscoveryToolset _mcpDiscoveryTools;
   final ProfessionalCreativeAgentSkillGenerationService _skillService;
+  final ProfessionalCreativeCapabilityBenchmarkGate _benchmarkGate;
   final ProfessionalCreativeLaunchReadinessGate _launchGate;
 
   CreativeLaunchReadinessOrchestratorReport evaluate(
@@ -93,6 +98,7 @@ class ProfessionalCreativeLaunchReadinessOrchestrator {
     final adapterDirectMutationCount = _registry.adapters
         .map((adapter) => adapter.directMutationCount)
         .fold<int>(0, (sum, value) => sum + value);
+    final benchmarkReport = _benchmarkGate.evaluate(_registry.listAll());
     final rendererConformanceUnknownCount = _registry
         .listAll()
         .where((item) =>
@@ -115,6 +121,15 @@ class ProfessionalCreativeLaunchReadinessOrchestrator {
       registryDiffReviewed: context.registryDiffReviewed,
       skillsSyncPass: context.skillsSyncPass,
       conformanceSnapshotsApproved: context.conformanceSnapshotsApproved,
+      benchmarkQualityTemporalBelowTargetCount:
+          benchmarkReport.qualityTemporalBelowTargetCount,
+      benchmarkPerformanceBelowTargetCount:
+          benchmarkReport.performanceBelowTargetCount,
+      benchmarkPreviewExportParityBelowTargetCount:
+          benchmarkReport.previewExportParityBelowTargetCount,
+      benchmarkNativeEditabilityViolationCount:
+          benchmarkReport.nativeEditabilityViolationCount,
+      benchmarkMissingEvidenceCount: benchmarkReport.missingEvidenceCount,
     );
     final result = _launchGate.evaluate(input);
     return CreativeLaunchReadinessOrchestratorReport(
@@ -126,6 +141,15 @@ class ProfessionalCreativeLaunchReadinessOrchestrator {
         'manualUiMcpMatchRatio': parity.matchRatio,
         'adapterDirectMutationCount': adapterDirectMutationCount,
         'rendererConformanceUnknownCount': rendererConformanceUnknownCount,
+        'benchmarkQualityTemporalBelowTargetCount':
+            benchmarkReport.qualityTemporalBelowTargetCount,
+        'benchmarkPerformanceBelowTargetCount':
+            benchmarkReport.performanceBelowTargetCount,
+        'benchmarkPreviewExportParityBelowTargetCount':
+            benchmarkReport.previewExportParityBelowTargetCount,
+        'benchmarkNativeEditabilityViolationCount':
+            benchmarkReport.nativeEditabilityViolationCount,
+        'benchmarkMissingEvidenceCount': benchmarkReport.missingEvidenceCount,
         'discoveryFamilyCount':
             _discovery.listTemplates().items.isNotEmpty ? 5 : 4,
       },

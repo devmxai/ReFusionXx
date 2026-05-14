@@ -95,5 +95,46 @@ void main() {
         isTrue,
       );
     });
+
+    test('benchmark threshold failures are launch blockers', () {
+      final evaluation = gate.evaluate(
+        const CreativeLaunchReadinessInput(
+          fullAcceptanceSuitePassRate: 1.0,
+          staleSkillReferenceCount: 0,
+          manualUiMcpMatchRatio: 1.0,
+          adapterDirectMutationCount: 0,
+          exportUnsupportedSilentPassCount: 0,
+          registrySchemaIssueCount: 0,
+          rendererConformanceUnknownCount: 0,
+          regressionSuiteGreen: true,
+          registryDiffReviewed: true,
+          skillsSyncPass: true,
+          conformanceSnapshotsApproved: true,
+          benchmarkQualityTemporalBelowTargetCount: 1,
+          benchmarkPreviewExportParityBelowTargetCount: 1,
+          benchmarkNativeEditabilityViolationCount: 1,
+        ),
+      );
+
+      expect(evaluation.ready, isFalse);
+      expect(
+        evaluation.issues.any(
+          (issue) => issue.code == 'BENCHMARK_QUALITY_TEMPORAL_BELOW_TARGET',
+        ),
+        isTrue,
+      );
+      expect(
+        evaluation.issues.any(
+          (issue) => issue.code == 'BENCHMARK_PARITY_BELOW_TARGET',
+        ),
+        isTrue,
+      );
+      expect(
+        evaluation.issues.any(
+          (issue) => issue.code == 'BENCHMARK_EDITABILITY_NATIVE_VIOLATION',
+        ),
+        isTrue,
+      );
+    });
   });
 }

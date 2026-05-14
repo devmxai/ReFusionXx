@@ -74,6 +74,16 @@ class RefusionCreativeLaunchReadinessToolset {
         'skillsSyncPass': report.input.skillsSyncPass,
         'conformanceSnapshotsApproved':
             report.input.conformanceSnapshotsApproved,
+        'benchmarkQualityTemporalBelowTargetCount':
+            report.input.benchmarkQualityTemporalBelowTargetCount,
+        'benchmarkPerformanceBelowTargetCount':
+            report.input.benchmarkPerformanceBelowTargetCount,
+        'benchmarkPreviewExportParityBelowTargetCount':
+            report.input.benchmarkPreviewExportParityBelowTargetCount,
+        'benchmarkNativeEditabilityViolationCount':
+            report.input.benchmarkNativeEditabilityViolationCount,
+        'benchmarkMissingEvidenceCount':
+            report.input.benchmarkMissingEvidenceCount,
       },
       'metrics': report.metrics,
     };
