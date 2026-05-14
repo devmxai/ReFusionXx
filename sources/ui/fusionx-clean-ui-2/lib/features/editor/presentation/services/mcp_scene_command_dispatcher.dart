@@ -32,10 +32,27 @@ class McpSceneCommandDispatcher {
           _asMap(updates['animation']).isNotEmpty ||
           _asMap(payload['motion']).isNotEmpty ||
           _asMap(updates['motion']).isNotEmpty;
+      final backgroundIntent = hasBackgroundVisualIntent(remoteLayer);
       if (kind == 'text') {
         commands.add(
           ProfessionalSceneCommand(
             type: ProfessionalSceneCommandType.applyTextLayer,
+            source: ProfessionalSceneCommandSource.mcpAgent,
+            target: ProfessionalSceneCommandTarget(
+              mode: ProfessionalSceneCommandTargetMode.layerId,
+              id: _firstText(<Object?>[
+                remoteLayer['id'],
+                payload['layerId'],
+                payload['targetLayerId'],
+              ]),
+            ),
+            payload: remoteLayer,
+          ),
+        );
+      } else if (backgroundIntent) {
+        commands.add(
+          ProfessionalSceneCommand(
+            type: ProfessionalSceneCommandType.applySolidLayer,
             source: ProfessionalSceneCommandSource.mcpAgent,
             target: ProfessionalSceneCommandTarget(
               mode: ProfessionalSceneCommandTargetMode.layerId,
@@ -84,22 +101,6 @@ class McpSceneCommandDispatcher {
         commands.add(
           ProfessionalSceneCommand(
             type: ProfessionalSceneCommandType.registerMediaBinding,
-            source: ProfessionalSceneCommandSource.mcpAgent,
-            target: ProfessionalSceneCommandTarget(
-              mode: ProfessionalSceneCommandTargetMode.layerId,
-              id: _firstText(<Object?>[
-                remoteLayer['id'],
-                payload['layerId'],
-                payload['targetLayerId'],
-              ]),
-            ),
-            payload: remoteLayer,
-          ),
-        );
-      } else if (hasBackgroundVisualIntent(remoteLayer)) {
-        commands.add(
-          ProfessionalSceneCommand(
-            type: ProfessionalSceneCommandType.applySolidLayer,
             source: ProfessionalSceneCommandSource.mcpAgent,
             target: ProfessionalSceneCommandTarget(
               mode: ProfessionalSceneCommandTargetMode.layerId,

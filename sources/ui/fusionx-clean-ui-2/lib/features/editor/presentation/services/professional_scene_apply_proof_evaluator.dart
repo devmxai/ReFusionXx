@@ -18,11 +18,10 @@ class ProfessionalSceneApplyProofEvaluator {
         didApply ||
             hasRepresentedRemoteLayer ||
             receipt.targetLayerIds.isNotEmpty;
-    final localGraphApplied = didApply || timelineVisible;
-    final frameEvaluated = dataApplied;
-    final visualProgramEmitted = dataApplied;
-    final rendererApplied =
-        rendererAppliedOverride ?? didApply || hasRepresentedRemoteLayer;
+    final localGraphApplied = didApply;
+    final frameEvaluated = didApply && timelineVisible;
+    final visualProgramEmitted = didApply && timelineVisible;
+    final rendererApplied = rendererAppliedOverride ?? didApply;
     return <String, Object?>{
       'dataApplied': dataApplied,
       'localGraphApplied': localGraphApplied,

@@ -74,6 +74,8 @@ import '../services/live_scrub_runtime_surface_config_adapter.dart';
 import '../services/mcp_effect_capability_guard.dart';
 import '../services/mcp_effect_payload_lowering.dart';
 import '../services/mcp_shape_layer_resolution.dart';
+import '../services/mcp_universal_layer_apply_planner.dart';
+import '../services/mcp_universal_layer_identity.dart';
 import '../services/manual_transition_master_frame_evaluation_adapter.dart';
 import '../services/mcp_text_layer_resolution.dart';
 import '../services/mcp_text_runtime_update_planner.dart';
@@ -901,8 +903,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       McpSceneCommandDispatcher();
   static const ProfessionalSceneApplyEngine _professionalSceneApplyEngine =
       ProfessionalSceneApplyEngine();
-  static const McpTextRuntimeUpdatePlanner _mcpTextRuntimeUpdatePlanner =
-      McpTextRuntimeUpdatePlanner();
+  static const UniversalLayerApplyIntentClassifier
+      _mcpUniversalIntentClassifier = UniversalLayerApplyIntentClassifier();
+  static const UniversalLayerRuntimeUpdatePlanner
+      _mcpUniversalRuntimeUpdatePlanner = UniversalLayerRuntimeUpdatePlanner();
   static const McpTextMotionTargetPlanner _mcpTextMotionTargetPlanner =
       McpTextMotionTargetPlanner();
   static const McpEffectCapabilityGuard _mcpEffectCapabilityGuard =
@@ -3643,12 +3647,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           payload['zIndex'],
         ]) ??
         10;
-    final updateIntent = _remoteLayerRequestsTextUpdate(
+    final universalIntent = _mcpUniversalIntentClassifier.classify(
       payload: payload,
       updates: updates,
       payloadPayload: payloadPayload,
       updatesPayload: updatesPayload,
     );
+    final updateIntent = universalIntent != UniversalLayerApplyIntent.insert;
     final hasLegacyAnimationIntent = _remoteLayerHasLegacyAnimationIntent(
       payload: payload,
       updates: updates,
@@ -3674,32 +3679,89 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     );
     final previousSignature = _appliedMcpTextLayerSignatures[remoteLayerId];
     final textElementCountBefore = _mcpTextElementCount(currentProject);
-    final resolvedLayerId = existingContext?.layerId;
-    final resolvedElementId = existingContext?.elementId;
-    final blockInsert = McpTextLayerResolution.shouldBlockInsert(
-      updateIntent: updateIntent,
-      resolvedLayerId: resolvedLayerId,
-      resolvedTargetIsTextElement: existingContext != null,
-    );
-    final diagnostic = _mcpTextRuntimeUpdatePlanner.plan(
+    final universalResolution = existingContext != null
+        ? UniversalLayerResolution(
+            result: UniversalLayerResolutionResult.resolvedSingle,
+            target: UniversalLayerTarget(
+              canonicalTargetId: existingContext.layerId,
+              targetKind: UniversalLayerTargetKind.textElement,
+              targetFamily: 'text',
+              remoteLayerId: remoteLayerId,
+              targetLayerId: existingContext.layerId,
+              localLayerId: existingContext.layerId,
+              clipId: null,
+              elementId: existingContext.elementId,
+              sourceId: null,
+              aliases: _mcpRemoteLayerAliasesForPayload(
+                payload: payload,
+                updates: updates,
+                payloadPayload: payloadPayload,
+                updatesPayload: updatesPayload,
+              ),
+              resolutionSource: 'existingElementContext',
+              confidence: 1.0,
+              isAmbiguous: false,
+              isMissing: false,
+              blockers: const <String>[],
+              metadata: const <String, Object?>{},
+            ),
+            candidates: <String>[existingContext.layerId],
+          )
+        : UniversalLayerResolution(
+            result: UniversalLayerResolutionResult.missingTarget,
+            target: UniversalLayerTarget(
+              canonicalTargetId: null,
+              targetKind: UniversalLayerTargetKind.textElement,
+              targetFamily: 'text',
+              remoteLayerId: remoteLayerId,
+              targetLayerId: null,
+              localLayerId: null,
+              clipId: null,
+              elementId: null,
+              sourceId: null,
+              aliases: _mcpRemoteLayerAliasesForPayload(
+                payload: payload,
+                updates: updates,
+                payloadPayload: payloadPayload,
+                updatesPayload: updatesPayload,
+              ),
+              resolutionSource: 'none',
+              confidence: 0.0,
+              isAmbiguous: false,
+              isMissing: true,
+              blockers: const <String>['TARGET_NOT_FOUND'],
+              metadata: const <String, Object?>{},
+            ),
+            candidates: const <String>[],
+          );
+    final universalDiagnostic = _mcpUniversalRuntimeUpdatePlanner.plan(
       remoteLayerId: remoteLayerId,
       payloadSignature: payloadSignature,
-      textElementCountBefore: textElementCountBefore,
-      updateIntent: updateIntent,
-      blockInsert: blockInsert,
-      hasResolvedTextTarget: existingContext != null,
-      resolvedLayerId: resolvedLayerId,
-      resolvedElementId: resolvedElementId,
+      layerCountBefore: textElementCountBefore,
+      intent: universalIntent,
+      resolution: universalResolution,
       previousPayloadSignature: previousSignature,
     );
-    if (diagnostic.skippedDuplicateApply) {
+    if (universalDiagnostic.decision ==
+        UniversalLayerApplyDecisionType.skipDuplicatePayload) {
       return false;
     }
-    if (diagnostic.blockedUnresolvedUpdate) {
+    if (universalDiagnostic.decision ==
+            UniversalLayerApplyDecisionType.blockUnresolvedUpdate ||
+        universalDiagnostic.decision ==
+            UniversalLayerApplyDecisionType.blockAmbiguousTarget) {
       if (kDebugMode) {
         debugPrint(
           'mcp_text_update_blocked_unresolved_target: '
-          '${jsonEncode(diagnostic.toMap())}',
+          '${jsonEncode(<String, Object?>{
+                'decision': universalDiagnostic.decision.name,
+                'remoteLayerId': remoteLayerId,
+                'targetKind': universalDiagnostic.targetKind.name,
+                'targetFamily': universalDiagnostic.targetFamily,
+                'resolutionSource': universalDiagnostic.resolutionSource,
+                'payloadSignature': universalDiagnostic.payloadSignature,
+                'blockers': universalDiagnostic.blockers,
+              })}',
         );
       }
       return false;
@@ -3915,20 +3977,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         _remoteMap(updatesPayload['motion']).isNotEmpty;
   }
 
-  bool _remoteLayerRequestsTextUpdate({
-    required Map<String, Object?> payload,
-    required Map<String, Object?> updates,
-    required Map<String, Object?> payloadPayload,
-    required Map<String, Object?> updatesPayload,
-  }) {
-    return McpTextLayerResolution.requestsUpdate(
-      payload: payload,
-      updates: updates,
-      payloadPayload: payloadPayload,
-      updatesPayload: updatesPayload,
-    );
-  }
-
   MotionProjectModel? _updateExistingMcpTextElement({
     required MotionProjectModel project,
     required _McpRemoteElementContext context,
@@ -4110,7 +4158,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (elementContext == null) {
       final fallbackClipId = _mcpTimelineClipIdForRemoteLayer(
         remoteLayerId,
-        fallbackToSingleVisualClip: true,
+        allowSelectedClipFallback: false,
+        fallbackToSingleVisualClip: false,
       );
       final isTextLayerHint =
           (_mcpRemoteLayerKindHintsById[remoteLayerId] ?? '') == 'text';
@@ -4130,6 +4179,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         return false;
       }
       if (fallbackClipId == null) {
+        if (kDebugMode) {
+          debugPrint(
+            'mcp_motion_blocked_unresolved_target: '
+            'remoteLayerId=$remoteLayerId property=$propertyId',
+          );
+        }
         return false;
       }
       return _applyRemoteMotionChannelToTimelineClip(
@@ -4801,6 +4856,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
   String? _mcpTimelineClipIdForRemoteLayer(
     String remoteLayerId, {
+    bool allowSelectedClipFallback = true,
     bool fallbackToSingleVisualClip = false,
   }) {
     final mappedClipId = _mcpRemoteMediaLayerClipIds[remoteLayerId];
@@ -4813,13 +4869,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         null) {
       return remoteLayerId;
     }
-    final selectedClipId = _selectedClipId;
-    if (selectedClipId != null) {
-      final selectedContext =
-          _selectedClipContextForTracks(_timelineTruthTracks, selectedClipId);
-      if (selectedContext != null &&
-          _timelineClipSupportsCanvasTransform(selectedContext.clip)) {
-        return selectedClipId;
+    if (allowSelectedClipFallback) {
+      final selectedClipId = _selectedClipId;
+      if (selectedClipId != null) {
+        final selectedContext =
+            _selectedClipContextForTracks(_timelineTruthTracks, selectedClipId);
+        if (selectedContext != null &&
+            _timelineClipSupportsCanvasTransform(selectedContext.clip)) {
+          return selectedClipId;
+        }
       }
     }
     if (!fallbackToSingleVisualClip) {

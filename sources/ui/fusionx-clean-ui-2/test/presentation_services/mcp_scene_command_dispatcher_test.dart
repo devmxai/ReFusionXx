@@ -31,5 +31,28 @@ void main() {
         ProfessionalSceneCommandType.applyLegacyAnimation,
       );
     });
+
+    test('routes shape background intent to solid apply before generic shape',
+        () {
+      const dispatcher = McpSceneCommandDispatcher();
+
+      final commands = dispatcher.dispatchRemoteLayers(
+        remoteLayers: const <Map<String, Object?>>[
+          <String, Object?>{
+            'id': 'remote-shape-bg-1',
+            'layer_kind': 'shape',
+            'payload': <String, Object?>{
+              'shape': 'rect',
+              'operation': 'set_background',
+            },
+          },
+        ],
+        hasBackgroundVisualIntent: (_) => true,
+        hasTimelineMutationIntent: (_) => false,
+      );
+
+      expect(commands, hasLength(1));
+      expect(commands.first.type, ProfessionalSceneCommandType.applySolidLayer);
+    });
   });
 }
