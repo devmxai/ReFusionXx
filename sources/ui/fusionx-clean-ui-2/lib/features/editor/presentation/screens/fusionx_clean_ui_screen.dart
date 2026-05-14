@@ -75,6 +75,7 @@ import '../services/live_scrub_runtime_surface_config_adapter.dart';
 import '../services/mcp_effect_capability_guard.dart';
 import '../services/mcp_effect_payload_lowering.dart';
 import '../services/mcp_shape_layer_resolution.dart';
+import '../services/mcp_pending_command_layer_materializer.dart';
 import '../services/mcp_universal_layer_apply_planner.dart';
 import '../services/mcp_universal_layer_identity.dart';
 import '../services/manual_transition_master_frame_evaluation_adapter.dart';
@@ -1433,6 +1434,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         return;
       }
       final hasPendingCommands = snapshot.pendingCommands.isNotEmpty;
+      final pendingCommandRemoteLayers =
+          const McpPendingCommandLayerMaterializer().materialize(
+        snapshot.pendingCommands,
+      );
+      final remoteLayers = _mergePendingCommandRemoteLayers(
+        snapshot.remoteLayers,
+        pendingCommandRemoteLayers,
+      );
       final pendingTargetLayerIds =
           _pendingCommandTargetLayerIds(snapshot.pendingCommands);
       final useRecoverySync = _shouldRunMcpRecoverySync(
@@ -1441,12 +1450,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       );
       final remoteLayersForApply = hasPendingCommands
           ? _filterRemoteLayersForPendingTargets(
-              snapshot.remoteLayers,
+              remoteLayers,
               pendingTargetLayerIds,
             )
-          : (useRecoverySync
-              ? snapshot.remoteLayers
-              : const <Map<String, Object?>>[]);
+          : (useRecoverySync ? remoteLayers : const <Map<String, Object?>>[]);
       final remoteMotionChannelsForApply = hasPendingCommands
           ? _filterRemoteMotionChannelsForPendingTargets(
               snapshot.remoteMotionChannels,
@@ -1464,9 +1471,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       if (remoteMotionChannelsForApply.isNotEmpty) {
         _applyRemoteMotionChannelsIfNeeded(
           remoteMotionChannelsForApply,
-          remoteLayersForApply.isNotEmpty
-              ? remoteLayersForApply
-              : snapshot.remoteLayers,
+          remoteLayersForApply.isNotEmpty ? remoteLayersForApply : remoteLayers,
           snapshot.remoteRevision,
         );
       }
@@ -1586,6 +1591,37 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
     }
     return targetLayerIds;
+  }
+
+  List<Map<String, Object?>> _mergePendingCommandRemoteLayers(
+    List<Map<String, Object?>> remoteLayers,
+    List<Map<String, Object?>> pendingCommandRemoteLayers,
+  ) {
+    if (pendingCommandRemoteLayers.isEmpty) {
+      return List<Map<String, Object?>>.unmodifiable(remoteLayers);
+    }
+    if (remoteLayers.isEmpty) {
+      return List<Map<String, Object?>>.unmodifiable(
+        pendingCommandRemoteLayers,
+      );
+    }
+    final merged = <Map<String, Object?>>[];
+    final pendingIds = <String>{};
+    for (final pendingLayer in pendingCommandRemoteLayers) {
+      final layerId = _remoteString(pendingLayer['id']);
+      if (layerId != null && layerId.isNotEmpty) {
+        pendingIds.add(layerId);
+      }
+      merged.add(pendingLayer);
+    }
+    for (final remoteLayer in remoteLayers) {
+      final layerId = _remoteString(remoteLayer['id']);
+      if (layerId != null && pendingIds.contains(layerId)) {
+        continue;
+      }
+      merged.add(remoteLayer);
+    }
+    return List<Map<String, Object?>>.unmodifiable(merged);
   }
 
   List<Map<String, Object?>> _filterRemoteLayersForPendingTargets(
