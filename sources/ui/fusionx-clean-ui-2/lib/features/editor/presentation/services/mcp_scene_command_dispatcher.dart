@@ -45,8 +45,27 @@ class McpSceneCommandDispatcher {
         updatesPayload: updatesPayload,
         operationHint: operation,
       );
+      final remoteLayerId = _firstText(<Object?>[
+        remoteLayer['id'],
+        payload['remoteLayerId'],
+      ]);
+      final explicitMutationTarget = _firstText(<Object?>[
+        payload['targetLayerId'],
+        updates['targetLayerId'],
+        payloadPayload['targetLayerId'],
+        updatesPayload['targetLayerId'],
+        payload['layerId'],
+        updates['layerId'],
+        payloadPayload['layerId'],
+        updatesPayload['layerId'],
+      ]);
+      final isMutationWrapperForDifferentTarget = kind == 'solid' &&
+          intent != UniversalLayerApplyIntent.insert &&
+          explicitMutationTarget != null &&
+          remoteLayerId != null &&
+          explicitMutationTarget != remoteLayerId;
       final backgroundIntent = hasBackgroundVisualIntent(remoteLayer);
-      if (kind == 'text') {
+      if (!isMutationWrapperForDifferentTarget && kind == 'text') {
         commands.add(
           ProfessionalSceneCommand(
             type: ProfessionalSceneCommandType.applyTextLayer,
@@ -65,7 +84,7 @@ class McpSceneCommandDispatcher {
             payload: remoteLayer,
           ),
         );
-      } else if (backgroundIntent) {
+      } else if (!isMutationWrapperForDifferentTarget && backgroundIntent) {
         commands.add(
           ProfessionalSceneCommand(
             type: ProfessionalSceneCommandType.applySolidLayer,
@@ -84,7 +103,7 @@ class McpSceneCommandDispatcher {
             payload: remoteLayer,
           ),
         );
-      } else if (kind == 'shape') {
+      } else if (!isMutationWrapperForDifferentTarget && kind == 'shape') {
         commands.add(
           ProfessionalSceneCommand(
             type: ProfessionalSceneCommandType.applyShapeLayer,
@@ -103,7 +122,7 @@ class McpSceneCommandDispatcher {
             payload: remoteLayer,
           ),
         );
-      } else if (kind == 'solid') {
+      } else if (!isMutationWrapperForDifferentTarget && kind == 'solid') {
         commands.add(
           ProfessionalSceneCommand(
             type: ProfessionalSceneCommandType.applySolidLayer,
@@ -122,7 +141,7 @@ class McpSceneCommandDispatcher {
             payload: remoteLayer,
           ),
         );
-      } else if (kind == 'media') {
+      } else if (!isMutationWrapperForDifferentTarget && kind == 'media') {
         commands.add(
           ProfessionalSceneCommand(
             type: ProfessionalSceneCommandType.registerMediaBinding,

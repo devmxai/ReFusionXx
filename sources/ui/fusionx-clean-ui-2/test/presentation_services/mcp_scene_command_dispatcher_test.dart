@@ -79,5 +79,38 @@ void main() {
       expect(commands.first.type, ProfessionalSceneCommandType.applyTextLayer);
       expect(commands.first.target.id, 'text-layer-live-1');
     });
+
+    test('legacy animation command resolves to explicit text target identity',
+        () {
+      const dispatcher = McpSceneCommandDispatcher();
+
+      final commands = dispatcher.dispatchRemoteLayers(
+        remoteLayers: const <Map<String, Object?>>[
+          <String, Object?>{
+            'id': 'animation-command-1',
+            'layer_kind': 'solid',
+            'payload': <String, Object?>{
+              'operation': 'animate_layer',
+              'targetLayerId': 'text-layer-live-1',
+              'animation': <String, Object?>{
+                'keyframes': <Map<String, Object?>>[
+                  <String, Object?>{'timeMs': 0, 'opacity': 0},
+                  <String, Object?>{'timeMs': 300, 'opacity': 1},
+                ],
+              },
+            },
+          },
+        ],
+        hasBackgroundVisualIntent: (_) => false,
+        hasTimelineMutationIntent: (_) => false,
+      );
+
+      expect(commands, hasLength(1));
+      expect(
+        commands.first.type,
+        ProfessionalSceneCommandType.applyLegacyAnimation,
+      );
+      expect(commands.first.target.id, 'text-layer-live-1');
+    });
   });
 }
