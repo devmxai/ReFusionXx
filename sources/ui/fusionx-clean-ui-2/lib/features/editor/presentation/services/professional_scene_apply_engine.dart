@@ -48,6 +48,7 @@ class ProfessionalSceneApplyEngine {
         }
         switch (command.type) {
           case ProfessionalSceneCommandType.applyTextLayer:
+          case ProfessionalSceneCommandType.applyShapeLayer:
           case ProfessionalSceneCommandType.applySolidLayer:
             createdLayerCount += 1;
             break;

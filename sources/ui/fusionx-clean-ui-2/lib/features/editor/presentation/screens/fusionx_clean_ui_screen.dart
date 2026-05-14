@@ -855,7 +855,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   bool _isMcpAgentConnected = false;
   Timer? _mcpPairingStatusPollTimer;
   int _mcpAppliedRemoteRevision = 1;
-  final Set<String> _appliedMcpSolidLayerIds = <String>{};
+  final Map<String, String> _appliedMcpSolidLayerSignatures =
+      <String, String>{};
   final Map<String, String> _appliedMcpTextLayerSignatures = <String, String>{};
   final Map<String, String> _appliedMcpMotionChannelSignatures =
       <String, String>{};
@@ -1832,6 +1833,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         return _applyLegacyRemoteAnimationFromLayerIfNeeded(remoteLayer);
       case ProfessionalSceneCommandType.applyTextLayer:
         return _applyRemoteTextLayerIfNeeded(remoteLayer);
+      case ProfessionalSceneCommandType.applyShapeLayer:
+        return _applyRemoteShapeLayerIfNeeded(remoteLayer);
       case ProfessionalSceneCommandType.applySolidLayer:
         return _applyRemoteSolidLayerIfNeeded(remoteLayer);
       case ProfessionalSceneCommandType.registerMediaBinding:
@@ -2001,8 +2004,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   bool _isMcpRemoteLayerRepresentedLocally(String remoteLayerId) {
-    return _appliedMcpSolidLayerIds.contains(remoteLayerId) ||
-        _hasAppliedMcpRemoteLayer(remoteLayerId) ||
+    return _hasAppliedMcpRemoteLayer(remoteLayerId) ||
         _mcpRemoteMediaLayerClipIds.containsKey(remoteLayerId);
   }
 
@@ -2945,98 +2947,298 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   bool _applyRemoteSolidLayerIfNeeded(Map<String, Object?> remoteLayer) {
+    return _applyRemoteShapeLikeLayerIfNeeded(
+      remoteLayer: remoteLayer,
+      commandKind: 'solid',
+      preferBackgroundRole: true,
+    );
+  }
+
+  bool _applyRemoteShapeLayerIfNeeded(Map<String, Object?> remoteLayer) {
+    return _applyRemoteShapeLikeLayerIfNeeded(
+      remoteLayer: remoteLayer,
+      commandKind: 'shape',
+      preferBackgroundRole:
+          _remoteLayerLooksLikeRectBackgroundShape(remoteLayer),
+    );
+  }
+
+  bool _applyRemoteShapeLikeLayerIfNeeded({
+    required Map<String, Object?> remoteLayer,
+    required String commandKind,
+    required bool preferBackgroundRole,
+  }) {
     final remoteLayerId = _remoteString(remoteLayer['id']);
     if (remoteLayerId == null || remoteLayerId.isEmpty) {
       return false;
     }
-    if (_appliedMcpSolidLayerIds.contains(remoteLayerId)) {
-      return false;
-    }
     final payload = _remotePayload(remoteLayer);
     final updates = _remoteMap(payload['updates']);
-    final nestedPayload = _remoteMap(updates['payload']);
+    final payloadPayload = _remoteMap(payload['payload']);
+    final updatesPayload = _remoteMap(updates['payload']);
+    final nestedLayer = _remoteMap(payload['layer']);
+    final style = _remoteMap(payload['style']);
+    final updateStyle = _remoteMap(updates['style']);
+    final payloadStyle = _remoteMap(payloadPayload['style']);
     final operation = _firstRemoteString(<Object?>[
           payload['operation'],
           updates['operation'],
-          nestedPayload['operation'],
+          payloadPayload['operation'],
+          updatesPayload['operation'],
         ])?.toLowerCase() ??
         '';
     if (operation.contains('animate') || operation.contains('keyframe')) {
       return false;
     }
-    final color = _extractRemoteSolidColorHex(remoteLayer);
-    if (color == null) {
+
+    final aliases = _mcpRemoteLayerAliasesForPayload(
+      payload: payload,
+      updates: updates,
+      payloadPayload: payloadPayload,
+      updatesPayload: updatesPayload,
+    );
+    final existingContext = _resolveMcpRemoteShapeElementContext(
+      remoteLayerId: remoteLayerId,
+      payload: payload,
+      updates: updates,
+      payloadPayload: payloadPayload,
+      updatesPayload: updatesPayload,
+    );
+    final updateIntent = _remoteLayerRequestsShapeUpdate(
+      operation: operation,
+      payload: payload,
+      updates: updates,
+      payloadPayload: payloadPayload,
+      updatesPayload: updatesPayload,
+      aliases: aliases,
+    );
+    if (updateIntent && existingContext == null) {
+      if (kDebugMode) {
+        debugPrint(
+          'mcp_shape_update_blocked_unresolved_target: '
+          'remoteLayerId=$remoteLayerId kind=$commandKind',
+        );
+      }
       return false;
     }
-    final parsed = _parseCompositionColor(color);
-    if (parsed == null) {
-      return false;
-    }
+
     final currentProject = _motionProject ?? _buildInitialMotionProject();
-    final nextMetadata = <String, String>{
-      ...currentProject.metadata,
-      'backgroundColor': _normalizeHexColor(parsed),
-    };
+    final sceneIndex = currentProject.scenes.indexWhere(
+      (scene) => scene.id == _rootMotionSceneId,
+    );
+    if (sceneIndex < 0) {
+      return false;
+    }
+    final scene = currentProject.scenes[sceneIndex];
+    final insertionRange = _remoteProjectRangeForLayer(
+          scene: scene,
+          remoteLayer: remoteLayer,
+          payload: payload,
+        ) ??
+        scene.projectRange;
+
+    final colorHex = _extractRemoteSolidColorHex(remoteLayer);
+    final color = _parseCompositionColor(colorHex) ?? const Color(0xFFFFFFFF);
+    final canvasSize = _motionProjectFormat.canvasSize;
+    final centerX = _firstRemoteDouble(<Object?>[
+          updates['x'],
+          payload['x'],
+          updates['centerX'],
+          payload['centerX'],
+          updatesPayload['x'],
+          updatesPayload['centerX'],
+          nestedLayer['x'],
+          nestedLayer['centerX'],
+          style['x'],
+          updateStyle['x'],
+          payloadStyle['x'],
+        ]) ??
+        (canvasSize.width / 2.0);
+    final centerY = _firstRemoteDouble(<Object?>[
+          updates['y'],
+          payload['y'],
+          updates['centerY'],
+          payload['centerY'],
+          updatesPayload['y'],
+          updatesPayload['centerY'],
+          nestedLayer['y'],
+          nestedLayer['centerY'],
+          style['y'],
+          updateStyle['y'],
+          payloadStyle['y'],
+        ]) ??
+        (canvasSize.height / 2.0);
+    final relativeX =
+        preferBackgroundRole ? 0.0 : centerX - (canvasSize.width / 2.0);
+    final relativeY =
+        preferBackgroundRole ? 0.0 : centerY - (canvasSize.height / 2.0);
+    final width = _firstRemoteDouble(<Object?>[
+          updates['width'],
+          payload['width'],
+          updates['w'],
+          payload['w'],
+          updatesPayload['width'],
+          updatesPayload['w'],
+          nestedLayer['width'],
+          nestedLayer['w'],
+          style['width'],
+          updateStyle['width'],
+          payloadStyle['width'],
+        ]) ??
+        (preferBackgroundRole ? canvasSize.width : 360.0);
+    final height = _firstRemoteDouble(<Object?>[
+          updates['height'],
+          payload['height'],
+          updates['h'],
+          payload['h'],
+          updatesPayload['height'],
+          updatesPayload['h'],
+          nestedLayer['height'],
+          nestedLayer['h'],
+          style['height'],
+          updateStyle['height'],
+          payloadStyle['height'],
+        ]) ??
+        (preferBackgroundRole ? canvasSize.height : 180.0);
+    final cornerRadius = _firstRemoteDouble(<Object?>[
+          updates['cornerRadius'],
+          payload['cornerRadius'],
+          updates['radius'],
+          payload['radius'],
+          updatesPayload['cornerRadius'],
+          nestedLayer['cornerRadius'],
+          style['cornerRadius'],
+          updateStyle['cornerRadius'],
+        ]) ??
+        (preferBackgroundRole ? 0.0 : 24.0);
+    final opacity = (_firstRemoteDouble(<Object?>[
+              updates['opacity'],
+              payload['opacity'],
+              updatesPayload['opacity'],
+              nestedLayer['opacity'],
+              style['opacity'],
+              updateStyle['opacity'],
+            ]) ??
+            1.0)
+        .clamp(0.0, 1.0)
+        .toDouble();
     final remoteLayerName = _firstRemoteString(<Object?>[
           remoteLayer['name'],
           payload['name'],
-          _remoteMap(payload['layer'])['name'],
+          nestedLayer['name'],
+          payloadPayload['name'],
+          updatesPayload['name'],
         ]) ??
-        'Solid Layer';
-    setState(() {
-      _motionProject = currentProject.copyWith(metadata: nextMetadata);
-      _ensureMcpSolidLayerTimelineClipInState(
-        remoteLayerId: remoteLayerId,
-        label: remoteLayerName,
-      );
-      _appliedMcpSolidLayerIds.add(remoteLayerId);
+        (preferBackgroundRole ? 'Background' : 'Shape');
+    final shapeKind = _remoteShapeKindForPayload(
+      isBackgroundRole: preferBackgroundRole,
+      payload: payload,
+      updates: updates,
+      nestedLayer: nestedLayer,
+    );
+    final zIndex = _firstRemoteInt(<Object?>[
+          remoteLayer['z_index'],
+          remoteLayer['zIndex'],
+          payload['zIndex'],
+          updates['zIndex'],
+          nestedLayer['zIndex'],
+        ]) ??
+        (preferBackgroundRole ? -1000 : 20);
+    final payloadSignature = jsonEncode(<String, Object?>{
+      'kind': commandKind,
+      'operation': operation,
+      'color': _normalizeHexColor(color),
+      'rangeStart': insertionRange.start.inMilliseconds,
+      'rangeEnd': insertionRange.endExclusive.inMilliseconds,
+      'x': relativeX,
+      'y': relativeY,
+      'width': width,
+      'height': height,
+      'cornerRadius': cornerRadius,
+      'opacity': opacity,
+      'backgroundRole': preferBackgroundRole,
+      'target': existingContext?.elementId,
     });
-    _markMotionAuthoringChanged(scheduleWarmup: true);
-    _syncTimelineClockDuration();
-    return true;
-  }
+    if (_appliedMcpSolidLayerSignatures[remoteLayerId] == payloadSignature) {
+      return false;
+    }
 
-  void _ensureMcpSolidLayerTimelineClipInState({
-    required String remoteLayerId,
-    required String label,
-  }) {
-    final clipId = 'mcp-solid-$remoteLayerId';
-    for (final track in _tracks) {
-      for (final clip in track.clips) {
-        if (clip.id == clipId) {
-          return;
-        }
-      }
+    final nextProject = existingContext == null
+        ? _insertNewMcpShapeElement(
+            project: currentProject,
+            scene: scene,
+            insertionRange: insertionRange,
+            remoteLayerId: remoteLayerId,
+            remoteLayerAliases: aliases,
+            remoteLayerName: remoteLayerName,
+            color: color,
+            positionX: relativeX,
+            positionY: relativeY,
+            width: width,
+            height: height,
+            cornerRadius: cornerRadius,
+            opacity: opacity,
+            zIndex: zIndex,
+            isBackgroundRole: preferBackgroundRole,
+            shapeKind: shapeKind,
+          )
+        : _updateExistingMcpShapeElement(
+            project: currentProject,
+            context: existingContext,
+            insertionRange: insertionRange,
+            remoteLayerId: remoteLayerId,
+            remoteLayerAliases: aliases,
+            remoteLayerName: remoteLayerName,
+            color: color,
+            positionX: relativeX,
+            positionY: relativeY,
+            width: width,
+            height: height,
+            cornerRadius: cornerRadius,
+            opacity: opacity,
+            isBackgroundRole: preferBackgroundRole,
+          );
+    if (nextProject == null) {
+      return false;
     }
-    final duration = _timelineDurationTime > TimelineTime.zero
-        ? _timelineDurationTime
-        : _effectiveMotionProject.durationTime;
-    if (duration <= TimelineTime.zero) {
-      return;
-    }
-    final solidClip = TimelineClipData(
-      id: clipId,
-      type: TimelineClipType.placeholder,
-      tone: TimelineClipTone.aiGenerated,
-      durationTime: duration,
-      sourceStartTime: TimelineTime.zero,
-      sourceDurationTime: duration,
-      label: label,
-      contentKind: TimelineClipContentKind.placeholder,
-      visualKind: TimelineVisualKind.shape,
+
+    final compatibilityMetadata = <String, String>{
+      ...nextProject.metadata,
+      if (preferBackgroundRole) 'backgroundColor': _normalizeHexColor(color),
+    };
+    final sceneForSelection = nextProject.scenes[sceneIndex];
+    final selectedLayerId = existingContext?.layerId ??
+        sceneForSelection.layers.lastWhere((layer) {
+          return layer.elements.any((element) {
+            final metadata = element.sourceBinding?.metadata;
+            if (metadata == null) {
+              return false;
+            }
+            return metadata['mcp.remoteLayerId'] == remoteLayerId ||
+                _mcpRemoteLayerAliases(metadata).contains(remoteLayerId);
+          });
+        }, orElse: () => sceneForSelection.layers.last).id;
+
+    setState(() {
+      _motionProject = nextProject.copyWith(metadata: compatibilityMetadata);
+      _tracks = _ensureTrackKind(_tracks, TimelineTrackKind.shape);
+      _selectedClipId = selectedLayerId;
+      _selectedTransitionId = null;
+      _activeTab = EditorMediaTab.text;
+      _setCurrentTime(insertionRange.start);
+      _markMotionAuthoringChanged();
+    });
+    _appliedMcpSolidLayerSignatures[remoteLayerId] = payloadSignature;
+    _mcpRecordRemoteLayerKindHint(
+      remoteLayerId: remoteLayerId,
+      aliases: aliases,
+      kind: commandKind,
     );
-    final baseTracks = _ensureTrackKind(_tracks, TimelineTrackKind.shape);
-    final trackIndex = baseTracks.indexWhere(
-      (track) => track.kind == TimelineTrackKind.shape,
+    _syncTimelineClockDuration();
+    _showStageMessage(
+      preferBackgroundRole ? 'AI background applied.' : 'AI shape applied.',
     );
-    if (trackIndex < 0) {
-      return;
-    }
-    final clips = <TimelineClipData>[
-      solidClip,
-      ...baseTracks[trackIndex].clips,
-    ];
-    _tracks = _replaceTrackIn(baseTracks, trackIndex, clips);
+    return true;
   }
 
   bool _applyRemoteTextLayerIfNeeded(Map<String, Object?> remoteLayer) {
@@ -3831,6 +4033,409 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
     }
     return null;
+  }
+
+  _McpRemoteElementContext? _mcpRemoteShapeElementContextByLayerId(
+    String remoteLayerId,
+  ) {
+    final context = _mcpRemoteElementContextByLayerId(remoteLayerId);
+    if (context == null) {
+      return null;
+    }
+    final project = _motionProject;
+    if (project == null) {
+      return null;
+    }
+    for (final scene in project.scenes) {
+      if (scene.id != context.sceneId) {
+        continue;
+      }
+      for (final layer in scene.layers) {
+        if (layer.id != context.layerId ||
+            layer.kind != MotionLayerKind.shape) {
+          continue;
+        }
+        for (final element in layer.elements) {
+          if (element.id == context.elementId &&
+              element.kind == MotionElementKind.shape) {
+            return context;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  _McpRemoteElementContext? _resolveMcpRemoteShapeElementContext({
+    required String remoteLayerId,
+    required Map<String, Object?> payload,
+    required Map<String, Object?> updates,
+    required Map<String, Object?> payloadPayload,
+    required Map<String, Object?> updatesPayload,
+  }) {
+    final candidates = <String>{
+      remoteLayerId,
+      _firstRemoteString(<Object?>[payload['targetLayerId']]) ?? '',
+      _firstRemoteString(<Object?>[updates['targetLayerId']]) ?? '',
+      _firstRemoteString(<Object?>[payloadPayload['targetLayerId']]) ?? '',
+      _firstRemoteString(<Object?>[updatesPayload['targetLayerId']]) ?? '',
+      _firstRemoteString(<Object?>[payload['layerId']]) ?? '',
+      _firstRemoteString(<Object?>[updates['layerId']]) ?? '',
+      _firstRemoteString(<Object?>[payloadPayload['layerId']]) ?? '',
+      _firstRemoteString(<Object?>[updatesPayload['layerId']]) ?? '',
+      _firstRemoteString(<Object?>[payload['requestedLayerId']]) ?? '',
+      _firstRemoteString(<Object?>[updates['requestedLayerId']]) ?? '',
+      _firstRemoteString(<Object?>[payloadPayload['requestedLayerId']]) ?? '',
+      _firstRemoteString(<Object?>[updatesPayload['requestedLayerId']]) ?? '',
+      _firstRemoteString(<Object?>[payload['localLayerId']]) ?? '',
+      _firstRemoteString(<Object?>[updates['localLayerId']]) ?? '',
+      _firstRemoteString(<Object?>[payloadPayload['localLayerId']]) ?? '',
+      _firstRemoteString(<Object?>[updatesPayload['localLayerId']]) ?? '',
+      _firstRemoteString(<Object?>[payload['clipId']]) ?? '',
+      _firstRemoteString(<Object?>[updates['clipId']]) ?? '',
+      _firstRemoteString(<Object?>[payloadPayload['clipId']]) ?? '',
+      _firstRemoteString(<Object?>[updatesPayload['clipId']]) ?? '',
+    }..removeWhere((value) => value.trim().isEmpty);
+    for (final candidate in candidates) {
+      final context = _mcpRemoteShapeElementContextByLayerId(candidate);
+      if (context != null) {
+        return context;
+      }
+    }
+    return null;
+  }
+
+  bool _remoteLayerRequestsShapeUpdate({
+    required String operation,
+    required Map<String, Object?> payload,
+    required Map<String, Object?> updates,
+    required Map<String, Object?> payloadPayload,
+    required Map<String, Object?> updatesPayload,
+    required List<String> aliases,
+  }) {
+    final normalized = operation.toLowerCase();
+    final explicitUpdateOperation = normalized.contains('update') ||
+        normalized.contains('edit') ||
+        normalized.contains('mutate') ||
+        normalized.contains('patch') ||
+        normalized.contains('set') ||
+        normalized.contains('transform') ||
+        normalized.contains('style');
+    final hasTargetId = aliases.isNotEmpty ||
+        _firstRemoteString(<Object?>[payload['targetLayerId']]) != null ||
+        _firstRemoteString(<Object?>[updates['targetLayerId']]) != null;
+    final hasUpdatePatch = updates.isNotEmpty ||
+        updatesPayload.isNotEmpty ||
+        payload.containsKey('x') ||
+        payload.containsKey('y') ||
+        payload.containsKey('width') ||
+        payload.containsKey('height') ||
+        payload.containsKey('cornerRadius') ||
+        payload.containsKey('opacity') ||
+        payload.containsKey('color') ||
+        payload.containsKey('fill') ||
+        payloadPayload.isNotEmpty;
+    final insertKeyword =
+        normalized.contains('insert') || normalized.contains('add');
+    if (insertKeyword && !hasTargetId) {
+      return false;
+    }
+    return explicitUpdateOperation || hasTargetId || hasUpdatePatch;
+  }
+
+  MotionShapeKind _remoteShapeKindForPayload({
+    required bool isBackgroundRole,
+    required Map<String, Object?> payload,
+    required Map<String, Object?> updates,
+    required Map<String, Object?> nestedLayer,
+  }) {
+    if (isBackgroundRole) {
+      return MotionShapeKind.rectangle;
+    }
+    final rawShape = _firstRemoteString(<Object?>[
+          payload['shape'],
+          updates['shape'],
+          nestedLayer['shape'],
+          payload['maskType'],
+          updates['maskType'],
+        ])?.toLowerCase() ??
+        '';
+    if (rawShape.contains('circle')) {
+      return MotionShapeKind.circle;
+    }
+    if (rawShape.contains('line')) {
+      return MotionShapeKind.line;
+    }
+    if (rawShape.contains('round')) {
+      return MotionShapeKind.roundedRectangle;
+    }
+    return MotionShapeKind.roundedRectangle;
+  }
+
+  MotionProjectModel? _insertNewMcpShapeElement({
+    required MotionProjectModel project,
+    required MotionSceneModel scene,
+    required TimelineTimeRange insertionRange,
+    required String remoteLayerId,
+    required List<String> remoteLayerAliases,
+    required String remoteLayerName,
+    required Color color,
+    required double positionX,
+    required double positionY,
+    required double width,
+    required double height,
+    required double cornerRadius,
+    required double opacity,
+    required int zIndex,
+    required bool isBackgroundRole,
+    required MotionShapeKind shapeKind,
+  }) {
+    final sceneIndex =
+        project.scenes.indexWhere((candidate) => candidate.id == scene.id);
+    if (sceneIndex < 0) {
+      return null;
+    }
+    final layerId = _nextMotionEntityId('mcp-shape-layer');
+    final elementId = _nextMotionEntityId('mcp-shape-element');
+    final sourceId = _nextMotionEntityId('mcp-generated-shape');
+    final target = MotionPropertyTarget(
+      kind: MotionTargetKind.element,
+      targetId: elementId,
+      projectId: project.id,
+      sceneId: scene.id,
+      layerId: layerId,
+      elementId: elementId,
+    );
+    MotionPropertyAssignment assignment(
+      MotionPropertyDefinition definition,
+      MotionPropertyValue value,
+    ) {
+      return MotionPropertyAssignment(
+        target: target,
+        definition: definition,
+        value: value,
+      );
+    }
+
+    final localRange = TimelineTimeRange(
+      start: insertionRange.start - scene.projectRange.start,
+      endExclusive: insertionRange.endExclusive - scene.projectRange.start,
+    );
+    final aliasSet = <String>{remoteLayerId, ...remoteLayerAliases}
+      ..removeWhere((value) => value.trim().isEmpty);
+    final element = MotionElementModel(
+      id: elementId,
+      layerId: layerId,
+      kind: MotionElementKind.shape,
+      shapeKind: shapeKind,
+      localRange: localRange,
+      name: remoteLayerName,
+      sourceBinding: MotionElementSourceBinding(
+        kind: MotionSourceKind.generatedShape,
+        sourceId: sourceId,
+        label: remoteLayerName,
+        metadata: <String, String>{
+          'source': 'mcp.remote.shape',
+          'mcp.remoteLayerId': remoteLayerId,
+          'mcp.remoteLayerName': remoteLayerName,
+          'mcp.remoteLayerKind': isBackgroundRole ? 'solid' : 'shape',
+          if (isBackgroundRole) 'mcp.backgroundRole': 'canvas',
+          if (aliasSet.isNotEmpty) 'mcp.remoteLayerAliases': aliasSet.join(','),
+        },
+      ),
+      properties: <MotionPropertyAssignment>[
+        assignment(
+          MotionPropertyCatalog.positionX,
+          MotionPropertyValue.scalar(positionX),
+        ),
+        assignment(
+          MotionPropertyCatalog.positionY,
+          MotionPropertyValue.scalar(positionY),
+        ),
+        assignment(
+          MotionPropertyCatalog.scaleX,
+          const MotionPropertyValue.scalar(1),
+        ),
+        assignment(
+          MotionPropertyCatalog.scaleY,
+          const MotionPropertyValue.scalar(1),
+        ),
+        assignment(
+          MotionPropertyCatalog.opacity,
+          MotionPropertyValue.scalar(opacity),
+        ),
+        assignment(
+          MotionPropertyCatalog.width,
+          MotionPropertyValue.scalar(width.clamp(1.0, 100000.0).toDouble()),
+        ),
+        assignment(
+          MotionPropertyCatalog.height,
+          MotionPropertyValue.scalar(height.clamp(1.0, 100000.0).toDouble()),
+        ),
+        assignment(
+          MotionPropertyCatalog.cornerRadius,
+          MotionPropertyValue.scalar(
+              cornerRadius.clamp(0.0, 100000.0).toDouble()),
+        ),
+        assignment(
+          _mcpRemoteVisualColorProperty,
+          MotionPropertyValue.colorArgb(color.value),
+        ),
+      ],
+    );
+    final layer = MotionLayerModel(
+      id: layerId,
+      sceneId: scene.id,
+      kind: MotionLayerKind.shape,
+      visibleRange: insertionRange,
+      elements: <MotionElementModel>[element],
+      name: remoteLayerName,
+      zIndex: zIndex,
+    );
+    final nextLayers = <MotionLayerModel>[
+      ...scene.layers,
+      layer,
+    ];
+    final nextScenes = List<MotionSceneModel>.from(project.scenes)
+      ..[sceneIndex] = scene.copyWith(layers: nextLayers);
+    return project.copyWith(scenes: nextScenes);
+  }
+
+  MotionProjectModel? _updateExistingMcpShapeElement({
+    required MotionProjectModel project,
+    required _McpRemoteElementContext context,
+    required TimelineTimeRange insertionRange,
+    required String remoteLayerId,
+    required List<String> remoteLayerAliases,
+    required String remoteLayerName,
+    required Color color,
+    required double positionX,
+    required double positionY,
+    required double width,
+    required double height,
+    required double cornerRadius,
+    required double opacity,
+    required bool isBackgroundRole,
+  }) {
+    var didUpdate = false;
+    final nextScenes = project.scenes.map((scene) {
+      if (scene.id != context.sceneId) {
+        return scene;
+      }
+      final localRange = TimelineTimeRange(
+        start: insertionRange.start - scene.projectRange.start,
+        endExclusive: insertionRange.endExclusive - scene.projectRange.start,
+      );
+      final nextLayers = scene.layers.map((layer) {
+        if (layer.id != context.layerId ||
+            layer.kind != MotionLayerKind.shape) {
+          return layer;
+        }
+        final nextElements = layer.elements.map((element) {
+          if (element.id != context.elementId ||
+              element.kind != MotionElementKind.shape) {
+            return element;
+          }
+          final target = MotionPropertyTarget(
+            kind: MotionTargetKind.element,
+            targetId: element.id,
+            projectId: project.id,
+            sceneId: scene.id,
+            layerId: layer.id,
+            elementId: element.id,
+          );
+          var properties = element.properties;
+          properties = _upsertMotionPropertyAssignment(
+            assignments: properties,
+            target: target,
+            definition: MotionPropertyCatalog.positionX,
+            value: MotionPropertyValue.scalar(positionX),
+          );
+          properties = _upsertMotionPropertyAssignment(
+            assignments: properties,
+            target: target,
+            definition: MotionPropertyCatalog.positionY,
+            value: MotionPropertyValue.scalar(positionY),
+          );
+          properties = _upsertMotionPropertyAssignment(
+            assignments: properties,
+            target: target,
+            definition: MotionPropertyCatalog.width,
+            value: MotionPropertyValue.scalar(
+              width.clamp(1.0, 100000.0).toDouble(),
+            ),
+          );
+          properties = _upsertMotionPropertyAssignment(
+            assignments: properties,
+            target: target,
+            definition: MotionPropertyCatalog.height,
+            value: MotionPropertyValue.scalar(
+              height.clamp(1.0, 100000.0).toDouble(),
+            ),
+          );
+          properties = _upsertMotionPropertyAssignment(
+            assignments: properties,
+            target: target,
+            definition: MotionPropertyCatalog.cornerRadius,
+            value: MotionPropertyValue.scalar(
+              cornerRadius.clamp(0.0, 100000.0).toDouble(),
+            ),
+          );
+          properties = _upsertMotionPropertyAssignment(
+            assignments: properties,
+            target: target,
+            definition: MotionPropertyCatalog.opacity,
+            value: MotionPropertyValue.scalar(opacity),
+          );
+          properties = _upsertMotionPropertyAssignment(
+            assignments: properties,
+            target: target,
+            definition: _mcpRemoteVisualColorProperty,
+            value: MotionPropertyValue.colorArgb(color.value),
+          );
+          final binding = element.sourceBinding;
+          final metadata = binding?.metadata ?? const <String, String>{};
+          final aliasSet = <String>{
+            ..._mcpRemoteLayerAliases(metadata),
+            remoteLayerId,
+            ...remoteLayerAliases,
+          }..removeWhere((value) => value.trim().isEmpty);
+          didUpdate = true;
+          return element.copyWith(
+            localRange: localRange,
+            name: remoteLayerName,
+            sourceBinding: MotionElementSourceBinding(
+              kind: binding?.kind ?? MotionSourceKind.generatedShape,
+              sourceId: binding?.sourceId ?? 'mcp.remote.shape.$remoteLayerId',
+              assetId: binding?.assetId,
+              label: remoteLayerName,
+              sourceRange: binding?.sourceRange,
+              metadata: <String, String>{
+                ...metadata,
+                'source': 'mcp.remote.shape',
+                'mcp.remoteLayerId': remoteLayerId,
+                'mcp.remoteLayerName': remoteLayerName,
+                'mcp.remoteLayerKind': isBackgroundRole ? 'solid' : 'shape',
+                if (isBackgroundRole) 'mcp.backgroundRole': 'canvas',
+                if (aliasSet.isNotEmpty)
+                  'mcp.remoteLayerAliases': aliasSet.join(','),
+              },
+            ),
+            properties: properties,
+          );
+        }).toList(growable: false);
+        return layer.copyWith(
+          name: remoteLayerName,
+          visibleRange: _expandedTimeRange(layer.visibleRange, localRange),
+          elements: nextElements,
+        );
+      }).toList(growable: false);
+      return scene.copyWith(layers: nextLayers);
+    }).toList(growable: false);
+    if (!didUpdate) {
+      return null;
+    }
+    return project.copyWith(scenes: nextScenes);
   }
 
   String? _mcpTimelineClipIdForRemoteLayer(
@@ -4698,7 +5303,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _setCurrentTime(snapshot.currentTime);
       _activeTab = EditorMediaTab.text;
       _mcpAppliedRemoteRevision = 1;
-      _appliedMcpSolidLayerIds.clear();
+      _appliedMcpSolidLayerSignatures.clear();
       _appliedMcpTextLayerSignatures.clear();
       _appliedMcpMotionChannelSignatures.clear();
       _mcpPendingCommandRevisionById.clear();
@@ -20040,7 +20645,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _sceneLayerScopeLayerId = null;
       _motionTextAnimationBindings = const <MotionTextAnimationBindingModel>[];
       _universalMotionPropertyChannels = const <MotionPropertyChannelModel>[];
-      _appliedMcpSolidLayerIds.clear();
+      _appliedMcpSolidLayerSignatures.clear();
       _appliedMcpTextLayerSignatures.clear();
       _appliedMcpMotionChannelSignatures.clear();
       _mcpPendingCommandRevisionById.clear();

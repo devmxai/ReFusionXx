@@ -84,5 +84,29 @@ void main() {
         isTrue,
       );
     });
+
+    test('routes shape layers into applyShapeLayer command', () {
+      const dispatcher = McpSceneCommandDispatcher();
+      final commands = dispatcher.dispatchRemoteLayers(
+        remoteLayers: const <Map<String, Object?>>[
+          <String, Object?>{
+            'id': 'shape-1',
+            'layer_kind': 'shape',
+            'payload': <String, Object?>{
+              'shape': 'rect',
+              'color': '#FFFFFF',
+            },
+          },
+        ],
+        hasBackgroundVisualIntent: (_) => false,
+        hasTimelineMutationIntent: (_) => false,
+      );
+      expect(commands, hasLength(1));
+      expect(
+        commands.first.type,
+        ProfessionalSceneCommandType.applyShapeLayer,
+      );
+      expect(commands.first.target.id, 'shape-1');
+    });
   });
 }

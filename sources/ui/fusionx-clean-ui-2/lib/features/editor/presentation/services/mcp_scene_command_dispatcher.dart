@@ -67,6 +67,22 @@ class McpSceneCommandDispatcher {
             payload: remoteLayer,
           ),
         );
+      } else if (kind == 'shape') {
+        commands.add(
+          ProfessionalSceneCommand(
+            type: ProfessionalSceneCommandType.applyShapeLayer,
+            source: ProfessionalSceneCommandSource.mcpAgent,
+            target: ProfessionalSceneCommandTarget(
+              mode: ProfessionalSceneCommandTargetMode.layerId,
+              id: _firstText(<Object?>[
+                remoteLayer['id'],
+                payload['layerId'],
+                payload['targetLayerId'],
+              ]),
+            ),
+            payload: remoteLayer,
+          ),
+        );
       } else if (kind == 'solid') {
         commands.add(
           ProfessionalSceneCommand(

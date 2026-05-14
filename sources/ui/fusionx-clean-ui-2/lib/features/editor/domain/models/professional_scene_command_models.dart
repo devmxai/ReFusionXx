@@ -12,6 +12,7 @@ enum ProfessionalSceneCommandSource {
 enum ProfessionalSceneCommandType {
   applyLegacyAnimation,
   applyTextLayer,
+  applyShapeLayer,
   applySolidLayer,
   registerMediaBinding,
   applyTimelineMutation,
