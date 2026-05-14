@@ -18557,44 +18557,67 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   void _insertRootSolidLayer() {
+    final project = _effectiveMotionProject;
     final duration = _timelineDurationTime > TimelineTime.zero
         ? _timelineDurationTime
-        : _effectiveMotionProject.durationTime;
+        : project.durationTime;
     if (duration <= TimelineTime.zero) {
       _showStageMessage('Composition duration is not ready yet.');
       return;
     }
 
-    final solidClipId = _nextMotionEntityId('solid-layer');
-    final solidClip = TimelineClipData(
-      id: solidClipId,
-      type: TimelineClipType.placeholder,
-      tone: TimelineClipTone.aiGenerated,
-      durationTime: duration,
-      sourceStartTime: TimelineTime.zero,
-      sourceDurationTime: duration,
-      label: 'Solid Layer',
-      contentKind: TimelineClipContentKind.placeholder,
-      visualKind: TimelineVisualKind.shape,
-    );
-    final baseTracks = _ensureTrackKind(_tracks, TimelineTrackKind.shape);
-    final trackIndex = baseTracks.indexWhere(
-      (track) => track.kind == TimelineTrackKind.shape,
-    );
-    if (trackIndex < 0) {
-      _showStageMessage('Unable to create a solid layer track.');
+    final sceneId = _rootMotionSceneId;
+    final sceneIndex =
+        project.scenes.indexWhere((scene) => scene.id == sceneId);
+    if (sceneIndex < 0) {
+      _showStageMessage('Unable to create a solid layer scene.');
       return;
     }
-    final clips = <TimelineClipData>[
-      ...baseTracks[trackIndex].clips,
-      solidClip,
-    ];
-    final nextTracks = _replaceTrackIn(baseTracks, trackIndex, clips);
+    final canvasSize = project.format.canvasSize;
+    final insertionResult = _insertShapeLayerIntoScene(
+      project: project,
+      sceneId: sceneId,
+      projectRange: TimelineTimeRange(
+        start: TimelineTime.zero,
+        endExclusive: duration,
+      ),
+      layerId: _nextMotionEntityId('solid-layer'),
+      elementId: _nextMotionEntityId('solid-element'),
+      sourceId: _nextMotionEntityId('generated-solid'),
+      layerName: 'Solid Layer',
+      elementName: 'Solid Layer',
+      zIndex: -1000,
+      shapeKind: MotionShapeKind.rectangle,
+      sourceKind: MotionSourceKind.generatedShape,
+      sourceLabel: 'Solid Layer',
+      sourceMetadata: const <String, String>{
+        'source': 'manual.add.solid',
+        'mcp.backgroundRole': 'canvas',
+        'manual.backgroundRole': 'canvas',
+      },
+      positionX: 0,
+      positionY: 0,
+      width: canvasSize.width,
+      height: canvasSize.height,
+      cornerRadius: 0,
+      opacity: 1,
+      colorArgb: const Color(0xFFFFFFFF).value,
+    );
+    if (insertionResult == null) {
+      _showStageMessage('Unable to create a solid layer.');
+      return;
+    }
     setState(() {
-      _tracks = nextTracks;
+      _motionProject = insertionResult.project.copyWith(
+        metadata: <String, String>{
+          ...insertionResult.project.metadata,
+          'backgroundColor': '#FFFFFF',
+        },
+      );
+      _tracks = _ensureTrackKind(_tracks, TimelineTrackKind.shape);
       _sceneScopeSession = null;
       _sceneLayerScopeLayerId = null;
-      _selectedClipId = solidClip.id;
+      _selectedClipId = insertionResult.elementId;
       _selectedTransitionId = null;
       _previewAssetId = null;
       _activeTab = EditorMediaTab.text;
