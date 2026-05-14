@@ -26,11 +26,15 @@ class ProfessionalCreativeAgentSkillSnapshot {
   const ProfessionalCreativeAgentSkillSnapshot({
     required this.supportedCapabilityIds,
     required this.unsupportedCapabilityIds,
+    required this.recommendedCapabilityIds,
+    required this.cautionCapabilityIds,
     required this.supportedTools,
   });
 
   final List<String> supportedCapabilityIds;
   final List<String> unsupportedCapabilityIds;
+  final List<String> recommendedCapabilityIds;
+  final List<String> cautionCapabilityIds;
   final List<String> supportedTools;
 }
 
@@ -58,15 +62,34 @@ class ProfessionalCreativeAgentSkillGenerationService {
   ProfessionalCreativeAgentSkillSnapshot buildSnapshot() {
     final supportedCapabilities = <String>[];
     final unsupportedCapabilities = <String>[];
+    final recommendedCapabilities = <String>[];
+    final cautionCapabilities = <String>[];
     for (final item in registry.listAll()) {
-      if (item.supportedEntrySurfaces.contains(SupportedEntrySurface.mcp)) {
+      final mcpSupported =
+          item.supportedEntrySurfaces.contains(SupportedEntrySurface.mcp);
+      if (mcpSupported) {
         supportedCapabilities.add(item.id);
+        final benchmark = item.capabilityBenchmark;
+        final readyByDecision =
+            item.benchmarkDecision == CapabilityBenchmarkDecision.keep ||
+                item.benchmarkDecision == CapabilityBenchmarkDecision.wrap;
+        final readyByBenchmark = benchmark.visualQuality >= 4 &&
+            benchmark.temporalAccuracy >= 4 &&
+            benchmark.previewExportParity >= 4 &&
+            benchmark.editability >= 4;
+        if (readyByDecision && readyByBenchmark) {
+          recommendedCapabilities.add(item.id);
+        } else {
+          cautionCapabilities.add(item.id);
+        }
       } else {
         unsupportedCapabilities.add(item.id);
       }
     }
     supportedCapabilities.sort();
     unsupportedCapabilities.sort();
+    recommendedCapabilities.sort();
+    cautionCapabilities.sort();
     final tools = toolRegistry
         .list()
         .map((tool) => tool.name)
@@ -76,6 +99,9 @@ class ProfessionalCreativeAgentSkillGenerationService {
       supportedCapabilityIds: List<String>.unmodifiable(supportedCapabilities),
       unsupportedCapabilityIds:
           List<String>.unmodifiable(unsupportedCapabilities),
+      recommendedCapabilityIds:
+          List<String>.unmodifiable(recommendedCapabilities),
+      cautionCapabilityIds: List<String>.unmodifiable(cautionCapabilities),
       supportedTools: List<String>.unmodifiable(tools),
     );
   }
@@ -90,6 +116,20 @@ class ProfessionalCreativeAgentSkillGenerationService {
       ..writeln('## Supported Capability IDs (MCP)')
       ..writeln();
     for (final id in snapshot.supportedCapabilityIds) {
+      buffer.writeln('- `$id`');
+    }
+    buffer
+      ..writeln()
+      ..writeln('## Recommended Capability IDs (Default MCP Path)')
+      ..writeln();
+    for (final id in snapshot.recommendedCapabilityIds) {
+      buffer.writeln('- `$id`');
+    }
+    buffer
+      ..writeln()
+      ..writeln('## Caution Capability IDs (Upgrade/Conformance Needed)')
+      ..writeln();
+    for (final id in snapshot.cautionCapabilityIds) {
       buffer.writeln('- `$id`');
     }
     buffer
@@ -114,6 +154,7 @@ class ProfessionalCreativeAgentSkillGenerationService {
     final issues = <AgentSkillValidationIssue>[];
     final supportedCapabilities = snapshot.supportedCapabilityIds.toSet();
     final unsupportedCapabilities = snapshot.unsupportedCapabilityIds.toSet();
+    final cautionCapabilities = snapshot.cautionCapabilityIds.toSet();
     final supportedTools = snapshot.supportedTools.toSet();
 
     final toolRefs = _extractToolRefs(markdown);
@@ -133,6 +174,17 @@ class ProfessionalCreativeAgentSkillGenerationService {
     final capabilityRefs = _extractCapabilityRefs(markdown);
     for (final ref in capabilityRefs) {
       if (supportedCapabilities.contains(ref)) {
+        if (cautionCapabilities.contains(ref)) {
+          issues.add(
+            AgentSkillValidationIssue(
+              code: 'CAPABILITY_REQUIRES_UPGRADE',
+              message:
+                  'Capability `$ref` is MCP-supported but marked caution (upgrade/conformance needed).',
+              severity: AgentSkillValidationSeverity.warning,
+              reference: ref,
+            ),
+          );
+        }
         continue;
       }
       if (unsupportedCapabilities.contains(ref)) {

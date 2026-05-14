@@ -29,6 +29,12 @@ void main() {
             ),
         isEmpty,
       );
+      expect(
+        snapshot.recommendedCapabilityIds.toSet().intersection(
+              snapshot.cautionCapabilityIds.toSet(),
+            ),
+        isEmpty,
+      );
     });
 
     test('validates current skill doc with stale_skill_reference_count = 0',
@@ -111,6 +117,25 @@ Use capability `\$template.unknown`.
             .join('\n'),
       );
       expect(report.staleSkillReferenceCount, 0);
+    });
+
+    test('warns when markdown advertises caution capability', () {
+      final snapshot = service.buildSnapshot();
+      if (snapshot.cautionCapabilityIds.isEmpty) {
+        expect(snapshot.cautionCapabilityIds, isEmpty);
+        return;
+      }
+      final capabilityId = snapshot.cautionCapabilityIds.first;
+      final report = service.validateMarkdown(
+        'Prefer using `$capabilityId` in every baseline prompt.',
+      );
+      expect(report.ok, isTrue);
+      expect(
+        report.issues.any(
+          (issue) => issue.code == 'CAPABILITY_REQUIRES_UPGRADE',
+        ),
+        isTrue,
+      );
     });
   });
 }
