@@ -870,6 +870,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   final Set<String> _mcpAcknowledgedCommandIds = <String>{};
   String? _lastAdoptedMcpProjectId;
   String? _lastAdoptedMcpCompositionId;
+  Map<String, Object?> _mcpLatestCanvasMetadata = const <String, Object?>{};
+  Map<String, Object?> _mcpLatestPrimaryElementGeometry =
+      const <String, Object?>{};
+  Map<String, Object?> _mcpLatestVisualLayoutSummary =
+      const <String, Object?>{};
+  Map<String, Object?> _mcpLatestProjectSnapshot = const <String, Object?>{};
+  Map<String, Object?> _mcpLatestTimelineGraph = const <String, Object?>{};
+  Map<String, Object?> _mcpLatestFrameEvaluation = const <String, Object?>{};
   ProfessionalSceneApplyReceipt _mcpLatestApplyProof =
       const ProfessionalSceneApplyReceipt(
     appliedCommandCount: 0,
@@ -1396,6 +1404,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
     }
     if (snapshot.ok) {
+      _captureMcpSpatialDiagnostics(snapshot);
       _refreshMcpPendingCommandLedger(snapshot.pendingCommands);
       _failStaleMcpPendingCommandsIfNeeded(snapshot);
       if (!_hasStartedCompositionSession || _motionProject == null) {
@@ -1885,7 +1894,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         timelineVisibleOverride: projectionValidation.timelineVisible,
         rendererAppliedOverride: projectionValidation.timelineVisible &&
             projectionValidation.targetProjectionComplete,
-        extraProof: projectionValidation.toProofMap(),
+        extraProof: <String, Object?>{
+          ...projectionValidation.toProofMap(),
+          ..._mcpSpatialProofMap(),
+        },
       );
       unawaited(() async {
         final acknowledged = await bridge.acknowledgeAppliedCommands(
@@ -1912,6 +1924,81 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return;
     }
     _scheduleMcpCloudSync(delay: const Duration(milliseconds: 60));
+  }
+
+  void _captureMcpSpatialDiagnostics(RefusionMcpCloudBridgeSnapshot snapshot) {
+    _mcpLatestCanvasMetadata = Map<String, Object?>.unmodifiable(
+      snapshot.canvasMetadata,
+    );
+    _mcpLatestPrimaryElementGeometry = Map<String, Object?>.unmodifiable(
+      snapshot.primaryElementGeometry,
+    );
+    _mcpLatestVisualLayoutSummary = Map<String, Object?>.unmodifiable(
+      snapshot.visualLayoutSummary,
+    );
+    _mcpLatestProjectSnapshot = Map<String, Object?>.unmodifiable(
+      snapshot.projectSnapshot,
+    );
+    _mcpLatestTimelineGraph = Map<String, Object?>.unmodifiable(
+      snapshot.timelineGraph,
+    );
+    _mcpLatestFrameEvaluation = Map<String, Object?>.unmodifiable(
+      snapshot.frameEvaluation,
+    );
+  }
+
+  Map<String, Object?> _mcpSpatialProofMap() {
+    final canvasMetadata = _mcpLatestCanvasMetadata;
+    final primaryGeometry = _mcpLatestPrimaryElementGeometry;
+    final visualSummary = _mcpLatestVisualLayoutSummary;
+    final projectSnapshot = _mcpLatestProjectSnapshot;
+    final timelineGraph = _mcpLatestTimelineGraph;
+    final frameEvaluation = _mcpLatestFrameEvaluation;
+    return <String, Object?>{
+      'spatialTruthAvailable': canvasMetadata.isNotEmpty ||
+          primaryGeometry.isNotEmpty ||
+          visualSummary.isNotEmpty ||
+          projectSnapshot.isNotEmpty ||
+          timelineGraph.isNotEmpty ||
+          frameEvaluation.isNotEmpty,
+      'spatial.canvasWidth': _firstRemoteInt(<Object?>[
+        canvasMetadata['width'],
+        _remoteMap(canvasMetadata['canvas'])['width'],
+      ]),
+      'spatial.canvasHeight': _firstRemoteInt(<Object?>[
+        canvasMetadata['height'],
+        _remoteMap(canvasMetadata['canvas'])['height'],
+      ]),
+      'spatial.coordinateSystem': _firstRemoteString(<Object?>[
+        canvasMetadata['coordinateSystem'],
+        _remoteMap(canvasMetadata['canvas'])['coordinateSystem'],
+        _remoteMap(canvasMetadata['coordinate'])['system'],
+      ]),
+      'spatial.primaryGeometryLayerId': _firstRemoteString(<Object?>[
+        primaryGeometry['layerId'],
+        _remoteMap(primaryGeometry['element'])['layerId'],
+      ]),
+      'spatial.visualSummaryText': _firstRemoteString(<Object?>[
+        visualSummary['summary'],
+        visualSummary['description'],
+      ]),
+      'spatial.timelineGraphTrackCount': _firstRemoteInt(<Object?>[
+        timelineGraph['trackCount'],
+        _remoteList(timelineGraph['tracks']).length,
+      ]),
+      'spatial.projectSnapshotNodeCount': _firstRemoteInt(<Object?>[
+        projectSnapshot['nodeCount'],
+        _remoteList(projectSnapshot['nodes']).length,
+      ]),
+      'spatial.frameEvaluationFrame': _firstRemoteInt(<Object?>[
+        frameEvaluation['frame'],
+        frameEvaluation['frameIndex'],
+      ]),
+      'spatial.frameEvaluationTimeMs': _firstRemoteInt(<Object?>[
+        frameEvaluation['timeMs'],
+        frameEvaluation['time'],
+      ]),
+    }..removeWhere((_, value) => value == null);
   }
 
   void _refreshMcpPendingCommandLedger(
@@ -5020,6 +5107,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return mapped;
     }
     return const <String, Object?>{};
+  }
+
+  List<Object?> _remoteList(Object? value) {
+    if (value is List<Object?>) {
+      return value;
+    }
+    if (value is List) {
+      return value.map<Object?>((entry) => entry).toList(growable: false);
+    }
+    return const <Object?>[];
   }
 
   String? _remoteString(Object? value) {

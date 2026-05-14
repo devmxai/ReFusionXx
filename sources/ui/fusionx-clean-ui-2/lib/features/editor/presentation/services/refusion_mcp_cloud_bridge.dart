@@ -41,6 +41,9 @@ class RefusionMcpCloudBridgeSnapshot {
     this.canvasMetadata = const <String, Object?>{},
     this.primaryElementGeometry = const <String, Object?>{},
     this.visualLayoutSummary = const <String, Object?>{},
+    this.projectSnapshot = const <String, Object?>{},
+    this.timelineGraph = const <String, Object?>{},
+    this.frameEvaluation = const <String, Object?>{},
     this.error,
   });
 
@@ -57,6 +60,9 @@ class RefusionMcpCloudBridgeSnapshot {
   final Map<String, Object?> canvasMetadata;
   final Map<String, Object?> primaryElementGeometry;
   final Map<String, Object?> visualLayoutSummary;
+  final Map<String, Object?> projectSnapshot;
+  final Map<String, Object?> timelineGraph;
+  final Map<String, Object?> frameEvaluation;
   final String? error;
 }
 
@@ -329,6 +335,9 @@ class RefusionMcpCloudBridge {
             canvasMetadataResult: null,
             elementGeometryResult: null,
             visualLayoutSummaryResult: null,
+            projectSnapshotResult: null,
+            timelineGraphResult: null,
+            frameEvaluationResult: null,
             fallbackProjectId: state.projectId,
             fallbackCompositionId: state.compositionId,
           ),
@@ -449,6 +458,31 @@ class RefusionMcpCloudBridge {
         },
         allowAgentSessionToken: true,
       );
+      final projectSnapshotResponse = await _safeCallTool(
+        toolName: 'get_project_snapshot',
+        arguments: <String, Object?>{
+          'projectId': effectiveProjectId,
+          'compositionId': effectiveCompositionId,
+        },
+        allowAgentSessionToken: true,
+      );
+      final timelineGraphResponse = await _safeCallTool(
+        toolName: 'get_timeline_graph',
+        arguments: <String, Object?>{
+          'projectId': effectiveProjectId,
+          'compositionId': effectiveCompositionId,
+        },
+        allowAgentSessionToken: true,
+      );
+      final frameEvaluationResponse = await _safeCallTool(
+        toolName: 'evaluate_frame',
+        arguments: <String, Object?>{
+          'projectId': effectiveProjectId,
+          'compositionId': effectiveCompositionId,
+          'timeMs': state.playheadMs,
+        },
+        allowAgentSessionToken: true,
+      );
       _emitSnapshot(
         _snapshotFromContextResponse(
           contextResponse,
@@ -458,6 +492,9 @@ class RefusionMcpCloudBridge {
           canvasMetadataResult: canvasMetadataResponse,
           elementGeometryResult: elementGeometryResponse,
           visualLayoutSummaryResult: visualLayoutSummaryResponse,
+          projectSnapshotResult: projectSnapshotResponse,
+          timelineGraphResult: timelineGraphResponse,
+          frameEvaluationResult: frameEvaluationResponse,
           fallbackProjectId: state.projectId,
           fallbackCompositionId: state.compositionId,
         ),
@@ -524,6 +561,9 @@ class RefusionMcpCloudBridge {
     required Map<String, Object?>? canvasMetadataResult,
     required Map<String, Object?>? elementGeometryResult,
     required Map<String, Object?>? visualLayoutSummaryResult,
+    required Map<String, Object?>? projectSnapshotResult,
+    required Map<String, Object?>? timelineGraphResult,
+    required Map<String, Object?>? frameEvaluationResult,
     required String fallbackProjectId,
     required String fallbackCompositionId,
   }) {
@@ -539,6 +579,9 @@ class RefusionMcpCloudBridge {
     var canvasMetadata = const <String, Object?>{};
     var primaryElementGeometry = const <String, Object?>{};
     var visualLayoutSummary = const <String, Object?>{};
+    var projectSnapshot = const <String, Object?>{};
+    var timelineGraph = const <String, Object?>{};
+    var frameEvaluation = const <String, Object?>{};
     if (layersResult != null) {
       final layersStructured = _asMap(layersResult['structuredContent']);
       final layersPayload = _asMap(layersStructured['payload']);
@@ -574,6 +617,21 @@ class RefusionMcpCloudBridge {
       );
       visualLayoutSummary = _asMap(summaryStructured['payload']);
     }
+    if (projectSnapshotResult != null) {
+      final snapshotStructured =
+          _asMap(projectSnapshotResult['structuredContent']);
+      projectSnapshot = _asMap(snapshotStructured['payload']);
+    }
+    if (timelineGraphResult != null) {
+      final timelineStructured =
+          _asMap(timelineGraphResult['structuredContent']);
+      timelineGraph = _asMap(timelineStructured['payload']);
+    }
+    if (frameEvaluationResult != null) {
+      final frameStructured =
+          _asMap(frameEvaluationResult['structuredContent']);
+      frameEvaluation = _asMap(frameStructured['payload']);
+    }
     return RefusionMcpCloudBridgeSnapshot(
       ok: structured['ok'] == true,
       projectId: _asString(project['id']) ?? fallbackProjectId,
@@ -594,6 +652,9 @@ class RefusionMcpCloudBridge {
       visualLayoutSummary: Map<String, Object?>.unmodifiable(
         visualLayoutSummary,
       ),
+      projectSnapshot: Map<String, Object?>.unmodifiable(projectSnapshot),
+      timelineGraph: Map<String, Object?>.unmodifiable(timelineGraph),
+      frameEvaluation: Map<String, Object?>.unmodifiable(frameEvaluation),
       error: structured['ok'] == true ? null : _asString(structured['summary']),
     );
   }
