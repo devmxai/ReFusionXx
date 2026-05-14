@@ -46,6 +46,38 @@ void main() {
         containsPair('operationApplied', 'mixed'),
       );
     });
+
+    test('treats shape apply with update intent as update in proof counts', () {
+      final commands = <ProfessionalSceneCommand>[
+        const ProfessionalSceneCommand(
+          type: ProfessionalSceneCommandType.applyShapeLayer,
+          source: ProfessionalSceneCommandSource.mcpAgent,
+          target: ProfessionalSceneCommandTarget(
+            mode: ProfessionalSceneCommandTargetMode.layerId,
+            id: 'shape-1',
+          ),
+          payload: <String, Object?>{
+            'payload': <String, Object?>{
+              'operation': 'update_layer',
+              'targetLayerId': 'shape-1',
+              'updates': <String, Object?>{
+                'width': 640,
+              },
+            },
+          },
+        ),
+      ];
+      const engine = ProfessionalSceneApplyEngine();
+      final result = engine.apply(
+        commands: commands,
+        receivedRemoteLayers: 1,
+        execute: (_) => true,
+        isRepresented: (_) => true,
+      );
+      expect(result.receipt.operationApplied, 'update');
+      expect(result.receipt.createdLayerCount, 0);
+      expect(result.receipt.updatedLayerCount, 1);
+    });
   });
 
   group('McpSceneCommandDispatcher', () {

@@ -50,7 +50,11 @@ class ProfessionalSceneApplyEngine {
           case ProfessionalSceneCommandType.applyTextLayer:
           case ProfessionalSceneCommandType.applyShapeLayer:
           case ProfessionalSceneCommandType.applySolidLayer:
-            createdLayerCount += 1;
+            if (_isUpdateIntent(command)) {
+              updatedLayerCount += 1;
+            } else {
+              createdLayerCount += 1;
+            }
             break;
           case ProfessionalSceneCommandType.applyLegacyAnimation:
           case ProfessionalSceneCommandType.applyTimelineMutation:
@@ -84,5 +88,67 @@ class ProfessionalSceneApplyEngine {
         targetLayerIds: targetLayerIds.toList(growable: false),
       ),
     );
+  }
+
+  bool _isUpdateIntent(ProfessionalSceneCommand command) {
+    final payload = _asMap(command.payload['payload']);
+    final updates = _asMap(payload['updates']);
+    final payloadPayload = _asMap(payload['payload']);
+    final updatesPayload = _asMap(updates['payload']);
+    final operation = _firstText(<Object?>[
+          payload['operation'],
+          updates['operation'],
+          payloadPayload['operation'],
+          updatesPayload['operation'],
+        ])?.toLowerCase() ??
+        '';
+    if (operation.contains('update') ||
+        operation.contains('edit') ||
+        operation.contains('set') ||
+        operation.contains('patch') ||
+        operation.contains('mutate') ||
+        operation.contains('transform') ||
+        operation.contains('style')) {
+      return true;
+    }
+    return _firstText(<Object?>[
+          payload['targetLayerId'],
+          updates['targetLayerId'],
+          payloadPayload['targetLayerId'],
+          updatesPayload['targetLayerId'],
+          payload['layerId'],
+          updates['layerId'],
+          payloadPayload['layerId'],
+          updatesPayload['layerId'],
+        ]) !=
+        null;
+  }
+
+  static Map<String, Object?> _asMap(Object? value) {
+    if (value is Map<String, Object?>) {
+      return value;
+    }
+    if (value is Map) {
+      final next = <String, Object?>{};
+      value.forEach((key, dynamicValue) {
+        if (key is String) {
+          next[key] = dynamicValue;
+        }
+      });
+      return next;
+    }
+    return const <String, Object?>{};
+  }
+
+  static String? _firstText(List<Object?> values) {
+    for (final value in values) {
+      if (value is String) {
+        final normalized = value.trim();
+        if (normalized.isNotEmpty) {
+          return normalized;
+        }
+      }
+    }
+    return null;
   }
 }
