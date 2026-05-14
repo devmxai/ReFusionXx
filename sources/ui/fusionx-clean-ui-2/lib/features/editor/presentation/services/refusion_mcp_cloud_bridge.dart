@@ -344,6 +344,8 @@ class RefusionMcpCloudBridge {
             frameEvaluationResult: null,
             fallbackProjectId: state.projectId,
             fallbackCompositionId: state.compositionId,
+            preferFallbackScope: state.projectId.trim().isNotEmpty &&
+                state.compositionId.trim().isNotEmpty,
           ),
         );
         return;

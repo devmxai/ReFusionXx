@@ -1295,14 +1295,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   RefusionMcpCloudContextState _readMcpCloudContextState() {
-    final hasActiveComposition = _hasStartedCompositionSession ||
-        _tracks.any((track) => track.clips.isNotEmpty) ||
-        _hasAuthoredMotionContent;
     final activeSceneId =
         _sceneScopeSession?.sourceSceneId ?? _rootMotionSceneId;
+    final effectiveProject = _effectiveMotionProject;
     return RefusionMcpCloudContextState(
-      projectId: hasActiveComposition ? _effectiveMotionProject.id : '',
-      compositionId: hasActiveComposition ? activeSceneId : '',
+      projectId: effectiveProject.id,
+      compositionId: activeSceneId,
       timelineId: 'main',
       playheadMs: refusionMcpPlayheadMs(_currentTime),
       timelineRevision: _mcpAppliedRemoteRevision,
