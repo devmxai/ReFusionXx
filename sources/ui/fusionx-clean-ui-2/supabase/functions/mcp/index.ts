@@ -974,7 +974,7 @@ async function syncEditorLayers(userId: string, args: JsonMap) {
       nextPayload,
     );
     const row = {
-      layer_kind: layerKind === 'solid' ? 'media' : layerKind,
+      layer_kind: layerKind,
       name: text(
         firstDefined(layer.name, nextPayload.name, nextPayload.label),
         `Editor Media ${index + 1}`,

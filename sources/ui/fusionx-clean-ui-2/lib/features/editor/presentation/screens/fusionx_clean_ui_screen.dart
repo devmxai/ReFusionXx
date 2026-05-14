@@ -25,6 +25,7 @@ import '../../domain/models/master_time_models.dart';
 import '../../domain/models/master_visual_program_models.dart';
 import '../../domain/models/professional_canvas_timeline_authoring_models.dart';
 import '../../domain/models/trueframe_runtime_evaluator_models.dart';
+import '../services/mcp_editor_layer_snapshot_builder.dart';
 import '../../domain/models/professional_motion_animation_models.dart';
 import '../../domain/models/professional_motion_compilation_models.dart';
 import '../../domain/models/professional_motion_evaluation_models.dart';
@@ -1384,6 +1385,15 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           'payload': payload,
         });
       }
+    }
+    final project = _motionProject;
+    if (project != null) {
+      snapshots.addAll(
+        const McpEditorLayerSnapshotBuilder().buildProjectLayerSnapshots(
+          project: project,
+          canvasSize: canvasSize,
+        ),
+      );
     }
     return List<Map<String, Object?>>.unmodifiable(snapshots);
   }
