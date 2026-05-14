@@ -73,6 +73,7 @@ import '../services/composition_media_playback_projection_adapter.dart';
 import '../services/live_scrub_runtime_surface_config_adapter.dart';
 import '../services/manual_transition_master_frame_evaluation_adapter.dart';
 import '../services/mcp_text_layer_resolution.dart';
+import '../services/mcp_text_runtime_update_planner.dart';
 import '../services/mcp_scene_command_dispatcher.dart';
 import '../services/manual_transition_lane_to_motion_channel_adapter.dart';
 import '../services/master_frame_evaluation_read_adapter.dart';
@@ -855,8 +856,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   Timer? _mcpPairingStatusPollTimer;
   int _mcpAppliedRemoteRevision = 1;
   final Set<String> _appliedMcpSolidLayerIds = <String>{};
+  final Map<String, String> _appliedMcpTextLayerSignatures = <String, String>{};
   final Map<String, String> _appliedMcpMotionChannelSignatures =
       <String, String>{};
+  final Map<String, String> _mcpRemoteLayerKindHintsById = <String, String>{};
   final Map<String, int> _mcpPendingCommandRevisionById = <String, int>{};
   final Map<String, String> _mcpPendingCommandTypeById = <String, String>{};
   final Map<String, DateTime> _mcpPendingCommandFirstSeenAtById =
@@ -878,6 +881,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       McpSceneCommandDispatcher();
   static const ProfessionalSceneApplyEngine _professionalSceneApplyEngine =
       ProfessionalSceneApplyEngine();
+  static const McpTextRuntimeUpdatePlanner _mcpTextRuntimeUpdatePlanner =
+      McpTextRuntimeUpdatePlanner();
+  static const McpTextMotionTargetPlanner _mcpTextMotionTargetPlanner =
+      McpTextMotionTargetPlanner();
 
   @override
   void initState() {
@@ -3041,19 +3048,23 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final payload = _remotePayload(remoteLayer);
     final nestedLayer = _remoteMap(payload['layer']);
     final props = _remoteMap(payload['props']);
+    final payloadPayload = _remoteMap(payload['payload']);
     final updates = _remoteMap(payload['updates']);
     final updateProps = _remoteMap(updates['props']);
-    final nestedPayload = _remoteMap(updates['payload']);
-    final nestedPayloadProps = _remoteMap(nestedPayload['props']);
+    final updatesPayload = _remoteMap(updates['payload']);
+    final nestedPayloadProps = _remoteMap(updatesPayload['props']);
     final style = _remoteMap(payload['style']);
     final updateStyle = _remoteMap(updates['style']);
     final textValue = _firstRemoteString(<Object?>[
       nestedLayer['text'],
       nestedLayer['content'],
       nestedLayer['value'],
-      nestedPayload['text'],
-      nestedPayload['content'],
-      nestedPayload['value'],
+      payloadPayload['text'],
+      payloadPayload['content'],
+      payloadPayload['value'],
+      updatesPayload['text'],
+      updatesPayload['content'],
+      updatesPayload['value'],
       nestedPayloadProps['text'],
       nestedPayloadProps['content'],
       nestedPayloadProps['value'],
@@ -3097,16 +3108,18 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final fontSize = _firstRemoteDouble(<Object?>[
           nestedLayer['fontSize'],
           payload['fontSize'],
+          payloadPayload['fontSize'],
           props['fontSize'],
           updateProps['fontSize'],
-          nestedPayload['fontSize'],
+          updatesPayload['fontSize'],
           nestedPayloadProps['fontSize'],
           updates['fontSize'],
           nestedLayer['font_size'],
           payload['font_size'],
+          payloadPayload['font_size'],
           props['font_size'],
           updateProps['font_size'],
-          nestedPayload['font_size'],
+          updatesPayload['font_size'],
           nestedPayloadProps['font_size'],
           updates['font_size'],
         ]) ??
@@ -3114,32 +3127,36 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final absoluteX = _firstRemoteDouble(<Object?>[
       nestedLayer['x'],
       payload['x'],
+      payloadPayload['x'],
       props['x'],
       updateProps['x'],
-      nestedPayload['x'],
+      updatesPayload['x'],
       nestedPayloadProps['x'],
       updates['x'],
       nestedLayer['centerX'],
       payload['centerX'],
+      payloadPayload['centerX'],
       props['centerX'],
       updateProps['centerX'],
-      nestedPayload['centerX'],
+      updatesPayload['centerX'],
       nestedPayloadProps['centerX'],
       updates['centerX'],
     ]);
     final absoluteY = _firstRemoteDouble(<Object?>[
       nestedLayer['y'],
       payload['y'],
+      payloadPayload['y'],
       props['y'],
       updateProps['y'],
-      nestedPayload['y'],
+      updatesPayload['y'],
       nestedPayloadProps['y'],
       updates['y'],
       nestedLayer['centerY'],
       payload['centerY'],
+      payloadPayload['centerY'],
       props['centerY'],
       updateProps['centerY'],
-      nestedPayload['centerY'],
+      updatesPayload['centerY'],
       nestedPayloadProps['centerY'],
       updates['centerY'],
     ]);
@@ -3151,8 +3168,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           _firstRemoteString(<Object?>[
             nestedLayer['color'],
             nestedLayer['fill'],
-            nestedPayload['color'],
-            nestedPayload['fill'],
+            payloadPayload['color'],
+            payloadPayload['fill'],
+            updatesPayload['color'],
+            updatesPayload['fill'],
             nestedPayloadProps['color'],
             nestedPayloadProps['fill'],
             props['color'],
@@ -3172,7 +3191,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         0xFF111111;
     final opacity = (_firstRemoteDouble(<Object?>[
               nestedLayer['opacity'],
-              nestedPayload['opacity'],
+              payloadPayload['opacity'],
+              updatesPayload['opacity'],
               nestedPayloadProps['opacity'],
               props['opacity'],
               updateProps['opacity'],
@@ -3185,7 +3205,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final layerName = _firstRemoteString(<Object?>[
           remoteLayer['name'],
           nestedLayer['name'],
-          nestedPayload['name'],
+          payloadPayload['name'],
+          updatesPayload['name'],
           nestedPayloadProps['name'],
           props['name'],
           updateProps['name'],
@@ -3196,7 +3217,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           remoteLayer['z_index'],
           remoteLayer['zIndex'],
           nestedLayer['zIndex'],
-          nestedPayload['zIndex'],
+          payloadPayload['zIndex'],
+          updatesPayload['zIndex'],
           nestedPayloadProps['zIndex'],
           props['zIndex'],
           updateProps['zIndex'],
@@ -3207,14 +3229,68 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       remoteLayer: remoteLayer,
       payload: payload,
       updates: updates,
-      nestedPayload: nestedPayload,
+      payloadPayload: payloadPayload,
+      updatesPayload: updatesPayload,
     );
+    final updateIntent = _remoteLayerRequestsTextUpdate(
+      payload: payload,
+      updates: updates,
+      payloadPayload: payloadPayload,
+      updatesPayload: updatesPayload,
+    );
+    final payloadSignature = _mcpRemoteTextPayloadSignature(
+      remoteLayer: remoteLayer,
+      payload: payload,
+      updates: updates,
+      payloadPayload: payloadPayload,
+      updatesPayload: updatesPayload,
+      textValue: textValue,
+    );
+    final previousSignature = _appliedMcpTextLayerSignatures[remoteLayerId];
+    final textElementCountBefore = _mcpTextElementCount(currentProject);
+    final resolvedLayerId = existingContext?.layerId;
+    final resolvedElementId = existingContext?.elementId;
+    final blockInsert = McpTextLayerResolution.shouldBlockInsert(
+      updateIntent: updateIntent,
+      resolvedLayerId: resolvedLayerId,
+      resolvedTargetIsTextElement: existingContext != null,
+    );
+    final diagnostic = _mcpTextRuntimeUpdatePlanner.plan(
+      remoteLayerId: remoteLayerId,
+      payloadSignature: payloadSignature,
+      textElementCountBefore: textElementCountBefore,
+      updateIntent: updateIntent,
+      blockInsert: blockInsert,
+      hasResolvedTextTarget: existingContext != null,
+      resolvedLayerId: resolvedLayerId,
+      resolvedElementId: resolvedElementId,
+      previousPayloadSignature: previousSignature,
+    );
+    if (diagnostic.skippedDuplicateApply) {
+      return false;
+    }
+    if (diagnostic.blockedUnresolvedUpdate) {
+      if (kDebugMode) {
+        debugPrint(
+          'mcp_text_update_blocked_unresolved_target: '
+          '${jsonEncode(diagnostic.toMap())}',
+        );
+      }
+      return false;
+    }
+
     if (existingContext != null) {
       final updatedProject = _updateExistingMcpTextElement(
         project: currentProject,
         context: existingContext,
         remoteLayerId: remoteLayerId,
         remoteLayerName: layerName,
+        remoteLayerAliases: _mcpRemoteLayerAliasesForPayload(
+          payload: payload,
+          updates: updates,
+          payloadPayload: payloadPayload,
+          updatesPayload: updatesPayload,
+        ),
         textValue: textValue,
         insertionRange: insertionRange,
         fontSize: fontSize,
@@ -3235,26 +3311,20 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         _setCurrentTime(insertionRange.start);
         _markMotionAuthoringChanged();
       });
+      _appliedMcpTextLayerSignatures[remoteLayerId] = payloadSignature;
+      _mcpRecordRemoteLayerKindHint(
+        remoteLayerId: remoteLayerId,
+        aliases: _mcpRemoteLayerAliasesForPayload(
+          payload: payload,
+          updates: updates,
+          payloadPayload: payloadPayload,
+          updatesPayload: updatesPayload,
+        ),
+        kind: 'text',
+      );
       _syncTimelineClockDuration();
       _showStageMessage('AI text updated.');
       return true;
-    }
-    final updateIntent = _remoteLayerRequestsTextUpdate(
-      payload: payload,
-      updates: updates,
-      nestedPayload: nestedPayload,
-    );
-    if (McpTextLayerResolution.shouldBlockInsert(
-      updateIntent: updateIntent,
-      resolvedLayerId: existingContext?.elementId,
-    )) {
-      if (kDebugMode) {
-        debugPrint(
-          'MCP text update skipped because target was not resolved '
-          '(remoteLayerId=$remoteLayerId).',
-        );
-      }
-      return false;
     }
 
     const pendingTarget = MotionPropertyTarget(
@@ -3322,6 +3392,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       elementId: insertionResult.elementId!,
       remoteLayerId: remoteLayerId,
       remoteLayerName: layerName,
+      remoteLayerAliases: _mcpRemoteLayerAliasesForPayload(
+        payload: payload,
+        updates: updates,
+        payloadPayload: payloadPayload,
+        updatesPayload: updatesPayload,
+      ),
     );
     final nextBindings = <MotionTextAnimationBindingModel>[
       ..._motionTextAnimationBindings,
@@ -3338,6 +3414,17 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _markMotionAuthoringChanged();
     });
     _syncTimelineClockDuration();
+    _appliedMcpTextLayerSignatures[remoteLayerId] = payloadSignature;
+    _mcpRecordRemoteLayerKindHint(
+      remoteLayerId: remoteLayerId,
+      aliases: _mcpRemoteLayerAliasesForPayload(
+        payload: payload,
+        updates: updates,
+        payloadPayload: payloadPayload,
+        updatesPayload: updatesPayload,
+      ),
+      kind: 'text',
+    );
     _showStageMessage('AI text layer applied.');
     return true;
   }
@@ -3346,32 +3433,37 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required Map<String, Object?> remoteLayer,
     required Map<String, Object?> payload,
     required Map<String, Object?> updates,
-    required Map<String, Object?> nestedPayload,
+    required Map<String, Object?> payloadPayload,
+    required Map<String, Object?> updatesPayload,
   }) {
     final remoteLayerId = _remoteString(remoteLayer['id']) ?? '';
     final resolvedLayerId = McpTextLayerResolution.resolveCandidateLayerId(
       remoteLayerId: remoteLayerId,
       payload: payload,
       updates: updates,
-      nestedPayload: nestedPayload,
-      exists: (layerId) => _mcpRemoteElementContextByLayerId(layerId) != null,
+      payloadPayload: payloadPayload,
+      updatesPayload: updatesPayload,
+      exists: (layerId) =>
+          _mcpRemoteTextElementContextByLayerId(layerId) != null,
     );
     if (resolvedLayerId == null || resolvedLayerId.isEmpty) {
       return null;
     }
-    final context = _mcpRemoteElementContextByLayerId(resolvedLayerId);
+    final context = _mcpRemoteTextElementContextByLayerId(resolvedLayerId);
     return context;
   }
 
   bool _remoteLayerRequestsTextUpdate({
     required Map<String, Object?> payload,
     required Map<String, Object?> updates,
-    required Map<String, Object?> nestedPayload,
+    required Map<String, Object?> payloadPayload,
+    required Map<String, Object?> updatesPayload,
   }) {
     return McpTextLayerResolution.requestsUpdate(
       payload: payload,
       updates: updates,
-      nestedPayload: nestedPayload,
+      payloadPayload: payloadPayload,
+      updatesPayload: updatesPayload,
     );
   }
 
@@ -3380,6 +3472,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required _McpRemoteElementContext context,
     required String remoteLayerId,
     required String remoteLayerName,
+    required List<String> remoteLayerAliases,
     required String textValue,
     required TimelineTimeRange insertionRange,
     required double fontSize,
@@ -3449,7 +3542,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           final existingMetadata =
               existingBinding?.metadata ?? const <String, String>{};
           final existingAliases = _mcpRemoteLayerAliases(existingMetadata);
-          final aliasSet = <String>{...existingAliases, remoteLayerId};
+          final aliasSet = <String>{
+            ...existingAliases,
+            remoteLayerId,
+            ...remoteLayerAliases,
+          };
           final nextSourceBinding = MotionElementSourceBinding(
             kind: existingBinding?.kind ?? MotionSourceKind.generatedText,
             sourceId:
@@ -3547,15 +3644,32 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return false;
     }
     if (elementContext == null) {
-      final clipId = _mcpTimelineClipIdForRemoteLayer(
+      final fallbackClipId = _mcpTimelineClipIdForRemoteLayer(
         remoteLayerId,
         fallbackToSingleVisualClip: true,
       );
-      if (clipId == null) {
+      final isTextLayerHint =
+          (_mcpRemoteLayerKindHintsById[remoteLayerId] ?? '') == 'text';
+      final motionDecision = _mcpTextMotionTargetPlanner.decide(
+        hasElementContext: false,
+        isTextLayerHint: isTextLayerHint,
+        hasFallbackClip: fallbackClipId != null,
+      );
+      if (motionDecision ==
+          McpTextMotionTargetDecision.blockedUnresolvedTextTarget) {
+        if (kDebugMode) {
+          debugPrint(
+            'mcp_text_motion_blocked_unresolved_target: '
+            'remoteLayerId=$remoteLayerId property=$propertyId',
+          );
+        }
+        return false;
+      }
+      if (fallbackClipId == null) {
         return false;
       }
       return _applyRemoteMotionChannelToTimelineClip(
-        clipId: clipId,
+        clipId: fallbackClipId,
         remoteLayerId: remoteLayerId,
         definition: definition,
         remoteChannel: remoteChannel,
@@ -3682,6 +3796,36 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
               layerId: layer.id,
               elementId: element.id,
             );
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  _McpRemoteElementContext? _mcpRemoteTextElementContextByLayerId(
+    String remoteLayerId,
+  ) {
+    final context = _mcpRemoteElementContextByLayerId(remoteLayerId);
+    if (context == null) {
+      return null;
+    }
+    final project = _motionProject;
+    if (project == null) {
+      return null;
+    }
+    for (final scene in project.scenes) {
+      if (scene.id != context.sceneId) {
+        continue;
+      }
+      for (final layer in scene.layers) {
+        if (layer.id != context.layerId) {
+          continue;
+        }
+        for (final element in layer.elements) {
+          if (element.id == context.elementId &&
+              element.kind == MotionElementKind.text) {
+            return context;
           }
         }
       }
@@ -3838,6 +3982,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required String elementId,
     required String remoteLayerId,
     required String remoteLayerName,
+    List<String> remoteLayerAliases = const <String>[],
   }) {
     var didUpdate = false;
     final nextScenes = project.scenes.map((scene) {
@@ -3851,6 +3996,11 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
             return element;
           }
           didUpdate = true;
+          final mergedAliases = <String>{
+            ..._mcpRemoteLayerAliases(binding.metadata),
+            remoteLayerId,
+            ...remoteLayerAliases,
+          };
           return element.copyWith(
             sourceBinding: MotionElementSourceBinding(
               kind: binding.kind,
@@ -3862,6 +4012,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
                 ...binding.metadata,
                 'mcp.remoteLayerId': remoteLayerId,
                 'mcp.remoteLayerName': remoteLayerName,
+                if (mergedAliases.isNotEmpty)
+                  'mcp.remoteLayerAliases': mergedAliases.join(','),
               },
             ),
           );
@@ -3871,6 +4023,120 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return scene.copyWith(layers: nextLayers);
     }).toList(growable: false);
     return didUpdate ? project.copyWith(scenes: nextScenes) : project;
+  }
+
+  int _mcpTextElementCount(MotionProjectModel project) {
+    var count = 0;
+    for (final scene in project.scenes) {
+      for (final layer in scene.layers) {
+        for (final element in layer.elements) {
+          if (element.kind == MotionElementKind.text) {
+            count += 1;
+          }
+        }
+      }
+    }
+    return count;
+  }
+
+  String _mcpRemoteTextPayloadSignature({
+    required Map<String, Object?> remoteLayer,
+    required Map<String, Object?> payload,
+    required Map<String, Object?> updates,
+    required Map<String, Object?> payloadPayload,
+    required Map<String, Object?> updatesPayload,
+    required String textValue,
+  }) {
+    return jsonEncode(<String, Object?>{
+      'remoteLayerId': _remoteString(remoteLayer['id']),
+      'updatedAt': _remoteString(remoteLayer['updated_at']),
+      'operation': _firstRemoteString(<Object?>[
+        payload['operation'],
+        updates['operation'],
+        payloadPayload['operation'],
+        updatesPayload['operation'],
+      ]),
+      'targetLayerId': _firstRemoteString(<Object?>[
+        payload['targetLayerId'],
+        updates['targetLayerId'],
+        payloadPayload['targetLayerId'],
+        updatesPayload['targetLayerId'],
+      ]),
+      'layerId': _firstRemoteString(<Object?>[
+        payload['layerId'],
+        updates['layerId'],
+        payloadPayload['layerId'],
+        updatesPayload['layerId'],
+      ]),
+      'requestedLayerId': _firstRemoteString(<Object?>[
+        payload['requestedLayerId'],
+        updates['requestedLayerId'],
+        payloadPayload['requestedLayerId'],
+        updatesPayload['requestedLayerId'],
+      ]),
+      'localLayerId': _firstRemoteString(<Object?>[
+        payload['localLayerId'],
+        updates['localLayerId'],
+        payloadPayload['localLayerId'],
+        updatesPayload['localLayerId'],
+      ]),
+      'clipId': _firstRemoteString(<Object?>[
+        payload['clipId'],
+        updates['clipId'],
+        payloadPayload['clipId'],
+        updatesPayload['clipId'],
+      ]),
+      'text': textValue,
+    });
+  }
+
+  List<String> _mcpRemoteLayerAliasesForPayload({
+    required Map<String, Object?> payload,
+    required Map<String, Object?> updates,
+    required Map<String, Object?> payloadPayload,
+    required Map<String, Object?> updatesPayload,
+  }) {
+    final aliases = <String>{
+      _firstRemoteString(<Object?>[payload['targetLayerId']]) ?? '',
+      _firstRemoteString(<Object?>[updates['targetLayerId']]) ?? '',
+      _firstRemoteString(<Object?>[payloadPayload['targetLayerId']]) ?? '',
+      _firstRemoteString(<Object?>[updatesPayload['targetLayerId']]) ?? '',
+      _firstRemoteString(<Object?>[payload['layerId']]) ?? '',
+      _firstRemoteString(<Object?>[updates['layerId']]) ?? '',
+      _firstRemoteString(<Object?>[payloadPayload['layerId']]) ?? '',
+      _firstRemoteString(<Object?>[updatesPayload['layerId']]) ?? '',
+      _firstRemoteString(<Object?>[payload['requestedLayerId']]) ?? '',
+      _firstRemoteString(<Object?>[updates['requestedLayerId']]) ?? '',
+      _firstRemoteString(<Object?>[payloadPayload['requestedLayerId']]) ?? '',
+      _firstRemoteString(<Object?>[updatesPayload['requestedLayerId']]) ?? '',
+      _firstRemoteString(<Object?>[payload['localLayerId']]) ?? '',
+      _firstRemoteString(<Object?>[updates['localLayerId']]) ?? '',
+      _firstRemoteString(<Object?>[payloadPayload['localLayerId']]) ?? '',
+      _firstRemoteString(<Object?>[updatesPayload['localLayerId']]) ?? '',
+      _firstRemoteString(<Object?>[payload['clipId']]) ?? '',
+      _firstRemoteString(<Object?>[updates['clipId']]) ?? '',
+      _firstRemoteString(<Object?>[payloadPayload['clipId']]) ?? '',
+      _firstRemoteString(<Object?>[updatesPayload['clipId']]) ?? '',
+    }..removeWhere((value) => value.trim().isEmpty);
+    return List<String>.unmodifiable(aliases);
+  }
+
+  void _mcpRecordRemoteLayerKindHint({
+    required String remoteLayerId,
+    required List<String> aliases,
+    required String kind,
+  }) {
+    final normalizedKind = kind.trim().toLowerCase();
+    if (normalizedKind.isEmpty) {
+      return;
+    }
+    _mcpRemoteLayerKindHintsById[remoteLayerId] = normalizedKind;
+    for (final alias in aliases) {
+      final normalized = alias.trim();
+      if (normalized.isNotEmpty) {
+        _mcpRemoteLayerKindHintsById[normalized] = normalizedKind;
+      }
+    }
   }
 
   bool _hasAppliedMcpRemoteLayer(String remoteLayerId) {
@@ -4433,10 +4699,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _activeTab = EditorMediaTab.text;
       _mcpAppliedRemoteRevision = 1;
       _appliedMcpSolidLayerIds.clear();
+      _appliedMcpTextLayerSignatures.clear();
       _appliedMcpMotionChannelSignatures.clear();
       _mcpPendingCommandRevisionById.clear();
       _mcpAcknowledgedCommandIds.clear();
       _mcpRemoteMediaLayerClipIds.clear();
+      _mcpRemoteLayerKindHintsById.clear();
       _canvasClipStyles.clear();
     });
     _syncTimelineClockDuration();
@@ -19773,10 +20041,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _motionTextAnimationBindings = const <MotionTextAnimationBindingModel>[];
       _universalMotionPropertyChannels = const <MotionPropertyChannelModel>[];
       _appliedMcpSolidLayerIds.clear();
+      _appliedMcpTextLayerSignatures.clear();
       _appliedMcpMotionChannelSignatures.clear();
       _mcpPendingCommandRevisionById.clear();
       _mcpAcknowledgedCommandIds.clear();
       _mcpRemoteMediaLayerClipIds.clear();
+      _mcpRemoteLayerKindHintsById.clear();
       _canvasClipStyles.clear();
       _tracks = nextTracks;
       _selectedClipId = null;
