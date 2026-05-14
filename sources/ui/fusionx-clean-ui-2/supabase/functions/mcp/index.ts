@@ -6024,6 +6024,12 @@ async function waitForApply(
 ): Promise<ToolResult> {
   const commandId = stringValue(args.commandId);
   if (!commandId) return fail('COMMAND_ID_REQUIRED');
+  const strictProof = firstDefined(
+    args.strictProof,
+    args.requireProof,
+    args.strict,
+    true,
+  ) !== false;
   const timeoutMs = numberValue(args.timeoutMs, 5000);
   const deadline = Date.now() + Math.max(250, Math.min(timeoutMs, 120000));
   while (Date.now() < deadline) {
@@ -6035,15 +6041,31 @@ async function waitForApply(
     const state = text(payload.status, 'pending');
     const result = readMap(payload.result);
     const appApplied = result.appApplied === true;
+    const proof = readMap(result.proof);
+    const proofSatisfied = isWaitForApplyProofSatisfied(result, proof);
     if (
       state === 'succeeded' ||
       state === 'failed' ||
       state === 'cancelled'
     ) {
+      if (state === 'succeeded' && strictProof && (!appApplied || !proofSatisfied)) {
+        return fail('APPLY_PROOF_INCOMPLETE', {
+          commandId,
+          status: state,
+          appApplied: false,
+          strictProof: true,
+          payload,
+          proof,
+        });
+      }
       return ok('Apply status resolved.', {
         commandId,
         status: state,
-        appApplied: state === 'succeeded' ? appApplied : false,
+        appApplied: state === 'succeeded'
+          ? (strictProof ? appApplied && proofSatisfied : appApplied)
+          : false,
+        strictProof,
+        proofSatisfied,
         payload,
       });
     }
@@ -6054,6 +6076,46 @@ async function waitForApply(
     status: 'pending',
     appApplied: false,
   });
+}
+
+function isWaitForApplyProofSatisfied(
+  result: JsonMap,
+  proof: JsonMap,
+): boolean {
+  const dataApplied = firstDefined(proof.dataApplied, result.dataApplied, false) === true;
+  const localGraphApplied = firstDefined(
+    proof.localGraphApplied,
+    result.localGraphApplied,
+    false,
+  ) === true;
+  const timelineVisible = firstDefined(
+    proof.timelineVisible,
+    result.timelineVisible,
+    false,
+  ) === true;
+  const frameEvaluated = firstDefined(
+    proof.frameEvaluated,
+    result.frameEvaluated,
+    false,
+  ) === true;
+  const visualProgramEmitted = firstDefined(
+    proof.visualProgramEmitted,
+    result.visualProgramEmitted,
+    false,
+  ) === true;
+  const rendererApplied = firstDefined(
+    proof.rendererApplied,
+    result.rendererApplied,
+    false,
+  ) === true;
+  return (
+    dataApplied &&
+    localGraphApplied &&
+    timelineVisible &&
+    frameEvaluated &&
+    visualProgramEmitted &&
+    rendererApplied
+  );
 }
 
 async function normalizeCommandApplyState(
