@@ -315,6 +315,17 @@ class UniversalLayerApplyIntentClassifier {
           updatesPayload['operation'],
         ])?.toLowerCase() ??
         '';
+    final isInsertOperation = operation.contains('insert') ||
+        operation.contains('add') ||
+        operation.contains('create') ||
+        operation.contains('new');
+    final isExplicitUpdateOperation = operation.contains('update') ||
+        operation.contains('edit') ||
+        operation.contains('mutat') ||
+        operation.contains('set') ||
+        operation.contains('patch');
+    final isDeleteOperation =
+        operation.contains('delete') || operation.contains('remove');
     final hasTargetHints = _firstText(<Object?>[
           payload['targetLayerId'],
           payload['layerId'],
@@ -360,7 +371,11 @@ class UniversalLayerApplyIntentClassifier {
         _asMap(payloadPayload['effects']).isNotEmpty ||
         _asMap(updatesPayload['effect']).isNotEmpty ||
         _asMap(updatesPayload['effects']).isNotEmpty;
-    if (hasEffectMutation) {
+    final effectMutationByOperation = operation.contains('effect');
+    if (hasEffectMutation &&
+        (hasTargetHints ||
+            effectMutationByOperation ||
+            isExplicitUpdateOperation)) {
       return UniversalLayerApplyIntent.effectMutation;
     }
     final hasStyleMutation = operation.contains('style') ||
@@ -372,7 +387,15 @@ class UniversalLayerApplyIntentClassifier {
         _asMap(updates['style']).isNotEmpty ||
         _asMap(payloadPayload['style']).isNotEmpty ||
         _asMap(updatesPayload['style']).isNotEmpty;
-    if (hasStyleMutation) {
+    final styleMutationByOperation = operation.contains('style') ||
+        operation.contains('mask') ||
+        operation.contains('border') ||
+        operation.contains('shadow') ||
+        operation.contains('glow');
+    if (hasStyleMutation &&
+        (hasTargetHints ||
+            styleMutationByOperation ||
+            isExplicitUpdateOperation)) {
       return UniversalLayerApplyIntent.styleMutation;
     }
     final hasTransformMutation = operation.contains('transform') ||
@@ -407,29 +430,30 @@ class UniversalLayerApplyIntentClassifier {
               updatesPayload['rotation'],
             ]) !=
             null;
-    if (hasTransformMutation) {
+    final transformMutationByOperation = operation.contains('transform') ||
+        operation.contains('move') ||
+        operation.contains('position');
+    if (hasTransformMutation &&
+        (hasTargetHints ||
+            transformMutationByOperation ||
+            isExplicitUpdateOperation)) {
       return UniversalLayerApplyIntent.transformMutation;
     }
-    if (operation.contains('delete') || operation.contains('remove')) {
+    if (isDeleteOperation) {
       return UniversalLayerApplyIntent.deleteOperation;
     }
-    if (operation.contains('update') ||
-        operation.contains('edit') ||
-        operation.contains('mutat') ||
-        operation.contains('set') ||
-        operation.contains('patch')) {
+    if (isExplicitUpdateOperation) {
       return UniversalLayerApplyIntent.update;
     }
     if (hasTargetHints) {
       return UniversalLayerApplyIntent.update;
     }
     if (updates.isNotEmpty || updatesPayload.isNotEmpty) {
-      return UniversalLayerApplyIntent.update;
+      return isInsertOperation
+          ? UniversalLayerApplyIntent.insert
+          : UniversalLayerApplyIntent.update;
     }
-    if (operation.contains('insert') ||
-        operation.contains('add') ||
-        operation.contains('create') ||
-        operation.contains('new')) {
+    if (isInsertOperation) {
       return UniversalLayerApplyIntent.insert;
     }
     return UniversalLayerApplyIntent.insert;

@@ -3317,6 +3317,48 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       payloadPayload: payloadPayload,
       updatesPayload: updatesPayload,
     );
+    final hasExplicitTargetHints = _firstRemoteString(<Object?>[
+          payload['targetLayerId'],
+          payload['layerId'],
+          payload['requestedLayerId'],
+          payload['localLayerId'],
+          payload['clipId'],
+          updates['targetLayerId'],
+          updates['layerId'],
+          updates['requestedLayerId'],
+          updates['localLayerId'],
+          updates['clipId'],
+          payloadPayload['targetLayerId'],
+          payloadPayload['layerId'],
+          payloadPayload['requestedLayerId'],
+          payloadPayload['localLayerId'],
+          payloadPayload['clipId'],
+          updatesPayload['targetLayerId'],
+          updatesPayload['layerId'],
+          updatesPayload['requestedLayerId'],
+          updatesPayload['localLayerId'],
+          updatesPayload['clipId'],
+        ]) !=
+        null;
+    final isExplicitUpdateOperation = operation.contains('update') ||
+        operation.contains('edit') ||
+        operation.contains('mutat') ||
+        operation.contains('patch');
+    final backgroundInsertCandidate = preferBackgroundRole &&
+        existingContext == null &&
+        !hasExplicitTargetHints &&
+        (operation.contains('background') ||
+            operation.contains('solid') ||
+            operation.contains('insert') ||
+            operation.contains('add') ||
+            operation.contains('create') ||
+            operation.isEmpty);
+    final effectiveUniversalIntent = backgroundInsertCandidate &&
+            !isExplicitUpdateOperation &&
+            universalIntent != UniversalLayerApplyIntent.motionMutation &&
+            universalIntent != UniversalLayerApplyIntent.deleteOperation
+        ? UniversalLayerApplyIntent.insert
+        : universalIntent;
     final shapeElementCountBefore = _mcpShapeElementCount(currentProject);
     final universalResolution = existingContext != null
         ? UniversalLayerResolution(
@@ -3377,7 +3419,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         'backgroundRole': preferBackgroundRole,
       }),
       layerCountBefore: shapeElementCountBefore,
-      intent: universalIntent,
+      intent: effectiveUniversalIntent,
       resolution: universalResolution,
       previousPayloadSignature: _appliedMcpSolidLayerSignatures[remoteLayerId],
     );

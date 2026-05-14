@@ -99,5 +99,44 @@ void main() {
       );
       expect(intent, UniversalLayerApplyIntent.motionMutation);
     });
+
+    test(
+        'keeps insert intent for insert_layer with style payload and no target',
+        () {
+      final intent = classifier.classify(
+        payload: const <String, Object?>{
+          'operation': 'insert_layer',
+          'style': <String, Object?>{
+            'fill': '#FFFFFF',
+          },
+        },
+        updates: const <String, Object?>{
+          'style': <String, Object?>{
+            'fill': '#FFFFFF',
+          },
+        },
+        payloadPayload: const <String, Object?>{},
+        updatesPayload: const <String, Object?>{},
+      );
+      expect(intent, UniversalLayerApplyIntent.insert);
+    });
+
+    test(
+        'classifies style mutation when style payload has explicit target hints',
+        () {
+      final intent = classifier.classify(
+        payload: const <String, Object?>{
+          'operation': 'insert_layer',
+          'targetLayerId': 'shape-1',
+          'style': <String, Object?>{
+            'fill': '#FF0000',
+          },
+        },
+        updates: const <String, Object?>{},
+        payloadPayload: const <String, Object?>{},
+        updatesPayload: const <String, Object?>{},
+      );
+      expect(intent, UniversalLayerApplyIntent.styleMutation);
+    });
   });
 }
