@@ -3238,6 +3238,19 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _showStageMessage('AI text updated.');
       return true;
     }
+    if (_remoteLayerRequestsTextUpdate(
+      payload: payload,
+      updates: updates,
+      nestedPayload: nestedPayload,
+    )) {
+      if (kDebugMode) {
+        debugPrint(
+          'MCP text update skipped because target was not resolved '
+          '(remoteLayerId=$remoteLayerId).',
+        );
+      }
+      return false;
+    }
 
     const pendingTarget = MotionPropertyTarget(
       kind: MotionTargetKind.element,
@@ -3346,6 +3359,33 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       }
     }
     return null;
+  }
+
+  bool _remoteLayerRequestsTextUpdate({
+    required Map<String, Object?> payload,
+    required Map<String, Object?> updates,
+    required Map<String, Object?> nestedPayload,
+  }) {
+    final operation = _firstRemoteString(<Object?>[
+          payload['operation'],
+          updates['operation'],
+          nestedPayload['operation'],
+        ])?.toLowerCase() ??
+        '';
+    if (operation.contains('update') ||
+        operation.contains('edit') ||
+        operation.contains('mutat')) {
+      return true;
+    }
+    return _firstRemoteString(<Object?>[
+          payload['targetLayerId'],
+          payload['layerId'],
+          updates['targetLayerId'],
+          updates['layerId'],
+          nestedPayload['targetLayerId'],
+          nestedPayload['layerId'],
+        ]) !=
+        null;
   }
 
   MotionProjectModel? _updateExistingMcpTextElement({
