@@ -1588,6 +1588,29 @@ Acceptance:
 - motion commands cannot store metadata-only animation;
 - effect commands cannot bypass effect instances.
 
+### PNCLE-05C: Universal Layer Update Identity Hardening
+
+Execute the dedicated plan:
+
+```text
+docs/PNCLE-05C.UNIVERSAL-LAYER-UPDATE-IDENTITY-HARDENING.md
+```
+
+This phase is required immediately after the text-specific runtime update fix
+and before lowering. It generalizes target/update identity across text, shape,
+background, image, video, motion, effects, and style mutations so update intent
+cannot silently create duplicate layers.
+
+Acceptance:
+
+- update intent cannot create a new layer for text, shape, background, image,
+  or video;
+- unresolved or ambiguous update/motion/effect/style mutations fail closed;
+- motion/effect/style mutations bind to the same resolved layer identity;
+- legacy `insertLayer` payloads with target/update fields are routed through
+  update planning or blocked;
+- protected Live Scrub and Stage5 paths remain untouched.
+
 ### PNCLE-06: Lowering And Timeline Projection
 
 Every registry item must lower into:
