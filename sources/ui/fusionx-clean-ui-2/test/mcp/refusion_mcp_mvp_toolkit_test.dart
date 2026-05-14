@@ -172,6 +172,81 @@ void main() {
       expect(result.payload['echo'], '# skill');
     });
 
+    test(
+        'returns deterministic payload when creative discovery reader is not wired',
+        () {
+      final result = bus.execute(
+        session: session,
+        command: _command(
+          type: 'refusion.list_components',
+          capability: RefusionMcpCapability.timelineRead,
+        ),
+        currentRevision: 7,
+      );
+      expect(result.ok, isTrue);
+      expect(
+        result.payload['error'],
+        'creative_library_discovery_not_wired',
+      );
+    });
+
+    test('returns creative discovery payload when reader is wired', () {
+      final toolBus = RefusionMcpCommandBus();
+      const toolkit = RefusionMcpMvpToolkit();
+      toolkit.register(
+        bus: toolBus,
+        config: RefusionMcpMvpToolkitConfig(
+          projectStateReader: () => <String, Object?>{'revision': 7},
+          timelineSummaryReader: () => <String, Object?>{'rows': 1},
+          selectionReader: () => <String, Object?>{'selected': <String>[]},
+          previewCaptureReader: (_) => <String, Object?>{},
+          creativeLibraryDiscoveryReader: ({
+            required String toolName,
+            Map<String, Object?> payload = const <String, Object?>{},
+          }) {
+            if (toolName == 'describe_component') {
+              return <String, Object?>{
+                'id': payload['id'],
+                'kind': 'component',
+              };
+            }
+            return <String, Object?>{
+              'items': const <Map<String, Object?>>[
+                <String, Object?>{'id': 'component.card.basic'},
+              ],
+            };
+          },
+        ),
+      );
+
+      final listResult = toolBus.execute(
+        session: session,
+        command: _command(
+          type: 'refusion.list_components',
+          capability: RefusionMcpCapability.timelineRead,
+        ),
+        currentRevision: 7,
+      );
+      expect(listResult.ok, isTrue);
+      final items = (listResult.payload['items'] as List)
+          .cast<Map<String, Object?>>()
+          .toList(growable: false);
+      expect(items.first['id'], 'component.card.basic');
+
+      final describeResult = toolBus.execute(
+        session: session,
+        command: _command(
+          type: 'refusion.describe_component',
+          capability: RefusionMcpCapability.timelineRead,
+          payload: const <String, Object?>{'id': 'component.card.basic'},
+        ),
+        currentRevision: 7,
+      );
+      expect(describeResult.ok, isTrue);
+      expect(describeResult.payload['id'], 'component.card.basic');
+      expect(describeResult.payload['kind'], 'component');
+    });
+
     test('validates scene program source through toolkit', () {
       final source = File(
         '/Users/mx/Documents/ReFusionXx/sources/ui/fusionx-clean-ui-2/test/fixtures/refusion_scene_programs/first_generated_scene.json',

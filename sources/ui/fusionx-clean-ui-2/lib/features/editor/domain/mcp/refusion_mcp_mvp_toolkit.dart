@@ -26,6 +26,11 @@ typedef RefusionMcpHostCompatibilityReader = Map<String, Object?> Function();
 typedef RefusionMcpLaunchReadinessReader = Map<String, Object?> Function(
   Map<String, Object?> payload,
 );
+typedef RefusionMcpCreativeLibraryDiscoveryReader = Map<String, Object?>
+    Function({
+  required String toolName,
+  Map<String, Object?> payload,
+});
 typedef RefusionMcpProjectReader = MotionProjectModel Function();
 typedef RefusionMcpRootSceneIdReader = String Function();
 typedef RefusionMcpSceneClipsReader = List<CompositionSceneClipModel>
@@ -78,6 +83,7 @@ class RefusionMcpMvpToolkitConfig {
     this.securityProfileReader,
     this.hostCompatibilityReader,
     this.launchReadinessReader,
+    this.creativeLibraryDiscoveryReader,
     this.commandStatusReader,
     this.sceneProgramTools = const RefusionMcpSceneProgramTools(),
     this.projectReader,
@@ -108,6 +114,8 @@ class RefusionMcpMvpToolkitConfig {
   final RefusionMcpSecurityProfileReader? securityProfileReader;
   final RefusionMcpHostCompatibilityReader? hostCompatibilityReader;
   final RefusionMcpLaunchReadinessReader? launchReadinessReader;
+  final RefusionMcpCreativeLibraryDiscoveryReader?
+      creativeLibraryDiscoveryReader;
   final RefusionMcpCommandStatusReader? commandStatusReader;
   final RefusionMcpSceneProgramTools sceneProgramTools;
   final RefusionMcpProjectReader? projectReader;
@@ -321,6 +329,56 @@ class RefusionMcpMvpToolkit {
           payload: payload,
         );
       },
+    );
+    _registerCreativeDiscoveryTool(
+      bus: bus,
+      commandType: 'refusion.list_components',
+      config: config,
+    );
+    _registerCreativeDiscoveryTool(
+      bus: bus,
+      commandType: 'refusion.list_effects',
+      config: config,
+    );
+    _registerCreativeDiscoveryTool(
+      bus: bus,
+      commandType: 'refusion.list_motion_recipes',
+      config: config,
+    );
+    _registerCreativeDiscoveryTool(
+      bus: bus,
+      commandType: 'refusion.list_templates',
+      config: config,
+    );
+    _registerCreativeDiscoveryTool(
+      bus: bus,
+      commandType: 'refusion.list_icons',
+      config: config,
+    );
+    _registerCreativeDiscoveryTool(
+      bus: bus,
+      commandType: 'refusion.describe_component',
+      config: config,
+    );
+    _registerCreativeDiscoveryTool(
+      bus: bus,
+      commandType: 'refusion.describe_effect',
+      config: config,
+    );
+    _registerCreativeDiscoveryTool(
+      bus: bus,
+      commandType: 'refusion.describe_motion_recipe',
+      config: config,
+    );
+    _registerCreativeDiscoveryTool(
+      bus: bus,
+      commandType: 'refusion.describe_template',
+      config: config,
+    );
+    _registerCreativeDiscoveryTool(
+      bus: bus,
+      commandType: 'refusion.describe_icon',
+      config: config,
     );
     bus.registerHandler(
       commandType: 'refusion.validate_scene_program',
@@ -611,6 +669,42 @@ void _registerMutationHandler({
         return defaultHandler(context.command);
       }
       return mutationHandler(context.command);
+    },
+  );
+}
+
+void _registerCreativeDiscoveryTool({
+  required RefusionMcpCommandBus bus,
+  required String commandType,
+  required RefusionMcpMvpToolkitConfig config,
+}) {
+  bus.registerHandler(
+    commandType: commandType,
+    handler: (context) {
+      final reader = config.creativeLibraryDiscoveryReader;
+      if (reader == null) {
+        return RefusionMcpCommandHandlingOutcome(
+          summary: 'Creative library discovery is not wired.',
+          payload: <String, Object?>{
+            'error': 'creative_library_discovery_not_wired',
+            'toolName': commandType,
+          },
+        );
+      }
+      final shortToolName = commandType.startsWith('refusion.')
+          ? commandType.substring('refusion.'.length)
+          : commandType;
+      final payload = reader(
+        toolName: shortToolName,
+        payload: context.command.payload,
+      );
+      final isError = payload['error'] is String;
+      return RefusionMcpCommandHandlingOutcome(
+        summary: isError
+            ? 'Creative library discovery returned an issue.'
+            : 'Creative library discovery loaded.',
+        payload: payload,
+      );
     },
   );
 }

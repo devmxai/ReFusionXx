@@ -30,6 +30,29 @@ void main() {
           previewCaptureReader: (_) => <String, Object?>{
             'resourceUri': 'refusion://preview/frame/0',
           },
+          creativeLibraryDiscoveryReader: ({
+            required String toolName,
+            Map<String, Object?> payload = const <String, Object?>{},
+          }) {
+            switch (toolName) {
+              case 'list_components':
+                return <String, Object?>{
+                  'items': const <Map<String, Object?>>[
+                    <String, Object?>{'id': 'component.card.basic'},
+                  ],
+                };
+              case 'describe_component':
+                return <String, Object?>{
+                  'id': payload['id'],
+                  'kind': 'component',
+                };
+              default:
+                return <String, Object?>{
+                  'error': 'unsupported_discovery_tool',
+                  'toolName': toolName,
+                };
+            }
+          },
         ),
       );
       final sessionStore = RefusionMcpSessionStore();
@@ -210,6 +233,31 @@ void main() {
       final structured = (result['structuredContent']
           as Map<String, Object?>)['payload'] as Map<String, Object?>;
       expect(structured['projectId'], 'active');
+    });
+
+    test('serves creative discovery list tools through tools/call', () {
+      final call = server.handle(
+        <String, Object?>{
+          'jsonrpc': '2.0',
+          'id': 14,
+          'method': 'tools/call',
+          'params': <String, Object?>{
+            'name': 'list_components',
+            'arguments': <String, Object?>{
+              'sessionId': 'default',
+              'projectId': 'active',
+              'mode': 'dryRun',
+              'payload': const <String, Object?>{},
+            },
+          },
+        },
+      );
+      final result = call['result'] as Map<String, Object?>;
+      expect(result['isError'], isFalse);
+      final structured = (result['structuredContent']
+          as Map<String, Object?>)['payload'] as Map<String, Object?>;
+      final items = (structured['items'] as List).cast<Map<String, Object?>>();
+      expect(items.first['id'], 'component.card.basic');
     });
 
     test('exposes get_launch_readiness through tools/call contract', () {
