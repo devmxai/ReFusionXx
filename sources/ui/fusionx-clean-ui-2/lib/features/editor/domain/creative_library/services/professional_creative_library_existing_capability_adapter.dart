@@ -4,7 +4,6 @@ import '../../services/professional_speed_graph_preset_catalog.dart';
 import '../../services/scene_icon_registry.dart';
 import '../../services/scene_micro_scene_registry.dart';
 import '../../services/scene_motion_recipe_library.dart';
-import '../../services/scene_motion_recipe_models.dart';
 import '../../services/scene_semantic_component_registry.dart';
 import '../models/professional_creative_library_registry_models.dart';
 import 'professional_creative_library_registry.dart';
@@ -70,6 +69,7 @@ class ProfessionalCreativeLibraryExistingCapabilityAdapter {
             CommandFamilyDefinition.applyMotionRecipe,
             CommandFamilyDefinition.editKeyframe,
             CommandFamilyDefinition.updateMediaBinding,
+            CommandFamilyDefinition.updateExposedControl,
           },
           emitsEnvelope: true,
           directMutationCount: 0,

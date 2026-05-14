@@ -44,6 +44,8 @@ class RefusionMcpToolRegistry {
     'update_text': 'refusion.update_layer',
     'edit_text': 'refusion.update_layer',
     'set_text_style': 'refusion.set_text_style',
+    'update_exposed_control': 'refusion.update_exposed_control',
+    'set_template_control': 'refusion.update_exposed_control',
     'apply_motion_patch': 'refusion.apply_motion_patch',
     'keyframe_edit': 'refusion.keyframe_edit',
     'set_element_transform': 'refusion.set_element_transform',
@@ -98,6 +100,7 @@ class RefusionMcpToolRegistry {
     'refusion.layout.detect_overlaps': 'refusion.layout.detect_overlaps',
     'refusion.update_text': 'refusion.update_layer',
     'refusion.edit_text': 'refusion.update_layer',
+    'refusion.set_template_control': 'refusion.update_exposed_control',
     'move_layer': 'refusion.move_layer',
     'delete_layer': 'refusion.delete_layer',
     'dry_run_command': 'refusion.dry_run_command',
@@ -293,6 +296,14 @@ class RefusionMcpToolRegistry {
       title: 'Set Text Style',
       description:
           'Patch typography, color, transform, or motion intent on a resolved text layer.',
+      capability: RefusionMcpCapability.timelineWrite,
+      mutating: true,
+    ),
+    RefusionMcpToolDescriptor(
+      name: 'refusion.update_exposed_control',
+      title: 'Update Exposed Control',
+      description:
+          'Update a template exposed control value through canonical template command flow.',
       capability: RefusionMcpCapability.timelineWrite,
       mutating: true,
     ),

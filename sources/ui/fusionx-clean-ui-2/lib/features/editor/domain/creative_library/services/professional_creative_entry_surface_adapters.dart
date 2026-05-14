@@ -44,7 +44,8 @@ class ProfessionalCreativeEntrySurfaceAdapterLayer {
       );
     }
 
-    final adapter = _registry.adapters.where((entry) => entry.surface == surface);
+    final adapter =
+        _registry.adapters.where((entry) => entry.surface == surface);
     if (adapter.isEmpty) {
       return EntrySurfaceDryRunResult(
         ok: false,
@@ -152,6 +153,9 @@ class ProfessionalCreativeEntrySurfaceAdapterLayer {
       case 'refusion.compile_template':
       case 'refusion.insert_template':
         return CommandFamilyDefinition.compileTemplate;
+      case 'refusion.update_exposed_control':
+      case 'refusion.set_template_control':
+        return CommandFamilyDefinition.updateExposedControl;
       default:
         return null;
     }

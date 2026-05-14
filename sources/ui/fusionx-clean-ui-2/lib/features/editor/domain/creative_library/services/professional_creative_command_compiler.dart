@@ -208,6 +208,46 @@ class ProfessionalCreativeCommandCompiler {
     );
   }
 
+  CreativeCommandCompileResult compileUpdateExposedControl({
+    required SupportedEntrySurface surface,
+    required String capabilityId,
+    required String targetId,
+    required String controlId,
+    required Object? value,
+  }) {
+    final itemCheck = _resolveItem(
+      commandName: 'update_exposed_control',
+      capabilityId: capabilityId,
+      expectedKind: CreativeLibraryItemKind.template,
+      surface: surface,
+    );
+    if (!itemCheck.ok) {
+      return itemCheck;
+    }
+    if (controlId.trim().isEmpty) {
+      return CreativeCommandCompileResult(
+        ok: false,
+        commandName: 'update_exposed_control',
+        capabilityId: capabilityId,
+        blockerCode: 'CONTROL_ID_REQUIRED',
+        blockerReason: 'Control id must not be empty.',
+      );
+    }
+    return _compileSingleEnvelope(
+      commandName: 'update_exposed_control',
+      capabilityId: capabilityId,
+      surface: surface,
+      commandFamily: CommandFamilyDefinition.updateExposedControl,
+      targetId: targetId,
+      payload: <String, Object?>{
+        'capabilityId': capabilityId,
+        'controlId': controlId,
+        'value': value,
+        'operation': 'update_exposed_control',
+      },
+    );
+  }
+
   CreativeCommandCompileResult _compileSingleEnvelope({
     required String commandName,
     required String capabilityId,

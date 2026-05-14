@@ -200,5 +200,41 @@ void main() {
           result.blockerCode, 'EFFECT_METADATA_NOT_ALLOWED_IN_MOTION_COMMAND');
       expect(result.envelopes, isEmpty);
     });
+
+    test('PNCLE-11 update_exposed_control compiles for template capability',
+        () {
+      final templateId =
+          registry.listByKind(CreativeLibraryItemKind.template).first.id;
+      final result = compiler.compileUpdateExposedControl(
+        surface: SupportedEntrySurface.mcp,
+        capabilityId: templateId,
+        targetId: 'scene.templateRoot',
+        controlId: 'headline',
+        value: 'New Headline',
+      );
+
+      expect(result.ok, isTrue);
+      expect(result.envelopes.length, 1);
+      expect(
+        result.envelopes.single.commandFamily,
+        CommandFamilyDefinition.updateExposedControl,
+      );
+    });
+
+    test('PNCLE-11 update_exposed_control blocks empty control id', () {
+      final templateId =
+          registry.listByKind(CreativeLibraryItemKind.template).first.id;
+      final result = compiler.compileUpdateExposedControl(
+        surface: SupportedEntrySurface.mcp,
+        capabilityId: templateId,
+        targetId: 'scene.templateRoot',
+        controlId: '   ',
+        value: 'New Headline',
+      );
+
+      expect(result.ok, isFalse);
+      expect(result.blockerCode, 'CONTROL_ID_REQUIRED');
+      expect(result.envelopes, isEmpty);
+    });
   });
 }
