@@ -71,6 +71,8 @@ class AuthoringSurfaceTransactionCompiler {
                 ...spec.payload,
                 'layerId': layerId,
                 'sourceNodeId': spec.sourceNodeId,
+                if (insertIntent == CreativeTransactionIntent.layerInsert)
+                  'allowDuplicate': true,
               },
             ),
           ],
