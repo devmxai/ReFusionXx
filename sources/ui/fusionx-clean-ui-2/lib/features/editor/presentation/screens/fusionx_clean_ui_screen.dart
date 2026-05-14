@@ -72,6 +72,7 @@ import '../services/composition_workspace_outliner_adapter.dart';
 import '../services/composition_media_playback_projection_adapter.dart';
 import '../services/live_scrub_runtime_surface_config_adapter.dart';
 import '../services/mcp_effect_capability_guard.dart';
+import '../services/mcp_effect_payload_lowering.dart';
 import '../services/mcp_shape_layer_resolution.dart';
 import '../services/manual_transition_master_frame_evaluation_adapter.dart';
 import '../services/mcp_text_layer_resolution.dart';
@@ -904,6 +905,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       McpTextMotionTargetPlanner();
   static const McpEffectCapabilityGuard _mcpEffectCapabilityGuard =
       McpEffectCapabilityGuard();
+  static const McpEffectPayloadLowering _mcpEffectPayloadLowering =
+      McpEffectPayloadLowering();
 
   @override
   void initState() {
@@ -2789,6 +2792,10 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     required Map<String, Object?> payload,
     required Map<String, Object?> updates,
   }) {
+    final loweredEffectMutation = _mcpEffectPayloadLowering.lower(
+      payload: payload,
+      updates: updates,
+    );
     final updatePayload = _remoteMap(updates['payload']);
     final payloadStyle = _remoteMap(payload['style']);
     final updatesStyle = _remoteMap(updates['style']);
@@ -2823,6 +2830,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final hasStyleData = mask.isNotEmpty ||
         border.isNotEmpty ||
         glow.isNotEmpty ||
+        loweredEffectMutation.hasAny ||
         payloadStyle.isNotEmpty ||
         updatesStyle.isNotEmpty ||
         updatePayloadStyle.isNotEmpty ||
@@ -2876,6 +2884,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       payloadStyle['maskType'],
       updatesStyle['maskType'],
       updatePayloadStyle['maskType'],
+      loweredEffectMutation.circleMask == true ? 'circle' : null,
+      loweredEffectMutation.circleMask == false ? 'none' : null,
     ]);
     if (rawMaskType != null) {
       final normalized = rawMaskType
@@ -2935,6 +2945,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       payloadStyle['cornerRadius'],
       updatesStyle['cornerRadius'],
       updatePayloadStyle['cornerRadius'],
+      loweredEffectMutation.cornerRadius,
     ]);
     if (cornerRadius != null) {
       next = next.copyWith(cornerRadius: math.max(0, cornerRadius));
@@ -2949,6 +2960,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       payloadStyle['borderWidth'],
       updatesStyle['borderWidth'],
       updatePayloadStyle['borderWidth'],
+      loweredEffectMutation.borderWidth,
     ]);
     if (borderWidth != null) {
       next = next.copyWith(borderWidth: math.max(0, borderWidth));
@@ -2963,6 +2975,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         payloadStyle['borderColor'],
         updatesStyle['borderColor'],
         updatePayloadStyle['borderColor'],
+        loweredEffectMutation.borderColorHex,
       ]),
     );
     if (borderColor != null) {
@@ -2977,6 +2990,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       payloadStyle['glowBlur'],
       updatesStyle['glowBlur'],
       updatePayloadStyle['glowBlur'],
+      loweredEffectMutation.glowBlur,
     ]);
     if (glowBlur != null) {
       next = next.copyWith(glowBlur: math.max(0, glowBlur));
@@ -2989,6 +3003,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       payloadStyle['glowOpacity'],
       updatesStyle['glowOpacity'],
       updatePayloadStyle['glowOpacity'],
+      loweredEffectMutation.glowOpacity,
     ]);
     if (glowOpacity != null) {
       next = next.copyWith(glowOpacity: glowOpacity.clamp(0.0, 1.0).toDouble());
@@ -2998,6 +3013,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _firstRemoteString(<Object?>[
         glow['color'],
         glow['strokeColor'],
+        loweredEffectMutation.glowColorHex,
       ]),
     );
     if (glowColor != null) {
@@ -3019,6 +3035,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       updatesStyle['x'],
       payloadStyle['x'],
       updatePayloadStyle['x'],
+      loweredEffectMutation.centerX,
     ]);
     if (directCenterX != null) {
       final relativeX = directCenterX - (canvasSize.width / 2.0);
@@ -3040,6 +3057,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       updatesStyle['y'],
       payloadStyle['y'],
       updatePayloadStyle['y'],
+      loweredEffectMutation.centerY,
     ]);
     if (directCenterY != null) {
       final relativeY = directCenterY - (canvasSize.height / 2.0);
@@ -3061,6 +3079,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       updatesStyle['scale'],
       payloadStyle['scale'],
       updatePayloadStyle['scale'],
+      loweredEffectMutation.scaleX,
     ]);
     if (directScaleX != null) {
       final safe = directScaleX.clamp(0.0001, 1000.0).toDouble();
@@ -3082,6 +3101,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       updatesStyle['scale'],
       payloadStyle['scale'],
       updatePayloadStyle['scale'],
+      loweredEffectMutation.scaleY,
     ]);
     if (directScaleY != null) {
       final safe = directScaleY.clamp(0.0001, 1000.0).toDouble();
@@ -3103,6 +3123,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       updatesStyle['rotationDeg'],
       payloadStyle['rotationDeg'],
       updatePayloadStyle['rotationDeg'],
+      loweredEffectMutation.rotationDegrees,
     ]);
     if (directRotation != null &&
         (nextTransform.rotationDegrees - directRotation).abs() > 0.001) {
