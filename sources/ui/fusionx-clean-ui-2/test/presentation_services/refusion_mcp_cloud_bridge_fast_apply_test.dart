@@ -176,7 +176,7 @@ void main() {
     );
 
     test(
-      'blank local context does not advertise an active composition',
+      'blank local context bootstraps from remote active context without editor sync',
       () async {
         final server = await _FakeMcpServer.start(
           diagnosticsDelay: const Duration(milliseconds: 20),
@@ -202,10 +202,14 @@ void main() {
 
         await bridge.syncNow();
 
-        expect(server.callCount('get_layers'), 0);
         expect(server.callCount('sync_editor_layers'), 0);
+        expect(server.callCount('get_layers'), greaterThan(0));
         expect(snapshots, isNotEmpty);
-        expect(snapshots.first.remoteLayers, isEmpty);
+        expect(snapshots.first.projectId, 'project-1');
+        expect(snapshots.first.compositionId, 'composition-1');
+        expect(snapshots.first.remoteLayers, isNotEmpty);
+        expect(snapshots.first.canvasMetadata['width'], 1080);
+        expect(snapshots.first.canvasMetadata['height'], 1920);
       },
     );
   });
@@ -327,7 +331,14 @@ class _FakeMcpServer {
       case 'get_active_context':
         return <String, Object?>{
           'project': <String, Object?>{'id': activeProjectId, 'revision': 3},
-          'composition': <String, Object?>{'id': activeCompositionId},
+          'composition': <String, Object?>{
+            'id': activeCompositionId,
+            'aspect': 'story',
+            'width': 1080,
+            'height': 1920,
+            'durationMs': 8000,
+            'fps': 30,
+          },
           'liveEditor': <String, Object?>{
             'online': true,
             'sessionId': 'session-1',

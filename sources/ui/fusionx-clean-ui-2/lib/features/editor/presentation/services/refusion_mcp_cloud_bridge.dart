@@ -342,23 +342,70 @@ class RefusionMcpCloudBridge {
           arguments: const <String, Object?>{},
           allowAgentSessionToken: true,
         );
+        final contextStructured = _asMap(contextResponse['structuredContent']);
+        final contextPayload = _asMap(contextStructured['payload']);
+        final contextProject = _asMap(contextPayload['project']);
+        final contextComposition = _asMap(contextPayload['composition']);
+        final contextLiveEditor = _asMap(contextPayload['liveEditor']);
+        final remoteProjectId = _normalizedIdentifierOrNull(
+          _asString(contextProject['id']) ?? '',
+        );
+        final remoteCompositionId = _normalizedIdentifierOrNull(
+          _asString(contextComposition['id']) ?? '',
+        );
+        final liveSessionId = _asString(contextLiveEditor['sessionId']);
+        Map<String, Object?>? pendingCommandsResponse;
+        Map<String, Object?>? layersResponse;
+        Map<String, Object?>? motionChannelsResponse;
+        if (remoteProjectId != null && remoteCompositionId != null) {
+          pendingCommandsResponse = await _fetchPendingCommands(
+            projectId: remoteProjectId,
+            compositionId: remoteCompositionId,
+            liveSessionId: liveSessionId,
+            softTimeout: _fastApplySoftTimeout,
+          );
+          final pendingCommandTargetLayerIds = _pendingCommandTargetLayerIds(
+            pendingCommandsResponse,
+          );
+          final layerReadArgs = <String, Object?>{
+            'projectId': remoteProjectId,
+            'compositionId': remoteCompositionId,
+            if (pendingCommandTargetLayerIds.isNotEmpty)
+              'layerIds': pendingCommandTargetLayerIds,
+          };
+          final results = await Future.wait<Map<String, Object?>?>([
+            _safeCallTool(
+              toolName: 'get_layers',
+              arguments: layerReadArgs,
+              allowAgentSessionToken: true,
+              softTimeout: _fastApplySoftTimeout,
+            ),
+            _safeCallTool(
+              toolName: 'get_motion_channels',
+              arguments: layerReadArgs,
+              allowAgentSessionToken: true,
+              softTimeout: _fastApplySoftTimeout,
+            ),
+          ]);
+          layersResponse = results[0];
+          motionChannelsResponse = results[1];
+        }
         _emitSnapshot(
           _snapshotFromContextResponse(
             contextResponse,
-            layersResult: null,
-            motionChannelsResult: null,
-            pendingCommandsResult: null,
+            layersResult: layersResponse,
+            motionChannelsResult: motionChannelsResponse,
+            pendingCommandsResult: pendingCommandsResponse,
             canvasMetadataResult: null,
             elementGeometryResult: null,
             visualLayoutSummaryResult: null,
             projectSnapshotResult: null,
             timelineGraphResult: null,
             frameEvaluationResult: null,
-            fallbackProjectId: state.projectId,
-            fallbackCompositionId: state.compositionId,
+            fallbackProjectId: remoteProjectId ?? state.projectId,
+            fallbackCompositionId: remoteCompositionId ?? state.compositionId,
             localCanvasMetadata: _localCanvasMetadata(state),
-            preferFallbackScope: state.projectId.trim().isNotEmpty &&
-                state.compositionId.trim().isNotEmpty,
+            preferFallbackScope: false,
           ),
         );
         return;
@@ -711,6 +758,33 @@ class RefusionMcpCloudBridge {
     }
     if (canvasMetadata.isEmpty && localCanvasMetadata.isNotEmpty) {
       canvasMetadata = localCanvasMetadata;
+    }
+    if (canvasMetadata.isEmpty) {
+      final compositionWidth = _asInt(composition['width']);
+      final compositionHeight = _asInt(composition['height']);
+      if (compositionWidth != null &&
+          compositionHeight != null &&
+          compositionWidth > 0 &&
+          compositionHeight > 0) {
+        final fps = _asInt(composition['fps']) ?? 30;
+        final durationMs = _asInt(composition['durationMs']) ?? 0;
+        canvasMetadata = <String, Object?>{
+          'width': compositionWidth,
+          'height': compositionHeight,
+          'canvasWidth': compositionWidth,
+          'canvasHeight': compositionHeight,
+          'durationMs': durationMs,
+          'fps': fps,
+          'aspect': _asString(composition['aspect']),
+          'aspectRatio': compositionWidth / compositionHeight,
+          'canvas': <String, Object?>{
+            'width': compositionWidth,
+            'height': compositionHeight,
+            'durationMs': durationMs,
+            'fps': fps,
+          },
+        };
+      }
     }
     if (elementGeometryResult != null) {
       final geometryStructured =
