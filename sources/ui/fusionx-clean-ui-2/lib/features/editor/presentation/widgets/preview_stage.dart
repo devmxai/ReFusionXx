@@ -61,6 +61,8 @@ class PreviewStage extends StatelessWidget {
   final ValueChanged<PreviewViewportState>? onViewportChanged;
   final VoidCallback? onViewportReset;
 
+  static const double canvasBorderRadius = 10;
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -100,11 +102,13 @@ class PreviewStageCanvasViewport extends InheritedWidget {
   const PreviewStageCanvasViewport({
     super.key,
     required this.canvasRect,
+    required this.canvasBorderRadius,
     required this.viewportScale,
     required super.child,
   });
 
   final Rect canvasRect;
+  final double canvasBorderRadius;
   final double viewportScale;
 
   static PreviewStageCanvasViewport? maybeOf(BuildContext context) {
@@ -115,6 +119,7 @@ class PreviewStageCanvasViewport extends InheritedWidget {
   @override
   bool updateShouldNotify(covariant PreviewStageCanvasViewport oldWidget) {
     return oldWidget.canvasRect != canvasRect ||
+        oldWidget.canvasBorderRadius != canvasBorderRadius ||
         oldWidget.viewportScale != viewportScale;
   }
 }
@@ -274,7 +279,9 @@ class _PreviewStageViewportShellState
                         Positioned.fromRect(
                           rect: canvasRect,
                           child: ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(
+                              PreviewStage.canvasBorderRadius,
+                            ),
                             child: ColoredBox(
                               color: widget.hasVisibleContent
                                   ? widget.canvasBackgroundColor
@@ -294,6 +301,7 @@ class _PreviewStageViewportShellState
                       transform: viewportTransform,
                       child: PreviewStageCanvasViewport(
                         canvasRect: canvasRect,
+                        canvasBorderRadius: PreviewStage.canvasBorderRadius,
                         viewportScale: viewportState.scale,
                         child: widget.overlay!,
                       ),

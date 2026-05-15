@@ -3859,7 +3859,6 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
     final compatibilityMetadata = <String, String>{
       ...nextProject.metadata,
-      if (preferBackgroundRole) 'backgroundColor': _normalizeHexColor(color),
     };
     final sceneForSelection = nextProject.scenes[sceneIndex];
     final selectedLayerId = existingContext?.layerId ??

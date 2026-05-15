@@ -51,7 +51,10 @@ class MotionShapePreviewOverlay extends StatelessWidget {
             children: [
               Positioned.fromRect(
                 rect: canvasRect,
-                child: ClipRect(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(
+                    stageViewport?.canvasBorderRadius ?? 0,
+                  ),
                   child: Stack(
                     fit: StackFit.expand,
                     clipBehavior: Clip.none,
