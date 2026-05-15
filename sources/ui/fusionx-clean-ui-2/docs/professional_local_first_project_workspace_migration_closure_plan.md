@@ -28,7 +28,7 @@ b2f97087 checkpoint: finalize workspace identity runtime adoption core
 0e4884e6 checkpoint: add scene context virtual project resources
 8446c992 checkpoint: prefer scene context over legacy layers sync
 9f73db64 checkpoint: enforce canonical transaction envelope at json-rpc boundary
-d1127df8 checkpoint: normalize canonical transactions in agent control plane
+16a45950 checkpoint: normalize canonical transactions in agent control plane
 ```
 
 ### What Is Closed
