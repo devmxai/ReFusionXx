@@ -23,6 +23,7 @@ The following checkpoints are already completed and pushed:
 33393de9 checkpoint: fail closed mcp composition identity placeholders
 8f422de6 checkpoint: harden json-rpc session identity fail-closed
 fe1b5854 checkpoint: harden cloud bridge identity placeholders
+b2f97087 checkpoint: finalize workspace identity runtime adoption core
 ```
 
 ### What Is Closed
@@ -37,6 +38,8 @@ JSON-RPC tools/call does not silently create fake active sessions.
 Cloud bridge treats active/comp_1/active-composition as invalid local identity.
 Cloud bridge placeholder local context bootstraps from real remote context only.
 Focused MCP and cloud bridge tests pass for the identity hardening slice.
+ProjectWorkspaceV1 model is now wired into create/open/bootstrap runtime paths.
+MCP cloud context now publishes active composition only when runtime workspace identity is valid.
 ```
 
 ### What Is Not Yet Closed
