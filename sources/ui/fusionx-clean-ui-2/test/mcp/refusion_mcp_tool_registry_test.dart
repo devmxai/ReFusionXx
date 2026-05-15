@@ -8,6 +8,9 @@ void main() {
       final registry = RefusionMcpToolRegistry();
       final names = registry.list().map((tool) => tool.name).toSet();
       expect(names.contains('refusion.get_project_state'), isTrue);
+      expect(names.contains('refusion.get_scene_context'), isTrue);
+      expect(names.contains('refusion.list_project_resources'), isTrue);
+      expect(names.contains('refusion.get_project_resource'), isTrue);
       expect(names.contains('refusion.get_timeline_summary'), isTrue);
       expect(names.contains('refusion.capture_preview_frame'), isTrue);
       expect(names.contains('refusion.get_security_profile'), isTrue);
@@ -50,6 +53,18 @@ void main() {
       expect(
         registry.normalizeToolName('get_project_state'),
         'refusion.get_project_state',
+      );
+      expect(
+        registry.normalizeToolName('get_scene_context'),
+        'refusion.get_scene_context',
+      );
+      expect(
+        registry.normalizeToolName('list_project_resources'),
+        'refusion.list_project_resources',
+      );
+      expect(
+        registry.normalizeToolName('get_project_resource'),
+        'refusion.get_project_resource',
       );
       expect(
         registry.normalizeToolName('get_spatial_scene_snapshot'),

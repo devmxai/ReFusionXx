@@ -238,6 +238,42 @@ class RefusionMcpMvpToolkit {
       },
     );
     bus.registerHandler(
+      commandType: 'refusion.get_scene_context',
+      handler: (context) {
+        return RefusionMcpCommandHandlingOutcome(
+          summary: 'Scene context snapshot loaded.',
+          payload: _buildSceneContextPayload(
+            config,
+            context.command.payload,
+          ),
+        );
+      },
+    );
+    bus.registerHandler(
+      commandType: 'refusion.list_project_resources',
+      handler: (context) {
+        return RefusionMcpCommandHandlingOutcome(
+          summary: 'Project resources listed.',
+          payload: _buildProjectResourceListPayload(
+            config,
+            context.command.payload,
+          ),
+        );
+      },
+    );
+    bus.registerHandler(
+      commandType: 'refusion.get_project_resource',
+      handler: (context) {
+        return RefusionMcpCommandHandlingOutcome(
+          summary: 'Project resource loaded.',
+          payload: _buildProjectResourcePayload(
+            config,
+            context.command.payload,
+          ),
+        );
+      },
+    );
+    bus.registerHandler(
       commandType: 'refusion.get_element_geometry',
       handler: (context) {
         return RefusionMcpCommandHandlingOutcome(
@@ -796,6 +832,227 @@ Map<String, Object?> _buildCompositionSpecPayload(
   };
 }
 
+Map<String, Object?> _buildSceneContextPayload(
+  RefusionMcpMvpToolkitConfig config,
+  Map<String, Object?> payload,
+) {
+  final spec = _buildCompositionSpecPayload(config);
+  final projectSnapshot = _buildProjectSnapshotPayload(config);
+  final timelineGraph = _buildTimelineGraphPayload(config);
+  final canvasMetadata = _buildCanvasMetadataPayload(config);
+  final visualLayoutSummary = _buildVisualLayoutSummaryPayload(config);
+  final frameEvaluation = _buildFrameEvaluationPayload(config, payload);
+  final resourceList = _requiredProjectResources();
+  final markdown = _buildSceneContextMarkdown(
+    spec: spec,
+    projectSnapshot: projectSnapshot,
+    timelineGraph: timelineGraph,
+    frameEvaluation: frameEvaluation,
+    resourceIds: resourceList,
+  );
+  return <String, Object?>{
+    'schemaVersion': 'SceneContextSnapshotV1',
+    'projectId': spec['projectId'] ?? '',
+    'compositionId': spec['compositionId'] ?? '',
+    'revision': projectSnapshot['revision'] ?? 0,
+    'snapshot': <String, Object?>{
+      'composition': spec,
+      'canvasMetadata': canvasMetadata,
+      'projectSnapshot': projectSnapshot,
+      'timelineGraph': timelineGraph,
+      'visualLayoutSummary': visualLayoutSummary,
+      'frameSnapshot': frameEvaluation,
+      'selection': config.selectionReader(),
+    },
+    'resources': resourceList
+        .map((resourceId) => <String, Object?>{
+              'id': resourceId,
+              'uri': 'refusion://project/current/$resourceId',
+            })
+        .toList(growable: false),
+    'sceneContextMd': markdown,
+  };
+}
+
+Map<String, Object?> _buildProjectResourceListPayload(
+  RefusionMcpMvpToolkitConfig config,
+  Map<String, Object?> payload,
+) {
+  final spec = _buildCompositionSpecPayload(config);
+  final projectSnapshot = _buildProjectSnapshotPayload(config);
+  final resources = _requiredProjectResources()
+      .map((resourceId) => <String, Object?>{
+            'id': resourceId,
+            'uri': 'refusion://project/current/$resourceId',
+            'projectId': spec['projectId'] ?? '',
+            'compositionId': spec['compositionId'] ?? '',
+            'revision': projectSnapshot['revision'] ?? 0,
+          })
+      .toList(growable: false);
+  return <String, Object?>{
+    'schemaVersion': 'ProjectResourceIndexV1',
+    'projectId': spec['projectId'] ?? '',
+    'compositionId': spec['compositionId'] ?? '',
+    'revision': projectSnapshot['revision'] ?? 0,
+    'resources': resources,
+  };
+}
+
+Map<String, Object?> _buildProjectResourcePayload(
+  RefusionMcpMvpToolkitConfig config,
+  Map<String, Object?> payload,
+) {
+  final resourceId = _firstString(<Object?>[
+    payload['resourceId'],
+    payload['resource'],
+    payload['id'],
+    payload['name'],
+    payload['uri'],
+  ]);
+  final normalizedResourceId = _normalizeProjectResourceId(resourceId);
+  if (normalizedResourceId == null) {
+    return <String, Object?>{
+      'error': 'PROJECT_RESOURCE_NOT_FOUND',
+      'resourceId': resourceId ?? '',
+      'supportedResources': _requiredProjectResources(),
+    };
+  }
+  final sceneContext = _buildSceneContextPayload(config, payload);
+  final snapshot = _asMap(sceneContext['snapshot']);
+  final spec = _asMap(snapshot['composition']);
+  final content = switch (normalizedResourceId) {
+    'manifest.json' => <String, Object?>{
+        'schemaVersion': 'ProjectManifestV1',
+        'projectId': sceneContext['projectId'],
+        'compositionId': sceneContext['compositionId'],
+        'revision': sceneContext['revision'],
+        'resourceCount': _requiredProjectResources().length,
+      },
+    'composition.json' => _asMap(snapshot['composition']),
+    'scene_context.md' => <String, Object?>{
+        'markdown': sceneContext['sceneContextMd'],
+      },
+    'scene_context.json' => sceneContext,
+    'layers.json' => <String, Object?>{
+        'layers':
+            _asMap(snapshot['projectSnapshot'])['layers'] ?? const <Object?>[],
+      },
+    'timeline.json' => _asMap(snapshot['timelineGraph']),
+    'keyframes.json' => <String, Object?>{
+        'channels': _asMap(snapshot['projectSnapshot'])['channels'] ??
+            const <Object?>[],
+      },
+    'effects.json' => <String, Object?>{
+        'effects':
+            _asMap(snapshot['projectSnapshot'])['effects'] ?? const <Object?>[],
+      },
+    'assets.json' => <String, Object?>{
+        'assets':
+            _asMap(snapshot['projectSnapshot'])['assets'] ?? const <Object?>[],
+      },
+    'selection.json' => _asMap(snapshot['selection']),
+    'frame_snapshot.json' => _asMap(snapshot['frameSnapshot']),
+    'proof_ledger.json' => <String, Object?>{
+        'proof': <String, Object?>{
+          'status': 'READ_ONLY_CONTEXT',
+          'dataApplied': false,
+          'localGraphApplied': false,
+          'timelineVisible': false,
+          'frameEvaluated': false,
+          'visualProgramEmitted': false,
+          'rendererApplied': false,
+          'note':
+              'Scene context resources are read-only snapshots and must not be used as apply proof.',
+        },
+      },
+    'capabilities.json' => <String, Object?>{
+        'coordinateSystem': spec['coordinateSystem'],
+        'origin': spec['origin'],
+        'tools': <String>[
+          'refusion.get_scene_context',
+          'refusion.list_project_resources',
+          'refusion.get_project_resource',
+        ],
+      },
+    _ => const <String, Object?>{},
+  };
+  return <String, Object?>{
+    'schemaVersion': 'ProjectResourcePayloadV1',
+    'id': normalizedResourceId,
+    'uri': 'refusion://project/current/$normalizedResourceId',
+    'projectId': sceneContext['projectId'],
+    'compositionId': sceneContext['compositionId'],
+    'revision': sceneContext['revision'],
+    'content': content,
+  };
+}
+
+List<String> _requiredProjectResources() {
+  return const <String>[
+    'manifest.json',
+    'composition.json',
+    'scene_context.md',
+    'scene_context.json',
+    'layers.json',
+    'timeline.json',
+    'keyframes.json',
+    'effects.json',
+    'assets.json',
+    'selection.json',
+    'frame_snapshot.json',
+    'proof_ledger.json',
+    'capabilities.json',
+  ];
+}
+
+String? _normalizeProjectResourceId(String? value) {
+  final normalized = value?.trim();
+  if (normalized == null || normalized.isEmpty) {
+    return null;
+  }
+  if (_requiredProjectResources().contains(normalized)) {
+    return normalized;
+  }
+  const prefix = 'refusion://project/current/';
+  if (normalized.startsWith(prefix)) {
+    final resourceId = normalized.substring(prefix.length).trim();
+    if (_requiredProjectResources().contains(resourceId)) {
+      return resourceId;
+    }
+  }
+  return null;
+}
+
+String _buildSceneContextMarkdown({
+  required Map<String, Object?> spec,
+  required Map<String, Object?> projectSnapshot,
+  required Map<String, Object?> timelineGraph,
+  required Map<String, Object?> frameEvaluation,
+  required List<String> resourceIds,
+}) {
+  final buffer = StringBuffer();
+  buffer.writeln('# Scene Context');
+  buffer.writeln();
+  buffer.writeln('- projectId: `${spec['projectId'] ?? ''}`');
+  buffer.writeln('- compositionId: `${spec['compositionId'] ?? ''}`');
+  buffer.writeln('- canvas: `${spec['width'] ?? 0}x${spec['height'] ?? 0}`');
+  buffer.writeln('- fps: `${spec['fps'] ?? 0}`');
+  buffer.writeln('- durationMs: `${spec['durationMs'] ?? 0}`');
+  buffer.writeln('- revision: `${projectSnapshot['revision'] ?? 0}`');
+  buffer.writeln(
+      '- visibleLayerCount: `${frameEvaluation['visibleLayerCount'] ?? 0}`');
+  final tracks = _asMap(timelineGraph['timeline'])['tracks'];
+  if (tracks is List) {
+    buffer.writeln('- timelineTrackCount: `${tracks.length}`');
+  }
+  buffer.writeln();
+  buffer.writeln('## Resources');
+  for (final resourceId in resourceIds) {
+    buffer.writeln('- `refusion://project/current/$resourceId`');
+  }
+  return buffer.toString();
+}
+
 Map<String, Object?> _buildCanvasMetadataPayload(
   RefusionMcpMvpToolkitConfig config,
 ) {
@@ -1097,6 +1354,21 @@ String? _firstString(Iterable<Object?> values) {
     }
   }
   return null;
+}
+
+Map<String, Object?> _asMap(Object? value) {
+  if (value is Map<String, Object?>) {
+    return value;
+  }
+  if (value is Map) {
+    return value.map(
+      (key, mapValue) => MapEntry<String, Object?>(
+        key.toString(),
+        mapValue,
+      ),
+    );
+  }
+  return <String, Object?>{};
 }
 
 String? _readString(Object? value) {

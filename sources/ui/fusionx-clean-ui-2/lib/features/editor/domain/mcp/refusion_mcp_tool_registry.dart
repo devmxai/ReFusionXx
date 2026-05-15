@@ -66,6 +66,9 @@ class RefusionMcpToolRegistry {
     'validate_intent': 'refusion.layout.validate_intent',
     'detect_overlaps': 'refusion.layout.detect_overlaps',
     'get_project_snapshot': 'refusion.get_project_snapshot',
+    'get_scene_context': 'refusion.get_scene_context',
+    'list_project_resources': 'refusion.list_project_resources',
+    'get_project_resource': 'refusion.get_project_resource',
     'get_composition_spec': 'refusion.get_composition_spec',
     'get_timeline_graph': 'refusion.get_timeline_graph',
     'get_media_assets': 'refusion.get_media_assets',
@@ -142,6 +145,27 @@ class RefusionMcpToolRegistry {
       title: 'Get Project Snapshot',
       description:
           'Return composition truth graph including assets, timeline, scene layers, and motion channels.',
+      capability: RefusionMcpCapability.projectRead,
+    ),
+    RefusionMcpToolDescriptor(
+      name: 'refusion.get_scene_context',
+      title: 'Get Scene Context',
+      description:
+          'Return a read-only SceneContextSnapshotV1 for agent-aware authoring context.',
+      capability: RefusionMcpCapability.projectRead,
+    ),
+    RefusionMcpToolDescriptor(
+      name: 'refusion.list_project_resources',
+      title: 'List Project Resources',
+      description:
+          'List read-only virtual project resources available in the active context.',
+      capability: RefusionMcpCapability.projectRead,
+    ),
+    RefusionMcpToolDescriptor(
+      name: 'refusion.get_project_resource',
+      title: 'Get Project Resource',
+      description:
+          'Return one read-only virtual project resource payload by id or URI.',
       capability: RefusionMcpCapability.projectRead,
     ),
     RefusionMcpToolDescriptor(

@@ -187,6 +187,132 @@ void main() {
       expect(spatialSnapshot.payload['frameEvaluation'], isNotNull);
     });
 
+    test('returns scene context snapshot with virtual resources', () {
+      final toolBus = RefusionMcpCommandBus();
+      const toolkit = RefusionMcpMvpToolkit();
+      final project = _sampleProject();
+      toolkit.register(
+        bus: toolBus,
+        config: RefusionMcpMvpToolkitConfig(
+          projectStateReader: () => <String, Object?>{
+            'projectId': project.id,
+            'compositionId': project.scenes.first.id,
+            'workspaceId': 'workspace-1',
+            'revision': 9,
+            'playheadMs': 500,
+          },
+          timelineSummaryReader: () => <String, Object?>{'rows': 1},
+          selectionReader: () => <String, Object?>{'selected': <String>[]},
+          previewCaptureReader: (_) => <String, Object?>{},
+          projectReader: () => project,
+        ),
+      );
+
+      final result = toolBus.execute(
+        session: session,
+        command: _command(
+          type: 'refusion.get_scene_context',
+          capability: RefusionMcpCapability.projectRead,
+        ),
+        currentRevision: 9,
+      );
+
+      expect(result.ok, isTrue);
+      expect(result.payload['schemaVersion'], 'SceneContextSnapshotV1');
+      expect(result.payload['projectId'], project.id);
+      expect(result.payload['compositionId'], project.scenes.first.id);
+      final resources = result.payload['resources'] as List<Object?>;
+      expect(resources, isNotEmpty);
+      final first = resources.first as Map<String, Object?>;
+      expect(first['uri'], startsWith('refusion://project/current/'));
+      expect(
+        (result.payload['sceneContextMd'] as String)
+            .contains('# Scene Context'),
+        isTrue,
+      );
+    });
+
+    test('lists and resolves project resources via id or uri', () {
+      final toolBus = RefusionMcpCommandBus();
+      const toolkit = RefusionMcpMvpToolkit();
+      final project = _sampleProject();
+      toolkit.register(
+        bus: toolBus,
+        config: RefusionMcpMvpToolkitConfig(
+          projectStateReader: () => <String, Object?>{
+            'projectId': project.id,
+            'compositionId': project.scenes.first.id,
+            'workspaceId': 'workspace-1',
+            'revision': 9,
+            'playheadMs': 500,
+          },
+          timelineSummaryReader: () => <String, Object?>{'rows': 1},
+          selectionReader: () => <String, Object?>{'selected': <String>[]},
+          previewCaptureReader: (_) => <String, Object?>{},
+          projectReader: () => project,
+        ),
+      );
+
+      final listResult = toolBus.execute(
+        session: session,
+        command: _command(
+          type: 'refusion.list_project_resources',
+          capability: RefusionMcpCapability.projectRead,
+        ),
+        currentRevision: 9,
+      );
+      expect(listResult.ok, isTrue);
+      final resources =
+          listResult.payload['resources'] as List<Map<String, Object?>>;
+      expect(resources.map((entry) => entry['id']), contains('layers.json'));
+
+      final byId = toolBus.execute(
+        session: session,
+        command: _command(
+          type: 'refusion.get_project_resource',
+          capability: RefusionMcpCapability.projectRead,
+          payload: const <String, Object?>{'resourceId': 'layers.json'},
+        ),
+        currentRevision: 9,
+      );
+      expect(byId.ok, isTrue);
+      expect(byId.payload['id'], 'layers.json');
+      final layersContent = byId.payload['content'] as Map<String, Object?>;
+      expect(layersContent['layers'], isA<List<Object?>>());
+
+      final byUri = toolBus.execute(
+        session: session,
+        command: _command(
+          type: 'refusion.get_project_resource',
+          capability: RefusionMcpCapability.projectRead,
+          payload: const <String, Object?>{
+            'uri': 'refusion://project/current/proof_ledger.json',
+          },
+        ),
+        currentRevision: 9,
+      );
+      expect(byUri.ok, isTrue);
+      final proof = (byUri.payload['content'] as Map<String, Object?>)['proof']
+          as Map<String, Object?>;
+      expect(proof['status'], 'READ_ONLY_CONTEXT');
+      expect(proof['rendererApplied'], isFalse);
+    });
+
+    test('returns project resource not found for unknown ids', () {
+      final result = bus.execute(
+        session: session,
+        command: _command(
+          type: 'refusion.get_project_resource',
+          capability: RefusionMcpCapability.projectRead,
+          payload: const <String, Object?>{'resourceId': 'unknown.json'},
+        ),
+        currentRevision: 7,
+      );
+      expect(result.ok, isTrue);
+      expect(result.payload['error'], 'PROJECT_RESOURCE_NOT_FOUND');
+      expect(result.payload['supportedResources'], isA<List<String>>());
+    });
+
     test('active context returns real workspace identity when available', () {
       final toolBus = RefusionMcpCommandBus();
       const toolkit = RefusionMcpMvpToolkit();
