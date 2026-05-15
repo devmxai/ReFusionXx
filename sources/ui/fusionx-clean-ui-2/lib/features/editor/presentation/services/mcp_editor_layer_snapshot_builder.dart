@@ -90,12 +90,12 @@ class McpEditorLayerSnapshotBuilder {
     final positionX = _scalar(
       element,
       MotionPropertyCatalog.positionX,
-      canvasSize.width / 2.0,
+      0,
     );
     final positionY = _scalar(
       element,
       MotionPropertyCatalog.positionY,
-      canvasSize.height / 2.0,
+      0,
     );
     final width = isText
         ? _textWidthForElement(element)
@@ -123,6 +123,8 @@ class McpEditorLayerSnapshotBuilder {
     final startMs = timingRange.start.inMilliseconds;
     final durationMs =
         math.max(1, timingRange.endExclusive.inMilliseconds - startMs);
+    final absoluteCenterX = positionX + (canvasSize.width / 2.0);
+    final absoluteCenterY = positionY + (canvasSize.height / 2.0);
     return <String, Object?>{
       'layerKind': layerKind,
       'type': layerKind,
@@ -153,9 +155,14 @@ class McpEditorLayerSnapshotBuilder {
         'timelineDurationMs': durationMs,
         'startMs': startMs,
         'durationMs': durationMs,
+        'coordinateSpace': 'centerOrigin',
         'trackIndex': layer.zIndex,
         'x': positionX,
         'y': positionY,
+        'centerX': absoluteCenterX,
+        'centerY': absoluteCenterY,
+        'absoluteCenterX': absoluteCenterX,
+        'absoluteCenterY': absoluteCenterY,
         'width': width,
         'height': height,
         'scaleX': _scalar(element, MotionPropertyCatalog.scaleX, 1.0),

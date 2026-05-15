@@ -108,6 +108,11 @@ class CreativeCompositionSpec {
     required this.currentFrame,
     required this.coordinateSystem,
     required this.origin,
+    this.fpsNumerator,
+    this.fpsDenominator,
+    this.durationInFrames,
+    this.compositionRevision = 0,
+    this.graphRevision = 0,
   });
 
   final String compositionId;
@@ -119,6 +124,116 @@ class CreativeCompositionSpec {
   final int currentFrame;
   final String coordinateSystem;
   final String origin;
+  final int? fpsNumerator;
+  final int? fpsDenominator;
+  final int? durationInFrames;
+  final int compositionRevision;
+  final int graphRevision;
+
+  int get resolvedFpsNumerator => fpsNumerator ?? fps;
+  int get resolvedFpsDenominator => (fpsDenominator ?? 1) <= 0
+      ? 1
+      : (fpsDenominator ?? 1);
+  int get resolvedDurationInFrames =>
+      durationInFrames ??
+      (((durationMs / 1000.0) * (resolvedFpsNumerator / resolvedFpsDenominator))
+          .round());
+}
+
+class ViewportProjectionState {
+  const ViewportProjectionState({
+    required this.compositionId,
+    required this.devicePixelRatio,
+    required this.viewportScale,
+    required this.viewportOffsetX,
+    required this.viewportOffsetY,
+    this.editorPreviewClipRadius = 0,
+  });
+
+  final String compositionId;
+  final double devicePixelRatio;
+  final double viewportScale;
+  final double viewportOffsetX;
+  final double viewportOffsetY;
+  final double editorPreviewClipRadius;
+}
+
+class FrameEvaluationRequest {
+  const FrameEvaluationRequest({
+    required this.compositionId,
+    required this.fpsNumerator,
+    required this.fpsDenominator,
+    required this.durationInFrames,
+    required this.rootFrame,
+    required this.rootTimeMs,
+    this.sceneFrame,
+    this.sceneTimeMs,
+    this.clipLocalFrame,
+    this.clipLocalTimeMs,
+    this.elementLocalFrame,
+    this.effectLocalFrame,
+    this.transitionProgress,
+    this.roundingMode = 'round',
+  });
+
+  final String compositionId;
+  final int fpsNumerator;
+  final int fpsDenominator;
+  final int durationInFrames;
+  final int rootFrame;
+  final int rootTimeMs;
+  final int? sceneFrame;
+  final int? sceneTimeMs;
+  final int? clipLocalFrame;
+  final int? clipLocalTimeMs;
+  final int? elementLocalFrame;
+  final int? effectLocalFrame;
+  final double? transitionProgress;
+  final String roundingMode;
+}
+
+class CoordinateInputV1 {
+  const CoordinateInputV1({
+    required this.space,
+    this.unit = 'compositionPx',
+    this.x,
+    this.y,
+    this.centerX,
+    this.centerY,
+    this.normalizedX,
+    this.normalizedY,
+    this.anchor,
+    this.zone,
+  });
+
+  final String space;
+  final String unit;
+  final double? x;
+  final double? y;
+  final double? centerX;
+  final double? centerY;
+  final double? normalizedX;
+  final double? normalizedY;
+  final String? anchor;
+  final String? zone;
+}
+
+class CanvasDiagnosticV1 {
+  const CanvasDiagnosticV1({
+    required this.code,
+    required this.message,
+    this.severity = 'error',
+    this.repairHint,
+    this.fieldPath,
+    this.blocking = true,
+  });
+
+  final String code;
+  final String message;
+  final String severity;
+  final String? repairHint;
+  final String? fieldPath;
+  final bool blocking;
 }
 
 class CreativeTransactionOperation {
@@ -222,6 +337,11 @@ class CreativeTransactionEnvelope {
     this.target,
     this.idempotencyKey = '',
     this.proofLevel = CreativeProofLevel.renderer,
+    this.basisSnapshotId,
+    this.basisCompositionRevision,
+    this.basisGraphRevision,
+    this.basisFrame,
+    this.basisTargetLayerId,
   });
 
   final String transactionId;
@@ -235,6 +355,11 @@ class CreativeTransactionEnvelope {
   final List<CreativeTransactionOperation> operations;
   final String idempotencyKey;
   final CreativeProofLevel proofLevel;
+  final String? basisSnapshotId;
+  final int? basisCompositionRevision;
+  final int? basisGraphRevision;
+  final int? basisFrame;
+  final String? basisTargetLayerId;
 
   List<String> validate() {
     final issues = <String>[];

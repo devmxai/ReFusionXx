@@ -85,6 +85,8 @@ void main() {
             CreativeTransactionOperation(
               kind: 'background.set_solid',
               payload: <String, Object?>{
+                'spatialValidated': true,
+                'coordinateSpace': 'centerOrigin',
                 'x': 0,
                 'y': 0,
                 'width': 1080,
@@ -99,6 +101,84 @@ void main() {
       expect(payload['width'], 1080);
       expect(payload['height'], 1920);
       expect(result.diff.normalizedBackgroundBounds, isTrue);
+    });
+
+    test('raw x/y without coordinate space rejects as ambiguous', () {
+      final result = validator.validate(
+        _envelope(
+          intent: CreativeTransactionIntent.transformPatch,
+          target: const CreativeTargetRef(layerId: 'text-1'),
+          operations: const <CreativeTransactionOperation>[
+            CreativeTransactionOperation(
+              kind: 'transform.patch.position',
+              payload: <String, Object?>{
+                'spatialValidated': true,
+                'x': 540,
+                'y': 960,
+              },
+            ),
+          ],
+        ),
+        baseContext,
+      );
+      expect(result.isValid, isFalse);
+      expect(
+        result.issues.any(
+          (issue) => issue.contains('AMBIGUOUS_COORDINATE_SPACE'),
+        ),
+        isTrue,
+      );
+    });
+
+    test('screenViewport is blocked for mcp writes', () {
+      final result = validator.validate(
+        _envelope(
+          intent: CreativeTransactionIntent.transformPatch,
+          target: const CreativeTargetRef(layerId: 'shape-1'),
+          operations: const <CreativeTransactionOperation>[
+            CreativeTransactionOperation(
+              kind: 'transform.patch.position',
+              payload: <String, Object?>{
+                'spatialValidated': true,
+                'coordinateSpace': 'screenViewport',
+                'x': 120,
+                'y': 240,
+              },
+            ),
+          ],
+        ),
+        baseContext,
+      );
+      expect(result.isValid, isFalse);
+      expect(
+        result.issues.any(
+          (issue) => issue.contains('UNSUPPORTED_COORDINATE_SPACE'),
+        ),
+        isTrue,
+      );
+    });
+
+    test('screenViewport allowed for manual pointer input only', () {
+      final result = validator.validate(
+        _envelope(
+          source: CreativeTransactionSource.manualUi,
+          intent: CreativeTransactionIntent.transformPatch,
+          target: const CreativeTargetRef(layerId: 'shape-1'),
+          operations: const <CreativeTransactionOperation>[
+            CreativeTransactionOperation(
+              kind: 'transform.patch.position',
+              payload: <String, Object?>{
+                'coordinateSpace': 'screenViewport',
+                'pointerInput': true,
+                'x': 120,
+                'y': 240,
+              },
+            ),
+          ],
+        ),
+        baseContext,
+      );
+      expect(result.isValid, isTrue);
     });
 
     test('update intent without target rejects', () {
@@ -154,6 +234,7 @@ void main() {
 }
 
 CreativeTransactionEnvelope _envelope({
+  CreativeTransactionSource source = CreativeTransactionSource.mcpAgent,
   required CreativeTransactionIntent intent,
   int baseRevision = 10,
   String compositionId = 'composition-open',
@@ -163,7 +244,7 @@ CreativeTransactionEnvelope _envelope({
   return CreativeTransactionEnvelope(
     transactionId: 'tx-1',
     schemaVersion: 1,
-    source: CreativeTransactionSource.mcpAgent,
+    source: source,
     intent: intent,
     projectId: 'project-1',
     compositionId: compositionId,

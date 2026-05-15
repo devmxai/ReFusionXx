@@ -198,6 +198,9 @@ void main() {
     expect(solidPayload['width'], 1080);
     expect(solidPayload['height'], 1920);
     expect(solidPayload['label'], 'Background');
+    expect(solidPayload['coordinateSpace'], 'centerOrigin');
+    expect(solidPayload['absoluteCenterX'], 1080);
+    expect(solidPayload['absoluteCenterY'], 1920);
 
     final textSnapshot = snapshots.firstWhere(
       (snapshot) => snapshot['layerKind'] == 'text',
@@ -208,5 +211,8 @@ void main() {
     expect(textPayload['text'], 'Hello MCP');
     expect(textPayload['label'], 'Title');
     expect(textPayload['fontSize'], 28);
+    expect(textPayload['coordinateSpace'], 'centerOrigin');
+    expect(textPayload['centerX'], 1080);
+    expect(textPayload['centerY'], 1920);
   });
 }
