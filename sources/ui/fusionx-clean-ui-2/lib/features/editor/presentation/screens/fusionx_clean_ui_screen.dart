@@ -2876,6 +2876,8 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     ]);
     final keyframes = animation['keyframes'];
     if (recipe != null && keyframes is! List && _isMcpPopUpRecipe(recipe)) {
+      final baseTimeMs =
+          _mcpLegacyAnimationBaseTimeMsForRemoteLayer(targetRemoteLayerId);
       final remoteChannelSeed =
           _remoteString(remoteLayer['id']) ?? targetRemoteLayerId;
       final generated = <Map<String, Object?>>[
@@ -2886,31 +2888,31 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           'keyframes': <Map<String, Object?>>[
             <String, Object?>{
               'id': 'kf1',
-              'timeMs': 0,
+              'timeMs': baseTimeMs + 0,
               'value': 0.15,
               'easing': 'easeOut'
             },
             <String, Object?>{
               'id': 'kf2',
-              'timeMs': 180,
+              'timeMs': baseTimeMs + 180,
               'value': 1.18,
               'easing': 'easeOut'
             },
             <String, Object?>{
               'id': 'kf3',
-              'timeMs': 330,
+              'timeMs': baseTimeMs + 330,
               'value': 0.94,
               'easing': 'easeInOut'
             },
             <String, Object?>{
               'id': 'kf4',
-              'timeMs': 500,
+              'timeMs': baseTimeMs + 500,
               'value': 1.04,
               'easing': 'easeOut'
             },
             <String, Object?>{
               'id': 'kf5',
-              'timeMs': 650,
+              'timeMs': baseTimeMs + 650,
               'value': 1.0,
               'easing': 'easeInOut'
             },
@@ -2923,31 +2925,31 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           'keyframes': <Map<String, Object?>>[
             <String, Object?>{
               'id': 'kf1',
-              'timeMs': 0,
+              'timeMs': baseTimeMs + 0,
               'value': 0.15,
               'easing': 'easeOut'
             },
             <String, Object?>{
               'id': 'kf2',
-              'timeMs': 180,
+              'timeMs': baseTimeMs + 180,
               'value': 1.18,
               'easing': 'easeOut'
             },
             <String, Object?>{
               'id': 'kf3',
-              'timeMs': 330,
+              'timeMs': baseTimeMs + 330,
               'value': 0.94,
               'easing': 'easeInOut'
             },
             <String, Object?>{
               'id': 'kf4',
-              'timeMs': 500,
+              'timeMs': baseTimeMs + 500,
               'value': 1.04,
               'easing': 'easeOut'
             },
             <String, Object?>{
               'id': 'kf5',
-              'timeMs': 650,
+              'timeMs': baseTimeMs + 650,
               'value': 1.0,
               'easing': 'easeInOut'
             },
@@ -2960,19 +2962,19 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
           'keyframes': <Map<String, Object?>>[
             <String, Object?>{
               'id': 'kf1',
-              'timeMs': 0,
+              'timeMs': baseTimeMs + 0,
               'value': 0.0,
               'easing': 'linear'
             },
             <String, Object?>{
               'id': 'kf2',
-              'timeMs': 150,
+              'timeMs': baseTimeMs + 150,
               'value': 1.0,
               'easing': 'easeOut'
             },
             <String, Object?>{
               'id': 'kf3',
-              'timeMs': 650,
+              'timeMs': baseTimeMs + 650,
               'value': 1.0,
               'easing': 'linear'
             },
@@ -3154,6 +3156,27 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     return normalized.contains('popup') ||
         normalized.contains('scaleinbounce') ||
         normalized.contains('spring');
+  }
+
+  int _mcpLegacyAnimationBaseTimeMsForRemoteLayer(String remoteLayerId) {
+    final context = _mcpRemoteElementContextByLayerId(remoteLayerId);
+    final project = _motionProject;
+    if (context == null || project == null) {
+      return _timelineDisplayTimeNotifier.value.inMilliseconds;
+    }
+    for (final scene in project.scenes) {
+      if (scene.id != context.sceneId) {
+        continue;
+      }
+      for (final layer in scene.layers) {
+        if (layer.id != context.layerId) {
+          continue;
+        }
+        final start = scene.projectRange.start + layer.visibleRange.start;
+        return math.max(0, start.inMilliseconds);
+      }
+    }
+    return _timelineDisplayTimeNotifier.value.inMilliseconds;
   }
 
   List<Map<String, Object?>> _legacyCompoundAnimationChannels({
