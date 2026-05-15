@@ -27,6 +27,7 @@ b2f97087 checkpoint: finalize workspace identity runtime adoption core
 0b952848 checkpoint: enforce workspace identity gate for active mcp context
 0e4884e6 checkpoint: add scene context virtual project resources
 8446c992 checkpoint: prefer scene context over legacy layers sync
+9f73db64 checkpoint: enforce canonical transaction envelope at json-rpc boundary
 ```
 
 ### What Is Closed
@@ -49,6 +50,8 @@ Scene context snapshot tools are now wired (`get_scene_context`, `list_project_r
 Virtual project resources now expose read-only context payloads for agent awareness.
 Proof resource payload is explicitly read-only and cannot be interpreted as app-apply proof.
 Cloud bridge fast-sync now reads layer truth from `get_scene_context` first, with `get_layers` as compatibility fallback only.
+JSON-RPC `tools/call` now validates canonical transaction envelopes (`schemaVersion/baseRevision/idempotencyKey/projectId/compositionId/operations`) when provided.
+Malformed canonical transactions now fail early at JSON-RPC boundary instead of reaching runtime handlers.
 ```
 
 ### What Is Not Yet Closed
@@ -95,22 +98,12 @@ Latest observed install time: 2026-05-16 00:46:37
 The next implementation slice is:
 
 ```text
-PLFPW-03 - Canonical Creative Transaction Schema And Validator
+PLFPW-03B - Canonical Creative Transaction Runtime Cutover
 ```
 
-It must connect create-composition runtime state to a real
-`ProjectWorkspaceV1` and prevent any live app context from existing without:
-
-```text
-projectId
-compositionId
-workspaceId
-compositionProfile
-revision
-canonical graph
-timeline graph
-proof ledger
-```
+It must move canonical transaction rules from JSON-RPC boundary validation into
+the live mutation path itself, so mutating tools are normalized and applied
+through one transaction contract before any runtime mutation.
 
 No new feature work should start before this slice closes.
 
