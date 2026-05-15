@@ -354,10 +354,13 @@ class RefusionMcpCloudBridge {
           _asString(contextComposition['id']) ?? '',
         );
         final liveSessionId = _asString(contextLiveEditor['sessionId']);
+        final remoteContextIsLive = contextLiveEditor['online'] == true;
         Map<String, Object?>? pendingCommandsResponse;
         Map<String, Object?>? layersResponse;
         Map<String, Object?>? motionChannelsResponse;
-        if (remoteProjectId != null && remoteCompositionId != null) {
+        if (remoteContextIsLive &&
+            remoteProjectId != null &&
+            remoteCompositionId != null) {
           pendingCommandsResponse = await _fetchPendingCommands(
             projectId: remoteProjectId,
             compositionId: remoteCompositionId,
@@ -402,10 +405,14 @@ class RefusionMcpCloudBridge {
             projectSnapshotResult: null,
             timelineGraphResult: null,
             frameEvaluationResult: null,
-            fallbackProjectId: remoteProjectId ?? state.projectId,
-            fallbackCompositionId: remoteCompositionId ?? state.compositionId,
+            fallbackProjectId: remoteContextIsLive
+                ? remoteProjectId ?? state.projectId
+                : state.projectId,
+            fallbackCompositionId: remoteContextIsLive
+                ? remoteCompositionId ?? state.compositionId
+                : state.compositionId,
             localCanvasMetadata: _localCanvasMetadata(state),
-            preferFallbackScope: false,
+            preferFallbackScope: !remoteContextIsLive,
           ),
         );
         return;

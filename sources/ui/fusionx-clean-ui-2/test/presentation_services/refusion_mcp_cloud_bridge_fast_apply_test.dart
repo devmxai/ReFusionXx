@@ -212,6 +212,43 @@ void main() {
         expect(snapshots.first.canvasMetadata['height'], 1920);
       },
     );
+
+    test(
+      'blank local context ignores stale offline remote active context',
+      () async {
+        final server = await _FakeMcpServer.start(
+          diagnosticsDelay: const Duration(milliseconds: 20),
+          liveOnline: false,
+        );
+        addTearDown(server.close);
+
+        final snapshots = <RefusionMcpCloudBridgeSnapshot>[];
+        final bridge = RefusionMcpCloudBridge(
+          endpoint: server.endpoint,
+          deviceId: 'test-device',
+          contextReader: () => const RefusionMcpCloudContextState(
+            projectId: '',
+            compositionId: '',
+            playheadMs: 0,
+            timelineRevision: 1,
+            foreground: true,
+          ),
+          onSnapshot: snapshots.add,
+          interval: const Duration(seconds: 60),
+          connectTimeout: const Duration(seconds: 2),
+        );
+        addTearDown(bridge.stop);
+
+        await bridge.syncNow();
+
+        expect(server.callCount('get_layers'), 0);
+        expect(server.callCount('sync_editor_layers'), 0);
+        expect(snapshots, isNotEmpty);
+        expect(snapshots.first.projectId, isEmpty);
+        expect(snapshots.first.compositionId, isEmpty);
+        expect(snapshots.first.remoteLayers, isEmpty);
+      },
+    );
   });
 }
 
@@ -236,6 +273,7 @@ class _FakeMcpServer {
     required this.contextDelay,
     required this.activeProjectId,
     required this.activeCompositionId,
+    required this.liveOnline,
   });
 
   final HttpServer server;
@@ -244,6 +282,7 @@ class _FakeMcpServer {
   final Duration contextDelay;
   final String activeProjectId;
   final String activeCompositionId;
+  final bool liveOnline;
   final Map<String, int> _counts = <String, int>{};
 
   static Future<_FakeMcpServer> start({
@@ -251,6 +290,7 @@ class _FakeMcpServer {
     Duration contextDelay = Duration.zero,
     String activeProjectId = 'project-1',
     String activeCompositionId = 'composition-1',
+    bool liveOnline = true,
   }) async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     final endpoint = Uri.parse(
@@ -263,6 +303,7 @@ class _FakeMcpServer {
       contextDelay: contextDelay,
       activeProjectId: activeProjectId,
       activeCompositionId: activeCompositionId,
+      liveOnline: liveOnline,
     );
     fake._serve();
     return fake;
@@ -340,7 +381,7 @@ class _FakeMcpServer {
             'fps': 30,
           },
           'liveEditor': <String, Object?>{
-            'online': true,
+            'online': liveOnline,
             'sessionId': 'session-1',
           },
         };
