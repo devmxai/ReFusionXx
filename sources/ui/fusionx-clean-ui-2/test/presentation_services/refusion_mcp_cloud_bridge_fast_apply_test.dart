@@ -25,6 +25,10 @@ void main() {
             playheadMs: 1200,
             timelineRevision: 2,
             foreground: true,
+            canvasWidth: 1080,
+            canvasHeight: 1920,
+            durationMs: 8000,
+            fps: 30,
           ),
           onSnapshot: snapshots.add,
           interval: const Duration(seconds: 60),
@@ -43,7 +47,8 @@ void main() {
         );
         expect(snapshots, isNotEmpty);
         final firstSnapshot = snapshots.first;
-        expect(firstSnapshot.canvasMetadata, isEmpty);
+        expect(firstSnapshot.canvasMetadata['width'], 1080);
+        expect(firstSnapshot.canvasMetadata['height'], 1920);
 
         await _waitFor(
           () => snapshots.any((snapshot) => snapshot.canvasMetadata.isNotEmpty),
@@ -52,6 +57,7 @@ void main() {
           (snapshot) => snapshot.canvasMetadata.isNotEmpty,
         );
         expect(diagnosticSnapshot.canvasMetadata['width'], 1080);
+        expect(diagnosticSnapshot.canvasMetadata['height'], 1920);
       },
     );
 

@@ -15,6 +15,12 @@ class RefusionMcpCloudContextState {
     required this.foreground,
     this.editorLayers = const <Map<String, Object?>>[],
     this.timelineId = 'main',
+    this.canvasWidth,
+    this.canvasHeight,
+    this.durationMs,
+    this.fps,
+    this.coordinateSystem = 'center-origin',
+    this.origin = 'center',
   });
 
   final String projectId;
@@ -24,6 +30,12 @@ class RefusionMcpCloudContextState {
   final bool foreground;
   final List<Map<String, Object?>> editorLayers;
   final String timelineId;
+  final int? canvasWidth;
+  final int? canvasHeight;
+  final int? durationMs;
+  final int? fps;
+  final String coordinateSystem;
+  final String origin;
 }
 
 class RefusionMcpCloudBridgeSnapshot {
@@ -344,6 +356,7 @@ class RefusionMcpCloudBridge {
             frameEvaluationResult: null,
             fallbackProjectId: state.projectId,
             fallbackCompositionId: state.compositionId,
+            localCanvasMetadata: _localCanvasMetadata(state),
             preferFallbackScope: state.projectId.trim().isNotEmpty &&
                 state.compositionId.trim().isNotEmpty,
           ),
@@ -420,6 +433,7 @@ class RefusionMcpCloudBridge {
           frameEvaluationResult: null,
           fallbackProjectId: state.projectId,
           fallbackCompositionId: state.compositionId,
+          localCanvasMetadata: _localCanvasMetadata(state),
           preferFallbackScope: true,
         ),
       );
@@ -589,6 +603,7 @@ class RefusionMcpCloudBridge {
           frameEvaluationResult: frameEvaluationResponse,
           fallbackProjectId: request.state.projectId,
           fallbackCompositionId: request.state.compositionId,
+          localCanvasMetadata: _localCanvasMetadata(request.state),
           preferFallbackScope: true,
         ),
       );
@@ -652,6 +667,7 @@ class RefusionMcpCloudBridge {
     required Map<String, Object?>? frameEvaluationResult,
     required String fallbackProjectId,
     required String fallbackCompositionId,
+    required Map<String, Object?> localCanvasMetadata,
     bool preferFallbackScope = false,
   }) {
     final structured = _asMap(rpcResult['structuredContent']);
@@ -692,6 +708,9 @@ class RefusionMcpCloudBridge {
       final metadataStructured =
           _asMap(canvasMetadataResult['structuredContent']);
       canvasMetadata = _asMap(metadataStructured['payload']);
+    }
+    if (canvasMetadata.isEmpty && localCanvasMetadata.isNotEmpty) {
+      canvasMetadata = localCanvasMetadata;
     }
     if (elementGeometryResult != null) {
       final geometryStructured =
@@ -748,6 +767,71 @@ class RefusionMcpCloudBridge {
       frameEvaluation: Map<String, Object?>.unmodifiable(frameEvaluation),
       error: structured['ok'] == true ? null : _asString(structured['summary']),
     );
+  }
+
+  Map<String, Object?> _localCanvasMetadata(
+    RefusionMcpCloudContextState state,
+  ) {
+    final canvasWidth = state.canvasWidth;
+    final canvasHeight = state.canvasHeight;
+    if (canvasWidth == null ||
+        canvasHeight == null ||
+        canvasWidth <= 0 ||
+        canvasHeight <= 0) {
+      return const <String, Object?>{};
+    }
+    final fps = state.fps ?? 30;
+    final durationMs = state.durationMs ?? 0;
+    final currentFrame =
+        fps > 0 ? ((state.playheadMs / 1000.0) * fps).round() : 0;
+    final halfWidth = canvasWidth / 2.0;
+    final halfHeight = canvasHeight / 2.0;
+    return <String, Object?>{
+      'width': canvasWidth,
+      'height': canvasHeight,
+      'canvasWidth': canvasWidth,
+      'canvasHeight': canvasHeight,
+      'durationMs': durationMs,
+      'fps': fps,
+      'currentTimeMs': state.playheadMs,
+      'currentFrame': currentFrame,
+      'coordinateSystem': state.coordinateSystem,
+      'origin': state.origin,
+      'aspectRatio': canvasHeight == 0 ? null : canvasWidth / canvasHeight,
+      'canvas': <String, Object?>{
+        'width': canvasWidth,
+        'height': canvasHeight,
+        'durationMs': durationMs,
+        'fps': fps,
+        'coordinateSystem': state.coordinateSystem,
+        'origin': state.origin,
+      },
+      'safeZones': <String, Object?>{
+        'title': <String, Object?>{
+          'top': (canvasHeight * 0.1).round(),
+          'bottom': (canvasHeight * 0.1).round(),
+          'left': (canvasWidth * 0.06).round(),
+          'right': (canvasWidth * 0.06).round(),
+        },
+        'action': <String, Object?>{
+          'top': (canvasHeight * 0.05).round(),
+          'bottom': (canvasHeight * 0.05).round(),
+          'left': (canvasWidth * 0.03).round(),
+          'right': (canvasWidth * 0.03).round(),
+        },
+      },
+      'anchors': <String, Object?>{
+        'topLeft': <String, Object?>{'x': -halfWidth, 'y': -halfHeight},
+        'topCenter': <String, Object?>{'x': 0.0, 'y': -halfHeight},
+        'topRight': <String, Object?>{'x': halfWidth, 'y': -halfHeight},
+        'centerLeft': <String, Object?>{'x': -halfWidth, 'y': 0.0},
+        'center': <String, Object?>{'x': 0.0, 'y': 0.0},
+        'centerRight': <String, Object?>{'x': halfWidth, 'y': 0.0},
+        'bottomLeft': <String, Object?>{'x': -halfWidth, 'y': halfHeight},
+        'bottomCenter': <String, Object?>{'x': 0.0, 'y': halfHeight},
+        'bottomRight': <String, Object?>{'x': halfWidth, 'y': halfHeight},
+      },
+    };
   }
 
   Future<Map<String, Object?>> _callTool({

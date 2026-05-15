@@ -190,6 +190,75 @@ class RefusionMcpMvpToolkit {
       },
     );
     bus.registerHandler(
+      commandType: 'refusion.get_composition_spec',
+      handler: (_) {
+        return RefusionMcpCommandHandlingOutcome(
+          summary: 'Composition spec loaded.',
+          payload: _buildCompositionSpecPayload(config),
+        );
+      },
+    );
+    bus.registerHandler(
+      commandType: 'refusion.get_canvas_metadata',
+      handler: (_) {
+        return RefusionMcpCommandHandlingOutcome(
+          summary: 'Canvas metadata loaded.',
+          payload: _buildCanvasMetadataPayload(config),
+        );
+      },
+    );
+    bus.registerHandler(
+      commandType: 'refusion.get_visual_layout_summary',
+      handler: (_) {
+        return RefusionMcpCommandHandlingOutcome(
+          summary: 'Visual layout summary loaded.',
+          payload: _buildVisualLayoutSummaryPayload(config),
+        );
+      },
+    );
+    bus.registerHandler(
+      commandType: 'refusion.get_element_geometry',
+      handler: (context) {
+        return RefusionMcpCommandHandlingOutcome(
+          summary: 'Element geometry loaded.',
+          payload: _buildElementGeometryPayload(
+            config,
+            context.command.payload,
+          ),
+        );
+      },
+    );
+    bus.registerHandler(
+      commandType: 'refusion.get_project_snapshot',
+      handler: (_) {
+        return RefusionMcpCommandHandlingOutcome(
+          summary: 'Project snapshot loaded.',
+          payload: _buildProjectSnapshotPayload(config),
+        );
+      },
+    );
+    bus.registerHandler(
+      commandType: 'refusion.get_timeline_graph',
+      handler: (_) {
+        return RefusionMcpCommandHandlingOutcome(
+          summary: 'Timeline graph loaded.',
+          payload: _buildTimelineGraphPayload(config),
+        );
+      },
+    );
+    bus.registerHandler(
+      commandType: 'refusion.evaluate_frame',
+      handler: (context) {
+        return RefusionMcpCommandHandlingOutcome(
+          summary: 'Frame evaluated.',
+          payload: _buildFrameEvaluationPayload(
+            config,
+            context.command.payload,
+          ),
+        );
+      },
+    );
+    bus.registerHandler(
       commandType: 'refusion.get_timeline_summary',
       handler: (_) {
         return RefusionMcpCommandHandlingOutcome(
@@ -654,6 +723,330 @@ class RefusionMcpMvpToolkit {
       ),
     );
   }
+}
+
+Map<String, Object?> _buildCompositionSpecPayload(
+  RefusionMcpMvpToolkitConfig config,
+) {
+  final state = config.projectStateReader();
+  final project = config.projectReader?.call();
+  final projectId = project?.id ?? _readString(state['projectId']) ?? 'active';
+  final compositionId = _readString(state['compositionId']) ??
+      _firstScene(project)?.id ??
+      'active-composition';
+  final canvasSize = project?.format.canvasSize;
+  final canvasWidth = canvasSize?.width.round() ??
+      _readInt(state['canvasWidth']) ??
+      _readInt(state['width']) ??
+      1080;
+  final canvasHeight = canvasSize?.height.round() ??
+      _readInt(state['canvasHeight']) ??
+      _readInt(state['height']) ??
+      1920;
+  final fps = project?.frameRate.framesPerSecond.round() ??
+      _readInt(state['fps']) ??
+      30;
+  final durationMs = project?.durationTime.inMilliseconds ??
+      _readInt(state['durationMs']) ??
+      0;
+  final playheadMs =
+      _readInt(state['playheadMs']) ?? _readInt(state['currentTimeMs']) ?? 0;
+  final currentFrame = fps > 0 ? ((playheadMs / 1000.0) * fps).round() : 0;
+  return <String, Object?>{
+    'projectId': projectId,
+    'compositionId': compositionId,
+    'width': canvasWidth,
+    'height': canvasHeight,
+    'canvasWidth': canvasWidth,
+    'canvasHeight': canvasHeight,
+    'durationMs': durationMs,
+    'fps': fps,
+    'currentTimeMs': playheadMs,
+    'currentFrame': currentFrame,
+    'coordinateSystem': 'center-origin',
+    'origin': 'center',
+    'aspectRatio': canvasHeight == 0 ? null : canvasWidth / canvasHeight,
+  };
+}
+
+Map<String, Object?> _buildCanvasMetadataPayload(
+  RefusionMcpMvpToolkitConfig config,
+) {
+  final spec = _buildCompositionSpecPayload(config);
+  final width = _readInt(spec['width']) ?? 1080;
+  final height = _readInt(spec['height']) ?? 1920;
+  final halfWidth = width / 2.0;
+  final halfHeight = height / 2.0;
+  return <String, Object?>{
+    ...spec,
+    'canvas': <String, Object?>{
+      'width': width,
+      'height': height,
+      'durationMs': spec['durationMs'],
+      'fps': spec['fps'],
+      'coordinateSystem': spec['coordinateSystem'],
+      'origin': spec['origin'],
+    },
+    'safeZones': <String, Object?>{
+      'title': <String, Object?>{
+        'top': (height * 0.1).round(),
+        'bottom': (height * 0.1).round(),
+        'left': (width * 0.06).round(),
+        'right': (width * 0.06).round(),
+      },
+      'action': <String, Object?>{
+        'top': (height * 0.05).round(),
+        'bottom': (height * 0.05).round(),
+        'left': (width * 0.03).round(),
+        'right': (width * 0.03).round(),
+      },
+    },
+    'anchors': <String, Object?>{
+      'topLeft': <String, Object?>{'x': -halfWidth, 'y': -halfHeight},
+      'topCenter': <String, Object?>{'x': 0.0, 'y': -halfHeight},
+      'topRight': <String, Object?>{'x': halfWidth, 'y': -halfHeight},
+      'centerLeft': <String, Object?>{'x': -halfWidth, 'y': 0.0},
+      'center': <String, Object?>{'x': 0.0, 'y': 0.0},
+      'centerRight': <String, Object?>{'x': halfWidth, 'y': 0.0},
+      'bottomLeft': <String, Object?>{'x': -halfWidth, 'y': halfHeight},
+      'bottomCenter': <String, Object?>{'x': 0.0, 'y': halfHeight},
+      'bottomRight': <String, Object?>{'x': halfWidth, 'y': halfHeight},
+    },
+  };
+}
+
+Map<String, Object?> _buildVisualLayoutSummaryPayload(
+  RefusionMcpMvpToolkitConfig config,
+) {
+  final project = config.projectReader?.call();
+  final spec = _buildCompositionSpecPayload(config);
+  final layers = project == null
+      ? const <Map<String, Object?>>[]
+      : _layerSummariesForProject(project);
+  return <String, Object?>{
+    ...spec,
+    'layerCount': layers.length,
+    'layers': layers,
+    'summary':
+        'Canvas ${spec['width']}x${spec['height']} with ${layers.length} layer(s).',
+  };
+}
+
+Map<String, Object?> _buildProjectSnapshotPayload(
+  RefusionMcpMvpToolkitConfig config,
+) {
+  final project = config.projectReader?.call();
+  final spec = _buildCompositionSpecPayload(config);
+  return <String, Object?>{
+    ...spec,
+    'revision': config.projectStateReader()['revision'],
+    'layers': project == null
+        ? const <Map<String, Object?>>[]
+        : _layerSummariesForProject(project),
+    'selection': config.selectionReader(),
+  };
+}
+
+Map<String, Object?> _buildTimelineGraphPayload(
+  RefusionMcpMvpToolkitConfig config,
+) {
+  final project = config.projectReader?.call();
+  final spec = _buildCompositionSpecPayload(config);
+  return <String, Object?>{
+    ...spec,
+    'timeline': config.timelineSummaryReader(),
+    'tracks': project == null
+        ? const <Map<String, Object?>>[]
+        : project.scenes
+            .map(
+              (scene) => <String, Object?>{
+                'sceneId': scene.id,
+                'startMs': scene.projectRange.start.inMilliseconds,
+                'durationMs': scene.durationTime.inMilliseconds,
+                'layers': scene.layers
+                    .map(
+                      (layer) => <String, Object?>{
+                        'layerId': layer.id,
+                        'trackKind': layer.kind.name,
+                        'startMs': layer.visibleRange.start.inMilliseconds,
+                        'durationMs':
+                            layer.visibleRange.duration.inMilliseconds,
+                        'zIndex': layer.zIndex,
+                      },
+                    )
+                    .toList(growable: false),
+              },
+            )
+            .toList(growable: false),
+  };
+}
+
+Map<String, Object?> _buildFrameEvaluationPayload(
+  RefusionMcpMvpToolkitConfig config,
+  Map<String, Object?> payload,
+) {
+  final project = config.projectReader?.call();
+  final spec = _buildCompositionSpecPayload(config);
+  final timeMs =
+      _readInt(payload['timeMs']) ?? _readInt(spec['currentTimeMs']) ?? 0;
+  final visibleLayers = project == null
+      ? const <Map<String, Object?>>[]
+      : _layerSummariesForProject(project).where((layer) {
+          final startMs = _readInt(layer['startMs']) ?? 0;
+          final durationMs = _readInt(layer['durationMs']) ?? 0;
+          return timeMs >= startMs && timeMs < startMs + durationMs;
+        }).toList(growable: false);
+  return <String, Object?>{
+    ...spec,
+    'timeMs': timeMs,
+    'visibleLayerCount': visibleLayers.length,
+    'visibleLayers': visibleLayers,
+    'frameEvaluated': true,
+  };
+}
+
+Map<String, Object?> _buildElementGeometryPayload(
+  RefusionMcpMvpToolkitConfig config,
+  Map<String, Object?> payload,
+) {
+  final project = config.projectReader?.call();
+  final spec = _buildCanvasMetadataPayload(config);
+  final targetId = _firstString(<Object?>[
+    payload['layerId'],
+    payload['elementId'],
+    payload['targetLayerId'],
+    payload['clipId'],
+  ]);
+  if (project == null || targetId == null) {
+    return <String, Object?>{
+      ...spec,
+      'found': false,
+      'targetId': targetId,
+    };
+  }
+  final target = _findGeometryTarget(project, targetId);
+  if (target == null) {
+    return <String, Object?>{
+      ...spec,
+      'found': false,
+      'targetId': targetId,
+    };
+  }
+  final layer = target.layer;
+  final element = target.element;
+  final width = (_readInt(spec['width']) ?? 1080).toDouble();
+  final height = (_readInt(spec['height']) ?? 1920).toDouble();
+  return <String, Object?>{
+    ...spec,
+    'found': true,
+    'layerId': layer.id,
+    'elementId': element?.id,
+    'kind': element?.kind.name ?? layer.kind.name,
+    'layerKind': layer.kind.name,
+    'name': element?.name ?? layer.name,
+    'worldBounds': <String, Object?>{
+      'x': 0.0,
+      'y': 0.0,
+      'width': width,
+      'height': height,
+      'rotation': 0.0,
+      'scale': 1.0,
+    },
+    'anchor': const <String, Object?>{'x': 0.5, 'y': 0.5},
+    'intrinsicSize': <String, Object?>{
+      'width': width,
+      'height': height,
+    },
+    'visibleRange': <String, Object?>{
+      'startMs': layer.visibleRange.start.inMilliseconds,
+      'durationMs': layer.visibleRange.duration.inMilliseconds,
+    },
+  };
+}
+
+List<Map<String, Object?>> _layerSummariesForProject(
+    MotionProjectModel project) {
+  return project.scenes
+      .expand(
+        (scene) => scene.layers.map(
+          (layer) => <String, Object?>{
+            'id': layer.id,
+            'layerId': layer.id,
+            'sceneId': scene.id,
+            'kind': layer.kind.name,
+            'name': layer.name,
+            'zIndex': layer.zIndex,
+            'startMs': layer.visibleRange.start.inMilliseconds,
+            'durationMs': layer.visibleRange.duration.inMilliseconds,
+            'elements': layer.elements
+                .map(
+                  (element) => <String, Object?>{
+                    'id': element.id,
+                    'elementId': element.id,
+                    'kind': element.kind.name,
+                    'name': element.name,
+                    'shapeKind': element.shapeKind?.name,
+                    'text': element.sourceBinding?.label,
+                    'startMs': element.localRange.start.inMilliseconds,
+                    'durationMs': element.localRange.duration.inMilliseconds,
+                  },
+                )
+                .toList(growable: false),
+          },
+        ),
+      )
+      .toList(growable: false);
+}
+
+MotionSceneModel? _firstScene(MotionProjectModel? project) {
+  if (project == null || project.scenes.isEmpty) {
+    return null;
+  }
+  return project.scenes.first;
+}
+
+_GeometryTarget? _findGeometryTarget(
+    MotionProjectModel project, String targetId) {
+  for (final scene in project.scenes) {
+    for (final layer in scene.layers) {
+      if (layer.id == targetId) {
+        return _GeometryTarget(layer: layer);
+      }
+      for (final element in layer.elements) {
+        if (element.id == targetId) {
+          return _GeometryTarget(layer: layer, element: element);
+        }
+      }
+    }
+  }
+  return null;
+}
+
+class _GeometryTarget {
+  const _GeometryTarget({
+    required this.layer,
+    this.element,
+  });
+
+  final MotionLayerModel layer;
+  final MotionElementModel? element;
+}
+
+String? _firstString(Iterable<Object?> values) {
+  for (final value in values) {
+    final string = _readString(value);
+    if (string != null) {
+      return string;
+    }
+  }
+  return null;
+}
+
+String? _readString(Object? value) {
+  if (value is String && value.trim().isNotEmpty) {
+    return value.trim();
+  }
+  return null;
 }
 
 void _registerMutationHandler({

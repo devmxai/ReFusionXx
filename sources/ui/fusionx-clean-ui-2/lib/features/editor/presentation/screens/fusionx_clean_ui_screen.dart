@@ -1300,6 +1300,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     final activeSceneId =
         _sceneScopeSession?.sourceSceneId ?? _rootMotionSceneId;
     final effectiveProject = _effectiveMotionProject;
+    final canvasSize = effectiveProject.format.canvasSize;
     return RefusionMcpCloudContextState(
       projectId: effectiveProject.id,
       compositionId: activeSceneId,
@@ -1308,6 +1309,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       timelineRevision: _mcpAppliedRemoteRevision,
       foreground: _mcpCloudIsForeground,
       editorLayers: _mcpEditorLayerSnapshots(),
+      canvasWidth: canvasSize.width.round(),
+      canvasHeight: canvasSize.height.round(),
+      durationMs: effectiveProject.durationTime.inMilliseconds,
+      fps: effectiveProject.frameRate.framesPerSecond.round(),
+      coordinateSystem: 'center-origin',
+      origin: 'center',
     );
   }
 

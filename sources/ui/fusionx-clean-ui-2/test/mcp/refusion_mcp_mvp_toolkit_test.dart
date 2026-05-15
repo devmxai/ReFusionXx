@@ -74,6 +74,72 @@ void main() {
       expect(result.payload['projectId'], 'active');
     });
 
+    test('returns composition truth tools from active motion project', () {
+      final toolBus = RefusionMcpCommandBus();
+      const toolkit = RefusionMcpMvpToolkit();
+      final project = _sampleProject();
+      toolkit.register(
+        bus: toolBus,
+        config: RefusionMcpMvpToolkitConfig(
+          projectStateReader: () => <String, Object?>{
+            'projectId': project.id,
+            'compositionId': project.scenes.first.id,
+            'revision': 9,
+            'playheadMs': 500,
+          },
+          timelineSummaryReader: () => <String, Object?>{'rows': 1},
+          selectionReader: () => <String, Object?>{'selected': <String>[]},
+          previewCaptureReader: (_) => <String, Object?>{},
+          projectReader: () => project,
+        ),
+      );
+
+      final spec = toolBus.execute(
+        session: session,
+        command: _command(
+          type: 'refusion.get_composition_spec',
+          capability: RefusionMcpCapability.projectRead,
+        ),
+        currentRevision: 9,
+      );
+      expect(spec.ok, isTrue);
+      expect(spec.payload['projectId'], 'project_1');
+      expect(spec.payload['compositionId'], 'root-scene');
+      expect(spec.payload['width'], 1080);
+      expect(spec.payload['height'], 1920);
+      expect(spec.payload['fps'], 30);
+
+      final metadata = toolBus.execute(
+        session: session,
+        command: _command(
+          type: 'refusion.get_canvas_metadata',
+          capability: RefusionMcpCapability.timelineRead,
+        ),
+        currentRevision: 9,
+      );
+      expect(metadata.ok, isTrue);
+      expect(metadata.payload['width'], 1080);
+      expect(metadata.payload['height'], 1920);
+      expect(metadata.payload['coordinateSystem'], 'center-origin');
+      final anchors = metadata.payload['anchors'] as Map<String, Object?>;
+      expect(anchors['center'], isNotNull);
+
+      final geometry = toolBus.execute(
+        session: session,
+        command: _command(
+          type: 'refusion.get_element_geometry',
+          capability: RefusionMcpCapability.timelineRead,
+          payload: const <String, Object?>{'layerId': 'layer_1'},
+        ),
+        currentRevision: 9,
+      );
+      expect(geometry.ok, isTrue);
+      expect(geometry.payload['found'], isTrue);
+      expect(geometry.payload['layerId'], 'layer_1');
+      expect(geometry.payload['canvasWidth'], 1080);
+      expect(geometry.payload['canvasHeight'], 1920);
+    });
+
     test('returns preview resource uri', () {
       final result = bus.execute(
         session: session,
