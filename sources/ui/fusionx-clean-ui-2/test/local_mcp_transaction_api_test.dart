@@ -22,7 +22,7 @@ void main() {
       coordinateSystem: 'center',
       origin: 'canvasCenter',
     ),
-  currentRevision: 0,
+    currentRevision: 0,
   );
 
   test('MCP reads current Story composition spec', () {
@@ -147,6 +147,91 @@ void main() {
 
     expect(response.proof.targetLayerId, 'text-proof');
     expect(response.proof.operationApplied, 'textInsert');
+  });
+
+  test('MCP update resolves target by layer alias before apply', () {
+    final aliasedState = UnifiedCreativeState(
+      projectId: 'project-1',
+      compositionId: 'story-1',
+      revision: 3,
+      layers: <String, UnifiedCreativeLayerNode>{
+        'text-aliased': UnifiedCreativeLayerNode(
+          identity: const CreativeLayerIdentity(
+            layerId: 'text-aliased',
+            kind: 'text',
+            compositionId: 'story-1',
+            timelineTrackId: 'text',
+            zOrder: 10,
+            createdBy: CreativeTransactionSource.mcpAgent,
+            createdAtRevision: 1,
+            updatedAtRevision: 3,
+            aliases: <CreativeLayerAlias>[
+              CreativeLayerAlias(kind: 'remoteLayerId', value: 'remote-text-1'),
+            ],
+          ),
+          x: 120,
+          y: 320,
+          width: 500,
+          height: 140,
+          text: 'hello',
+          fillColor: '#FFFFFF',
+        ),
+      },
+      timeline: const <UnifiedCreativeTimelineClip>[
+        UnifiedCreativeTimelineClip(
+          clipId: 'clip-text-aliased',
+          layerId: 'text-aliased',
+          trackId: 'text',
+          startMs: 0,
+          durationMs: 8000,
+        ),
+      ],
+    );
+    final response = api.applyTransaction(
+      state: aliasedState,
+      context: context,
+      transaction: _tx(
+        id: 'tx-update-alias',
+        intent: CreativeTransactionIntent.textUpdateContent,
+        baseRevision: 3,
+        target: const CreativeTargetRef(layerAlias: 'remote-text-1'),
+        operations: const <CreativeTransactionOperation>[
+          CreativeTransactionOperation(
+            kind: 'text.update_content',
+            payload: <String, Object?>{'text': 'hello alias updated'},
+          ),
+        ],
+      ),
+    );
+
+    expect(response.result.success, isTrue);
+    expect(
+      response.result.state.layers['text-aliased']?.text,
+      'hello alias updated',
+    );
+    expect(response.proof.targetLayerId, 'text-aliased');
+  });
+
+  test('MCP update fails closed when alias target cannot be resolved', () {
+    final response = api.applyTransaction(
+      state: _state(),
+      context: context,
+      transaction: _tx(
+        id: 'tx-update-missing-alias',
+        intent: CreativeTransactionIntent.textUpdateContent,
+        target: const CreativeTargetRef(layerAlias: 'missing-alias'),
+        operations: const <CreativeTransactionOperation>[
+          CreativeTransactionOperation(
+            kind: 'text.update_content',
+            payload: <String, Object?>{'text': 'never applied'},
+          ),
+        ],
+      ),
+    );
+
+    expect(response.result.success, isFalse);
+    expect(response.result.error, 'TARGET_NOT_FOUND');
+    expect(response.proof.dataApplied, isFalse);
   });
 }
 

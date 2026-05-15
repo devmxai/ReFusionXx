@@ -68,15 +68,45 @@ class LocalMcpTransactionApi {
     required CreativeTransactionEnvelope transaction,
     CreativeApplyLedger ledger = const CreativeApplyLedger(),
   }) {
+    final normalized = _normalizeTransactionTarget(
+      state: state,
+      transaction: transaction,
+    );
+    if (!normalized.ok) {
+      final validation = CreativeTransactionValidationResult(
+        isValid: false,
+        issues: <String>[normalized.errorCode],
+      );
+      final failedResult = CreativeApplyResult(
+        success: false,
+        state: state,
+        validation: validation,
+        diff: const CreativeTransactionDiff(),
+        ledger: ledger.append(
+          CreativeApplyLedgerEntry(
+            transactionId: transaction.transactionId,
+            intent: transaction.intent,
+            result: 'failed_target_resolution',
+            revisionAfter: state.revision,
+          ),
+        ),
+        error: normalized.errorCode,
+      );
+      return LocalMcpApplyResponse(
+        result: failedResult,
+        proof: _buildProof(transaction, failedResult),
+      );
+    }
+    final effectiveTransaction = normalized.transaction ?? transaction;
     final result = applyEngine.apply(
       state: state,
       context: context,
-      transaction: transaction,
+      transaction: effectiveTransaction,
       ledger: ledger,
     );
     return LocalMcpApplyResponse(
       result: result,
-      proof: _buildProof(transaction, result),
+      proof: _buildProof(effectiveTransaction, result),
     );
   }
 }
@@ -90,6 +120,123 @@ class LocalMcpApplyResponse {
   final CreativeApplyResult result;
   final CreativeApplyProof proof;
 }
+
+class _NormalizedTransactionTarget {
+  const _NormalizedTransactionTarget({
+    required this.ok,
+    this.transaction,
+    this.errorCode = '',
+  });
+
+  final bool ok;
+  final CreativeTransactionEnvelope? transaction;
+  final String errorCode;
+}
+
+_NormalizedTransactionTarget _normalizeTransactionTarget({
+  required UnifiedCreativeState state,
+  required CreativeTransactionEnvelope transaction,
+}) {
+  if (!_requiresResolvedLayerTarget(transaction.intent)) {
+    return _NormalizedTransactionTarget(ok: true, transaction: transaction);
+  }
+  final target = transaction.target;
+  if (target == null) {
+    return const _NormalizedTransactionTarget(
+      ok: false,
+      errorCode: 'TARGET_NOT_FOUND',
+    );
+  }
+  if (_hasText(target.layerId)) {
+    return _NormalizedTransactionTarget(ok: true, transaction: transaction);
+  }
+
+  final layers =
+      state.layers.values.map((node) => node.identity).toList(growable: false);
+  final textByLayerId = <String, String>{};
+  for (final entry in state.layers.entries) {
+    final text = entry.value.text.trim();
+    if (text.isNotEmpty) {
+      textByLayerId[entry.key] = text;
+    }
+  }
+
+  const resolver = CreativeTargetResolver();
+  final resolution = resolver.resolve(
+    CreativeTargetResolutionRequest(
+      layers: layers,
+      target: target,
+      selectedLayerIds: state.selectedLayerId == null
+          ? const <String>[]
+          : <String>[state.selectedLayerId!],
+      allowSelectedFallback: false,
+      textByLayerId: textByLayerId,
+    ),
+  );
+
+  if (resolution.result == CreativeTargetResolutionResult.resolvedAmbiguous) {
+    return const _NormalizedTransactionTarget(
+      ok: false,
+      errorCode: 'AMBIGUOUS_TARGET',
+    );
+  }
+  if (resolution.result ==
+      CreativeTargetResolutionResult.blockedUnsafeFallback) {
+    return const _NormalizedTransactionTarget(
+      ok: false,
+      errorCode: 'UNSAFE_FALLBACK_BLOCKED',
+    );
+  }
+  final resolvedLayerId = resolution.layerId?.trim();
+  if (resolvedLayerId == null || resolvedLayerId.isEmpty) {
+    return const _NormalizedTransactionTarget(
+      ok: false,
+      errorCode: 'TARGET_NOT_FOUND',
+    );
+  }
+
+  final normalizedTarget = CreativeTargetRef(
+    layerId: resolvedLayerId,
+    layerAlias: target.layerAlias,
+    clipId: target.clipId,
+    elementId: target.elementId,
+  );
+
+  return _NormalizedTransactionTarget(
+    ok: true,
+    transaction: CreativeTransactionEnvelope(
+      transactionId: transaction.transactionId,
+      schemaVersion: transaction.schemaVersion,
+      source: transaction.source,
+      intent: transaction.intent,
+      projectId: transaction.projectId,
+      compositionId: transaction.compositionId,
+      baseRevision: transaction.baseRevision,
+      operations: transaction.operations,
+      target: normalizedTarget,
+      idempotencyKey: transaction.idempotencyKey,
+      proofLevel: transaction.proofLevel,
+      basisSnapshotId: transaction.basisSnapshotId,
+      basisCompositionRevision: transaction.basisCompositionRevision,
+      basisGraphRevision: transaction.basisGraphRevision,
+      basisFrame: transaction.basisFrame,
+      basisTargetLayerId: transaction.basisTargetLayerId,
+    ),
+  );
+}
+
+bool _requiresResolvedLayerTarget(CreativeTransactionIntent intent) {
+  return intent == CreativeTransactionIntent.layerUpdate ||
+      intent == CreativeTransactionIntent.layerDelete ||
+      intent == CreativeTransactionIntent.layerSelect ||
+      intent == CreativeTransactionIntent.textUpdateContent ||
+      intent == CreativeTransactionIntent.transformPatch ||
+      intent == CreativeTransactionIntent.keyframeBatchApply ||
+      intent == CreativeTransactionIntent.animationApplyRecipe ||
+      intent == CreativeTransactionIntent.effectApply;
+}
+
+bool _hasText(String? value) => value != null && value.trim().isNotEmpty;
 
 CreativeApplyProof _buildProof(
   CreativeTransactionEnvelope transaction,
@@ -115,10 +262,11 @@ CreativeApplyProof _buildProof(
       transaction.intent == CreativeTransactionIntent.shapeInsert ||
       transaction.intent == CreativeTransactionIntent.backgroundSetSolid ||
       transaction.intent == CreativeTransactionIntent.layerInsert;
-  final isUpdate = transaction.intent == CreativeTransactionIntent.layerUpdate ||
-      transaction.intent == CreativeTransactionIntent.textUpdateContent ||
-      transaction.intent == CreativeTransactionIntent.transformPatch ||
-      transaction.intent == CreativeTransactionIntent.layerSelect;
+  final isUpdate =
+      transaction.intent == CreativeTransactionIntent.layerUpdate ||
+          transaction.intent == CreativeTransactionIntent.textUpdateContent ||
+          transaction.intent == CreativeTransactionIntent.transformPatch ||
+          transaction.intent == CreativeTransactionIntent.layerSelect;
 
   return CreativeApplyProof(
     level: CreativeProofLevel.graph,
