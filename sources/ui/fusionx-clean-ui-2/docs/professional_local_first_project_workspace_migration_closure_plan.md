@@ -26,6 +26,7 @@ fe1b5854 checkpoint: harden cloud bridge identity placeholders
 b2f97087 checkpoint: finalize workspace identity runtime adoption core
 0b952848 checkpoint: enforce workspace identity gate for active mcp context
 0e4884e6 checkpoint: add scene context virtual project resources
+8446c992 checkpoint: prefer scene context over legacy layers sync
 ```
 
 ### What Is Closed
@@ -47,6 +48,7 @@ Toolkit active context now fails closed on placeholders and reports workspace id
 Scene context snapshot tools are now wired (`get_scene_context`, `list_project_resources`, `get_project_resource`).
 Virtual project resources now expose read-only context payloads for agent awareness.
 Proof resource payload is explicitly read-only and cannot be interpreted as app-apply proof.
+Cloud bridge fast-sync now reads layer truth from `get_scene_context` first, with `get_layers` as compatibility fallback only.
 ```
 
 ### What Is Not Yet Closed
