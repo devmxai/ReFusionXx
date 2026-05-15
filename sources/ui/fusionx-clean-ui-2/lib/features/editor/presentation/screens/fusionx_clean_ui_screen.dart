@@ -40,6 +40,7 @@ import '../../domain/models/professional_motion_text_preview_models.dart';
 import '../../domain/models/professional_motion_text_render_models.dart';
 import '../../domain/models/professional_motion_text_runtime_helpers.dart';
 import '../../domain/models/professional_normal_transition_models.dart';
+import '../../domain/models/project_workspace_v1_models.dart';
 import '../../domain/models/refusion_motion_patch_models.dart';
 import '../../domain/services/ai_transition/kie_ai_transition_service.dart';
 import '../../domain/services/normal_transition_command_history.dart';
@@ -741,6 +742,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       <String, _CompositionWorkspaceSnapshot>{};
   List<_RecentCompositionEntry> _recentCompositions =
       const <_RecentCompositionEntry>[];
+  ProjectWorkspaceV1? _activeProjectWorkspace;
   String _activeCompositionProjectId = _generateUuidV4();
   String _activeRootSceneId = _generateUuidV4();
   EditorMediaTab _activeTab = EditorMediaTab.video;
@@ -1256,17 +1258,90 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (project != null && project.scenes.isNotEmpty) {
       return project.scenes.first.id;
     }
+    final workspace = _activeProjectWorkspace;
+    if (workspace != null &&
+        workspace.isRuntimeReady &&
+        workspace.compositionId.trim().isNotEmpty) {
+      return workspace.compositionId;
+    }
     return _activeRootSceneId;
   }
 
+  bool get _hasRuntimeWorkspaceContext {
+    final workspace = _activeProjectWorkspace;
+    if (workspace == null || !workspace.isRuntimeReady) {
+      return false;
+    }
+    final project = _motionProject;
+    if (!_hasStartedCompositionSession ||
+        project == null ||
+        project.scenes.isEmpty) {
+      return false;
+    }
+    return workspace.matchesIdentity(
+      projectId: project.id,
+      compositionId: project.scenes.first.id,
+    );
+  }
+
+  ProjectWorkspaceV1 _buildWorkspaceFromProject({
+    required MotionProjectModel project,
+    required String compositionId,
+    required String workspaceId,
+    required int revision,
+  }) {
+    final duration = project.durationTime > _timelineDurationTime
+        ? project.durationTime
+        : _timelineDurationTime;
+    return ProjectWorkspaceV1.create(
+      projectId: project.id,
+      compositionId: compositionId,
+      workspaceId: workspaceId,
+      revision: math.max(0, revision),
+      compositionProfile: compositionProfileFromCanvas(
+        width: project.format.canvasSize.width.round(),
+        height: project.format.canvasSize.height.round(),
+        fps: project.frameRate.framesPerSecond.round(),
+        duration: duration,
+      ),
+    );
+  }
+
+  void _refreshActiveWorkspaceFromProject({
+    required MotionProjectModel project,
+    required String compositionId,
+    int? revision,
+  }) {
+    final currentWorkspace = _activeProjectWorkspace;
+    final workspaceId =
+        (currentWorkspace?.workspaceId.trim().isNotEmpty ?? false)
+            ? currentWorkspace!.workspaceId
+            : _generateUuidV4();
+    _activeProjectWorkspace = _buildWorkspaceFromProject(
+      project: project,
+      compositionId: compositionId,
+      workspaceId: workspaceId,
+      revision: revision ?? currentWorkspace?.revision ?? 0,
+    );
+    _activeCompositionProjectId = _activeProjectWorkspace!.projectId;
+    _activeRootSceneId = _activeProjectWorkspace!.compositionId;
+  }
+
   MotionProjectModel _buildInitialMotionProject() {
+    final workspace = _activeProjectWorkspace;
+    final workspaceHasIdentity = workspace != null && workspace.isRuntimeReady;
+    final projectId = workspaceHasIdentity
+        ? workspace.projectId
+        : _activeCompositionProjectId;
+    final sceneId =
+        workspaceHasIdentity ? workspace.compositionId : _activeRootSceneId;
     return MotionProjectModel(
-      id: _activeCompositionProjectId,
+      id: projectId,
       format: _motionProjectFormat,
       frameRate: const MotionFrameRate(numerator: 30, denominator: 1),
       scenes: <MotionSceneModel>[
         MotionSceneModel(
-          id: _activeRootSceneId,
+          id: sceneId,
           projectRange: TimelineTimeRange(
             start: TimelineTime.zero,
             endExclusive: _timelineDurationTime,
@@ -1296,9 +1371,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   RefusionMcpCloudContextState _readMcpCloudContextState() {
-    final hasActiveLocalComposition = _hasStartedCompositionSession &&
-        _motionProject != null &&
-        _motionProject!.scenes.isNotEmpty;
+    final hasActiveLocalComposition = _hasRuntimeWorkspaceContext;
     if (!hasActiveLocalComposition) {
       return RefusionMcpCloudContextState(
         projectId: '',
@@ -1315,23 +1388,23 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         origin: 'center',
       );
     }
-    final activeSceneId = _rootMotionSceneId;
-    final effectiveProject = _effectiveMotionProject;
-    final canvasSize = effectiveProject.format.canvasSize;
+    final workspace = _activeProjectWorkspace!;
+    final activeSceneId = workspace.compositionId;
+    final profile = workspace.compositionProfile;
     return RefusionMcpCloudContextState(
-      projectId: effectiveProject.id,
+      projectId: workspace.projectId,
       compositionId: activeSceneId,
       timelineId: 'main',
       playheadMs: refusionMcpPlayheadMs(_currentTime),
-      timelineRevision: _mcpAppliedRemoteRevision,
+      timelineRevision: math.max(_mcpAppliedRemoteRevision, workspace.revision),
       foreground: _mcpCloudIsForeground,
       editorLayers: _mcpEditorLayerSnapshots(),
-      canvasWidth: canvasSize.width.round(),
-      canvasHeight: canvasSize.height.round(),
-      durationMs: effectiveProject.durationTime.inMilliseconds,
-      fps: effectiveProject.frameRate.framesPerSecond.round(),
-      coordinateSystem: 'center-origin',
-      origin: 'center',
+      canvasWidth: profile.width,
+      canvasHeight: profile.height,
+      durationMs: profile.durationMs,
+      fps: profile.fps,
+      coordinateSystem: profile.coordinateSystem,
+      origin: profile.origin,
     );
   }
 
@@ -1436,6 +1509,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
   }
 
   void _handleMcpCloudSnapshot(RefusionMcpCloudBridgeSnapshot snapshot) {
+    if (_hasStartedCompositionSession &&
+        _motionProject != null &&
+        _motionProject!.scenes.isNotEmpty &&
+        !_hasRuntimeWorkspaceContext) {
+      _refreshActiveWorkspaceFromProject(
+        project: _motionProject!,
+        compositionId: _motionProject!.scenes.first.id,
+        revision: math.max(_mcpAppliedRemoteRevision, 0),
+      );
+    }
     if (!_isMcpSnapshotForActiveComposition(snapshot)) {
       if (_bootstrapMcpCompositionFromSnapshotIfNeeded(snapshot)) {
         _scheduleMcpCloudSync(delay: const Duration(milliseconds: 40));
@@ -1545,11 +1628,14 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       ...currentProject.scenes.skip(1),
     ];
     setState(() {
-      _activeCompositionProjectId = remoteProjectId;
-      _activeRootSceneId = remoteCompositionId;
       _motionProject = currentProject.copyWith(
         id: remoteProjectId,
         scenes: List<MotionSceneModel>.unmodifiable(nextScenes),
+      );
+      _refreshActiveWorkspaceFromProject(
+        project: _motionProject!,
+        compositionId: remoteCompositionId,
+        revision: math.max(_mcpAppliedRemoteRevision, 0),
       );
     });
     return true;
@@ -1615,10 +1701,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       },
     );
     setState(() {
-      _activeCompositionProjectId = remoteProjectId;
-      _activeRootSceneId = remoteCompositionId;
       _lockedWorkspaceAspectRatio = canvasSize.width / canvasSize.height;
       _motionProject = project;
+      _refreshActiveWorkspaceFromProject(
+        project: project,
+        compositionId: remoteCompositionId,
+        revision: math.max(snapshot.remoteRevision ?? 0, 0),
+      );
       _hasStartedCompositionSession = true;
       _sceneClips = const <CompositionSceneClipModel>[];
       _sceneScopeSession = null;
@@ -2181,10 +2270,30 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     if (commandIds.isEmpty) {
       if (remoteRevision > _mcpAppliedRemoteRevision) {
         _mcpAppliedRemoteRevision = remoteRevision;
+        final project = _motionProject;
+        if (_hasStartedCompositionSession &&
+            project != null &&
+            project.scenes.isNotEmpty) {
+          _refreshActiveWorkspaceFromProject(
+            project: project,
+            compositionId: project.scenes.first.id,
+            revision: _mcpAppliedRemoteRevision,
+          );
+        }
       }
       return;
     }
     _mcpAppliedRemoteRevision = remoteRevision;
+    final project = _motionProject;
+    if (_hasStartedCompositionSession &&
+        project != null &&
+        project.scenes.isNotEmpty) {
+      _refreshActiveWorkspaceFromProject(
+        project: project,
+        compositionId: project.scenes.first.id,
+        revision: _mcpAppliedRemoteRevision,
+      );
+    }
     final bridge = _mcpCloudBridge;
     if (bridge != null && _hasStartedCompositionSession) {
       if (_mcpLatestCapabilityBlockers.isNotEmpty) {
@@ -6537,6 +6646,16 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
     _cachedMotionTimelineTrack = null;
     _cachedMotionDisplayTracks = null;
     _lastWarmedMotionRevision = null;
+    final project = _motionProject;
+    if (_hasStartedCompositionSession &&
+        project != null &&
+        project.scenes.isNotEmpty) {
+      _refreshActiveWorkspaceFromProject(
+        project: project,
+        compositionId: project.scenes.first.id,
+        revision: math.max(_motionRevision, _mcpAppliedRemoteRevision),
+      );
+    }
     if (scheduleWarmup) {
       _scheduleMotionPreviewWarmup();
     }
@@ -6558,6 +6677,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         remoteCompositionId.isEmpty) {
       return true;
     }
+    if (_hasRuntimeWorkspaceContext) {
+      final workspace = _activeProjectWorkspace!;
+      return workspace.matchesIdentity(
+        projectId: remoteProjectId,
+        compositionId: remoteCompositionId,
+      );
+    }
     return remoteProjectId == _effectiveMotionProject.id &&
         remoteCompositionId == _rootMotionSceneId;
   }
@@ -6569,7 +6695,32 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
         project.scenes.isEmpty) {
       return;
     }
+    final compositionId = project.scenes.first.id;
+    final workspace = _activeProjectWorkspace?.matchesIdentity(
+              projectId: project.id,
+              compositionId: compositionId,
+            ) ==
+            true
+        ? _activeProjectWorkspace!
+        : _buildWorkspaceFromProject(
+            project: project,
+            compositionId: compositionId,
+            workspaceId: _activeProjectWorkspace?.workspaceId.isNotEmpty == true
+                ? _activeProjectWorkspace!.workspaceId
+                : _generateUuidV4(),
+            revision: math.max(_mcpAppliedRemoteRevision, 0),
+          );
+    if (_activeProjectWorkspace?.matchesIdentity(
+          projectId: workspace.projectId,
+          compositionId: workspace.compositionId,
+        ) !=
+        true) {
+      _activeProjectWorkspace = workspace;
+      _activeCompositionProjectId = workspace.projectId;
+      _activeRootSceneId = workspace.compositionId;
+    }
     final snapshot = _CompositionWorkspaceSnapshot(
+      workspace: workspace,
       project: project,
       tracks: List<TimelineTrackData>.unmodifiable(_tracks),
       sceneClips: List<CompositionSceneClipModel>.unmodifiable(_sceneClips),
@@ -6582,14 +6733,13 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       currentTime: _currentTime,
       savedAtUtc: DateTime.now().toUtc(),
     );
-    _workspaceSnapshotsById[project.id] = snapshot;
+    _workspaceSnapshotsById[workspace.projectId] = snapshot;
     if (!markRecent) {
       return;
     }
-    final scene = project.scenes.first;
     final entry = _RecentCompositionEntry(
-      projectId: project.id,
-      compositionId: scene.id,
+      projectId: workspace.projectId,
+      compositionId: workspace.compositionId,
       title: project.name?.trim().isNotEmpty == true
           ? project.name!.trim()
           : 'Untitled Composition',
@@ -6623,9 +6773,20 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       return;
     }
     setState(() {
-      _activeCompositionProjectId = project.id;
-      _activeRootSceneId = project.scenes.first.id;
       _motionProject = project;
+      _activeProjectWorkspace = snapshot.workspace.matchesIdentity(
+        projectId: project.id,
+        compositionId: project.scenes.first.id,
+      )
+          ? snapshot.workspace
+          : _buildWorkspaceFromProject(
+              project: project,
+              compositionId: project.scenes.first.id,
+              workspaceId: snapshot.workspace.workspaceId,
+              revision: math.max(snapshot.workspace.revision, 0),
+            );
+      _activeCompositionProjectId = _activeProjectWorkspace!.projectId;
+      _activeRootSceneId = _activeProjectWorkspace!.compositionId;
       _hasStartedCompositionSession = true;
       _tracks = List<TimelineTrackData>.unmodifiable(snapshot.tracks);
       _sceneClips = List<CompositionSceneClipModel>.unmodifiable(
@@ -6644,7 +6805,7 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       _previewAssetId = null;
       _setCurrentTime(snapshot.currentTime);
       _activeTab = EditorMediaTab.text;
-      _mcpAppliedRemoteRevision = 1;
+      _mcpAppliedRemoteRevision = math.max(snapshot.workspace.revision, 1);
       _appliedMcpSolidLayerSignatures.clear();
       _appliedMcpTextLayerSignatures.clear();
       _appliedMcpMotionChannelSignatures.clear();
@@ -22176,8 +22337,9 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
 
   void _createBlankComposition(_CompositionTemplate template) {
     _captureAndStoreWorkspaceSnapshot(markRecent: true);
-    _activeCompositionProjectId = _generateUuidV4();
-    _activeRootSceneId = _generateUuidV4();
+    final projectId = _generateUuidV4();
+    final compositionId = _generateUuidV4();
+    final workspaceId = _generateUuidV4();
     final format = MotionProjectFormat(
       canvasSize: MotionSize2D(
         width: template.width.toDouble(),
@@ -22189,12 +22351,12 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       'compositionPreset': template.id,
     };
     final project = MotionProjectModel(
-      id: _activeCompositionProjectId,
+      id: projectId,
       format: format,
       frameRate: MotionFrameRate(numerator: template.frameRate, denominator: 1),
       scenes: <MotionSceneModel>[
         MotionSceneModel(
-          id: _activeRootSceneId,
+          id: compositionId,
           projectRange: TimelineTimeRange(
             start: TimelineTime.zero,
             endExclusive: template.duration,
@@ -22210,9 +22372,24 @@ class _FusionXCleanUiScreenState extends State<FusionXCleanUiScreen>
       name: '${template.label} Composition',
       metadata: projectMetadata,
     );
+    final workspace = ProjectWorkspaceV1.create(
+      projectId: projectId,
+      compositionId: compositionId,
+      workspaceId: workspaceId,
+      revision: 0,
+      compositionProfile: compositionProfileFromCanvas(
+        width: template.width,
+        height: template.height,
+        fps: template.frameRate,
+        duration: template.duration,
+      ),
+    );
     const sceneClips = <CompositionSceneClipModel>[];
     const nextTracks = <TimelineTrackData>[];
     setState(() {
+      _activeProjectWorkspace = workspace;
+      _activeCompositionProjectId = workspace.projectId;
+      _activeRootSceneId = workspace.compositionId;
       _lockedWorkspaceAspectRatio = template.aspectRatio;
       _motionProject = project;
       _hasStartedCompositionSession = true;
@@ -35161,6 +35338,7 @@ class _RecentCompositionEntry {
 
 class _CompositionWorkspaceSnapshot {
   const _CompositionWorkspaceSnapshot({
+    required this.workspace,
     required this.project,
     required this.tracks,
     required this.sceneClips,
@@ -35170,6 +35348,7 @@ class _CompositionWorkspaceSnapshot {
     required this.savedAtUtc,
   });
 
+  final ProjectWorkspaceV1 workspace;
   final MotionProjectModel project;
   final List<TimelineTrackData> tracks;
   final List<CompositionSceneClipModel> sceneClips;
