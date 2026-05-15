@@ -31,7 +31,7 @@ b2f97087 checkpoint: finalize workspace identity runtime adoption core
 16a45950 checkpoint: normalize canonical transactions in agent control plane
 e8d612ab checkpoint: enforce mutating transaction scope on active workspace
 8db64bba checkpoint: require target hints for mutating transactions
-<pending> checkpoint: enforce target hints at json-rpc tools-call boundary
+d01bc020 checkpoint: enforce target hints at json-rpc boundary
 ```
 
 ### What Is Closed
