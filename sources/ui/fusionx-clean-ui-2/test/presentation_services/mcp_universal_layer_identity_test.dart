@@ -86,6 +86,19 @@ void main() {
       expect(intent, UniversalLayerApplyIntent.update);
     });
 
+    test('keeps insert intent for insert_layer carrying only new layerId', () {
+      final intent = classifier.classify(
+        payload: const <String, Object?>{
+          'operation': 'insert_layer',
+          'layerId': 'new-solid-layer-1',
+        },
+        updates: const <String, Object?>{},
+        payloadPayload: const <String, Object?>{},
+        updatesPayload: const <String, Object?>{},
+      );
+      expect(intent, UniversalLayerApplyIntent.insert);
+    });
+
     test('classifies motion mutation when motion payload exists', () {
       final intent = classifier.classify(
         payload: const <String, Object?>{
@@ -106,6 +119,7 @@ void main() {
       final intent = classifier.classify(
         payload: const <String, Object?>{
           'operation': 'insert_layer',
+          'layerId': 'new-shape-layer-1',
           'style': <String, Object?>{
             'fill': '#FFFFFF',
           },

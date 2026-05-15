@@ -349,6 +349,25 @@ class UniversalLayerApplyIntentClassifier {
           updatesPayload['clipId'],
         ]) !=
         null;
+    final hasExplicitMutationTargetHints = _firstText(<Object?>[
+          payload['targetLayerId'],
+          payload['requestedLayerId'],
+          payload['localLayerId'],
+          payload['clipId'],
+          updates['targetLayerId'],
+          updates['requestedLayerId'],
+          updates['localLayerId'],
+          updates['clipId'],
+          payloadPayload['targetLayerId'],
+          payloadPayload['requestedLayerId'],
+          payloadPayload['localLayerId'],
+          payloadPayload['clipId'],
+          updatesPayload['targetLayerId'],
+          updatesPayload['requestedLayerId'],
+          updatesPayload['localLayerId'],
+          updatesPayload['clipId'],
+        ]) !=
+        null;
     final hasMotionMutation = operation.contains('animate') ||
         operation.contains('keyframe') ||
         _asMap(payload['motion']).isNotEmpty ||
@@ -373,7 +392,7 @@ class UniversalLayerApplyIntentClassifier {
         _asMap(updatesPayload['effects']).isNotEmpty;
     final effectMutationByOperation = operation.contains('effect');
     if (hasEffectMutation &&
-        (hasTargetHints ||
+        (hasExplicitMutationTargetHints ||
             effectMutationByOperation ||
             isExplicitUpdateOperation)) {
       return UniversalLayerApplyIntent.effectMutation;
@@ -393,7 +412,7 @@ class UniversalLayerApplyIntentClassifier {
         operation.contains('shadow') ||
         operation.contains('glow');
     if (hasStyleMutation &&
-        (hasTargetHints ||
+        (hasExplicitMutationTargetHints ||
             styleMutationByOperation ||
             isExplicitUpdateOperation)) {
       return UniversalLayerApplyIntent.styleMutation;
@@ -434,7 +453,7 @@ class UniversalLayerApplyIntentClassifier {
         operation.contains('move') ||
         operation.contains('position');
     if (hasTransformMutation &&
-        (hasTargetHints ||
+        (hasExplicitMutationTargetHints ||
             transformMutationByOperation ||
             isExplicitUpdateOperation)) {
       return UniversalLayerApplyIntent.transformMutation;
@@ -444,6 +463,9 @@ class UniversalLayerApplyIntentClassifier {
     }
     if (isExplicitUpdateOperation) {
       return UniversalLayerApplyIntent.update;
+    }
+    if (isInsertOperation && !hasExplicitMutationTargetHints) {
+      return UniversalLayerApplyIntent.insert;
     }
     if (hasTargetHints) {
       return UniversalLayerApplyIntent.update;
