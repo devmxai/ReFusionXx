@@ -665,5 +665,146 @@ void main() {
         isTrue,
       );
     });
+
+    test('fails canonical update transaction when target hints are missing',
+        () {
+      final bus = RefusionMcpCommandBus();
+      bus.registerHandler(
+        commandType: 'refusion.update_layer',
+        handler: (_) => RefusionMcpCommandHandlingOutcome(
+          summary: 'Should not execute without target hints.',
+          commitOperation: () => const RefusionMcpCommitExecution(
+            revisionAfter: 16,
+          ),
+        ),
+      );
+      final store = RefusionMcpSessionStore();
+      store.upsert(
+        RefusionMcpSession(
+          id: 'session_7',
+          clientName: 'codex',
+          clientVersion: '1.0',
+          transport: 'stdio',
+          activeProjectId: 'project_7',
+          activeCompositionId: 'composition_7',
+          timelineRevision: 15,
+          grantedCapabilities: <RefusionMcpCapability>{
+            RefusionMcpCapability.timelineWrite,
+          },
+        ),
+      );
+      final controlPlane = RefusionMcpAgentControlPlane(
+        commandBus: bus,
+        toolRegistry: RefusionMcpToolRegistry(),
+        sessionStore: store,
+        revisionReader: () => 15,
+      );
+
+      final result = controlPlane.executeTool(
+        const RefusionMcpToolCallRequest(
+          toolName: 'refusion.update_layer',
+          sessionId: 'session_7',
+          projectId: 'project_7',
+          commandId: 'cmd_missing_target_hints',
+          idempotencyKey: 'turn-missing-target-hints',
+          mode: RefusionMcpCommandMode.commit,
+          payload: <String, Object?>{
+            'transaction': <String, Object?>{
+              'transactionId': 'tx-7',
+              'schemaVersion': 1,
+              'baseRevision': 15,
+              'idempotencyKey': 'idem-7',
+              'projectId': 'project_7',
+              'compositionId': 'composition_7',
+              'intent': 'layerUpdate',
+              'operations': <Map<String, Object?>>[
+                <String, Object?>{
+                  'kind': 'refusion.update_layer',
+                  'payload': <String, Object?>{
+                    'updates': <String, Object?>{'x': 320},
+                  },
+                },
+              ],
+            },
+          },
+        ),
+      );
+
+      expect(result.ok, isFalse);
+      expect(result.error?.code, RefusionMcpCommandErrorCode.validationFailed);
+      expect(
+        result.error?.message.contains(
+          'transaction target is required for update/effect/motion/delete intents',
+        ),
+        isTrue,
+      );
+    });
+
+    test('allows canonical insert transaction without target hints', () {
+      final bus = RefusionMcpCommandBus();
+      bus.registerHandler(
+        commandType: 'refusion.insert_layer',
+        handler: (_) => RefusionMcpCommandHandlingOutcome(
+          summary: 'Insert prepared.',
+          commitOperation: () => const RefusionMcpCommitExecution(
+            revisionAfter: 22,
+          ),
+        ),
+      );
+      final store = RefusionMcpSessionStore();
+      store.upsert(
+        RefusionMcpSession(
+          id: 'session_8',
+          clientName: 'codex',
+          clientVersion: '1.0',
+          transport: 'stdio',
+          activeProjectId: 'project_8',
+          activeCompositionId: 'composition_8',
+          timelineRevision: 21,
+          grantedCapabilities: <RefusionMcpCapability>{
+            RefusionMcpCapability.timelineWrite,
+          },
+        ),
+      );
+      final controlPlane = RefusionMcpAgentControlPlane(
+        commandBus: bus,
+        toolRegistry: RefusionMcpToolRegistry(),
+        sessionStore: store,
+        revisionReader: () => 21,
+      );
+
+      final result = controlPlane.executeTool(
+        const RefusionMcpToolCallRequest(
+          toolName: 'refusion.insert_layer',
+          sessionId: 'session_8',
+          projectId: 'project_8',
+          commandId: 'cmd_insert_without_target_hints',
+          idempotencyKey: 'turn-insert-without-target-hints',
+          mode: RefusionMcpCommandMode.commit,
+          payload: <String, Object?>{
+            'transaction': <String, Object?>{
+              'transactionId': 'tx-8',
+              'schemaVersion': 1,
+              'baseRevision': 21,
+              'idempotencyKey': 'idem-8',
+              'projectId': 'project_8',
+              'compositionId': 'composition_8',
+              'intent': 'layerInsert',
+              'operations': <Map<String, Object?>>[
+                <String, Object?>{
+                  'kind': 'refusion.insert_layer',
+                  'payload': <String, Object?>{
+                    'kind': 'solid',
+                  },
+                },
+              ],
+            },
+          },
+        ),
+      );
+
+      expect(result.ok, isTrue);
+      expect(result.revisionAfter, 22);
+    });
   });
 }

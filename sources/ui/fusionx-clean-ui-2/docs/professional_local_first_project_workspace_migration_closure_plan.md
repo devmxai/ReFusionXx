@@ -30,6 +30,7 @@ b2f97087 checkpoint: finalize workspace identity runtime adoption core
 9f73db64 checkpoint: enforce canonical transaction envelope at json-rpc boundary
 16a45950 checkpoint: normalize canonical transactions in agent control plane
 <pending> checkpoint: harden mutating transaction scope to active workspace identity
+<pending> checkpoint: require canonical target hints for mutating transactions
 ```
 
 ### What Is Closed
@@ -56,6 +57,7 @@ JSON-RPC `tools/call` now validates canonical transaction envelopes (`schemaVers
 Malformed canonical transactions now fail early at JSON-RPC boundary instead of reaching runtime handlers.
 Agent control plane now normalizes canonical transaction fields into runtime command envelopes (expectedRevision/idempotency/project scope/payload) before command execution.
 Mutating MCP tools now synthesize canonical transactions when missing and fail closed unless session identity is real (non-placeholder) and transaction scope matches active workspace project/composition.
+Canonical mutating transactions now fail validation when update/effect/motion/delete intents are submitted without resolvable target hints.
 ```
 
 ### What Is Not Yet Closed

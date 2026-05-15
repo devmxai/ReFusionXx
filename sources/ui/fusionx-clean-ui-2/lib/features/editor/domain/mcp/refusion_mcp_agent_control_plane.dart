@@ -292,6 +292,13 @@ class RefusionMcpAgentControlPlane {
     if (operations is! List || operations.isEmpty) {
       issues.add('transaction.operations must be a non-empty array');
     }
+    if (_intentRequiresTarget(transaction)) {
+      if (!_transactionHasTargetHints(transaction, operations)) {
+        issues.add(
+          'transaction target is required for update/effect/motion/delete intents',
+        );
+      }
+    }
     if (issues.isNotEmpty) {
       return _RequestNormalization(
         ok: false,
@@ -417,6 +424,67 @@ class RefusionMcpAgentControlPlane {
       default:
         return 'layerUpdate';
     }
+  }
+
+  bool _intentRequiresTarget(Map<String, Object?> transaction) {
+    final intent = (_readString(transaction['intent']) ?? '').toLowerCase();
+    if (intent.isEmpty) {
+      return false;
+    }
+    const insertLike = <String>{
+      'layerinsert',
+      'insert',
+      'create',
+      'backgroundsetsolid',
+      'textinsert',
+      'shapeinsert',
+    };
+    if (insertLike.contains(intent)) {
+      return false;
+    }
+    return true;
+  }
+
+  bool _transactionHasTargetHints(
+    Map<String, Object?> transaction,
+    Object? operations,
+  ) {
+    final target = _readPayload(transaction['target']);
+    if (_hasAnyTargetHints(target)) {
+      return true;
+    }
+    if (operations is! List) {
+      return false;
+    }
+    for (final operation in operations) {
+      final op = _readPayload(operation);
+      if (_hasAnyTargetHints(op)) {
+        return true;
+      }
+      final payload = _readPayload(op['payload']);
+      if (_hasAnyTargetHints(payload)) {
+        return true;
+      }
+      final updates = _readPayload(payload['updates']);
+      if (_hasAnyTargetHints(updates)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _hasAnyTargetHints(Map<String, Object?> value) {
+    if (value.isEmpty) {
+      return false;
+    }
+    return _readString(value['layerId']) != null ||
+        _readString(value['targetLayerId']) != null ||
+        _readString(value['requestedLayerId']) != null ||
+        _readString(value['localLayerId']) != null ||
+        _readString(value['clipId']) != null ||
+        _readString(value['elementId']) != null ||
+        _readString(value['targetId']) != null ||
+        _readString(value['layerAlias']) != null;
   }
 
   RefusionMcpCommandResult _dryRunCommand({
